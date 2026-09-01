@@ -103,7 +103,8 @@ try {
         Move-Item -LiteralPath $stage -Destination $dist
         New-Item -ItemType Directory -Force -Path (Join-Path $Root 'server/data') | Out-Null
         $settings = @{
-            BIND_ADDR = '127.0.0.1:3010'
+            # 0.0.0.0 so the LAN can reach http://<LAN-IP>:3010/ ; health check still uses 127.0.0.1
+            BIND_ADDR = '0.0.0.0:3010'
             ACCOUNT_DB = Join-Path $Root 'server/data/tms273.sqlite3'
             CLIENT_DIST = $dist
             ASSETS_DIR = Join-Path $Root 'client/public-tms273/assets'
@@ -134,6 +135,10 @@ try {
         }
         if (!$ready -or $started.HasExited) { throw "Server health/version check failed. See $Control/server-error.log" }
         Write-Host "Ready: $Url (PID $($started.Id))"
+        $lanAddresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+            Select-Object -ExpandProperty IPAddress)
+        foreach ($address in $lanAddresses) { Write-Host "LAN:   http://${address}:3010/" }
         Write-Host "Logs: $Control"
         Write-Host 'Use stop.bat to stop. Account database preserved.'
         $started = $null

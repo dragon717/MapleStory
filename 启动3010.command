@@ -91,7 +91,7 @@ if ! is_server_pid "$SERVER_PID"; then
     SERVER_PID="$OCCUPANT"
   else
     nohup env \
-      BIND_ADDR=127.0.0.1:3010 \
+      BIND_ADDR=0.0.0.0:3010 \
       ACCOUNT_DB="$DB" \
       CLIENT_DIST="$DIST" \
       ASSETS_DIR="$ASSETS" \
