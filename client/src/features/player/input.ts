@@ -1,0 +1,46 @@
+import type { ClientMessage } from '../../../../shared/protocol';
+export class PlayerInput {
+  private held = new Set<string>();
+  private seq = 0;
+  private attackSeq = 0;
+  private pickupSeq = 0;
+  private ready = false;
+  private timer: ReturnType<typeof setInterval>;
+  constructor(private send: (message: ClientMessage) => void, private nearestDrop: () => string | null = () => null) {
+    window.addEventListener('keydown', this.down);
+    window.addEventListener('keyup', this.up);
+    window.addEventListener('blur', this.reset);
+    document.addEventListener('visibilitychange', this.visibility);
+    document.addEventListener('focusin', this.focus);
+    this.timer = setInterval(() => this.emit(false), 150);
+  }
+  setReady(ready: boolean) { if (this.ready !== ready) this.reset(); this.ready = ready; }
+  private blocked() { return document.activeElement?.matches('input, textarea, select, button, [contenteditable="true"]'); }
+  private direction(): -1 | 0 | 1 { return (Number(this.held.has('ArrowRight') || this.held.has('KeyD')) - Number(this.held.has('ArrowLeft') || this.held.has('KeyA'))) as -1 | 0 | 1; }
+  private vertical(): -1 | 0 | 1 { return (Number(this.held.has('ArrowDown')) - Number(this.held.has('ArrowUp'))) as -1 | 0 | 1; }
+  private emit(jump: boolean) {
+    if (!this.ready) return;
+    // `vertical` is part of protocol v2. Keep the cast while the shared file is
+    // upgraded in parallel so this client remains type-checkable on the v1 tree.
+    this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical() } as ClientMessage);
+  }
+  private down = (event: KeyboardEvent) => {
+    if (!this.ready || this.blocked() || event.metaKey || event.altKey) return;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ'].includes(event.code)) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (event.code === 'KeyZ') {
+      const dropId = this.nearestDrop();
+      if (dropId) this.send({ type: 'pickup', requestId: `pickup-${Date.now()}-${++this.pickupSeq}`, dropId } as unknown as ClientMessage);
+      return;
+    }
+    this.held.add(event.code);
+    if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
+    else this.emit(event.code === 'Space');
+  };
+  private up = (event: KeyboardEvent) => { if (this.held.delete(event.code)) { event.preventDefault(); this.emit(false); } };
+  reset = () => { this.held.clear(); this.emit(false); };
+  private visibility = () => { if (document.hidden) this.reset(); };
+  private focus = () => { if (this.blocked()) this.reset(); };
+  destroy() { this.reset(); clearInterval(this.timer); window.removeEventListener('keydown', this.down); window.removeEventListener('keyup', this.up); window.removeEventListener('blur', this.reset); document.removeEventListener('visibilitychange', this.visibility); document.removeEventListener('focusin', this.focus); }
+}

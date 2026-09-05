@@ -1,0 +1,1 @@
+{"name":"maplestory-client","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","typecheck":"tsc --noEmit","build":"tsc --noEmit && vite build","check":"node --experimental-strip-types src/features/player/animation.check.ts"},"dependencies":{"phaser":"3.90.0"},"devDependencies":{"typescript":"~5.9.3","vite":"^7.3.1"}}
