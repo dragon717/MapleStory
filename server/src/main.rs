@@ -4,6 +4,7 @@ mod inventory;
 #[cfg(test)]
 mod inventory_acceptance;
 mod network;
+mod npc;
 mod protocol;
 mod world;
 use axum::{

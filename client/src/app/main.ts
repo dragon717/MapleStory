@@ -9,6 +9,7 @@ import { itemName } from '../features/inventory/names';
 import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
 import { MenuView } from '../features/menu/view';
+import { NpcDialogueView } from '../features/npc/dialogue';
 import { World } from '../scenes/world';
 import './style.css';
 
@@ -32,6 +33,7 @@ let inventory: InventoryView | undefined;
 let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
 let menus: MenuView | undefined;
+let npcDialogue: NpcDialogueView | undefined;
 let game: Phaser.Game | undefined;
 let muted = false;
 let generation = 0;
@@ -79,6 +81,8 @@ el('login').onsubmit = async event => {
     chat = new ChatView(el('chat'), manifest, message => status(message));
     deathNotice?.destroy();
     deathNotice = new DeathNoticeView(el('notices'), manifest, requestId => connection?.send({ type: 'revive', requestId }) ?? false, message => status(message));
+    npcDialogue?.destroy();
+    npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     menus?.destroy();
     menus = new MenuView(el('menus'), manifest, message => status(message), () => inventory?.toggle(), () => el('logout').click(), () => inventory?.toggleEquipment());
     inventory?.destroy();
@@ -99,6 +103,14 @@ el('login').onsubmit = async event => {
     connection = new Connection(session, message => {
       world?.receive(message);
       inventory?.receive(message);
+      if (message.type === 'npcResult') npcDialogue?.receive(message);
+      if (message.type === 'shopResult') {
+        if (message.success) {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought' : '购买'} ${itemName(message.itemId)} × ${message.quantity}（${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
+        } else {
+          status(`${uiLocale() === 'en' ? 'Purchase failed' : '购买失败'} (${message.code})`, true);
+        }
+      }
       if (message.type === 'pickupResult') {
         chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
       }
@@ -113,6 +125,7 @@ el('login').onsubmit = async event => {
         hud?.update(self);
         inventory?.update(self);
         deathNotice?.update(self);
+        if (self) npcDialogue?.syncPlayer(self);
         if (announcedMapId !== message.mapId) {
           announcedMapId = message.mapId;
           status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
@@ -132,7 +145,12 @@ el('login').onsubmit = async event => {
       chat?.setAvailable(state === 'online');
       if (state !== 'online') { announcedMapId = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); status(reason || '正在连接地图服务器…', state === 'offline'); }
     });
-    input = new PlayerInput(message => connection?.send(message), () => world?.nearestDropId() ?? null, () => world?.enterPortal());
+    input = new PlayerInput(message => connection?.send(message), {
+      nearestDrop: () => world?.nearestDropId() ?? null,
+      enterPortal: () => world?.enterPortal(),
+      nearestNpc: () => world?.nearestNpc() ?? null,
+      talkTo: npc => npcDialogue?.startTalk(npc) ?? undefined,
+    });
     connection.connect();
     el('game').focus({ preventScroll: true });
   } catch (error) { status(error instanceof Error ? error.message : '进入失败，请重试。', true); }
@@ -142,7 +160,7 @@ el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
 el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
 el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
 el('logout').onclick = () => {
-  generation++; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined;
+  generation++; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined;
   muted = false; el('sound').textContent = '声音：开';
   el('play').hidden = true; el('welcome').hidden = false; el('connection').textContent = '尚未连接'; el('connection').classList.remove('online'); status('已退出。'); el('username').focus();
 };

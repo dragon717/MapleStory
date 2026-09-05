@@ -11,6 +11,12 @@ def read(path):
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def duration(frames):
+    # Mob.wz stores `delay` as an int in most images but as a string in a few
+    # (e.g. 0210100.img), so coerce instead of mixing operand types.
+    return sum(int(frame['delay']) for frame in frames)
+
+
 def authored_spawns(maps):
     spawns = []
     for map_entry in maps:
@@ -60,9 +66,9 @@ def generate(base, manifest, maps, items):
             'exp': info.get('exp', 0), 'bodyAttack': bool(info.get('bodyAttack', 0)),
             **({'speed': info.get('speed', 0)} if actions.get('move') else {}),
             'hitboxLt': lt, 'hitboxRb': rb,
-            'dieDurationMs': sum(f['delay'] for f in actions['die']),
-            'standDelayMs': sum(f['delay'] for f in actions['stand']),
-            **({'moveDurationMs': sum(f['delay'] for f in actions['move'])} if actions.get('move') else {}),
+            'dieDurationMs': duration(actions['die']),
+            'standDelayMs': duration(actions['stand']),
+            **({'moveDurationMs': duration(actions['move'])} if actions.get('move') else {}),
             'drop': drops, 'source': asset['source'],
         })
     result = {**base, 'spawns': spawns, 'monsters': templates}

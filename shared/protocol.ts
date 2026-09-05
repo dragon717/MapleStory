@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 3;
-export const CONTENT_VERSION = 'gms83-gameplay-2';
+export const PROTOCOL_VERSION = 4;
+export const CONTENT_VERSION = 'gms83-npc-1';
 export type Facing = -1 | 1;
 export interface InventoryItem {
   slot: number; itemId: string; quantity: number;
@@ -21,6 +21,10 @@ export interface MonsterState {
   id: string; templateId: string; x: number; y: number; facing: Facing;
   hp: number; maxHp: number; action: 'stand' | 'move' | 'hit' | 'die'; actionStartedTick: number;
 }
+export interface NpcState {
+  id: string; templateId: string; name: string; x: number; y: number;
+  facing: Facing; shopId?: string;
+}
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
 export type ClientMessage =
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string }
@@ -33,9 +37,12 @@ export type ClientMessage =
   | { type: 'dropItem'; requestId: string; inventoryType: number; sourceSlot: number; quantity: number }
   | { type: 'inventoryGather' | 'inventorySort'; requestId: string; inventoryType: number }
   | { type: 'useItem'; requestId: string; inventoryType: number; sourceSlot: number; itemId: string; targetSlot?: number; targetItemId?: string }
-  | { type: 'dropMesos'; requestId: string; quantity: number };
+  | { type: 'dropMesos'; requestId: string; quantity: number }
+  | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
+  | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number };
+export interface DialogueOption { index: number; text: string }
 export type ServerMessage =
-  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; selfId: string; players: PlayerState[]; monsters: MonsterState[]; drops: DropState[] }
+  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean }
   | { type: 'dropPickedUp'; mapId: string; dropId: string; playerId: string; x: number; y: number }
@@ -44,6 +51,8 @@ export type ServerMessage =
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
+  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean }
+  | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   | { type: 'rejected'; code: string; message: string; requestId?: string };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 3;
-pub const CONTENT_VERSION: &str = "gms83-gameplay-2";
+pub const PROTOCOL_VERSION: u32 = 4;
+pub const CONTENT_VERSION: &str = "gms83-npc-1";
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
@@ -90,6 +90,25 @@ pub enum ClientMessage {
     Revive {
         #[serde(rename = "requestId")]
         request_id: String,
+    },
+    /// Talk to a placed npc.  `step` is absent (or "start") for the opening
+    /// message and otherwise selects the button the player pressed.
+    NpcTalk {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "npcId")]
+        npc_id: String,
+        step: Option<String>,
+        selection: Option<u32>,
+    },
+    ShopBuy {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "shopId")]
+        shop_id: String,
+        #[serde(rename = "itemId")]
+        item_id: String,
+        quantity: u32,
     },
 }
 
@@ -182,6 +201,30 @@ impl ClientMessage {
                 request_id,
                 quantity,
             } => valid_id(request_id) && (10..=50_000).contains(quantity),
+            Self::NpcTalk {
+                request_id,
+                npc_id,
+                step,
+                selection,
+            } => {
+                valid_id(request_id)
+                    && valid_id(npc_id)
+                    && step.as_deref().is_none_or(|step| {
+                        ["start", "next", "prev", "yes", "no", "select", "end"].contains(&step)
+                    })
+                    && selection.is_none_or(|selection| selection <= 64)
+            }
+            Self::ShopBuy {
+                request_id,
+                shop_id,
+                item_id,
+                quantity,
+            } => {
+                valid_id(request_id)
+                    && valid_id(shop_id)
+                    && valid_id(item_id)
+                    && (1..=100).contains(quantity)
+            }
         }
     }
 }
@@ -265,6 +308,19 @@ pub struct MonsterState {
     pub max_hp: i64,
     pub action: &'static str,
     pub action_started_tick: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NpcState {
+    pub id: String,
+    pub template_id: String,
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+    pub facing: i8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shop_id: Option<String>,
 }
 
 #[derive(Clone, Serialize)]

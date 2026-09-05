@@ -130,3 +130,11 @@ Rust/TypeScript 协议同步升级到 3。SQLite 原子处理使用、穿脱、�
 既有启动脚本受控更新 3010：server PID31163、唯一 bot PID31224，协议3，入口 index-Db_VXX-2.js / index-D0RTgpKK.css；发布标识 v0.2.1 · 2026年09月05日 23:11:32。首次脱离会话的构建因 Python 子进程继承 Rosetta 架构使 xcrun 链接失败，旧服务未停止；以 arm64 启动同一脚本后成功。health、线上首页与 dist 一致、23图 manifest、新增四图各一份源图 HTTP200；数据库完整性 ok，账号25/角色24未变，备份 evidence/runtime/3010-control/pre-reference-v021.sqlite3。3000无监听。用户刷新重新登录后亲测。
 
 地图可进入不代表 NPC/商店/任务/原版怪物出生业务已完成；这些仍按参考清单继续，未把测试 Snail 布点冒称原版 life。
+
+## 2026-09-05：参考复刻 v0.2.2，原版怪物 life 出生（168/8）
+
+按本地参考 `参考/repos/P0nk__Cosmic/wz/Map.wz/Map/Map0/*.img.xml` 的 `life` 与 `references/gameplay-assets/manifest.json` 复刻原版 v83 怪物出生：`scripts/generate_life.py` 生成 8 个怪物模板（100100, 100101, 120100, 1210102, 130100, 130101, 210100, 9300018）与 168 个 authored spawns，分布于 9 张地图（000040000/1/2、000050000/1、001000004/5/6、001010000）；出生地图 000010000 保持 0 只（测试 Snail 已移除，未冒称原版 life）。资源经 `scripts/integrate_gameplay.py` 并入 `client/public-gameplay/assets`，公共 manifest 含 8 怪物、monsterPngCount 198、monsterDropCount 162。部署读取 `evidence/runtime/gameplay-round2.json`（contentVersion `gms83-gameplay-2`），由 `shared/gameplay.json` 同步。
+
+受控更新 3010：既有 `启动3010.command` 一键重启（先 `rm -rf client/dist-next` 规避 vite genie-trash 超时），server PID52074、唯一 bot PID52087，协议3，contentVersion `gms83-gameplay-2`，入口 index-CXyqIO1u.js / index-D0RTgpKK.css；health `ok=true / protocolVersion=3 / gms83-gameplay-2`。8 个怪物模板素材 URL 抽查全部 HTTP 200（含 9300018 的 `Mob.wz_9300018.img_move_0.png`，注意其 ID 无前导零）。服务端 `spawn_configured_monsters` 对每个 spawn 用 `?` 传播，任一失败即不监听，故“已监听+contentVersion 正确”即证明 168/8 全部出生。数据库账号 25 未变、完整性 ok；备份位于忽略目录 `evidence/runtime/3010-control/pre-originalspawns.sqlite3`。用户刷新重新登录后亲测。
+
+关键沙箱纪律（下轮必看）：① 原生 `关闭3010.command` 的 `is_server_pid/is_bot_pid` 依赖 `ps -p PID -o command=`，本沙箱返回空 → 误判“非本项目实例”拒绝停止、且一键脚本末段自验失败退出码 1 为假阴性；进程仍经 nohup 拉起保活，终以 lsof/health/日志核验。② 直接 Bash 内 `nohup … &` 进程会在调用返回后被回收，必须经 `zsh 启动3010.command` 拉起才会持久。③ Node 走 localhost 受 Clash 代理影响，bot 需 `NO_PROXY=127.0.0.1,localhost`。④ `already_connected` 根因是旧 bot 被 kill 后其 WS 的 Leave 尚未处理、新 bot 即 Join 的竞态；以“全新 server（空 World.players）+ 单 bot”可彻底规避，无需改代码。

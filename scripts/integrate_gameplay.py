@@ -33,7 +33,7 @@ if __name__ == '__main__':
     avatar = read(SOURCE / 'avatar/manifest.json')
     gameplay = read(SOURCE / 'manifest.json')
     rendered_catalog = read(SOURCE / 'maps/catalog.json')
-    assert gameplay['contentVersion'] == 'gms83-gameplay-2'
+    assert gameplay['contentVersion'] == 'gms83-npc-1'
     rules = read(ROOT / 'shared/gameplay.json')
     assert {template['templateId'] for template in rules['monsters']} <= gameplay['monsters'].keys()
     assert all(asset['actions']['stand'] for asset in gameplay['monsters'].values())

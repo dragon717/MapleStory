@@ -1,4 +1,12 @@
-import type { ClientMessage } from '../../../../shared/protocol';
+import type { ClientMessage, NpcState, PlayerState } from '../../../../shared/protocol';
+
+interface Interactable {
+  nearestDrop: () => string | null;
+  enterPortal: () => void;
+  nearestNpc: () => NpcState | null;
+  talkTo: (npc: NpcState) => void;
+}
+
 export class PlayerInput {
   private held = new Set<string>();
   private seq = 0;
@@ -7,7 +15,12 @@ export class PlayerInput {
   private ready = false;
   private pickupTimer?: ReturnType<typeof setInterval>;
   private timer: ReturnType<typeof setInterval>;
-  constructor(private send: (message: ClientMessage) => void, private nearestDrop: () => string | null = () => null, private enterPortal: () => void = () => {}) {
+  constructor(private send: (message: ClientMessage) => void, private targets: Interactable = {
+    nearestDrop: () => null,
+    enterPortal: () => {},
+    nearestNpc: () => null,
+    talkTo: () => {},
+  }) {
     window.addEventListener('keydown', this.down);
     window.addEventListener('keyup', this.up);
     window.addEventListener('blur', this.reset);
@@ -21,13 +34,11 @@ export class PlayerInput {
   private vertical(): -1 | 0 | 1 { return (Number(this.held.has('ArrowDown')) - Number(this.held.has('ArrowUp'))) as -1 | 0 | 1; }
   private emit(jump: boolean) {
     if (!this.ready) return;
-    // `vertical` is part of protocol v2. Keep the cast while the shared file is
-    // upgraded in parallel so this client remains type-checkable on the v1 tree.
-    this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical() } as ClientMessage);
+    this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical() });
   }
   private pickup = () => {
     if (!this.ready || this.blocked()) return;
-    const dropId = this.nearestDrop();
+    const dropId = this.targets.nearestDrop();
     if (dropId) this.send({ type: 'pickup', requestId: `pickup-${Date.now()}-${++this.pickupSeq}`, dropId });
   };
   private stopPickup() { clearInterval(this.pickupTimer); this.pickupTimer = undefined; }
@@ -44,7 +55,15 @@ export class PlayerInput {
       return;
     }
     this.held.add(event.code);
-    if (event.code === 'ArrowUp') this.enterPortal();
+    if (event.code === 'ArrowUp') {
+      // `↑` tries the closest npc first, then falls back to portal entry.
+      const npc = this.targets.nearestNpc();
+      if (npc) {
+        this.targets.talkTo(npc);
+      } else {
+        this.targets.enterPortal();
+      }
+    }
     if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
     else this.emit(event.code === 'Space');
   };

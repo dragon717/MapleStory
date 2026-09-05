@@ -153,6 +153,28 @@
     "spec": {},
     "source": "Character.wz/Coat/01040006.img.xml"
   },
+  "1040010": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Grey T-Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01040010.img.xml"
+  },
   "1040013": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -242,6 +264,50 @@
     "spec": {},
     "source": "Character.wz/Coat/01041006.img.xml"
   },
+  "1041010": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Green T-Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01041010.img.xml"
+  },
+  "1041011": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red-Striped Top",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01041011.img.xml"
+  },
   "1041012": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -330,6 +396,28 @@
     "spec": {},
     "source": "Character.wz/Pants/01060004.img.xml"
   },
+  "1060006": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Cotton Shorts",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060006.img.xml"
+  },
   "1060007": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -396,6 +484,50 @@
     },
     "spec": {},
     "source": "Character.wz/Pants/01060022.img.xml"
+  },
+  "1061002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red Miniskirt",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01061002.img.xml"
+  },
+  "1061008": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Indigo Miniskirt",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01061008.img.xml"
   },
   "1061009": {
     "inventoryType": 1,
@@ -485,6 +617,28 @@
     },
     "spec": {},
     "source": "Character.wz/Pants/01062000.img.xml"
+  },
+  "1072001": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red Rubber Boots",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 5,
+      "price": 1,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072001.img.xml"
   },
   "1072004": {
     "inventoryType": 1,
@@ -920,6 +1074,34 @@
     "spec": {},
     "source": "Character.wz/Weapon/01332000.img.xml"
   },
+  "1332005": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Razor",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOS",
+      "sfx": "swordS",
+      "reqJob": 0,
+      "reqLevel": 5,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 20,
+      "tuc": 7,
+      "price": 250,
+      "attackSpeed": 4,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01332005.img.xml"
+  },
   "1332006": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -1299,6 +1481,58 @@
       "hp": 50
     },
     "source": "Item.wz/Consume/0200.img.xml"
+  },
+  "2000001": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Orange Potion",
+    "description": "A concentrated potion made out of red herbs.\\nRecovers 150 HP.",
+    "info": {
+      "price": 80
+    },
+    "spec": {
+      "hp": 150
+    },
+    "source": "Item.wz/Consume/0200.img.xml"
+  },
+  "2000002": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "White Potion",
+    "description": "A highly concentrated potion made out of red herbs.\\nRecovers 300 HP.",
+    "info": {
+      "price": 160
+    },
+    "spec": {
+      "hp": 300
+    },
+    "source": "Item.wz/Consume/0200.img.xml"
+  },
+  "2010000": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Apple",
+    "description": "A red, ripe, and tasty apple.\\nRecovers around 30 HP.",
+    "info": {
+      "price": 15
+    },
+    "spec": {
+      "hp": 30
+    },
+    "source": "Item.wz/Consume/0201.img.xml"
+  },
+  "2010002": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Egg",
+    "description": "A nutritious egg.\\nImproves around 50 HP.",
+    "info": {
+      "price": 25
+    },
+    "spec": {
+      "hp": 50
+    },
+    "source": "Item.wz/Consume/0201.img.xml"
   },
   "2010009": {
     "inventoryType": 2,

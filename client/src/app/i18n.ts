@@ -28,6 +28,7 @@ const TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Objec
   shortcutCommunity: { zh: '社区', en: 'Community' },
   shortcutMonsterBook: { zh: '怪物图鉴', en: 'Monster Book' },
   shortcutRanking: { zh: '排行榜', en: 'Ranking' },
+  meso: { zh: '金币', en: 'mesos' },
 });
 
 const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({

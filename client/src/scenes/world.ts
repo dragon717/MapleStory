@@ -1,13 +1,15 @@
 import Phaser from 'phaser';
 import { randomDropId } from '../features/player/pickup';
-import type { ServerMessage } from '../../../shared/protocol';
+import type { NpcState, ServerMessage } from '../../../shared/protocol';
 import type { Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
+import { NpcView, type NpcSnapshot } from '../features/npc/view';
+import { PortalView } from '../features/world/portal-view';
 import { CombatView } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
-type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[] };
+type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type BackgroundView = { layer: MapLayer; images: Phaser.GameObjects.Image[]; motionX: number; motionY: number };
 export interface PortalRequest {
   sourceMapId: string; portalName: string; targetMapId: string; targetPortalName: string | null;
@@ -16,7 +18,9 @@ type PortalHandler = (request: PortalRequest) => void;
 export class World extends Phaser.Scene {
   private players = new Map<string, PlayerView>();
   private monsters = new Map<string, MonsterView>();
+  private npcs = new Map<string, NpcView>();
   private drops = new Map<string, DropView>();
+  private portals = new Map<string, PortalView>();
   private actions = new Map<string, { actionId: string; tick: number }>();
   private backgrounds: BackgroundView[] = [];
   private snapshot?: Snapshot;
@@ -85,6 +89,8 @@ export class World extends Phaser.Scene {
     for (const actions of avatarActions) for (const frames of Object.values(actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
     for (const monster of Object.values(this.manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
     for (const frame of Object.values(this.manifest.items ?? {})) images.set(frame.url, frame.url);
+    for (const npc of Object.values(this.manifest.npcs ?? {})) for (const frame of npc.stand) images.set(frame.url, frame.url);
+    for (const portal of Object.values(this.manifest.portals ?? {})) images.set(portal.url, portal.url);
     const afterimage = this.manifest.combat?.attack?.afterimage;
     for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
     for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {
@@ -123,6 +129,15 @@ export class World extends Phaser.Scene {
     }
     this.cameras.main.setBounds(b.xMin, b.yMin, b.xMax - b.xMin, b.yMax - b.yMin);
     this.updateBackgrounds(0);
+    // Place portal sprites between backdrops and the actors; the editor sprites
+    // are wide (≈ 530 px) and need depth above tiles but below entities.
+    const portalDepth = Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 2;
+    for (const portal of this.manifest.map.portals ?? []) {
+      const asset = this.manifest.portals?.[`${this.manifest.map.id}/${portal.name}`];
+      if (!asset) continue;
+      const view = new PortalView(this, asset, portal.x, portal.y, portalDepth);
+      this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
+    }
     if (this.manifest.map.bgm) { this.bgm = this.sound.add(`bgm-${this.mapId}`, { loop: true, volume: 0.25 }); this.bgm.play(); }
     this.status('地图已就绪，等待服务器快照…');
     this.events.once('shutdown', () => { this.clear(); this.bgm?.destroy(); });
@@ -171,8 +186,10 @@ export class World extends Phaser.Scene {
     this.tutorialOverlays = [];
     for (const player of this.players.values()) player.destroy();
     for (const monster of this.monsters.values()) monster.destroy();
+    for (const npc of this.npcs.values()) npc.destroy();
     for (const drop of this.drops.values()) drop.destroy();
-    this.players.clear(); this.monsters.clear(); this.drops.clear(); this.actions.clear(); this.sound?.stopAll();
+    for (const portal of this.portals.values()) portal.destroy();
+    this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.actions.clear(); this.sound?.stopAll();
     this.combat?.clear();
   }
   setMuted(muted: boolean) { this.sound.mute = muted; }
@@ -283,6 +300,21 @@ export class World extends Phaser.Scene {
     return randomDropId(snapshot.drops, player);
   }
 
+  nearestNpc(): NpcState | null {
+    const snapshot = this.snapshot as GameplaySnapshot | undefined;
+    if (!snapshot) return null;
+    const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
+    if (!player || !snapshot.npcs?.length) return null;
+    const reachable = snapshot.npcs
+      .filter(npc => Math.abs(npc.x - player.x) <= 100 && Math.abs(npc.y - player.y) <= 80)
+      .sort((a, b) => {
+        const distA = (a.x - player.x) ** 2 + (a.y - player.y) ** 2;
+        const distB = (b.x - player.x) ** 2 + (b.y - player.y) ** 2;
+        return distA - distB;
+      });
+    return reachable[0] ?? null;
+  }
+
   private playerHasStarterSword(playerId: string) {
     const player = this.snapshot?.players.find(candidate => candidate.id === playerId);
     const equipped = player?.equipped;
@@ -319,6 +351,20 @@ export class World extends Phaser.Scene {
       let view = this.drops.get(drop.id);
       if (!view) { view = new DropView(this, asset, actorDepth + 1); this.drops.set(drop.id, view); }
       view.update(drop);
+    }
+
+    const npcs = snapshot.npcs ?? [];
+    const npcIds = new Set(npcs.map(npc => npc.id));
+    for (const [id, view] of this.npcs) {
+      if (!npcIds.has(id)) { view.destroy(); this.npcs.delete(id); }
+    }
+    for (const npc of npcs) {
+      const asset = this.manifest.npcs?.[npc.templateId];
+      if (!asset || !asset.stand.length) continue;
+      let view = this.npcs.get(npc.id);
+      if (!view) { view = new NpcView(this, asset, actorDepth); this.npcs.set(npc.id, view); }
+      const elapsed = (snapshot.serverTick - (npc.actionStartedTick ?? 0)) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
+      view.update(npc, elapsed);
     }
   }
 }

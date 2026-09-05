@@ -543,6 +543,21 @@ impl Store {
         Ok(())
     }
 
+    /// Public wrapper around `write_inventory_tx` for callers that mutate
+    /// inventory outside an existing transaction (for example: the shop buy
+    /// pipeline that adjusts slots and equipped directly).
+    pub fn write_inventory(
+        &self,
+        account_id: &str,
+        inventory_items: &[InventoryItem],
+    ) -> Result<(), String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        write_inventory_tx(&tx, account_id, inventory_items)?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(())
+    }
+
     pub fn claim_attack(
         &self,
         account_id: &str,

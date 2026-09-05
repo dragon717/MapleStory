@@ -2,7 +2,8 @@ use crate::{
     auth::{self, Identity, Profile, Store},
     combat::{Attack, Combat},
     inventory,
-    protocol::{reject, ClientMessage, DropState, MonsterState, PlayerState},
+    npc::{self, DialogueContext, NpcSpawn, NpcTemplate, Shop},
+    protocol::{reject, ClientMessage, DropState, MonsterState, NpcState, PlayerState},
 };
 use rand::Rng;
 use serde::Deserialize;
@@ -788,6 +789,12 @@ pub struct Gameplay {
     pub monster_respawn_ms: Option<u64>,
     #[serde(default)]
     pub drop_chance_denominator: Option<u64>,
+    #[serde(default)]
+    pub npcs: Vec<NpcTemplate>,
+    #[serde(default)]
+    pub npc_spawns: Vec<NpcSpawn>,
+    #[serde(default)]
+    pub shops: Vec<Shop>,
 }
 
 impl Gameplay {
@@ -942,6 +949,83 @@ impl Gameplay {
             .is_some_and(|interval| interval == 0)
         {
             return Err("invalid gameplay monster respawn interval".into());
+        }
+        if self
+            .npcs
+            .iter()
+            .any(|template| template.template_id.is_empty() || template.name.is_empty())
+        {
+            return Err("invalid gameplay npc template".into());
+        }
+        if self.npcs.iter().enumerate().any(|(index, template)| {
+            self.npcs[..index]
+                .iter()
+                .any(|prior| prior.template_id == template.template_id)
+        }) {
+            return Err("duplicate gameplay npc template id".into());
+        }
+        if self.npc_spawns.iter().any(|spawn| {
+            spawn.id.is_empty()
+                || spawn.template_id.is_empty()
+                || ![spawn.x, spawn.y].iter().all(|value| value.is_finite())
+                || ![-1, 1].contains(&spawn.facing)
+        }) {
+            return Err("invalid gameplay npc spawn".into());
+        }
+        if self
+            .npc_spawns
+            .iter()
+            .enumerate()
+            .any(|(index, spawn)| {
+                self.npc_spawns[..index]
+                    .iter()
+                    .any(|prior| prior.id == spawn.id)
+            })
+        {
+            return Err("duplicate gameplay npc spawn id".into());
+        }
+        let template_ids: BTreeSet<&str> = self
+            .npcs
+            .iter()
+            .map(|template| template.template_id.as_str())
+            .collect();
+        if self
+            .npc_spawns
+            .iter()
+            .any(|spawn| !template_ids.contains(spawn.template_id.as_str()))
+        {
+            return Err("npc spawn references unknown npc template".into());
+        }
+        for template in &self.npcs {
+            if let Some(script) = &template.script {
+                script
+                    .validate(&template.template_id)
+                    .map_err(|error| format!("invalid npc dialogue: {error}"))?;
+            }
+        }
+        for shop in &self.shops {
+            if shop.shop_id.is_empty()
+                || shop.npc_id.is_empty()
+                || shop.items.is_empty()
+                || shop.items.iter().any(|entry| entry.item_id.is_empty() || entry.price == 0)
+            {
+                return Err("invalid gameplay shop".into());
+            }
+            if shop
+                .items
+                .iter()
+                .enumerate()
+                .any(|(index, entry)| {
+                    shop.items[..index]
+                        .iter()
+                        .any(|prior| prior.item_id == entry.item_id)
+                })
+            {
+                return Err("duplicate gameplay shop item".into());
+            }
+            if !template_ids.contains(shop.npc_id.as_str()) {
+                return Err("shop references unknown npc template".into());
+            }
         }
         Ok(())
     }
@@ -1224,6 +1308,17 @@ struct PendingAttack {
     hit_tick: u64,
 }
 
+/// A configured npc placed on a map.  Npcs do not move; the field mirrors
+/// `Monster`/`DropState` so the snapshot iterator can collect everything by
+/// map id in one pass.
+struct NpcInstance {
+    state: NpcState,
+    map_id: String,
+    template_id: String,
+    /// Currently-playing conversation node id (set when the player is talking).
+    conversation: Option<String>,
+}
+
 /// Metadata for an equipment instance that is kept in the world's in-memory
 /// drop map.  `DropState` is the wire representation and intentionally stays
 /// small; this private sidecar preserves strengthened attributes during a
@@ -1259,6 +1354,7 @@ pub struct World {
     maps: BTreeMap<String, Map>,
     players: BTreeMap<String, Player>,
     monsters: BTreeMap<String, Monster>,
+    npcs: BTreeMap<String, NpcInstance>,
     drops: BTreeMap<String, DropState>,
     drop_instances: BTreeMap<String, DropInstance>,
     drop_owners: BTreeMap<String, (Option<String>, i64)>,
@@ -1293,6 +1389,7 @@ impl World {
     ) -> Result<Self, String> {
         let mut world = Self::build(map, duration_ms, gameplay, Some(store))?;
         world.spawn_configured_monsters()?;
+        world.spawn_configured_npcs()?;
         Ok(world)
     }
 
@@ -1309,6 +1406,7 @@ impl World {
             gameplay,
             players: BTreeMap::new(),
             monsters: BTreeMap::new(),
+            npcs: BTreeMap::new(),
             drops: BTreeMap::new(),
             drop_instances: BTreeMap::new(),
             drop_owners: BTreeMap::new(),
@@ -1356,6 +1454,7 @@ impl World {
     ) -> Result<Self, String> {
         let mut world = Self::build(map, duration_ms, gameplay, Some(store))?;
         world.attach_catalog(catalog)?;
+        world.spawn_configured_npcs()?;
         Ok(world)
     }
 
@@ -1513,6 +1612,60 @@ impl World {
         Ok(())
     }
 
+    fn spawn_configured_npcs(&mut self) -> Result<(), String> {
+        let spawns = self.gameplay.npc_spawns.clone();
+        for spawn in spawns {
+            let map_id = if spawn.map_id.is_empty() {
+                self.map.id.clone()
+            } else {
+                spawn.map_id.clone()
+            };
+            self.spawn_npc_on_map(map_id, spawn)?;
+        }
+        Ok(())
+    }
+
+    fn spawn_npc_on_map(&mut self, map_id: String, spawn: NpcSpawn) -> Result<(), String> {
+        if self
+            .npcs
+            .values()
+            .any(|npc| npc.map_id == map_id && npc.state.id == spawn.id)
+        {
+            return Ok(());
+        }
+        let Some(template) = self
+            .gameplay
+            .npcs
+            .iter()
+            .find(|template| template.template_id == spawn.template_id)
+            .cloned()
+        else {
+            return Err(format!(
+                "npc spawn {} references unknown template {}",
+                spawn.id, spawn.template_id
+            ));
+        };
+        let id = spawn.id.clone();
+        self.npcs.insert(
+            id.clone(),
+            NpcInstance {
+                state: NpcState {
+                    id,
+                    template_id: template.template_id.clone(),
+                    name: template.name.clone(),
+                    x: spawn.x,
+                    y: spawn.y,
+                    facing: spawn.facing,
+                    shop_id: template.shop_id.clone(),
+                },
+                map_id,
+                template_id: template.template_id,
+                conversation: None,
+            },
+        );
+        Ok(())
+    }
+
     fn snapshot(&self, id: &str) -> String {
         let map_id = self
             .players
@@ -1527,6 +1680,7 @@ impl World {
             "selfId":id,
             "players":self.players.values().filter(|p| p.map_id == map_id).map(|p| &p.state).collect::<Vec<_>>(),
             "monsters":self.monsters.values().filter(|m| m.map_id == map_id).map(|m| &m.state).collect::<Vec<_>>(),
+            "npcs":self.npcs.values().filter(|n| n.map_id == map_id).map(|n| &n.state).collect::<Vec<_>>(),
             "drops":self.drops.iter().filter(|(drop_id, _)| self.drop_maps.get(*drop_id).is_some_and(|drop_map| drop_map == map_id)).map(|(_, drop)| drop).collect::<Vec<_>>()
         })
         .to_string()
@@ -1776,6 +1930,24 @@ impl World {
                         quantity,
                     } => self.handle_drop_mesos(id, request_id, quantity),
                     ClientMessage::Revive { request_id } => self.handle_revive(id, request_id),
+                    ClientMessage::NpcTalk {
+                        request_id,
+                        npc_id,
+                        step,
+                        selection,
+                    } => self.handle_npc_talk(
+                        id,
+                        request_id,
+                        npc_id,
+                        step.as_deref(),
+                        selection,
+                    ),
+                    ClientMessage::ShopBuy {
+                        request_id,
+                        shop_id,
+                        item_id,
+                        quantity,
+                    } => self.handle_shop_buy(id, request_id, shop_id, item_id, quantity),
                     ClientMessage::Hello { .. } => {}
                 }
             }
@@ -3307,6 +3479,329 @@ impl World {
         })
         .to_string();
         let _ = player.output.try_send(message);
+    }
+
+    fn send_npc_dialogue(&self, id: &str, value: serde_json::Value) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let _ = player.output.try_send(value.to_string());
+    }
+
+    fn send_shop_result(
+        &self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        shop_id: &str,
+        item_id: &str,
+        quantity: u32,
+        mesos_spent: u64,
+    ) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"shopResult",
+            "requestId":request_id,
+            "success":success,
+            "code":code,
+            "shopId":shop_id,
+            "itemId":item_id,
+            "quantity":quantity,
+            "mesosSpent":mesos_spent,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    fn handle_npc_talk(
+        &mut self,
+        id: String,
+        request_id: String,
+        npc_id: String,
+        step: Option<&str>,
+        selection: Option<u32>,
+    ) {
+        let player_state = match self.players.get(&id) {
+            Some(player) => (
+                player.map_id.clone(),
+                player.state.x,
+                player.state.y,
+                player.state.level,
+                player.state.mesos,
+                player.state.inventory.clone(),
+            ),
+            None => return,
+        };
+        let (map_id, px, py, level, mesos, inventory) = player_state;
+        // Locate the npc and its template.
+        let npc_view = {
+            let Some(npc) = self.npcs.get(&npc_id) else {
+                self.send_reject(&id, "npc_unknown", "npc not placed on a map", Some(&request_id));
+                return;
+            };
+            if npc.map_id != map_id {
+                self.send_reject(
+                    &id,
+                    "npc_too_far",
+                    "npc is on a different map",
+                    Some(&request_id),
+                );
+                return;
+            }
+            (
+                npc.template_id.clone(),
+                npc.state.x,
+                npc.state.y,
+                npc.state.name.clone(),
+            )
+        };
+        let (template_id, nx, ny, name) = npc_view;
+        if (px - nx).abs() > npc::TALK_RANGE_X || (py - ny).abs() > npc::TALK_RANGE_Y {
+            self.send_reject(&id, "npc_too_far", "stand closer to the npc", Some(&request_id));
+            return;
+        }
+        let Some(template) = self
+            .gameplay
+            .npcs
+            .iter()
+            .find(|template| template.template_id == template_id)
+            .cloned()
+        else {
+            self.send_reject(&id, "npc_unknown", "npc template missing", Some(&request_id));
+            return;
+        };
+        let Some(script) = template.script.clone() else {
+            self.send_npc_dialogue(
+                &id,
+                npc::DialogueView::End.to_json(&request_id, &npc_id, &name),
+            );
+            self.end_conversation(&id);
+            return;
+        };
+        let current_node = self
+            .npcs
+            .get(&npc_id)
+            .and_then(|npc| npc.conversation.clone());
+        let context = DialogueContext {
+            level,
+            mesos,
+            inventory: &inventory,
+        };
+        match npc::advance(&script, current_node.as_deref(), step, selection, &context) {
+            Ok((next_node, view)) => {
+                let value = view.to_json(&request_id, &npc_id, &name);
+                if let Some(npc) = self.npcs.get_mut(&npc_id) {
+                    npc.conversation = match view {
+                        npc::DialogueView::End => None,
+                        _ => Some(next_node),
+                    };
+                }
+                // Warp immediately when the dialogue resolves to one.
+                if let npc::DialogueView::Warp { map_id: warp_to } = &view {
+                    let target = warp_to.clone();
+                    self.warp_player(&id, target);
+                }
+                self.send_npc_dialogue(&id, value);
+            }
+            Err(error) => {
+                self.end_conversation(&id);
+                self.send_reject(&id, "npc_step_invalid", &error, Some(&request_id));
+            }
+        }
+    }
+
+    fn end_conversation(&mut self, player_id: &str) {
+        // No player → conversation tracker; conversations live on the npc and
+        // are reset by either End or a failure response.  Nothing to do here.
+        let _ = player_id;
+    }
+
+    fn warp_player(&mut self, player_id: &str, map_id: String) {
+        let Some(map) = self.maps.get(&map_id).cloned() else {
+            return;
+        };
+        // Park at the first portal for the target map; the client will
+        // reconcile against the in-band portal metadata.
+        let (x, y) = map
+            .portals
+            .first()
+            .map(|portal| (portal.x, portal.y))
+            .unwrap_or((map.bounds.x_min, map.bounds.y_min));
+        if let Some(player) = self.players.get_mut(player_id) {
+            player.map_id = map_id.clone();
+            player.state.x = x;
+            player.state.y = y;
+            player.state.vx = 0.0;
+            player.state.vy = 0.0;
+            player.state.grounded = true;
+            player.foothold_id = 0;
+            player.last_foothold_id = 0;
+            player.fall_boundary_hold = false;
+        }
+        // Drops for the destination map arrive via the next snapshot.
+        let _ = self.send_snapshot(player_id);
+    }
+
+    fn send_snapshot(&mut self, id: &str) {
+        let snapshot = self.snapshot(id);
+        if let Some(player) = self.players.get(id) {
+            let _ = player.output.try_send(snapshot);
+        }
+    }
+
+    fn send_reject(&self, id: &str, code: &str, message: &str, request_id: Option<&str>) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let _ = player
+            .output
+            .try_send(reject(code, message, request_id));
+    }
+
+    fn handle_shop_buy(
+        &mut self,
+        id: String,
+        request_id: String,
+        shop_id: String,
+        item_id: String,
+        quantity: u32,
+    ) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let shop = match self
+            .gameplay
+            .shops
+            .iter()
+            .find(|shop| shop.shop_id == shop_id)
+            .cloned()
+        {
+            Some(shop) => shop,
+            None => {
+                self.send_shop_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_unknown",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    0,
+                );
+                return;
+            }
+        };
+        let npc_in_range = self.npcs.values().any(|npc| {
+            npc.map_id == player.map_id
+                && npc.state.shop_id.as_deref() == Some(shop_id.as_str())
+                && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
+                && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y
+        });
+        if !npc_in_range {
+            self.send_shop_result(
+                &id,
+                &request_id,
+                false,
+                "shop_too_far",
+                &shop_id,
+                &item_id,
+                quantity,
+                0,
+            );
+            return;
+        }
+        let unit_price = match shop.price(&item_id) {
+            Some(price) => price,
+            None => {
+                self.send_shop_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_item_unknown",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    0,
+                );
+                return;
+            }
+        };
+        let total = match unit_price.checked_mul(u64::from(quantity)) {
+            Some(total) => total,
+            None => {
+                self.send_shop_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_quantity_invalid",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    0,
+                );
+                return;
+            }
+        };
+        if player.state.mesos < total {
+            self.send_shop_result(
+                &id,
+                &request_id,
+                false,
+                "shop_not_enough_mesos",
+                &shop_id,
+                &item_id,
+                quantity,
+                0,
+            );
+            return;
+        }
+        // Apply: deduct mesos, add items.  Insertion is atomic against a
+        // cloned inventory so a full-tab failure cancels the gold spend.
+        let mut next_inventory = player.state.inventory.clone();
+        if let Err(error) = inventory::add_items(&mut next_inventory, item_id.clone(), quantity) {
+            self.send_shop_result(
+                &id,
+                &request_id,
+                false,
+                match error {
+                    inventory::InventoryError::InventoryFull => "shop_inventory_full",
+                    inventory::InventoryError::UnknownItem => "shop_item_unknown",
+                    _ => "shop_rejected",
+                },
+                &shop_id,
+                &item_id,
+                quantity,
+                0,
+            );
+            return;
+        }
+        let new_mesos = player.state.mesos - total;
+        let player = match self.players.get_mut(&id) {
+            Some(player) => player,
+            None => return,
+        };
+        player.state.inventory = next_inventory;
+        player.state.mesos = new_mesos;
+        if let Some(store) = self.store.as_ref() {
+            let _ = store.write_inventory(&id, &player.state.inventory);
+            let _ = store.save_profile(
+                &id,
+                &profile_from_state(&player.state, &player.death_id),
+            );
+        }
+        self.send_shop_result(
+            &id,
+            &request_id,
+            true,
+            "",
+            &shop_id,
+            &item_id,
+            quantity,
+            total,
+        );
     }
 
     fn send_pickup_outcome(&self, id: &str, request_id: &str, outcome: auth::PickupOutcome) {
