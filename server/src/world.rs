@@ -1,7 +1,8 @@
 use crate::{
     auth::{self, Identity, Profile, Store},
     combat::{Attack, Combat},
-    protocol::{reject, ClientMessage, DropState, InventoryItem, MonsterState, PlayerState},
+    inventory,
+    protocol::{reject, ClientMessage, DropState, MonsterState, PlayerState},
 };
 use rand::Rng;
 use serde::Deserialize;
@@ -10,7 +11,7 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
 pub const TICK_MS: u64 = 50;
 // Mapleweb advances its PhysicsObject in 8 ms steps. Raw Mob.wz `speed` is
@@ -60,6 +61,20 @@ pub struct Bounds {
 pub struct Point {
     pub x: f64,
     pub y: f64,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Portal {
+    pub name: String,
+    #[serde(rename = "type", default)]
+    pub portal_type: i8,
+    pub x: f64,
+    pub y: f64,
+    #[serde(default)]
+    pub target_map_id: Option<String>,
+    #[serde(default)]
+    pub target_portal_name: Option<String>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -199,11 +214,21 @@ pub struct Map {
     pub footholds: Vec<Foothold>,
     #[serde(default, alias = "ladderRope")]
     pub ladders: Vec<Ladder>,
+    #[serde(default)]
+    pub portals: Vec<Portal>,
 }
 
 impl Map {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let mut map: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        map.validate()
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+        map.footholds.sort_by_key(|foothold| foothold.id);
+        Ok(map)
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        let map = self;
         let b = &map.bounds;
         if map.id.is_empty()
             || map.footholds.is_empty()
@@ -225,11 +250,19 @@ impl Map {
                     || l.id == 0
                     || l.top() == l.bottom()
             })
+            || map.portals.iter().any(|portal| {
+                portal.name.is_empty()
+                    || ![portal.x, portal.y].iter().all(|x| x.is_finite())
+                    || portal.target_map_id.as_deref().is_some_and(str::is_empty)
+                    || portal
+                        .target_portal_name
+                        .as_deref()
+                        .is_some_and(str::is_empty)
+            })
         {
-            return Err("invalid map bounds/spawn/footholds/ladders".into());
+            return Err("invalid map bounds/spawn/footholds/ladders/portals".into());
         }
-        map.footholds.sort_by_key(|f| f.id);
-        Ok(map)
+        Ok(())
     }
 
     fn get(&self, id: u64) -> Option<&Foothold> {
@@ -492,6 +525,37 @@ impl Map {
         self.ladders
             .iter()
             .find(|ladder| ladder.accepts(x, y, upwards))
+    }
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapCatalog {
+    pub birth_map_id: String,
+    #[serde(default)]
+    pub maps: Vec<Map>,
+}
+
+impl MapCatalog {
+    pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut catalog: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        if catalog.birth_map_id.is_empty() || catalog.maps.is_empty() {
+            return Err("invalid map catalog".into());
+        }
+        catalog.maps.sort_by(|a, b| a.id.cmp(&b.id));
+        if catalog.maps.iter().any(|map| map.validate().is_err())
+            || catalog.maps.windows(2).any(|maps| maps[0].id == maps[1].id)
+            || !catalog
+                .maps
+                .iter()
+                .any(|map| map.id == catalog.birth_map_id)
+        {
+            return Err("invalid map catalog maps".into());
+        }
+        for map in &mut catalog.maps {
+            map.footholds.sort_by_key(|foothold| foothold.id);
+        }
+        Ok(catalog)
     }
 }
 
@@ -956,6 +1020,7 @@ pub enum Command {
 
 struct Player {
     state: PlayerState,
+    map_id: String,
     death_id: String,
     connection: String,
     output: mpsc::Sender<String>,
@@ -981,6 +1046,7 @@ struct Player {
 
 struct Monster {
     state: MonsterState,
+    map_id: String,
     template: MonsterTemplate,
     spawn: MonsterSpawn,
     foothold_id: u64,
@@ -1000,11 +1066,14 @@ struct PendingAttack {
 pub struct World {
     pub map: Map,
     pub gameplay: Gameplay,
+    maps: BTreeMap<String, Map>,
     players: BTreeMap<String, Player>,
     monsters: BTreeMap<String, Monster>,
     drops: BTreeMap<String, DropState>,
     drop_owners: BTreeMap<String, Option<String>>,
+    drop_maps: BTreeMap<String, String>,
     revive_requests: BTreeMap<(String, String), auth::ReviveOutcome>,
+    inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
     pending_attacks: BTreeMap<String, PendingAttack>,
     tick: u64,
     combat: Combat,
@@ -1038,13 +1107,16 @@ impl World {
     ) -> Result<Self, String> {
         let hit_after_ms = gameplay.player.attack_after_ms.unwrap_or(duration_ms);
         let mut world = Self {
+            maps: BTreeMap::from([(map.id.clone(), map.clone())]),
             map,
             gameplay,
             players: BTreeMap::new(),
             monsters: BTreeMap::new(),
             drops: BTreeMap::new(),
             drop_owners: BTreeMap::new(),
+            drop_maps: BTreeMap::new(),
             revive_requests: BTreeMap::new(),
+            inventory_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
             tick: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
@@ -1065,11 +1137,59 @@ impl World {
                         y: drop.y,
                     },
                 );
-                world.drop_owners.insert(drop_id, owner_id);
+                world.drop_owners.insert(drop_id.clone(), owner_id);
+                world.drop_maps.insert(drop_id, world.map.id.clone());
             }
         }
         world.spawn_configured_monsters();
         Ok(world)
+    }
+
+    pub fn new_with_store_and_catalog(
+        map: Map,
+        duration_ms: u64,
+        gameplay: Gameplay,
+        store: Store,
+        catalog: MapCatalog,
+    ) -> Result<Self, String> {
+        let mut world = Self::build(map, duration_ms, gameplay, Some(store))?;
+        world.attach_catalog(catalog)?;
+        Ok(world)
+    }
+
+    fn attach_catalog(&mut self, catalog: MapCatalog) -> Result<(), String> {
+        if catalog.birth_map_id != self.map.id {
+            return Err(format!(
+                "map catalog birth map {} does not match {}",
+                catalog.birth_map_id, self.map.id
+            ));
+        }
+        for map in catalog.maps {
+            let map_id = map.id.clone();
+            self.maps.insert(map_id.clone(), map);
+            if let Some(store) = self.store.as_ref() {
+                for drop in store.load_drops(&map_id)? {
+                    let drop_id = drop.id.clone();
+                    self.drops.insert(
+                        drop_id.clone(),
+                        DropState {
+                            id: drop.id,
+                            item_id: drop.item_id,
+                            quantity: drop.quantity,
+                            x: drop.x,
+                            y: drop.y,
+                        },
+                    );
+                    self.drop_owners.insert(drop_id.clone(), drop.owner_id);
+                    self.drop_maps.insert(drop_id, map_id.clone());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn map_for(&self, map_id: &str) -> &Map {
+        self.maps.get(map_id).unwrap_or(&self.map)
     }
 
     fn default_profile(&self) -> Profile {
@@ -1097,6 +1217,11 @@ impl World {
     }
 
     fn spawn_monster(&mut self, spawn: MonsterSpawn) {
+        let map_id = self.map.id.clone();
+        self.spawn_monster_on_map(map_id, spawn);
+    }
+
+    fn spawn_monster_on_map(&mut self, map_id: String, spawn: MonsterSpawn) {
         let Some(template) = self
             .gameplay
             .monsters
@@ -1106,15 +1231,14 @@ impl World {
         else {
             return;
         };
+        let map = self.map_for(&map_id).clone();
         let foothold_id = spawn.foothold_id.or_else(|| {
-            self.map
-                .ground_near(spawn.x, spawn.y)
+            map.ground_near(spawn.x, spawn.y)
                 .map(|(foothold_id, _)| foothold_id)
         });
         let (x, y) = foothold_id
             .and_then(|id| {
-                self.map
-                    .get(id)
+                map.get(id)
                     .and_then(|f| f.at(spawn.x).map(|y| (spawn.x, y)))
             })
             .unwrap_or((spawn.x, spawn.y));
@@ -1139,6 +1263,7 @@ impl World {
                     action: if can_move { "move" } else { "stand" },
                     action_started_tick: self.tick,
                 },
+                map_id,
                 template,
                 spawn,
                 foothold_id: foothold_id.unwrap_or(0),
@@ -1151,22 +1276,41 @@ impl World {
     }
 
     fn snapshot(&self, id: &str) -> String {
+        let map_id = self
+            .players
+            .get(id)
+            .map(|player| player.map_id.as_str())
+            .unwrap_or(self.map.id.as_str());
         serde_json::json!({
             "type":"snapshot",
             "serverTick":self.tick,
             "tickMs":TICK_MS,
-            "mapId":self.map.id,
+            "mapId":map_id,
             "selfId":id,
-            "players":self.players.values().map(|p| &p.state).collect::<Vec<_>>(),
-            "monsters":self.monsters.values().map(|m| &m.state).collect::<Vec<_>>(),
-            "drops":self.drops.values().collect::<Vec<_>>()
+            "players":self.players.values().filter(|p| p.map_id == map_id).map(|p| &p.state).collect::<Vec<_>>(),
+            "monsters":self.monsters.values().filter(|m| m.map_id == map_id).map(|m| &m.state).collect::<Vec<_>>(),
+            "drops":self.drops.iter().filter(|(drop_id, _)| self.drop_maps.get(*drop_id).is_some_and(|drop_map| drop_map == map_id)).map(|(_, drop)| drop).collect::<Vec<_>>()
         })
         .to_string()
     }
 
-    fn broadcast(&mut self, message: &str) {
-        self.players
-            .retain(|_, p| p.output.try_send(message.to_owned()).is_ok());
+    fn broadcast_to_map(&mut self, map_id: &str, message: &str) {
+        let failed: Vec<String> = self
+            .players
+            .iter()
+            .filter(|(_, player)| player.map_id == map_id)
+            .filter_map(
+                |(id, player)| match player.output.try_send(message.to_owned()) {
+                    Err(TrySendError::Closed(_)) => Some(id.clone()),
+                    Err(TrySendError::Full(_)) | Ok(()) => None,
+                },
+            )
+            .collect();
+        for id in failed {
+            self.players.remove(&id);
+            self.pending_attacks
+                .retain(|_, attack| attack.player_id != id);
+        }
     }
 
     pub fn command(&mut self, command: Command) {
@@ -1210,6 +1354,7 @@ impl World {
                     }
                 }
                 let id = identity.id.clone();
+                let birth_map_id = self.map.id.clone();
                 let foothold_id = self
                     .map
                     .ground_near(self.map.spawn.x, self.map.spawn.y)
@@ -1244,12 +1389,9 @@ impl World {
                             exp: profile.exp,
                             exp_to_next: profile.exp_to_next,
                             mesos: profile.mesos,
-                            inventory: profile
-                                .inventory
-                                .into_iter()
-                                .map(|(item_id, quantity)| InventoryItem { item_id, quantity })
-                                .collect(),
+                            inventory: profile.inventory,
                         },
+                        map_id: birth_map_id,
                         death_id: profile.death_id,
                         connection,
                         output: output.clone(),
@@ -1277,6 +1419,8 @@ impl World {
                     self.players.remove(&id);
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != id);
+                    self.inventory_requests
+                        .retain(|(player_id, _), _| player_id != &id);
                 }
             }
             Command::Input {
@@ -1319,11 +1463,165 @@ impl World {
                         request_id,
                         drop_id,
                     } => self.handle_pickup(id, request_id, drop_id),
+                    ClientMessage::Portal {
+                        request_id,
+                        portal_name,
+                    } => self.handle_portal(id, request_id, portal_name),
+                    ClientMessage::InventoryMove {
+                        request_id,
+                        source_slot,
+                        target_slot,
+                        quantity,
+                    } => self.handle_inventory_move(
+                        id,
+                        request_id,
+                        source_slot,
+                        target_slot,
+                        quantity,
+                    ),
+                    ClientMessage::DropItem {
+                        request_id,
+                        source_slot,
+                        quantity,
+                    } => self.handle_inventory_drop(id, request_id, source_slot, quantity),
                     ClientMessage::Revive { request_id } => self.handle_revive(id, request_id),
                     ClientMessage::Hello { .. } => {}
                 }
             }
         }
+    }
+
+    fn handle_portal(&mut self, id: String, request_id: String, portal_name: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let source_map_id = player.map_id.clone();
+        let source_x = player.state.x;
+        let source_y = player.state.y;
+        let source_map = self.map_for(&source_map_id).clone();
+        let Some(portal) = source_map
+            .portals
+            .iter()
+            .find(|portal| portal.name == portal_name && portal.target_map_id.is_some())
+            .cloned()
+        else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "portal_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        if (source_x - portal.x).abs() > 48.0 || (source_y - portal.y).abs() > 64.0 {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "out_of_range",
+                &source_map_id,
+                None,
+            );
+            return;
+        }
+        let Some(target_map_id) = portal.target_map_id.clone() else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "portal_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "map_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        let destination = portal
+            .target_portal_name
+            .as_deref()
+            .and_then(|name| {
+                target_map
+                    .portals
+                    .iter()
+                    .find(|candidate| candidate.name == name)
+            })
+            .map(|portal| (portal.x, portal.y))
+            .unwrap_or((target_map.spawn.x, target_map.spawn.y));
+        let grounded = target_map
+            .ground_near(destination.0, destination.1)
+            .filter(|(_, ground)| (ground - destination.1).abs() <= 24.0);
+        let (target_x, target_y, foothold_id, grounded) = grounded.map_or(
+            (destination.0, destination.1, 0, false),
+            |(foothold_id, ground)| (destination.0, ground, foothold_id, true),
+        );
+        let Some(player) = self.players.get_mut(&id) else {
+            return;
+        };
+        player.map_id = target_map_id.clone();
+        player.state.x = target_x;
+        player.state.y = target_y;
+        player.state.vx = 0.0;
+        player.state.vy = 0.0;
+        player.state.facing = 1;
+        player.state.grounded = grounded;
+        player.state.climbing = false;
+        player.state.ladder_id = None;
+        player.state.action_id = None;
+        player.state.action = if grounded { "stand" } else { "jump" };
+        player.state.action_started_tick = self.tick;
+        player.direction = 0;
+        player.vertical = 0;
+        player.jump = false;
+        player.foothold_id = foothold_id;
+        player.last_foothold_id = foothold_id;
+        player.fall_boundary_hold = false;
+        player.drop_fh = 0;
+        player.attack_until = 0;
+        self.send_portal_result(
+            &id,
+            &request_id,
+            true,
+            "",
+            &source_map_id,
+            Some(&target_map_id),
+        );
+    }
+
+    fn send_portal_result(
+        &self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        source_map_id: &str,
+        target_map_id: Option<&str>,
+    ) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let mut message = serde_json::json!({
+            "type": "portalResult",
+            "requestId": request_id,
+            "success": success,
+            "code": code,
+            "sourceMapId": source_map_id,
+        });
+        if let Some(target_map_id) = target_map_id {
+            message["targetMapId"] = target_map_id.into();
+        }
+        let _ = player.output.try_send(message.to_string());
     }
 
     fn handle_attack(&mut self, id: String, request_id: String) {
@@ -1338,13 +1636,18 @@ impl World {
             ));
             return;
         }
+        let map_id = player.map_id.clone();
         let active_until = player.attack_until;
+        let (x, y, facing) = (player.state.x, player.state.y, player.state.facing);
         let result = self.combat.attack(
             self.store.as_ref(),
             &id,
             &request_id,
             self.tick,
             active_until,
+            x,
+            y,
+            facing,
         );
         match result {
             Attack::Reply(message) => {
@@ -1369,7 +1672,7 @@ impl World {
                         hit_tick,
                     },
                 );
-                self.broadcast(&event);
+                self.broadcast_to_map(&map_id, &event);
             }
             Attack::Resume {
                 action_id,
@@ -1399,6 +1702,7 @@ impl World {
         let Some(player) = self.players.get(&id) else {
             return;
         };
+        let map_id = player.map_id.clone();
         if let Some(store) = self.store.as_ref() {
             match store.prior_pickup(&id, &request_id) {
                 Ok(Some(prior)) => {
@@ -1424,6 +1728,18 @@ impl World {
             return;
         };
         if self
+            .drop_maps
+            .get(&drop_id)
+            .is_some_and(|drop_map| drop_map != &map_id)
+        {
+            let _ = player.output.try_send(reject(
+                "drop_unavailable",
+                "Drop is unavailable",
+                Some(&request_id),
+            ));
+            return;
+        }
+        if self
             .drop_owners
             .get(&drop_id)
             .and_then(Option::as_deref)
@@ -1447,41 +1763,62 @@ impl World {
             ));
             return;
         }
+        if self.store.is_none() && drop.item_id != "0" {
+            let mut inventory = player.state.inventory.clone();
+            if inventory::add_items(&mut inventory, drop.item_id.clone(), drop.quantity).is_err() {
+                let _ = player.output.try_send(reject(
+                    "inventory_full",
+                    "Inventory is full",
+                    Some(&request_id),
+                ));
+                return;
+            }
+        }
         let outcome = match self.store.as_ref() {
-            Some(store) => store.pickup(&id, &self.map.id, &request_id, &drop_id),
+            Some(store) => store.pickup(&id, &map_id, &request_id, &drop_id),
             None => Ok(auth::PickupOutcome {
                 drop_id: drop_id.clone(),
                 item_id: drop.item_id.clone(),
                 quantity: drop.quantity,
+                slot: None,
                 success: true,
                 code: String::new(),
             }),
         };
         match outcome {
-            Ok(outcome) if outcome.success => {
+            Ok(mut outcome) if outcome.success => {
                 self.drops.remove(&drop_id);
                 self.drop_owners.remove(&drop_id);
+                self.drop_maps.remove(&drop_id);
+                let mut reload_profile = false;
                 if let Some(player) = self.players.get_mut(&id) {
                     if outcome.item_id == "0" {
                         player.state.mesos =
                             player.state.mesos.saturating_add(outcome.quantity as u64);
                     } else {
-                        if let Some(item) = player
-                            .state
-                            .inventory
-                            .iter_mut()
-                            .find(|item| item.item_id == outcome.item_id)
-                        {
-                            item.quantity = item.quantity.saturating_add(outcome.quantity);
-                        } else {
-                            player.state.inventory.push(InventoryItem {
-                                item_id: outcome.item_id.clone(),
-                                quantity: outcome.quantity,
-                            });
-                            player
-                                .state
-                                .inventory
-                                .sort_by(|a, b| a.item_id.cmp(&b.item_id));
+                        let assigned_slot = inventory::add_items(
+                            &mut player.state.inventory,
+                            outcome.item_id.clone(),
+                            outcome.quantity,
+                        );
+                        if outcome.slot.is_none() {
+                            outcome.slot = assigned_slot.ok();
+                        } else if assigned_slot.ok() != outcome.slot {
+                            // The SQLite pickup transaction is authoritative.
+                            // If a stale in-memory profile chose another slot,
+                            // reload the committed profile before the next
+                            // snapshot rather than exposing a missing item.
+                            reload_profile = true;
+                        }
+                    }
+                }
+                if reload_profile {
+                    if let Some(store) = self.store.clone() {
+                        let defaults = self.default_profile();
+                        if let Ok(profile) = store.load_profile(&id, &defaults) {
+                            if let Some(player) = self.players.get_mut(&id) {
+                                apply_profile(&mut player.state, profile);
+                            }
                         }
                     }
                 }
@@ -1499,6 +1836,353 @@ impl World {
                 }
             }
         }
+    }
+
+    fn handle_inventory_move(
+        &mut self,
+        id: String,
+        request_id: String,
+        from_slot: u16,
+        to_slot: u16,
+        quantity: u32,
+    ) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        if let Some(store) = self.store.clone() {
+            match store.prior_inventory(&id, &request_id) {
+                Ok(Some(prior)) => {
+                    if prior.operation == "move" {
+                        self.send_inventory_outcome(&id, &prior);
+                    } else {
+                        self.send_inventory_conflict(&id, &request_id);
+                    }
+                    return;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    let _ =
+                        player
+                            .output
+                            .try_send(reject("persistence", &error, Some(&request_id)));
+                    return;
+                }
+            }
+            match store.move_inventory(&id, &request_id, from_slot, to_slot, quantity) {
+                Ok(outcome) => {
+                    if outcome.success {
+                        let applied = self
+                            .players
+                            .get_mut(&id)
+                            .map(|player| {
+                                inventory::move_items(
+                                    &mut player.state.inventory,
+                                    from_slot,
+                                    to_slot,
+                                    quantity,
+                                )
+                                .is_ok()
+                            })
+                            .unwrap_or(false);
+                        if !applied {
+                            // The SQLite transaction is authoritative.  A
+                            // mismatch means the in-memory profile was stale;
+                            // reload it before the next snapshot so a client
+                            // cannot observe or repeat a partial mutation.
+                            let defaults = self.default_profile();
+                            if let Ok(profile) = store.load_profile(&id, &defaults) {
+                                if let Some(player) = self.players.get_mut(&id) {
+                                    apply_profile(&mut player.state, profile);
+                                }
+                            }
+                        }
+                    }
+                    self.send_inventory_outcome(&id, &outcome);
+                }
+                Err(error) => {
+                    if let Some(player) = self.players.get(&id) {
+                        let _ = player.output.try_send(reject(
+                            "persistence",
+                            &error,
+                            Some(&request_id),
+                        ));
+                    }
+                }
+            }
+            return;
+        }
+
+        if let Some(prior) = self
+            .inventory_requests
+            .get(&(id.clone(), request_id.clone()))
+            .cloned()
+        {
+            if prior.operation == "move" {
+                self.send_inventory_outcome(&id, &prior);
+            } else {
+                self.send_inventory_conflict(&id, &request_id);
+            }
+            return;
+        }
+        let mut next_inventory = player.state.inventory.clone();
+        let item_id = next_inventory
+            .iter()
+            .find(|item| item.slot == from_slot)
+            .map(|item| item.item_id.clone())
+            .unwrap_or_default();
+        let result = inventory::move_items(&mut next_inventory, from_slot, to_slot, quantity);
+        let (success, code) = match result {
+            Ok(()) => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.inventory = next_inventory;
+                }
+                (true, String::new())
+            }
+            Err(error) => (false, error.code().to_owned()),
+        };
+        let outcome = auth::InventoryOutcome {
+            request_id: request_id.clone(),
+            operation: "move".to_owned(),
+            from_slot,
+            to_slot: Some(to_slot),
+            item_id,
+            quantity,
+            drop_id: None,
+            success,
+            code,
+        };
+        self.inventory_requests
+            .insert((id.clone(), request_id), outcome.clone());
+        self.send_inventory_outcome(&id, &outcome);
+    }
+
+    fn handle_inventory_drop(
+        &mut self,
+        id: String,
+        request_id: String,
+        from_slot: u16,
+        quantity: u32,
+    ) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let map_id = player.map_id.clone();
+        let drop_x = player.state.x;
+        let drop_y = player.state.y;
+        if let Some(store) = self.store.clone() {
+            match store.prior_inventory(&id, &request_id) {
+                Ok(Some(prior)) => {
+                    if prior.operation == "drop" {
+                        self.ensure_inventory_drop(&prior, &map_id);
+                        self.send_inventory_outcome(&id, &prior);
+                    } else {
+                        self.send_inventory_conflict(&id, &request_id);
+                    }
+                    return;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    let _ =
+                        player
+                            .output
+                            .try_send(reject("persistence", &error, Some(&request_id)));
+                    return;
+                }
+            }
+            match store.drop_inventory(
+                &id,
+                &map_id,
+                &request_id,
+                from_slot,
+                quantity,
+                drop_x,
+                drop_y,
+            ) {
+                Ok(outcome) => {
+                    if outcome.success {
+                        let applied = self
+                            .players
+                            .get_mut(&id)
+                            .map(|player| {
+                                inventory::remove_items(
+                                    &mut player.state.inventory,
+                                    from_slot,
+                                    quantity,
+                                )
+                                .is_ok()
+                            })
+                            .unwrap_or(false);
+                        if !applied {
+                            let defaults = self.default_profile();
+                            if let Ok(profile) = store.load_profile(&id, &defaults) {
+                                if let Some(player) = self.players.get_mut(&id) {
+                                    apply_profile(&mut player.state, profile);
+                                }
+                            }
+                        }
+                        self.ensure_inventory_drop_at(&outcome, drop_x, drop_y, &id, &map_id);
+                    }
+                    self.send_inventory_outcome(&id, &outcome);
+                }
+                Err(error) => {
+                    if let Some(player) = self.players.get(&id) {
+                        let _ = player.output.try_send(reject(
+                            "persistence",
+                            &error,
+                            Some(&request_id),
+                        ));
+                    }
+                }
+            }
+            return;
+        }
+
+        if let Some(prior) = self
+            .inventory_requests
+            .get(&(id.clone(), request_id.clone()))
+            .cloned()
+        {
+            if prior.operation == "drop" {
+                self.send_inventory_outcome(&id, &prior);
+            } else {
+                self.send_inventory_conflict(&id, &request_id);
+            }
+            return;
+        }
+        let mut next_inventory = player.state.inventory.clone();
+        let item_id = next_inventory
+            .iter()
+            .find(|item| item.slot == from_slot)
+            .map(|item| item.item_id.clone())
+            .unwrap_or_default();
+        let result = inventory::remove_items(&mut next_inventory, from_slot, quantity);
+        let (success, code, drop_id) = match result {
+            Ok((item_id, dropped_quantity)) => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.inventory = next_inventory;
+                }
+                let drop_id = auth::random_id();
+                self.drops.insert(
+                    drop_id.clone(),
+                    DropState {
+                        id: drop_id.clone(),
+                        item_id,
+                        quantity: dropped_quantity,
+                        x: drop_x,
+                        y: drop_y,
+                    },
+                );
+                self.drop_owners.insert(drop_id.clone(), Some(id.clone()));
+                self.drop_maps.insert(drop_id.clone(), map_id.clone());
+                (true, String::new(), Some(drop_id))
+            }
+            Err(error) => (false, error.code().to_owned(), None),
+        };
+        let outcome = auth::InventoryOutcome {
+            request_id: request_id.clone(),
+            operation: "drop".to_owned(),
+            from_slot,
+            to_slot: None,
+            item_id,
+            quantity,
+            drop_id,
+            success,
+            code,
+        };
+        self.inventory_requests
+            .insert((id.clone(), request_id), outcome.clone());
+        self.send_inventory_outcome(&id, &outcome);
+    }
+
+    fn send_inventory_conflict(&self, id: &str, request_id: &str) {
+        if let Some(player) = self.players.get(id) {
+            let _ = player.output.try_send(reject(
+                "request_reused",
+                "Request ID was used for another inventory operation",
+                Some(request_id),
+            ));
+        }
+    }
+
+    fn send_inventory_outcome(&self, id: &str, outcome: &auth::InventoryOutcome) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message_type = if outcome.operation == "drop" {
+            "inventoryDropResult"
+        } else {
+            "inventoryResult"
+        };
+        let mut message = serde_json::json!({
+            "type": message_type,
+            "requestId": outcome.request_id,
+            "operation": outcome.operation,
+            "success": outcome.success,
+            "code": outcome.code,
+            "sourceSlot": outcome.from_slot,
+            "itemId": outcome.item_id,
+            "quantity": outcome.quantity,
+        });
+        if let Some(target_slot) = outcome.to_slot {
+            message["targetSlot"] = target_slot.into();
+        }
+        if let Some(drop_id) = outcome.drop_id.as_deref() {
+            message["dropId"] = drop_id.into();
+        }
+        let message = message.to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    fn ensure_inventory_drop(&mut self, outcome: &auth::InventoryOutcome, map_id: &str) {
+        let Some(drop_id) = outcome.drop_id.as_deref() else {
+            return;
+        };
+        if self.drops.contains_key(drop_id) {
+            return;
+        }
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        if let Ok(Some(drop)) = store.load_drop(map_id, drop_id) {
+            self.drops.insert(
+                drop_id.to_owned(),
+                DropState {
+                    id: drop.id.clone(),
+                    item_id: drop.item_id,
+                    quantity: drop.quantity,
+                    x: drop.x,
+                    y: drop.y,
+                },
+            );
+            self.drop_owners.insert(drop_id.to_owned(), drop.owner_id);
+            self.drop_maps.insert(drop_id.to_owned(), map_id.to_owned());
+        }
+    }
+
+    fn ensure_inventory_drop_at(
+        &mut self,
+        outcome: &auth::InventoryOutcome,
+        x: f64,
+        y: f64,
+        owner_id: &str,
+        map_id: &str,
+    ) {
+        let Some(drop_id) = outcome.drop_id.as_deref() else {
+            return;
+        };
+        self.drops.insert(
+            drop_id.to_owned(),
+            DropState {
+                id: drop_id.to_owned(),
+                item_id: outcome.item_id.clone(),
+                quantity: outcome.quantity,
+                x,
+                y,
+            },
+        );
+        self.drop_owners
+            .insert(drop_id.to_owned(), Some(owner_id.to_owned()));
+        self.drop_maps.insert(drop_id.to_owned(), map_id.to_owned());
     }
 
     fn handle_revive(&mut self, id: String, request_id: String) {
@@ -1630,6 +2314,10 @@ impl World {
     }
 
     fn complete_revive(&mut self, id: &str, death_id: &str) {
+        let Some(map_id) = self.players.get(id).map(|player| player.map_id.clone()) else {
+            return;
+        };
+        let map = self.map_for(&map_id).clone();
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
@@ -1638,8 +2326,8 @@ impl World {
         }
         player.state.hp = 50_i64.min(player.state.max_hp.max(1));
         // Cosmic's ordinary respawn restores HP while leaving MP untouched.
-        player.state.x = self.map.spawn.x;
-        player.state.y = self.map.spawn.y;
+        player.state.x = map.spawn.x;
+        player.state.y = map.spawn.y;
         player.state.vx = 0.0;
         player.state.vy = 0.0;
         player.state.grounded = false;
@@ -1654,9 +2342,8 @@ impl World {
         player.direction = 0;
         player.vertical = 0;
         player.jump = false;
-        player.foothold_id = self
-            .map
-            .ground_near(self.map.spawn.x, self.map.spawn.y)
+        player.foothold_id = map
+            .ground_near(map.spawn.x, map.spawn.y)
             .map_or(0, |(foothold_id, _)| foothold_id);
         player.last_foothold_id = player.foothold_id;
         player.fall_boundary_hold = false;
@@ -1683,19 +2370,22 @@ impl World {
             return;
         };
         if outcome.success {
-            let message = serde_json::json!({
+            let mut message = serde_json::json!({
                 "type":"pickupResult",
                 "requestId":request_id,
                 "dropId":outcome.drop_id,
                 "itemId":outcome.item_id,
                 "quantity":outcome.quantity
-            })
-            .to_string();
+            });
+            if let Some(slot) = outcome.slot {
+                message["slot"] = slot.into();
+            }
+            let message = message.to_string();
             let _ = player.output.try_send(message);
         } else {
             let _ = player.output.try_send(reject(
                 &outcome.code,
-                "Drop is unavailable",
+                pickup_error_message(&outcome.code),
                 Some(request_id),
             ));
         }
@@ -1705,13 +2395,19 @@ impl World {
         self.tick += 1;
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
+            let map_id = self
+                .players
+                .get(&id)
+                .map(|player| player.map_id.clone())
+                .unwrap_or_else(|| self.map.id.clone());
+            let map = self.map_for(&map_id).clone();
             let Some(player) = self.players.get_mut(&id) else {
                 continue;
             };
             let old_hp = player.state.hp;
             let old_x = player.state.x;
             let old_y = player.state.y;
-            step_player(&self.map, &self.gameplay, player, self.tick);
+            step_player(&map, &self.gameplay, player, self.tick);
             if (player.state.hp != old_hp
                 || (player.state.x - old_x).abs() > 0.001
                 || (player.state.y - old_y).abs() > 0.001)
@@ -1727,11 +2423,9 @@ impl World {
         let failed: Vec<_> = self
             .players
             .iter()
-            .filter_map(|(id, p)| {
-                p.output
-                    .try_send(self.snapshot(id))
-                    .err()
-                    .map(|_| id.clone())
+            .filter_map(|(id, p)| match p.output.try_send(self.snapshot(id)) {
+                Err(TrySendError::Closed(_)) => Some(id.clone()),
+                Err(TrySendError::Full(_)) | Ok(()) => None,
             })
             .collect();
         for id in failed {
@@ -1768,6 +2462,7 @@ impl World {
             if player.state.action == "dead" || player.state.climbing {
                 continue;
             }
+            let map_id = player.map_id.clone();
             let target_id = self.nearest_attack_target(player);
             let (target_hp, max_hp, target_template, target_x, target_y) = target_id
                 .as_ref()
@@ -1820,7 +2515,7 @@ impl World {
             let resolution = match self.store.as_ref() {
                 Some(store) => store.resolve_attack(
                     &attack.player_id,
-                    &self.map.id,
+                    &map_id,
                     &attack.request_id,
                     target_id.as_deref(),
                     applied_damage,
@@ -1891,6 +2586,21 @@ impl World {
                         });
                     }
                 }
+                if resolution.damage > 0 {
+                    let damage_event = serde_json::json!({
+                        "type": "damageEvent",
+                        "eventId": format!("damage-event-{}", attack.action_id),
+                        "serverTick": self.tick,
+                        "attackerId": attack.player_id,
+                        "targetId": target_id,
+                        "x": target_x,
+                        "y": target_y,
+                        "damage": resolution.damage,
+                        "killed": resolution.killed
+                    })
+                    .to_string();
+                    self.broadcast_to_map(&map_id, &damage_event);
+                }
             }
             if !resolution.profiles.is_empty() {
                 for (participant, profile) in resolution.profiles {
@@ -1915,7 +2625,8 @@ impl World {
                         y: drop.y,
                     },
                 );
-                self.drop_owners.insert(drop_id, drop.owner_id);
+                self.drop_owners.insert(drop_id.clone(), drop.owner_id);
+                self.drop_maps.insert(drop_id.clone(), map_id.clone());
             }
         }
     }
@@ -1930,7 +2641,7 @@ impl World {
         self.monsters
             .iter()
             .filter_map(|(id, monster)| {
-                if monster.state.hp <= 0 {
+                if monster.map_id != player.map_id || monster.state.hp <= 0 {
                     return None;
                 }
                 let (mob_left, mob_right, mob_top, mob_bottom) = monster
@@ -1991,7 +2702,17 @@ impl World {
     }
 
     fn step_monsters(&mut self) {
-        for monster in self.monsters.values_mut() {
+        let ids: Vec<String> = self.monsters.keys().cloned().collect();
+        for id in ids {
+            let map_id = self
+                .monsters
+                .get(&id)
+                .map(|monster| monster.map_id.clone())
+                .unwrap_or_else(|| self.map.id.clone());
+            let map = self.map_for(&map_id).clone();
+            let Some(monster) = self.monsters.get_mut(&id) else {
+                continue;
+            };
             if monster.state.hp <= 0 {
                 continue;
             }
@@ -2066,7 +2787,7 @@ impl World {
             }
 
             if let Some(force) = monster.template.movement_force() {
-                step_monster_with_force(&self.map, monster, force);
+                step_monster_with_force(&map, monster, force);
                 continue;
             }
             let Some(step) = monster.template.movement_step() else {
@@ -2083,9 +2804,7 @@ impl World {
             let direction = if monster.state.facing < 0 { -1 } else { 1 };
             let current_x = monster.state.x;
             let next_x = current_x + direction as f64 * step;
-            let wall = self
-                .map
-                .wall_for(monster.foothold_id, direction < 0, monster.state.y);
+            let wall = map.wall_for(monster.foothold_id, direction < 0, monster.state.y);
             let blocked = if direction < 0 {
                 current_x >= wall && next_x <= wall
             } else {
@@ -2095,8 +2814,8 @@ impl World {
                 monster.state.facing = -direction;
                 continue;
             }
-            let next_x = next_x.clamp(self.map.bounds.x_min, self.map.bounds.x_max);
-            let Some(current) = self.map.get(monster.foothold_id) else {
+            let next_x = next_x.clamp(map.bounds.x_min, map.bounds.x_max);
+            let Some(current) = map.get(monster.foothold_id) else {
                 monster.state.x = next_x;
                 monster.state.facing = direction;
                 monster.state.action = "move";
@@ -2128,11 +2847,13 @@ impl World {
             if player.state.action == "dead" || self.tick < player.contact_invulnerable_until {
                 continue;
             }
+            let map_id = player.map_id.clone();
             let hit = self
                 .monsters
                 .values()
                 .filter(|monster| {
-                    if monster.state.hp <= 0
+                    if monster.map_id != map_id
+                        || monster.state.hp <= 0
                         || !monster.template.body_attack
                         || monster.template.pa_damage.is_none()
                         || self.gameplay.player.weapon_defense.is_none()
@@ -2227,7 +2948,7 @@ impl World {
                 continue;
             };
             if monster.respawn_at.is_some() {
-                self.spawn_monster(monster.spawn);
+                self.spawn_monster_on_map(monster.map_id, monster.spawn);
             }
         }
     }
@@ -2244,11 +2965,7 @@ fn profile_from_state(state: &PlayerState, death_id: &str) -> Profile {
         exp_to_next: state.exp_to_next,
         mesos: state.mesos,
         death_id: death_id.to_owned(),
-        inventory: state
-            .inventory
-            .iter()
-            .map(|item| (item.item_id.clone(), item.quantity))
-            .collect(),
+        inventory: state.inventory.clone(),
     }
 }
 
@@ -2261,11 +2978,8 @@ fn apply_profile(state: &mut PlayerState, profile: Profile) {
     state.exp = profile.exp;
     state.exp_to_next = profile.exp_to_next;
     state.mesos = profile.mesos;
-    state.inventory = profile
-        .inventory
-        .into_iter()
-        .map(|(item_id, quantity)| InventoryItem { item_id, quantity })
-        .collect();
+    state.inventory = profile.inventory;
+    inventory::sort_items(&mut state.inventory);
 }
 
 fn step_monster_with_force(map: &Map, monster: &mut Monster, force: f64) {
@@ -2552,7 +3266,11 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         if let Some(next_id) = next_id.filter(|id| *id != 0) {
             if let Some(next) = map.get(next_id) {
                 if let Some(ground) = next.at(player.state.x) {
-                    if next.id != player.foothold_id && ground > old_y + 1.0 {
+                    let travel_direction = if player.state.x >= old_x { 1 } else { -1 };
+                    let continuous = map
+                        .contiguous_neighbor(player.foothold_id, travel_direction)
+                        .is_some_and(|neighbor| neighbor.id == next.id);
+                    if next.id != player.foothold_id && ground > old_y + 1.0 && !continuous {
                         player.state.grounded = false;
                     } else {
                         player.foothold_id = next.id;
@@ -2724,6 +3442,18 @@ fn detach_at_ladder_end(player: &mut Player, ladder: &Ladder, top: bool, tick: u
     player.state.action_started_tick = tick;
 }
 
+fn pickup_error_message(code: &str) -> &'static str {
+    match code {
+        "drop_owned" => "Drop belongs to another player",
+        "drop_invalid" => "Drop data is invalid",
+        "inventory_full" => "Inventory is full",
+        "quantity_overflow" => "Item quantity is too large",
+        "invalid_slot" => "Inventory slot is invalid",
+        "drop_unavailable" => "Drop is unavailable",
+        _ => "Pickup was rejected",
+    }
+}
+
 pub async fn run(mut world: World, mut rx: mpsc::Receiver<Command>) {
     let mut interval = tokio::time::interval(Duration::from_millis(TICK_MS));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -2821,6 +3551,184 @@ mod tests {
             r#"{"type":"attack","requestId":"a","damage":999}"#,
         )
         .is_err());
+    }
+
+    #[test]
+    fn inventory_commands_swap_drop_and_replay_without_duplication() {
+        let mut world = World::new(map(), 600);
+        let (output, mut rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        let _ = rx.try_recv();
+        world.players.get_mut("a").unwrap().state.inventory = vec![
+            crate::protocol::InventoryItem {
+                slot: 1,
+                item_id: "4000019".into(),
+                quantity: 3,
+            },
+            crate::protocol::InventoryItem {
+                slot: 2,
+                item_id: "2000000".into(),
+                quantity: 1,
+            },
+        ];
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::InventoryMove {
+                request_id: "move-once".into(),
+                source_slot: 1,
+                target_slot: 2,
+                quantity: 3,
+            },
+        });
+        assert_eq!(world.players["a"].state.inventory[0].slot, 1);
+        assert_eq!(world.players["a"].state.inventory[0].item_id, "2000000");
+        assert_eq!(world.players["a"].state.inventory[1].slot, 2);
+        assert_eq!(world.players["a"].state.inventory[1].item_id, "4000019");
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::InventoryMove {
+                request_id: "move-once".into(),
+                source_slot: 1,
+                target_slot: 2,
+                quantity: 3,
+            },
+        });
+        assert_eq!(world.players["a"].state.inventory[1].quantity, 3);
+
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::DropItem {
+                request_id: "drop-once".into(),
+                source_slot: 2,
+                quantity: 1,
+            },
+        });
+        assert_eq!(world.drops.len(), 1);
+        assert_eq!(world.players["a"].state.inventory[1].quantity, 2);
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::DropItem {
+                request_id: "drop-once".into(),
+                source_slot: 2,
+                quantity: 1,
+            },
+        });
+        assert_eq!(world.drops.len(), 1);
+        assert_eq!(world.players["a"].state.inventory[1].quantity, 2);
+        let responses: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert!(responses
+            .iter()
+            .any(|message| message.contains("inventoryResult")));
+        assert!(responses
+            .iter()
+            .any(|message| message.contains("inventoryDropResult")));
+        let move_response = responses
+            .iter()
+            .find(|message| message.contains("\"type\":\"inventoryResult\""))
+            .expect("move response");
+        assert!(move_response.contains("\"sourceSlot\":1"));
+        assert!(move_response.contains("\"targetSlot\":2"));
+        let drop_response = responses
+            .iter()
+            .find(|message| message.contains("\"type\":\"inventoryDropResult\""))
+            .expect("drop response");
+        assert!(drop_response.contains("\"sourceSlot\":2"));
+    }
+
+    #[test]
+    fn portal_command_changes_map_and_snapshot_scope() {
+        let mut birth = map();
+        birth.portals.push(Portal {
+            name: "out00".into(),
+            portal_type: 2,
+            x: 10.0,
+            y: 0.0,
+            target_map_id: Some("target".into()),
+            target_portal_name: Some("in00".into()),
+        });
+        let target: Map = serde_json::from_str(
+            r#"{"id":"target","bounds":{"xMin":0,"xMax":500,"yMin":-500,"yMax":500},"spawn":{"x":40,"y":100},"footholds":[{"id":1,"x1":0,"y1":100,"x2":500,"y2":100}],"ladders":[],"portals":[{"name":"in00","type":2,"x":40,"y":100}]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(birth.clone(), 600);
+        world
+            .attach_catalog(MapCatalog {
+                birth_map_id: "test".into(),
+                maps: vec![birth, target],
+            })
+            .unwrap();
+        let (output, mut rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        let _ = rx.try_recv();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Portal {
+                request_id: "portal-once".into(),
+                portal_name: "out00".into(),
+            },
+        });
+        assert_eq!(world.players["a"].map_id, "target");
+        let result = rx.try_recv().expect("portal result");
+        assert!(result.contains("\"type\":\"portalResult\""));
+        world.step();
+        let snapshot = rx.try_recv().expect("target snapshot");
+        assert!(snapshot.contains("\"mapId\":\"target\""));
+    }
+
+    #[test]
+    fn generated_map_catalog_loads_all_rendered_maps() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
+        let catalog = MapCatalog::load(&path).expect("generated map catalog");
+        assert_eq!(catalog.birth_map_id, "000010000");
+        assert_eq!(catalog.maps.len(), 19);
+        assert!(catalog.maps.iter().all(|map| !map.footholds.is_empty()));
+        assert!(catalog
+            .maps
+            .iter()
+            .flat_map(|map| map.portals.iter())
+            .any(|portal| portal.target_map_id.as_deref() == Some("000020000")));
+    }
+
+    #[test]
+    fn full_snapshot_queue_keeps_player_connected() {
+        let mut world = World::new(map(), 600);
+        let (output, mut rx) = mpsc::channel(1);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        assert!(rx.try_recv().is_ok());
+        world.step();
+        assert!(world.players.contains_key("a"));
     }
 
     #[test]

@@ -29,6 +29,28 @@ pub enum ClientMessage {
         #[serde(rename = "dropId")]
         drop_id: String,
     },
+    Portal {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "portalName")]
+        portal_name: String,
+    },
+    InventoryMove {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "sourceSlot")]
+        source_slot: u16,
+        #[serde(rename = "targetSlot")]
+        target_slot: u16,
+        quantity: u32,
+    },
+    DropItem {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "sourceSlot")]
+        source_slot: u16,
+        quantity: u32,
+    },
     Revive {
         #[serde(rename = "requestId")]
         request_id: String,
@@ -62,6 +84,26 @@ impl ClientMessage {
             Self::Attack { request_id }
             | Self::Pickup { request_id, .. }
             | Self::Revive { request_id } => valid_id(request_id),
+            Self::Portal {
+                request_id,
+                portal_name,
+            } => valid_id(request_id) && valid_id(portal_name),
+            Self::InventoryMove {
+                request_id,
+                source_slot,
+                target_slot,
+                quantity,
+            } => {
+                valid_id(request_id)
+                    && (1..=24).contains(source_slot)
+                    && (1..=24).contains(target_slot)
+                    && *quantity > 0
+            }
+            Self::DropItem {
+                request_id,
+                source_slot,
+                quantity,
+            } => valid_id(request_id) && (1..=24).contains(source_slot) && *quantity > 0,
         }
     }
 }
@@ -74,9 +116,10 @@ fn valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
+    pub slot: u16,
     pub item_id: String,
     pub quantity: u32,
 }

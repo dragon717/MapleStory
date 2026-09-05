@@ -46,7 +46,7 @@ export class HudView {
   private readonly observer?: ResizeObserver;
   private inventory: HudPlayer['inventory'] = [];
 
-  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onMenu?: () => void, private onShortcut?: () => void) {
+  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onMenu?: (trigger: HTMLElement) => void, private onShortcut?: (trigger: HTMLElement) => void) {
     this.root = document.createElement('div');
     this.root.className = 'maple-hud';
     this.root.hidden = true;
@@ -204,8 +204,8 @@ export class HudView {
     button.addEventListener('pointerdown', () => setState('pressed'));
     button.addEventListener('pointerup', () => setState('normal'));
     button.addEventListener('click', () => {
-      if (key === 'BtMenu' && this.onMenu) this.onMenu();
-      else if (key === 'BtShort' && this.onShortcut) this.onShortcut();
+      if (key === 'BtMenu' && this.onMenu) this.onMenu(button);
+      else if (key === 'BtShort' && this.onShortcut) this.onShortcut(button);
       else if (key === 'BtShort' && this.onInventory) this.onInventory();
       else if (key === 'BtShort') this.status('快捷栏暂未开放。');
       else if (key === 'BtMenu') this.status('菜单暂未开放。');

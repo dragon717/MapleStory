@@ -16,6 +16,8 @@ export class ChatView {
   private readonly input?: HTMLInputElement;
   private readonly toggle?: HTMLButtonElement;
   private readonly statusLine?: HTMLSpanElement;
+  private readonly systemLog?: HTMLDivElement;
+  private readonly systemEventIds = new Set<string>();
   private available = false;
   private openState = true;
 
@@ -99,6 +101,13 @@ export class ChatView {
     this.panel.append(toolbar);
     const divider = this.createImage(line, 'chat-source-line');
     this.panel.append(divider);
+    const systemLog = document.createElement('div');
+    systemLog.className = 'chat-log';
+    systemLog.setAttribute('role', 'log');
+    systemLog.setAttribute('aria-label', '系统消息');
+    systemLog.setAttribute('aria-live', 'polite');
+    this.panel.append(systemLog);
+    this.systemLog = systemLog;
     const note = document.createElement('span');
     note.className = 'chat-availability';
     note.textContent = '聊天发送功能暂未接入';
@@ -121,6 +130,18 @@ export class ChatView {
   clear() {
     this.setAvailable(false);
     if (this.input) this.input.value = '';
+  }
+
+  appendSystem(message: string, eventId?: string) {
+    if (eventId && this.systemEventIds.has(eventId)) return false;
+    if (eventId) this.systemEventIds.add(eventId);
+    if (!this.systemLog) return true;
+    const line = document.createElement('div');
+    line.className = 'chat-system-line';
+    line.textContent = `系统：${message}`;
+    this.systemLog.append(line);
+    while (this.systemLog.childElementCount > 40) this.systemLog.firstElementChild?.remove();
+    return true;
   }
 
   destroy() {

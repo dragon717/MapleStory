@@ -32,6 +32,9 @@ impl Combat {
         request: &str,
         tick: u64,
         active_until: u64,
+        x: f64,
+        y: f64,
+        facing: i8,
     ) -> Attack {
         let key = (player.to_owned(), request.to_owned());
         if let Some(prior) = self.attacks.get(&key) {
@@ -52,11 +55,15 @@ impl Combat {
         let action_id = format!("action-{}-{}", self.next_action, crate::auth::random_id());
         let event = serde_json::json!({
             "type":"actionStarted",
+            "eventId":format!("action-event-{}", action_id),
             "serverTick":tick,
             "playerId":player,
             "actionId":action_id,
             "requestId":request,
-            "durationMs":self.duration_ms
+            "durationMs":self.duration_ms,
+            "x":x,
+            "y":y,
+            "facing":facing
         })
         .to_string();
         let claim = match store

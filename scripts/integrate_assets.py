@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import shutil
+from map_catalog import apply_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'references/browser-probe'
@@ -36,6 +37,7 @@ if __name__ == '__main__':
     shutil.copyfile(str(attack_sound), str(TARGET / 'swordS-Attack.mp3'))
     manifest['avatar']['attackSound'] = '/assets/swordS-Attack.mp3'
     manifest['avatar']['attackSoundSource'] = 'Character.wz/Weapon/01302029.img/info/sfx=swordS -> Sound.wz/Weapon.img/swordS/Attack'
+    apply_catalog(manifest)
     assert sum(f['delay'] for f in actions['attack']) == 800
     footholds = [dict(f, id=int(str(f['id']).split('/')[-1])) for f in source_map['footholds']]
     assert len({f['id'] for f in footholds}) == len(footholds)

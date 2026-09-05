@@ -1,5 +1,6 @@
 mod auth;
 mod combat;
+mod inventory;
 mod network;
 mod protocol;
 mod world;
@@ -35,6 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     let gameplay = world::Gameplay::load(&gameplay_path)
         .map_err(|error| format!("Cannot load gameplay {}: {error}", gameplay_path.display()))?;
+    let catalog_path = PathBuf::from(setting(
+        "MAP_CATALOG",
+        root.join("shared/maps.json").to_str().unwrap(),
+    ));
     let duration_ms: u64 = setting("ATTACK_DURATION_MS", "800").parse()?;
     if !(50..=5000).contains(&duration_ms) {
         return Err("ATTACK_DURATION_MS must be 50..5000".into());
@@ -44,14 +49,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root.join("server/data/accounts.sqlite3").to_str().unwrap(),
     )))?;
     let world_store = auth_service.store.clone();
-    let (world, rx) = mpsc::channel(1024);
-    tokio::spawn(world::run(
-        world::World::new_with_store(map, duration_ms, gameplay, world_store)?,
-        rx,
-    ));
+    let (world_tx, rx) = mpsc::channel(1024);
+    let world = if catalog_path.is_file() {
+        let catalog = world::MapCatalog::load(&catalog_path).map_err(|error| {
+            format!(
+                "Cannot load map catalog {}: {error}",
+                catalog_path.display()
+            )
+        })?;
+        world::World::new_with_store_and_catalog(map, duration_ms, gameplay, world_store, catalog)?
+    } else {
+        world::World::new_with_store(map, duration_ms, gameplay, world_store)?
+    };
+    tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,
-        world,
+        world: world_tx,
         auth_slots: Arc::new(Semaphore::new(4)),
         connections: Arc::new(Semaphore::new(256)),
     };

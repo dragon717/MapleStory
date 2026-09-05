@@ -1,10 +1,59 @@
 import { CONTENT_VERSION } from '../../../shared/protocol';
 export interface Point { x: number; y: number }
-export interface Part { key: string; url: string; x: number; y: number; origin: Point; z: number; map?: Record<string, Point> }
+export interface Part {
+  key: string;
+  url: string;
+  x: number;
+  y: number;
+  origin: Point;
+  z: number;
+  width?: number;
+  height?: number;
+  map?: Record<string, Point>;
+  source?: string;
+  resolvedSource?: string;
+  anchor?: string;
+}
 export interface Frame { delay: number; parts: Part[] }
 export interface Background { x: number; y: number; rx: number; ry: number; cx: number; cy: number; type: number; front: number; ani: number; f: number }
+export interface MapBounds { xMin: number; xMax: number; yMin: number; yMax: number }
+export interface MapLayer {
+  key: string; url: string; x: number; y: number; origin?: Point; depth: number;
+  alpha?: number; flip?: boolean; type?: number; background?: Background;
+  source?: string; resolvedSource?: string; width?: number; height?: number;
+  mapObject?: { layer: number; oS: string; l0?: string; l1?: string; l2?: string; x: number; y: number; z?: number; zM?: number };
+  mapTile?: { layer: number; x: number; y: number; u: string; no: number; zM?: number };
+}
+export interface MapLadder { id: number; l: number; uf: number; x: number; y1: number; y2: number; page: number }
+export interface MapFoothold {
+  id: number; path?: string; x1: number; y1: number; x2: number; y2: number;
+  prev?: number; next?: number; forbidFallDown?: number;
+}
+export interface MapSpawn { id: string; x: number; y: number; foothold?: number; footholdPath?: string; facing?: -1 | 1 }
+export interface MapPortal {
+  name: string; type: number; x: number; y: number;
+  targetMapId: string | null; targetPortalName: string | null;
+  script?: string; onlyOnce?: boolean; hideTooltip?: number; delay?: number;
+}
+export interface MapCatalogEntry {
+  id: string; name: string; streetName: string; source: string;
+  assetStatus: 'rendered' | 'metadata'; bounds: MapBounds; bgm?: string;
+  portals: MapPortal[]; layers?: MapLayer[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
+  spawn?: MapSpawn; spawns?: MapSpawn[];
+}
+export interface MapCatalog {
+  birthMapId: string; source: string; maps: MapCatalogEntry[];
+  omitted?: { id: string; reason: string }[];
+}
+export interface ControlGuide { id: string; keys: string[]; separator: '/' | '+'; label: string }
+export interface MapDefinition {
+  id: string; name: string; bounds: MapBounds; layers: MapLayer[];
+  source?: string; portals?: MapPortal[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
+  spawn?: MapSpawn; spawns?: MapSpawn[]; bgm?: string;
+}
 export interface AssetFrame {
   url: string; width: number; height: number; origin: Point; x: number; y: number; delay: number;
+  index?: number;
   source?: string; resolvedSource?: string; map?: Record<string, Point>; lt?: Point | null; rb?: Point | null;
 }
 export interface MonsterAsset {
@@ -18,11 +67,30 @@ export interface GameplayAssets {
   hud: Record<string, AssetFrame>;
   drops?: { source?: string; officialParity?: string; entries?: { itemId: string; minimum: number; maximum: number; questId: number; chance: number }[] };
 }
+export interface AfterimageAsset {
+  source: string;
+  firstFrame: number;
+  startMs: number;
+  frames: AssetFrame[];
+}
+export interface DamageNumberSet {
+  first: Record<string, AssetFrame>;
+  rest: Record<string, AssetFrame>;
+}
+export interface CombatAssets {
+  attack?: { afterimage?: AfterimageAsset };
+  /** Mob.wz hit1 already contains the source-backed impact slash; this sound is its matching Sound.wz cue. */
+  hit?: { sound?: string; soundSource?: string };
+  damageNumbers?: { normal: DamageNumberSet; critical?: DamageNumberSet };
+}
 export interface Manifest {
   contentVersion: string;
-  map: { id: string; name: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number }; layers: { key: string; url: string; x: number; y: number; origin?: Point; depth: number; alpha?: number; flip?: boolean; type?: number; background?: Background }[]; ladders?: { id: number; l: number; uf: number; x: number; y1: number; y2: number; page: number }[]; bgm?: string };
+  map: MapDefinition;
+  mapCatalog?: MapCatalog;
+  controls?: ControlGuide[];
   avatar: { defaultFacing: -1 | 1; actions: Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead', Frame[]>>; attackSound?: string };
   monsters?: GameplayAssets['monsters']; items?: GameplayAssets['items']; hud?: GameplayAssets['hud']; drops?: GameplayAssets['drops'];
+  combat?: CombatAssets;
   /** Source-backed UIWindow.img/Item subtree, keyed relative to Item. */
   inventoryUi?: Record<string, AssetFrame>;
   /** Source-backed Basic.img/BtClose states used by item windows. */

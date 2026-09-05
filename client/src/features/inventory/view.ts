@@ -1,13 +1,17 @@
-import type { PlayerState } from '../../../../shared/protocol';
+import type { ClientMessage, PlayerState, ServerMessage } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { protocolText, uiText } from '../../app/i18n';
+import { itemCategoryTab, itemName } from './names';
 
 const WINDOW_SMALL = { width: 175, height: 289 } as const;
 const WINDOW_FULL = { width: 603, height: 289 } as const;
 const GRID = { columns: 4, rows: 6, left: 8, top: 50, cellWidth: 29, cellHeight: 29, margin: 4 } as const;
 const TAB_COUNT = 5;
+const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventorySetup', 'inventoryEtc', 'inventoryCash'] as const;
 
 type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'>;
 type AssetSet = Record<string, AssetFrame>;
+type SendClientMessage = (message: ClientMessage) => boolean;
 
 /**
  * Source-backed GMS83 UIWindow.img/Item window.
@@ -26,6 +30,9 @@ export class InventoryView {
   private readonly background?: HTMLImageElement;
   private readonly grid?: HTMLDivElement;
   private readonly tabs?: HTMLDivElement;
+  private readonly tabsViewport?: HTMLDivElement;
+  private readonly tabPrev?: HTMLButtonElement;
+  private readonly tabNext?: HTMLButtonElement;
   private readonly mesosLine?: HTMLDivElement;
   private readonly closeButton?: HTMLButtonElement;
   private readonly gatherButton?: HTMLButtonElement;
@@ -38,8 +45,10 @@ export class InventoryView {
   private inventory: InventoryPlayer['inventory'] = [];
   private mesos = 0;
   private slotsSignature = '';
+  private draggedSlot?: number;
+  private requestSequence = 0;
 
-  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void) {
+  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false) {
     this.manifest = manifest;
     this.ui = manifest.inventoryUi;
     this.closeAssets = manifest.closeButton;
@@ -52,7 +61,7 @@ export class InventoryView {
     const window = document.createElement('div');
     window.className = 'inventory-window';
     window.setAttribute('role', 'dialog');
-    window.setAttribute('aria-label', '物品栏');
+    window.setAttribute('aria-label', uiText('inventoryTitle', '物品栏'));
     window.hidden = true;
     this.window = window;
 
@@ -65,13 +74,28 @@ export class InventoryView {
     window.append(background);
     this.background = background;
 
+    const title = document.createElement('span');
+    title.className = 'inventory-window-title';
+    title.textContent = uiText('inventoryTitle', '物品栏');
+    title.setAttribute('aria-hidden', 'true');
+    window.append(title);
+
+    const tabsViewport = document.createElement('div');
+    tabsViewport.className = 'inventory-tabs-viewport';
+    tabsViewport.style.left = '2px';
+    tabsViewport.style.top = '21px';
     const tabs = document.createElement('div');
     tabs.className = 'inventory-tabs';
-    tabs.style.left = '2px';
-    tabs.style.top = '21px';
+    tabs.style.position = 'relative';
+    tabs.style.width = 'max-content';
     for (let index = 0; index < TAB_COUNT; index++) this.createTab(tabs, index);
-    window.append(tabs);
+    tabsViewport.append(tabs);
+    window.append(tabsViewport);
     this.tabs = tabs;
+    this.tabsViewport = tabsViewport;
+    this.tabPrev = this.createTabArrow(window, 'prev', '上一页签', -1);
+    this.tabNext = this.createTabArrow(window, 'next', '下一页签', 1);
+    tabsViewport.addEventListener('scroll', () => this.updateTabOverflow());
 
     const grid = document.createElement('div');
     grid.className = 'inventory-grid';
@@ -98,6 +122,7 @@ export class InventoryView {
     this.observer?.observe(host);
     this.setFull(false);
     this.layout();
+    this.updateTabOverflow();
   }
 
   update(player: InventoryPlayer | undefined) {
@@ -108,10 +133,10 @@ export class InventoryView {
     }
     this.inventory = player.inventory;
     this.mesos = Math.max(0, Math.floor(player.mesos));
-    this.root.dataset.inventory = this.inventory.map(item => `${item.itemId}:${item.quantity}`).join(',');
+    this.root.dataset.inventory = this.inventory.map(item => `${item.slot}:${item.itemId}:${item.quantity}`).join(',');
     this.root.dataset.mesos = String(this.mesos);
     this.renderMesos();
-    const signature = this.inventory.map(item => `${item.itemId}:${item.quantity}`).join('|');
+    const signature = this.inventory.map(item => `${item.slot}:${item.itemId}:${item.quantity}`).join('|');
     if (signature !== this.slotsSignature) {
       this.slotsSignature = signature;
       this.renderSlots();
@@ -141,6 +166,7 @@ export class InventoryView {
   clear() {
     this.inventory = [];
     this.mesos = 0;
+    this.draggedSlot = undefined;
     this.slotsSignature = '';
     this.root.dataset.inventory = '';
     this.root.dataset.mesos = '0';
@@ -163,11 +189,12 @@ export class InventoryView {
     button.className = 'inventory-tab';
     button.dataset.tab = String(index);
     button.style.left = `${index * 34}px`;
-    button.setAttribute('aria-label', `物品栏分页 ${index + 1}`);
+    button.setAttribute('aria-label', uiText(TAB_LABEL_KEYS[index], `物品栏分页 ${index + 1}`));
     button.addEventListener('click', () => {
       this.selectedTab = index;
       this.updateTabs();
-      this.status(`物品栏分页 ${index + 1}`);
+      this.renderSlots();
+      this.status(uiText(TAB_LABEL_KEYS[index], `物品栏分页 ${index + 1}`));
     });
     parent.append(button);
     this.updateTab(button, index);
@@ -178,6 +205,30 @@ export class InventoryView {
       const index = Number(button.dataset.tab);
       this.updateTab(button, index);
     });
+  }
+
+  private createTabArrow(parent: HTMLDivElement, direction: 'prev' | 'next', label: string, amount: number) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `inventory-tab-arrow inventory-tab-arrow-${direction}`;
+    button.textContent = direction === 'prev' ? '‹' : '›';
+    button.setAttribute('aria-label', label);
+    button.hidden = true;
+    button.addEventListener('click', () => {
+      this.tabsViewport?.scrollBy({ left: amount * 68, behavior: 'smooth' });
+    });
+    parent.append(button);
+    return button;
+  }
+
+  private updateTabOverflow() {
+    const viewport = this.tabsViewport;
+    if (!viewport || !this.tabPrev || !this.tabNext) return;
+    const overflow = viewport.scrollWidth > viewport.clientWidth + 1;
+    this.tabPrev.hidden = !overflow;
+    this.tabNext.hidden = !overflow;
+    this.tabPrev.disabled = !overflow || viewport.scrollLeft <= 1;
+    this.tabNext.disabled = !overflow || viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
   }
 
   private updateTab(button: HTMLButtonElement, index: number) {
@@ -214,31 +265,63 @@ export class InventoryView {
         button.append(image);
       }
     }
-    const label = this.ui?.[`Tab/${state}/${index}`];
-    if (label) {
-      const image = document.createElement('img');
-      image.className = 'inventory-tab-label';
-      image.src = label.url;
-      image.width = label.width;
-      image.height = label.height;
-      image.alt = '';
-      image.draggable = false;
-      image.style.left = `${label.width / 8}px`;
-      image.style.top = `${label.height / 8}px`;
-      image.setAttribute('aria-hidden', 'true');
-      button.append(image);
-    }
+    const label = document.createElement('span');
+    label.className = 'inventory-tab-label-text';
+    label.textContent = uiText(TAB_LABEL_KEYS[index], `Tab ${index + 1}`);
+    label.setAttribute('aria-hidden', 'true');
+    button.append(label);
   }
 
   private createSlot(parent: HTMLDivElement, index: number) {
+    const slotNumber = index + 1;
     const slot = document.createElement('button');
     slot.type = 'button';
     slot.className = 'inventory-slot';
-    slot.dataset.slot = String(index);
-    slot.setAttribute('aria-label', `物品栏空槽 ${index + 1}`);
+    slot.dataset.slot = String(slotNumber);
+    slot.setAttribute('aria-label', `物品栏空槽 ${slotNumber}`);
     slot.addEventListener('click', () => {
-      const item = this.inventory[index];
-      if (item) this.status(`已选择道具 ${item.itemId} × ${item.quantity}`);
+      const item = this.visibleItemAt(slotNumber);
+      if (item) this.status(`已选择道具 ${itemName(item.itemId)} × ${item.quantity}`);
+    });
+    slot.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      if (this.visibleItemAt(slotNumber)) this.dropSlot(slotNumber);
+    });
+    slot.addEventListener('dragstart', event => {
+      const item = this.visibleItemAt(slotNumber);
+      if (!item) {
+        event.preventDefault();
+        return;
+      }
+      this.draggedSlot = slotNumber;
+      slot.classList.add('inventory-slot-dragging');
+      event.dataTransfer?.setData('text/plain', String(slotNumber));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    slot.addEventListener('dragend', () => {
+      this.draggedSlot = undefined;
+      slot.classList.remove('inventory-slot-dragging');
+      this.clearDragTargets();
+    });
+    slot.addEventListener('dragover', event => {
+      const sourceSlot = this.draggedSlot;
+      if (!sourceSlot || !this.visibleItemAt(sourceSlot)) return;
+      // A different category may occupy this global slot while it is hidden
+      // by the current tab. Do not turn that hidden item into a swap target.
+      if (this.itemAt(slotNumber) && !this.visibleItemAt(slotNumber)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      slot.classList.add('inventory-slot-drag-target');
+    });
+    slot.addEventListener('dragleave', () => slot.classList.remove('inventory-slot-drag-target'));
+    slot.addEventListener('drop', event => {
+      event.preventDefault();
+      const encoded = event.dataTransfer?.getData('text/plain');
+      const sourceSlot = encoded ? Number(encoded) : this.draggedSlot;
+      slot.classList.remove('inventory-slot-drag-target');
+      this.draggedSlot = undefined;
+      if (sourceSlot && Number.isInteger(sourceSlot)
+        && (!this.itemAt(slotNumber) || this.visibleItemAt(slotNumber))) this.moveSlot(sourceSlot, slotNumber);
     });
     parent.append(slot);
   }
@@ -247,12 +330,21 @@ export class InventoryView {
     if (!this.grid) return;
     const slots = Array.from(this.grid.querySelectorAll<HTMLButtonElement>('.inventory-slot'));
     for (const [index, slot] of slots.entries()) {
-      const item = this.inventory[index];
+      const slotNumber = index + 1;
+      const item = this.visibleItemAt(slotNumber);
       slot.replaceChildren();
-      slot.disabled = !item;
+      // Empty slots must remain event targets so an item can be dragged into
+      // them.  Keep the visual/assistive empty state without disabling the
+      // button, because disabled buttons do not receive dragover/drop events.
+      slot.disabled = false;
+      slot.draggable = Boolean(item);
       slot.classList.toggle('inventory-slot-occupied', Boolean(item));
-      slot.setAttribute('aria-label', item ? `道具 ${item.itemId} × ${item.quantity}` : `物品栏空槽 ${index + 1}`);
-      if (!item) continue;
+      slot.setAttribute('aria-disabled', item ? 'false' : 'true');
+      slot.setAttribute('aria-label', item ? `道具 ${itemName(item.itemId)} × ${item.quantity}` : `物品栏空槽 ${slotNumber}`);
+      if (!item) {
+        delete slot.dataset.itemId;
+        continue;
+      }
       const frame = this.manifest.items?.[item.itemId];
       if (!frame) {
         slot.dataset.itemId = item.itemId;
@@ -264,7 +356,7 @@ export class InventoryView {
       icon.src = frame.url;
       icon.width = frame.width;
       icon.height = frame.height;
-      icon.alt = '';
+      icon.alt = itemName(item.itemId);
       icon.draggable = false;
       slot.append(icon);
       const quantity = document.createElement('span');
@@ -273,6 +365,71 @@ export class InventoryView {
       quantity.setAttribute('aria-hidden', 'true');
       slot.append(quantity);
     }
+  }
+
+  receive(message: ServerMessage) {
+    if (message.type === 'pickupResult') {
+      if (message.slot) this.status(`已拾取 ${itemName(message.itemId)} × ${message.quantity}（第 ${message.slot} 格）`);
+      else this.status(`已拾取 ${itemName(message.itemId)} × ${message.quantity}`);
+      return;
+    }
+    if (message.type !== 'inventoryResult' && message.type !== 'inventoryDropResult') return;
+    if (!message.success) {
+      this.status(`${protocolText(message.code, '物品栏操作失败')}（${message.code}）`);
+      return;
+    }
+    if (message.operation === 'drop') this.status(`已丢弃 ${itemName(message.itemId)} × ${message.quantity}`);
+    else this.status(`已移动 ${itemName(message.itemId)} × ${message.quantity}`);
+  }
+
+  private itemAt(slot: number) {
+    return this.inventory.find(item => item.slot === slot);
+  }
+
+  private visibleItemAt(slot: number) {
+    const item = this.itemAt(slot);
+    return item && itemCategoryTab(item.itemId) === this.selectedTab ? item : undefined;
+  }
+
+  private moveSlot(sourceSlot: number, targetSlot: number) {
+    const item = this.itemAt(sourceSlot);
+    if (!item || sourceSlot < 1 || sourceSlot > GRID.columns * GRID.rows || targetSlot < 1 || targetSlot > GRID.columns * GRID.rows) return;
+    if (!this.send({ type: 'inventoryMove', requestId: this.requestId('move'), sourceSlot, targetSlot, quantity: item.quantity })) {
+      this.status('物品栏操作需要保持在线。');
+      return;
+    }
+    this.status(`正在移动 ${itemName(item.itemId)} × ${item.quantity}…`);
+  }
+
+  private dropSlot(sourceSlot: number) {
+    const item = this.itemAt(sourceSlot);
+    if (!item) return;
+    let quantity = item.quantity;
+    if (quantity > 1) {
+      const answer = window.prompt(`丢弃 ${itemName(item.itemId)} 的数量（1-${quantity}）`, String(quantity));
+      if (answer === null) return;
+      quantity = Number(answer);
+      if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > item.quantity) {
+        this.status('丢弃数量无效。');
+        return;
+      }
+    }
+    if (!this.send({ type: 'dropItem', requestId: this.requestId('drop'), sourceSlot, quantity })) {
+      this.status('物品栏操作需要保持在线。');
+      return;
+    }
+    this.status(`正在丢弃 ${itemName(item.itemId)} × ${quantity}…`);
+  }
+
+  private requestId(prefix: string) {
+    const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${++this.requestSequence}`;
+    return `${prefix}-${random}`.slice(0, 64);
+  }
+
+  private clearDragTargets() {
+    this.grid?.querySelectorAll('.inventory-slot-drag-target').forEach(slot => slot.classList.remove('inventory-slot-drag-target'));
   }
 
   private renderMesos() {
@@ -292,10 +449,6 @@ export class InventoryView {
     value.className = 'inventory-mesos-value';
     value.textContent = this.mesos.toLocaleString('en-US');
     this.mesosLine.append(value);
-    const label = document.createElement('span');
-    label.className = 'inventory-mesos-label';
-    label.textContent = 'mesos';
-    this.mesosLine.append(label);
   }
 
   private createWindowButton(parent: HTMLDivElement, kind: string, assets: AssetSet, normalKey: string, action: () => void) {
@@ -356,6 +509,7 @@ export class InventoryView {
     this.positionWindowButton(this.gatherButton, dimensions.width - 33, 8);
     this.positionWindowButton(this.sizeButton, dimensions.width - 48, 8);
     this.updateGridMetrics();
+    this.updateTabOverflow();
   }
 
   private positionWindowButton(button: HTMLButtonElement | undefined, sourceX: number, sourceY: number) {

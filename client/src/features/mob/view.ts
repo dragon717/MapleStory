@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { AssetFrame, MonsterAsset } from '../../assets/manifest';
+import type { AssetFrame, MonsterAsset, Point } from '../../assets/manifest';
 import { frameAt } from '../player/animation';
 
 export interface MonsterSnapshot {
@@ -42,6 +42,19 @@ export class MonsterView {
       // the image box, so reflect the source origin around its right edge.
       .setPosition(Math.round(monster.facing === 1 ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
       .setFlipX(monster.facing === 1);
+  }
+
+  /**
+   * Returns the center of the source-backed hit1 canvas in world space.
+   * World should pass this point to CombatView for authoritative damage text.
+   */
+  hitAnchor(monster: Pick<MonsterSnapshot, 'x' | 'y' | 'facing'>): Point {
+    const frame = this.asset.actions.hit[0] ?? this.asset.actions.stand[0];
+    const left = monster.facing === 1 ? monster.x - frame.x - frame.width : monster.x + frame.x;
+    return {
+      x: Math.round(left + frame.width / 2),
+      y: Math.round(monster.y + frame.y + frame.height / 2),
+    };
   }
 
   destroy() { this.sprite.destroy(); }

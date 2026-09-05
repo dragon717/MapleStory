@@ -1,3 +1,4 @@
+use crate::{inventory::SLOT_LIMIT, protocol::InventoryItem};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -67,7 +68,7 @@ pub struct Profile {
     pub exp_to_next: u64,
     pub mesos: u64,
     pub death_id: String,
-    pub inventory: Vec<(String, u32)>,
+    pub inventory: Vec<InventoryItem>,
 }
 
 #[derive(Clone, Debug)]
@@ -108,6 +109,20 @@ pub struct PickupOutcome {
     pub drop_id: String,
     pub item_id: String,
     pub quantity: u32,
+    pub slot: Option<u16>,
+    pub success: bool,
+    pub code: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct InventoryOutcome {
+    pub request_id: String,
+    pub operation: String,
+    pub from_slot: u16,
+    pub to_slot: Option<u16>,
+    pub item_id: String,
+    pub quantity: u32,
+    pub drop_id: Option<String>,
     pub success: bool,
     pub code: String,
 }
@@ -150,9 +165,23 @@ impl Store {
              );
              CREATE TABLE IF NOT EXISTS inventory(
                account_id TEXT NOT NULL,
+               slot INTEGER NOT NULL,
                item_id TEXT NOT NULL,
                quantity INTEGER NOT NULL,
-               PRIMARY KEY(account_id,item_id)
+               PRIMARY KEY(account_id,slot)
+             );
+             CREATE TABLE IF NOT EXISTS inventory_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               operation TEXT NOT NULL,
+               from_slot INTEGER NOT NULL,
+               to_slot INTEGER,
+               item_id TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               drop_id TEXT,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
              );
              CREATE TABLE IF NOT EXISTS attack_actions(
                account_id TEXT NOT NULL,
@@ -207,6 +236,7 @@ impl Store {
                drop_id TEXT NOT NULL,
                item_id TEXT NOT NULL,
                quantity INTEGER NOT NULL,
+               slot INTEGER,
                success INTEGER NOT NULL,
                code TEXT NOT NULL,
                PRIMARY KEY(account_id,request_id)
@@ -257,6 +287,51 @@ impl Store {
             .optional()?;
         if has_drop_owner.is_none() {
             db.execute("ALTER TABLE drops ADD COLUMN owner_account_id TEXT", [])?;
+        }
+        // Early development databases keyed inventory by item ID, which
+        // made two stacks of the same item impossible and discarded slot
+        // order on every login.  Migrate those rows to the source-shaped
+        // account/slot key without resetting the account database.
+        let has_inventory_slot: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('inventory') WHERE name='slot'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_inventory_slot.is_none() {
+            db.execute_batch(
+                "BEGIN IMMEDIATE;
+                 CREATE TABLE inventory_v2(
+                   account_id TEXT NOT NULL,
+                   slot INTEGER NOT NULL,
+                   item_id TEXT NOT NULL,
+                   quantity INTEGER NOT NULL,
+                   PRIMARY KEY(account_id,slot)
+                 );
+                 INSERT INTO inventory_v2(account_id,slot,item_id,quantity)
+                 SELECT old.account_id,
+                        (SELECT COUNT(*) FROM inventory prior
+                         WHERE prior.account_id=old.account_id
+                           AND prior.quantity>0
+                           AND prior.item_id<=old.item_id),
+                        old.item_id,old.quantity
+                 FROM inventory old
+                 WHERE old.quantity>0;
+                 DROP TABLE inventory;
+                 ALTER TABLE inventory_v2 RENAME TO inventory;
+                 COMMIT;",
+            )?;
+        }
+        let has_pickup_slot: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('pickup_actions') WHERE name='slot'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_pickup_slot.is_none() {
+            db.execute("ALTER TABLE pickup_actions ADD COLUMN slot INTEGER", [])?;
         }
         Ok(())
     }
@@ -542,7 +617,7 @@ impl Store {
     ) -> Result<Option<PickupOutcome>, String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.query_row(
-            "SELECT drop_id,item_id,quantity,success,code FROM pickup_actions
+            "SELECT drop_id,item_id,quantity,slot,success,code FROM pickup_actions
              WHERE account_id=?1 AND request_id=?2",
             params![account_id, request_id],
             |row| {
@@ -550,8 +625,11 @@ impl Store {
                     drop_id: row.get(0)?,
                     item_id: row.get(1)?,
                     quantity: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
-                    success: row.get::<_, i64>(3)? != 0,
-                    code: row.get(4)?,
+                    slot: row
+                        .get::<_, Option<i64>>(3)?
+                        .and_then(|slot| slot.try_into().ok()),
+                    success: row.get::<_, i64>(4)? != 0,
+                    code: row.get(5)?,
                 })
             },
         )
@@ -570,7 +648,7 @@ impl Store {
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
         if let Some(prior) = tx
             .query_row(
-                "SELECT drop_id,item_id,quantity,success,code FROM pickup_actions
+                "SELECT drop_id,item_id,quantity,slot,success,code FROM pickup_actions
                  WHERE account_id=?1 AND request_id=?2",
                 params![account_id, request_id],
                 |row| {
@@ -578,8 +656,11 @@ impl Store {
                         drop_id: row.get(0)?,
                         item_id: row.get(1)?,
                         quantity: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
-                        success: row.get::<_, i64>(3)? != 0,
-                        code: row.get(4)?,
+                        slot: row
+                            .get::<_, Option<i64>>(3)?
+                            .and_then(|slot| slot.try_into().ok()),
+                        success: row.get::<_, i64>(4)? != 0,
+                        code: row.get(5)?,
                     })
                 },
             )
@@ -597,48 +678,64 @@ impl Store {
             )
             .optional()
             .map_err(|_| "account persistence failed")?;
-        let (item_id, quantity, success, code) = if let Some((item_id, quantity, owner_id)) = drop {
-            if owner_id.as_deref().is_some_and(|owner| owner != account_id) {
-                (item_id, quantity, false, "drop_owned".to_owned())
-            } else {
-                let changed = tx
-                    .execute(
-                        "UPDATE drops SET active=0 WHERE id=?1 AND map_id=?2 AND active=1",
-                        params![drop_id, map_id],
-                    )
-                    .map_err(|_| "account persistence failed")?;
-                if changed == 1 {
-                    if item_id == "0" {
-                        tx.execute(
-                            "UPDATE player_stats SET mesos=mesos+?2 WHERE account_id=?1",
-                            params![account_id, quantity],
-                        )
-                        .map_err(|_| "account persistence failed")?;
-                    } else {
-                        tx.execute(
-                            "INSERT INTO inventory(account_id,item_id,quantity) VALUES (?1,?2,?3)
-                             ON CONFLICT(account_id,item_id) DO UPDATE SET quantity=quantity+excluded.quantity",
-                            params![account_id, item_id, quantity],
-                        )
-                        .map_err(|_| "account persistence failed")?;
-                    }
-                    (item_id, quantity, true, String::new())
+        let (item_id, quantity, slot, success, code) =
+            if let Some((item_id, quantity, owner_id)) = drop {
+                if owner_id.as_deref().is_some_and(|owner| owner != account_id) {
+                    (item_id, quantity, None, false, "drop_owned".to_owned())
+                } else if quantity <= 0 || u32::try_from(quantity).is_err() {
+                    (item_id, quantity, None, false, "drop_invalid".to_owned())
                 } else {
-                    (item_id, quantity, false, "drop_unavailable".to_owned())
+                    let quantity_u32 = u32::try_from(quantity).unwrap_or(0);
+                    let add_result = if item_id == "0" {
+                        Ok(Ok(None))
+                    } else {
+                        add_inventory_tx(&tx, account_id, &item_id, quantity_u32)
+                            .map(|result| result.map(Some))
+                    };
+                    match add_result {
+                        Err(error) => return Err(error),
+                        Ok(Err(code)) => (item_id, quantity, None, false, code.to_owned()),
+                        Ok(Ok(inventory_slot)) => {
+                            if item_id == "0" {
+                                tx.execute(
+                                    "UPDATE player_stats SET mesos=mesos+?2 WHERE account_id=?1",
+                                    params![account_id, quantity],
+                                )
+                                .map_err(|_| "account persistence failed")?;
+                            }
+                            let changed = tx
+                            .execute(
+                                "UPDATE drops SET active=0 WHERE id=?1 AND map_id=?2 AND active=1",
+                                params![drop_id, map_id],
+                            )
+                            .map_err(|_| "account persistence failed")?;
+                            if changed == 1 {
+                                (item_id, quantity, inventory_slot, true, String::new())
+                            } else {
+                                (
+                                    item_id,
+                                    quantity,
+                                    None,
+                                    false,
+                                    "drop_unavailable".to_owned(),
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-        } else {
-            (String::new(), 0, false, "drop_unavailable".to_owned())
-        };
+            } else {
+                (String::new(), 0, None, false, "drop_unavailable".to_owned())
+            };
         tx.execute(
-            "INSERT INTO pickup_actions(account_id,request_id,drop_id,item_id,quantity,success,code)
-             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            "INSERT INTO pickup_actions(account_id,request_id,drop_id,item_id,quantity,slot,success,code)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
                 account_id,
                 request_id,
                 drop_id,
                 item_id,
                 quantity,
+                slot.map(i64::from),
                 if success { 1 } else { 0 },
                 code
             ],
@@ -649,9 +746,297 @@ impl Store {
             drop_id: drop_id.to_owned(),
             item_id,
             quantity: quantity.try_into().unwrap_or(0),
+            slot,
             success,
             code,
         })
+    }
+
+    pub fn prior_inventory(
+        &self,
+        account_id: &str,
+        request_id: &str,
+    ) -> Result<Option<InventoryOutcome>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT request_id,operation,from_slot,to_slot,item_id,quantity,drop_id,success,code
+             FROM inventory_actions WHERE account_id=?1 AND request_id=?2",
+            params![account_id, request_id],
+            inventory_outcome_from_row,
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".into())
+    }
+
+    pub fn move_inventory(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        from_slot: u16,
+        to_slot: u16,
+        quantity: u32,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some(prior) = tx
+            .query_row(
+                "SELECT request_id,operation,from_slot,to_slot,item_id,quantity,drop_id,success,code
+                 FROM inventory_actions WHERE account_id=?1 AND request_id=?2",
+                params![account_id, request_id],
+                inventory_outcome_from_row,
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        {
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(prior);
+        }
+
+        let source: Option<(String, i64)> = if valid_inventory_slot(from_slot) {
+            tx.query_row(
+                "SELECT item_id,quantity FROM inventory
+                 WHERE account_id=?1 AND slot=?2 AND quantity>0",
+                params![account_id, i64::from(from_slot)],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        } else {
+            None
+        };
+        let (item_id, _stored_quantity, success, code) = if !valid_inventory_slot(from_slot)
+            || !valid_inventory_slot(to_slot)
+        {
+            (String::new(), 0_u32, false, "invalid_slot".to_owned())
+        } else if let Some((item_id, stored_quantity_raw)) = source {
+            if let Ok(stored_quantity) = u32::try_from(stored_quantity_raw) {
+                if stored_quantity == 0 {
+                    (item_id, 0, false, "source_empty".to_owned())
+                } else if quantity == 0 {
+                    (
+                        item_id,
+                        stored_quantity,
+                        false,
+                        "invalid_quantity".to_owned(),
+                    )
+                } else if quantity != stored_quantity {
+                    (
+                        item_id,
+                        stored_quantity,
+                        false,
+                        "quantity_mismatch".to_owned(),
+                    )
+                } else if from_slot == to_slot {
+                    (item_id, stored_quantity, true, String::new())
+                } else {
+                    let target: Option<(String, i64)> = tx
+                        .query_row(
+                            "SELECT item_id,quantity FROM inventory
+                         WHERE account_id=?1 AND slot=?2 AND quantity>0",
+                            params![account_id, i64::from(to_slot)],
+                            |row| Ok((row.get(0)?, row.get(1)?)),
+                        )
+                        .optional()
+                        .map_err(|_| "account persistence failed")?;
+                    let mutation = match target {
+                        None => {
+                            tx.execute(
+                                "UPDATE inventory SET slot=?3 WHERE account_id=?1 AND slot=?2",
+                                params![account_id, i64::from(from_slot), i64::from(to_slot)],
+                            )
+                            .map_err(|_| "account persistence failed")?;
+                            Ok(())
+                        }
+                        Some((target_item_id, target_quantity)) if target_item_id == item_id => {
+                            match u32::try_from(target_quantity)
+                                .ok()
+                                .and_then(|target_quantity| {
+                                    target_quantity.checked_add(stored_quantity)
+                                }) {
+                                None => Err("quantity_overflow"),
+                                Some(total) => {
+                                    tx.execute(
+                                    "UPDATE inventory SET quantity=?3 WHERE account_id=?1 AND slot=?2",
+                                    params![account_id, i64::from(to_slot), i64::from(total)],
+                                )
+                                .map_err(|_| "account persistence failed")?;
+                                    tx.execute(
+                                        "DELETE FROM inventory WHERE account_id=?1 AND slot=?2",
+                                        params![account_id, i64::from(from_slot)],
+                                    )
+                                    .map_err(|_| "account persistence failed")?;
+                                    Ok(())
+                                }
+                            }
+                        }
+                        Some((target_item_id, target_quantity)) => {
+                            let Ok(target_quantity) = u32::try_from(target_quantity) else {
+                                return Err("account persistence failed".into());
+                            };
+                            tx.execute(
+                                "DELETE FROM inventory WHERE account_id=?1 AND slot IN (?2,?3)",
+                                params![account_id, i64::from(from_slot), i64::from(to_slot)],
+                            )
+                            .map_err(|_| "account persistence failed")?;
+                            tx.execute(
+                            "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES (?1,?2,?3,?4)",
+                            params![account_id, i64::from(to_slot), item_id, i64::from(stored_quantity)],
+                        )
+                        .map_err(|_| "account persistence failed")?;
+                            tx.execute(
+                            "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES (?1,?2,?3,?4)",
+                            params![account_id, i64::from(from_slot), target_item_id, i64::from(target_quantity)],
+                        )
+                        .map_err(|_| "account persistence failed")?;
+                            Ok(())
+                        }
+                    };
+                    if let Err(code) = mutation {
+                        (item_id, stored_quantity, false, code.to_owned())
+                    } else {
+                        (item_id, stored_quantity, true, String::new())
+                    }
+                }
+            } else {
+                (item_id, 0, false, "quantity_overflow".to_owned())
+            }
+        } else {
+            (String::new(), 0, false, "source_empty".to_owned())
+        };
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            operation: "move".to_owned(),
+            from_slot,
+            to_slot: Some(to_slot),
+            item_id,
+            quantity,
+            drop_id: None,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(outcome)
+    }
+
+    pub fn drop_inventory(
+        &self,
+        account_id: &str,
+        map_id: &str,
+        request_id: &str,
+        from_slot: u16,
+        quantity: u32,
+        x: f64,
+        y: f64,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some(prior) = tx
+            .query_row(
+                "SELECT request_id,operation,from_slot,to_slot,item_id,quantity,drop_id,success,code
+                 FROM inventory_actions WHERE account_id=?1 AND request_id=?2",
+                params![account_id, request_id],
+                inventory_outcome_from_row,
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        {
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(prior);
+        }
+
+        let source: Option<(String, i64)> = if valid_inventory_slot(from_slot) {
+            tx.query_row(
+                "SELECT item_id,quantity FROM inventory
+                 WHERE account_id=?1 AND slot=?2 AND quantity>0",
+                params![account_id, i64::from(from_slot)],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        } else {
+            None
+        };
+        let mut drop_id = None;
+        let (item_id, stored_quantity, success, code) = if !valid_inventory_slot(from_slot) {
+            (String::new(), 0_u32, false, "invalid_slot".to_owned())
+        } else if !x.is_finite() || !y.is_finite() {
+            (String::new(), 0, false, "invalid_position".to_owned())
+        } else if let Some((item_id, stored_quantity_raw)) = source {
+            if let Ok(stored_quantity) = u32::try_from(stored_quantity_raw) {
+                if stored_quantity == 0 {
+                    (item_id, 0, false, "source_empty".to_owned())
+                } else if quantity == 0 || quantity > stored_quantity {
+                    (
+                        item_id,
+                        stored_quantity,
+                        false,
+                        "quantity_mismatch".to_owned(),
+                    )
+                } else {
+                    if quantity == stored_quantity {
+                        tx.execute(
+                            "DELETE FROM inventory WHERE account_id=?1 AND slot=?2",
+                            params![account_id, i64::from(from_slot)],
+                        )
+                    } else {
+                        tx.execute(
+                        "UPDATE inventory SET quantity=quantity-?3 WHERE account_id=?1 AND slot=?2",
+                        params![account_id, i64::from(from_slot), i64::from(quantity)],
+                    )
+                    }
+                    .map_err(|_| "account persistence failed")?;
+                    let id = random_id();
+                    tx.execute(
+                        "INSERT INTO drops(id,map_id,item_id,quantity,x,y,owner_account_id,active)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,1)",
+                        params![id, map_id, item_id, i64::from(quantity), x, y, account_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                    drop_id = Some(id);
+                    (item_id, stored_quantity, true, String::new())
+                }
+            } else {
+                (item_id, 0, false, "quantity_overflow".to_owned())
+            }
+        } else {
+            (String::new(), 0, false, "source_empty".to_owned())
+        };
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            operation: "drop".to_owned(),
+            from_slot,
+            to_slot: None,
+            item_id,
+            quantity: if success { quantity } else { stored_quantity },
+            drop_id,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(outcome)
+    }
+
+    pub fn load_drop(&self, map_id: &str, drop_id: &str) -> Result<Option<DropRecord>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT id,item_id,quantity,x,y,owner_account_id FROM drops
+             WHERE id=?1 AND map_id=?2 AND active=1",
+            params![drop_id, map_id],
+            |row| {
+                Ok(DropRecord {
+                    id: row.get(0)?,
+                    item_id: row.get(1)?,
+                    quantity: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
+                    x: row.get(3)?,
+                    y: row.get(4)?,
+                    owner_id: row.get(5)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".into())
     }
 
     pub fn prior_revive(
@@ -754,6 +1139,107 @@ impl Store {
     }
 }
 
+fn valid_inventory_slot(slot: u16) -> bool {
+    (1..=SLOT_LIMIT).contains(&slot)
+}
+
+fn inventory_outcome_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<InventoryOutcome> {
+    Ok(InventoryOutcome {
+        request_id: row.get(0)?,
+        operation: row.get(1)?,
+        from_slot: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
+        to_slot: row
+            .get::<_, Option<i64>>(3)?
+            .and_then(|slot| slot.try_into().ok()),
+        item_id: row.get(4)?,
+        quantity: row.get::<_, i64>(5)?.try_into().unwrap_or(0),
+        drop_id: row.get(6)?,
+        success: row.get::<_, i64>(7)? != 0,
+        code: row.get(8)?,
+    })
+}
+
+fn insert_inventory_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    outcome: &InventoryOutcome,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO inventory_actions(account_id,request_id,operation,from_slot,to_slot,item_id,quantity,drop_id,success,code)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        params![
+            account_id,
+            outcome.request_id,
+            outcome.operation,
+            i64::from(outcome.from_slot),
+            outcome.to_slot.map(i64::from),
+            outcome.item_id,
+            i64::from(outcome.quantity),
+            outcome.drop_id,
+            if outcome.success { 1 } else { 0 },
+            outcome.code,
+        ],
+    )
+    .map_err(|_| String::from("account persistence failed"))?;
+    Ok(())
+}
+
+/// Add a normal item to the first matching stack, or the first empty regular
+/// inventory slot.  The caller owns the surrounding transaction so a failed
+/// full/overflow result leaves both the item and its source drop untouched.
+fn add_inventory_tx(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    item_id: &str,
+    quantity: u32,
+) -> Result<Result<u16, &'static str>, String> {
+    let existing: Option<(i64, i64)> = tx
+        .query_row(
+            "SELECT slot,quantity FROM inventory
+             WHERE account_id=?1 AND item_id=?2 AND quantity>0 ORDER BY slot LIMIT 1",
+            params![account_id, item_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    if let Some((slot, current)) = existing {
+        let Ok(slot) = u16::try_from(slot) else {
+            return Ok(Err("invalid_slot"));
+        };
+        let Ok(current) = u32::try_from(current) else {
+            return Ok(Err("quantity_overflow"));
+        };
+        let Some(total) = current.checked_add(quantity) else {
+            return Ok(Err("quantity_overflow"));
+        };
+        tx.execute(
+            "UPDATE inventory SET quantity=?3 WHERE account_id=?1 AND slot=?2",
+            params![account_id, i64::from(slot), i64::from(total)],
+        )
+        .map_err(|_| "account persistence failed")?;
+        return Ok(Ok(slot));
+    }
+    for slot in 1..=SLOT_LIMIT {
+        let occupied: Option<i64> = tx
+            .query_row(
+                "SELECT 1 FROM inventory WHERE account_id=?1 AND slot=?2 LIMIT 1",
+                params![account_id, i64::from(slot)],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?;
+        if occupied.is_none() {
+            tx.execute(
+                "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES (?1,?2,?3,?4)",
+                params![account_id, i64::from(slot), item_id, i64::from(quantity)],
+            )
+            .map_err(|_| "account persistence failed")?;
+            return Ok(Ok(slot));
+        }
+    }
+    Ok(Err("inventory_full"))
+}
+
 fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Profile, String> {
     let (hp, max_hp, mp, max_mp, level, exp, exp_to_next, mesos, death_id):
         (i64, i64, i64, i64, i64, i64, i64, i64, String) = tx
@@ -776,11 +1262,15 @@ fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Prof
         )
         .map_err(|_| "account persistence failed")?;
     let mut stmt = tx
-        .prepare("SELECT item_id,quantity FROM inventory WHERE account_id=?1 AND quantity>0 ORDER BY item_id")
+        .prepare("SELECT slot,item_id,quantity FROM inventory WHERE account_id=?1 AND quantity>0 ORDER BY slot")
         .map_err(|_| "account persistence failed")?;
     let inventory = stmt
         .query_map([account_id], |row| {
-            Ok((row.get(0)?, row.get::<_, i64>(1)?.try_into().unwrap_or(0)))
+            Ok(InventoryItem {
+                slot: row.get::<_, i64>(0)?.try_into().unwrap_or(0),
+                item_id: row.get(1)?,
+                quantity: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
+            })
         })
         .map_err(|_| "account persistence failed")?
         .collect::<Result<Vec<_>, _>>()
@@ -1184,7 +1674,14 @@ mod tests {
         assert_eq!(replay_pickup.success, item_pickup.success);
         let profile = store.load_profile("a", &defaults).unwrap();
         assert_eq!(profile.mesos, if mesos_owner == "a" { 5 } else { 0 });
-        assert_eq!(profile.inventory, vec![("4000019".into(), 1)]);
+        assert_eq!(
+            profile.inventory,
+            vec![InventoryItem {
+                slot: 1,
+                item_id: "4000019".into(),
+                quantity: 1,
+            }]
+        );
         let other_profile = store
             .load_profile(if mesos_owner == "a" { "b" } else { "a" }, &defaults)
             .unwrap();
@@ -1195,7 +1692,109 @@ mod tests {
         let auth = start(&path).unwrap();
         let profile = auth.store.load_profile("a", &defaults).unwrap();
         assert_eq!(profile.mesos, if mesos_owner == "a" { 5 } else { 0 });
-        assert_eq!(profile.inventory, vec![("4000019".into(), 1)]);
+        assert_eq!(
+            profile.inventory,
+            vec![InventoryItem {
+                slot: 1,
+                item_id: "4000019".into(),
+                quantity: 1,
+            }]
+        );
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn inventory_move_drop_is_atomic_idempotent_and_survives_restart() {
+        let path = std::env::temp_dir().join(format!("maple-inventory-{}.sqlite3", random_id()));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            inventory: Vec::new(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+        {
+            let db = store.db.lock().unwrap();
+            db.execute(
+                "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES ('a',1,'4000019',3)",
+                [],
+            )
+            .unwrap();
+            db.execute(
+                "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES ('a',3,'2000000',1)",
+                [],
+            )
+            .unwrap();
+        }
+
+        let moved = store.move_inventory("a", "move-1", 1, 2, 3).unwrap();
+        assert!(moved.success);
+        assert_eq!(moved.from_slot, 1);
+        assert_eq!(moved.to_slot, Some(2));
+        assert_eq!(
+            store
+                .move_inventory("a", "move-1", 1, 2, 3)
+                .unwrap()
+                .drop_id,
+            None
+        );
+        let profile = store.load_profile("a", &defaults).unwrap();
+        assert_eq!(
+            profile.inventory,
+            vec![
+                InventoryItem {
+                    slot: 2,
+                    item_id: "4000019".into(),
+                    quantity: 3,
+                },
+                InventoryItem {
+                    slot: 3,
+                    item_id: "2000000".into(),
+                    quantity: 1,
+                },
+            ]
+        );
+
+        let first_drop = store
+            .drop_inventory("a", "map", "drop-1", 2, 1, 10.0, 20.0)
+            .unwrap();
+        assert!(first_drop.success);
+        let replay = store
+            .drop_inventory("a", "map", "drop-1", 2, 1, 999.0, 999.0)
+            .unwrap();
+        assert_eq!(replay.drop_id, first_drop.drop_id);
+        assert_eq!(replay.quantity, first_drop.quantity);
+        let active = store
+            .load_drop("map", first_drop.drop_id.as_deref().unwrap())
+            .unwrap();
+        assert_eq!(active.as_ref().map(|drop| drop.quantity), Some(1));
+        assert_eq!(active.as_ref().map(|drop| drop.x), Some(10.0));
+        let profile = store.load_profile("a", &defaults).unwrap();
+        assert_eq!(profile.inventory[0].quantity, 2);
+
+        drop(store);
+        drop(auth);
+        std::thread::sleep(Duration::from_millis(20));
+        let auth = start(&path).unwrap();
+        let profile = auth.store.load_profile("a", &defaults).unwrap();
+        assert_eq!(profile.inventory[0].slot, 2);
+        assert_eq!(profile.inventory[0].quantity, 2);
+        assert!(auth
+            .store
+            .load_drop("map", first_drop.drop_id.as_deref().unwrap())
+            .unwrap()
+            .is_some());
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));

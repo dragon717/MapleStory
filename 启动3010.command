@@ -15,6 +15,7 @@ DIST="$ROOT/client/dist-next"
 ASSETS="$ROOT/client/public-gameplay/assets"
 GAMEPLAY="$ROOT/evidence/runtime/gameplay-round2.json"
 MAP="$ROOT/evidence/runtime/map-round2.json"
+MAP_CATALOG="$ROOT/shared/maps.json"
 HEALTH_URL="http://127.0.0.1:3010/api/health"
 
 die() { print -u2 -- "启动失败：$*"; exit 1; }
@@ -63,7 +64,7 @@ mkdir -p "$CONTROL_DIR" || die "无法创建运行目录：$CONTROL_DIR"
 chmod 700 "$CONTROL_DIR"
 [[ -x "$SERVER_BIN" ]] || die "缺少已构建服务：$SERVER_BIN；需要时运行 ~/.cargo/bin/cargo build --manifest-path server/Cargo.toml"
 [[ -f "$DB" ]] || die "数据库不存在，为避免误建新库已停止：$DB"
-[[ -f "$DIST/index.html" && -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" ]] || die "3010 固定配置或 dist-next 资源不完整"
+[[ -f "$DIST/index.html" && -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" && -f "$MAP_CATALOG" ]] || die "3010 固定配置或 dist-next 资源不完整"
 NODE_BIN="$(command -v node || true)"
 [[ -n "$NODE_BIN" ]] || die "找不到 Node 22；请先加载 Node 22 环境"
 NODE_MAJOR="$($NODE_BIN -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
@@ -84,6 +85,7 @@ if ! is_server_pid "$SERVER_PID"; then
       ASSETS_DIR="$ASSETS" \
       GAMEPLAY_FILE="$GAMEPLAY" \
       MAP_FILE="$MAP" \
+      MAP_CATALOG="$MAP_CATALOG" \
       "$SERVER_BIN" >>"$SERVER_LOG" 2>&1 </dev/null &
     SERVER_PID=$!
     sleep 0.2
