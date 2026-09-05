@@ -1,4 +1,48 @@
 {
+  "1002019": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "White Bandana",
+    "description": "",
+    "info": {
+      "islot": "Cp",
+      "vslot": "CpH1H5",
+      "reqJob": 0,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 8,
+      "tuc": 7,
+      "price": 1000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Cap/01002019.img.xml"
+  },
+  "1002043": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Bronze Koif",
+    "description": "",
+    "info": {
+      "islot": "Cp",
+      "vslot": "CpH1H4",
+      "reqJob": 1,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 10,
+      "tuc": 7,
+      "price": 1200,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Cap/01002043.img.xml"
+  },
   "1002067": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -20,6 +64,50 @@
     },
     "spec": {},
     "source": "Character.wz/Cap/01002067.img.xml"
+  },
+  "1002610": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Rocky Bandana",
+    "description": "",
+    "info": {
+      "islot": "Cp",
+      "vslot": "CpH1H5",
+      "reqJob": 16,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 9,
+      "incMDD": 0,
+      "tuc": 7,
+      "price": 450,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Cap/01002610.img.xml"
+  },
+  "1032003": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Amethyst Earrings",
+    "description": "",
+    "info": {
+      "islot": "Ae",
+      "vslot": "Ae",
+      "reqJob": 0,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "tuc": 5,
+      "price": 3500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Accessory/01032003.img.xml"
   },
   "1040002": {
     "inventoryType": 1,
@@ -43,6 +131,139 @@
     "spec": {},
     "source": "Character.wz/Coat/01040002.img.xml"
   },
+  "1040006": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Undershirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01040006.img.xml"
+  },
+  "1040013": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Blue One-lined T-Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 11,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 11,
+      "tuc": 7,
+      "price": 1500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01040013.img.xml"
+  },
+  "1040017": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Grey / Brown Training Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 2,
+      "reqLevel": 8,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 7,
+      "incMDD": 5,
+      "tuc": 7,
+      "price": 1000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01040017.img.xml"
+  },
+  "1041002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "White Tubetop",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01041002.img.xml"
+  },
+  "1041006": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Yellow T-Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01041006.img.xml"
+  },
+  "1041012": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red-Striped T-Shirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 11,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 11,
+      "tuc": 7,
+      "price": 1500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01041012.img.xml"
+  },
   "1052095": {
     "inventoryType": 1,
     "slotMax": 1,
@@ -64,6 +285,472 @@
     },
     "spec": {},
     "source": "Character.wz/Longcoat/01052095.img.xml"
+  },
+  "1060002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Blue Jean Shorts",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060002.img.xml"
+  },
+  "1060004": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Grey Thick Sweat Pants",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 11,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 10,
+      "tuc": 7,
+      "price": 1400,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060004.img.xml"
+  },
+  "1060007": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Jean Capris",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 5,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 5,
+      "tuc": 7,
+      "price": 500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060007.img.xml"
+  },
+  "1060013": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Grey / Brown Training Pants",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 2,
+      "reqLevel": 8,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 6,
+      "incMDD": 4,
+      "tuc": 7,
+      "price": 1000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060013.img.xml"
+  },
+  "1060022": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red Cloth Pants",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 8,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 9,
+      "tuc": 7,
+      "price": 1400,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01060022.img.xml"
+  },
+  "1061009": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Green Avelin Skirt",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 4,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 9,
+      "tuc": 7,
+      "price": 1500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01061009.img.xml"
+  },
+  "1061014": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Rookie Pants",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 1,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 12,
+      "tuc": 7,
+      "price": 1500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01061014.img.xml"
+  },
+  "1061029": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red Cloth Pants",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 8,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 9,
+      "tuc": 7,
+      "price": 1400,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01061029.img.xml"
+  },
+  "1062000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Ice Jeans",
+    "description": "",
+    "info": {
+      "islot": "Pn",
+      "vslot": "Pn",
+      "reqJob": 0,
+      "reqLevel": 16,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 13,
+      "incMMP": 3,
+      "tuc": 7,
+      "price": 2400,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Pants/01062000.img.xml"
+  },
+  "1072004": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "White Gomushin",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 0,
+      "reqLevel": 11,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 4,
+      "incSpeed": 2,
+      "tuc": 5,
+      "price": 1000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072004.img.xml"
+  },
+  "1072005": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Leather Sandals",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 2,
+      "tuc": 5,
+      "price": 1,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072005.img.xml"
+  },
+  "1072007": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown High Boots",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 1,
+      "reqLevel": 20,
+      "reqSTR": 65,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 12,
+      "tuc": 5,
+      "price": 5000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072007.img.xml"
+  },
+  "1072008": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Bronze Aroa Boots",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 0,
+      "reqLevel": 16,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 7,
+      "tuc": 5,
+      "price": 2500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072008.img.xml"
+  },
+  "1072015": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Hard Leather Boots",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 4,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 4,
+      "tuc": 5,
+      "price": 900,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072015.img.xml"
+  },
+  "1072023": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Beige Nitty",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 2,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 48,
+      "reqLUK": 18,
+      "incPDD": 5,
+      "tuc": 5,
+      "incMDD": 2,
+      "price": 2000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072023.img.xml"
+  },
+  "1072031": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Red Ninja Sandals",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 8,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 30,
+      "reqINT": 0,
+      "reqLUK": 35,
+      "incPDD": 7,
+      "tuc": 5,
+      "price": 2250,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072031.img.xml"
+  },
+  "1072060": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Woodsman Boots",
+    "description": "",
+    "info": {
+      "islot": "So",
+      "vslot": "So",
+      "reqJob": 4,
+      "reqLevel": 15,
+      "reqSTR": 15,
+      "reqDEX": 35,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 7,
+      "tuc": 5,
+      "price": 2250,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Shoes/01072060.img.xml"
+  },
+  "1082003": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Juno",
+    "description": "",
+    "info": {
+      "islot": "Gv",
+      "vslot": "GlGw",
+      "reqJob": 1,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 5,
+      "price": 2500,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Glove/01082003.img.xml"
+  },
+  "1082012": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Basic Archer Gloves",
+    "description": "",
+    "info": {
+      "islot": "Gv",
+      "vslot": "GlGw",
+      "reqJob": 4,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 40,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 4,
+      "tuc": 5,
+      "price": 5000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Glove/01082012.img.xml"
+  },
+  "1082019": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Lemona",
+    "description": "",
+    "info": {
+      "islot": "Gv",
+      "vslot": "GlGw",
+      "reqJob": 2,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 48,
+      "reqLUK": 18,
+      "incPDD": 4,
+      "tuc": 5,
+      "price": 5000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Glove/01082019.img.xml"
+  },
+  "1082029": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Duo",
+    "description": "",
+    "info": {
+      "islot": "Gv",
+      "vslot": "GlGw",
+      "reqJob": 8,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 30,
+      "reqINT": 0,
+      "reqLUK": 35,
+      "incPDD": 4,
+      "tuc": 5,
+      "price": 5000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Glove/01082029.img.xml"
   },
   "1302000": {
     "inventoryType": 1,
@@ -93,6 +780,513 @@
     "spec": {},
     "source": "Character.wz/Weapon/01302000.img.xml"
   },
+  "1312000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Double Axe",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOL",
+      "sfx": "swordL",
+      "reqJob": 0,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 27,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01312000.img.xml"
+  },
+  "1312004": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Hand Axe",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOL",
+      "sfx": "swordL",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 17,
+      "tuc": 7,
+      "price": 1,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01312004.img.xml"
+  },
+  "1322005": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Wooden Club",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "mace",
+      "sfx": "mace",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 19,
+      "tuc": 7,
+      "price": 1,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01322005.img.xml"
+  },
+  "1322007": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Leather Purse",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "mace",
+      "sfx": "mace",
+      "reqJob": 0,
+      "reqLevel": 15,
+      "reqSTR": 20,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 34,
+      "tuc": 7,
+      "price": 3000,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01322007.img.xml"
+  },
+  "1332000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Triangular Zamadar",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOL",
+      "sfx": "swordL",
+      "reqJob": 8,
+      "reqLevel": 12,
+      "reqSTR": 0,
+      "reqDEX": 25,
+      "reqINT": 0,
+      "reqLUK": 25,
+      "incPAD": 27,
+      "tuc": 7,
+      "price": 2000,
+      "attackSpeed": 4,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01332000.img.xml"
+  },
+  "1332006": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Field Dagger",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOS",
+      "sfx": "swordS",
+      "reqJob": 9,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 30,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 30,
+      "tuc": 7,
+      "price": 3500,
+      "attackSpeed": 3,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01332006.img.xml"
+  },
+  "1372002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Metal Wand",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 6,
+      "afterImage": "mace",
+      "sfx": "mace",
+      "reqLevel": 18,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 55,
+      "reqLUK": 20,
+      "incPAD": 21,
+      "incMAD": 33,
+      "tuc": 7,
+      "price": 4500,
+      "attackSpeed": 6,
+      "cash": 0,
+      "reqJob": 2
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01372002.img.xml"
+  },
+  "1402001": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Wooden Sword",
+    "description": "",
+    "info": {
+      "islot": "WpSi",
+      "vslot": "WpSi",
+      "walk": 1,
+      "stand": 2,
+      "attack": 5,
+      "afterImage": "swordTS",
+      "sfx": "swordS",
+      "reqJob": 13,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 30,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 6,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01402001.img.xml"
+  },
+  "1412001": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Metal Axe",
+    "description": "",
+    "info": {
+      "islot": "WpSi",
+      "vslot": "WpSi",
+      "walk": 2,
+      "stand": 2,
+      "attack": 5,
+      "afterImage": "axe",
+      "sfx": "swordS",
+      "reqJob": 13,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 32,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 6,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01412001.img.xml"
+  },
+  "1412002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Iron Axe",
+    "description": "",
+    "info": {
+      "islot": "WpSi",
+      "vslot": "WpSi",
+      "walk": 2,
+      "stand": 2,
+      "attack": 5,
+      "afterImage": "axe",
+      "sfx": "swordS",
+      "reqJob": 1,
+      "reqLevel": 20,
+      "reqSTR": 70,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "tuc": 7,
+      "incPAD": 42,
+      "price": 5000,
+      "attackSpeed": 6,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01412002.img.xml"
+  },
+  "1412012": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Iron Axe",
+    "description": "",
+    "info": {
+      "islot": "WpSi",
+      "vslot": "WpSi",
+      "walk": 2,
+      "stand": 2,
+      "attack": 5,
+      "afterImage": "axe",
+      "sfx": "swordS",
+      "reqJob": 1,
+      "reqLevel": 15,
+      "reqSTR": 45,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "tuc": 7,
+      "incPAD": 37,
+      "price": 3000,
+      "attackSpeed": 6,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01412012.img.xml"
+  },
+  "1432000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Spear",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 2,
+      "stand": 2,
+      "attack": 2,
+      "afterImage": "spear",
+      "sfx": "spear",
+      "reqJob": 13,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 32,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 8,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01432000.img.xml"
+  },
+  "1432001": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Fork on a Stick",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 2,
+      "stand": 2,
+      "attack": 2,
+      "afterImage": "spear",
+      "sfx": "spear",
+      "reqJob": 13,
+      "reqLevel": 15,
+      "reqSTR": 15,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 37,
+      "tuc": 7,
+      "price": 3500,
+      "attackSpeed": 8,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01432001.img.xml"
+  },
+  "1442029": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Gold Surfboard",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 2,
+      "afterImage": "poleArm",
+      "sfx": "poleArm",
+      "reqJob": 0,
+      "reqLevel": 15,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 39,
+      "tuc": 7,
+      "price": 1,
+      "attackSpeed": 5,
+      "cash": 0,
+      "incJump": 5
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01442029.img.xml"
+  },
+  "1452003": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Composite Bow",
+    "description": "",
+    "info": {
+      "islot": "WpSi",
+      "vslot": "WpSi",
+      "walk": 1,
+      "stand": 1,
+      "attack": 3,
+      "afterImage": "bow",
+      "sfx": "bow",
+      "reqJob": 4,
+      "reqLevel": 15,
+      "reqSTR": 20,
+      "reqDEX": 40,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 30,
+      "tuc": 7,
+      "price": 3000,
+      "attackSpeed": 6,
+      "cash": 0,
+      "knockback": 26
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01452003.img.xml"
+  },
+  "1482000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Steel Knuckler",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 8,
+      "afterImage": "knuckle",
+      "sfx": "knuckle",
+      "reqJob": 16,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 18,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01482000.img.xml"
+  },
+  "1482001": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Leather Arms",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 8,
+      "afterImage": "knuckle",
+      "sfx": "knuckle",
+      "reqJob": 16,
+      "reqLevel": 15,
+      "reqSTR": 20,
+      "reqDEX": 15,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 22,
+      "tuc": 7,
+      "price": 3000,
+      "attackSpeed": 6,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01482001.img.xml"
+  },
+  "1492000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Pistol",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 9,
+      "afterImage": "gun",
+      "sfx": "gun",
+      "reqJob": 16,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 13,
+      "tuc": 7,
+      "price": 1500,
+      "attackSpeed": 5,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01492000.img.xml"
+  },
   "2000000": {
     "inventoryType": 2,
     "slotMax": 100,
@@ -119,6 +1313,20 @@
     },
     "source": "Item.wz/Consume/0201.img.xml"
   },
+  "2040001": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Helmet for DEF",
+    "description": "Improves DEF on headwear.\\nSuccess rate:60%, weapon def.+2, magic def.+2. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "price": 1,
+      "incPDD": 2,
+      "incMDD": 1,
+      "success": 60
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
   "2040002": {
     "inventoryType": 2,
     "slotMax": 100,
@@ -129,6 +1337,106 @@
       "incPDD": 5,
       "incMDD": 3,
       "incACC": 1,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040402": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Topwear for DEF",
+    "description": "Improves DEF on topwear.\\nSuccess rate:10%, weapon def.+5, magic def.+3, MaxHP+10. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incPDD": 5,
+      "incMDD": 3,
+      "incMHP": 10,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040502": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Overall Armor for DEX",
+    "description": "Improves DEX on overalls.\\nSuccess rate:10%, DEX+5, accuracy+3, speed+1. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incDEX": 5,
+      "incACC": 3,
+      "incSpeed": 1,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040505": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Overall Armor for DEF",
+    "description": "Improves DEF on overalls.\\nSuccess rate:10%, weapon def.+5, magic def.+3, MaxHP+10. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incPDD": 5,
+      "incMDD": 3,
+      "incMHP": 10,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040600": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Bottomwear for DEF",
+    "description": "Improves DEF on bottomwear.\\nSuccess rate:100%, weapon def.+1",
+    "info": {
+      "icon": "../../02040000/info/icon",
+      "iconRaw": "../../02040000/info/iconRaw",
+      "price": 1,
+      "incPDD": 1,
+      "success": 100
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040602": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Bottomwear for DEF",
+    "description": "Improves DEF on bottomwear.\\nSuccess rate:10%, weapon def.+5, magic def.+3, MaxHP+10. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incPDD": 5,
+      "incMDD": 3,
+      "incMHP": 10,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2040705": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Shoes for Jump",
+    "description": "Improves jump on shoes.\\nSuccess rate:10%, jump+5, DEX+3, speed+1. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incJump": 5,
+      "incDEX": 3,
+      "incSpeed": 1,
       "success": 10
     },
     "spec": {},
@@ -146,6 +1454,81 @@
       "incMDD": 3,
       "incPDD": 1,
       "success": 60
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041006": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for HP",
+    "description": "Improves MaxHP on capes.\\nSuccess rate:100%, MaxHP+5",
+    "info": {
+      "icon": "../../02040000/info/icon",
+      "iconRaw": "../../02040000/info/iconRaw",
+      "price": 1,
+      "incMHP": 5,
+      "success": 100
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041007": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for HP",
+    "description": "Improves MaxHP on capes.\\nSuccess rate:60%, MaxHP+10. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040001/info/icon",
+      "iconRaw": "../../02040001/info/iconRaw",
+      "price": 1,
+      "incMHP": 10,
+      "success": 60
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041008": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for HP",
+    "description": "Improves MaxHP on capes.\\nSuccess rate:10%, MaxHP+20. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040002/info/icon",
+      "iconRaw": "../../02040002/info/iconRaw",
+      "price": 1,
+      "incMHP": 20,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041009": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for MP",
+    "description": "Improves MaxMP on capes.\\nSuccess rate:100%, MaxMP+5",
+    "info": {
+      "icon": "../../02040000/info/icon",
+      "iconRaw": "../../02040000/info/iconRaw",
+      "price": 1,
+      "incMMP": 5,
+      "success": 100
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041018": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for DEX",
+    "description": "Improves DEX on capes.\\nSuccess rate:100%, DEX+1",
+    "info": {
+      "icon": "../../02040000/info/icon",
+      "iconRaw": "../../02040000/info/iconRaw",
+      "price": 1,
+      "incDEX": 1,
+      "success": 100
     },
     "spec": {},
     "source": "Item.wz/Consume/0204.img.xml"
@@ -210,6 +1593,21 @@
     "spec": {},
     "source": "Item.wz/Consume/0206.img.xml"
   },
+  "2330000": {
+    "inventoryType": 2,
+    "slotMax": 800,
+    "name": "Bullet",
+    "description": "A bullet made out of steel. A set contains numerous bullets and once they are used up, they'll need to be recharged.\\nAttack+10",
+    "info": {
+      "price": 250,
+      "slotMax": 800,
+      "unitPrice": "0,3",
+      "incPAD": 10,
+      "reqLevel": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0233.img.xml"
+  },
   "2380000": {
     "inventoryType": 2,
     "slotMax": 100,
@@ -228,6 +1626,198 @@
     },
     "source": "Item.wz/Consume/0238.img.xml"
   },
+  "2380001": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Blue Snail Card",
+    "description": "A card that features Blue Snail.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 100101
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "2380002": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Spore Card",
+    "description": "A card that features Spore.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 120100
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "2380003": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Stump Card",
+    "description": "A card that features Stump.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 130100
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "2380004": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Red Snail Card",
+    "description": "A card that features Red Snail.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 130101
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "2380005": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Slime Card",
+    "description": "A card that features Slime.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 210100
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "2380007": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Orange Mushroom Card",
+    "description": "A card that features Orange Mushroom.",
+    "info": {
+      "price": 1,
+      "bigSize": 1,
+      "tradeBlock": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 1210102
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "4000000": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Blue Snail Shell",
+    "description": "A shell removed from a snail",
+    "info": {
+      "price": 3,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000001": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Orange Mushroom Cap",
+    "description": "A cap removed from a mushroom",
+    "info": {
+      "price": 4,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000003": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Tree Branch",
+    "description": "The branch bent away from a tree",
+    "info": {
+      "price": 4,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000004": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Squishy Liquid",
+    "description": "Very thick and sticky liquid",
+    "info": {
+      "price": 4,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000010": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Slime Bubble",
+    "description": "A bubble removed from the slime",
+    "info": {
+      "price": 50,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000011": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Mushroom Spore",
+    "description": "A spore of a mushroom",
+    "info": {
+      "price": 3,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4000016": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Red Snail Shell",
+    "description": "A shell removed from a snail.",
+    "info": {
+      "price": 5,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
   "4000019": {
     "inventoryType": 4,
     "slotMax": 200,
@@ -235,6 +1825,66 @@
     "description": "Shell removed from a snail",
     "info": {
       "price": 2,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4001345": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Sunglasses",
+    "description": "Looks like it belongs to a rock star.",
+    "info": {
+      "quest": 1,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4001354": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Young Soul",
+    "description": "The soul of an innocent child.",
+    "info": {
+      "quest": 1,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4001358": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Long Strong Stick",
+    "description": "A long stick made of wood.",
+    "info": {
+      "slotMax": 200,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4001359": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Small Snail Shell",
+    "description": "A curious shell that amplifies sound and reverberates when you scream.",
+    "info": {
+      "slotMax": 200,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4001364": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Orange Mushroom Sample",
+    "description": "An extracted portion of the Orange Mushroom.",
+    "info": {
+      "quest": 1,
       "slotMax": 200
     },
     "spec": {},
@@ -251,6 +1901,61 @@
     "spec": {},
     "source": "Item.wz/Etc/0401.img.xml"
   },
+  "4010001": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Steel Ore",
+    "description": "The ore of a tough steel",
+    "info": {
+      "price": 100
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
+  "4010002": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Mithril Ore",
+    "description": "The ore of a light, solid Mithril.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
+  "4010003": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Adamantium Ore",
+    "description": "The ore of a heavy, strong Adamantium",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
+  "4010004": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Silver Ore",
+    "description": "The ore of a shiny silver",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
+  "4010005": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Orihalcon Ore",
+    "description": "An ore of a very rare mineral, Orihalcon.",
+    "info": {
+      "price": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
   "4020000": {
     "inventoryType": 4,
     "slotMax": 100,
@@ -261,5 +1966,224 @@
     },
     "spec": {},
     "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020001": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Amethyst Ore",
+    "description": "The ore of a purple jewel.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020002": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "AquaMarine Ore",
+    "description": "The ore of a blue jewel.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020003": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Emerald Ore",
+    "description": "The ore of a green jewel.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020004": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Opal Ore",
+    "description": "The ore of a jewel with many colors.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020005": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Sapphire Ore",
+    "description": "The ore of a blue, transparent jewel.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4020007": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Diamond Ore",
+    "description": "The ore of a jewel that's transparent.",
+    "info": {
+      "price": 300
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  },
+  "4030000": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Omok Piece : Slime",
+    "description": "A slime-shaped Omok piece to play Omok.",
+    "info": {
+      "price": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4030001": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Omok Piece : Mushroom",
+    "description": "A mushroom-shaped Omok piece to play Omok.",
+    "info": {
+      "price": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4030009": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Omok Table",
+    "description": "A wooden table that allows you to play Omok.",
+    "info": {
+      "price": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4030012": {
+    "inventoryType": 4,
+    "slotMax": 1000,
+    "name": "Monster Card",
+    "description": "The monster cards needed for the game of Match Cards. Need to have plenty of cards.",
+    "info": {
+      "price": 1,
+      "slotMax": 1000
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4031273": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Red Ball of Yarn",
+    "description": "A red ball of yarn that Fanzy the mysterious cat lost.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4031773": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Dry Branch",
+    "description": "An arid branch so devoid of water, it looks like even the slightest touch might break it.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4031802": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Jr. Sentinel Shellpiece",
+    "description": "A hard shellpiece that's a part of Jr. Sentinel.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4031846": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Black Magician's Token",
+    "description": "A token of proof that one is a follower of the Black Magician. ",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4032314": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Orange Mushroom Horn",
+    "description": "A horn from Orange Mushroom that's on the verge of evolving into a Horny Mushroom.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4032374": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Letter of Commendation - Warrior Adventurer",
+    "description": "The letter of commendation Power B. Fore lost.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4032376": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Letter of Commendation - Magician Adventurer",
+    "description": "The letter of commendation Power B. Fore lost.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4032377": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Letter of Commendation - Bowman Adventurer",
+    "description": "The letter of commendation Power B. Fore lost.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "4032378": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Letter of Commendation - Thief Adventurer",
+    "description": "The letter of commendation Power B. Fore lost.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0403.img.xml"
   }
 }

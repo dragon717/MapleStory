@@ -14,8 +14,11 @@ const MAP_IDS = [
   '000060000', '000060001',
   '001000000', '001000001', '001000002', '001000003',
   '001000004', '001000005', '001000006',
+  '001010000', '001020000', '002000000', '002000001',
 ];
-const REQUIRED_MAP_IDS = MAP_IDS.slice(0, 12);
+const REQUIRED_MAP_IDS = MAP_IDS;
+const MONSTER_IDS = ['100100', '100101', '130101', '1210102', '210100', '120100', '9300018', '130100'];
+const MONSTER_ACTIONS = { stand: 'stand', move: 'move', hit: 'hit1', die: 'die1', jump: 'jump' };
 async function node(source) {
   const [file, ...segments] = source.split('/');
   if (!archives.has(file)) { const a = new wz.WzFile(path.join(root, '参考/assets/gms83/83', file), wz.WzMapleVersion.GMS, 83); assert.equal(await a.parseWzFile(), wz.WzFileParseStatus.SUCCESS); archives.set(file, a); }
@@ -44,7 +47,8 @@ async function png(raw, source) {
   return { ...pngs.get(resolvedSource), source, resolvedSource, origin, x: -origin.x, y: -origin.y,
     delay: value(raw, 'delay') ?? value(n, 'delay') ?? 100,
     map: Object.fromEntries(children(at(n, 'map')).map(p => [p.name, vec(p)])),
-    lt: vec(at(n, 'lt')), rb: vec(at(n, 'rb')), uol: raw instanceof wz.WzUOLProperty ? raw.value : null };
+    lt: vec(at(n, 'lt')), rb: vec(at(n, 'rb')), head: vec(at(raw, 'head')) || vec(at(n, 'head')),
+    uol: raw instanceof wz.WzUOLProperty ? raw.value : null };
 }
 async function flatCanvases(n, source, output, key = '') {
   const resolved = resolve(n);
@@ -60,6 +64,34 @@ function sourcePath(n) {
   const match = n?.fullPath?.match(/[^/]+\.wz\/.*$/);
   assert(match, `WZ source path missing: ${n?.fullPath || '<unknown>'}`);
   return match[0];
+}
+async function itemSource(itemId) {
+  const padded = String(itemId).padStart(8, '0');
+  const character = String(itemId).startsWith('1');
+  const archiveName = character ? 'Character.wz' : 'Item.wz';
+  await node(archiveName);
+  const archive = archives.get(archiveName);
+  const target = character ? `${padded}.img` : `${padded.slice(0, 4)}.img`;
+  for (const directory of archive.wzDirectory.subDirs) {
+    const image = [...directory.images].find(candidate => candidate.name === target);
+    if (!image) continue;
+    const suffix = character ? 'info/icon' : `${padded}/info/icon`;
+    return `${archiveName}/${directory.name}/${image.name}/${suffix}`;
+  }
+  throw new Error(`WZ item source not found: ${itemId}`);
+}
+async function sound(source, fileName) {
+  const raw = await node(source), property = resolve(raw);
+  assert(property && typeof property.getBytes === 'function', source);
+  const bytes = Buffer.from(await property.getBytes(false));
+  assert(bytes.length, source);
+  const target = path.join(out, 'assets', fileName);
+  fs.writeFileSync(target, bytes);
+  const probe = spawnSync('/opt/homebrew/bin/ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'default=nw=1:nk=1', target], { encoding: 'utf8' });
+  assert.equal(probe.status, 0, String(probe.stderr));
+  assert(probe.stdout.trim(), `audio codec missing: ${source}`);
+  return { url: `assets/${fileName}`, source, resolvedSource: sourcePath(property), uol: raw instanceof wz.WzUOLProperty ? raw.value : null,
+    bytes: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
 }
 function numericChildren(n) { return children(n).filter(c => /^\d+$/.test(c.name)).sort((a, b) => +a.name - +b.name); }
 function canvasBranch(n, raw = n) {
@@ -226,6 +258,67 @@ async function exportMaps() {
   fs.writeFileSync(path.join(out, 'maps/catalog.json'), JSON.stringify({ source: 'Map.wz/Map/Map0/*.img', maps, failures }, null, 2) + '\n', 'utf8');
   return { maps, failures };
 }
+function dropRows(sql, monsterIds) {
+  const rows = new Map(monsterIds.map(id => [id, []]));
+  for (const match of sql.matchAll(/\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/g)) {
+    const [, monsterId, itemId, minimum, maximum, questId, chance] = match;
+    if (!rows.has(monsterId)) continue;
+    rows.get(monsterId).push({ itemId, minimum: +minimum, maximum: +maximum, questId: +questId, chance: +chance });
+  }
+  for (const id of monsterIds) assert(rows.get(id).length, `no SQL drops for monster ${id}`);
+  return rows;
+}
+async function collectMonsterData() {
+  const sql = fs.readFileSync(path.join(root, '参考/repos/P0nk__Cosmic/src/main/resources/db/data/152-drop-data.sql'), 'utf8');
+  const dropsByMonster = dropRows(sql, MONSTER_IDS);
+  const items = {};
+  const monsters = {};
+  for (const templateId of MONSTER_IDS) {
+    const mobSource = `Mob.wz/${templateId.padStart(7, '0')}.img`;
+    const mob = await node(mobSource);
+    const monster = { templateId, source: mobSource, info: info(at(mob, 'info')), actions: {}, drops: dropsByMonster.get(templateId) };
+    for (const [publicName, original] of Object.entries(MONSTER_ACTIONS)) {
+      const action = at(mob, original);
+      if (!action) {
+        if (publicName === 'jump') continue;
+        throw new Error(`${mobSource} missing required action ${original}`);
+      }
+      const frames = numericChildren(action);
+      if (!frames.length) {
+        if (publicName === 'jump') continue;
+        throw new Error(`${mobSource}/${original} has no numeric frames`);
+      }
+      monster.actions[publicName] = [];
+      for (const frame of frames) monster.actions[publicName].push(await png(frame, `${mobSource}/${original}/${frame.name}`));
+    }
+    const soundSource = `Sound.wz/Mob.img/${templateId.padStart(7, '0')}/Damage`;
+    monster.damageSound = await sound(soundSource, `Mob.wz_${templateId.padStart(7, '0')}_Damage.mp3`);
+    monsters[templateId] = monster;
+    console.log(`Monster ${templateId}: ${Object.entries(monster.actions).map(([name, frames]) => `${name}=${frames.length}`).join(', ')}, drops=${monster.drops.length}`);
+  }
+
+  const itemIds = new Set();
+  for (const drops of dropsByMonster.values()) for (const drop of drops) if (drop.itemId !== '0') itemIds.add(drop.itemId);
+  for (const itemId of [...itemIds].sort((a, b) => +a - +b)) {
+    const source = await itemSource(itemId);
+    items[itemId] = await png(await node(source), source);
+  }
+  return { monsters, items, itemIds, dropsByMonster, pngCount: pngs.size };
+}
+async function exportMonstersOnly() {
+  const manifestPath = path.join(out, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const { monsters, items, itemIds, dropsByMonster, pngCount } = await collectMonsterData();
+  const oldEntries = manifest.drops?.entries || dropsByMonster.get('100100');
+  manifest.monsters = { ...(manifest.monsters || {}), ...monsters };
+  manifest.items = { ...(manifest.items || {}), ...items };
+  manifest.drops = { ...(manifest.drops || {}), entries: oldEntries };
+  manifest.checks = { ...(manifest.checks || {}), monsterCount: Object.keys(manifest.monsters).length,
+    monsterDropCount: [...dropsByMonster.values()].reduce((total, drops) => total + drops.length, 0),
+    monsterItemCount: itemIds.size, monsterPngCount: pngCount, monsterAudioCount: MONSTER_IDS.length };
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  console.log(JSON.stringify({ monsters: MONSTER_IDS.length, actions: Object.fromEntries(Object.entries(monsters).map(([id, monster]) => [id, Object.fromEntries(Object.entries(monster.actions).map(([name, frames]) => [name, frames.length]))])), drops: [...dropsByMonster.values()].reduce((total, drops) => total + drops.length, 0), uniqueItems: itemIds.size, pngs: pngs.size, audio: MONSTER_IDS.length }, null, 2));
+}
 (async () => {
   fs.mkdirSync(path.join(out, 'assets'), { recursive: true }); await wz.init();
   if (process.argv.includes('--equipment-ui')) {
@@ -239,14 +332,14 @@ async function exportMaps() {
     for (const archive of archives.values()) archive.dispose();
     return;
   }
-
-  const mobSource = 'Mob.wz/0100100.img', mob = await node(mobSource);
-  const monster = { templateId: '100100', source: mobSource, info: info(at(mob, 'info')), actions: {} };
-  for (const [publicName, original] of Object.entries({ stand: 'stand', move: 'move', hit: 'hit1', die: 'die1' })) {
-    monster.actions[publicName] = [];
-    for (const frame of children(at(mob, original)).filter(n => /^\d+$/.test(n.name)).sort((a, b) => +a.name - +b.name)) monster.actions[publicName].push(await png(frame, mobSource + '/' + original + '/' + frame.name));
-    assert(monster.actions[publicName].length);
+  if (process.argv.includes('--monsters')) {
+    await exportMonstersOnly();
+    for (const archive of archives.values()) archive.dispose();
+    return;
   }
+
+  const monsterData = await collectMonsterData();
+  const monster = monsterData.monsters['100100'];
   // Basic sword combat presentation is source-backed too.  The attack body
   // already exports Character.wz/Weapon/01302000.img/swingO1 (0, 1, 2);
   // this is the matching GMS83 swordOL afterimage.  The original client
@@ -274,20 +367,8 @@ async function exportMaps() {
     normal: { first: await numberSetResolved('NoRed0'), rest: await numberSetResolved('NoRed1') },
     critical: { first: await numberSetResolved('NoCri0'), rest: await numberSetResolved('NoCri1') },
   };
-  const dropSql = fs.readFileSync(path.join(root, '参考/repos/P0nk__Cosmic/src/main/resources/db/data/152-drop-data.sql'), 'utf8');
-  const drops = [...dropSql.matchAll(/\(100100, (\d+), (\d+), (\d+), (\d+), (\d+)\)/g)].map(m => ({ itemId: m[1], minimum: +m[2], maximum: +m[3], questId: +m[4], chance: +m[5] }));
-  // The source file has three INSERT sections and no DELETE/UPDATE; later snail rows add cards, mesos and equipment.
-  assert.equal(drops.length, 17);
-  assert.equal(new Set(drops.map(d => d.itemId)).size, 17);
-  const items = {};
-  for (const drop of drops) {
-    if (drop.itemId === '0') continue;
-    const padded = drop.itemId.padStart(8, '0');
-    const category = { '100': 'Cap', '104': 'Coat', '105': 'Longcoat', '130': 'Weapon' }[drop.itemId.slice(0, 3)];
-    const source = drop.itemId.startsWith('1') ? 'Character.wz/' + category + '/' + padded + '.img/info/icon'
-      : 'Item.wz/' + (drop.itemId.startsWith('2') ? 'Consume' : 'Etc') + '/' + padded.slice(0, 4) + '.img/' + padded + '/info/icon';
-    items[drop.itemId] = await png(await node(source), source);
-  }
+  const drops = monsterData.dropsByMonster.get('100100');
+  const items = { ...monsterData.items };
   const mesoSource = 'Item.wz/Special/0900.img/09000000/iconRaw';
   const mesoFrames = [];
   for (const frame of children(await node(mesoSource))) mesoFrames.push(await png(frame, mesoSource + '/' + frame.name));
@@ -302,14 +383,16 @@ async function exportMaps() {
   const gameMenuUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/GameMenu'), 'UI.wz/UIWindow.img/GameMenu', gameMenuUi);
   const shortcutUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/ShortCut'), 'UI.wz/UIWindow.img/ShortCut', shortcutUi);
   const mapExports = await exportMaps();
-  const result = { contentVersion: 'gms83-gameplay-2', monsters: { '100100': monster }, items, hud, inventoryUi, equipmentUi, closeButton, tabUi, noticeUi, okButton, gameMenuUi, shortcutUi,
+  const result = { contentVersion: 'gms83-gameplay-2', monsters: monsterData.monsters, items, hud, inventoryUi, equipmentUi, closeButton, tabUi, noticeUi, okButton, gameMenuUi, shortcutUi,
     combat: {
       attack: { afterimage: { source: afterimageSource, firstFrame: 2, startMs: 450, frames: afterimageFrames } },
       hit: { sound: '/assets/Mob.wz_0100100_Damage.mp3', soundSource: 'Sound.wz/Mob.img/0100100/Damage' },
       damageNumbers,
     },
     drops: { source: 'P0nk/Cosmic/src/main/resources/db/data/152-drop-data.sql:88-97,9614,10572,12532-12536', officialParity: 'reference private-server table; not independently verified against official GMS83', entries: drops },
-    checks: { uniquePng: pngs.size, rgbaDecoded: pngs.size, renderedMapCount: mapExports.maps.length, mapExportFailures: mapExports.failures } };
+    checks: { uniquePng: pngs.size, rgbaDecoded: pngs.size, renderedMapCount: mapExports.maps.length, mapExportFailures: mapExports.failures,
+      monsterCount: Object.keys(monsterData.monsters).length, monsterDropCount: [...monsterData.dropsByMonster.values()].reduce((total, rows) => total + rows.length, 0),
+      monsterItemCount: monsterData.itemIds.size, monsterPngCount: monsterData.pngCount, monsterAudioCount: MONSTER_IDS.length } };
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(result, null, 2) + '\n', 'utf8');
   console.log(JSON.stringify({ monster: monster.info, actions: Object.fromEntries(Object.entries(monster.actions).map(([k, v]) => [k, v.map(f => f.delay)])), hud: Object.keys(hud).length, items: Object.keys(items), pngs: pngs.size }, null, 2));
   for (const a of archives.values()) a.dispose();

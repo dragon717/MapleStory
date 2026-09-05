@@ -7,7 +7,7 @@ use crate::{
 use rand::Rng;
 use serde::Deserialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::Path,
     time::{Duration, Instant},
 };
@@ -633,6 +633,9 @@ pub struct MonsterTemplate {
     pub max_hp: i64,
     #[serde(alias = "PADamage")]
     pub pa_damage: Option<i64>,
+    /// Source Mob.wz physical defense used by the weapon damage interval.
+    #[serde(default, alias = "PDDamage", alias = "pdd")]
+    pub pd_damage: Option<i64>,
     pub exp: u64,
     #[serde(default, deserialize_with = "deserialize_boolish")]
     pub body_attack: bool,
@@ -739,6 +742,10 @@ fn random_monster_facing() -> i8 {
     }
 }
 
+fn default_monster_facing() -> i8 {
+    1
+}
+
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonsterSpawn {
@@ -749,6 +756,19 @@ pub struct MonsterSpawn {
     pub y: f64,
     #[serde(default)]
     pub foothold_id: Option<u64>,
+    /// Empty is the legacy schema: place the spawn on the birth map.
+    #[serde(default)]
+    pub map_id: String,
+    #[serde(default = "default_monster_facing", alias = "f")]
+    pub facing: i8,
+    /// Cosmic SpawnPoint mobTime: -1 means one forced spawn, 0 uses the
+    /// map's normal respawn cycle, and positive values are source seconds.
+    #[serde(default)]
+    pub mob_time: i64,
+    #[serde(default)]
+    pub rx0: Option<f64>,
+    #[serde(default)]
+    pub rx1: Option<f64>,
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -795,6 +815,7 @@ impl Gameplay {
                 || template
                     .source_speed
                     .is_some_and(|speed| !speed.is_finite() || speed < -100.0)
+                || template.pd_damage.is_some_and(|damage| damage < 0)
                 || template.stand_delay_ms.is_some_and(|delay| delay == 0)
                 || template
                     .move_duration_ms
@@ -832,8 +853,38 @@ impl Gameplay {
             spawn.id.is_empty()
                 || spawn.template_id.is_empty()
                 || ![spawn.x, spawn.y].iter().all(|x| x.is_finite())
+                || (!spawn.map_id.is_empty() && spawn.map_id.trim().is_empty())
+                || ![-1, 1].contains(&spawn.facing)
+                || spawn.mob_time < -1
+                || match (spawn.rx0, spawn.rx1) {
+                    (Some(rx0), Some(rx1)) => {
+                        !rx0.is_finite() || !rx1.is_finite() || rx0 > rx1
+                    }
+                    (None, None) => false,
+                    _ => true,
+                }
         }) {
             return Err("invalid gameplay monster spawn".into());
+        }
+        if self
+            .spawns
+            .iter()
+            .enumerate()
+            .any(|(index, spawn)| self.spawns[..index].iter().any(|prior| prior.id == spawn.id))
+        {
+            return Err("duplicate gameplay monster spawn id".into());
+        }
+        if self
+            .monsters
+            .iter()
+            .enumerate()
+            .any(|(index, template)| {
+                self.monsters[..index]
+                    .iter()
+                    .any(|prior| prior.template_id == template.template_id)
+            })
+        {
+            return Err("duplicate gameplay monster template id".into());
         }
         if self
             .player
@@ -894,6 +945,51 @@ impl Gameplay {
         }
         Ok(())
     }
+
+    fn validate_spawns_against_maps(
+        &self,
+        maps: &BTreeMap<String, Map>,
+        birth_map_id: &str,
+    ) -> Result<(), String> {
+        for spawn in &self.spawns {
+            let map_id = if spawn.map_id.is_empty() {
+                birth_map_id
+            } else {
+                spawn.map_id.as_str()
+            };
+            let map = maps
+                .get(map_id)
+                .ok_or_else(|| format!("monster spawn {} references unknown map {}", spawn.id, map_id))?;
+            if !(map.bounds.x_min..=map.bounds.x_max).contains(&spawn.x)
+                || !(map.bounds.y_min..=map.bounds.y_max).contains(&spawn.y)
+            {
+                return Err(format!(
+                    "monster spawn {} is outside map {} bounds",
+                    spawn.id, map_id
+                ));
+            }
+            if let Some(foothold_id) = spawn.foothold_id {
+                let foothold = map.get(foothold_id).ok_or_else(|| {
+                    format!(
+                        "monster spawn {} references unknown foothold {} on map {}",
+                        spawn.id, foothold_id, map_id
+                    )
+                })?;
+                if foothold.is_wall() || !foothold.contains_x(spawn.x) {
+                    return Err(format!(
+                        "monster spawn {} is off foothold {} on map {}",
+                        spawn.id, foothold_id, map_id
+                    ));
+                }
+            } else if map.ground_near(spawn.x, spawn.y).is_none() {
+                return Err(format!(
+                    "monster spawn {} has no foothold on map {}",
+                    spawn.id, map_id
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl PlayerConfig {
@@ -944,6 +1040,33 @@ impl PlayerConfig {
         } else {
             rand::thread_rng().gen_range(min..=max)
         }
+    }
+
+    /// HeavenClient/Mob.cpp applies level difference and PDD to the raw
+    /// interval, then samples a float and truncates it to an integer.
+    fn attack_range_against(
+        &self,
+        player_level: u32,
+        monster: &MonsterTemplate,
+    ) -> (f64, f64) {
+        let (min, max) = self.attack_range();
+        let level_delta = monster.level.saturating_sub(player_level) as f64;
+        let factor = 1.0 - 0.01 * level_delta;
+        let pdd = monster.pd_damage.unwrap_or(0).max(0) as f64;
+        (
+            (min as f64 * factor - pdd * 0.6).max(1.0),
+            (max as f64 * factor - pdd * 0.5).max(1.0),
+        )
+    }
+
+    fn attack_damage_against(&self, player_level: u32, monster: &MonsterTemplate) -> i64 {
+        let (min, max) = self.attack_range_against(player_level, monster);
+        let damage = if max <= min {
+            min
+        } else {
+            rand::thread_rng().gen_range(min..max)
+        };
+        damage.floor().max(1.0) as i64
     }
 
     fn attack_range(&self) -> (i64, i64) {
@@ -1151,11 +1274,15 @@ pub struct World {
 
 impl World {
     pub fn new(map: Map, duration_ms: u64) -> Self {
-        Self::build(map, duration_ms, Gameplay::default(), None).unwrap()
+        let mut world = Self::build(map, duration_ms, Gameplay::default(), None).unwrap();
+        world.spawn_configured_monsters().unwrap();
+        world
     }
 
     pub fn new_with_gameplay(map: Map, duration_ms: u64, gameplay: Gameplay) -> Self {
-        Self::build(map, duration_ms, gameplay, None).unwrap()
+        let mut world = Self::build(map, duration_ms, gameplay, None).unwrap();
+        world.spawn_configured_monsters().unwrap();
+        world
     }
 
     pub fn new_with_store(
@@ -1164,7 +1291,9 @@ impl World {
         gameplay: Gameplay,
         store: Store,
     ) -> Result<Self, String> {
-        Self::build(map, duration_ms, gameplay, Some(store))
+        let mut world = Self::build(map, duration_ms, gameplay, Some(store))?;
+        world.spawn_configured_monsters()?;
+        Ok(world)
     }
 
     fn build(
@@ -1215,7 +1344,6 @@ impl World {
                 world.drop_maps.insert(drop_id, world.map.id.clone());
             }
         }
-        world.spawn_configured_monsters();
         Ok(world)
     }
 
@@ -1262,7 +1390,9 @@ impl World {
                 }
             }
         }
-        Ok(())
+        self.gameplay
+            .validate_spawns_against_maps(&self.maps, &self.map.id)?;
+        self.spawn_configured_monsters()
     }
 
     fn map_for(&self, map_id: &str) -> &Map {
@@ -1286,19 +1416,34 @@ impl World {
         }
     }
 
-    fn spawn_configured_monsters(&mut self) {
+    fn spawn_configured_monsters(&mut self) -> Result<(), String> {
+        self.gameplay.validate().map_err(|error| error.to_string())?;
+        self.gameplay
+            .validate_spawns_against_maps(&self.maps, &self.map.id)?;
         let spawns = self.gameplay.spawns.clone();
         for spawn in spawns {
-            self.spawn_monster(spawn);
+            let map_id = if spawn.map_id.is_empty() {
+                self.map.id.clone()
+            } else {
+                spawn.map_id.clone()
+            };
+            self.spawn_monster_on_map(map_id, spawn)?;
         }
+        Ok(())
     }
 
-    fn spawn_monster(&mut self, spawn: MonsterSpawn) {
-        let map_id = self.map.id.clone();
-        self.spawn_monster_on_map(map_id, spawn);
-    }
-
-    fn spawn_monster_on_map(&mut self, map_id: String, spawn: MonsterSpawn) {
+    fn spawn_monster_on_map(
+        &mut self,
+        map_id: String,
+        spawn: MonsterSpawn,
+    ) -> Result<(), String> {
+        if self
+            .monsters
+            .values()
+            .any(|monster| monster.map_id == map_id && monster.spawn.id == spawn.id)
+        {
+            return Ok(());
+        }
         let Some(template) = self
             .gameplay
             .monsters
@@ -1306,9 +1451,16 @@ impl World {
             .find(|template| template.template_id == spawn.template_id)
             .cloned()
         else {
-            return;
+            return Err(format!(
+                "monster spawn {} references unknown template {}",
+                spawn.id, spawn.template_id
+            ));
         };
-        let map = self.map_for(&map_id).clone();
+        let map = self
+            .maps
+            .get(&map_id)
+            .cloned()
+            .ok_or_else(|| format!("monster spawn {} references unknown map {}", spawn.id, map_id))?;
         let foothold_id = spawn.foothold_id.or_else(|| {
             map.ground_near(spawn.x, spawn.y)
                 .map(|(foothold_id, _)| foothold_id)
@@ -1318,7 +1470,15 @@ impl World {
                 map.get(id)
                     .and_then(|f| f.at(spawn.x).map(|y| (spawn.x, y)))
             })
-            .unwrap_or((spawn.x, spawn.y));
+            .ok_or_else(|| {
+                format!(
+                    "monster spawn {} has invalid foothold {} on map {}",
+                    spawn.id,
+                    spawn.foothold_id
+                        .map_or_else(|| "<inferred>".to_owned(), |id| id.to_string()),
+                    map_id
+                )
+            })?;
         self.next_monster = self.next_monster.wrapping_add(1);
         let id = format!("monster-{}-{}", self.next_monster, auth::random_id());
         let can_move = template.can_move();
@@ -1334,7 +1494,7 @@ impl World {
                     // spawns in STAND.  For a movable Snail that is MOVE
                     // with a random source direction; immobile templates
                     // remain STAND.
-                    facing: if can_move { random_monster_facing() } else { 1 },
+                    facing: spawn.facing,
                     hp: template.max_hp,
                     max_hp: template.max_hp,
                     action: if can_move { "move" } else { "stand" },
@@ -1350,6 +1510,7 @@ impl World {
                 respawn_at: None,
             },
         );
+        Ok(())
     }
 
     fn snapshot(&self, id: &str) -> String {
@@ -3278,6 +3439,7 @@ impl World {
                         level: 0,
                         max_hp: 0,
                         pa_damage: None,
+                        pd_damage: None,
                         exp: 0,
                         body_attack: false,
                         move_speed: None,
@@ -3298,7 +3460,7 @@ impl World {
                 .gameplay
                 .player
                 .with_equipment(&player.state.equipped)
-                .attack_damage();
+                .attack_damage_against(player.state.level, &target_template);
             let killed = target_id.is_some() && target_hp > 0 && damage >= target_hp;
             let applied_damage = target_id
                 .is_some()
@@ -3372,16 +3534,24 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1);
                         monster.death_until = Some(self.tick + die_ticks);
-                        monster.respawn_at = self.gameplay.monster_respawn_ms.map(|ms| {
-                            // Cosmic schedules one map-wide respawn task
-                            // every interval (Server.java/RespawnTask),
-                            // rather than starting a private timer at each
-                            // monster's death.  Align this spawn to the
-                            // next world cycle and still require the die
-                            // animation to have finished below.
-                            let interval_ticks = ms.div_ceil(TICK_MS).max(1);
-                            (self.tick / interval_ticks + 1) * interval_ticks
-                        });
+                        monster.respawn_at = match monster.spawn.mob_time {
+                            -1 => None,
+                            0 => self.gameplay.monster_respawn_ms.map(|ms| {
+                                // Cosmic schedules mobTime=0 through the
+                                // map-wide RespawnTask cycle.  Keep the
+                                // cycle gate separate from the die animation.
+                                let interval_ticks = ms.div_ceil(TICK_MS).max(1);
+                                (self.tick / interval_ticks + 1) * interval_ticks
+                            }),
+                            seconds => {
+                                // Positive source mobTime is a private
+                                // SpawnPoint delay measured from death.
+                                let delay_ms = u64::try_from(seconds)
+                                    .unwrap_or(u64::MAX)
+                                    .saturating_mul(1_000);
+                                Some(self.tick + delay_ms.div_ceil(TICK_MS).max(1))
+                            }
+                        };
                     }
                 }
                 if resolution.damage > 0 {
@@ -3714,24 +3884,23 @@ impl World {
 
     fn respawn_monsters(&mut self) {
         // MapManager only updates maps that currently have players.  Keep a
-        // finished death pending while the map is empty; the next occupied
-        // cycle can then recreate it with a fresh object id.
-        if self.players.is_empty() {
+        // finished death pending while its own map is empty; the next
+        // occupied cycle can then recreate it with a fresh object id.
+        let occupied_maps: BTreeSet<String> = self
+            .players
+            .values()
+            .map(|player| player.map_id.clone())
+            .collect();
+        if occupied_maps.is_empty() {
             return;
-        }
-        // Cosmic invokes MapManager.updateMaps from one fixed 10-second
-        // RespawnTask.  A player entering between two task runs must wait
-        // for the next global cycle rather than causing an immediate refill.
-        if let Some(interval_ms) = self.gameplay.monster_respawn_ms {
-            let interval_ticks = interval_ms.div_ceil(TICK_MS).max(1);
-            if !self.tick.is_multiple_of(interval_ticks) {
-                return;
-            }
         }
         let remove: Vec<String> = self
             .monsters
             .iter()
             .filter_map(|(id, monster)| {
+                if !occupied_maps.contains(&monster.map_id) {
+                    return None;
+                }
                 monster
                     .death_until
                     .is_some_and(|death_until| {
@@ -3752,7 +3921,8 @@ impl World {
                 continue;
             };
             if monster.respawn_at.is_some() {
-                self.spawn_monster_on_map(monster.map_id, monster.spawn);
+                self.spawn_monster_on_map(monster.map_id, monster.spawn)
+                    .expect("validated monster spawn became invalid");
             }
         }
     }
@@ -4282,6 +4452,83 @@ mod tests {
             r#"{"id":"test","bounds":{"xMin":0,"xMax":500,"yMin":-500,"yMax":500},"spawn":{"x":10,"y":0},"footholds":[{"id":1,"x1":0,"y1":100,"x2":200,"y2":100,"prev":0,"next":2},{"id":2,"x1":200,"y1":100,"x2":500,"y2":200,"prev":1,"next":0}],"ladders":[]}"#,
         )
         .unwrap()
+    }
+
+    fn life_map(id: &str) -> Map {
+        Map {
+            id: id.to_owned(),
+            bounds: Bounds {
+                x_min: 0.0,
+                x_max: 300.0,
+                y_min: -100.0,
+                y_max: 300.0,
+            },
+            spawn: Point { x: 10.0, y: 100.0 },
+            footholds: vec![Foothold {
+                id: 1,
+                x1: 0.0,
+                y1: 100.0,
+                x2: 300.0,
+                y2: 100.0,
+                prev: 0,
+                next: 0,
+                forbid_fall_down: 0,
+            }],
+            ladders: Vec::new(),
+            portals: Vec::new(),
+        }
+    }
+
+    fn life_template() -> MonsterTemplate {
+        MonsterTemplate {
+            template_id: "100100".into(),
+            level: 1,
+            max_hp: 8,
+            pa_damage: Some(3),
+            pd_damage: Some(0),
+            exp: 1,
+            body_attack: false,
+            move_speed: None,
+            source_speed: None,
+            hitbox_width: Some(20.0),
+            hitbox_height: Some(20.0),
+            hitbox_lt: None,
+            hitbox_rb: None,
+            die_duration_ms: Some(50),
+            stand_delay_ms: None,
+            move_duration_ms: None,
+            drop: None,
+        }
+    }
+
+    fn life_spawn(
+        id: &str,
+        map_id: &str,
+        x: f64,
+        facing: i8,
+        mob_time: i64,
+    ) -> MonsterSpawn {
+        MonsterSpawn {
+            id: id.into(),
+            template_id: "100100".into(),
+            x,
+            y: 80.0,
+            foothold_id: Some(1),
+            map_id: map_id.into(),
+            facing,
+            mob_time,
+            rx0: None,
+            rx1: None,
+        }
+    }
+
+    fn life_gameplay(spawns: Vec<MonsterSpawn>) -> Gameplay {
+        Gameplay {
+            monsters: vec![life_template()],
+            spawns,
+            monster_respawn_ms: Some(500),
+            ..Gameplay::default()
+        }
     }
 
     #[test]
@@ -4946,13 +5193,188 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
         let catalog = MapCatalog::load(&path).expect("generated map catalog");
         assert_eq!(catalog.birth_map_id, "000010000");
-        assert_eq!(catalog.maps.len(), 19);
+        for id in [
+            "000010000", "001000000", "001010000", "001020000", "002000000", "002000001",
+        ] {
+            assert!(
+                catalog.maps.iter().any(|map| map.id == id),
+                "missing starter map {id}"
+            );
+        }
         assert!(catalog.maps.iter().all(|map| !map.footholds.is_empty()));
         assert!(catalog
             .maps
             .iter()
             .flat_map(|map| map.portals.iter())
             .any(|portal| portal.target_map_id.as_deref() == Some("000020000")));
+    }
+
+    #[test]
+    fn authored_life_loads_on_each_map_and_respawns_from_its_source() {
+        let birth = life_map("birth");
+        let target = life_map("target");
+        let gameplay = life_gameplay(vec![
+            life_spawn("birth-life", "birth", 100.0, -1, -1),
+            life_spawn("target-life", "target", 200.0, 1, 1),
+        ]);
+        let mut world = World::build(birth.clone(), 600, gameplay, None).unwrap();
+        world
+            .attach_catalog(MapCatalog {
+                birth_map_id: "birth".into(),
+                maps: vec![birth, target],
+            })
+            .unwrap();
+        assert_eq!(world.monsters.len(), 2);
+        assert_eq!(
+            world
+                .monsters
+                .values()
+                .filter(|monster| monster.map_id == "birth")
+                .count(),
+            1
+        );
+        assert_eq!(
+            world
+                .monsters
+                .values()
+                .find(|monster| monster.map_id == "target")
+                .unwrap()
+                .state
+                .facing,
+            1
+        );
+
+        let (birth_output, _birth_rx) = mpsc::channel(16);
+        let (birth_reply, _birth_reply_rx) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "birth-player".into(),
+                username: "birth-player".into(),
+            },
+            connection: "birth-connection".into(),
+            output: birth_output,
+            reply: birth_reply,
+        });
+        let (target_output, _target_rx) = mpsc::channel(16);
+        let (target_reply, _target_reply_rx) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "target-player".into(),
+                username: "target-player".into(),
+            },
+            connection: "target-connection".into(),
+            output: target_output,
+            reply: target_reply,
+        });
+        world.players.get_mut("target-player").unwrap().map_id = "birth".into();
+
+        let birth_id = world
+            .monsters
+            .iter()
+            .find(|(_, monster)| monster.spawn.id == "birth-life")
+            .map(|(id, _)| id.clone())
+            .unwrap();
+        let target_id = world
+            .monsters
+            .iter()
+            .find(|(_, monster)| monster.spawn.id == "target-life")
+            .map(|(id, _)| id.clone())
+            .unwrap();
+        {
+            let monster = world.monsters.get_mut(&birth_id).unwrap();
+            monster.state.hp = 0;
+            monster.state.action = "die";
+            monster.death_until = Some(1);
+            monster.respawn_at = None;
+        }
+        {
+            let monster = world.monsters.get_mut(&target_id).unwrap();
+            monster.state.hp = 0;
+            monster.state.action = "die";
+            monster.death_until = Some(1);
+            monster.respawn_at = Some(20);
+        }
+        world.tick = 20;
+        world.respawn_monsters();
+        assert!(!world.monsters.values().any(|monster| monster.spawn.id == "birth-life"));
+        assert!(world.monsters.contains_key(&target_id));
+
+        world.players.get_mut("target-player").unwrap().map_id = "target".into();
+        world.respawn_monsters();
+        let respawned = world
+            .monsters
+            .values()
+            .find(|monster| monster.spawn.id == "target-life")
+            .unwrap();
+        assert_ne!(respawned.state.id, target_id);
+        assert_eq!(respawned.map_id, "target");
+        assert_eq!(respawned.state.x, 200.0);
+        assert_eq!(respawned.state.y, 100.0);
+        assert_eq!(respawned.state.facing, 1);
+        assert_eq!(respawned.spawn.mob_time, 1);
+    }
+
+    #[test]
+    fn authored_life_rejects_unknown_map_foothold_and_template() {
+        let catalog = || MapCatalog {
+            birth_map_id: "birth".into(),
+            maps: vec![life_map("birth"), life_map("target")],
+        };
+        let cases = [
+            (life_spawn("unknown-map", "missing", 100.0, 1, 0), "unknown map"),
+            ({
+                let mut spawn = life_spawn("unknown-foothold", "birth", 100.0, 1, 0);
+                spawn.foothold_id = Some(99);
+                (spawn, "unknown foothold")
+            }),
+            ({
+                let mut spawn = life_spawn("unknown-template", "birth", 100.0, 1, 0);
+                spawn.template_id = "missing".into();
+                (spawn, "unknown template")
+            }),
+        ];
+        for (spawn, expected) in cases {
+            let gameplay = life_gameplay(vec![spawn]);
+            let result = World::build(life_map("birth"), 600, gameplay, None)
+                .and_then(|mut world| world.attach_catalog(catalog()));
+            let error = match result {
+                Ok(_) => panic!("invalid authored life was accepted: {expected}"),
+                Err(error) => error,
+            };
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn source_pdd_applies_to_damage_interval_and_keeps_one_damage_floor() {
+        let config = PlayerConfig {
+            base_str: Some(4),
+            base_dex: Some(4),
+            weapon_type: Some(130),
+            weapon_watk: Some(10),
+            ..PlayerConfig::default()
+        };
+        let mut red_snail = life_template();
+        red_snail.pd_damage = Some(3);
+        let mut slime = life_template();
+        slime.pd_damage = Some(5);
+        let no_defense = life_template();
+        assert_eq!(
+            config.attack_range_against(1, &red_snail),
+            (1.0, 1.0)
+        );
+        assert_eq!(config.attack_range_against(1, &slime), (1.0, 1.0));
+        assert_eq!(
+            config.attack_range_against(1, &no_defense),
+            (1.0, 2.0)
+        );
+        let mut high_defense = life_template();
+        high_defense.pd_damage = Some(1000);
+        assert_eq!(
+            config.attack_range_against(1, &high_defense),
+            (1.0, 1.0)
+        );
+        assert!(config.attack_damage_against(1, &high_defense) >= 1);
     }
 
     #[test]
@@ -5605,6 +6027,7 @@ mod tests {
                     level: 1,
                     max_hp: 8,
                     pa_damage: Some(12),
+                    pd_damage: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -5624,6 +6047,11 @@ mod tests {
                     x: 100.0,
                     y: 100.0,
                     foothold_id: Some(1),
+                    map_id: String::new(),
+                    facing: 1,
+                    mob_time: 0,
+                    rx0: None,
+                    rx1: None,
                 }],
                 ..Gameplay::default()
             },
@@ -5761,6 +6189,7 @@ mod tests {
                     level: 1,
                     max_hp: 8,
                     pa_damage: Some(12),
+                    pd_damage: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -5780,6 +6209,11 @@ mod tests {
                     x: 100.0,
                     y: 100.0,
                     foothold_id: Some(1),
+                    map_id: String::new(),
+                    facing: 1,
+                    mob_time: 0,
+                    rx0: None,
+                    rx1: None,
                 }],
                 ..Gameplay::default()
             },
@@ -5808,6 +6242,7 @@ mod tests {
                     level: 1,
                     max_hp: 8,
                     pa_damage: Some(12),
+                    pd_damage: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -5827,6 +6262,11 @@ mod tests {
                     x: 100.0,
                     y: 100.0,
                     foothold_id: Some(1),
+                    map_id: String::new(),
+                    facing: 1,
+                    mob_time: 0,
+                    rx0: None,
+                    rx1: None,
                 }],
                 ..Gameplay::default()
             },
@@ -5872,6 +6312,7 @@ mod tests {
                     level: 1,
                     max_hp: 8,
                     pa_damage: Some(12),
+                    pd_damage: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -5891,6 +6332,11 @@ mod tests {
                     x: 100.0,
                     y: 100.0,
                     foothold_id: Some(1),
+                    map_id: String::new(),
+                    facing: 1,
+                    mob_time: 0,
+                    rx0: None,
+                    rx1: None,
                 }],
                 ..Gameplay::default()
             },

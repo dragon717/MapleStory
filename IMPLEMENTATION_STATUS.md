@@ -117,3 +117,16 @@ Rust/TypeScript 协议同步升级到 3。SQLite 原子处理使用、穿脱、�
 四种已接入装备按 WZ 原始锚点、zmap/smap 和衣帽遮挡规则导出 12 种合法组合；显式空装备不再显示固定帽/上衣/武器，长袍遮挡裤子，己方和远端统一跟随 equipped 快照，无武器时停用剑光/剑音。复用现有导出器并实际集成 173 张源 PNG，组合引用的 127 个纹理路径全部存在；基础身体、脸、发型、裤子和鞋仍沿用现有角色外观，未扩展未接入的装备目录。
 
 最终 Cargo/Vite 构建通过。以独立进程组运行既有 `启动3010.command` 完成受控升级：服务 PID22806、唯一 bot PID22870，health `ok=true / protocolVersion=3 / gms83-gameplay-2`，前端 `v0.2.0`、入口 `index-DTjhyyJb.js`。公共 manifest 包含 41 个装备窗口帧和 12 种外观组合，抽查原 PNG HTTP 200；线上首页与本次 dist 完全一致。数据库账号/角色数保持 25/24，完整性通过，备份位于忽略目录 `evidence/runtime/3010-control/pre-inventory-v3.sqlite3`。用户需刷新并重新登录；未替用户进行实际游戏操作。
+
+
+## 2026-09-05：参考复刻 v0.2.1，彩虹村至南港路线
+
+按本地 GMS83 WZ/XML 新增 `001010000` 训练场入口、`001020000` 命运岔路、`002000000` 南港、`002000001` 防具店，地图由 19 增至 23；保留源图层、foothold、梯绳、门目标与 BGM。002000000 经 String.wz 确认为同岛南港，不误判为岛外。地图目录加入 I 背包提示，原装备 12 组合及 41 个装备窗口帧保持。
+
+参照 HeavenClient `Stage::send_key/check_portals`，普通/隐藏门改为按 ↑ 进入；touch 类型保留自动触发，冷却防重复，攻击/死亡/加载中不进门。输入框、失焦及断线不发传送请求，↑ 仍发攀爬输入。修复 portalResult 拒绝时误触资源失败回调、关闭连接的问题。参照 `DamageNumber.cpp` 修正相邻后续数字平均间距和首个后续数字 +2 的上下交错；暴击首位保持 base+8，缺暴击资源回退普通间距。
+
+必要检查：input.check.mjs、portal.check.mjs、damage-number.check.ts 通过；TS 类型检查、Rust generated_map_catalog_loads_all_rendered_maps / portal_command_changes_map_and_snapshot_scope、git diff --check 通过；Cargo/Vite 构建通过。未运行独立 QA、额外账号探针或代替用户游戏操作。
+
+既有启动脚本受控更新 3010：server PID31163、唯一 bot PID31224，协议3，入口 index-Db_VXX-2.js / index-D0RTgpKK.css；发布标识 v0.2.1 · 2026年09月05日 23:11:32。首次脱离会话的构建因 Python 子进程继承 Rosetta 架构使 xcrun 链接失败，旧服务未停止；以 arm64 启动同一脚本后成功。health、线上首页与 dist 一致、23图 manifest、新增四图各一份源图 HTTP200；数据库完整性 ok，账号25/角色24未变，备份 evidence/runtime/3010-control/pre-reference-v021.sqlite3。3000无监听。用户刷新重新登录后亲测。
+
+地图可进入不代表 NPC/商店/任务/原版怪物出生业务已完成；这些仍按参考清单继续，未把测试 Snail 布点冒称原版 life。

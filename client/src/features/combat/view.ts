@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { AssetFrame, CombatAssets } from '../../assets/manifest';
+import { damageNumberAdvances } from './damage-number';
 import { frameAt } from '../player/animation';
 
 export type Facing = -1 | 1;
@@ -42,9 +43,6 @@ type Slash = {
   startedAtMs: number;
   sprite: Phaser.GameObjects.Image;
 };
-
-const NORMAL_FIRST_ADVANCE = [26, 22, 24, 24, 26, 25, 26, 24, 26, 26];
-const NORMAL_REST_ADVANCE = [24, 20, 22, 22, 24, 23, 24, 22, 24, 24];
 
 function nowMs() {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
@@ -96,12 +94,12 @@ export class CombatView {
    * Feed one authoritative damage result. `damage` is displayed verbatim;
    * this class never chooses a target or derives a damage amount.
    */
-  receiveDamageEvent(event: AuthoritativeDamageEvent) {
+  receiveDamageEvent(event: AuthoritativeDamageEvent, hitSoundKey = this.hitSoundKey) {
     if (!event.eventId || !event.targetId || !Number.isFinite(event.serverTick) || !validPoint(event.x, event.y) || !Number.isFinite(event.damage) || event.damage <= 0) return;
     const id = `damage:${event.eventId}`;
     if (this.seen.has(id)) return;
     this.seen.add(id);
-    if (this.scene.sound && this.scene.cache.audio.exists(this.hitSoundKey)) this.scene.sound.play(this.hitSoundKey, { volume: 0.28 });
+    if (this.scene.sound && this.scene.cache.audio.exists(hitSoundKey)) this.scene.sound.play(hitSoundKey, { volume: 0.28 });
     this.spawnDamageNumber(event);
   }
 
@@ -162,20 +160,13 @@ export class CombatView {
 
     const frames = [...digits].map((digit, index) => set[index === 0 ? 'first' : 'rest'][digit]);
     if (frames.some(frame => !validFrame(frame))) return;
-    const firstDigit = Number(digits[0]);
-    const firstAdvance = NORMAL_FIRST_ADVANCE[firstDigit] + (critical ? 8 : 0);
-    const advances = [firstAdvance];
-    for (let index = 1; index < digits.length; index++) {
-      const current = NORMAL_REST_ADVANCE[Number(digits[index])] + (critical ? 4 : 0);
-      const next = index + 1 < digits.length ? NORMAL_REST_ADVANCE[Number(digits[index + 1])] + (critical ? 4 : 0) : current;
-      // Match DamageNumber.cpp: neighboring rest digits share their advance.
-      advances.push(index + 1 < digits.length ? Math.floor((current + next) / 2) : current);
-    }
+    const advances = damageNumberAdvances(digits, Boolean(event.critical), Boolean(sets?.critical));
     const container = this.scene.add.container(Math.round(event.x), Math.round(event.y - 8)).setDepth(this.depth + 1);
     let cursor = -advances.reduce((sum, advance) => sum + advance, 0) / 2;
     frames.forEach((frame, index) => {
       const image = this.scene.add.image(0, 0, frame.url).setOrigin(0);
-      image.setPosition(Math.round(cursor + frame.x), Math.round(frame.y + (index > 0 ? (index % 2 ? -2 : 2) : 0)));
+      const restIndex = index - 1;
+      image.setPosition(Math.round(cursor + frame.x), Math.round(frame.y + (index > 0 ? (restIndex % 2 ? -2 : 2) : 0)));
       container.add(image);
       cursor += advances[index];
     });

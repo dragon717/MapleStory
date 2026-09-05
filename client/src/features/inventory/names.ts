@@ -34,7 +34,7 @@ const ITEM_NAMES: Readonly<Record<string, readonly [string, string]>> = Object.f
 
 export function itemName(itemId: string): string {
   const name = ITEM_NAMES[itemId];
-  return name ? name[uiLocale() === 'en' ? 1 : 0] : itemId;
+  return name ? name[uiLocale() === 'en' ? 1 : 0] : catalog[itemId as keyof typeof catalog]?.name ?? itemId;
 }
 
 /**

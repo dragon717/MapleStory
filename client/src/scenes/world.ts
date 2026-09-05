@@ -94,6 +94,9 @@ export class World extends Phaser.Scene {
     for (const map of maps) if (map.bgm) this.load.audio(`bgm-${map.id}`, map.bgm);
     if (this.manifest.avatar.attackSound) this.load.audio('attack', this.manifest.avatar.attackSound);
     if (this.manifest.combat?.hit?.sound) this.load.audio('combat-hit', this.manifest.combat.hit.sound);
+    for (const monster of Object.values(this.manifest.monsters ?? {})) {
+      if (monster.damageSound) this.load.audio(`mob-hit-${monster.templateId}`, monster.damageSound.url);
+    }
     this.load.on('progress', (progress: number) => { if (!this.failed) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
     this.load.on('loaderror', (file: Phaser.Loader.File) => { this.failed = true; this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true); });
   }
@@ -143,7 +146,11 @@ export class World extends Phaser.Scene {
         if (this.manifest.avatar.attackSound && consumeAction(this.actions, message.playerId, message.actionId, message.serverTick)) this.sound.play('attack', { volume: 0.35 });
       }
     }
-    if (message.type === 'damageEvent' && this.loaded) this.combat?.receiveDamageEvent(message);
+    if (message.type === 'damageEvent' && this.loaded) {
+      const target = this.snapshot?.monsters.find(monster => monster.id === message.targetId);
+      const anchor = target && this.monsters.get(target.id)?.hitAnchor({ ...target, x: message.x, y: message.y });
+      this.combat?.receiveDamageEvent(anchor ? { ...message, ...anchor } : message, target ? `mob-hit-${target.templateId}` : undefined);
+    }
     if (message.type === 'dropPickedUp' && message.mapId === this.mapId) {
       this.drops.get(message.dropId)?.pickUp(() => {
         const body = this.players.get(message.playerId)?.body;
@@ -154,7 +161,8 @@ export class World extends Phaser.Scene {
     if (message.type === 'pickupResult') this.status(`已拾取 ${message.itemId} × ${message.quantity}`);
     if (message.type === 'portalResult') {
       this.portalCooldownUntil = performance.now() + (message.success ? 1200 : 300);
-      if (!message.success) this.status(`传送失败：${message.code}`, true);
+      // A rejected gameplay request is recoverable; the error callback tears down the resource session.
+      if (!message.success) this.status(`传送失败：${message.code}`);
     }
   }
   clear() {

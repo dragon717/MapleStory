@@ -22,7 +22,11 @@
       "001000003",
       "001000004",
       "001000005",
-      "001000006"
+      "001000006",
+      "001010000",
+      "001020000",
+      "002000000",
+      "002000001"
     ],
     "amherstBranch": [
       "001000000",
@@ -3131,6 +3135,575 @@
           "hide": "0"
         }
       ]
+    },
+    {
+      "id": "001010000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Entrance to Adventurer Training Center",
+          "mapDesc": "It's a town located at the east of Maple Island, and it has various stores like weapon store, armor store, and department stores."
+        }
+      ],
+      "info": {
+        "VRLeft": "-540",
+        "VRTop": "-1140",
+        "VRBottom": "395",
+        "bgm": "Bgm00/RestNPeace",
+        "town": "0",
+        "onFirstUserEnter": "",
+        "VRRight": "805",
+        "mapDesc": "",
+        "onUserEnter": "go1010000",
+        "mapMark": "Amherst",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-288",
+          "y": "27",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "7",
+          "x": "74",
+          "y": "154",
+          "tm": "999999999",
+          "tn": "",
+          "horizontalImpact": "0",
+          "script": "entertraining",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-349",
+          "y": "-45",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "257",
+          "y": "132",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "683",
+          "y": "211",
+          "tm": "1020000",
+          "tn": "west00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "213",
+          "y": "101",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-426",
+          "y": "212",
+          "tm": "1000000",
+          "tn": "east00",
+          "script": "",
+          "hideTooltip": "0",
+          "delay": "0",
+          "onlyOnce": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-451",
+          "y": "-227",
+          "fh": "31"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-370",
+          "y": "-229",
+          "fh": "12"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "627",
+          "y": "-91",
+          "fh": "9",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "510",
+          "y": "-94",
+          "fh": "11",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-292",
+          "y": "-40",
+          "fh": "36",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-226",
+          "y": "-221",
+          "fh": "42",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-127",
+          "y": "-221",
+          "fh": "59",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-67",
+          "y": "-224",
+          "fh": "58",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "126",
+          "y": "-277",
+          "fh": "64",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "235",
+          "y": "-274",
+          "fh": "67",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "455",
+          "y": "-96",
+          "fh": "11",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "660",
+          "y": "-275",
+          "fh": "6",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0012100",
+          "x": "-18",
+          "y": "150",
+          "fh": "49",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020100",
+          "x": "-188",
+          "y": "85",
+          "fh": "28",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "369",
+          "y": "-93",
+          "fh": "43",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "567",
+          "y": "-279",
+          "fh": "2",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020001",
+          "x": "331",
+          "y": "85",
+          "fh": "73",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "m:0100101": 6,
+        "m:0120100": 6,
+        "m:1210102": 2,
+        "n:0012100": 1,
+        "n:0020001": 1,
+        "n:0020100": 1
+      }
+    },
+    {
+      "id": "001020000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Split Road of Destiny"
+        }
+      ],
+      "info": {
+        "VRLeft": "-270",
+        "VRTop": "-540",
+        "VRBottom": "455",
+        "bgm": "Bgm00/FloralLife",
+        "town": "1",
+        "onFirstUserEnter": "",
+        "VRRight": "810",
+        "onUserEnter": "go1020000",
+        "mapMark": "Amherst",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-91",
+          "y": "181",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "701",
+          "y": "209",
+          "tm": "2000000",
+          "tn": "west00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-136",
+          "y": "212",
+          "tm": "1010000",
+          "tn": "east00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "top00",
+          "pt": "10",
+          "x": "316",
+          "y": "41",
+          "tm": "1020000",
+          "tn": "bottom00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "bottom00",
+          "pt": "10",
+          "x": "174",
+          "y": "217",
+          "tm": "1020000",
+          "tn": "top00",
+          "horizontalImpact": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0010200",
+          "x": "238",
+          "y": "32",
+          "fh": "22",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010201",
+          "x": "488",
+          "y": "16",
+          "fh": "28",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010202",
+          "x": "383",
+          "y": "175",
+          "fh": "13",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010203",
+          "x": "-54",
+          "y": "-56",
+          "fh": "39",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010204",
+          "x": "37",
+          "y": "11",
+          "fh": "14",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0010200": 1,
+        "n:0010201": 1,
+        "n:0010202": 1,
+        "n:0010203": 1,
+        "n:0010204": 1
+      }
+    },
+    {
+      "id": "002000000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry",
+          "mapDesc": "A port city on the south side of the island. The place where people head over to experience the world outside Maple Island.",
+          "help0": "#e[To Enter the Event]#n\\n\\n If there's a notice posted #b#ein blue#n#k saying that we're accepting participants for an event, click on #e[Paul]#n and choose #e[Yeah, let's go!]#n to enter.\\n If you have already clicked on [Paul] when the event starts, then just click on [Yeah, let's go!] to enter.\\n\\n Please read the event notice before entering.\\n Once the event starts, participants will be accepted on a #efirst come, first serve#n basis until the event is full.\\n\\n#eYou can't enter an event more than once within 24 hours.#n\\n\\n You won't be able to enter the event if you don't have any free slots available in your Etc. inventory to receive an Event Trophy, so make sure to leave a slot available.\\n If you already have a #bSecret Scroll#k, please discard it before entering the event.\\n\\n#r If you change channels or enter the #bCash Shop#k during the event, you'll automatically be disqualified from the event."
+        }
+      ],
+      "info": {
+        "onFirstUserEnter": "",
+        "returnMap": "2000000",
+        "town": "1",
+        "VRTop": "-1680",
+        "VRRight": "3870",
+        "onUserEnter": "go2000000",
+        "VRBottom": "707",
+        "VRLeft": "-90",
+        "forcedReturn": "999999999",
+        "mapMark": "SouthPerry",
+        "bgm": "Bgm00/GoPicnic"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "71",
+          "y": "432",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-18",
+          "y": "523",
+          "tm": "1020000",
+          "tn": "east00",
+          "script": "",
+          "hideTooltip": "0",
+          "delay": "0",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "in00",
+          "pt": "2",
+          "x": "930",
+          "y": "524",
+          "tm": "2000001",
+          "tn": "out00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "897",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "805",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "985",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "528",
+          "y": "42",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "613",
+          "y": "39",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "716",
+          "y": "39",
+          "tm": "999999999",
+          "tn": ""
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0020002",
+          "x": "348",
+          "y": "524",
+          "fh": "14"
+        },
+        {
+          "type": "n",
+          "id": "0022000",
+          "x": "3341",
+          "y": "-105",
+          "fh": "66"
+        },
+        {
+          "type": "n",
+          "id": "9010000",
+          "x": "1805",
+          "y": "402",
+          "fh": "26",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0020002": 1,
+        "n:0022000": 1,
+        "n:9010000": 1
+      }
+    },
+    {
+      "id": "002000001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry Armor Store"
+        }
+      ],
+      "info": {
+        "mapDesc": "",
+        "onFirstUserEnter": "",
+        "returnMap": "2000000",
+        "town": "1",
+        "VRTop": "-300",
+        "VRRight": "400",
+        "onUserEnter": "",
+        "VRBottom": "300",
+        "VRLeft": "-400",
+        "forcedReturn": "999999999",
+        "mapMark": "SouthPerry",
+        "bgm": "Bgm00/FloralLife"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "115",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-48",
+          "y": "181",
+          "tm": "2000000",
+          "tn": "in00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0021000",
+          "x": "-270",
+          "y": "138",
+          "fh": "11"
+        }
+      ],
+      "lifeCounts": {
+        "n:0021000": 1
+      }
     }
   ],
   "introMaps": [

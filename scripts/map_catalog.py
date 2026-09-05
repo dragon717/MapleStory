@@ -14,6 +14,8 @@ AMHERST_MAP_IDS = (
     '001000000', '001000001', '001000002', '001000003',
     '001000004', '001000005', '001000006',
 )
+ADJACENT_MAP_IDS = ('001010000', '001020000', '002000000', '002000001')
+OPTIONAL_MAP_IDS = AMHERST_MAP_IDS + ADJACENT_MAP_IDS
 
 
 def number(value):
@@ -76,7 +78,7 @@ def map_entry(record, current_id):
 def build_map_catalog(rendered=None):
     scope = json.loads(SCOPE.read_text(encoding='utf-8'))
     records = {str(record['id']): record for record in scope['maps']}
-    missing = [current_id for current_id in CORE_MAP_IDS + AMHERST_MAP_IDS if current_id not in records]
+    missing = [current_id for current_id in CORE_MAP_IDS + OPTIONAL_MAP_IDS if current_id not in records]
     if missing:
         raise ValueError(f"map catalog evidence missing: {', '.join(missing)}")
 
@@ -86,7 +88,7 @@ def build_map_catalog(rendered=None):
         'maps': [map_entry(records[current_id], current_id) for current_id in CORE_MAP_IDS],
         'omitted': [
             {'id': current_id, 'reason': '已确认 WZ metadata，但当前导出没有对应图层资源；资源接入后再启用。'}
-            for current_id in AMHERST_MAP_IDS
+            for current_id in OPTIONAL_MAP_IDS
         ],
     }
     if not rendered:
@@ -100,7 +102,7 @@ def build_map_catalog(rendered=None):
         if source and source.get('layers'):
             item.update(source)
             item['assetStatus'] = 'rendered'
-    for current_id in AMHERST_MAP_IDS:
+    for current_id in OPTIONAL_MAP_IDS:
         source = rendered_by_id.get(current_id)
         if current_id not in present and source and source.get('layers'):
             item = map_entry(records[current_id], current_id)
@@ -132,4 +134,4 @@ if __name__ == '__main__':
     assert catalog['maps'][0]['name'] == 'Mushroom Town'
     assert any(portal['targetMapId'] == '000020000' for portal in catalog['maps'][0]['portals'])
     assert any(control['id'] == 'inventory' and control['keys'] == ['I'] for control in control_guide())
-    print(f"catalogued {len(catalog['maps'])} rendered/catalog maps; omitted {len(catalog['omitted'])} Amherst maps")
+    print(f"catalogued {len(catalog['maps'])} rendered/catalog maps; omitted {len(catalog['omitted'])} optional maps")

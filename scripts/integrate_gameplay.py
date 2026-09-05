@@ -34,6 +34,9 @@ if __name__ == '__main__':
     gameplay = read(SOURCE / 'manifest.json')
     rendered_catalog = read(SOURCE / 'maps/catalog.json')
     assert gameplay['contentVersion'] == 'gms83-gameplay-2'
+    rules = read(ROOT / 'shared/gameplay.json')
+    assert {template['templateId'] for template in rules['monsters']} <= gameplay['monsters'].keys()
+    assert all(asset['actions']['stand'] for asset in gameplay['monsters'].values())
     assert avatar['avatar']['look']['weapon'][1] == '01302000.img'
     loadouts = avatar['avatar'].get('equipmentLoadouts', {})
     assert 'empty' in loadouts
@@ -44,10 +47,14 @@ if __name__ == '__main__':
     required = {str(item['id']) for item in rendered_catalog.get('maps', []) if str(item.get('id')) in {
         '000010000', '000020000', '000020001', '000030000', '000030001', '000040000',
         '000040001', '000040002', '000050000', '000050001', '000060000', '000060001',
+        '001000000', '001000001', '001000002', '001000003', '001000004', '001000005', '001000006',
+        '001010000', '001020000', '002000000', '002000001',
     }}
     assert required == {
         '000010000', '000020000', '000020001', '000030000', '000030001', '000040000',
         '000040001', '000040002', '000050000', '000050001', '000060000', '000060001',
+        '001000000', '001000001', '001000002', '001000003', '001000004', '001000005', '001000006',
+        '001010000', '001020000', '002000000', '002000001',
     }, f'missing required rendered maps: {required}'
     assert not rendered_catalog.get('failures'), rendered_catalog.get('failures')
     actions = avatar['avatar']['actions']

@@ -19,6 +19,7 @@ export interface MonsterSnapshot {
 export class MonsterView {
   private readonly sprite: Phaser.GameObjects.Image;
   private signature = '';
+  private currentFrame?: AssetFrame;
 
   constructor(private scene: Phaser.Scene, private asset: MonsterAsset, depth: number) {
     const first = asset.actions.stand[0];
@@ -33,29 +34,26 @@ export class MonsterView {
     }
     const index = frameAt(frames.map(frame => frame.delay), elapsed, monster.action !== 'die');
     const frame = frames[index];
+    this.currentFrame = frame;
     const signature = `${monster.action}:${index}:${frame.url}`;
     if (signature !== this.signature) {
       this.signature = signature;
       this.sprite.setTexture(frame.url);
     }
+    const flipped = monster.facing === 1 && !Number(this.asset.info.noFlip ?? 0);
     this.sprite.setVisible(true)
       // GMS83 mob canvases face left in their source orientation. Phaser flips
       // the image box, so reflect the source origin around its right edge.
-      .setPosition(Math.round(monster.facing === 1 ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
-      .setFlipX(monster.facing === 1);
+      .setPosition(Math.round(flipped ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
+      .setFlipX(flipped);
   }
 
-  /**
-   * Returns the center of the source-backed hit1 canvas in world space.
-   * World should pass this point to CombatView for authoritative damage text.
-   */
+  /** Source head anchor of the currently displayed stance, like Mob::get_head_position. */
   hitAnchor(monster: Pick<MonsterSnapshot, 'x' | 'y' | 'facing'>): Point {
-    const frame = this.asset.actions.hit[0] ?? this.asset.actions.stand[0];
-    const left = monster.facing === 1 ? monster.x - frame.x - frame.width : monster.x + frame.x;
-    return {
-      x: Math.round(left + frame.width / 2),
-      y: Math.round(monster.y + frame.y + frame.height / 2),
-    };
+    const frame = this.currentFrame ?? this.asset.actions.stand[0];
+    const head = frame.head ?? { x: 0, y: 0 };
+    const flipped = monster.facing === 1 && !Number(this.asset.info.noFlip ?? 0);
+    return { x: Math.round(monster.x + (flipped ? -head.x : head.x)), y: Math.round(monster.y + head.y) };
   }
 
   destroy() { this.sprite.destroy(); }

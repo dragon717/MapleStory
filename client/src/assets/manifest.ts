@@ -54,11 +54,12 @@ export interface MapDefinition {
 export interface AssetFrame {
   url: string; width: number; height: number; origin: Point; x: number; y: number; delay: number;
   index?: number;
-  source?: string; resolvedSource?: string; map?: Record<string, Point>; lt?: Point | null; rb?: Point | null;
+  source?: string; resolvedSource?: string; map?: Record<string, Point>; lt?: Point | null; rb?: Point | null; head?: Point | null;
 }
 export interface MonsterAsset {
   templateId: string; source: string; info: Record<string, number | string>;
-  actions: Record<'stand' | 'move' | 'hit' | 'die', AssetFrame[]>;
+  actions: Record<'stand' | 'move' | 'hit' | 'die', AssetFrame[]> & { jump?: AssetFrame[] };
+  damageSound?: { url: string; source: string };
 }
 export interface GameplayAssets {
   contentVersion: string;

@@ -80,6 +80,10 @@ const MAP_NAMES: Readonly<Record<string, readonly [string, string]>> = Object.fr
   '001000004': ['蜗牛花园', 'Snail Garden'],
   '001000005': ['森林中部狩猎场 I', 'Hunting Ground Middle of the Forest I'],
   '001000006': ['森林中部狩猎场 II', 'Hunting Ground Middle of the Forest II'],
+  '001010000': ['冒险家训练中心入口', 'Entrance to Adventurer Training Center'],
+  '001020000': ['命运分岔路', 'Split Road of Destiny'],
+  '002000000': ['南港', 'Southperry'],
+  '002000001': ['南港防具店', 'Southperry Armor Store'],
 });
 
 export function uiLocale(): UiLocale { return locale; }
