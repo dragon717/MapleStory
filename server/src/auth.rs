@@ -98,6 +98,7 @@ pub struct DropRecord {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // exp_gain/drop mirror reference rewards; drops/profiles are authoritative.
 pub struct AttackResolution {
     pub already_resolved: bool,
     pub target_id: Option<String>,
@@ -294,6 +295,12 @@ impl Store {
                success INTEGER NOT NULL,
                code TEXT NOT NULL,
                PRIMARY KEY(account_id,request_id)
+             );
+             CREATE TABLE IF NOT EXISTS player_quests(
+               account_id TEXT NOT NULL,
+               quest_id TEXT NOT NULL,
+               status TEXT NOT NULL,
+               PRIMARY KEY(account_id,quest_id)
              );",
         )?;
         // Existing development databases predate the mesos column. Keep their
@@ -538,6 +545,39 @@ impl Store {
                 i64::try_from(profile.mesos).map_err(|_| "account persistence failed")?,
                 profile.death_id
             ],
+        )
+        .map_err(|_| "account persistence failed")?;
+        Ok(())
+    }
+
+    /// Load the quest status map (quest id -> "active" | "completed") for an
+    /// account.  The table lives separately from `player_stats` so development
+    /// databases do not need a column migration.
+    pub fn load_quests(&self, account_id: &str) -> Result<BTreeMap<String, String>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let mut stmt = db
+            .prepare("SELECT quest_id,status FROM player_quests WHERE account_id=?1")
+            .map_err(|_| "account persistence failed")?;
+        let rows = stmt
+            .query_map(params![account_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|_| "account persistence failed")?;
+        let mut quests = BTreeMap::new();
+        for row in rows {
+            let (quest_id, status) = row.map_err(|_| "account persistence failed")?;
+            quests.insert(quest_id, status);
+        }
+        Ok(quests)
+    }
+
+    /// Upsert one quest status row.
+    pub fn save_quest(&self, account_id: &str, quest_id: &str, status: &str) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "INSERT INTO player_quests(account_id,quest_id,status) VALUES(?1,?2,?3)
+             ON CONFLICT(account_id,quest_id) DO UPDATE SET status=?3",
+            params![account_id, quest_id, status],
         )
         .map_err(|_| "account persistence failed")?;
         Ok(())

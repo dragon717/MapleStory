@@ -64,31 +64,16 @@ export interface MonsterAsset {
 export interface NpcAsset {
   name: string; source: string; stand: AssetFrame[];
 }
-export interface ShopAsset {
-  backgrnd?: AssetFrame;
-  backgrnd2?: AssetFrame;
-  select?: AssetFrame;
-  meso?: AssetFrame;
-  token?: AssetFrame;
-  BtBuy?: AssetFrame;
-  BtSell?: AssetFrame;
-  BtRecharge?: AssetFrame;
-  BtExit?: AssetFrame;
-  TabBuy?: AssetFrame;
-  TabSell?: AssetFrame;
-}
-export interface DialogueAsset {
-  backgrnd?: AssetFrame;
-  backgrnd2?: AssetFrame;
-  BtOK?: AssetFrame;
-  BtNext?: AssetFrame;
-  BtPrev?: AssetFrame;
-  BtYes?: AssetFrame;
-  BtNo?: AssetFrame;
-}
 export interface PortalAsset {
   mapId: string; portalName: string; spriteKey: string;
-  url: string; width: number; height: number; origin: Point; x: number; y: number; delay: number;
+  /** First-frame cache for callers that only need a static fallback. */
+  url: string; width: number; height: number;
+  origin: Point; x: number; y: number; delay: number;
+  /** Source-backed animation frames, ordered. Each carries its own origin/box
+   *  so the client must swap texture and origin together when cycling. */
+  frames: AssetFrame[];
+  /** Per-frame delay in milliseconds when `frames.length > 1`. */
+  frameDelay: number;
   source?: string; resolvedSource?: string;
   type: number;
 }
@@ -146,9 +131,9 @@ export interface Manifest {
   /** Source-backed Npc.wz stand frames, keyed by template id. */
   npcs?: Record<string, NpcAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
-  shopUi?: ShopAsset;
+  shopUi?: Record<string, AssetFrame>;
   /** Source-backed UtilDlgEx dialog pieces used by npc conversation boxes. */
-  dialogUi?: DialogueAsset;
+  dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */
   portals?: Record<string, PortalAsset>;
 }

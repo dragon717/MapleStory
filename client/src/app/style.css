@@ -78,3 +78,54 @@
 @media(max-width:799px){
   .equipment-window{left:4px;top:calc(50% + 8px);transform:none}
 }
+
+/* Source-backed UIWindow.img/UtilDlgEx npc talk window. The frame is the v83
+   t(28)/s(58) art with a translucent body between them; the speaker portrait
+   and nameplate sit on the left, the message and option rows on the right,
+   and the source button sprites float over the lower area. */
+.npc-dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-56%);width:529px;pointer-events:auto;color:#fff;font:12px/1.6 Verdana,"Microsoft YaHei",sans-serif;filter:drop-shadow(0 6px 8px #000c);user-select:none;z-index:2}
+.npc-dlg[hidden],.npc-shop[hidden]{display:none!important}
+.npc-dlg-img{display:block;width:529px;height:auto;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.npc-dlg-top{position:relative;z-index:1}.npc-dlg-bottom{position:relative;z-index:1}
+.npc-dlg-mid{position:relative;z-index:0;margin:-1px 0;display:flex;align-items:stretch;min-height:172px;background:rgba(4,7,12,.86);border-left:1px solid #3b4349;border-right:1px solid #3b4349;overflow:visible}
+.npc-dlg-aside{position:relative;flex:0 0 138px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;pointer-events:none}
+.npc-dlg-speaker{display:block;max-width:120px;max-height:118px;width:auto;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.npc-dlg-plate{position:relative;width:121px;height:19px;flex:0 0 auto;pointer-events:none}
+.npc-dlg-plate-img{position:absolute;inset:0;width:121px;height:19px;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.npc-dlg-plate span{position:absolute;left:0;right:0;top:2px;color:#fff;font:bold 11px/13px Verdana,"Microsoft YaHei",sans-serif;text-align:center;text-shadow:1px 1px 0 #000;pointer-events:none;white-space:nowrap}
+.npc-dlg-main{position:relative;flex:1 1 auto;min-width:0;padding:16px 12px 14px 0;display:flex;flex-direction:column;gap:6px}
+.npc-dlg-msg{margin:0;white-space:pre-wrap;color:#f4f1e4;font:12px/1.65 Verdana,"Microsoft YaHei",sans-serif;text-shadow:1px 1px 0 #000;word-break:break-word}
+.npc-dlg-pageable .npc-dlg-msg::after{content:"▼";margin-left:6px;color:#efc269;font-size:9px;vertical-align:2px}
+.npc-dlg-opts{display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin-top:2px}
+.npc-dlg-opt{display:block;padding:1px 2px;border:0;background:transparent;color:#ffe9a8;font:12px/1.7 Verdana,"Microsoft YaHei",sans-serif;text-align:left;text-shadow:1px 1px 0 #000;cursor:pointer;border-bottom:2px solid transparent}
+.npc-dlg-opt:hover,.npc-dlg-opt:focus-visible{border-bottom-color:#ef9a1b;outline:0}
+.npc-dlg-btns{position:absolute;left:0;right:0;bottom:12px;height:20px;pointer-events:none;z-index:2}
+.npc-btn{position:relative;padding:0;border:0;background:transparent;line-height:0;pointer-events:auto;image-rendering:pixelated}
+.npc-btn-img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.npc-btn .npc-btn-over,.npc-btn .npc-btn-pressed{display:none}
+.npc-btn:hover .npc-btn-normal{display:none}.npc-btn:hover .npc-btn-over{display:block}
+.npc-btn:active .npc-btn-over{display:none}.npc-btn:active .npc-btn-pressed{display:block}
+.npc-btn:focus-visible{outline:2px solid #efc269;outline-offset:1px}
+.npc-dlg-btns-left{position:absolute;left:9px;top:0}.npc-dlg-btns-right{position:absolute;right:8px;top:0;display:flex;gap:6px}
+@media(max-width:799px){.npc-dlg{transform:translate(-50%,-56%) scale(.86)}.npc-dlg,.npc-dlg-img{transform-origin:center center}}
+
+/* Source UIWindow.img/Shop window: fixed 463x339 backdrop with a scrollable
+   item list, mesos footer and source BtBuy/BtExit sprites. */
+.npc-shop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:463px;height:339px;pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:2;image-rendering:pixelated}
+.npc-shop-backgrnd{position:absolute;inset:0;display:block;width:463px;height:339px;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.npc-shop-title{position:absolute;left:28px;top:14px;width:300px;height:18px;overflow:hidden;color:#5b4225;font:bold 11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;letter-spacing:.2px;pointer-events:none;text-shadow:0 1px 0 #ffe0a4}
+.npc-shop-list{position:absolute;left:14px;top:52px;width:435px;height:236px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9;background:transparent;padding-right:4px}
+.npc-shop-row{display:flex;align-items:center;gap:8px;height:36px;flex:0 0 36px;padding:0 6px;background:linear-gradient(#fffef8,#efe7d0);border:1px solid #cabb8f;border-radius:2px}
+.npc-shop-row:nth-child(even){background:linear-gradient(#faf5e6,#e9dfc4)}
+.npc-shop-icon{flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:#20242a;border:1px solid #8d7c55;image-rendering:pixelated}
+.npc-shop-icon img{display:block;max-width:28px;max-height:28px;image-rendering:pixelated}
+.npc-shop-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#33301f;font:11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.npc-shop-price{flex:0 0 auto;color:#9a3c13;font:bold 11px/16px Verdana,sans-serif}
+.npc-shop-buy{flex:0 0 auto}
+.npc-shop-meso{position:absolute;left:24px;bottom:13px;display:flex;align-items:center;gap:4px;pointer-events:none}
+.npc-shop-meso img{display:block;width:14px;height:14px;image-rendering:pixelated}
+.npc-shop-meso b{color:#303030;font:11px/14px Verdana,sans-serif;font-weight:bold}
+.npc-shop-meso span{color:#4b4b4b;font:9px/14px Verdana,sans-serif;margin-left:2px}
+.npc-shop-exit{position:absolute;right:22px;bottom:13px}
+.npc-shop-empty{color:#6a6244;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin-top:60px}
+@media(max-width:799px){.npc-shop{transform:translate(-50%,-50%) scale(.9)}}

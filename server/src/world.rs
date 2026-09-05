@@ -66,6 +66,7 @@ pub struct Point {
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // portal_type mirrors WZ type (spawn/script/portal); client renders it.
 pub struct Portal {
     pub name: String,
     #[serde(rename = "type", default)]
@@ -1117,6 +1118,7 @@ impl PlayerConfig {
 
     /// Reproduces the regular physical damage interval used by the local
     /// Mapleweb reference (`CharStats.cpp`, lines 80-85 and 95-142).
+    #[allow(dead_code)] // kept for the Mapleweb reference damage model; combat uses skill paths.
     fn attack_damage(&self) -> i64 {
         let (min, max) = self.attack_range();
         if max <= min {
@@ -1287,6 +1289,9 @@ struct Player {
     last_input: Instant,
     attack_until: u64,
     contact_invulnerable_until: u64,
+    /// quest id -> "active" | "completed".  Authored quest dialog branches on
+    /// these rows and the complete effect grants the configured reward.
+    quests: BTreeMap<String, String>,
 }
 
 struct Monster {
@@ -1369,12 +1374,14 @@ pub struct World {
 }
 
 impl World {
+    #[allow(dead_code)] // convenience constructors used by unit/integration tests.
     pub fn new(map: Map, duration_ms: u64) -> Self {
         let mut world = Self::build(map, duration_ms, Gameplay::default(), None).unwrap();
         world.spawn_configured_monsters().unwrap();
         world
     }
 
+    #[allow(dead_code)]
     pub fn new_with_gameplay(map: Map, duration_ms: u64, gameplay: Gameplay) -> Self {
         let mut world = Self::build(map, duration_ms, gameplay, None).unwrap();
         world.spawn_configured_monsters().unwrap();
@@ -1766,6 +1773,10 @@ impl World {
                     .ground_near(self.map.spawn.x, self.map.spawn.y)
                     .map(|(id, _)| id)
                     .unwrap_or(0);
+                let quests = match self.store.as_ref() {
+                    Some(store) => store.load_quests(&identity.id).unwrap_or_default(),
+                    None => BTreeMap::new(),
+                };
                 self.players.insert(
                     id.clone(),
                     Player {
@@ -1813,6 +1824,7 @@ impl World {
                         last_input: Instant::now(),
                         attack_until: 0,
                         contact_invulnerable_until: 0,
+                        quests,
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
@@ -3585,13 +3597,19 @@ impl World {
             .npcs
             .get(&npc_id)
             .and_then(|npc| npc.conversation.clone());
+        let quests = self
+            .players
+            .get(&id)
+            .map(|player| player.quests.clone())
+            .unwrap_or_default();
         let context = DialogueContext {
             level,
             mesos,
             inventory: &inventory,
+            quests: &quests,
         };
         match npc::advance(&script, current_node.as_deref(), step, selection, &context) {
-            Ok((next_node, view)) => {
+            Ok((next_node, view, effect)) => {
                 let value = view.to_json(&request_id, &npc_id, &name);
                 if let Some(npc) = self.npcs.get_mut(&npc_id) {
                     npc.conversation = match view {
@@ -3605,6 +3623,11 @@ impl World {
                     self.warp_player(&id, target);
                 }
                 self.send_npc_dialogue(&id, value);
+                // Apply the one-shot quest effect after the client has been
+                // told the conversation ended.
+                if let Some(effect) = effect {
+                    self.apply_quest_effect(&id, effect);
+                }
             }
             Err(error) => {
                 self.end_conversation(&id);
@@ -3617,6 +3640,63 @@ impl World {
         // No player → conversation tracker; conversations live on the npc and
         // are reset by either End or a failure response.  Nothing to do here.
         let _ = player_id;
+    }
+
+    /// Mesos reward granted when `complete` is confirmed for a quest.  This
+    /// lives server-side next to the authored dialog so the client never has
+    /// to trust reward numbers.
+    fn quest_reward_mesos(quest_id: &str) -> u64 {
+        match quest_id {
+            "maple-road-training" => 300,
+            _ => 0,
+        }
+    }
+
+    fn apply_quest_effect(&mut self, id: &str, effect: npc::QuestEffect) {
+        let (quest_id, wanted) = match effect {
+            npc::QuestEffect::Start(quest_id) => (quest_id, "active"),
+            npc::QuestEffect::Complete(quest_id) => (quest_id, "completed"),
+        };
+        // Only accept the authored transition: available -> active and
+        // active -> completed.  Repeat accepts and double turn-ins are no-ops.
+        let transition_ok = match self
+            .players
+            .get(id)
+            .map(|player| player.quests.get(&quest_id).cloned())
+        {
+            Some(None) => wanted == "active",
+            Some(Some(previous)) => previous == "active" && wanted == "completed",
+            None => false,
+        };
+        if !transition_ok {
+            return;
+        }
+        let reward = if wanted == "completed" {
+            Self::quest_reward_mesos(&quest_id)
+        } else {
+            0
+        };
+        {
+            let player = match self.players.get_mut(id) {
+                Some(player) => player,
+                None => return,
+            };
+            player.quests.insert(quest_id.clone(), wanted.to_owned());
+            if reward > 0 {
+                player.state.mesos = player.state.mesos.saturating_add(reward);
+            }
+        }
+        if let Some(store) = self.store.as_ref() {
+            if let Err(error) = store.save_quest(id, &quest_id, wanted) {
+                let _ = self
+                    .players
+                    .get(id)
+                    .and_then(|player| player.output.try_send(reject("persistence", &error, None)).ok());
+            }
+        }
+        if wanted == "completed" {
+            let _ = self.persist_player(id);
+        }
     }
 
     fn warp_player(&mut self, player_id: &str, map_id: String) {

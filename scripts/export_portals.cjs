@@ -1,7 +1,8 @@
-// Portal sprite export: per map, look up the shared editor portal sprite keyed
-// by the portal's `pt` type, and add a small render manifest entry that the
-// client portal view consumes. Mirrors scripts/export_npcs.cjs safety rules
-// (serial decode, PNG IHDR dimension check).
+// Portal sprite export: per map, look up the source-backed portal effect in
+// Map.wz/MapHelper.img/portal/game/{pv,ph,psh}/N. The WZ editor sprites under
+// portal/editor/ are map-editor diagnostics (red rectangle + yellow arrow)
+// and are intentionally not used here. Mirrors scripts/export_npcs.cjs safety
+// rules (serial decode, PNG IHDR dimension check).
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const wz = require('../参考/tools/wz-audit/node_modules/@tybys/wz');
@@ -60,46 +61,87 @@ async function png(raw, source) {
 }
 const log = m => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`);
 
-// Map portal `pt` type to MapHelper.img/portal/editor/{key} sub-name.
-// v83 sprite keys observed: sp, pi, pv, pc, pg, tp, ps, pgi, psi, pcs, ph, psh, pcj, pci, pcig.
-// pt=0 (hidden/spawn) -> sp; pt>=2 (regular interactive) -> pv; the rest fall back to pv.
-function editorKey(pt) {
-  if (pt === 0) return 'sp';
+// v83's in-game portal effects live in Map.wz/MapHelper.img/portal/game/.
+// pv (portable visual, "visible portal beam"), ph (hidden), psh (script hidden).
+// game/pv is an animation of 8 frames; ph/psh are single-frame on the default
+// sub-key plus psh which animates over 4 stages. Each portal record keeps a
+// `frames` array so the client can render either as a static image or cycle
+// through the animation with a single code path.
+function gameKey(pt) {
+  if (pt === 0) return 'ph';
+  if (pt === 1 || pt === 2 || pt === 7 || pt === 8 || pt === 10 || pt === 11) return 'pv';
+  if (pt === 9) return 'psh';
   return 'pv';
 }
+const FRAME_DELAY_MS = 100;
+const MAX_ANIMATION_FRAMES = 8;
 
 (async () => {
   const manifestPath = path.join(out, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const mapsCatalog = JSON.parse(fs.readFileSync(path.join(root, 'shared/maps.json'), 'utf8'));
 
-  // Materialise the editor portal library once.
-  const editorLib = await node('Map.wz/MapHelper.img/portal/editor');
-  const spriteCache = new Map();
-  for (const spriteNode of children(editorLib)) {
-    const canvas = spriteNode instanceof wz.WzUOLProperty ? spriteNode.linkValue : spriteNode;
-    if (!(canvas instanceof wz.WzCanvasProperty)) continue;
-    spriteCache.set(spriteNode.name, canvas);
+  const gameLib = await node('Map.wz/MapHelper.img/portal/game');
+  // Materialise the game portal library once. ph/psh wrap their canvas inside a
+  // WzSubProperty (game/ph/default, game/psh/{default,1,2,3,4}); pv holds the
+  // canvases directly. Recurse to collect every WzCanvasProperty descendant
+  // and dedupe by fullPath so UOL links to pv/ph frames are not duplicated.
+  const gameCache = new Map();
+  function collectCanvases(root, out) {
+    for (const child of children(root)) {
+      const node = child instanceof wz.WzUOLProperty ? child.linkValue : child;
+      if (node instanceof wz.WzCanvasProperty) out.push(node);
+      else if (node instanceof wz.WzImage || node instanceof wz.WzSubProperty) collectCanvases(node, out);
+    }
+    return out;
   }
-  log(`MapHelper.portal.editor sprites: ${[...spriteCache.keys()].join(',')}`);
-  if (!spriteCache.has('pv')) {
-    log('FATAL: editor/pv not present; aborting'); process.exitCode = 2; return;
+  for (const spriteNode of children(gameLib)) {
+    const canvasList = collectCanvases(spriteNode, []);
+    const seen = new Set();
+    const dedup = canvasList.filter(c => {
+      const key = c.fullPath.match(/[^/]+\.wz\/.*/)[0];
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    dedup.sort((a, b) => a.fullPath.localeCompare(b.fullPath, undefined, { numeric: true }));
+    gameCache.set(spriteNode.name, dedup);
+  }
+  log(`MapHelper.portal.game sprites: ${[...gameCache.keys()].map(k => `${k}(${gameCache.get(k).length})`).join(',')}`);
+  if (!gameCache.has('pv') || !gameCache.has('ph') || !gameCache.has('psh')) {
+    log('FATAL: game/{pv,ph,psh} missing; aborting'); process.exitCode = 2; return;
   }
 
   const portals = {};
   let count = 0, missing = 0;
   for (const map of mapsCatalog.maps) {
     for (const portal of (map.portals ?? [])) {
-      if (portal.type === 9) continue; // scripted portals (tutorial, etc.) reuse the editor's pv sprite anyway
-      const key = editorKey(portal.type);
-      const spriteNode = spriteCache.get(key) ?? spriteCache.get('pv');
+      const key = gameKey(portal.type);
+      const canvasList = gameCache.get(key);
+      if (!canvasList?.length) { missing++; log(`portal ${map.id}/${portal.name} pt=${portal.type} NO GAME FRAMES`); continue; }
       try {
         const t = Date.now();
-        const frame = await png(spriteNode, `Map.wz/MapHelper.img/portal/editor/${key}`);
-        portals[`${map.id}/${portal.name}`] = { ...frame, mapId: map.id, portalName: portal.name,
-          x: portal.x, y: portal.y, type: portal.type, spriteKey: key };
+        const frames = [];
+        for (const canvas of canvasList) {
+          const frame = await png(canvas, `Map.wz/MapHelper.img/portal/game/${key}`);
+          frames.push({ ...frame, delay: FRAME_DELAY_MS });
+          if (frames.length >= MAX_ANIMATION_FRAMES) break;
+        }
+        const first = frames[0];
+        portals[`${map.id}/${portal.name}`] = {
+          mapId: map.id, portalName: portal.name,
+          spriteKey: key,
+          type: portal.type,
+          // first frame metadata kept at top level for any caller that only
+          // needs the static fallback (it matches the editor/pv size).
+          url: first.url, width: first.width, height: first.height,
+          origin: first.origin, x: first.x, y: first.y,
+          frames,
+          frameDelay: FRAME_DELAY_MS,
+          source: `Map.wz/MapHelper.img/portal/game/${key}`,
+        };
         count++;
-        log(`portal ${map.id}/${portal.name} pt=${portal.type} -> ${key} (${Date.now() - t}ms)`);
+        log(`portal ${map.id}/${portal.name} pt=${portal.type} -> game/${key} (${frames.length} frames, ${Date.now() - t}ms)`);
       } catch (error) {
         missing++;
         log(`portal ${map.id}/${portal.name} pt=${portal.type} FAIL ${String(error.message || error).slice(0, 80)}`);

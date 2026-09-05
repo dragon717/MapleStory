@@ -10,25 +10,57 @@ export interface PortalSnapshot {
 }
 
 /**
- * Renders a portal sprite at the source-backed portal coordinates. The pv / sp
- * editor sprites are wide and short, with origin pointing at the centre of the
- * effect; Phaser uses setOrigin(origin.x / width, origin.y / height) so the
- * sprite stays anchored at the portal's world position regardless of size.
+ * Renders a portal effect at the source-backed portal coordinates.
+ *
+ * `Map.wz/MapHelper.img/portal/game/{pv,ph,psh}` ships as an animated sequence;
+ * each canvas carries its own origin/box so we cannot use Phaser's spritesheet
+ * animation.  We swap the texture and re-anchor on a `TimerEvent` to mirror
+ * the source's per-frame origin (the WZ editor sprite under `portal/editor/`
+ * is a red rectangle + yellow arrow used by the map editor and is intentionally
+ * not used here).
  */
 export class PortalView {
   private readonly sprite: Phaser.GameObjects.Image;
   private readonly depth: number;
-  constructor(scene: Phaser.Scene, frame: AssetFrame, x: number, y: number, depth: number) {
+  private readonly frames: AssetFrame[];
+  private readonly frameDelay: number;
+  private currentFrame = 0;
+  private timer?: Phaser.Time.TimerEvent;
+  constructor(scene: Phaser.Scene, frames: AssetFrame[], frameDelay: number, x: number, y: number, depth: number) {
+    this.frames = frames.length ? frames : [];
+    this.frameDelay = Math.max(1, frameDelay | 0);
     this.depth = depth;
-    // frame.origin is the WZ source-origin offset inside the sprite; frame.x/y
-    // on AssetFrame can be the world position (used for portals). Divide origin
-    // by the sprite's pixel size to get Phaser's 0..1 anchor fractions.
+    const first = this.frames[0];
+    if (!first) {
+      // No usable frames (the map only has a metadata portal); skip rendering.
+      this.sprite = scene.add.image(x, y, '__missing').setVisible(false).setDepth(depth);
+      return;
+    }
+    this.sprite = this.makeImage(scene, first, x, y);
+    if (this.frames.length > 1) {
+      this.timer = scene.time.addEvent({
+        delay: this.frameDelay,
+        loop: true,
+        callback: () => {
+          this.currentFrame = (this.currentFrame + 1) % this.frames.length;
+          this.applyFrame(this.frames[this.currentFrame], x, y);
+        },
+      });
+    }
+  }
+  private makeImage(scene: Phaser.Scene, frame: AssetFrame, x: number, y: number) {
+    return scene.add.image(x, y, frame.url)
+      .setOrigin(frame.origin?.x ?? 0, frame.origin?.y ?? frame.height / frame.height)
+      .setDepth(this.depth);
+  }
+  private applyFrame(frame: AssetFrame, x: number, y: number) {
+    this.sprite.setTexture(frame.url, undefined as unknown as string);
     const ox = (frame.origin?.x ?? 0) / frame.width;
     const oy = (frame.origin?.y ?? frame.height) / frame.height;
-    this.sprite = scene.add.image(x, y, frame.url)
-      .setOrigin(ox, oy)
-      .setDepth(depth);
-    this.sprite.setVisible(true);
+    this.sprite.setOrigin(ox, oy).setPosition(x, y);
   }
-  destroy() { this.sprite.destroy(); }
+  destroy() {
+    this.timer?.remove();
+    this.sprite.destroy();
+  }
 }

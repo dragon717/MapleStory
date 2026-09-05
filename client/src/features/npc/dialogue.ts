@@ -1,21 +1,15 @@
 import type {
   ClientMessage, NpcState, PlayerState, ServerMessage,
 } from '../../../../shared/protocol';
-import type { DialogueAsset, Manifest, ShopAsset } from '../../assets/manifest';
-import { protocolText, uiLocale, uiText } from '../../app/i18n';
-
-const DIALOG_WIDTH = 360;
-const DIALOG_HEIGHT = 160;
-const DIALOG_BTN_WIDTH = 56;
-const DIALOG_BTN_HEIGHT = 18;
-const SHOP_WINDOW_WIDTH = 380;
-const SHOP_WINDOW_HEIGHT = 320;
+import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { uiLocale, uiText } from '../../app/i18n';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
 interface DialogueState {
   requestId: string;
   npcId: string;
+  npcTemplateId?: string;
   name: string;
   dialog: Extract<ServerMessage, { type: 'npcResult' }>['dialog'];
 }
@@ -27,8 +21,10 @@ interface ShopOpenState {
   items: { itemId: string; price: number; name: string; icon?: string; source?: string }[];
 }
 
+/**
+ * Strip common GMS colour/style markers (#b, #B, #k...) and squeeze repeats.
+ */
 function sanitize(text: string): string {
-  // Strip common GMS colour/style markers (#b, #B, #k...) and squeeze repeats.
   return text
     .replace(/#([a-zA-Z])/g, '')
     .replace(/#l/gi, '')
@@ -37,22 +33,32 @@ function sanitize(text: string): string {
     .trim();
 }
 
+function frame(url?: string, cls?: string, width?: number, height?: number): HTMLImageElement {
+  const img = document.createElement('img');
+  img.className = cls ?? '';
+  if (url) img.src = url;
+  if (width) img.width = width;
+  if (height) img.height = height;
+  img.draggable = false;
+  return img;
+}
+
 /**
- * Npc conversation + shop window.
+ * Npc conversation + shop window, rebuilt on the source v83 art:
+ *  - UtilDlgEx t/c/s frame with the speaker portrait + `bar` nameplate,
+ *  - UtilDlgEx Bt* sprites for the answers,
+ *  - Shop backgrnd + BtBuy/BtExit/meso sprites for the merchant window.
  *
  * The dialogue data is produced server-side from the Cosmic scripts, then the
- * client drives the renderer from those `npcResult` messages.  The shop
- * window consumes a `shopResult` callback only for confirmation; the item
- * list itself comes from `shared/gameplay.json` (which `loadManifest` already
- * pulled into the JS bundle via `manifest.shopCatalog`).
+ * client drives the renderer from those `npcResult` messages.  The shop item
+ * list itself comes from `shared/gameplay.json`.
  */
 export class NpcDialogueView {
   private readonly host: HTMLElement;
   private readonly manifest: Manifest;
   private dialogueRoot?: HTMLDivElement;
   private dialogueText?: HTMLDivElement;
-  private dialogueButtons?: HTMLDivElement;
-  private dialogueHead?: HTMLDivElement;
+  private dialogueOptions?: HTMLDivElement;
   private dialogueCurrent?: DialogueState;
   private shopRoot?: HTMLDivElement;
   private shopItemsRoot?: HTMLDivElement;
@@ -70,6 +76,13 @@ export class NpcDialogueView {
     this.manifest = manifest;
     this.send = send;
     void this.loadCatalog();
+  }
+
+  /** Asset lookup helpers for the flat dialog/shop manifest subtrees. */
+  private dialogUi(): Record<string, AssetFrame> | undefined { return this.manifest.dialogUi; }
+  private shopUi(): Record<string, AssetFrame> | undefined { return this.manifest.shopUi; }
+  private uiFrame(subtree: 'dialogUi' | 'shopUi', name: string): AssetFrame | undefined {
+    return (subtree === 'dialogUi' ? this.dialogUi() : this.shopUi())?.[name];
   }
 
   private async loadCatalog() {
@@ -95,20 +108,11 @@ export class NpcDialogueView {
     }
   }
 
-  /**
-   * Notify the renderer that a server snapshot updated the player state.
-   * Used to refresh the mesos display inside the shop window.
-   */
+  /** Refresh the mesos display inside the shop window from a player update. */
   syncPlayer(player: Pick<PlayerState, 'mesos'>) {
-    if (this.shopMesos) {
-      this.shopMesos.textContent = this.formatMesos(player.mesos);
-    }
+    if (this.shopMesos) this.shopMesos.textContent = this.formatMesos(player.mesos);
   }
 
-  /**
-   * Update the visible label above the npc head with the floating
-   * conversation name; called once after a `npcResult` arrives.
-   */
   receive(message: Extract<ServerMessage, { type: 'npcResult' }>) {
     if (message.ended || (!message.dialog && !message.shop && !message.warp)) {
       this.closeDialogue();
@@ -127,6 +131,7 @@ export class NpcDialogueView {
     this.dialogueCurrent = {
       requestId: message.requestId,
       npcId: message.npcId,
+      npcTemplateId: this.npcTemplates.get(message.npcId),
       name: message.name,
       dialog: message.dialog,
     };
@@ -135,22 +140,19 @@ export class NpcDialogueView {
 
   private currentRequestId = '';
   private currentNpcId = '';
+  /** npc instance id -> template id, learned when the player initiates a talk. */
+  private readonly npcTemplates = new Map<string, string>();
 
-  /**
-   * Begin a conversation from a player-initiated request (the user pressed
-   * ↑ while standing in front of an npc).
-   */
+  /** Begin a conversation from a player-initiated request (↑ key). */
   startTalk(npc: NpcState) {
     const requestId = `npc-${++this.requestSequence}-${Date.now().toString(36)}`;
     this.currentRequestId = requestId;
     this.currentNpcId = npc.id;
+    this.npcTemplates.set(npc.id, npc.templateId);
     this.send({ type: 'npcTalk', requestId, npcId: npc.id, step: 'start' });
   }
 
-  /**
-   * Find the nearest npc the player is standing next to.  Used by the ↑ key
-   * to decide who to greet.
-   */
+  /** Find the nearest npc the player is standing next to.  Used by the ↑ key. */
   nearestNpc(snapshot: Extract<ServerMessage, { type: 'snapshot' }>, selfId: string): NpcState | null {
     const player = snapshot.players.find(candidate => candidate.id === selfId);
     if (!player || !snapshot.npcs?.length) return null;
@@ -175,6 +177,7 @@ export class NpcDialogueView {
     this.dialogueRoot?.remove();
     this.dialogueRoot = undefined;
     this.dialogueCurrent = undefined;
+    this.currentNpcId = '';
   }
 
   private closeShop() {
@@ -183,68 +186,176 @@ export class NpcDialogueView {
     this.shopCurrent = undefined;
   }
 
+  // ------------------------------------------------------------------ dialog
+
   private renderDialogue() {
     const state = this.dialogueCurrent;
     if (!state) {
       this.closeDialogue();
       return;
     }
-    if (!this.dialogueRoot) {
-      this.dialogueRoot = document.createElement('div');
-      this.dialogueRoot.className = 'npc-dialogue';
-      this.dialogueRoot.style.cssText = `position:absolute;left:50%;top:64px;transform:translateX(-50%);width:${DIALOG_WIDTH}px;padding:8px;background:rgba(0,0,0,0.55);color:#fff;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:13px;border:1px solid #334;z-index:30;`;
-      this.host.appendChild(this.dialogueRoot);
-      this.dialogueHead = document.createElement('div');
-      this.dialogueHead.style.cssText = 'font-weight:600;margin-bottom:6px;color:#ffd966';
-      this.dialogueRoot.appendChild(this.dialogueHead);
-      this.dialogueText = document.createElement('div');
-      this.dialogueText.style.cssText = 'min-height:64px;line-height:1.5;white-space:pre-wrap;';
-      this.dialogueRoot.appendChild(this.dialogueText);
-      this.dialogueButtons = document.createElement('div');
-      this.dialogueButtons.style.cssText = 'margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;';
-      this.dialogueRoot.appendChild(this.dialogueButtons);
+    if (!this.dialogueRoot) this.dialogueRoot = this.buildDialogueFrame();
+    const root = this.dialogueRoot;
+    const text = this.dialogueText;
+    const options = this.dialogueOptions;
+    if (!text || !options) return;
+
+    // Speaker portrait + nameplate from the npc template asset.
+    const portrait = this.dialogueCurrent && this.speakerAsset(this.dialogueCurrent);
+    const aside = root.querySelector<HTMLElement>('.npc-dlg-aside');
+    const plateName = root.querySelector<HTMLElement>('.npc-dlg-plate span');
+    if (aside) {
+      const img = root.querySelector<HTMLImageElement>('.npc-dlg-speaker');
+      if (img) {
+        if (portrait) { img.src = portrait.url; img.hidden = false; }
+        else { img.removeAttribute('src'); img.hidden = true; }
+      }
+      aside.style.visibility = portrait ? 'visible' : 'hidden';
     }
-    if (!this.dialogueHead || !this.dialogueText || !this.dialogueButtons) return;
-    this.dialogueHead.textContent = state.name;
+    if (plateName) plateName.textContent = state.name;
+
     const dialog = state.dialog;
     if (!dialog) {
-      this.dialogueText.textContent = '';
-      this.dialogueButtons.replaceChildren();
+      text.textContent = '';
+      options.replaceChildren();
       return;
     }
-    this.dialogueText.textContent = sanitize(dialog.text);
-    this.dialogueButtons.replaceChildren();
-    const buttons = this.buttonsForDialog(dialog.kind, dialog.options);
-    for (const button of buttons) this.dialogueButtons.appendChild(button);
+    root.classList.toggle('npc-dlg-pageable', dialog.kind === 'next' || dialog.kind === 'nextPrev' || dialog.kind === 'prev');
+    text.textContent = sanitize(dialog.text);
+    options.replaceChildren();
+    const optHint = document.createElement('div');
+    optHint.className = 'npc-dlg-opt-hint';
+    if (dialog.kind === 'simple') {
+      for (const option of dialog.options ?? []) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'npc-dlg-opt';
+        btn.textContent = option.text;
+        btn.onclick = event => { event.stopPropagation(); this.step({ step: 'select', selection: option.index }); };
+        options.appendChild(btn);
+      }
+    }
+    void optHint;
+    this.updateDialogueButtons(state);
   }
 
-  private buttonsForDialog(kind: NonNullable<Extract<ServerMessage, { type: 'npcResult' }>['dialog']>['kind'], options: NonNullable<Extract<ServerMessage, { type: 'npcResult' }>['dialog']>['options']): HTMLButtonElement[] {
-    const state = this.dialogueCurrent;
-    if (!state) return [];
-    const make = (label: string, onClick: () => void) => {
-      const btn = document.createElement('button');
-      btn.textContent = label;
-      btn.style.cssText = `padding:4px 12px;background:#1c1c2c;color:#ffd966;border:1px solid #555;border-radius:2px;cursor:pointer;font-size:12px;`;
-      btn.onclick = onClick;
-      return btn;
-    };
-    switch (kind) {
-      case 'next':
-      case 'nextPrev':
-        return [make(uiLocale() === 'en' ? 'Next' : '下一步', () => this.step({ step: 'next' }))];
-      case 'prev':
-        return [make(uiLocale() === 'en' ? 'Prev' : '上一步', () => this.step({ step: 'prev' }))];
-      case 'ok':
-        return [make(uiLocale() === 'en' ? 'OK' : '确认', () => this.step({ step: 'end' }))];
-      case 'yesNo':
-        return [
-          make(uiLocale() === 'en' ? 'Yes' : '是', () => this.step({ step: 'yes' })),
-          make(uiLocale() === 'en' ? 'No' : '否', () => this.step({ step: 'no' })),
-        ];
-      case 'simple':
-        return (options ?? []).map(option => make(option.text, () => this.step({ step: 'select', selection: option.index })));
-      default:
-        return [];
+  private speakerAsset(state: DialogueState): AssetFrame | undefined {
+    const templateId = state.npcTemplateId;
+    if (!templateId) return undefined;
+    const npc = this.manifest.npcs?.[templateId];
+    return npc?.stand?.[0];
+  }
+
+  private buildDialogueFrame(): HTMLDivElement {
+    const root = document.createElement('div');
+    root.className = 'npc-dlg';
+
+    const top = this.uiFrame('dialogUi', 't');
+    const bottom = this.uiFrame('dialogUi', 's');
+    const bar = this.uiFrame('dialogUi', 'bar');
+    if (top) root.appendChild(frame(top.url, 'npc-dlg-img npc-dlg-top', 529, 28));
+
+    const mid = document.createElement('div');
+    mid.className = 'npc-dlg-mid';
+
+    const aside = document.createElement('div');
+    aside.className = 'npc-dlg-aside';
+    aside.appendChild(frame(undefined, 'npc-dlg-speaker'));
+    const plate = document.createElement('div');
+    plate.className = 'npc-dlg-plate';
+    if (bar) plate.appendChild(frame(bar.url, 'npc-dlg-plate-img', 121, 19));
+    const name = document.createElement('span');
+    plate.appendChild(name);
+    aside.appendChild(plate);
+    mid.appendChild(aside);
+
+    const main = document.createElement('div');
+    main.className = 'npc-dlg-main';
+    const text = document.createElement('div');
+    text.className = 'npc-dlg-msg';
+    const options = document.createElement('div');
+    options.className = 'npc-dlg-opts';
+    main.append(text, options);
+    mid.appendChild(main);
+
+    root.appendChild(mid);
+    if (bottom) root.appendChild(frame(bottom.url, 'npc-dlg-img npc-dlg-bottom', 529, 58));
+
+    const buttons = document.createElement('div');
+    buttons.className = 'npc-dlg-btns';
+    const left = document.createElement('div');
+    left.className = 'npc-dlg-btns-left';
+    const right = document.createElement('div');
+    right.className = 'npc-dlg-btns-right';
+    buttons.append(left, right);
+    root.appendChild(buttons);
+
+    this.dialogueText = text;
+    this.dialogueOptions = options;
+
+    // Click anywhere on the frame advances simple page turns (v83 behaviour).
+    root.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('.npc-btn') || target.closest('.npc-dlg-opt')) return;
+      const kind = this.dialogueCurrent?.dialog?.kind;
+      if (kind === 'next' || kind === 'nextPrev') this.step({ step: 'next' });
+      else if (kind === 'prev') this.step({ step: 'prev' });
+      else if (kind === 'ok') this.step({ step: 'end' });
+    });
+
+    this.host.appendChild(root);
+    this.destroyFns.push(() => root.remove());
+    return root;
+  }
+
+  /** Build an original sprite button with normal/over/pressed states. */
+  private spriteButton(subtree: 'dialogUi' | 'shopUi', name: string, onClick: () => void): HTMLButtonElement {
+    const normal = this.uiFrame(subtree, `${name}/normal/0`);
+    const over = this.uiFrame(subtree, `${name}/mouseOver/0`) ?? normal;
+    const pressed = this.uiFrame(subtree, `${name}/pressed/0`) ?? over;
+    const width = normal?.width ?? 46;
+    const height = normal?.height ?? 18;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'npc-btn';
+    btn.style.width = `${width}px`;
+    btn.style.height = `${height}px`;
+    if (normal) btn.appendChild(frame(normal.url, 'npc-btn-img npc-btn-normal', width, height));
+    if (over) btn.appendChild(frame(over.url, 'npc-btn-img npc-btn-over', width, height));
+    if (pressed) btn.appendChild(frame(pressed.url, 'npc-btn-img npc-btn-pressed', width, height));
+    if (!normal) btn.textContent = name; // no art fallback
+    btn.onclick = event => { event.stopPropagation(); onClick(); };
+    return btn;
+  }
+
+  private updateDialogueButtons(state: DialogueState) {
+    const root = this.dialogueRoot;
+    if (!root) return;
+    const left = root.querySelector<HTMLElement>('.npc-dlg-btns-left');
+    const right = root.querySelector<HTMLElement>('.npc-dlg-btns-right');
+    if (!left || !right) return;
+    left.replaceChildren();
+    right.replaceChildren();
+
+    const kind = state.dialog?.kind;
+    left.appendChild(this.spriteButton('dialogUi', 'BtClose', () => this.step({ step: 'end' })));
+    if (kind === 'yesNo') {
+      right.appendChild(this.spriteButton('dialogUi', 'BtNo', () => this.step({ step: 'no' })));
+      right.appendChild(this.spriteButton('dialogUi', 'BtYes', () => this.step({ step: 'yes' })));
+    } else if (kind === 'ok' || kind === 'simple') {
+      if (kind === 'simple') {
+        // choices are clickable rows; a confirm is not needed.
+        right.replaceChildren();
+      } else {
+        right.appendChild(this.spriteButton('dialogUi', 'BtOK', () => this.step({ step: 'end' })));
+      }
+    } else if (kind === 'nextPrev') {
+      right.appendChild(this.spriteButton('dialogUi', 'BtPrev', () => this.step({ step: 'prev' })));
+      right.appendChild(this.spriteButton('dialogUi', 'BtNext', () => this.step({ step: 'next' })));
+    } else if (kind === 'next') {
+      right.appendChild(this.spriteButton('dialogUi', 'BtNext', () => this.step({ step: 'next' })));
+    } else if (kind === 'prev') {
+      right.appendChild(this.spriteButton('dialogUi', 'BtPrev', () => this.step({ step: 'prev' })));
     }
   }
 
@@ -254,6 +365,8 @@ export class NpcDialogueView {
     this.currentRequestId = requestId;
     this.send({ type: 'npcTalk', requestId, npcId: this.dialogueCurrent.npcId, ...payload });
   }
+
+  // ------------------------------------------------------------------- shop
 
   private openShop(state: { npcId: string; shopId: string; name: string }) {
     const items = (this.shopCatalog[state.shopId] ?? []).map(entry => ({
@@ -271,62 +384,68 @@ export class NpcDialogueView {
     const current = this.shopCurrent;
     if (!current) return;
     if (!this.shopRoot) {
-      this.shopRoot = document.createElement('div');
-      this.shopRoot.className = 'npc-shop';
-      this.shopRoot.style.cssText = `position:absolute;left:50%;top:96px;transform:translateX(-50%);width:${SHOP_WINDOW_WIDTH}px;height:${SHOP_WINDOW_HEIGHT}px;background:rgba(0,0,0,0.78);color:#fff;border:1px solid #445;display:flex;flex-direction:column;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:12px;z-index:30;`;
-      const header = document.createElement('div');
-      header.style.cssText = 'padding:6px 10px;background:#222;font-weight:600;color:#ffd966;display:flex;justify-content:space-between;align-items:center;';
-      header.appendChild(Object.assign(document.createElement('span'), { id: 'shop-title', textContent: '' }));
-      const exit = document.createElement('button');
-      exit.textContent = uiLocale() === 'en' ? 'Close' : '关闭';
-      exit.style.cssText = 'background:#1c1c2c;color:#ffd966;border:1px solid #555;cursor:pointer;padding:2px 10px;';
-      exit.onclick = () => this.closeShop();
-      header.appendChild(exit);
-      this.shopRoot.appendChild(header);
-      const footer = document.createElement('div');
-      footer.style.cssText = 'padding:6px 10px;border-top:1px solid #334;display:flex;justify-content:space-between;';
-      const mesosLabel = document.createElement('span');
-      mesosLabel.textContent = uiLocale() === 'en' ? 'Your mesos: ' : '我的金币：';
-      this.shopMesos = document.createElement('span');
-      this.shopMesos.style.color = '#ffd966';
-      footer.append(mesosLabel, this.shopMesos);
-      this.shopRoot.appendChild(footer);
+      const root = document.createElement('div');
+      root.className = 'npc-shop';
+      const backgrnd = this.uiFrame('shopUi', 'backgrnd');
+      if (backgrnd) root.appendChild(frame(backgrnd.url, 'npc-shop-backgrnd', 463, 339));
+
+      const title = document.createElement('div');
+      title.className = 'npc-shop-title';
+      root.appendChild(title);
+
       const list = document.createElement('div');
-      list.style.cssText = 'flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:4px;';
+      list.className = 'npc-shop-list';
       this.shopItemsRoot = list;
-      this.shopRoot.appendChild(list);
-      this.host.appendChild(this.shopRoot);
-      this.destroyFns.push(() => this.shopRoot?.remove());
+      root.appendChild(list);
+
+      const meso = document.createElement('div');
+      meso.className = 'npc-shop-meso';
+      const mesoImg = this.uiFrame('shopUi', 'meso');
+      if (mesoImg) meso.appendChild(frame(mesoImg.url, undefined, 14, 14));
+      this.shopMesos = document.createElement('b');
+      const label = document.createElement('span');
+      label.textContent = uiText('meso');
+      meso.append(this.shopMesos, label);
+      root.appendChild(meso);
+
+      const exitWrap = document.createElement('div');
+      exitWrap.className = 'npc-shop-exit';
+      exitWrap.appendChild(this.spriteButton('shopUi', 'BtExit', () => this.closeShop()));
+      root.appendChild(exitWrap);
+
+      this.shopRoot = root;
+      this.host.appendChild(root);
+      this.destroyFns.push(() => root.remove());
     }
-    const title = this.shopRoot.querySelector<HTMLSpanElement>('#shop-title');
-    if (title) title.textContent = `${current.name} · ${uiLocale() === 'en' ? 'Shop' : '商店'}`;
+    const root = this.shopRoot;
+    const title = root.querySelector<HTMLElement>('.npc-shop-title');
+    if (title) title.textContent = `${current.name}`;
     if (!this.shopItemsRoot) return;
     this.shopItemsRoot.replaceChildren();
     if (!current.items.length) {
       const empty = document.createElement('div');
+      empty.className = 'npc-shop-empty';
       empty.textContent = uiLocale() === 'en' ? 'The shop has nothing for sale.' : '这家商店目前没有可购买的商品。';
       this.shopItemsRoot.appendChild(empty);
       return;
     }
     for (const entry of current.items) {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:4px 6px;border-bottom:1px dashed #334;';
-      const icon = document.createElement('img');
-      icon.alt = entry.itemId;
-      const itemAsset = this.manifest.items?.[entry.itemId];
-      icon.src = itemAsset?.url ?? '';
-      icon.style.cssText = 'width:32px;height:32px;background:#000;object-fit:contain;';
-      const label = document.createElement('span');
-      label.textContent = this.itemNames[entry.itemId] ?? entry.itemId;
-      label.style.cssText = 'flex:1;color:#fff';
+      row.className = 'npc-shop-row';
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'npc-shop-icon';
+      if (entry.icon) iconWrap.appendChild(frame(entry.icon));
+      const name = document.createElement('span');
+      name.className = 'npc-shop-name';
+      name.textContent = entry.name;
+      name.title = entry.name;
       const price = document.createElement('span');
+      price.className = 'npc-shop-price';
       price.textContent = `${entry.price.toLocaleString()} ${uiText('meso')}`;
-      price.style.cssText = 'color:#ffd966';
-      const buy = document.createElement('button');
-      buy.textContent = uiLocale() === 'en' ? 'Buy' : '购买';
-      buy.style.cssText = 'background:#1c1c2c;color:#ffd966;border:1px solid #555;cursor:pointer;padding:2px 10px;';
-      buy.onclick = () => this.buy(entry.itemId, 1);
-      row.append(icon, label, price, buy);
+      const buyWrap = document.createElement('div');
+      buyWrap.className = 'npc-shop-buy';
+      buyWrap.appendChild(this.spriteButton('shopUi', 'BtBuy', () => this.buy(entry.itemId, 1)));
+      row.append(iconWrap, name, price, buyWrap);
       this.shopItemsRoot.appendChild(row);
     }
   }
@@ -338,6 +457,6 @@ export class NpcDialogueView {
   }
 
   private formatMesos(mesos: number): string {
-    return `${mesos.toLocaleString()} ${uiText('meso')}`;
+    return `${mesos.toLocaleString()}`;
   }
 }

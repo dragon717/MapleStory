@@ -90,7 +90,9 @@ export class World extends Phaser.Scene {
     for (const monster of Object.values(this.manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
     for (const frame of Object.values(this.manifest.items ?? {})) images.set(frame.url, frame.url);
     for (const npc of Object.values(this.manifest.npcs ?? {})) for (const frame of npc.stand) images.set(frame.url, frame.url);
-    for (const portal of Object.values(this.manifest.portals ?? {})) images.set(portal.url, portal.url);
+    for (const portal of Object.values(this.manifest.portals ?? {})) {
+      for (const frame of portal.frames ?? []) images.set(frame.url, frame.url);
+    }
     const afterimage = this.manifest.combat?.attack?.afterimage;
     for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
     for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {
@@ -133,9 +135,16 @@ export class World extends Phaser.Scene {
     // are wide (≈ 530 px) and need depth above tiles but below entities.
     const portalDepth = Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 2;
     for (const portal of this.manifest.map.portals ?? []) {
+      // Only render the animated beam for *real* visible gates: a target
+      // portal on another map.  Map.wz mixes several kinds under the same
+      // `portal` slot — spawn anchors (type 0 `sp`), script triggers
+      // (`script: ...` payload) and the actual doorways — and rendering any
+      // non-gate slot duplicates the glow at neighbouring positions.
+      if (!portal.targetMapId) continue;
+      if (portal.script) continue;
       const asset = this.manifest.portals?.[`${this.manifest.map.id}/${portal.name}`];
-      if (!asset) continue;
-      const view = new PortalView(this, asset, portal.x, portal.y, portalDepth);
+      if (!asset?.frames?.length) continue;
+      const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, portal.x, portal.y, portalDepth);
       this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
     }
     if (this.manifest.map.bgm) { this.bgm = this.sound.add(`bgm-${this.mapId}`, { loop: true, volume: 0.25 }); this.bgm.play(); }

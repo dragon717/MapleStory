@@ -16,6 +16,7 @@ pub const TALK_RANGE_Y: f64 = 600.0;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // func mirrors Npc.wz func; stand frames are client-owned render data.
 pub struct NpcTemplate {
     #[serde(alias = "id")]
     pub template_id: String,
@@ -34,6 +35,7 @@ pub struct NpcTemplate {
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // foothold_id mirrors the WZ spawn metadata; pathing is client-side.
 pub struct NpcSpawn {
     #[serde(alias = "spawnId")]
     pub id: String,
@@ -54,6 +56,7 @@ fn default_facing() -> i8 {
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // position mirrors reference shop ordering; sale order is authoritative.
 pub struct ShopEntry {
     pub item_id: String,
     pub price: u64,
@@ -138,6 +141,13 @@ pub struct ActNode {
     pub map_id: Option<String>,
     #[serde(default)]
     pub shop_id: Option<String>,
+    /// Quest effect fields; set together with `kind` "quest".
+    #[serde(default)]
+    pub quest_id: Option<String>,
+    /// `start` marks the quest active, `complete` finishes it and grants its
+    /// configured reward (applied by the world).
+    #[serde(default)]
+    pub quest_action: Option<String>,
 }
 
 /// All present fields must hold; the generator only ever emits single-field
@@ -151,6 +161,24 @@ pub struct Condition {
     pub level_at_least: Option<u32>,
     #[serde(default)]
     pub meso_at_least: Option<u64>,
+    /// Passes when the account has an `active` row for this quest id.
+    #[serde(default)]
+    pub quest_active: Option<String>,
+    /// Passes when the account has a `completed` row for this quest id.
+    #[serde(default)]
+    pub quest_completed: Option<String>,
+    /// Passes when the account has no row at all for this quest id.
+    #[serde(default)]
+    pub quest_available: Option<String>,
+}
+
+/// Read-only view of the player state a condition may test.
+pub struct DialogueContext<'a> {
+    pub level: u32,
+    pub mesos: u64,
+    pub inventory: &'a [crate::protocol::InventoryItem],
+    /// quest id -> "active" | "completed"; absent rows are "available".
+    pub quests: &'a BTreeMap<String, String>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -162,11 +190,13 @@ pub struct BranchNode {
     pub otherwise: String,
 }
 
-/// Read-only view of the player state a condition may test.
-pub struct DialogueContext<'a> {
-    pub level: u32,
-    pub mesos: u64,
-    pub inventory: &'a [crate::protocol::InventoryItem],
+/// A dialogue action the world must apply once, after the client-visible view
+/// is produced (the conversation ends after a quest effect, matching the
+/// server-driven accept/complete hand-off).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum QuestEffect {
+    Start(String),
+    Complete(String),
 }
 
 impl Condition {
@@ -187,6 +217,22 @@ impl Condition {
         }
         if let Some(mesos) = self.meso_at_least {
             if context.mesos < mesos {
+                return false;
+            }
+        }
+        let quest_status = |quest_id: &str| context.quests.get(quest_id).map(String::as_str);
+        if let Some(quest_id) = self.quest_active.as_deref() {
+            if quest_status(quest_id) != Some("active") {
+                return false;
+            }
+        }
+        if let Some(quest_id) = self.quest_completed.as_deref() {
+            if quest_status(quest_id) != Some("completed") {
+                return false;
+            }
+        }
+        if let Some(quest_id) = self.quest_available.as_deref() {
+            if quest_status(quest_id).is_some() {
                 return false;
             }
         }
@@ -284,12 +330,13 @@ impl DialogueView {
 
 /// Resolve branch/act nodes until a node that waits for input is reached.
 /// `branch_depth` bounds the data-driven chain so a malformed config can never
-/// spin here.
+/// spin here.  Quest acts surface a one-shot effect the world applies; they
+/// resolve to `End` so the accept/complete hand-off ends the conversation.
 fn resolve(
     script: &DialogueScript,
     mut node_id: String,
     context: &DialogueContext<'_>,
-) -> Result<(String, DialogueView), String> {
+) -> Result<(String, DialogueView, Option<QuestEffect>), String> {
     for _ in 0..64 {
         let Some(node) = script.nodes.get(&node_id) else {
             return Err(format!("unknown npc dialogue node {node_id}"));
@@ -314,7 +361,15 @@ fn resolve(
                             Some(map_id) => DialogueView::Warp { map_id },
                             None => DialogueView::End,
                         },
+                        "quest" => DialogueView::End,
                         _ => DialogueView::End,
+                    },
+                    match (act.kind.as_str(), act.quest_id.as_deref()) {
+                        ("quest", Some(quest_id)) => match act.quest_action.as_deref() {
+                            Some("complete") => Some(QuestEffect::Complete(quest_id.to_owned())),
+                            _ => Some(QuestEffect::Start(quest_id.to_owned())),
+                        },
+                        _ => None,
                     },
                 ));
             }
@@ -326,6 +381,7 @@ fn resolve(
                         kind: say.kind.clone(),
                         options: Vec::new(),
                     },
+                    None,
                 ));
             }
             DialogueNode::Ask(ask) => {
@@ -336,6 +392,7 @@ fn resolve(
                         kind: "yesNo".to_owned(),
                         options: Vec::new(),
                     },
+                    None,
                 ));
             }
             DialogueNode::Menu(menu) => {
@@ -350,6 +407,7 @@ fn resolve(
                             .map(|option| (option.index, option.text.clone()))
                             .collect(),
                     },
+                    None,
                 ));
             }
         }
@@ -364,7 +422,7 @@ pub fn advance(
     step: Option<&str>,
     selection: Option<u32>,
     context: &DialogueContext<'_>,
-) -> Result<(String, DialogueView), String> {
+) -> Result<(String, DialogueView, Option<QuestEffect>), String> {
     let Some(current) = current else {
         if step.is_some_and(|step| step != "start") {
             return Err("npc conversation has not started".to_owned());
@@ -375,7 +433,7 @@ pub fn advance(
         return resolve(script, script.start.clone(), context);
     }
     if step == Some("end") {
-        return Ok((current.to_owned(), DialogueView::End));
+        return Ok((current.to_owned(), DialogueView::End, None));
     }
     let Some(node) = script.nodes.get(current) else {
         return Err(format!("unknown npc dialogue node {current}"));
@@ -383,19 +441,19 @@ pub fn advance(
     let next_id = match (node, step, selection) {
         (DialogueNode::Say(say), Some("next"), _) => {
             let Some(next) = say.next.clone() else {
-                return Ok((current.to_owned(), DialogueView::End));
+                return Ok((current.to_owned(), DialogueView::End, None));
             };
             next
         }
         (DialogueNode::Say(say), Some("prev"), _) => {
             let Some(prev) = say.prev.clone() else {
-                return Ok((current.to_owned(), DialogueView::End));
+                return Ok((current.to_owned(), DialogueView::End, None));
             };
             prev
         }
         // `sendOk` copies close on any confirmation.
         (DialogueNode::Say(say), _, _) if say.kind == "ok" => {
-            return Ok((current.to_owned(), DialogueView::End))
+            return Ok((current.to_owned(), DialogueView::End, None))
         }
         (DialogueNode::Ask(ask), Some("yes"), _) => ask.yes.clone(),
         (DialogueNode::Ask(ask), Some("no"), _) => ask.no.clone(),
@@ -422,57 +480,113 @@ mod tests {
                 "shop":{"act":{"kind":"shop","shopId":"11000"}},
                 "bye":{"say":{"text":"ok","kind":"ok"}},
                 "gate":{"branch":{"cond":{"levelAtLeast":7},"then":"a","else":"bye"}},
+                "qgate":{"branch":{"cond":{"questAvailable":"q1"},"then":"offer","else":"bye"}},
+                "offer":{"act":{"kind":"quest","questId":"q1","questAction":"start"}},
+                "finish":{"act":{"kind":"quest","questId":"q1","questAction":"complete"}},
                 "menu":{"menu":{"text":"pick","options":[{"index":0,"text":"one","next":"a"}]}}}}"#,
         )
         .unwrap()
     }
 
     fn context(level: u32, mesos: u64) -> DialogueContext<'static> {
-        DialogueContext { level, mesos, inventory: &[] }
+        fn empty_quests() -> &'static BTreeMap<String, String> {
+            Box::leak(Box::new(BTreeMap::new()))
+        }
+        DialogueContext { level, mesos, inventory: &[], quests: empty_quests() }
+    }
+
+    fn quest_context<'a>(quests: &'a BTreeMap<String, String>) -> DialogueContext<'a> {
+        DialogueContext { level: 1, mesos: 0, inventory: &[], quests }
     }
 
     #[test]
     fn start_resolves_to_the_first_waiting_node() {
         let script = script();
-        let (node, view) = advance(&script, None, None, None, &context(1, 0)).unwrap();
+        let (node, view, effect) = advance(&script, None, None, None, &context(1, 0)).unwrap();
         assert_eq!(node, "a");
+        assert_eq!(effect, None);
         assert_eq!(view, DialogueView::Say { text: "first".into(), kind: "next".into(), options: vec![] });
     }
 
     #[test]
     fn yes_no_branches_resolve_terminal_actions() {
         let script = script();
-        let (_, view) = advance(&script, Some("a"), Some("next"), None, &context(1, 0)).unwrap();
+        let (_, view, _) = advance(&script, Some("a"), Some("next"), None, &context(1, 0)).unwrap();
         assert_eq!(view, DialogueView::Say { text: "really?".into(), kind: "yesNo".into(), options: vec![] });
-        let (_, view) = advance(&script, Some("b"), Some("yes"), None, &context(1, 0)).unwrap();
+        let (_, view, _) = advance(&script, Some("b"), Some("yes"), None, &context(1, 0)).unwrap();
         assert_eq!(view, DialogueView::OpenShop { shop_id: "11000".into() });
-        let (_, view) = advance(&script, Some("b"), Some("no"), None, &context(1, 0)).unwrap();
+        let (_, view, _) = advance(&script, Some("b"), Some("no"), None, &context(1, 0)).unwrap();
         assert_eq!(view, DialogueView::Say { text: "ok".into(), kind: "ok".into(), options: vec![] });
     }
 
     #[test]
     fn branch_conditions_gate_the_target() {
-        let script = script();
-        let (node, _) = advance(&script, Some("gate"), None, None, &context(9, 0)).unwrap();
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"gate","nodes":{
+                "gate":{"branch":{"cond":{"levelAtLeast":7},"then":"a","else":"bye"}},
+                "a":{"say":{"text":"big","kind":"ok"}},
+                "bye":{"say":{"text":"small","kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let (node, _, _) = advance(&script, None, None, None, &context(9, 0)).unwrap();
         assert_eq!(node, "a");
-        let (node, _) = advance(&script, Some("gate"), None, None, &context(2, 0)).unwrap();
+        let (node, _, _) = advance(&script, None, None, None, &context(2, 0)).unwrap();
         assert_eq!(node, "bye");
     }
 
     #[test]
+    fn quest_conditions_gate_offers_and_effects_surface() {
+        let offer: DialogueScript = serde_json::from_str(
+            r#"{"start":"qgate","nodes":{
+                "qgate":{"branch":{"cond":{"questAvailable":"q1"},"then":"offer","else":"bye"}},
+                "offer":{"act":{"kind":"quest","questId":"q1","questAction":"start"}},
+                "bye":{"say":{"text":"ok","kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let empty = BTreeMap::new();
+        // Available: the offer branch lands on the quest act and surfaces a
+        // Start effect; the conversation ends.
+        let (_, view, effect) = advance(&offer, None, None, None, &quest_context(&empty)).unwrap();
+        assert_eq!(view, DialogueView::End);
+        assert_eq!(effect, Some(QuestEffect::Start("q1".to_owned())));
+        // Active: no longer available, so the offer branch is skipped.
+        let active = BTreeMap::from([("q1".to_owned(), "active".to_owned())]);
+        let (node, _, effect) = advance(&offer, None, None, None, &quest_context(&active)).unwrap();
+        assert_eq!(node, "bye");
+        assert_eq!(effect, None);
+
+        let finish: DialogueScript = serde_json::from_str(
+            r#"{"start":"finish","nodes":{
+                "finish":{"act":{"kind":"quest","questId":"q1","questAction":"complete"}}}}"#,
+        )
+        .unwrap();
+        let (_, view, effect) = advance(&finish, None, None, None, &quest_context(&active)).unwrap();
+        assert_eq!(view, DialogueView::End);
+        assert_eq!(effect, Some(QuestEffect::Complete("q1".to_owned())));
+    }
+
+    #[test]
     fn menu_requires_an_offered_selection() {
-        let script = script();
-        let (_, view) = advance(&script, Some("menu"), None, None, &context(1, 0)).unwrap();
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"menu","nodes":{
+                "menu":{"menu":{"text":"pick","options":[{"index":0,"text":"one","next":"a"}]}},
+                "a":{"say":{"text":"chosen","kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let (_, view, _) = advance(&script, None, None, None, &context(1, 0)).unwrap();
         assert!(matches!(view, DialogueView::Say { kind, .. } if kind == "simple"));
         assert!(advance(&script, Some("menu"), Some("select"), Some(4), &context(1, 0)).is_err());
-        let (node, _) = advance(&script, Some("menu"), Some("select"), Some(0), &context(1, 0)).unwrap();
+        let (node, _, _) = advance(&script, Some("menu"), Some("select"), Some(0), &context(1, 0)).unwrap();
         assert_eq!(node, "a");
     }
 
     #[test]
     fn steps_that_the_node_does_not_offer_are_rejected() {
         let script = script();
-        assert!(advance(&script, Some("a"), Some("prev"), None, &context(1, 0)).is_err());
+        // A `next` step on the ask node (which only offers yes/no) is invalid.
         assert!(advance(&script, Some("b"), Some("next"), None, &context(1, 0)).is_err());
+        // A `prev` step on a page with no prev edge falls back to closing.
+        let (_, view, _) = advance(&script, Some("a"), Some("prev"), None, &context(1, 0)).unwrap();
+        assert_eq!(view, DialogueView::End);
     }
 }
