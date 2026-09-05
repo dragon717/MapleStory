@@ -170,10 +170,15 @@ pub struct Condition {
     /// Passes when the account has no row at all for this quest id.
     #[serde(default)]
     pub quest_available: Option<String>,
+    /// Passes when the player's current hp is at least this value (used by
+    /// completion gates such as quest 1021 "Roger's Apple": hp must be full).
+    #[serde(default)]
+    pub hp_at_least: Option<u32>,
 }
 
 /// Read-only view of the player state a condition may test.
 pub struct DialogueContext<'a> {
+    pub hp: u32,
     pub level: u32,
     pub mesos: u64,
     pub inventory: &'a [crate::protocol::InventoryItem],
@@ -233,6 +238,11 @@ impl Condition {
         }
         if let Some(quest_id) = self.quest_available.as_deref() {
             if quest_status(quest_id).is_some() {
+                return false;
+            }
+        }
+        if let Some(min_hp) = self.hp_at_least {
+            if context.hp < min_hp {
                 return false;
             }
         }
@@ -305,7 +315,11 @@ impl DialogueView {
             "name": name,
         });
         match self {
-            Self::Say { text, kind, options } => {
+            Self::Say {
+                text,
+                kind,
+                options,
+            } => {
                 value["dialog"] = serde_json::json!({
                     "kind": kind,
                     "text": text,
@@ -492,11 +506,23 @@ mod tests {
         fn empty_quests() -> &'static BTreeMap<String, String> {
             Box::leak(Box::new(BTreeMap::new()))
         }
-        DialogueContext { level, mesos, inventory: &[], quests: empty_quests() }
+        DialogueContext {
+            hp: 50,
+            level,
+            mesos,
+            inventory: &[],
+            quests: empty_quests(),
+        }
     }
 
     fn quest_context<'a>(quests: &'a BTreeMap<String, String>) -> DialogueContext<'a> {
-        DialogueContext { level: 1, mesos: 0, inventory: &[], quests }
+        DialogueContext {
+            hp: 50,
+            level: 1,
+            mesos: 0,
+            inventory: &[],
+            quests,
+        }
     }
 
     #[test]
@@ -505,18 +531,44 @@ mod tests {
         let (node, view, effect) = advance(&script, None, None, None, &context(1, 0)).unwrap();
         assert_eq!(node, "a");
         assert_eq!(effect, None);
-        assert_eq!(view, DialogueView::Say { text: "first".into(), kind: "next".into(), options: vec![] });
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "first".into(),
+                kind: "next".into(),
+                options: vec![]
+            }
+        );
     }
 
     #[test]
     fn yes_no_branches_resolve_terminal_actions() {
         let script = script();
         let (_, view, _) = advance(&script, Some("a"), Some("next"), None, &context(1, 0)).unwrap();
-        assert_eq!(view, DialogueView::Say { text: "really?".into(), kind: "yesNo".into(), options: vec![] });
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "really?".into(),
+                kind: "yesNo".into(),
+                options: vec![]
+            }
+        );
         let (_, view, _) = advance(&script, Some("b"), Some("yes"), None, &context(1, 0)).unwrap();
-        assert_eq!(view, DialogueView::OpenShop { shop_id: "11000".into() });
+        assert_eq!(
+            view,
+            DialogueView::OpenShop {
+                shop_id: "11000".into()
+            }
+        );
         let (_, view, _) = advance(&script, Some("b"), Some("no"), None, &context(1, 0)).unwrap();
-        assert_eq!(view, DialogueView::Say { text: "ok".into(), kind: "ok".into(), options: vec![] });
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "ok".into(),
+                kind: "ok".into(),
+                options: vec![]
+            }
+        );
     }
 
     #[test]
@@ -560,7 +612,8 @@ mod tests {
                 "finish":{"act":{"kind":"quest","questId":"q1","questAction":"complete"}}}}"#,
         )
         .unwrap();
-        let (_, view, effect) = advance(&finish, None, None, None, &quest_context(&active)).unwrap();
+        let (_, view, effect) =
+            advance(&finish, None, None, None, &quest_context(&active)).unwrap();
         assert_eq!(view, DialogueView::End);
         assert_eq!(effect, Some(QuestEffect::Complete("q1".to_owned())));
     }
@@ -575,8 +628,22 @@ mod tests {
         .unwrap();
         let (_, view, _) = advance(&script, None, None, None, &context(1, 0)).unwrap();
         assert!(matches!(view, DialogueView::Say { kind, .. } if kind == "simple"));
-        assert!(advance(&script, Some("menu"), Some("select"), Some(4), &context(1, 0)).is_err());
-        let (node, _, _) = advance(&script, Some("menu"), Some("select"), Some(0), &context(1, 0)).unwrap();
+        assert!(advance(
+            &script,
+            Some("menu"),
+            Some("select"),
+            Some(4),
+            &context(1, 0)
+        )
+        .is_err());
+        let (node, _, _) = advance(
+            &script,
+            Some("menu"),
+            Some("select"),
+            Some(0),
+            &context(1, 0),
+        )
+        .unwrap();
         assert_eq!(node, "a");
     }
 

@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 4;
-export const CONTENT_VERSION = 'gms83-npc-1';
+export const PROTOCOL_VERSION = 5;
+export const CONTENT_VERSION = 'gms83-quest-1';
 export type Facing = -1 | 1;
 export interface InventoryItem {
   slot: number; itemId: string; quantity: number;
@@ -41,6 +41,15 @@ export type ClientMessage =
   | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
   | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number };
 export interface DialogueOption { index: number; text: string }
+export interface QuestLogEntry {
+  questId: string; name: string;
+  status: 'active' | 'completed';
+  summary: string;
+}
+export interface QuestRewardInfo {
+  mesos: number; exp: number;
+  items: { itemId: string; quantity: number }[];
+}
 export type ServerMessage =
   | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
@@ -53,6 +62,8 @@ export type ServerMessage =
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
   | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean }
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
+  | { type: 'questList'; quests: QuestLogEntry[] }
+  | { type: 'questUpdate'; questId: string; name: string; status: QuestLogEntry['status']; summary: string; reward: QuestRewardInfo }
   | { type: 'rejected'; code: string; message: string; requestId?: string };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {

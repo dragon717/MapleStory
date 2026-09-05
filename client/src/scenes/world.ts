@@ -32,7 +32,12 @@ export class World extends Phaser.Scene {
   private combat?: CombatView;
   private portalCooldownUntil = 0;
   private tutorialOverlays: Phaser.GameObjects.GameObject[] = [];
-  constructor(private manifest: Manifest, private status: (message: string, error?: boolean) => void, private onPortal?: PortalHandler) { super('world'); }
+  constructor(
+    private manifest: Manifest,
+    private status: (message: string, error?: boolean) => void,
+    private onPortal?: PortalHandler,
+    private onNpcTalk?: (npc: NpcState) => void,
+  ) { super('world'); }
   get mapId() { return this.manifest.map.id; }
   getMap(mapId = this.mapId): MapDefinition | MapCatalogEntry | undefined {
     if (mapId === this.mapId) return this.manifest.map;
@@ -116,6 +121,11 @@ export class World extends Phaser.Scene {
       this.pendingSnapshot = undefined;
       this.receivedAt = performance.now();
     }
+    // Mouse-click / touch-tap NPC conversation: replicate v83 behaviour where
+    // tapping an NPC sprite opens the dialogue the same way pressing ↑ would.
+    // Phaser clears input listeners on `shutdown`, so a fresh attach here is
+    // safe across `scene.restart()` triggered by map switches.
+    this.input.on('pointerdown', this.handlePointerDown);
     this.combat = new CombatView(this, this.manifest.combat, Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 3);
     const b = this.manifest.map.bounds;
     for (const layer of this.manifest.map.layers) {
@@ -323,6 +333,46 @@ export class World extends Phaser.Scene {
       });
     return reachable[0] ?? null;
   }
+
+  /** v83 left-click NPC dialogue: open conversation with the nearest NPC whose
+   *  sprite the pointer landed on (x within the body, y within head+ground). */
+  private handlePointerDown = (pointer: Phaser.Input.Pointer) => {
+    if (!this.loaded) return;
+    const callback = this.onNpcTalk;
+    if (!callback) return;
+    // Ignore the secondary / right / middle mouse buttons; v83 uses only LMB.
+    if (pointer.button !== undefined && pointer.button !== 0) return;
+    const snapshot = this.snapshot as GameplaySnapshot | undefined;
+    const npcs = snapshot?.npcs ?? [];
+    if (!npcs.length) return;
+    // pointer.worldX/Y are absolute map-space coordinates (camera scroll handled
+    // by Phaser).  Use the per-NPC stand frame to estimate the click box so the
+    // hit area matches the on-screen sprite.
+    const worldX = pointer.worldX;
+    const worldY = pointer.worldY;
+    let best: { npc: NpcState; dist: number } | null = null;
+    for (const npc of npcs) {
+      const asset = this.manifest.npcs?.[npc.templateId];
+      const frames = asset?.stand ?? [];
+      const frame = frames[0];
+      if (!frame) continue;
+      // NpcView applies origin(0) and offsets `frame.x`/`frame.y` from
+      // `(npc.x, npc.y)` plus a horizontal flip when `npc.facing === 1`.  We
+      // bound the click area to the visible sprite body so a click far away
+      // does not start a conversation.
+      const left = npc.facing === 1 ? npc.x - frame.x - frame.width : npc.x + frame.x;
+      const top = npc.y + frame.y;
+      const right = left + frame.width;
+      const bottom = top + frame.height;
+      if (worldX < left - 8 || worldX > right + 8) continue;
+      if (worldY < top - 16 || worldY > bottom + 24) continue;
+      const dx = npc.x - worldX;
+      const dy = npc.y - worldY;
+      const dist = dx * dx + dy * dy;
+      if (!best || dist < best.dist) best = { npc, dist };
+    }
+    if (best) callback(best.npc);
+  };
 
   private playerHasStarterSword(playerId: string) {
     const player = this.snapshot?.players.find(candidate => candidate.id === playerId);

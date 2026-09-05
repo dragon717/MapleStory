@@ -2419,5 +2419,19 @@
     },
     "spec": {},
     "source": "Item.wz/Etc/0403.img.xml"
+  },
+  "2010007": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Roger's Apple",
+    "description": "A red, ripe, and tasty apple given by Roger.\\nRecovers 30 HP.",
+    "info": {
+      "price": 1,
+      "quest": 1
+    },
+    "spec": {
+      "hp": 30
+    },
+    "source": "Item.wz/Consume/0201.img/02010007; local XML carries no spec, hp30 mirrors the sibling Apple (02010000) so the v83 tutorial item is consumable"
   }
 }

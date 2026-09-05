@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 4;
-pub const CONTENT_VERSION: &str = "gms83-npc-1";
+pub const PROTOCOL_VERSION: u32 = 5;
+pub const CONTENT_VERSION: &str = "gms83-quest-1";
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]

@@ -10,8 +10,15 @@ pub struct Combat {
 }
 
 pub enum Attack {
-    Started { action_id: String, event: String },
-    Resume { action_id: String, #[allow(dead_code)] event: String },
+    Started {
+        action_id: String,
+        event: String,
+    },
+    Resume {
+        action_id: String,
+        #[allow(dead_code)]
+        event: String,
+    },
     Reply(String),
 }
 

@@ -1546,6 +1546,12 @@ impl World {
             exp_to_next: self.gameplay.exp_table.first().copied().unwrap_or(0),
             mesos: 0,
             death_id: String::new(),
+            // Empty map_id + (0,0) tells the join site to fall back to the
+            // birth map spawn; load_profile() writes the persisted row back
+            // over these defaults when the account already exists.
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         }
     }
@@ -1795,10 +1801,31 @@ impl World {
                     None => (inventory::starter_equipment(), BTreeMap::new()),
                 };
                 let id = identity.id.clone();
-                let birth_map_id = self.map.id.clone();
-                let foothold_id = self
-                    .map
-                    .ground_near(self.map.spawn.x, self.map.spawn.y)
+                // Restore the player's last map + coordinates from the
+                // persisted profile.  The map must still exist in the runtime
+                // catalog and the persisted point must land inside the map
+                // bounds; otherwise fall back to the birth map's authored
+                // spawn so the join site never drops a player outside the
+                // playable area.
+                let persisted_map = self.maps.get(profile.map_id.as_str()).cloned();
+                let resolved_map = persisted_map
+                    .clone()
+                    .unwrap_or_else(|| self.map.clone());
+                let resolved_map_id = resolved_map.id.clone();
+                let (resolved_x, resolved_y) = if persisted_map.is_some()
+                    && profile.x.is_finite()
+                    && profile.y.is_finite()
+                    && resolved_map.bounds.x_min <= profile.x
+                    && profile.x <= resolved_map.bounds.x_max
+                    && resolved_map.bounds.y_min <= profile.y
+                    && profile.y <= resolved_map.bounds.y_max
+                {
+                    (profile.x, profile.y)
+                } else {
+                    (resolved_map.spawn.x, resolved_map.spawn.y)
+                };
+                let foothold_id = resolved_map
+                    .ground_near(resolved_x, resolved_y)
                     .map(|(id, _)| id)
                     .unwrap_or(0);
                 let quests = match self.store.as_ref() {
@@ -1811,8 +1838,8 @@ impl World {
                         state: PlayerState {
                             id: id.clone(),
                             username: identity.username,
-                            x: self.map.spawn.x,
-                            y: self.map.spawn.y,
+                            x: resolved_x,
+                            y: resolved_y,
                             vx: 0.,
                             vy: 0.,
                             facing: 1,
@@ -1838,7 +1865,7 @@ impl World {
                             equipped,
                             monster_book,
                         },
-                        map_id: birth_map_id,
+                        map_id: resolved_map_id,
                         death_id: profile.death_id,
                         connection,
                         output: output.clone(),
@@ -3630,7 +3657,13 @@ impl World {
             .get(&id)
             .map(|player| player.quests.clone())
             .unwrap_or_default();
+        let hp = self
+            .players
+            .get(&id)
+            .map(|player| u32::try_from(player.state.hp.max(0)).unwrap_or(0))
+            .unwrap_or(0);
         let context = DialogueContext {
+            hp,
             level,
             mesos,
             inventory: &inventory,
@@ -3897,7 +3930,7 @@ impl World {
             let _ = store.write_inventory(&id, &player.state.inventory);
             let _ = store.save_profile(
                 &id,
-                &profile_from_state(&player.state, &player.death_id),
+                &profile_from_state(&player.state, &player.map_id, &player.death_id),
             );
         }
         self.send_shop_result(
@@ -4000,7 +4033,7 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Ok(());
         };
-        store.save_profile(id, &profile_from_state(&player.state, &player.death_id))
+        store.save_profile(id, &profile_from_state(&player.state, &player.map_id, &player.death_id))
     }
 
     fn resolve_pending_attacks(&mut self) {
@@ -4531,7 +4564,7 @@ impl World {
     }
 }
 
-fn profile_from_state(state: &PlayerState, death_id: &str) -> Profile {
+fn profile_from_state(state: &PlayerState, map_id: &str, death_id: &str) -> Profile {
     Profile {
         hp: state.hp,
         max_hp: state.max_hp,
@@ -4542,6 +4575,9 @@ fn profile_from_state(state: &PlayerState, death_id: &str) -> Profile {
         exp_to_next: state.exp_to_next,
         mesos: state.mesos,
         death_id: death_id.to_owned(),
+        map_id: map_id.to_owned(),
+        x: state.x,
+        y: state.y,
         inventory: state.inventory.clone(),
     }
 }
@@ -5458,6 +5494,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -6366,7 +6405,7 @@ mod tests {
     #[test]
     fn config_drop_and_exp_are_authoritative_without_client_values() {
         let gameplay: Gameplay = serde_json::from_str(
-            r#"{"contentVersion":"gms83-gameplay-2","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
+            r#"{"contentVersion":"gms83-quest-1","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
         )
         .unwrap();
         gameplay.validate().unwrap();
@@ -6849,6 +6888,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         auth.store.load_profile("a", &defaults).unwrap();

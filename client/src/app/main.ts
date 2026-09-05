@@ -10,6 +10,7 @@ import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
 import { MenuView } from '../features/menu/view';
 import { NpcDialogueView } from '../features/npc/dialogue';
+import { QuestLogView } from '../features/quest/log';
 import { World } from '../scenes/world';
 import './style.css';
 
@@ -34,6 +35,7 @@ let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
 let menus: MenuView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
+let questLog: QuestLogView | undefined;
 let game: Phaser.Game | undefined;
 let muted = false;
 let generation = 0;
@@ -83,6 +85,8 @@ el('login').onsubmit = async event => {
     deathNotice = new DeathNoticeView(el('notices'), manifest, requestId => connection?.send({ type: 'revive', requestId }) ?? false, message => status(message));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
+    questLog?.destroy();
+    questLog = new QuestLogView(el('ui-windows'));
     menus?.destroy();
     menus = new MenuView(el('menus'), manifest, message => status(message), () => inventory?.toggle(), () => el('logout').click(), () => inventory?.toggleEquipment());
     inventory?.destroy();
@@ -97,7 +101,7 @@ el('login').onsubmit = async event => {
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
         status(`传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
-    });
+    }, npc => npcDialogue?.startTalk(npc) ?? undefined);
     game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, backgroundColor: '#b4dfe0', pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, input: { keyboard: false }, banner: false });
     let announcedMapId: string | undefined;
     connection = new Connection(session, message => {
@@ -113,6 +117,22 @@ el('login').onsubmit = async event => {
       }
       if (message.type === 'pickupResult') {
         chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
+      }
+      if (message.type === 'questList') {
+        questLog?.setList(message.quests);
+      }
+      if (message.type === 'questUpdate') {
+        questLog?.upsert({ questId: message.questId, name: message.name, status: message.status, summary: message.summary });
+        const parts: string[] = [];
+        if (message.reward.exp > 0) parts.push(`${message.reward.exp} EXP`);
+        if (message.reward.mesos > 0) parts.push(`${message.reward.mesos} ${uiText('meso')}`);
+        for (const item of message.reward.items) parts.push(`${itemName(item.itemId)} × ${item.quantity}`);
+        const reward = parts.join('、');
+        if (message.status === 'active') {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Quest accepted' : '接受任务'}：${message.name}`, `quest:${message.questId}:active`);
+        } else {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Quest completed' : '任务完成'}：${message.name}${reward ? ` · ${uiLocale() === 'en' ? 'Reward' : '获得'} ${reward}` : ''}`, `quest:${message.questId}:completed`);
+        }
       }
       if (message.type === 'snapshot') {
         el('population').textContent = `${message.players.length} 位冒险者`;
@@ -143,13 +163,14 @@ el('login').onsubmit = async event => {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { announcedMapId = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); status(reason || '正在连接地图服务器…', state === 'offline'); }
+      if (state !== 'online') { announcedMapId = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); questLog?.close(); status(reason || '正在连接地图服务器…', state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
       enterPortal: () => world?.enterPortal(),
       nearestNpc: () => world?.nearestNpc() ?? null,
       talkTo: npc => npcDialogue?.startTalk(npc) ?? undefined,
+      toggleQuestLog: () => questLog?.toggle() ?? false,
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -160,7 +181,7 @@ el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
 el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
 el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
 el('logout').onclick = () => {
-  generation++; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined;
+  generation++; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined;
   muted = false; el('sound').textContent = '声音：开';
   el('play').hidden = true; el('welcome').hidden = false; el('connection').textContent = '尚未连接'; el('connection').classList.remove('online'); status('已退出。'); el('username').focus();
 };

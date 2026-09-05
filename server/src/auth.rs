@@ -71,6 +71,13 @@ pub struct Profile {
     pub exp_to_next: u64,
     pub mesos: u64,
     pub death_id: String,
+    /// Authoritative world position the player reconnects at; restored from
+    /// SQLite on login so that map switches and overworld exploration persist
+    /// across server restarts.  Empty `map_id` or non-finite coordinates fall
+    /// back to the authored birth map spawn at the join site.
+    pub map_id: String,
+    pub x: f64,
+    pub y: f64,
     pub inventory: Vec<InventoryItem>,
 }
 
@@ -183,7 +190,10 @@ impl Store {
                exp_to_next INTEGER NOT NULL,
                mesos INTEGER NOT NULL DEFAULT 0,
                death_id TEXT NOT NULL DEFAULT '',
-               starter_equipment_seeded INTEGER NOT NULL DEFAULT 0
+               starter_equipment_seeded INTEGER NOT NULL DEFAULT 0,
+               map_id TEXT NOT NULL DEFAULT '',
+               x REAL NOT NULL DEFAULT 0,
+               y REAL NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS inventory(
                account_id TEXT NOT NULL,
@@ -343,6 +353,24 @@ impl Store {
                 "ALTER TABLE player_stats ADD COLUMN starter_equipment_seeded INTEGER NOT NULL DEFAULT 0",
                 [],
             )?;
+        }
+        // Persist the player's last map + foot coordinates across reconnects.
+        // Older databases predate these columns; treat them as "no record" so
+        // the join site falls back to the authored birth map spawn.
+        let has_position_map: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='map_id'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_position_map.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN map_id TEXT NOT NULL DEFAULT ''",
+                [],
+            )?;
+            db.execute("ALTER TABLE player_stats ADD COLUMN x REAL NOT NULL DEFAULT 0", [])?;
+            db.execute("ALTER TABLE player_stats ADD COLUMN y REAL NOT NULL DEFAULT 0", [])?;
         }
         let has_drop_owner: Option<String> = db
             .query_row(
@@ -506,8 +534,8 @@ impl Store {
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
         tx.execute(
-            "INSERT OR IGNORE INTO player_stats(account_id,hp,max_hp,mp,max_mp,level,exp,exp_to_next,mesos,death_id)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'')",
+            "INSERT OR IGNORE INTO player_stats(account_id,hp,max_hp,mp,max_mp,level,exp,exp_to_next,mesos,death_id,map_id,x,y)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'',?10,?11,?12)",
             params![
                 account_id,
                 defaults.hp,
@@ -517,7 +545,10 @@ impl Store {
                 defaults.level,
                 defaults.exp,
                 defaults.exp_to_next,
-                i64::try_from(defaults.mesos).map_err(|_| "account persistence failed")?
+                i64::try_from(defaults.mesos).map_err(|_| "account persistence failed")?,
+                defaults.map_id,
+                defaults.x,
+                defaults.y,
             ],
         )
         .map_err(|_| "account persistence failed")?;
@@ -531,7 +562,7 @@ impl Store {
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.execute(
-            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,exp=?7,exp_to_next=?8,mesos=?9,death_id=?10
+            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,exp=?7,exp_to_next=?8,mesos=?9,death_id=?10,map_id=?11,x=?12,y=?13
              WHERE account_id=?1",
             params![
                 account_id,
@@ -543,7 +574,10 @@ impl Store {
                 profile.exp,
                 profile.exp_to_next,
                 i64::try_from(profile.mesos).map_err(|_| "account persistence failed")?,
-                profile.death_id
+                profile.death_id,
+                profile.map_id,
+                profile.x,
+                profile.y,
             ],
         )
         .map_err(|_| "account persistence failed")?;
@@ -2561,26 +2595,29 @@ fn normalize_equipped_tx(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
 
 fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Profile, String> {
     normalize_inventory_tx(tx)?;
-    let (hp, max_hp, mp, max_mp, level, exp, exp_to_next, mesos, death_id):
-        (i64, i64, i64, i64, i64, i64, i64, i64, String) = tx
-        .query_row(
-            "SELECT hp,max_hp,mp,max_mp,level,exp,exp_to_next,mesos,death_id FROM player_stats WHERE account_id=?1",
-            [account_id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                    row.get(8)?,
-                ))
-            },
-        )
-        .map_err(|_| "account persistence failed")?;
+    let (hp, max_hp, mp, max_mp, level, exp, exp_to_next, mesos, death_id, map_id, x, y):
+        (i64, i64, i64, i64, i64, i64, i64, i64, String, String, f64, f64) = tx
+            .query_row(
+                "SELECT hp,max_hp,mp,max_mp,level,exp,exp_to_next,mesos,death_id,map_id,x,y FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                        row.get(7)?,
+                        row.get(8)?,
+                        row.get(9)?,
+                        row.get(10)?,
+                        row.get(11)?,
+                    ))
+                },
+            )
+            .map_err(|_| "account persistence failed")?;
     let mut stmt = tx
         .prepare("SELECT inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM inventory WHERE account_id=?1 AND quantity>0 ORDER BY inventory_type,slot")
         .map_err(|_| "account persistence failed")?;
@@ -2630,6 +2667,9 @@ fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Prof
         exp_to_next: exp_to_next.max(0) as u64,
         mesos: mesos.max(0) as u64,
         death_id,
+        map_id,
+        x: if x.is_finite() { x } else { 0.0 },
+        y: if y.is_finite() { y } else { 0.0 },
         inventory,
     })
 }
@@ -2955,6 +2995,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3109,6 +3152,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("other", &defaults).unwrap();
@@ -3144,6 +3190,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("owner", &defaults).unwrap();
@@ -3244,6 +3293,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3355,6 +3407,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3402,6 +3457,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3479,6 +3537,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3645,6 +3706,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
@@ -3710,6 +3774,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("overflow", &defaults).unwrap();
@@ -3829,6 +3896,9 @@ mod tests {
             exp_to_next: 15,
             mesos: 0,
             death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
             inventory: Vec::new(),
         };
         store.load_profile("a", &defaults).unwrap();
