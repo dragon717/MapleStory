@@ -83,3 +83,9 @@ Snail按参考STAND/HIT转随机方向MOVE，MOVE随机站/左/右，源动画�
 原始资料已集中到根目录 `参考/`（原始WZ/压缩包、第三方仓库、工具与采集证据）；已导出的处理结果移到 `resources/gms83-export`，共8005个文件、717M。运行资源归档 `MapleStory-运行资源-2026-09-05.tar.gz` 共10837个条目、723452060 bytes，SHA-256为 `bfdcfc7e306ffaeac8a43b71a93558e358c372a7559acd8b434d9d5a0ae05383`；已验证不含 `参考/`、`.git`、数据库、凭据、依赖和编译产物。README已写明从仓库根目录用带引号UTF-8路径解压的命令及目录内容。
 
 本地Git仓库按约定完成三批提交：前端、后端、公共/文档/脚本资源各一批；仅本地提交，无远程仓库和推送。运行时数据库、凭据、构建产物、媒体和`参考/`继续由`.gitignore`排除。
+
+## 2026-09-05：3010 梯顶平台落地修复
+
+用户反馈角色沿梯子到达顶端后落不到平台。根因是服务端把角色停在 WZ ladder top（当前地图为 y=127），下一帧 `ground_below` 只接受不低于角色的地面，因而漏掉同一 x 处的上方支撑 foothold（y=125）并进入下落。修复沿 `network.rs → World::command → World::step → step_player` 调用链处理 `uf`：允许上行的梯顶在源五像素探测范围内解析 authored foothold，并在同一 tick 设置 x/y、grounded、foothold、vy=0、退出 climbing；无支撑时保留源端点下落行为，`uf=0` 与顶端下行继续停在梯上。没有写死地图坐标，也没有改客户端、账号或数据库。
+
+新增梯顶落地、释放/继续上行后横向稳定、禁止顶端退出三项定向断言；`cargo fmt --check`、`cargo check`、`cargo build` 及梯子测试 3/3 通过。使用 `关闭3010.command` / `启动3010.command` 受控替换服务：新服务 PID63131，唯一陪测 bot PID63159，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；数据库完整性为 `ok`，账号/角色计数 24/23，未重置。用户需刷新 `http://127.0.0.1:3010/` 并重新登录后亲测。

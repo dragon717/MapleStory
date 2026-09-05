@@ -538,7 +538,7 @@
   },
   "incomplete": [
     "Community contact formula and private-server rates are reference behavior, not independently verified official GMS83",
-    "Latest contribution EXP, AI, ladder/down-jump and revive patches are built but not deployed to the running round2 server; user runtime validation pending",
+    "Latest contribution EXP, AI, ladder/down-jump, ladder-top landing and revive patches are deployed to the running round2 server; user runtime validation pending",
     "Party/white EXP/underleveled bonuses are outside this round; three Snail placements are test content, not original map life spawns"
   ],
   "monsterRespawnMs": 10000

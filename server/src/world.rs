@@ -25,6 +25,10 @@ const GRAVITY: f64 = 2_000.0;
 const FALL_SPEED: f64 = 670.0;
 const DOWNJUMP_RANGE: f64 = 600.0;
 const DOWNJUMP_LAUNCH: f64 = 196.0;
+// Mapleweb's Ladder::felloff probes five pixels beyond each authored end
+// before cancelling the fixed climb state.  Reuse that source boundary when
+// resolving the foothold at an allowed top exit.
+const LADDER_END_PROBE_PX: f64 = 5.0;
 // The Snail WZ animation manifest has a 100 ms stand frame and five move
 // frames at 180 ms each (900 ms per move loop).  HeavenClient's controlled
 // mob counter is the longer gate; the 50 ms authoritative loop uses the
@@ -252,6 +256,28 @@ impl Map {
                     .then_with(|| a.id.cmp(&b.id))
             })
             .map(|(f, ground)| (f.id, ground))
+    }
+
+    /// Resolve the authored platform at a ladder's top endpoint.  The WZ
+    /// ladder boundary is independent from the foothold y coordinate (the
+    /// live map's endpoint is y=127 while its support is y=125), so stopping
+    /// at the ladder coordinate alone leaves the player above the platform
+    /// and makes the next gravity step miss it.  Limit the lookup to the
+    /// source's five-pixel endpoint probe so an unrelated lower platform is
+    /// left to normal falling instead of being selected as a top exit.
+    fn ladder_top_ground(&self, ladder: &Ladder) -> Option<(u64, f64)> {
+        let top = ladder.top();
+        self.footholds
+            .iter()
+            .filter_map(|foothold| foothold.at(ladder.x).map(|ground| (foothold, ground)))
+            .filter(|(_, ground)| *ground <= top + 0.001 && top - *ground <= LADDER_END_PROBE_PX)
+            .min_by(|(a, ay), (b, by)| {
+                (ay - top)
+                    .abs()
+                    .total_cmp(&(by - top).abs())
+                    .then_with(|| a.id.cmp(&b.id))
+            })
+            .map(|(foothold, ground)| (foothold.id, ground))
     }
 
     /// HeavenClient's Footholdtree derives horizontal outer walls from the
@@ -2265,10 +2291,27 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
                 .and_then(|id| map.ladders.iter().find(|ladder| ladder.id == id));
             if let Some(ladder) = ladder {
                 if player.state.y <= ladder.top() {
-                    player.state.y = ladder.top();
-                    if player.vertical < 0 && ladder.allows_top_exit() {
-                        detach_at_ladder_end(player, ladder, true, tick);
+                    if ladder.allows_top_exit() && player.vertical <= 0 {
+                        if let Some((foothold_id, ground)) = map.ladder_top_ground(ladder) {
+                            land_at_ladder_top(player, ladder, foothold_id, ground, tick);
+                        } else if player.vertical < 0 {
+                            // There is no authored foothold at this end. Keep
+                            // the source endpoint behaviour and let normal
+                            // falling resolve the map rather than inventing a
+                            // platform or an offset.
+                            player.state.y = ladder.top();
+                            detach_at_ladder_end(player, ladder, true, tick);
+                        } else {
+                            player.state.y = ladder.top();
+                            player.state.vy = 0.0;
+                            player.state.action = ladder.action();
+                        }
                     } else {
+                        // A forbidden top (uf=0), or a downwards input at the
+                        // top of an allowed ladder, remains fixed on the
+                        // ladder.  In particular, Down+horizontal input must
+                        // not pass through this boundary.
+                        player.state.y = ladder.top();
                         player.state.vy = 0.0;
                         player.state.action = ladder.action();
                     }
@@ -2459,6 +2502,26 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
         player.state.action = action;
     }
+}
+
+fn land_at_ladder_top(
+    player: &mut Player,
+    ladder: &Ladder,
+    foothold_id: u64,
+    ground: f64,
+    tick: u64,
+) {
+    player.state.x = ladder.x;
+    player.state.y = ground;
+    player.state.vx = 0.0;
+    player.state.vy = 0.0;
+    player.state.grounded = true;
+    player.foothold_id = foothold_id;
+    player.drop_fh = 0;
+    player.state.climbing = false;
+    player.state.ladder_id = None;
+    player.state.action = "stand";
+    player.state.action_started_tick = tick;
 }
 
 fn detach_at_ladder_end(player: &mut Player, ladder: &Ladder, top: bool, tick: u64) {
@@ -2679,6 +2742,163 @@ mod tests {
         assert!(rope_world.players["a"].state.climbing);
         assert_eq!(rope_world.players["a"].state.action, "rope");
         assert_eq!(rope_world.players["a"].state.y, 50.0);
+    }
+
+    #[test]
+    fn allowed_ladder_top_lands_on_authored_foothold_and_stays_grounded() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"ladder-top","bounds":{"xMin":0,"xMax":300,"yMin":-100,"yMax":500},"spawn":{"x":100,"y":200},"footholds":[{"id":1,"x1":0,"y1":200,"x2":200,"y2":200},{"id":2,"x1":0,"y1":95,"x2":200,"y2":95}],"ladders":[{"id":1,"x":100,"y1":100,"y2":200,"l":1,"uf":1}]}"#,
+        )
+        .unwrap();
+        let mut world = World::new_with_gameplay(
+            map,
+            600,
+            Gameplay {
+                player: PlayerConfig {
+                    climb_speed: Some(125.0),
+                    ..PlayerConfig::default()
+                },
+                ..Gameplay::default()
+            },
+        );
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 0,
+                vertical: -1,
+                jump: false,
+            },
+        });
+        world.step();
+        assert!(world.players["a"].state.climbing);
+
+        // Keep Up held until the climb crosses the WZ top endpoint.  The
+        // authored support is two pixels above that endpoint, as in the live
+        // map, so the transition must select foothold 2 and zero vertical
+        // velocity in the same authoritative tick.
+        for _ in 0..20 {
+            world.step();
+        }
+        let player = &world.players["a"];
+        assert!(!player.state.climbing);
+        assert!(player.state.grounded);
+        assert_eq!(player.state.ladder_id, None);
+        assert_eq!(player.foothold_id, 2);
+        assert_eq!(player.state.y, 95.0);
+        assert_eq!(player.state.vy, 0.0);
+
+        // Releasing Up must leave the grounded state intact; the following
+        // horizontal input must walk on the selected foothold instead of
+        // re-entering the ladder or falling through its endpoint.
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 2,
+                direction: 0,
+                vertical: 0,
+                jump: false,
+            },
+        });
+        world.step();
+        assert!(world.players["a"].state.grounded);
+        assert_eq!(world.players["a"].state.y, 95.0);
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 3,
+                direction: 1,
+                vertical: 0,
+                jump: false,
+            },
+        });
+        world.step();
+        assert!(world.players["a"].state.grounded);
+        assert_eq!(world.players["a"].foothold_id, 2);
+        assert!(world.players["a"].state.x > 100.0);
+        assert_eq!(world.players["a"].state.y, 95.0);
+    }
+
+    #[test]
+    fn forbidden_ladder_top_holds_at_endpoint() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"forbidden-ladder-top","bounds":{"xMin":0,"xMax":300,"yMin":-100,"yMax":500},"spawn":{"x":100,"y":200},"footholds":[{"id":1,"x1":0,"y1":200,"x2":200,"y2":200},{"id":2,"x1":0,"y1":95,"x2":200,"y2":95}],"ladders":[{"id":1,"x":100,"y1":100,"y2":200,"l":1,"uf":0}]}"#,
+        )
+        .unwrap();
+        let mut world = World::new_with_gameplay(
+            map,
+            600,
+            Gameplay {
+                player: PlayerConfig {
+                    climb_speed: Some(125.0),
+                    ..PlayerConfig::default()
+                },
+                ..Gameplay::default()
+            },
+        );
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 0,
+                vertical: -1,
+                jump: false,
+            },
+        });
+        world.step();
+        for _ in 0..20 {
+            world.step();
+        }
+        assert!(world.players["a"].state.climbing);
+        assert!(!world.players["a"].state.grounded);
+        assert_eq!(world.players["a"].state.y, 100.0);
+        assert_eq!(world.players["a"].state.ladder_id, Some(1));
+
+        // Horizontal input at a forbidden top cannot turn the endpoint into
+        // an exit and cannot make the player pass through the platform.
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 2,
+                direction: 1,
+                vertical: 0,
+                jump: false,
+            },
+        });
+        world.step();
+        assert!(world.players["a"].state.climbing);
+        assert!(!world.players["a"].state.grounded);
+        assert_eq!(world.players["a"].state.y, 100.0);
+        assert_eq!(world.players["a"].state.ladder_id, Some(1));
     }
 
     #[test]
