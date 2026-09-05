@@ -486,6 +486,34 @@ impl Map {
         outside
     }
 
+    /// Chain-neighbour side wall without the `outer_wall` fallback. Grounded
+    /// walkers always want a hard wall (`wall_for` falls back to the
+    /// FootholdTree outer wall when the chain has no neighbour), but airborne
+    /// jumps only need a physical barrier: the body intentionally crosses
+    /// the authored edge to recover past the fall boundary on the next sweep,
+    /// and the outer wall must not pin it at the take-off point.
+    fn chain_wall_for(&self, current_id: u64, left: bool, foot_y: f64) -> Option<f64> {
+        let current = self.get(current_id)?;
+        let mut id = if left { current.prev } else { current.next };
+        let mut edge = if left {
+            current.left()
+        } else {
+            current.right()
+        };
+        for _ in 0..2 {
+            let Some(candidate) = self.get(id) else { break };
+            if candidate.blocks(foot_y - 50.0, foot_y - 1.0) {
+                return Some(edge);
+            }
+            edge = if left {
+                candidate.left()
+            } else {
+                candidate.right()
+            };
+            id = if left { candidate.prev } else { candidate.next };
+        }
+        None
+    }
     /// Return the linked foothold at the travel edge when the two authored
     /// segments meet at the same endpoint.  A `prev`/`next` id alone is not
     /// enough: WZ chains also contain vertical wall segments and links across
@@ -4784,8 +4812,24 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     if player.direction != 0 {
         player.state.facing = player.direction;
     }
-    if player.state.grounded && player.state.vx != 0.0 {
-        let wall = map.wall_for(player.foothold_id, player.state.vx < 0.0, player.state.y);
+    // Airborne jumps inherit the same chain-neighbour side wall check as
+    // grounded walking: the previous step left the body at the edge of its
+    // stable foothold, and the next reachable segment on that chain (e.g. an
+    // ascending platform step) is the same hazard that walking already
+    // blocks. Fall back to `last_foothold_id` when the jump cleared the
+    // active id so the body cannot tunnel horizontally across the platform
+    // edge it just left. Only physical chain walls block the jump — the
+    // FootholdTree `outer_wall` fallback must not pin the body at the
+    // take-off point because the next falling sweep intentionally leaves
+    // that authored edge to recover past the map fall boundary.
+    let chain_anchor = if player.state.grounded || player.foothold_id != 0 {
+        player.foothold_id
+    } else {
+        player.last_foothold_id
+    };
+    let chain_wall = (player.state.vx != 0.0 && chain_anchor != 0)
+        .then(|| map.chain_wall_for(chain_anchor, player.state.vx < 0.0, player.state.y));
+    if let Some(Some(wall)) = chain_wall {
         let intended = player.state.x + player.state.vx * (TICK_MS as f64 / 1000.0);
         let crossed = if player.state.vx < 0.0 {
             player.state.x >= wall && intended <= wall
@@ -5987,6 +6031,92 @@ mod tests {
         )
         .unwrap();
         assert_eq!(two_hop.wall_for(1, false, 180.0), 200.0);
+    }
+
+    #[test]
+    fn jump_stops_at_chain_wall_but_outer_wall_does_not_pin_takeoff() {
+        // Walking the chain already halts at the wall; jumping must hit the
+        // same physical barrier instead of tunneling past it and landing on
+        // the upper platform. The FootholdTree `outer_wall` must not pin the
+        // body at the take-off point when the chain has no vertical wall
+        // neighbour — the next falling sweep intentionally leaves the
+        // authored edge to recover on the last foothold.
+        let map: Map = serde_json::from_str(
+            r#"{"id":"step","bounds":{"xMin":0,"xMax":500,"yMin":-200,"yMax":500},"spawn":{"x":50,"y":100},"footholds":[{"id":1,"x1":0,"y1":100,"x2":100,"y2":100,"prev":0,"next":2},{"id":2,"x1":100,"y1":50,"x2":100,"y2":150,"prev":1,"next":3},{"id":3,"x1":100,"y1":100,"x2":200,"y2":100,"prev":2,"next":0},{"id":4,"x1":0,"y1":250,"x2":500,"y2":250,"prev":0,"next":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            map.chain_wall_for(1, false, 100.0),
+            Some(100.0),
+            "chain wall must report the rising step edge"
+        );
+        // Walking's wall_for coincides here because the chain produces the
+        // vertical step at the take-off height.
+        assert_eq!(map.wall_for(1, false, 100.0), 100.0);
+        // And it must NOT pin the body once the player has cleared the
+        // authored area on a recover-jump out of the map.
+        let recovery: Map = serde_json::from_str(
+            r#"{"id":"recovery","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":25,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":50,"y2":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            recovery.chain_wall_for(1, false, 0.0),
+            None,
+            "no chain wall: the airborne jumper must keep rolling past the FootholdTree outer wall"
+        );
+
+        let mut w = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        w.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            reply,
+            output,
+        });
+        w.step();
+
+        // Anchor the player on foothold 1 (range 0..100, y=100), then jump
+        // toward the rising step at x=100. The body must stop at the wall
+        // edge and stay grounded near y=100 instead of landing on the upper
+        // platform (foothold 3, y=100).
+        w.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 1,
+                vertical: 0,
+                jump: true,
+            },
+        });
+        for _ in 0..60 {
+            w.step();
+            let player = &w.players["a"];
+            if !player.jump && player.state.grounded {
+                break;
+            }
+        }
+        let player = &w.players["a"];
+        // The block at x=100 must hold the body near the take-off edge;
+        // either it returns to the original segment (foothold 1, y=100,
+        // x≤100) or — if the wall genuinely pins it — it falls onto the
+        // lower world floor (foothold 4, y=250). It must never climb past
+        // the wall onto the raised step (foothold 3, x>100).
+        assert!(
+            player.state.x <= 100.0 + 0.5,
+            "jump must not tunnel across the chain wall, got x={}",
+            player.state.x
+        );
+        assert!(player.state.grounded, "body should land near the take-off platform");
+        assert!(
+            (player.state.y - 100.0).abs() < 1.0 || player.state.y > 200.0,
+            "body must end near take-off platform or on lower world floor, got y={}",
+            player.state.y
+        );
     }
 
     #[test]
