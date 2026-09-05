@@ -1,0 +1,6309 @@
+{
+  "contentVersion": "gms83-gameplay-2",
+  "monsters": {
+    "100100": {
+      "templateId": "100100",
+      "source": "Mob.wz/0100100.img",
+      "info": {
+        "bodyAttack": 1,
+        "level": 1,
+        "maxHP": 8,
+        "maxMP": 0,
+        "speed": -65,
+        "PADamage": 12,
+        "PDDamage": 0,
+        "MADamage": 0,
+        "MDDamage": 0,
+        "acc": 20,
+        "eva": 0,
+        "exp": 3,
+        "undead": 0,
+        "pushed": 1,
+        "fs": 10,
+        "summonType": 1,
+        "mobType": 0
+      },
+      "actions": {
+        "stand": [
+          {
+            "url": "assets/Mob.wz_0100100.img_stand_0.png",
+            "width": 37,
+            "height": 26,
+            "sha256": "740185865482ec7b291eee06e24888bfb09288fde667c50280252407bcda23ff",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/stand/0",
+            "resolvedSource": "Mob.wz/0100100.img/stand/0",
+            "origin": {
+              "x": 18,
+              "y": 26
+            },
+            "x": -18,
+            "y": -26,
+            "delay": 100,
+            "map": {},
+            "lt": {
+              "x": -18,
+              "y": -26
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          }
+        ],
+        "move": [
+          {
+            "url": "assets/Mob.wz_0100100.img_move_0.png",
+            "width": 37,
+            "height": 26,
+            "sha256": "07c97956f40c7327563179cf8d950d22b792d72dc41bede99ecaed50b8f8e4a9",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/move/0",
+            "resolvedSource": "Mob.wz/0100100.img/move/0",
+            "origin": {
+              "x": 18,
+              "y": 26
+            },
+            "x": -18,
+            "y": -26,
+            "delay": 180,
+            "map": {},
+            "lt": {
+              "x": -18,
+              "y": -26
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_move_1.png",
+            "width": 36,
+            "height": 25,
+            "sha256": "ef254a2595d498e58db0d87f8bcd3f81947c9efdbdba9be2b42aaeda4b92509f",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/move/1",
+            "resolvedSource": "Mob.wz/0100100.img/move/1",
+            "origin": {
+              "x": 17,
+              "y": 25
+            },
+            "x": -17,
+            "y": -25,
+            "delay": 180,
+            "map": {},
+            "lt": {
+              "x": -17,
+              "y": -25
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_move_2.png",
+            "width": 36,
+            "height": 25,
+            "sha256": "9c37aa7075d3809ba1adb1caa053f765e15ad955f68f302bdbed786abebf39a5",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/move/2",
+            "resolvedSource": "Mob.wz/0100100.img/move/2",
+            "origin": {
+              "x": 17,
+              "y": 25
+            },
+            "x": -17,
+            "y": -25,
+            "delay": 180,
+            "map": {},
+            "lt": {
+              "x": -17,
+              "y": -25
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_move_3.png",
+            "width": 36,
+            "height": 24,
+            "sha256": "e4ef927b2f14f98a6fa915c5328576b273cd0f395db42d287732f70ff708bef0",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/move/3",
+            "resolvedSource": "Mob.wz/0100100.img/move/3",
+            "origin": {
+              "x": 17,
+              "y": 24
+            },
+            "x": -17,
+            "y": -24,
+            "delay": 180,
+            "map": {},
+            "lt": {
+              "x": -17,
+              "y": -24
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_move_4.png",
+            "width": 37,
+            "height": 24,
+            "sha256": "739d18ebf82f791a6265cc33b02213a9eaab57acd73f5c8921c46a5281d11760",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/move/4",
+            "resolvedSource": "Mob.wz/0100100.img/move/4",
+            "origin": {
+              "x": 18,
+              "y": 24
+            },
+            "x": -18,
+            "y": -24,
+            "delay": 180,
+            "map": {},
+            "lt": {
+              "x": -18,
+              "y": -24
+            },
+            "rb": {
+              "x": 19,
+              "y": 0
+            },
+            "uol": null
+          }
+        ],
+        "hit": [
+          {
+            "url": "assets/Mob.wz_0100100.img_hit1_0.png",
+            "width": 43,
+            "height": 33,
+            "sha256": "cc63bd530d5034c52cd8e50a7b1f7801caa37ebe4d7365bec324aeec36fd5777",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/hit1/0",
+            "resolvedSource": "Mob.wz/0100100.img/hit1/0",
+            "origin": {
+              "x": 21,
+              "y": 33
+            },
+            "x": -21,
+            "y": -33,
+            "delay": 600,
+            "map": {},
+            "lt": {
+              "x": -21,
+              "y": -33
+            },
+            "rb": {
+              "x": 22,
+              "y": 0
+            },
+            "uol": null
+          }
+        ],
+        "die": [
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_0.png",
+            "width": 43,
+            "height": 33,
+            "sha256": "cc63bd530d5034c52cd8e50a7b1f7801caa37ebe4d7365bec324aeec36fd5777",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/0",
+            "resolvedSource": "Mob.wz/0100100.img/die1/0",
+            "origin": {
+              "x": 21,
+              "y": 33
+            },
+            "x": -21,
+            "y": -33,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_1.png",
+            "width": 44,
+            "height": 31,
+            "sha256": "6172d59751969ea1ca2e0fdbf35c392bd82142f82ca3a0dce54b668c0f121a72",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/1",
+            "resolvedSource": "Mob.wz/0100100.img/die1/1",
+            "origin": {
+              "x": 22,
+              "y": 31
+            },
+            "x": -22,
+            "y": -31,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_2.png",
+            "width": 36,
+            "height": 24,
+            "sha256": "367cf3d8f28fb2086abb0f14dccce7388d4ca00bb3f3bf3ce6e322ff7212069b",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/2",
+            "resolvedSource": "Mob.wz/0100100.img/die1/2",
+            "origin": {
+              "x": 14,
+              "y": 24
+            },
+            "x": -14,
+            "y": -24,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_3.png",
+            "width": 36,
+            "height": 24,
+            "sha256": "c871a5ffc86b7bada58d94fd86711f9131101067747bed0521eb3af7c5a5000e",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/3",
+            "resolvedSource": "Mob.wz/0100100.img/die1/3",
+            "origin": {
+              "x": 14,
+              "y": 24
+            },
+            "x": -14,
+            "y": -24,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_4.png",
+            "width": 35,
+            "height": 23,
+            "sha256": "733480a6d888ee40c466e7672927da29ee6d0a52d46849bfcfcaa37535bc72b3",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/4",
+            "resolvedSource": "Mob.wz/0100100.img/die1/4",
+            "origin": {
+              "x": 13,
+              "y": 23
+            },
+            "x": -13,
+            "y": -23,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_5.png",
+            "width": 35,
+            "height": 18,
+            "sha256": "81eacdda9a67927f45b01c3bf400c06a849e877312ad578db7e743c008074a5d",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/5",
+            "resolvedSource": "Mob.wz/0100100.img/die1/5",
+            "origin": {
+              "x": 13,
+              "y": 18
+            },
+            "x": -13,
+            "y": -18,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_6.png",
+            "width": 33,
+            "height": 14,
+            "sha256": "0d95c9d95190031e3a16b8be469c80a0fdbcba344821c8659a52f545438b6463",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/6",
+            "resolvedSource": "Mob.wz/0100100.img/die1/6",
+            "origin": {
+              "x": 13,
+              "y": 14
+            },
+            "x": -13,
+            "y": -14,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_7.png",
+            "width": 33,
+            "height": 10,
+            "sha256": "731422bb8cd194a2dd1292e5a5c50157d6ac68394e18678a729d7180ad4be9c9",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/7",
+            "resolvedSource": "Mob.wz/0100100.img/die1/7",
+            "origin": {
+              "x": 13,
+              "y": 10
+            },
+            "x": -13,
+            "y": -10,
+            "delay": 120,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          },
+          {
+            "url": "assets/Mob.wz_0100100.img_die1_8.png",
+            "width": 33,
+            "height": 6,
+            "sha256": "bd06dd3f7aa5f1b5e842dd5ab0d3390f8977a6d5dbe5c68594afc5e857f2946c",
+            "rgbaDecodeOk": true,
+            "source": "Mob.wz/0100100.img/die1/8",
+            "resolvedSource": "Mob.wz/0100100.img/die1/8",
+            "origin": {
+              "x": 13,
+              "y": 6
+            },
+            "x": -13,
+            "y": -6,
+            "delay": 300,
+            "map": {},
+            "lt": null,
+            "rb": null,
+            "uol": null
+          }
+        ]
+      }
+    }
+  },
+  "items": {
+    "0": {
+      "url": "assets/Item.wz_Special_0900.img_09000000_iconRaw_0.png",
+      "width": 23,
+      "height": 24,
+      "sha256": "ef8ef779eff8d2ffa417312b116d45f4a73cc2d70fb12857461ecce0769eba01",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Special/0900.img/09000000/iconRaw/0",
+      "resolvedSource": "Item.wz/Special/0900.img/09000000/iconRaw/0",
+      "origin": {
+        "x": -5,
+        "y": 28
+      },
+      "x": 5,
+      "y": -28,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null,
+      "frames": [
+        {
+          "url": "assets/Item.wz_Special_0900.img_09000000_iconRaw_0.png",
+          "width": 23,
+          "height": 24,
+          "sha256": "ef8ef779eff8d2ffa417312b116d45f4a73cc2d70fb12857461ecce0769eba01",
+          "rgbaDecodeOk": true,
+          "source": "Item.wz/Special/0900.img/09000000/iconRaw/0",
+          "resolvedSource": "Item.wz/Special/0900.img/09000000/iconRaw/0",
+          "origin": {
+            "x": -5,
+            "y": 28
+          },
+          "x": 5,
+          "y": -28,
+          "delay": 100,
+          "map": {},
+          "lt": null,
+          "rb": null,
+          "uol": null
+        },
+        {
+          "url": "assets/Item.wz_Special_0900.img_09000000_iconRaw_1.png",
+          "width": 25,
+          "height": 24,
+          "sha256": "5094e41d23b601d28b102ae09ffe723205b275657e2633ea304b6b287a5ac0d1",
+          "rgbaDecodeOk": true,
+          "source": "Item.wz/Special/0900.img/09000000/iconRaw/1",
+          "resolvedSource": "Item.wz/Special/0900.img/09000000/iconRaw/1",
+          "origin": {
+            "x": -4,
+            "y": 28
+          },
+          "x": 4,
+          "y": -28,
+          "delay": 100,
+          "map": {},
+          "lt": null,
+          "rb": null,
+          "uol": null
+        },
+        {
+          "url": "assets/Item.wz_Special_0900.img_09000000_iconRaw_2.png",
+          "width": 23,
+          "height": 24,
+          "sha256": "3f531e585683670f3008e0d46ea2485f6f60787a73c645a5a0bacc51ff24ef3a",
+          "rgbaDecodeOk": true,
+          "source": "Item.wz/Special/0900.img/09000000/iconRaw/2",
+          "resolvedSource": "Item.wz/Special/0900.img/09000000/iconRaw/2",
+          "origin": {
+            "x": -5,
+            "y": 28
+          },
+          "x": 5,
+          "y": -28,
+          "delay": 100,
+          "map": {},
+          "lt": null,
+          "rb": null,
+          "uol": null
+        },
+        {
+          "url": "assets/Item.wz_Special_0900.img_09000000_iconRaw_3.png",
+          "width": 5,
+          "height": 24,
+          "sha256": "f1eca2e0230c45edfb4c2977e7b1ae0a20a882fbfa7f64a16ac02751e349228d",
+          "rgbaDecodeOk": true,
+          "source": "Item.wz/Special/0900.img/09000000/iconRaw/3",
+          "resolvedSource": "Item.wz/Special/0900.img/09000000/iconRaw/3",
+          "origin": {
+            "x": -14,
+            "y": 28
+          },
+          "x": 14,
+          "y": -28,
+          "delay": 100,
+          "map": {},
+          "lt": null,
+          "rb": null,
+          "uol": null
+        }
+      ]
+    },
+    "1002067": {
+      "url": "assets/Character.wz_Cap_01002067.img_info_icon.png",
+      "width": 29,
+      "height": 22,
+      "sha256": "c3180bda90038bfad151aac795dd08d816b08016a8401ad5c119ae1e0eccf128",
+      "rgbaDecodeOk": true,
+      "source": "Character.wz/Cap/01002067.img/info/icon",
+      "resolvedSource": "Character.wz/Cap/01002067.img/info/icon",
+      "origin": {
+        "x": -2,
+        "y": 22
+      },
+      "x": 2,
+      "y": -22,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "1040002": {
+      "url": "assets/Character.wz_Coat_01040002.img_info_icon.png",
+      "width": 30,
+      "height": 28,
+      "sha256": "1b612d7a7d45eb5fcf35ab18b83d105ad1c4ddeabdc57a93d54b09de50bcb310",
+      "rgbaDecodeOk": true,
+      "source": "Character.wz/Coat/01040002.img/info/icon",
+      "resolvedSource": "Character.wz/Coat/01040002.img/info/icon",
+      "origin": {
+        "x": -1,
+        "y": 28
+      },
+      "x": 1,
+      "y": -28,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "1052095": {
+      "url": "assets/Character.wz_Longcoat_01052095.img_info_icon.png",
+      "width": 26,
+      "height": 31,
+      "sha256": "236daabeaafbac2262a0f595dc5e2a5c6fb4278017e74a5f46043aa22ab9ae87",
+      "rgbaDecodeOk": true,
+      "source": "Character.wz/Longcoat/01052095.img/info/icon",
+      "resolvedSource": "Character.wz/Longcoat/01052095.img/info/icon",
+      "origin": {
+        "x": -4,
+        "y": 31
+      },
+      "x": 4,
+      "y": -31,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "1302000": {
+      "url": "assets/Character.wz_Weapon_01302000.img_info_icon.png",
+      "width": 31,
+      "height": 30,
+      "sha256": "f6373762594581f0fc90d070cb52473daa4aa19b4c27b430bfbb78a2c0c03d28",
+      "rgbaDecodeOk": true,
+      "source": "Character.wz/Weapon/01302000.img/info/icon",
+      "resolvedSource": "Character.wz/Weapon/01302000.img/info/icon",
+      "origin": {
+        "x": 0,
+        "y": 30
+      },
+      "x": 0,
+      "y": -30,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2000000": {
+      "url": "assets/Item.wz_Consume_0200.img_02000000_info_icon.png",
+      "width": 27,
+      "height": 30,
+      "sha256": "4c6372ab3ec8b175f815ef986f94e62431d8ecdb1aba39cf435f321650df0ae3",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0200.img/02000000/info/icon",
+      "resolvedSource": "Item.wz/Consume/0200.img/02000000/info/icon",
+      "origin": {
+        "x": -3,
+        "y": 30
+      },
+      "x": 3,
+      "y": -30,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2010009": {
+      "url": "assets/Item.wz_Consume_0201.img_02010009_info_icon.png",
+      "width": 26,
+      "height": 29,
+      "sha256": "48bd73c1777841fc0cda7c99f91e823226dfdcfbf5f17318c46a7a9285d4b544",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0201.img/02010009/info/icon",
+      "resolvedSource": "Item.wz/Consume/0201.img/02010009/info/icon",
+      "origin": {
+        "x": -4,
+        "y": 30
+      },
+      "x": 4,
+      "y": -30,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2040002": {
+      "url": "assets/Item.wz_Consume_0204.img_02040002_info_icon.png",
+      "width": 30,
+      "height": 29,
+      "sha256": "cf4d7a23f3cffb670b6a7fb265b4ab6b40cb271080467d8c5e2763fcad650291",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0204.img/02040002/info/icon",
+      "resolvedSource": "Item.wz/Consume/0204.img/02040002/info/icon",
+      "origin": {
+        "x": -1,
+        "y": 29
+      },
+      "x": 1,
+      "y": -29,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2041001": {
+      "url": "assets/Item.wz_Consume_0204.img_02040001_info_icon.png",
+      "width": 30,
+      "height": 29,
+      "sha256": "72cbc9a70803332cd713b5730553907dbd379cb3cdbffd832d76f8c46dab0385",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0204.img/02041001/info/icon",
+      "resolvedSource": "Item.wz/Consume/0204.img/02040001/info/icon",
+      "origin": {
+        "x": -1,
+        "y": 29
+      },
+      "x": 1,
+      "y": -29,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "../../02040001/info/icon"
+    },
+    "2041043": {
+      "url": "assets/Item.wz_Consume_0204.img_02040020_info_icon.png",
+      "width": 31,
+      "height": 31,
+      "sha256": "3f1febe63a59b10fe9373f1d9cb463a9e618cbab27da9bab1a669b9b9012aed8",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0204.img/02041043/info/icon",
+      "resolvedSource": "Item.wz/Consume/0204.img/02040020/info/icon",
+      "origin": {
+        "x": -1,
+        "y": 30
+      },
+      "x": 1,
+      "y": -30,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "../../02040020/info/icon"
+    },
+    "2041045": {
+      "url": "assets/Item.wz_Consume_0204.img_02040020_info_icon.png",
+      "width": 31,
+      "height": 31,
+      "sha256": "3f1febe63a59b10fe9373f1d9cb463a9e618cbab27da9bab1a669b9b9012aed8",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0204.img/02041045/info/icon",
+      "resolvedSource": "Item.wz/Consume/0204.img/02040020/info/icon",
+      "origin": {
+        "x": -1,
+        "y": 30
+      },
+      "x": 1,
+      "y": -30,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "../../02040020/info/icon"
+    },
+    "2060000": {
+      "url": "assets/Item.wz_Consume_0206.img_02060000_info_icon.png",
+      "width": 32,
+      "height": 32,
+      "sha256": "6905bb9a0b96933a5638ea41e06eb3d9d4c544f986cc03ff3dc6d475754adbbe",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0206.img/02060000/info/icon",
+      "resolvedSource": "Item.wz/Consume/0206.img/02060000/info/icon",
+      "origin": {
+        "x": 0,
+        "y": 32
+      },
+      "x": 0,
+      "y": -32,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2061000": {
+      "url": "assets/Item.wz_Consume_0206.img_02061000_info_icon.png",
+      "width": 32,
+      "height": 32,
+      "sha256": "be4f36cf85568b20e38fcb521995cf7a369bfe4d32b39f87bf211268c2e66156",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0206.img/02061000/info/icon",
+      "resolvedSource": "Item.wz/Consume/0206.img/02061000/info/icon",
+      "origin": {
+        "x": 0,
+        "y": 32
+      },
+      "x": 0,
+      "y": -32,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "2380000": {
+      "url": "assets/Item.wz_Consume_0238.img_02380000_info_icon.png",
+      "width": 32,
+      "height": 32,
+      "sha256": "7e7a3d228bbbc0b289275c759a1334dd8d88952f73a5f4b9e4951d4b216b4fcf",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Consume/0238.img/02380000/info/icon",
+      "resolvedSource": "Item.wz/Consume/0238.img/02380000/info/icon",
+      "origin": {
+        "x": 0,
+        "y": 32
+      },
+      "x": 0,
+      "y": -32,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "4000019": {
+      "url": "assets/Item.wz_Etc_0400.img_04000019_info_icon.png",
+      "width": 26,
+      "height": 27,
+      "sha256": "a346aa391528e9c6d8cc87b5089292b812bc9c94dd50ed35ded9e91a31f79e6b",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Etc/0400.img/04000019/info/icon",
+      "resolvedSource": "Item.wz/Etc/0400.img/04000019/info/icon",
+      "origin": {
+        "x": -4,
+        "y": 27
+      },
+      "x": 4,
+      "y": -27,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "4010000": {
+      "url": "assets/Item.wz_Etc_0401.img_04010000_info_icon.png",
+      "width": 26,
+      "height": 26,
+      "sha256": "a1588e4e83c513dcc18d930d832e85b5b769faa5be22b95030b8c55871772aba",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Etc/0401.img/04010000/info/icon",
+      "resolvedSource": "Item.wz/Etc/0401.img/04010000/info/icon",
+      "origin": {
+        "x": -4,
+        "y": 26
+      },
+      "x": 4,
+      "y": -26,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "4020000": {
+      "url": "assets/Item.wz_Etc_0402.img_04020000_info_icon.png",
+      "width": 26,
+      "height": 27,
+      "sha256": "4d1fbf079ac2b513d016a86da3bbc88b299f95ecb4987c9fc44194d74f144f37",
+      "rgbaDecodeOk": true,
+      "source": "Item.wz/Etc/0402.img/04020000/info/icon",
+      "resolvedSource": "Item.wz/Etc/0402.img/04020000/info/icon",
+      "origin": {
+        "x": -4,
+        "y": 27
+      },
+      "x": 4,
+      "y": -27,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "hud": {
+    "base/backgrnd": {
+      "url": "assets/UI.wz_StatusBar.img_base_backgrnd.png",
+      "width": 800,
+      "height": 71,
+      "sha256": "83289d04ef1137402bfa2adee6351f98378400e2a2bcd5a2789f911a881e3a9c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/backgrnd",
+      "resolvedSource": "UI.wz/StatusBar.img/base/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/backgrnd2": {
+      "url": "assets/UI.wz_StatusBar.img_base_backgrnd2.png",
+      "width": 570,
+      "height": 71,
+      "sha256": "bef5a2a7e9e61d665a76aa72c540d2cecbd91204cae1686bf8feffc884176075",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/backgrnd2",
+      "resolvedSource": "UI.wz/StatusBar.img/base/backgrnd2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/quickSlot": {
+      "url": "assets/UI.wz_StatusBar.img_base_quickSlot.png",
+      "width": 151,
+      "height": 80,
+      "sha256": "f6b4fdb47a1c81e662fa6ebb88ac5b2ac3b65d90f4f142c86e49180e81d96719",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/quickSlot",
+      "resolvedSource": "UI.wz/StatusBar.img/base/quickSlot",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/chatTarget": {
+      "url": "assets/UI.wz_StatusBar.img_base_chatTarget.png",
+      "width": 81,
+      "height": 20,
+      "sha256": "e5aeccd11053bf41da5b27f52a5ce4d9272141a9bb45566808a667fe9b75edec",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/chatTarget",
+      "resolvedSource": "UI.wz/StatusBar.img/base/chatTarget",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/box": {
+      "url": "assets/UI.wz_StatusBar.img_base_box.png",
+      "width": 42,
+      "height": 19,
+      "sha256": "8e56d7b283dad6193946715943b19f2ca8d1081e763968e850d3fd6a2b96c9c4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/box",
+      "resolvedSource": "UI.wz/StatusBar.img/base/box",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/iconRed": {
+      "url": "assets/UI.wz_StatusBar.img_base_iconRed.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "d636ede5bb6dd11e04d68c247a0ab9aea552fb6b5aabf81281fd7e10a88712b7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/iconRed",
+      "resolvedSource": "UI.wz/StatusBar.img/base/iconRed",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/iconBlue": {
+      "url": "assets/UI.wz_StatusBar.img_base_iconBlue.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "7648775d1ea51af9c27352286714a3279f0ab1be731594fec602a7932170feda",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/iconBlue",
+      "resolvedSource": "UI.wz/StatusBar.img/base/iconBlue",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/iconMemo": {
+      "url": "assets/UI.wz_StatusBar.img_base_iconMemo.png",
+      "width": 14,
+      "height": 11,
+      "sha256": "ae03dcad7ff1d55d47404ede7bf97432b771a012a91c56757611d5c00160b3b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/iconMemo",
+      "resolvedSource": "UI.wz/StatusBar.img/base/iconMemo",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "base/chat": {
+      "url": "assets/UI.wz_StatusBar.img_base_chat.png",
+      "width": 566,
+      "height": 5,
+      "sha256": "922af51df1befd6c06eea020230e9083569c2563d22b99287f2c3f1e4444388b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/base/chat",
+      "resolvedSource": "UI.wz/StatusBar.img/base/chat",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/graduation": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_graduation.png",
+      "width": 340,
+      "height": 31,
+      "sha256": "df4fef365a0baa6da2957d3f351513ab7584fd4f1ad6fe9bb6d9fabf0dbc3fd7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/graduation",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/graduation",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/bar": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_bar.png",
+      "width": 340,
+      "height": 31,
+      "sha256": "6d4929aaa1fce17662a2cab3208969362d2ec1c7baddbf88c9ef6900102ac94b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/bar",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/bar",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/gray": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_gray.png",
+      "width": 1,
+      "height": 16,
+      "sha256": "d49e01863abda057394130b7e0c1c5c55aee2edc74d56964bcbf9990ba46b5b2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/gray",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/gray",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/tempExp": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_tempExp.png",
+      "width": 1,
+      "height": 16,
+      "sha256": "a1f4bccf4c11b71c841e87f56d4b7a94a6336b2b18a36a7c9029368b6795780c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/tempExp",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/tempExp",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/hpFlash/0": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_hpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/hpFlash/0",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/hpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/hpFlash/1": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_hpFlash_1.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "02352fc307bfb8633852b4abfdbb065c20609085b29da959b937f3f906b4cfe1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/hpFlash/1",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/hpFlash/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/hpFlash/2": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_hpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/hpFlash/2",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/hpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "0"
+    },
+    "gauge/hpFlash/3": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_hpFlash_1.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "02352fc307bfb8633852b4abfdbb065c20609085b29da959b937f3f906b4cfe1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/hpFlash/3",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/hpFlash/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "1"
+    },
+    "gauge/hpFlash/4": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_hpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/hpFlash/4",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/hpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "0"
+    },
+    "gauge/mpFlash/2": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_mpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/mpFlash/2",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/mpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "0"
+    },
+    "gauge/mpFlash/3": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_mpFlash_1.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "02352fc307bfb8633852b4abfdbb065c20609085b29da959b937f3f906b4cfe1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/mpFlash/3",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/mpFlash/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "1"
+    },
+    "gauge/mpFlash/4": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_mpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/mpFlash/4",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/mpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": "0"
+    },
+    "gauge/mpFlash/0": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_mpFlash_0.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "d5ff64235f4971154a4657eec517c55f7bc667bc2a60cef1e5c7ef7f216ba4b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/mpFlash/0",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/mpFlash/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "gauge/mpFlash/1": {
+      "url": "assets/UI.wz_StatusBar.img_gauge_mpFlash_1.png",
+      "width": 109,
+      "height": 18,
+      "sha256": "02352fc307bfb8633852b4abfdbb065c20609085b29da959b937f3f906b4cfe1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/gauge/mpFlash/1",
+      "resolvedSource": "UI.wz/StatusBar.img/gauge/mpFlash/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 130,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShop/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShop_normal_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "3071b7531be0c0d90a836e4052b88d19ab20a78e2158fc508be9c5a8d663fa06",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShop/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShop/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShop/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShop_pressed_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "feabd25b3fc8b6135a7d910c1c6075adb1030de0bbacd1bb2858e3d8fa0d0d96",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShop/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShop/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShop/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShop_disabled_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "90eee39a49da13e20095826e1b7fe99bc3c70e515818c99f6ed78f817e69c58f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShop/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShop/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShop/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShop_mouseOver_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "3f260db0025b4482bcabfc513c0cd3a060d11370ae30b25424bd1ae0b9179553",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShop/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShop/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMenu/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtMenu_normal_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "fe9943ce6d9e4aabebb6fd3165dcee13290c1828ab5e101f061ae8b6b03468ae",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtMenu/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtMenu/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMenu/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtMenu_pressed_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "a1579732c7833d310719552882b984760dda90a8fcff4c062c8caa2deb4669c2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtMenu/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtMenu/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMenu/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtMenu_disabled_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "ff4c66b1d54ee6b189fd6913dd9e23a21c42d46a77e7e214e4bc01fa4f9cb2ef",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtMenu/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtMenu/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMenu/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtMenu_mouseOver_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "3a6f4ac50b5e629f30ab748096e78a670f8051bfbc4080bf55482f8dd3644142",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtMenu/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtMenu/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtNPT/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtNPT_normal_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "33db95719a3337c3f68cd2d532dbaf3e594a8b4ae3f77715d61713d46535c91d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtNPT/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtNPT/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtNPT/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtNPT_pressed_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "3dc6edcfdc5b668f66a8befde0059188a4553a7d3e8d20b75c0f241bfc68d64a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtNPT/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtNPT/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtNPT/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtNPT_disabled_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "472fdc79cb216961b1a93726e83f535769eccf9e58de2513c0e1d48c167e59cd",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtNPT/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtNPT/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtNPT/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtNPT_mouseOver_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "37cdf2a7f8443c4cb96e932d841cbabb41e85f00dfd83cadc36742b2b6c1f18e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtNPT/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtNPT/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShort/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShort_normal_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "38508319327e24b8cc818c2bab1f24a46e29ef18beddb36a55c14bb60ebbeb05",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShort/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShort/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShort/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShort_pressed_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "e545f57e1b9e18741f881cd8846336c1352f2996ad632ee38a439ee55380431a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShort/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShort/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShort/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShort_disabled_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "de711d5aa5d431b6262b32829d1ec56e11350739aab6dab3aa56899d3b4eabd5",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShort/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShort/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtShort/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtShort_mouseOver_0.png",
+      "width": 54,
+      "height": 34,
+      "sha256": "441742440e98284613e0a29245a2f7eddb8e0f91a4893642dfe98e03252add3d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtShort/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtShort/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtWhisper/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtWhisper_normal_0.png",
+      "width": 12,
+      "height": 19,
+      "sha256": "25c324f704079cc7e469a7c191d99721273d494e93ff2a411eb4bf242879b091",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtWhisper/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtWhisper/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtWhisper/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtWhisper_pressed_0.png",
+      "width": 12,
+      "height": 19,
+      "sha256": "23021c2b0333413b2c242402c98252dd1a65d97e812b0566a76e5fce0924faa4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtWhisper/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtWhisper/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtWhisper/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtWhisper_disabled_0.png",
+      "width": 12,
+      "height": 19,
+      "sha256": "b6b1f2e8edeaef676e3c537d7abc51cd9525b221346c7004a943a081a3bccca6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtWhisper/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtWhisper/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtWhisper/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtWhisper_mouseOver_0.png",
+      "width": 12,
+      "height": 19,
+      "sha256": "25c324f704079cc7e469a7c191d99721273d494e93ff2a411eb4bf242879b091",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtWhisper/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtWhisper/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtClaim/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtClaim_normal_0.png",
+      "width": 20,
+      "height": 19,
+      "sha256": "90b68681534ebbcc481d5c4cd5ae35394984db70e3f3406815be507655ab6322",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtClaim/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtClaim/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtClaim/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtClaim_pressed_0.png",
+      "width": 20,
+      "height": 19,
+      "sha256": "0aa9034c8603c2eb7189cc229502edf848d045b574d584d1f7a9a9c63a456c7f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtClaim/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtClaim/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtClaim/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtClaim_disabled_0.png",
+      "width": 20,
+      "height": 19,
+      "sha256": "9211d2c3fb5bb7b4f3447d882bdb59eeaa654ab9b17f3d23f13ded5938f55c7f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtClaim/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtClaim/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtClaim/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_BtClaim_mouseOver_0.png",
+      "width": 20,
+      "height": 19,
+      "sha256": "c1536e0f2db9ae9904d70209bc4b7b7d17f2c380b1d56b7fc4ccaa41ca41036d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/BtClaim/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/BtClaim/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "c84c6e71b37e5e26a34c27a1df75fed2f96d1fb414356e43b82621057c7ae87d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "7386efa17d5e519dff7d496798999f6836b4b41c64da20a82e91de4ab54a26fb",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "de862633fc2cf396b9aba043922be9de1a19e48928666fb40c818d2da5daa343",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "83fe5811908799397d1425d37104a859bbd1eca8a048b55d05383ad14eeabced",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "83fe5811908799397d1425d37104a859bbd1eca8a048b55d05383ad14eeabced",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "EquipKey/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_EquipKey_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "c84c6e71b37e5e26a34c27a1df75fed2f96d1fb414356e43b82621057c7ae87d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/EquipKey/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/EquipKey/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "f700bd8f61077cf11c2c13de4783975adf220dc35bf28e51fb311156b1d8e006",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "83ebdb14325e31e9da1e57235260fef531e5611158e65581360d682abb6ae9d0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "6073c2b80b9f4ab4409044a8dbe85da63bd666b695f11717203a01ec1dac5582",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "d98bfe2df85f878ec2a983a2ea5d1df63b415f3c51fb0366585f050f2809ff64",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "d98bfe2df85f878ec2a983a2ea5d1df63b415f3c51fb0366585f050f2809ff64",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "InvenKey/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_InvenKey_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "f700bd8f61077cf11c2c13de4783975adf220dc35bf28e51fb311156b1d8e006",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/InvenKey/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/InvenKey/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "98313e636c3cd72f6aeb00f4ea55221b49c75d23b02b4e2273c4f0f7335e7448",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "aade73629aaebcaf19949fbf673b0d791247f244247dbf4b87e79c584877b195",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "4cf6fca5e5a558a0e345f597c3980a3c88bf6b40feaa09ec88246c91020fd87e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "eabb198a0cdc6311b8cbc9eb480e97850f2e1c00cb0222b31527e4cc41144fa5",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "eabb198a0cdc6311b8cbc9eb480e97850f2e1c00cb0222b31527e4cc41144fa5",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "StatKey/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_StatKey_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "98313e636c3cd72f6aeb00f4ea55221b49c75d23b02b4e2273c4f0f7335e7448",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/StatKey/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/StatKey/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "12c4484079c708f20bc72c682bb115e6d9364a5f03bb3c620e9853797598535a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "a3dc5bd37a941e4c772f8a60f144a8c9b50ec6fb6b71df82f4d9105716f36c91",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "bd7ff3355de898a4ed768643e534f1080b68d50eef5ee27ccc43d94bd047f464",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "8dd748ae895105e0af994f0798065440c1c32ccb17f0571146ceadfebe05aaf1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "8dd748ae895105e0af994f0798065440c1c32ccb17f0571146ceadfebe05aaf1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "SkillKey/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_SkillKey_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "12c4484079c708f20bc72c682bb115e6d9364a5f03bb3c620e9853797598535a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/SkillKey/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/SkillKey/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "c0cfd5ddaa1b12ae223e74f74ebec695220a9d6e5601948b1428818a4b1156ca",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "4a297c21c8720b627666deb30d6d5c4895dee68cf0df424d0b8efbffe1eaf598",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "5c5f7a6527684028c392f9d89cd515f8a696da3668c4761a1df1aaee9e401393",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "3b85a49d4a3ba6bdb5c9d8e959a24d7f4fe21b0f14690a2f0c21d74188be1e55",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "c0cfd5ddaa1b12ae223e74f74ebec695220a9d6e5601948b1428818a4b1156ca",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "KeySet/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_KeySet_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "3b85a49d4a3ba6bdb5c9d8e959a24d7f4fe21b0f14690a2f0c21d74188be1e55",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/KeySet/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/KeySet/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "8c614ea18c8943a13d60c5319967ced6fbec98fcd55da145c9e903f158cedf36",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "a5113d650da6431e176f117134e662f98177551e812d4516414723b3f9cab7d9",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "8630ec6c03f49ad6ac862c22cd97989f754367f2f3192b2f432f93f0e604de98",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "6a0a7f3d5ce39f1c916b51186ac9e9d41b801520d1ef87d7d1ab0d7eba9d01bf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "8c614ea18c8943a13d60c5319967ced6fbec98fcd55da145c9e903f158cedf36",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlot/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlot_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "6a0a7f3d5ce39f1c916b51186ac9e9d41b801520d1ef87d7d1ab0d7eba9d01bf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlot/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlot/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/normal/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_normal_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "1f29cd1ffb7c1117927016f4114b1dcc3c74880f298b0de9634cc05993e20298",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/normal/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/pressed/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_pressed_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "e2dfa90e7035cc8c85801208e4c9cb9fa2f9a3a03b5708b722d56eb54bc6582a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/pressed/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/disabled/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_disabled_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "bb321ced527948e8193df40b0955997b948d353757614f09580c494b50b6aae2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/disabled/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/mouseOver/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_mouseOver_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "58dc92b4780345d8258b0c9455a8a69573a16ee7861e91ef94918451ab71a607",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/mouseOver/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/ani/0": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_ani_0.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "1f29cd1ffb7c1117927016f4114b1dcc3c74880f298b0de9634cc05993e20298",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/ani/0",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/ani/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "QuickSlotD/ani/1": {
+      "url": "assets/UI.wz_StatusBar.img_QuickSlotD_ani_1.png",
+      "width": 28,
+      "height": 20,
+      "sha256": "58dc92b4780345d8258b0c9455a8a69573a16ee7861e91ef94918451ab71a607",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/QuickSlotD/ani/1",
+      "resolvedSource": "UI.wz/StatusBar.img/QuickSlotD/ani/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 500,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/0": {
+      "url": "assets/UI.wz_StatusBar.img_key_0.png",
+      "width": 28,
+      "height": 11,
+      "sha256": "3fb6da3778de69813adf8156b019f99ca806cb100782f02c938e5c69fa71f202",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/0",
+      "resolvedSource": "UI.wz/StatusBar.img/key/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/1": {
+      "url": "assets/UI.wz_StatusBar.img_key_1.png",
+      "width": 18,
+      "height": 11,
+      "sha256": "f6f08edfea22bbe97654ae83efe6eca17a40b135feacc764b0d3412143bd9365",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/1",
+      "resolvedSource": "UI.wz/StatusBar.img/key/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/2": {
+      "url": "assets/UI.wz_StatusBar.img_key_2.png",
+      "width": 19,
+      "height": 11,
+      "sha256": "23501748904f4cb820853b80f16b2a3d7b57d374bfdf8a715a237d2cd081209b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/2",
+      "resolvedSource": "UI.wz/StatusBar.img/key/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/3": {
+      "url": "assets/UI.wz_StatusBar.img_key_3.png",
+      "width": 22,
+      "height": 13,
+      "sha256": "ceb033283bbc7f9937f7192f27e7cf5fa68d2d0da12bf2975a70a38406eea337",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/3",
+      "resolvedSource": "UI.wz/StatusBar.img/key/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/4": {
+      "url": "assets/UI.wz_StatusBar.img_key_4.png",
+      "width": 24,
+      "height": 11,
+      "sha256": "df43ef2839290d0db65c1d54e5238eb96ec174022ef2fa915d21a5643872c0d0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/4",
+      "resolvedSource": "UI.wz/StatusBar.img/key/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/5": {
+      "url": "assets/UI.wz_StatusBar.img_key_5.png",
+      "width": 19,
+      "height": 11,
+      "sha256": "124318e85216f777ceb57238ca7efad9020bf1db87d189174c67a7ac3249cb93",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/5",
+      "resolvedSource": "UI.wz/StatusBar.img/key/5",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/6": {
+      "url": "assets/UI.wz_StatusBar.img_key_6.png",
+      "width": 21,
+      "height": 11,
+      "sha256": "e0cf53ecea1e1ad59067b6b0421b05503cc4096813db3857fe7a9a63bb9ca3d2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/6",
+      "resolvedSource": "UI.wz/StatusBar.img/key/6",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "key/7": {
+      "url": "assets/UI.wz_StatusBar.img_key_7.png",
+      "width": 22,
+      "height": 11,
+      "sha256": "657b41426235d79051b0d011192536e4fcec60830765fb8950e3b8bc7b0de298",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/key/7",
+      "resolvedSource": "UI.wz/StatusBar.img/key/7",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/Lbracket": {
+      "url": "assets/UI.wz_StatusBar.img_number_Lbracket.png",
+      "width": 2,
+      "height": 9,
+      "sha256": "76f3a77d032c61079cf2536c924e2d9c7c478668d35beb107298e0e7afd54cba",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/Lbracket",
+      "resolvedSource": "UI.wz/StatusBar.img/number/Lbracket",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/Rbracket": {
+      "url": "assets/UI.wz_StatusBar.img_number_Rbracket.png",
+      "width": 2,
+      "height": 9,
+      "sha256": "e39c7a12f77606fef61f46e103779d60aeb53be4a3692467750666ab52317561",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/Rbracket",
+      "resolvedSource": "UI.wz/StatusBar.img/number/Rbracket",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/slash": {
+      "url": "assets/UI.wz_StatusBar.img_number_slash.png",
+      "width": 7,
+      "height": 7,
+      "sha256": "2b1b751bc9bc54fd820406fdb952d1f3505bac1ca99dc25bddb80b5e4acd903a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/slash",
+      "resolvedSource": "UI.wz/StatusBar.img/number/slash",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/percent": {
+      "url": "assets/UI.wz_StatusBar.img_number_percent.png",
+      "width": 7,
+      "height": 7,
+      "sha256": "c1805ba85ab9972cbc9955253cfa521d09f1db07f07a595549c606bb0126e10d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/percent",
+      "resolvedSource": "UI.wz/StatusBar.img/number/percent",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/0": {
+      "url": "assets/UI.wz_StatusBar.img_number_0.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "db5b23080f15f78339ded57e44c929c7f931be0a74f7f5a42771a96265effd60",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/0",
+      "resolvedSource": "UI.wz/StatusBar.img/number/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/1": {
+      "url": "assets/UI.wz_StatusBar.img_number_1.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "f0189d86f212f6fa0e76d44d4805dbe89fe2ee40566916ee0b29643b17a19cf0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/1",
+      "resolvedSource": "UI.wz/StatusBar.img/number/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/2": {
+      "url": "assets/UI.wz_StatusBar.img_number_2.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "623d161c5dd668c950ef5f56ea2e0ae2c5afd18c777fcfb9be2d160697060801",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/2",
+      "resolvedSource": "UI.wz/StatusBar.img/number/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/3": {
+      "url": "assets/UI.wz_StatusBar.img_number_3.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "6930f7e96896bd23e76e3b1e7a2c403930c3a475f1ce2928149a3c001849f7de",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/3",
+      "resolvedSource": "UI.wz/StatusBar.img/number/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/4": {
+      "url": "assets/UI.wz_StatusBar.img_number_4.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "b20c92c0189be89992b47560a3ab76a6d915dc49cbf665f7e2ad00fa6b2b1f6d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/4",
+      "resolvedSource": "UI.wz/StatusBar.img/number/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/5": {
+      "url": "assets/UI.wz_StatusBar.img_number_5.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "e048909cd9e74e5d871ca687c51726d33e5d4d8da2adf4bf29ed5e194d9913b1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/5",
+      "resolvedSource": "UI.wz/StatusBar.img/number/5",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/6": {
+      "url": "assets/UI.wz_StatusBar.img_number_6.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "905141464dd9aae7c9599f64400a81c9a69ed7938df716c6b9c594188a820d9e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/6",
+      "resolvedSource": "UI.wz/StatusBar.img/number/6",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/7": {
+      "url": "assets/UI.wz_StatusBar.img_number_7.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "aece1d3a13707970e800c037c8367a00a5d6f92b2bdf7cb8ab42bce7bcd24656",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/7",
+      "resolvedSource": "UI.wz/StatusBar.img/number/7",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/8": {
+      "url": "assets/UI.wz_StatusBar.img_number_8.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "f4ef8b0306401731192cbdd9c09a4c67a789cfd884807cb3705d91b6a8306e99",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/8",
+      "resolvedSource": "UI.wz/StatusBar.img/number/8",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "number/9": {
+      "url": "assets/UI.wz_StatusBar.img_number_9.png",
+      "width": 5,
+      "height": 7,
+      "sha256": "8423b2849444168cf4e6626c5ee826d25c3667e13dfe9baa5cd97a2ba23e0c17",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/number/9",
+      "resolvedSource": "UI.wz/StatusBar.img/number/9",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/0": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_0.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "004fe2dac4cc4c41b5ce57d59fbeff60e43e8c5f35c51060080ebd4e4212137c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/0",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/1": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_1.png",
+      "width": 3,
+      "height": 7,
+      "sha256": "e7c128d7c9ffe4ff27fe5fef4bb96acb7ff0955e80df03fc907cb0218d6539c8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/1",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/2": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_2.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "a51e4424d9b94665d5404a2147845411800a0997c533ab79559160fbc5b10629",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/2",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/3": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_3.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "b349df50cf619c02f9391c81541134db236ba319a091d0229d86b840e48885c8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/3",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/4": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_4.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "4a8bd31c6cde3bcd5111ca9217f070bcb8956a02114e3aff4f27709fb3d235a8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/4",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/5": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_5.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "1cf264665020833680150d453cab2356d1b459fe2e46b6a720251a7df5c6f482",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/5",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/5",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/6": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_6.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "a503b227f60ffb02eb2f7fe1ff7b15e3d1d585c33b559766549f22a02867ecd4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/6",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/6",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/7": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_7.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "b92d9620252e771ca464ae4ceb2b845d9e1281fd363637961b737111b32f6b69",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/7",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/7",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/8": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_8.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "41436a2ffb6f3f2fbfb7b44a2bd6b2aa1f375227cf2e76e6c4da7c1597fd93b2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/8",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/8",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FontMemo/9": {
+      "url": "assets/UI.wz_StatusBar.img_FontMemo_9.png",
+      "width": 6,
+      "height": 7,
+      "sha256": "4b063867f30a0a57107a6a7fb09deb0299963c21ff6630c68d661b8769eba68c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/StatusBar.img/FontMemo/9",
+      "resolvedSource": "UI.wz/StatusBar.img/FontMemo/9",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "inventoryUi": {
+    "backgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_Item_backgrnd.png",
+      "width": 175,
+      "height": 289,
+      "sha256": "d81e58ff34e3218ed5e3226a0b3cffb5723ba15f77e0d57c2749bfbe02473eaf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/backgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "activeIcon": {
+      "url": "assets/UI.wz_UIWindow.img_Item_activeIcon.png",
+      "width": 36,
+      "height": 36,
+      "sha256": "2eb15b971c628eb8ee6fea4d04e298d0b0ff355720923028aa9e6da72593e530",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/activeIcon",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/activeIcon",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_normal_0.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "db13e4d39f9dfad6a84f3aedf260aad105fcac9b8cc84c690d0cae9d02daa029",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_pressed_0.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "9b3df51da4a2da3cfe4e3eccb6b7c17138086b2f0c7bff841250c3e61d9a9a59",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_disabled_0.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "31cbe33e8d91e84680f81b75bdc05dfdd0e2f418b9cebfcc3866360f71e4e806",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_mouseOver_0.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "4b0c63a843b185e5ef23d87419ad947cf28d59c474c1355fcd2909d2ea99ac1c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/mouseOver/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_mouseOver_1.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "db13e4d39f9dfad6a84f3aedf260aad105fcac9b8cc84c690d0cae9d02daa029",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/mouseOver/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_mouseOver_2.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "4aa446fe6894215bd5baa053c70a33a2b8f5711ae161e6c1f069f2e272d287cb",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCoin/mouseOver/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCoin_mouseOver_3.png",
+      "width": 14,
+      "height": 14,
+      "sha256": "a10085a52c230e64e9ebf50f04e49b9def5eae8d377fef2e789cc4f58dcbbc6a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCoin/mouseOver/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/enabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_enabled_0.png",
+      "width": 22,
+      "height": 11,
+      "sha256": "98d01dc16cf9c175bebb4d34e4b27943ed3aa0c5c70bdd94d417db829a764777",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/enabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/enabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/enabled/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_enabled_1.png",
+      "width": 13,
+      "height": 9,
+      "sha256": "ff9c5ced574231a13bf495922ae3df685e25e1cb3367c34ef2ceaf15ee5e2c36",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/enabled/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/enabled/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/enabled/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_enabled_2.png",
+      "width": 26,
+      "height": 11,
+      "sha256": "6f2810cd560236c66e8047a374dc74608b199450e2d35b34d81665aa4887ccde",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/enabled/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/enabled/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/enabled/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_enabled_3.png",
+      "width": 13,
+      "height": 9,
+      "sha256": "92c55414e7d4a45e86198c80d24278e0b241f4786760a31718a2fa3e69dc46d8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/enabled/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/enabled/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/enabled/4": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_enabled_4.png",
+      "width": 20,
+      "height": 8,
+      "sha256": "bc4eba5c713beaa900b196ce8d2f8dfa448b9b91ae7d53847ef38a9643239e7f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/enabled/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/enabled/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_disabled_0.png",
+      "width": 24,
+      "height": 11,
+      "sha256": "002062ee7db09fef6c290839698bf643f47d0c51ad9792c97d364f6c6f60f68b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/disabled/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_disabled_1.png",
+      "width": 16,
+      "height": 9,
+      "sha256": "9317662f98a31a0e662ba0698e851e89268325b8d5ee5e8fabc2f1ae3264b235",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/disabled/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/disabled/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/disabled/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_disabled_2.png",
+      "width": 27,
+      "height": 11,
+      "sha256": "f202176eb72bfac858c5fb6e085cd71dbd00dadc3a7d8347d7728d2932e02c29",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/disabled/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/disabled/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/disabled/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_disabled_3.png",
+      "width": 14,
+      "height": 9,
+      "sha256": "f06d886b6604cb5105b7e19a8e4f6da3af474e4956fbbb5ab7c777166ea93e9f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/disabled/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/disabled/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Tab/disabled/4": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Tab_disabled_4.png",
+      "width": 21,
+      "height": 8,
+      "sha256": "e4cfb1df07ca9b000a6e7e87cdf237f7105a3d725a97eb575dd7670b9e84c882",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Tab/disabled/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Tab/disabled/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "bossPetIcon": {
+      "url": "assets/UI.wz_UIWindow.img_Item_bossPetIcon.png",
+      "width": 34,
+      "height": 38,
+      "sha256": "ec67f5b35f2525f5609dfea5dc6f754fde296101f9e28a8543567ad0a56eefd6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/bossPetIcon",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/bossPetIcon",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "shadow": {
+      "url": "assets/UI.wz_UIWindow.img_Item_shadow.png",
+      "width": 26,
+      "height": 6,
+      "sha256": "6717d1f4a5d0d516d0f6d832422e7a5ebd135340520aa6a09da824f8ea2dc53a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/shadow",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/shadow",
+      "origin": {
+        "x": -3,
+        "y": 6
+      },
+      "x": 3,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGather/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtGather_normal_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "822376c918500c1e425c4027b1019b748a9b3122b47e591742bfc71f0dcc3c3c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtGather/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtGather/normal/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGather/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtGather_pressed_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "5cac4149d644106620f277f55cfa2b2b28698f5c1ea7d3fc28612811a500858f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtGather/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtGather/pressed/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGather/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtGather_disabled_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "29840a9fcef860cee2f80fd092dc599dd9df31944e7a3c7ba0f62b1c4f77a87f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtGather/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtGather/disabled/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGather/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtGather_mouseOver_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "3926600b7f18161b79fba23f92958a7fc3f6f63c6afe78b92d275165929ad2c2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtGather/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtGather/mouseOver/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSort/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSort_normal_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "9270f500543eb8ea32dd9717e8e68b38b23d873659a13df3823d63e8540dec56",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSort/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSort/normal/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSort/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSort_pressed_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "41791fd35c960b173fafdea9c5d3d70000702a8987a877bfa746c32ffc07b1da",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSort/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSort/pressed/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSort/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSort_disabled_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "1ef45f4d7fb3a480516ab517521a62b998c7b2a8b3c6013c2f654b90513c28a4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSort/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSort/disabled/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSort/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSort_mouseOver_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "eb6e9a9fa5103228d7742861c63ba06df62571dd62a5ac3254163fbe21a2e0c1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSort/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSort/mouseOver/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Quality/0/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Quality_0_0.png",
+      "width": 5,
+      "height": 5,
+      "sha256": "b22d914ab2b3ef50f828840d61207fc2ef2e3c6fae8e40b8b48e52fd32cfc8b4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Quality/0/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Quality/0/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Quality/1/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Quality_1_0.png",
+      "width": 5,
+      "height": 5,
+      "sha256": "272d6afbfb72826eb7b8d7e37a6df0cb7dc708863b9d42f07155419022e10b99",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Quality/1/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Quality/1/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Quality/2/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Quality_2_0.png",
+      "width": 5,
+      "height": 5,
+      "sha256": "156b64e43e9730f70fee606b2928258f781dbdb1cc9cf8de636b3b197649b463",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Quality/2/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Quality/2/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "Quality/3/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_Quality_3_0.png",
+      "width": 5,
+      "height": 5,
+      "sha256": "5e194192c6cad4b108c1a702fb1f2ab6bb1d304798dccb952e073e32276e9b02",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/Quality/3/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/Quality/3/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FullBackgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_Item_FullBackgrnd.png",
+      "width": 603,
+      "height": 289,
+      "sha256": "56056c0becbd31f5f24994ed35231320c52d4449107b7b8ca6d3093f7907221f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/FullBackgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/FullBackgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "disabled": {
+      "url": "assets/UI.wz_UIWindow.img_Item_disabled.png",
+      "width": 32,
+      "height": 32,
+      "sha256": "25acaf24b5fe8260ce0041ad4b97bc63167659bfb5b3339fdf3fc8c38ca219f7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/disabled",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/disabled",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtFull/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtFull_normal_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "0a8dab0bd069e415568b3f00233e1b2c56dee6b3ae61b14f811e1593ce6c7e72",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtFull/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtFull/normal/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtFull/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtFull_pressed_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "d63918e3d0bf58f3a077a62881202913717401081e886109301e6746aa8c871a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtFull/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtFull/pressed/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtFull/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtFull_disabled_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "6fae4c4e2fcf4c879b71506059fe4e1b8a177dfe502fc321cff8d7a2299f4fd8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtFull/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtFull/disabled/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtFull/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtFull_mouseOver_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "43bf6306565cdde2c1bb16d706e4e55474a89ba7b2fc03a7abb3e3ccb0f0da84",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtFull/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtFull/mouseOver/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSmall/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSmall_normal_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "73c3cb0772e16fd60b43a429a6241648dd84d46dbfc2c429c4053ae37f53466b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSmall/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSmall/normal/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSmall/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSmall_pressed_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "5993788e0ca6754c08c2789cdf8bcbfda678bc0101f0e53eb0d86db12ec1c516",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSmall/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSmall/pressed/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSmall/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSmall_disabled_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "a25d85aa98c09697a1a9adf1c5807c10a2d9c924177117efffc9ff11d8294d91",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSmall/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSmall/disabled/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSmall/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtSmall_mouseOver_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "ebe6f94e05811653684745b344b84fd15217dd6a73430e838ecab52c0d1372f4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtSmall/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtSmall/mouseOver/0",
+      "origin": {
+        "x": 6,
+        "y": 6
+      },
+      "x": -6,
+      "y": -6,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCashshop_normal_0.png",
+      "width": 92,
+      "height": 17,
+      "sha256": "c2d8d4ce2ad9e87d5d8632bfbcfc6991d5e93ff74f26fa747c70280138cb961a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCashshop/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCashshop/normal/0",
+      "origin": {
+        "x": 46,
+        "y": 8
+      },
+      "x": -46,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCashshop_pressed_0.png",
+      "width": 92,
+      "height": 17,
+      "sha256": "b02dec9b880553efe1d4b3e6d60775bb2733f514b84fd0e82f6ef761123e2456",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCashshop/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCashshop/pressed/0",
+      "origin": {
+        "x": 46,
+        "y": 8
+      },
+      "x": -46,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCashshop_disabled_0.png",
+      "width": 92,
+      "height": 17,
+      "sha256": "8da74bbf6a13b3e0f926e1fb1bb290378a01e1071e47e494301c7779bd7f8852",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCashshop/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCashshop/disabled/0",
+      "origin": {
+        "x": 46,
+        "y": 8
+      },
+      "x": -46,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_BtCashshop_mouseOver_0.png",
+      "width": 92,
+      "height": 17,
+      "sha256": "d160968b3d035a7165bf2dcc0ba6257ceb904f08ebf4569dd4f19ee8b50d6ac0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/BtCashshop/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/BtCashshop/mouseOver/0",
+      "origin": {
+        "x": 46,
+        "y": 8
+      },
+      "x": -46,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/inventory/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_inventory_0.png",
+      "width": 36,
+      "height": 36,
+      "sha256": "63b60c3ac48ad94f5ce3ead721d0b72f55d94488f15355f35fa597b9837dccf8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/inventory/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/inventory/0",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/inventory/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_inventory_1.png",
+      "width": 36,
+      "height": 36,
+      "sha256": "e4866fa95f2bf5e99a02d98072c7969f9a69fdd4ba5a34b8c5c0fca38c99196c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/inventory/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/inventory/1",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/inventory/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_inventory_2.png",
+      "width": 36,
+      "height": 36,
+      "sha256": "c26975662eaa31669c466d3cccad54e3d32d2b61e52e13d25813e8a94deca8fd",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/inventory/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/inventory/2",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/inventory/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_inventory_3.png",
+      "width": 36,
+      "height": 36,
+      "sha256": "cc064aa4e8b55e005d84dab70c3346befa55fecc46a6b16624367cf9438283db",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/inventory/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/inventory/3",
+      "origin": {
+        "x": 2,
+        "y": 2
+      },
+      "x": -2,
+      "y": -2,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab0/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab0_0.png",
+      "width": 34,
+      "height": 18,
+      "sha256": "0dd93a187d91d3edec4d9965bbd7a4bb2f95e726d30089ee0fad5675bd46fe80",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab0/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab0/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab0/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab0_1.png",
+      "width": 34,
+      "height": 18,
+      "sha256": "5e8984ef51302c478dfcb1b395bfa46979d89f4106d52d6a3b996bd3c21002f3",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab0/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab0/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab0/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab0_2.png",
+      "width": 34,
+      "height": 18,
+      "sha256": "5b7635f90be29207b51eb7930a89903b7f6b7acbf38134d28e53ebabd36e059c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab0/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab0/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab0/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab0_3.png",
+      "width": 34,
+      "height": 18,
+      "sha256": "3e7218d599781e22c052383b8fcf316c6a6562f0da28ecc69e00883b98010cee",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab0/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab0/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab0/4": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab0_4.png",
+      "width": 34,
+      "height": 18,
+      "sha256": "a8dd1168d5b6ce88bba0d4a34ea9699a261a6b846db225f71ddc8bb3bd07e15b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab0/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab0/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab1/0": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab1_0.png",
+      "width": 34,
+      "height": 19,
+      "sha256": "be786cf81dd5ef446a475df7592af3798304b1dddb0210e1f48c0b3a8dca6e02",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab1/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab1/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab1/1": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab1_1.png",
+      "width": 34,
+      "height": 19,
+      "sha256": "1dd3efa47d1de142e0538e7edaca153b286689deb815ab4a6a102df0134052cb",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab1/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab1/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab1/2": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab1_2.png",
+      "width": 34,
+      "height": 19,
+      "sha256": "97433b1781e3fb3edbe95beaf5363c3bae0cddd07abd9bda1c31dad6b6369d04",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab1/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab1/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab1/3": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab1_3.png",
+      "width": 34,
+      "height": 19,
+      "sha256": "68f55fd391eeb1f9f52d8a1f5fa2b1d3990639f87a5d92c15d01ef5c650ff925",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab1/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab1/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "New/Tab1/4": {
+      "url": "assets/UI.wz_UIWindow.img_Item_New_Tab1_4.png",
+      "width": 34,
+      "height": 19,
+      "sha256": "113885aa778e523c52f763677761c8f38b0096c26c22575a2ff3ab29e2f576e4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Item/New/Tab1/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Item/New/Tab1/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "closeButton": {
+    "normal/0": {
+      "url": "assets/UI.wz_Basic.img_BtClose_normal_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "35369712a71cf9267292f411b8d876f030b04d938014d80f505c09abf398c973",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtClose/normal/0",
+      "resolvedSource": "UI.wz/Basic.img/BtClose/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "pressed/0": {
+      "url": "assets/UI.wz_Basic.img_BtClose_pressed_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "eb540a41652277ff6a945ee06d0a316b57a9503cd90838736013672a7315b9b4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtClose/pressed/0",
+      "resolvedSource": "UI.wz/Basic.img/BtClose/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "disabled/0": {
+      "url": "assets/UI.wz_Basic.img_BtClose_disabled_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "8bef9a0576bf4fb386a3cb4317d6d7cf3de7197922c58f24beff482e838d9c9f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtClose/disabled/0",
+      "resolvedSource": "UI.wz/Basic.img/BtClose/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "mouseOver/0": {
+      "url": "assets/UI.wz_Basic.img_BtClose_mouseOver_0.png",
+      "width": 12,
+      "height": 12,
+      "sha256": "cfbdfc97f67a900848e5473e7174930332eca6952f20fcf3b04036dba26bfe47",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtClose/mouseOver/0",
+      "resolvedSource": "UI.wz/Basic.img/BtClose/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "tabUi": {
+    "left0": {
+      "url": "assets/UI.wz_Basic.img_Tab2_left0.png",
+      "width": 4,
+      "height": 19,
+      "sha256": "5d76d17896dab9f1a4198832e24061de968dbbd02910db1e5169fe234eb9288f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/left0",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/left0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "left1": {
+      "url": "assets/UI.wz_Basic.img_Tab2_left1.png",
+      "width": 4,
+      "height": 19,
+      "sha256": "9e4c1076daf03c550983d89b85316ebdb7fe6f934d35f43650f05488956b8dfc",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/left1",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/left1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "middle0": {
+      "url": "assets/UI.wz_Basic.img_Tab2_middle0.png",
+      "width": 8,
+      "height": 19,
+      "sha256": "2a300c062559a827384250d288773f7bcc7303564474d15b8391562f5e7b3d1a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/middle0",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/middle0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "middle1": {
+      "url": "assets/UI.wz_Basic.img_Tab2_middle1.png",
+      "width": 8,
+      "height": 19,
+      "sha256": "cddb15d97878023d3258d44108240c3dd2a3a5e3981abdda8fa57a3a9fe2367f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/middle1",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/middle1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "middle2": {
+      "url": "assets/UI.wz_Basic.img_Tab2_middle2.png",
+      "width": 8,
+      "height": 19,
+      "sha256": "8768c7d696603345da7c777fa6450773004210844eeb3d9b94d1c3256de2466e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/middle2",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/middle2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "right0": {
+      "url": "assets/UI.wz_Basic.img_Tab2_right0.png",
+      "width": 4,
+      "height": 19,
+      "sha256": "068fc74665437581e7ca10765ca160f0ba34871099c04d9d4f6591ef1c16060d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/right0",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/right0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "right1": {
+      "url": "assets/UI.wz_Basic.img_Tab2_right1.png",
+      "width": 4,
+      "height": 19,
+      "sha256": "4a12423a119829b25cd6ff2848e3d80cd13cb94d48683678184a66fc756ba900",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/right1",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/right1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "fill0": {
+      "url": "assets/UI.wz_Basic.img_Tab2_fill0.png",
+      "width": 1,
+      "height": 19,
+      "sha256": "dbbcf6573c54d2893f7e1cbca2ea4f3db48e15a59174a9435c0766c2a26d32df",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/fill0",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/fill0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "fill1": {
+      "url": "assets/UI.wz_Basic.img_Tab2_fill1.png",
+      "width": 1,
+      "height": 19,
+      "sha256": "c09de05c350133d02902d116277328390ee859ab17f5e37e6c4262f12bf9502a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Tab2/fill1",
+      "resolvedSource": "UI.wz/Basic.img/Tab2/fill1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "noticeUi": {
+    "backgrnd": {
+      "url": "assets/UI.wz_Basic.img_Notice_backgrnd.png",
+      "width": 264,
+      "height": 132,
+      "sha256": "d3329f3dc313d5031510762bedf42c640079af366e46001c226b24be867a1785",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/Notice/backgrnd",
+      "resolvedSource": "UI.wz/Basic.img/Notice/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "okButton": {
+    "normal/0": {
+      "url": "assets/UI.wz_Basic.img_BtOK_normal_0.png",
+      "width": 65,
+      "height": 24,
+      "sha256": "1b8d9f82aa8d3cbef92f617ae2b0e112591f2710dbf479c238af0a60cb46c427",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtOK/normal/0",
+      "resolvedSource": "UI.wz/Basic.img/BtOK/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "pressed/0": {
+      "url": "assets/UI.wz_Basic.img_BtOK_pressed_0.png",
+      "width": 65,
+      "height": 24,
+      "sha256": "53b8058364a5a188c66395fc662fbae68866ecad2bd6c09423f5d06e34f22d00",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtOK/pressed/0",
+      "resolvedSource": "UI.wz/Basic.img/BtOK/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "disabled/0": {
+      "url": "assets/UI.wz_Basic.img_BtOK_disabled_0.png",
+      "width": 65,
+      "height": 24,
+      "sha256": "ad157b369d7d65906e093cd14aeb9fb28a552b80afac7905ebfed517660fa9e6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtOK/disabled/0",
+      "resolvedSource": "UI.wz/Basic.img/BtOK/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "mouseOver/0": {
+      "url": "assets/UI.wz_Basic.img_BtOK_mouseOver_0.png",
+      "width": 65,
+      "height": 24,
+      "sha256": "c83f2d9dc6eb8800b6bfb885fd79344dd50bd1ebb754cd43b18b7f3a5ad9a8a9",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtOK/mouseOver/0",
+      "resolvedSource": "UI.wz/Basic.img/BtOK/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "keyFocused/0": {
+      "url": "assets/UI.wz_Basic.img_BtOK_keyFocused_0.png",
+      "width": 67,
+      "height": 26,
+      "sha256": "2ac829c987fe301b047c5edd2ba764b4dacca8cec34b8bbecdd50816cdff5355",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/Basic.img/BtOK/keyFocused/0",
+      "resolvedSource": "UI.wz/Basic.img/BtOK/keyFocused/0",
+      "origin": {
+        "x": 1,
+        "y": 1
+      },
+      "x": -1,
+      "y": -1,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "gameMenuUi": {
+    "backgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_backgrnd.png",
+      "width": 93,
+      "height": 140,
+      "sha256": "c0d3837f00b012ea95487fd374f8c0abd48fbeedc579d433b78aba2b1cd8b7a8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/backgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtChannel/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtChannel_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6f7806f5d7cea064537645fa018eb461741debc17ea270a8cd58e3e352c36108",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtChannel/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtChannel/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtChannel/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtChannel_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "b0067eb012a7dd0d8b1ef42a6c69fb4cef7e675592d599e3a205c66ad69b1b92",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtChannel/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtChannel/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtChannel/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtChannel_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "2ea7b03f127e9d0436a9852e46695d1bfee6c79dcecbd7fa606e613f20385fe0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtChannel/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtChannel/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtChannel/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtChannel_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "74ca8607d7f679ed79f83653c32d73b166624d6b0e249522bed52aa0b30a7ff0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtChannel/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtChannel/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkin/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSkin_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6f2d474dcbe286b4c3d7121b467e5936cf2655388a22fc49b560f6a2887b7501",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSkin/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSkin/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkin/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSkin_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "f18219c0900b8b2dcea2b92207d6fae7e475b6d51caf7a51cf41283ddc56d831",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSkin/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSkin/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkin/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSkin_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "10048ce7047385b986c5463eecc9addd09567b4af098860ad97170a8544ddf6a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSkin/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSkin/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkin/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSkin_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "88fbf439d3572c4f38bdb6479dd27227f67020d24459a59b8bd7ab962ac48ea9",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSkin/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSkin/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGameOpt/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtGameOpt_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6179568d05ac8d2c56b3fffd1eb1228c1cdc9feb217ff1cee8c5d128dda8f34c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGameOpt/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtGameOpt_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "56f81dd53758db395563233a17304de173f6346dd915689500509cb63012c239",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGameOpt/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtGameOpt_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "700180b91622b8256481a65f1251bf81e837ff23a5bf1d350d5f1765da20613a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGameOpt/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtGameOpt_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "d1de5b28b89929f195586edb9115592827f6c671523502295e00af0c3f67a334",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtGameOpt/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSysOpt/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSysOpt_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "81edce5052da247f768ff160ffd0d934b196ddeb184f249f8c52816cfe38638b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSysOpt/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSysOpt_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "64f442dc2b3efccca5fb0233757a91938e9d12a095c3977042235e1191dc1e4e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSysOpt/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSysOpt_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "585446fdf38b9de8c7a5631160360c1e0948c73edd3f61853642a9e613e4355f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSysOpt/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtSysOpt_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "c5f9d53aafa060618a217d687ef5c087a0e03e75677f728a0fae9b40b2ebbf28",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtSysOpt/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuit/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtQuit_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6ecce82f0aab1f34438ecb6279716295948c9b68f6625f64107c0b9bdd0b5b83",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtQuit/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtQuit/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuit/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtQuit_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9a3ca2f880e7047eb69ef75e9f3499ef3e904836093003e9a5b902a81e03de7d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtQuit/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtQuit/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuit/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtQuit_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "3eec93e016ae86e1d4f7a6ba3c0b5dcd4ae51caff2847d7ae3f4844dfb20c2df",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtQuit/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtQuit/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuit/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_GameMenu_BtQuit_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "4fe0df6667c5c8dad4bf466fbe3783c37f91f8883ba7155354297254ec94be9d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/GameMenu/BtQuit/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/GameMenu/BtQuit/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "shortcutUi": {
+    "BtItem/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtItem_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "dcd64557e6c2c91015a7b3b272f43bce3db1b2763c0d5132750f4b30c944010c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtItem/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtItem/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtItem/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtItem_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6f9d7b942cc3223256a809b5074a985b437729d1899c22e058b5bb211d2eb9d6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtItem/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtItem/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtItem/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtItem_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "d7079639b12fa3494c9e9741e36c3a15fb591075a17e9570663651083d185f94",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtItem/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtItem/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtItem/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtItem_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "ec1f0cf1dabd33409ca89edc3dbc91596e95f2ff62c0344f768db49f59e1b34c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtItem/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtItem/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtEquip/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtEquip_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "49d832c2d256dfd71ba0c3f828a5f0deaa35a8d6004839d0dd5713d8c8632faf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtEquip/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtEquip/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtEquip/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtEquip_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "1a6ec93046a0bab130829010d8387fd59f7f7b70cc3433d61d0de276edc385b4",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtEquip/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtEquip/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtEquip/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtEquip_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "6a13a62c42eb145ea60c256c5cd30671de581f1368569558223d82094c0722c0",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtEquip/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtEquip/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtEquip/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtEquip_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "f702ed9d187c8fd93fcd39892a4e1676ac0bbed80faa564ba76ae3013169a2c7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtEquip/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtEquip/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtStat/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtStat_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "80821c4a6a1cd2c9eba5c994fd06a98bd6553637f95574a47587d67324dab4e1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtStat/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtStat/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtStat/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtStat_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "b9ccef446d17e04b5f84171b4a0ecd4caf43ec56bd7ed7856252247d0358ab09",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtStat/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtStat/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtStat/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtStat_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "98afea0a993481a1d3574a51a979ca875b0962938086ca0b3c323f89017b7f71",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtStat/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtStat/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtStat/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtStat_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "069966a4f7ceae9ecb9d2e0376ad40037ed77652cb6a3b09836eded9ff3d2d03",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtStat/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtStat/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkill/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtSkill_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "050a475906f0c13189765c51554a43afba75723188e914c83719a124d0a4c3e6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtSkill/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtSkill/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkill/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtSkill_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "1b2dd0194322110dcce2bac917bcb0427036657e1d296c0a6b819800871ba56e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtSkill/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtSkill/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkill/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtSkill_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "48eca69b039284648f367d5af2834f3de15e569a3d3d42a09ae66463f2d7c739",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtSkill/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtSkill/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtSkill/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtSkill_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "a7d2d33ab912fe831b65642c1fe6dabab7ad2fd9d36dd0f133279e96c582b8f7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtSkill/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtSkill/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtParty/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtParty_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "b9098b03ec5238cf19c3c54d3149ccbdb635bf49791425fb8d665fd7010eb2b6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtParty/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtParty/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtParty/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtParty_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9a92933e88ee0ce0343ae9a964c3c3475ca70b89f422a94667eeefb020eb559a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtParty/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtParty/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtParty/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtParty_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "81fc2c45774a23d3f1c9cf14f2992875fff6f91e34f411a439ddf121d2de7424",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtParty/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtParty/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtParty/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtParty_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "5832c860263d32ae51e0352af963485bd321ccb515162c75df912054096bd1ff",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtParty/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtParty/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuest/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtQuest_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "d013db51fa31f3a758b477214915fe331656be7b08d9e657cacc726e9211d0f5",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtQuest/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtQuest/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuest/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtQuest_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "4a1c58177f5ad8fa2e3d73c825e58f0380af7a6f4c45407227dbef046005962b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtQuest/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtQuest/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuest/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtQuest_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9bc82aa3869013981eaed4042a09f1cd692cf24dcffaeb5861284c4b18d57971",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtQuest/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtQuest/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtQuest/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtQuest_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "86b1dc2031be9ff72972577734a0c2473a8210a078acfcb7e77853477108ab24",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtQuest/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtQuest/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMessenger/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMessenger_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "2aafee78318bc9e2591cf5ca68ee5284dc6811f6b27c780a7b670fa58e995c2d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMessenger/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMessenger/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMessenger/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMessenger_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "29899bbacae12ac6ae9b00a95eca7c7e782cd738bc2fa759c7bf109b355f5cee",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMessenger/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMessenger/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMessenger/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMessenger_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "bd2f52111571d38568af4e00ebb5b328d325034ed27809583fba5eabdb2297a2",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMessenger/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMessenger/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMessenger/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMessenger_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "7d7302518d48395b8dc46bf2e121557adac9088a0bec78cdd02cd745ea4f444a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMessenger/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMessenger/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGuild/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtGuild_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9188db8f61eada0208d751ff12d4366a3b815a73269e7ad1b70fe5e4f0f9105d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtGuild/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtGuild/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGuild/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtGuild_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9d3b6988238785d88ff7abb910a5bc64d485d4d4c606ba3f68ab671a6f2de4f6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtGuild/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtGuild/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGuild/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtGuild_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "c27eda53fad1b4b1d08fce7717a6c468759f2468ebc73e8d0bdd714044159ca8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtGuild/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtGuild/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtGuild/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtGuild_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "8567bf55b10cf2032e7512b6add3bd6a44e6c64ae453e5146bc307ce81eca946",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtGuild/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtGuild/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtComm/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtComm_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "ecc49f91845a0820ae7a2784d4a00dd216dd803961a61d414054547d0b43b31d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtComm/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtComm/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtComm/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtComm_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "ca86de1e01184e18cad8276eca9d04425db2f82d85851b930dd0e5dd00d592de",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtComm/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtComm/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtComm/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtComm_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "fd57da19ff840f37d882b82a620d484c2e6784a10a948d2cb2d19a54bf47acbf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtComm/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtComm/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtComm/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtComm_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "1f4ab174042827b5605fc9fea4fbe42ac23cb15abb2ce72e3593ca8e10550c85",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtComm/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtComm/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMobbook/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMobbook_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "18c8fa01e7b70fe8f667b89c846af00665b7c413b5a583e862d9ae56c7187c09",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMobbook/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMobbook/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMobbook/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMobbook_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "26dfc75e1f4f3313bcfe584c83e2c358120520db33065b69524ffa4002c782e1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMobbook/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMobbook/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMobbook/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMobbook_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "8b6dfee5e62b8a8e9a9a192bd58171e341c1bd5c8aa1d7b691ac2f1482390648",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMobbook/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMobbook/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtMobbook/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtMobbook_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "2f85ebea21163416467f2e01d34ebe7d5ece9e5a41981cb73a3d484d0bf5da19",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtMobbook/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtMobbook/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtRanking/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtRanking_normal_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "465e5e257d52578840642c7a007ff00f57f41fd1debf817171fafa599c68115c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtRanking/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtRanking/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtRanking/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtRanking_pressed_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "832cb748179d062290a8e2ac8dbd91e6b7d89151db3fc1463913ca09c7ef2abf",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtRanking/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtRanking/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtRanking/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtRanking_disabled_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "faa57988e85b64046939660e7b431855a186e242782eeb423bdb09045f4c1225",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtRanking/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtRanking/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtRanking/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_BtRanking_mouseOver_0.png",
+      "width": 81,
+      "height": 25,
+      "sha256": "9f6aac2d60208264d207bdb92e5fa79b505956107497a9fd9e1649fa4b63dd76",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/BtRanking/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/BtRanking/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "backgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_ShortCut_backgrnd.png",
+      "width": 91,
+      "height": 244,
+      "sha256": "5e8591e95a71b3cd9e677cda7470b64744fe28c5da0f51b1a97a733a14157ca9",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/ShortCut/backgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/ShortCut/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
+  },
+  "drops": {
+    "source": "P0nk/Cosmic/src/main/resources/db/data/152-drop-data.sql:88-97,9614,10572,12532-12536",
+    "officialParity": "reference private-server table; not independently verified against official GMS83",
+    "entries": [
+      {
+        "itemId": "4000019",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 600000
+      },
+      {
+        "itemId": "2000000",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 20000
+      },
+      {
+        "itemId": "2040002",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 300
+      },
+      {
+        "itemId": "2041001",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 300
+      },
+      {
+        "itemId": "2060000",
+        "minimum": 1,
+        "maximum": 2,
+        "questId": 0,
+        "chance": 30000
+      },
+      {
+        "itemId": "4010000",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 9000
+      },
+      {
+        "itemId": "4020000",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 9000
+      },
+      {
+        "itemId": "2061000",
+        "minimum": 1,
+        "maximum": 2,
+        "questId": 0,
+        "chance": 30000
+      },
+      {
+        "itemId": "1002067",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 1287
+      },
+      {
+        "itemId": "2010009",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 20000
+      },
+      {
+        "itemId": "2380000",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 8000
+      },
+      {
+        "itemId": "0",
+        "minimum": 4,
+        "maximum": 6,
+        "questId": 0,
+        "chance": 400000
+      },
+      {
+        "itemId": "2041045",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 750
+      },
+      {
+        "itemId": "2041043",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 750
+      },
+      {
+        "itemId": "1302000",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 700
+      },
+      {
+        "itemId": "1040002",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 700
+      },
+      {
+        "itemId": "1052095",
+        "minimum": 1,
+        "maximum": 1,
+        "questId": 0,
+        "chance": 700
+      }
+    ]
+  },
+  "checks": {
+    "uniquePng": 296,
+    "rgbaDecoded": 296
+  }
+}

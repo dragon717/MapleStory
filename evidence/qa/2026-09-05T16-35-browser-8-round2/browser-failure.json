@@ -1,0 +1,6 @@
+{
+  "runId": "2026-09-05T16-35-browser-8-round2",
+  "server": "http://127.0.0.1:3010",
+  "completed": false,
+  "error": "locator.click: Error: strict mode violation: locator('#hud [data-button=\"BtMenu\"]') resolved to 2 elements:\n    1) <button title=\"菜单\" type=\"button\" class=\"hud-button\" data-button=\"BtMenu\" aria-label=\"菜单（布局测试 3）\" data-test-layout=\"hud-buttons-3\">…</button> aka getByRole('button', { name: '菜单（布局测试 3）' })\n    2) <button title=\"菜单\" type=\"button\" class=\"hud-button\" data-button=\"BtMenu\" aria-label=\"菜单（布局测试 7）\" data-test-layout=\"hud-buttons-7\">…</button> aka getByRole('button', { name: '菜单（布局测试 7）' })\n\nCall log:\n\u001b[2m  - waiting for locator('#hud [data-button=\"BtMenu\"]')\u001b[22m\n"
+}

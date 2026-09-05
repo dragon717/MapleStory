@@ -1,0 +1,45 @@
+{
+  "actions": {
+    "stand": {
+      "sourceAction": "stand1",
+      "frameCount": 3,
+      "delays": [
+        500,
+        500,
+        500
+      ]
+    },
+    "walk": {
+      "sourceAction": "walk1",
+      "frameCount": 4,
+      "delays": [
+        180,
+        180,
+        180,
+        180
+      ]
+    },
+    "jump": {
+      "sourceAction": "jump",
+      "frameCount": 1,
+      "delays": [
+        200
+      ]
+    },
+    "attack": {
+      "sourceAction": "swingO1",
+      "frameCount": 3,
+      "delays": [
+        300,
+        150,
+        350
+      ]
+    }
+  },
+  "map": {
+    "id": "000010000",
+    "layers": 298,
+    "footholds": 83
+  },
+  "pngs": 125
+}

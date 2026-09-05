@@ -1,0 +1,285 @@
+{
+  "runId": "2026-09-05T08-37-24-160Z",
+  "server": "http://127.0.0.1:3010",
+  "browser": "Playwright Chromium headless",
+  "viewports": [
+    {
+      "name": "desktop-wide",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "landscape",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "name": "portrait-narrow",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "completed": false,
+  "testAccount": "omitted",
+  "results": [
+    {
+      "name": "login page has no horizontal overflow",
+      "status": "PASS",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "documentWidth": 1440,
+      "scrollWidth": 1440,
+      "horizontalOverflow": false,
+      "game": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "gameShell": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "hud": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "mapleHud": null,
+      "hudPosition": "absolute",
+      "mapleHudVisible": false,
+      "hpVisible": false,
+      "hpNumberVisible": false,
+      "menuVisible": false,
+      "inventoryVisible": false,
+      "toolbarSoundVisible": false,
+      "toolbarLogoutVisible": false,
+      "buttons": []
+    },
+    {
+      "name": "desktop-wide responsive layout",
+      "status": "PASS",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "documentWidth": 1440,
+      "scrollWidth": 1440,
+      "horizontalOverflow": false,
+      "game": {
+        "x": 152,
+        "y": 175,
+        "width": 1136,
+        "height": 639
+      },
+      "gameShell": {
+        "x": 152,
+        "y": 175,
+        "width": 1136,
+        "height": 639
+      },
+      "hud": {
+        "x": 156,
+        "y": 739,
+        "width": 800,
+        "height": 71
+      },
+      "mapleHud": {
+        "x": 156,
+        "y": 739,
+        "width": 800,
+        "height": 71
+      },
+      "hudPosition": "absolute",
+      "mapleHudVisible": true,
+      "hpVisible": true,
+      "hpNumberVisible": true,
+      "menuVisible": true,
+      "inventoryVisible": true,
+      "toolbarSoundVisible": true,
+      "toolbarLogoutVisible": true,
+      "buttons": [
+        "BtShop",
+        "BtNPT",
+        "BtMenu",
+        "BtShort"
+      ]
+    },
+    {
+      "name": "landscape responsive layout",
+      "status": "PASS",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "documentWidth": 1280,
+      "scrollWidth": 1280,
+      "horizontalOverflow": false,
+      "game": {
+        "x": 231.109375,
+        "y": 175,
+        "width": 817.765625,
+        "height": 459.984375
+      },
+      "gameShell": {
+        "x": 231.109375,
+        "y": 175,
+        "width": 817.765625,
+        "height": 459.984375
+      },
+      "hud": {
+        "x": 235.109375,
+        "y": 559.984375,
+        "width": 800,
+        "height": 71
+      },
+      "mapleHud": {
+        "x": 235.109375,
+        "y": 559.984375,
+        "width": 800,
+        "height": 71
+      },
+      "hudPosition": "absolute",
+      "mapleHudVisible": true,
+      "hpVisible": true,
+      "hpNumberVisible": true,
+      "menuVisible": true,
+      "inventoryVisible": true,
+      "toolbarSoundVisible": true,
+      "toolbarLogoutVisible": true,
+      "buttons": [
+        "BtShop",
+        "BtNPT",
+        "BtMenu",
+        "BtShort"
+      ]
+    },
+    {
+      "name": "portrait-narrow responsive layout",
+      "status": "PASS",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "documentWidth": 390,
+      "scrollWidth": 390,
+      "horizontalOverflow": false,
+      "game": {
+        "x": 11.6875,
+        "y": 148,
+        "width": 366.625,
+        "height": 206.21875
+      },
+      "gameShell": {
+        "x": 11.6875,
+        "y": 148,
+        "width": 366.625,
+        "height": 420.75
+      },
+      "hud": {
+        "x": 11.6875,
+        "y": 354.21875,
+        "width": 366.625,
+        "height": 214.53125
+      },
+      "mapleHud": {
+        "x": 11.6875,
+        "y": 363.21875,
+        "width": 366.625,
+        "height": 196.53125
+      },
+      "hudPosition": "relative",
+      "mapleHudVisible": true,
+      "hpVisible": true,
+      "hpNumberVisible": true,
+      "menuVisible": true,
+      "inventoryVisible": true,
+      "toolbarSoundVisible": true,
+      "toolbarLogoutVisible": true,
+      "buttons": [
+        "BtShop",
+        "BtNPT",
+        "BtMenu",
+        "BtShort"
+      ]
+    },
+    {
+      "name": "runtime resize reflows HUD without overflow",
+      "status": "PASS",
+      "wide": {
+        "position": "absolute",
+        "overflow": false
+      },
+      "narrow": {
+        "position": "relative",
+        "overflow": false
+      }
+    },
+    {
+      "name": "settings/menu entry is operable",
+      "status": "PASS",
+      "message": "菜单空壳已接入，窗口资源待同版导出。"
+    },
+    {
+      "name": "inventory/menu shell entry is operable",
+      "status": "PASS",
+      "visible": true
+    },
+    {
+      "name": "small-screen chat affordance is retained",
+      "status": "FAIL",
+      "chatSourceKeys": [
+        "base/chatTarget",
+        "base/chat",
+        "BtWhisper/normal/0",
+        "BtWhisper/pressed/0",
+        "BtWhisper/disabled/0",
+        "BtWhisper/mouseOver/0"
+      ],
+      "renderedChat": 0
+    },
+    {
+      "name": "browser keyboard path remains live after responsive layout",
+      "status": "PASS",
+      "connection": "● 已连接 · qa_ui_mto4qn5a2c39"
+    },
+    {
+      "name": "browser runtime has no errors or failed requests",
+      "status": "FAIL",
+      "consoleErrors": [
+        {
+          "level": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        },
+        {
+          "level": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        }
+      ],
+      "pageErrors": [],
+      "requestFailures": [],
+      "responseErrors": []
+    }
+  ],
+  "logs": {
+    "console": [
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      }
+    ],
+    "pageErrors": [],
+    "requestFailures": [],
+    "responseErrors": []
+  },
+  "note": "Passwords and session tokens are intentionally omitted. This browser run uses a newly registered QA account on the independent 3010 service."
+}

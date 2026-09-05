@@ -1,0 +1,123 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GMS83 browser asset probe</title>
+<style>
+  :root { color-scheme: dark; font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  body { margin: 0; background: #161922; color: #e7ebf5; }
+  header { padding: 12px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: #202433; }
+  h1 { margin: 0; font-size: 16px; }
+  label, button { font: inherit; }
+  button, select { color: inherit; background: #30384c; border: 1px solid #59657e; border-radius: 4px; padding: 5px 8px; }
+  button:hover { background: #46516a; }
+  #status { color: #a9d4ff; min-width: 360px; }
+  main { display: grid; grid-template-columns: minmax(680px, 1fr) 300px; gap: 12px; padding: 12px; }
+  canvas { width: 100%; height: auto; min-height: 520px; background: #7cc4e4; image-rendering: pixelated; border: 1px solid #59657e; }
+  aside { padding: 12px; background: #202433; border: 1px solid #384158; }
+  aside p { margin: 0 0 10px; }
+  code { color: #d9ecff; }
+  .ok { color: #9ee6a9; }
+  .warn { color: #ffd58b; }
+</style>
+<header>
+  <h1>GMS83 resource browser probe</h1>
+  <label>action <select id="action"><option>stand</option><option>walk</option><option>jump</option><option>attack</option></select></label>
+  <button id="play">Pause</button><button id="step">Step</button><button id="flip">Flip right</button><button id="footholds">Hide footholds</button>
+  <span id="status">loading source metadata…</span>
+</header>
+<main>
+  <canvas id="view" width="1100" height="620" aria-label="GMS83 map, two paper-doll characters and foothold overlay"></canvas>
+  <aside>
+    <p class="ok">Canvas renderer: source PNG + WZ metadata</p>
+    <p>Map: <code id="mapInfo"></code></p>
+    <p>Spawn A/B are on source footholds; the green line is the selected real foothold geometry.</p>
+    <p>All avatar part positions are metadata-derived top-left offsets relative to the foot point. The source <code>origin</code>, anchor <code>map</code>, z layer, UOL source and decoded PNG hash are shown below.</p>
+    <p id="partInfo" class="warn"></p>
+    <p>Probe scope: one GMS83 look, one map, representative map tile/object layers. This is an asset and timing check, not gameplay.</p>
+  </aside>
+</main>
+<script>
+const base = './';
+const state = { action: 'stand', frame: 0, playing: true, showFootholds: true, facing: -1, manifest: null, map: null, images: new Map(), last: 0 };
+const canvas = document.querySelector('#view');
+const ctx = canvas.getContext('2d');
+const $ = id => document.getElementById(id);
+const image = url => state.images.get(url) || new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => { state.images.set(url, img); resolve(img); };
+  img.onerror = () => reject(new Error(`asset load failed: ${url}`));
+  img.src = base + url;
+});
+const allFrames = () => state.manifest.avatar.actions[state.action];
+const worldToScreen = (x, y) => [canvas.width / 2 + (x - 620) * .56, 335 + (y - 220) * .56];
+function drawLayer(layer) {
+  const img = state.images.get(layer.url); if (!img) return;
+  const [sx, sy] = worldToScreen(layer.x, layer.y);
+  const w = layer.width * .56, h = layer.height * .56;
+  ctx.save(); ctx.globalAlpha = (layer.alpha ?? 255) / 255;
+  if (layer.flip) { ctx.translate(sx + w, sy); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); }
+  else ctx.drawImage(img, sx, sy, w, h);
+  ctx.restore();
+}
+function drawFootholds() {
+  if (!state.showFootholds) return;
+  ctx.save(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(92,255,145,.42)';
+  for (const f of state.map.footholds) { const [x1, y1] = worldToScreen(f.x1, f.y1), [x2, y2] = worldToScreen(f.x2, f.y2); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+  ctx.restore();
+  const selected = state.map.footholds.find(f => f.id === 20); if (!selected) return;
+  const [x1, y1] = worldToScreen(selected.x1, selected.y1), [x2, y2] = worldToScreen(selected.x2, selected.y2);
+  ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = '#b8ff63'; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function drawAvatar(inst, frame) {
+  for (const p of frame.parts) {
+    const img = state.images.get(p.url); if (!img) continue;
+    const [sx, sy] = worldToScreen(inst.x + (state.facing === -1 ? p.x : -p.x - p.width), inst.y + p.y);
+    const w = p.width * .56, h = p.height * .56;
+    ctx.save();
+    if (state.facing === 1) { ctx.translate(sx + w, sy); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); }
+    else ctx.drawImage(img, sx, sy, w, h);
+    ctx.restore();
+  }
+  const [sx, sy] = worldToScreen(inst.x, inst.y);
+  ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '12px ui-monospace'; ctx.fillText(inst.id, sx - 26, sy + 18); ctx.fillStyle = '#ffd66b'; ctx.fillRect(sx - 2, sy - 2, 4, 4); ctx.restore();
+}
+function drawAnchors(frame) {
+  const a = frame.anchors; if (!a) return;
+  const inst = state.map.spawns[0]; const [sx, sy] = worldToScreen(inst.x, inst.y);
+  ctx.save(); ctx.font = '11px ui-monospace';
+  for (const [name, v] of Object.entries(a)) { const [x, y] = worldToScreen(inst.x + v.x, inst.y + v.y); ctx.fillStyle = name === 'navel' ? '#ffea66' : '#9cd7ff'; ctx.fillRect(x - 2, y - 2, 4, 4); ctx.fillText(name, x + 5, y - 4); }
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(sx - 8, sy); ctx.lineTo(sx + 8, sy); ctx.moveTo(sx, sy - 8); ctx.lineTo(sx, sy + 8); ctx.stroke(); ctx.restore();
+}
+function render() {
+  if (!state.manifest) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#6fbbdd'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const layer of [...state.manifest.map.layers].sort((a, b) => (a.depth || 0) - (b.depth || 0))) drawLayer(layer);
+  drawFootholds();
+  const frames = allFrames(), frame = frames[state.frame % frames.length];
+  drawAvatar({ ...state.map.spawns[0], id: 'A' }, frame); drawAvatar({ ...state.map.spawns[1], id: 'B' }, frame);
+  drawAnchors(frame);
+  $('status').textContent = `${state.action} ${frame.index} / ${frames.length - 1} · delay ${frame.delay}ms · facing ${state.facing === -1 ? 'left (source)' : 'right (mirrored)'} · map footholds ${state.map.footholds.length}`;
+  $('flip').textContent = state.facing === -1 ? 'Flip right' : 'Flip left';
+  $('footholds').textContent = state.showFootholds ? 'Hide footholds' : 'Show footholds';
+  const p = frame.parts.find(x => x.part === 'body' && x.key.includes('00002000')) || frame.parts.find(x => x.part === 'head');
+  $('partInfo').textContent = p ? `${p.part} · source ${p.source} · x=${p.x}, y=${p.y} · origin=(${p.origin.x},${p.origin.y}) · z=${p.z} (${p.zName}) · ${p.rgbaDecodeOk ? 'PNG decode OK' : 'PNG decode failed'}` : '';
+}
+function tick(now) {
+  if (state.playing && state.manifest && now - state.last >= allFrames()[state.frame % allFrames().length].delay) { state.frame = (state.frame + 1) % allFrames().length; state.last = now; }
+  render(); requestAnimationFrame(tick);
+}
+async function start() {
+  const [manifest, map] = await Promise.all([fetch(base + 'manifest.json').then(r => r.json()), fetch(base + 'map.json').then(r => r.json())]);
+  state.manifest = manifest; state.map = map;
+  const urls = new Set(manifest.map.layers.map(l => l.url));
+  for (const frames of Object.values(manifest.avatar.actions)) for (const frame of frames) for (const p of frame.parts) urls.add(p.url);
+  await Promise.all([...urls].map(image));
+  $('mapInfo').textContent = `${map.id} ${map.name} · ${map.tileCount} tiles · ${map.objectCount} objects · ${urls.size} PNGs`;
+  document.querySelector('#action').addEventListener('change', e => { state.action = e.target.value; state.frame = 0; state.last = performance.now(); });
+  $('play').addEventListener('click', () => { state.playing = !state.playing; $('play').textContent = state.playing ? 'Pause' : 'Play'; });
+  $('step').addEventListener('click', () => { state.frame = (state.frame + 1) % allFrames().length; state.last = performance.now(); });
+  $('flip').addEventListener('click', () => { state.facing *= -1; });
+  $('footholds').addEventListener('click', () => { state.showFootholds = !state.showFootholds; });
+  requestAnimationFrame(tick);
+}
+start().catch(error => { $('status').textContent = `ERROR: ${error.message}`; console.error(error); });
+</script>

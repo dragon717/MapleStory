@@ -1,0 +1,68 @@
+{
+  "actions": {
+    "stand": {
+      "sourceAction": "stand1",
+      "frameCount": 3,
+      "delays": [
+        500,
+        500,
+        500
+      ]
+    },
+    "walk": {
+      "sourceAction": "walk1",
+      "frameCount": 4,
+      "delays": [
+        180,
+        180,
+        180,
+        180
+      ]
+    },
+    "jump": {
+      "sourceAction": "jump",
+      "frameCount": 1,
+      "delays": [
+        200
+      ]
+    },
+    "attack": {
+      "sourceAction": "swingO1",
+      "frameCount": 3,
+      "delays": [
+        300,
+        150,
+        350
+      ]
+    },
+    "ladder": {
+      "sourceAction": "ladder",
+      "frameCount": 2,
+      "delays": [
+        250,
+        250
+      ]
+    },
+    "rope": {
+      "sourceAction": "rope",
+      "frameCount": 2,
+      "delays": [
+        250,
+        250
+      ]
+    },
+    "dead": {
+      "sourceAction": "dead",
+      "frameCount": 1,
+      "delays": [
+        100
+      ]
+    }
+  },
+  "map": {
+    "id": "000010000",
+    "layers": 298,
+    "footholds": 83
+  },
+  "pngs": 144
+}

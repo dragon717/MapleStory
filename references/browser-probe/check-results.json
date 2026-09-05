@@ -1,0 +1,73 @@
+{
+  "ok": true,
+  "actionStats": {
+    "stand": {
+      "frames": 3,
+      "delays": [
+        500,
+        500,
+        500
+      ],
+      "partsPerFrame": [
+        14,
+        14,
+        14
+      ]
+    },
+    "walk": {
+      "frames": 4,
+      "delays": [
+        180,
+        180,
+        180,
+        180
+      ],
+      "partsPerFrame": [
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    "jump": {
+      "frames": 1,
+      "delays": [
+        200
+      ],
+      "partsPerFrame": [
+        16
+      ]
+    },
+    "attack": {
+      "frames": 3,
+      "delays": [
+        300,
+        150,
+        350
+      ],
+      "partsPerFrame": [
+        14,
+        14,
+        14
+      ]
+    }
+  },
+  "footholds": 83,
+  "tileCount": 265,
+  "objectCount": 27,
+  "pngs": 125,
+  "spawnFootholds": [
+    {
+      "id": "probe-a",
+      "foothold": 20,
+      "x": 630,
+      "y": 365
+    },
+    {
+      "id": "probe-b",
+      "foothold": 40,
+      "x": 1050,
+      "y": 365
+    }
+  ]
+}

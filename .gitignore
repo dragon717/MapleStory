@@ -1,0 +1,40 @@
+.DS_Store
+.playwright-cli/
+
+# Original third-party repositories, WZ packages and acquisition material.
+参考/
+
+# Local runtime state and credentials.
+evidence/runtime/3010-control/
+server/data/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Dependencies and build output.
+client/node_modules/
+client/dist/
+client/dist-next/
+server/target/
+
+# Generated/runtime resource trees stay in the root resource archive.
+client/public/
+client/public-gameplay/
+references/browser-probe/assets/
+references/gameplay-assets/assets/
+references/gameplay-assets/avatar/assets/
+resources/
+output/
+
+# Evidence media and other binary art/audio are not source commits.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webm
+*.mp4
+*.mp3
+*.wav
+*.wz
+*.zip
+MapleStory-运行资源-*.tar.gz
