@@ -89,3 +89,9 @@ Snail按参考STAND/HIT转随机方向MOVE，MOVE随机站/左/右，源动画�
 用户反馈角色沿梯子到达顶端后落不到平台。根因是服务端把角色停在 WZ ladder top（当前地图为 y=127），下一帧 `ground_below` 只接受不低于角色的地面，因而漏掉同一 x 处的上方支撑 foothold（y=125）并进入下落。修复沿 `network.rs → World::command → World::step → step_player` 调用链处理 `uf`：允许上行的梯顶在源五像素探测范围内解析 authored foothold，并在同一 tick 设置 x/y、grounded、foothold、vy=0、退出 climbing；无支撑时保留源端点下落行为，`uf=0` 与顶端下行继续停在梯上。没有写死地图坐标，也没有改客户端、账号或数据库。
 
 新增梯顶落地、释放/继续上行后横向稳定、禁止顶端退出三项定向断言；`cargo fmt --check`、`cargo check`、`cargo build` 及梯子测试 3/3 通过。使用 `关闭3010.command` / `启动3010.command` 受控替换服务：新服务 PID63131，唯一陪测 bot PID63159，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；数据库完整性为 `ok`，账号/角色计数 24/23，未重置。用户需刷新 `http://127.0.0.1:3010/` 并重新登录后亲测。
+
+## 2026-09-05：3010 地图底部跳跃穿透与防坠落兜底
+
+用户反馈角色在蘑菇村底部小台阶/平台连接处跳跃下落时可能穿过底层并持续坠出。根因是 `step_player` 只在移动后的单一 x 调用 `ground_below`，大步长或边缘移动会跨过窄 authored foothold；原有越界处理又只等到 `map.bounds.y_max` 后重置，缺少源地图的底边恢复。修复沿 `network.rs → World::command → World::step → step_player` 调用链加入 from/to x+y 的下降扫掠，排除竖直墙、插值斜坡并跳过 `drop_fh`；边缘离台不会在 t=0 重新落回原平台。底部边界采用 HeavenClient `max(foothold.bottom)+100`，再受 `map.bounds.y_max` 限制；越界回出生点处 authored foothold，清零速度、grounded/foothold/climb/ladder/drop/input 临时状态，不改 HP、奖励或账号存档。
+
+定向自检覆盖最低层跳起回落、窄平台/大步长扫掠、边缘离台、越界恢复后下一 tick 稳定；相关新测试通过，Down+Space 测试 1/1、梯顶回归 3/3 通过。`cargo fmt --check`、`cargo check`、`cargo build`、`git diff --check` 均通过。使用 `关闭3010.command` / `启动3010.command` 受控替换服务：新服务 PID66754，唯一陪测 bot PID66782，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；SQLite integrity 为 `ok`，账号/角色计数 24/23，未重置。用户需刷新 `http://127.0.0.1:3010/` 并重新登录。

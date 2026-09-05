@@ -245,6 +245,103 @@ impl Map {
             .map(|(f, ground)| (f.id, ground))
     }
 
+    /// Match the source FootholdTree lower border: the greatest authored
+    /// foothold bottom plus its 100px recovery margin, bounded by the map's
+    /// explicit lower limit.
+    fn fall_boundary(&self) -> f64 {
+        self.footholds
+            .iter()
+            .map(Foothold::bottom)
+            .reduce(f64::max)
+            .map_or(self.bounds.y_max, |bottom| {
+                (bottom + 100.0).min(self.bounds.y_max)
+            })
+    }
+
+    /// Find the first authored foothold crossed by a descending movement
+    /// segment.  The old single-point lookup only examined the post-move x;
+    /// a fast horizontal step could therefore pass over a narrow foothold at
+    /// a platform edge.  Keep the sweep geometric and map-driven: vertical
+    /// walls are excluded by `Foothold::at`, slopes are interpolated, and an
+    /// explicitly skipped down-jump foothold is never reselected.
+    fn landing_on_sweep(
+        &self,
+        from_x: f64,
+        to_x: f64,
+        from_y: f64,
+        to_y: f64,
+        ignored_id: u64,
+    ) -> Option<(u64, f64, f64)> {
+        const EPSILON: f64 = 0.001;
+        if to_y < from_y - EPSILON {
+            return None;
+        }
+        let dx = to_x - from_x;
+        let dy = to_y - from_y;
+        if dx.abs() <= EPSILON && ignored_id == 0 {
+            return self
+                .ground_below(from_x, from_y)
+                .filter(|(_, ground)| to_y >= *ground - EPSILON)
+                .map(|(foothold_id, ground)| (foothold_id, from_x, ground));
+        }
+        let path_left = from_x.min(to_x);
+        let path_right = from_x.max(to_x);
+        self.footholds
+            .iter()
+            .filter(|foothold| foothold.id != ignored_id && !foothold.is_wall())
+            .filter_map(|foothold| {
+                let overlap_left = path_left.max(foothold.left());
+                let overlap_right = path_right.min(foothold.right());
+                if overlap_left > overlap_right + EPSILON {
+                    return None;
+                }
+
+                let (mut t0, mut t1) = if dx.abs() <= EPSILON {
+                    (0.0, 1.0)
+                } else {
+                    ((overlap_left - from_x) / dx, (overlap_right - from_x) / dx)
+                };
+                if t0 > t1 {
+                    std::mem::swap(&mut t0, &mut t1);
+                }
+                t0 = t0.clamp(0.0, 1.0);
+                t1 = t1.clamp(0.0, 1.0);
+                let x0 = from_x + dx * t0;
+                let x1 = from_x + dx * t1;
+                let ground0 = foothold.at(x0)?;
+                let ground1 = foothold.at(x1)?;
+                let player0 = from_y + dy * t0;
+                let player1 = from_y + dy * t1;
+                let difference0 = ground0 - player0;
+                let difference1 = ground1 - player1;
+
+                // A landing crosses from above the foothold (difference >=0)
+                // to at/below it (difference <=0).  Crossing in the opposite
+                // direction means the player is already underneath it.
+                if difference0 < -EPSILON || difference1 > EPSILON {
+                    return None;
+                }
+                let crossing = if difference0.abs() <= EPSILON {
+                    t0
+                } else {
+                    let denominator = difference0 - difference1;
+                    if denominator.abs() <= EPSILON {
+                        return None;
+                    }
+                    (t0 + (t1 - t0) * difference0 / denominator).clamp(t0, t1)
+                };
+                let x = from_x + dx * crossing;
+                let ground = foothold.at(x)?;
+                Some((crossing, foothold.id, x, ground))
+            })
+            .min_by(|(ta, ida, _, ga), (tb, idb, _, gb)| {
+                ta.total_cmp(tb)
+                    .then_with(|| ga.total_cmp(gb))
+                    .then_with(|| ida.cmp(idb))
+            })
+            .map(|(_, foothold_id, x, ground)| (foothold_id, x, ground))
+    }
+
     fn ground_near(&self, x: f64, y: f64) -> Option<(u64, f64)> {
         self.footholds
             .iter()
@@ -2351,7 +2448,9 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
     }
 
+    let old_x = player.state.x;
     let old_y = player.state.y;
+    let mut ignored_fh = player.drop_fh;
     if player.state.grounded {
         let down_jump_intent = player.vertical > 0 && player.jump;
         let down_jump = down_jump_intent
@@ -2366,6 +2465,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
                 player.state.y = current.at(player.state.x).unwrap_or(player.state.y) - 1.0;
             }
             player.drop_fh = player.foothold_id;
+            ignored_fh = player.drop_fh;
             player.state.vy = -DOWNJUMP_LAUNCH;
             player.state.grounded = false;
             player.foothold_id = 0;
@@ -2428,54 +2528,36 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         } else {
             player.state.grounded = false;
         }
+        if !player.state.grounded {
+            // The player has deliberately left the current foothold at an
+            // authored edge. Do not let the falling sweep re-land at its
+            // t=0 endpoint; the source physics likewise advances to a new
+            // below foothold after leaving the current one.
+            ignored_fh = player.foothold_id;
+            player.foothold_id = 0;
+        }
     }
     if !player.state.grounded {
         player.state.vy = (player.state.vy + GRAVITY * (TICK_MS as f64 / 1000.0)).min(FALL_SPEED);
         let next_y = player.state.y + player.state.vy * (TICK_MS as f64 / 1000.0);
         if player.state.vy >= 0.0 {
-            let mut landing = map.ground_below(player.state.x, player.state.y);
-            if let Some(drop_fh) = (player.drop_fh > 0).then_some(player.drop_fh) {
-                if landing.is_some_and(|(foothold_id, _)| foothold_id == drop_fh) {
-                    let drop_ground = map.get(drop_fh).and_then(|f| f.at(player.state.x));
-                    landing = drop_ground.and_then(|ground| {
-                        map.footholds
-                            .iter()
-                            .filter_map(|f| f.at(player.state.x).map(|candidate| (f, candidate)))
-                            .filter(|(f, candidate)| f.id != drop_fh && *candidate > ground + 0.001)
-                            .min_by(|(a, ay), (b, by)| {
-                                ay.total_cmp(by).then_with(|| a.id.cmp(&b.id))
-                            })
-                            .map(|(f, candidate)| (f.id, candidate))
-                    });
-                }
-            }
-            if let Some((foothold_id, ground)) = landing {
-                if player.state.y <= ground + 0.001 && next_y >= ground - 0.001 {
-                    player.state.y = ground;
-                    player.state.vy = 0.0;
-                    player.state.grounded = true;
-                    player.foothold_id = foothold_id;
-                    player.drop_fh = 0;
-                } else {
-                    player.state.y = next_y;
-                }
+            if let Some((foothold_id, landing_x, ground)) =
+                map.landing_on_sweep(old_x, player.state.x, player.state.y, next_y, ignored_fh)
+            {
+                player.state.x = landing_x;
+                player.state.y = ground;
+                player.state.vy = 0.0;
+                player.state.grounded = true;
+                player.foothold_id = foothold_id;
+                player.drop_fh = 0;
             } else {
                 player.state.y = next_y;
             }
         } else {
             player.state.y = next_y;
         }
-        if player.state.y > map.bounds.y_max {
-            player.state.x = map.spawn.x;
-            player.state.y = map.spawn.y;
-            player.state.vx = 0.0;
-            player.state.vy = 0.0;
-            player.state.grounded = false;
-            player.foothold_id = map
-                .ground_near(map.spawn.x, map.spawn.y)
-                .map_or(0, |(id, _)| id);
-            player.drop_fh = 0;
-            player.direction = 0;
+        if player.state.y > map.fall_boundary() {
+            reset_player_to_spawn(map, player, tick);
         }
         if player.state.y < map.bounds.y_min {
             player.state.y = map.bounds.y_min;
@@ -2521,6 +2603,28 @@ fn land_at_ladder_top(
     player.state.climbing = false;
     player.state.ladder_id = None;
     player.state.action = "stand";
+    player.state.action_started_tick = tick;
+}
+
+fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
+    let spawn_ground = map.ground_near(map.spawn.x, map.spawn.y);
+    player.state.x = map.spawn.x;
+    player.state.y = spawn_ground.map_or(map.spawn.y, |(_, ground)| ground);
+    player.state.vx = 0.0;
+    player.state.vy = 0.0;
+    player.state.grounded = spawn_ground.is_some();
+    player.foothold_id = spawn_ground.map_or(0, |(foothold_id, _)| foothold_id);
+    player.state.climbing = false;
+    player.state.ladder_id = None;
+    player.drop_fh = 0;
+    player.direction = 0;
+    player.vertical = 0;
+    player.jump = false;
+    player.state.action = if player.state.grounded {
+        "stand"
+    } else {
+        "jump"
+    };
     player.state.action_started_tick = tick;
 }
 
@@ -2995,6 +3099,195 @@ mod tests {
         assert!(w.players["a"].state.grounded);
         assert_eq!(w.players["a"].state.y, 0.0);
         assert_eq!(w.players["a"].state.vy, 0.0);
+    }
+
+    #[test]
+    fn jump_returns_to_the_lowest_authored_foothold() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"lowest","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":100,"y":200},"footholds":[{"id":1,"x1":0,"y1":200,"x2":300,"y2":200}],"ladders":[]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 0,
+                vertical: 0,
+                jump: true,
+            },
+        });
+        world.step();
+        assert!(!world.players["a"].state.grounded);
+        for _ in 0..30 {
+            world.step();
+        }
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
+        assert_eq!(player.state.y, 200.0);
+        assert_eq!(player.foothold_id, 1);
+        assert_eq!(player.state.vy, 0.0);
+        assert_eq!(player.drop_fh, 0);
+    }
+
+    #[test]
+    fn falling_sweeps_across_edge_to_narrow_authored_foothold() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"sweep","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":50,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":100,"y2":0,"prev":0,"next":0},{"id":2,"x1":122,"y1":47,"x2":124,"y2":47,"prev":0,"next":0},{"id":3,"x1":0,"y1":200,"x2":300,"y2":200,"prev":0,"next":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 1,
+                vertical: 0,
+                jump: true,
+            },
+        });
+        world.step();
+        for _ in 0..20 {
+            world.step();
+            if world.players["a"].state.grounded {
+                break;
+            }
+        }
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
+        assert_eq!(player.foothold_id, 2);
+        assert_eq!(player.state.y, 47.0);
+        assert!(player.state.x >= 122.0 && player.state.x <= 124.0);
+    }
+
+    #[test]
+    fn walking_off_foothold_edge_does_not_reland_at_sweep_start() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"edge-fall","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":99,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":100,"y2":0,"prev":0,"next":0},{"id":2,"x1":0,"y1":100,"x2":300,"y2":100,"prev":0,"next":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 1,
+                vertical: 0,
+                jump: false,
+            },
+        });
+        world.step();
+        assert!(!world.players["a"].state.grounded);
+        assert_eq!(world.players["a"].foothold_id, 0);
+        assert!(world.players["a"].state.x > 100.0);
+        for _ in 0..20 {
+            world.step();
+            if world.players["a"].state.grounded {
+                break;
+            }
+        }
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
+        assert_eq!(player.foothold_id, 2);
+        assert_eq!(player.state.y, 100.0);
+    }
+
+    #[test]
+    fn falling_beyond_map_recovers_on_spawn_ground_and_stays_stable() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"recovery","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":25,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":50,"y2":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 1,
+                vertical: 0,
+                jump: true,
+            },
+        });
+        world.step();
+        for _ in 0..30 {
+            world.step();
+            if world.players["a"].state.grounded && world.players["a"].state.x == 25.0 {
+                break;
+            }
+        }
+        {
+            let player = &world.players["a"];
+            assert!(player.state.grounded);
+            assert_eq!(player.state.x, 25.0);
+            assert_eq!(player.state.y, 0.0);
+            assert_eq!(player.state.vx, 0.0);
+            assert_eq!(player.state.vy, 0.0);
+            assert_eq!(player.foothold_id, 1);
+            assert!(!player.state.climbing);
+            assert_eq!(player.state.ladder_id, None);
+            assert_eq!(player.drop_fh, 0);
+            assert_eq!(player.direction, 0);
+            assert_eq!(player.vertical, 0);
+            assert!(!player.jump);
+        }
+        world.step();
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
+        assert_eq!(player.state.x, 25.0);
+        assert_eq!(player.state.y, 0.0);
+        assert_eq!(player.state.vy, 0.0);
     }
 
     #[test]
