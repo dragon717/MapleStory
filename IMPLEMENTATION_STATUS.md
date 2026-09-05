@@ -90,8 +90,16 @@ Snail按参考STAND/HIT转随机方向MOVE，MOVE随机站/左/右，源动画�
 
 新增梯顶落地、释放/继续上行后横向稳定、禁止顶端退出三项定向断言；`cargo fmt --check`、`cargo check`、`cargo build` 及梯子测试 3/3 通过。使用 `关闭3010.command` / `启动3010.command` 受控替换服务：新服务 PID63131，唯一陪测 bot PID63159，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；数据库完整性为 `ok`，账号/角色计数 24/23，未重置。用户需刷新 `http://127.0.0.1:3010/` 并重新登录后亲测。
 
-## 2026-09-05：3010 地图底部跳跃穿透与防坠落兜底
+## 2026-09-05：3010 地图底部跳跃穿透与防坠落兜底（首版）
 
 用户反馈角色在蘑菇村底部小台阶/平台连接处跳跃下落时可能穿过底层并持续坠出。根因是 `step_player` 只在移动后的单一 x 调用 `ground_below`，大步长或边缘移动会跨过窄 authored foothold；原有越界处理又只等到 `map.bounds.y_max` 后重置，缺少源地图的底边恢复。修复沿 `network.rs → World::command → World::step → step_player` 调用链加入 from/to x+y 的下降扫掠，排除竖直墙、插值斜坡并跳过 `drop_fh`；边缘离台不会在 t=0 重新落回原平台。底部边界采用 HeavenClient `max(foothold.bottom)+100`，再受 `map.bounds.y_max` 限制；越界回出生点处 authored foothold，清零速度、grounded/foothold/climb/ladder/drop/input 临时状态，不改 HP、奖励或账号存档。
 
 定向自检覆盖最低层跳起回落、窄平台/大步长扫掠、边缘离台、越界恢复后下一 tick 稳定；相关新测试通过，Down+Space 测试 1/1、梯顶回归 3/3 通过。`cargo fmt --check`、`cargo check`、`cargo build`、`git diff --check` 均通过。使用 `关闭3010.command` / `启动3010.command` 受控替换服务：新服务 PID66754，唯一陪测 bot PID66782，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；SQLite integrity 为 `ok`，账号/角色计数 24/23，未重置。用户需刷新 `http://127.0.0.1:3010/` 并重新登录。
+
+## 2026-09-05：3010 底部回落根因复核与发布标识
+
+用户复验首版后仍能从底部窄台阶“当前位置跳一下”进入无平台区域并看到角色反向回落。复核确认旧逻辑在源底边 `max(authored foothold bottom)+100`（本图为 y=705）处直接重置到出生 y=365；前端 `PlayerView.update` 对快照直接 `setPosition`，所以这是服务端出生点跳变在画面上的表现，不是插值误差。保留首版的下降扫掠、Down+Space 和梯顶落地规则。
+
+服务端 `Player` 增加内部 `last_foothold_id` 保存最近有效非墙 authored foothold。越过源底边时优先将 x 夹回该 foothold 区间、恢复其地面 y、速度和 grounded 状态；只有没有有效支撑时才回出生支撑。边界恢复后暂时吞掉持续横向 heartbeat，直到中性输入，避免按键保持立即再次离台循环。新增 authored foothold 回落稳定与无支撑出生回退断言；`cargo fmt --check`、falling 定向测试 3/3、边缘 1/1、跳跃 1/1、Down+Space 1/1、梯顶 3/3、`cargo check`、`cargo build`、`git diff --check` 均通过。
+
+3010 使用 `关闭3010.command` / `启动3010.command` 受控升级到修复 binary：服务 PID69704，唯一陪测 bot PID69731，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；SQLite integrity 为 `ok`，账号/角色计数 24/23，未重置。随后只重建 `client/dist-next`，未再次重启后端；Vite 从 `client/package.json` 读取真实版本 `0.1.0`，在构建时按 Asia/Shanghai 固化秒级时间。当前页面左上发布标识为 `v0.1.0 · 2026年09月05日 19:30:24`，前端 `npm run typecheck`、`npm run build`、`npm run check` 均通过。用户刷新 `http://127.0.0.1:3010/` 并重新登录后可看到发布标识并亲测底部回落。

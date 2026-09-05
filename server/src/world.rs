@@ -963,6 +963,16 @@ struct Player {
     vertical: i8,
     jump: bool,
     foothold_id: u64,
+    // HeavenClient keeps the current foothold available to its lower-border
+    // recovery even while a jump has temporarily cleared the active fhid.
+    // This is server-internal state; the wire contract still exposes only
+    // the authoritative PlayerState.
+    last_foothold_id: u64,
+    // A lower-border recovery clamps the player back to an authored edge.
+    // Hold that source boundary until a neutral input arrives so the client
+    // input heartbeat cannot immediately walk the player off and repeat the
+    // recovery jump.
+    fall_boundary_hold: bool,
     drop_fh: u64,
     last_input: Instant,
     attack_until: u64,
@@ -1247,6 +1257,8 @@ impl World {
                         vertical: 0,
                         jump: false,
                         foothold_id,
+                        last_foothold_id: foothold_id,
+                        fall_boundary_hold: false,
                         drop_fh: 0,
                         last_input: Instant::now(),
                         attack_until: 0,
@@ -1290,6 +1302,13 @@ impl World {
                             return;
                         };
                         player.state.last_input_seq = seq;
+                        if player.fall_boundary_hold && (direction == 0 || vertical != 0 || jump) {
+                            // Horizontal input alone may be a held-key
+                            // heartbeat; a neutral packet is the release
+                            // marker. Vertical movement or a jump is an
+                            // explicit new action and may leave the boundary.
+                            player.fall_boundary_hold = false;
+                        }
                         player.direction = direction;
                         player.vertical = vertical;
                         player.jump |= jump;
@@ -1639,6 +1658,8 @@ impl World {
             .map
             .ground_near(self.map.spawn.x, self.map.spawn.y)
             .map_or(0, |(foothold_id, _)| foothold_id);
+        player.last_foothold_id = player.foothold_id;
+        player.fall_boundary_hold = false;
         player.drop_fh = 0;
         let _ = self.persist_player(id);
     }
@@ -2365,6 +2386,25 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         return;
     }
 
+    // Keep the source current-foothold handle before climbing, jumping, or
+    // stepping over an authored edge clears the active foothold id.
+    if player.state.grounded {
+        if let Some(current) = map.get(player.foothold_id) {
+            if !current.is_wall() {
+                player.last_foothold_id = current.id;
+            }
+        }
+    }
+    if player.fall_boundary_hold {
+        if player.vertical != 0 || player.jump {
+            player.fall_boundary_hold = false;
+        } else {
+            // A held horizontal key is suppressed until the command path
+            // observes a neutral release packet.
+            player.direction = 0;
+        }
+    }
+
     if player.state.climbing {
         if player.jump && player.direction != 0 {
             player.jump = false;
@@ -2549,6 +2589,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
                 player.state.vy = 0.0;
                 player.state.grounded = true;
                 player.foothold_id = foothold_id;
+                player.last_foothold_id = foothold_id;
                 player.drop_fh = 0;
             } else {
                 player.state.y = next_y;
@@ -2557,7 +2598,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
             player.state.y = next_y;
         }
         if player.state.y > map.fall_boundary() {
-            reset_player_to_spawn(map, player, tick);
+            recover_at_fall_boundary(map, player, tick);
         }
         if player.state.y < map.bounds.y_min {
             player.state.y = map.bounds.y_min;
@@ -2599,11 +2640,48 @@ fn land_at_ladder_top(
     player.state.vy = 0.0;
     player.state.grounded = true;
     player.foothold_id = foothold_id;
+    player.last_foothold_id = foothold_id;
+    player.fall_boundary_hold = false;
     player.drop_fh = 0;
     player.state.climbing = false;
     player.state.ladder_id = None;
     player.state.action = "stand";
     player.state.action_started_tick = tick;
+}
+
+fn recover_at_fall_boundary(map: &Map, player: &mut Player, tick: u64) {
+    // HeavenClient's Footholdtree::update_fh first restores a retained,
+    // non-wall current foothold at the lower border, clamping x to that
+    // authored segment.  The active server fhid is intentionally cleared
+    // during a jump/down-jump, so use the internal last id for that source
+    // current-fh semantics.  A stale or wall id falls back to the authored
+    // spawn support.
+    if let Some(foothold) = map
+        .get(player.last_foothold_id)
+        .filter(|foothold| !foothold.is_wall())
+    {
+        let x = player.state.x.clamp(foothold.left(), foothold.right());
+        if let Some(ground) = foothold.at(x) {
+            player.state.x = x;
+            player.state.y = ground;
+            player.state.vx = 0.0;
+            player.state.vy = 0.0;
+            player.state.grounded = true;
+            player.foothold_id = foothold.id;
+            player.last_foothold_id = foothold.id;
+            player.state.climbing = false;
+            player.state.ladder_id = None;
+            player.fall_boundary_hold = true;
+            player.drop_fh = 0;
+            player.direction = 0;
+            player.vertical = 0;
+            player.jump = false;
+            player.state.action = "stand";
+            player.state.action_started_tick = tick;
+            return;
+        }
+    }
+    reset_player_to_spawn(map, player, tick);
 }
 
 fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
@@ -2614,6 +2692,8 @@ fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
     player.state.vy = 0.0;
     player.state.grounded = spawn_ground.is_some();
     player.foothold_id = spawn_ground.map_or(0, |(foothold_id, _)| foothold_id);
+    player.last_foothold_id = player.foothold_id;
+    player.fall_boundary_hold = true;
     player.state.climbing = false;
     player.state.ladder_id = None;
     player.drop_fh = 0;
@@ -3232,7 +3312,7 @@ mod tests {
     }
 
     #[test]
-    fn falling_beyond_map_recovers_on_spawn_ground_and_stays_stable() {
+    fn falling_beyond_map_recovers_on_last_authored_foothold_and_stays_stable() {
         let map: Map = serde_json::from_str(
             r#"{"id":"recovery","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":25,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":50,"y2":0}],"ladders":[]}"#,
         )
@@ -3263,14 +3343,14 @@ mod tests {
         world.step();
         for _ in 0..30 {
             world.step();
-            if world.players["a"].state.grounded && world.players["a"].state.x == 25.0 {
+            if world.players["a"].state.grounded && world.players["a"].state.x == 50.0 {
                 break;
             }
         }
         {
             let player = &world.players["a"];
             assert!(player.state.grounded);
-            assert_eq!(player.state.x, 25.0);
+            assert_eq!(player.state.x, 50.0);
             assert_eq!(player.state.y, 0.0);
             assert_eq!(player.state.vx, 0.0);
             assert_eq!(player.state.vy, 0.0);
@@ -3285,8 +3365,76 @@ mod tests {
         world.step();
         let player = &world.players["a"];
         assert!(player.state.grounded);
+        assert_eq!(player.state.x, 50.0);
+        assert_eq!(player.state.y, 0.0);
+        assert_eq!(player.state.vy, 0.0);
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 2,
+                direction: 1,
+                vertical: 0,
+                jump: false,
+            },
+        });
+        world.step();
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
+        assert_eq!(player.state.x, 50.0);
+        assert_eq!(player.state.y, 0.0);
+        assert_eq!(player.state.vx, 0.0);
+        assert_eq!(player.state.vy, 0.0);
+    }
+
+    #[test]
+    fn falling_without_last_authored_foothold_uses_spawn_support() {
+        let map: Map = serde_json::from_str(
+            r#"{"id":"spawn-recovery","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":300},"spawn":{"x":25,"y":0},"footholds":[{"id":1,"x1":0,"y1":0,"x2":50,"y2":0}],"ladders":[]}"#,
+        )
+        .unwrap();
+        let mut world = World::new(map, 600);
+        let (output, _rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+        });
+        world.step();
+        {
+            let player = world.players.get_mut("a").unwrap();
+            player.foothold_id = 0;
+            player.last_foothold_id = 0;
+        }
+        world.command(Command::Input {
+            id: "a".into(),
+            connection: "c".into(),
+            message: ClientMessage::Input {
+                seq: 1,
+                direction: 1,
+                vertical: 0,
+                jump: true,
+            },
+        });
+        world.step();
+        for _ in 0..30 {
+            world.step();
+            if world.players["a"].state.grounded && world.players["a"].state.x == 25.0 {
+                break;
+            }
+        }
+        let player = &world.players["a"];
+        assert!(player.state.grounded);
         assert_eq!(player.state.x, 25.0);
         assert_eq!(player.state.y, 0.0);
+        assert_eq!(player.foothold_id, 1);
+        assert_eq!(player.last_foothold_id, 1);
+        assert_eq!(player.state.vx, 0.0);
         assert_eq!(player.state.vy, 0.0);
     }
 
