@@ -36,6 +36,7 @@ def control_guide():
         {'id': 'downJump', 'keys': ['↓', 'Space'], 'separator': '+', 'label': '下跳'},
         {'id': 'attack', 'keys': ['X', 'Ctrl'], 'separator': '/', 'label': '普攻'},
         {'id': 'pickup', 'keys': ['Z'], 'separator': '/', 'label': '拾取'},
+        {'id': 'inventory', 'keys': ['I'], 'separator': '/', 'label': '背包'},
     ]
 
 
@@ -130,4 +131,5 @@ if __name__ == '__main__':
     assert catalog['maps'][0]['id'] == BIRTH_MAP_ID
     assert catalog['maps'][0]['name'] == 'Mushroom Town'
     assert any(portal['targetMapId'] == '000020000' for portal in catalog['maps'][0]['portals'])
+    assert any(control['id'] == 'inventory' and control['keys'] == ['I'] for control in control_guide())
     print(f"catalogued {len(catalog['maps'])} rendered/catalog maps; omitted {len(catalog['omitted'])} Amherst maps")

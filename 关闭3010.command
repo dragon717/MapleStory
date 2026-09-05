@@ -17,7 +17,8 @@ is_server_pid() {
   cmd="$(process_command "$pid")"
   cwd="$(process_cwd "$pid")"
   [[ "$cmd" == *maplestory-server* ]] || return 1
-  [[ "$cwd" == "$ROOT" || "$cmd" == *"$ROOT/server/target/debug/maplestory-server"* ]]
+  [[ "$cwd" == "$ROOT" || "$cmd" == *"$ROOT/server/target/debug/maplestory-server"* ]] || return 1
+  lsof -nP -a -p "$pid" -iTCP:3010 -sTCP:LISTEN >/dev/null 2>&1
 }
 is_bot_pid() {
   local pid="$1" cmd cwd

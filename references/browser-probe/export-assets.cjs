@@ -5,7 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
-const wz = require('../tools/wz-audit/node_modules/@tybys/wz');
+const wz = require('../../参考/tools/wz-audit/node_modules/@tybys/wz');
 
 const root = path.resolve(__dirname, '../..');
 const wzRoot = path.join(root, '参考/assets/gms83/83');
@@ -24,6 +24,41 @@ const look = {
   shoes: ['Shoes', '01070000.img'],
   weapon: ['Weapon', process.env.WZ_WEAPON || '01302029.img'],
 };
+
+// These are the only equipment records currently authoritative in the MVP
+// inventory.  Every loadout is composed from the same WZ paper-doll anchors;
+// the exporter writes complete frames so the client never has to infer a
+// coordinate or a z-order at runtime.
+const equipmentDefinitions = {
+  '1002067': { cap: ['Cap', '01002067.img'] },
+  '1040002': { coat: ['Coat', '01040002.img'] },
+  '1052095': { coat: ['Longcoat', '01052095.img'], pants: null },
+  '1302000': { weapon: ['Weapon', '01302000.img'] },
+};
+const equipmentIds = Object.keys(equipmentDefinitions);
+// ponytail: This finite enumeration is intentionally limited to the four MVP
+// records; if the equipment catalog grows, switch to per-slot composition.
+
+function emptyEquipmentLook() {
+  // Pants and shoes have no authoritative inventory records yet. Keep the
+  // source starter layers for those two slots, while the supported cap,
+  // torso and weapon slots follow the explicit equipped snapshot.
+  return { ...look, cap: null, coat: null, weapon: null };
+}
+
+function equipmentLoadoutSpecs() {
+  const specs = [{ key: 'empty', itemIds: [], look: emptyEquipmentLook() }];
+  for (let mask = 1; mask < (1 << equipmentIds.length); mask += 1) {
+    const itemIds = equipmentIds.filter((_, index) => (mask & (1 << index)) !== 0);
+    // The server's slot rules allow only one of the regular coat and the
+    // full-body longcoat at a time. Do not emit an impossible composition.
+    if (itemIds.includes('1040002') && itemIds.includes('1052095')) continue;
+    const loadoutLook = { ...emptyEquipmentLook() };
+    for (const itemId of itemIds) Object.assign(loadoutLook, equipmentDefinitions[itemId]);
+    specs.push({ key: itemIds.slice().sort().join('+'), itemIds, look: loadoutLook });
+  }
+  return specs;
+}
 
 const type = n => wz.WzPropertyType[n.propertyType] || n.constructor.name;
 const kids = n => [...(n?.wzProperties || [])];
@@ -173,6 +208,67 @@ function scalar(n, name, fallback = null) {
   return v === undefined ? fallback : v;
 }
 
+async function buildAvatarActions(character, zmap, smap, currentLook) {
+  const body = at(character.wzDirectory, currentLook.body);
+  const head = at(character.wzDirectory, currentLook.head);
+  assert(body && head && await body.parseImage() && await head.parseImage());
+  const capSpec = Array.isArray(currentLook.cap) ? currentLook.cap : null;
+  const cap = capSpec ? at(at(character.wzDirectory, capSpec[0]), capSpec[1]) : null;
+  assert(!capSpec || (cap && await cap.parseImage()));
+  const capInfo = cap ? at(cap, 'info') : null;
+  const capSlots = capInfo
+    ? { islot: scalar(capInfo, 'islot'), vslot: scalar(capInfo, 'vslot') }
+    : { islot: null, vslot: null };
+  const capVslot = typeof capSlots.vslot === 'string' ? capSlots.vslot : '';
+  const avatarActions = {};
+  const actionStats = {};
+  for (const [publicAction, sourceAction] of Object.entries(actions)) {
+    const bodyAction = at(body, sourceAction);
+    const frames = numericChildren(bodyAction);
+    assert(frames.length, `Missing body action ${sourceAction}`);
+    const outputFrames = [];
+    for (const frameNode of frames) {
+      const frame = Number(frameNode.name);
+      const branches = collectBranches(at(bodyAction, String(frame)), 'body');
+      collectBranches(actionFrame(head, sourceAction, frame), 'head', branches);
+      for (const [part, segs] of Object.entries(currentLook).filter(([p, value]) => !['body', 'head'].includes(p) && Array.isArray(value))) {
+        if (part === 'face' && scalar(frameNode, 'face', 1) === 0) continue;
+        const img = part === 'cap' ? cap : segs.length === 2 ? at(at(character.wzDirectory, segs[0]), segs[1]) : null;
+        assert(img && await img.parseImage(), `Missing ${part} image ${JSON.stringify(segs)} in loadout`);
+        const node = part === 'face' ? at(at(img, 'default'), 'face') : actionFrame(img, sourceAction, frame);
+        collectBranches(node, part, branches);
+      }
+      const anchors = charAnchorFor(branches);
+      const filteredParts = [];
+      const drawableBranches = branches.filter(branch => {
+        if (branch.part !== 'hair' || !capVslot) return true;
+        const meta = layerMeta(branch, 'Character.wz');
+        const slotCode = smap[meta.zName];
+        if (typeof slotCode !== 'string' || !capVslot.includes(slotCode)) return true;
+        filteredParts.push({
+          part: branch.part,
+          name: branch.name,
+          source: source(branch.raw, 'Character.wz'),
+          resolvedSource: source(branch.node, 'Character.wz'),
+          zName: meta.zName,
+          slotCode,
+          cap: capSpec?.[1] ?? null,
+          vslot: capVslot,
+          rule: `Base.wz/smap.img/${meta.zName}=${slotCode}; ${capSpec?.[1] ?? 'no cap'}/info/vslot contains ${slotCode}`,
+        });
+        return false;
+      });
+      const parts = [];
+      for (const branch of drawableBranches) parts.push(await exportPart(branch, 'Character.wz', zmap, anchors));
+      parts.sort((a, b) => b.z - a.z);
+      outputFrames.push({ index: frame, delay: scalar(frameNode, 'delay', 100), parts, anchors, filteredParts });
+    }
+    avatarActions[publicAction] = outputFrames;
+    actionStats[publicAction] = { sourceAction, frameCount: outputFrames.length, delays: outputFrames.map(f => f.delay) };
+  }
+  return { actions: avatarActions, actionStats, capSlots };
+}
+
 async function mapData(mapArchive, zmap) {
   const mapImg = at(at(at(mapArchive.wzDirectory, 'Map'), 'Map0'), '000010000.img');
   assert(mapImg && await mapImg.parseImage());
@@ -296,58 +392,13 @@ async function mapData(mapArchive, zmap) {
   const smapNode = at(base.wzDirectory, 'smap.img');
   assert(smapNode && await smapNode.parseImage());
   const smap = stringMap(smapNode);
-  const body = at(character.wzDirectory, look.body);
-  const head = at(character.wzDirectory, look.head);
-  assert(body && head && await body.parseImage() && await head.parseImage());
-  const cap = at(at(character.wzDirectory, look.cap[0]), look.cap[1]);
-  assert(cap && await cap.parseImage());
-  const capInfo = at(cap, 'info');
-  const capSlots = { islot: scalar(capInfo, 'islot'), vslot: scalar(capInfo, 'vslot') };
-  const capVslot = typeof capSlots.vslot === 'string' ? capSlots.vslot : '';
-  const avatarActions = {};
-  const actionStats = {};
-  for (const [publicAction, sourceAction] of Object.entries(actions)) {
-    const frames = numericChildren(at(body, sourceAction));
-    assert(frames.length, `Missing body action ${sourceAction}`);
-    const outputFrames = [];
-    for (const frameNode of frames) {
-      const frame = Number(frameNode.name);
-      const branches = collectBranches(at(body, sourceAction).at(String(frame)), 'body');
-      collectBranches(actionFrame(head, sourceAction, frame), 'head', branches);
-      for (const [part, segs] of Object.entries(look).filter(([p]) => !['body', 'head'].includes(p))) {
-        if (part === 'face' && scalar(frameNode, 'face', 1) === 0) continue;
-        const img = part === 'cap' ? cap : segs.length === 2 ? at(at(character.wzDirectory, segs[0]), segs[1]) : null;
-        assert(img && await img.parseImage());
-        const node = part === 'face' ? at(at(img, 'default'), 'face') : actionFrame(img, sourceAction, frame);
-        collectBranches(node, part, branches);
-      }
-      const anchors = charAnchorFor(branches);
-      const filteredParts = [];
-      const drawableBranches = branches.filter(branch => {
-        if (branch.part !== 'hair' || !capVslot) return true;
-        const meta = layerMeta(branch, 'Character.wz');
-        const slotCode = smap[meta.zName];
-        if (typeof slotCode !== 'string' || !capVslot.includes(slotCode)) return true;
-        filteredParts.push({
-          part: branch.part,
-          name: branch.name,
-          source: source(branch.raw, 'Character.wz'),
-          resolvedSource: source(branch.node, 'Character.wz'),
-          zName: meta.zName,
-          slotCode,
-          cap: look.cap[1],
-          vslot: capVslot,
-          rule: `Base.wz/smap.img/${meta.zName}=${slotCode}; ${look.cap[1]}/info/vslot contains ${slotCode}`,
-        });
-        return false;
-      });
-      const parts = [];
-      for (const branch of drawableBranches) parts.push(await exportPart(branch, 'Character.wz', zmap, anchors));
-      parts.sort((a, b) => b.z - a.z);
-      outputFrames.push({ index: frame, delay: scalar(frameNode, 'delay', 100), parts, anchors, filteredParts });
-    }
-    avatarActions[publicAction] = outputFrames;
-    actionStats[publicAction] = { sourceAction, frameCount: outputFrames.length, delays: outputFrames.map(f => f.delay) };
+  const baseAvatar = await buildAvatarActions(character, zmap, smap, look);
+  const equipmentLoadouts = {};
+  const equipmentLoadoutStats = {};
+  for (const spec of equipmentLoadoutSpecs()) {
+    const result = await buildAvatarActions(character, zmap, smap, spec.look);
+    equipmentLoadouts[spec.key] = { itemIds: spec.itemIds, actions: result.actions };
+    equipmentLoadoutStats[spec.key] = result.actionStats;
   }
   const mapOutput = await mapData(map, zmap);
   const manifest = {
@@ -360,17 +411,18 @@ async function mapData(mapArchive, zmap) {
       look,
       zmap: [...zmap.entries()].map(([name, index]) => ({ name, index })),
       smap,
-      equipmentSlots: { cap: { source: `Character.wz/${look.cap[0]}/${look.cap[1]}/info`, ...capSlots } },
-      actionSources: actionStats,
-      actions: avatarActions,
+      equipmentSlots: { cap: { source: `Character.wz/${look.cap[0]}/${look.cap[1]}/info`, ...baseAvatar.capSlots } },
+      actionSources: baseAvatar.actionStats,
+      actions: baseAvatar.actions,
+      equipmentLoadouts,
       instances: mapOutput.spawns.map((s, i) => ({ id: s.id, x: s.x, y: s.y, facing: s.facing, action: i ? 'walk' : 'stand' })),
     },
     map: { id: mapOutput.id, name: mapOutput.name, bounds: mapOutput.bounds, layers: mapOutput.layers, bgm: mapOutput.bgm },
-    limitations: ['Representative look only: one body/head/face/hair/cap/coat/pants/shoes/weapon.', 'One GMS83 map with all its selected map-0/2/4 tile and object placements; other maps and tile sets are not covered.', 'Two browser instances share this look to validate world placement and flipping.'],
+    limitations: ['Representative look only: one body/head/face/hair/pants/shoes plus the four supported equipment records (1002067, 1040002, 1052095, 1302000).', 'One GMS83 map with all its selected map-0/2/4 tile and object placements; other maps and tile sets are not covered.', 'Two browser instances share this look to validate world placement and flipping.'],
   };
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
   fs.writeFileSync(path.join(out, 'map.json'), JSON.stringify(mapOutput, null, 2) + '\n', 'utf8');
-  fs.writeFileSync(path.join(out, 'export-summary.json'), JSON.stringify({ actions: actionStats, map: { id: mapOutput.id, layers: mapOutput.layers.length, footholds: mapOutput.footholds.length }, pngs: pngCache.size }, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(path.join(out, 'export-summary.json'), JSON.stringify({ actions: baseAvatar.actionStats, equipmentLoadouts: equipmentLoadoutStats, map: { id: mapOutput.id, layers: mapOutput.layers.length, footholds: mapOutput.footholds.length }, pngs: pngCache.size }, null, 2) + '\n', 'utf8');
   character.dispose(); map.dispose(); base.dispose();
-  console.log(JSON.stringify({ actions: actionStats, map: { id: mapOutput.id, bounds: mapOutput.bounds, layers: mapOutput.layers.length, footholds: mapOutput.footholds.length }, pngs: pngCache.size }, null, 2));
+  console.log(JSON.stringify({ actions: baseAvatar.actionStats, equipmentLoadouts: equipmentLoadoutStats, map: { id: mapOutput.id, bounds: mapOutput.bounds, layers: mapOutput.layers.length, footholds: mapOutput.footholds.length }, pngs: pngCache.size }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; });

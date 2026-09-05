@@ -129,7 +129,7 @@ async function run() {
   const usernameB = `qa_net_b_${suffix}`.slice(0, 32);
   const health = await jsonRequest('/api/health');
   assert.equal(health.response.status, 200);
-  assert.deepEqual(health.body, { ok: true, protocolVersion: 2, contentVersion: 'gms83-gameplay-2' });
+  assert.deepEqual(health.body, { ok: true, protocolVersion: 3, contentVersion: 'gms83-gameplay-2' });
   check('health and v2 content contract', 'PASS', { health: health.body });
 
   const loginA = await registerAndLogin(usernameA);
@@ -374,7 +374,7 @@ async function writeEvidence(error) {
   const report = {
     runId,
     server: base.origin,
-    protocolVersion: 2,
+    protocolVersion: 3,
     contentVersion: 'gms83-gameplay-2',
     completed: !error && !checks.some(check => ['FAIL', 'BLOCKED'].includes(check.status)),
     error: error?.message || null,

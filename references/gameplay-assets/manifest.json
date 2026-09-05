@@ -7156,5 +7156,827 @@
     "rgbaDecoded": 620,
     "renderedMapCount": 19,
     "mapExportFailures": []
+  },
+  "equipmentUi": {
+    "backgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_backgrnd.png",
+      "width": 175,
+      "height": 304,
+      "sha256": "0e914dda1c256cba01d60f2ab6a36a84cfc6095110dcfa281b9d5c3b38ffeae7",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/backgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/backgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "pet": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_pet.png",
+      "width": 177,
+      "height": 181,
+      "sha256": "2c2d35c14f27bbf68a4e6fd3dfd60e33f6872a56611c6296d2b3ad32d2f80392",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/pet",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/pet",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "FullBackgrnd": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_FullBackgrnd.png",
+      "width": 208,
+      "height": 291,
+      "sha256": "ba9e1a06febee8838d669e4850538341ae6a07d463793c556f42c311af49cd06",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/FullBackgrnd",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/FullBackgrnd",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtDetail/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtDetail_normal_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "4064ba30811fd9821a870f57f1b72adde7ac64b4f6a77a7b47ea5f3b5e9598aa",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtDetail/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtDetail/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtDetail/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtDetail_pressed_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "fc7335bceb5650122e2886553233019ff227f3e9f3e1452c282118afe69f177e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtDetail/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtDetail/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtDetail/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtDetail_disabled_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "af27f1de6277dd67ee420471b136e6409d8ebbf6040ac1447ce041fbac2e18d1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtDetail/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtDetail/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtDetail/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtDetail_mouseOver_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "4c35701176f8421897806bf84a241c5a3b4d10aaaf08ada8f314e7725c63840c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtDetail/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtDetail/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet1/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet1_normal_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "02474fe13e50acbbc46b89000798808c51e63b1d07dce06024215f8cb9541a49",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet1/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet1/normal/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet1/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet1_pressed_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "827c325d9a31f57b70d57af570258b09ae7ca3944b6b85d914d2c7ac4afeb804",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet1/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet1/pressed/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet1/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet1_disabled_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "9be4b7be70703e8148ad8125770e910b163b9fd6ab8bead2c0658898ba88cae3",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet1/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet1/disabled/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet1/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet1_mouseOver_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "7674fd33386653ec17436d35bb25a97b77d71c5f0d2668ada56f9a7c1cfe7ee6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet1/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet1/mouseOver/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet2/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet2_normal_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "c16a2c162341a38bd5ecd2b533dda3b2c14afe41166ac91f549fffaa31d2da42",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet2/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet2/normal/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet2/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet2_pressed_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "32441abba34ab10eca10999731ffb6a4ec2757b814152eab98f0c46b6f16253c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet2/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet2/pressed/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet2/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet2_disabled_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "4b3dbd79c677fa0e0ad82159da90558226588b05dd9f3cf348aaaad045592943",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet2/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet2/disabled/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet2/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet2_mouseOver_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "ae1acf4cb5002960fa8afb764284381c1c6beb5dfba8460953d942a70916d4b1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet2/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet2/mouseOver/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet3/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet3_normal_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "9094cfba6594c1e1b75d38e57750169ce59b510d77bc399e03a956c4c226759f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet3/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet3/normal/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet3/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet3_pressed_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "3a704d803cdf595cfb949fde672de6758e25d0c0f47b44d9277137f519fe6385",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet3/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet3/pressed/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet3/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet3_disabled_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "3aab4359ecf9c48c6ccd382db23fbdae7c50ada6aa97faeeb8f3de6061ba5694",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet3/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet3/disabled/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPet3/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPet3_mouseOver_0.png",
+      "width": 30,
+      "height": 27,
+      "sha256": "5b8f818bab7e5084c024118691ad7c6994957c39308ae062d6d87e3e3a57f42d",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPet3/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPet3/mouseOver/0",
+      "origin": {
+        "x": 15,
+        "y": 13
+      },
+      "x": -15,
+      "y": -13,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipShow/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipShow_normal_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "4064ba30811fd9821a870f57f1b72adde7ac64b4f6a77a7b47ea5f3b5e9598aa",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipShow/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipShow_pressed_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "fc7335bceb5650122e2886553233019ff227f3e9f3e1452c282118afe69f177e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipShow/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipShow_disabled_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "af27f1de6277dd67ee420471b136e6409d8ebbf6040ac1447ce041fbac2e18d1",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipShow/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipShow_mouseOver_0.png",
+      "width": 54,
+      "height": 18,
+      "sha256": "4c35701176f8421897806bf84a241c5a3b4d10aaaf08ada8f314e7725c63840c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipShow/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipHide/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipHide_normal_0.png",
+      "width": 17,
+      "height": 16,
+      "sha256": "b51e5ebfafa5bea5c7f4eff2addcc4f3093d389360f29585a9d04e02450d9c50",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/normal/0",
+      "origin": {
+        "x": 8,
+        "y": 8
+      },
+      "x": -8,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipHide/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipHide_pressed_0.png",
+      "width": 17,
+      "height": 16,
+      "sha256": "3ee2b1703fee6d19d2f033275e2273ac6fe54ff789e666ddec7ba5a3aedbf69e",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/pressed/0",
+      "origin": {
+        "x": 8,
+        "y": 8
+      },
+      "x": -8,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipHide/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipHide_disabled_0.png",
+      "width": 17,
+      "height": 16,
+      "sha256": "b8af88897f316e42899fc3de2701bbe975c3a0adbd667d3688336b4d08a85349",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/disabled/0",
+      "origin": {
+        "x": 8,
+        "y": 8
+      },
+      "x": -8,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtPetEquipHide/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtPetEquipHide_mouseOver_0.png",
+      "width": 17,
+      "height": 16,
+      "sha256": "577af1cdd987f860dde342691ef5a8d8ecdd0a1ea0035f4cf0c50f62234dc17b",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtPetEquipHide/mouseOver/0",
+      "origin": {
+        "x": 8,
+        "y": 8
+      },
+      "x": -8,
+      "y": -8,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_0.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "992ba3790737e28da97d520ffcf994f2694d62676fc40bde64488122bcad54b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/1": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_1.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "f7b4b17ff6c953ae35e4ccbfcfbc7a5e83815b1a41bf4e99c9869606fc8689f6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/2": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_2.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "1c0d78e4a6be382a45c4e86e55bbbb933c0862b365d39adb089036d29504cf9f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/3": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_3.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "18bc07e5f2688522b743f6dbcd40da70a5d5ea1efd0206d258e9538bc88a1676",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/4": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_4.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "e7e6c084370da6d87fa529f21ff9cfe619dc734d1b4ddfa3a90ea7d79cd8082c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/normal/5": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_normal_5.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "f4f797ee8e7912da3d85b37fe549e47490fc33d0fe7d6edabc7cfa74ddb349cd",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/5",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/normal/5",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/pressed/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_pressed_0.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "992ba3790737e28da97d520ffcf994f2694d62676fc40bde64488122bcad54b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/pressed/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/pressed/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/disabled/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_disabled_0.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "2169a57c7a1076cf1fea54d64866027eb9821085ecfef94882a003cd31fc8c8a",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/disabled/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/disabled/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/0": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_0.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "992ba3790737e28da97d520ffcf994f2694d62676fc40bde64488122bcad54b8",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/0",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/0",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/1": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_1.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "f7b4b17ff6c953ae35e4ccbfcfbc7a5e83815b1a41bf4e99c9869606fc8689f6",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/1",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/2": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_2.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "1c0d78e4a6be382a45c4e86e55bbbb933c0862b365d39adb089036d29504cf9f",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/2",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/2",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/3": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_3.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "18bc07e5f2688522b743f6dbcd40da70a5d5ea1efd0206d258e9538bc88a1676",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/3",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/3",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/4": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_4.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "e7e6c084370da6d87fa529f21ff9cfe619dc734d1b4ddfa3a90ea7d79cd8082c",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/4",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/4",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    },
+    "BtCashshop/mouseOver/5": {
+      "url": "assets/UI.wz_UIWindow.img_Equip_BtCashshop_mouseOver_5.png",
+      "width": 32,
+      "height": 11,
+      "sha256": "f4f797ee8e7912da3d85b37fe549e47490fc33d0fe7d6edabc7cfa74ddb349cd",
+      "rgbaDecodeOk": true,
+      "source": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/5",
+      "resolvedSource": "UI.wz/UIWindow.img/Equip/BtCashshop/mouseOver/5",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "x": 0,
+      "y": 0,
+      "delay": 100,
+      "map": {},
+      "lt": null,
+      "rb": null,
+      "uol": null
+    }
   }
 }

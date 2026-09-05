@@ -228,6 +228,18 @@ async function exportMaps() {
 }
 (async () => {
   fs.mkdirSync(path.join(out, 'assets'), { recursive: true }); await wz.init();
+  if (process.argv.includes('--equipment-ui')) {
+    const equipmentUi = {};
+    await flatCanvases(await node('UI.wz/UIWindow.img/Equip'), 'UI.wz/UIWindow.img/Equip', equipmentUi);
+    const manifestPath = path.join(out, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.equipmentUi = equipmentUi;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    console.log(JSON.stringify({ equipmentUi: Object.keys(equipmentUi), pngs: pngs.size }));
+    for (const archive of archives.values()) archive.dispose();
+    return;
+  }
+
   const mobSource = 'Mob.wz/0100100.img', mob = await node(mobSource);
   const monster = { templateId: '100100', source: mobSource, info: info(at(mob, 'info')), actions: {} };
   for (const [publicName, original] of Object.entries({ stand: 'stand', move: 'move', hit: 'hit1', die: 'die1' })) {
@@ -281,6 +293,7 @@ async function exportMaps() {
   for (const frame of children(await node(mesoSource))) mesoFrames.push(await png(frame, mesoSource + '/' + frame.name));
   items['0'] = { ...mesoFrames[0], frames: mesoFrames };
   const hud = {}; await flatCanvases(await node('UI.wz/StatusBar.img'), 'UI.wz/StatusBar.img', hud);
+  const equipmentUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/Equip'), 'UI.wz/UIWindow.img/Equip', equipmentUi);
   const inventoryUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/Item'), 'UI.wz/UIWindow.img/Item', inventoryUi);
   const closeButton = {}; await flatCanvases(await node('UI.wz/Basic.img/BtClose'), 'UI.wz/Basic.img/BtClose', closeButton);
   const tabUi = {}; await flatCanvases(await node('UI.wz/Basic.img/Tab2'), 'UI.wz/Basic.img/Tab2', tabUi);
@@ -289,7 +302,7 @@ async function exportMaps() {
   const gameMenuUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/GameMenu'), 'UI.wz/UIWindow.img/GameMenu', gameMenuUi);
   const shortcutUi = {}; await flatCanvases(await node('UI.wz/UIWindow.img/ShortCut'), 'UI.wz/UIWindow.img/ShortCut', shortcutUi);
   const mapExports = await exportMaps();
-  const result = { contentVersion: 'gms83-gameplay-2', monsters: { '100100': monster }, items, hud, inventoryUi, closeButton, tabUi, noticeUi, okButton, gameMenuUi, shortcutUi,
+  const result = { contentVersion: 'gms83-gameplay-2', monsters: { '100100': monster }, items, hud, inventoryUi, equipmentUi, closeButton, tabUi, noticeUi, okButton, gameMenuUi, shortcutUi,
     combat: {
       attack: { afterimage: { source: afterimageSource, firstFrame: 2, startMs: 450, frames: afterimageFrames } },
       hit: { sound: '/assets/Mob.wz_0100100_Damage.mp3', soundSource: 'Sound.wz/Mob.img/0100100/Damage' },

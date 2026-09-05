@@ -1,0 +1,265 @@
+{
+  "1002067": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Green Headband",
+    "description": "",
+    "info": {
+      "islot": "Cp",
+      "vslot": "CpH5",
+      "reqJob": 0,
+      "reqLevel": 5,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 5,
+      "tuc": 7,
+      "price": 225,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Cap/01002067.img.xml"
+  },
+  "1040002": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "White Undershirt",
+    "description": "",
+    "info": {
+      "islot": "Ma",
+      "vslot": "Ma",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 3,
+      "tuc": 7,
+      "price": 25,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Coat/01040002.img.xml"
+  },
+  "1052095": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Brown Rocky Suit",
+    "description": "",
+    "info": {
+      "islot": "MaPn",
+      "vslot": "MaPn",
+      "reqJob": 16,
+      "reqLevel": 10,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPDD": 15,
+      "tuc": 10,
+      "price": 2000,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Longcoat/01052095.img.xml"
+  },
+  "1302000": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "name": "Sword",
+    "description": "",
+    "info": {
+      "islot": "Wp",
+      "vslot": "Wp",
+      "walk": 1,
+      "stand": 1,
+      "attack": 1,
+      "afterImage": "swordOL",
+      "sfx": "swordL",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "reqSTR": 0,
+      "reqDEX": 0,
+      "reqINT": 0,
+      "reqLUK": 0,
+      "incPAD": 17,
+      "tuc": 7,
+      "price": 1,
+      "attackSpeed": 4,
+      "cash": 0
+    },
+    "spec": {},
+    "source": "Character.wz/Weapon/01302000.img.xml"
+  },
+  "2000000": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Red Potion",
+    "description": "A potion made out of red herbs.\\nRecovers 50 HP.",
+    "info": {
+      "price": 25
+    },
+    "spec": {
+      "hp": 50
+    },
+    "source": "Item.wz/Consume/0200.img.xml"
+  },
+  "2010009": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Green Apple",
+    "description": "Sour and crunchy green apple.\\nRecovers MP +30.",
+    "info": {
+      "price": 30
+    },
+    "spec": {
+      "mp": 30
+    },
+    "source": "Item.wz/Consume/0201.img.xml"
+  },
+  "2040002": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Helmet for DEF",
+    "description": "Improves DEF on headwear.\\nSuccess rate:10%, weapon def.+5, magic def.+3, accuracy+1. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "price": 1,
+      "incPDD": 5,
+      "incMDD": 3,
+      "incACC": 1,
+      "success": 10
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041001": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for Magic Def.",
+    "description": "Improves magic def. on capes.\\nSuccess rate:60%, magic def.+3, weapon def.+1. The success rate of this scroll can be enhanced by Vega's Spell.",
+    "info": {
+      "icon": "../../02040001/info/icon",
+      "iconRaw": "../../02040001/info/iconRaw",
+      "price": 1,
+      "incMDD": 3,
+      "incPDD": 1,
+      "success": 60
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041043": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for Magic DEF",
+    "description": "Improves magic def. on capes.\\nSuccess rate:15%, magic def.+5, weapon def.+3, MaxMP+10",
+    "info": {
+      "icon": "../../02040020/info/icon",
+      "iconRaw": "../../02040020/info/iconRaw",
+      "price": 1,
+      "incMDD": 5,
+      "incPDD": 3,
+      "incMMP": 10,
+      "success": 15,
+      "tradeBlock": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2041045": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Scroll for Cape for Weapon DEF",
+    "description": "Improves DEF on capes.\\nSuccess rate:15%, weapon def.+5, magic def.+3, MaxHP+10",
+    "info": {
+      "icon": "../../02040020/info/icon",
+      "iconRaw": "../../02040020/info/iconRaw",
+      "price": 1,
+      "incPDD": 5,
+      "incMDD": 3,
+      "incMHP": 10,
+      "success": 15,
+      "tradeBlock": 1
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0204.img.xml"
+  },
+  "2060000": {
+    "inventoryType": 2,
+    "slotMax": 2000,
+    "name": "Arrow for Bow",
+    "description": "A barrel full of arrows. Only usable with bows.",
+    "info": {
+      "price": 0,
+      "slotMax": 2000
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0206.img.xml"
+  },
+  "2061000": {
+    "inventoryType": 2,
+    "slotMax": 2000,
+    "name": "Arrow for Crossbow",
+    "description": "A barrel full of arrows. Only usable with crossbows.",
+    "info": {
+      "price": 0,
+      "slotMax": 2000
+    },
+    "spec": {},
+    "source": "Item.wz/Consume/0206.img.xml"
+  },
+  "2380000": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "name": "Snail Card",
+    "description": "A card that features Snail.",
+    "info": {
+      "price": 1,
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 100100
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    },
+    "source": "Item.wz/Consume/0238.img.xml"
+  },
+  "4000019": {
+    "inventoryType": 4,
+    "slotMax": 200,
+    "name": "Snail Shell",
+    "description": "Shell removed from a snail",
+    "info": {
+      "price": 2,
+      "slotMax": 200
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0400.img.xml"
+  },
+  "4010000": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Bronze Ore",
+    "description": "The ore of a light and weak bronze.",
+    "info": {
+      "price": 100
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0401.img.xml"
+  },
+  "4020000": {
+    "inventoryType": 4,
+    "slotMax": 100,
+    "name": "Garnet Ore",
+    "description": "The ore of a red jewel.",
+    "info": {
+      "price": 150
+    },
+    "spec": {},
+    "source": "Item.wz/Etc/0402.img.xml"
+  }
+}

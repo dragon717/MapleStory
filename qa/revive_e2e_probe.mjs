@@ -119,7 +119,7 @@ async function stayInContactUntilDead(bot, timeoutMs) {
 async function run() {
   const health = await request('/api/health');
   assert.equal(health.response.status, 200);
-  assert.deepEqual(health.body, { ok: true, protocolVersion: 2, contentVersion: 'gms83-gameplay-2' });
+  assert.deepEqual(health.body, { ok: true, protocolVersion: 3, contentVersion: 'gms83-gameplay-2' });
   check('health and v2 content contract', 'PASS', health.body);
 
   const suffix = `${Date.now().toString(36)}${randomUUID().slice(0, 4)}`;

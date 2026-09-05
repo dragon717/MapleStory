@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { authenticate, Connection } from '../network/session';
 import { PlayerInput } from '../features/player/input';
 import { loadManifest, type Manifest } from '../assets/manifest';
-import { mapText, protocolText, uiText } from './i18n';
+import { mapText, protocolText, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
 import { InventoryView } from '../features/inventory/view';
 import { itemName } from '../features/inventory/names';
@@ -48,7 +48,7 @@ function renderMapRoute(manifest: Manifest) {
       return map ? mapText(map.id, map.name) : undefined;
     })
     .filter((name): name is string => Boolean(name)))];
-  route.textContent = names.length ? `出口：${names.join('、')}` : '';
+  route.textContent = names.length ? `${uiLocale() === 'en' ? '↑ Enter portal: ' : '↑ 进入传送门：'}${names.join('、')}` : '';
   route.hidden = names.length === 0;
 }
 function updateMode() {
@@ -80,7 +80,7 @@ el('login').onsubmit = async event => {
     deathNotice?.destroy();
     deathNotice = new DeathNoticeView(el('notices'), manifest, requestId => connection?.send({ type: 'revive', requestId }) ?? false, message => status(message));
     menus?.destroy();
-    menus = new MenuView(el('menus'), manifest, message => status(message), () => inventory?.toggle(), () => el('logout').click());
+    menus = new MenuView(el('menus'), manifest, message => status(message), () => inventory?.toggle(), () => el('logout').click(), () => inventory?.toggleEquipment());
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();
@@ -95,11 +95,12 @@ el('login').onsubmit = async event => {
       }
     });
     game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, backgroundColor: '#b4dfe0', pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, input: { keyboard: false }, banner: false });
+    let announcedMapId: string | undefined;
     connection = new Connection(session, message => {
       world?.receive(message);
       inventory?.receive(message);
       if (message.type === 'pickupResult') {
-        chat?.appendSystem(`获得 ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
+        chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
       }
       if (message.type === 'snapshot') {
         el('population').textContent = `${message.players.length} 位冒险者`;
@@ -112,9 +113,13 @@ el('login').onsubmit = async event => {
         hud?.update(self);
         inventory?.update(self);
         deathNotice?.update(self);
-        status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
+        if (announcedMapId !== message.mapId) {
+          announcedMapId = message.mapId;
+          status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
+        }
       }
       else if (message.type === 'rejected') {
+        if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
         if (!deathNotice?.reject(message)) status(`${protocolText(message.code, message.message)} (${message.code})`, true);
       }
       else if (message.type === 'reviveResult') deathNotice?.receive(message);
@@ -125,9 +130,9 @@ el('login').onsubmit = async event => {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); status(reason || '正在连接地图服务器…', state === 'offline'); }
+      if (state !== 'online') { announcedMapId = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); status(reason || '正在连接地图服务器…', state === 'offline'); }
     });
-    input = new PlayerInput(message => connection?.send(message), () => world?.nearestDropId() ?? null);
+    input = new PlayerInput(message => connection?.send(message), () => world?.nearestDropId() ?? null, () => world?.enterPortal());
     connection.connect();
     el('game').focus({ preventScroll: true });
   } catch (error) { status(error instanceof Error ? error.message : '进入失败，请重试。', true); }

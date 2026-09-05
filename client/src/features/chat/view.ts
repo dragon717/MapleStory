@@ -1,4 +1,5 @@
 import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { appendChatLogLine } from './scroll';
 
 const CHAT_TARGET = 'base/chatTarget';
 const CHAT_BOX = 'base/box';
@@ -139,8 +140,7 @@ export class ChatView {
     const line = document.createElement('div');
     line.className = 'chat-system-line';
     line.textContent = `系统：${message}`;
-    this.systemLog.append(line);
-    while (this.systemLog.childElementCount > 40) this.systemLog.firstElementChild?.remove();
+    appendChatLogLine(this.systemLog, line);
     return true;
   }
 

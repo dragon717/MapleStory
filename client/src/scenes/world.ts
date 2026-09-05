@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { randomDropId } from '../features/player/pickup';
 import type { ServerMessage } from '../../../shared/protocol';
 import type { Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
@@ -62,10 +63,15 @@ export class World extends Phaser.Scene {
     this.onPortal?.(request);
     return request;
   }
-  private tryPortal(player: Snapshot['players'][number]) {
-    if (performance.now() < this.portalCooldownUntil) return;
+  enterPortal() {
+    const player = this.snapshot?.players.find(candidate => candidate.id === this.snapshot?.selfId);
+    if (this.loaded && player) this.tryPortal(player, false);
+  }
+  private tryPortal(player: Snapshot['players'][number], touchOnly: boolean) {
+    if (player.hp <= 0 || player.action === 'attack' || performance.now() < this.portalCooldownUntil) return;
     const portal = (this.manifest.map.portals ?? [])
       .find(candidate => candidate.targetMapId && candidate.name !== 'sp'
+        && (touchOnly ? candidate.type === 3 : [1, 2, 7, 8, 10, 11].includes(candidate.type))
         && Math.abs(candidate.x - player.x) <= 36
         && Math.abs(candidate.y - player.y) <= 64);
     if (!portal || !this.requestPortal(portal.name)) return;
@@ -75,7 +81,8 @@ export class World extends Phaser.Scene {
     const images = new Map<string, string>();
     const maps = [this.manifest.map, ...(this.manifest.mapCatalog?.maps ?? [])];
     for (const map of maps) for (const layer of map.layers ?? []) images.set(layer.url, layer.url);
-    for (const frames of Object.values(this.manifest.avatar.actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
+    const avatarActions = [this.manifest.avatar.actions, ...Object.values(this.manifest.avatar.equipmentLoadouts ?? {}).map(loadout => loadout.actions)];
+    for (const actions of avatarActions) for (const frames of Object.values(actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
     for (const monster of Object.values(this.manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
     for (const frame of Object.values(this.manifest.items ?? {})) images.set(frame.url, frame.url);
     const afterimage = this.manifest.combat?.attack?.afterimage;
@@ -131,10 +138,19 @@ export class World extends Phaser.Scene {
       if (this.loaded && this.bgm && !this.bgm.isPlaying) this.bgm.play();
     }
     if (message.type === 'actionStarted' && this.loaded) {
-      this.combat?.receiveActionStarted({ ...message, startedAtMs: performance.now() });
-      if (this.manifest.avatar.attackSound && consumeAction(this.actions, message.playerId, message.actionId, message.serverTick)) this.sound.play('attack', { volume: 0.35 });
+      if (this.playerHasStarterSword(message.playerId)) {
+        this.combat?.receiveActionStarted({ ...message, startedAtMs: performance.now() });
+        if (this.manifest.avatar.attackSound && consumeAction(this.actions, message.playerId, message.actionId, message.serverTick)) this.sound.play('attack', { volume: 0.35 });
+      }
     }
     if (message.type === 'damageEvent' && this.loaded) this.combat?.receiveDamageEvent(message);
+    if (message.type === 'dropPickedUp' && message.mapId === this.mapId) {
+      this.drops.get(message.dropId)?.pickUp(() => {
+        const body = this.players.get(message.playerId)?.body;
+        return body ? { x: body.x, y: body.y } : { x: message.x, y: message.y };
+      });
+      if (this.snapshot) this.snapshot = { ...this.snapshot, drops: this.snapshot.drops.filter(drop => drop.id !== message.dropId) };
+    }
     if (message.type === 'pickupResult') this.status(`已拾取 ${message.itemId} × ${message.quantity}`);
     if (message.type === 'portalResult') {
       this.portalCooldownUntil = performance.now() + (message.success ? 1200 : 300);
@@ -245,7 +261,7 @@ export class World extends Phaser.Scene {
       view.update(player, elapsed);
       if (player.id === snapshot.selfId) {
         this.cameras.main.centerOn(Math.round(player.x), Math.round(player.y - 120));
-        this.tryPortal(player);
+        this.tryPortal(player, true);
       }
     }
     this.updateGameplayEntities(snapshot as GameplaySnapshot);
@@ -256,15 +272,16 @@ export class World extends Phaser.Scene {
     if (!snapshot) return null;
     const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
     if (!player || !snapshot.drops?.length) return null;
-    let nearest: DropSnapshot | undefined;
-    let distance = Number.POSITIVE_INFINITY;
-    for (const drop of snapshot.drops) {
-      const dx = drop.x - player.x;
-      const dy = drop.y - player.y;
-      const next = dx * dx + dy * dy;
-      if (next < distance) { distance = next; nearest = drop; }
-    }
-    return nearest?.id ?? null;
+    return randomDropId(snapshot.drops, player);
+  }
+
+  private playerHasStarterSword(playerId: string) {
+    const player = this.snapshot?.players.find(candidate => candidate.id === playerId);
+    const equipped = player?.equipped;
+    // Legacy snapshots and unsupported-only equipment use the original
+    // starter appearance, which includes the source-backed sword.
+    if (!player || equipped === undefined || (equipped.length > 0 && !equipped.some(item => ['1002067', '1040002', '1052095', '1302000'].includes(item.itemId)))) return true;
+    return equipped.some(item => item.itemId === '1302000');
   }
 
   private updateGameplayEntities(snapshot: GameplaySnapshot) {
@@ -286,7 +303,7 @@ export class World extends Phaser.Scene {
     const drops = snapshot.drops ?? [];
     const dropIds = new Set(drops.map(drop => drop.id));
     for (const [id, view] of this.drops) {
-      if (!dropIds.has(id)) { view.destroy(); this.drops.delete(id); }
+      if (view.pickingUp ? view.updatePickup() : !dropIds.has(id)) { view.destroy(); this.drops.delete(id); }
     }
     for (const drop of drops) {
       const asset = this.manifest.items?.[drop.itemId];

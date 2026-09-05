@@ -103,3 +103,17 @@ Snail按参考STAND/HIT转随机方向MOVE，MOVE随机站/左/右，源动画�
 服务端 `Player` 增加内部 `last_foothold_id` 保存最近有效非墙 authored foothold。越过源底边时优先将 x 夹回该 foothold 区间、恢复其地面 y、速度和 grounded 状态；只有没有有效支撑时才回出生支撑。边界恢复后暂时吞掉持续横向 heartbeat，直到中性输入，避免按键保持立即再次离台循环。新增 authored foothold 回落稳定与无支撑出生回退断言；`cargo fmt --check`、falling 定向测试 3/3、边缘 1/1、跳跃 1/1、Down+Space 1/1、梯顶 3/3、`cargo check`、`cargo build`、`git diff --check` 均通过。
 
 3010 使用 `关闭3010.command` / `启动3010.command` 受控升级到修复 binary：服务 PID69704，唯一陪测 bot PID69731，health 为 protocol 2 / `gms83-gameplay-2`，bot 保持 TCP 连接，3000 无监听；SQLite integrity 为 `ok`，账号/角色计数 24/23，未重置。随后只重建 `client/dist-next`，未再次重启后端；Vite 从 `client/package.json` 读取真实版本 `0.1.0`，在构建时按 Asia/Shanghai 固化秒级时间。当前页面左上发布标识为 `v0.1.0 · 2026年09月05日 19:30:24`，前端 `npm run typecheck`、`npm run build`、`npm run check` 均通过。用户刷新 `http://127.0.0.1:3010/` 并重新登录后可看到发布标识并亲测底部回落。
+
+
+## 2026-09-05：原版物品栏与装备业务
+
+按本地 GMS83 Item / Equip 素材及参考源码恢复小/展开物品栏、五类独立槽、装备栏、I/E 快捷键、拖拽/合堆/交换/整理排序、数量丢弃与金币丢弃，默认中文并支持 `?lang=en`。当前已接入的 16 种道具使用本地 WZ 元数据，包含药水、装备、卷轴和怪物卡片；装备提示读取实例强化属性。
+
+Rust/TypeScript 协议同步升级到 3。SQLite 原子处理使用、穿脱、强化、丢弃、拾取、图鉴及请求去重；装备最终属性与剩余升级次数随全部流转保存，并参与战斗属性计算。拾取成功后在线快照同步重载，避免卡片误入背包和强化属性暂时丢失；卡片数量饱和 5，第六张仍消费。旧 schema / 中间 schema 迁移拆分超限堆叠，容量不足时回滚保留原数据。内存世界同步支持卡片、卷轴及强化装备丢弃往返。
+
+必要自检：Rust 46/46、cargo fmt 检查通过；新增回归覆盖 Store→World 拾取、强化实例往返与重启、卡片饱和、药水单个扣除、卷轴错误目标不扣、装备操作重发以及超限旧堆叠迁移。中文/英文、元数据与提示自检通过；无账号修改的浏览器组件检查覆盖原版小/展开布局、I/E 独立窗口和卷轴负装备槽请求。实际游戏内体验仍由用户验收。
+
+
+四种已接入装备按 WZ 原始锚点、zmap/smap 和衣帽遮挡规则导出 12 种合法组合；显式空装备不再显示固定帽/上衣/武器，长袍遮挡裤子，己方和远端统一跟随 equipped 快照，无武器时停用剑光/剑音。复用现有导出器并实际集成 173 张源 PNG，组合引用的 127 个纹理路径全部存在；基础身体、脸、发型、裤子和鞋仍沿用现有角色外观，未扩展未接入的装备目录。
+
+最终 Cargo/Vite 构建通过。以独立进程组运行既有 `启动3010.command` 完成受控升级：服务 PID22806、唯一 bot PID22870，health `ok=true / protocolVersion=3 / gms83-gameplay-2`，前端 `v0.2.0`、入口 `index-DTjhyyJb.js`。公共 manifest 包含 41 个装备窗口帧和 12 种外观组合，抽查原 PNG HTTP 200；线上首页与本次 dist 完全一致。数据库账号/角色数保持 25/24，完整性通过，备份位于忽略目录 `evidence/runtime/3010-control/pre-inventory-v3.sqlite3`。用户需刷新并重新登录；未替用户进行实际游戏操作。

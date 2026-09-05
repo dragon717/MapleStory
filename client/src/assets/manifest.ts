@@ -83,16 +83,22 @@ export interface CombatAssets {
   hit?: { sound?: string; soundSource?: string };
   damageNumbers?: { normal: DamageNumberSet; critical?: DamageNumberSet };
 }
+export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead', Frame[]>>;
+export interface AvatarEquipmentLoadout {
+  itemIds: string[];
+  actions: AvatarActionSet;
+}
 export interface Manifest {
   contentVersion: string;
   map: MapDefinition;
   mapCatalog?: MapCatalog;
   controls?: ControlGuide[];
-  avatar: { defaultFacing: -1 | 1; actions: Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead', Frame[]>>; attackSound?: string };
+  avatar: { defaultFacing: -1 | 1; actions: AvatarActionSet; equipmentLoadouts?: Record<string, AvatarEquipmentLoadout>; attackSound?: string };
   monsters?: GameplayAssets['monsters']; items?: GameplayAssets['items']; hud?: GameplayAssets['hud']; drops?: GameplayAssets['drops'];
   combat?: CombatAssets;
   /** Source-backed UIWindow.img/Item subtree, keyed relative to Item. */
   inventoryUi?: Record<string, AssetFrame>;
+  equipmentUi?: Record<string, AssetFrame>;
   /** Source-backed Basic.img/BtClose states used by item windows. */
   closeButton?: Record<string, AssetFrame>;
   /** Source-backed Basic.img/Tab2 nine-slice pieces used by Item tabs. */

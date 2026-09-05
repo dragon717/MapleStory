@@ -154,18 +154,23 @@ export class CombatView {
 
   private spawnDamageNumber(event: AuthoritativeDamageEvent) {
     const sets = this.assets?.damageNumbers;
-    const set = event.critical && sets?.critical ? sets.critical : sets?.normal;
+    const critical = Boolean(event.critical && sets?.critical);
+    const set = critical ? sets?.critical : sets?.normal;
     if (!set) return;
     const digits = String(event.damage);
     if (!/^\d+$/.test(digits)) return;
 
     const frames = [...digits].map((digit, index) => set[index === 0 ? 'first' : 'rest'][digit]);
     if (frames.some(frame => !validFrame(frame))) return;
-    const advances = frames.map((frame, index) => {
-      const digit = Number(digits[index]);
-      if (event.critical) return index === 0 ? NORMAL_FIRST_ADVANCE[digit] + 6 : NORMAL_REST_ADVANCE[digit] + 4;
-      return index === 0 ? NORMAL_FIRST_ADVANCE[digit] : NORMAL_REST_ADVANCE[digit];
-    });
+    const firstDigit = Number(digits[0]);
+    const firstAdvance = NORMAL_FIRST_ADVANCE[firstDigit] + (critical ? 8 : 0);
+    const advances = [firstAdvance];
+    for (let index = 1; index < digits.length; index++) {
+      const current = NORMAL_REST_ADVANCE[Number(digits[index])] + (critical ? 4 : 0);
+      const next = index + 1 < digits.length ? NORMAL_REST_ADVANCE[Number(digits[index + 1])] + (critical ? 4 : 0) : current;
+      // Match DamageNumber.cpp: neighboring rest digits share their advance.
+      advances.push(index + 1 < digits.length ? Math.floor((current + next) / 2) : current);
+    }
     const container = this.scene.add.container(Math.round(event.x), Math.round(event.y - 8)).setDepth(this.depth + 1);
     let cursor = -advances.reduce((sum, advance) => sum + advance, 0) / 2;
     frames.forEach((frame, index) => {

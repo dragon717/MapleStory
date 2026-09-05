@@ -5,8 +5,9 @@ export class PlayerInput {
   private attackSeq = 0;
   private pickupSeq = 0;
   private ready = false;
+  private pickupTimer?: ReturnType<typeof setInterval>;
   private timer: ReturnType<typeof setInterval>;
-  constructor(private send: (message: ClientMessage) => void, private nearestDrop: () => string | null = () => null) {
+  constructor(private send: (message: ClientMessage) => void, private nearestDrop: () => string | null = () => null, private enterPortal: () => void = () => {}) {
     window.addEventListener('keydown', this.down);
     window.addEventListener('keyup', this.up);
     window.addEventListener('blur', this.reset);
@@ -24,22 +25,31 @@ export class PlayerInput {
     // upgraded in parallel so this client remains type-checkable on the v1 tree.
     this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical() } as ClientMessage);
   }
+  private pickup = () => {
+    if (!this.ready || this.blocked()) return;
+    const dropId = this.nearestDrop();
+    if (dropId) this.send({ type: 'pickup', requestId: `pickup-${Date.now()}-${++this.pickupSeq}`, dropId });
+  };
+  private stopPickup() { clearInterval(this.pickupTimer); this.pickupTimer = undefined; }
   private down = (event: KeyboardEvent) => {
     if (!this.ready || this.blocked() || event.metaKey || event.altKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ'].includes(event.code)) return;
     event.preventDefault();
     if (event.repeat) return;
     if (event.code === 'KeyZ') {
-      const dropId = this.nearestDrop();
-      if (dropId) this.send({ type: 'pickup', requestId: `pickup-${Date.now()}-${++this.pickupSeq}`, dropId } as unknown as ClientMessage);
+      if (this.held.has('KeyZ')) return;
+      this.held.add('KeyZ');
+      this.pickup();
+      this.pickupTimer = setInterval(this.pickup, 200);
       return;
     }
     this.held.add(event.code);
+    if (event.code === 'ArrowUp') this.enterPortal();
     if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
     else this.emit(event.code === 'Space');
   };
-  private up = (event: KeyboardEvent) => { if (this.held.delete(event.code)) { event.preventDefault(); this.emit(false); } };
-  reset = () => { this.held.clear(); this.emit(false); };
+  private up = (event: KeyboardEvent) => { if (event.code === 'KeyZ') this.stopPickup(); if (this.held.delete(event.code)) { event.preventDefault(); this.emit(false); } };
+  reset = () => { this.stopPickup(); this.held.clear(); this.emit(false); };
   private visibility = () => { if (document.hidden) this.reset(); };
   private focus = () => { if (this.blocked()) this.reset(); };
   destroy() { this.reset(); clearInterval(this.timer); window.removeEventListener('keydown', this.down); window.removeEventListener('keyup', this.up); window.removeEventListener('blur', this.reset); document.removeEventListener('visibilitychange', this.visibility); document.removeEventListener('focusin', this.focus); }

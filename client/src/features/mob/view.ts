@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { AssetFrame, MonsterAsset, Point } from '../../assets/manifest';
 import { frameAt } from '../player/animation';
+import { pickupMotion } from './pickup-motion';
 
 export interface MonsterSnapshot {
   id: string;
@@ -72,6 +73,7 @@ export interface DropSnapshot {
 export class DropView {
   private readonly sprite: Phaser.GameObjects.Image;
   private frame: AssetFrame;
+  private pickup?: { startedAt: number; start: Point; target: () => Point };
 
   constructor(scene: Phaser.Scene, frame: AssetFrame, depth: number) {
     this.frame = frame;
@@ -79,8 +81,27 @@ export class DropView {
   }
 
   update(drop: DropSnapshot) {
+    if (this.pickingUp) return;
     this.sprite.setVisible(true)
       .setPosition(Math.round(drop.x + this.frame.x), Math.round(drop.y + this.frame.y));
+  }
+
+  get pickingUp() { return this.pickup !== undefined; }
+
+  pickUp(target: () => Point) {
+    if (this.pickingUp) return;
+    this.pickup = { startedAt: performance.now(), start: { x: this.sprite.x, y: this.sprite.y }, target };
+  }
+
+  updatePickup() {
+    if (!this.pickup) return false;
+    const target = this.pickup.target();
+    const pose = pickupMotion(this.pickup.start, {
+      x: target.x - this.frame.width / 2,
+      y: target.y - 24 - this.frame.height / 2,
+    }, performance.now() - this.pickup.startedAt);
+    this.sprite.setPosition(pose.x, pose.y).setAlpha(pose.alpha);
+    return pose.done;
   }
 
   destroy() { this.sprite.destroy(); }

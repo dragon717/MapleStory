@@ -3,6 +3,7 @@
 set -u
 
 ROOT="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+cd -- "$ROOT" || exit 1
 CONTROL_DIR="$ROOT/evidence/runtime/3010-control"
 SERVER_PID_FILE="$CONTROL_DIR/server.pid"
 BOT_PID_FILE="$CONTROL_DIR/bot.pid"
@@ -29,7 +30,8 @@ is_server_pid() {
   cmd="$(process_command "$pid")"
   cwd="$(process_cwd "$pid")"
   [[ "$cmd" == *maplestory-server* ]] || return 1
-  [[ "$cwd" == "$ROOT" || "$cmd" == *"$SERVER_BIN"* ]]
+  [[ "$cwd" == "$ROOT" || "$cmd" == *"$SERVER_BIN"* ]] || return 1
+  lsof -nP -a -p "$pid" -iTCP:3010 -sTCP:LISTEN >/dev/null 2>&1
 }
 is_bot_pid() {
   local pid="$1" cmd cwd
@@ -54,7 +56,7 @@ wait_health() {
   local health
   for _ in {1..40}; do
     health="$(curl -fsS --max-time 1 "$HEALTH_URL" 2>/dev/null || true)"
-    if [[ "$health" == *'"protocolVersion":2'* && "$health" == *'"contentVersion":"gms83-gameplay-2"'* ]]; then return 0; fi
+    if "$NODE_BIN" -e 'const h=JSON.parse(process.argv[1]); process.exit(h.ok === true && h.protocolVersion === Number(process.argv[2]) && h.contentVersion === process.argv[3] ? 0 : 1)' "$health" "$PROTOCOL_VERSION" "$CONTENT_VERSION" 2>/dev/null; then return 0; fi
     sleep 0.25
   done
   return 1
@@ -62,13 +64,22 @@ wait_health() {
 
 mkdir -p "$CONTROL_DIR" || die "无法创建运行目录：$CONTROL_DIR"
 chmod 700 "$CONTROL_DIR"
-[[ -x "$SERVER_BIN" ]] || die "缺少已构建服务：$SERVER_BIN；需要时运行 ~/.cargo/bin/cargo build --manifest-path server/Cargo.toml"
 [[ -f "$DB" ]] || die "数据库不存在，为避免误建新库已停止：$DB"
-[[ -f "$DIST/index.html" && -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" && -f "$MAP_CATALOG" ]] || die "3010 固定配置或 dist-next 资源不完整"
+[[ -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" && -f "$MAP_CATALOG" ]] || die "3010 固定配置或资源不完整"
 NODE_BIN="$(command -v node || true)"
 [[ -n "$NODE_BIN" ]] || die "找不到 Node 22；请先加载 Node 22 环境"
 NODE_MAJOR="$($NODE_BIN -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
 [[ "$NODE_MAJOR" =~ '^[0-9]+$' ]] && (( NODE_MAJOR >= 22 )) || die "需要 Node 22 或更高版本"
+
+PROTOCOL_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimental-strip-types --input-type=module -e 'import { PROTOCOL_VERSION } from "./shared/protocol.ts"; console.log(PROTOCOL_VERSION)')" || die "无法读取协议版本"
+CONTENT_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimental-strip-types --input-type=module -e 'import { CONTENT_VERSION } from "./shared/protocol.ts"; console.log(CONTENT_VERSION)')" || die "无法读取资源版本"
+CARGO_BIN="$(command -v cargo || true)"
+[[ -n "$CARGO_BIN" ]] || CARGO_BIN="$HOME/.cargo/bin/cargo"
+[[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
+print -- "正在构建客户端与服务器；构建成功后重启 3010…"
+"$CARGO_BIN" build --manifest-path "$ROOT/server/Cargo.toml" || die "服务端构建失败，未停止正在运行的服务"
+(cd -- "$ROOT/client" && npm run build) || die "客户端构建失败，未停止正在运行的服务"
+zsh "$ROOT/关闭3010.command" || die "旧服务未能停止，未启动新实例"
 
 SERVER_PID="$(read_pid_file "$SERVER_PID_FILE")"
 if ! is_server_pid "$SERVER_PID"; then
@@ -112,6 +123,7 @@ for _ in {1..40}; do
   sleep 0.25
 done
 is_bot_pid "$BOT_PID" || die "3010 陪测 bot 未保持运行；日志：$BOT_LOG"
+lsof -nP -a -p "$BOT_PID" -iTCP:3010 -sTCP:ESTABLISHED >/dev/null 2>&1 || die "3010 陪测 bot 未连接；日志：$BOT_LOG"
 print -- "3010 游戏服务已运行（PID $SERVER_PID）"
 print -- "陪测 bot 已运行（PID $BOT_PID）；日志：$BOT_LOG"
 print -- "数据库与账号未重置；控制文件：$CONTROL_DIR"

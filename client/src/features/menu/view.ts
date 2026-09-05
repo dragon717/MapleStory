@@ -32,7 +32,7 @@ export class MenuView {
     this.close();
   };
 
-  constructor(private host: HTMLElement, private manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onQuit?: () => void) {
+  constructor(private host: HTMLElement, private manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onQuit?: () => void, private onEquipment?: () => void) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
     this.root.hidden = true;
@@ -138,6 +138,11 @@ export class MenuView {
     if (key === 'BtItem' && this.onInventory) {
       this.close();
       this.onInventory();
+      return;
+    }
+    if (key === 'BtEquip' && this.onEquipment) {
+      this.close();
+      this.onEquipment();
       return;
     }
     if (key === 'BtQuit' && this.onQuit) {

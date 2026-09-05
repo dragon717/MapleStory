@@ -1,6 +1,8 @@
 mod auth;
 mod combat;
 mod inventory;
+#[cfg(test)]
+mod inventory_acceptance;
 mod network;
 mod protocol;
 mod world;

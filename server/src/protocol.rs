@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 pub const CONTENT_VERSION: &str = "gms83-gameplay-2";
 
 #[derive(Debug, Deserialize)]
@@ -38,17 +39,52 @@ pub enum ClientMessage {
     InventoryMove {
         #[serde(rename = "requestId")]
         request_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
         #[serde(rename = "sourceSlot")]
-        source_slot: u16,
+        source_slot: i16,
         #[serde(rename = "targetSlot")]
-        target_slot: u16,
+        target_slot: i16,
         quantity: u32,
     },
     DropItem {
         #[serde(rename = "requestId")]
         request_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
         #[serde(rename = "sourceSlot")]
-        source_slot: u16,
+        source_slot: i16,
+        quantity: u32,
+    },
+    InventoryGather {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
+    },
+    InventorySort {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
+    },
+    UseItem {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
+        #[serde(rename = "sourceSlot")]
+        source_slot: i16,
+        #[serde(rename = "itemId")]
+        item_id: String,
+        #[serde(rename = "targetSlot")]
+        target_slot: Option<i16>,
+        #[serde(rename = "targetItemId")]
+        target_item_id: Option<String>,
+    },
+    DropMesos {
+        #[serde(rename = "requestId")]
+        request_id: String,
         quantity: u32,
     },
     Revive {
@@ -90,22 +126,79 @@ impl ClientMessage {
             } => valid_id(request_id) && valid_id(portal_name),
             Self::InventoryMove {
                 request_id,
+                inventory_type,
                 source_slot,
                 target_slot,
                 quantity,
             } => {
                 valid_id(request_id)
-                    && (1..=24).contains(source_slot)
-                    && (1..=24).contains(target_slot)
+                    && valid_inventory_move(*inventory_type, *source_slot, *target_slot)
                     && *quantity > 0
             }
             Self::DropItem {
                 request_id,
+                inventory_type,
                 source_slot,
                 quantity,
-            } => valid_id(request_id) && (1..=24).contains(source_slot) && *quantity > 0,
+            } => {
+                valid_id(request_id)
+                    && crate::inventory::valid_inventory_type(*inventory_type)
+                    && crate::inventory::valid_slot(*source_slot)
+                    && *quantity > 0
+            }
+            Self::InventoryGather {
+                request_id,
+                inventory_type,
+            }
+            | Self::InventorySort {
+                request_id,
+                inventory_type,
+            } => valid_id(request_id) && crate::inventory::valid_inventory_type(*inventory_type),
+            Self::UseItem {
+                request_id,
+                inventory_type,
+                source_slot,
+                item_id,
+                target_slot,
+                target_item_id,
+            } => {
+                let source_valid = if *inventory_type == 1 {
+                    crate::inventory::valid_slot(*source_slot)
+                        || crate::inventory::valid_equipment_slot(*source_slot)
+                } else {
+                    crate::inventory::valid_slot(*source_slot)
+                };
+                valid_id(request_id)
+                    && crate::inventory::valid_inventory_type(*inventory_type)
+                    && source_valid
+                    && valid_id(item_id)
+                    && target_slot.is_none_or(|slot| {
+                        crate::inventory::valid_slot(slot)
+                            || crate::inventory::valid_equipment_slot(slot)
+                    })
+                    && target_item_id.as_deref().is_none_or(valid_id)
+            }
+            Self::DropMesos {
+                request_id,
+                quantity,
+            } => valid_id(request_id) && (10..=50_000).contains(quantity),
         }
     }
+}
+
+fn valid_inventory_move(inventory_type: u8, source_slot: i16, target_slot: i16) -> bool {
+    if !crate::inventory::valid_inventory_type(inventory_type) {
+        return false;
+    }
+    if inventory_type == 1
+        && ((crate::inventory::valid_slot(source_slot)
+            && crate::inventory::valid_equipment_slot(target_slot))
+            || (crate::inventory::valid_equipment_slot(source_slot)
+                && crate::inventory::valid_slot(target_slot)))
+    {
+        return true;
+    }
+    crate::inventory::valid_slot(source_slot) && crate::inventory::valid_slot(target_slot)
 }
 
 fn valid_id(id: &str) -> bool {
@@ -116,12 +209,18 @@ fn valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     pub slot: u16,
     pub item_id: String,
     pub quantity: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<BTreeMap<String, i64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining_slots: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upgrade_count: Option<u32>,
 }
 
 #[derive(Clone, Serialize)]
@@ -150,6 +249,8 @@ pub struct PlayerState {
     pub exp_to_next: u64,
     pub mesos: u64,
     pub inventory: Vec<InventoryItem>,
+    pub equipped: Vec<InventoryItem>,
+    pub monster_book: BTreeMap<String, u8>,
 }
 
 #[derive(Clone, Serialize)]

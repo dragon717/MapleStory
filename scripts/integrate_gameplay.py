@@ -35,6 +35,12 @@ if __name__ == '__main__':
     rendered_catalog = read(SOURCE / 'maps/catalog.json')
     assert gameplay['contentVersion'] == 'gms83-gameplay-2'
     assert avatar['avatar']['look']['weapon'][1] == '01302000.img'
+    loadouts = avatar['avatar'].get('equipmentLoadouts', {})
+    assert 'empty' in loadouts
+    for item_id in ('1002067', '1040002', '1052095', '1302000'):
+        assert any(item_id in loadout.get('itemIds', []) for key, loadout in loadouts.items() if key != 'empty')
+    for loadout in loadouts.values():
+        assert all(loadout['actions'].get(action) for action in ('stand', 'walk', 'jump', 'attack'))
     required = {str(item['id']) for item in rendered_catalog.get('maps', []) if str(item.get('id')) in {
         '000010000', '000020000', '000020001', '000030000', '000030001', '000040000',
         '000040001', '000040002', '000050000', '000050001', '000060000', '000060001',
