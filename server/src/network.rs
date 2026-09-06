@@ -142,7 +142,7 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
         .await;
         return;
     }
-    let ClientMessage::Hello { token, .. } = message else {
+    let ClientMessage::Hello { token, lang, .. } = message else {
         let _ = send(
             &mut socket,
             reject("unauthenticated", "Hello required", None),
@@ -174,6 +174,7 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
             connection: connection.clone(),
             output,
             reply,
+            lang: lang.unwrap_or_default(),
         })
         .is_err()
     {

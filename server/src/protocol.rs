@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 5;
-pub const CONTENT_VERSION: &str = "gms83-quest-1";
+pub const PROTOCOL_VERSION: u32 = 6;
+pub const CONTENT_VERSION: &str = "gms83-quest-2";
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
@@ -13,6 +13,10 @@ pub enum ClientMessage {
         protocol_version: u32,
         #[serde(rename = "contentVersion")]
         content_version: String,
+        /// Preferred display language for server-pushed text
+        /// ("zh" default, "en" for the ?lang=en UI).  Absent means zh.
+        #[serde(default)]
+        lang: Option<String>,
     },
     Input {
         seq: u64,
@@ -119,11 +123,15 @@ impl ClientMessage {
                 token,
                 protocol_version,
                 content_version,
+                lang,
             } => {
                 token.len() == 64
                     && token.bytes().all(|c| c.is_ascii_hexdigit())
                     && *protocol_version == PROTOCOL_VERSION
                     && content_version == CONTENT_VERSION
+                    && lang.as_deref().is_none_or(|lang| {
+                        lang == crate::quest_text::LANG_ZH || lang == crate::quest_text::LANG_EN
+                    })
             }
             Self::Input {
                 seq,

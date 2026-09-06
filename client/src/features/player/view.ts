@@ -10,11 +10,29 @@ export class PlayerView {
   private name: Phaser.GameObjects.Text;
   private signature = '';
   private climbFrame = 0;
+  /** Hurt-flash window (scene clock ms). White double-flash while active. */
+  private flashStartedAt = 0;
+  private flashUntil = 0;
+  private flashWhite = false;
+  /** Feet-to-head offset of the current rendered frame, for damage numbers. */
+  private headOffsetY = -40;
   constructor(private scene: Phaser.Scene, private manifest: Manifest, username: string, self: boolean) {
     // ponytail: one map layer for actors; add explicit actorDepth when a map needs foreground occlusion.
     const depth = Math.max(...manifest.map.layers.map(layer => layer.depth)) + 1;
     this.body = scene.add.container(0, 0).setDepth(depth);
     this.name = scene.add.text(0, 0, username, { fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: self ? '#fff3a5' : '#ffffff', backgroundColor: '#25322bd9', padding: { x: 6, y: 3 } }).setOrigin(0.5, 0).setDepth(depth + 1);
+  }
+  /** Begin the server-driven hurt presentation: white double-flash while the
+   *  authoritative knockback slide runs. Positions themselves come from
+   *  snapshots, so only the flash needs to be local. */
+  hitFeedback(durationMs = 420) {
+    const now = this.scene.time.now;
+    this.flashStartedAt = now;
+    this.flashUntil = now + durationMs;
+  }
+  /** Vertical feet→head offset (negative) for anchoring damage numbers. */
+  headAnchorYOffset() {
+    return this.headOffsetY;
   }
   update(player: PlayerState, elapsed: number) {
     const loadout = this.equipmentLoadout(player.equipped);
@@ -37,13 +55,35 @@ export class PlayerView {
     if (signature !== this.signature) {
       this.signature = signature;
       this.body.removeAll(true);
-      for (const part of [...frames[index].parts].sort((a, b) => b.z - a.z)) {
+      const parts = [...frames[index].parts].sort((a, b) => b.z - a.z);
+      for (const part of parts) {
         const image = this.scene.add.image(part.x, part.y, part.url).setOrigin(0);
+        // A rebuild mid-flash must re-apply the white tint to the fresh
+        // children; updateFlash() only runs on state changes.
+        if (this.flashWhite) image.setTintFill(0xffffff);
         this.body.add(image);
       }
+      // Source frames anchor the feet at y=0 and grow upward (negative y),
+      // so the sprite top is the smallest part y. Present damage numbers just
+      // above the head, mirroring MonsterView.hitAnchor.
+      const top = parts.reduce((lowest, part) => Math.min(lowest, part.y), 0);
+      this.headOffsetY = Math.round(Math.min(top, -1) - 2);
     }
     this.body.setPosition(Math.round(player.x), Math.round(player.y)).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
     this.name.setPosition(Math.round(player.x), Math.round(player.y + 8));
+    this.updateFlash();
+  }
+  private updateFlash() {
+    const now = this.scene.time.now;
+    // 90 ms white, 90 ms normal, repeated until the knockback window ends.
+    const white = now < this.flashUntil && (now - this.flashStartedAt) % 180 < 90;
+    if (white === this.flashWhite) return;
+    this.flashWhite = white;
+    for (const child of this.body.list) {
+      const image = child as Phaser.GameObjects.Image;
+      if (white) image.setTintFill(0xffffff);
+      else image.clearTint();
+    }
   }
   private equipmentLoadout(equipped: PlayerState['equipped']): { key: string; actions: AvatarActionSet } {
     // Old snapshots have no equipped field. Keep the original starter look

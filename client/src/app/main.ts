@@ -88,7 +88,15 @@ el('login').onsubmit = async event => {
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'));
     menus?.destroy();
-    menus = new MenuView(el('menus'), manifest, message => status(message), () => inventory?.toggle(), () => el('logout').click(), () => inventory?.toggleEquipment());
+    menus = new MenuView(
+      el('menus'),
+      manifest,
+      message => status(message),
+      () => inventory?.toggle(),
+      () => el('logout').click(),
+      () => inventory?.toggleEquipment(),
+      () => questLog?.open(),
+    );
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();

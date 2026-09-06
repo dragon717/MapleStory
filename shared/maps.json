@@ -1218,8 +1218,8 @@
           "type": 1,
           "x": -140,
           "y": 273,
-          "targetMapId": null,
-          "targetPortalName": null
+          "targetMapId": "000010000",
+          "targetPortalName": "out00"
         },
         {
           "name": "out00",
@@ -1240,6 +1240,14 @@
           "targetMapId": null,
           "targetPortalName": null,
           "script": "glTutoMsg0"
+        },
+        {
+          "name": "in01",
+          "type": 2,
+          "x": 140,
+          "y": 215,
+          "targetMapId": "000020001",
+          "targetPortalName": "out00"
         }
       ]
     },
@@ -1904,8 +1912,8 @@
           "type": 1,
           "x": -184,
           "y": 213,
-          "targetMapId": null,
-          "targetPortalName": null
+          "targetMapId": "000020000",
+          "targetPortalName": "out00"
         },
         {
           "name": "in01",
@@ -2428,8 +2436,8 @@
           "type": 1,
           "x": -199,
           "y": 215,
-          "targetMapId": null,
-          "targetPortalName": null
+          "targetMapId": "000030000",
+          "targetPortalName": "out00"
         },
         {
           "name": "out00",
@@ -2477,6 +2485,14 @@
           "onlyOnce": true,
           "hideTooltip": 0,
           "delay": 0
+        },
+        {
+          "name": "east00",
+          "type": 2,
+          "x": 700,
+          "y": 155,
+          "targetMapId": "000040001",
+          "targetPortalName": "west00"
         }
       ]
     },
@@ -6197,8 +6213,8 @@
           "type": 1,
           "x": 11,
           "y": 335,
-          "targetMapId": null,
-          "targetPortalName": null
+          "targetMapId": "000040000",
+          "targetPortalName": "out00"
         },
         {
           "name": "east00",
@@ -6222,6 +6238,22 @@
           "onlyOnce": true,
           "hideTooltip": 0,
           "delay": 0
+        },
+        {
+          "name": "west00",
+          "type": 2,
+          "x": 400,
+          "y": -25,
+          "targetMapId": "000040002",
+          "targetPortalName": "east00"
+        },
+        {
+          "name": "east01",
+          "type": 2,
+          "x": 1000,
+          "y": -85,
+          "targetMapId": "000050001",
+          "targetPortalName": "west00"
         }
       ]
     },
@@ -11124,6 +11156,22 @@
           "y": 265,
           "targetMapId": null,
           "targetPortalName": null
+        },
+        {
+          "name": "in01",
+          "type": 2,
+          "x": 420,
+          "y": -56,
+          "targetMapId": "001000002",
+          "targetPortalName": "out00"
+        },
+        {
+          "name": "in03",
+          "type": 2,
+          "x": 1600,
+          "y": 154,
+          "targetMapId": "001000004",
+          "targetPortalName": "out00"
         }
       ]
     },
@@ -13719,7 +13767,7 @@
           "x": 890,
           "y": 331,
           "targetMapId": "001000000",
-          "targetPortalName": "in01",
+          "targetPortalName": "in03",
           "hideTooltip": 0,
           "delay": 0
         }
@@ -18383,6 +18431,22 @@
           "y": 217,
           "targetMapId": "001020000",
           "targetPortalName": "top00"
+        },
+        {
+          "name": "in01",
+          "type": 2,
+          "x": 520,
+          "y": 215,
+          "targetMapId": "001000005",
+          "targetPortalName": "out00"
+        },
+        {
+          "name": "in02",
+          "type": 2,
+          "x": -240,
+          "y": 215,
+          "targetMapId": "001000006",
+          "targetPortalName": "out00"
         }
       ]
     },

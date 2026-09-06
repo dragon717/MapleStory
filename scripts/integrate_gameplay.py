@@ -3,6 +3,7 @@ import json
 import shutil
 from pathlib import Path
 from map_catalog import apply_catalog
+from portal_returns import apply_link_fill, apply_portal_returns, dangling_links
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'references/gameplay-assets'
@@ -78,6 +79,16 @@ if __name__ == '__main__':
     avatar['avatar']['attackSound'] = '/assets/swordL-Attack.mp3'
     avatar['avatar']['attackSoundSource'] = 'Character.wz/Weapon/01302000.img/info/sfx=swordL'
     copy_urls(rendered_catalog, SOURCE)
+    # WZ stores each map link on the outgoing portal only, leaving the arrival
+    # side a dead end.  Close the loop before the catalog is handed to the
+    # client and the server so players can walk back to the previous map.
+    for kind, map_id, portal_name, detail in apply_link_fill(rendered_catalog['maps']):
+        print(f'portal link {kind} {map_id}/{portal_name} {detail}')
+    returns = apply_portal_returns(rendered_catalog['maps'])
+    for map_id, portal_name, return_map_id, return_portal_name in returns:
+        print(f'portal return {map_id}/{portal_name} -> {return_map_id}/{return_portal_name}')
+    for map_id, portal_name, target_map_id, target_portal_name, reason in dangling_links(rendered_catalog['maps']):
+        print(f'portal link unresolved {map_id}/{portal_name} -> {target_map_id}/{target_portal_name} ({reason})')
     avatar.update(gameplay)
     apply_catalog(avatar, rendered_catalog)
     bgm_urls = {

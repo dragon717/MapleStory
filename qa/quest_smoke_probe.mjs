@@ -24,18 +24,18 @@ async function registerAndLogin(username) {
   if (reg.response.status === 409 || reg.response.status === 201) {
     const login = await request('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password }) });
     assert.equal(login.response.status, 200, `login failed: ${JSON.stringify(login.body)}`);
-    return { token: login.body.token, playerId: login.body.playerId };
+    return { token: login.body.token, playerId: login.body.playerId, protocolVersion: login.body.protocolVersion, contentVersion: login.body.contentVersion };
   }
   assert.equal(reg.response.status, 200, `register failed: ${JSON.stringify(reg.body)}`);
   return { token: reg.body.token, playerId: reg.body.playerId };
 }
-function openSession({ token }) {
+function openSession({ token, protocolVersion, contentVersion }) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://${base.hostname}:${base.port}/ws`);
     const messages = [];
     let snapshot = null;
     const send = (payload) => ws.send(JSON.stringify(payload));
-    ws.addEventListener('open', () => send({ type: 'hello', token, protocolVersion: 4, contentVersion: 'gms83-npc-1' }));
+    ws.addEventListener('open', () => send({ type: 'hello', token, protocolVersion, contentVersion }));
     ws.addEventListener('message', (event) => {
       const msg = JSON.parse(event.data);
       messages.push(msg);
@@ -47,13 +47,14 @@ function openSession({ token }) {
       close: () => ws.close(),
       ready: waitUntil(() => Boolean(snapshot), 'snapshot'),
       lastNpcResult: () => [...messages].reverse().find((m) => m.type === 'npcResult'),
+      lastQuestUpdate: () => [...messages].reverse().find((m) => m.type === 'questUpdate'),
     });
   });
 }
 
 const username = `quest-${Date.now().toString(36)}`;
-const { token } = await registerAndLogin(username);
-const session = await openSession({ token });
+const { token, protocolVersion, contentVersion } = await registerAndLogin(username);
+const session = await openSession({ token, protocolVersion, contentVersion });
 await session.ready;
 
 const snapshot = session.snapshot();
@@ -90,6 +91,12 @@ await waitUntil(() => {
   return r && r.npcId === seraI.id && (r.ended === true);
 }, 'Sera accept ends');
 check('Quest accepted (Sera ends)', true);
+await waitUntil(() => {
+  const u = session.lastQuestUpdate();
+  return u && u.questId === 'maple-road-training' && u.status === 'active';
+}, 'questUpdate active');
+const acceptedUpdate = session.lastQuestUpdate();
+check('Server pushes questUpdate on accept', acceptedUpdate.status === 'active', { name: acceptedUpdate.name, summary: acceptedUpdate.summary });
 
 // 2) Heena: completing branch now appears.
 talk(heenaI, { step: 'start' });
@@ -114,6 +121,12 @@ await waitUntil(() => {
   return false;
 }, 'mesos reward snapshot', 15000);
 check('Quest reward granted (+300 mesos)', mesosAfter === mesosBefore + 300, { before: mesosBefore, after: mesosAfter });
+await waitUntil(() => {
+  const u = session.lastQuestUpdate();
+  return u && u.questId === 'maple-road-training' && u.status === 'completed';
+}, 'questUpdate completed');
+const completedUpdate = session.lastQuestUpdate();
+check('Server pushes questUpdate on turn-in', completedUpdate.reward?.mesos === 300, { name: completedUpdate.name, reward: completedUpdate.reward });
 
 // 3) Re-accept must be impossible: Sera now falls back to the intro.
 talk(seraI, { step: 'start' });

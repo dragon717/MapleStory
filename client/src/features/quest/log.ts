@@ -3,10 +3,12 @@ import { uiLocale } from '../../app/i18n';
 
 /**
  * Quest log window.  The server owns the authoritative entries (status /
- * progress are persisted there); this panel only renders the state it is
- * pushed (questList after every join, questUpdate on transitions).  Styling
- * follows the parchment panel used by the v83 dialogue windows; opening is a
- * hotkey (Q) so the log never needs its own world-space layout.
+ * progress are persisted there) and pushes the localized display text
+ * (questList after every join, questUpdate on transitions) resolved from the
+ * offline `shared/quest-text.json` corpus in the player's language.  This
+ * panel only renders what the server sent; it carries no translation table.
+ * Styling follows the parchment panel used by the v83 dialogue windows;
+ * opening is a hotkey (Q) so the log never needs its own world-space layout.
  */
 export class QuestLogView {
   private readonly root: HTMLDivElement;
@@ -93,9 +95,10 @@ export class QuestLogView {
 
   private render() {
     this.body.replaceChildren();
-    const list = [...this.entries.values()].sort((a, b) =>
-      Number(b.status === 'active') - Number(a.status === 'active') || a.name.localeCompare(b.name),
-    );
+    const list = [...this.entries.values()]
+      .map(entry => ({ entry, displayName: this.localize(entry).name }))
+      .sort((a, b) => Number(b.entry.status === 'active') - Number(a.entry.status === 'active') || a.displayName.localeCompare(b.displayName))
+      .map(item => item.entry);
     if (!list.length) {
       const empty = document.createElement('p');
       empty.className = 'quest-log-empty';
@@ -110,7 +113,8 @@ export class QuestLogView {
       const head = document.createElement('div');
       head.className = 'quest-log-head';
       const name = document.createElement('strong');
-      name.textContent = entry.name;
+      const localized = this.localize(entry);
+      name.textContent = localized.name;
       const chip = document.createElement('span');
       chip.className = 'quest-log-status';
       chip.textContent = uiLocale() === 'en'
@@ -118,12 +122,25 @@ export class QuestLogView {
         : (entry.status === 'active' ? '进行中' : '已完成');
       head.append(name, chip);
       const summary = document.createElement('p');
-      summary.textContent = entry.summary;
+      summary.textContent = localized.summary;
       row.append(head, summary);
       this.body.append(row);
     }
     const active = this.activeCount();
     this.badge.hidden = !active;
     this.badge.textContent = uiLocale() === 'en' ? `${active} active` : `${active} 个进行中`;
+  }
+
+  /**
+   * Display text is authoritative from the server (already localized to the
+   * player's language server-side, with en -> id fallbacks).  The only local
+   * guard is a blank-name fallback to the quest id so a row can never be
+   * rendered without a title.
+   */
+  private localize(entry: QuestLogEntry) {
+    return {
+      name: entry.name || entry.questId,
+      summary: entry.summary,
+    };
   }
 }

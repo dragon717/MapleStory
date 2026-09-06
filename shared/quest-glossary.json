@@ -1,0 +1,2552 @@
+{
+ "schemaVersion": 1,
+ "notes": "quest 内容标记术语表 v1（草稿）。en 名来自本地 String.wz 解析(name-catalog.json)；zh 为彩虹岛(area=20)翻译采用的决策；reviewed=false，修订请直接改本表后重新走批次(如需要)。#m 地图名暂缺源(未在 Map.wz 本 dump 中找到 mapName)。 #p 词条已用 mxd.dvg.cn 官方中文名回填（src=official-cn），2026-09-06。 #p 词条已用 mxd.dvg.cn 官方中文名回填（src=official-cn），2026-09-06。",
+ "terms": {
+  "p": {
+   "2000": {
+    "en": "Roger",
+    "zh": "罗杰",
+    "src": "codebase"
+   },
+   "2002": {
+    "en": "Peter",
+    "zh": "彼得",
+    "src": "draft"
+   },
+   "2005": {
+    "en": "Sam",
+    "zh": "叁",
+    "src": "official-cn"
+   },
+   "2103": {
+    "en": "Maria",
+    "zh": "玛丽亚",
+    "src": "official-cn"
+   },
+   "12000": {
+    "en": "Lucas",
+    "zh": "路卡斯",
+    "src": "official-cn"
+   },
+   "12100": {
+    "en": "Mai",
+    "zh": "麦加",
+    "src": "official-cn"
+   },
+   "12101": {
+    "en": "Rain",
+    "zh": "瑞恩",
+    "src": "official-cn"
+   },
+   "20001": {
+    "en": "Bari",
+    "zh": "白瑞德",
+    "src": "official-cn"
+   },
+   "20002": {
+    "en": "Biggs",
+    "zh": "比格斯",
+    "src": "official-cn"
+   },
+   "20100": {
+    "en": "Yoona",
+    "zh": "尤娜",
+    "src": "official-cn"
+   },
+   "22000": {
+    "en": "Shanks",
+    "zh": "巴希里",
+    "src": "official-cn"
+   },
+   "1002101": {
+    "en": "Olaf",
+    "zh": "坤",
+    "src": "official-cn"
+   },
+   "9101001": {
+    "en": "Peter",
+    "zh": "彼得",
+    "src": "draft"
+   },
+   "9101002": {
+    "en": "Todd",
+    "zh": "透德",
+    "src": "official-cn"
+   },
+   "2101": {
+    "en": "Heena",
+    "zh": "希娜",
+    "src": "official-cn"
+   },
+   "2100": {
+    "en": "Sera",
+    "zh": "莎丽",
+    "src": "official-cn"
+   },
+   "2102": {
+    "en": "Nina",
+    "zh": "妮娜",
+    "src": "official-cn"
+   },
+   "2001": {
+    "en": "Sen",
+    "zh": "珊",
+    "src": "official-cn"
+   },
+   "10000": {
+    "en": "Pio",
+    "zh": "皮奥",
+    "src": "official-cn"
+   },
+   "2004": {
+    "en": "Todd",
+    "zh": "透德",
+    "src": "official-cn"
+   },
+   "2003": {
+    "en": "Robin",
+    "zh": "罗宾",
+    "src": "official-cn"
+   },
+   "2006": {
+    "en": "Tienk",
+    "zh": "特安可",
+    "src": "official-cn"
+   },
+   "9010000": {
+    "en": "Maple Administrator",
+    "zh": "冒险岛管理员",
+    "src": "official-cn"
+   },
+   "1101002": {
+    "en": "Neinheart",
+    "zh": "南哈特",
+    "src": "official-cn"
+   },
+   "1012101": {
+    "en": "Maya",
+    "zh": "玛亚",
+    "src": "official-cn"
+   },
+   "1032101": {
+    "en": "Rowen the Fairy",
+    "zh": "妖精 罗雯",
+    "src": "official-cn"
+   },
+   "1022007": {
+    "en": "Ayan",
+    "zh": "伊安",
+    "src": "official-cn"
+   },
+   "1052103": {
+    "en": "Nella",
+    "zh": "内拉",
+    "src": "official-cn"
+   },
+   "2012018": {
+    "en": "Ericsson",
+    "zh": "艾利逊",
+    "src": "official-cn"
+   },
+   "2041022": {
+    "en": "Tigun the Advisor",
+    "zh": "士官 提甘",
+    "src": "official-cn"
+   },
+   "2060006": {
+    "en": "Muse",
+    "zh": "妙斯",
+    "src": "official-cn"
+   },
+   "2081004": {
+    "en": "Pam",
+    "zh": "潘姆",
+    "src": "official-cn"
+   },
+   "2091003": {
+    "en": "Tae Soo",
+    "zh": "韩太守",
+    "src": "official-cn"
+   },
+   "2101001": {
+    "en": "Jiyur",
+    "zh": "智由拉",
+    "src": "official-cn"
+   },
+   "1012112": {
+    "en": "Tory",
+    "zh": "达尔利",
+    "src": "official-cn"
+   },
+   "9020000": {
+    "en": "Lakelis",
+    "zh": "拉克里斯",
+    "src": "official-cn"
+   },
+   "2040034": {
+    "en": "Red Sign",
+    "zh": "警示",
+    "src": "official-cn"
+   },
+   "2013000": {
+    "en": "Wonky the Fairy",
+    "zh": "温莉",
+    "src": "official-cn"
+   },
+   "2094000": {
+    "en": "Guon",
+    "zh": "久翁",
+    "src": "official-cn"
+   },
+   "2112018": {
+    "en": "Romeo & Juliet",
+    "zh": "罗密欧和朱丽叶",
+    "src": "official-cn"
+   },
+   "2133000": {
+    "en": "Ellin",
+    "zh": "艾琳",
+    "src": "official-cn"
+   },
+   "2101014": {
+    "en": "Cesar",
+    "zh": "世扎乐",
+    "src": "official-cn"
+   },
+   "2042000": {
+    "en": "Spiegelmann",
+    "zh": "休彼德蔓",
+    "src": "official-cn"
+   },
+   "1020000": {
+    "en": "Blackbull",
+    "zh": "酋长",
+    "src": "official-cn"
+   },
+   "1002001": {
+    "en": "Teo",
+    "zh": "特奥",
+    "src": "official-cn"
+   },
+   "1022100": {
+    "en": "Sophia",
+    "zh": "索非亚",
+    "src": "official-cn"
+   },
+   "1022002": {
+    "en": "Manji",
+    "zh": "麦吉",
+    "src": "official-cn"
+   },
+   "1012102": {
+    "en": "Pia",
+    "zh": "皮亚",
+    "src": "official-cn"
+   },
+   "1002100": {
+    "en": "Jane",
+    "zh": "简",
+    "src": "official-cn"
+   },
+   "1052000": {
+    "en": "Alex",
+    "zh": "阿勒斯",
+    "src": "official-cn"
+   },
+   "1012003": {
+    "en": "Chief Stan",
+    "zh": "长老斯坦",
+    "src": "official-cn"
+   },
+   "1032100": {
+    "en": "Arwen the Fairy",
+    "zh": "妖精 艾温",
+    "src": "official-cn"
+   },
+   "1040000": {
+    "en": "Luke",
+    "zh": "鲁克",
+    "src": "official-cn"
+   },
+   "1061003": {
+    "en": "Mr. Wetbottom",
+    "zh": "泰素夫",
+    "src": "official-cn"
+   },
+   "1061004": {
+    "en": "Ronnie",
+    "zh": "洛尼",
+    "src": "official-cn"
+   },
+   "1010100": {
+    "en": "Rina",
+    "zh": "丽娜",
+    "src": "official-cn"
+   },
+   "1061000": {
+    "en": "Chrishrama",
+    "zh": "克利斯拉玛",
+    "src": "official-cn"
+   },
+   "1061005": {
+    "en": "Sabitrama",
+    "zh": "萨比特拉玛",
+    "src": "official-cn"
+   },
+   "20000": {
+    "en": "John",
+    "zh": "约翰",
+    "src": "official-cn"
+   },
+   "1052102": {
+    "en": "Shumi",
+    "zh": "休咪",
+    "src": "official-cn"
+   },
+   "1081100": {
+    "en": "Riel",
+    "zh": "丽尔",
+    "src": "official-cn"
+   },
+   "1012106": {
+    "en": "Mrs. Ming Ming",
+    "zh": "明明女士",
+    "src": "official-cn"
+   },
+   "1032105": {
+    "en": "Estelle",
+    "zh": "胡小姐",
+    "src": "official-cn"
+   },
+   "1022006": {
+    "en": "Winston",
+    "zh": "芳博士",
+    "src": "official-cn"
+   },
+   "1032104": {
+    "en": "Betty",
+    "zh": "巴缇",
+    "src": "official-cn"
+   },
+   "1012110": {
+    "en": "Anne",
+    "zh": "桉",
+    "src": "official-cn"
+   },
+   "1052105": {
+    "en": "Jane Doe",
+    "zh": "不认识的女人",
+    "src": "official-cn"
+   },
+   "1012108": {
+    "en": "Camila",
+    "zh": "卡米拉",
+    "src": "official-cn"
+   },
+   "1012109": {
+    "en": "Jay",
+    "zh": "亚华",
+    "src": "official-cn"
+   },
+   "1052106": {
+    "en": "Icarus",
+    "zh": "伊卡路斯",
+    "src": "official-cn"
+   },
+   "1032106": {
+    "en": "Wing the Fairy",
+    "zh": "妖精维英",
+    "src": "official-cn"
+   },
+   "1012111": {
+    "en": "Bruce",
+    "zh": "布鲁斯",
+    "src": "official-cn"
+   },
+   "1061012": {
+    "en": "Insignificant Being",
+    "zh": "无意义存在者",
+    "src": "official-cn"
+   },
+   "1040002": {
+    "en": "Fanzy",
+    "zh": "潘喜",
+    "src": "official-cn"
+   },
+   "1063003": {
+    "en": "Wanted : G. Mushroom",
+    "zh": "绿蘑菇通缉牌",
+    "src": "official-cn"
+   },
+   "1063008": {
+    "en": "Wanted : H. Mushroom",
+    "zh": "刺蘑菇通缉牌",
+    "src": "official-cn"
+   },
+   "1063007": {
+    "en": "Wanted : Z. Mushroom",
+    "zh": "僵尸蘑菇通缉牌",
+    "src": "official-cn"
+   },
+   "1063005": {
+    "en": "Wanted : Evil Eye",
+    "zh": "火独眼兽通缉牌",
+    "src": "official-cn"
+   },
+   "1063004": {
+    "en": "Wanted : Curse Eye",
+    "zh": "风独眼兽通缉牌",
+    "src": "official-cn"
+   },
+   "1063009": {
+    "en": "Wanted : Jr. Boogie",
+    "zh": "幼魔精灵通缉牌",
+    "src": "official-cn"
+   },
+   "1022102": {
+    "en": "The Excavator Board",
+    "zh": "遗迹发掘队布告栏",
+    "src": "official-cn"
+   },
+   "1032001": {
+    "en": "Grendel the Really Old",
+    "zh": "汉斯",
+    "src": "official-cn"
+   },
+   "2012019": {
+    "en": "Moppie",
+    "zh": "波达",
+    "src": "official-cn"
+   },
+   "1022000": {
+    "en": "Dances with Balrog",
+    "zh": "武术教练",
+    "src": "official-cn"
+   },
+   "1012100": {
+    "en": "Athena Pierce",
+    "zh": "赫丽娜",
+    "src": "official-cn"
+   },
+   "1052001": {
+    "en": "Dark Lord",
+    "zh": "达克鲁",
+    "src": "official-cn"
+   },
+   "1081101": {
+    "en": "Roel",
+    "zh": "露尔",
+    "src": "official-cn"
+   },
+   "1081102": {
+    "en": "Rael",
+    "zh": "拉尔",
+    "src": "official-cn"
+   },
+   "1092007": {
+    "en": "Muirhat",
+    "zh": "木拉特",
+    "src": "official-cn"
+   },
+   "1092003": {
+    "en": "Sharyl",
+    "zh": "谢拉",
+    "src": "official-cn"
+   },
+   "1092012": {
+    "en": "Rolonay",
+    "zh": "天书爷爷",
+    "src": "official-cn"
+   },
+   "1092002": {
+    "en": "Baine",
+    "zh": "贝音",
+    "src": "official-cn"
+   },
+   "1094000": {
+    "en": "Bart",
+    "zh": "巴特",
+    "src": "official-cn"
+   },
+   "1092009": {
+    "en": "Mrs. Reade",
+    "zh": "里德",
+    "src": "official-cn"
+   },
+   "1092000": {
+    "en": "Tangyoon",
+    "zh": "唐云",
+    "src": "official-cn"
+   },
+   "1092013": {
+    "en": "Porchay",
+    "zh": "章鱼娃",
+    "src": "official-cn"
+   },
+   "2060005": {
+    "en": "Kenta",
+    "zh": "坎特",
+    "src": "official-cn"
+   },
+   "1092006": {
+    "en": "Black Bark",
+    "zh": "黑巴克",
+    "src": "official-cn"
+   },
+   "1094001": {
+    "en": "Abel",
+    "zh": "阿别",
+    "src": "official-cn"
+   },
+   "1092001": {
+    "en": "Bonnie",
+    "zh": "波尼",
+    "src": "official-cn"
+   },
+   "1090000": {
+    "en": "Kyrin",
+    "zh": "凯琳",
+    "src": "official-cn"
+   },
+   "1092011": {
+    "en": "Bartol",
+    "zh": "巴勒图",
+    "src": "official-cn"
+   },
+   "1052002": {
+    "en": "JM From tha Streetz",
+    "zh": "后街吉姆",
+    "src": "official-cn"
+   },
+   "9000008": {
+    "en": "Mr. Pickall",
+    "zh": "权达开",
+    "src": "official-cn"
+   },
+   "1052006": {
+    "en": "Jake",
+    "zh": "冬青",
+    "src": "official-cn"
+   },
+   "1032107": {
+    "en": "Reef",
+    "zh": "愤怒的里弗",
+    "src": "official-cn"
+   },
+   "1032108": {
+    "en": "Reef",
+    "zh": "开心的里弗",
+    "src": "official-cn"
+   },
+   "1040001": {
+    "en": "Mike",
+    "zh": "麦克",
+    "src": "official-cn"
+   },
+   "1032102": {
+    "en": "Mar the Fairy",
+    "zh": "妖精 玛丽",
+    "src": "official-cn"
+   },
+   "1002103": {
+    "en": "Captain Al",
+    "zh": "阿尔院长",
+    "src": "official-cn"
+   },
+   "1063014": {
+    "en": "Mysterious Piece of Paper",
+    "zh": "不知名的纸条",
+    "src": "official-cn"
+   },
+   "1061014": {
+    "en": "Mu Young",
+    "zh": "无影",
+    "src": "official-cn"
+   },
+   "1061016": {
+    "en": "Suspicious Man",
+    "zh": "可疑男子",
+    "src": "official-cn"
+   },
+   "1061017": {
+    "en": "Tristan's Spirit",
+    "zh": "崔斯坦的灵魂",
+    "src": "official-cn"
+   },
+   "1061011": {
+    "en": "The Rememberer",
+    "zh": "记忆者",
+    "src": "official-cn"
+   },
+   "2101013": {
+    "en": "Karcasa",
+    "zh": "卡乐卡萨",
+    "src": "official-cn"
+   },
+   "2110005": {
+    "en": "Camel Cab",
+    "zh": "骆驼中巴",
+    "src": "official-cn"
+   },
+   "1052117": {
+    "en": "Blake",
+    "zh": "阿赫",
+    "src": "official-cn"
+   },
+   "1052121": {
+    "en": "Lana",
+    "zh": "拉娜",
+    "src": "official-cn"
+   },
+   "1052123": {
+    "en": "Robby Fray",
+    "zh": "东东",
+    "src": "official-cn"
+   },
+   "1052122": {
+    "en": "Tina",
+    "zh": "蒂娜",
+    "src": "official-cn"
+   },
+   "1052118": {
+    "en": "Lockers",
+    "zh": "保管箱",
+    "src": "official-cn"
+   },
+   "1052119": {
+    "en": "Lala",
+    "zh": "拉拉",
+    "src": "official-cn"
+   },
+   "1052120": {
+    "en": "Maestro Rho",
+    "zh": "努马埃",
+    "src": "official-cn"
+   },
+   "1052125": {
+    "en": "June",
+    "zh": "小俊",
+    "src": "official-cn"
+   },
+   "1101003": {
+    "en": "Mihile",
+    "zh": "米哈尔",
+    "src": "official-cn"
+   },
+   "1101004": {
+    "en": "Oz",
+    "zh": "奥兹",
+    "src": "official-cn"
+   },
+   "1101005": {
+    "en": "Irena",
+    "zh": "伊莉娜",
+    "src": "official-cn"
+   },
+   "1101006": {
+    "en": "Eckhart",
+    "zh": "伊卡尔特",
+    "src": "official-cn"
+   },
+   "1101007": {
+    "en": "Hawkeye",
+    "zh": "胡克",
+    "src": "official-cn"
+   },
+   "1201000": {
+    "en": "Lilin",
+    "zh": "利琳",
+    "src": "official-cn"
+   },
+   "1300005": {
+    "en": "Head Security Officer",
+    "zh": "警卫队长",
+    "src": "official-cn"
+   },
+   "1300003": {
+    "en": "Secretary of Domestic Affairs",
+    "zh": "内务大臣",
+    "src": "official-cn"
+   },
+   "1300004": {
+    "en": "Secretary of Magic",
+    "zh": "魔法大臣",
+    "src": "official-cn"
+   },
+   "1300007": {
+    "en": "Scarrs",
+    "zh": "斯卡斯",
+    "src": "official-cn"
+   },
+   "1300008": {
+    "en": "James",
+    "zh": "詹姆斯",
+    "src": "official-cn"
+   },
+   "1300000": {
+    "en": "Mushking",
+    "zh": "蘑菇国王",
+    "src": "official-cn"
+   },
+   "1300002": {
+    "en": "Violetta",
+    "zh": "碧欧蕾塔",
+    "src": "official-cn"
+   },
+   "1022104": {
+    "en": "Power B. Fore",
+    "zh": "炎海",
+    "src": "official-cn"
+   },
+   "1032113": {
+    "en": "Power B. Fore",
+    "zh": "炎海",
+    "src": "official-cn"
+   },
+   "1012118": {
+    "en": "Power B. Fore",
+    "zh": "炎海",
+    "src": "official-cn"
+   },
+   "1052113": {
+    "en": "Power B. Fore",
+    "zh": "炎海",
+    "src": "official-cn"
+   },
+   "1095001": {
+    "en": "Power B. Fore",
+    "zh": "炎海",
+    "src": "official-cn"
+   },
+   "2020003": {
+    "en": "Master Sergeant Fox",
+    "zh": "珀斯上尉",
+    "src": "official-cn"
+   },
+   "2010000": {
+    "en": "Staff Sergeant Charlie",
+    "zh": "查里中士",
+    "src": "official-cn"
+   },
+   "2030001": {
+    "en": "Sergeant Bravo",
+    "zh": "巴伯下士",
+    "src": "official-cn"
+   },
+   "2030002": {
+    "en": "Corporal Easy",
+    "zh": "伊吉上等兵",
+    "src": "official-cn"
+   },
+   "2020005": {
+    "en": "Alcaster",
+    "zh": "阿尔卡斯特",
+    "src": "official-cn"
+   },
+   "2012010": {
+    "en": "Elma the Housekeeper",
+    "zh": "保姆 珥玛",
+    "src": "official-cn"
+   },
+   "2020006": {
+    "en": "Jade",
+    "zh": "杰德",
+    "src": "official-cn"
+   },
+   "2032001": {
+    "en": "Spiruna",
+    "zh": "斯皮罗纳",
+    "src": "official-cn"
+   },
+   "2030003": {
+    "en": "Rock Covered in Snow",
+    "zh": "雪岩",
+    "src": "official-cn"
+   },
+   "2032000": {
+    "en": "????",
+    "zh": "助手",
+    "src": "official-cn"
+   },
+   "2012011": {
+    "en": "Kriel the Fairy",
+    "zh": "妖精 珂丽尔",
+    "src": "official-cn"
+   },
+   "2030004": {
+    "en": "Small Tomb",
+    "zh": "小墓地",
+    "src": "official-cn"
+   },
+   "2020007": {
+    "en": "Scadur",
+    "zh": "斯卡德",
+    "src": "official-cn"
+   },
+   "2030005": {
+    "en": "Statue",
+    "zh": "雕像",
+    "src": "official-cn"
+   },
+   "2030007": {
+    "en": "Piece of Statue",
+    "zh": "石像的碎片",
+    "src": "official-cn"
+   },
+   "2030012": {
+    "en": "Huckle",
+    "zh": "何克",
+    "src": "official-cn"
+   },
+   "2012020": {
+    "en": "Alfonse Green",
+    "zh": "阿尔冯丝小绿",
+    "src": "official-cn"
+   },
+   "2012012": {
+    "en": "Lisa",
+    "zh": "莉萨",
+    "src": "official-cn"
+   },
+   "2012017": {
+    "en": "Hughes the Fuse",
+    "zh": "秀兹",
+    "src": "official-cn"
+   },
+   "2060000": {
+    "en": "Nanuke",
+    "zh": "纳努科",
+    "src": "official-cn"
+   },
+   "2022003": {
+    "en": "Shammos",
+    "zh": "邪摩斯",
+    "src": "official-cn"
+   },
+   "2060001": {
+    "en": "Robinson",
+    "zh": "鲁宾逊",
+    "src": "official-cn"
+   },
+   "2051001": {
+    "en": "Kay",
+    "zh": "卡伊",
+    "src": "official-cn"
+   },
+   "2060100": {
+    "en": "Carta",
+    "zh": "卡勒塔",
+    "src": "official-cn"
+   },
+   "2060101": {
+    "en": "Taeng the Explorer",
+    "zh": "探险队长 坦克",
+    "src": "official-cn"
+   },
+   "2040052": {
+    "en": "Wiz the Librarian",
+    "zh": "威兹",
+    "src": "official-cn"
+   },
+   "2020012": {
+    "en": "Spirit of Snow Statue",
+    "zh": "伊卡图",
+    "src": "official-cn"
+   },
+   "2012026": {
+    "en": "Elliza",
+    "zh": "艾利杰",
+    "src": "official-cn"
+   },
+   "2041004": {
+    "en": "Marcel",
+    "zh": "马勒萨里",
+    "src": "official-cn"
+   },
+   "2040023": {
+    "en": "Lost Soldier",
+    "zh": "迷路的士兵",
+    "src": "official-cn"
+   },
+   "2041005": {
+    "en": "Nemi",
+    "zh": "乃米",
+    "src": "official-cn"
+   },
+   "2040015": {
+    "en": "Manager Karl",
+    "zh": "厂长卡胡",
+    "src": "official-cn"
+   },
+   "2040004": {
+    "en": "Roly-Poly 1",
+    "zh": "玩具工人1",
+    "src": "official-cn"
+   },
+   "2040005": {
+    "en": "Roly-Poly 2",
+    "zh": "玩具工人2",
+    "src": "official-cn"
+   },
+   "2040006": {
+    "en": "Roly-Poly 3",
+    "zh": "玩具工人3",
+    "src": "official-cn"
+   },
+   "2040007": {
+    "en": "Roly-Poly 4",
+    "zh": "玩具工人4",
+    "src": "official-cn"
+   },
+   "2040008": {
+    "en": "Roly-Poly 5",
+    "zh": "玩具工人5",
+    "src": "official-cn"
+   },
+   "2040009": {
+    "en": "Roly-Poly 6",
+    "zh": "玩具工人6",
+    "src": "official-cn"
+   },
+   "2040010": {
+    "en": "Roly-Poly 7",
+    "zh": "玩具工人7",
+    "src": "official-cn"
+   },
+   "2040011": {
+    "en": "Roly-Poly 8",
+    "zh": "玩具工人8",
+    "src": "official-cn"
+   },
+   "2040012": {
+    "en": "Roly-Poly 9",
+    "zh": "玩具工人9",
+    "src": "official-cn"
+   },
+   "2040013": {
+    "en": "Roly-Poly 10",
+    "zh": "玩具工人10",
+    "src": "official-cn"
+   },
+   "2041015": {
+    "en": "Korin",
+    "zh": "克林",
+    "src": "official-cn"
+   },
+   "2050012": {
+    "en": "Agent M",
+    "zh": "工作员 M",
+    "src": "official-cn"
+   },
+   "2040001": {
+    "en": "Delv the Toy Soldier",
+    "zh": "玩具兵得利巴",
+    "src": "official-cn"
+   },
+   "2040002": {
+    "en": "Olson the Toy Soldier",
+    "zh": "玩具兵哦尔萨恩",
+    "src": "official-cn"
+   },
+   "2040029": {
+    "en": "Grandpa Clock",
+    "zh": "挂钟",
+    "src": "official-cn"
+   },
+   "2041018": {
+    "en": "Hans the Assembler",
+    "zh": "工程师 汉斯",
+    "src": "official-cn"
+   },
+   "2041019": {
+    "en": "Rocky the Repairman",
+    "zh": "修理工 镂刻",
+    "src": "official-cn"
+   },
+   "2041020": {
+    "en": "Mac the Mechanic",
+    "zh": "机械工 麦戈",
+    "src": "official-cn"
+   },
+   "2040003": {
+    "en": "Assistant Cheng",
+    "zh": "助教 尚",
+    "src": "official-cn"
+   },
+   "2041026": {
+    "en": "Ghosthunter Bob",
+    "zh": "幽灵猎人 巴柏",
+    "src": "official-cn"
+   },
+   "2111007": {
+    "en": "Han the Broker",
+    "zh": "后街小贩",
+    "src": "official-cn"
+   },
+   "2111000": {
+    "en": "Carson",
+    "zh": "卡森",
+    "src": "official-cn"
+   },
+   "2111001": {
+    "en": "Maed",
+    "zh": "麦麦德",
+    "src": "official-cn"
+   },
+   "2111008": {
+    "en": "Bedin",
+    "zh": "贝丁",
+    "src": "official-cn"
+   },
+   "2111009": {
+    "en": "Russellon",
+    "zh": "罗赛伦",
+    "src": "official-cn"
+   },
+   "2111006": {
+    "en": "Parwen",
+    "zh": "疯老头",
+    "src": "official-cn"
+   },
+   "2111002": {
+    "en": "Dr. De Lang",
+    "zh": "德朗博士",
+    "src": "official-cn"
+   },
+   "2111004": {
+    "en": "Phyllia",
+    "zh": "琵丽雅",
+    "src": "official-cn"
+   },
+   "2111005": {
+    "en": "Keeny",
+    "zh": "琦尼",
+    "src": "official-cn"
+   },
+   "2111003": {
+    "en": "Humanoid A",
+    "zh": "人造人 A",
+    "src": "official-cn"
+   },
+   "2111016": {
+    "en": "Dr. De Lang's Secret book",
+    "zh": "德朗博士秘密书",
+    "src": "official-cn"
+   },
+   "2040050": {
+    "en": "Eurek the Alchemist",
+    "zh": "流浪炼金术士",
+    "src": "official-cn"
+   },
+   "2112014": {
+    "en": "Yulete",
+    "zh": "犹泰",
+    "src": "official-cn"
+   },
+   "2112004": {
+    "en": "Romeo",
+    "zh": "罗密欧",
+    "src": "official-cn"
+   },
+   "2112003": {
+    "en": "Juliet",
+    "zh": "朱丽叶",
+    "src": "official-cn"
+   },
+   "2101000": {
+    "en": "Sirin",
+    "zh": "西琳",
+    "src": "official-cn"
+   },
+   "9201000": {
+    "en": "Moony",
+    "zh": "阿尔雷哥",
+    "src": "official-cn"
+   },
+   "2110004": {
+    "en": "Moren",
+    "zh": "威尔斯",
+    "src": "official-cn"
+   },
+   "2020002": {
+    "en": "Gordon",
+    "zh": "高登",
+    "src": "official-cn"
+   },
+   "2050001": {
+    "en": "Dr. Kim",
+    "zh": "金博士",
+    "src": "official-cn"
+   },
+   "2050005": {
+    "en": "Chury",
+    "zh": "阿哲",
+    "src": "official-cn"
+   },
+   "2050006": {
+    "en": "Hoony",
+    "zh": "阿海",
+    "src": "official-cn"
+   },
+   "2050007": {
+    "en": "Gunny",
+    "zh": "阿亮",
+    "src": "official-cn"
+   },
+   "2040018": {
+    "en": "Black Mesoranger",
+    "zh": "冒险勇者 熊猫",
+    "src": "official-cn"
+   },
+   "2041012": {
+    "en": "Pink Mesoranger",
+    "zh": "冒险勇者 粉狼",
+    "src": "official-cn"
+   },
+   "2050011": {
+    "en": "Kevin the Soldier",
+    "zh": "士兵 克斌",
+    "src": "official-cn"
+   },
+   "2050002": {
+    "en": "Alien Gray",
+    "zh": "外星人 哥雷",
+    "src": "official-cn"
+   },
+   "2041011": {
+    "en": "Yellow Mesoranger",
+    "zh": "冒险勇者 黄雄",
+    "src": "official-cn"
+   },
+   "2050013": {
+    "en": "Porter",
+    "zh": "波特",
+    "src": "official-cn"
+   },
+   "2050020": {
+    "en": "Dropship",
+    "zh": "载运船",
+    "src": "official-cn"
+   },
+   "2050010": {
+    "en": "Rice the Medic",
+    "zh": "卫生员 莱斯",
+    "src": "official-cn"
+   },
+   "2040017": {
+    "en": "Green Mesoranger",
+    "zh": "冒险勇者 绿虎",
+    "src": "official-cn"
+   },
+   "2050008": {
+    "en": "General Maestro",
+    "zh": "马斯特 将军",
+    "src": "official-cn"
+   },
+   "2040048": {
+    "en": "Nara",
+    "zh": "爱丽",
+    "src": "official-cn"
+   },
+   "2010005": {
+    "en": "Shuri",
+    "zh": "贵英",
+    "src": "official-cn"
+   },
+   "2032004": {
+    "en": "Suspicious Lava",
+    "zh": "熔岩",
+    "src": "official-cn"
+   },
+   "2041027": {
+    "en": "Mason the Collector",
+    "zh": "搜集狂麦森",
+    "src": "official-cn"
+   },
+   "2050009": {
+    "en": "Jr. Officer Medin",
+    "zh": "参谋 美得恩",
+    "src": "official-cn"
+   },
+   "2140000": {
+    "en": "Temple Keeper ",
+    "zh": "神殿管理人",
+    "src": "official-cn"
+   },
+   "2140001": {
+    "en": "Memory Keeper",
+    "zh": "旁观者",
+    "src": "official-cn"
+   },
+   "2140002": {
+    "en": "Sorcerer",
+    "zh": "魔法术士",
+    "src": "official-cn"
+   },
+   "2060002": {
+    "en": "Tae Gong",
+    "zh": "太公",
+    "src": "official-cn"
+   },
+   "2071005": {
+    "en": "Chil Sung",
+    "zh": "七诚",
+    "src": "official-cn"
+   },
+   "2071003": {
+    "en": "Chil Nam",
+    "zh": "七南",
+    "src": "official-cn"
+   },
+   "2071006": {
+    "en": "Swallow",
+    "zh": "燕子",
+    "src": "official-cn"
+   },
+   "2071002": {
+    "en": "Nolbu",
+    "zh": "乐夫",
+    "src": "official-cn"
+   },
+   "2071001": {
+    "en": "Hongbu",
+    "zh": "兴夫",
+    "src": "official-cn"
+   },
+   "2071000": {
+    "en": "Chumji",
+    "zh": "朴大爷",
+    "src": "official-cn"
+   },
+   "2071004": {
+    "en": "Kong Ji",
+    "zh": "小荳",
+    "src": "official-cn"
+   },
+   "2071007": {
+    "en": "Grandma Yeon",
+    "zh": "莲婆婆",
+    "src": "official-cn"
+   },
+   "2071008": {
+    "en": "Haenim",
+    "zh": "小日",
+    "src": "official-cn"
+   },
+   "2071009": {
+    "en": "Mr. Shim",
+    "zh": "沈师铭",
+    "src": "official-cn"
+   },
+   "2071010": {
+    "en": "God of Mountains",
+    "zh": "山神",
+    "src": "official-cn"
+   },
+   "2071014": {
+    "en": "Blue King Goblin",
+    "zh": "蓝色鬼怪",
+    "src": "official-cn"
+   },
+   "2071013": {
+    "en": "Yellow King Goblin",
+    "zh": "黄色鬼怪",
+    "src": "official-cn"
+   },
+   "2071015": {
+    "en": "Green King Goblin",
+    "zh": "绿色鬼怪",
+    "src": "official-cn"
+   },
+   "2081002": {
+    "en": "Ito",
+    "zh": "依托",
+    "src": "official-cn"
+   },
+   "2081001": {
+    "en": "Kumo",
+    "zh": "库摩",
+    "src": "official-cn"
+   },
+   "2081003": {
+    "en": "Yaku",
+    "zh": "亚可",
+    "src": "official-cn"
+   },
+   "2081007": {
+    "en": "Raul the Knight",
+    "zh": "骑士拉乌尔",
+    "src": "official-cn"
+   },
+   "2081006": {
+    "en": "Moira",
+    "zh": "摩伊拉",
+    "src": "official-cn"
+   },
+   "2081000": {
+    "en": "Chief Tatamo",
+    "zh": "村长塔塔曼",
+    "src": "official-cn"
+   },
+   "2081011": {
+    "en": "Nein Spirit's Baby Dragon",
+    "zh": "九灵龙宝宝",
+    "src": "official-cn"
+   },
+   "2082004": {
+    "en": "Andy",
+    "zh": "安迪",
+    "src": "official-cn"
+   },
+   "2102002": {
+    "en": "Syras",
+    "zh": "西拉斯",
+    "src": "official-cn"
+   },
+   "2012006": {
+    "en": "Isa the Station Guide",
+    "zh": "艺斯",
+    "src": "official-cn"
+   },
+   "2082005": {
+    "en": "Brainy Boy",
+    "zh": "聪明的少年",
+    "src": "official-cn"
+   },
+   "2082006": {
+    "en": "Crying Girl",
+    "zh": "哭泣的少女",
+    "src": "official-cn"
+   },
+   "2082007": {
+    "en": "Policeman",
+    "zh": "警卫员",
+    "src": "official-cn"
+   },
+   "2082008": {
+    "en": "Captain Edmond",
+    "zh": "埃德蒙船长",
+    "src": "official-cn"
+   },
+   "2082009": {
+    "en": "May",
+    "zh": "小梅",
+    "src": "official-cn"
+   },
+   "2082010": {
+    "en": "Bao",
+    "zh": "阿峰",
+    "src": "official-cn"
+   },
+   "2082017": {
+    "en": "Ken",
+    "zh": "肯",
+    "src": "official-cn"
+   },
+   "2082016": {
+    "en": "Isabella",
+    "zh": "伊莎贝拉",
+    "src": "official-cn"
+   },
+   "2082011": {
+    "en": "Hoya",
+    "zh": "赫雅",
+    "src": "official-cn"
+   },
+   "2091000": {
+    "en": "No Gong",
+    "zh": "诺功",
+    "src": "official-cn"
+   },
+   "2091001": {
+    "en": "Do Gong",
+    "zh": "道功",
+    "src": "official-cn"
+   },
+   "2091002": {
+    "en": "Tae Sang",
+    "zh": "太上",
+    "src": "official-cn"
+   },
+   "2092000": {
+    "en": "Mr. Ku",
+    "zh": "邱老头",
+    "src": "official-cn"
+   },
+   "9000009": {
+    "en": "Vikin",
+    "zh": "贝干",
+    "src": "official-cn"
+   },
+   "2092001": {
+    "en": "Captain Hwang",
+    "zh": "黄船长",
+    "src": "official-cn"
+   },
+   "2090004": {
+    "en": "Mr. Do",
+    "zh": "陈道人",
+    "src": "official-cn"
+   },
+   "2091004": {
+    "en": "Master Goblin",
+    "zh": "妖怪禅师",
+    "src": "official-cn"
+   },
+   "2101005": {
+    "en": "Byron",
+    "zh": "巴一岚",
+    "src": "official-cn"
+   },
+   "2101004": {
+    "en": "Tigun",
+    "zh": "提干",
+    "src": "official-cn"
+   },
+   "2101007": {
+    "en": "Areda",
+    "zh": "阿烈达",
+    "src": "official-cn"
+   },
+   "2101008": {
+    "en": "Schegerazade",
+    "zh": "世赫拉",
+    "src": "official-cn"
+   },
+   "2100001": {
+    "en": "Muhamad",
+    "zh": "莫哈莫德",
+    "src": "official-cn"
+   },
+   "2101006": {
+    "en": "Le Petit Prince",
+    "zh": "小王子",
+    "src": "official-cn"
+   },
+   "2101012": {
+    "en": "Strange Guy",
+    "zh": "可疑的男子",
+    "src": "official-cn"
+   },
+   "2103007": {
+    "en": "Treasure Box",
+    "zh": "宝物箱",
+    "src": "official-cn"
+   },
+   "2101011": {
+    "en": "Sejan",
+    "zh": "携詹",
+    "src": "official-cn"
+   },
+   "2101003": {
+    "en": "Ardin",
+    "zh": "阿丁",
+    "src": "official-cn"
+   },
+   "2101002": {
+    "en": "Eleska",
+    "zh": "呃拉斯卡",
+    "src": "official-cn"
+   },
+   "2101010": {
+    "en": "Jano",
+    "zh": "扎诺",
+    "src": "official-cn"
+   },
+   "2071011": {
+    "en": "Tree Cutter",
+    "zh": "樵夫",
+    "src": "official-cn"
+   },
+   "9330016": {
+    "en": "요리사 아종",
+    "zh": "料理师阿忠",
+    "src": "official-cn"
+   },
+   "9330017": {
+    "en": "껌팔이 소녀",
+    "zh": "卖口香糖的小女孩",
+    "src": "official-cn"
+   },
+   "9330018": {
+    "en": "노점상 주인 오씨",
+    "zh": "小摊老板吴",
+    "src": "official-cn"
+   },
+   "9330003": {
+    "en": "주걸균",
+    "zh": "诸葛均",
+    "src": "official-cn"
+   },
+   "9330005": {
+    "en": "손연주",
+    "zh": "孙燕珠",
+    "src": "official-cn"
+   },
+   "9330006": {
+    "en": "황력홍",
+    "zh": "黄力宏",
+    "src": "official-cn"
+   },
+   "9330004": {
+    "en": "채이림",
+    "zh": "菜依林",
+    "src": "official-cn"
+   },
+   "9330019": {
+    "en": "쥬디",
+    "zh": "朱迪",
+    "src": "official-cn"
+   },
+   "9330020": {
+    "en": "크리스틴",
+    "zh": "克莉丝汀",
+    "src": "official-cn"
+   },
+   "9330028": {
+    "en": "과일가게 할아버지",
+    "zh": "水果店爷爷",
+    "src": "official-cn"
+   },
+   "9310010": {
+    "en": "Mr. Yang",
+    "zh": "杨叔叔",
+    "src": "official-cn"
+   },
+   "9310008": {
+    "en": "Chief Officer Chu",
+    "zh": "警察处长 周",
+    "src": "official-cn"
+   },
+   "9310012": {
+    "en": "Cho the photographer",
+    "zh": "摄影师 赵",
+    "src": "official-cn"
+   },
+   "9310011": {
+    "en": "Owner Yeo",
+    "zh": "小摊老板 吕",
+    "src": "official-cn"
+   },
+   "9310005": {
+    "en": "Officer Chung",
+    "zh": "警察 郑",
+    "src": "official-cn"
+   },
+   "9250000": {
+    "en": "Ponlaa",
+    "zh": "芬拉",
+    "src": "official-cn"
+   },
+   "9250014": {
+    "en": "Pooyai Lee",
+    "zh": "普亚伊利",
+    "src": "official-cn"
+   },
+   "9250001": {
+    "en": "Apaporn",
+    "zh": "阿婆芬",
+    "src": "official-cn"
+   },
+   "9250004": {
+    "en": "Jit",
+    "zh": "吉特",
+    "src": "official-cn"
+   },
+   "9250012": {
+    "en": "Chai",
+    "zh": "才伊",
+    "src": "official-cn"
+   },
+   "9250003": {
+    "en": "Kith",
+    "zh": "吉德",
+    "src": "official-cn"
+   },
+   "9250005": {
+    "en": "Pond",
+    "zh": "奋",
+    "src": "official-cn"
+   },
+   "9250013": {
+    "en": "Lung Tup",
+    "zh": "龙徒",
+    "src": "official-cn"
+   },
+   "9110002": {
+    "en": "Kino Konoko",
+    "zh": "木野子",
+    "src": "official-cn"
+   },
+   "9120001": {
+    "en": "Hanako",
+    "zh": "花子",
+    "src": "official-cn"
+   },
+   "9120003": {
+    "en": "Hikari",
+    "zh": "光夫人",
+    "src": "official-cn"
+   },
+   "9270039": {
+    "en": "Sureen",
+    "zh": "瑟伦",
+    "src": "official-cn"
+   },
+   "9270028": {
+    "en": "Adrian",
+    "zh": "艾德里安",
+    "src": "official-cn"
+   },
+   "9270029": {
+    "en": "Johnson",
+    "zh": "约翰逊",
+    "src": "official-cn"
+   },
+   "9270032": {
+    "en": "Angie",
+    "zh": "安吉",
+    "src": "official-cn"
+   },
+   "9270030": {
+    "en": "Ralph the wanderer",
+    "zh": "流浪汉拉尔夫",
+    "src": "official-cn"
+   },
+   "9270061": {
+    "en": "Village Chief Malek",
+    "zh": "村长 玛乐",
+    "src": "official-cn"
+   },
+   "9270060": {
+    "en": "Chee Wee",
+    "zh": "志伟",
+    "src": "official-cn"
+   },
+   "9270059": {
+    "en": "Nuri",
+    "zh": "娜妮",
+    "src": "official-cn"
+   },
+   "9270058": {
+    "en": "Hurliza",
+    "zh": "荷莉莎",
+    "src": "official-cn"
+   },
+   "9270062": {
+    "en": "Lam",
+    "zh": "蓝",
+    "src": "official-cn"
+   },
+   "1012006": {
+    "en": "Trainer Bartos",
+    "zh": "巴特斯",
+    "src": "official-cn"
+   },
+   "9102001": {
+    "en": "Garnox",
+    "zh": "迦尔努斯",
+    "src": "official-cn"
+   },
+   "9105002": {
+    "en": "Naomi",
+    "zh": "桃子",
+    "src": "official-cn"
+   },
+   "9201050": {
+    "en": "Icebyrd Slimm",
+    "zh": "艾斯拜德·斯利姆",
+    "src": "official-cn"
+   },
+   "9201053": {
+    "en": "Jack Masque",
+    "zh": "假面杰克",
+    "src": "official-cn"
+   },
+   "9201051": {
+    "en": "John Barricade",
+    "zh": "约翰·巴里凯德",
+    "src": "official-cn"
+   },
+   "9201055": {
+    "en": "Elpam Gorlab",
+    "zh": "埃尔帕姆·格拉布",
+    "src": "official-cn"
+   },
+   "9201054": {
+    "en": "Lita Lawless",
+    "zh": "法外丽塔",
+    "src": "official-cn"
+   },
+   "9201083": {
+    "en": "The Glimmer Man",
+    "zh": "烁光男",
+    "src": "official-cn"
+   },
+   "1061013": {
+    "en": "Gwin",
+    "zh": "葛温",
+    "src": "official-cn"
+   },
+   "9201079": {
+    "en": "Old Man Tom",
+    "zh": "老人汤姆",
+    "src": "official-cn"
+   },
+   "9201080": {
+    "en": "Edmunds",
+    "zh": "埃德蒙",
+    "src": "official-cn"
+   },
+   "9201076": {
+    "en": "Ludmilla",
+    "zh": "露迪米拉",
+    "src": "official-cn"
+   },
+   "9201078": {
+    "en": "Sophilia",
+    "zh": "苏菲莉亚",
+    "src": "official-cn"
+   },
+   "9201075": {
+    "en": "Agent Falcon",
+    "zh": "法肯",
+    "src": "official-cn"
+   },
+   "9201077": {
+    "en": "Jonas Prendergast",
+    "zh": "乔纳斯 普兰登盖斯特",
+    "src": "official-cn"
+   },
+   "9220006": {
+    "en": "Bill",
+    "zh": "巴迪",
+    "src": "official-cn"
+   },
+   "2081100": {
+    "en": "Harmonia",
+    "zh": "哈尔模尼亚",
+    "src": "official-cn"
+   },
+   "2081200": {
+    "en": "Gritto",
+    "zh": "格里特",
+    "src": "official-cn"
+   },
+   "2081300": {
+    "en": "Legor",
+    "zh": "列高罗",
+    "src": "official-cn"
+   },
+   "2081400": {
+    "en": "Hellin",
+    "zh": "哈林",
+    "src": "official-cn"
+   },
+   "2081500": {
+    "en": "Samuel",
+    "zh": "邪魔尔",
+    "src": "official-cn"
+   },
+   "2110003": {
+    "en": "Ramain",
+    "zh": "拉玛人",
+    "src": "official-cn"
+   },
+   "2110002": {
+    "en": "Keol",
+    "zh": "吉欧",
+    "src": "official-cn"
+   },
+   "2101009": {
+    "en": "Abdullah VIII",
+    "zh": "阿得拉８世",
+    "src": "official-cn"
+   },
+   "2112017": {
+    "en": "Dropped Piece of Paper",
+    "zh": "掉落的纸条",
+    "src": "official-cn"
+   },
+   "2020010": {
+    "en": "Rene",
+    "zh": "蕾妮",
+    "src": "official-cn"
+   },
+   "2020009": {
+    "en": "Robeira",
+    "zh": "鲁碧",
+    "src": "official-cn"
+   },
+   "2081009": {
+    "en": "Moose",
+    "zh": "姆斯",
+    "src": "official-cn"
+   },
+   "2020008": {
+    "en": "Tylus",
+    "zh": "泰勒斯",
+    "src": "official-cn"
+   },
+   "2020011": {
+    "en": "Arec",
+    "zh": "艾瑞克",
+    "src": "official-cn"
+   },
+   "9040002": {
+    "en": "Shawn",
+    "zh": "杉峰",
+    "src": "official-cn"
+   },
+   "2041023": {
+    "en": "Flo",
+    "zh": "炮娄",
+    "src": "official-cn"
+   },
+   "2041028": {
+    "en": "Unknown Thief",
+    "zh": "飞侠转职教官",
+    "src": "official-cn"
+   },
+   "2020000": {
+    "en": "Vogen",
+    "zh": "伯坚",
+    "src": "official-cn"
+   },
+   "2041021": {
+    "en": "Mr. Bouffon",
+    "zh": "闵先生",
+    "src": "official-cn"
+   },
+   "1201002": {
+    "en": "Maha",
+    "zh": "摩诃",
+    "src": "official-cn"
+   },
+   "2043000": {
+    "en": "Papulatus",
+    "zh": "吉普",
+    "src": "official-cn"
+   },
+   "1092008": {
+    "en": "Shulynch",
+    "zh": "秀林茨",
+    "src": "official-cn"
+   },
+   "2020013": {
+    "en": "Pedro",
+    "zh": "费德罗",
+    "src": "official-cn"
+   },
+   "9120018": {
+    "en": "Grako",
+    "zh": "阳子",
+    "src": "official-cn"
+   },
+   "9120016": {
+    "en": "Mariwaka",
+    "zh": "小岚",
+    "src": "official-cn"
+   },
+   "9120012": {
+    "en": "Fraidy Cat",
+    "zh": "受伤的猫",
+    "src": "official-cn"
+   },
+   "9120011": {
+    "en": "Sakura",
+    "zh": "美代子",
+    "src": "official-cn"
+   },
+   "9120013": {
+    "en": "Boss Kitty",
+    "zh": "波斯猫",
+    "src": "official-cn"
+   },
+   "9120008": {
+    "en": "Tsuri",
+    "zh": "勇助",
+    "src": "official-cn"
+   },
+   "9120005": {
+    "en": "Umi",
+    "zh": "由美",
+    "src": "official-cn"
+   },
+   "9120007": {
+    "en": "Furano",
+    "zh": "黑泽",
+    "src": "official-cn"
+   },
+   "9201581": {
+    "en": "",
+    "zh": "无名战士",
+    "src": "official-cn"
+   },
+   "9201100": {
+    "en": "Taggrin",
+    "zh": "塔格林",
+    "src": "official-cn"
+   },
+   "9201096": {
+    "en": "Jack",
+    "zh": "杰克",
+    "src": "official-cn"
+   },
+   "9209001": {
+    "en": "Mimi",
+    "zh": "咪咪",
+    "src": "official-cn"
+   },
+   "9209007": {
+    "en": "Lazy Daisy",
+    "zh": "烦斯乐",
+    "src": "official-cn"
+   },
+   "9300011": {
+    "en": "Cai Shen",
+    "zh": "财神",
+    "src": "official-cn"
+   },
+   "9330067": {
+    "en": "",
+    "zh": "小卓",
+    "src": "official-cn"
+   },
+   "9310060": {
+    "en": "",
+    "zh": "星缘",
+    "src": "official-cn"
+   },
+   "9201029": {
+    "en": "Grandma Benson",
+    "zh": "本森老奶奶",
+    "src": "official-cn"
+   },
+   "9201035": {
+    "en": "Jacob",
+    "zh": "雅各布",
+    "src": "official-cn"
+   },
+   "9201036": {
+    "en": "Angelique",
+    "zh": "安琪莉可",
+    "src": "official-cn"
+   },
+   "9201004": {
+    "en": "Ames the Wise",
+    "zh": "文月禾",
+    "src": "official-cn"
+   },
+   "9201034": {
+    "en": "Ben",
+    "zh": "贝恩",
+    "src": "official-cn"
+   },
+   "9201037": {
+    "en": "Gary and Shatima",
+    "zh": "加里和夏迪玛",
+    "src": "official-cn"
+   },
+   "9200001": {
+    "en": "Mad Bunny",
+    "zh": "目中无人兔兔",
+    "src": "official-cn"
+   },
+   "9000014": {
+    "en": "Geanie",
+    "zh": "基尼",
+    "src": "official-cn"
+   },
+   "2041017": {
+    "en": "Ace of Hearts",
+    "zh": "库克斯",
+    "src": "official-cn"
+   },
+   "2002002": {
+    "en": "Torr",
+    "zh": "头羊",
+    "src": "official-cn"
+   },
+   "2001000": {
+    "en": "Cliff",
+    "zh": "克里夫",
+    "src": "official-cn"
+   },
+   "1022101": {
+    "en": "Rooney",
+    "zh": "露妮",
+    "src": "official-cn"
+   },
+   "9010010": {
+    "en": "Cassandra",
+    "zh": "卡珊德拉",
+    "src": "official-cn"
+   },
+   "1022008": {
+    "en": "Burnt Sword",
+    "zh": "灰渣里的剑",
+    "src": "official-cn"
+   },
+   "9001005": {
+    "en": "Polar bear Poch",
+    "zh": "北极熊蒲企",
+    "src": "official-cn"
+   },
+   "9001002": {
+    "en": "Polar bear Poch",
+    "zh": "北极熊鲍企",
+    "src": "official-cn"
+   },
+   "9001001": {
+    "en": "Lolo",
+    "zh": "北极熊璐璐",
+    "src": "official-cn"
+   },
+   "9201030": {
+    "en": "Maple Claws",
+    "zh": "杰尼",
+    "src": "official-cn"
+   },
+   "9001006": {
+    "en": "Polar bear Poch",
+    "zh": "北极熊蒲企",
+    "src": "official-cn"
+   },
+   "1002006": {
+    "en": "Chef",
+    "zh": "吉夫",
+    "src": "official-cn"
+   },
+   "9000007": {
+    "en": "Chun Ji",
+    "zh": "千吉",
+    "src": "official-cn"
+   },
+   "9000021": {
+    "en": "Gaga",
+    "zh": "佳佳",
+    "src": "official-cn"
+   },
+   "2012023": {
+    "en": "Maple Leaf Marble",
+    "zh": "枫叶霜",
+    "src": "official-cn"
+   },
+   "9010014": {
+    "en": "Aramia",
+    "zh": "阿乐米",
+    "src": "official-cn"
+   },
+   "2121000": {
+    "en": "Nameless Cat",
+    "zh": "野猫",
+    "src": "official-cn"
+   },
+   "2120003": {
+    "en": "Maid",
+    "zh": "女仆",
+    "src": "official-cn"
+   },
+   "2121012": {
+    "en": "A Girl Dressed In Her Halloween Outfit",
+    "zh": "万圣节变装少女",
+    "src": "official-cn"
+   },
+   "2120000": {
+    "en": "Masked Gentleman",
+    "zh": "假面绅士",
+    "src": "official-cn"
+   },
+   "2120005": {
+    "en": "Sophelia",
+    "zh": "苏菲莉亚",
+    "src": "official-cn"
+   },
+   "2120004": {
+    "en": "Jonas",
+    "zh": "乔纳斯",
+    "src": "official-cn"
+   },
+   "2120006": {
+    "en": "Lyudmila",
+    "zh": "露迪米拉",
+    "src": "official-cn"
+   },
+   "2120007": {
+    "en": "Joey",
+    "zh": "卓一",
+    "src": "official-cn"
+   },
+   "2120008": {
+    "en": "Ghost T",
+    "zh": "幽灵T",
+    "src": "official-cn"
+   },
+   "2001001": {
+    "en": "Branch Snowman",
+    "zh": "雪人凯利",
+    "src": "official-cn"
+   },
+   "2101018": {
+    "en": "Cesar",
+    "zh": "世扎乐",
+    "src": "official-cn"
+   },
+   "1032002": {
+    "en": "Francois",
+    "zh": "易德",
+    "src": "official-cn"
+   },
+   "9000032": {
+    "en": "Agent W",
+    "zh": "工作人员W",
+    "src": "official-cn"
+   },
+   "9010017": {
+    "en": "Dev Doll",
+    "zh": "开发者的人偶",
+    "src": "official-cn"
+   },
+   "9000034": {
+    "en": "Agent O",
+    "zh": "工作人员O",
+    "src": "official-cn"
+   },
+   "9000033": {
+    "en": "Agent C",
+    "zh": "工作人员C",
+    "src": "official-cn"
+   },
+   "9000036": {
+    "en": "Agent E",
+    "zh": "工作人员E",
+    "src": "official-cn"
+   },
+   "9001102": {
+    "en": "Baby Moon Bunny",
+    "zh": "婴儿月妙",
+    "src": "official-cn"
+   },
+   "9001101": {
+    "en": "Master Moon Bunny",
+    "zh": "月妙达人",
+    "src": "official-cn"
+   },
+   "9000043": {
+    "en": "The Lost Snipe",
+    "zh": "迷路的沙锥",
+    "src": "official-cn"
+   },
+   "9000042": {
+    "en": "Gaga",
+    "zh": "佳佳",
+    "src": "official-cn"
+   },
+   "2120002": {
+    "en": "Steward",
+    "zh": "埃德蒙",
+    "src": "official-cn"
+   },
+   "2084001": {
+    "en": "Gold Richie",
+    "zh": "金利奇",
+    "src": "official-cn"
+   },
+   "2084002": {
+    "en": "Gold Richie",
+    "zh": "金利奇",
+    "src": "official-cn"
+   },
+   "9000055": {
+    "en": "Aramia ",
+    "zh": "阿乐米",
+    "src": "official-cn"
+   },
+   "9010020": {
+    "en": "Witch's Tomb",
+    "zh": "魔女的坟墓",
+    "src": "official-cn"
+   },
+   "9000059": {
+    "en": "Gingerbread man",
+    "zh": "姜饼人",
+    "src": "official-cn"
+   },
+   "9040000": {
+    "en": "Shuang",
+    "zh": "修安",
+    "src": "official-cn"
+   },
+   "9000061": {
+    "en": "Agent M",
+    "zh": "工作员M",
+    "src": "official-cn"
+   },
+   "9000063": {
+    "en": "Agent E",
+    "zh": "工作员E",
+    "src": "official-cn"
+   },
+   "9000064": {
+    "en": "Agent  S",
+    "zh": "工作员S",
+    "src": "official-cn"
+   },
+   "9000065": {
+    "en": "Agent O",
+    "zh": "工作员O",
+    "src": "official-cn"
+   },
+   "9000066": {
+    "en": "Dalair",
+    "zh": "勋章老人",
+    "src": "official-cn"
+   },
+   "1101000": {
+    "en": "Cygnus",
+    "zh": "希纳斯",
+    "src": "official-cn"
+   },
+   "1102000": {
+    "en": "Kiku",
+    "zh": "奇库",
+    "src": "official-cn"
+   },
+   "1102004": {
+    "en": "Kimu",
+    "zh": "奇姆",
+    "src": "official-cn"
+   },
+   "1102005": {
+    "en": "Kizan",
+    "zh": "奇赞",
+    "src": "official-cn"
+   },
+   "1102006": {
+    "en": "Kinu",
+    "zh": "奇努",
+    "src": "official-cn"
+   },
+   "1102007": {
+    "en": "Kia",
+    "zh": "奇雅",
+    "src": "official-cn"
+   },
+   "1102008": {
+    "en": "Kisha",
+    "zh": "奇莎",
+    "src": "official-cn"
+   },
+   "2081012": {
+    "en": "Nix",
+    "zh": "尼克斯",
+    "src": "official-cn"
+   },
+   "2081013": {
+    "en": "Frightening Marble",
+    "zh": "诡异的珠子",
+    "src": "official-cn"
+   },
+   "1104208": {
+    "en": "Shinsoo",
+    "zh": "神兽",
+    "src": "official-cn"
+   },
+   "1102002": {
+    "en": "Kiridu",
+    "zh": "奇里杜",
+    "src": "official-cn"
+   },
+   "1103001": {
+    "en": "Roca",
+    "zh": "洛卡",
+    "src": "official-cn"
+   },
+   "1103002": {
+    "en": "Matthias",
+    "zh": "马迪尔斯",
+    "src": "official-cn"
+   },
+   "1103003": {
+    "en": "Hersha",
+    "zh": "赫尔莎",
+    "src": "official-cn"
+   },
+   "1103004": {
+    "en": "10 Boogies",
+    "zh": "布吉",
+    "src": "official-cn"
+   },
+   "1061006": {
+    "en": "Mysterious Statue",
+    "zh": "奇怪的石像",
+    "src": "official-cn"
+   },
+   "1209000": {
+    "en": "Athena Pierce",
+    "zh": "赫丽娜",
+    "src": "official-cn"
+   },
+   "1209006": {
+    "en": "Lost Kid",
+    "zh": "迷路的孩子",
+    "src": "official-cn"
+   },
+   "1202001": {
+    "en": "Puka",
+    "zh": "普卡",
+    "src": "official-cn"
+   },
+   "1202002": {
+    "en": "Puen",
+    "zh": "普恩",
+    "src": "official-cn"
+   },
+   "1202004": {
+    "en": "Purun",
+    "zh": "普轮",
+    "src": "official-cn"
+   },
+   "1202005": {
+    "en": "Putzki",
+    "zh": "普斯基",
+    "src": "official-cn"
+   },
+   "1201001": {
+    "en": "Giant Polearm",
+    "zh": "巨大的战斧",
+    "src": "official-cn"
+   },
+   "1203000": {
+    "en": "Sir Blacksmith",
+    "zh": "熊铁匠",
+    "src": "official-cn"
+   },
+   "1203001": {
+    "en": "Tititi",
+    "zh": "宝石工匠雪人",
+    "src": "official-cn"
+   },
+   "1202007": {
+    "en": "Pucci",
+    "zh": "普尼",
+    "src": "official-cn"
+   },
+   "1202008": {
+    "en": "Head Wolf",
+    "zh": "头狼",
+    "src": "official-cn"
+   },
+   "1202006": {
+    "en": "Puo",
+    "zh": "普奥",
+    "src": "official-cn"
+   },
+   "1002104": {
+    "en": "Tru",
+    "zh": "特鲁",
+    "src": "official-cn"
+   },
+   "1204000": {
+    "en": "Shadow",
+    "zh": "影子",
+    "src": "official-cn"
+   },
+   "1061019": {
+    "en": "Ilji",
+    "zh": "日吉",
+    "src": "official-cn"
+   },
+   "1204007": {
+    "en": "Tru",
+    "zh": "特鲁",
+    "src": "official-cn"
+   },
+   "2091008": {
+    "en": "Jin Jin",
+    "zh": "津津",
+    "src": "official-cn"
+   },
+   "2091005": {
+    "en": "So Gong",
+    "zh": "萧公",
+    "src": "official-cn"
+   },
+   "2091007": {
+    "en": "Mu Gong",
+    "zh": "武公",
+    "src": "official-cn"
+   },
+   "2131002": {
+    "en": "Yuris",
+    "zh": "友里索",
+    "src": "official-cn"
+   },
+   "2131000": {
+    "en": "Athena Pierce",
+    "zh": "赫丽娜",
+    "src": "official-cn"
+   },
+   "2132000": {
+    "en": "Kanderune",
+    "zh": "坎泰伦",
+    "src": "official-cn"
+   },
+   "1204033": {
+    "en": "John's Box",
+    "zh": "约翰的箱子",
+    "src": "official-cn"
+   },
+   "9250052": {
+    "en": "News Stand",
+    "zh": "MapleTV7",
+    "src": "official-cn"
+   },
+   "9105003": {
+    "en": "Snow Spirit",
+    "zh": "雪精灵",
+    "src": "official-cn"
+   },
+   "9201119": {
+    "en": "Silence of the Wolf",
+    "zh": "沉默之狼",
+    "src": "official-cn"
+   },
+   "9201120": {
+    "en": "Ervine",
+    "zh": "欧文",
+    "src": "official-cn"
+   },
+   "9201121": {
+    "en": "Lucci",
+    "zh": "露西",
+    "src": "official-cn"
+   },
+   "9201118": {
+    "en": "Hill",
+    "zh": "希尔",
+    "src": "official-cn"
+   },
+   "9201122": {
+    "en": "Old Bow",
+    "zh": "远古之弓",
+    "src": "official-cn"
+   },
+   "1092004": {
+    "en": "Calico",
+    "zh": "卡里可",
+    "src": "official-cn"
+   },
+   "9000040": {
+    "en": "Dalair",
+    "zh": "勋章老人",
+    "src": "official-cn"
+   },
+   "2042005": {
+    "en": "Spiegelmann",
+    "zh": "休彼德蔓",
+    "src": "official-cn"
+   }
+  },
+  "o": {
+   "100100": {
+    "en": "Snail",
+    "zh": "蜗牛",
+    "src": "draft"
+   },
+   "100101": {
+    "en": "Blue Snail",
+    "zh": "蓝蜗牛",
+    "src": "draft"
+   },
+   "120100": {
+    "en": "Shroom",
+    "zh": "蘑菇仔",
+    "src": "draft"
+   },
+   "0130100": {
+    "en": "Stump",
+    "zh": "木妖",
+    "src": "draft"
+   },
+   "0130101": {
+    "en": "Red Snail",
+    "zh": "红蜗牛",
+    "src": "draft"
+   },
+   "130101": {
+    "en": "Red Snail",
+    "zh": "红蜗牛",
+    "src": "draft"
+   },
+   "1210100": {
+    "en": "Pig",
+    "zh": "野猪",
+    "src": "draft"
+   },
+   "1210102": {
+    "en": "Orange Mushroom",
+    "zh": "花蘑菇",
+    "src": "draft"
+   },
+   "9409000": {
+    "en": "Tutorial Leatty",
+    "zh": "教学莱提",
+    "src": "draft"
+   },
+   "9409001": {
+    "en": "Tutorial Drumming Rabbit",
+    "zh": "教学打鼓兔",
+    "src": "draft"
+   }
+  },
+  "t": {
+   "2010007": {
+    "en": "Roger's Apple",
+    "zh": "罗杰的苹果",
+    "src": "codebase"
+   },
+   "4000001": {
+    "en": "Orange Mushroom Cap",
+    "zh": "花蘑菇盖",
+    "src": "draft"
+   },
+   "4000003": {
+    "en": "Tree Branch",
+    "zh": "树枝",
+    "src": "draft"
+   },
+   "4000004": {
+    "en": "Squishy Liquid",
+    "zh": "绿水灵珠",
+    "src": "draft-note"
+   },
+   "4000011": {
+    "en": "Mushroom Spore",
+    "zh": "蘑菇孢子",
+    "src": "draft"
+   },
+   "4000016": {
+    "en": "Red Snail Shell",
+    "zh": "红蜗牛壳",
+    "src": "draft"
+   },
+   "4000019": {
+    "en": "Snail Shell",
+    "zh": "蜗牛壳",
+    "src": "draft"
+   },
+   "4000142": {
+    "en": "Jr. Sentinel Shellpiece",
+    "zh": "见习哨兵壳片",
+    "src": "draft"
+   },
+   "4031802": {
+    "en": "Jr. Sentinel Shellpiece",
+    "zh": "见习哨兵壳片",
+    "src": "draft"
+   }
+  }
+ }
+}

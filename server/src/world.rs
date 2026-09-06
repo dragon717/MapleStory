@@ -6,7 +6,7 @@ use crate::{
     protocol::{reject, ClientMessage, DropState, MonsterState, NpcState, PlayerState},
 };
 use rand::Rng;
-use serde::Deserialize;
+use serde::{de::Error as DeError, Deserialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
@@ -27,9 +27,20 @@ const GRAVITY: f64 = 2_000.0;
 const FALL_SPEED: f64 = 670.0;
 const DOWNJUMP_RANGE: f64 = 600.0;
 const DOWNJUMP_LAUNCH: f64 = 196.0;
-// Mapleweb's Ladder::felloff probes five pixels beyond each authored end
-// before cancelling the fixed climb state.  Reuse that source boundary when
-// resolving the foothold at an allowed top exit.
+// Body-hit knockback from a monster's contact damage is a short hop, not a
+// long ground slide: the body leaves the foothold with a small upward launch,
+// arcs back a short horizontal distance and stands again on landing.  Both the
+// hop and the horizontal push are scaled by the player's tenacity (0..0.6,
+// LoL-style), so tougher players are knocked back less far and recover sooner.
+// The numbers keep a tenacity-0 hop ≈10 px high and ≈40-50 px long so the
+// knockback reads as a flinch rather than a knock across the platform.
+const KNOCKBACK_SPEED: f64 = 240.0; // horizontal push at tenacity 0 (px/s)
+const KNOCKBACK_JUMP: f64 = 200.0; // upward hop launch at tenacity 0 (px/s)
+const KNOCKBACK_TICKS: u64 = 8; // upper guard window; the hop ends on landing
+const TENACITY_CAP: f64 = 0.6; // knockback-reduction cap, mirroring LoL soft cap
+                               // Mapleweb's Ladder::felloff probes five pixels beyond each authored end
+                               // before cancelling the fixed climb state.  Reuse that source boundary when
+                               // resolving the foothold at an allowed top exit.
 const LADDER_END_PROBE_PX: f64 = 5.0;
 // The Snail WZ animation manifest has a 100 ms stand frame and five move
 // frames at 180 ms each (900 ms per move loop).  HeavenClient's controlled
@@ -614,6 +625,12 @@ pub struct PlayerConfig {
     pub max_mp: Option<i64>,
     pub climb_speed: Option<f64>,
     pub contact_invulnerability_ms: Option<u64>,
+    /// Knockback resistance as a reduction factor (0.0 = none, capped at
+    /// TENACITY_CAP). Higher values shorten and lower the contact-damage hop,
+    /// League-of-Legends style. The base player stays 0; equipment can feed
+    /// the derived value later.
+    #[serde(default)]
+    pub tenacity: Option<f64>,
     pub weapon_defense: Option<i64>,
     #[serde(default)]
     pub standard_pdd: Vec<DefenseThreshold>,
@@ -636,6 +653,36 @@ pub struct DropSpec {
     pub quantity_max: Option<u32>,
     #[serde(default)]
     pub chance: Option<u64>,
+    #[serde(default)]
+    pub quest_id: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeferredQuestDrop {
+    pub template_id: String,
+    pub item_id: String,
+    pub minimum: u32,
+    #[serde(default)]
+    pub maximum: Option<u32>,
+    #[serde(deserialize_with = "deserialize_string_or_number")]
+    pub quest_id: String,
+    #[serde(default)]
+    pub chance: Option<u64>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SourcesDrops {
+    #[serde(default, rename = "deferredQuestDrops")]
+    pub deferred_quest_drops: Vec<DeferredQuestDrop>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Sources {
+    #[serde(default)]
+    pub drops: SourcesDrops,
 }
 
 #[derive(Clone, Deserialize)]
@@ -710,6 +757,28 @@ where
     match Value::deserialize(deserializer)? {
         Value::Bool(value) => Ok(value),
         Value::Int(value) => Ok(value != 0),
+    }
+}
+
+fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Value {
+        String(String),
+        U64(u64),
+        I64(i64),
+    }
+
+    match Value::deserialize(deserializer)? {
+        Value::String(value) => Ok(value),
+        Value::U64(value) => Ok(value.to_string()),
+        Value::I64(value) => value
+            .try_into()
+            .map(|value: u64| value.to_string())
+            .map_err(DeError::custom),
     }
 }
 
@@ -824,11 +893,14 @@ pub struct Gameplay {
     pub npc_spawns: Vec<NpcSpawn>,
     #[serde(default)]
     pub shops: Vec<Shop>,
+    #[serde(default)]
+    pub sources: Sources,
 }
 
 impl Gameplay {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let gameplay: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        let mut gameplay: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        gameplay.apply_deferred_quest_drops()?;
         gameplay.validate()?;
         Ok(gameplay)
     }
@@ -877,6 +949,7 @@ impl Gameplay {
                     drop.item_id.is_empty()
                         || drop.quantity == 0
                         || drop.quantity_max.is_some_and(|max| max < drop.quantity)
+                        || drop.quest_id.as_deref().is_some_and(str::is_empty)
                         || drop.chance.is_some_and(|chance| {
                             self.drop_chance_denominator
                                 .is_none_or(|denominator| denominator == 0 || chance > denominator)
@@ -893,33 +966,25 @@ impl Gameplay {
                 || ![-1, 1].contains(&spawn.facing)
                 || spawn.mob_time < -1
                 || match (spawn.rx0, spawn.rx1) {
-                    (Some(rx0), Some(rx1)) => {
-                        !rx0.is_finite() || !rx1.is_finite() || rx0 > rx1
-                    }
+                    (Some(rx0), Some(rx1)) => !rx0.is_finite() || !rx1.is_finite() || rx0 > rx1,
                     (None, None) => false,
                     _ => true,
                 }
         }) {
             return Err("invalid gameplay monster spawn".into());
         }
-        if self
-            .spawns
-            .iter()
-            .enumerate()
-            .any(|(index, spawn)| self.spawns[..index].iter().any(|prior| prior.id == spawn.id))
-        {
+        if self.spawns.iter().enumerate().any(|(index, spawn)| {
+            self.spawns[..index]
+                .iter()
+                .any(|prior| prior.id == spawn.id)
+        }) {
             return Err("duplicate gameplay monster spawn id".into());
         }
-        if self
-            .monsters
-            .iter()
-            .enumerate()
-            .any(|(index, template)| {
-                self.monsters[..index]
-                    .iter()
-                    .any(|prior| prior.template_id == template.template_id)
-            })
-        {
+        if self.monsters.iter().enumerate().any(|(index, template)| {
+            self.monsters[..index]
+                .iter()
+                .any(|prior| prior.template_id == template.template_id)
+        }) {
             return Err("duplicate gameplay monster template id".into());
         }
         if self
@@ -1001,16 +1066,11 @@ impl Gameplay {
         }) {
             return Err("invalid gameplay npc spawn".into());
         }
-        if self
-            .npc_spawns
-            .iter()
-            .enumerate()
-            .any(|(index, spawn)| {
-                self.npc_spawns[..index]
-                    .iter()
-                    .any(|prior| prior.id == spawn.id)
-            })
-        {
+        if self.npc_spawns.iter().enumerate().any(|(index, spawn)| {
+            self.npc_spawns[..index]
+                .iter()
+                .any(|prior| prior.id == spawn.id)
+        }) {
             return Err("duplicate gameplay npc spawn id".into());
         }
         let template_ids: BTreeSet<&str> = self
@@ -1036,25 +1096,49 @@ impl Gameplay {
             if shop.shop_id.is_empty()
                 || shop.npc_id.is_empty()
                 || shop.items.is_empty()
-                || shop.items.iter().any(|entry| entry.item_id.is_empty() || entry.price == 0)
+                || shop
+                    .items
+                    .iter()
+                    .any(|entry| entry.item_id.is_empty() || entry.price == 0)
             {
                 return Err("invalid gameplay shop".into());
             }
-            if shop
-                .items
-                .iter()
-                .enumerate()
-                .any(|(index, entry)| {
-                    shop.items[..index]
-                        .iter()
-                        .any(|prior| prior.item_id == entry.item_id)
-                })
-            {
+            if shop.items.iter().enumerate().any(|(index, entry)| {
+                shop.items[..index]
+                    .iter()
+                    .any(|prior| prior.item_id == entry.item_id)
+            }) {
                 return Err("duplicate gameplay shop item".into());
             }
             if !template_ids.contains(shop.npc_id.as_str()) {
                 return Err("shop references unknown npc template".into());
             }
+        }
+        Ok(())
+    }
+
+    fn apply_deferred_quest_drops(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        for drop in &self.sources.drops.deferred_quest_drops {
+            let template = self
+                .monsters
+                .iter_mut()
+                .find(|template| template.template_id == drop.template_id)
+                .ok_or_else(|| {
+                    format!(
+                        "deferred quest drop references unknown monster template {}",
+                        drop.template_id
+                    )
+                })?;
+
+            let mut drops = template.drops();
+            drops.push(DropSpec {
+                item_id: drop.item_id.clone(),
+                quantity: drop.minimum,
+                quantity_max: drop.maximum,
+                chance: drop.chance,
+                quest_id: Some(drop.quest_id.clone()),
+            });
+            template.drop = Some(DropInput::Many(drops));
         }
         Ok(())
     }
@@ -1070,9 +1154,12 @@ impl Gameplay {
             } else {
                 spawn.map_id.as_str()
             };
-            let map = maps
-                .get(map_id)
-                .ok_or_else(|| format!("monster spawn {} references unknown map {}", spawn.id, map_id))?;
+            let map = maps.get(map_id).ok_or_else(|| {
+                format!(
+                    "monster spawn {} references unknown map {}",
+                    spawn.id, map_id
+                )
+            })?;
             if !(map.bounds.x_min..=map.bounds.x_max).contains(&spawn.x)
                 || !(map.bounds.y_min..=map.bounds.y_max).contains(&spawn.y)
             {
@@ -1158,11 +1245,7 @@ impl PlayerConfig {
 
     /// HeavenClient/Mob.cpp applies level difference and PDD to the raw
     /// interval, then samples a float and truncates it to an integer.
-    fn attack_range_against(
-        &self,
-        player_level: u32,
-        monster: &MonsterTemplate,
-    ) -> (f64, f64) {
+    fn attack_range_against(&self, player_level: u32, monster: &MonsterTemplate) -> (f64, f64) {
         let (min, max) = self.attack_range();
         let level_delta = monster.level.saturating_sub(player_level) as f64;
         let factor = 1.0 - 0.01 * level_delta;
@@ -1281,6 +1364,9 @@ pub enum Command {
         connection: String,
         output: mpsc::Sender<String>,
         reply: oneshot::Sender<bool>,
+        /// Preferred display language reported by the client hello
+        /// ("zh" default, "en" for the ?lang=en UI).
+        lang: String,
     },
     Input {
         id: String,
@@ -1317,9 +1403,16 @@ struct Player {
     last_input: Instant,
     attack_until: u64,
     contact_invulnerable_until: u64,
+    /// Contact-hit knockback: horizontal slide velocity (px/s) and the tick
+    /// until which the player is pushed instead of walking.  Both stay on the
+    /// authoritative Player, so a pushed body cannot fight the server state.
+    knockback_vx: f64,
+    knockback_until: u64,
     /// quest id -> "active" | "completed".  Authored quest dialog branches on
     /// these rows and the complete effect grants the configured reward.
     quests: BTreeMap<String, String>,
+    /// Display language for server-pushed quest text (see quest_text::LANG_*).
+    lang: &'static str,
 }
 
 struct Monster {
@@ -1395,6 +1488,10 @@ pub struct World {
     revive_requests: BTreeMap<(String, String), auth::ReviveOutcome>,
     inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
     pending_attacks: BTreeMap<String, PendingAttack>,
+    /// Offline multilingual quest display-text catalog (shared/quest-text.json).
+    /// The authoritative source for the localized names/summaries the server
+    /// pushes in questList/questUpdate.
+    quest_text: crate::quest_text::QuestTextCorpus,
     tick: u64,
     combat: Combat,
     store: Option<Store>,
@@ -1449,6 +1546,7 @@ impl World {
             revive_requests: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
+            quest_text: crate::quest_text::QuestTextCorpus::default(),
             tick: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
             store,
@@ -1478,6 +1576,14 @@ impl World {
             }
         }
         Ok(world)
+    }
+
+    /// Attach the multilingual quest-text corpus so questList/questUpdate can
+    /// push authoritative localized display text.  Worlds built without it
+    /// (unit tests) degrade to quest-id names with empty summaries.
+    pub fn with_quest_text(mut self, quest_text: crate::quest_text::QuestTextCorpus) -> Self {
+        self.quest_text = quest_text;
+        self
     }
 
     pub fn new_with_store_and_catalog(
@@ -1557,7 +1663,9 @@ impl World {
     }
 
     fn spawn_configured_monsters(&mut self) -> Result<(), String> {
-        self.gameplay.validate().map_err(|error| error.to_string())?;
+        self.gameplay
+            .validate()
+            .map_err(|error| error.to_string())?;
         self.gameplay
             .validate_spawns_against_maps(&self.maps, &self.map.id)?;
         let spawns = self.gameplay.spawns.clone();
@@ -1572,11 +1680,7 @@ impl World {
         Ok(())
     }
 
-    fn spawn_monster_on_map(
-        &mut self,
-        map_id: String,
-        spawn: MonsterSpawn,
-    ) -> Result<(), String> {
+    fn spawn_monster_on_map(&mut self, map_id: String, spawn: MonsterSpawn) -> Result<(), String> {
         if self
             .monsters
             .values()
@@ -1596,11 +1700,12 @@ impl World {
                 spawn.id, spawn.template_id
             ));
         };
-        let map = self
-            .maps
-            .get(&map_id)
-            .cloned()
-            .ok_or_else(|| format!("monster spawn {} references unknown map {}", spawn.id, map_id))?;
+        let map = self.maps.get(&map_id).cloned().ok_or_else(|| {
+            format!(
+                "monster spawn {} references unknown map {}",
+                spawn.id, map_id
+            )
+        })?;
         let foothold_id = spawn.foothold_id.or_else(|| {
             map.ground_near(spawn.x, spawn.y)
                 .map(|(foothold_id, _)| foothold_id)
@@ -1614,7 +1719,8 @@ impl World {
                 format!(
                     "monster spawn {} has invalid foothold {} on map {}",
                     spawn.id,
-                    spawn.foothold_id
+                    spawn
+                        .foothold_id
                         .map_or_else(|| "<inferred>".to_owned(), |id| id.to_string()),
                     map_id
                 )
@@ -1753,6 +1859,7 @@ impl World {
                 connection,
                 output,
                 reply,
+                lang,
             } => {
                 if self.players.contains_key(&identity.id) {
                     let _ = output.try_send(reject(
@@ -1808,9 +1915,7 @@ impl World {
                 // spawn so the join site never drops a player outside the
                 // playable area.
                 let persisted_map = self.maps.get(profile.map_id.as_str()).cloned();
-                let resolved_map = persisted_map
-                    .clone()
-                    .unwrap_or_else(|| self.map.clone());
+                let resolved_map = persisted_map.clone().unwrap_or_else(|| self.map.clone());
                 let resolved_map_id = resolved_map.id.clone();
                 let (resolved_x, resolved_y) = if persisted_map.is_some()
                     && profile.x.is_finite()
@@ -1879,10 +1984,17 @@ impl World {
                         last_input: Instant::now(),
                         attack_until: 0,
                         contact_invulnerable_until: 0,
+                        knockback_vx: 0.,
+                        knockback_until: 0,
                         quests,
+                        lang: crate::quest_text::normalize_lang(Some(&lang)),
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
+                // Authoritative quest log push follows the join snapshot so a
+                // fresh client window always reflects the persisted rows and
+                // the client never needs a client-side translation table.
+                self.send_quest_list(&id);
                 let _ = reply.send(true);
             }
             Command::Leave { id, connection } => {
@@ -2002,13 +2114,7 @@ impl World {
                         npc_id,
                         step,
                         selection,
-                    } => self.handle_npc_talk(
-                        id,
-                        request_id,
-                        npc_id,
-                        step.as_deref(),
-                        selection,
-                    ),
+                    } => self.handle_npc_talk(id, request_id, npc_id, step.as_deref(), selection),
                     ClientMessage::ShopBuy {
                         request_id,
                         shop_id,
@@ -3606,7 +3712,12 @@ impl World {
         // Locate the npc and its template.
         let npc_view = {
             let Some(npc) = self.npcs.get(&npc_id) else {
-                self.send_reject(&id, "npc_unknown", "npc not placed on a map", Some(&request_id));
+                self.send_reject(
+                    &id,
+                    "npc_unknown",
+                    "npc not placed on a map",
+                    Some(&request_id),
+                );
                 return;
             };
             if npc.map_id != map_id {
@@ -3627,7 +3738,12 @@ impl World {
         };
         let (template_id, nx, ny, name) = npc_view;
         if (px - nx).abs() > npc::TALK_RANGE_X || (py - ny).abs() > npc::TALK_RANGE_Y {
-            self.send_reject(&id, "npc_too_far", "stand closer to the npc", Some(&request_id));
+            self.send_reject(
+                &id,
+                "npc_too_far",
+                "stand closer to the npc",
+                Some(&request_id),
+            );
             return;
         }
         let Some(template) = self
@@ -3637,7 +3753,12 @@ impl World {
             .find(|template| template.template_id == template_id)
             .cloned()
         else {
-            self.send_reject(&id, "npc_unknown", "npc template missing", Some(&request_id));
+            self.send_reject(
+                &id,
+                "npc_unknown",
+                "npc template missing",
+                Some(&request_id),
+            );
             return;
         };
         let Some(script) = template.script.clone() else {
@@ -3749,15 +3870,20 @@ impl World {
         }
         if let Some(store) = self.store.as_ref() {
             if let Err(error) = store.save_quest(id, &quest_id, wanted) {
-                let _ = self
-                    .players
-                    .get(id)
-                    .and_then(|player| player.output.try_send(reject("persistence", &error, None)).ok());
+                let _ = self.players.get(id).and_then(|player| {
+                    player
+                        .output
+                        .try_send(reject("persistence", &error, None))
+                        .ok()
+                });
             }
         }
         if wanted == "completed" {
             let _ = self.persist_player(id);
         }
+        // Authoritative localized questUpdate so the client quest log and
+        // accept/complete chat hints reflect exactly what the server settled.
+        self.send_quest_update(id, &quest_id, wanted, reward);
     }
 
     fn warp_player(&mut self, player_id: &str, map_id: String) {
@@ -3793,13 +3919,54 @@ impl World {
         }
     }
 
+    /// Push the player's full quest log with display text localized to the
+    /// player's language.  Always sent after a join so the client window is
+    /// authoritative even when every row was cleared on the previous session.
+    fn send_quest_list(&self, id: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let lang = player.lang;
+        let quests: Vec<serde_json::Value> = player
+            .quests
+            .iter()
+            .map(|(quest_id, status)| {
+                serde_json::json!({
+                    "questId": quest_id,
+                    "name": self.quest_text.name(quest_id, lang),
+                    "status": status,
+                    "summary": self.quest_text.summary(quest_id, lang),
+                })
+            })
+            .collect();
+        let message = serde_json::json!({ "type": "questList", "quests": quests }).to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Push a single quest transition (active/completed) with the localized
+    /// display text and the reward the server actually granted.
+    fn send_quest_update(&self, id: &str, quest_id: &str, status: &str, mesos: u64) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let lang = player.lang;
+        let message = serde_json::json!({
+            "type": "questUpdate",
+            "questId": quest_id,
+            "name": self.quest_text.name(quest_id, lang),
+            "status": status,
+            "summary": self.quest_text.summary(quest_id, lang),
+            "reward": { "mesos": mesos, "exp": 0, "items": [] },
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
     fn send_reject(&self, id: &str, code: &str, message: &str, request_id: Option<&str>) {
         let Some(player) = self.players.get(id) else {
             return;
         };
-        let _ = player
-            .output
-            .try_send(reject(code, message, request_id));
+        let _ = player.output.try_send(reject(code, message, request_id));
     }
 
     fn handle_shop_buy(
@@ -4033,7 +4200,10 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Ok(());
         };
-        store.save_profile(id, &profile_from_state(&player.state, &player.map_id, &player.death_id))
+        store.save_profile(
+            id,
+            &profile_from_state(&player.state, &player.map_id, &player.death_id),
+        )
     }
 
     fn resolve_pending_attacks(&mut self) {
@@ -4054,6 +4224,7 @@ impl World {
                 continue;
             }
             let map_id = player.map_id.clone();
+            let quests = player.quests.clone();
             let target_id = self.nearest_attack_target(player);
             let (target_hp, max_hp, target_template, target_x, target_y) = target_id
                 .as_ref()
@@ -4103,7 +4274,13 @@ impl World {
                 .then_some(damage.min(target_hp.max(0)))
                 .unwrap_or(0);
             let drops = if killed {
-                self.choose_drops(&target_template, target_x, target_y, &attack.player_id)
+                self.choose_drops(
+                    &target_template,
+                    target_x,
+                    target_y,
+                    &attack.player_id,
+                    &quests,
+                )
             } else {
                 Vec::new()
             };
@@ -4275,10 +4452,18 @@ impl World {
         x: f64,
         y: f64,
         owner_id: &str,
+        quests: &BTreeMap<String, String>,
     ) -> Vec<auth::DropRecord> {
         let denominator = self.gameplay.drop_chance_denominator;
         let mut drops = Vec::new();
         for spec in template.drops() {
+            let should_drop = match spec.quest_id.as_deref() {
+                None => true,
+                Some(quest_id) => quests.get(quest_id).is_some_and(|state| state == "active"),
+            };
+            if !should_drop {
+                continue;
+            }
             if spec.quantity == 0 {
                 continue;
             }
@@ -4498,8 +4683,11 @@ impl World {
                         .player
                         .with_equipment(&player.state.equipped)
                         .contact_damage(player.state.level, &monster.template)
+                        .map(|damage| (monster.state.id.clone(), monster.state.x, damage))
                 });
-            let Some(damage) = hit else { continue };
+            let Some((monster_id, monster_x, damage)) = hit else {
+                continue;
+            };
             let Some(player) = self.players.get_mut(&id) else {
                 continue;
             };
@@ -4513,7 +4701,58 @@ impl World {
                 player.state.ladder_id = None;
                 player.attack_until = 0;
                 player.death_id = auth::random_id();
+                player.knockback_vx = 0.;
+                player.knockback_until = 0;
+            } else {
+                // Body hit: interrupt the current attack and start the
+                // knockback hop.  The body leaves its foothold with a small
+                // upward launch plus a short horizontal push away from the
+                // monster centre, both scaled by tenacity.  step_player owns
+                // the ballistic arc and stands the player again on landing;
+                // clients render the white flash from the damage event below
+                // and follow the authoritative position from snapshots.
+                player.attack_until = 0;
+                player.state.action_id = None;
+                if player.state.climbing {
+                    player.state.climbing = false;
+                    player.state.ladder_id = None;
+                }
+                player.state.grounded = false;
+                player.foothold_id = 0;
+                player.drop_fh = 0;
+                let away = if player.state.x >= monster_x {
+                    1.0
+                } else {
+                    -1.0
+                };
+                let tenacity = self
+                    .gameplay
+                    .player
+                    .tenacity
+                    .unwrap_or(0.0)
+                    .clamp(0.0, TENACITY_CAP);
+                let factor = 1.0 - tenacity;
+                player.knockback_vx = away * KNOCKBACK_SPEED * factor;
+                player.knockback_until = self.tick + KNOCKBACK_TICKS;
+                player.state.vy = -KNOCKBACK_JUMP * factor;
+                player.state.action = "jump";
+                player.state.action_started_tick = self.tick;
             }
+            // Broadcast an authoritative damage event so every client can show
+            // the damage number and hurt flash at the player's current spot.
+            let damage_event = serde_json::json!({
+                "type": "damageEvent",
+                "eventId": format!("damage-event-contact-{}-{}", id, self.tick),
+                "serverTick": self.tick,
+                "attackerId": monster_id,
+                "targetId": id,
+                "x": player.state.x,
+                "y": player.state.y,
+                "damage": damage.max(1),
+                "killed": player.state.hp == 0,
+            })
+            .to_string();
+            self.broadcast_to_map(&map_id, &damage_event);
             let _ = self.persist_player(&id);
         }
     }
@@ -4713,6 +4952,29 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         return;
     }
 
+    // Knockback hop set by a monster's contact hit: while the body is airborne
+    // the server keeps the horizontal push instead of honouring walk/jump
+    // input.  Landing ends the hop immediately; the tick window is only an
+    // upper guard for hops that leave the map.  `knockback_active` stays in
+    // scope for the horizontal override and the final action decision.
+    if player.state.grounded && player.knockback_until > 0 {
+        player.knockback_until = 0;
+        player.knockback_vx = 0.0;
+    }
+    let knockback_active = tick < player.knockback_until && player.knockback_vx != 0.0;
+    if knockback_active {
+        player.direction = 0;
+        player.vertical = 0;
+        player.jump = false;
+        if player.state.climbing {
+            // Defensive only: the contact hit already detaches climbing bodies.
+            player.state.climbing = false;
+            player.state.ladder_id = None;
+            player.state.grounded = false;
+            player.foothold_id = 0;
+        }
+    }
+
     // Keep the source current-foothold handle before climbing, jumping, or
     // stepping over an authored edge clears the active foothold id.
     if player.state.grounded {
@@ -4799,7 +5061,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
     }
 
-    if !player.state.climbing && player.vertical != 0 {
+    if !knockback_active && !player.state.climbing && player.vertical != 0 {
         if let Some(ladder) = map.ladder_for(player.state.x, player.state.y, player.vertical < 0) {
             player.state.x = ladder.x;
             player.state.y = player.state.y.clamp(ladder.top(), ladder.bottom());
@@ -4844,7 +5106,13 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
     }
     player.jump = false;
-    player.state.vx = player.direction as f64 * WALK_SPEED;
+    player.state.vx = if knockback_active {
+        // Body-hit slide: keep the authoritative push even when the player
+        // holds the opposite direction key.
+        player.knockback_vx
+    } else {
+        player.direction as f64 * WALK_SPEED
+    };
     if player.direction != 0 {
         player.state.facing = player.direction;
     }
@@ -4954,7 +5222,15 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     }
     if tick >= player.attack_until {
         player.state.action_id = None;
-        let action = if player.state.climbing {
+        let action = if knockback_active {
+            // Knockback hop pose: airborne bodies show the jump frames and
+            // stand again on the tick they land; no walk cycle is played.
+            if player.state.grounded {
+                "stand"
+            } else {
+                "jump"
+            }
+        } else if player.state.climbing {
             player
                 .state
                 .ladder_id
@@ -5156,13 +5432,7 @@ mod tests {
         }
     }
 
-    fn life_spawn(
-        id: &str,
-        map_id: &str,
-        x: f64,
-        facing: i8,
-        mob_time: i64,
-    ) -> MonsterSpawn {
+    fn life_spawn(id: &str, map_id: &str, x: f64, facing: i8, mob_time: i64) -> MonsterSpawn {
         MonsterSpawn {
             id: id.into(),
             template_id: "100100".into(),
@@ -5199,6 +5469,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         for _ in 0..20 {
             w.step();
@@ -5272,6 +5543,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         let x = world.players["a"].state.x;
         let y = world.players["a"].state.y;
@@ -5325,6 +5597,7 @@ mod tests {
             connection: "d".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.handle_pickup("b".into(), "public".into(), drop_id.clone());
         assert!(!world.drops.contains_key(&drop_id));
@@ -5348,6 +5621,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         while rx.try_recv().is_ok() {}
         let x = world.players["a"].state.x;
@@ -5550,6 +5824,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         while rx.try_recv().is_ok() {}
         world.handle_pickup("a".into(), "world-card-pickup".into(), "world-card".into());
@@ -5603,6 +5878,7 @@ mod tests {
                 connection: connection.into(),
                 output,
                 reply,
+                lang: "zh".to_owned(),
             });
         }
         while a_rx.try_recv().is_ok() {}
@@ -5689,6 +5965,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         let _ = rx.try_recv();
         world.players.get_mut("a").unwrap().state.inventory = vec![
@@ -5828,8 +6105,9 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
-        let _ = rx.try_recv();
+        while rx.try_recv().is_ok() {}
         world.command(Command::Input {
             id: "a".into(),
             connection: "c".into(),
@@ -5852,7 +6130,12 @@ mod tests {
         let catalog = MapCatalog::load(&path).expect("generated map catalog");
         assert_eq!(catalog.birth_map_id, "000010000");
         for id in [
-            "000010000", "001000000", "001010000", "001020000", "002000000", "002000001",
+            "000010000",
+            "001000000",
+            "001010000",
+            "001020000",
+            "002000000",
+            "002000001",
         ] {
             assert!(
                 catalog.maps.iter().any(|map| map.id == id),
@@ -5865,6 +6148,102 @@ mod tests {
             .iter()
             .flat_map(|map| map.portals.iter())
             .any(|portal| portal.target_map_id.as_deref() == Some("000020000")));
+    }
+
+    #[test]
+    fn generated_map_catalog_keeps_portal_return_paths() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
+        let catalog = MapCatalog::load(&path).expect("generated map catalog");
+        // WZ only stores the outgoing half of a map link; the integration step
+        // gives the arrival half a return path so a player can walk back.
+        for (arrival_map, arrival_portal, return_map, return_portal) in [
+            ("000020000", "in00", "000010000", "out00"),
+            ("000030000", "in00", "000020000", "out00"),
+            ("000040000", "in00", "000030000", "out00"),
+            ("000050000", "in00", "000040000", "out00"),
+        ] {
+            let arrival = catalog
+                .maps
+                .iter()
+                .find(|map| map.id == arrival_map)
+                .unwrap_or_else(|| panic!("missing map {arrival_map}"))
+                .portals
+                .iter()
+                .find(|portal| portal.name == arrival_portal)
+                .unwrap_or_else(|| panic!("missing portal {arrival_map}/{arrival_portal}"));
+            assert_eq!(
+                arrival.target_map_id.as_deref(),
+                Some(return_map),
+                "{arrival_map}/{arrival_portal} lost its return path"
+            );
+            assert_eq!(arrival.target_portal_name.as_deref(), Some(return_portal));
+        }
+    }
+
+    #[test]
+    fn generated_map_catalog_materialises_missing_arrival_gates() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
+        let catalog = MapCatalog::load(&path).expect("generated map catalog");
+        // v83 WZ points these links at portal slots it never declares on the
+        // target map; the integration step materialises them so each source
+        // portal answers back and no arrival silently falls back to spawn.
+        for (map_id, portal_name, target_map, target_portal) in [
+            ("000020000", "in01", "000020001", "out00"),
+            ("000040000", "east00", "000040001", "west00"),
+            ("000050000", "west00", "000040002", "east00"),
+            ("000050000", "east01", "000050001", "west00"),
+            ("001000000", "in01", "001000002", "out00"),
+            ("001000000", "in03", "001000004", "out00"),
+            ("001020000", "in01", "001000005", "out00"),
+            ("001020000", "in02", "001000006", "out00"),
+        ] {
+            let gate = catalog
+                .maps
+                .iter()
+                .find(|map| map.id == map_id)
+                .unwrap_or_else(|| panic!("missing map {map_id}"))
+                .portals
+                .iter()
+                .find(|portal| portal.name == portal_name)
+                .unwrap_or_else(|| panic!("missing arrival gate {map_id}/{portal_name}"));
+            assert_eq!(gate.target_map_id.as_deref(), Some(target_map));
+            assert_eq!(gate.target_portal_name.as_deref(), Some(target_portal));
+        }
+        // Two street exits used to share one in01 slot; the second one is
+        // re-pointed at the dedicated in03 gate.
+        let snail_garden = &catalog
+            .maps
+            .iter()
+            .find(|map| map.id == "001000004")
+            .expect("001000004")
+            .portals;
+        let out00 = snail_garden
+            .iter()
+            .find(|portal| portal.name == "out00")
+            .expect("001000004/out00");
+        assert_eq!(out00.target_map_id.as_deref(), Some("001000000"));
+        assert_eq!(out00.target_portal_name.as_deref(), Some("in03"));
+        // Every authored link must now land on a real portal.
+        for map in &catalog.maps {
+            for portal in &map.portals {
+                let Some(target_map) = portal.target_map_id.as_deref() else {
+                    continue;
+                };
+                let Some(target_portal) = portal.target_portal_name.as_deref() else {
+                    continue;
+                };
+                assert!(
+                    catalog
+                        .maps
+                        .iter()
+                        .find(|candidate| candidate.id == target_map)
+                        .is_some_and(|candidate| candidate.portals.iter().any(|p| p.name == target_portal)),
+                    "{} portal {} dangles -> {target_map}/{target_portal}",
+                    map.id,
+                    portal.name
+                );
+            }
+        }
     }
 
     #[test]
@@ -5912,6 +6291,7 @@ mod tests {
             connection: "birth-connection".into(),
             output: birth_output,
             reply: birth_reply,
+            lang: "zh".to_owned(),
         });
         let (target_output, _target_rx) = mpsc::channel(16);
         let (target_reply, _target_reply_rx) = oneshot::channel();
@@ -5923,6 +6303,7 @@ mod tests {
             connection: "target-connection".into(),
             output: target_output,
             reply: target_reply,
+            lang: "zh".to_owned(),
         });
         world.players.get_mut("target-player").unwrap().map_id = "birth".into();
 
@@ -5954,7 +6335,10 @@ mod tests {
         }
         world.tick = 20;
         world.respawn_monsters();
-        assert!(!world.monsters.values().any(|monster| monster.spawn.id == "birth-life"));
+        assert!(!world
+            .monsters
+            .values()
+            .any(|monster| monster.spawn.id == "birth-life"));
         assert!(world.monsters.contains_key(&target_id));
 
         world.players.get_mut("target-player").unwrap().map_id = "target".into();
@@ -5979,7 +6363,10 @@ mod tests {
             maps: vec![life_map("birth"), life_map("target")],
         };
         let cases = [
-            (life_spawn("unknown-map", "missing", 100.0, 1, 0), "unknown map"),
+            (
+                life_spawn("unknown-map", "missing", 100.0, 1, 0),
+                "unknown map",
+            ),
             ({
                 let mut spawn = life_spawn("unknown-foothold", "birth", 100.0, 1, 0);
                 spawn.foothold_id = Some(99);
@@ -6017,21 +6404,12 @@ mod tests {
         let mut slime = life_template();
         slime.pd_damage = Some(5);
         let no_defense = life_template();
-        assert_eq!(
-            config.attack_range_against(1, &red_snail),
-            (1.0, 1.0)
-        );
+        assert_eq!(config.attack_range_against(1, &red_snail), (1.0, 1.0));
         assert_eq!(config.attack_range_against(1, &slime), (1.0, 1.0));
-        assert_eq!(
-            config.attack_range_against(1, &no_defense),
-            (1.0, 2.0)
-        );
+        assert_eq!(config.attack_range_against(1, &no_defense), (1.0, 2.0));
         let mut high_defense = life_template();
         high_defense.pd_damage = Some(1000);
-        assert_eq!(
-            config.attack_range_against(1, &high_defense),
-            (1.0, 1.0)
-        );
+        assert_eq!(config.attack_range_against(1, &high_defense), (1.0, 1.0));
         assert!(config.attack_damage_against(1, &high_defense) >= 1);
     }
 
@@ -6048,6 +6426,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         assert!(rx.try_recv().is_ok());
         world.step();
@@ -6114,6 +6493,7 @@ mod tests {
             },
             connection: "c".into(),
             reply,
+            lang: "zh".to_owned(),
             output,
         });
         w.step();
@@ -6150,7 +6530,10 @@ mod tests {
             "jump must not tunnel across the chain wall, got x={}",
             player.state.x
         );
-        assert!(player.state.grounded, "body should land near the take-off platform");
+        assert!(
+            player.state.grounded,
+            "body should land near the take-off platform"
+        );
         assert!(
             (player.state.y - 100.0).abs() < 1.0 || player.state.y > 200.0,
             "body must end near take-off platform or on lower world floor, got y={}",
@@ -6185,6 +6568,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         w.command(Command::Input {
             id: "a".into(),
@@ -6226,6 +6610,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         rope_world.command(Command::Input {
             id: "a".into(),
@@ -6272,6 +6657,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6362,6 +6748,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6405,7 +6792,7 @@ mod tests {
     #[test]
     fn config_drop_and_exp_are_authoritative_without_client_values() {
         let gameplay: Gameplay = serde_json::from_str(
-            r#"{"contentVersion":"gms83-quest-1","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
+            r#"{"contentVersion":"gms83-quest-2","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
         )
         .unwrap();
         gameplay.validate().unwrap();
@@ -6430,6 +6817,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         w.step();
         assert!(w.players["a"].state.grounded);
@@ -6467,6 +6855,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         w.step();
         w.command(Command::Input {
@@ -6515,6 +6904,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6557,6 +6947,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6600,6 +6991,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6645,6 +7037,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         world.command(Command::Input {
@@ -6721,6 +7114,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         world.step();
         {
@@ -6810,6 +7204,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         let old_id = w.monsters.keys().next().cloned().unwrap();
         let monster = w.monsters.get_mut(&old_id).unwrap();
@@ -6841,6 +7236,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         while rx.try_recv().is_ok() {}
         {
@@ -6911,6 +7307,7 @@ mod tests {
             connection: "c".into(),
             output,
             reply,
+            lang: "zh".to_owned(),
         });
         assert_eq!(w.players["a"].state.action, "dead");
         assert_eq!(w.players["a"].death_id, "death-after-restart");
@@ -7192,5 +7589,343 @@ mod tests {
         assert_eq!(config.with_equipment(&upgraded).max_hp, Some(60));
         assert_eq!(config.with_equipment(&[]).weapon_watk, Some(0));
         assert_eq!(config.with_equipment(&[]).max_hp, Some(50));
+    }
+
+    /// A snail (contact box 82..119 at x=100) that body-attacks, with the given
+    /// player tenacity, on the shared test map.
+    fn contact_hit_world(tenacity: f64) -> World {
+        World::new_with_gameplay(
+            map(),
+            600,
+            Gameplay {
+                player: PlayerConfig {
+                    base_str: Some(12),
+                    base_dex: Some(5),
+                    base_int: Some(4),
+                    base_luk: Some(4),
+                    weapon_defense: Some(3),
+                    standard_pdd: vec![DefenseThreshold { level: 1, value: 7 }],
+                    max_hp: Some(50),
+                    contact_invulnerability_ms: Some(2000),
+                    tenacity: Some(tenacity),
+                    ..PlayerConfig::default()
+                },
+                monsters: vec![MonsterTemplate {
+                    template_id: "100100".into(),
+                    level: 1,
+                    max_hp: 8,
+                    pa_damage: Some(12),
+                    pd_damage: None,
+                    exp: 3,
+                    body_attack: true,
+                    move_speed: Some(0.0),
+                    source_speed: None,
+                    hitbox_width: None,
+                    hitbox_height: None,
+                    hitbox_lt: Some(Point { x: -18.0, y: -26.0 }),
+                    hitbox_rb: Some(Point { x: 19.0, y: 0.0 }),
+                    die_duration_ms: Some(1260),
+                    stand_delay_ms: Some(100),
+                    move_duration_ms: Some(900),
+                    drop: None,
+                }],
+                spawns: vec![MonsterSpawn {
+                    id: "s1".into(),
+                    template_id: "100100".into(),
+                    x: 100.0,
+                    y: 100.0,
+                    foothold_id: Some(1),
+                    map_id: String::new(),
+                    facing: 1,
+                    mob_time: 0,
+                    rx0: None,
+                    rx1: None,
+                }],
+                ..Gameplay::default()
+            },
+        )
+    }
+
+    #[test]
+    fn contact_hit_knocks_player_back_and_broadcasts_damage_event() {
+        let mut w = contact_hit_world(0.0);
+        let (output, mut rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        w.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+            lang: "zh".to_owned(),
+        });
+        while rx.try_recv().is_ok() {}
+        // Stand the player inside the snail's contact box (x 82..119 around a
+        // monster centred at x=100), to the monster's right side.
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.state.x = 118.0;
+            player.state.y = 100.0;
+            player.state.grounded = true;
+            player.state.hp = 50;
+            player.state.action = "stand";
+            player.foothold_id = 1;
+            player.last_foothold_id = 1;
+            player.contact_invulnerable_until = 0;
+        }
+        {
+            let monster = w.monsters.values_mut().next().unwrap();
+            monster.state.x = 100.0;
+            monster.state.y = 100.0;
+            monster.state.action = "stand";
+            monster.horizontal_speed = 0.0;
+        }
+        let start_x = w.players["a"].state.x;
+        let start_tick = w.tick;
+        w.step();
+        let p = &w.players["a"];
+        assert_eq!(p.state.hp, 49, "contact damage applies once");
+        assert_eq!(p.knockback_until, start_tick + 1 + KNOCKBACK_TICKS);
+        // The hit starts a short hop: the body leaves the foothold with the
+        // tenacity-0 impulse and shows the jump pose while airborne.
+        assert_eq!(
+            p.knockback_vx, KNOCKBACK_SPEED,
+            "pushed away from the monster"
+        );
+        assert_eq!(p.state.vy, -KNOCKBACK_JUMP);
+        assert_eq!(p.state.action, "jump");
+        assert!(!p.state.grounded);
+        let mut saw_damage_event = false;
+        let monster_id = w.monsters.keys().next().cloned().unwrap();
+        while let Ok(line) = rx.try_recv() {
+            let message: serde_json::Value = serde_json::from_str(&line).unwrap();
+            if message["type"] == "damageEvent" && message["targetId"] == "a" {
+                saw_damage_event = true;
+                assert_eq!(message["damage"], 1);
+                assert_eq!(message["killed"], false);
+                assert_eq!(message["attackerId"].as_str(), Some(monster_id.as_str()));
+            }
+        }
+        assert!(
+            saw_damage_event,
+            "player damage is broadcast for the hurt flash"
+        );
+        // The hop lands a short distance away and stands again: no long ground
+        // slide, and no repeated contact damage while invulnerable.
+        for _ in 0..12 {
+            w.step();
+        }
+        let travelled = w.players["a"].state.x - start_x;
+        assert!(
+            travelled > 5.0 && travelled < 90.0,
+            "hop travelled a short controlled distance: {travelled}"
+        );
+        assert!(w.players["a"].state.grounded);
+        assert_eq!(w.players["a"].state.hp, 49);
+        assert_eq!(w.players["a"].state.action, "stand");
+    }
+
+    #[test]
+    fn tenacity_scales_down_the_knockback_hop() {
+        let mut w = contact_hit_world(0.5);
+        let (output, mut rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        w.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+            lang: "zh".to_owned(),
+        });
+        while rx.try_recv().is_ok() {}
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.state.x = 118.0;
+            player.state.y = 100.0;
+            player.state.grounded = true;
+            player.state.hp = 50;
+            player.state.action = "stand";
+            player.foothold_id = 1;
+            player.last_foothold_id = 1;
+            player.contact_invulnerable_until = 0;
+        }
+        {
+            let monster = w.monsters.values_mut().next().unwrap();
+            monster.state.x = 100.0;
+            monster.state.y = 100.0;
+            monster.state.action = "stand";
+            monster.horizontal_speed = 0.0;
+        }
+        let start_x = w.players["a"].state.x;
+        w.step();
+        let p = &w.players["a"];
+        // Tenacity 0.5 halves both the horizontal push and the hop height/time
+        // (LoL-style reduction), so the same hit barely budges the player.
+        assert_eq!(p.knockback_vx, KNOCKBACK_SPEED * 0.5);
+        assert_eq!(p.state.vy, -(KNOCKBACK_JUMP * 0.5));
+        for _ in 0..12 {
+            w.step();
+        }
+        let travelled = w.players["a"].state.x - start_x;
+        assert!(
+            travelled < 45.0,
+            "high tenacity keeps the hop short: {travelled}"
+        );
+        assert_eq!(w.players["a"].state.hp, 49);
+        assert_eq!(w.players["a"].state.action, "stand");
+    }
+
+    /// Real corpus so the localization assertions cover the shipped data.
+    fn real_quest_text() -> crate::quest_text::QuestTextCorpus {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/quest-text.json");
+        crate::quest_text::QuestTextCorpus::load(&path).expect("shared/quest-text.json must parse")
+    }
+
+    fn quest_profile() -> Profile {
+        Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+        }
+    }
+
+    /// Join a fresh player against a store-backed world and return the parsed
+    /// messages the world pushed (snapshot + questList, in that order).
+    fn join_for_quests(
+        store: auth::Store,
+        account: &str,
+        lang: &str,
+        quests: &[(&str, &str)],
+    ) -> (World, mpsc::Receiver<String>) {
+        store.load_profile(account, &quest_profile()).unwrap();
+        for (quest_id, status) in quests {
+            store.save_quest(account, quest_id, status).unwrap();
+        }
+        let mut world = World::new_with_store(map(), 600, Gameplay::default(), store)
+            .unwrap()
+            .with_quest_text(real_quest_text());
+        let (output, rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: account.into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+            lang: lang.to_owned(),
+        });
+        (world, rx)
+    }
+
+    #[test]
+    fn quest_list_on_join_is_localized_to_player_language() {
+        let path =
+            std::env::temp_dir().join(format!("maple-quest-i18n-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let (world, mut rx) = join_for_quests(
+            service.store.clone(),
+            "a",
+            "en",
+            &[("1021", "active"), ("maple-road-training", "completed")],
+        );
+        assert_eq!(world.players["a"].lang, "en");
+
+        let snapshot: serde_json::Value =
+            serde_json::from_str(&rx.try_recv().expect("join snapshot")).unwrap();
+        assert_eq!(snapshot["type"], "snapshot");
+        let list: serde_json::Value =
+            serde_json::from_str(&rx.try_recv().expect("quest list after join")).unwrap();
+        assert_eq!(list["type"], "questList");
+        let quests = list["quests"].as_array().expect("quests array");
+        assert_eq!(quests.len(), 2);
+        let by_id = |id: &str| {
+            quests
+                .iter()
+                .find(|entry| entry["questId"] == id)
+                .expect(id)
+                .clone()
+        };
+        // English locale: English text straight from the corpus.
+        let apple = by_id("1021");
+        assert_eq!(apple["name"], "Roger's Apple");
+        assert_eq!(apple["status"], "active");
+        assert_eq!(
+            apple["summary"],
+            "Talk to Roger on Maple Road. Use the Roger's Apple he hands you and recover your HP to full."
+        );
+        let training = by_id("maple-road-training");
+        assert_eq!(training["name"], "Training Camp Check");
+        assert_eq!(training["status"], "completed");
+    }
+
+    #[test]
+    fn quest_list_defaults_to_zh_when_locale_absent_or_unknown() {
+        let path =
+            std::env::temp_dir().join(format!("maple-quest-zh-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let (_, mut rx) = join_for_quests(service.store.clone(), "a", "zh", &[("1021", "active")]);
+        let _: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        let list: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(list["type"], "questList");
+        let entry = &list["quests"][0];
+        assert_eq!(entry["questId"], "1021");
+        assert_eq!(entry["name"], "罗杰的苹果");
+        assert_eq!(
+            entry["summary"],
+            "前往冒险岛路与罗杰对话，使用他给你的罗杰的苹果恢复 HP 到满值。"
+        );
+    }
+
+    #[test]
+    fn quest_transitions_push_localized_quest_update_with_settled_reward() {
+        let path =
+            std::env::temp_dir().join(format!("maple-quest-update-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let (world, mut rx) = join_for_quests(service.store.clone(), "a", "zh", &[]);
+        // Drain the join snapshot + empty questList.
+        while rx.try_recv().is_ok() {}
+
+        let mut world = world;
+        world.apply_quest_effect("a", npc::QuestEffect::Start("maple-road-training".into()));
+        let accepted: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(accepted["type"], "questUpdate");
+        assert_eq!(accepted["questId"], "maple-road-training");
+        assert_eq!(accepted["status"], "active");
+        assert_eq!(accepted["name"], "训练营任务确认");
+        assert_eq!(
+            accepted["summary"],
+            "赛拉让你在离开营地前，先让希娜确认你的训练记录。"
+        );
+        assert_eq!(accepted["reward"]["mesos"], 0);
+
+        world.apply_quest_effect(
+            "a",
+            npc::QuestEffect::Complete("maple-road-training".into()),
+        );
+        let completed: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(completed["type"], "questUpdate");
+        assert_eq!(completed["questId"], "maple-road-training");
+        assert_eq!(completed["status"], "completed");
+        assert_eq!(completed["name"], "训练营任务确认");
+        // Reward reflects exactly what the server settled (300 mesos).
+        assert_eq!(completed["reward"]["mesos"], 300);
+        assert_eq!(world.players["a"].state.mesos, 300);
     }
 }

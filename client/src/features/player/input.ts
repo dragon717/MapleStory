@@ -45,14 +45,16 @@ export class PlayerInput {
   };
   private stopPickup() { clearInterval(this.pickupTimer); this.pickupTimer = undefined; }
   private down = (event: KeyboardEvent) => {
-    if (!this.ready || this.blocked() || event.metaKey || event.altKey) return;
+    if (!this.ready || event.metaKey || event.altKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ', 'KeyQ'].includes(event.code)) return;
     event.preventDefault();
-    if (event.repeat) return;
     if (event.code === 'KeyQ') {
+      if (event.repeat) return;
       this.targets.toggleQuestLog();
       return;
     }
+    if (this.blocked()) return;
+    if (event.repeat) return;
     if (event.code === 'KeyZ') {
       if (this.held.has('KeyZ')) return;
       this.held.add('KeyZ');

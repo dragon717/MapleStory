@@ -369,8 +369,14 @@ impl Store {
                 "ALTER TABLE player_stats ADD COLUMN map_id TEXT NOT NULL DEFAULT ''",
                 [],
             )?;
-            db.execute("ALTER TABLE player_stats ADD COLUMN x REAL NOT NULL DEFAULT 0", [])?;
-            db.execute("ALTER TABLE player_stats ADD COLUMN y REAL NOT NULL DEFAULT 0", [])?;
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN x REAL NOT NULL DEFAULT 0",
+                [],
+            )?;
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN y REAL NOT NULL DEFAULT 0",
+                [],
+            )?;
         }
         let has_drop_owner: Option<String> = db
             .query_row(

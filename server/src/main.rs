@@ -6,6 +6,7 @@ mod inventory_acceptance;
 mod network;
 mod npc;
 mod protocol;
+mod quest_text;
 mod world;
 use axum::{
     extract::DefaultBodyLimit,
@@ -43,6 +44,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "MAP_CATALOG",
         root.join("shared/maps.json").to_str().unwrap(),
     ));
+    let quest_text_path = PathBuf::from(setting(
+        "QUEST_TEXT_FILE",
+        root.join("shared/quest-text.json").to_str().unwrap(),
+    ));
+    let quest_text = quest_text::QuestTextCorpus::load(&quest_text_path).map_err(|error| {
+        format!(
+            "Cannot load quest text corpus {}: {error}",
+            quest_text_path.display()
+        )
+    })?;
     let duration_ms: u64 = setting("ATTACK_DURATION_MS", "800").parse()?;
     if !(50..=5000).contains(&duration_ms) {
         return Err("ATTACK_DURATION_MS must be 50..5000".into());
@@ -63,7 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         world::World::new_with_store_and_catalog(map, duration_ms, gameplay, world_store, catalog)?
     } else {
         world::World::new_with_store(map, duration_ms, gameplay, world_store)?
-    };
+    }
+    .with_quest_text(quest_text);
     tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,

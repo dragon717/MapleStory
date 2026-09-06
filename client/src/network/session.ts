@@ -1,4 +1,5 @@
 import { CONTENT_VERSION, PROTOCOL_VERSION, type ClientMessage, type LoginResponse, type ServerMessage } from '../../../shared/protocol';
+import { uiLocale } from '../app/i18n';
 export async function authenticate(username: string, password: string, register: boolean): Promise<LoginResponse> {
   async function post(path: string) {
     const response = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
@@ -22,7 +23,7 @@ export class Connection {
     let acknowledged = false;
     const socket = this.socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
     this.timeout = setTimeout(() => { if (this.socket === socket) { this.state('offline', '连接超时，请重连。'); socket.close(); } }, 10000);
-    socket.onopen = () => this.send({ type: 'hello', token: this.session.token, protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION });
+    socket.onopen = () => this.send({ type: 'hello', token: this.session.token, protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION, lang: uiLocale() });
     socket.onmessage = event => {
       if (this.socket !== socket) return;
       try {

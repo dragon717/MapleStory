@@ -266,7 +266,6 @@ export class InventoryView {
   open() {
     if (!this.window || this.destroyed) return;
     this.openState = true;
-    this.host.hidden = false;
     this.root.hidden = false;
     this.root.dataset.open = 'true';
     this.window.hidden = false;
@@ -278,7 +277,6 @@ export class InventoryView {
   private openEquipment() {
     if (!this.equipmentWindow || this.destroyed) return;
     this.equipmentOpenState = true;
-    this.host.hidden = false;
     this.root.hidden = false;
     this.root.dataset.open = 'true';
     this.equipmentWindow.hidden = false;
@@ -343,7 +341,6 @@ export class InventoryView {
     this.renderSlots();
     this.close();
     this.closeEquipment(false);
-    this.host.hidden = true;
   }
 
   destroy() {
@@ -363,7 +360,6 @@ export class InventoryView {
     this.equipmentWindow?.removeEventListener('pointercancel', this.handleWindowPointerUp);
     this.root.remove();
     this.host.replaceChildren();
-    this.host.hidden = true;
   }
 
   private createTab(parent: HTMLDivElement, index: number) {

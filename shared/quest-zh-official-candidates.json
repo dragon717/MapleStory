@@ -1,0 +1,8657 @@
+{
+ "schemaVersion": 1,
+ "source": {
+  "site": "mxd.dvg.cn 冒险岛小册子",
+  "urlTemplate": "https://mxd.dvg.cn/questsinfo.php?id={}",
+  "fetchedAt": "2026-09-06 09:26:04",
+  "note": "只保留任务文本/名词结构化字段；原始 HTML 存 evidence/quest-i18n/cache/dvg/"
+ },
+ "note": "英文名与本地 v83 不一致的候选（版本差异），未合入；复核后改名再 apply。",
+ "quests": {
+  "1007": {
+   "name": {
+    "zh": "比格斯的物品收集"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Bigg's Collection of Items",
+    "remoteEn": "Biggs's Collection of Items",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1200": {
+   "name": {
+    "zh": "迎月花保护月妙组队任务"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Moon Bunny's Rice Cake",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1201": {
+   "name": {
+    "zh": "第一次同行"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "First Time Together",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1202": {
+   "name": {
+    "zh": "玩具城组队任务"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Crack of Dimension",
+    "remoteEn": "[Party Quest] Dimensional Schism",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1203": {
+   "name": {
+    "zh": "女神塔组队任务"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Remnants of Goddess",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1204": {
+   "name": {
+    "zh": "海盗船组队任务"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lord Pirate",
+    "remoteEn": "[Party Quest] Lord Pirate",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1205": {
+   "name": {
+    "zh": "拯救罗密欧和朱丽叶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Romeo and Juliet",
+    "remoteEn": "[Party Quest] Romeo and Juliet",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1206": {
+   "name": {
+    "zh": "毒雾森林"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Forest of Poison Haze",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1300": {
+   "name": {
+    "zh": "阿里安特竞技大会"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ariant Hunting Competition",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1301": {
+   "name": {
+    "zh": "怪物嘉年华"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Monster Carnival",
+    "remoteEn": "[Competitive Content] Monster Carnival",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "1302": {
+   "name": {
+    "zh": "第2届怪物嘉年华"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The 2nd Monster Carnival",
+    "remoteEn": "[Competitive Content] The 2nd Monster Carnival",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2019": {
+   "name": {
+    "zh": "秘密之书"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Clue to the Secret Book",
+    "remoteEn": "[Sleepywood] Mr. Wetbottom's Secret Book",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2020": {
+   "name": {
+    "zh": "肚子饿的洛尼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hungry Ronnie",
+    "remoteEn": "[Sleepywood] Hungry Ronnie",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2021": {
+   "name": {
+    "zh": "特制烤鳗鱼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Secret to Unagi Special",
+    "remoteEn": "[Sleepywood] Unagi Special",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2023": {
+   "name": {
+    "zh": "秘密之书回收"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Returned Secret Book",
+    "remoteEn": "[Sleepywood] Returned Secret Book",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2024": {
+   "name": {
+    "zh": "搜集50个诅咒人偶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 100 Cursed Dolls",
+    "remoteEn": "Collecting 50 Cursed Dolls",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2025": {
+   "name": {
+    "zh": "搜集70个诅咒人偶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 200 Cursed Dolls",
+    "remoteEn": "Collecting 70 Cursed Dolls",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2026": {
+   "name": {
+    "zh": "搜集100个诅咒人偶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 400 Cursed Dolls",
+    "remoteEn": "Collecting 100 Cursed Dolls",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2027": {
+   "name": {
+    "zh": "搜集150个诅咒人偶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 600 Cursed Dolls",
+    "remoteEn": "Collecting 150 Cursed Dolls",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2028": {
+   "name": {
+    "zh": "搜集200个诅咒人偶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 1000 Cursed Dolls",
+    "remoteEn": "Collecting 200 Cursed Dolls",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2047": {
+   "name": {
+    "zh": "英雄的战剑"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hero's Gladius",
+    "remoteEn": "[Sleepywood] Hero's Gladius",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2048": {
+   "name": {
+    "zh": "旧战剑唤醒办法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rewakening the Gladius",
+    "remoteEn": "[Sleepywood] Reawakening the Gladius",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2050": {
+   "name": {
+    "zh": "赫尔莎和粉红花束"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sabitrama and the Diet Medicine",
+    "remoteEn": "[Forest of Endurance] The Pink Anthurium",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2051": {
+   "name": {
+    "zh": "赫尔莎和强效红参"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sabitrama's Anti-Aging Medicine",
+    "remoteEn": "[Forest of Endurance] The Double-Rooted Red Ginseng",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2052": {
+   "name": {
+    "zh": "约翰的粉红色花篮"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "John's Pink Flower Basket",
+    "remoteEn": "[Forest of Tenacity] John's Pink Flower Basket",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2053": {
+   "name": {
+    "zh": "约翰准备的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "John's Present",
+    "remoteEn": "[Forest of Tenacity] John's Present",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2054": {
+   "name": {
+    "zh": "约翰准备的最后礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "John's Last Present",
+    "remoteEn": "[Forest of Tenacity] John's Last Present",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2055": {
+   "name": {
+    "zh": "休咪丢失的金币"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Shumi's Lost Coin",
+    "remoteEn": "[Construction Site B1] Shumi's Lost Coin",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2056": {
+   "name": {
+    "zh": "休咪丢失的钞票"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Shumi's Lost Bundle of Money",
+    "remoteEn": "[Construction Site B2] Shumi's Lost Roll of Cash",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2057": {
+   "name": {
+    "zh": "休咪丢失的钱包"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Shumi's Lost Sack of Money",
+    "remoteEn": "[Construction Site B3] Shumi's Lost Sack of Cash",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2096": {
+   "name": {
+    "zh": "封印住神秘危险之力的仪式 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Spell that Seals Up a Critical Danger I",
+    "remoteEn": "[Sleepywood] The Great Danger Seal I",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2097": {
+   "name": {
+    "zh": "封印住神秘危险之力的仪式  2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Spell that Seals Up a Critical Danger II",
+    "remoteEn": "[Sleepywood] The Great Danger Seal II",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2147": {
+   "name": {
+    "zh": "培育树妖王的苗木"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "스텀피의 묘목 기르기",
+    "remoteEn": "Stumpy's Growing Tree",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2175": {
+   "name": {
+    "zh": "黑魔法师的手下"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Disciples of the Black Magician",
+    "remoteEn": "Disciples of the Black Mage",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2212": {
+   "name": {
+    "zh": "成为海盗的途径"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Path of Pirate",
+    "remoteEn": "The Path of a Pirate",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2235": {
+   "name": {
+    "zh": "麦吉的弟子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Manji's Request",
+    "remoteEn": "[Sleepywood] Manji's Apprentice",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2236": {
+   "name": {
+    "zh": "赶走恶魔的方法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "How to Shoo Away the Evil",
+    "remoteEn": "[Sleepywood] To Shoo Away Evil",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2237": {
+   "name": {
+    "zh": "被丢弃的纸条的主人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Owner of the Mysterious Note",
+    "remoteEn": "[Sleepywood] The Owner of the Mysterious Note",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2238": {
+   "name": {
+    "zh": "纸条的主人是？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who is the Owner of the Mysterious Note?",
+    "remoteEn": "[Sleepywood] The Note's Mysterious Owner",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2239": {
+   "name": {
+    "zh": "蝙蝠魔的封印"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Balrog and the Seal",
+    "remoteEn": "[Sleepywood] Balrog and the Seal",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2240": {
+   "name": {
+    "zh": "写给老师的书信"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Letter to the Master",
+    "remoteEn": "[Sleepywood] A Letter to the Master",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2241": {
+   "name": {
+    "zh": "对弟子的嘱咐"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Request to His Apprentice",
+    "remoteEn": "[Sleepywood] A Request to His Apprentice",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2300": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2301": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2302": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2303": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2304": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2305": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2306": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2307": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2308": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2309": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2310": {
+   "name": {
+    "zh": "危机中的蘑菇王国"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Endangered Mushking Empire",
+    "remoteEn": "Mushking in Danger",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2400": {
+   "name": {
+    "zh": "新手战士修炼场"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Training Center for Beginner Warriors",
+    "remoteEn": "Training Center for Beginning Warriors",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2402": {
+   "name": {
+    "zh": "新手飞侠修炼场"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Training Center for Beginner Thieves",
+    "remoteEn": "Training Center for Beginning Thieves",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "2404": {
+   "name": {
+    "zh": "新手海盗修炼场"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Training Center for Beginner Pirates",
+    "remoteEn": "Training Center for Beginning Pirates",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3016": {
+   "name": {
+    "zh": "终于找到了赫拉"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hella is Found!",
+    "remoteEn": "Hella is Finally Found",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3020": {
+   "name": {
+    "zh": "戒指的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting Wolf Skin",
+    "remoteEn": "The Ring's Secret",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3029": {
+   "name": {
+    "zh": "散落的地图碎片"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "All the Map Pieces in One Place",
+    "remoteEn": "The Scattered Map",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3035": {
+   "name": {
+    "zh": "阿尔卡斯特和星石"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Alcaster and the Dark Crystal",
+    "remoteEn": "Alcaster and the Star Rock",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3042": {
+   "name": {
+    "zh": "到新世界去"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Delivering a Mysterious Item",
+    "remoteEn": "A World Apart",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3049": {
+   "name": {
+    "zh": "甜蜜果浆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Estelle and the Syrup",
+    "remoteEn": "Sweet Syrup",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3050": {
+   "name": {
+    "zh": "阿尔冯丝的微笑"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Alfonse's Smile",
+    "remoteEn": "A Happy Fellow",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3052": {
+   "name": {
+    "zh": "斯卡德的新毛皮"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Acquiring Materials for the Fur Coat",
+    "remoteEn": "A Man and His Furs",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3058": {
+   "name": {
+    "zh": "莉萨的特殊治疗剂 Ⅱ"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lisa's Special Medicine III",
+    "remoteEn": "Lisa's Special Medicine II",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3065": {
+   "name": {
+    "zh": "秀兹的兴趣"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hughes's Hobby",
+    "remoteEn": "[Aqua Road] Hughes's Hobby",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3066": {
+   "name": {
+    "zh": "秀兹的奇怪发明"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hughes's Weird Invention",
+    "remoteEn": "[Aqua Road] Hughes's Weird Invention",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3067": {
+   "name": {
+    "zh": "雪犬的营养零食"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Healthy Snack for the Huskies",
+    "remoteEn": "[Aqua Road] A Healthy Snack for the Huskies",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3068": {
+   "name": {
+    "zh": "秀兹的研究材料"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hughes's Research Material",
+    "remoteEn": "[Aqua Road] Hughes's Research Material",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3072": {
+   "name": {
+    "zh": "瓶子里的信件"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Bottled-up Letter",
+    "remoteEn": "[Aqua Road] The Bottled-up Letter",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3073": {
+   "name": {
+    "zh": "鲁宾逊的ID卡"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Robinson's ID",
+    "remoteEn": "[Aqua Road] Robinson's ID",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3080": {
+   "name": {
+    "zh": "坎特的海底生物调查1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Kenta's Research 1",
+    "remoteEn": "[Aqua Road] Kenta's Research 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3081": {
+   "name": {
+    "zh": "坎特的海底生物调查2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Kenta's Research 2",
+    "remoteEn": "[Aqua Road] Kenta's Research 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3082": {
+   "name": {
+    "zh": "坎特的海底生物调查3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Kenta's Research 3",
+    "remoteEn": "[Aqua Road] Kenta's Research 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3101": {
+   "name": {
+    "zh": "秀兹的新发明"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hughes's New Experiement",
+    "remoteEn": "[Aqua Road] Hughes's New Experiment",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3106": {
+   "name": {
+    "zh": "传说中的雪人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Snowman Legend",
+    "remoteEn": "The Legend of Nyalmo",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3107": {
+   "name": {
+    "zh": "雪人的愤怒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Snowman's Rage",
+    "remoteEn": "Nyalmo's Rage",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3108": {
+   "name": {
+    "zh": "雪人的愤怒-发现线索"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Snowman's Rage-Found a clue",
+    "remoteEn": "Found a Clue",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3109": {
+   "name": {
+    "zh": "阻击雪人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Holding Back the Snowman",
+    "remoteEn": "Holding Back Nyalmo",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3114": {
+   "name": {
+    "zh": "艾利杰的长觉"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eliza's Eternal Sleep",
+    "remoteEn": "Eliza's Eternal Slumber",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3207": {
+   "name": {
+    "zh": "乃米的美味料理材料"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Nemi's First Ingredient",
+    "remoteEn": "Nemi's Flavorful Ingredients",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3208": {
+   "name": {
+    "zh": "乃米的便当材料"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Nemi's Second Ingredient",
+    "remoteEn": "Nemi's Lunch Box",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3231": {
+   "name": {
+    "zh": "被损伤的时间塔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Broken Clocktower",
+    "remoteEn": "[Ludibrium] The Broken Clocktower",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3232": {
+   "name": {
+    "zh": "挂钟的拜托"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Grandpa Clock's Crisis",
+    "remoteEn": "[Ludibrium] Grandpa Clock's Crisis",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3238": {
+   "name": {
+    "zh": "机械工 麦戈的文件"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Mac the Mechanic's Maintenance Manual",
+    "remoteEn": "[Ludibrium] Mac the Mechanic's Maintenance Manual",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3248": {
+   "name": {
+    "zh": "作战第1阶段：回收蛋"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Operation Strategy 1 : Collect All the Eggs",
+    "remoteEn": "[Ludibrium] Operation Strategy 1 : Collect All the Eggs",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3249": {
+   "name": {
+    "zh": "作战第2阶段：消灭怪物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Operation Strategy 2 : Defeat the Monsters",
+    "remoteEn": "[Ludibrium] Operation Strategy 2 : Defeat the Monsters",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3250": {
+   "name": {
+    "zh": "作战第3阶段：可爱的小鸟"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Operation Strategy 3: A Cute Baby Bird",
+    "remoteEn": "[Ludibrium] Operation Strategy 3: A Cute Baby Bird",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3300": {
+   "name": {
+    "zh": "和后街小贩的交易"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Deal with the Broker",
+    "remoteEn": "[Magatia's Secret] A Deal with the Broker",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3301": {
+   "name": {
+    "zh": "蒙特鸠协会会长的考试"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Test from the Head of Zenumist Society",
+    "remoteEn": "[Magatia's Secret] Test from the Head of Zenumist Society",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3302": {
+   "name": {
+    "zh": "蒙特鸠披风"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Zenumist Cape",
+    "remoteEn": "[Magatia's Secret] Zenumist Cape",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3303": {
+   "name": {
+    "zh": "卡帕莱特协会会长的考试"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Test from the Head of Alcadno Society",
+    "remoteEn": "[Magatia's Secret] Test from the Head of Alcadno Society",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3304": {
+   "name": {
+    "zh": "卡帕莱特披风"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Alcadno Cape",
+    "remoteEn": "[Magatia's Secret] Alcadno Cape",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3305": {
+   "name": {
+    "zh": "再次获得蒙特鸠披风"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Re-acquiring Zenumist Cape",
+    "remoteEn": "[Magatia] Re-acquiring Zenumist Cape",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3306": {
+   "name": {
+    "zh": "再次获得卡帕莱特披风"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Re-acquiring Alcadno Cape",
+    "remoteEn": "[Magatia] Re-acquiring Alcadno Cape",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3307": {
+   "name": {
+    "zh": "协助贝丁研究"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Helping Out Bedin",
+    "remoteEn": "[Magatia's Secret] Helping Out Bedin",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3308": {
+   "name": {
+    "zh": "妨碍卡帕莱特"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Getting in the Way of Alcadno",
+    "remoteEn": "[Magatia's Secret] Getting in the Way of Alcadno",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3309": {
+   "name": {
+    "zh": "事件，及失踪的炼金术士"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "An Incident, and the Missing Alchemist",
+    "remoteEn": "[Magatia's Secret] An Incident, and the Missing Alchemist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3310": {
+   "name": {
+    "zh": "卡森的考试"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Carson's Experiment",
+    "remoteEn": "[Magatia's Secret] Carson's Experiment",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3311": {
+   "name": {
+    "zh": "线索"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Clue",
+    "remoteEn": "[Magatia's Secret] Clue",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3312": {
+   "name": {
+    "zh": "罗赛伦的研究材料"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Russellon's Items for Experiment",
+    "remoteEn": "[Magatia's Secret] Russellon's Items for Experiment",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3313": {
+   "name": {
+    "zh": "破坏洛伊德"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Destroy the Roid",
+    "remoteEn": "[Magatia's Secret] Destroy the Roid",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3314": {
+   "name": {
+    "zh": "生命炼金，及失踪的炼金术士"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Life Alchemy, and the Missing Alchemist",
+    "remoteEn": "[Magatia's Secret] Life Alchemy, and the Missing Alchemist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3315": {
+   "name": {
+    "zh": "麦麦德的考试"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Maed's Experiment",
+    "remoteEn": "[Magatia's Secret] Maed's Experiment",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3316": {
+   "name": {
+    "zh": "后街小贩的情报"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Han the Broker's Info",
+    "remoteEn": "[Magatia's Secret] Han the Broker's Info",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3317": {
+   "name": {
+    "zh": "德朗博士的朋友"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dr. De Lang's Friend",
+    "remoteEn": "[Magatia's Secret] Dr. De Lang's Friend",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3318": {
+   "name": {
+    "zh": "幽灵疯老头"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Parwen the Ghost",
+    "remoteEn": "[Magatia's Secret] Parwen the Ghost",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3319": {
+   "name": {
+    "zh": "疯老头的实验室"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Parwen's Lab",
+    "remoteEn": "[Magatia's Secret] Parwen's Lab",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3320": {
+   "name": {
+    "zh": "疯老头知道的事情"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "What Parwen Knows",
+    "remoteEn": "[Magatia's Secret] What Parwen Knows",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3321": {
+   "name": {
+    "zh": "失踪的炼金术士——德朗博士"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dr. De Lang, the Missing Alchemist",
+    "remoteEn": "[Magatia's Secret] Dr. De Lang, the Missing Alchemist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3322": {
+   "name": {
+    "zh": "琵丽雅的银坠饰"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Phyllia's Pendant",
+    "remoteEn": "[Magatia's Secret] Phyllia's Pendant",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3323": {
+   "name": {
+    "zh": "琵丽雅的担心"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Phyllia's Concern",
+    "remoteEn": "[Magatia] Phyllia's Concern",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3324": {
+   "name": {
+    "zh": "艾利逊的制药材料"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ericsson's Ingredients",
+    "remoteEn": "[Magatia] Ericsson's Ingredients",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3325": {
+   "name": {
+    "zh": "藏有月光的瓶子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Sip of the Moon",
+    "remoteEn": "[Magatia] A Sip of the Moon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3326": {
+   "name": {
+    "zh": "琦尼的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Keeny's Secret",
+    "remoteEn": "[Magatia] Keeny's Secret",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3327": {
+   "name": {
+    "zh": "艾利逊的制药材料2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ericsson's Ingredients for Medicine 2",
+    "remoteEn": "[Magatia] Ericsson's Ingredients for Medicine 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3328": {
+   "name": {
+    "zh": "藏有阳光的瓶子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Sip of the Sun",
+    "remoteEn": "[Magatia] A Sip of the Sun",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3329": {
+   "name": {
+    "zh": "琦尼的洛伊德研究"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Keeny's Research on Roid",
+    "remoteEn": "[Magatia] Keeny's Research on Roid",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3330": {
+   "name": {
+    "zh": "琦尼的氯化洛伊德研究"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Keeny's Research on Neo Huroid!",
+    "remoteEn": "[Magatia] Keeny's Research on Neo Huroid!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3331": {
+   "name": {
+    "zh": "琦尼的D.罗伊研究！！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Keeny's Research on D.Roid!!",
+    "remoteEn": "[Magatia] Keeny's Research on D.Roy!!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3332": {
+   "name": {
+    "zh": "琦尼的朋友人造人A"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Keeny's Pal Humanoid A",
+    "remoteEn": "[Magatia] Keeny's Pal Humanoid A",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3333": {
+   "name": {
+    "zh": "给琦尼的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Present for Keeny",
+    "remoteEn": "[Magatia] A Present for Keeny",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3334": {
+   "name": {
+    "zh": "人造人A"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Humanoid A",
+    "remoteEn": "[Magatia] Humanoid A",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3335": {
+   "name": {
+    "zh": "雪原玫瑰"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Rose from the Snowfield",
+    "remoteEn": "[Magatia] A Rose from the Snowfield",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3336": {
+   "name": {
+    "zh": "寻找雪原玫瑰的种子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Acquiring the Seed for the Snowfield Rose",
+    "remoteEn": "[Magatia] Acquiring the Seed for the Snowfield Rose",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3337": {
+   "name": {
+    "zh": "生命炼金的必要性"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Importance of Life Alchemy",
+    "remoteEn": "[Magatia] The Importance of Life Alchemy",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3338": {
+   "name": {
+    "zh": "生命炼金的问题点"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Problems with Life Alchemy",
+    "remoteEn": "[Magatia] The Problems with Life Alchemy",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3339": {
+   "name": {
+    "zh": "德朗博士的地下书库"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dr. De Lang's Underground Study",
+    "remoteEn": "[Magatia's Secret] Dr. De Lang's Underground Study",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3340": {
+   "name": {
+    "zh": "秘密书的钥匙"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Key to the Secret Book",
+    "remoteEn": "[Magatia's Secret] The Key to the Secret Book",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3341": {
+   "name": {
+    "zh": "德朗博士的秘密记事本"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dr. De Lang's Secret Notes",
+    "remoteEn": "[Magatia's Secret] Dr. De Lang's Secret Notes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3342": {
+   "name": {
+    "zh": "德朗博士的真实"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Truth About Dr. De Lang",
+    "remoteEn": "[Magatia's Secret] The Truth About Dr. De Lang",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3343": {
+   "name": {
+    "zh": "隐藏的文字"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Hidden Words",
+    "remoteEn": "[Magatia's Secret] The Hidden Words",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3344": {
+   "name": {
+    "zh": "玛加提亚的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Secrets of Magatia",
+    "remoteEn": "[Magatia's Secret] The Secrets of Magatia",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3345": {
+   "name": {
+    "zh": "黑魔法师的魔法阵"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Black Magician's Magic Pentagram",
+    "remoteEn": "[Magatia's Secret] The Black Mage's Pentacle",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3346": {
+   "name": {
+    "zh": "残酷的事实"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Brutal Truth",
+    "remoteEn": "[Magatia's Secret] The Brutal Truth",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3347": {
+   "name": {
+    "zh": "为了蒙特鸠"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "For Zenumist",
+    "remoteEn": "[Magatia] For Zenumist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3348": {
+   "name": {
+    "zh": "为了卡帕莱特"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "For Alcadno",
+    "remoteEn": "[Magatia] For Alcadno",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3349": {
+   "name": {
+    "zh": "为了琵丽雅"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "For Phyllia",
+    "remoteEn": "[Magatia] For Phyllia",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3350": {
+   "name": {
+    "zh": "再次获得德朗博士的记事本"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Re-acquiring Dr. De Lang's Notes",
+    "remoteEn": "[Magatia] Re-acquiring Dr. De Lang's Notes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3351": {
+   "name": {
+    "zh": "再次获得德朗博士的记事本"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Re-acquiring Dr. De Lang's Notes ",
+    "remoteEn": "[Magatia] Re-acquiring Dr. De Lang's Notes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3352": {
+   "name": {
+    "zh": "再次获得德朗博士的记事本"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Re-acquiring Dr. De Lang's Notes  ",
+    "remoteEn": "[Magatia] Re-acquiring Dr. De Lang's Notes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3353": {
+   "name": {
+    "zh": "德朗博士所希望的"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "What De Lang Wants",
+    "remoteEn": "[Magatia's Secret] What De Lang Wants",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3354": {
+   "name": {
+    "zh": "德朗博士的药"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "De Lang's Potion",
+    "remoteEn": "[Magatia's Secret] De Lang's Potion",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3355": {
+   "name": {
+    "zh": "人造人A的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Memories of Humanoid A",
+    "remoteEn": "[Magatia's Secret] The Memories of Humanoid A",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3356": {
+   "name": {
+    "zh": "德朗博士是谁"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who is De Lang?",
+    "remoteEn": "[Magatia's Secret] Who is De Lang?",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3357": {
+   "name": {
+    "zh": "德朗博士和人造人A"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "De Lang and Humanoid A",
+    "remoteEn": "[Magatia's Secret] De Lang and Humanoid A",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3358": {
+   "name": {
+    "zh": "疯老头的出入证"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Parwen's Pass",
+    "remoteEn": "[Magatia] Parwen's Pass",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3359": {
+   "name": {
+    "zh": "寻找主密码"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for the Master Key",
+    "remoteEn": "[Magatia] Searching for the Master Key",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3361": {
+   "name": {
+    "zh": "被排斥的研究与蒙特鸠"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Zenumist and the Ostracized Research",
+    "remoteEn": "[Magatia] Zenumist and the Ostracized Research",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3362": {
+   "name": {
+    "zh": "被排斥的研究与卡帕莱特"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Alcadno and the Ostracized Research",
+    "remoteEn": "[Magatia] Alcadno and the Ostracized Research",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3363": {
+   "name": {
+    "zh": "法兰肯研究1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Studying Frankenroid 1",
+    "remoteEn": "[Magatia] Studying Frankenroid 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3364": {
+   "name": {
+    "zh": "法兰肯研究2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Studying Frankenroid 2",
+    "remoteEn": "[Magatia] Studying Frankenroid 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3365": {
+   "name": {
+    "zh": "犹泰的委托"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Yulete's Request",
+    "remoteEn": "[Magatia] Yulete's Request",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3366": {
+   "name": {
+    "zh": "制作试剂"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Making the Reagent",
+    "remoteEn": "[Magatia] Making the Reagent",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3367": {
+   "name": {
+    "zh": "整理研究文件"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Organizing the Lab Report",
+    "remoteEn": "[Magatia] Organizing the Lab Report",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3368": {
+   "name": {
+    "zh": "清除研究障碍"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eliminating Obstacles",
+    "remoteEn": "[Magatia] Eliminating Obstacles",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3369": {
+   "name": {
+    "zh": "罗密欧的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Romeo's Present",
+    "remoteEn": "[Magatia] Romeo's Present",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3370": {
+   "name": {
+    "zh": "罗密欧的花束"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Romeo's Flowers",
+    "remoteEn": "[Magatia] Romeo's Flowers",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3371": {
+   "name": {
+    "zh": "朱丽叶的心"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Juliet's Feelings",
+    "remoteEn": "[Magatia] Juliet's Feelings",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3372": {
+   "name": {
+    "zh": "西琳的缝纫技法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sirin's Tailoring Methods",
+    "remoteEn": "[Magatia] Sirin's Tailoring Methods",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3373": {
+   "name": {
+    "zh": "朱丽叶的回礼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Juliet's Response",
+    "remoteEn": "[Magatia] Juliet's Response",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3374": {
+   "name": {
+    "zh": "罗密欧写信"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Writing Romeo's Letter",
+    "remoteEn": "[Magatia] Writing Romeo's Letter",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3375": {
+   "name": {
+    "zh": "罗密欧的情书"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Romeo's Love Letter",
+    "remoteEn": "[Magatia] Romeo's Love Letter",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3376": {
+   "name": {
+    "zh": "朱丽叶的感动"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Juliet is Impressed",
+    "remoteEn": "[Magatia] Juliet is Impressed",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3377": {
+   "name": {
+    "zh": "后街小贩的食谱"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Han the Broker's Recipe",
+    "remoteEn": "[Magatia] Han the Broker's Recipe",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3378": {
+   "name": {
+    "zh": "朱丽叶的盒饭"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Juliet's Lunchbox",
+    "remoteEn": "[Magatia] Juliet's Lunchbox",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3379": {
+   "name": {
+    "zh": "罗密欧求婚"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Romeo Proposes",
+    "remoteEn": "[Magatia] Romeo Proposes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3380": {
+   "name": {
+    "zh": "戒指工匠阿尔雷哥"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Allegro, the Master of the Rings",
+    "remoteEn": "[Magatia] Allegro, the Master of the Rings",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3381": {
+   "name": {
+    "zh": "不确定的集团"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Unidentified Group",
+    "remoteEn": "[Magatia] The Unidentified Group",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3382": {
+   "name": {
+    "zh": "犹泰的报答"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Yulete's Reward",
+    "remoteEn": "[Magatia] Yulete's Reward",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3383": {
+   "name": {
+    "zh": "威尔斯的惋惜"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Moren's Upset",
+    "remoteEn": "[Magatia] Moren's Upset",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3384": {
+   "name": {
+    "zh": "高登的魔法熨斗"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Gordon's Magic Iron",
+    "remoteEn": "[Magatia] Gordon's Magic Iron",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3385": {
+   "name": {
+    "zh": "高登的宽广心胸"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Gordon's Warm Heart",
+    "remoteEn": "[Magatia] Gordon's Warm Heart",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3430": {
+   "name": {
+    "zh": "搜集外星章鱼枪的触角"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collecting 100 Mateon Tentacles",
+    "remoteEn": "Collecting Mateon Tentacles",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3437": {
+   "name": {
+    "zh": "消灭外星章鱼激光棒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eliminating Plateon and Mecateon",
+    "remoteEn": "Eliminating Mecateon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3500": {
+   "name": {
+    "zh": "过去之路"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Path to the Past",
+    "remoteEn": "[Temple of Time] Path to the Past",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3501": {
+   "name": {
+    "zh": "追随追忆之路的人1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down Memory Lane1",
+    "remoteEn": "[Temple of Time] The One Who Walks Down Memory Lane 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3502": {
+   "name": {
+    "zh": "追随追忆之路的人2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down Memory Lane2",
+    "remoteEn": "[Temple of Time] The One Who Walks Down Memory Lane 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3503": {
+   "name": {
+    "zh": "追随追忆之路的人3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down Memory Lane3",
+    "remoteEn": "[Temple of Time] The One Who Walks Down Memory Lane 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3504": {
+   "name": {
+    "zh": "追随追忆之路的人4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down Memory Lane4",
+    "remoteEn": "[Temple of Time] The One Who Walks Down Memory Lane 4",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3505": {
+   "name": {
+    "zh": "追随追忆之路的人5"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down Memory Lane5",
+    "remoteEn": "[Temple of Time] The One Who Walks Down Memory Lane 5",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3506": {
+   "name": {
+    "zh": "忘却的追忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lost Memory",
+    "remoteEn": "[Temple of Time] Lost Memory",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3507": {
+   "name": {
+    "zh": "记忆旁观者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Memory Keeper",
+    "remoteEn": "[Temple of Time] Memory Keeper",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3508": {
+   "name": {
+    "zh": "追随后悔之路的人1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down the Road of Regrets1",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road of Regrets 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3509": {
+   "name": {
+    "zh": "追随后悔之路的人2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down the Road of Regrets2",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road of Regrets 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3510": {
+   "name": {
+    "zh": "追随后悔之路的人3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down the Road of Regrets3",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road of Regrets 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3511": {
+   "name": {
+    "zh": "追随后悔之路的人4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down the Road of Regrets4",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road of Regrets 4",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3512": {
+   "name": {
+    "zh": "追随后悔之路的人5"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Down the Road of Regrets5",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road of Regrets 5",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3513": {
+   "name": {
+    "zh": "冰冻的感情"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Frozen Emotions",
+    "remoteEn": "[Temple of Time] Frozen Emotions",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3514": {
+   "name": {
+    "zh": "出售情感的魔法术士"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Sorcerer Who Sells Emotions",
+    "remoteEn": "[Temple of Time] The Sorcerer Who Sells Emotions",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3515": {
+   "name": {
+    "zh": "追随忘却之路的人1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Through the Road to Oblivion1",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road to Oblivion 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3516": {
+   "name": {
+    "zh": "追随忘却之路的人2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Through the Road to Oblivion2",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road to Oblivion 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3517": {
+   "name": {
+    "zh": "追随忘却之路的人3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Through the Road to Oblivion3",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road to Oblivion 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3518": {
+   "name": {
+    "zh": "追随忘却之路的人4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Through the Road to Oblivion4",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road to Oblivion 4",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3519": {
+   "name": {
+    "zh": "追随忘却之路的人5"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Walks Through the Road to Oblivion5",
+    "remoteEn": "[Temple of Time] The One Who Walks Down the Road to Oblivion 5",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3520": {
+   "name": {
+    "zh": "女神的祝福"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Goddess' Blessing",
+    "remoteEn": "[Pink Bean] Goddess's Blessing",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3521": {
+   "name": {
+    "zh": "结界"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Force Field",
+    "remoteEn": "[Pink Bean] Force Field",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3522": {
+   "name": {
+    "zh": "废墟之外"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Beyond the Ruins",
+    "remoteEn": "[Pink Bean] Beyond the Ruins",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3523": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3524": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3525": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3526": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3527": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3528": {
+   "name": {
+    "zh": "打破结界"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Breaking the Force Field",
+    "remoteEn": "[Pink Bean] Breaking the Force Field",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3529": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Search for the Lost Memory",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3534": {
+   "name": {
+    "zh": "追随忘却之路的人5"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "There's no reason to believe that yet, but we should check just in case.  Go visit #b#p2140003##k and ask what happened to the Goddess' promise.  He is the Record Keeper of everything, so he is the only one who would be able to tell you.",
+    "remoteEn": "The One Who Walks Through the Road to Oblivion 5",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3539": {
+   "name": {
+    "zh": "追随遗忘的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for Lost Memories",
+    "remoteEn": "[Temple of Time] Seeking Lost Memories",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3620": {
+   "name": {
+    "zh": "采艾蒿"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Extracting Artemesia",
+    "remoteEn": "Extracting Artemisia",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3707": {
+   "name": {
+    "zh": "黑暗龙王的末日"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": " The Last Hour of Horntail",
+    "remoteEn": "[Horntail] The Last Hour of Horntail",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3714": {
+   "name": {
+    "zh": "黑龙留下的..."
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Remnants of Horned Tail...",
+    "remoteEn": "The Remnants of Horntail...",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3715": {
+   "name": {
+    "zh": "奇怪的流浪者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Suspicious Wanderer",
+    "remoteEn": "Mysterious Wanderer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3810": {
+   "name": {
+    "zh": "神仙的条幅"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Legendary Being's Scroll 2",
+    "remoteEn": "The Legendary Being's Scroll",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3841": {
+   "name": {
+    "zh": "妖怪禅师的召唤"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Master Goblin's Call",
+    "remoteEn": "King Sage Cat's Call",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3843": {
+   "name": {
+    "zh": "妖怪禅师的提问"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Master Goblin's Questions",
+    "remoteEn": "The King Sage Cat's Questions",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3900": {
+   "name": {
+    "zh": "学习阿里安特的文化"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Learning the Culture of Ariant",
+    "remoteEn": "[Ariant] Learning the Culture of Ariant",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3905": {
+   "name": {
+    "zh": "王妃的茶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Queen's Tea 3",
+    "remoteEn": "The Queen's Tea",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "3953": {
+   "name": {
+    "zh": "说服莫哈莫德"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Convince Muhamad",
+    "remoteEn": "Convince Muhammad",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4302": {
+   "name": {
+    "zh": "花子的狐狸披肩1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hanako's Foxtail Muffler 1",
+    "remoteEn": "Mariwaka's Fox Tail Muffler 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4303": {
+   "name": {
+    "zh": "花子的狐狸披肩2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hanako's Foxtail Muffler 2",
+    "remoteEn": "Mariwaka's Fox Tail Muffler 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4304": {
+   "name": {
+    "zh": "花子的狐狸外套"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hanako's Foxtail Coat",
+    "remoteEn": "Mariwaka's Fox Tail Coat",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4305": {
+   "name": {
+    "zh": "击退大云狐狸"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eliminating Dark Cloud Fox",
+    "remoteEn": "The Fox Hunt",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4306": {
+   "name": {
+    "zh": "蘑菇神龛的提灯"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Lantern at Mushroom Shrine",
+    "remoteEn": "The Lanterns at Mushroom Shrine",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4308": {
+   "name": {
+    "zh": "水怪的黄瓜"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Water Goblin's Cucumber",
+    "remoteEn": "Cucumber Shuffle",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4309": {
+   "name": {
+    "zh": "击退蓝色蘑菇"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eliminating Blue Mushmom",
+    "remoteEn": "Fungi Fever",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4477": {
+   "name": {
+    "zh": "News Special Report"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "News Special Report",
+    "remoteEn": "[Missing Santa] News Special Report",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4478": {
+   "name": {
+    "zh": "Disappeared Santa Encyclopedia"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Disappeared Santa Encyclopedia  ",
+    "remoteEn": "[Missing Santa] Disappeared Santa Encyclopedia",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4479": {
+   "name": {
+    "zh": "Mrs. Claus Finding"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Santa Grandmother Finding",
+    "remoteEn": "[Missing Santa] Mrs. Claus Finding",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4480": {
+   "name": {
+    "zh": "Common Sense Of Santa"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Common Sense Of Santa ",
+    "remoteEn": "[Missing Santa] Common Sense Of Santa",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4481": {
+   "name": {
+    "zh": "Socks Creation Recipes"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Socks Creation Recipes",
+    "remoteEn": "[Missing Santa] Socks Creation Recipes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4482": {
+   "name": {
+    "zh": "Socks Actual Creation Action"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Socks Actual Creation Action",
+    "remoteEn": "[Missing Santa] Socks Actual Creation Action",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4483": {
+   "name": {
+    "zh": "Socks Hanging"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Socks Hanging",
+    "remoteEn": "[Missing Santa] Socks Hanging",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4484": {
+   "name": {
+    "zh": "Cliff's Request"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Cliff's Request",
+    "remoteEn": "[Missing Santa] Cliff's Request",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4485": {
+   "name": {
+    "zh": "Torr's Whereabouts"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Torr's Whereabouts",
+    "remoteEn": "[Missing Santa] Torr's Whereabouts",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4486": {
+   "name": {
+    "zh": "Santa Cat's request"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Santa Cat's request",
+    "remoteEn": "[Missing Santa] Santa Cat's request",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4487": {
+   "name": {
+    "zh": "Delivery of Rina cleaning device"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Delivery of Rina cleaning device",
+    "remoteEn": "[Missing Santa] Delivery of Rina cleaning device",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4488": {
+   "name": {
+    "zh": "Warm Milk Delivery"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Warm Milk Delivery",
+    "remoteEn": "[Missing Santa] Warm Milk Delivery",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4489": {
+   "name": {
+    "zh": "To sleep Icarus"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Delivery the word Thank ",
+    "remoteEn": "[Missing Santa] To sleep Icarus",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4490": {
+   "name": {
+    "zh": "Bicho's snowman"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Bicho's snowman",
+    "remoteEn": "[Missing Santa] Bicho's snowman",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4503": {
+   "name": {
+    "zh": "清理垃圾"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Clear the Rubbish",
+    "remoteEn": "Rubbish Eradicator",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4504": {
+   "name": {
+    "zh": "拦住他们！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Stop'em!",
+    "remoteEn": "Signing Away Your Life",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4505": {
+   "name": {
+    "zh": "拦住超速者！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Stop the Speeder!",
+    "remoteEn": "Take it Slow",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4506": {
+   "name": {
+    "zh": "技术任务"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Technical Assignment",
+    "remoteEn": "Johnson's Day Off",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4507": {
+   "name": {
+    "zh": "安吉心爱的服饰 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Angie's Beloved Costume 1",
+    "remoteEn": "The Stolen Fire Extinguishers",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4508": {
+   "name": {
+    "zh": "安吉心爱的服饰 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Angie's Beloved Costume 2",
+    "remoteEn": "Boat Quay Clean-Up 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4509": {
+   "name": {
+    "zh": "安吉心爱的服饰 3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Angie's Beloved Costume 3",
+    "remoteEn": "Boat Quay Clean-Up 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4510": {
+   "name": {
+    "zh": "过去的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The secret of the past",
+    "remoteEn": "Ghosts of the Past",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4511": {
+   "name": {
+    "zh": "前往海洋"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Making the path to the sea",
+    "remoteEn": "Cutting a Path",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4512": {
+   "name": {
+    "zh": "揭露惊天秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The great secret reveals",
+    "remoteEn": "Great Revelations",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4513": {
+   "name": {
+    "zh": "为未来而战"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Fight for the future",
+    "remoteEn": "Ghostworthy",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4522": {
+   "name": {
+    "zh": "丢失的白色精华"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Lost White Essence",
+    "remoteEn": "Missing White Essence",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4523": {
+   "name": {
+    "zh": "幽灵船长的回归"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Return of Capt. Latanica",
+    "remoteEn": "The Captain Makes it Happen",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4543": {
+   "name": {
+    "zh": "好无聊!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "I am Bored!",
+    "remoteEn": "I'm Bored!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4544": {
+   "name": {
+    "zh": "全都拿走!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "All taken away!",
+    "remoteEn": "They're All Gone!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4546": {
+   "name": {
+    "zh": "缺乏毛发"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Running out of Wigs!",
+    "remoteEn": "Low on Wigs!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4547": {
+   "name": {
+    "zh": "轮胎不见了"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Tires are missing!",
+    "remoteEn": "Missing Tires",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4548": {
+   "name": {
+    "zh": "偷轮胎犯回来了!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Oly Oly is back!",
+    "remoteEn": "More Missing Tires",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4550": {
+   "name": {
+    "zh": "我需要维他命C"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "I need Vitamin C",
+    "remoteEn": "Vitamin C, Stat!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4552": {
+   "name": {
+    "zh": "我的围巾被偷了!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "My Scarfs are Stolen!",
+    "remoteEn": "Stolen Scarves",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4553": {
+   "name": {
+    "zh": "亲爱爸爸的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Gift for Dear Daddy",
+    "remoteEn": "Dear Daddy's Gift",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4555": {
+   "name": {
+    "zh": "不速之客"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Unexpected Guest",
+    "remoteEn": "Unexpected Guests",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4557": {
+   "name": {
+    "zh": "蓝想看世界"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lam wants to see the world",
+    "remoteEn": "Little Lam, Big World",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4559": {
+   "name": {
+    "zh": "弟弟的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Gift for Brother",
+    "remoteEn": "Gift for Lam's Brother",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4560": {
+   "name": {
+    "zh": "甘榜的旋转木马"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Merry-go-round in Kampung",
+    "remoteEn": "Kampung Merry-go-round",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4576": {
+   "name": {
+    "zh": "前往梦幻主题公园"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Off to the Fantasy Theme Park",
+    "remoteEn": "Off to Fantasy Theme World",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4918": {
+   "name": {
+    "zh": "羽量级1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Featherweights",
+    "remoteEn": "Featherweights 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4928": {
+   "name": {
+    "zh": "Jay's Curiosity"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Jay's Curiosity",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4929": {
+   "name": {
+    "zh": "Gwin's Thanks"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Gwin's Thanks",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4930": {
+   "name": {
+    "zh": "The Rememberer's Passion Part 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Rememberer's Passion Part 1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4931": {
+   "name": {
+    "zh": "The Rememberer's Passion Part 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Rememberer's Passion Part 2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4932": {
+   "name": {
+    "zh": "Grendel The Really Old's Glorious Days"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Grendel The Really Old's Glorious Days",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4933": {
+   "name": {
+    "zh": "Cody's Confession"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Cody's Confession",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4934": {
+   "name": {
+    "zh": "Manji's Approval"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Manji's Approval",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4935": {
+   "name": {
+    "zh": "Blackbull's Mistake"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Blackbull's Mistake",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4936": {
+   "name": {
+    "zh": "Bruce's Research"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Bruce's Research",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4937": {
+   "name": {
+    "zh": "Dances with Balrog's Barbarism Part 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dances with Balrog's Barbarism Part 1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4938": {
+   "name": {
+    "zh": "Dances with Balrog's Barbarism Part 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dances with Balrog's Barbarism Part 2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4939": {
+   "name": {
+    "zh": "Winston's Scheme Part 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Winston's Scheme Part 1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4940": {
+   "name": {
+    "zh": "Winston's Scheme Part 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Winston's Scheme Part 2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "4960": {
+   "name": {
+    "zh": "Eat This!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Eat This!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "5009": {
+   "name": {
+    "zh": "交换白色的礼物盒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Giant Swowman's Purple box",
+    "remoteEn": "Giant Snowman's Purple box",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "5069": {
+   "name": {
+    "zh": "Mad Bunny's Red Easter"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Easter : Mad Bunny's Easter(Red)",
+    "remoteEn": "[Easter Events] Mad Bunny's Red Easter",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6000": {
+   "name": {
+    "zh": "流浪炼金术士的新技术"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Wandering Alchemist Eurek's New Skill",
+    "remoteEn": "[Legendary Spirit] The Wandering Alchemist Eurek's New Skill",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6002": {
+   "name": {
+    "zh": "骑兽技能"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Monster Riding",
+    "remoteEn": "[Mount] Monster Riding",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6003": {
+   "name": {
+    "zh": "费洛蒙香水"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Pheromone Perfume",
+    "remoteEn": "[Mount] Pheromone Perfume",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6004": {
+   "name": {
+    "zh": "丢失的鞍子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lost Saddle",
+    "remoteEn": "[Mount] The Lost Saddle",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6005": {
+   "name": {
+    "zh": "丢失的香水"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Lost Perfume",
+    "remoteEn": "[Mount] Lost Perfume",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6006": {
+   "name": {
+    "zh": "银色野猪"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Silver Mane",
+    "remoteEn": "[Mount] Silverbristle",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6007": {
+   "name": {
+    "zh": "飞龙的香水瓶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon's Perfume Bottle",
+    "remoteEn": "[Mount] Dragon's Perfume Bottle",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6008": {
+   "name": {
+    "zh": "御龙魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon Rider",
+    "remoteEn": "[Mount] Dragon Rider",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6009": {
+   "name": {
+    "zh": "御龙魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon Rider",
+    "remoteEn": "[Mount] Dragon Rider",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6010": {
+   "name": {
+    "zh": "御龙魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon Rider",
+    "remoteEn": "[Mount] Dragon Rider",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6011": {
+   "name": {
+    "zh": "御龙魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon Rider",
+    "remoteEn": "[Mount] Dragon Rider",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6013": {
+   "name": {
+    "zh": "御龙魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dragon Rider",
+    "remoteEn": "[Mount] Dragon Rider",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6029": {
+   "name": {
+    "zh": "威尔斯的新技术"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meren's New Discovery",
+    "remoteEn": "Moren's New Discovery",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6032": {
+   "name": {
+    "zh": "威尔斯的实习课程"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meren's Class on the Actual Practice",
+    "remoteEn": "Moren's Class on the Actual Practice",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6033": {
+   "name": {
+    "zh": "威尔斯的第二次教导"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meren's Second Round of Teaching",
+    "remoteEn": "Moren's Second Round of Teaching",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6034": {
+   "name": {
+    "zh": "威尔斯错过的东西"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "What Meren Dropped",
+    "remoteEn": "What Moren Dropped",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6105": {
+   "name": {
+    "zh": "记忆者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The One Who Remembers...",
+    "remoteEn": "The Rememberer...",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6133": {
+   "name": {
+    "zh": "卡伦的册子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Caron's Note",
+    "remoteEn": "Caron's Notebook",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6280": {
+   "name": {
+    "zh": "神圣的骑士之剑"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": " The Holy Knight's Sword",
+    "remoteEn": "The Templar's Sword",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6931": {
+   "name": {
+    "zh": "哈林的第一个真实的故事"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Helin's First Story",
+    "remoteEn": "Hellin's First Story",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "6932": {
+   "name": {
+    "zh": "哈林的第二个真实的故事"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": " Helin's Second Truth",
+    "remoteEn": "Hellin's Second Truth",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "7300": {
+   "name": {
+    "zh": "摩伊拉的行踪"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Moira's Whereabouts",
+    "remoteEn": "[Horntail] Moira's Whereabouts",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "7301": {
+   "name": {
+    "zh": "变身秘药"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Secret Medicine for Transformation",
+    "remoteEn": "[Horntail] The Transformation Potion",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "7302": {
+   "name": {
+    "zh": "敢死队员的象征"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": " Badge of a Squad Member",
+    "remoteEn": "[Horntail] The Lost Squad",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "7303": {
+   "name": {
+    "zh": "制作变身秘药"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Making the Secret Medicine for Transformation",
+    "remoteEn": "[Horntail] Taking the Transformation Potion",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8007": {
+   "name": {
+    "zh": "受伤的猫"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Scarred Kitty",
+    "remoteEn": "Fraidy Cat",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8009": {
+   "name": {
+    "zh": "学猫语"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Learning to Speak the Kitty Language",
+    "remoteEn": "Feline Discourse",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8012": {
+   "name": {
+    "zh": "美代子，猫和雨珠子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sakura, the Kitty, and the Orange Marble",
+    "remoteEn": "Sakura, Fraidy Cat, and the Orange Marble",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8018": {
+   "name": {
+    "zh": "哭泣的美代子"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sakura's Crying",
+    "remoteEn": "Sakura's Tears",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8019": {
+   "name": {
+    "zh": "用猫语与波斯猫对话"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "I should talk to the Boss Kitty in kitty language.",
+    "remoteEn": "Catty Conversations",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8029": {
+   "name": {
+    "zh": "演员修炼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Actor Training",
+    "remoteEn": "Casting the Role",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8048": {
+   "name": {
+    "zh": "Arwen and Ellinia"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Arwen and Ellinia",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8050": {
+   "name": {
+    "zh": "Today's Schedule"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Today's Schedule",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8051": {
+   "name": {
+    "zh": "An Unknown Love"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "An Unknown Love",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8065": {
+   "name": {
+    "zh": "The Ghost's Whereabouts"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Ghost Whereabout",
+    "remoteEn": "The Ghost's Whereabouts",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8072": {
+   "name": {
+    "zh": "An Old Code"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "An Old Code",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8078": {
+   "name": {
+    "zh": "Open Sesame"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Open Sesami",
+    "remoteEn": "Open Sesame",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8083": {
+   "name": {
+    "zh": "Porter's Challenge"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Porter's Challenge",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8206": {
+   "name": {
+    "zh": "Valentine's Day : Heart Chocolate"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ace of Heart's Secret Ability",
+    "remoteEn": "Valentine's Day : Heart Chocolate",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8231": {
+   "name": {
+    "zh": "愚者之金 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Fool's Gold",
+    "remoteEn": "Fool's Gold 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8232": {
+   "name": {
+    "zh": "愚者之金 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Fool's Gold.",
+    "remoteEn": "Fool's Gold 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8233": {
+   "name": {
+    "zh": "飞黄腾达 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rags to Riches",
+    "remoteEn": "Rags to Riches 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8234": {
+   "name": {
+    "zh": "飞黄腾达 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rags to Riches.",
+    "remoteEn": "Rags to Riches 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8235": {
+   "name": {
+    "zh": "开“头”很重要 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "One Step A-Head",
+    "remoteEn": "One Step A-Head 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8236": {
+   "name": {
+    "zh": "开“头”很重要 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "One Step A-Head.",
+    "remoteEn": "One Step A-Head 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8237": {
+   "name": {
+    "zh": "要的就是大脚怪的脚趾 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Catch a Bigfoot by the Toe",
+    "remoteEn": "Catch a Bigfoot by the Toe 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8238": {
+   "name": {
+    "zh": "要的就是大脚怪的脚趾 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Catch a Bigfoot by the Toe.",
+    "remoteEn": "Catch a Bigfoot by the Toe 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8248": {
+   "name": {
+    "zh": "冒险岛周末集市"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Maple 7th Day Market omok festival!",
+    "remoteEn": "Maple 7th Day Market opens tomorrow!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8249": {
+   "name": {
+    "zh": "冒险岛周末集市!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Maple 7th Day Market card-game convention!",
+    "remoteEn": "Maple 7th Day Market",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8251": {
+   "name": {
+    "zh": "帮助养鸡场主人的女儿烦斯乐。"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Assembling the toy-armada!",
+    "remoteEn": "Helping the daughter of the poultry farm owner, Lazy Daisy",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8254": {
+   "name": {
+    "zh": "孵化鸡蛋的努力"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Collection skills",
+    "remoteEn": "Hatch the egg",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8297": {
+   "name": {
+    "zh": "A secret that Cody knows."
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A secret that Mr. Moneybags knows.",
+    "remoteEn": "A secret that Cody knows.",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8821": {
+   "name": {
+    "zh": "感恩节：收集黄色火鸡蛋"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Thanksgiving : Turkey Yellow Egg hunt",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8822": {
+   "name": {
+    "zh": "感恩节：收集绿色火鸡蛋"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Thanksgiving : Turkey Green Egg hunt",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8823": {
+   "name": {
+    "zh": "感恩节：南瓜馅饼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Thanksgiving : Pumpkin Pie",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8829": {
+   "name": {
+    "zh": "Festival of Lights - Building the Altar"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Festival of Lights - Building the Altar",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8830": {
+   "name": {
+    "zh": "Festival of Lights - Blessing the Festival"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Festival of Lights - Blessing the Festival ",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8832": {
+   "name": {
+    "zh": "Graham Cracked"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Graham Cracked",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8833": {
+   "name": {
+    "zh": "New Year's Wishes 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Spot On : An Interesting Chore",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8834": {
+   "name": {
+    "zh": "New Year's Wishes 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "New Year's Wishes 2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8843": {
+   "name": {
+    "zh": "Festival of Lights - Blessing the Festival reward"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Festival of Lights - Blessing the Festival reward",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8848": {
+   "name": {
+    "zh": "Amoria : The Sakura Garden 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : The Sakura Garden 1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8849": {
+   "name": {
+    "zh": "Amoria : The Sakura Garden 2 - Finishing Touches"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : The Sakura Garden 2 - Finishing Touches",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8850": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Beginner"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Beginner",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8851": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Warrior"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Warrior",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8852": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Magician"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Magician",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8853": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Bowman"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Bowman",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8854": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Thief"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Thief",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8855": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier  - Beginner"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier  - Beginner",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8856": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Warrior"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Warrior",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8857": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Magician"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Magician",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8858": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Bowman"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Bowman",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8859": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Thief"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Thief",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8860": {
+   "name": {
+    "zh": "Amoria : Beauty or Beast!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Beauty or Beast!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8862": {
+   "name": {
+    "zh": "Amoria : Marriage"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Marriage",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8863": {
+   "name": {
+    "zh": "Amoria : Red Dahlia - Warrior"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Red Dahlia - Warrior",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8864": {
+   "name": {
+    "zh": "Amoria : Red Dahlia - Magician"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Red Dahlia - Magician",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8865": {
+   "name": {
+    "zh": "Amoria : Red Dahlia - Bowman"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Red Dahlia - Bowman",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8866": {
+   "name": {
+    "zh": "Amoria : Red Dahlia -  Thief"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Red Dahlia -  Thief",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8867": {
+   "name": {
+    "zh": "Amoria : Circle of Trust 1 (The Unmarried Couple)"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Circle of Trust 1 (The Unmarried Couple)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8868": {
+   "name": {
+    "zh": "Amoria : Circle of Trust 2 (A Bond is Forged)"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Circle of Trust 2 (A Bond is Forged)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8869": {
+   "name": {
+    "zh": "Spot On : An Interesting Chore"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Spot On : An Interesting Chore",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8870": {
+   "name": {
+    "zh": "Spot On : Go See Mr. Spot"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Spot On : Go See Mr. Spot",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8871": {
+   "name": {
+    "zh": "Circle of Trust - Repaired Ring"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Circle of Trust - Repaired Ring",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8873": {
+   "name": {
+    "zh": "Easter : Easter Basket"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Easter : Easter Basket",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8874": {
+   "name": {
+    "zh": "Easter : Mad Bunny's Easter(Yellow)"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Easter : Mad Bunny's Easter(Yellow)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8875": {
+   "name": {
+    "zh": "Easter : Mad Bunny's Easter(Green)"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Easter : Mad Bunny's Easter(Green)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8879": {
+   "name": {
+    "zh": "慶祝兩週年：紅色禮物盒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "2nd Anniversary : Birthday Present (Red)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8880": {
+   "name": {
+    "zh": "慶祝兩週年：藍色禮物盒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "2nd Anniversary : Birthday Present (Blue)",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8881": {
+   "name": {
+    "zh": "慶祝兩週年：科迪的請求"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "2nd Anniversary : Cody's Quest",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8885": {
+   "name": {
+    "zh": "Summer Break: Cody's BBQ - Start"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Summer Break: Cody's BBQ - Start",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8886": {
+   "name": {
+    "zh": "Summer Break: Cody's BBQ."
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Summer Break: Cody's BBQ.",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8887": {
+   "name": {
+    "zh": "Summer Break: Cody's BBQ.."
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Summer Break: Cody's BBQ..",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "8888": {
+   "name": {
+    "zh": "Summer Break: Cody's BBQ..."
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Summer Break: Cody's BBQ...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9012": {
+   "name": {
+    "zh": "特奥的往事回忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "테오의 옛날 추억 회상",
+    "remoteEn": "Teo's Nostalgic Reminiscing",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9260": {
+   "name": {
+    "zh": "头羊的角"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Torr's Horn",
+    "remoteEn": "[Happyville] Torr's Antlers",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9270": {
+   "name": {
+    "zh": "新年活动: HappyNewYear"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "새해이벤트 : HappyNewYear",
+    "remoteEn": "New Year's Event: Happy New Year!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9370": {
+   "name": {
+    "zh": "怪物的袭击"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "몬스터의 습격",
+    "remoteEn": "Monster Attack",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9371": {
+   "name": {
+    "zh": "封印邪恶气息"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "악의 기운 봉인",
+    "remoteEn": "Evil Energy Sealed",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9372": {
+   "name": {
+    "zh": "寻找记忆者……"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "기억하고 있는 자를 찾아서...",
+    "remoteEn": "In Search of the Rememberer...",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9450": {
+   "name": {
+    "zh": "特奥的往事回忆1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "테오의 옛날 추억 회상 1",
+    "remoteEn": "Teo's Nostalgic Reminiscing I",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9451": {
+   "name": {
+    "zh": "特奥的往事回忆 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "테오의 옛날 추억 회상 2",
+    "remoteEn": "Teo's Nostalgic Reminiscing II",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9661": {
+   "name": {
+    "zh": "合作方法：第一次同行"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "협동하는 법:첫번째 동행",
+    "remoteEn": "Collaborative Effort: First Time Together",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9662": {
+   "name": {
+    "zh": "水晶球的破裂：次元的破裂"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "수정구의 균열:차원의 균열",
+    "remoteEn": "The Crystal Ball: Dimensional Schism",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9663": {
+   "name": {
+    "zh": "安慰女神：女神的痕迹"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "여신의 슬픔을 위로할 자:여신의 흔적",
+    "remoteEn": "Consoler of the Goddess: Remnant of the Goddess",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9664": {
+   "name": {
+    "zh": "星缘的报复：老海盗"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "카산드라의 복수:해적 데비존 ",
+    "remoteEn": "Cassandra's Revenge: Lord Pirate",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9880": {
+   "name": {
+    "zh": "悬赏通缉：红蜗牛王"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 마노",
+    "remoteEn": "Wanted: Mano",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9881": {
+   "name": {
+    "zh": "悬赏通缉：树妖王"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 스텀피",
+    "remoteEn": "Wanted: Stumpy",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9882": {
+   "name": {
+    "zh": "悬赏通缉：巨居蟹"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 킹크랑",
+    "remoteEn": "Wanted: King Clang",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9883": {
+   "name": {
+    "zh": "悬赏通缉：肯德熊"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 태륜",
+    "remoteEn": "Wanted: Tae Roon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9884": {
+   "name": {
+    "zh": "悬赏通缉：艾利杰"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 엘리쟈",
+    "remoteEn": "Wanted: Eliza",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9885": {
+   "name": {
+    "zh": "悬赏通缉：驮狼雪人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "현상수배 : 스노우맨",
+    "remoteEn": "Wanted: Nyalmo",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9887": {
+   "name": {
+    "zh": "星缘的礼物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "카산드라의 선물",
+    "remoteEn": "Gift From Cassandra",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9889": {
+   "name": {
+    "zh": "卷轴碎片"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "조각난 주문서",
+    "remoteEn": "Torn Scroll",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9954": {
+   "name": {
+    "zh": "星缘的健忘症"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "카산드라의 건망증",
+    "remoteEn": "Cassandra's Forgetfulness",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9955": {
+   "name": {
+    "zh": "阿里安特竞技赛"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "아리안트 투기대회",
+    "remoteEn": "Ariant Coliseum",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "9991": {
+   "name": {
+    "zh": "快速问答"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "스피드 퀴즈",
+    "remoteEn": "Speed Quiz",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10016": {
+   "name": {
+    "zh": "获得优秀工作人员徽章！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "우수요원뱃지를 획득하라!",
+    "remoteEn": "Obtain the Excellent Agent Badge!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10017": {
+   "name": {
+    "zh": "参加工作人员特别强化项目！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "요원특별강화프로그램에 참여하라!",
+    "remoteEn": "Participate in the Special Agent Enrichment Program!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10260": {
+   "name": {
+    "zh": "制作纯洁的香水1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "순결한 향수 만들기1",
+    "remoteEn": "Making Pure Perfume 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10261": {
+   "name": {
+    "zh": "制作纯洁的香水2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "순결한 향수 만들기2",
+    "remoteEn": "Making Pure Perfume 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10262": {
+   "name": {
+    "zh": "制作纯洁的香水3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "순결한 향수 만들기3",
+    "remoteEn": "Making Pure Perfume 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10263": {
+   "name": {
+    "zh": "制作纯洁的香水4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "순결한 향수 만들기4",
+    "remoteEn": "Making Pure Perfume 4",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10264": {
+   "name": {
+    "zh": "击退隐藏的怪物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "숨어있는 몬스터 퇴치",
+    "remoteEn": "Defeating the Hidden Monster",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10265": {
+   "name": {
+    "zh": "击退隐藏的怪物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "숨어있는 몬스터 퇴치",
+    "remoteEn": "Defeating the Hidden Monster",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10266": {
+   "name": {
+    "zh": "击退隐藏的怪物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "숨어있는 몬스터 퇴치",
+    "remoteEn": "Defeating the Hidden Monster",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10267": {
+   "name": {
+    "zh": "击退隐藏的怪物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "숨어있는 몬스터 퇴치",
+    "remoteEn": "Defeating the Hidden Monster",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10268": {
+   "name": {
+    "zh": "佳佳的情书1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 사랑 편지1",
+    "remoteEn": "Gaga's Love Letter 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10270": {
+   "name": {
+    "zh": "佳佳的情书2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 사랑 편지2",
+    "remoteEn": "Gaga's Love Letter 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10271": {
+   "name": {
+    "zh": "佳佳的情书3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 사랑 편지3",
+    "remoteEn": "Gaga's Love Letter 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10272": {
+   "name": {
+    "zh": "佳佳的情书4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 사랑 편지4",
+    "remoteEn": "Gaga's Love Letter 4",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10273": {
+   "name": {
+    "zh": "我们是冒险岛大家庭"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "우리는 메이플 패밀리",
+    "remoteEn": "We are all part of the Maple family",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10274": {
+   "name": {
+    "zh": "为冒险岛6周年宴会做准备"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 파티준비",
+    "remoteEn": "MapleStory 5th Anniversary Party Preparation.",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10275": {
+   "name": {
+    "zh": "为冒险岛6周年宴会做准备！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 파티준비!",
+    "remoteEn": "MapleStory 5th Anniversary Party Preparation!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10276": {
+   "name": {
+    "zh": "为冒险岛6周年宴会做准备！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 파티준비!!",
+    "remoteEn": "MapleStory 5th Anniversary Party Preparation!!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10277": {
+   "name": {
+    "zh": "为冒险岛6周年宴会做准备！！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 파티준비!!!",
+    "remoteEn": "MapleStory 5th Anniversary Party Preparation!!!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10278": {
+   "name": {
+    "zh": "祝贺冒险岛6周年"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 축하해",
+    "remoteEn": "Happy 5th Anniversary",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10279": {
+   "name": {
+    "zh": "祝贺冒险岛6周年！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 축하해!",
+    "remoteEn": "Happy 5th Anniversary!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10280": {
+   "name": {
+    "zh": "祝贺冒险岛6周年！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 축하해!!",
+    "remoteEn": "Happy 5th Anniversary!!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10281": {
+   "name": {
+    "zh": "祝贺冒险岛6周年！！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "메이플 6주년 축하해!!!",
+    "remoteEn": "Happy 5th Anniversary!!!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10282": {
+   "name": {
+    "zh": "人气怪物的肖像画：花蘑菇"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "인기 몬스터의 초상화 : 주황버섯",
+    "remoteEn": "Portrait of a Popular Monster: Orange Mushroom",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10283": {
+   "name": {
+    "zh": "人气怪物的肖像画：三眼章鱼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "인기 몬스터의 초상화 : 옥토퍼스",
+    "remoteEn": "Portrait of a Popular Monster: Octopus",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10284": {
+   "name": {
+    "zh": "人气怪物的肖像画：白雪人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "인기 몬스터의 초상화 : 예티",
+    "remoteEn": "Portrait of a Popular Monster: Yeti",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10287": {
+   "name": {
+    "zh": "阿乐米的金枫叶"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "아르미의 황금 단풍잎",
+    "remoteEn": "Aramia's Golden Maple Leaf",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10320": {
+   "name": {
+    "zh": "遗物大会点数达到2500点！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Artifact Hunt 2500 points acquired!",
+    "remoteEn": "2012 Artifact Hunt Contest Participation",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10321": {
+   "name": {
+    "zh": "遗物大会点数达到4000点！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Artifact Hunt 4000 points acquired!",
+    "remoteEn": "Artifact Hunt Gift Box",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10328": {
+   "name": {
+    "zh": "8种神秘的宝物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "8 Mystical Treasures",
+    "remoteEn": "Mystical Artifact Discoverer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10340": {
+   "name": {
+    "zh": "他们复活了！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Return!",
+    "remoteEn": "They're Coming Back!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10341": {
+   "name": {
+    "zh": "战神的复活"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Aran's Revival",
+    "remoteEn": "The Revival of the Arans",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10345": {
+   "name": {
+    "zh": "复活的征兆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Signs of the Revival",
+    "remoteEn": "Signs of Their Revival",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10347": {
+   "name": {
+    "zh": "等待主人的狼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Wolf In Waiting",
+    "remoteEn": "Wolves Waiting for their Masters",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10349": {
+   "name": {
+    "zh": "迎接他们的准备"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Preparing for the Arrival",
+    "remoteEn": "Preparing for Their Arrival",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10351": {
+   "name": {
+    "zh": "英雄的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Hero's Memory",
+    "remoteEn": "The Memory of the Heroes",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10353": {
+   "name": {
+    "zh": "痕迹的实体"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Truth About Memory Fragments",
+    "remoteEn": "The Hidden Meaning Behind the Memory Fragments",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10354": {
+   "name": {
+    "zh": "把星缘的相册交给谁？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "To Whom Should Cassandra's Album Go?",
+    "remoteEn": "Who Deserves Cassandra's Album?",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10405": {
+   "name": {
+    "zh": "2010粉色花边游泳圈！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "2009 Pink Flower Floatie!",
+    "remoteEn": "2011 Pink Flower Tube!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10431": {
+   "name": {
+    "zh": "佳佳的蓝色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 남색 크레파스",
+    "remoteEn": "Gaga's Indigo Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10432": {
+   "name": {
+    "zh": "佳佳的紫色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 보라색 크레파스",
+    "remoteEn": "Gaga's Violet Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10433": {
+   "name": {
+    "zh": "佳佳的红色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 빨간색 크레파스",
+    "remoteEn": "Gaga's Red Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10434": {
+   "name": {
+    "zh": "佳佳的橙色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 주황색 크레파스",
+    "remoteEn": "Gaga's Orange Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10435": {
+   "name": {
+    "zh": "佳佳的黄色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 노란색 크레파스",
+    "remoteEn": "Gaga's Yellow Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10436": {
+   "name": {
+    "zh": "佳佳的绿色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 초록색 크레파스",
+    "remoteEn": "Gaga's Green Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10437": {
+   "name": {
+    "zh": "佳佳的青色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 파란색 크레파스",
+    "remoteEn": "Gaga's Blue Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10438": {
+   "name": {
+    "zh": "佳佳的蓝色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 남색 크레파스",
+    "remoteEn": "Gaga's Indigo Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10439": {
+   "name": {
+    "zh": "佳佳的紫色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 보라색 크레파스",
+    "remoteEn": "Gaga's Violet Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10440": {
+   "name": {
+    "zh": "佳佳的红色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 빨간색 크레파스",
+    "remoteEn": "Gaga's Red Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10441": {
+   "name": {
+    "zh": "佳佳的橙色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 주황색 크레파스",
+    "remoteEn": "Gaga's Orange Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10442": {
+   "name": {
+    "zh": "佳佳的黄色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 노란색 크레파스",
+    "remoteEn": "Gaga's Yellow Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10443": {
+   "name": {
+    "zh": "佳佳的绿色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 초록색 크레파스",
+    "remoteEn": "Gaga's Green Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10444": {
+   "name": {
+    "zh": "佳佳的青色蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 파란색 크레파스",
+    "remoteEn": "Gaga's Blue Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10445": {
+   "name": {
+    "zh": "佳佳的蜡笔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "가가의 크레파스",
+    "remoteEn": "Gaga's Crayon",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10450": {
+   "name": {
+    "zh": "彩虹周：红色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:빨간색의 마법",
+    "remoteEn": "Rainbow Week: Red Monday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10451": {
+   "name": {
+    "zh": "彩虹周：红色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:빨간색의 마법",
+    "remoteEn": "Rainbow Week: Red Monday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10452": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10453": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10454": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10455": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10456": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10457": {
+   "name": {
+    "zh": "彩虹周：黄色魔法"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "레인보우 위크:노란색의 마법",
+    "remoteEn": "Rainbow Week: Yellow Wednesday Magic",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10458": {
+   "name": {
+    "zh": "钻石王老五的罗盘"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "골드리치의 나침반",
+    "remoteEn": "Gold Richie's Compass",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "10459": {
+   "name": {
+    "zh": "钻石王老五的罗盘"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "골드리치의 나침반",
+    "remoteEn": "Gold Richie's Compass",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "19001": {
+   "name": {
+    "zh": "热爱冒险岛勋章"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Maple Nut",
+    "remoteEn": "Maple Lover",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "20701": {
+   "name": {
+    "zh": "第一次实地适应训练"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "1st Acclimation Training",
+    "remoteEn": "First Time Together Training",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21710": {
+   "name": {
+    "zh": "刺蘑菇的愤怒？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Monster War?",
+    "remoteEn": "Raging Horny Mushrooms",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21711": {
+   "name": {
+    "zh": "哭泣的蓝蘑菇登场"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Enter the Cynical Orange Mushrooms!",
+    "remoteEn": "When Mushrooms Cry",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21714": {
+   "name": {
+    "zh": "寺院的石头人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Green Mushrooms",
+    "remoteEn": "Golems Amok",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21715": {
+   "name": {
+    "zh": "卡米拉的证言"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Tree Witness",
+    "remoteEn": "Camila's Testimony",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21717": {
+   "name": {
+    "zh": "长老斯坦的委托1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rowen's Request 1",
+    "remoteEn": "What Chief Stan Says 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21718": {
+   "name": {
+    "zh": "长老斯坦的委托2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rowen's Request 2",
+    "remoteEn": "What Chief Stan Says 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "21727": {
+   "name": {
+    "zh": "森林好乱！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Zombie Mushrooms",
+    "remoteEn": "The forest is getting out of control!",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28001": {
+   "name": {
+    "zh": "派对准备"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "In Preparation for the Party",
+    "remoteEn": "[Happyville] In Preparation for the Party",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28102": {
+   "name": {
+    "zh": "Amoria : Red Dahlia - Pirate"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Red Dahlia - Pirate",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28103": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Pirate"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Pirate",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28104": {
+   "name": {
+    "zh": "Amoria : Cupid's Courier - Pirate"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Amoria : Cupid's Courier - Pirate",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28162": {
+   "name": {
+    "zh": "会见培训导师"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meeting the Training Instructor",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28163": {
+   "name": {
+    "zh": "高级培训-1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Advanced Training-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28164": {
+   "name": {
+    "zh": "高级培训-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Advanced Training-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28165": {
+   "name": {
+    "zh": "报告培训结果"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Reporting the Training Results",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28166": {
+   "name": {
+    "zh": "会见欧文"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meeting Ervine",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28167": {
+   "name": {
+    "zh": "检查水管"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Inspecting the Water Pipe",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28168": {
+   "name": {
+    "zh": "粘连的绿水灵！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sticky Slimes!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28169": {
+   "name": {
+    "zh": "造访射手村"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Visiting Henesys",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28170": {
+   "name": {
+    "zh": "长老斯坦喜欢什么？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "What Does Chief Stan Like?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28171": {
+   "name": {
+    "zh": "长老斯坦为何暴跳如雷"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Reason Why Chief Stan is Livid",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28172": {
+   "name": {
+    "zh": "寻找线索"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for Clues",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28173": {
+   "name": {
+    "zh": "仔细思考诺特勒斯的事情！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Heading Over to The Nautilus!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28174": {
+   "name": {
+    "zh": "调查正在进行"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Investigation in Progress",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28175": {
+   "name": {
+    "zh": "特殊的酒"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Special Wine",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28176": {
+   "name": {
+    "zh": "解开谜团"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Solving the Mystery",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28177": {
+   "name": {
+    "zh": "抓住嫌疑犯"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Catching the Suspect",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28178": {
+   "name": {
+    "zh": "谁改变了他？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Changed Him?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28179": {
+   "name": {
+    "zh": "与印第安老斑鸠共舞！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dances with Andras!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28180": {
+   "name": {
+    "zh": "第一次与露西相遇"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The First Encounter with Lucci",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28181": {
+   "name": {
+    "zh": "严格的培训-1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28182": {
+   "name": {
+    "zh": "严格的培训-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28183": {
+   "name": {
+    "zh": "严格的培训-3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training-3",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28184": {
+   "name": {
+    "zh": "严格的培训-4"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training-4",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28185": {
+   "name": {
+    "zh": "向汉斯报告培训结果"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Reporting the Training Results to Grendel the Really Old",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28186": {
+   "name": {
+    "zh": "诺特勒斯的旅途"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Journey of the Nautilus",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28187": {
+   "name": {
+    "zh": "给凯琳看看你的收获！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Show Kyrin What You've Got!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28188": {
+   "name": {
+    "zh": "在射手村找到了长老斯坦"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Finding Chief Stan in Henesys",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28189": {
+   "name": {
+    "zh": "感冒药配方"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ingredients for the Cold Medicine",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28190": {
+   "name": {
+    "zh": "运送感冒药"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Delivering the Cold Medicine",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28191": {
+   "name": {
+    "zh": "咳嗽的达克鲁的分身"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Coughing Dark Lord",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28192": {
+   "name": {
+    "zh": "病毒标本研究"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Virus Sample Research",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28193": {
+   "name": {
+    "zh": "病毒通过水传播？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Virus is Spreading Via the Water?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28194": {
+   "name": {
+    "zh": "找到线索！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Find the Clues!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28195": {
+   "name": {
+    "zh": "向勇士部落进发！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "To Perion!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28196": {
+   "name": {
+    "zh": "背后的罪魁祸首"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Demon Behind It All",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28197": {
+   "name": {
+    "zh": "返回魔法密林"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Returning to Ellinia",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28198": {
+   "name": {
+    "zh": "恶魔牛魔王！！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Marbas the Demon!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28199": {
+   "name": {
+    "zh": "第一次与欧文相遇"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "First Encounter with Ervine",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28200": {
+   "name": {
+    "zh": "更具挑战性的培训-1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Even More Challenging Training-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28201": {
+   "name": {
+    "zh": "更具挑战性的培训-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Even More Challenging Training-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28202": {
+   "name": {
+    "zh": "向达克鲁的分身报告培训结果"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Reporting the Training Results to Dark Lord",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28203": {
+   "name": {
+    "zh": "会见亚华"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meeting Jay",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28204": {
+   "name": {
+    "zh": "找到失落的书籍"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Find the Lost Book",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28205": {
+   "name": {
+    "zh": "找寻失落的书籍"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for the Lost Book",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28206": {
+   "name": {
+    "zh": "将书籍还给亚华"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Returning the Book to Jay",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28207": {
+   "name": {
+    "zh": "会见诺特勒斯的凯琳"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Meeting Kyrin of The Nautilus",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28208": {
+   "name": {
+    "zh": "凯琳的要求"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Kyrin's Request",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28209": {
+   "name": {
+    "zh": "贝音喜欢…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Baine Likes...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28210": {
+   "name": {
+    "zh": "舰船上不能再有暴乱了！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Commotion on the Ship, No More!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28211": {
+   "name": {
+    "zh": "下一站，魔法密林"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Next Stop, Ellinia",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28212": {
+   "name": {
+    "zh": "魔法密林飞贼犯罪事件线索"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Clue to Ellinia's Burglary Case",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28213": {
+   "name": {
+    "zh": "这个羽毛，似乎与勇士部落有关…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "This Feather, For Some Reason, Seems To Be Related to Perion...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28214": {
+   "name": {
+    "zh": "金色羽毛的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Secret of the Golden Feather",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28215": {
+   "name": {
+    "zh": "飞贼恶魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "A Burglar Demon",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28216": {
+   "name": {
+    "zh": "返回废都"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Returning to Kerning City",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28217": {
+   "name": {
+    "zh": "恶魔喜欢…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Demon Likes...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28218": {
+   "name": {
+    "zh": "休咪，货币狂人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Shumi, the Coin Mania",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28219": {
+   "name": {
+    "zh": "抓住沃勒福！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Catch Valefor!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28220": {
+   "name": {
+    "zh": "遇见古董收藏商希尔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Encounter with Hill, the Antique Collector",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28221": {
+   "name": {
+    "zh": "让我看看你的本事"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Show Me What You're Made Of-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28222": {
+   "name": {
+    "zh": "让我看看你的本事-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Show Me What You're Made Of-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28223": {
+   "name": {
+    "zh": "向赫丽娜报告培训结果"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Reporting the Training Results to Athena Pierce",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28224": {
+   "name": {
+    "zh": "运送古董"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Delivering the Antique",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28225": {
+   "name": {
+    "zh": "古董搜索"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Antique Search",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28226": {
+   "name": {
+    "zh": "回到希尔那里"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Back to Hill",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28227": {
+   "name": {
+    "zh": "运送成本"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Cost of Delivery",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28228": {
+   "name": {
+    "zh": "传说…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Legend Has It That...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28229": {
+   "name": {
+    "zh": "仙女喜欢…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Fairies Like...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28230": {
+   "name": {
+    "zh": "所罗门之弓"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Solomon's Bow",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28231": {
+   "name": {
+    "zh": "恢复远古之弓的记忆"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Restoring the Memory of the Ancient Bow",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28232": {
+   "name": {
+    "zh": "另一个讲故事的人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Another Storyteller",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28233": {
+   "name": {
+    "zh": "验证传说的真实性"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Putting the Legend to a Test",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28234": {
+   "name": {
+    "zh": "恶魔复苏"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Revival of the Demon",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28235": {
+   "name": {
+    "zh": "这么说来，恶魔喜欢噪音？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "So the Demons Like Noise?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28236": {
+   "name": {
+    "zh": "抓住恶魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Catching the Demon",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28237": {
+   "name": {
+    "zh": "传说般的复苏"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Legendary Revival",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28238": {
+   "name": {
+    "zh": "与黑暗独角兽的最终战役"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Final Battle with Amdusias",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28239": {
+   "name": {
+    "zh": "寻找木拉特"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Finding Muirhat",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28240": {
+   "name": {
+    "zh": "严格的培训！-1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training!-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28241": {
+   "name": {
+    "zh": "严格的培训！-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Rigorous Training!-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28242": {
+   "name": {
+    "zh": "向凯琳报告培训结果"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Reporting the Training Results to Kyrin",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28243": {
+   "name": {
+    "zh": "绿色药水的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Mystery of the Green Portion",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28244": {
+   "name": {
+    "zh": "蹒跚老人汉斯"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Grendel the Really Tipsy",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28245": {
+   "name": {
+    "zh": "你无法让守旧的人接受新事物"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "You Can't Teach an Old Dog New Tricks",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28246": {
+   "name": {
+    "zh": "红色药水的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Mystery of the Red Portion",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28247": {
+   "name": {
+    "zh": "缺乏某样东西"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Something's Lacking",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28248": {
+   "name": {
+    "zh": "用音乐安抚灵魂"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Calming the Soul with Music",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28249": {
+   "name": {
+    "zh": "前往废都"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "To Kerning City",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28250": {
+   "name": {
+    "zh": "白色药水的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Mystery of the White Portion",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28251": {
+   "name": {
+    "zh": "完成的藏宝图"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Completed Treasure Map",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28252": {
+   "name": {
+    "zh": "搜寻宝藏"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for the Treasures",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28253": {
+   "name": {
+    "zh": "宝藏在何处？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Where Are the Treasures?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28254": {
+   "name": {
+    "zh": "根本没有宝藏？！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "There Are No Treasures?!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28255": {
+   "name": {
+    "zh": "搜寻恶魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Searching for the Demon",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28256": {
+   "name": {
+    "zh": "宝藏与恶魔雪之猫女"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Treasure, and Crocell the Demon",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28257": {
+   "name": {
+    "zh": "谁解开了印第安老斑鸠的封印？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Broke the Seal of Andras?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28258": {
+   "name": {
+    "zh": "谁解开了沃勒福的封印？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Broke the Seal of Valefor?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28259": {
+   "name": {
+    "zh": "谁解开了黑暗独角兽的封印？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Broke the Seal of Amdusias?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28260": {
+   "name": {
+    "zh": "谁解开了雪之猫女的封印？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Broke the Seal of Crocell?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28261": {
+   "name": {
+    "zh": "谁解开了牛魔王的封印？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Who Broke the Seal of Marbas?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28262": {
+   "name": {
+    "zh": "揭示的身份"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Revealed Identity",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28263": {
+   "name": {
+    "zh": "记忆者培训-1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Rememberer's Training-1",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28264": {
+   "name": {
+    "zh": "记忆者培训-2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Rememberer's Training-2",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28265": {
+   "name": {
+    "zh": "记忆者培训-3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Rememberer's Training-3",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28266": {
+   "name": {
+    "zh": "地狱大公的秘密"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Secret of Astaroth",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28267": {
+   "name": {
+    "zh": "我需要一把雨伞！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Collect] I Need an Umbrella!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28268": {
+   "name": {
+    "zh": "毁坏庄稼的一群猪！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] The Pigs Are Ruining the Produce!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28269": {
+   "name": {
+    "zh": "吓人的漂漂猪"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] The Terrorizing Red Ribbon Pigs",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28270": {
+   "name": {
+    "zh": "角落中的猪猪"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Pigs at the Corner",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28271": {
+   "name": {
+    "zh": "不是什么人都适合红色的！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] That Red Isn't For Everyone!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28272": {
+   "name": {
+    "zh": "吓人的三眼章鱼"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Intimidating Octopuses",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28273": {
+   "name": {
+    "zh": "呃，粘乎乎的!"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Collect] Eww, It's Slimy!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28274": {
+   "name": {
+    "zh": "黑木妖为什么这么黑？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Why Are Dark Stumps So Dark?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28275": {
+   "name": {
+    "zh": "你被一只绿蘑菇咬了？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] You Were Bitten by a Green Mushroom?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28276": {
+   "name": {
+    "zh": "花蘑菇造成眩晕？"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Drowsiness from the Orange Mushrooms?",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28277": {
+   "name": {
+    "zh": "伪装的绿水灵"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Camouflaging Slimes",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28278": {
+   "name": {
+    "zh": "破坏力巨大的猪猪"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Destructively Strong Pigs",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28279": {
+   "name": {
+    "zh": "猪脖子周围的蝴蝶结"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Collect] Red Ribbons Around the Pig's Neck",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28280": {
+   "name": {
+    "zh": "清理这些蜗牛！"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Hunt] Sweep the Snails!",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28281": {
+   "name": {
+    "zh": "准备传统仪式"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "[Collect] Preparations for the Traditional Ceremony",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28282": {
+   "name": {
+    "zh": "如何躲避斯廷克"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "How to Avoid the Stink",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28283": {
+   "name": {
+    "zh": "为了金银岛的和平…"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "For the peace of Victoria Island...",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28287": {
+   "name": {
+    "zh": "Witch Malady's Secret Mission"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Witch Malady's Secret Mission",
+    "remoteEn": "[Halloween] Witch Malady's Secret Mission",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28288": {
+   "name": {
+    "zh": "Stinky Seasoned Cursed Frog Eggs and M"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Stinky Seasoned Cursed Frog Eggs and Mushrooms",
+    "remoteEn": "[Halloween] Stinky Seasoned Cursed Frog Eggs and Mushrooms",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28289": {
+   "name": {
+    "zh": "Dreamy Bloody Mushroom Wine"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dreamy Bloody Mushroom Wine",
+    "remoteEn": "[Halloween] Dreamy Bloody Mushroom Wine",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28290": {
+   "name": {
+    "zh": "The Highlight of a Witch Party! Slimy"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Highlight of a Witch Party! Slimy Canape",
+    "remoteEn": "[Halloween] The Highlight of a Witch Party! Slimy Canape",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28291": {
+   "name": {
+    "zh": "Really Zingy Kebab"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Really Zingy Kabab",
+    "remoteEn": "[Halloween] Really Zingy Kebab",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28292": {
+   "name": {
+    "zh": "Stinky Swamp Wrap"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Stinky Swamp Wrap",
+    "remoteEn": "[Halloween] Stinky Swamp Wrap",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28293": {
+   "name": {
+    "zh": "Chew on it if you can! Rough Leather S"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Chew on it if you can! Rough Leather Steak",
+    "remoteEn": "[Halloween] Chew on it if you can! Rough Leather Steak",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28294": {
+   "name": {
+    "zh": "Witch's Special Stew"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Witch's Special Stew",
+    "remoteEn": "[Halloween] Witch's Special Stew",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28295": {
+   "name": {
+    "zh": "Witch's Dark Token"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Witch's Dark Token",
+    "remoteEn": "[Halloween] Witch's Dark Token",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28296": {
+   "name": {
+    "zh": "Butler: 'The Trap'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Butler: \"The Trap\"",
+    "remoteEn": "[Halloween] Butler: 'The Trap'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28297": {
+   "name": {
+    "zh": "Butler: 'The Trap'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Butler: \"The Trap\"",
+    "remoteEn": "[Halloween] Butler: 'The Trap'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28298": {
+   "name": {
+    "zh": "Butler: 'The Trap'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Butler: \"The Trap\"",
+    "remoteEn": "[Halloween] Butler: 'The Trap'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28302": {
+   "name": {
+    "zh": "Olivia: 'Help Me'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Help Me\"",
+    "remoteEn": "[Halloween] Olivia: 'Help Me'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28303": {
+   "name": {
+    "zh": "Olivia: 'Find My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Find My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Find My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28304": {
+   "name": {
+    "zh": "Olivia: 'Bring My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Bring My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Bring My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28305": {
+   "name": {
+    "zh": "Joe: 'Clear the Way'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Joe: \"Clear the Way\"",
+    "remoteEn": "[Halloween] Joe: 'Clear the Way'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28306": {
+   "name": {
+    "zh": "Father: 'Dirty House'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Father: \"Dirty House\"",
+    "remoteEn": "[Halloween] Father: 'Dirty House'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28307": {
+   "name": {
+    "zh": "Steward: 'I'm a Butler, Not a Maid!'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Steward: \"I'm a Butler, Not a Maid!\"",
+    "remoteEn": "[Halloween] Steward: 'I'm a Butler, Not a Maid!'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28308": {
+   "name": {
+    "zh": "Jonas: 'Jonas' Presence' 1"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Jonas: \"Jonas' Presence\" 1",
+    "remoteEn": "[Halloween] Jonas: 'Jonas' Presence' 1",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28309": {
+   "name": {
+    "zh": "Olivia: 'Help Me'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Help Me\"",
+    "remoteEn": "[Halloween] Olivia: 'Help Me'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28310": {
+   "name": {
+    "zh": "Olivia: 'Find My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Find My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Find My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28311": {
+   "name": {
+    "zh": "Olivia: 'Bring My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Bring My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Bring My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28312": {
+   "name": {
+    "zh": "Joe: 'Clear the Way'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Joe: \"Clear the Way\"",
+    "remoteEn": "[Halloween] Joe: 'Clear the Way'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28313": {
+   "name": {
+    "zh": "Father: 'Dirty House'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Father: \"Dirty House\"",
+    "remoteEn": "[Halloween] Father: 'Dirty House'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28314": {
+   "name": {
+    "zh": "Steward: 'I'm a Butler, Not a Maid!'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Steward: \"I'm a Butler, Not a Maid!\"",
+    "remoteEn": "[Halloween] Steward: 'I'm a Butler, Not a Maid!'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28315": {
+   "name": {
+    "zh": "Jonas: 'Jonas' Presence' 2"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Jonas: \"Jonas' Presence\" 2",
+    "remoteEn": "[Halloween] Jonas: 'Jonas' Presence' 2",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28316": {
+   "name": {
+    "zh": "Olivia: 'Help Me'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Help Me\"",
+    "remoteEn": "[Halloween] Olivia: 'Help Me'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28317": {
+   "name": {
+    "zh": "Olivia: 'Find My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Find My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Find My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28318": {
+   "name": {
+    "zh": "Olivia: 'Bring My Daddy'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Olivia: \"Bring My Daddy\"",
+    "remoteEn": "[Halloween] Olivia: 'Bring My Daddy'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28319": {
+   "name": {
+    "zh": "Joe: 'Clear the Way'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Joe: \"Clear the Way\"",
+    "remoteEn": "[Halloween] Joe: 'Clear the Way'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28320": {
+   "name": {
+    "zh": "Father: 'Dirty House'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Father: \"Dirty House\"",
+    "remoteEn": "[Halloween] Father: 'Dirty House'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28321": {
+   "name": {
+    "zh": "Steward: 'I'm a Butler, Not a Maid!'"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Steward: \"I'm a Butler, Not a Maid!\"",
+    "remoteEn": "[Halloween] Steward: 'I'm a Butler, Not a Maid!'",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28322": {
+   "name": {
+    "zh": "Jonas: 'Jonas' Presence' 3"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Jonas: \"Jonas' Presence\" 3",
+    "remoteEn": "[Halloween] Jonas: 'Jonas' Presence' 3",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28325": {
+   "name": {
+    "zh": "肮脏的藏宝图"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Dirty Treasure Map",
+    "remoteEn": "-",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "28344": {
+   "name": {
+    "zh": "Hunter's Luck - Week 6"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Hunter's Profission",
+    "remoteEn": "Hunter's Luck - Week 6",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29000": {
+   "name": {
+    "zh": "组队任务狂人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - PQ Mania",
+    "remoteEn": "PQ Mania",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29001": {
+   "name": {
+    "zh": "任务狂人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Quest Specialist",
+    "remoteEn": "Quest Specialist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29002": {
+   "name": {
+    "zh": "超人气王"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Celebrity!",
+    "remoteEn": "Celebrity",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29003": {
+   "name": {
+    "zh": "诚实的冒险家"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Diligent Explorer",
+    "remoteEn": "Diligent Explorer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29004": {
+   "name": {
+    "zh": "站在巅峰的人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "One Who's Touched the Sky",
+    "remoteEn": "The One Who's Touched the Sky",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29006": {
+   "name": {
+    "zh": "冰峰雪域山脉探险家"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "El Nath Mts. Explorer",
+    "remoteEn": "El Nath Explorer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29016": {
+   "name": {
+    "zh": "安灵师"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title - Spirit Diviner",
+    "remoteEn": "Spirit Diviner",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29017": {
+   "name": {
+    "zh": "阴阳师"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title - Soul Conjurer",
+    "remoteEn": "Spirit Walker",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29018": {
+   "name": {
+    "zh": "退魔师"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title - Soul Guardian",
+    "remoteEn": "Soul Guardian",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29019": {
+   "name": {
+    "zh": "神圣驱魔"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title - Saint Exorcist",
+    "remoteEn": "Saint Exorcist",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29020": {
+   "name": {
+    "zh": "发型变换达人"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title - Dynamic Hair",
+    "remoteEn": "Dynamic Hair",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29300": {
+   "name": {
+    "zh": "挑战称号 - 达到顶点的战士"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Ultimate Warrior",
+    "remoteEn": "Ultimate Warrior",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29301": {
+   "name": {
+    "zh": "挑战称号 - 达到顶点的魔法师"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Ultimate Magician",
+    "remoteEn": "Ultimate Magician",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29302": {
+   "name": {
+    "zh": "挑战称号 - 达到顶点的弓箭手"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Ultimate Archer",
+    "remoteEn": "Ultimate Archer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29303": {
+   "name": {
+    "zh": "挑战称号 - 达到顶点的飞侠"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Ultimate Thief",
+    "remoteEn": "Ultimate Thief",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29304": {
+   "name": {
+    "zh": "挑战称号 - 达到顶点的海盗"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Ultimate Pirate",
+    "remoteEn": "Ultimate Pirate",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29400": {
+   "name": {
+    "zh": "勤奋冒险家"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Veteran Hunter",
+    "remoteEn": "Veteran Hunter",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29500": {
+   "name": {
+    "zh": "冒险岛偶像明星"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Maple Idol Star",
+    "remoteEn": "Maple Idol",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29501": {
+   "name": {
+    "zh": "黑暗龙王征服者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Horned Tail Slayer",
+    "remoteEn": "Horntail Slayer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29502": {
+   "name": {
+    "zh": "品克缤征服者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Pink Bean Slayer",
+    "remoteEn": "Pink Bean Slayer",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29503": {
+   "name": {
+    "zh": "爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Title Challenge - Donation King",
+    "remoteEn": "Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29509": {
+   "name": {
+    "zh": "无尽挑战"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Persevering Challenger",
+    "remoteEn": "Endless Challenge",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29916": {
+   "name": {
+    "zh": "射手村爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Henesys Donor Medal",
+    "remoteEn": "Henesys Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29917": {
+   "name": {
+    "zh": "魔法密林爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Ellinia Donor Medal",
+    "remoteEn": "Ellinia Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29918": {
+   "name": {
+    "zh": "勇士部落爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Perion Donor Medal",
+    "remoteEn": "Perion Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29919": {
+   "name": {
+    "zh": "废弃都市爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Kerning City Donor Medal",
+    "remoteEn": "Kerning City Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29920": {
+   "name": {
+    "zh": "林中之城爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Sleepywood Donor Medal",
+    "remoteEn": "Sleepywood Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29921": {
+   "name": {
+    "zh": "诺特勒斯爱心使者"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Nautilus Donor Medal",
+    "remoteEn": "Nautilus Donor",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29924": {
+   "name": {
+    "zh": "苏醒的战神"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "The Revived Aran",
+    "remoteEn": "Awakened Aran",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29925": {
+   "name": {
+    "zh": "记忆中的战神"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Aran and Memory",
+    "remoteEn": "Aran in Memory",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29926": {
+   "name": {
+    "zh": "试炼中的战神"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Aran in Agony",
+    "remoteEn": "Aran in Misery",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29927": {
+   "name": {
+    "zh": "希望中的战神"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Aran of Hope",
+    "remoteEn": "Aran in Hope",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  },
+  "29931": {
+   "name": {
+    "zh": "荣誉乘务员"
+   },
+   "source": {
+    "kind": "official-cn",
+    "match": "en-mismatch",
+    "localEn": "Honorary Subway Worker",
+    "remoteEn": "Honorary Employee",
+    "reviewed": false,
+    "note": "英文名与本地 v83 不一致（疑似版本差异），需复核后再合入"
+   }
+  }
+ }
+}

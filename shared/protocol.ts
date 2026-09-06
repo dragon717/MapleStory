@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 5;
-export const CONTENT_VERSION = 'gms83-quest-1';
+export const PROTOCOL_VERSION = 6;
+export const CONTENT_VERSION = 'gms83-quest-2';
 export type Facing = -1 | 1;
 export interface InventoryItem {
   slot: number; itemId: string; quantity: number;
@@ -27,7 +27,7 @@ export interface NpcState {
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
 export type ClientMessage =
-  | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string }
+  | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
   | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean }
   | { type: 'attack'; requestId: string }
   | { type: 'revive'; requestId: string }

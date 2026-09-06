@@ -94,12 +94,14 @@ export class CombatView {
    * Feed one authoritative damage result. `damage` is displayed verbatim;
    * this class never chooses a target or derives a damage amount.
    */
-  receiveDamageEvent(event: AuthoritativeDamageEvent, hitSoundKey = this.hitSoundKey) {
+  receiveDamageEvent(event: AuthoritativeDamageEvent, hitSoundKey: string | null = this.hitSoundKey) {
     if (!event.eventId || !event.targetId || !Number.isFinite(event.serverTick) || !validPoint(event.x, event.y) || !Number.isFinite(event.damage) || event.damage <= 0) return;
     const id = `damage:${event.eventId}`;
     if (this.seen.has(id)) return;
     this.seen.add(id);
-    if (this.scene.sound && this.scene.cache.audio.exists(hitSoundKey)) this.scene.sound.play(hitSoundKey, { volume: 0.28 });
+    // A null hitSoundKey silences the cue: players taking monster contact
+    // damage have no source-backed hit cue, so do not reuse the mob-hit cue.
+    if (hitSoundKey && this.scene.sound && this.scene.cache.audio.exists(hitSoundKey)) this.scene.sound.play(hitSoundKey, { volume: 0.28 });
     this.spawnDamageNumber(event);
   }
 

@@ -40,3 +40,5 @@ output/
 MapleStory-运行资源-*.tar.gz
 .workbuddy/*
 
+evidence/quest-i18n/cache/*
+

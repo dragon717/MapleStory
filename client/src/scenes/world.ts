@@ -182,8 +182,21 @@ export class World extends Phaser.Scene {
     }
     if (message.type === 'damageEvent' && this.loaded) {
       const target = this.snapshot?.monsters.find(monster => monster.id === message.targetId);
-      const anchor = target && this.monsters.get(target.id)?.hitAnchor({ ...target, x: message.x, y: message.y });
-      this.combat?.receiveDamageEvent(anchor ? { ...message, ...anchor } : message, target ? `mob-hit-${target.templateId}` : undefined);
+      if (target) {
+        const view = this.monsters.get(target.id);
+        const anchor = view?.hitAnchor({ ...target, x: message.x, y: message.y });
+        this.combat?.receiveDamageEvent(anchor ? { ...message, ...anchor } : message, `mob-hit-${target.templateId}`);
+      } else {
+        // A player took authoritative damage (monster contact hit). The
+        // knockback slide and new position arrive with the next snapshot, so
+        // only the white hurt flash is triggered locally; the damage number
+        // floats above the target's head.
+        const player = this.players.get(message.targetId);
+        if (player) {
+          player.hitFeedback();
+          this.combat?.receiveDamageEvent({ ...message, y: message.y + player.headAnchorYOffset() }, null);
+        }
+      }
     }
     if (message.type === 'dropPickedUp' && message.mapId === this.mapId) {
       this.drops.get(message.dropId)?.pickUp(() => {
