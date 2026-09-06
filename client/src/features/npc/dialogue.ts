@@ -11,6 +11,7 @@ interface DialogueState {
   npcId: string;
   npcTemplateId?: string;
   name: string;
+  nameZh?: string;
   dialog: Extract<ServerMessage, { type: 'npcResult' }>['dialog'];
 }
 
@@ -18,7 +19,13 @@ interface ShopOpenState {
   npcId: string;
   shopId: string;
   name: string;
+  nameZh?: string;
   items: { itemId: string; price: number; name: string; icon?: string; source?: string }[];
+}
+
+/** Pick the zh/en name the server ships (zh is the product default). */
+function displayName(zh?: string, en?: string): string {
+  return uiLocale() === 'en' ? (en ?? zh ?? '') : (zh ?? en ?? '');
 }
 
 /**
@@ -124,7 +131,7 @@ export class NpcDialogueView {
       return;
     }
     if (message.shop) {
-      this.openShop({ npcId: message.npcId, shopId: message.shop.shopId, name: message.name });
+      this.openShop({ npcId: message.npcId, shopId: message.shop.shopId, name: message.name, nameZh: message.nameZh });
       return;
     }
     this.currentRequestId = message.requestId;
@@ -133,6 +140,7 @@ export class NpcDialogueView {
       npcId: message.npcId,
       npcTemplateId: this.npcTemplates.get(message.npcId),
       name: message.name,
+      nameZh: message.nameZh,
       dialog: message.dialog,
     };
     this.renderDialogue();
@@ -212,7 +220,7 @@ export class NpcDialogueView {
       }
       aside.style.visibility = portrait ? 'visible' : 'hidden';
     }
-    if (plateName) plateName.textContent = state.name;
+    if (plateName) plateName.textContent = displayName(state.nameZh, state.name);
 
     const dialog = state.dialog;
     if (!dialog) {
@@ -368,7 +376,7 @@ export class NpcDialogueView {
 
   // ------------------------------------------------------------------- shop
 
-  private openShop(state: { npcId: string; shopId: string; name: string }) {
+  private openShop(state: { npcId: string; shopId: string; name: string; nameZh?: string }) {
     const items = (this.shopCatalog[state.shopId] ?? []).map(entry => ({
       itemId: entry.itemId,
       price: entry.price,
@@ -419,7 +427,7 @@ export class NpcDialogueView {
     }
     const root = this.shopRoot;
     const title = root.querySelector<HTMLElement>('.npc-shop-title');
-    if (title) title.textContent = `${current.name}`;
+    if (title) title.textContent = displayName(current.nameZh, current.name);
     if (!this.shopItemsRoot) return;
     this.shopItemsRoot.replaceChildren();
     if (!current.items.length) {

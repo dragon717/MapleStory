@@ -4,6 +4,11 @@
 //! `scripts/generate_npcs.py` from `P0nk/Cosmic scripts/npc/*.js`.  It is a
 //! plain structure plus one resolver, not a script engine: untrusted input can
 //! only pick between the transitions an authored node declares.
+//!
+//! Player-facing text is localized in the gameplay data: every `text` field is
+//! either a plain string (legacy English) or a `{ "en": .., "zh": .. }` map.
+//! The resolver picks the player's language with English as the fallback and
+//! Chinese as the product default, mirroring `quest_text`.
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -89,6 +94,31 @@ pub struct DialogueScript {
     pub nodes: BTreeMap<String, DialogueNode>,
 }
 
+/// A player-facing text: either a plain string (legacy, always English) or a
+/// per-locale map such as `{"en": .., "zh": ..}`.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+pub enum LocalizedText {
+    Plain(String),
+    PerLang(BTreeMap<String, String>),
+}
+
+impl LocalizedText {
+    /// Best text for the requested locale: exact locale first, English second,
+    /// then the raw string (legacy English) so no authored node can produce a
+    /// blank dialogue.
+    pub fn pick(&self, lang: &str) -> &str {
+        match self {
+            Self::Plain(text) => text,
+            Self::PerLang(map) => map
+                .get(lang)
+                .or_else(|| map.get(crate::quest_text::LANG_EN))
+                .map(String::as_str)
+                .unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DialogueNode {
@@ -102,7 +132,7 @@ pub enum DialogueNode {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SayNode {
-    pub text: String,
+    pub text: LocalizedText,
     /// `next`, `nextPrev`, `prev` or `ok`, matching the cm.send* the reference
     /// script used and therefore which buttons the client must render.
     pub kind: String,
@@ -113,7 +143,7 @@ pub struct SayNode {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskNode {
-    pub text: String,
+    pub text: LocalizedText,
     pub yes: String,
     pub no: String,
 }
@@ -121,7 +151,7 @@ pub struct AskNode {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MenuNode {
-    pub text: String,
+    pub text: LocalizedText,
     pub options: Vec<MenuOption>,
 }
 
@@ -129,7 +159,7 @@ pub struct MenuNode {
 #[serde(rename_all = "camelCase")]
 pub struct MenuOption {
     pub index: u32,
-    pub text: String,
+    pub text: LocalizedText,
     pub next: String,
 }
 
@@ -184,6 +214,9 @@ pub struct DialogueContext<'a> {
     pub inventory: &'a [crate::protocol::InventoryItem],
     /// quest id -> "active" | "completed"; absent rows are "available".
     pub quests: &'a BTreeMap<String, String>,
+    /// Display language for localized dialogue text ("zh" default, "en" for
+    /// the ?lang=en UI).  See quest_text::normalize_lang.
+    pub lang: &'a str,
 }
 
 #[derive(Clone, Deserialize)]
@@ -305,7 +338,13 @@ pub enum DialogueView {
 }
 
 impl DialogueView {
-    pub fn to_json(&self, request_id: &str, npc_id: &str, name: &str) -> serde_json::Value {
+    pub fn to_json(
+        &self,
+        request_id: &str,
+        npc_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+    ) -> serde_json::Value {
         let mut value = serde_json::json!({
             "type": "npcResult",
             "requestId": request_id,
@@ -314,6 +353,9 @@ impl DialogueView {
             "npcId": npc_id,
             "name": name,
         });
+        if let Some(name_zh) = name_zh {
+            value["nameZh"] = serde_json::Value::String(name_zh.to_owned());
+        }
         match self {
             Self::Say {
                 text,
@@ -391,7 +433,7 @@ fn resolve(
                 return Ok((
                     node_id,
                     DialogueView::Say {
-                        text: say.text.clone(),
+                        text: say.text.pick(context.lang).to_owned(),
                         kind: say.kind.clone(),
                         options: Vec::new(),
                     },
@@ -402,7 +444,7 @@ fn resolve(
                 return Ok((
                     node_id,
                     DialogueView::Say {
-                        text: ask.text.clone(),
+                        text: ask.text.pick(context.lang).to_owned(),
                         kind: "yesNo".to_owned(),
                         options: Vec::new(),
                     },
@@ -413,12 +455,12 @@ fn resolve(
                 return Ok((
                     node_id,
                     DialogueView::Say {
-                        text: menu.text.clone(),
+                        text: menu.text.pick(context.lang).to_owned(),
                         kind: "simple".to_owned(),
                         options: menu
                             .options
                             .iter()
-                            .map(|option| (option.index, option.text.clone()))
+                            .map(|option| (option.index, option.text.pick(context.lang).to_owned()))
                             .collect(),
                     },
                     None,
@@ -512,6 +554,7 @@ mod tests {
             mesos,
             inventory: &[],
             quests: empty_quests(),
+            lang: "zh",
         }
     }
 
@@ -522,6 +565,7 @@ mod tests {
             mesos: 0,
             inventory: &[],
             quests,
+            lang: "zh",
         }
     }
 
@@ -645,6 +689,75 @@ mod tests {
         )
         .unwrap();
         assert_eq!(node, "a");
+    }
+
+    #[test]
+    fn localized_text_picks_locale_then_english() {
+        let map: LocalizedText = serde_json::from_str(r#"{"en":"Hello","zh":"你好"}"#).unwrap();
+        assert_eq!(map.pick("zh"), "你好");
+        assert_eq!(map.pick("en"), "Hello");
+        // Unknown locale falls back to English.
+        assert_eq!(map.pick("fr"), "Hello");
+        let plain: LocalizedText = serde_json::from_str(r#""legacy""#).unwrap();
+        assert_eq!(plain.pick("zh"), "legacy");
+        assert_eq!(plain.pick("en"), "legacy");
+    }
+
+    #[test]
+    fn bilingual_say_resolves_in_the_player_language() {
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"a","nodes":{
+                "a":{"say":{"text":{"en":"Hello","zh":"你好"},"kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let zh = context(1, 0);
+        let (_, view, _) = advance(&script, None, None, None, &zh).unwrap();
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "你好".into(),
+                kind: "ok".into(),
+                options: vec![]
+            }
+        );
+        let mut en = context(1, 0);
+        en.lang = "en";
+        let (_, view, _) = advance(&script, None, None, None, &en).unwrap();
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "Hello".into(),
+                kind: "ok".into(),
+                options: vec![]
+            }
+        );
+    }
+
+    #[test]
+    fn bilingual_menu_localizes_lead_and_options() {
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"m","nodes":{
+                "m":{"menu":{
+                    "text":{"en":"Ask away!","zh":"尽管问吧！"},
+                    "options":[
+                        {"index":0,"text":{"en":"How do I move?","zh":"怎么移动？"},"next":"a"}
+                    ]}},
+                "a":{"say":{"text":"bye","kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let (_, view, _) = advance(&script, None, None, None, &context(1, 0)).unwrap();
+        match view {
+            DialogueView::Say {
+                text,
+                kind,
+                options,
+            } => {
+                assert_eq!(kind, "simple");
+                assert_eq!(text, "尽管问吧！");
+                assert_eq!(options, vec![(0, "怎么移动？".to_owned())]);
+            }
+            other => panic!("expected say view, got {other:?}"),
+        }
     }
 
     #[test]

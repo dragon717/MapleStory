@@ -136,6 +136,22 @@ python3 scripts/quest_i18n/zh_todo.py --survey   # 全库盘点
 
 mxd.dvg.cn 同 id 还提供 台服/韩服 官方名；若将来要繁体/韩文，在 `fetch_dvg.py` 解析与 `quest-text.json` 加 locale 键即可（服务端 `name/log` 是 locale→文本 map，天然支持）。
 
+### 3.7 NPC 对话多语（2026-09-06 落地：默认中文）
+
+NPC 对话文本也走「服务端权威 + lang 下发，默认 zh」——与 questList 同一纪律。
+
+- **数据**：`shared/gameplay.json` 每个对话文本（`say/ask/menu` 的 `text`、`menu.options[].text`）为 `{"en":..,"zh":..}`；en 保留 Cosmic/v83 原版（menu 导语已剥离 `#L..#l` 选项回声），zh 由 `shared/npc-dialogue-zh.json`（AI 草稿，`reviewed:false`）合并而来。旧 `string` 文本视为 en，向后兼容。
+- **服务端**：`server/src/npc.rs` 新增 `LocalizedText`（untagged Plain|PerLang），`DialogueContext` 带 `lang`，resolve 按 lang 取文本、缺 zh 回 en；`world.rs::handle_npc_talk` 传入玩家 lang。
+- **命令**：
+  ```bash
+  python3 scripts/npc_i18n/apply_dialogue_zh.py              # 合并 zh 入 shared/gameplay.json(幂等)
+  python3 scripts/npc_i18n/verify_dialogue_lang.py           # 质量门:110 文本全双语/zh 纯文本/无 #L 残留
+  cp shared/gameplay.json evidence/runtime/gameplay-round2.json   # 同步服务端运行时
+  cp shared/gameplay.json shared/items.json client/public-gameplay/assets/  # 商店目录镜像(也补 dist-next)
+  node qa/dialogue_i18n_probe.mjs register && node qa/dialogue_i18n_probe.mjs verify zh && ... en   # e2e
+  ```
+- **⚠️** `scripts/generate_npcs.py` 是 BOOTSTRAP-ONLY：重跑会重置 npcs（丢 2000 手工脚本与 zh），勿在现网数据上重跑。
+
 ---
 
 ## 4. 已完成执行记录（2026-09-06，替代原 M1–M4 拆分）

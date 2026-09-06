@@ -1,5 +1,11 @@
 """Generate v83 NPC templates, authored spawns, dialogue state machines and shops.
 
+⚠️  BOOTSTRAP-ONLY.  Re-running REPLACES shared/gameplay.json npcs/npcSpawns/shops
+from the raw references: it drops the hand-authored Roger (2000) quest script,
+any post-generation dialogue edits and the localized zh text.  Never run it
+against the live gameplay file; after a rebuild you must re-apply
+`scripts/npc_i18n/apply_dialogue_zh.py` and re-add hand-authored quest nodes.
+
 Sources (all local, all GMS83 / v83-era reference):
   * Map.wz/Map/Map0/*.img.xml            -> life entries with type 'n' (mapId/x/y/fh/f/hide)
   * String.wz/Npc.img.xml                -> display names

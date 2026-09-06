@@ -16,6 +16,8 @@ use axum::{
 };
 use network::{error, login, register, upgrade, App};
 use protocol::CONTENT_VERSION;
+use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{mpsc, Semaphore};
 use tower_http::services::{ServeDir, ServeFile};
@@ -54,6 +56,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             quest_text_path.display()
         )
     })?;
+    #[derive(Deserialize)]
+    struct NpcNamesFile {
+        npcs: BTreeMap<String, String>,
+    }
+    let npc_names_zh_path = PathBuf::from(setting(
+        "NPC_NAMES_ZH_FILE",
+        root.join("shared/npc-names.json").to_str().unwrap(),
+    ));
+    let npc_names_zh: BTreeMap<String, String> =
+        serde_json::from_str::<NpcNamesFile>(&std::fs::read_to_string(&npc_names_zh_path).map_err(
+            |error| {
+                format!(
+                    "Cannot read npc names zh {}: {error}",
+                    npc_names_zh_path.display()
+                )
+            },
+        )?)
+        .map_err(|error| {
+            format!(
+                "Cannot parse npc names zh {}: {error}",
+                npc_names_zh_path.display()
+            )
+        })?
+        .npcs;
     let duration_ms: u64 = setting("ATTACK_DURATION_MS", "800").parse()?;
     if !(50..=5000).contains(&duration_ms) {
         return Err("ATTACK_DURATION_MS must be 50..5000".into());
@@ -75,7 +101,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         world::World::new_with_store(map, duration_ms, gameplay, world_store)?
     }
-    .with_quest_text(quest_text);
+    .with_quest_text(quest_text)
+    .with_npc_names_zh(npc_names_zh);
     tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,

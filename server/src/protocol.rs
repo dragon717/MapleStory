@@ -323,7 +323,12 @@ pub struct MonsterState {
 pub struct NpcState {
     pub id: String,
     pub template_id: String,
+    /// Authoritative English display name (reference v83).
     pub name: String,
+    /// Chinese display name (shared/npc-names.json).  Additive optional field;
+    /// clients that do not know it simply keep rendering `name`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_zh: Option<String>,
     pub x: f64,
     pub y: f64,
     pub facing: i8,

@@ -22,7 +22,12 @@ export interface MonsterState {
   hp: number; maxHp: number; action: 'stand' | 'move' | 'hit' | 'die'; actionStartedTick: number;
 }
 export interface NpcState {
-  id: string; templateId: string; name: string; x: number; y: number;
+  id: string; templateId: string;
+  /** Authoritative English display name (reference v83). */
+  name: string;
+  /** Chinese display name (server carries shared/npc-names.json). Additive optional. */
+  nameZh?: string;
+  x: number; y: number;
   facing: Facing; shopId?: string;
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
@@ -60,7 +65,7 @@ export type ServerMessage =
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
-  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean }
+  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean }
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   | { type: 'questList'; quests: QuestLogEntry[] }
   | { type: 'questUpdate'; questId: string; name: string; status: QuestLogEntry['status']; summary: string; reward: QuestRewardInfo }

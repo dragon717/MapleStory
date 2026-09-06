@@ -76,14 +76,29 @@ export class World extends Phaser.Scene {
     const player = this.snapshot?.players.find(candidate => candidate.id === this.snapshot?.selfId);
     if (this.loaded && player) this.tryPortal(player, false);
   }
+  // Thresholds mirror the server-side guard in `world.rs::handle_portal`
+  // (48 × 64).  The old 36 px ceiling was too tight — a player standing one
+  // step away from `out00` (e.g. at x≈930 on a 975 px gate) had Δx in 37..48
+  // and the client silently dropped the request, so ↑ produced no feedback.
+  private static readonly PORTAL_RANGE_X = 48;
+  private static readonly PORTAL_RANGE_Y = 64;
   private tryPortal(player: Snapshot['players'][number], touchOnly: boolean) {
     if (player.hp <= 0 || player.action === 'attack' || performance.now() < this.portalCooldownUntil) return;
-    const portal = (this.manifest.map.portals ?? [])
-      .find(candidate => candidate.targetMapId && candidate.name !== 'sp'
+    const rangeX = World.PORTAL_RANGE_X;
+    const rangeY = World.PORTAL_RANGE_Y;
+    // Pick the closest interactive portal whose target map is known — JSON
+    // order is not a meaningful priority, and a map with two nearby gates
+    // (e.g. 小森林's `east00` and `out00`) must route the player to whichever
+    // they are physically nearest to, not whichever appears first in the file.
+    const candidates = (this.manifest.map.portals ?? [])
+      .filter(candidate => candidate.targetMapId && candidate.name !== 'sp'
         && (touchOnly ? candidate.type === 3 : [1, 2, 7, 8, 10, 11].includes(candidate.type))
-        && Math.abs(candidate.x - player.x) <= 36
-        && Math.abs(candidate.y - player.y) <= 64);
-    if (!portal || !this.requestPortal(portal.name)) return;
+        && Math.abs(candidate.x - player.x) <= rangeX
+        && Math.abs(candidate.y - player.y) <= rangeY)
+      .map(candidate => ({ portal: candidate, dx: candidate.x - player.x, dy: candidate.y - player.y }))
+      .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+    const nearest = candidates[0]?.portal;
+    if (!nearest || !this.requestPortal(nearest.name)) return;
     this.portalCooldownUntil = performance.now() + 1000;
   }
   preload() {
@@ -154,7 +169,25 @@ export class World extends Phaser.Scene {
       if (portal.script) continue;
       const asset = this.manifest.portals?.[`${this.manifest.map.id}/${portal.name}`];
       if (!asset?.frames?.length) continue;
-      const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, portal.x, portal.y, portalDepth);
+      // WZ portal sprites carry an `origin` pixel inside the canvas (e.g. pv
+      // is 87×182 with origin (43, 173)), and `portal.y` is the WZ anchor's
+      // world y — not the sprite's bottom.  Anchoring at (origin.x, origin.y)
+      // leaves the bottom (height − origin.y) px floating below the gate and
+      // pushes the top (origin.y) px into the sky, so the beam visibly hovers
+      // above the ground (visible on 小森林 out00, where ground is y=155 and
+      // the beam would otherwise span y∈[−22, 160]).  Shift the anchor down
+      // by exactly that offset so the sprite's foot sits flush on portal.y.
+      const firstFrame = asset.frames[0];
+      const footOffset = firstFrame.height - (firstFrame.origin?.y ?? firstFrame.height);
+      // 仅小森林（000040000）右侧的 out00（通往危险森林）需要把渲染位置右移
+      // 精灵锚点列 origin.x 来贴合门的显示中心，其余地图传送阵保持在 portal.x。
+      // 只作用于显示，不改数据，后端判定/落点仍以 portal.x 为准。
+      const shiftX = this.manifest.map.id === '000040000' && portal.name === 'out00'
+        ? (firstFrame.origin?.x ?? 0)
+        : 0;
+      const anchorX = portal.x + shiftX;
+      const anchorY = portal.y + footOffset;
+      const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, anchorX, anchorY, portalDepth);
       this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
     }
     if (this.manifest.map.bgm) { this.bgm = this.sound.add(`bgm-${this.mapId}`, { loop: true, volume: 0.25 }); this.bgm.play(); }

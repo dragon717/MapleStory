@@ -1492,6 +1492,10 @@ pub struct World {
     /// The authoritative source for the localized names/summaries the server
     /// pushes in questList/questUpdate.
     quest_text: crate::quest_text::QuestTextCorpus,
+    /// Chinese display names for placed npc templates (shared/npc-names.json).
+    /// Attached to snapshot/npcResult rows as `nameZh` so the zh UI can label
+    /// npcs consistently with quest text without shipping a client table.
+    npc_names_zh: BTreeMap<String, String>,
     tick: u64,
     combat: Combat,
     store: Option<Store>,
@@ -1547,6 +1551,7 @@ impl World {
             inventory_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
             quest_text: crate::quest_text::QuestTextCorpus::default(),
+            npc_names_zh: BTreeMap::new(),
             tick: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
             store,
@@ -1583,6 +1588,23 @@ impl World {
     /// (unit tests) degrade to quest-id names with empty summaries.
     pub fn with_quest_text(mut self, quest_text: crate::quest_text::QuestTextCorpus) -> Self {
         self.quest_text = quest_text;
+        self
+    }
+
+    /// Inject Chinese display names for placed npc templates (shared/npc-names.json).
+    pub fn with_npc_names_zh(mut self, names_zh: BTreeMap<String, String>) -> Self {
+        self.npc_names_zh = names_zh;
+        // The world constructors spawn the birth-map npcs before this injection
+        // runs, so backfill any already-placed instances that spawned without a
+        // zh name (their lookup table was still empty at that point).
+        for npc in self.npcs.values_mut() {
+            if npc.state.name_zh.is_none() {
+                npc.state.name_zh = self
+                    .npc_names_zh
+                    .get(npc.state.template_id.as_str())
+                    .cloned();
+            }
+        }
         self
     }
 
@@ -1800,6 +1822,10 @@ impl World {
                     id,
                     template_id: template.template_id.clone(),
                     name: template.name.clone(),
+                    name_zh: self
+                        .npc_names_zh
+                        .get(template.template_id.as_str())
+                        .cloned(),
                     x: spawn.x,
                     y: spawn.y,
                     facing: spawn.facing,
@@ -3705,10 +3731,11 @@ impl World {
                 player.state.level,
                 player.state.mesos,
                 player.state.inventory.clone(),
+                player.lang,
             ),
             None => return,
         };
-        let (map_id, px, py, level, mesos, inventory) = player_state;
+        let (map_id, px, py, level, mesos, inventory, lang) = player_state;
         // Locate the npc and its template.
         let npc_view = {
             let Some(npc) = self.npcs.get(&npc_id) else {
@@ -3734,9 +3761,10 @@ impl World {
                 npc.state.x,
                 npc.state.y,
                 npc.state.name.clone(),
+                npc.state.name_zh.clone(),
             )
         };
-        let (template_id, nx, ny, name) = npc_view;
+        let (template_id, nx, ny, name, name_zh) = npc_view;
         if (px - nx).abs() > npc::TALK_RANGE_X || (py - ny).abs() > npc::TALK_RANGE_Y {
             self.send_reject(
                 &id,
@@ -3764,7 +3792,7 @@ impl World {
         let Some(script) = template.script.clone() else {
             self.send_npc_dialogue(
                 &id,
-                npc::DialogueView::End.to_json(&request_id, &npc_id, &name),
+                npc::DialogueView::End.to_json(&request_id, &npc_id, &name, name_zh.as_deref()),
             );
             self.end_conversation(&id);
             return;
@@ -3789,10 +3817,11 @@ impl World {
             mesos,
             inventory: &inventory,
             quests: &quests,
+            lang,
         };
         match npc::advance(&script, current_node.as_deref(), step, selection, &context) {
             Ok((next_node, view, effect)) => {
-                let value = view.to_json(&request_id, &npc_id, &name);
+                let value = view.to_json(&request_id, &npc_id, &name, name_zh.as_deref());
                 if let Some(npc) = self.npcs.get_mut(&npc_id) {
                     npc.conversation = match view {
                         npc::DialogueView::End => None,
@@ -6237,7 +6266,10 @@ mod tests {
                         .maps
                         .iter()
                         .find(|candidate| candidate.id == target_map)
-                        .is_some_and(|candidate| candidate.portals.iter().any(|p| p.name == target_portal)),
+                        .is_some_and(|candidate| candidate
+                            .portals
+                            .iter()
+                            .any(|p| p.name == target_portal)),
                     "{} portal {} dangles -> {target_map}/{target_portal}",
                     map.id,
                     portal.name
