@@ -1,0 +1,32 @@
+{
+  "1102173": {
+    "inventoryType": 1,
+    "slotMax": 1,
+    "info": {
+      "islot": "Sr",
+      "vslot": "Sr",
+      "reqJob": 0,
+      "reqLevel": 0,
+      "tuc": 6,
+      "incACC": 5,
+      "incSpeed": 5,
+      "incJump": 5,
+      "price": 1
+    },
+    "spec": {}
+  },
+  "2380000": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "info": {
+      "tradeBlock": 1,
+      "bigSize": 1,
+      "only": 1,
+      "monsterBook": 1,
+      "mob": 100100
+    },
+    "spec": {
+      "consumeOnPickup": 1
+    }
+  }
+}

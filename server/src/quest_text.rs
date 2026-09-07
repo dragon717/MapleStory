@@ -143,19 +143,9 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../shared/quest-text.json");
         let corpus = QuestTextCorpus::load(&path).expect("shared/quest-text.json must parse");
         assert!(!corpus.quests.is_empty(), "corpus must not be empty");
-        // The two currently-playable quests are fully localized (zh + en).
-        assert_eq!(corpus.name("1021", "zh"), "罗杰的苹果");
-        assert_eq!(
-            corpus.name("maple-road-training", "en"),
-            "Training Camp Check"
-        );
-        assert!(
-            !corpus.summary("1021", "zh").is_empty(),
-            "1021 must carry a zh summary"
-        );
-        assert!(
-            !corpus.summary("maple-road-training", "zh").is_empty(),
-            "maple-road-training must carry a zh summary"
-        );
+        assert_eq!(corpus.name("36301", "zh"), "[楓之谷世界的冒險家] 插著楓葉的少女");
+        assert!(!corpus.summary("36301", "zh").is_empty());
+        assert!(!corpus.quests.contains_key("1021"));
+        assert!(!corpus.quests.contains_key("maple-road-training"));
     }
 }

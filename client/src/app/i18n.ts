@@ -61,33 +61,7 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   persistence: { zh: '保存失败，请稍后重试', en: 'Persistence failed; try again' },
 });
 
-const MAP_NAMES: Readonly<Record<string, readonly [string, string]>> = Object.freeze({
-  '000010000': ['蘑菇村', 'Mushroom Town'],
-  '000020000': ['蜗牛花园', 'Snail Garden'],
-  '000020001': ['蘑菇村街道', 'Mushroom Town Townstreet'],
-  '000030000': ['蜗牛花田', 'Snail Field of Flowers'],
-  '000030001': ['蘑菇村街道', 'Mushroom Town Townstreet'],
-  '000040000': ['小森林', 'In a Small Forest'],
-  '000040001': ['蜗牛狩猎场 II', 'Snail Hunting Ground II'],
-  '000040002': ['蜗牛狩猎场 III', 'Snail Hunting Ground III'],
-  '000050000': ['危险森林', 'Dangerous Forest'],
-  '000050001': ['南港西部平原', 'The Field West of Southperry'],
-  '000060000': ['南港', 'Southperry'],
-  '000060001': ['南港防具店', 'Southperry Armor Store'],
-  '001000000': ['彩虹村', 'Amherst'],
-  '001000001': ['彩虹村武器店', 'Amherst Weapon Store'],
-  '001000002': ['彩虹村街道', 'Amherst Townstreet'],
-  '001000003': ['彩虹村百货店', 'Amherst Department Store'],
-  '001000004': ['蜗牛花园', 'Snail Garden'],
-  '001000005': ['森林中部狩猎场 I', 'Hunting Ground Middle of the Forest I'],
-  '001000006': ['森林中部狩猎场 II', 'Hunting Ground Middle of the Forest II'],
-  '001010000': ['冒险家训练中心入口', 'Entrance to Adventurer Training Center'],
-  '001020000': ['命运分岔路', 'Split Road of Destiny'],
-  '002000000': ['南港', 'Southperry'],
-  '002000001': ['南港防具店', 'Southperry Armor Store'],
-});
-
 export function uiLocale(): UiLocale { return locale; }
 export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? fallback; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
-export function mapText(id: string, fallback: string): string { return MAP_NAMES[id]?.[locale === 'en' ? 1 : 0] ?? fallback; }
+export function mapText(id: string, sourceName: string): string { return sourceName || id; }

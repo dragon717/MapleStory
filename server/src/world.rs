@@ -713,6 +713,9 @@ pub struct MonsterTemplate {
     /// Source Mob.wz physical defense used by the weapon damage interval.
     #[serde(default, alias = "PDDamage", alias = "pdd")]
     pub pd_damage: Option<i64>,
+    /// TMS273 Mob.info.PDRate is percentage defense, not an absolute PDD value.
+    #[serde(default, alias = "PDRate")]
+    pub pd_rate: Option<f64>,
     pub exp: u64,
     #[serde(default, deserialize_with = "deserialize_boolish")]
     pub body_attack: bool,
@@ -872,6 +875,43 @@ pub struct MonsterSpawn {
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct QuestRewardItem {
+    #[serde(default)]
+    item_id: String,
+    #[serde(default)]
+    quantity: u32,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestReward {
+    #[serde(default)]
+    mesos: u64,
+    #[serde(default)]
+    exp: u64,
+    #[serde(default)]
+    items: Vec<QuestRewardItem>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestSpec {
+    #[serde(default)]
+    executable: Option<bool>,
+    #[serde(default)]
+    quest_id: String,
+    #[serde(default)]
+    reward: QuestReward,
+}
+
+impl QuestSpec {
+    fn valid_reward(&self) -> bool {
+        self.reward.items.iter().all(|item| !item.item_id.is_empty() && item.quantity > 0)
+    }
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Gameplay {
     #[serde(default)]
     pub content_version: Option<String>,
@@ -893,6 +933,8 @@ pub struct Gameplay {
     pub npc_spawns: Vec<NpcSpawn>,
     #[serde(default)]
     pub shops: Vec<Shop>,
+    #[serde(default)]
+    quests: Vec<QuestSpec>,
     #[serde(default)]
     pub sources: Sources,
 }
@@ -924,6 +966,7 @@ impl Gameplay {
                     .source_speed
                     .is_some_and(|speed| !speed.is_finite() || speed < -100.0)
                 || template.pd_damage.is_some_and(|damage| damage < 0)
+                || template.pd_rate.is_some_and(|rate| !rate.is_finite() || rate < 0.0)
                 || template.stand_delay_ms.is_some_and(|delay| delay == 0)
                 || template
                     .move_duration_ms
@@ -1114,6 +1157,17 @@ impl Gameplay {
                 return Err("shop references unknown npc template".into());
             }
         }
+        for quest in &self.quests {
+            if quest.quest_id.trim().is_empty() || !quest.valid_reward() {
+                return Err("invalid gameplay quest".into());
+            }
+        }
+        for index in 0..self.quests.len() {
+            let quest = &self.quests[index].quest_id;
+            if self.quests[..index].iter().any(|prior| prior.quest_id == *quest) {
+                return Err("duplicate gameplay quest id".into());
+            }
+        }
         Ok(())
     }
 
@@ -1247,6 +1301,10 @@ impl PlayerConfig {
     /// interval, then samples a float and truncates it to an integer.
     fn attack_range_against(&self, player_level: u32, monster: &MonsterTemplate) -> (f64, f64) {
         let (min, max) = self.attack_range();
+        if let Some(rate) = monster.pd_rate {
+            let factor = (1.0 - rate / 100.0).max(0.0);
+            return ((min as f64 * factor).max(1.0), (max as f64 * factor).max(1.0));
+        }
         let level_delta = monster.level.saturating_sub(player_level) as f64;
         let factor = 1.0 - 0.01 * level_delta;
         let pdd = monster.pd_damage.unwrap_or(0).max(0) as f64;
@@ -3853,13 +3911,31 @@ impl World {
         let _ = player_id;
     }
 
-    /// Mesos reward granted when `complete` is confirmed for a quest.  This
-    /// lives server-side next to the authored dialog so the client never has
-    /// to trust reward numbers.
-    fn quest_reward_mesos(quest_id: &str) -> u64 {
-        match quest_id {
-            "maple-road-training" => 300,
-            _ => 0,
+    fn quest_reward(&self, quest_id: &str) -> QuestReward {
+        self.gameplay
+            .quests
+            .iter()
+            .find(|quest| quest.quest_id == quest_id)
+            .map(|quest| quest.reward.clone())
+            .unwrap_or_default()
+    }
+
+    fn add_exp(state: &mut PlayerState, amount: u64, exp_table: &[u64]) {
+        state.exp = state.exp.saturating_add(amount);
+        while let Some(&threshold) = exp_table.get(state.level.saturating_sub(1) as usize) {
+            if threshold == 0 || state.exp < threshold {
+                state.exp_to_next = threshold;
+                break;
+            }
+            state.exp -= threshold;
+            state.level = state.level.saturating_add(1);
+            state.exp_to_next = exp_table
+                .get(state.level.saturating_sub(1) as usize)
+                .copied()
+                .unwrap_or(0);
+            if state.exp_to_next == 0 {
+                break;
+            }
         }
     }
 
@@ -3868,6 +3944,10 @@ impl World {
             npc::QuestEffect::Start(quest_id) => (quest_id, "active"),
             npc::QuestEffect::Complete(quest_id) => (quest_id, "completed"),
         };
+        if self.gameplay.quests.iter().any(|quest| quest.quest_id == quest_id && quest.executable == Some(false)) {
+            self.send_reject(id, "quest_script_unavailable", "此任務的原版劇情腳本尚未接入。", None);
+            return;
+        }
         // Only accept the authored transition: available -> active and
         // active -> completed.  Repeat accepts and double turn-ins are no-ops.
         let transition_ok = match self
@@ -3883,20 +3963,39 @@ impl World {
             return;
         }
         let reward = if wanted == "completed" {
-            Self::quest_reward_mesos(&quest_id)
+            self.quest_reward(&quest_id)
         } else {
-            0
+            QuestReward::default()
         };
-        {
-            let player = match self.players.get_mut(id) {
-                Some(player) => player,
-                None => return,
-            };
-            player.quests.insert(quest_id.clone(), wanted.to_owned());
-            if reward > 0 {
-                player.state.mesos = player.state.mesos.saturating_add(reward);
+
+        let mut next_state = match self.players.get(id) {
+            Some(player) => player.state.clone(),
+            None => return,
+        };
+        let mut next_quests = match self.players.get(id) {
+            Some(player) => player.quests.clone(),
+            None => return,
+        };
+
+        if wanted == "completed" {
+            next_state.mesos = next_state.mesos.saturating_add(reward.mesos);
+            if reward.exp > 0 {
+                Self::add_exp(&mut next_state, reward.exp, &self.gameplay.exp_table);
+            }
+            for item in reward.items.iter() {
+                if let Err(error) = inventory::add_items(&mut next_state.inventory, item.item_id.clone(), item.quantity) {
+                    let code = match error {
+                        inventory::InventoryError::InventoryFull => "quest_reward_inventory_full",
+                        inventory::InventoryError::UnknownItem => "quest_reward_unknown_item",
+                        _ => "quest_reward_rejected",
+                    };
+                    self.send_reject(id, code, "quest reward failed", None);
+                    return;
+                }
             }
         }
+        next_quests.insert(quest_id.clone(), wanted.to_owned());
+
         if let Some(store) = self.store.as_ref() {
             if let Err(error) = store.save_quest(id, &quest_id, wanted) {
                 let _ = self.players.get(id).and_then(|player| {
@@ -3905,10 +4004,28 @@ impl World {
                         .try_send(reject("persistence", &error, None))
                         .ok()
                 });
+                return;
             }
         }
+        {
+            let Some(player) = self.players.get_mut(id) else {
+                return;
+            };
+            player.state = next_state;
+            player.quests = next_quests;
+        }
         if wanted == "completed" {
-            let _ = self.persist_player(id);
+            let player = match self.players.get(id) {
+                Some(player) => player,
+                None => return,
+            };
+            if let Some(store) = self.store.as_ref() {
+                let _ = store.write_inventory(id, &player.state.inventory);
+                let _ = store.save_profile(
+                    id,
+                    &profile_from_state(&player.state, &player.map_id, &player.death_id),
+                );
+            }
         }
         // Authoritative localized questUpdate so the client quest log and
         // accept/complete chat hints reflect exactly what the server settled.
@@ -3959,6 +4076,8 @@ impl World {
         let quests: Vec<serde_json::Value> = player
             .quests
             .iter()
+            // Retain historical account records, but only expose quests from the active content catalog.
+            .filter(|(quest_id, _)| self.gameplay.quests.is_empty() || self.gameplay.quests.iter().any(|quest| quest.quest_id == **quest_id))
             .map(|(quest_id, status)| {
                 serde_json::json!({
                     "questId": quest_id,
@@ -3974,18 +4093,23 @@ impl World {
 
     /// Push a single quest transition (active/completed) with the localized
     /// display text and the reward the server actually granted.
-    fn send_quest_update(&self, id: &str, quest_id: &str, status: &str, mesos: u64) {
+    fn send_quest_update(&self, id: &str, quest_id: &str, status: &str, reward: QuestReward) {
         let Some(player) = self.players.get(id) else {
             return;
         };
         let lang = player.lang;
+        let reward_items: Vec<serde_json::Value> = reward
+            .items
+            .into_iter()
+            .map(|item| serde_json::json!({ "itemId": item.item_id, "quantity": item.quantity }))
+            .collect();
         let message = serde_json::json!({
             "type": "questUpdate",
             "questId": quest_id,
             "name": self.quest_text.name(quest_id, lang),
             "status": status,
             "summary": self.quest_text.summary(quest_id, lang),
-            "reward": { "mesos": mesos, "exp": 0, "items": [] },
+            "reward": { "mesos": reward.mesos, "exp": reward.exp, "items": reward_items },
         })
         .to_string();
         let _ = player.output.try_send(message);
@@ -4276,6 +4400,7 @@ impl World {
                         max_hp: 0,
                         pa_damage: None,
                         pd_damage: None,
+                        pd_rate: None,
                         exp: 0,
                         body_attack: false,
                         move_speed: None,
@@ -5446,6 +5571,7 @@ mod tests {
             max_hp: 8,
             pa_damage: Some(3),
             pd_damage: Some(0),
+            pd_rate: None,
             exp: 1,
             body_attack: false,
             move_speed: None,
@@ -5702,8 +5828,8 @@ mod tests {
         );
 
         let mut helmet = crate::protocol::InventoryItem {
-            slot: 1,
-            item_id: "1002067".into(),
+            slot: 9,
+            item_id: "1102173".into(),
             quantity: 1,
             ..crate::protocol::InventoryItem::default()
         };
@@ -5711,7 +5837,7 @@ mod tests {
         world.players.get_mut("a").unwrap().state.inventory =
             vec![crate::protocol::InventoryItem {
                 slot: 1,
-                item_id: "2040002".into(),
+                item_id: "2041006".into(),
                 quantity: 2,
                 ..crate::protocol::InventoryItem::default()
             }];
@@ -5722,14 +5848,14 @@ mod tests {
             "memory-scroll-wrong-target".into(),
             2,
             1,
-            "2040002".into(),
-            Some(-1),
+            "2041006".into(),
+            Some(-9),
             Some("1040002".into()),
         );
         assert_eq!(world.players["a"].state.inventory[0].quantity, 2);
         assert_eq!(
             world.players["a"].state.equipped[0].remaining_slots,
-            Some(7)
+            Some(6)
         );
 
         world.handle_use_item(
@@ -5737,17 +5863,17 @@ mod tests {
             "memory-scroll-valid".into(),
             2,
             1,
-            "2040002".into(),
-            Some(-1),
-            Some("1002067".into()),
+            "2041006".into(),
+            Some(-9),
+            Some("1102173".into()),
         );
         assert_eq!(world.players["a"].state.inventory[0].quantity, 1);
         let helmet = &world.players["a"].state.equipped[0];
-        assert_eq!(helmet.remaining_slots, Some(6));
-        assert!(matches!(
-            helmet.stats.as_ref().and_then(|stats| stats.get("incPDD")),
-            Some(5) | Some(10)
-        ));
+        assert_eq!(helmet.remaining_slots, Some(5));
+        assert_eq!(
+            helmet.stats.as_ref().and_then(|stats| stats.get("incMHP")),
+            Some(&20)
+        );
 
         let strengthened = crate::protocol::InventoryItem {
             slot: 1,
@@ -6180,102 +6306,22 @@ mod tests {
     }
 
     #[test]
-    fn generated_map_catalog_keeps_portal_return_paths() {
+    fn tms273_catalog_preserves_authored_portals_without_v83_rewrites() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
-        let catalog = MapCatalog::load(&path).expect("generated map catalog");
-        // WZ only stores the outgoing half of a map link; the integration step
-        // gives the arrival half a return path so a player can walk back.
-        for (arrival_map, arrival_portal, return_map, return_portal) in [
-            ("000020000", "in00", "000010000", "out00"),
-            ("000030000", "in00", "000020000", "out00"),
-            ("000040000", "in00", "000030000", "out00"),
-            ("000050000", "in00", "000040000", "out00"),
-        ] {
-            let arrival = catalog
-                .maps
-                .iter()
-                .find(|map| map.id == arrival_map)
-                .unwrap_or_else(|| panic!("missing map {arrival_map}"))
-                .portals
-                .iter()
-                .find(|portal| portal.name == arrival_portal)
-                .unwrap_or_else(|| panic!("missing portal {arrival_map}/{arrival_portal}"));
-            assert_eq!(
-                arrival.target_map_id.as_deref(),
-                Some(return_map),
-                "{arrival_map}/{arrival_portal} lost its return path"
-            );
-            assert_eq!(arrival.target_portal_name.as_deref(), Some(return_portal));
-        }
-    }
-
-    #[test]
-    fn generated_map_catalog_materialises_missing_arrival_gates() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
-        let catalog = MapCatalog::load(&path).expect("generated map catalog");
-        // v83 WZ points these links at portal slots it never declares on the
-        // target map; the integration step materialises them so each source
-        // portal answers back and no arrival silently falls back to spawn.
-        for (map_id, portal_name, target_map, target_portal) in [
-            ("000020000", "in01", "000020001", "out00"),
-            ("000040000", "east00", "000040001", "west00"),
-            ("000050000", "west00", "000040002", "east00"),
-            ("000050000", "east01", "000050001", "west00"),
-            ("001000000", "in01", "001000002", "out00"),
-            ("001000000", "in03", "001000004", "out00"),
-            ("001020000", "in01", "001000005", "out00"),
-            ("001020000", "in02", "001000006", "out00"),
-        ] {
-            let gate = catalog
-                .maps
-                .iter()
-                .find(|map| map.id == map_id)
-                .unwrap_or_else(|| panic!("missing map {map_id}"))
-                .portals
-                .iter()
-                .find(|portal| portal.name == portal_name)
-                .unwrap_or_else(|| panic!("missing arrival gate {map_id}/{portal_name}"));
-            assert_eq!(gate.target_map_id.as_deref(), Some(target_map));
-            assert_eq!(gate.target_portal_name.as_deref(), Some(target_portal));
-        }
-        // Two street exits used to share one in01 slot; the second one is
-        // re-pointed at the dedicated in03 gate.
-        let snail_garden = &catalog
-            .maps
-            .iter()
-            .find(|map| map.id == "001000004")
-            .expect("001000004")
-            .portals;
-        let out00 = snail_garden
-            .iter()
-            .find(|portal| portal.name == "out00")
-            .expect("001000004/out00");
-        assert_eq!(out00.target_map_id.as_deref(), Some("001000000"));
-        assert_eq!(out00.target_portal_name.as_deref(), Some("in03"));
-        // Every authored link must now land on a real portal.
-        for map in &catalog.maps {
-            for portal in &map.portals {
-                let Some(target_map) = portal.target_map_id.as_deref() else {
-                    continue;
-                };
-                let Some(target_portal) = portal.target_portal_name.as_deref() else {
-                    continue;
-                };
-                assert!(
-                    catalog
-                        .maps
-                        .iter()
-                        .find(|candidate| candidate.id == target_map)
-                        .is_some_and(|candidate| candidate
-                            .portals
-                            .iter()
-                            .any(|p| p.name == target_portal)),
-                    "{} portal {} dangles -> {target_map}/{target_portal}",
-                    map.id,
-                    portal.name
-                );
-            }
-        }
+        let catalog = MapCatalog::load(&path).expect("generated TMS273 map catalog");
+        let map = |id: &str| catalog.maps.iter().find(|map| map.id == id).unwrap();
+        let portal = |id: &str, name: &str| {
+            map(id).portals.iter().find(|portal| portal.name == name).unwrap()
+        };
+        let exit = portal("000020000", "out00");
+        assert_eq!(exit.target_map_id.as_deref(), Some("001000000"));
+        assert_eq!(exit.target_portal_name.as_deref(), Some("west00"));
+        // The source arrival marker is not an outgoing return gate.
+        let arrival = portal("000030000", "in00");
+        assert!(arrival.target_map_id.is_none());
+        assert!(arrival.target_portal_name.is_none());
+        assert!(!map("000020000").portals.iter().any(|p| p.name == "in01"));
+        assert_eq!(portal("000040000", "in00").target_map_id.as_deref(), Some("000020000"));
     }
 
     #[test]
@@ -6420,6 +6466,25 @@ mod tests {
             };
             assert!(error.contains(expected), "{error}");
         }
+    }
+
+    #[test]
+    fn tms273_percentage_defense_is_not_absolute_pdd() {
+        let config = PlayerConfig {
+            base_str: Some(100), base_dex: Some(20),
+            weapon_type: Some(130), weapon_watk: Some(100),
+            ..PlayerConfig::default()
+        };
+        let mut monster = life_template();
+        monster.pd_rate = Some(10.0);
+        monster.pd_damage = Some(9999);
+        let (min, max) = config.attack_range();
+        assert_eq!(config.attack_range_against(1, &monster), (min as f64 * 0.9, max as f64 * 0.9));
+        monster.pd_rate = Some(300.0);
+        assert_eq!(config.attack_range_against(1, &monster), (1.0, 1.0));
+        let mut gameplay = life_gameplay(Vec::new());
+        gameplay.monsters[0].pd_rate = Some(f64::NAN);
+        assert!(gameplay.validate().is_err());
     }
 
     #[test]
@@ -6824,7 +6889,7 @@ mod tests {
     #[test]
     fn config_drop_and_exp_are_authoritative_without_client_values() {
         let gameplay: Gameplay = serde_json::from_str(
-            r#"{"contentVersion":"gms83-quest-2","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
+            r#"{"contentVersion":"tms273-1","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
         )
         .unwrap();
         gameplay.validate().unwrap();
@@ -7198,6 +7263,7 @@ mod tests {
                     max_hp: 8,
                     pa_damage: Some(12),
                     pd_damage: None,
+                    pd_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -7366,6 +7432,7 @@ mod tests {
                     max_hp: 8,
                     pa_damage: Some(12),
                     pd_damage: None,
+                    pd_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -7419,6 +7486,7 @@ mod tests {
                     max_hp: 8,
                     pa_damage: Some(12),
                     pd_damage: None,
+                    pd_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -7489,6 +7557,7 @@ mod tests {
                     max_hp: 8,
                     pa_damage: Some(12),
                     pd_damage: None,
+                    pd_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -7586,8 +7655,8 @@ mod tests {
             base_str: Some(4),
             base_dex: Some(4),
             weapon_type: Some(130),
-            weapon_watk: Some(17),
-            weapon_defense: Some(3),
+            weapon_watk: Some(15),
+            weapon_defense: Some(2),
             max_hp: Some(50),
             max_mp: Some(5),
             ..PlayerConfig::default()
@@ -7607,8 +7676,8 @@ mod tests {
             },
         ];
         let derived = config.with_equipment(&equipped);
-        assert_eq!(derived.weapon_watk, Some(17));
-        assert_eq!(derived.weapon_defense, Some(3));
+        assert_eq!(derived.weapon_watk, Some(15));
+        assert_eq!(derived.weapon_defense, Some(2));
         assert_eq!(derived.attack_range(), config.attack_range());
         let mut upgraded = equipped.clone();
         upgraded[1].stats = Some(BTreeMap::from([
@@ -7648,6 +7717,7 @@ mod tests {
                     max_hp: 8,
                     pa_damage: Some(12),
                     pd_damage: None,
+                    pd_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: Some(0.0),
@@ -7718,7 +7788,7 @@ mod tests {
         let start_tick = w.tick;
         w.step();
         let p = &w.players["a"];
-        assert_eq!(p.state.hp, 49, "contact damage applies once");
+        assert_eq!(p.state.hp, 48, "contact damage applies once");
         assert_eq!(p.knockback_until, start_tick + 1 + KNOCKBACK_TICKS);
         // The hit starts a short hop: the body leaves the foothold with the
         // tenacity-0 impulse and shows the jump pose while airborne.
@@ -7735,7 +7805,7 @@ mod tests {
             let message: serde_json::Value = serde_json::from_str(&line).unwrap();
             if message["type"] == "damageEvent" && message["targetId"] == "a" {
                 saw_damage_event = true;
-                assert_eq!(message["damage"], 1);
+                assert_eq!(message["damage"], 2);
                 assert_eq!(message["killed"], false);
                 assert_eq!(message["attackerId"].as_str(), Some(monster_id.as_str()));
             }
@@ -7755,7 +7825,7 @@ mod tests {
             "hop travelled a short controlled distance: {travelled}"
         );
         assert!(w.players["a"].state.grounded);
-        assert_eq!(w.players["a"].state.hp, 49);
+        assert_eq!(w.players["a"].state.hp, 48);
         assert_eq!(w.players["a"].state.action, "stand");
     }
 
@@ -7808,14 +7878,13 @@ mod tests {
             travelled < 45.0,
             "high tenacity keeps the hop short: {travelled}"
         );
-        assert_eq!(w.players["a"].state.hp, 49);
+        assert_eq!(w.players["a"].state.hp, 48);
         assert_eq!(w.players["a"].state.action, "stand");
     }
 
-    /// Real corpus so the localization assertions cover the shipped data.
-    fn real_quest_text() -> crate::quest_text::QuestTextCorpus {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/quest-text.json");
-        crate::quest_text::QuestTextCorpus::load(&path).expect("shared/quest-text.json must parse")
+    // Localization/transition unit fixtures are independent of the active content edition.
+    fn quest_test_text() -> crate::quest_text::QuestTextCorpus {
+        serde_json::from_str(r#"{"quests": {"1021": {"name": {"en": "Roger's Apple", "zh": "罗杰的苹果"}, "log": {"zh": "前往冒险岛路与罗杰对话，使用他给你的罗杰的苹果恢复 HP 到满值。", "en": "Talk to Roger on Maple Road. Use the Roger's Apple he hands you and recover your HP to full."}}, "maple-road-training": {"name": {"en": "Training Camp Check", "zh": "训练营任务确认"}, "log": {"zh": "赛拉让你在离开营地前，先让希娜确认你的训练记录。", "en": "Sera asked you to let Heena confirm your training record before you leave the camp."}}}}"#).unwrap()
     }
 
     fn quest_profile() -> Profile {
@@ -7844,13 +7913,23 @@ mod tests {
         lang: &str,
         quests: &[(&str, &str)],
     ) -> (World, mpsc::Receiver<String>) {
+        join_for_quests_with_gameplay(store, account, lang, quests, Gameplay::default())
+    }
+
+    fn join_for_quests_with_gameplay(
+        store: auth::Store,
+        account: &str,
+        lang: &str,
+        quests: &[(&str, &str)],
+        gameplay: Gameplay,
+    ) -> (World, mpsc::Receiver<String>) {
         store.load_profile(account, &quest_profile()).unwrap();
         for (quest_id, status) in quests {
             store.save_quest(account, quest_id, status).unwrap();
         }
-        let mut world = World::new_with_store(map(), 600, Gameplay::default(), store)
+        let mut world = World::new_with_store(map(), 600, gameplay, store)
             .unwrap()
-            .with_quest_text(real_quest_text());
+            .with_quest_text(quest_test_text());
         let (output, rx) = mpsc::channel(128);
         let (reply, _) = oneshot::channel();
         world.command(Command::Join {
@@ -7864,6 +7943,40 @@ mod tests {
             lang: lang.to_owned(),
         });
         (world, rx)
+    }
+
+    fn quest_reward_gameplay() -> Gameplay {
+        let mut gameplay = Gameplay::default();
+        gameplay.quests = vec![
+            QuestSpec {
+                quest_id: "maple-road-training".into(),
+                reward: QuestReward {
+                    mesos: 300,
+                    exp: 0,
+                    items: vec![],
+                },
+                ..QuestSpec::default()
+            },
+            QuestSpec {
+                quest_id: "1021".into(),
+                reward: QuestReward {
+                    mesos: 0,
+                    exp: 10,
+                    items: vec![
+                        QuestRewardItem {
+                            item_id: "2010000".into(),
+                            quantity: 3,
+                        },
+                        QuestRewardItem {
+                            item_id: "2010009".into(),
+                            quantity: 3,
+                        },
+                    ],
+                },
+                ..QuestSpec::default()
+            },
+        ];
+        gameplay
     }
 
     #[test]
@@ -7926,11 +8039,32 @@ mod tests {
     }
 
     #[test]
+    fn tms273_missing_script_cannot_change_quest_state() {
+        let path = std::env::temp_dir().join(format!("maple-quest-disabled-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let mut gameplay = Gameplay::default();
+        gameplay.quests.push(QuestSpec { quest_id: "36301".into(), executable: Some(false), ..QuestSpec::default() });
+        let (mut world, mut rx) = join_for_quests_with_gameplay(service.store.clone(), "a", "zh", &[], gameplay);
+        while rx.try_recv().is_ok() {}
+        world.apply_quest_effect("a", npc::QuestEffect::Start("36301".into()));
+        let result: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(result["code"], "quest_script_unavailable");
+        assert!(!world.players["a"].quests.contains_key("36301"));
+        assert!(!service.store.load_quests("a").unwrap().contains_key("36301"));
+    }
+
+    #[test]
     fn quest_transitions_push_localized_quest_update_with_settled_reward() {
         let path =
             std::env::temp_dir().join(format!("maple-quest-update-{}.sqlite3", auth::random_id()));
         let service = auth::start(&path).unwrap();
-        let (world, mut rx) = join_for_quests(service.store.clone(), "a", "zh", &[]);
+        let (world, mut rx) = join_for_quests_with_gameplay(
+            service.store.clone(),
+            "a",
+            "zh",
+            &[],
+            quest_reward_gameplay(),
+        );
         // Drain the join snapshot + empty questList.
         while rx.try_recv().is_ok() {}
 
@@ -7959,5 +8093,54 @@ mod tests {
         // Reward reflects exactly what the server settled (300 mesos).
         assert_eq!(completed["reward"]["mesos"], 300);
         assert_eq!(world.players["a"].state.mesos, 300);
+    }
+
+    #[test]
+    fn quest_completion_grants_configured_exp_and_items() {
+        let path =
+            std::env::temp_dir().join(format!("maple-quest-complete-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let (world, mut rx) = join_for_quests_with_gameplay(
+            service.store.clone(),
+            "a",
+            "zh",
+            &[],
+            quest_reward_gameplay(),
+        );
+        // Drain the join snapshot + empty questList.
+        while rx.try_recv().is_ok() {}
+
+        let mut world = world;
+        world.apply_quest_effect("a", npc::QuestEffect::Start("1021".into()));
+        let accepted: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(accepted["status"], "active");
+
+        world.apply_quest_effect("a", npc::QuestEffect::Complete("1021".into()));
+        let completed: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(completed["status"], "completed");
+        assert_eq!(completed["reward"]["exp"], 10);
+        assert_eq!(completed["reward"]["mesos"], 0);
+        let reward_items = completed["reward"]["items"].as_array().expect("reward items");
+        assert_eq!(reward_items.len(), 2);
+        let mut rewards = reward_items
+            .iter()
+            .map(|item| (item["itemId"].as_str().expect("item id"), item["quantity"].as_u64().expect("item qty")))
+            .collect::<Vec<_>>();
+        rewards.sort_by(|a, b| a.0.cmp(b.0));
+        assert_eq!(rewards[0], ("2010000", 3));
+        assert_eq!(rewards[1], ("2010009", 3));
+        assert_eq!(world.players["a"].state.exp, 10);
+        assert_eq!(world.players["a"].state.exp_to_next, 15);
+        let item_total = |id| {
+            world.players["a"]
+                .state
+                .inventory
+                .iter()
+                .find(|item| item.item_id == id)
+                .map(|item| item.quantity)
+                .unwrap_or_default()
+        };
+        assert_eq!(item_total("2010000"), 3);
+        assert_eq!(item_total("2010009"), 3);
     }
 }

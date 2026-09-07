@@ -1,0 +1,143 @@
+/*
+ * TMS273 inventory/equipment windows.
+ *
+ * The source frames contain the chrome and labels.  This sheet only resets
+ * the old 83-era dimensions and keeps the interaction elements positioned
+ * over the exported source layout.
+ */
+.tms273-inventory-host .inventory-window,
+.tms273-inventory-host .equipment-window {
+  box-sizing: border-box;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-window-background,
+.tms273-inventory-host .equipment-window-background {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-window-title,
+.tms273-inventory-host .equipment-window-title {
+  display: none !important;
+}
+
+.tms273-inventory-host .inventory-tabs-viewport {
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
+.tms273-inventory-host .inventory-tabs {
+  max-width: none;
+}
+
+.tms273-inventory-host .inventory-tab {
+  box-sizing: border-box;
+  max-width: none;
+}
+
+.tms273-inventory-host .inventory-tab-frame {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-grid {
+  display: block;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
+.tms273-inventory-host .inventory-slot {
+  position: absolute;
+  box-sizing: border-box;
+  max-width: none;
+}
+
+.tms273-inventory-host .inventory-slot-disabled-image {
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-item-icon {
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-item-quantity {
+  color: #fff;
+  font: 11px/12px Verdana, sans-serif;
+  white-space: nowrap;
+}
+
+.tms273-inventory-host .inventory-window-button {
+  box-sizing: content-box;
+}
+
+.tms273-inventory-host .inventory-window-button-image {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+}
+
+.tms273-inventory-host .inventory-mesos {
+  display: block !important;
+  box-sizing: border-box;
+}
+
+.tms273-inventory-host .inventory-mesos-value {
+  display: block;
+  width: 100% !important;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-align: right;
+}
+
+.tms273-inventory-host .equipment-window {
+  box-sizing: border-box;
+}
+
+.tms273-inventory-host .equipment-tab-canvas {
+  position: absolute;
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.tms273-inventory-host .equipment-slot {
+  position: absolute;
+  box-sizing: border-box;
+  max-width: none;
+}
+
+.tms273-inventory-host .equipment-slot .inventory-item-icon {
+  max-width: none !important;
+}
+
+@media (max-width: 799px) {
+  .tms273-inventory-host .inventory-window {
+    max-width: none !important;
+  }
+
+  .tms273-inventory-host .inventory-tabs-viewport {
+    max-width: none !important;
+  }
+
+  .tms273-inventory-host .equipment-window {
+    max-width: none !important;
+  }
+}

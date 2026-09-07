@@ -1,10 +1,10 @@
-# Rust 单地图服务
+# Rust 多地图服务
 
-日常运行请双击项目根目录的 `启动3010.command` / `关闭3010.command`；它们只管理新版 `127.0.0.1:3010` 和一个陪测 bot。脚本复用已构建二进制、`client/dist-next` 与 `qa-gameplay-round2.sqlite3`，不重复编译。旧版 3000 仅作历史说明，不由脚本管理。
+日常运行请双击项目根目录的 `启动3010.command` / `关闭3010.command`；它们只管理新版 `127.0.0.1:3010` 和一个陪测 bot。脚本先编译，成功后使用 `client/dist-tms273` 与`tms273.sqlite3`（首次自动创建） 启动。旧版 3000 仅作历史说明，不由脚本管理。
 
-手动启动时，服务读取 `BIND_ADDR`、`MAP_FILE`、`ACCOUNT_DB`、`CLIENT_DIST`、`ASSETS_DIR`、`GAMEPLAY_FILE`；当前新版配置见 `evidence/runtime/gameplay-round2.json` 与 `map-round2.json`。缺少地图或玩法配置会直接报错。
+手动启动时，服务读取 `BIND_ADDR`、`MAP_FILE`、`ACCOUNT_DB`、`CLIENT_DIST`、`ASSETS_DIR`、`GAMEPLAY_FILE`；地图与玩法统一读取 `shared/map.json`、`shared/maps.json` 和 `shared/gameplay.json`，不再依赖已删除的临时验收配置。默认监听 `127.0.0.1:3010`，静态文件使用 `client/dist-tms273` 和 `client/public-tms273/assets`。缺少地图或玩法配置会直接报错。
 
-配置环境变量：`BIND_ADDR`、`MAP_FILE`、`ACCOUNT_DB`、`CLIENT_DIST`、`ASSETS_DIR`、`ATTACK_DURATION_MS`（默认800，50–5000ms）。路径默认基于编译时项目位置。账号数据库默认 `server/data/accounts.sqlite3`；Argon2id盐化hash，SQLite持久化。用户名3–32 ASCII字母数字下划线/短横线，密码8–128 UTF-8字节。注册后登录，每账号一个24小时随机token；新登录替换该账号token，已有在线连接保留，重复角色连接拒绝新连接。重启需重新登录。
+配置环境变量：`BIND_ADDR`、`MAP_FILE`、`ACCOUNT_DB`、`CLIENT_DIST`、`ASSETS_DIR`、`ATTACK_DURATION_MS`（默认800，50–5000ms）。路径默认基于编译时项目位置。账号数据库默认 `server/data/tms273.sqlite3`；Argon2id盐化hash，SQLite持久化。用户名3–32 ASCII字母数字下划线/短横线，密码8–128 UTF-8字节。注册后登录，每账号一个24小时随机token；新登录替换该账号token，已有在线连接保留，重复角色连接拒绝新连接。重启需重新登录。
 
 `POST /api/register`、`POST /api/login` 使用 `{username,password}`。WS `/ws` 首包 `hello`，token不进入URL或日志。协议见 `shared/protocol.ts`。`GET /api/health`。
 

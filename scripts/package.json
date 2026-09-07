@@ -1,0 +1,7 @@
+{
+  "name": "maplestory-resource-tools",
+  "private": true,
+  "dependencies": {
+    "@tybys/wz": "1.7.1"
+  }
+}

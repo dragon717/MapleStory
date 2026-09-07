@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { PlayerState } from '../../../../shared/protocol';
+import { actorDepthForLayers } from '../../assets/manifest';
 import type { AvatarActionSet, Manifest } from '../../assets/manifest';
 import { frameAt } from './animation';
 
@@ -18,7 +19,7 @@ export class PlayerView {
   private headOffsetY = -40;
   constructor(private scene: Phaser.Scene, private manifest: Manifest, username: string, self: boolean) {
     // ponytail: one map layer for actors; add explicit actorDepth when a map needs foreground occlusion.
-    const depth = Math.max(...manifest.map.layers.map(layer => layer.depth)) + 1;
+    const depth = actorDepthForLayers(manifest.map.layers);
     this.body = scene.add.container(0, 0).setDepth(depth);
     this.name = scene.add.text(0, 0, username, { fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: self ? '#fff3a5' : '#ffffff', backgroundColor: '#25322bd9', padding: { x: 6, y: 3 } }).setOrigin(0.5, 0).setDepth(depth + 1);
   }
@@ -37,7 +38,7 @@ export class PlayerView {
   update(player: PlayerState, elapsed: number) {
     const loadout = this.equipmentLoadout(player.equipped);
     const actions = loadout.actions;
-    // GMS83's server state includes climb/dead. Keep those actions data-driven:
+    // The server state includes climb/dead. Keep those actions data-driven:
     // use their exported frames when present, otherwise hold the authoritative
     // state while rendering the closest source-backed stand frame.
     const renderAction = player.action === 'climb' ? this.climbAsset(player, actions) : player.action;

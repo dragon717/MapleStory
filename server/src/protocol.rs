@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const PROTOCOL_VERSION: u32 = 6;
-pub const CONTENT_VERSION: &str = "gms83-quest-2";
+pub const CONTENT_VERSION: &str = "tms273-1";
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]

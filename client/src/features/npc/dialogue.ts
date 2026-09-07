@@ -51,12 +51,12 @@ function frame(url?: string, cls?: string, width?: number, height?: number): HTM
 }
 
 /**
- * Npc conversation + shop window, rebuilt on the source v83 art:
+ * Npc conversation + shop window, using TMS273 UIWindow2 source art:
  *  - UtilDlgEx t/c/s frame with the speaker portrait + `bar` nameplate,
  *  - UtilDlgEx Bt* sprites for the answers,
  *  - Shop backgrnd + BtBuy/BtExit/meso sprites for the merchant window.
  *
- * The dialogue data is produced server-side from the Cosmic scripts, then the
+ * The dialogue data is produced server-side from the active script catalog, then the
  * client drives the renderer from those `npcResult` messages.  The shop item
  * list itself comes from `shared/gameplay.json`.
  */
@@ -261,17 +261,19 @@ export class NpcDialogueView {
     const top = this.uiFrame('dialogUi', 't');
     const bottom = this.uiFrame('dialogUi', 's');
     const bar = this.uiFrame('dialogUi', 'bar');
-    if (top) root.appendChild(frame(top.url, 'npc-dlg-img npc-dlg-top', 529, 28));
+    if (top) {root.style.width=`min(${top.width}px, calc(100% - 8px))`;root.appendChild(frame(top.url, 'npc-dlg-img npc-dlg-top', top.width, top.height));}
 
     const mid = document.createElement('div');
     mid.className = 'npc-dlg-mid';
+    const center = this.uiFrame('dialogUi','c');
+    if(center) {mid.style.backgroundImage=`url("${center.url}")`;mid.style.backgroundSize=`100% ${center.height}px`;}
 
     const aside = document.createElement('div');
     aside.className = 'npc-dlg-aside';
     aside.appendChild(frame(undefined, 'npc-dlg-speaker'));
     const plate = document.createElement('div');
     plate.className = 'npc-dlg-plate';
-    if (bar) plate.appendChild(frame(bar.url, 'npc-dlg-plate-img', 121, 19));
+    if (bar) {plate.style.width=`${bar.width}px`;plate.appendChild(frame(bar.url, 'npc-dlg-plate-img', bar.width, bar.height));}
     const name = document.createElement('span');
     plate.appendChild(name);
     aside.appendChild(plate);
@@ -287,7 +289,7 @@ export class NpcDialogueView {
     mid.appendChild(main);
 
     root.appendChild(mid);
-    if (bottom) root.appendChild(frame(bottom.url, 'npc-dlg-img npc-dlg-bottom', 529, 58));
+    if (bottom) root.appendChild(frame(bottom.url, 'npc-dlg-img npc-dlg-bottom', bottom.width, bottom.height));
 
     const buttons = document.createElement('div');
     buttons.className = 'npc-dlg-btns';
@@ -301,7 +303,7 @@ export class NpcDialogueView {
     this.dialogueText = text;
     this.dialogueOptions = options;
 
-    // Click anywhere on the frame advances simple page turns (v83 behaviour).
+    // Click the frame to advance simple page turns.
     root.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
       if (target.closest('.npc-btn') || target.closest('.npc-dlg-opt')) return;
@@ -395,7 +397,17 @@ export class NpcDialogueView {
       const root = document.createElement('div');
       root.className = 'npc-shop';
       const backgrnd = this.uiFrame('shopUi', 'backgrnd');
-      if (backgrnd) root.appendChild(frame(backgrnd.url, 'npc-shop-backgrnd', 463, 339));
+      if (backgrnd) {
+        root.style.width = `${backgrnd.width}px`;
+        root.style.height = `${backgrnd.height}px`;
+        for (const key of ['backgrnd','backgrnd2','backgrnd3']) {
+          const asset = this.uiFrame('shopUi', key);
+          if (!asset) continue;
+          const image = frame(asset.url, 'npc-shop-backgrnd', asset.width, asset.height);
+          Object.assign(image.style, {left:`${asset.x}px`,top:`${asset.y}px`,width:`${asset.width}px`,height:`${asset.height}px`});
+          root.appendChild(image);
+        }
+      }
 
       const title = document.createElement('div');
       title.className = 'npc-shop-title';

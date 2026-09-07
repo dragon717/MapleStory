@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { AssetFrame, CombatAssets } from '../../assets/manifest';
+import { assetFrameAlpha } from '../../assets/manifest';
 import { damageNumberAdvances } from './damage-number';
 import { frameAt } from '../player/animation';
 
@@ -110,7 +111,7 @@ export class CombatView {
     else this.receiveDamageEvent(event);
   }
 
-  /** Advance delayed swordOL frames and remove completed afterimages. */
+  /** Advance source afterimage timing, opacity and per-frame origins. */
   update(time = this.clock()) {
     const afterimage = this.assets?.attack?.afterimage;
     if (afterimage) {
@@ -131,6 +132,8 @@ export class CombatView {
         const frame = afterimage.frames[index];
         if (!frame) continue;
         slash.sprite.setTexture(frame.url);
+        const frameElapsed = elapsed - afterimage.frames.slice(0,index).reduce((sum,frame)=>sum+frame.delay,0);
+        slash.sprite.setAlpha(assetFrameAlpha(frame, frameElapsed));
         const left = slash.event.facing === 1 ? slash.event.x - frame.x - frame.width : slash.event.x + frame.x;
         slash.sprite.setVisible(true)
           .setPosition(Math.round(left), Math.round(slash.event.y + frame.y))

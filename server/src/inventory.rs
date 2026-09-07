@@ -21,11 +21,27 @@ struct ItemDefinition {
 fn catalog() -> &'static BTreeMap<String, ItemDefinition> {
     static CATALOG: OnceLock<BTreeMap<String, ItemDefinition>> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        serde_json::from_str(include_str!(concat!(
+        let catalog: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../shared/items.json"
         )))
-        .expect("shared/items.json must be valid")
+        .expect("shared/items.json must be valid");
+        // These entries exercise the inventory engine against source data that
+        // is intentionally outside the small runtime catalog.  They are
+        // compiled into tests only and never affect the server binary.
+        #[cfg(test)]
+        let catalog = {
+            let mut catalog = catalog;
+            let fixture: BTreeMap<String, ItemDefinition> =
+                serde_json::from_str(include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/test-fixtures/items.json"
+                )))
+                .expect("test item fixture must be valid");
+            catalog.extend(fixture);
+            catalog
+        };
+        catalog
     })
 }
 
@@ -794,8 +810,8 @@ mod tests {
         assert_eq!(items.iter().find(|i| i.slot == 2).unwrap().quantity, 200);
         assert!(items.iter().all(|i| i.slot != 1));
 
-        let mut items = vec![item(1, "2000000", 90)];
-        let slot = add_items(&mut items, "2000000".into(), 25).unwrap();
+        let mut items = vec![item(1, "2041006", 90)];
+        let slot = add_items(&mut items, "2041006".into(), 25).unwrap();
         assert_eq!(slot, 1);
         assert_eq!(items.iter().find(|i| i.slot == 1).unwrap().quantity, 100);
         assert_eq!(items.iter().find(|i| i.slot == 2).unwrap().quantity, 15);
@@ -824,10 +840,14 @@ mod tests {
             items.iter().find(|i| i.item_id == "2000000").unwrap().slot,
             1
         );
-        items.push(item(7, "4010000", 1));
+        items.push(item(7, "4000011", 1));
         sort_category(&mut items, 4);
         assert_eq!(
-            items.iter().find(|i| i.item_id == "4010000").unwrap().slot,
+            items.iter().find(|i| i.item_id == "4000011").unwrap().slot,
+            1
+        );
+        assert_eq!(
+            items.iter().find(|i| i.item_id == "4000019").unwrap().slot,
             2
         );
     }
@@ -835,7 +855,7 @@ mod tests {
     #[test]
     fn potion_effect_and_equip_requirements() {
         assert_eq!(use_effect("2000000"), Ok((50, 0)));
-        assert_eq!(use_effect("2040002"), Err(InventoryError::ItemNotUsable));
+        assert_eq!(use_effect("2041006"), Err(InventoryError::ItemNotUsable));
 
         let mut inventory = vec![item(1, "1002067", 1)];
         let mut equipped = Vec::new();
@@ -862,7 +882,7 @@ mod tests {
                 item_id: "1002067".into(),
                 quantity: 1,
                 stats: Some(equipment_attributes("1002067")),
-                remaining_slots: Some(7),
+                remaining_slots: Some(8),
                 upgrade_count: Some(0),
             }]
         );

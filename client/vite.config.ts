@@ -18,9 +18,8 @@ export default defineConfig({
     __RELEASE_VERSION__: JSON.stringify(`v${packageJson.version}`),
     __RELEASE_TIME__: JSON.stringify(buildTime),
   },
-  // Keep the gameplay resource set and its output isolated from the already
-  // served MVP at client/dist. Root's 3010 process serves dist-next.
-  publicDir: 'public-gameplay',
-  build: { outDir: 'dist-next', emptyOutDir: false },
+  // TMS273 exports are the only active content source.
+  publicDir: 'public-tms273',
+  build: { outDir: 'dist-tms273', emptyOutDir: true },
   server: { host: '0.0.0.0', proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } } },
 });

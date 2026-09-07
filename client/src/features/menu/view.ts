@@ -4,15 +4,7 @@ import { uiText } from '../../app/i18n';
 type MenuKind = 'game' | 'shortcut';
 type MenuAssets = Record<string, AssetFrame>;
 
-const GAME_MENU_KEYS = ['BtChannel', 'BtSkin', 'BtGameOpt', 'BtSysOpt', 'BtQuit'] as const;
-const SHORTCUT_KEYS = ['BtItem', 'BtEquip', 'BtStat', 'BtSkill', 'BtParty', 'BtQuest', 'BtMessenger', 'BtGuild', 'BtComm', 'BtMobbook', 'BtRanking'] as const;
-const LABEL_KEYS: Record<string, string> = {
-  BtChannel: 'menuChannel', BtSkin: 'menuSkin', BtGameOpt: 'menuGameOptions', BtSysOpt: 'menuSystemOptions', BtQuit: 'menuQuit',
-  BtItem: 'shortcutItem', BtEquip: 'shortcutEquip', BtStat: 'shortcutStat', BtSkill: 'shortcutSkill', BtParty: 'shortcutParty', BtQuest: 'shortcutQuest',
-  BtMessenger: 'shortcutMessenger', BtGuild: 'shortcutGuild', BtComm: 'shortcutCommunity', BtMobbook: 'shortcutMonsterBook', BtRanking: 'shortcutRanking',
-};
-
-/** Renders the source UIWindow.img menu layers without adding menu business. */
+/** TMS273 UITotalMenu: source coordinates and source button labels. */
 export class MenuView {
   private readonly root: HTMLDivElement;
   private active?: MenuKind;
@@ -96,7 +88,7 @@ export class MenuView {
   }
 
   private assets(kind: MenuKind): MenuAssets | undefined {
-    return kind === 'game' ? this.manifest.gameMenuUi : this.manifest.shortcutUi;
+    return this.manifest.totalMenuUi;
   }
 
   private createMenu(kind: MenuKind, assets: MenuAssets) {
@@ -110,66 +102,48 @@ export class MenuView {
     menu.style.height = `${background.height}px`;
     menu.append(this.createImage(background, 'maple-menu-background'));
 
-    const keys = kind === 'game' ? GAME_MENU_KEYS : SHORTCUT_KEYS;
-    let offsetY = 28;
-    for (const key of keys) {
-      const normal = assets[`${key}/normal/0`];
+    const entries = [...(this.manifest.totalMenuEntries ?? [])];
+    for (const key of ['button:close', 'button:gameQuit']) {
+      const frame = assets[`${key}/normal/0`];
+      if (frame) entries.push({ key, label: key === 'button:close' ? '關閉' : '結束遊戲', type: -1, x: frame.x, y: frame.y });
+    }
+    for (const entry of entries) {
+      const normal = assets[`${entry.key}/normal/0`];
       if (!normal) continue;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'maple-menu-item';
-      button.dataset.menuItem = key;
+      button.dataset.menuItem = entry.key;
       button.setAttribute('role', 'menuitem');
-      const label = uiText(LABEL_KEYS[key] ?? key, key);
-      button.setAttribute('aria-label', label);
-      button.title = label;
-      button.style.left = `${Math.round(background.width / 2 - 4 - normal.width / 2)}px`;
-      button.style.top = `${Math.round(offsetY - normal.height / 2)}px`;
-      button.style.width = `${normal.width}px`;
-      button.style.height = `${normal.height}px`;
+      button.setAttribute('aria-label', entry.label);
+      button.title = entry.label;
+      Object.assign(button.style, { left: `${entry.x}px`, top: `${entry.y}px`, width: `${normal.width}px`, height: `${normal.height}px` });
       const image = this.createImage(normal, 'maple-menu-item-image');
       button.append(image);
-      const text = document.createElement('span');
-      text.className = 'maple-menu-item-label';
-      text.textContent = label;
-      text.setAttribute('aria-hidden', 'true');
-      button.append(text);
-      this.bindButton(button, image, assets, key, normal);
-      button.addEventListener('click', () => this.activate(key));
+      this.bindButton(button, image, assets, entry.key, normal);
+      button.addEventListener('click', () => {
+        if (entry.key === 'button:close') return this.close();
+        const action = entry.key === 'button:gameQuit' ? this.onQuit
+          : entry.type === 6 ? this.onInventory
+          : entry.type === 4 ? this.onEquipment
+          : entry.type === 17 ? this.onQuest : undefined;
+        if (action) { this.close(); action(); }
+        else this.status(`${entry.label}尚未實作。`);
+      });
       menu.append(button);
-      offsetY += normal.height - 6;
     }
     return menu;
   }
 
-  private activate(key: string) {
-    if (key === 'BtItem' && this.onInventory) {
-      this.close();
-      this.onInventory();
-      return;
-    }
-    if (key === 'BtEquip' && this.onEquipment) {
-      this.close();
-      this.onEquipment();
-      return;
-    }
-    if (key === 'BtQuest' && this.onQuest) {
-      this.close();
-      this.onQuest();
-      return;
-    }
-    if (key === 'BtQuit' && this.onQuit) {
-      this.close();
-      this.onQuit();
-      return;
-    }
-    this.status(`${uiText(LABEL_KEYS[key] ?? key, '此功能')}暂未开放。`);
-  }
-
   private positionMenu(menu: HTMLElement, anchor?: HTMLElement) {
     const hostRect = this.host.getBoundingClientRect();
-    const width = menu.offsetWidth || Number.parseFloat(menu.style.width) || 0;
-    const height = menu.offsetHeight || Number.parseFloat(menu.style.height) || 0;
+    const background = this.manifest.totalMenuUi!.backgrnd;
+    const compact = hostRect.width < background.width + 8 || hostRect.height < background.height + 8;
+    menu.classList.toggle('maple-menu-compact', compact);
+    const width = Math.min(background.width, hostRect.width - 8);
+    const height = Math.min(background.height, hostRect.height - 8);
+    menu.style.width = `${width}px`;
+    menu.style.height = `${height}px`;
     const margin = 4;
     const availableWidth = hostRect.width || this.host.clientWidth || width + margin * 2;
     const availableHeight = hostRect.height || this.host.clientHeight || height + margin * 2;

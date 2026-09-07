@@ -3558,14 +3558,14 @@ mod tests {
             )
             .unwrap();
             db.execute(
-                "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES ('a',2,'2040002',2)",
+                "INSERT INTO inventory(account_id,slot,item_id,quantity) VALUES ('a',2,'2041006',2)",
                 [],
             )
             .unwrap();
             db.execute(
                 "INSERT INTO equipped(account_id,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots)
-                 VALUES ('a',-1,'1002067',1,?1,0,7)",
-                [serde_json::to_string(&inventory::equipment_attributes("1002067")).unwrap()],
+                 VALUES ('a',-9,'1102173',1,?1,0,6)",
+                [serde_json::to_string(&inventory::equipment_attributes("1102173")).unwrap()],
             )
             .unwrap();
             db.execute(
@@ -3604,8 +3604,8 @@ mod tests {
                 "scroll-wrong-target",
                 2,
                 2,
-                "2040002",
-                Some(-5),
+                "2041006",
+                Some(-9),
                 Some("1040002"),
                 EquipmentStats::default(),
             )
@@ -3618,7 +3618,7 @@ mod tests {
             .unwrap()
             .inventory
             .into_iter()
-            .find(|item| item.item_id == "2040002")
+            .find(|item| item.item_id == "2041006")
             .unwrap();
         assert_eq!(scroll_stack.quantity, 2);
 
@@ -3628,9 +3628,9 @@ mod tests {
                 "scroll-valid-target",
                 2,
                 2,
-                "2040002",
-                Some(-1),
-                Some("1002067"),
+                "2041006",
+                Some(-9),
+                Some("1102173"),
                 EquipmentStats::default(),
             )
             .unwrap();
@@ -3642,11 +3642,11 @@ mod tests {
         let equipped = store.load_equipped("a").unwrap();
         let helmet = equipped
             .iter()
-            .find(|item| item.item_id == "1002067")
+            .find(|item| item.item_id == "1102173")
             .unwrap();
-        assert_eq!(helmet.remaining_slots, Some(6));
+        assert_eq!(helmet.remaining_slots, Some(5));
         let helmet_stats = helmet.stats.as_ref().unwrap();
-        assert!(matches!(helmet_stats.get("incPDD"), Some(5) | Some(10)));
+        assert_eq!(helmet_stats.get("incMHP"), Some(&20));
 
         let card = store
             .pickup("a", "map", "pickup-card", "card-drop")
@@ -3687,9 +3687,9 @@ mod tests {
         let persisted = auth.store.load_equipped("a").unwrap();
         let helmet = persisted
             .iter()
-            .find(|item| item.item_id == "1002067")
+            .find(|item| item.item_id == "1102173")
             .unwrap();
-        assert_eq!(helmet.remaining_slots, Some(6));
+        assert_eq!(helmet.remaining_slots, Some(5));
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));

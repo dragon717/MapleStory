@@ -1,13 +1,13 @@
 {
   "name": "maplestory-client",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
-    "check": "node --experimental-strip-types src/features/player/animation.check.ts"
+    "check": "node --experimental-strip-types src/features/player/animation.check.ts && node --experimental-strip-types src/scenes/layer-animation.check.ts && node --experimental-transform-types src/features/hud/gauge.check.ts"
   },
   "dependencies": {
     "phaser": "3.90.0"

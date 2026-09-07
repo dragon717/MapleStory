@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 6;
-export const CONTENT_VERSION = 'gms83-quest-2';
+export const CONTENT_VERSION = 'tms273-1';
 export type Facing = -1 | 1;
 export interface InventoryItem {
   slot: number; itemId: string; quantity: number;

@@ -1,4 +1,5 @@
-import { CONTENT_VERSION } from '../../../shared/protocol';
+import { CONTENT_VERSION } from '../../../shared/protocol.ts';
+import { frameAt } from '../features/player/animation.ts';
 export interface Point { x: number; y: number }
 export interface Part {
   key: string;
@@ -19,7 +20,7 @@ export interface Background { x: number; y: number; rx: number; ry: number; cx: 
 export interface MapBounds { xMin: number; xMax: number; yMin: number; yMax: number }
 export interface MapLayer {
   key: string; url: string; x: number; y: number; origin?: Point; depth: number;
-  alpha?: number; flip?: boolean; type?: number; background?: Background;
+  alpha?: number; flip?: boolean; type?: number; background?: Background; frames?: AssetFrame[];
   source?: string; resolvedSource?: string; width?: number; height?: number;
   mapObject?: { layer: number; oS: string; l0?: string; l1?: string; l2?: string; x: number; y: number; z?: number; zM?: number };
   mapTile?: { layer: number; x: number; y: number; u: string; no: number; zM?: number };
@@ -53,7 +54,7 @@ export interface MapDefinition {
 }
 export interface AssetFrame {
   url: string; width: number; height: number; origin: Point; x: number; y: number; delay: number;
-  index?: number;
+  index?: number; alpha?: number; a0?: number; a1?: number;
   source?: string; resolvedSource?: string; map?: Record<string, Point>; lt?: Point | null; rb?: Point | null; head?: Point | null;
 }
 export interface MonsterAsset {
@@ -63,6 +64,30 @@ export interface MonsterAsset {
 }
 export interface NpcAsset {
   name: string; source: string; stand: AssetFrame[];
+}
+export interface InventorySlotLayout {
+  columns: number; rows: number; slotWidth: number; slotHeight: number;
+  spacingX: number; spacingY: number; origin: Point; itemOffset: Point;
+  itemCount: number; itemCountOffset?: Point;
+}
+export interface InventoryTabLayout {
+  left: number; top: number; stepX: number; width: number; height: number;
+  viewportWidth: number; viewportHeight: number; count: number;
+}
+export interface InventoryButtonPosition { x: number; y: number }
+export interface InventoryModeLayout {
+  width: number; height: number; slots: InventorySlotLayout; tabs: InventoryTabLayout;
+  buttons: Record<'close' | 'size' | 'sort' | 'coin', InventoryButtonPosition>;
+  mesos: { x: number; y: number; width: number; height: number };
+}
+export interface InventoryLayout {
+  source: string; categoryCount: number; backendSlotLimit: number;
+  small: InventoryModeLayout; full: InventoryModeLayout;
+}
+export interface EquipmentSlotLayout { x: number; y: number; width: number; height: number }
+export interface EquipmentLayout {
+  source: string; width: number; height: number; tabOrigin: Point; slotSize: number;
+  close: InventoryButtonPosition; slots: Record<string, EquipmentSlotLayout>; itemOffset?: Point;
 }
 export interface PortalAsset {
   mapId: string; portalName: string; spriteKey: string;
@@ -90,6 +115,49 @@ export interface AfterimageAsset {
   startMs: number;
   frames: AssetFrame[];
 }
+export interface ChatUiFrameStates {
+  normal?: AssetFrame;
+  pressed?: AssetFrame;
+  disabled?: AssetFrame;
+  mouseOver?: AssetFrame;
+  checked?: AssetFrame;
+}
+export interface ChatUiNineSlice {
+  nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
+  w?: AssetFrame; c?: AssetFrame; e?: AssetFrame;
+  sw?: AssetFrame; s?: AssetFrame; se?: AssetFrame;
+}
+export type ChatUiScalar = number | string | Point;
+export interface ChatUi {
+  source: string;
+  panel?: {
+    background?: ChatUiNineSlice;
+    collapsedBackground?: ChatUiNineSlice;
+    collapseButton?: ChatUiFrameStates;
+    expandButton?: ChatUiFrameStates;
+    outsideButton?: ChatUiFrameStates;
+  };
+  input?: {
+    background?: { w?: AssetFrame; c?: AssetFrame; e?: AssetFrame };
+    target?: ChatUiFrameStates;
+    whisper?: ChatUiFrameStates;
+    buttons?: Record<string, ChatUiFrameStates>;
+  };
+  scroll?: {
+    enabled?: Record<string, AssetFrame>;
+    disabled?: Record<string, AssetFrame>;
+  };
+  layout?: {
+    panel?: Record<string, ChatUiScalar>;
+    input?: Record<string, ChatUiScalar | Record<string, ChatUiScalar>>;
+    outside?: Record<string, ChatUiScalar | Record<string, ChatUiScalar>>;
+  };
+  /** Original StatusBar3.img/chat section names retained for source tracing. */
+  common?: Record<string, unknown>;
+  outside?: Record<string, unknown>;
+  ingame?: Record<string, unknown>;
+  'combo:emoticon'?: Record<string, ChatUiScalar>;
+}
 export interface DamageNumberSet {
   first: Record<string, AssetFrame>;
   rest: Record<string, AssetFrame>;
@@ -113,9 +181,12 @@ export interface Manifest {
   avatar: { defaultFacing: -1 | 1; actions: AvatarActionSet; equipmentLoadouts?: Record<string, AvatarEquipmentLoadout>; attackSound?: string };
   monsters?: GameplayAssets['monsters']; items?: GameplayAssets['items']; hud?: GameplayAssets['hud']; drops?: GameplayAssets['drops'];
   combat?: CombatAssets;
+  chatUi?: ChatUi;
   /** Source-backed UIWindow.img/Item subtree, keyed relative to Item. */
   inventoryUi?: Record<string, AssetFrame>;
   equipmentUi?: Record<string, AssetFrame>;
+  inventoryLayout?: InventoryLayout;
+  equipmentLayout?: EquipmentLayout;
   /** Source-backed Basic.img/BtClose states used by item windows. */
   closeButton?: Record<string, AssetFrame>;
   /** Source-backed Basic.img/Tab2 nine-slice pieces used by Item tabs. */
@@ -128,6 +199,10 @@ export interface Manifest {
   gameMenuUi?: Record<string, AssetFrame>;
   /** Source-backed UIWindow.img/ShortCut entries. */
   shortcutUi?: Record<string, AssetFrame>;
+  totalMenuUi?: Record<string, AssetFrame>;
+  totalMenuEntries?: { key: string; label: string; type: number; x: number; y: number }[];
+  questUi?: Record<string, AssetFrame>;
+  questLayout?: { listLT: Point; listRB: Point };
   /** Source-backed Npc.wz stand frames, keyed by template id. */
   npcs?: Record<string, NpcAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
@@ -137,6 +212,38 @@ export interface Manifest {
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */
   portals?: Record<string, PortalAsset>;
 }
+export function mapFrameAt(frames: readonly Pick<AssetFrame, 'delay'>[], elapsed: number): number {
+  const delays = frames.map(frame => frame.delay);
+  if (!delays.length || delays.some(delay => !Number.isFinite(delay) || delay <= 0)) {
+    throw new Error('地图动画帧 delay 必须为正数');
+  }
+  return frameAt(delays, elapsed, true);
+}
+export function assetFrameAlpha(frame: Pick<AssetFrame,'a0'|'a1'|'alpha'|'delay'>, elapsed: number): number {
+  const start = frame.a0 ?? frame.alpha ?? 255, end = frame.a1 ?? start;
+  const progress = Math.max(0, Math.min(1, elapsed / frame.delay));
+  return Math.max(0, Math.min(1, (start + (end - start) * progress) / 255));
+}
+export function mapFramePosition(
+  layer: Pick<MapLayer, 'x' | 'y' | 'origin' | 'flip' | 'frames'>,
+  frame: Pick<AssetFrame, 'origin' | 'width' | 'height'>,
+): Point {
+  const firstOrigin = layer.frames?.[0]?.origin ?? layer.origin ?? { x: 0, y: 0 };
+  const anchorX = layer.x + firstOrigin.x;
+  const anchorY = layer.y + firstOrigin.y;
+  return {
+    x: layer.flip ? anchorX + frame.origin.x - frame.width : anchorX - frame.origin.x,
+    y: anchorY - frame.origin.y,
+  };
+}
+export function actorDepthForLayers(layers: readonly Pick<MapLayer, 'depth' | 'background'>[]): number {
+  let maxBackDepth = -Infinity;
+  for (const layer of layers) {
+    if (layer.background?.front) continue;
+    if (Number.isFinite(layer.depth)) maxBackDepth = Math.max(maxBackDepth, layer.depth);
+  }
+  return Number.isFinite(maxBackDepth) ? maxBackDepth + 1 : 1;
+}
 export async function loadManifest(): Promise<Manifest> {
   const response = await fetch('/assets/manifest.json');
   if (!response.ok) throw new Error(`资源清单加载失败 /assets/manifest.json (${response.status})`);
@@ -144,6 +251,9 @@ export async function loadManifest(): Promise<Manifest> {
   if (manifest.contentVersion !== CONTENT_VERSION) throw new Error(`资源版本不一致，需要 ${CONTENT_VERSION}`);
   for (const action of ['stand', 'walk', 'jump', 'attack'] as const) {
     if (!manifest.avatar.actions[action]?.length || manifest.avatar.actions[action].some(frame => !(frame.delay > 0) || !frame.parts.length)) throw new Error(`动作资源缺失或时长无效：${action}`);
+  }
+  for (const map of [manifest.map, ...(manifest.mapCatalog?.maps ?? [])]) {
+    for (const layer of map.layers ?? []) if (layer.frames?.length) mapFrameAt(layer.frames, 0);
   }
   return manifest;
 }

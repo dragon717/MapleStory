@@ -20,10 +20,10 @@ const RELEASE_LABEL = `${__RELEASE_VERSION__} · ${__RELEASE_TIME__}`;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <header><div class="header-brand"><span class="release-badge" aria-label="发布版本">${RELEASE_LABEL}</span><a class="brand" href="/" aria-label="MapleStory 首页"><span class="leaf">✦</span> MapleStory <small>冒险启程</small></a></div><span class="connection" id="connection">尚未连接</span></header>
-<main><section id="welcome" class="welcome"><div class="intro"><p class="eyebrow">MAPLE WORLD · GMS 83</p><h1>熟悉的世界，<br>新的相遇。</h1><p>踏上同一片土地，<br>与你的伙伴一起开始冒险。</p><div class="edition">局域网冒险 · 单地图首版</div></div>
+<main><section id="welcome" class="welcome"><div class="intro"><p class="eyebrow">MAPLE WORLD · TMS 273.7</p><h1>熟悉的世界，<br>新的相遇。</h1><p>踏上同一片土地，<br>与你的伙伴一起开始冒险。</p><div class="edition">楓之島 · 维多利亚港</div></div>
 <form id="login" class="panel"><div class="panel-title">冒险者入口 <span>01</span></div><h2 id="form-title">欢迎回来</h2><p id="form-description">登录账号，进入冒险世界。</p><label for="username">冒险者名称</label><input id="username" name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="(?:[A-Za-z0-9_]|-){3,32}" title="3–32 位英文字母、数字、下划线或连字符" placeholder="3–32 位字母、数字、_ 或 -"><label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="128" placeholder="至少 8 个字符"><button class="primary" type="submit" id="submit">登录并进入 <span>→</span></button><button class="text-button" type="button" id="mode">初次来到这里？创建账号</button><p class="form-note">账号保存在这台游戏服务器。</p></form></section>
 <section id="play" hidden><div class="world-toolbar"><div><span class="eyebrow">当前地图</span><strong id="map-name">正在进入…</strong><span id="map-route" class="map-route" hidden></span></div><span id="population">0 位冒险者</span><div class="actions"><button id="sound" type="button">声音：开</button><button id="reconnect" type="button" hidden>重新连接</button><button id="logout" type="button">退出</button></div></div><div id="game-shell"><div id="game" tabindex="0" aria-label="游戏画面，方向键或 A D 移动，上下键攀爬，空格跳跃，↓ + 空格下跳，X 或 Ctrl 普攻，Z 拾取"></div><div id="chat" aria-label="聊天框"></div><div id="hud" aria-label="角色状态栏"></div><div id="ui-windows" aria-live="polite"></div><div id="menus" aria-label="菜单"></div><div id="notices" aria-live="assertive"></div></div></section>
-<p id="message" role="status" aria-live="polite"></p></main><footer>MAPLESTORY <span>同一世界 · 独立冒险者</span><span>GMS 83</span></footer>`;
+<p id="message" role="status" aria-live="polite"></p></main><footer>MAPLESTORY <span>同一世界 · 独立冒险者</span><span>TMS 273.7</span></footer>`;
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let register = false;
 let connection: Connection | undefined;
@@ -86,7 +86,7 @@ el('login').onsubmit = async event => {
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     questLog?.destroy();
-    questLog = new QuestLogView(el('ui-windows'));
+    questLog = new QuestLogView(el('ui-windows'), manifest);
     menus?.destroy();
     menus = new MenuView(
       el('menus'),

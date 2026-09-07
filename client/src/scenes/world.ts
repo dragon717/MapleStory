@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { randomDropId } from '../features/player/pickup';
 import type { NpcState, ServerMessage } from '../../../shared/protocol';
-import type { Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
+import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/manifest';
+import type { AssetFrame, Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
 import { NpcView, type NpcSnapshot } from '../features/npc/view';
@@ -10,7 +11,8 @@ import { CombatView } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
-type BackgroundView = { layer: MapLayer; images: Phaser.GameObjects.Image[]; motionX: number; motionY: number };
+type MapLayerView = { layer: MapLayer; frames: AssetFrame[]; images: Phaser.GameObjects.Image[]; elapsed: number; frameIndex: number };
+type BackgroundView = MapLayerView & { motionX: number; motionY: number };
 export interface PortalRequest {
   sourceMapId: string; portalName: string; targetMapId: string; targetPortalName: string | null;
 }
@@ -22,6 +24,7 @@ export class World extends Phaser.Scene {
   private drops = new Map<string, DropView>();
   private portals = new Map<string, PortalView>();
   private actions = new Map<string, { actionId: string; tick: number }>();
+  private animatedLayers: MapLayerView[] = [];
   private backgrounds: BackgroundView[] = [];
   private snapshot?: Snapshot;
   private pendingSnapshot?: Snapshot;
@@ -31,7 +34,6 @@ export class World extends Phaser.Scene {
   private bgm?: Phaser.Sound.BaseSound;
   private combat?: CombatView;
   private portalCooldownUntil = 0;
-  private tutorialOverlays: Phaser.GameObjects.GameObject[] = [];
   constructor(
     private manifest: Manifest,
     private status: (message: string, error?: boolean) => void,
@@ -53,7 +55,6 @@ export class World extends Phaser.Scene {
     this.manifest = { ...this.manifest, map: next as MapDefinition };
     this.clear();
     this.pendingSnapshot = snapshot;
-    this.backgrounds = [];
     this.loaded = false;
     this.failed = false;
     this.bgm?.destroy();
@@ -104,7 +105,10 @@ export class World extends Phaser.Scene {
   preload() {
     const images = new Map<string, string>();
     const maps = [this.manifest.map, ...(this.manifest.mapCatalog?.maps ?? [])];
-    for (const map of maps) for (const layer of map.layers ?? []) images.set(layer.url, layer.url);
+    for (const map of maps) for (const layer of map.layers ?? []) {
+      images.set(layer.url, layer.url);
+      for (const frame of layer.frames ?? []) images.set(frame.url, frame.url);
+    }
     const avatarActions = [this.manifest.avatar.actions, ...Object.values(this.manifest.avatar.equipmentLoadouts ?? {}).map(loadout => loadout.actions)];
     for (const actions of avatarActions) for (const frames of Object.values(actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
     for (const monster of Object.values(this.manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
@@ -145,20 +149,18 @@ export class World extends Phaser.Scene {
     const b = this.manifest.map.bounds;
     for (const layer of this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
+      else if (layer.frames?.length) this.createAnimatedLayer(layer);
       else {
-        const tutorial = layer.mapObject;
-        if (tutorial?.oS === 'guide' && tutorial.l0 === 'tutorial' && tutorial.l1 === 'key' && ['1', '2'].includes(tutorial.l2 ?? '')) {
-          this.createTutorialOverride(layer);
-          continue;
-        }
-        this.add.image(layer.x, layer.y, layer.url).setOrigin(0).setDepth(layer.depth).setFlipX(layer.flip ?? false).setAlpha((layer.alpha ?? 255) / 255);
+        const point = layer.flip && layer.width && layer.height
+          ? mapFramePosition(layer, { origin: layer.origin ?? {x:0,y:0}, width: layer.width, height: layer.height }) : layer;
+        this.add.image(point.x, point.y, layer.url).setOrigin(0).setDepth(layer.depth).setFlipX(layer.flip ?? false).setAlpha((layer.alpha ?? 255) / 255);
       }
     }
     this.cameras.main.setBounds(b.xMin, b.yMin, b.xMax - b.xMin, b.yMax - b.yMin);
     this.updateBackgrounds(0);
-    // Place portal sprites between backdrops and the actors; the editor sprites
-    // are wide (≈ 530 px) and need depth above tiles but below entities.
-    const portalDepth = Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 2;
+    // Place portal effects above regular map layers while keeping foreground
+    // backdrops in front of actors and portals.
+    const portalDepth = actorDepthForLayers(this.manifest.map.layers) + 1;
     for (const portal of this.manifest.map.portals ?? []) {
       // Only render the animated beam for *real* visible gates: a target
       // portal on another map.  Map.wz mixes several kinds under the same
@@ -169,25 +171,9 @@ export class World extends Phaser.Scene {
       if (portal.script) continue;
       const asset = this.manifest.portals?.[`${this.manifest.map.id}/${portal.name}`];
       if (!asset?.frames?.length) continue;
-      // WZ portal sprites carry an `origin` pixel inside the canvas (e.g. pv
-      // is 87×182 with origin (43, 173)), and `portal.y` is the WZ anchor's
-      // world y — not the sprite's bottom.  Anchoring at (origin.x, origin.y)
-      // leaves the bottom (height − origin.y) px floating below the gate and
-      // pushes the top (origin.y) px into the sky, so the beam visibly hovers
-      // above the ground (visible on 小森林 out00, where ground is y=155 and
-      // the beam would otherwise span y∈[−22, 160]).  Shift the anchor down
-      // by exactly that offset so the sprite's foot sits flush on portal.y.
-      const firstFrame = asset.frames[0];
-      const footOffset = firstFrame.height - (firstFrame.origin?.y ?? firstFrame.height);
-      // 仅小森林（000040000）右侧的 out00（通往危险森林）需要把渲染位置右移
-      // 精灵锚点列 origin.x 来贴合门的显示中心，其余地图传送阵保持在 portal.x。
-      // 只作用于显示，不改数据，后端判定/落点仍以 portal.x 为准。
-      const shiftX = this.manifest.map.id === '000040000' && portal.name === 'out00'
-        ? (firstFrame.origin?.x ?? 0)
-        : 0;
-      const anchorX = portal.x + shiftX;
-      const anchorY = portal.y + footOffset;
-      const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, anchorX, anchorY, portalDepth);
+      // The exporter keeps the WZ portal origin in every frame; PortalView
+      // applies that origin while using the authoritative portal coordinates.
+      const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, portal.x, portal.y, portalDepth);
       this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
     }
     if (this.manifest.map.bgm) { this.bgm = this.sound.add(`bgm-${this.mapId}`, { loop: true, volume: 0.25 }); this.bgm.play(); }
@@ -247,56 +233,65 @@ export class World extends Phaser.Scene {
   }
   clear() {
     this.snapshot = undefined;
-    for (const overlay of this.tutorialOverlays) overlay.destroy();
-    this.tutorialOverlays = [];
     for (const player of this.players.values()) player.destroy();
     for (const monster of this.monsters.values()) monster.destroy();
     for (const npc of this.npcs.values()) npc.destroy();
     for (const drop of this.drops.values()) drop.destroy();
     for (const portal of this.portals.values()) portal.destroy();
+    for (const view of this.animatedLayers) for (const image of view.images) image.destroy();
+    for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.actions.clear(); this.sound?.stopAll();
+    this.animatedLayers = []; this.backgrounds = [];
     this.combat?.clear();
   }
   setMuted(muted: boolean) { this.sound.mute = muted; }
-  private createTutorialOverride(layer: MapLayer) {
-    const tutorial = layer.mapObject;
-    if (tutorial?.oS !== 'guide' || tutorial.l0 !== 'tutorial' || tutorial.l1 !== 'key' || !['1', '2'].includes(tutorial.l2 ?? '')) return;
-    const downJump = tutorial.l2 === '2';
-    const key = (x: number, y: number, width: number, text: string) => {
-      const cap = this.add.rectangle(x, y, width, 30, 0xffffff).setOrigin(0.5).setDepth(layer.depth + 1);
-      cap.setStrokeStyle(1, 0x99aacc);
-      const ink = this.add.text(x, y, text, {
-        color: '#003399', fontFamily: 'Arial, sans-serif', fontSize: text === 'Space' ? '8px' : '13px', fontStyle: 'bold',
-        stroke: '#ccddff', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(layer.depth + 2);
-      this.tutorialOverlays.push(cap, ink);
-    };
-    const label = (x: number, y: number, text: string, width: number) => {
-      const bubble = this.add.rectangle(x, y, width, 18, 0xffffff).setOrigin(0.5).setDepth(layer.depth + 3);
-      bubble.setStrokeStyle(1, 0x99aacc);
-      const ink = this.add.text(x, y, text, {
-        color: '#003399', fontFamily: 'Arial, sans-serif', fontSize: '8px', fontStyle: 'bold',
-        stroke: '#ccddff', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(layer.depth + 4);
-      this.tutorialOverlays.push(bubble, ink);
-    };
-    if (downJump) {
-      const left = layer.x + 32;
-      const right = layer.x + 116;
-      key(left, layer.y + 45, 32, '↓');
-      const plus = this.add.text(layer.x + 74, layer.y + 45, '+', {
-        color: '#003399', fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold',
-      }).setOrigin(0.5).setDepth(layer.depth + 2);
-      this.tutorialOverlays.push(plus);
-      key(right, layer.y + 45, 56, 'Space');
-      label(layer.x + 119, layer.y + 10, 'Downward Jump', 66);
-    } else {
-      key(layer.x + 32, layer.y + 45, 56, 'Space');
-      label(layer.x + 50, layer.y + 10, 'Jump', 30);
+  private createAnimatedLayer(layer: MapLayer) {
+    const frames = layer.frames ?? [];
+    const view: MapLayerView = { layer, frames, images: [], elapsed: 0, frameIndex: 0 };
+    const first = frames[0];
+    if (!first) return;
+    view.images.push(this.add.image(0, 0, first.url).setOrigin(0).setDepth(layer.depth));
+    this.animatedLayers.push(view);
+    this.applyLayerFrame(view, first);
+  }
+  private applyLayerFrame(view: MapLayerView, frame: AssetFrame) {
+    const image = view.images[0];
+    if (!image) return;
+    const position = mapFramePosition(view.layer, frame);
+    image.setTexture(frame.url).setOrigin(0)
+      .setPosition(Math.round(position.x), Math.round(position.y))
+      .setFlipX(view.layer.flip ?? false)
+      .setAlpha((frame.alpha ?? view.layer.alpha ?? 255) / 255);
+  }
+  private applyBackgroundFrame(view: BackgroundView, frame: AssetFrame) {
+    const layer = view.layer;
+    const flip = layer.flip ?? Boolean(layer.background?.f);
+    const alpha = (frame.alpha ?? layer.alpha ?? 255) / 255;
+    for (const image of view.images) image.setTexture(frame.url).setOrigin(0).setFlipX(flip).setAlpha(alpha);
+  }
+  private advanceMapAnimations(delta: number) {
+    const step = Number.isFinite(delta) && delta > 0 ? delta : 0;
+    for (const view of this.animatedLayers) {
+      if (view.frames.length < 2) continue;
+      view.elapsed += step;
+      const index = mapFrameAt(view.frames, view.elapsed);
+      if (index !== view.frameIndex) {
+        view.frameIndex = index;
+        this.applyLayerFrame(view, view.frames[index]);
+      }
+    }
+    for (const view of this.backgrounds) {
+      if (view.frames.length < 2) continue;
+      view.elapsed += step;
+      const index = mapFrameAt(view.frames, view.elapsed);
+      if (index !== view.frameIndex) {
+        view.frameIndex = index;
+        this.applyBackgroundFrame(view, view.frames[index]);
+      }
     }
   }
   private createBackground(layer: MapLayer) {
-    this.backgrounds.push({ layer, images: [], motionX: 0, motionY: 0 });
+    this.backgrounds.push({ layer, frames: layer.frames ?? [], images: [], elapsed: 0, frameIndex: 0, motionX: 0, motionY: 0 });
   }
   private updateBackgrounds(delta: number) {
     const camera = this.cameras.main;
@@ -310,11 +305,16 @@ export class World extends Phaser.Scene {
     for (const view of this.backgrounds) {
       const { layer, images } = view;
       const bg = layer.background as Background;
-      const source = this.textures.get(layer.url).getSourceImage();
-      const originX = layer.origin?.x ?? source.width / 2;
-      const originY = layer.origin?.y ?? source.height / 2;
-      const tileWidth = bg.cx || source.width;
-      const tileHeight = bg.cy || source.height;
+      const frame = view.frames[view.frameIndex];
+      const url = frame?.url ?? layer.url;
+      const source = this.textures.get(url).getSourceImage();
+      const frameWidth = frame?.width ?? layer.width ?? source.width;
+      const frameHeight = frame?.height ?? layer.height ?? source.height;
+      const originX = frame?.origin.x ?? layer.origin?.x ?? frameWidth / 2;
+      const originY = frame?.origin.y ?? layer.origin?.y ?? frameHeight / 2;
+      const flip = layer.flip ?? Boolean(bg.f);
+      const tileWidth = Math.max(1, bg.cx || frameWidth);
+      const tileHeight = Math.max(1, bg.cy || frameHeight);
       const repeatX = bg.type === 1 || bg.type === 3 || bg.type === 4 || bg.type === 6 || bg.type === 7;
       const repeatY = bg.type === 2 || bg.type === 3 || bg.type === 5 || bg.type === 6 || bg.type === 7;
       const mobileX = bg.type === 4 || bg.type === 6;
@@ -330,14 +330,17 @@ export class World extends Phaser.Scene {
       const columns = repeatX ? Math.ceil(width / tileWidth) + 2 : 1;
       const rows = repeatY ? Math.ceil(height / tileHeight) + 2 : 1;
       const needed = columns * rows;
-      while (images.length < needed) images.push(this.add.image(0, 0, layer.url).setOrigin(0).setDepth(layer.depth).setFlipX(layer.flip ?? Boolean(bg.f)).setAlpha((layer.alpha ?? 255) / 255).setScrollFactor(0));
+      const alpha = (frame?.alpha ?? layer.alpha ?? 255) / 255;
+      while (images.length < needed) images.push(this.add.image(0, 0, url).setOrigin(0).setDepth(layer.depth).setFlipX(flip).setAlpha(alpha).setScrollFactor(0));
       let i = 0;
-      for (let tx = 0; tx < columns; tx++) for (let ty = 0; ty < rows; ty++) images[i++].setVisible(true).setPosition(x + tx * tileWidth - originX, y + ty * tileHeight - originY);
+      const left = flip ? x + originX - frameWidth : x - originX;
+      for (let tx = 0; tx < columns; tx++) for (let ty = 0; ty < rows; ty++) images[i++].setVisible(true).setPosition(left + tx * tileWidth, y + ty * tileHeight - originY).setFlipX(flip).setAlpha(alpha);
       for (; i < images.length; i++) images[i].setVisible(false);
     }
   }
   update(_time?: number, delta = 8) {
     if (!this.loaded) return;
+    this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);
     this.combat?.update();
     if (!this.snapshot) return;
@@ -430,7 +433,7 @@ export class World extends Phaser.Scene {
   }
 
   private updateGameplayEntities(snapshot: GameplaySnapshot) {
-    const actorDepth = Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 1;
+    const actorDepth = actorDepthForLayers(this.manifest.map.layers);
     const monsters = snapshot.monsters ?? [];
     const monsterIds = new Set(monsters.map(monster => monster.id));
     for (const [id, view] of this.monsters) {

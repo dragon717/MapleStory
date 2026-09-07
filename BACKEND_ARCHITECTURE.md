@@ -8,7 +8,9 @@
 
 [axum WebSocket](https://docs.rs/axum/latest/axum/extract/ws/) 是网络候选。玩法逻辑用普通 Rust 模块及明确的数据结构起步；[bevy_ecs](https://docs.rs/bevy_ecs/latest/bevy_ecs/) 可以独立用于组件与系统，若选用 [Bevy App 插件注册](https://docs.rs/bevy_app/latest/bevy_app/struct.App.html) 才需要 bevy_app。不为“模块化”引入完整 Bevy 图形引擎、动态库加载或微服务。
 
-## 2. 建议目录与职责（尚未创建）
+## 2. 职责草案与实现导航
+
+下列目录树保留早期职责划分，不是当前文件清单。已实现模块以 `server/src/` 和 `BUSINESS_DEVELOPMENT.md` 的状态拥有者表为准；不要仅为匹配草案创建空目录或重组现有模块。当前版本范围以 `PLAN.md` 为准。
 
 ```text
 server/src/

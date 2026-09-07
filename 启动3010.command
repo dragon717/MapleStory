@@ -11,11 +11,11 @@ SERVER_LOG="$CONTROL_DIR/server.log"
 BOT_LOG="$CONTROL_DIR/bot.log"
 BOT_CREDENTIALS="$CONTROL_DIR/bot-credentials.json"
 SERVER_BIN="$ROOT/server/target/debug/maplestory-server"
-DB="$ROOT/server/data/qa-gameplay-round2.sqlite3"
-DIST="$ROOT/client/dist-next"
-ASSETS="$ROOT/client/public-gameplay/assets"
-GAMEPLAY="$ROOT/evidence/runtime/gameplay-round2.json"
-MAP="$ROOT/evidence/runtime/map-round2.json"
+DB="$ROOT/server/data/tms273.sqlite3"
+DIST="$ROOT/client/dist-tms273"
+ASSETS="$ROOT/client/public-tms273/assets"
+GAMEPLAY="$ROOT/shared/gameplay.json"
+MAP="$ROOT/shared/map.json"
 MAP_CATALOG="$ROOT/shared/maps.json"
 HEALTH_URL="http://127.0.0.1:3010/api/health"
 
@@ -64,7 +64,7 @@ wait_health() {
 
 mkdir -p "$CONTROL_DIR" || die "无法创建运行目录：$CONTROL_DIR"
 chmod 700 "$CONTROL_DIR"
-[[ -f "$DB" ]] || die "数据库不存在，为避免误建新库已停止：$DB"
+mkdir -p "${DB:h}" || die "无法创建数据库目录"
 [[ -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" && -f "$MAP_CATALOG" ]] || die "3010 固定配置或资源不完整"
 NODE_BIN="$(command -v node || true)"
 [[ -n "$NODE_BIN" ]] || die "找不到 Node 22；请先加载 Node 22 环境"
@@ -104,6 +104,12 @@ if ! is_server_pid "$SERVER_PID"; then
   print -r -- "$SERVER_PID" >| "$SERVER_PID_FILE"
 fi
 wait_health || die "3010 health 未就绪；日志：$SERVER_LOG"
+
+if [[ ! -f "$BOT_CREDENTIALS" ]]; then
+  print -- "3010 游戏服务已运行（PID $SERVER_PID）"
+  print -- "原陪测 bot 凭据缺失；未创建新账号。恢复 $BOT_CREDENTIALS 后再次启动即可连接。"
+  exit 0
+fi
 
 BOT_PID="$(read_pid_file "$BOT_PID_FILE")"
 if ! is_bot_pid "$BOT_PID"; then

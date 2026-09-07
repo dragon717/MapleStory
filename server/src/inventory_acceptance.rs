@@ -35,8 +35,8 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
     {
         let db = Connection::open(&path).unwrap();
         db.execute_batch("INSERT INTO inventory(account_id,inventory_type,slot,item_id,quantity) VALUES
-            ('a',1,1,'1002067',1), ('a',2,1,'2000000',100),
-            ('a',2,2,'2040002',2), ('a',2,3,'2041001',1), ('a',4,1,'4000019',200);
+            ('a',1,1,'1102173',1), ('a',2,1,'2000000',100),
+            ('a',2,2,'2041006',2), ('a',2,3,'2040705',1), ('a',4,1,'4000019',200);
             INSERT INTO drops(id,map_id,item_id,quantity,x,y,active) VALUES ('card','map','2380000',1,0,0,1);")
             .unwrap();
     }
@@ -79,7 +79,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
 
     assert!(
         store
-            .use_item("a", "equip", 1, 1, "1002067", None, None, stats)
+            .use_item("a", "equip", 1, 1, "1102173", None, None, stats)
             .unwrap()
             .success
     );
@@ -89,9 +89,9 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             "wrong-scroll",
             2,
             3,
-            "2041001",
-            Some(-1),
-            Some("1002067"),
+            "2040705",
+            Some(-9),
+            Some("1102173"),
             stats,
         )
         .unwrap();
@@ -101,10 +101,10 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             .load_equipped("a")
             .unwrap()
             .iter()
-            .find(|i| i.slot == 1)
+            .find(|i| i.slot == 9)
             .unwrap()
             .remaining_slots,
-        Some(7)
+        Some(6)
     );
     assert_eq!(
         store
@@ -112,7 +112,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             .unwrap()
             .inventory
             .iter()
-            .find(|i| i.item_id == "2041001")
+            .find(|i| i.item_id == "2040705")
             .unwrap()
             .quantity,
         1
@@ -124,9 +124,9 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             "scroll",
             2,
             2,
-            "2040002",
-            Some(-1),
-            Some("1002067"),
+            "2041006",
+            Some(-9),
+            Some("1102173"),
             stats,
         )
         .unwrap();
@@ -135,31 +135,28 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         .load_equipped("a")
         .unwrap()
         .into_iter()
-        .find(|i| i.slot == 1)
+        .find(|i| i.slot == 9)
         .unwrap();
-    assert_eq!(upgraded.remaining_slots, Some(6));
-    assert!(matches!(
-        upgraded.stats.as_ref().unwrap().get("incPDD"),
-        Some(5 | 10)
-    ));
+    assert_eq!(upgraded.remaining_slots, Some(5));
+    assert_eq!(upgraded.stats.as_ref().unwrap().get("incMHP"), Some(&20));
     store
         .use_item(
             "a",
             "scroll",
             2,
             2,
-            "2040002",
-            Some(-1),
-            Some("1002067"),
+            "2041006",
+            Some(-9),
+            Some("1102173"),
             stats,
         )
         .unwrap();
     assert_eq!(
         store
-            .load_equipped("a")
+        .load_equipped("a")
             .unwrap()
             .into_iter()
-            .find(|i| i.slot == 1)
+            .find(|i| i.slot == 9)
             .unwrap(),
         upgraded
     );
@@ -169,7 +166,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             .unwrap()
             .inventory
             .iter()
-            .find(|i| i.item_id == "2040002")
+            .find(|i| i.item_id == "2041006")
             .unwrap()
             .quantity,
         1
@@ -177,7 +174,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
 
     assert!(
         store
-            .use_item("a", "unequip", 1, -1, "1002067", None, None, stats)
+            .use_item("a", "unequip", 1, -9, "1102173", None, None, stats)
             .unwrap()
             .success
     );
@@ -196,9 +193,9 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         .unwrap()
         .inventory
         .into_iter()
-        .find(|i| i.item_id == "1002067")
+        .find(|i| i.item_id == "1102173")
         .unwrap();
-    assert_eq!(recovered, upgraded);
+    assert_eq!(recovered, crate::protocol::InventoryItem { slot: 1, ..upgraded.clone() });
     let mesos = store
         .drop_mesos("a", "map", "mesos", 100, 0.0, 0.0)
         .unwrap();
@@ -217,7 +214,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
             .unwrap()
             .inventory
             .into_iter()
-            .find(|i| i.item_id == "1002067")
+            .find(|i| i.item_id == "1102173")
             .unwrap(),
         recovered
     );

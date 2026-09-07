@@ -1,0 +1,27 @@
+/* StatusBar3.img/chat uses small source slices; keep the text input native. */
+.maple-chat.chat273-shell{width:min(var(--chat273-max-width,574px),100%);color:#e7edf0;font:11px/1.2 Verdana,"Microsoft YaHei",sans-serif;image-rendering:pixelated;pointer-events:auto}
+.chat273-panel{position:relative;width:100%;filter:drop-shadow(0 3px 3px #0009)}
+.chat273-surface{position:relative;display:flex;flex-direction:column;width:min(var(--chat273-max-width,574px),100%);min-width:var(--chat273-min-width,315px);min-height:104px;padding:27px 17px 5px;overflow:hidden}
+.chat273-slice-layer{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.chat273-slice{position:absolute;display:block;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none;user-select:none}
+.chat273-slice-nw{left:0;top:0;width:8px;height:8px}.chat273-slice-n{left:8px;top:0;width:calc(100% - 16px);height:8px}.chat273-slice-ne{right:0;top:0;width:8px;height:8px}
+.chat273-slice-w{left:0;top:8px;width:8px;height:calc(100% - 16px)}.chat273-slice-c{left:8px;top:8px;width:calc(100% - 16px);height:calc(100% - 16px)}.chat273-slice-e{right:0;top:8px;width:8px;height:calc(100% - 16px)}
+.chat273-slice-sw{left:0;bottom:0;width:8px;height:8px}.chat273-slice-s{left:8px;bottom:0;width:calc(100% - 16px);height:8px}.chat273-slice-se{right:0;bottom:0;width:8px;height:8px}
+.chat273-background-closed{display:none}
+.chat273-log{position:relative;z-index:1;display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-height:22px;max-height:66px;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#8c9aa3 #25333a;margin:0 0 4px;color:#e6eef0;font-size:10px;line-height:12px;text-shadow:1px 1px 0 #111820}
+.chat273-system-line{flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat273-toolbar{position:relative;z-index:2;display:flex;align-items:center;gap:3px;width:100%;min-width:0;min-height:25px}
+.chat273-target,.chat273-whisper,.chat273-toggle{position:relative;flex:0 0 auto;padding:0;border:0;background:transparent;line-height:0;overflow:hidden}
+.chat273-target{height:24px}.chat273-whisper{width:24px;height:25px}.chat273-toggle{width:26px;height:20px;margin-left:auto}
+.chat273-target-image,.chat273-whisper-image,.chat273-toggle-image{display:block;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+.chat273-input-shell{position:relative;flex:1 1 220px;width:auto;max-width:457px;min-width:90px;height:25px;margin:0;padding:0;border:0;background:transparent;line-height:0}
+.chat273-input-background{position:absolute;inset:0}
+.chat273-input-background .chat273-slice-w{left:0;top:0;width:7px;height:100%}.chat273-input-background .chat273-slice-c{left:7px;top:0;width:calc(100% - 14px);height:100%}.chat273-input-background .chat273-slice-e{right:0;top:0;width:7px;height:100%}
+.chat273-input{position:absolute;z-index:1;left:6px;top:5px;right:6px;width:auto;height:15px;min-width:0;padding:1px 4px;border:1px solid #35434a;border-radius:1px;background:#e8edf0;color:#1d2930;font:10px/12px Verdana,"Microsoft YaHei",sans-serif;outline-offset:2px}
+.chat273-input::placeholder{color:#6a7478}.chat273-input:disabled{cursor:not-allowed;opacity:.72}
+.chat273-availability{position:relative;z-index:1;display:block;margin-top:2px;color:#a9b8bd;font-size:9px;line-height:10px;text-shadow:1px 1px 0 #111820}
+.chat273-panel-closed .chat273-surface{width:26px;min-width:26px;height:20px;min-height:20px;padding:0;overflow:hidden}.chat273-panel-closed .chat273-background-open{display:none}.chat273-panel-closed .chat273-background-closed{display:block}
+.chat273-panel-closed .chat273-log,.chat273-panel-closed .chat273-input-shell,.chat273-panel-closed .chat273-target,.chat273-panel-closed .chat273-whisper,.chat273-panel-closed .chat273-availability{display:none}.chat273-panel-closed .chat273-toolbar{width:26px;min-height:20px;margin:0}.chat273-panel-closed .chat273-toggle{display:flex;align-items:center;justify-content:center;margin:0}
+.chat273-toggle:focus-visible,.chat273-target:focus-visible,.chat273-whisper:focus-visible,.chat273-input:focus-visible{outline:2px solid #efc269;outline-offset:1px}
+@media(max-width:799px){.maple-chat.chat273-shell{width:100%;max-width:none}.chat273-surface{width:100%;min-width:0}.chat273-input-shell{min-width:60px}}
+@media(max-width:420px){.chat273-toolbar{gap:2px}.chat273-input{font-size:9px;padding-left:3px;padding-right:3px}.chat273-availability{font-size:8px}}

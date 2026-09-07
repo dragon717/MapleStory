@@ -1,40 +1,11 @@
 import type { ClientMessage, InventoryItem, PlayerState, ServerMessage } from '../../../../shared/protocol';
-import type { AssetFrame, Manifest } from '../../assets/manifest';
+import type { AssetFrame, EquipmentLayout, InventoryLayout, Manifest } from '../../assets/manifest';
 import { protocolText, uiLocale, uiText } from '../../app/i18n';
 import { itemCategoryTab, itemDetails, itemName } from './names';
+import './style.css';
 
-const WINDOW_SMALL = { width: 175, height: 289 } as const;
-const WINDOW_FULL = { width: 603, height: 289 } as const;
-const SLOT_COLUMNS = 4;
-const SLOT_ROWS = 6;
-const SLOT_LIMIT = SLOT_COLUMNS * SLOT_ROWS;
-const FULL_SLOT_COUNT = SLOT_LIMIT * 4;
-const SLOT_GRID = { left: 7, top: 50, columnStep: 36, rowStep: 34, width: 32, height: 32 } as const;
-const FULL_GROUP_STEP = 149;
 const MIN_DROP_MESOS = 10;
 const MAX_DROP_MESOS = 50_000;
-const EQUIP_SLOT_POSITIONS: Readonly<Record<number, readonly [number, number]>> = Object.freeze({
-  1: [38, 35],
-  2: [38, 69],
-  3: [70, 102],
-  4: [104, 102],
-  5: [38, 134],
-  6: [38, 200],
-  7: [70, 234],
-  8: [4, 167],
-  9: [4, 134],
-  10: [138, 134],
-  11: [104, 134],
-  12: [104, 167],
-  13: [138, 167],
-  15: [104, 69],
-  16: [138, 69],
-  17: [70, 134],
-  18: [104, 234],
-  19: [4, 234],
-  49: [4, 69],
-  50: [70, 167],
-});
 const TAB_COUNT = 5;
 const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventorySetup', 'inventoryEtc', 'inventoryCash'] as const;
 
@@ -56,16 +27,13 @@ interface PendingScroll {
 }
 
 /**
- * Source-backed GMS83 UIWindow.img/Item window.
+ * Source-backed TMS273 UIInventory/UIEquip windows.
  *
- * The small source background is 175x289 with a 4x6 grid. FullBackgrnd is
- * 603x289 and contains four consecutive 24-slot blocks. The grid is placed
- * from the source pixels rather than laid out with an approximate CSS grid so
- * icons continue to line up with both exported backgrounds.
+ * The window and slot geometry comes from the exported WZ `pos`/origin data;
+ * the client only adds interaction layers above those source-authored frames.
  */
 export class InventoryView {
   private readonly ui?: Manifest['inventoryUi'];
-  private readonly closeAssets?: Manifest['closeButton'];
   private readonly root: HTMLDivElement;
   private readonly window?: HTMLDivElement;
   private readonly background?: HTMLImageElement;
@@ -85,6 +53,9 @@ export class InventoryView {
   private readonly coinButton?: HTMLButtonElement;
   private readonly observer?: ResizeObserver;
   private readonly manifest: Manifest;
+  private readonly inventoryLayout: InventoryLayout;
+  private readonly equipmentLayout: EquipmentLayout;
+  private readonly visualSlotCount: number;
   private full = false;
   private openState = false;
   private selectedTab = 0;
@@ -117,17 +88,24 @@ export class InventoryView {
   constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false) {
     this.manifest = manifest;
     this.ui = manifest.inventoryUi;
-    this.closeAssets = manifest.closeButton;
+    this.inventoryLayout = manifest.inventoryLayout as InventoryLayout;
+    this.equipmentLayout = manifest.equipmentLayout as EquipmentLayout;
+    this.visualSlotCount = Math.max(manifest.inventoryLayout?.small.slots.itemCount ?? 0, manifest.inventoryLayout?.full.slots.itemCount ?? 0);
     this.root = document.createElement('div');
-    this.root.className = 'ui-windows';
+    this.root.className = 'ui-windows tms273-inventory-host';
     this.root.hidden = true;
     this.root.dataset.open = 'false';
-    this.host.replaceChildren(this.root);
+    // The shared UI host also owns NPC dialogue and the quest log.  Keep
+    // those siblings mounted when inventory is recreated after login.
+    this.host.append(this.root);
 
     document.addEventListener('keydown', this.handleKeyDown, true);
     document.addEventListener('dragover', this.handleDocumentDragOver, true);
     document.addEventListener('drop', this.handleDocumentDrop, true);
-    if (!this.ui?.backgrnd || !this.closeAssets?.['normal/0']) return;
+    if (!this.ui?.backgrnd || !manifest.inventoryLayout || !manifest.equipmentLayout || !this.inventoryButtonFrame('close', false)) {
+      this.status(this.t('物品栏资源缺失，窗口不可用。', 'Inventory source assets are missing; the window is unavailable.'));
+      return;
+    }
 
     const inventoryWindow = document.createElement('div');
     inventoryWindow.className = 'inventory-window';
@@ -155,12 +133,9 @@ export class InventoryView {
 
     const tabsViewport = document.createElement('div');
     tabsViewport.className = 'inventory-tabs-viewport';
-    tabsViewport.style.left = '2px';
-    tabsViewport.style.top = '21px';
     const tabs = document.createElement('div');
     tabs.className = 'inventory-tabs';
     tabs.style.position = 'relative';
-    tabs.style.width = String(TAB_COUNT * 34) + 'px';
     for (let index = 0; index < TAB_COUNT; index++) this.createTab(tabs, index);
     tabsViewport.append(tabs);
     inventoryWindow.append(tabsViewport);
@@ -172,7 +147,7 @@ export class InventoryView {
 
     const grid = document.createElement('div');
     grid.className = 'inventory-grid';
-    for (let index = 0; index < FULL_SLOT_COUNT; index++) this.createSlot(grid, index);
+    for (let index = 0; index < this.visualSlotCount; index++) this.createSlot(grid, index);
     inventoryWindow.append(grid);
     this.grid = grid;
 
@@ -209,10 +184,10 @@ export class InventoryView {
       equipment.window.addEventListener('pointercancel', this.handleWindowPointerUp);
     }
 
-    this.closeButton = this.createWindowButton(inventoryWindow, 'close', this.closeAssets, 'normal/0', () => this.close());
-    this.gatherButton = this.createWindowButton(inventoryWindow, 'gather', this.ui, () => this.sortMode ? 'BtSort/normal/0' : 'BtGather/normal/0', () => this.inventoryAction(this.sortMode ? 'sort' : 'gather'));
-    this.sizeButton = this.createWindowButton(inventoryWindow, 'size', this.ui, () => this.full ? 'BtSmall/normal/0' : 'BtFull/normal/0', () => this.setFull(!this.full, true));
-    this.coinButton = this.createWindowButton(inventoryWindow, 'coin', this.ui, 'BtCoin/normal/0', () => this.dropMesos());
+    this.closeButton = this.createWindowButton(inventoryWindow, 'close', this.ui, () => this.inventoryButtonKey('close'), () => this.close());
+    this.gatherButton = this.createWindowButton(inventoryWindow, 'gather', this.ui, () => this.inventoryButtonKey('sort'), () => this.inventoryAction(this.sortMode ? 'sort' : 'gather'));
+    this.sizeButton = this.createWindowButton(inventoryWindow, 'size', this.ui, () => this.inventoryButtonKey('size'), () => this.setFull(!this.full, true));
+    this.coinButton = this.createWindowButton(inventoryWindow, 'coin', this.ui, () => this.inventoryButtonKey('coin'), () => this.dropMesos());
 
     inventoryWindow.addEventListener('pointerdown', this.handleWindowPointerDown);
     inventoryWindow.addEventListener('pointermove', this.handleWindowPointerMove);
@@ -228,6 +203,28 @@ export class InventoryView {
     this.renderSlots();
     this.renderMesos();
     this.renderEquipment();
+  }
+
+  private inventoryMode(full = this.full) {
+    return full ? this.inventoryLayout.full : this.inventoryLayout.small;
+  }
+
+  private inventoryFrame(key: string, full = this.full) {
+    const mode = full ? 'FullAutoBuild' : 'AutoBuild';
+    return this.ui?.[`${mode}/${key}`] ?? this.ui?.[key];
+  }
+
+  private inventoryButtonKey(kind: 'close' | 'size' | 'sort' | 'coin', full = this.full) {
+    const sourceName = kind === 'size'
+      ? (full ? 'button:min' : 'button:full')
+      : ({ close: 'button:close', sort: 'button:sort', coin: 'button:meso' } as const)[kind];
+    return `${full ? 'FullAutoBuild' : 'AutoBuild'}/${sourceName}/normal/0`;
+  }
+
+  private inventoryButtonFrame(kind: 'close' | 'size' | 'sort' | 'coin', full = this.full) {
+    return this.inventoryFrame(`${kind === 'size'
+      ? (full ? 'button:min' : 'button:full')
+      : ({ close: 'button:close', sort: 'button:sort', coin: 'button:meso' } as const)[kind]}/normal/0`, full);
   }
 
   update(player: InventoryPlayer | undefined) {
@@ -359,7 +356,6 @@ export class InventoryView {
     this.equipmentWindow?.removeEventListener('pointerup', this.handleWindowPointerUp);
     this.equipmentWindow?.removeEventListener('pointercancel', this.handleWindowPointerUp);
     this.root.remove();
-    this.host.replaceChildren();
   }
 
   private createTab(parent: HTMLDivElement, index: number) {
@@ -367,7 +363,6 @@ export class InventoryView {
     button.type = 'button';
     button.className = 'inventory-tab';
     button.dataset.tab = String(index);
-    button.style.left = String(index * 34) + 'px';
     const label = uiText(TAB_LABEL_KEYS[index], this.t('物品栏分页 ' + (index + 1), 'Inventory tab ' + (index + 1)));
     button.setAttribute('aria-label', label);
     button.title = label;
@@ -388,9 +383,25 @@ export class InventoryView {
   }
 
   private updateTabs() {
+    this.updateTabMetrics();
     this.tabs?.querySelectorAll<HTMLButtonElement>('.inventory-tab').forEach(button => {
       this.updateTab(button, Number(button.dataset.tab));
     });
+  }
+
+  private updateTabMetrics() {
+    const mode = this.inventoryMode();
+    const tabs = mode.tabs;
+    if (this.tabsViewport) {
+      this.tabsViewport.style.left = `${tabs.left}px`;
+      this.tabsViewport.style.top = `${tabs.top}px`;
+      this.tabsViewport.style.width = `${tabs.viewportWidth}px`;
+      this.tabsViewport.style.height = `${tabs.viewportHeight}px`;
+    }
+    if (this.tabs) {
+      this.tabs.style.width = `${tabs.stepX * Math.max(0, tabs.count - 1) + tabs.width}px`;
+      this.tabs.style.height = `${tabs.height}px`;
+    }
   }
 
   private createTabArrow(parent: HTMLDivElement, direction: 'prev' | 'next', label: string, amount: number) {
@@ -419,17 +430,35 @@ export class InventoryView {
   }
 
   private updateTab(button: HTMLButtonElement, index: number) {
-    const state = index === this.selectedTab ? 'enabled' : 'disabled';
+    const state = index === this.selectedTab ? 'selected' : 'normal';
     button.dataset.state = state;
     button.replaceChildren();
+    const mode = this.inventoryMode();
+    const frame = this.inventoryFrame(`tab:category/${state}/${index}`);
+    if (frame) {
+      button.style.left = `${frame.x}px`;
+      button.style.top = `${frame.y}px`;
+      button.style.width = `${frame.width}px`;
+      button.style.height = `${frame.height}px`;
+      button.append(this.assetImage(frame, 'inventory-tab-frame'));
+      return;
+    }
+    button.style.left = `${mode.tabs.left + index * mode.tabs.stepX}px`;
+    button.style.top = `${mode.tabs.top}px`;
+    button.style.width = `${mode.tabs.width}px`;
+    button.style.height = `${mode.tabs.height}px`;
+    // Legacy manifests may still carry Basic.Tab2 pieces. Keep that fallback
+    // functional while TMS273 uses the complete source-authored tab canvas.
     const tabUi = this.manifest.tabUi;
-    const stateSuffix = state === 'enabled' ? '1' : '0';
-    const fill = tabUi?.['fill' + stateSuffix];
-    if (fill) button.append(this.assetImage(fill, 'inventory-tab-fill'));
-    const left = tabUi?.['left' + stateSuffix];
-    if (left) button.append(this.assetImage(left, 'inventory-tab-left'));
-    const middle = index !== TAB_COUNT - 1 ? tabUi?.['middle' + stateSuffix] : undefined;
-    if (middle) button.append(this.assetImage(middle, 'inventory-tab-middle'));
+    const stateSuffix = state === 'selected' ? '1' : '0';
+    for (const [key, className] of [['fill', 'inventory-tab-fill'], ['left', 'inventory-tab-left']] as const) {
+      const asset = tabUi?.[key + stateSuffix];
+      if (asset) button.append(this.assetImage(asset, className));
+    }
+    if (index !== TAB_COUNT - 1) {
+      const middle = tabUi?.['middle' + stateSuffix];
+      if (middle) button.append(this.assetImage(middle, 'inventory-tab-middle'));
+    }
     const right = tabUi?.['right' + stateSuffix];
     if (right) button.append(this.assetImage(right, 'inventory-tab-right'));
     const text = document.createElement('span');
@@ -529,6 +558,7 @@ export class InventoryView {
       this.status(this.t('请在装备栏中选择目标装备。', 'Choose the target equipment in the Equip window.'));
       return;
     }
+    if (slotNumber > this.inventoryLayout.backendSlotLimit) return;
     const item = this.itemAt(slotNumber);
     if (!item) return;
     if (this.isScroll(item)) {
@@ -545,13 +575,13 @@ export class InventoryView {
   private renderSlots() {
     if (!this.grid) return;
     this.grid.dataset.tab = String(this.selectedTab);
+    const mode = this.inventoryMode();
     const slots = Array.from(this.grid.querySelectorAll<HTMLButtonElement>('.inventory-slot'));
     for (const slot of slots) {
       const slotNumber = Number(slot.dataset.slot);
       const item = this.itemAt(slotNumber);
-      const fullOnly = slotNumber > SLOT_LIMIT;
-      const visible = this.full || !fullOnly;
-      const available = visible && (slotNumber <= SLOT_LIMIT || Boolean(item));
+      const visible = slotNumber <= mode.slots.itemCount;
+      const available = visible && slotNumber <= this.inventoryLayout.backendSlotLimit;
       const targetable = false;
       slot.hidden = !visible;
       slot.disabled = !available;
@@ -568,7 +598,7 @@ export class InventoryView {
       else delete slot.dataset.itemId;
 
       if (!item) {
-        if (this.fullOnlyDisabled(slotNumber)) this.appendDisabled(slot);
+        if (this.backendOnlyDisabled(slotNumber)) this.appendDisabled(slot);
         continue;
       }
       const frame = this.manifest.items?.[item.itemId];
@@ -576,12 +606,21 @@ export class InventoryView {
       const icon = this.assetImage(frame, 'inventory-item-icon');
       icon.alt = itemName(item.itemId);
       icon.setAttribute('aria-hidden', 'true');
+      icon.style.left = `${mode.slots.itemOffset.x}px`;
+      icon.style.top = `${mode.slots.itemOffset.y}px`;
+      icon.style.transform = 'none';
       slot.append(icon);
       if (itemCategoryTab(item.itemId) !== 0 && item.quantity > 1) {
         const quantity = document.createElement('span');
         quantity.className = 'inventory-item-quantity';
         quantity.textContent = String(Math.max(0, Math.floor(item.quantity)));
         quantity.setAttribute('aria-hidden', 'true');
+        if (mode.slots.itemCountOffset) {
+          quantity.style.left = `${mode.slots.itemCountOffset.x}px`;
+          quantity.style.top = `${mode.slots.itemCountOffset.y}px`;
+          quantity.style.right = 'auto';
+          quantity.style.bottom = 'auto';
+        }
         slot.append(quantity);
       }
     }
@@ -678,7 +717,7 @@ export class InventoryView {
 
   private moveSlot(sourceTab: number, sourceSlot: number, targetSlot: number) {
     const item = this.itemAt(sourceSlot, sourceTab);
-    const maxSlot = this.full ? FULL_SLOT_COUNT : SLOT_LIMIT;
+    const maxSlot = this.inventoryLayout.backendSlotLimit;
     if (!item || sourceSlot < 1 || sourceSlot > maxSlot || targetSlot < 1 || targetSlot > maxSlot) return;
     if (!this.send({
       type: 'inventoryMove',
@@ -696,7 +735,7 @@ export class InventoryView {
 
   private dropSlot(sourceTab: number, sourceSlot: number) {
     const item = this.itemAt(sourceSlot, sourceTab);
-    if (!item) return;
+    if (!item || sourceSlot < 1 || sourceSlot > this.inventoryLayout.backendSlotLimit) return;
     let quantity = Math.max(0, Math.floor(item.quantity));
     if (quantity > 1) {
       const answer = window.prompt(
@@ -825,6 +864,11 @@ export class InventoryView {
 
   private renderMesos() {
     if (!this.mesosLine) return;
+    const mesos = this.inventoryMode().mesos;
+    this.mesosLine.style.left = `${mesos.x}px`;
+    this.mesosLine.style.top = `${mesos.y}px`;
+    this.mesosLine.style.width = `${mesos.width}px`;
+    this.mesosLine.style.height = `${mesos.height}px`;
     this.mesosLine.replaceChildren();
     const value = document.createElement('span');
     value.className = 'inventory-mesos-value';
@@ -856,6 +900,11 @@ export class InventoryView {
           const icon = this.assetImage(frame, 'inventory-item-icon');
           icon.alt = itemName(item.itemId);
           icon.setAttribute('aria-hidden', 'true');
+          if (this.equipmentLayout.itemOffset) {
+            icon.style.left = `${this.equipmentLayout.itemOffset.x}px`;
+            icon.style.top = `${this.equipmentLayout.itemOffset.y}px`;
+            icon.style.transform = 'none';
+          }
           button.append(icon);
         }
       } else {
@@ -871,9 +920,12 @@ export class InventoryView {
   private createEquipmentWindow(): { window: HTMLDivElement; close: HTMLButtonElement } | undefined {
     const ui = this.manifest.equipmentUi;
     const backgroundFrame = ui?.backgrnd;
-    if (!backgroundFrame || !this.closeAssets) return undefined;
+    const closeFrame = ui?.['main/button:close/normal/0'];
+    if (!backgroundFrame || !closeFrame) return undefined;
     const equipmentWindow = document.createElement('div');
     equipmentWindow.className = 'equipment-window';
+    equipmentWindow.style.width = `${this.equipmentLayout.width}px`;
+    equipmentWindow.style.height = `${this.equipmentLayout.height}px`;
     equipmentWindow.setAttribute('role', 'dialog');
     equipmentWindow.setAttribute('aria-modal', 'false');
     equipmentWindow.setAttribute('aria-label', this.t('装备栏', 'Equip Inventory'));
@@ -884,22 +936,31 @@ export class InventoryView {
     background.alt = '';
     background.setAttribute('aria-hidden', 'true');
     equipmentWindow.append(background);
+    const equipCanvasFrame = ui?.['EquipTab/canvas:equip'];
+    if (equipCanvasFrame) {
+      const equipCanvas = this.assetImage(equipCanvasFrame, 'equipment-tab-canvas');
+      equipCanvas.style.left = `${equipCanvasFrame.x}px`;
+      equipCanvas.style.top = `${equipCanvasFrame.y}px`;
+      equipCanvas.style.zIndex = '1';
+      equipCanvas.setAttribute('aria-hidden', 'true');
+      equipmentWindow.append(equipCanvas);
+    }
     const title = document.createElement('span');
     title.className = 'equipment-window-title';
     title.textContent = this.t('装备栏', 'Equip Inventory');
     title.setAttribute('aria-hidden', 'true');
     equipmentWindow.append(title);
-    for (const slotNumber of Object.keys(EQUIP_SLOT_POSITIONS).map(Number)) {
+    for (const slotNumber of Object.keys(this.equipmentLayout.slots).map(Number)) {
       this.createEquipmentSlot(equipmentWindow, slotNumber);
     }
-    const close = this.createWindowButton(equipmentWindow, 'close', this.closeAssets, 'normal/0', () => this.closeEquipment());
+    const close = this.createWindowButton(equipmentWindow, 'close', ui, 'main/button:close/normal/0', () => this.closeEquipment());
     close?.setAttribute('aria-label', this.t('关闭装备栏', 'Close equip inventory'));
     if (close) close.title = this.t('关闭装备栏', 'Close equip inventory');
     if (close) {
       close.title = this.t('关闭装备栏', 'Close equipment inventory');
       close.setAttribute('aria-label', close.title);
     }
-    this.positionWindowButton(close, 157, 8);
+    this.positionWindowButton(close, this.equipmentLayout.close);
     return close ? { window: equipmentWindow, close } : undefined;
   }
 
@@ -908,10 +969,12 @@ export class InventoryView {
     button.type = 'button';
     button.className = 'equipment-slot';
     button.dataset.slot = String(slotNumber);
-    const position = EQUIP_SLOT_POSITIONS[slotNumber];
+    const position = this.equipmentLayout.slots[String(slotNumber)];
     if (position) {
-      button.style.left = position[0] + 'px';
-      button.style.top = position[1] + 'px';
+      button.style.left = position.x + 'px';
+      button.style.top = position.y + 'px';
+      button.style.width = position.width + 'px';
+      button.style.height = position.height + 'px';
     }
     button.addEventListener('click', () => {
       const item = this.equippedAt(slotNumber);
@@ -1207,8 +1270,8 @@ export class InventoryView {
 
   private refreshGatherButton() {
     if (!this.gatherButton || !this.ui) return;
-    const key = this.sortMode ? 'BtSort/normal/0' : 'BtGather/normal/0';
-    const frame = this.ui[key];
+    const key = this.inventoryButtonKey('sort');
+    const frame = this.ui[key] ?? this.inventoryFrame('button:sort/normal/0');
     const image = this.gatherButton.querySelector<HTMLImageElement>('img');
     if (frame && image) {
       image.src = frame.url;
@@ -1223,13 +1286,14 @@ export class InventoryView {
   private setFull(full: boolean, announce: boolean) {
     if (!this.window || !this.background || !this.ui) return;
     const fullFrame = this.ui.FullBackgrnd;
-    if (full && (!fullFrame || (this.host.clientWidth > 0 && this.host.clientWidth < WINDOW_FULL.width + 12))) {
+    const requestedMode = full ? this.inventoryLayout.full : this.inventoryLayout.small;
+    if (full && (!fullFrame || (this.host.clientWidth > 0 && this.host.clientWidth < requestedMode.width + 12))) {
       if (announce) this.status(this.t('当前窗口宽度不足以展开物品栏。', 'The current window is too narrow for the expanded inventory.'));
       return;
     }
     this.full = full && Boolean(fullFrame);
     const frame = this.full && fullFrame ? fullFrame : this.ui.backgrnd;
-    const dimensions = this.full ? WINDOW_FULL : WINDOW_SMALL;
+    const dimensions = this.inventoryMode();
     this.window.style.width = dimensions.width + 'px';
     this.window.style.height = dimensions.height + 'px';
     this.window.dataset.size = this.full ? 'full' : 'small';
@@ -1237,8 +1301,7 @@ export class InventoryView {
     this.background.width = frame.width;
     this.background.height = frame.height;
     if (this.sizeButton) {
-      const key = this.full ? 'BtSmall/normal/0' : 'BtFull/normal/0';
-      const state = this.ui[key];
+      const state = this.inventoryButtonFrame('size');
       const image = this.sizeButton.querySelector<HTMLImageElement>('img');
       if (state && image) {
         image.src = state.url;
@@ -1247,24 +1310,25 @@ export class InventoryView {
       }
     }
     this.refreshGatherButton();
-    this.positionWindowButton(this.closeButton, dimensions.width - 18, 8);
-    this.positionWindowButton(this.gatherButton, dimensions.width - 33, 8);
-    this.positionWindowButton(this.sizeButton, dimensions.width - 48, 8);
-    this.positionWindowButton(this.coinButton, 15, 273);
+    this.positionWindowButton(this.closeButton, dimensions.buttons.close);
+    this.positionWindowButton(this.gatherButton, dimensions.buttons.sort);
+    this.positionWindowButton(this.sizeButton, dimensions.buttons.size);
+    this.positionWindowButton(this.coinButton, dimensions.buttons.coin);
     this.updateGridMetrics();
     this.renderSlots();
+    this.updateTabs();
     this.updateTabOverflow();
     this.layout();
   }
 
-  private positionWindowButton(button: HTMLButtonElement | undefined, sourceX: number, sourceY: number) {
+  private positionWindowButton(button: HTMLButtonElement | undefined, position: { x: number; y: number }) {
     if (!button) return;
     const image = button.querySelector<HTMLImageElement>('img');
     const width = image?.width ?? 12;
     const height = image?.height ?? 12;
     const padding = 4;
-    button.style.left = sourceX - width / 2 - padding + 'px';
-    button.style.top = sourceY - height / 2 - padding + 'px';
+    button.style.left = position.x - padding + 'px';
+    button.style.top = position.y - padding + 'px';
     button.style.width = width + padding * 2 + 'px';
     button.style.height = height + padding * 2 + 'px';
   }
@@ -1272,30 +1336,31 @@ export class InventoryView {
   private updateGridMetrics() {
     if (!this.grid) return;
     const slots = Array.from(this.grid.querySelectorAll<HTMLButtonElement>('.inventory-slot'));
-    const columns = this.full ? SLOT_COLUMNS * 4 : SLOT_COLUMNS;
+    const layout = this.inventoryMode().slots;
+    const columns = layout.columns;
+    const stepX = layout.slotWidth + layout.spacingX;
+    const stepY = layout.slotHeight + layout.spacingY;
     this.grid.style.left = '0px';
     this.grid.style.top = '0px';
-    this.grid.style.width = this.full ? '595px' : '147px';
-    this.grid.style.height = String(SLOT_ROWS * SLOT_GRID.rowStep + SLOT_GRID.height) + 'px';
+    this.grid.style.width = `${layout.origin.x + columns * layout.slotWidth + (columns - 1) * layout.spacingX}px`;
+    this.grid.style.height = `${layout.origin.y + layout.rows * layout.slotHeight + (layout.rows - 1) * layout.spacingY}px`;
     slots.forEach(slot => {
       const slotNumber = Number(slot.dataset.slot);
-      const block = Math.floor((slotNumber - 1) / SLOT_LIMIT);
-      const local = (slotNumber - 1) % SLOT_LIMIT;
-      const column = local % SLOT_COLUMNS;
-      const row = Math.floor(local / SLOT_COLUMNS);
-      const x = SLOT_GRID.left + (this.full ? block * FULL_GROUP_STEP : 0) + column * SLOT_GRID.columnStep;
-      const y = SLOT_GRID.top + row * SLOT_GRID.rowStep;
+      const column = (slotNumber - 1) % columns;
+      const row = Math.floor((slotNumber - 1) / columns);
+      const x = layout.origin.x + column * stepX;
+      const y = layout.origin.y + row * stepY;
       slot.style.left = x + 'px';
       slot.style.top = y + 'px';
-      slot.style.width = SLOT_GRID.width + 'px';
-      slot.style.height = SLOT_GRID.height + 'px';
-      slot.dataset.column = String(columns === SLOT_COLUMNS ? column : block * SLOT_COLUMNS + column);
+      slot.style.width = layout.slotWidth + 'px';
+      slot.style.height = layout.slotHeight + 'px';
+      slot.dataset.column = String(column);
       slot.dataset.row = String(row);
     });
   }
 
   private layout() {
-    if (this.window && this.full && this.host.clientWidth > 0 && this.host.clientWidth < WINDOW_FULL.width + 12) {
+    if (this.window && this.full && this.host.clientWidth > 0 && this.host.clientWidth < this.inventoryLayout.full.width + 12) {
       this.setFull(false, false);
       return;
     }
@@ -1329,8 +1394,8 @@ export class InventoryView {
     slot.append(image);
   }
 
-  private fullOnlyDisabled(slot: number) {
-    return this.full && slot > SLOT_LIMIT && !this.itemAt(slot);
+  private backendOnlyDisabled(slot: number) {
+    return slot > this.inventoryLayout.backendSlotLimit && slot <= this.inventoryMode().slots.itemCount && !this.itemAt(slot);
   }
 
   private assetImage(frame: AssetFrame, className: string) {

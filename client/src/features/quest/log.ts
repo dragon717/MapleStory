@@ -1,5 +1,6 @@
 import type { QuestLogEntry } from '../../../../shared/protocol';
 import { uiLocale } from '../../app/i18n';
+import type { Manifest } from '../../assets/manifest';
 
 /**
  * Quest log window.  The server owns the authoritative entries (status /
@@ -7,7 +8,7 @@ import { uiLocale } from '../../app/i18n';
  * (questList after every join, questUpdate on transitions) resolved from the
  * offline `shared/quest-text.json` corpus in the player's language.  This
  * panel only renders what the server sent; it carries no translation table.
- * Styling follows the parchment panel used by the v83 dialogue windows;
+ * The window uses the TMS273 Quest.img list frame and authored content bounds;
  * opening is a hotkey (Q) so the log never needs its own world-space layout.
  */
 export class QuestLogView {
@@ -17,7 +18,7 @@ export class QuestLogView {
   private readonly entries = new Map<string, QuestLogEntry>();
   private openState = false;
 
-  constructor(private host: HTMLElement) {
+  constructor(private host: HTMLElement, manifest: Manifest) {
     this.root = document.createElement('div');
     this.root.className = 'quest-log';
     this.root.hidden = true;
@@ -42,6 +43,17 @@ export class QuestLogView {
     close.addEventListener('click', () => this.close());
 
     this.root.append(title, this.body, close);
+    const source = manifest.questUi?.backgrnd, layout = manifest.questLayout;
+    if (source && layout) {
+      this.root.classList.add('tms-quest-log');
+      Object.assign(this.root.style, { width: `${source.width}px`, height: `${source.height}px`, backgroundImage: `url("${source.url}")` });
+      Object.assign(this.body.style, { left: `${layout.listLT.x}px`, top: `${layout.listLT.y}px`, width: `${layout.listRB.x-layout.listLT.x}px`, height: `${layout.listRB.y-layout.listLT.y}px` });
+      const closeFrame = manifest.questUi?.['button:close/normal/0'];
+      if (closeFrame) {
+        close.textContent = '';
+        Object.assign(close.style, { left: `${closeFrame.x}px`, top: `${closeFrame.y}px`, width: `${closeFrame.width}px`, height: `${closeFrame.height}px`, backgroundImage: `url("${closeFrame.url}")` });
+      }
+    }
     this.host.append(this.root);
     this.render();
   }

@@ -5,6 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const base = new URL(process.env.SERVER_URL || 'http://127.0.0.1:3010');
+const probeLang = process.env.QUEST_LANG === 'zh' ? 'zh' : 'en';
+const reHeena = /Heena|希娜|希娜娅|image room|影像室|训练营/;
+const reTurninText = /reward|rewarded|Sera|希娜|奖励|莎丽|训练营|image room|影像室/;
 if (base.port !== '3010') throw new Error(`Refusing non-QA target ${base.origin}`);
 const checks = [];
 function check(name, status, details = {}) { checks.push({ name, status, ...details }); console.log(`${status} ${name}`); }
@@ -35,7 +38,7 @@ function openSession({ token, protocolVersion, contentVersion }) {
     const messages = [];
     let snapshot = null;
     const send = (payload) => ws.send(JSON.stringify(payload));
-    ws.addEventListener('open', () => send({ type: 'hello', token, protocolVersion, contentVersion }));
+    ws.addEventListener('open', () => send({ type: 'hello', token, protocolVersion, contentVersion, lang: probeLang }));
     ws.addEventListener('message', (event) => {
       const msg = JSON.parse(event.data);
       messages.push(msg);
@@ -81,7 +84,7 @@ check('Sera offers the quest menu', menu.dialog.options.length === 2, { options:
 talk(seraI, { step: 'select', selection: 0 });
 await waitUntil(() => {
   const r = session.lastNpcResult();
-  return r && r.dialog?.kind === 'next' && /Heena/.test(r.dialog?.text ?? '');
+  return r && r.dialog?.kind === 'next' && reHeena.test(r.dialog?.text ?? '');
 }, 'Sera instructions');
 check('Sera explains the quest', true, { text: session.lastNpcResult().dialog.text.slice(0, 60) });
 
@@ -102,7 +105,7 @@ check('Server pushes questUpdate on accept', acceptedUpdate.status === 'active',
 talk(heenaI, { step: 'start' });
 await waitUntil(() => {
   const r = session.lastNpcResult();
-  return r && r.npcId === heenaI.id && r.dialog?.kind === 'next' && /reward|Sera/.test(r.dialog?.text ?? '');
+  return r && r.npcId === heenaI.id && r.dialog?.kind === 'next' && reTurninText.test(r.dialog?.text ?? '');
 }, 'Heena completion branch');
 check('Heena offers the completion page', true, { text: session.lastNpcResult().dialog.text.slice(0, 60) });
 
@@ -132,7 +135,7 @@ check('Server pushes questUpdate on turn-in', completedUpdate.reward?.mesos === 
 talk(seraI, { step: 'start' });
 await waitUntil(() => {
   const r = session.lastNpcResult();
-  return r && r.npcId === seraI.id && r.dialog?.text?.includes('image room');
+  return r && r.npcId === seraI.id && reTurninText.test(r.dialog?.text ?? '');
 }, 'Sera intro after completion');
 check('Quest cannot be re-accepted (Sera intro)', true);
 

@@ -86,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let auth_service = auth::start(&PathBuf::from(setting(
         "ACCOUNT_DB",
-        root.join("server/data/accounts.sqlite3").to_str().unwrap(),
+        root.join("server/data/tms273.sqlite3").to_str().unwrap(),
     )))?;
     let world_store = auth_service.store.clone();
     let (world_tx, rx) = mpsc::channel(1024);
@@ -112,18 +112,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let dist = PathBuf::from(setting(
         "CLIENT_DIST",
-        root.join("client/dist").to_str().unwrap(),
+        root.join("client/dist-tms273").to_str().unwrap(),
     ));
     let assets = PathBuf::from(setting(
         "ASSETS_DIR",
-        root.join("client/public/assets").to_str().unwrap(),
+        root.join("client/public-tms273/assets").to_str().unwrap(),
     ));
     let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
         .route("/api/{*path}",get(||async{error(StatusCode::NOT_FOUND,"Unknown API route")}))
         .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(assets)))
         .fallback_service(ServeDir::new(&dist).not_found_service(ServeFile::new(dist.join("index.html"))))
         .layer(DefaultBodyLimit::max(2048)).with_state(state);
-    let address = setting("BIND_ADDR", "0.0.0.0:3000");
+    let address = setting("BIND_ADDR", "127.0.0.1:3010");
     let listener = tokio::net::TcpListener::bind(&address).await?;
     println!("MapleStory server listening on {address}; content={CONTENT_VERSION}, tick={}ms, attack={}ms",world::TICK_MS,duration_ms);
     axum::serve(listener, app)

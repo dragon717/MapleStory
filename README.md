@@ -1,59 +1,39 @@
-# MapleStory Web MVP
+# MapleStory Web · TMS273
 
-GMS83蘑菇村，TypeScript/Phaser前端、Rust单机权威服务。3010玩法版包含foothold墙/边缘、梯绳与下跳、Snail、普攻/接触伤害、经验、掉落拾取和响应式原素材HUD；没有PVP、完整技能、任务、商城或真实聊天业务。
+复刻依据为 `参考/273` 中的 TMS273.7 客户端与对应 WZ_JSON_TW。前端使用 TypeScript、Phaser 3、Vite；后端使用 Rust、axum、SQLite，以服务端为移动、战斗、库存和账户状态的唯一权威。网页客户端使用项目自己的 WebSocket 协议，不是原版 Windows 客户端协议。
 
-## 新版 3010 一键启动（推荐）
+开始开发先读 [长期规范](BUSINESS_DEVELOPMENT.md) 和 [当前计划](PLAN.md)。
 
-直接双击项目根目录的 [启动3010.command](./启动3010.command) 启动新版服务和唯一陪测 bot；双击 [关闭3010.command](./关闭3010.command) 停止它们。两个脚本只管理 `127.0.0.1:3010`，不会操作旧版 3000；启动会先构建服务端和客户端，全部成功后重启 3010，并按共享协议检查版本；构建失败时保留正在运行的服务。启动需要 Node 22+、npm 和 Cargo。
+## 运行
 
-脚本把 PID、日志和 bot 凭据保存在 `evidence/runtime/3010-control/`（凭据文件权限为 600，不打印密码），数据库仍为 `server/data/qa-gameplay-round2.sqlite3`。首次缺少二进制时会自动构建；端口被其他程序占用时会退出并提示，不会误杀。
+双击根目录的 [启动3010.command](启动3010.command)，然后打开 [游戏](http://127.0.0.1:3010)。脚本先构建前后端，成功后启动 3010；存在原凭据时连接唯一陪测 bot，凭据缺失时保留服务运行并提示，不新建机器人账号。关闭使用 [关闭3010.command](关闭3010.command)。需要 Node 22+、npm、Cargo。
 
-## 运行资源归档
+当前资源目录为 `client/public-tms273/assets`，构建目录为 `client/dist-tms273`。旧 83 的生成目录不再参与构建。数据库统一使用 `server/data/tms273.sqlite3`，首次启动自动创建空库。按用户要求已删除旧账户库及本次备份，需要重新注册；日后普通启动会保留新库。日志位于 `evidence/runtime/3010-control/`。
 
-根目录的 `MapleStory-运行资源-2026-09-05.tar.gz` 是已导出的可运行资源包（723452060 bytes，10837个归档条目，SHA-256 `bfdcfc7e306ffaeac8a43b71a93558e358c372a7559acd8b434d9d5a0ae05383`），包含完整的 `resources/gms83-export`（8005个文件：音频、图像和动画样本）以及当前浏览器/玩法运行时目录：`client/public`、`client/public-gameplay`、`references/browser-probe/assets`、`references/gameplay-assets/assets`、`references/gameplay-assets/avatar/assets`。归档不含 `参考/` 下的原始WZ、原始压缩包、第三方仓库和工具，也不含数据库、凭据、依赖或编译产物。
+方向键或 A/D 移动，空格跳跃，X/Ctrl 普攻，上方向进入传送门，I 打开背包，Q 打开任务日志。具体快捷键以页面设置为准。
 
-在任意环境先进入仓库根目录，再用 UTF-8 路径解压；不要在仓库外解压后再套一层同名目录：
+## 从参考资源重建
 
 ```sh
-cd "/path/to/MapleStory"
-tar -xzf "MapleStory-运行资源-2026-09-05.tar.gz"
+npm ci --prefix scripts
+npm ci --prefix client
+node scripts/build_tms273.cjs
 ```
 
-解压后可直接运行 `启动3010.command`；需要重新生成浏览器资源时再执行 `python3 scripts/integrate_assets.py`，玩法资源用 `python3 scripts/integrate_gameplay.py`。这些脚本只读取 `参考/` 中保留的原始资料或 `resources/gms83-export` 中的处理结果。
-
-## 旧版 3000（历史入口）
-
-在本项目根目录使用Node 22与Rust stable。依赖和首版资源当前已备好；从源导出再次集成用 `python3 scripts/integrate_assets.py`。
+管线依次解析 273 地图/任务元数据、解包 Mob 的 MS 文件、读取 WZ 的 PNG/UOL/Canvas 外链、按原始帧延时与命名锚点导出动画、组装客户端资源与共享服务端配置。输出为 `resources/tms273-export`；构建前会校验全部资源引用，禁止混入旧版图片。
 
 ```sh
-npm run build --prefix client
-~/.cargo/bin/cargo run --manifest-path server/Cargo.toml
-```
-
-另开终端，在根目录启动自动机器人：
-
-```sh
-node bots/run.mjs demo
-```
-
-同机打开 [登录页](http://127.0.0.1:3000)，同一局域网设备打开 [主机地址](http://192.168.1.19:3000)。IP改变时改用新的主机IP。点击注册，用自己的账号进入地图；默认用户名3–32 ASCII字母/数字/下划线/短横线，密码8–128 UTF-8字节。
-
-左右方向键或A/D移动，空格跳跃，X或Ctrl普攻。页面提供静音和退出。机器人使用独立账号自动往返、跳跃与攻击，不依赖AI发指令。服务和机器人各自在运行它的终端按Ctrl+C停止，重启机器人会创建新的演示账号。
-
-账号存在 `server/data/accounts.sqlite3`，密码经Argon2id盐化hash；token仅内存、24小时有效。断线角色移除，重入从出生点开始；同角色重复连接拒绝新连接。默认监听 `0.0.0.0:3000`。其他配置和已知物理边界见 `server/README.md`。
-
-## 开发验证
-
-服务运行时：
-
-```sh
-~/.cargo/bin/cargo test --manifest-path server/Cargo.toml
+node scripts/check_tms273_runtime.cjs
 npm run check --prefix client
-node bots/run.mjs selftest
+npm run typecheck --prefix client
 ```
 
-网络自测通过后写入 `evidence/bot-selftest.json`，不写密码或token。`SERVER_URL=http://主机IP:3000 node bots/run.mjs selftest` 可指向其它主机。阶段A开发自测与阶段B用户登录验收分开记录；目前用户验收仍待执行。
+## 覆盖与缺口
 
-后续业务按 `BUSINESS_DEVELOPMENT.md` 操作。资源来源、解码证据和覆盖限制见 `references/evidence/gms83-verification.md`；素材取自现有GMS83包，不能把参考代码许可证当作美术再分发授权。
+地图范围为现有楓之島区域及原版冒险家主线涉及的彩虹码头、码头船舱、维多利亚港，共 17 张。状态栏使用 StatusBar3，总菜单使用 UITotalMenu，任务窗口使用 Quest.img，背包与装备窗口使用 UIInventory/UIEquip。
 
-执行入口：先读 BUSINESS_DEVELOPMENT.md（长期规范）和 PLAN.md（唯一当前计划）；仅相关追溯时读 IMPLEMENTATION_STATUS.md（已完成历史）。完成结果从计划移入历史，不创建重复台账。
+当前冒险家出生任务为 `36301–36304 → 36306 → 36307`，不是 322xx 或 83 的苹果任务。参考包缺失 `q363*`、`enter_maple`、`enter_20000` 等执行脚本，WZ 对应 Say/Act 为空；这些任务保留原始条件和文本，标记不可执行，不能视作完整剧情复刻。原生任务演出、职业系统、完整技能和商城业务仍需继续实现。
+
+物理和基础战斗沿用现有 Rust 运行模型；怪物模板、防御百分比、地图碰撞及动画来自 273，初始角色属性等尚未核实的规则在生成数据中单独标为兼容实现。等级经验表尚缺同版依据，当前不能视作完整升级玩法。
+
+83 资源归档 `MapleStory-运行资源-2026-09-05.tar.gz` 只供历史追溯，不能用它替代本版资源。
