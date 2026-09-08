@@ -1,5 +1,13 @@
 # 当前工作计划
 
+## 最新目标：编译收尾完成（覆盖此前持续复刻目标）
+
+- 用户要求尽快结束目标：前后端语法正确、编译正常，未完成但不影响编译的业务转TODO；本轮停止新增模块及研究派发。
+- 后端cargo build、前端tsc/Vite生产build均通过；最后仅修改测试夹具，Rust测试编译及Hyper六项定向检查通过。证据见IMPLEMENTATION_STATUS.md。未重启在线服务或修改存档。
+- TODO：原版36315+后续剧情、完整转职演出/礼盒；V核心/HEXA、现代装备强化与账号成长；正式Boss奖励、后续Boss与日周结算；研究包其余未完成项目。保留原研究包需求，不视为已经复刻完成。
+- TODO：Hyper专用原版窗口、原版精确服务端节拍、敌方致命异常、队伍增益传播、末击Special目标标记；当前P规则及已实现逻辑保留。
+- TODO：实际游戏手感、源素材挂点/遮挡与联机生命周期实玩；现有生产包体积警告及contact_damage未使用警告不阻塞编译，后续按需处理。
+
 ## 当前目标执行：大模块优先（2026-09-08）
 
 - 用户 /goal：按研究包推进；模块开发先静态核对入口→权威状态→持久事务→反馈→失败恢复闭环，检查幂等、性能、分层、视觉及玩家下一步；完成模块后才运行必要核心脚本，每模块新增/修改验收脚本累计≤7文件、≤1000行，不独立QA、不动在线库与服务。
@@ -157,31 +165,15 @@
 - 用户待验：实际地图行走与门户、Boss躲招/死亡恢复、源特效挂点/遮挡、宽屏/横屏/窄屏。正式Boss生成/奖励仍U，blocked2813–2816未开放；敌方玩家异常入口仍待接，不能当M4全部完成。
 - world/boss/auth/combat/client与导出文件已释放；不重复运行通过的检查或重启在线服务。
 
-## 下一模块输入：Hyper与后续原剧情
+## Hyper：编译与有限核心验证完成
 
-- Hyper大模块启动静态架构：root持有协议/技能装配/等级曲线及源规则契约；quest_store（Luna/max）只读核既有learn_skill账本与独立Hyper点数/重置存档最小接法，quest_flow（Luna/max）只读核三主动与九强化复用现有World/mage机制边界，chapter_assets（Luna/max）核并导出273原Hyper窗口入口/布局源节点供root实看（不改client业务）。架构明确后再授实施所有权；模块完成前不编译/测试。
-
-- Hyper实施所有权：quest_store Luna/max仅auth.rs，复用skills与skill_actions，独立两池余额派生、持久reset tier和原子重置；quest_flow Luna/max仅world.rs/mage.rs，九强化/三主动/隐藏漩涡与生命周期；chapter_assets Luna/max仅mage-effects/skill-sounds/avatar/appearance导出与其产物。root持有协议、客户端、装配与根台账。主动采用P手动投资独立主动点数，不自动赠送；不另建Hyper技能存储。准备780ms/持续最多2000ms/结束900ms按源演出，P持续脉冲200ms，结界普通冻结2400ms、漩涡1200ms，未获精确服务器节拍；持续MP扣费失败停止，不补发。模块开发完成后才集中有限核心脚本。
-
-- Hyper资源已完成导出：56技能目录、1622效果PNG、67声音节点、三段角色动作与113appearance层。chapter_assets资源文件释放，转为开发者接完client combat/view.ts、player/view.ts、scenes/world.ts的Hyper源表现/生命周期；root释放这三文件，继续技能UI/HUD/协议与装配。不独立QA、不编译测试直到模块实施齐备。
-
-- Hyper雷球计费静态修正：初始事务预付30MP并起CD，覆盖首个持续攻击或提前释放末击；首pulse不二扣，后续各30，末击不额外扣。避免准备期tap/0MP免费末击；原每次30数值不变，预付时点明确P。
-
-- Hyper静态收敛：reset tier仅player_stats列由reset事务更新，通过Store.hyper_reset_count读取；不扩Profile，避免通用保存覆盖专属计数及波及七个旧夹具。1052持续脉冲必须使用服务端内部扣费路径绕过已经启动的本次CD，外部初次施放仍校验CD；已反馈两后端实施者。
-
-- Hyper前端已完成并冻结：离图可选player的两处类型收窄已修复；启动恢复任务独立生产构建通过（tsc/Vite47模块，output/startup-recovery-build，未覆盖online dist），复用结果不重复构建。后端静态收敛长按减伤/冒险增伤/区域生命周期后释放cargo build；模块核心检查尚未运行。
-
-- 并行用户启动恢复任务01a07fc8-2a7c-7fb2-ba2e-dab8e0344b08报告在途Hyper编译缺失，已暂停重复启动/构建等待本任务稳定；稳定后由其统一cargo build与前端npm run build -- --outDir ../output/startup-recovery-build，回传结果，不动online dist/服务。本任务负责有限核心检查，不重复构建。其已同步check_tms273_runtime.cjs到content9/200级/56目录并离线检查通过；保留该文件成果，源码资源未变时复用此结果。
-
-- Hyper完成后的有限核心验证预留≤7文件/≤1000行：auth/world两个宿主include增量、hyper_store_acceptance.rs、hyper_acceptance.rs、既有check_tms273_runtime.cjs及最多两个客户端Hyper核心脚本。覆盖等级/两池/重置幂等与报价、持续扣MP失败/末击唯一、toggle互斥/漩涡无伤害/生命周期、原图装配与明确操作；开发未齐备前不写跑脚本，类型/离线构建在最后一次完成后执行。
-
-- Hyper客户端实施中：root已接ResetHyper协议/派生字段、Hyper页与重置报价确认、Shift9雷霆/Shift0结界、长按释放、三段动作/循环音效与漩涡分层。已实看本地273 Skill背景与BtHyper；C06无同版Hyper实窗、专用布局源缺失，复用Skill壳的内容布局标P。尚未编译测试；正在与后端接口联调静态核对。
-
-- Hyper当前静态落地：root已联网核KMS官方重置费用10万/100万/200万/500万/1000万封顶（R），ice-hyper-source.json记录P采用及原子扣费/陈旧报价边界。源投影增加hyper/requiredLevel，目录准备43+13=56（隐藏1055禁直接学习/施放）；P经验曲线延至200，普通四转SP仍止于140。已运行源catalog导出得到56节点/0图标缺口；已装配shared/public源v0.11.0/protocol10/content9（41图/5854assets），未编译测试或发布；后端/前端完整实施与验证仍待完成。
-
-- Hyper源准备已保存ice-hyper-source.json：13个hyper节点含隐藏2221055，12可见；本地T字段/文本与官方MSEA点数档、台服2019调整交叉核定。2221045按hyper1的ON/OFF距离增强处理，不因数字ID改成主动攻击；2221052是长按多阶段；2221054/55主体与隐藏漩涡关系、命中节拍仍需P/U明确。当前140级上限和普通SP不能替代完整Hyper成长，尚未实施点数/重置/技能UI与运行时。
-- Hyper三主动输入已核：2221052雷霆萬鈞为按下/持续/松开三段，准备动作源负delay不能当普通帧时长；2221053傳說冒險无角色action，技能图outlink212、Use声音UOL1121053；2221054冰雪结界公开ON/OFF，向下再次使用漩涡有T文本与JMS官方R佐证，隐藏2221055不入学习目录。chapter_assets只读工作已完成，root接下一模块状态/点数/时序边界；官网 https://maplestory.nexon.co.jp/job/adventurer/archmage02/ 与MSEA v218仅为R，不覆盖TMS273源数值。
-- 其后仍有原完整转职、V/HEXA、现代装备/账号成长、后续Boss和研究包其它大模块；不提前触发冰雷完成彩蛋，不缩小完整目标。
+- 当前源码v0.11.0/protocol10/content9：56技能目录（12可见Hyper、隐藏1055）、41图/5854assets、等级上限200。普通四转SP止140，Hyper复用skills/skill_actions、两池余额独立；reset tier仅专属SQL更新，不扩Profile。源与联网官方R依据、P执行边界见references/tms273-data/ice-hyper-source.json。
+- 已实现九强化、1052长按三阶段/15段/50%减伤免击退、1053自身增伤、1054开关与1055无伤害范围漩涡、重置与死亡/转图/断线清理。P：1052初始30MP预付首pulse或提前末击、后pulse30MP、200ms节拍；普通结界2400ms/漩涡1200ms冻结；主动点手动投资，无免费满技能。
+- 客户端复用已查看的273 Skill壳/BtHyper，Hyper专用布局缺失标P；已接两池页、报价重置、Shift9/Shift0、长按释放、原三段动作/循环音效/漩涡分层。敌方致命异常、队伍传播及末击Special可靠目标标记仍缺，不能宣称原作全部行为完成。
+- 业务源码已冻结，用户启动恢复任务01a07fc8-2a7c-7fb2-ba2e-dab8e0344b08回传最终cargo build与前端独立生产build通过；在线dist/服务/库未动。不重复构建，出现实际失败才释放所属文件修复。
+- 有限核心检查共预留7文件/≤1000行：auth/world两个测试include、hyper_store_acceptance.rs、hyper_acceptance.rs、check_tms273_runtime.cjs、check_tms273_hyper_ui.mjs、check_tms273_hyper_visuals.mjs。auth142行3项已通过；UI82行、表现121行及源85行已通过，修复320px纵向居中和1054重复Use。World175行3项已通过；合计7文件、核心脚本605行加2行include，共607行。不独立QA。
+- root持有台账/协议与整合；quest_flow已释放world/mage，chapter_assets与quest_store业务文件均已释放。实际源素材挂点/时序、手感与地图实玩交用户，不重启或造在线验收账号。
+- 下个R023大模块已按用户最新要求停止：quest_store只读研究已中断，V核心获取/装配/强化/战斗来源闭环转TODO。原完整转职/36315+、V/HEXA、现代装备/账号、后续Boss及研究包其余目标均保留，未触发冰雷完成彩蛋。
 
 
 ## 技能详情与快捷栏：已验证，待启动加载（2026-09-08）
@@ -201,3 +193,10 @@
 - auth/world任务区/导出装配均释放；并行自然恢复亦已释放，保留其恢复字段/永久被动及已通过证据，不重复验证。用户待验行走/门户、NPC/帽子源层、提示与声音；启动统一根启动3010.command，不自动重启。
 
 - Hyper生产编译已通过：启动恢复任务回传cargo build（7.78s，仅既有contact_damage未使用警告）及最终前端构建（5.18s，index-CSBIPrvv.js/index-CmB4sO2_.css，仅chunk预算警告）。业务源码已冻结，在线dist/服务/库未变；接下来只运行cfg(test)核心检查，出现实际失败才修复。
+
+- Hyper auth核心3项已定向通过（cargo test hyper_store_，126测试中仅执行3项）；World3项也已通过；V核心准备已停止，剩余业务见顶部TODO。
+
+## Windows 启停与资源交付：待 Windows 实机验收
+
+- root已接续完成start/stop、README与资源ZIP；原Luna/max已落盘运行资源检查，续轮Luna/max负责有限只读核对。文件及校验结果见IMPLEMENTATION_STATUS.md。
+- 资源包直接解压到start.bat所在根目录。Windows安装、真实启停、-SelfTest及浏览器运行待用户亲验；当前macOS无PowerShell，不以静态核对冒充实机通过。

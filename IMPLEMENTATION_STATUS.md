@@ -676,3 +676,19 @@ Luna/max mage_sp_official续作导出72张额外PNG与mage-effects.json，另复
 - 统一构建进一步发现并由所属开发者修复：combat/view.ts两处player空值收窄、world.rs增伤分支多余闭括号。并行核心检查修复窄屏纵向定位和结界Use重复音效后，本任务对最终代码重建。
 - 最终/Users/muniao/.cargo/bin/cargo build --manifest-path server/Cargo.toml通过，7.78s；仅contact_damage dead_code警告。npm run build -- --outDir ../output/startup-recovery-build通过（含tsc），47模块/5.18s；产物index-CSBIPrvv.js、index-CmB4sO2_.css，仅chunk超1600kB预算提示。启动资源检查已有通过证据，未重复运行。
 - 未重启在线服务、未覆盖online dist、未修改存档；恢复的是构建阻塞，Hyper核心业务验收仍由所属任务继续，不把编译通过当作全部业务完成。用户可用根启动3010.command加载，实际启动/实玩待验。
+
+## 2026-09-08：按用户新目标完成编译收尾
+
+- 用户把持续复刻目标改为尽快结束、保证前后端语法与编译正常；未完成业务已写入PLAN.md顶部TODO，V核心只读代理已中断，不继续扩展。
+- 当前Hyper源码v0.11.0/protocol10/content9：最终`cargo build --manifest-path server/Cargo.toml`通过（启动恢复任务回传7.78s），最终前端`npm run build -- --outDir ../output/startup-recovery-build`通过（5.18s，tsc无错误，index-CSBIPrvv.js/index-CmB4sO2_.css）。仅contact_damage未使用、前端chunk预算警告。业务源码此后没有改变；仅补齐cfg(test)脚本与文档。
+- Hyper有限核心验证：auth三项通过；World首次夹具没有save_profile导致技能未写入，已修夹具；脉冲断言改为实际15条damageEvent及总HP扣减，避免误用另一伤害路径的贡献表。World释放/50%减伤、增伤/漩涡/重置两项通过后，脉冲一项定向复验通过。最后Rust测试编译通过，无剩余失败。
+- 前端UI检查通过（等级/两池/隐藏排除/长按配对/重置取消和报价/5次尺寸变化），实际combat/player模块检查通过（1052阶段释放、1054唯一音效、1055清理）；修复320px窗口纵向居中与重复Use。源runtime检查通过结果复用。7个检查文件含两个宿主include，脚本605行+include2行，合计607行。
+- 原版剧情与存档保留，未覆盖online dist、重启服务或操作在线角色库。专用Hyper原窗/精确节拍/敌方异常/队伍传播/Special目标标记及后续研究包业务均未宣称完成，已列TODO。
+
+## Windows 启停与 TMS273 资源压缩包（2026-09-08）
+
+- 新增start.bat/stop.bat和scripts/windows-control.ps1：Node>=22.12、npm/Cargo依赖检查，锁文件安装与构建，前端暂存后发布；固定本地3010与全部运行数据路径，按PID/绝对exe路径/启动时间识别本项目进程，控制操作互斥；health核对协议/资源版本及监听PID，失败清理本轮启动进程。普通启停保留server/data，不管理bot或在线macOS服务。
+- README按Windows首次安装→资源解压→日常启停→日志排障整理，明确ZIP解压到start.bat所在根目录，包含目录示例和PowerShell命令；旧17图/全部任务禁用等过期介绍改为当前范围及缺口。
+- MapleStory-TMS273-resources.zip：209,418,874 bytes（约200 MiB），5,901文件，client/public-tms273完整运行树+shared/*.json；无源码、node_modules、原WZ、账号库/凭据。SHA256=5d507f8bf45ae800d3b9612c9ecd90c1c593ed9eedc617c8220a1f19d27811ba，另附.sha256；ZIP被gitignore排除，需单独传输。
+- scripts/package_windows_resources.py可复现打包，CRC、逐文件SHA256和数量校验通过；运行检查14 JSON/104429素材引用/41图通过。中文空格临时目录干净解压、不含参考WZ的检查通过；错误contentVersion和缺引用文件拒绝通过。BAT CRLF/ASCII与静态diff检查通过。
+- scripts/windows-control.ps1 -SelfTest保留PID/路径/启动时间匹配检查。本机无Windows/PowerShell，未运行PS解析或自检、Windows编译/真实启动/停止/浏览器验收；由用户Windows实机验证。未修改游戏业务、重启在线服务或操作账号数据库。

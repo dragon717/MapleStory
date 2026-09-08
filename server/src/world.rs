@@ -17096,6 +17096,7 @@ mod tests {
     include!("continuation_acceptance.rs");
     include!("third_acceptance.rs");
     include!("boss_acceptance.rs");
+    include!("hyper_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
