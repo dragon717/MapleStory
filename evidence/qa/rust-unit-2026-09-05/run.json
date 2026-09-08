@@ -1,0 +1,32 @@
+{
+  "runId": "rust-unit-2026-09-05",
+  "command": "~/.cargo/bin/cargo test --manifest-path server/Cargo.toml",
+  "status": "PASS",
+  "testsPassed": 8,
+  "testsFailed": 0,
+  "serviceStarted": false,
+  "serverPort": null,
+  "covered": [
+    "authoritative movement, stale input, attack dedup, disconnect",
+    "foothold-chain wall boundary",
+    "ladder entry",
+    "down-jump source foothold rule",
+    "source-stat attack range",
+    "configured drop and EXP data",
+    "SQLite reward/pickup replay, concurrency, and restart persistence",
+    "account persistence and token verification"
+  ],
+  "warnings": [
+    "DropSpec.guaranteed is currently unused",
+    "Ladder l/uf are currently unused",
+    "AttackResolution killed/exp_gain/drop fields are currently unused",
+    "add_exp_local is currently unused"
+  ],
+  "notCovered": [
+    "3010 startup and health",
+    "real WebSocket dual-account behavior",
+    "browser rendering, responsive resize, and source asset loading",
+    "runtime monster/ladder/down-jump/drop behavior"
+  ],
+  "note": "This is a server unit-test result only; it is not the新版 3010 acceptance result."
+}

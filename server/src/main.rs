@@ -1,6 +1,8 @@
 mod auth;
 mod combat;
 mod inventory;
+pub(crate) mod lobby;
+mod mage;
 #[cfg(test)]
 mod inventory_acceptance;
 mod network;
@@ -14,7 +16,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use network::{error, login, register, upgrade, App};
+use network::{error, lobby as lobby_route, login, register, upgrade, App};
 use protocol::CONTENT_VERSION;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -42,6 +44,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     let gameplay = world::Gameplay::load(&gameplay_path)
         .map_err(|error| format!("Cannot load gameplay {}: {error}", gameplay_path.display()))?;
+    let mage_skills_path = PathBuf::from(setting(
+        "MAGE_SKILLS_FILE",
+        root.join("shared/mage-skills.json").to_str().unwrap(),
+    ));
+    let mage_skills = mage::MageSkills::load(&mage_skills_path).map_err(|error| {
+        format!(
+            "Cannot load mage skills {}: {error}",
+            mage_skills_path.display()
+        )
+    })?;
     let catalog_path = PathBuf::from(setting(
         "MAP_CATALOG",
         root.join("shared/maps.json").to_str().unwrap(),
@@ -102,7 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         world::World::new_with_store(map, duration_ms, gameplay, world_store)?
     }
     .with_quest_text(quest_text)
-    .with_npc_names_zh(npc_names_zh);
+    .with_npc_names_zh(npc_names_zh)
+    .with_mage_skills(mage_skills);
     tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,
@@ -118,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ASSETS_DIR",
         root.join("client/public-tms273/assets").to_str().unwrap(),
     ));
-    let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
+    let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/lobby",post(lobby_route)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
         .route("/api/{*path}",get(||async{error(StatusCode::NOT_FOUND,"Unknown API route")}))
         .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(assets)))
         .fallback_service(ServeDir::new(&dist).not_found_service(ServeFile::new(dist.join("index.html"))))

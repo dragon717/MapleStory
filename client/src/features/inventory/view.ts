@@ -1,7 +1,7 @@
 import type { ClientMessage, InventoryItem, PlayerState, ServerMessage } from '../../../../shared/protocol';
 import type { AssetFrame, EquipmentLayout, InventoryLayout, Manifest } from '../../assets/manifest';
 import { protocolText, uiLocale, uiText } from '../../app/i18n';
-import { itemCategoryTab, itemDetails, itemName } from './names';
+import { equipmentSlot, itemCategoryTab, itemDetails, itemName } from './names';
 import './style.css';
 
 const MIN_DROP_MESOS = 10;
@@ -44,6 +44,12 @@ export class InventoryView {
   private readonly tabNext?: HTMLButtonElement;
   private readonly mesosLine?: HTMLDivElement;
   private readonly tooltip?: HTMLDivElement;
+  private readonly tooltipContent?: HTMLDivElement;
+  private tooltipAnchor?: HTMLElement;
+  private tooltipAnchorHovered = false;
+  private tooltipAnchorFocused = false;
+  private tooltipHovered = false;
+  private tooltipHideTimer?: number;
   private readonly targetPrompt?: HTMLDivElement;
   private readonly equipmentWindow?: HTMLDivElement;
   private readonly equipmentCloseButton?: HTMLButtonElement;
@@ -162,6 +168,40 @@ export class InventoryView {
     tooltip.id = 'inventory-tooltip';
     tooltip.hidden = true;
     tooltip.setAttribute('role', 'tooltip');
+    tooltip.tabIndex = 0;
+    const tooltipTop = this.ui?.['tooltip:top'];
+    const tooltipMiddle = this.ui?.['tooltip:mid'];
+    const tooltipBottom = this.ui?.['tooltip:btm'];
+    if (tooltipTop && tooltipMiddle && tooltipBottom) {
+      tooltip.dataset.skin = 'source';
+      tooltip.style.setProperty('--inventory-tooltip-width', `${tooltipTop.width}px`);
+      tooltip.style.setProperty('--inventory-tooltip-top-height', `${tooltipTop.height}px`);
+      tooltip.style.setProperty('--inventory-tooltip-bottom-height', `${tooltipBottom.height}px`);
+      const top = this.assetImage(tooltipTop, 'inventory-tooltip-top');
+      const middle = document.createElement('div');
+      middle.className = 'inventory-tooltip-middle';
+      middle.style.backgroundImage = `url("${tooltipMiddle.url}")`;
+      const bottom = this.assetImage(tooltipBottom, 'inventory-tooltip-bottom');
+      tooltip.append(top, middle, bottom);
+    }
+    const content = document.createElement('div');
+    content.className = 'inventory-tooltip-content';
+    tooltip.append(content);
+    this.tooltipContent = content;
+    tooltip.addEventListener('pointerenter', () => {
+      this.tooltipHovered = true;
+      if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
+      this.tooltipHideTimer = undefined;
+    });
+    tooltip.addEventListener('pointerleave', () => {
+      this.tooltipHovered = false;
+      this.scheduleTooltipHide();
+    });
+    tooltip.addEventListener('focus', () => { this.tooltipHovered = true; });
+    tooltip.addEventListener('blur', () => {
+      this.tooltipHovered = false;
+      this.scheduleTooltipHide();
+    });
     this.root.append(tooltip);
     this.tooltip = tooltip;
 
@@ -254,6 +294,7 @@ export class InventoryView {
       this.slotsSignature = signature;
       this.renderSlots();
       this.refreshGatherButton();
+      this.refreshTooltip();
     }
     if (this.pendingScroll && !this.itemAt(this.pendingScroll.sourceSlot, this.pendingScroll.sourceTab)) {
       this.cancelScrollTarget(false);
@@ -343,6 +384,8 @@ export class InventoryView {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
+    this.tooltipHideTimer = undefined;
     this.observer?.disconnect();
     document.removeEventListener('keydown', this.handleKeyDown, true);
     document.removeEventListener('dragover', this.handleDocumentDragOver, true);
@@ -371,6 +414,7 @@ export class InventoryView {
       this.sortMode = false;
       this.keepGatherResultMode = false;
       this.pendingInventoryOperation = undefined;
+      this.hideTooltip();
       this.refreshGatherButton();
       this.root.dataset.tab = String(index);
       this.updateTabs();
@@ -484,11 +528,23 @@ export class InventoryView {
       }
       if (this.itemAt(slotNumber)) this.dropSlot(this.selectedTab, slotNumber);
     });
-    slot.addEventListener('pointerenter', () => this.showSlotTooltip(slotNumber));
+    slot.addEventListener('pointerenter', () => {
+      this.tooltipAnchorHovered = true;
+      this.showSlotTooltip(slotNumber);
+    });
     slot.addEventListener('pointermove', () => this.positionTooltip(slot));
-    slot.addEventListener('pointerleave', () => this.hideTooltip());
-    slot.addEventListener('focus', () => this.showSlotTooltip(slotNumber));
-    slot.addEventListener('blur', () => this.hideTooltip());
+    slot.addEventListener('pointerleave', () => {
+      this.tooltipAnchorHovered = false;
+      this.scheduleTooltipHide();
+    });
+    slot.addEventListener('focus', () => {
+      this.tooltipAnchorFocused = true;
+      this.showSlotTooltip(slotNumber);
+    });
+    slot.addEventListener('blur', () => {
+      this.tooltipAnchorFocused = false;
+      this.scheduleTooltipHide();
+    });
     slot.addEventListener('dragstart', event => {
       const item = this.itemAt(slotNumber);
       if (!item || slot.disabled || this.pendingScroll) {
@@ -1003,16 +1059,24 @@ export class InventoryView {
       }
     });
     button.addEventListener('pointerenter', () => {
+      this.tooltipAnchorHovered = true;
       const item = this.equippedAt(slotNumber);
       if (item) this.showTooltipForItem(item, button);
     });
     button.addEventListener('pointermove', () => this.positionTooltip(button));
-    button.addEventListener('pointerleave', () => this.hideTooltip());
+    button.addEventListener('pointerleave', () => {
+      this.tooltipAnchorHovered = false;
+      this.scheduleTooltipHide();
+    });
     button.addEventListener('focus', () => {
+      this.tooltipAnchorFocused = true;
       const item = this.equippedAt(slotNumber);
       if (item) this.showTooltipForItem(item, button);
     });
-    button.addEventListener('blur', () => this.hideTooltip());
+    button.addEventListener('blur', () => {
+      this.tooltipAnchorFocused = false;
+      this.scheduleTooltipHide();
+    });
     button.addEventListener('dragstart', event => {
       const item = this.equippedAt(slotNumber);
       if (!item || this.pendingScroll) {
@@ -1078,35 +1142,85 @@ export class InventoryView {
     const item = this.visibleItemAt(slotNumber);
     if (item) {
       const slot = this.grid?.querySelector<HTMLButtonElement>('[data-slot="' + slotNumber + '"]');
-      if (slot) this.showTooltipForItem(item, slot);
+      if (slot) this.showTooltipForItem(item, slot, this.comparisonTarget(item));
     }
   }
 
-  private showTooltipForItem(item: InventoryItem, anchor: HTMLElement) {
+  private comparisonTarget(item: InventoryItem): InventoryItem | null | undefined {
+    const slot = equipmentSlot(item.itemId);
+    if (slot === undefined) return undefined;
+    return this.equipped.find(current => Math.abs(current.slot) === slot) ?? null;
+  }
+
+  private showTooltipForItem(item: InventoryItem, anchor: HTMLElement, comparison?: InventoryItem | null) {
     if (!this.tooltip) return;
-    this.tooltip.textContent = itemDetails(item.itemId, item);
+    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
+    this.tooltipHideTimer = undefined;
+    this.tooltipAnchor = anchor;
+    if (this.tooltipContent) this.tooltipContent.textContent = itemDetails(item.itemId, item, comparison);
+    else this.tooltip.textContent = itemDetails(item.itemId, item, comparison);
     this.tooltip.hidden = false;
     this.tooltip.dataset.itemId = item.itemId;
     this.positionTooltip(anchor);
   }
 
+  private refreshTooltip() {
+    const anchor = this.tooltipAnchor;
+    if (!anchor || !this.tooltip || this.tooltip.hidden) return;
+    if (anchor.classList.contains('inventory-slot')) {
+      const slot = anchor as HTMLButtonElement;
+      const item = this.itemAt(Number(anchor.dataset.slot));
+      if (item && !slot.hidden && !slot.disabled) {
+        this.showTooltipForItem(item, anchor, this.comparisonTarget(item));
+        return;
+      }
+    } else if (anchor.classList.contains('equipment-slot')) {
+      const item = this.equippedAt(Number(anchor.dataset.slot));
+      if (item) {
+        this.showTooltipForItem(item, anchor);
+        return;
+      }
+    }
+    this.hideTooltip();
+  }
+
   private positionTooltip(anchor: HTMLElement) {
     if (!this.tooltip || this.tooltip.hidden) return;
     const rect = anchor.getBoundingClientRect();
-    const width = this.tooltip.offsetWidth || 220;
-    const height = this.tooltip.offsetHeight || 60;
+    const viewportWidth = Math.max(1, window.innerWidth);
+    const width = Math.min(this.tooltip.offsetWidth || 220, Math.max(1, viewportWidth - 12));
+    const viewportHeight = Math.max(1, window.innerHeight);
+    const height = Math.min(this.tooltip.offsetHeight || 60, Math.max(1, viewportHeight - 12));
     const gap = 6;
     let left = rect.right + gap;
-    if (left + width > window.innerWidth - 6) left = rect.left - width - gap;
+    if (left + width > viewportWidth - 6) left = rect.left - width - gap;
+    const leftGutter = Math.min(6, Math.max(0, (viewportWidth - width) / 2));
+    left = Math.min(viewportWidth - width - leftGutter, Math.max(leftGutter, left));
     let top = rect.top;
-    if (top + height > window.innerHeight - 6) top = Math.max(6, window.innerHeight - height - 6);
-    this.tooltip.style.left = Math.round(Math.max(6, left)) + 'px';
-    this.tooltip.style.top = Math.round(Math.max(6, top)) + 'px';
+    if (top + height > viewportHeight - 6) top = viewportHeight - height - 6;
+    const topGutter = Math.min(6, Math.max(0, (viewportHeight - height) / 2));
+    top = Math.min(viewportHeight - height - topGutter, Math.max(topGutter, top));
+    this.tooltip.style.left = Math.round(left) + 'px';
+    this.tooltip.style.top = Math.round(top) + 'px';
+  }
+
+  private scheduleTooltipHide() {
+    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
+    this.tooltipHideTimer = window.setTimeout(() => {
+      this.tooltipHideTimer = undefined;
+      if (!this.tooltipAnchorHovered && !this.tooltipAnchorFocused && !this.tooltipHovered) this.hideTooltip();
+    }, 160);
   }
 
   private hideTooltip() {
     if (!this.tooltip) return;
+    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
+    this.tooltipHideTimer = undefined;
     this.tooltip.hidden = true;
+    this.tooltipAnchor = undefined;
+    this.tooltipAnchorHovered = false;
+    this.tooltipAnchorFocused = false;
+    this.tooltipHovered = false;
     delete this.tooltip.dataset.itemId;
   }
 
@@ -1383,6 +1497,7 @@ export class InventoryView {
       this.equipmentWindow.style.left = Math.min(maxLeft, Math.max(0, currentLeft)) + 'px';
       this.equipmentWindow.style.top = Math.min(maxTop, Math.max(0, currentTop)) + 'px';
     }
+    if (this.tooltip && !this.tooltip.hidden && this.tooltipAnchor) this.positionTooltip(this.tooltipAnchor);
   }
 
   private appendDisabled(slot: HTMLButtonElement) {

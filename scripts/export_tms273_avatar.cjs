@@ -24,6 +24,15 @@ const SHOES = 'Character/Shoes/01070000.img';
 // and its attack source must use the matching 273 long-sword image.
 const STARTER_WEAPON = 'Character/Weapon/01302000.img';
 
+const DEFAULT_SOURCES = Object.freeze({
+  body: BODY,
+  head: HEAD,
+  face: FACE,
+  hair: HAIR,
+  pants: PANTS,
+  shoes: SHOES,
+});
+
 const ACTIONS = [
   ['stand', 'stand1'],
   ['walk', 'walk1'],
@@ -278,8 +287,8 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
   return result;
 }
 
-async function staticFace() {
-  const source = `${FACE}/default/face`;
+async function staticFace(image = FACE) {
+  const source = `${image}/default/face`;
   const node = await get(source);
   assert(isCanvas(node), `face is not a Canvas: ${source}`);
   const frame = await sourceFrame(source);
@@ -304,7 +313,8 @@ async function itemCandidates(itemIds, starter) {
   return result;
 }
 
-async function buildAction(action, sourceAction, frameNode, selected, starter) {
+async function buildAction(action, sourceAction, frameNode, selected, starter, options = {}) {
+  const sources = { ...DEFAULT_SOURCES, ...(options.sources || {}) };
   const frameIndex = frameNode.name;
   const faceVisible = Number(value(frameNode, 'face', 1)) !== 0;
   const selectedInfos = await itemCandidates(selected, starter);
@@ -337,11 +347,11 @@ async function buildAction(action, sourceAction, frameNode, selected, starter) {
 
   // First collect body and head so their authored neck/navel/brow/hand
   // anchors become the targets for every equipment Canvas.
-  await add(BODY, 'body', 'body', ['body', 'arm', 'lHand', 'rHand'], undefined, true);
-  await add(HEAD, 'head', 'head', ['head'], undefined, true);
-  await add(HAIR, 'hair', 'hair', undefined, undefined, true);
-  if (faceVisible) {
-    const face = await staticFace();
+  await add(sources.body, 'body', 'body', ['body', 'arm', 'lHand', 'rHand'], undefined, true);
+  await add(sources.head, 'head', 'head', ['head'], undefined, true);
+  if (sources.hair) await add(sources.hair, 'hair', 'hair', undefined, undefined, true);
+  if (faceVisible && sources.face) {
+    const face = await staticFace(sources.face);
     candidates.push(face);
   }
 
@@ -349,8 +359,8 @@ async function buildAction(action, sourceAction, frameNode, selected, starter) {
   // expressed in source data, and kept here only to avoid loading an
   // impossible duplicate appearance when this loadout is selected.
   const longcoat = selectedInfos.some(item => item.longcoat);
-  if (!longcoat) await add(PANTS, 'pants', 'pants', undefined, undefined, true);
-  await add(SHOES, 'shoes', 'shoes', undefined, undefined, true);
+  if (!longcoat && sources.pants) await add(sources.pants, 'pants', 'pants', undefined, undefined, true);
+  if (sources.shoes) await add(sources.shoes, 'shoes', 'shoes', undefined, undefined, true);
 
   for (const item of selectedInfos) {
     await add(item.image, item.part, item.itemId, undefined, item.itemId, false);
@@ -403,15 +413,16 @@ async function buildAction(action, sourceAction, frameNode, selected, starter) {
   };
 }
 
-async function actionFrames(action, sourceAction, selected, starter) {
-  const actionNode = resolved(await get(`${BODY}/${sourceAction}`));
+async function actionFrames(action, sourceAction, selected, starter, options = {}) {
+  const bodySource = options.sources?.body || BODY;
+  const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
   const bodyFrames = numeric(actionNode);
   assert(bodyFrames.length, `273 body has no ${sourceAction} frames`);
   const result = [];
   for (const bodyFrame of bodyFrames) {
     const delay = Number(value(bodyFrame, 'delay', 0));
     assert(Number.isFinite(delay) && delay > 0, `273 body ${sourceAction}/${bodyFrame.name} has no positive delay`);
-    result.push(await buildAction(action, sourceAction, bodyFrame, selected, starter));
+    result.push(await buildAction(action, sourceAction, bodyFrame, selected, starter, options));
   }
   return result;
 }
@@ -427,16 +438,59 @@ async function loadSourceTables() {
   assert(zmap.size > 100, `273 zmap unexpectedly small: ${zmap.size}`);
 }
 
-async function actionSet(selected, starter) {
+async function actionSet(selected, starter, options = {}) {
   const actions = {};
   const actionSources = {};
+  const bodySource = options.sources?.body || BODY;
   for (const [action, sourceAction] of ACTIONS) {
-    const actionNode = resolved(await get(`${BODY}/${sourceAction}`));
+    const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
     const frames = numeric(actionNode);
     const delays = frames.map(frame => Number(value(frame, 'delay', 0)));
     assert(frames.length && delays.every(delay => Number.isFinite(delay) && delay > 0), `273 action ${sourceAction} delay data invalid`);
-    actions[action] = await actionFrames(action, sourceAction, selected, starter);
+    actions[action] = await actionFrames(action, sourceAction, selected, starter, options);
     actionSources[action] = { sourceAction, frameCount: frames.length, delays };
+  }
+  return { actions, actionSources };
+}
+
+const MAGE_ACTIONS = [
+  ['skill2001008', 'energyBolt'],
+  ['skill2001011', 'manaWave'],
+  ['skill2001012', 'manaWaveFloat'],
+  ['skill2201008', 'coldBeam'],
+  ['skill2201005', 'thunderBolt'],
+  ['skill2201001', 'alert2'],
+];
+
+/** Export the source-linked mage pose set using the same frame compositor. */
+async function mageActionSet(selected, starter, options = {}) {
+  const bodySource = options.sources?.body || BODY;
+  const actions = {};
+  const actionSources = {};
+  for (const [key, sourceAction] of MAGE_ACTIONS) {
+    actions[key] = [];
+    const sourceFrames = numeric(resolved(await get(`${bodySource}/${sourceAction}`)));
+    for (const frameNode of sourceFrames) {
+      const linkedAction = value(frameNode, 'action', sourceAction);
+      const linkedIndex = value(frameNode, 'frame', frameNode.name);
+      const linked = resolved(await get(`${bodySource}/${linkedAction}/${linkedIndex}`));
+      const frame = await buildAction(key, linkedAction, linked, selected, starter, options);
+      const rawDelay = Number(value(frameNode, 'delay', 0));
+      assert(Number.isFinite(rawDelay) && rawDelay !== 0, `Missing skill pose delay ${sourceAction}/${frameNode.name}`);
+      const move = value(frameNode, 'move', { x: 0, y: 0 });
+      // Negative source delay is preserved; abs is presentation only, never a hit schedule.
+      frame.delay = Math.abs(rawDelay);
+      frame.rawDelay = rawDelay;
+      frame.source = `${bodySource}/${sourceAction}/${frameNode.name}`;
+      frame.linkedAction = linkedAction;
+      frame.linkedFrame = Number(linkedIndex);
+      frame.move = { x: Number(move.x), y: Number(move.y) };
+      for (const part of frame.parts) { part.x += frame.move.x; part.y += frame.move.y; }
+      for (const anchor of Object.values(frame.anchors)) { anchor.x += frame.move.x; anchor.y += frame.move.y; }
+      actions[key].push(frame);
+    }
+    assert(actions[key].length, `Missing skill pose ${sourceAction}`);
+    actionSources[key] = { sourceAction, frameCount: actions[key].length, delays: actions[key].map(frame => frame.delay), rawDelays: actions[key].map(frame => frame.rawDelay) };
   }
   return { actions, actionSources };
 }
@@ -459,6 +513,45 @@ async function equipmentSlots() {
 async function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
   await loadSourceTables();
+
+  if (process.argv.includes('--mage-actions')) {
+    const catalog = [
+      ['skill2001008', 'energyBolt'], ['skill2001011', 'manaWave'], ['skill2001012', 'manaWaveFloat'],
+      ['skill2201008', 'coldBeam'], ['skill2201005', 'thunderBolt'], ['skill2201001', 'alert2'],
+    ];
+    async function mageActions(selected, starter) {
+      const actions = {};
+      for (const [key, sourceAction] of catalog) {
+        actions[key] = [];
+        for (const frameNode of numeric(resolved(await get(`${BODY}/${sourceAction}`)))) {
+          const linkedAction = value(frameNode, 'action', sourceAction);
+          const linkedIndex = value(frameNode, 'frame', frameNode.name);
+          const linked = resolved(await get(`${BODY}/${linkedAction}/${linkedIndex}`));
+          const frame = await buildAction(key, linkedAction, linked, selected, starter);
+          const rawDelay = Number(value(frameNode, 'delay', 0));
+          assert(Number.isFinite(rawDelay) && rawDelay !== 0, `Missing skill pose delay ${sourceAction}/${frameNode.name}`);
+          const move = value(frameNode, 'move', { x: 0, y: 0 });
+          // Negative source delay is preserved; abs is presentation only, never a hit schedule.
+          frame.delay = Math.abs(rawDelay);
+          frame.rawDelay = rawDelay;
+          frame.source = `${BODY}/${sourceAction}/${frameNode.name}`;
+          frame.linkedAction = linkedAction;
+          frame.linkedFrame = Number(linkedIndex);
+          frame.move = { x: Number(move.x), y: Number(move.y) };
+          for (const part of frame.parts) { part.x += frame.move.x; part.y += frame.move.y; }
+          for (const anchor of Object.values(frame.anchors)) { anchor.x += frame.move.x; anchor.y += frame.move.y; }
+          actions[key].push(frame);
+        }
+        assert(actions[key].length, `Missing skill pose ${sourceAction}`);
+      }
+      return actions;
+    }
+    const output = { sourceVersion: 'TMS273.7', actions: await mageActions([], true), equipmentLoadouts: {} };
+    for (const itemIds of LOADOUT_IDS) output.equipmentLoadouts[itemIds.length ? [...itemIds].sort().join('+') : 'empty'] = await mageActions(itemIds, false);
+    fs.writeFileSync(path.join(OUTPUT, 'mage-avatar.json'), JSON.stringify(output, null, 2) + '\n', 'utf8');
+    console.log('Exported original mage poses for starter and 12 equipment loadouts');
+    return;
+  }
 
   const starter = await actionSet([], true);
   const avatar = {
@@ -506,7 +599,59 @@ async function main() {
   }, null, 2));
 }
 
-main().catch(error => {
-  console.error(error.stack || error.message || error);
-  process.exitCode = 1;
-}).finally(() => reader.close());
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error.stack || error.message || error);
+    process.exitCode = 1;
+  }).finally(() => reader.close());
+}
+
+// Keep the original CLI as the full paper-doll exporter while allowing the
+// appearance exporter to reuse the same source reader, anchor compositor,
+// and z/smap filtering rules without copying them into a second script.
+module.exports = {
+  DATA,
+  OUTPUT,
+  ASSETS,
+  BODY,
+  HEAD,
+  FACE,
+  HAIR,
+  PANTS,
+  SHOES,
+  STARTER_WEAPON,
+  DEFAULT_SOURCES,
+  ACTIONS,
+  MAGE_ACTIONS,
+  SUPPORT,
+  LOADOUT_IDS,
+  reader,
+  zmap,
+  smap,
+  children,
+  numeric,
+  value,
+  primitive,
+  get,
+  resolved,
+  isCanvas,
+  relativeUol,
+  layerName,
+  layerZName,
+  drawableLeaves,
+  sourceFrame,
+  sourceInfo,
+  anchorPoint,
+  preferredAnchors,
+  compose,
+  finalAnchor,
+  leavesFor,
+  staticFace,
+  itemCandidates,
+  buildAction,
+  actionFrames,
+  loadSourceTables,
+  actionSet,
+  mageActionSet,
+  equipmentSlots,
+};

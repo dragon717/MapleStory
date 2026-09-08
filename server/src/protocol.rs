@@ -2,7 +2,47 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const PROTOCOL_VERSION: u32 = 6;
-pub const CONTENT_VERSION: &str = "tms273-1";
+pub const CONTENT_VERSION: &str = "tms273-2";
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AbilityStat { Strength, Dexterity, Intelligence, Luck }
+
+impl AbilityStat {
+    pub fn as_str(self) -> &'static str {
+        match self { Self::Strength => "strength", Self::Dexterity => "dexterity",
+            Self::Intelligence => "intelligence", Self::Luck => "luck" }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AbilityStats {
+    pub strength: i64,
+    pub dexterity: i64,
+    pub intelligence: i64,
+    pub luck: i64,
+    pub available_ap: u32,
+}
+
+impl Default for AbilityStats {
+    fn default() -> Self {
+        Self { strength: 12, dexterity: 5, intelligence: 4, luck: 4, available_ap: 0 }
+    }
+}
+
+impl AbilityStats {
+    pub fn add_point(&mut self, stat: AbilityStat) -> bool {
+        let value = match stat { AbilityStat::Strength => &mut self.strength,
+            AbilityStat::Dexterity => &mut self.dexterity,
+            AbilityStat::Intelligence => &mut self.intelligence, AbilityStat::Luck => &mut self.luck };
+        // P: one AP per request, with a 9999 base-stat ceiling until source rules replace it.
+        if self.available_ap == 0 || *value >= 9999 || *value < 0 { return false; }
+        *value += 1;
+        self.available_ap -= 1;
+        true
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
@@ -27,6 +67,27 @@ pub enum ClientMessage {
     Attack {
         #[serde(rename = "requestId")]
         request_id: String,
+    },
+    AllocateAp {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        stat: AbilityStat,
+    },
+    LearnSkill {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "skillId")]
+        skill_id: u32,
+    },
+    CastSkill {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "skillId")]
+        skill_id: u32,
+        #[serde(default)]
+        direction: Option<i8>,
+        #[serde(default)]
+        vertical: Option<i8>,
     },
     Pickup {
         #[serde(rename = "requestId")]
@@ -145,8 +206,20 @@ impl ClientMessage {
                     && (-1..=1).contains(vertical)
             }
             Self::Attack { request_id }
+            | Self::AllocateAp { request_id, .. }
+            | Self::LearnSkill { request_id, .. }
             | Self::Pickup { request_id, .. }
             | Self::Revive { request_id } => valid_id(request_id),
+            Self::CastSkill {
+                request_id,
+                direction,
+                vertical,
+                ..
+            } => {
+                valid_id(request_id)
+                    && direction.is_none_or(|value| (-1..=1).contains(&value))
+                    && vertical.is_none_or(|value| (-1..=1).contains(&value))
+            }
             Self::Portal {
                 request_id,
                 portal_name,
@@ -276,9 +349,32 @@ pub struct InventoryItem {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DerivedStats {
+    pub magic_attack: i64,
+    pub defense: i64,
+    pub move_speed: f64,
+    pub magic_guard: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meditation_remaining_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ice_teleport: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strength: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dexterity: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intelligence: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub luck: Option<i64>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerState {
     pub id: String,
     pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<crate::lobby::Appearance>,
     pub x: f64,
     pub y: f64,
     pub vx: f64,
@@ -295,10 +391,20 @@ pub struct PlayerState {
     pub max_hp: i64,
     pub mp: i64,
     pub max_mp: i64,
+    pub derived_stats: DerivedStats,
+    pub ability_stats: AbilityStats,
     pub level: u32,
+    /// Character-owned job id, emitted in snapshots and never accepted as input.
+    pub job: u32,
     pub exp: u64,
     pub exp_to_next: u64,
     pub mesos: u64,
+    /// Character-owned skill id -> learned level.  This is server state;
+    /// clients receive it in snapshots but cannot submit it as input.
+    pub skills: BTreeMap<u32, u32>,
+    /// Source SP group id -> remaining points.  Group semantics and grants
+    /// remain server-side until the matching source rules are verified.
+    pub skill_points: BTreeMap<u32, u32>,
     pub inventory: Vec<InventoryItem>,
     pub equipped: Vec<InventoryItem>,
     pub monster_book: BTreeMap<String, u8>,
@@ -312,6 +418,8 @@ pub struct MonsterState {
     pub x: f64,
     pub y: f64,
     pub facing: i8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freeze_stacks: Option<u32>,
     pub hp: i64,
     pub max_hp: i64,
     pub action: &'static str,
@@ -334,6 +442,9 @@ pub struct NpcState {
     pub facing: i8,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shop_id: Option<String>,
+    /// Set only for the observer who can use the authored Hans job entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub job_advancement_available: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -352,4 +463,42 @@ pub fn reject(code: &str, message: &str, request_id: Option<&str>) -> String {
         v["requestId"] = id.into();
     }
     v.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ability_allocation_accepts_only_one_known_stat_intent() {
+        let valid: ClientMessage = serde_json::from_str(r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence"}"#).unwrap();
+        assert!(valid.valid());
+        for bad in [
+            r#"{"type":"allocateAp","requestId":"ap-1","stat":"hp"}"#,
+            r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","amount":999}"#,
+            r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","playerId":"other"}"#,
+            r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","abilityStats":{"availableAp":999}}"#,
+        ] { assert!(serde_json::from_str::<ClientMessage>(bad).is_err()); }
+        let empty: ClientMessage = serde_json::from_str(r#"{"type":"allocateAp","requestId":"","stat":"strength"}"#).unwrap();
+        assert!(!empty.valid());
+        let mut capped = AbilityStats { strength: 9999, available_ap: 1, ..AbilityStats::default() };
+        assert!(!capped.add_point(AbilityStat::Strength));
+        assert_eq!(capped.available_ap, 1);
+    }
+
+    #[test]
+    fn client_job_field_is_not_an_authoritative_input() {
+        let message = r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","job":200}"#;
+        assert!(serde_json::from_str::<ClientMessage>(message).is_err());
+    }
+
+    #[test]
+    fn client_skill_state_fields_are_not_authoritative_inputs() {
+        for message in [
+            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","skills":{"2001008":1}}"#,
+            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","skillPoints":{"1":5}}"#,
+        ] {
+            assert!(serde_json::from_str::<ClientMessage>(message).is_err());
+        }
+    }
 }

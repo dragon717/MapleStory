@@ -3,6 +3,7 @@ use crate::{
     inventory::EquipmentStats,
 };
 use rusqlite::Connection;
+use std::collections::BTreeMap;
 
 #[test]
 fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
@@ -18,6 +19,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         mp: 1,
         max_mp: 5,
         level: 5,
+        job: 0,
         exp: 0,
         exp_to_next: 15,
         mesos: 1000,
@@ -26,6 +28,9 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         x: 0.0,
         y: 0.0,
         inventory: Vec::new(),
+        skills: BTreeMap::new(),
+        skill_points: BTreeMap::new(),
+        ability_stats: crate::protocol::AbilityStats::default(),
     };
     store.load_profile("a", &defaults).unwrap();
     let stats = EquipmentStats {

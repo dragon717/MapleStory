@@ -1,6 +1,21 @@
+import OpenCC from 'opencc-js/t2cn';
 export type UiLocale = 'zh' | 'en';
 
-const locale: UiLocale = new URLSearchParams(window.location.search).get('lang')?.toLowerCase().startsWith('en') ? 'en' : 'zh';
+export function resolveLocale(requested?: string | null, saved?: string | null): UiLocale {
+  const parse = (value?: string | null): UiLocale | undefined => {
+    if (/^en(?:-|$)/i.test(value ?? '')) return 'en';
+    if (/^zh(?:-|$)/i.test(value ?? '')) return 'zh';
+    return undefined;
+  };
+  return parse(requested) ?? parse(saved) ?? 'zh';
+}
+let savedLocale: string | null = null;
+try { savedLocale = window.localStorage.getItem('maple-ui-locale'); } catch { /* Storage may be disabled. */ }
+const locale = resolveLocale(new URLSearchParams(window.location.search).get('lang'), savedLocale);
+const simplify = OpenCC.Converter({ from: 'tw', to: 'cn' });
+/** Convert authored display text only; never identifiers, resource paths or player input. */
+export function displayText(text: string): string { return locale === 'zh' ? simplify(text) : text; }
+
 
 const TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
   enteredMap: { zh: '已进入', en: 'Entered' },
@@ -64,4 +79,4 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
 export function uiLocale(): UiLocale { return locale; }
 export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? fallback; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
-export function mapText(id: string, sourceName: string): string { return sourceName || id; }
+export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }

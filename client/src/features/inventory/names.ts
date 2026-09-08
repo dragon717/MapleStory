@@ -1,12 +1,93 @@
-import { uiLocale } from '../../app/i18n';
+import { uiLocale, displayText } from '../../app/i18n';
 import catalog from '../../../../shared/items.json';
 import type { InventoryItem } from '../../../../shared/protocol';
 
+type CatalogInfo = Record<string, string | number>;
+
+/**
+ * `islot` is the TMS273 source field used by server/src/inventory.rs.  Keep
+ * the client lookup in the same source vocabulary; numeric item ranges are
+ * not equipment-slot rules.
+ */
+const EQUIPMENT_SLOT_BY_SOURCE: Readonly<Record<string, number>> = {
+  Cp: 1, HrCp: 1, Af: 2, Ay: 3, Ae: 4, Ma: 5, MaPn: 5, Pn: 6, So: 7,
+  GlGw: 8, Gv: 8, Sr: 9, Si: 10, Wp: 11, WpSi: 11, WpSp: 11, Ri: 12,
+  Ri2: 13, Ri3: 15, Ri4: 16, Pe: 17, Tm: 18, Sd: 19, Me: 49, Be: 50,
+};
+
+const EQUIPMENT_STAT_LABELS: readonly [string, string, string][] = [
+  ['incSTR', '力量', 'STR'], ['incDEX', '敏捷', 'DEX'], ['incINT', '智力', 'INT'], ['incLUK', '运气', 'LUK'],
+  ['incPAD', '攻击力', 'Weapon attack'], ['incMAD', '魔法攻击力', 'Magic attack'],
+  ['incPDD', '物理防御', 'Weapon defense'], ['incMDD', '魔法防御', 'Magic defense'],
+  ['incACC', '命中', 'Accuracy'], ['incEVA', '回避', 'Avoidability'],
+  ['incHP', 'HP', 'HP'], ['incMP', 'MP', 'MP'], ['incMHP', '最大 HP', 'Max HP'], ['incMMP', '最大 MP', 'Max MP'],
+  ['incJump', '跳跃力', 'Jump'], ['incSpeed', '移动速度', 'Speed'],
+];
+
+function catalogInfo(itemId: string): CatalogInfo | undefined {
+  const item = catalog[itemId as keyof typeof catalog] as { info?: CatalogInfo } | undefined;
+  return item?.info;
+}
+
+function numberOrZero(value: unknown): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+/** Resolve the positive body-slot number used by the equipped InventoryItem. */
+export function equipmentSlot(itemId: string): number | undefined {
+  const sourceSlot = catalogInfo(itemId)?.islot;
+  return typeof sourceSlot === 'string' ? EQUIPMENT_SLOT_BY_SOURCE[sourceSlot] : undefined;
+}
+
+/** Read one final equipment value, with an instance value taking precedence. */
+export function equipmentAttribute(itemId: string, instance: InventoryItem | undefined, key: string): number {
+  if (instance?.stats && Object.prototype.hasOwnProperty.call(instance.stats, key)) {
+    return numberOrZero(instance.stats[key]);
+  }
+  return numberOrZero(catalogInfo(itemId)?.[key]);
+}
+
+function signed(number: number): string {
+  return number > 0 ? `+${number}` : String(number);
+}
+
+/**
+ * Text-only comparison block for a candidate equipment item.  It intentionally
+ * reports attribute deltas and never invents a combat-power score.
+ */
+export function itemComparisonDetails(candidate: InventoryItem, current: InventoryItem | null): string {
+  const locale = uiLocale();
+  const zh = locale === 'zh';
+  const slot = equipmentSlot(candidate.itemId);
+  const lines = [zh ? `候选装备：${itemName(candidate.itemId)}` : `Candidate: ${itemName(candidate.itemId)}`];
+  if (slot === undefined) {
+    lines.push(zh ? '装备部位：未知，无法进行同部位对比' : 'Equipment slot: unknown; same-slot comparison unavailable');
+    return lines.join('\n');
+  }
+
+  const sameSlot = current && Math.abs(current.slot) === slot ? current : undefined;
+  lines.push(sameSlot
+    ? (zh ? `当前同部位：${itemName(sameSlot.itemId)}` : `Equipped in same slot: ${itemName(sameSlot.itemId)}`)
+    : (zh ? '当前同部位：无已装备' : 'Equipped in same slot: none'));
+  lines.push(zh ? '属性差值（候选 − 当前）' : 'Stat difference (candidate − equipped)');
+  const changes = EQUIPMENT_STAT_LABELS
+    .map(([key, zhLabel, enLabel]) => {
+      const candidateValue = equipmentAttribute(candidate.itemId, candidate, key);
+      const currentValue = sameSlot ? equipmentAttribute(sameSlot.itemId, sameSlot, key) : 0;
+      if (candidateValue === 0 && currentValue === 0) return undefined;
+      return `${zh ? zhLabel : enLabel}: ${zh ? '当前' : 'Equipped'} ${currentValue} → ${zh ? '候选' : 'Candidate'} ${candidateValue} (${signed(candidateValue - currentValue)})`;
+    })
+    .filter((line): line is string => Boolean(line));
+  lines.push(...(changes.length ? changes : [zh ? '无属性差异' : 'No stat differences']));
+  return lines.join('\n');
+}
+
 /** The active TMS273 String catalog is authoritative for item names. */
 export function itemName(itemId: string): string {
-  if (itemId === '0') return uiLocale() === 'en' ? 'Mesos' : '楓幣';
+  if (itemId === '0') return uiLocale() === 'en' ? 'Mesos' : '枫币';
   const item = catalog[itemId as keyof typeof catalog];
-  return item && "name" in item ? item.name : itemId;
+  return item && "name" in item ? displayText(item.name) : itemId;
 }
 
 /**
@@ -22,23 +103,26 @@ export function itemCategoryTab(itemId: string): number {
 
 export function itemDescription(itemId: string): string {
   const item = catalog[itemId as keyof typeof catalog];
-  return item && 'description' in item ? item.description.replaceAll('\\n', '\n') : '';
+  return item && 'description' in item ? displayText(item.description).replaceAll('\\n', '\n') : '';
 }
 
-export function itemDetails(itemId: string, instance?: InventoryItem): string {
+export function itemDetails(itemId: string, instance?: InventoryItem, comparison?: InventoryItem | null): string {
   const item = catalog[itemId as keyof typeof catalog];
   const lines = [itemName(itemId)];
-  if (!item) return lines[0];
-  const info: Record<string, string | number> = { ...item.info, ...instance?.stats };
+  if (!item) return comparison === undefined ? lines[0] : lines.concat(itemComparisonDetails(instance ?? { slot: 0, itemId, quantity: 1 }, comparison)).join('\n');
+  const info: CatalogInfo = { ...item.info, ...instance?.stats };
   if (instance?.remainingSlots !== undefined) info.tuc = instance.remainingSlots;
   if (instance?.upgradeCount) lines[0] += ` (+${instance.upgradeCount})`;
   const labels: [string, string, string][] = [
     ['reqLevel', '需要等级', 'Required level'], ['reqSTR', '需要力量', 'Required STR'],
     ['reqDEX', '需要敏捷', 'Required DEX'], ['reqINT', '需要智力', 'Required INT'],
     ['reqLUK', '需要运气', 'Required LUK'], ['incPAD', '攻击力', 'Weapon attack'],
+    ['incMAD', '魔法攻击力', 'Magic attack'], ['incSTR', '力量', 'STR'], ['incDEX', '敏捷', 'DEX'],
+    ['incINT', '智力', 'INT'], ['incLUK', '运气', 'LUK'],
     ['incPDD', '物理防御', 'Weapon defense'], ['incMDD', '魔法防御', 'Magic defense'],
-    ['incMHP', '最大 HP', 'Max HP'], ['incMMP', '最大 MP', 'Max MP'],
-    ['incACC', '命中', 'Accuracy'], ['tuc', '可升级次数', 'Upgrade slots'],
+    ['incACC', '命中', 'Accuracy'], ['incEVA', '回避', 'Avoidability'], ['incHP', 'HP', 'HP'],
+    ['incMP', 'MP', 'MP'], ['incMHP', '最大 HP', 'Max HP'], ['incMMP', '最大 MP', 'Max MP'],
+    ['incJump', '跳跃力', 'Jump'], ['incSpeed', '移动速度', 'Speed'], ['tuc', '可升级次数', 'Upgrade slots'],
   ];
   if (item.inventoryType === 1) {
     const jobs: Record<number, [string, string]> = { 0: ['全职业', 'All jobs'], 1: ['战士', 'Warrior'], 2: ['魔法师', 'Magician'], 4: ['弓箭手', 'Bowman'], 8: ['飞侠', 'Thief'], 16: ['海盗', 'Pirate'] };
@@ -48,7 +132,8 @@ export function itemDetails(itemId: string, instance?: InventoryItem): string {
   }
   const description = itemDescription(itemId);
   if (description) lines.push(description);
-  if (info.tradeBlock) lines.push(uiLocale() === 'zh' ? '不可交易' : 'Untradeable');
-  if (info.only) lines.push(uiLocale() === 'zh' ? '固有道具' : 'Unique item');
+  if (numberOrZero(info.tradeBlock) !== 0) lines.push(uiLocale() === 'zh' ? '不可交易' : 'Untradeable');
+  if (numberOrZero(info.only) !== 0) lines.push(uiLocale() === 'zh' ? '固有道具' : 'Unique item');
+  if (comparison !== undefined) lines.push(itemComparisonDetails(instance ?? { slot: 0, itemId, quantity: 1 }, comparison));
   return lines.join('\n');
 }

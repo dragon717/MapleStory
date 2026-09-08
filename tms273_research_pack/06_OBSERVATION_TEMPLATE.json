@@ -1,0 +1,39 @@
+{
+  "notice": "待采样模板，无原作测量结果；null不得解读为0。",
+  "record": {
+    "id": null,
+    "region": "TMS",
+    "major_version": "273",
+    "minor_version": null,
+    "hotfix": null,
+    "world_type": null,
+    "rule_date": null,
+    "source_url": null,
+    "source_type": null,
+    "video_timecode": null,
+    "screenshot_path": null,
+    "character": {
+      "job": null,
+      "level": null,
+      "account_bonuses": null,
+      "equipment": null,
+      "active_events": null,
+      "attack_speed": null
+    },
+    "environment": {
+      "capture_fps": null,
+      "game_fps_observed": null,
+      "resolution": null,
+      "latency_ms": null,
+      "measurement_precision": null
+    },
+    "action": null,
+    "preconditions": [],
+    "observed_state_changes": [],
+    "observed_ui_feedback": [],
+    "known_uncertainties": [],
+    "raw_sample_count": null,
+    "confidence": null,
+    "reproduced": false
+  }
+}

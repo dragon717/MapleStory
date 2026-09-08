@@ -90,6 +90,8 @@ export class DeathNoticeView {
     return true;
   }
 
+  isOpen(): boolean { return !this.root.hidden; }
+
   clear() {
     this.pendingRequestId = undefined;
     this.root.hidden = true;

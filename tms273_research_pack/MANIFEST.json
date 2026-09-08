@@ -1,0 +1,89 @@
+{
+  "files": [
+    {
+      "path": "00_RESEARCH_AND_REMAKE_PLAN.md",
+      "bytes": 29013,
+      "sha256": "53c1f84485425470af0ab2197fb64ed1d87910bcccea31033c576c3b0c748fe7"
+    },
+    {
+      "path": "01_SOURCE_REGISTER.json",
+      "bytes": 13098,
+      "sha256": "4549affe8fa7330b2f132e1e5f94e2d43f576595629890986c45936c3727da37"
+    },
+    {
+      "path": "02_BACKLOG.json",
+      "bytes": 13366,
+      "sha256": "e38e31aab6342d18e1e4ee80a6079615efa07c058e596f62cee982ec80a2b8f1"
+    },
+    {
+      "path": "03_FACTS_AND_GAPS.md",
+      "bytes": 3299,
+      "sha256": "2a8a498bbb8cda3ad9da48b51d7580579bd2ecf31e20fb6a3587f43b94d1fe2f"
+    },
+    {
+      "path": "04_DATA_CONTRACTS.md",
+      "bytes": 3980,
+      "sha256": "39d08b40653d5c594fa41242ccdfa09ab3cfaa8f8876e13ca8ef18b805737efa"
+    },
+    {
+      "path": "05_ACCEPTANCE_TESTS.md",
+      "bytes": 3147,
+      "sha256": "311cdf2c5ff298b9cc6ea7d2d0f62c8c896e726d489557be82d5c918687e5e88"
+    },
+    {
+      "path": "06_OBSERVATION_TEMPLATE.json",
+      "bytes": 942,
+      "sha256": "cc82e7031b3f8dc29afe2469eea8e0d722fbf53c4e8aa2c8f6c495b4ff1338f9"
+    },
+    {
+      "path": "07_AGENT_DISPATCH.md",
+      "bytes": 1945,
+      "sha256": "7970e24149926718bd75629d0a72a4bffd4048610a6aed2ff51955a49546df06"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1196,
+      "sha256": "91dcb51d7b85a9951daebf970e8daf81acefb50f3eaf05c1a4153b886e8358ac"
+    },
+    {
+      "path": "workstreams/01_VERSION_AND_JOURNEY.md",
+      "bytes": 2517,
+      "sha256": "b0b02a5079f24d4589c37e1c7bb75525499ce3fd6c7eed23db12b61104320c9f"
+    },
+    {
+      "path": "workstreams/02_QUESTS_AND_GUIDANCE.md",
+      "bytes": 2421,
+      "sha256": "2a2d4e1b586f71c88d4bbc4274a50ea4e70b79f9772615ac2bce6d2067957403"
+    },
+    {
+      "path": "workstreams/03_COMBAT_AND_SKILL_FEEL.md",
+      "bytes": 2445,
+      "sha256": "f79bc91769578e6907b0a4e365393a95ab8ee44e2c0e553430f28b16174ea6f9"
+    },
+    {
+      "path": "workstreams/04_EFFECTS_AND_STATS.md",
+      "bytes": 2404,
+      "sha256": "146f0268e0ac7debb0820a01d3c23f7192b70ad405cf331f2ebcc1e4cf7e49e3"
+    },
+    {
+      "path": "workstreams/05_LOOT_INVENTORY_ECONOMY.md",
+      "bytes": 2384,
+      "sha256": "0cc480d23c50f37c372e3799340e5ff04cdb1719a4cb107238d9048b2b03fe1f"
+    },
+    {
+      "path": "workstreams/06_GEAR_AND_ACCOUNT_PROGRESSION.md",
+      "bytes": 2477,
+      "sha256": "fe83b7d99ef1dc9565cfc8c60254d8dabca28da579cd7393e7f7a7e700ce9092"
+    },
+    {
+      "path": "workstreams/07_MAPS_AND_BOSSES.md",
+      "bytes": 2381,
+      "sha256": "af9b4a76fcae6f51cfb87476a76db58c306faaa9129079a2aba08bc878473165"
+    },
+    {
+      "path": "workstreams/08_UI_UX_AND_ACCEPTANCE.md",
+      "bytes": 2447,
+      "sha256": "aaf50d391317c847b280e89c2f48615666615445602c76968ed80e71d946eaf4"
+    }
+  ]
+}

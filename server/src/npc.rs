@@ -167,10 +167,20 @@ pub struct MenuOption {
 #[serde(rename_all = "camelCase")]
 pub struct ActNode {
     pub kind: String,
+    /// Optional continuation after a one-shot action.  Job advancement uses
+    /// this to apply the job immediately while still showing the authored
+    /// success `say` node to the player.
+    #[serde(default)]
+    pub next: Option<String>,
     #[serde(default)]
     pub map_id: Option<String>,
     #[serde(default)]
     pub shop_id: Option<String>,
+    /// Job advancement fields; set together with `kind` "jobAdvance".
+    #[serde(default)]
+    pub from_job: Option<u32>,
+    #[serde(default)]
+    pub job: Option<u32>,
     /// Quest effect fields; set together with `kind` "quest".
     #[serde(default)]
     pub quest_id: Option<String>,
@@ -235,6 +245,7 @@ pub struct BranchNode {
 pub enum QuestEffect {
     Start(String),
     Complete(String),
+    JobAdvance { from_job: u32, job: u32 },
 }
 
 impl Condition {
@@ -314,7 +325,7 @@ impl DialogueNode {
                 .iter()
                 .map(|option| option.next.clone())
                 .collect(),
-            Self::Act(_) => Vec::new(),
+            Self::Act(act) => act.next.clone().into_iter().collect(),
             Self::Branch(branch) => vec![branch.then.clone(), branch.otherwise.clone()],
         }
     }
@@ -393,6 +404,7 @@ fn resolve(
     mut node_id: String,
     context: &DialogueContext<'_>,
 ) -> Result<(String, DialogueView, Option<QuestEffect>), String> {
+    let mut effect = None;
     for _ in 0..64 {
         let Some(node) = script.nodes.get(&node_id) else {
             return Err(format!("unknown npc dialogue node {node_id}"));
@@ -406,6 +418,21 @@ fn resolve(
                 };
             }
             DialogueNode::Act(act) => {
+                if act.kind == "jobAdvance" {
+                    if effect.is_some() {
+                        return Err("npc dialogue has multiple one-shot actions".to_owned());
+                    }
+                    let (Some(from_job), Some(job)) = (act.from_job, act.job) else {
+                        return Err(
+                            "npc dialogue jobAdvance requires fromJob and job".to_owned()
+                        );
+                    };
+                    effect = Some(QuestEffect::JobAdvance { from_job, job });
+                    if let Some(next) = act.next.clone() {
+                        node_id = next;
+                        continue;
+                    }
+                }
                 return Ok((
                     node_id,
                     match act.kind.as_str() {
@@ -420,13 +447,13 @@ fn resolve(
                         "quest" => DialogueView::End,
                         _ => DialogueView::End,
                     },
-                    match (act.kind.as_str(), act.quest_id.as_deref()) {
+                    effect.or_else(|| match (act.kind.as_str(), act.quest_id.as_deref()) {
                         ("quest", Some(quest_id)) => match act.quest_action.as_deref() {
                             Some("complete") => Some(QuestEffect::Complete(quest_id.to_owned())),
                             _ => Some(QuestEffect::Start(quest_id.to_owned())),
                         },
                         _ => None,
-                    },
+                    }),
                 ));
             }
             DialogueNode::Say(say) => {
@@ -437,7 +464,7 @@ fn resolve(
                         kind: say.kind.clone(),
                         options: Vec::new(),
                     },
-                    None,
+                    effect,
                 ));
             }
             DialogueNode::Ask(ask) => {
@@ -448,7 +475,7 @@ fn resolve(
                         kind: "yesNo".to_owned(),
                         options: Vec::new(),
                     },
-                    None,
+                    effect,
                 ));
             }
             DialogueNode::Menu(menu) => {
@@ -463,7 +490,7 @@ fn resolve(
                             .map(|option| (option.index, option.text.pick(context.lang).to_owned()))
                             .collect(),
                     },
-                    None,
+                    effect,
                 ));
             }
         }
@@ -689,6 +716,46 @@ mod tests {
         )
         .unwrap();
         assert_eq!(node, "a");
+    }
+
+    #[test]
+    fn job_advance_keeps_the_success_say_after_applying_effect() {
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"menu","nodes":{
+                "menu":{"menu":{"text":"choose","options":[{"index":0,"text":"Magician","next":"advance"}]}},
+                "advance":{"act":{"kind":"jobAdvance","fromJob":0,"job":200,"next":"success"}},
+                "success":{"say":{"text":"advanced","kind":"ok"}}}}"#,
+        )
+        .unwrap();
+        let context = context(1, 0);
+        let (node, view, _effect) =
+            advance(&script, None, Some("start"), None, &context).unwrap();
+        assert_eq!(node, "menu");
+        assert!(matches!(view, DialogueView::Say { kind, .. } if kind == "simple"));
+        let (node, view, effect) =
+            advance(&script, Some("menu"), Some("select"), Some(0), &context).unwrap();
+        assert_eq!(node, "success");
+        assert_eq!(
+            view,
+            DialogueView::Say {
+                text: "advanced".into(),
+                kind: "ok".into(),
+                options: vec![]
+            }
+        );
+        assert_eq!(
+            effect,
+            Some(QuestEffect::JobAdvance {
+                from_job: 0,
+                job: 200
+            })
+        );
+
+        let malformed: DialogueScript = serde_json::from_str(
+            r#"{"start":"advance","nodes":{"advance":{"act":{"kind":"jobAdvance","job":200}}}}"#,
+        )
+        .unwrap();
+        assert!(advance(&malformed, None, Some("start"), None, &context).is_err());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { authenticate, Connection } from '../network/session';
+import type { LoginResponse, NpcState, PlayerState } from '../../../shared/protocol';
+import { Connection } from '../network/session';
 import { PlayerInput } from '../features/player/input';
 import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, uiText, uiLocale } from './i18n';
@@ -11,21 +12,33 @@ import { DeathNoticeView } from '../features/notice/death';
 import { MenuView } from '../features/menu/view';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
+import { SkillView } from '../features/skills/view';
+import { CharacterInfoView } from '../features/character/view';
 import { World } from '../scenes/world';
 import './style.css';
+import { EntryView } from '../features/entry/view';
 
 declare const __RELEASE_VERSION__: string;
 declare const __RELEASE_TIME__: string;
 const RELEASE_LABEL = `${__RELEASE_VERSION__} · ${__RELEASE_TIME__}`;
+const english = uiLocale() === 'en';
+document.documentElement.lang = english ? 'en' : 'zh-CN';
+document.title = english ? 'MapleStory · Adventure Begins' : 'MapleStory · 冒险启程';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<header><div class="header-brand"><span class="release-badge" aria-label="发布版本">${RELEASE_LABEL}</span><a class="brand" href="/" aria-label="MapleStory 首页"><span class="leaf">✦</span> MapleStory <small>冒险启程</small></a></div><span class="connection" id="connection">尚未连接</span></header>
-<main><section id="welcome" class="welcome"><div class="intro"><p class="eyebrow">MAPLE WORLD · TMS 273.7</p><h1>熟悉的世界，<br>新的相遇。</h1><p>踏上同一片土地，<br>与你的伙伴一起开始冒险。</p><div class="edition">楓之島 · 维多利亚港</div></div>
-<form id="login" class="panel"><div class="panel-title">冒险者入口 <span>01</span></div><h2 id="form-title">欢迎回来</h2><p id="form-description">登录账号，进入冒险世界。</p><label for="username">冒险者名称</label><input id="username" name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="(?:[A-Za-z0-9_]|-){3,32}" title="3–32 位英文字母、数字、下划线或连字符" placeholder="3–32 位字母、数字、_ 或 -"><label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="128" placeholder="至少 8 个字符"><button class="primary" type="submit" id="submit">登录并进入 <span>→</span></button><button class="text-button" type="button" id="mode">初次来到这里？创建账号</button><p class="form-note">账号保存在这台游戏服务器。</p></form></section>
-<section id="play" hidden><div class="world-toolbar"><div><span class="eyebrow">当前地图</span><strong id="map-name">正在进入…</strong><span id="map-route" class="map-route" hidden></span></div><span id="population">0 位冒险者</span><div class="actions"><button id="sound" type="button">声音：开</button><button id="reconnect" type="button" hidden>重新连接</button><button id="logout" type="button">退出</button></div></div><div id="game-shell"><div id="game" tabindex="0" aria-label="游戏画面，方向键或 A D 移动，上下键攀爬，空格跳跃，↓ + 空格下跳，X 或 Ctrl 普攻，Z 拾取"></div><div id="chat" aria-label="聊天框"></div><div id="hud" aria-label="角色状态栏"></div><div id="ui-windows" aria-live="polite"></div><div id="menus" aria-label="菜单"></div><div id="notices" aria-live="assertive"></div></div></section>
-<p id="message" role="status" aria-live="polite"></p></main><footer>MAPLESTORY <span>同一世界 · 独立冒险者</span><span>TMS 273.7</span></footer>`;
+<header><div class="header-brand"><span class="release-badge" aria-label="${english ? 'Release version' : '发布版本'}">${RELEASE_LABEL}</span><a class="brand" href="/" aria-label="${english ? 'MapleStory home' : 'MapleStory 首页'}"><span class="leaf">✦</span> MapleStory <small>${english ? 'Adventure Begins' : '冒险启程'}</small></a></div><div class="header-tools"><span class="connection" id="connection">${english ? 'Not connected' : '尚未连接'}</span><label class="locale-picker" for="language"><span>${english ? 'Language' : '语言'}</span><select id="language" aria-label="${english ? 'Language' : '语言'}"><option value="zh"${english ? '' : ' selected'}>简体中文</option><option value="en"${english ? ' selected' : ''}>English</option></select></label></div></header>
+<main><section id="welcome"></section>
+<section id="play" hidden><div class="world-toolbar"><div><span class="eyebrow">${english ? 'Current Map' : '当前地图'}</span><strong id="map-name">${english ? 'Entering…' : '正在进入…'}</strong><span id="map-route" class="map-route" hidden></span></div><span id="population">0 ${english ? 'adventurers' : '位冒险者'}</span><div class="actions"><button id="sound" type="button">${english ? 'Sound: On' : '声音：开'}</button><button id="reconnect" type="button" hidden>${english ? 'Reconnect' : '重新连接'}</button><button id="logout" type="button">${english ? 'Log out' : '退出'}</button></div></div><div id="game-shell"><div id="game" tabindex="0" aria-label="${english ? 'Game view. Arrow keys or A D to move, up/down to climb, Space to jump, down + Space to drop through, X or Ctrl to attack, Z to pick up.' : '游戏画面，方向键或 A D 移动，上下键攀爬，空格跳跃，↓ + 空格下跳，X 或 Ctrl 普攻，Z 拾取'}"></div><div id="chat" aria-label="${english ? 'Chat' : '聊天框'}"></div><div id="hud" aria-label="${english ? 'Character status bar' : '角色状态栏'}"></div><div id="ui-windows" aria-live="polite"></div><div id="menus" aria-label="${english ? 'Menu' : '菜单'}"></div><div id="notices" aria-live="assertive"></div></div></section>
+<p id="message" role="status" aria-live="polite"></p></main><footer>MAPLESTORY <span>${english ? 'One world · independent adventurers' : '同一世界 · 独立冒险者'}</span><span>TMS 273.7</span></footer>`;
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-let register = false;
+const language = el<HTMLSelectElement>('language');
+language.onchange = () => {
+  const next = language.value === 'en' ? 'en' : 'zh';
+  try { localStorage.setItem('maple-ui-locale', next); } catch { /* Continue with the URL when storage is unavailable. */ }
+  const url = new URL(window.location.href);
+  url.searchParams.set('lang', next);
+  window.location.assign(url.toString());
+};
 let connection: Connection | undefined;
 let input: PlayerInput | undefined;
 let world: World | undefined;
@@ -36,12 +49,36 @@ let deathNotice: DeathNoticeView | undefined;
 let menus: MenuView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
 let questLog: QuestLogView | undefined;
+let skills: SkillView | undefined;
+let characterInfo: CharacterInfoView | undefined;
 let game: Phaser.Game | undefined;
 let muted = false;
 let generation = 0;
 let portalSequence = 0;
+let skillRequestSequence = 0;
+let selfState: PlayerState | undefined;
 function status(message: string, error = false) { el('message').textContent = message; el('message').classList.toggle('error', error); }
 function focusGame() { requestAnimationFrame(() => el('game').focus({ preventScroll: true })); }
+function characterInfoIsOpen() {
+  return Boolean((characterInfo as unknown as { isOpen?: () => boolean } | undefined)?.isOpen?.());
+}
+function talkToNpc(npc: NpcState) {
+  skills?.close();
+  characterInfo?.close();
+  return npcDialogue?.startTalk(npc);
+}
+function toggleSkills() {
+  if (npcDialogue?.isOpen() || deathNotice?.isOpen()) return false;
+  input?.reset();
+  characterInfo?.close();
+  return skills?.toggle() ?? false;
+}
+function toggleCharacterInfo() {
+  if (npcDialogue?.isOpen() || deathNotice?.isOpen()) return false;
+  input?.reset();
+  skills?.close();
+  return characterInfo?.toggle() ?? false;
+}
 function renderMapRoute(manifest: Manifest) {
   const route = el('map-route');
   const names = [...new Set((manifest.map.portals ?? [])
@@ -52,27 +89,13 @@ function renderMapRoute(manifest: Manifest) {
       return map ? mapText(map.id, map.name) : undefined;
     })
     .filter((name): name is string => Boolean(name)))];
-  route.textContent = names.length ? `${uiLocale() === 'en' ? '↑ Enter portal: ' : '↑ 进入传送门：'}${names.join('、')}` : '';
+  route.textContent = names.length ? `${english ? '↑ Enter portal: ' : '↑ 进入传送门：'}${names.join(english ? ', ' : '、')}` : '';
   route.hidden = names.length === 0;
 }
-function updateMode() {
-  el('form-title').textContent = register ? '创建冒险者' : '欢迎回来';
-  el('form-description').textContent = register ? '创建独立账号，注册后直接进入。' : '登录账号，进入冒险世界。';
-  el('submit').textContent = register ? '创建账号并进入 →' : '登录并进入 →';
-  el('mode').textContent = register ? '已有账号？返回登录' : '初次来到这里？创建账号';
-  el<HTMLInputElement>('password').autocomplete = register ? 'new-password' : 'current-password';
-}
-el('mode').onclick = () => { register = !register; updateMode(); };
-el('login').onsubmit = async event => {
-  event.preventDefault();
+async function enterGame(session: LoginResponse) {
   const current = ++generation;
-  el<HTMLButtonElement>('submit').disabled = true;
-  status(register ? '正在创建账号…' : '正在登录…');
+  status(english ? 'Loading resources…' : '正在读取资源清单…');
   try {
-    const session = await authenticate(el<HTMLInputElement>('username').value.trim(), el<HTMLInputElement>('password').value, register);
-    el<HTMLInputElement>('password').value = '';
-    register = false; updateMode();
-    status('认证成功，正在读取资源清单…');
     const manifest = await loadManifest();
     if (current !== generation) return;
     el('welcome').hidden = true;
@@ -87,15 +110,26 @@ el('login').onsubmit = async event => {
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
+    skills?.destroy();
+    skills = new SkillView(el('ui-windows'), manifest, {
+      send: message => connection?.send(message) ?? false,
+      status,
+    });
+    characterInfo?.destroy();
+    characterInfo = new CharacterInfoView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     menus?.destroy();
     menus = new MenuView(
       el('menus'),
       manifest,
       message => status(message),
       () => inventory?.toggle(),
-      () => el('logout').click(),
+      () => { leaveGame(); entry.showLogin(); },
       () => inventory?.toggleEquipment(),
       () => questLog?.open(),
+      toggleSkills,
+      toggleCharacterInfo,
+      () => returnToEntry('channel'),
+      () => returnToEntry('characters'),
     );
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
@@ -103,19 +137,26 @@ el('login').onsubmit = async event => {
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), trigger => menus?.toggle('shortcut', trigger) || inventory?.toggle());
     world = new World(manifest, (message, error) => {
       status(message, error);
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); el('connection').textContent = '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
-        status(`传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
+        status(english ? `Portal request: ${request.sourceMapId}/${request.portalName} → ${request.targetMapId}` : `传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
-    }, npc => npcDialogue?.startTalk(npc) ?? undefined);
+    }, talkToNpc);
     game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 960, height: 540, backgroundColor: '#b4dfe0', pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, input: { keyboard: false }, banner: false });
     let announcedMapId: string | undefined;
     connection = new Connection(session, message => {
       world?.receive(message);
       inventory?.receive(message);
-      if (message.type === 'npcResult') npcDialogue?.receive(message);
+      if (message.type === 'npcResult') {
+        npcDialogue?.receive(message);
+        if (message.openSkills) {
+          npcDialogue?.clear();
+          skills?.open();
+          status('技能窗口已打开。');
+        }
+      }
       if (message.type === 'shopResult') {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought' : '购买'} ${itemName(message.itemId)} × ${message.quantity}（${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
@@ -125,6 +166,15 @@ el('login').onsubmit = async event => {
       }
       if (message.type === 'pickupResult') {
         chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
+      }
+      if (message.type === 'skillResult') {
+        status(message.success
+          ? (message.operation === 'learn' ? '技能已学习。' : '技能已施放。')
+          : `技能操作失败：${message.code}`, !message.success);
+      }
+      if (message.type === 'abilityResult') {
+        characterInfo?.receiveAbilityResult(message);
+        status(message.success ? '属性点已分配。' : `属性点分配失败：${message.code}`, !message.success);
       }
       if (message.type === 'questList') {
         questLog?.setList(message.quests);
@@ -143,18 +193,23 @@ el('login').onsubmit = async event => {
         }
       }
       if (message.type === 'snapshot') {
-        el('population').textContent = `${message.players.length} 位冒险者`;
+        el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
         const currentMap = world?.getMap(message.mapId);
         if (currentMap && world?.mapId === message.mapId) {
           el('map-name').textContent = mapText(currentMap.id, currentMap.name);
           renderMapRoute({ ...manifest, map: currentMap as Manifest['map'] });
         }
         const self = message.players.find(player => player.id === message.selfId);
+        selfState = self;
         hud?.update(self);
         inventory?.update(self);
+        skills?.update(self);
+        characterInfo?.update(self);
         deathNotice?.update(self);
         if (self) npcDialogue?.syncPlayer(self);
         if (announcedMapId !== message.mapId) {
+          npcDialogue?.clear();
+          input?.reset();
           announcedMapId = message.mapId;
           status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
         }
@@ -165,32 +220,40 @@ el('login').onsubmit = async event => {
       }
       else if (message.type === 'reviveResult') deathNotice?.receive(message);
     }, (state, reason) => {
-      el('connection').textContent = state === 'online' ? `● 已连接 · ${session.username}` : state === 'connecting' ? '正在连接…' : '连接已断开';
+      el('connection').textContent = state === 'online' ? `● ${english ? 'Connected' : '已连接'} · ${session.username}` : state === 'connecting' ? (english ? 'Connecting…' : '正在连接…') : (english ? 'Disconnected' : '连接已断开');
       el('connection').classList.toggle('online', state === 'online');
       el('reconnect').hidden = state !== 'offline';
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { announcedMapId = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); menus?.close(); deathNotice?.clear(); questLog?.close(); status(reason || '正在连接地图服务器…', state === 'offline'); }
+      if (state !== 'online') { announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); npcDialogue?.clear(); questLog?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
       enterPortal: () => world?.enterPortal(),
       nearestNpc: () => world?.nearestNpc() ?? null,
-      talkTo: npc => npcDialogue?.startTalk(npc) ?? undefined,
+      talkTo: talkToNpc,
       toggleQuestLog: () => questLog?.toggle() ?? false,
+      toggleSkills,
+      castSkill: (skillId, direction, vertical) => {
+        connection?.send({ type: 'castSkill', requestId: `skill-cast-${Date.now()}-${++skillRequestSequence}`, skillId, direction, vertical });
+      },
+      playerState: () => selfState,
+      isBlocked: () => Boolean(menus?.isOpen() || npcDialogue?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
-  } catch (error) { status(error instanceof Error ? error.message : '进入失败，请重试。', true); }
-  finally { el<HTMLButtonElement>('submit').disabled = false; }
-};
+  } catch (error) { leaveGame(); throw error; }
+}
+const entry = new EntryView(el('welcome'), enterGame);
 el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
 el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
-el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
-el('logout').onclick = () => {
-  generation++; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined;
-  muted = false; el('sound').textContent = '声音：开';
-  el('play').hidden = true; el('welcome').hidden = false; el('connection').textContent = '尚未连接'; el('connection').classList.remove('online'); status('已退出。'); el('username').focus();
-};
+el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = english ? `Sound: ${muted ? 'Off' : 'On'}` : `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
+function leaveGame() {
+  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';
+  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
+}
+function returnToEntry(stage: 'characters' | 'channel') { leaveGame(); void entry.returnTo(stage); }
+el('logout').onclick = () => returnToEntry('characters');
 window.addEventListener('pagehide', () => { input?.destroy(); connection?.close(); });

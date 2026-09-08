@@ -5,6 +5,10 @@ export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | '
 export function gaugeRatio(value: number, maximum: number): number {
   return Number.isFinite(value) && Number.isFinite(maximum) && maximum > 0 ? Math.max(0, Math.min(1, value / maximum)) : 0;
 }
+export function expRatio(value: number, expToNext: number): number {
+  if (!Number.isFinite(expToNext)) return 0;
+  return expToNext === 0 ? 1 : gaugeRatio(value, expToNext);
+}
 const BUTTONS = [
   ['CashShop', '商城'], ['Event', '活动'], ['Character', '角色与背包'],
   ['Community', '社群'], ['Setting', '设置'], ['Menu', '菜单'],
@@ -103,11 +107,17 @@ export class HudView {
       gauge.text.textContent = `${value} / ${maximum}`;
       gauge.text.setAttribute('aria-label', `${key.toUpperCase()} ${value} / ${maximum}`);
     }
-    const percent = 100 * gaugeRatio(player.exp, player.expToNext);
+    const percent = 100 * expRatio(player.exp, player.expToNext);
     this.exp.style.width = `${percent}%`;
-    this.exp.parentElement?.setAttribute('aria-valuenow', percent.toFixed(2));
-    this.exp.parentElement?.setAttribute('aria-valuemin', '0'); this.exp.parentElement?.setAttribute('aria-valuemax', '100');
-    this.expText.textContent = `${player.exp} [${percent.toFixed(2)}%]`;
+    const track = this.exp.parentElement;
+    track?.setAttribute('aria-valuenow', percent.toFixed(2));
+    track?.setAttribute('aria-valuemin', '0'); track?.setAttribute('aria-valuemax', '100');
+    track?.setAttribute('aria-valuetext', player.expToNext === 0
+      ? `${player.exp} / MAX · ${percent.toFixed(2)}%`
+      : `${player.exp} / ${player.expToNext} · ${percent.toFixed(2)}%`);
+    this.expText.textContent = player.expToNext === 0
+      ? `${player.exp} / MAX [${percent.toFixed(2)}% · 封顶]`
+      : `${player.exp} / ${player.expToNext} [${percent.toFixed(2)}%]`;
   }
 
   clear() { this.host.hidden = true; this.root.hidden = true; }

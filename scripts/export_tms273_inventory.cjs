@@ -216,6 +216,9 @@ async function main() {
   fs.mkdirSync(assets, { recursive: true });
   const inventory = await exportInventoryWindow();
   const equipment = await exportEquipmentWindow();
+  for (const part of ['top', 'mid', 'btm']) {
+    inventory.inventoryUi[`tooltip:${part}`] = await frame(`UI/UIToolTipNew.img/Item/Equip/frame/common/${part}`);
+  }
   const result = { ...inventory, ...equipment };
   fs.writeFileSync(path.join(output, 'windows-inventory.json'), JSON.stringify(result, null, 2) + '\n', 'utf8');
   console.log(JSON.stringify({

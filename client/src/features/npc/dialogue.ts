@@ -2,7 +2,7 @@ import type {
   ClientMessage, NpcState, PlayerState, ServerMessage,
 } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
-import { uiLocale, uiText } from '../../app/i18n';
+import { uiLocale, uiText, displayText } from '../../app/i18n';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
@@ -25,7 +25,7 @@ interface ShopOpenState {
 
 /** Pick the zh/en name the server ships (zh is the product default). */
 function displayName(zh?: string, en?: string): string {
-  return uiLocale() === 'en' ? (en ?? zh ?? '') : (zh ?? en ?? '');
+  return displayText(uiLocale() === 'en' ? (en ?? zh ?? '') : (zh ?? en ?? ''));
 }
 
 /**
@@ -82,6 +82,7 @@ export class NpcDialogueView {
     this.host = host;
     this.manifest = manifest;
     this.send = send;
+    window.addEventListener('keydown', this.onKeyDown, true);
     void this.loadCatalog();
   }
 
@@ -121,6 +122,7 @@ export class NpcDialogueView {
   }
 
   receive(message: Extract<ServerMessage, { type: 'npcResult' }>) {
+    if (message.requestId !== this.currentRequestId) return;
     if (message.ended || (!message.dialog && !message.shop && !message.warp)) {
       this.closeDialogue();
       return;
@@ -153,6 +155,7 @@ export class NpcDialogueView {
 
   /** Begin a conversation from a player-initiated request (↑ key). */
   startTalk(npc: NpcState) {
+    if (this.isOpen()) return;
     const requestId = `npc-${++this.requestSequence}-${Date.now().toString(36)}`;
     this.currentRequestId = requestId;
     this.currentNpcId = npc.id;
@@ -174,7 +177,28 @@ export class NpcDialogueView {
     return reachable[0] ?? null;
   }
 
+  isOpen(): boolean {
+    return Boolean(this.dialogueCurrent || this.shopCurrent);
+  }
+
+  clear() {
+    this.currentRequestId = '';
+    this.closeDialogue();
+    this.closeShop();
+  }
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !this.isOpen()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.repeat) return;
+    if (this.dialogueCurrent) this.step({ step: 'end' });
+    this.clear();
+  };
+
   destroy() {
+    window.removeEventListener('keydown', this.onKeyDown, true);
+    this.clear();
     for (const fn of this.destroyFns) fn();
     this.destroyFns.length = 0;
     this.dialogueRoot?.remove();
@@ -229,7 +253,7 @@ export class NpcDialogueView {
       return;
     }
     root.classList.toggle('npc-dlg-pageable', dialog.kind === 'next' || dialog.kind === 'nextPrev' || dialog.kind === 'prev');
-    text.textContent = sanitize(dialog.text);
+    text.textContent = displayText(sanitize(dialog.text));
     options.replaceChildren();
     const optHint = document.createElement('div');
     optHint.className = 'npc-dlg-opt-hint';
@@ -238,7 +262,7 @@ export class NpcDialogueView {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'npc-dlg-opt';
-        btn.textContent = option.text;
+        btn.textContent = displayText(option.text);
         btn.onclick = event => { event.stopPropagation(); this.step({ step: 'select', selection: option.index }); };
         options.appendChild(btn);
       }
@@ -257,6 +281,8 @@ export class NpcDialogueView {
   private buildDialogueFrame(): HTMLDivElement {
     const root = document.createElement('div');
     root.className = 'npc-dlg';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-label', uiLocale() === 'en' ? 'NPC conversation' : 'NPC 对话');
 
     const top = this.uiFrame('dialogUi', 't');
     const bottom = this.uiFrame('dialogUi', 's');
@@ -396,6 +422,8 @@ export class NpcDialogueView {
     if (!this.shopRoot) {
       const root = document.createElement('div');
       root.className = 'npc-shop';
+      root.setAttribute('role', 'dialog');
+      root.setAttribute('aria-label', uiLocale() === 'en' ? 'Shop' : '商店');
       const backgrnd = this.uiFrame('shopUi', 'backgrnd');
       if (backgrnd) {
         root.style.width = `${backgrnd.width}px`;
@@ -457,8 +485,8 @@ export class NpcDialogueView {
       if (entry.icon) iconWrap.appendChild(frame(entry.icon));
       const name = document.createElement('span');
       name.className = 'npc-shop-name';
-      name.textContent = entry.name;
-      name.title = entry.name;
+      name.textContent = displayText(entry.name);
+      name.title = displayText(entry.name);
       const price = document.createElement('span');
       price.className = 'npc-shop-price';
       price.textContent = `${entry.price.toLocaleString()} ${uiText('meso')}`;

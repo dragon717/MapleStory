@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { AssetFrame, NpcAsset } from '../../assets/manifest';
 import { frameAt } from '../player/animation';
-import { uiLocale } from '../../app/i18n';
+import { uiLocale, displayText } from '../../app/i18n';
 
 export interface NpcSnapshot {
   id: string;
@@ -12,6 +12,7 @@ export interface NpcSnapshot {
   y: number;
   facing: -1 | 1;
   shopId?: string;
+  jobAdvancementAvailable?: boolean;
   /** World tick when the npc last changed pose; npcs only play `stand`. */
   actionStartedTick?: number;
 }
@@ -21,8 +22,9 @@ export class NpcView {
   private readonly sprite?: Phaser.GameObjects.Image;
   private label?: Phaser.GameObjects.Text;
   private signature = '';
+  private marker?: Phaser.GameObjects.Image;
 
-  constructor(private scene: Phaser.Scene, private asset: NpcAsset, depth: number) {
+  constructor(private scene: Phaser.Scene, private asset: NpcAsset, depth: number, private markerFrames: AssetFrame[] = []) {
     const first = asset.stand[0];
     if (!first) return;
     this.sprite = scene.add.image(0, 0, first.url).setOrigin(0).setDepth(depth);
@@ -34,7 +36,7 @@ export class NpcView {
    * Built lazily so a texture-less npc (no stand frames) never shows a label.
    */
   private ensureLabel(npc: NpcSnapshot, depth: number): Phaser.GameObjects.Text | undefined {
-    const display = uiLocale() === 'en' ? npc.name : (npc.nameZh ?? npc.name);
+    const display = displayText(uiLocale() === 'en' ? npc.name : (npc.nameZh ?? npc.name));
     if (!display) return undefined;
     if (!this.label) {
       this.label = this.scene.add
@@ -79,11 +81,22 @@ export class NpcView {
     // Nameplate floats above the sprite's top edge, centred on the figure.
     const label = this.ensureLabel(npc, sprite.depth);
     if (label) label.setPosition(left + frame.width / 2, top - 6);
+    if (npc.jobAdvancementAvailable && this.markerFrames.length) {
+      const markerFrame = this.markerFrames[this.markerFrames.length === 1 ? 0 : frameAt(this.markerFrames.map(frame => frame.delay), elapsed, true)];
+      if (!this.marker) this.marker = this.scene.add.image(0, 0, markerFrame.url).setOrigin(0).setDepth(sprite.depth + 11);
+      this.marker.setTexture(markerFrame.url).setVisible(true)
+        .setPosition(Math.round(left + frame.width / 2 + markerFrame.x), Math.round(top - 28 + markerFrame.y));
+    } else this.marker?.setVisible(false);
+  }
+
+  containsMarker(x: number, y: number): boolean {
+    return Boolean(this.marker?.visible && this.marker.getBounds().contains(x, y));
   }
 
   destroy() {
     this.sprite?.destroy();
     this.label?.destroy();
+    this.marker?.destroy();
   }
 }
 

@@ -1,0 +1,21 @@
+{
+  "checks": [
+    {
+      "name": "snapshot has npcs",
+      "status": "PASS",
+      "count": 2
+    },
+    {
+      "name": "Heena",
+      "status": "PASS",
+      "npcId": "000010000-life-0",
+      "hasDialog": true
+    },
+    {
+      "name": "shop 11000 owner present",
+      "status": "SKIP",
+      "reason": "npc 11000 not on birth map"
+    }
+  ],
+  "runId": "2026-09-05T17-17-25-187Z"
+}

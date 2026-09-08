@@ -1,3 +1,4 @@
+import type { AppearanceCatalog } from '../features/entry/appearance';
 import { CONTENT_VERSION } from '../../../shared/protocol.ts';
 import { frameAt } from '../features/player/animation.ts';
 export interface Point { x: number; y: number }
@@ -168,12 +169,30 @@ export interface CombatAssets {
   hit?: { sound?: string; soundSource?: string };
   damageNumbers?: { normal: DamageNumberSet; critical?: DamageNumberSet };
 }
-export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead', Frame[]>>;
+export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;
 export interface AvatarEquipmentLoadout {
   itemIds: string[];
   actions: AvatarActionSet;
 }
+export type SkillArt = Pick<AssetFrame, 'url' | 'x' | 'y' | 'width' | 'height'>;
+export interface SkillCatalogEntry {
+  id: string; bookId: string; name: string; description: string;
+  maxLevel: number; prerequisites: Record<string, number>;
+  hidden: boolean;
+  icons: { normal?: SkillArt; disabled?: SkillArt; mouseOver?: SkillArt };
+  levelDescriptions?: string[];
+  levelValues?: { level: number; mpCon: number; damage: number; mobCount: number; attackCount: number }[];
+}
+export interface SkillWindowData {
+  width: number; height: number;
+  backgrounds: Record<string, SkillArt>;
+  cells: Record<string, SkillArt>;
+  skillPoint: SkillArt;
+  tabs: Record<'enabled' | 'disabled' | 'selected', SkillArt[]>;
+  buttons: Record<string, Record<string, SkillArt>>;
+}
 export interface Manifest {
+  appearanceCatalog?: AppearanceCatalog;
   contentVersion: string;
   map: MapDefinition;
   mapCatalog?: MapCatalog;
@@ -181,6 +200,15 @@ export interface Manifest {
   avatar: { defaultFacing: -1 | 1; actions: AvatarActionSet; equipmentLoadouts?: Record<string, AvatarEquipmentLoadout>; attackSound?: string };
   monsters?: GameplayAssets['monsters']; items?: GameplayAssets['items']; hud?: GameplayAssets['hud']; drops?: GameplayAssets['drops'];
   combat?: CombatAssets;
+  skillWindow?: SkillWindowData;
+  skillBooks?: Record<string, { name: string; tabIndex: number }>;
+  skillCatalog?: Record<string, SkillCatalogEntry>;
+  levelUp?: { layers: AssetFrame[][]; sound?: { url: string; source: string } };
+  skillEffects?: Record<string, { effect?: AssetFrame[]; hit?: AssetFrame[]; ball?: AssetFrame[]; tile?: AssetFrame[]; mob?: AssetFrame[] }>;
+  skillSounds?: Record<string, { use?: { url: string; source: string }; hit?: { url: string; source: string } }>;
+  characterUi?: Record<string, SkillArt>;
+  characterLayout?: Record<string, { x: number; y: number }>;
+  npcQuestAvailable?: { frames: AssetFrame[] };
   chatUi?: ChatUi;
   /** Source-backed UIWindow.img/Item subtree, keyed relative to Item. */
   inventoryUi?: Record<string, AssetFrame>;
@@ -255,5 +283,8 @@ export async function loadManifest(): Promise<Manifest> {
   for (const map of [manifest.map, ...(manifest.mapCatalog?.maps ?? [])]) {
     for (const layer of map.layers ?? []) if (layer.frames?.length) mapFrameAt(layer.frames, 0);
   }
+  const appearances = await fetch('/assets/entry/appearance.json');
+  if (!appearances.ok) throw new Error('角色外观资源加载失败，请刷新重试。');
+  manifest.appearanceCatalog = await appearances.json();
   return manifest;
 }

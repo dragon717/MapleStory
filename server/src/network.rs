@@ -1,4 +1,4 @@
-use crate::{auth, protocol, world};
+use crate::{auth, lobby as lobby_model, protocol, world};
 use auth::{Credentials, Request};
 use axum::{
     extract::{
@@ -92,6 +92,53 @@ pub async fn login(
 ) -> Response {
     credentials(app, body, false).await
 }
+
+pub async fn lobby(
+    State(app): State<App>,
+    body: Result<Json<lobby_model::HttpRequest>, JsonRejection>,
+) -> Response {
+    let Ok(_slot) = app.auth_slots.try_acquire() else {
+        return error(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Authentication busy; retry shortly",
+        );
+    };
+    let Ok(Json(request)) = body else {
+        return error(StatusCode::BAD_REQUEST, "Invalid lobby JSON");
+    };
+    let (tx, rx) = oneshot::channel();
+    if app
+        .auth
+        .try_send(auth::Request::Lobby {
+            token: request.token,
+            action: request.action,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "Authentication queue full");
+    }
+    match rx.await {
+        Ok(Ok(response)) => Json(response.into_json()).into_response(),
+        Ok(Err(message)) => error(lobby_error_status(&message), &message),
+        Err(_) => error(StatusCode::SERVICE_UNAVAILABLE, "Authentication unavailable"),
+    }
+}
+
+fn lobby_error_status(message: &str) -> StatusCode {
+    match message {
+        "invalid session" => StatusCode::UNAUTHORIZED,
+        "character not found" => StatusCode::NOT_FOUND,
+        "name already exists" | "request conflict" | "character slots full" => {
+            StatusCode::CONFLICT
+        }
+        _ if message.contains("persistence") || message == "invalid saved appearance" => {
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+        _ => StatusCode::BAD_REQUEST,
+    }
+}
+
 pub async fn upgrade(State(app): State<App>, ws: WebSocketUpgrade) -> Response {
     let Ok(slot) = app.connections.clone().try_acquire_owned() else {
         return error(
@@ -151,7 +198,11 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
         return;
     };
     let (reply, rx) = oneshot::channel();
-    if app.auth.try_send(Request::Verify(token, reply)).is_err() {
+    if app
+        .auth
+        .try_send(Request::VerifyCharacter(token, reply))
+        .is_err()
+    {
         let _ = send(&mut socket, reject("busy", "Authentication busy", None)).await;
         return;
     }

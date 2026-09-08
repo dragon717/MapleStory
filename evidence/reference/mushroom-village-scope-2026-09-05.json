@@ -1,0 +1,4757 @@
+{
+  "generated": "2026-09-05",
+  "source": "参考/repos/P0nk__Cosmic/wz/Map.wz/Map/Map0/*.img.xml + String.wz/Map.img.xml + String.wz/Npc.img.xml",
+  "scope": {
+    "core": "Maple Road starter chain from the current birth map 000010000 Mushroom Town through Snail Garden, Snail Field of Flowers, In a Small Forest, Dangerous Forest and the Southperry branch.",
+    "maps": [
+      "000010000",
+      "000020000",
+      "000020001",
+      "000030000",
+      "000030001",
+      "000040000",
+      "000040001",
+      "000040002",
+      "000050000",
+      "000050001",
+      "000060000",
+      "000060001",
+      "001000000",
+      "001000001",
+      "001000002",
+      "001000003",
+      "001000004",
+      "001000005",
+      "001000006",
+      "001010000",
+      "001020000",
+      "002000000",
+      "002000001"
+    ],
+    "amherstBranch": [
+      "001000000",
+      "001000001",
+      "001000002",
+      "001000003",
+      "001000004",
+      "001000005",
+      "001000006"
+    ],
+    "introReferenceOnly": [
+      "000000000",
+      "000000001",
+      "000000002",
+      "000000003"
+    ],
+    "birthMap": "000010000",
+    "confirmed": "Map names, map info, portal target map/name pairs, tutorial portal scripts, life IDs/coordinates and source NPC names are read directly from the checked-in WZ XML.",
+    "missing": "Original NPC/quest script execution, complete shop/economy rules, party/white EXP and full island-wide event maps are not yet wired into this round; do not invent them.",
+    "excluded": "Maps beyond the listed Maple Road/Southperry/Amherst starter branch and intro maps without a reachable transition from the current birth point."
+  },
+  "maps": [
+    {
+      "id": "000010000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Mushroom Town",
+          "mapDesc": "The town for beginners. Playing the game through simple quests\\r\\nYou'll learn how to move around here."
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "10000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "go10000",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-315",
+        "VRRight": "1390",
+        "VRTop": "-480",
+        "VRBottom": "750"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-93",
+          "y": "450",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "453",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-89",
+          "y": "451",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "1077",
+          "y": "480",
+          "tm": "20000",
+          "tn": "in00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "tuto00",
+          "pt": "9",
+          "x": "-95",
+          "y": "428",
+          "tm": "999999999",
+          "tn": "",
+          "script": "tutoChatNPC",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tuto01",
+          "pt": "9",
+          "x": "280",
+          "y": "455",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoMinimap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "glBmsg0",
+          "pt": "9",
+          "x": "987",
+          "y": "430",
+          "tm": "999999999",
+          "tn": "",
+          "script": "glTutoMsg0"
+        },
+        {
+          "pn": "glBmsg1",
+          "pt": "9",
+          "x": "1164",
+          "y": "431",
+          "tm": "999999999",
+          "tn": "",
+          "script": "glTutoMsg0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002101": 1,
+        "n:0002100": 1,
+        "n:0002007": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002101",
+          "x": "130",
+          "y": "293",
+          "fh": "51"
+        },
+        {
+          "type": "n",
+          "id": "0002100",
+          "x": "833",
+          "y": "125",
+          "fh": "9"
+        },
+        {
+          "type": "n",
+          "id": "0002007",
+          "x": "1394",
+          "y": "121",
+          "fh": "16",
+          "mobTime": "0",
+          "hide": "1"
+        }
+      ]
+    },
+    {
+      "id": "000020000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Snail Garden",
+          "mapDesc": "A town specifically for beginners. Simple quests teach the basic controls of the game."
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "20000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "go20000",
+        "onFirstUserEnter": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-270",
+        "VRRight": "810",
+        "VRTop": "-540",
+        "VRBottom": "455"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-91",
+          "y": "181",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "1",
+          "x": "-140",
+          "y": "273",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "630",
+          "y": "210",
+          "tm": "30000",
+          "tn": "in00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "glBmsg0",
+          "pt": "9",
+          "x": "543",
+          "y": "168",
+          "tm": "999999999",
+          "tn": "",
+          "script": "glTutoMsg0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002000": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002000",
+          "x": "233",
+          "y": "58",
+          "fh": "7"
+        }
+      ]
+    },
+    {
+      "id": "000020001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Mushroom Town Townstreet",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "20001",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-540",
+        "VRRight": "450",
+        "VRTop": "-660",
+        "VRBottom": "455"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-329",
+          "y": "241",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-167",
+          "y": "244",
+          "tm": "20000",
+          "tn": "in01"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002001": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002001",
+          "x": "24",
+          "y": "246",
+          "fh": "14"
+        }
+      ]
+    },
+    {
+      "id": "000030000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Snail Field of Flowers",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "30000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "go30000",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-270",
+        "VRRight": "1170",
+        "VRTop": "-660",
+        "VRBottom": "394"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-144",
+          "y": "152",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-207",
+          "y": "123",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-173",
+          "y": "125",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "1",
+          "x": "-184",
+          "y": "213",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in01",
+          "pt": "2",
+          "x": "557",
+          "y": "94",
+          "tm": "30001",
+          "tn": "out00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "1046",
+          "y": "94",
+          "tm": "40000",
+          "tn": "in00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "glBmsg0",
+          "pt": "9",
+          "x": "915",
+          "y": "53",
+          "tm": "999999999",
+          "tn": "",
+          "script": "glTutoMsg0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002102": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002102",
+          "x": "-59",
+          "y": "86",
+          "fh": "4"
+        }
+      ]
+    },
+    {
+      "id": "000030001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Mushroom Town Townstreet",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "30001",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-540",
+        "VRRight": "450",
+        "VRTop": "-660",
+        "VRBottom": "455"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-329",
+          "y": "241",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-167",
+          "y": "244",
+          "tm": "30000",
+          "tn": "in01",
+          "script": "",
+          "onlyOnce": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002001": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002001",
+          "x": "24",
+          "y": "246",
+          "fh": "14"
+        }
+      ]
+    },
+    {
+      "id": "000040000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "In a Small Forest",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "40000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "go40000",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-270",
+        "VRRight": "1170",
+        "VRTop": "-1260",
+        "VRBottom": "395"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-77",
+          "y": "122",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "1",
+          "x": "-199",
+          "y": "215",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "975",
+          "y": "151",
+          "tm": "50000",
+          "tn": "in00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "tuto00",
+          "pt": "9",
+          "x": "88",
+          "y": "194",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoAttack",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tuto01",
+          "pt": "9",
+          "x": "657",
+          "y": "133",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoPickup",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tuto02",
+          "pt": "9",
+          "x": "824",
+          "y": "133",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoSkill",
+          "onlyOnce": "1"
+        }
+      ],
+      "lifeCounts": {
+        "m:9300018": 3,
+        "n:0002002": 1,
+        "n:0002004": 1
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "9300018",
+          "x": "505",
+          "y": "137",
+          "fh": "19",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9300018",
+          "x": "322",
+          "y": "133",
+          "fh": "15",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9300018",
+          "x": "711",
+          "y": "125",
+          "fh": "5",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002002",
+          "x": "896",
+          "y": "142",
+          "fh": "7"
+        },
+        {
+          "type": "n",
+          "id": "0002004",
+          "x": "-58",
+          "y": "207",
+          "fh": "1",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000040001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Snail Hunting Ground II",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "60000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-269",
+        "VRRight": "1704",
+        "VRTop": "-1440",
+        "VRBottom": "575"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-4",
+          "y": "314",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-56",
+          "y": "315",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-111",
+          "y": "317",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-176",
+          "y": "315",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-219",
+          "y": "313",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-163",
+          "y": "391",
+          "tm": "40000",
+          "tn": "east00"
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "1585",
+          "y": "388",
+          "tm": "40002",
+          "tn": "west00"
+        },
+        {
+          "pn": "adviceMap00",
+          "pt": "9",
+          "x": "-71",
+          "y": "357",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "adviceMap01",
+          "pt": "9",
+          "x": "1485",
+          "y": "357",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        }
+      ],
+      "lifeCounts": {
+        "m:0100100": 23,
+        "m:0100101": 4
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "19",
+          "y": "379",
+          "fh": "14"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "157",
+          "y": "380",
+          "fh": "13"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "297",
+          "y": "381",
+          "fh": "9"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "473",
+          "y": "344",
+          "fh": "7"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "594",
+          "y": "245",
+          "fh": "21"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "792",
+          "y": "190",
+          "fh": "8"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1557",
+          "y": "-413",
+          "fh": "48"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "384",
+          "y": "-394",
+          "fh": "108"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "60",
+          "y": "-58",
+          "fh": "40"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "208",
+          "y": "-66",
+          "fh": "42"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "775",
+          "y": "-397",
+          "fh": "115"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "627",
+          "y": "-416",
+          "fh": "105"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "906",
+          "y": "-107",
+          "fh": "74"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "761",
+          "y": "-100",
+          "fh": "67"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "595",
+          "y": "-115",
+          "fh": "73"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "862",
+          "y": "-410",
+          "fh": "111"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1429",
+          "y": "-410",
+          "fh": "54"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "373",
+          "y": "-79",
+          "fh": "41"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1611",
+          "y": "370",
+          "fh": "27"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1234",
+          "y": "-414",
+          "fh": "57"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "-84",
+          "y": "-46",
+          "fh": "39"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1612",
+          "y": "371",
+          "fh": "27"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1454",
+          "y": "355",
+          "fh": "2"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1281",
+          "y": "361",
+          "fh": "25"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1125",
+          "y": "368",
+          "fh": "23"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "972",
+          "y": "163",
+          "fh": "18"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "510",
+          "y": "-406",
+          "fh": "104",
+          "mobTime": "0"
+        }
+      ]
+    },
+    {
+      "id": "000040002",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Snail Hunting Ground III",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "60000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "90",
+        "VRRight": "1974",
+        "VRTop": "-1260",
+        "VRBottom": "574"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "178",
+          "y": "303",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "291",
+          "y": "296",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "240",
+          "y": "298",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "1874",
+          "y": "-450",
+          "tm": "50000",
+          "tn": "west00"
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "202",
+          "y": "329",
+          "tm": "40001",
+          "tn": "east00"
+        },
+        {
+          "pn": "advcieMap00",
+          "pt": "9",
+          "x": "300",
+          "y": "296",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "adviceMap01",
+          "pt": "9",
+          "x": "1777",
+          "y": "-479",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        }
+      ],
+      "lifeCounts": {
+        "m:0100100": 15,
+        "m:0100101": 4
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1319",
+          "y": "-122",
+          "fh": "15",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1410",
+          "y": "-132",
+          "fh": "16",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "453",
+          "y": "367",
+          "fh": "43",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "575",
+          "y": "361",
+          "fh": "37",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "725",
+          "y": "357",
+          "fh": "30",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1038",
+          "y": "255",
+          "fh": "62",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1140",
+          "y": "247",
+          "fh": "36",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1217",
+          "y": "238",
+          "fh": "35",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1454",
+          "y": "364",
+          "fh": "59",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1594",
+          "y": "361",
+          "fh": "53",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1729",
+          "y": "362",
+          "fh": "46",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1863",
+          "y": "359",
+          "fh": "48",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "656",
+          "y": "-116",
+          "fh": "19",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "751",
+          "y": "-117",
+          "fh": "21",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "862",
+          "y": "-104",
+          "fh": "22",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1034",
+          "y": "-108",
+          "fh": "26",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1175",
+          "y": "-125",
+          "fh": "20",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1375",
+          "y": "-480",
+          "fh": "2",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1494",
+          "y": "-479",
+          "fh": "6",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000050000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Dangerous Forest",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "onUserEnter": "go50000",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-89",
+        "VRRight": "1529",
+        "VRTop": "-1080",
+        "VRBottom": "574"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "41",
+          "y": "195",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "59",
+          "y": "190",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "87",
+          "y": "187",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "44",
+          "y": "196",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "1",
+          "x": "11",
+          "y": "335",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "1430",
+          "y": "269",
+          "tm": "1000000",
+          "tn": "west00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "tuto00",
+          "pt": "9",
+          "x": "1228",
+          "y": "244",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoWorldmap",
+          "onlyOnce": "1"
+        }
+      ],
+      "lifeCounts": {
+        "m:0100100": 17,
+        "n:0002005": 1,
+        "n:0002003": 1
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1071",
+          "y": "-94",
+          "fh": "58",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "147",
+          "y": "-39",
+          "fh": "45",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "338",
+          "y": "-47",
+          "fh": "48",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "511",
+          "y": "-37",
+          "fh": "49",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "399",
+          "y": "-43",
+          "fh": "47",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "753",
+          "y": "-101",
+          "fh": "52",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "899",
+          "y": "-93",
+          "fh": "57",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1230",
+          "y": "-100",
+          "fh": "62",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "543",
+          "y": "85",
+          "fh": "31",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "654",
+          "y": "87",
+          "fh": "36",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "929",
+          "y": "82",
+          "fh": "39",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "774",
+          "y": "80",
+          "fh": "37",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002005",
+          "x": "1136",
+          "y": "258",
+          "fh": "23",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002003",
+          "x": "167",
+          "y": "319",
+          "fh": "5"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "766",
+          "y": "382",
+          "fh": "17",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "909",
+          "y": "325",
+          "fh": "2",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "471",
+          "y": "379",
+          "fh": "15",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "411",
+          "y": "84",
+          "fh": "35",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "626",
+          "y": "357",
+          "fh": "22",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000050001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "The Field West of Southperry",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "60000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "SouthPerry",
+        "VRLeft": "138",
+        "VRRight": "2018",
+        "VRTop": "-780",
+        "VRBottom": "543"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "324",
+          "y": "179",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "228",
+          "y": "361",
+          "tm": "50000",
+          "tn": "east01",
+          "script": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "1907",
+          "y": "360",
+          "tm": "60000",
+          "tn": "west00",
+          "script": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "2",
+          "x": "1275",
+          "y": "-181",
+          "tm": "1000001",
+          "tn": "out00"
+        },
+        {
+          "pn": "in01",
+          "pt": "2",
+          "x": "1750",
+          "y": "-181",
+          "tm": "1000002",
+          "tn": "out00"
+        },
+        {
+          "pn": "adviceMap00",
+          "pt": "9",
+          "x": "322",
+          "y": "325",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "adviceMap01",
+          "pt": "9",
+          "x": "1818",
+          "y": "325",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        }
+      ],
+      "lifeCounts": {
+        "m:0130100": 3,
+        "m:0100101": 1,
+        "m:0130101": 7,
+        "m:1210102": 3,
+        "n:0020001": 1
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0130100",
+          "x": "474",
+          "y": "354",
+          "fh": "40",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130100",
+          "x": "621",
+          "y": "354",
+          "fh": "41",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130100",
+          "x": "912",
+          "y": "289",
+          "fh": "55",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "759",
+          "y": "349",
+          "fh": "42",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1126",
+          "y": "223",
+          "fh": "45",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1244",
+          "y": "224",
+          "fh": "51",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1368",
+          "y": "226",
+          "fh": "66",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1507",
+          "y": "343",
+          "fh": "57",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1593",
+          "y": "338",
+          "fh": "48",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1730",
+          "y": "340",
+          "fh": "52",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1828",
+          "y": "348",
+          "fh": "56",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "1864",
+          "y": "-187",
+          "fh": "77",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "724",
+          "y": "-72",
+          "fh": "98",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "820",
+          "y": "-75",
+          "fh": "99",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020001",
+          "x": "450",
+          "y": "237",
+          "fh": "21",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000060000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry",
+          "mapDesc": "An harbor down south. It's the place where you can travel to a much bigger island."
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "60000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/GoPicnic",
+        "mapMark": "SouthPerry",
+        "VRLeft": "-630",
+        "VRRight": "4050",
+        "VRTop": "-1680",
+        "VRBottom": "707"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-59",
+          "y": "251",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "gm00",
+          "pt": "1",
+          "x": "-65",
+          "y": "43",
+          "tm": "999999999",
+          "tn": "",
+          "script": ""
+        },
+        {
+          "pn": "ev99",
+          "pt": "1",
+          "x": "35",
+          "y": "284",
+          "tm": "999999999",
+          "tn": "ev99"
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-547",
+          "y": "286",
+          "tm": "50001",
+          "tn": "east00",
+          "script": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "2",
+          "x": "699",
+          "y": "527",
+          "tm": "60001",
+          "tn": "out00"
+        },
+        {
+          "pn": "ev00",
+          "pt": "3",
+          "x": "-181",
+          "y": "0",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev01",
+          "pt": "3",
+          "x": "-181",
+          "y": "-103",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev02",
+          "pt": "3",
+          "x": "-146",
+          "y": "-205",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev03",
+          "pt": "3",
+          "x": "-43",
+          "y": "-205",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev04",
+          "pt": "3",
+          "x": "60",
+          "y": "-204",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev05",
+          "pt": "3",
+          "x": "92",
+          "y": "-102",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "ev06",
+          "pt": "3",
+          "x": "92",
+          "y": "0",
+          "tm": "60000",
+          "tn": "ev99",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "adviceMap00",
+          "pt": "9",
+          "x": "-459",
+          "y": "247",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "adviceMap01",
+          "pt": "9",
+          "x": "2998",
+          "y": "-54",
+          "tm": "999999999",
+          "tn": "",
+          "script": "adviceMap",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "870",
+          "y": "526",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "955",
+          "y": "523",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "1058",
+          "y": "523",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "1147",
+          "y": "524",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "1239",
+          "y": "524",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "1327",
+          "y": "524",
+          "tm": "999999999",
+          "tn": ""
+        }
+      ],
+      "lifeCounts": {
+        "n:9000000": 1,
+        "n:0020002": 1,
+        "n:0022000": 1,
+        "n:9010000": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "9000000",
+          "x": "4",
+          "y": "41",
+          "fh": "138",
+          "mobTime": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020002",
+          "x": "585",
+          "y": "522",
+          "fh": "48"
+        },
+        {
+          "type": "n",
+          "id": "0022000",
+          "x": "3360",
+          "y": "-222",
+          "fh": "113"
+        },
+        {
+          "type": "n",
+          "id": "9010000",
+          "x": "1884",
+          "y": "400",
+          "fh": "50",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000060001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry Armor Store",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "60000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "mapDesc": "",
+        "mapMark": "SouthPerry",
+        "VRLeft": "-400",
+        "VRRight": "400",
+        "VRTop": "-300",
+        "VRBottom": "300"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "115",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-48",
+          "y": "181",
+          "tm": "60000",
+          "tn": "in00"
+        }
+      ],
+      "lifeCounts": {
+        "n:0021000": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0021000",
+          "x": "-270",
+          "y": "138",
+          "fh": "11"
+        }
+      ]
+    },
+    {
+      "id": "001000000",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Amherst",
+          "mapDesc": "A town located on the east side of Maple Island. Contains shops that sell weapons, armors, and general goods."
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "go1000000",
+        "onFirstUserEnter": "",
+        "mapMark": "Amherst",
+        "VRLeft": "-185",
+        "VRRight": "2515",
+        "VRTop": "-900",
+        "VRBottom": "453"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "240",
+          "y": "190",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-66",
+          "y": "272",
+          "tm": "50000",
+          "tn": "east00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "in00",
+          "pt": "2",
+          "x": "658",
+          "y": "-59",
+          "tm": "1000001",
+          "tn": "out00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "in02",
+          "pt": "2",
+          "x": "1279",
+          "y": "151",
+          "tm": "1000003",
+          "tn": "out00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "2197",
+          "y": "270",
+          "tm": "1010000",
+          "tn": "west00",
+          "script": "",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "tuto00",
+          "pt": "9",
+          "x": "567",
+          "y": "228",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoReactor",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tuto01",
+          "pt": "9",
+          "x": "202",
+          "y": "226",
+          "tm": "999999999",
+          "tn": "",
+          "script": "infoReactor",
+          "onlyOnce": "1"
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "354",
+          "y": "276",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "440",
+          "y": "281",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "640",
+          "y": "274",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "511",
+          "y": "277",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "188",
+          "y": "275",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "271",
+          "y": "265",
+          "tm": "999999999",
+          "tn": ""
+        }
+      ],
+      "lifeCounts": {
+        "n:0012000": 1,
+        "n:0010000": 1,
+        "n:0012101": 1,
+        "n:0002103": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0012000",
+          "x": "1610",
+          "y": "151",
+          "fh": "63"
+        },
+        {
+          "type": "n",
+          "id": "0010000",
+          "x": "547",
+          "y": "274",
+          "fh": "26"
+        },
+        {
+          "type": "n",
+          "id": "0012101",
+          "x": "103",
+          "y": "274",
+          "fh": "33"
+        },
+        {
+          "type": "n",
+          "id": "0002103",
+          "x": "1101",
+          "y": "147",
+          "fh": "46",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "001000001",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Amherst Weapon Store",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "",
+        "onFirstUserEnter": "",
+        "mapMark": "Amherst",
+        "VRLeft": "-400",
+        "VRRight": "400",
+        "VRTop": "-300",
+        "VRBottom": "300"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "115",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-48",
+          "y": "181",
+          "tm": "1000000",
+          "tn": "in00",
+          "script": "",
+          "onlyOnce": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0011000": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0011000",
+          "x": "-270",
+          "y": "138",
+          "fh": "11"
+        }
+      ]
+    },
+    {
+      "id": "001000002",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Amherst Townstreet",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "Amherst"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-329",
+          "y": "241",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-167",
+          "y": "244",
+          "tm": "1000000",
+          "tn": "in01",
+          "script": "",
+          "onlyOnce": "0"
+        }
+      ],
+      "lifeCounts": {},
+      "life": []
+    },
+    {
+      "id": "001000003",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Amherst Department Store",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/FloralLife",
+        "onUserEnter": "",
+        "onFirstUserEnter": "",
+        "mapDesc": "",
+        "mapMark": "Amherst",
+        "VRLeft": "-400",
+        "VRRight": "400",
+        "VRTop": "-300",
+        "VRBottom": "300"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "115",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "300",
+          "y": "182",
+          "tm": "1000000",
+          "tn": "in02",
+          "script": "",
+          "onlyOnce": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0011100": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0011100",
+          "x": "-258",
+          "y": "84",
+          "fh": "5"
+        }
+      ]
+    },
+    {
+      "id": "001000004",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Snail Garden",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "1010000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "Amherst",
+        "VRLeft": "719",
+        "VRRight": "2336",
+        "VRTop": "-1020",
+        "VRBottom": "695"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "827",
+          "y": "284",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "886",
+          "y": "283",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "999",
+          "y": "280",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "890",
+          "y": "331",
+          "tm": "1000000",
+          "tn": "in01",
+          "script": ""
+        }
+      ],
+      "lifeCounts": {
+        "m:0100100": 9,
+        "m:0100101": 12,
+        "m:0130101": 3
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1442",
+          "y": "488",
+          "fh": "33"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "948",
+          "y": "167",
+          "fh": "3"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "807",
+          "y": "164",
+          "fh": "5"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1108",
+          "y": "304",
+          "fh": "26",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1743",
+          "y": "495",
+          "fh": "16",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "2060",
+          "y": "440",
+          "fh": "23",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1215",
+          "y": "-106",
+          "fh": "118",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1598",
+          "y": "-463",
+          "fh": "53",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1654",
+          "y": "488",
+          "fh": "15",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1807",
+          "y": "494",
+          "fh": "17",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1941",
+          "y": "439",
+          "fh": "32",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "2174",
+          "y": "436",
+          "fh": "20",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "2275",
+          "y": "431",
+          "fh": "29",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1099",
+          "y": "-101",
+          "fh": "114",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1338",
+          "y": "-105",
+          "fh": "119",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1457",
+          "y": "-107",
+          "fh": "121",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1608",
+          "y": "-117",
+          "fh": "117",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1696",
+          "y": "-107",
+          "fh": "112",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "943",
+          "y": "-415",
+          "fh": "73",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "1692",
+          "y": "-466",
+          "fh": "50",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1077",
+          "y": "-414",
+          "fh": "72",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1216",
+          "y": "-406",
+          "fh": "71",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "1821",
+          "y": "-475",
+          "fh": "54",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100100",
+          "x": "1549",
+          "y": "492",
+          "fh": "14",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "001000005",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Hunting Ground Middle of the Forest I",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "1010000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "Amherst",
+        "VRLeft": "-810",
+        "VRRight": "895",
+        "VRTop": "-1140",
+        "VRBottom": "395"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-203",
+          "y": "60",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-326",
+          "y": "-41",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-122",
+          "y": "114",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-57",
+          "y": "110",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "9",
+          "y": "107",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "213",
+          "y": "101",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "132",
+          "y": "155",
+          "tm": "1020000",
+          "tn": "in01",
+          "script": ""
+        }
+      ],
+      "lifeCounts": {
+        "m:0130101": 8,
+        "m:0210100": 12,
+        "m:0100101": 5
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-546",
+          "y": "187",
+          "fh": "32"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "833",
+          "y": "195",
+          "fh": "41",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "-448",
+          "y": "-251",
+          "fh": "59",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "540",
+          "y": "-177",
+          "fh": "91",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "464",
+          "y": "-172",
+          "fh": "91",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "-380",
+          "y": "-261",
+          "fh": "59",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "656",
+          "y": "-395",
+          "fh": "106"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-486",
+          "y": "-588",
+          "fh": "49"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-331",
+          "y": "-235",
+          "fh": "54"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "737",
+          "y": "-387",
+          "fh": "107"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "182",
+          "y": "-579",
+          "fh": "152"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-675",
+          "y": "171",
+          "fh": "34"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-450",
+          "y": "196",
+          "fh": "31"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "862",
+          "y": "-398",
+          "fh": "105"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-343",
+          "y": "-592",
+          "fh": "50"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "292",
+          "y": "-175",
+          "fh": "88",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "636",
+          "y": "192",
+          "fh": "26",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "519",
+          "y": "190",
+          "fh": "24",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "415",
+          "y": "196",
+          "fh": "21",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "-424",
+          "y": "-601",
+          "fh": "51",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "-247",
+          "y": "-598",
+          "fh": "47",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0210100",
+          "x": "-547",
+          "y": "-258",
+          "fh": "62",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "793",
+          "y": "-394",
+          "fh": "107"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-375",
+          "y": "182",
+          "fh": "30",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-298",
+          "y": "175",
+          "fh": "29",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "001000006",
+      "names": [
+        {
+          "streetName": "Rainbow Street",
+          "mapName": "Hunting Ground Middle of the Forest II",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "1010000",
+        "forcedReturn": "999999999",
+        "bgm": "Bgm00/RestNPeace",
+        "mapDesc": "",
+        "mapMark": "Amherst",
+        "VRLeft": "-1080",
+        "VRRight": "900",
+        "VRTop": "-2100",
+        "VRBottom": "-566"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-304",
+          "y": "-1368",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-515",
+          "y": "-1415",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-60",
+          "y": "-1361",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "1",
+          "y": "-1413",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "174",
+          "y": "-1414",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "230",
+          "y": "-1412",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "409",
+          "y": "-1433",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "133",
+          "y": "-1346",
+          "tm": "1020000",
+          "tn": "in02",
+          "script": ""
+        }
+      ],
+      "lifeCounts": {
+        "m:1210102": 15,
+        "m:0120100": 3,
+        "m:0130101": 5,
+        "m:0100101": 2
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "787",
+          "y": "-1483",
+          "fh": "63",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-866",
+          "y": "-883",
+          "fh": "83",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "325",
+          "y": "-876",
+          "fh": "97",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "-217",
+          "y": "-834",
+          "fh": "89"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "693",
+          "y": "-1492",
+          "fh": "62"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "125",
+          "y": "-1526",
+          "fh": "11"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-395",
+          "y": "-841",
+          "fh": "88",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "695",
+          "y": "-1033",
+          "fh": "95",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "422",
+          "y": "-955",
+          "fh": "82",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-644",
+          "y": "-897",
+          "fh": "84",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-83",
+          "y": "-802",
+          "fh": "96",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-705",
+          "y": "-1431",
+          "fh": "44",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-841",
+          "y": "-1429",
+          "fh": "40",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-525",
+          "y": "-1192",
+          "fh": "127",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-317",
+          "y": "-1192",
+          "fh": "130",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "803",
+          "y": "-1025",
+          "fh": "78",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "559",
+          "y": "-1030",
+          "fh": "80",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "568",
+          "y": "-1491",
+          "fh": "66"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "780",
+          "y": "-1029",
+          "fh": "78"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-802",
+          "y": "-887",
+          "fh": "85"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-1005",
+          "y": "-886",
+          "fh": "77"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-596",
+          "y": "-1204",
+          "fh": "122",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0130101",
+          "x": "-942",
+          "y": "-1418",
+          "fh": "43",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "-430",
+          "y": "-1202",
+          "fh": "121",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "75",
+          "y": "-787",
+          "fh": "92",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "001010000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Entrance to Adventurer Training Center",
+          "mapDesc": "It's a town located at the east of Maple Island, and it has various stores like weapon store, armor store, and department stores."
+        }
+      ],
+      "info": {
+        "VRLeft": "-540",
+        "VRTop": "-1140",
+        "VRBottom": "395",
+        "bgm": "Bgm00/RestNPeace",
+        "town": "0",
+        "onFirstUserEnter": "",
+        "VRRight": "805",
+        "mapDesc": "",
+        "onUserEnter": "go1010000",
+        "mapMark": "Amherst",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-288",
+          "y": "27",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "in00",
+          "pt": "7",
+          "x": "74",
+          "y": "154",
+          "tm": "999999999",
+          "tn": "",
+          "horizontalImpact": "0",
+          "script": "entertraining",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-349",
+          "y": "-45",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "257",
+          "y": "132",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "683",
+          "y": "211",
+          "tm": "1020000",
+          "tn": "west00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "213",
+          "y": "101",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-426",
+          "y": "212",
+          "tm": "1000000",
+          "tn": "east00",
+          "script": "",
+          "hideTooltip": "0",
+          "delay": "0",
+          "onlyOnce": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-451",
+          "y": "-227",
+          "fh": "31"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-370",
+          "y": "-229",
+          "fh": "12"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "627",
+          "y": "-91",
+          "fh": "9",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "510",
+          "y": "-94",
+          "fh": "11",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-292",
+          "y": "-40",
+          "fh": "36",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-226",
+          "y": "-221",
+          "fh": "42",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-127",
+          "y": "-221",
+          "fh": "59",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0100101",
+          "x": "-67",
+          "y": "-224",
+          "fh": "58",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "126",
+          "y": "-277",
+          "fh": "64",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "1210102",
+          "x": "235",
+          "y": "-274",
+          "fh": "67",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "455",
+          "y": "-96",
+          "fh": "11",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "660",
+          "y": "-275",
+          "fh": "6",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0012100",
+          "x": "-18",
+          "y": "150",
+          "fh": "49",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020100",
+          "x": "-188",
+          "y": "85",
+          "fh": "28",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "369",
+          "y": "-93",
+          "fh": "43",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "0120100",
+          "x": "567",
+          "y": "-279",
+          "fh": "2",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0020001",
+          "x": "331",
+          "y": "85",
+          "fh": "73",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "m:0100101": 6,
+        "m:0120100": 6,
+        "m:1210102": 2,
+        "n:0012100": 1,
+        "n:0020001": 1,
+        "n:0020100": 1
+      }
+    },
+    {
+      "id": "001020000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Split Road of Destiny"
+        }
+      ],
+      "info": {
+        "VRLeft": "-270",
+        "VRTop": "-540",
+        "VRBottom": "455",
+        "bgm": "Bgm00/FloralLife",
+        "town": "1",
+        "onFirstUserEnter": "",
+        "VRRight": "810",
+        "onUserEnter": "go1020000",
+        "mapMark": "Amherst",
+        "returnMap": "1000000",
+        "forcedReturn": "999999999"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-91",
+          "y": "181",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "east00",
+          "pt": "2",
+          "x": "701",
+          "y": "209",
+          "tm": "2000000",
+          "tn": "west00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-136",
+          "y": "212",
+          "tm": "1010000",
+          "tn": "east00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "top00",
+          "pt": "10",
+          "x": "316",
+          "y": "41",
+          "tm": "1020000",
+          "tn": "bottom00",
+          "horizontalImpact": "0"
+        },
+        {
+          "pn": "bottom00",
+          "pt": "10",
+          "x": "174",
+          "y": "217",
+          "tm": "1020000",
+          "tn": "top00",
+          "horizontalImpact": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0010200",
+          "x": "238",
+          "y": "32",
+          "fh": "22",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010201",
+          "x": "488",
+          "y": "16",
+          "fh": "28",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010202",
+          "x": "383",
+          "y": "175",
+          "fh": "13",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010203",
+          "x": "-54",
+          "y": "-56",
+          "fh": "39",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0010204",
+          "x": "37",
+          "y": "11",
+          "fh": "14",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0010200": 1,
+        "n:0010201": 1,
+        "n:0010202": 1,
+        "n:0010203": 1,
+        "n:0010204": 1
+      }
+    },
+    {
+      "id": "002000000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry",
+          "mapDesc": "A port city on the south side of the island. The place where people head over to experience the world outside Maple Island.",
+          "help0": "#e[To Enter the Event]#n\\n\\n If there's a notice posted #b#ein blue#n#k saying that we're accepting participants for an event, click on #e[Paul]#n and choose #e[Yeah, let's go!]#n to enter.\\n If you have already clicked on [Paul] when the event starts, then just click on [Yeah, let's go!] to enter.\\n\\n Please read the event notice before entering.\\n Once the event starts, participants will be accepted on a #efirst come, first serve#n basis until the event is full.\\n\\n#eYou can't enter an event more than once within 24 hours.#n\\n\\n You won't be able to enter the event if you don't have any free slots available in your Etc. inventory to receive an Event Trophy, so make sure to leave a slot available.\\n If you already have a #bSecret Scroll#k, please discard it before entering the event.\\n\\n#r If you change channels or enter the #bCash Shop#k during the event, you'll automatically be disqualified from the event."
+        }
+      ],
+      "info": {
+        "onFirstUserEnter": "",
+        "returnMap": "2000000",
+        "town": "1",
+        "VRTop": "-1680",
+        "VRRight": "3870",
+        "onUserEnter": "go2000000",
+        "VRBottom": "707",
+        "VRLeft": "-90",
+        "forcedReturn": "999999999",
+        "mapMark": "SouthPerry",
+        "bgm": "Bgm00/GoPicnic"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "71",
+          "y": "432",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "west00",
+          "pt": "2",
+          "x": "-18",
+          "y": "523",
+          "tm": "1020000",
+          "tn": "east00",
+          "script": "",
+          "hideTooltip": "0",
+          "delay": "0",
+          "onlyOnce": "0"
+        },
+        {
+          "pn": "in00",
+          "pt": "2",
+          "x": "930",
+          "y": "524",
+          "tm": "2000001",
+          "tn": "out00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "897",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "805",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "985",
+          "y": "40",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "528",
+          "y": "42",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "613",
+          "y": "39",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "tp",
+          "pt": "6",
+          "x": "716",
+          "y": "39",
+          "tm": "999999999",
+          "tn": ""
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0020002",
+          "x": "348",
+          "y": "524",
+          "fh": "14"
+        },
+        {
+          "type": "n",
+          "id": "0022000",
+          "x": "3341",
+          "y": "-105",
+          "fh": "66"
+        },
+        {
+          "type": "n",
+          "id": "9010000",
+          "x": "1805",
+          "y": "402",
+          "fh": "26",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ],
+      "lifeCounts": {
+        "n:0020002": 1,
+        "n:0022000": 1,
+        "n:9010000": 1
+      }
+    },
+    {
+      "id": "002000001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Southperry Armor Store"
+        }
+      ],
+      "info": {
+        "mapDesc": "",
+        "onFirstUserEnter": "",
+        "returnMap": "2000000",
+        "town": "1",
+        "VRTop": "-300",
+        "VRRight": "400",
+        "onUserEnter": "",
+        "VRBottom": "300",
+        "VRLeft": "-400",
+        "forcedReturn": "999999999",
+        "mapMark": "SouthPerry",
+        "bgm": "Bgm00/FloralLife"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-114",
+          "y": "115",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "out00",
+          "pt": "2",
+          "x": "-48",
+          "y": "181",
+          "tm": "2000000",
+          "tn": "in00",
+          "script": "",
+          "hideTooltip": "0",
+          "onlyOnce": "0",
+          "delay": "0"
+        }
+      ],
+      "life": [
+        {
+          "type": "n",
+          "id": "0021000",
+          "x": "-270",
+          "y": "138",
+          "fh": "11"
+        }
+      ],
+      "lifeCounts": {
+        "n:0021000": 1
+      }
+    }
+  ],
+  "introMaps": [
+    {
+      "id": "000000000",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Entrance - Mushroom Town Training Camp",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "10000",
+        "forcedReturn": "10000",
+        "bgm": "Bgm00/GoPicnic",
+        "onUserEnter": "goAdventure",
+        "onFirstUserEnter": "",
+        "mapMark": "None",
+        "VRLeft": "-400",
+        "VRRight": "400",
+        "VRTop": "-300",
+        "VRBottom": "300"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "0",
+          "y": "0",
+          "tm": "999999999",
+          "tn": ""
+        }
+      ],
+      "lifeCounts": {},
+      "life": []
+    },
+    {
+      "id": "000000001",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Upper level of the Training Camp",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "0",
+        "returnMap": "1",
+        "forcedReturn": "999999999",
+        "bgm": "BgmJp/FirstStepMaster",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-4203",
+        "VRRight": "1600",
+        "VRTop": "-470",
+        "VRBottom": "320"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "1338",
+          "y": "-72",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "1280",
+          "y": "-73",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "1379",
+          "y": "-56",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "next00",
+          "pt": "2",
+          "x": "-4020",
+          "y": "175",
+          "tm": "2",
+          "tn": "front00",
+          "script": ""
+        }
+      ],
+      "lifeCounts": {
+        "n:0002100": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002100",
+          "x": "1200",
+          "y": "175",
+          "fh": "32",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000000002",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Lower level of the Training Camp",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "2",
+        "forcedReturn": "999999999",
+        "bgm": "BgmJp/FirstStepMaster",
+        "mapMark": "MushroomVillage",
+        "VRLeft": "-3252",
+        "VRRight": "2046",
+        "VRTop": "-470",
+        "VRBottom": "307"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "-3088",
+          "y": "145",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "front00",
+          "pt": "2",
+          "x": "-2985",
+          "y": "175",
+          "tm": "1",
+          "tn": "next00",
+          "script": ""
+        }
+      ],
+      "lifeCounts": {
+        "m:9409001": 3,
+        "n:0002000": 1,
+        "n:0002001": 1,
+        "n:0002102": 1,
+        "m:9409000": 3,
+        "n:9101002": 1,
+        "n:9101003": 1,
+        "n:0002101": 1
+      },
+      "life": [
+        {
+          "type": "m",
+          "id": "9409001",
+          "x": "-353",
+          "y": "83",
+          "fh": "65",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9409001",
+          "x": "267",
+          "y": "-119",
+          "fh": "14",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002000",
+          "x": "-2869",
+          "y": "168",
+          "fh": "111",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002001",
+          "x": "-1814",
+          "y": "21",
+          "fh": "61",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002102",
+          "x": "-2454",
+          "y": "6",
+          "fh": "55",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9409000",
+          "x": "732",
+          "y": "72",
+          "fh": "64",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9409000",
+          "x": "939",
+          "y": "-138",
+          "fh": "20",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9409000",
+          "x": "995",
+          "y": "77",
+          "fh": "64",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "9101002",
+          "x": "-825",
+          "y": "81",
+          "fh": "32",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "m",
+          "id": "9409001",
+          "x": "-553",
+          "y": "81",
+          "fh": "66",
+          "mobTime": "1",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "9101003",
+          "x": "1240",
+          "y": "38",
+          "fh": "21",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "0002101",
+          "x": "1867",
+          "y": "64",
+          "fh": "18",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    },
+    {
+      "id": "000000003",
+      "names": [
+        {
+          "streetName": "Maple Road",
+          "mapName": "Entrance - Mushroom Town Training Camp",
+          "mapDesc": ""
+        }
+      ],
+      "info": {
+        "town": "1",
+        "returnMap": "3",
+        "forcedReturn": "999999999",
+        "bgm": "BgmJp/FirstStepMaster",
+        "mapMark": "MushroomVillage"
+      },
+      "portals": [
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "49",
+          "y": "1178",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "sp",
+          "pt": "0",
+          "x": "134",
+          "y": "1190",
+          "tm": "999999999",
+          "tn": ""
+        },
+        {
+          "pn": "st00",
+          "pt": "1",
+          "x": "47",
+          "y": "1232",
+          "tm": "999999999",
+          "tn": "999999999"
+        }
+      ],
+      "lifeCounts": {
+        "n:0002100": 1,
+        "n:9101001": 1
+      },
+      "life": [
+        {
+          "type": "n",
+          "id": "0002100",
+          "x": "-77",
+          "y": "48",
+          "fh": "14",
+          "mobTime": "0",
+          "hide": "0"
+        },
+        {
+          "type": "n",
+          "id": "9101001",
+          "x": "162",
+          "y": "1224",
+          "fh": "6",
+          "mobTime": "0",
+          "hide": "0"
+        }
+      ]
+    }
+  ],
+  "npcNames": {
+    "0002000": {
+      "name": "Roger"
+    },
+    "0002001": {
+      "name": "Sen"
+    },
+    "0002002": {
+      "name": "Peter"
+    },
+    "0002003": {
+      "name": "Robin"
+    },
+    "0002004": {
+      "name": "Todd"
+    },
+    "0002005": {
+      "name": "Sam"
+    },
+    "0002007": {
+      "name": "Maple Administrator"
+    },
+    "0002100": {
+      "name": "Sera"
+    },
+    "0002101": {
+      "name": "Heena"
+    },
+    "0002102": {
+      "name": "Nina"
+    },
+    "0002103": {
+      "name": "Maria"
+    },
+    "0010000": {
+      "name": "Pio"
+    },
+    "0011000": {
+      "name": "Sid"
+    },
+    "0011100": {
+      "name": "Lucy"
+    },
+    "0012000": {
+      "name": "Lucas"
+    },
+    "0012101": {
+      "name": "Rain"
+    },
+    "0020001": {
+      "name": "Bari"
+    },
+    "0020002": {
+      "name": "Biggs"
+    },
+    "0021000": {
+      "name": "Pan"
+    },
+    "0022000": {
+      "name": "Shanks"
+    },
+    "10000": {
+      "name": "Pio"
+    },
+    "11000": {
+      "name": "Sid"
+    },
+    "12000": {
+      "name": "Lucas"
+    },
+    "12101": {
+      "name": "Rain"
+    },
+    "2000": {
+      "name": "Roger"
+    },
+    "2001": {
+      "name": "Sen"
+    },
+    "2002": {
+      "name": "Peter"
+    },
+    "2003": {
+      "name": "Robin"
+    },
+    "2004": {
+      "name": "Todd"
+    },
+    "2005": {
+      "name": "Sam"
+    },
+    "2007": {
+      "name": "Maple Administrator"
+    },
+    "2100": {
+      "name": "Sera"
+    },
+    "21000": {
+      "name": "Pan"
+    },
+    "2101": {
+      "name": "Heena"
+    },
+    "2102": {
+      "name": "Nina"
+    },
+    "2103": {
+      "name": "Maria"
+    },
+    "22000": {
+      "name": "Shanks"
+    },
+    "9000000": {
+      "name": "Paul"
+    },
+    "9010000": {
+      "name": "Maple Administrator"
+    },
+    "9101001": {
+      "name": "Peter"
+    },
+    "9101002": {
+      "name": "Todd"
+    },
+    "9101003": {
+      "name": "Peter"
+    }
+  },
+  "teachingKeyEvidence": {
+    "sourceText": "Npc.img.xml 2101/Sera? (Heena) n1 says left Alt for jump; n2 says arrow keys; d0 repeats Left/Right and Alt; this project maps jump to Space.",
+    "projectKeys": {
+      "move": "Left/Right or A/D",
+      "climb": "Up/Down",
+      "jump": "Space",
+      "downJump": "Down + Space",
+      "attack": "X or Ctrl",
+      "pickup": "Z",
+      "inventory": "I"
+    },
+    "requiredAdaptation": "Replace every in-map Alt jump prompt with Space and explicitly show Down + Space for down-jump."
+  },
+  "quests": {
+    "source": "参考/repos/P0nk__Cosmic/wz/Quest.wz/QuestInfo.img.xml",
+    "area": "20 (Maple Island)",
+    "entries": [
+      {
+        "id": 1000,
+        "name": "Borrowing Sera's Mirror",
+        "parent": "Sera's Mirror",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1001,
+        "name": "Bringing a Mirror to Heena",
+        "parent": "Sera's Mirror",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1003,
+        "name": "What Sen wants to eat",
+        "parent": "Nina and Sen's Dinner Menu",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1004,
+        "name": "Returning to Nina",
+        "parent": "Nina and Sen's Dinner Menu",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1005,
+        "name": "Letter for Lucas",
+        "parent": "Please bring this letter to Lucas",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1006,
+        "name": "Lucas' Reply",
+        "parent": "Please bring this letter to Lucas",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1007,
+        "name": "Bigg's Collection of Items",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1008,
+        "name": "Pio's Collecting Recycled Goods",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1009,
+        "name": "Rain's Maple Quiz 1",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1010,
+        "name": "Rain's Maple Quiz 2",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1011,
+        "name": "Rain's Maple Quiz 3",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1012,
+        "name": "Rain's Maple Quiz 4",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1013,
+        "name": "Rain's Maple Quiz 5",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1014,
+        "name": "Rain's Maple Quiz 6",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1015,
+        "name": "Rain's Maple Quiz 7",
+        "parent": "Rain's Maple Quiz",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1016,
+        "name": "Mai's Training",
+        "parent": "Mai's Training",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1017,
+        "name": "Mai's Final Training",
+        "parent": "Mai's Training",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1018,
+        "name": "Todd's How-to-Hunt",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1019,
+        "name": "Sam's Suggestion",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1020,
+        "name": "Pio and the Recycling",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1021,
+        "name": "Roger's Apple",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1022,
+        "name": "Lucas' Cute Daughter",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1023,
+        "name": "Here little Piggy...",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1024,
+        "name": "Love Counseling ?!",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1025,
+        "name": "Maria's Nutritious Juice",
+        "parent": "Maria and Shanks",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1026,
+        "name": "Delivering Nutritious Juice to Shanks",
+        "parent": "Maria and Shanks",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1027,
+        "name": "Mai's Request",
+        "parent": "For a new world",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1028,
+        "name": "To Lith Harbor!",
+        "parent": "For a new world",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1029,
+        "name": "Sam's Advice",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1030,
+        "name": "Maria's Map Reading",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1031,
+        "name": "Heena and Sera",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1032,
+        "name": "Nina's Brother Sen",
+        "parent": "Nina's Request",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1033,
+        "name": "What Sen Wants",
+        "parent": "Nina's Request",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1034,
+        "name": "Tasty Mushroom Candy",
+        "parent": "Nina's Request",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1035,
+        "name": "Todd's Hunting Method",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1036,
+        "name": "Robin the Walking Encyclopedia",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1037,
+        "name": "Help Hunt the Snails",
+        "parent": "Sam's Request",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1038,
+        "name": "Maria's Letter",
+        "parent": "Sam's Request",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1039,
+        "name": "Helping Out Yoona",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1040,
+        "name": "Chief's Introduction",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1041,
+        "name": "Mai's First Training",
+        "parent": "Mai's Training!",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1042,
+        "name": "Mai's Second Training",
+        "parent": "Mai's Training!",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1043,
+        "name": "Mai's Third Training",
+        "parent": "Mai's Training!",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1044,
+        "name": "Mai's Last Training",
+        "parent": "Mai's Training!",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1045,
+        "name": "Bari's Test",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      },
+      {
+        "id": 1046,
+        "name": "Biggs's Story on Victoria Island.",
+        "parent": "",
+        "area": "",
+        "autoStart": false,
+        "hasStages": [
+          "0",
+          "1",
+          "2"
+        ]
+      }
+    ],
+    "implementation": "Reference inventory only in this round; original NPC script execution/reward economy remains explicitly missing."
+  },
+  "tutorialScripts": {
+    "000010000": [
+      "tutoChatNPC",
+      "infoMinimap",
+      "glTutoMsg0"
+    ],
+    "000020000": [
+      "glTutoMsg0"
+    ],
+    "000030000": [
+      "glTutoMsg0"
+    ],
+    "000040000": [
+      "infoAttack",
+      "infoPickup",
+      "infoSkill"
+    ],
+    "000050000": [
+      "infoWorldmap"
+    ],
+    "reference": "参考/repos/P0nk__Cosmic/scripts/portal/*.js and scripts/map/onUserEnter/*.js",
+    "operation": "Tutorial portals are source reference triggers; this round adapts visible key labels to project input (Space, Down+Space) without claiming full Quest UI execution."
+  }
+}

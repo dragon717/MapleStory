@@ -1,0 +1,336 @@
+{
+  "runId": "2026-09-05T08-27-56-661Z",
+  "server": "http://127.0.0.1:3010",
+  "protocolVersion": 2,
+  "contentVersion": "gms83-gameplay-2",
+  "completed": false,
+  "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ undefined\n- {\n-   action: 'die',\n-   actionStartedTick: 4300,\n-   facing: -1,\n-   hp: 0,\n-   id: 'monster-1-9b6bab5520fce0d9e717bfa4755c00c826adbbf19528077d35b1ca2b1b28b54c',\n-   maxHp: 8,\n-   templateId: '100100',\n-   x: 727.4462500000658,\n-   y: 365\n- }\n",
+  "checks": [
+    {
+      "name": "health and v2 content contract",
+      "status": "PASS",
+      "health": {
+        "contentVersion": "gms83-gameplay-2",
+        "ok": true,
+        "protocolVersion": 2
+      }
+    },
+    {
+      "name": "two real accounts enter one authoritative world",
+      "status": "PASS",
+      "playerIds": [
+        "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+        "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307"
+      ],
+      "mapId": "000010000"
+    },
+    {
+      "name": "forged ownership/position/damage fields rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "stale input sequence ignored",
+      "status": "PASS",
+      "acceptedSeq": 1
+    },
+    {
+      "name": "monster snapshot includes source-backed state",
+      "status": "PASS",
+      "templateId": "100100",
+      "monsterId": "monster-1-9b6bab5520fce0d9e717bfa4755c00c826adbbf19528077d35b1ca2b1b28b54c"
+    },
+    {
+      "name": "two accounts attack one monster with server-owned damage",
+      "status": "PASS",
+      "beforeHp": 8,
+      "afterHp": 0
+    },
+    {
+      "name": "network probe completed",
+      "status": "FAIL",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ undefined\n- {\n-   action: 'die',\n-   actionStartedTick: 4300,\n-   facing: -1,\n-   hp: 0,\n-   id: 'monster-1-9b6bab5520fce0d9e717bfa4755c00c826adbbf19528077d35b1ca2b1b28b54c',\n-   maxHp: 8,\n-   templateId: '100100',\n-   x: 727.4462500000658,\n-   y: 365\n- }\n"
+    }
+  ],
+  "bots": [
+    {
+      "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+      "username": "qa_net_a_mto4eem1544e",
+      "errors": [],
+      "messages": [
+        {
+          "code": "invalid_message",
+          "message": "Unknown fields, type, or invalid values",
+          "type": "rejected"
+        },
+        {
+          "code": "invalid_message",
+          "message": "Unknown fields, type, or invalid values",
+          "type": "rejected"
+        },
+        {
+          "code": "invalid_message",
+          "message": "Unknown fields, type, or invalid values",
+          "type": "rejected"
+        },
+        {
+          "actionId": "action-1-dd62dafd2eb0b009df5c8043a60defd4ea0e53cbe9318fb3ed12d53767ef8a55",
+          "durationMs": 800,
+          "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+          "requestId": "hit-a-mto4eem1544e",
+          "serverTick": 4291,
+          "type": "actionStarted"
+        },
+        {
+          "actionId": "action-2-0c3eb658b558bdf9a8218f22dd2d7cb7effd8470ed5dc7dbc2edaa09f1336c5b",
+          "durationMs": 800,
+          "playerId": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+          "requestId": "hit-b-mto4eem1544e",
+          "serverTick": 4291,
+          "type": "actionStarted"
+        },
+        {
+          "actionId": "action-3-29100f1f5ef59d0e44f3c181c0d825b85b628654b38197b990379490b3a19d44",
+          "durationMs": 800,
+          "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+          "requestId": "duplicate-mto4eem1544e",
+          "serverTick": 4307,
+          "type": "actionStarted"
+        },
+        {
+          "actionId": "action-3-29100f1f5ef59d0e44f3c181c0d825b85b628654b38197b990379490b3a19d44",
+          "durationMs": 800,
+          "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+          "requestId": "duplicate-mto4eem1544e",
+          "serverTick": 4307,
+          "type": "actionStarted"
+        }
+      ],
+      "lastSnapshot": {
+        "serverTick": 4330,
+        "mapId": "000010000",
+        "selfId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+        "players": [
+          {
+            "action": "stand",
+            "actionId": null,
+            "actionStartedTick": 4307,
+            "climbing": false,
+            "exp": 0,
+            "expToNext": 15,
+            "facing": 1,
+            "grounded": true,
+            "hp": 50,
+            "id": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+            "inventory": [],
+            "ladderId": null,
+            "lastInputSeq": 6,
+            "level": 1,
+            "maxHp": 50,
+            "maxMp": 5,
+            "mesos": 0,
+            "mp": 5,
+            "username": "qa_net_b_mto4eem1544e",
+            "vx": 0,
+            "vy": 0,
+            "x": 680,
+            "y": 365
+          },
+          {
+            "action": "stand",
+            "actionId": null,
+            "actionStartedTick": 4323,
+            "climbing": false,
+            "exp": 3,
+            "expToNext": 15,
+            "facing": 1,
+            "grounded": true,
+            "hp": 50,
+            "id": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+            "inventory": [],
+            "ladderId": null,
+            "lastInputSeq": 6,
+            "level": 1,
+            "maxHp": 50,
+            "maxMp": 5,
+            "mesos": 0,
+            "mp": 5,
+            "username": "qa_net_a_mto4eem1544e",
+            "vx": 0,
+            "vy": 0,
+            "x": 680,
+            "y": 365
+          }
+        ],
+        "monsters": [
+          {
+            "action": "move",
+            "actionStartedTick": 0,
+            "facing": -1,
+            "hp": 8,
+            "id": "monster-2-de9bbfa9f1002076ea2c2f9f37bec07d2f645130f100e24cdf6d6d430c6cf567",
+            "maxHp": 8,
+            "templateId": "100100",
+            "x": 817.3920000000653,
+            "y": 365
+          },
+          {
+            "action": "move",
+            "actionStartedTick": 0,
+            "facing": -1,
+            "hp": 8,
+            "id": "monster-3-732f0b547df402ffd6dcd5ec9648e437c3c900ff5a5fe4810267d1a702a3fd93",
+            "maxHp": 8,
+            "templateId": "100100",
+            "x": 907.3920000000653,
+            "y": 365
+          }
+        ],
+        "drops": [
+          {
+            "id": "drop-27866e5dad85bb7c5565d641ed6c0224f286f26c5128459c76736784fe7e2cfc",
+            "itemId": "0",
+            "quantity": 4,
+            "x": 727.4462500000658,
+            "y": 365
+          },
+          {
+            "id": "drop-91cc7faecf7a0a7a60ca86fcd0ad4e5afc071dcaaaf138db9497bb3a1145a7c7",
+            "itemId": "4000019",
+            "quantity": 1,
+            "x": 727.4462500000658,
+            "y": 365
+          }
+        ]
+      }
+    },
+    {
+      "playerId": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+      "username": "qa_net_b_mto4eem1544e",
+      "errors": [],
+      "messages": [
+        {
+          "actionId": "action-1-dd62dafd2eb0b009df5c8043a60defd4ea0e53cbe9318fb3ed12d53767ef8a55",
+          "durationMs": 800,
+          "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+          "requestId": "hit-a-mto4eem1544e",
+          "serverTick": 4291,
+          "type": "actionStarted"
+        },
+        {
+          "actionId": "action-2-0c3eb658b558bdf9a8218f22dd2d7cb7effd8470ed5dc7dbc2edaa09f1336c5b",
+          "durationMs": 800,
+          "playerId": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+          "requestId": "hit-b-mto4eem1544e",
+          "serverTick": 4291,
+          "type": "actionStarted"
+        },
+        {
+          "actionId": "action-3-29100f1f5ef59d0e44f3c181c0d825b85b628654b38197b990379490b3a19d44",
+          "durationMs": 800,
+          "playerId": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+          "requestId": "duplicate-mto4eem1544e",
+          "serverTick": 4307,
+          "type": "actionStarted"
+        }
+      ],
+      "lastSnapshot": {
+        "serverTick": 4330,
+        "mapId": "000010000",
+        "selfId": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+        "players": [
+          {
+            "action": "stand",
+            "actionId": null,
+            "actionStartedTick": 4307,
+            "climbing": false,
+            "exp": 0,
+            "expToNext": 15,
+            "facing": 1,
+            "grounded": true,
+            "hp": 50,
+            "id": "63175d663460f92739ddac8f8a4c1430fc436f5af048982f83567394c61ea307",
+            "inventory": [],
+            "ladderId": null,
+            "lastInputSeq": 6,
+            "level": 1,
+            "maxHp": 50,
+            "maxMp": 5,
+            "mesos": 0,
+            "mp": 5,
+            "username": "qa_net_b_mto4eem1544e",
+            "vx": 0,
+            "vy": 0,
+            "x": 680,
+            "y": 365
+          },
+          {
+            "action": "stand",
+            "actionId": null,
+            "actionStartedTick": 4323,
+            "climbing": false,
+            "exp": 3,
+            "expToNext": 15,
+            "facing": 1,
+            "grounded": true,
+            "hp": 50,
+            "id": "8e8076286dfe4f8866292e19b0dde09bd738ec20b0e09d63d290a1d95c88b08d",
+            "inventory": [],
+            "ladderId": null,
+            "lastInputSeq": 6,
+            "level": 1,
+            "maxHp": 50,
+            "maxMp": 5,
+            "mesos": 0,
+            "mp": 5,
+            "username": "qa_net_a_mto4eem1544e",
+            "vx": 0,
+            "vy": 0,
+            "x": 680,
+            "y": 365
+          }
+        ],
+        "monsters": [
+          {
+            "action": "move",
+            "actionStartedTick": 0,
+            "facing": -1,
+            "hp": 8,
+            "id": "monster-2-de9bbfa9f1002076ea2c2f9f37bec07d2f645130f100e24cdf6d6d430c6cf567",
+            "maxHp": 8,
+            "templateId": "100100",
+            "x": 817.3920000000653,
+            "y": 365
+          },
+          {
+            "action": "move",
+            "actionStartedTick": 0,
+            "facing": -1,
+            "hp": 8,
+            "id": "monster-3-732f0b547df402ffd6dcd5ec9648e437c3c900ff5a5fe4810267d1a702a3fd93",
+            "maxHp": 8,
+            "templateId": "100100",
+            "x": 907.3920000000653,
+            "y": 365
+          }
+        ],
+        "drops": [
+          {
+            "id": "drop-27866e5dad85bb7c5565d641ed6c0224f286f26c5128459c76736784fe7e2cfc",
+            "itemId": "0",
+            "quantity": 4,
+            "x": 727.4462500000658,
+            "y": 365
+          },
+          {
+            "id": "drop-91cc7faecf7a0a7a60ca86fcd0ad4e5afc071dcaaaf138db9497bb3a1145a7c7",
+            "itemId": "4000019",
+            "quantity": 1,
+            "x": 727.4462500000658,
+            "y": 365
+          }
+        ]
+      }
+    }
+  ],
+  "note": "Passwords and session tokens are intentionally omitted."
+}

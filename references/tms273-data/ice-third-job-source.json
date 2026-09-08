@@ -1,0 +1,4126 @@
+{
+  "contentVersion": "tms273-ice-third-job-source",
+  "sourceVersion": "TMS273.7",
+  "status": "source-verified",
+  "authority": {
+    "primary": "TMS273.7 client WZ binary plus bundled WZ_JSON_TW source extraction",
+    "officialClaim": false,
+    "boundary": "This artifact preserves TMS273 source fields and actual node presence; it does not turn P/U assumptions into official data."
+  },
+  "scope": {
+    "jobBook": "221",
+    "bookName": {
+      "json": {
+        "bookName": "魔導士之路(冰雷)"
+      },
+      "binary": {
+        "bookName": "魔導士之路(冰雷)"
+      },
+      "matches": true,
+      "source": "String/Skill.img/221/bookName"
+    },
+    "skillIds": [
+      "2210000",
+      "2210001",
+      "2210009",
+      "2210013",
+      "2210016",
+      "2211002",
+      "2211007",
+      "2211011",
+      "2211012",
+      "2211014",
+      "2211015",
+      "2211017"
+    ],
+    "skillCount": 12,
+    "formulaPolicy": "common values are original source formulas; no per-level evaluation is stored here.",
+    "visualPolicy": "visualGroups and binaryTopLevelChildren report actual Skill/221.img children; no new image export was performed."
+  },
+  "sourceFiles": [
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/221.json",
+      "bytes": 26083,
+      "sha256": "473672e9220dcd9dede0ceb07ef0c1612d4f843eb64eb89dbf2e68831c45485e"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json",
+      "bytes": 6757082,
+      "sha256": "df108f137307d9cd9a034d662b0e89832a7afa7ff8818b4573875875ac70409a"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00000.ms",
+      "bytes": 106359808,
+      "sha256": "ef29b3548eae905448eeaa537859c37639ed2902e1870b87f64465c4ea9b7868"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+      "bytes": 106219520,
+      "sha256": "a29622344f0b696b9976bd8114d361cdb5eb54fdee582afaf9e5896ebd2713f5"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00002.ms",
+      "bytes": 75945984,
+      "sha256": "643043c9843b453fb2a37a1b889e2e337cc23140be36080da3e962719239fa54"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz",
+      "bytes": 16956849,
+      "sha256": "7efc5316d99abc9e7b4f8efb424927609ddbad7c2e0a489cf6adce3985d90da8"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/1436.json",
+      "bytes": 4276,
+      "sha256": "ddb2c26c07e72ff61b604d88258433089a0761101c29857d600bd068e318209d"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Quest/QuestData/QuestData_000.wz",
+      "bytes": 30044295,
+      "sha256": "e29bf6188ae4c3642b84f680b0428cc76a633c912cc06e90695e293524f1d3e9"
+    }
+  ],
+  "extraction": {
+    "unpacker": "scripts/unpack_tms273_ms/target/debug/unpack_tms273_ms",
+    "library": "davipk/wzlib-rs",
+    "libraryRevision": "dc129ee89c1048a7d30aa79de68e1eda60194b78",
+    "requestedImage": "Skill/221.img",
+    "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+    "entryIndex": 4,
+    "extractedBytes": 66562,
+    "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81",
+    "note": "The image was unpacked to a temporary directory and read with scripts/tms273_wz.cjs; no extracted image was added to the repository."
+  },
+  "skills": {
+    "2210000": {
+      "id": "2210000",
+      "name": "終極魔法(雷、冰)",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2210000",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2210000",
+        "skillImage": "Skill/221.img/skill/2210000",
+        "stringNode": "String/Skill.img/2210000"
+      },
+      "string": {
+        "source": "String/Skill.img/2210000",
+        "json": {
+          "name": "終極魔法(雷、冰)",
+          "desc": "攻擊持續傷害狀態的敵人或是昏迷、結冰、暗黑狀態的敵人時，可增加最終傷害。 ",
+          "h": "攻擊持續傷害、昏迷、結冰、暗黑、痲痹狀態的敵人時，增加#z%的最終傷害。"
+        },
+        "binary": {
+          "name": "終極魔法(雷、冰)",
+          "desc": "攻擊持續傷害狀態的敵人或是昏迷、結冰、暗黑狀態的敵人時，可增加最終傷害。 ",
+          "h": "攻擊持續傷害、昏迷、結冰、暗黑、痲痹狀態的敵人時，增加#z%的最終傷害。"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "10",
+          "binary": 10,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "10",
+            "x": "10+2*x",
+            "y": "0",
+            "z": "2*x"
+          },
+          "binary": {
+            "maxLevel": 10,
+            "x": "10+2*x",
+            "y": "0",
+            "z": "2*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "50"
+          },
+          "binary": {
+            "type": 50
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "special",
+        "common",
+        "info"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "special",
+        "common",
+        "info"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2210001": {
+      "id": "2210001",
+      "name": "魔力激發",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2210001",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2210001",
+        "skillImage": "Skill/221.img/skill/2210001",
+        "stringNode": "String/Skill.img/2210001"
+      },
+      "string": {
+        "source": "String/Skill.img/2210001",
+        "json": {
+          "name": "魔力激發",
+          "desc": "消耗更大量的MP，然而所有攻擊魔法的傷害增加威力。",
+          "h": "增加消耗MP #costmpR%，增加攻擊魔法的傷害#damR%",
+          "pdesc": "消耗更多的 MP同時增加所有攻擊魔法的傷害。",
+          "ph": "消耗MP增加#costmpR%，攻擊魔法傷害增加#damR%"
+        },
+        "binary": {
+          "name": "魔力激發",
+          "desc": "消耗更大量的MP，然而所有攻擊魔法的傷害增加威力。",
+          "h": "增加消耗MP #costmpR%，增加攻擊魔法的傷害#damR%",
+          "pdesc": "消耗更多的 MP同時增加所有攻擊魔法的傷害。",
+          "ph": "消耗MP增加#costmpR%，攻擊魔法傷害增加#damR%"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "10",
+          "binary": 10,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "10",
+            "costmpR": "5*x",
+            "damR": "5*x"
+          },
+          "binary": {
+            "maxLevel": 10,
+            "costmpR": "5*x",
+            "damR": "5*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "50"
+          },
+          "binary": {
+            "type": "50"
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "common",
+        "PVPcommon",
+        "info",
+        "psd"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "common",
+        "PVPcommon",
+        "info",
+        "psd"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2210009": {
+      "id": "2210009",
+      "name": "魔法爆擊",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2210009",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2210009",
+        "skillImage": "Skill/221.img/skill/2210009",
+        "stringNode": "String/Skill.img/2210009"
+      },
+      "string": {
+        "source": "String/Skill.img/2210009",
+        "json": {
+          "name": "魔法爆擊",
+          "desc": "永久性的增加爆擊機率及爆擊傷害。",
+          "h": "增加爆擊機率#cr%、爆擊傷害#criticaldamage%。"
+        },
+        "binary": {
+          "name": "魔法爆擊",
+          "desc": "永久性的增加爆擊機率及爆擊傷害。",
+          "h": "增加爆擊機率#cr%、爆擊傷害#criticaldamage%。"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "10",
+          "binary": 10,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "10",
+            "cr": "10+2*x",
+            "criticaldamage": "3+x"
+          },
+          "binary": {
+            "maxLevel": 10,
+            "cr": "10+2*x",
+            "criticaldamage": "3+x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "50"
+          },
+          "binary": {
+            "type": 50
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "common",
+        "info",
+        "psd"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "common",
+        "info",
+        "psd"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2210013": {
+      "id": "2210013",
+      "name": "結凍粉碎",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2210013",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2210013",
+        "skillImage": "Skill/221.img/skill/2210013",
+        "stringNode": "String/Skill.img/2210013"
+      },
+      "string": {
+        "source": "String/Skill.img/2210013",
+        "json": {
+          "name": "結凍粉碎",
+          "desc": "攻擊結冰狀態的敵人時，以一定機率的一定比例無視敵人的防禦。",
+          "h": "攻擊結冰狀態的敵人時，每次重疊結冰有#subProp%的機率無視防禦力#prop%"
+        },
+        "binary": {
+          "name": "結凍粉碎",
+          "desc": "攻擊結冰狀態的敵人時，以一定機率的一定比例無視敵人的防禦。",
+          "h": "攻擊結冰狀態的敵人時，每次重疊結冰有#subProp%的機率無視防禦力#prop%"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "4",
+          "binary": 4,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "4",
+            "prop": "2",
+            "subProp": "25*x"
+          },
+          "binary": {
+            "maxLevel": 4,
+            "prop": "2",
+            "subProp": "25*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "50"
+          },
+          "binary": {
+            "type": 50
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "common",
+        "info"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "common",
+        "info"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2210016": {
+      "id": "2210016",
+      "name": "自然力重置",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2210016",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2210016",
+        "skillImage": "Skill/221.img/skill/2210016",
+        "stringNode": "String/Skill.img/2210016"
+      },
+      "string": {
+        "source": "String/Skill.img/2210016",
+        "json": {
+          "name": "自然力重置",
+          "desc": "減少所有自身使用的攻擊魔法屬性耐性。額外永久增加最終傷害。",
+          "h": "攻擊耐性減少#u%，最終傷害增加#mdR%"
+        },
+        "binary": {
+          "name": "自然力重置",
+          "desc": "減少所有自身使用的攻擊魔法屬性耐性。額外永久增加最終傷害。",
+          "h": "攻擊耐性減少#u%，最終傷害增加#mdR%"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "9",
+          "binary": 9,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "9",
+            "x": "-x-1",
+            "mdR": "4*x+4",
+            "u": "x+1"
+          },
+          "binary": {
+            "maxLevel": 9,
+            "x": "-x-1",
+            "mdR": "4*x+4",
+            "u": "x+1"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "10",
+            "pvp": "0"
+          },
+          "binary": {
+            "type": 10,
+            "pvp": 0
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "info",
+        "common",
+        "psd"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "info",
+        "common",
+        "psd"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211002": {
+      "id": "2211002",
+      "name": "冰風暴",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211002",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211002",
+        "skillImage": "Skill/221.img/skill/2211002",
+        "stringNode": "String/Skill.img/2211002"
+      },
+      "string": {
+        "source": "String/Skill.img/2211002",
+        "json": {
+          "name": "冰風暴",
+          "desc": "對自身周圍引起暴風雪，並同時攻擊多數的敵人。冰屬性的攻擊。",
+          "h": "消耗MP #mpCon，對最多 #mobCount個敵人以#damage%傷害攻擊#attackCount次，#time秒內 結冰",
+          "pdesc": "在自己的週為引起大冰風爆同時攻擊多數敵人。冰屬性的攻擊。",
+          "ph": "消耗MP #mpCon，對最多 #mobCount個敵人以 #damage% 傷害攻擊#attackCount次，以#prop%機率 #time秒內結冰\\n冷卻時間#cooltime秒",
+          "hch": "消耗 MP #mpCon，對最多 #mobCount個敵人用 #damage%傷害進行 #attackCount次攻擊，以#hcProp% 機率凍結 #hcTime秒。\\n冷卻時間 #hcCooltime秒"
+        },
+        "binary": {
+          "name": "冰風暴",
+          "desc": "對自身周圍引起暴風雪，並同時攻擊多數的敵人。冰屬性的攻擊。",
+          "h": "消耗MP #mpCon，對最多 #mobCount個敵人以#damage%傷害攻擊#attackCount次，#time秒內 結冰",
+          "pdesc": "在自己的週為引起大冰風爆同時攻擊多數敵人。冰屬性的攻擊。",
+          "ph": "消耗MP #mpCon，對最多 #mobCount個敵人以 #damage% 傷害攻擊#attackCount次，以#prop%機率 #time秒內結冰\\n冷卻時間#cooltime秒",
+          "hch": "消耗 MP #mpCon，對最多 #mobCount個敵人用 #damage%傷害進行 #attackCount次攻擊，以#hcProp% 機率凍結 #hcTime秒。\\n冷卻時間 #hcCooltime秒"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "20",
+          "binary": 20,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "20",
+            "mpCon": "50+10*d(x/5)",
+            "damage": "175+8*x",
+            "mobCount": "8",
+            "attackCount": "4",
+            "time": "8",
+            "s": "-15",
+            "v": "-75",
+            "lt": {
+              "x": -250,
+              "y": -150
+            },
+            "rb": {
+              "x": 250,
+              "y": 150
+            }
+          },
+          "binary": {
+            "maxLevel": 20,
+            "mpCon": "50+10*d(x/5)",
+            "damage": "175+8*x",
+            "mobCount": "8",
+            "attackCount": "4",
+            "time": "8",
+            "s": "-15",
+            "v": "-75",
+            "lt": {
+              "x": -250,
+              "y": -150
+            },
+            "rb": {
+              "x": 250,
+              "y": 150
+            }
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "iceStrike"
+          },
+          "binary": {
+            "0": "iceStrike"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "iceStrike"
+          ],
+          "binary": [
+            "iceStrike"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "i",
+          "binary": "i",
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "1",
+            "magicDamage": "1",
+            "areaAttack": "1"
+          },
+          "binary": {
+            "type": 1,
+            "magicDamage": 1,
+            "areaAttack": 1
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "mes": "cold"
+          },
+          "binary": {
+            "mes": "cold"
+          },
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "elemAttr",
+        "action",
+        "common",
+        "PVPcommon",
+        "info",
+        "info2",
+        "effect",
+        "effect0",
+        "hit",
+        "weapon",
+        "weapon2",
+        "skillList"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "elemAttr",
+        "action",
+        "common",
+        "PVPcommon",
+        "info",
+        "info2",
+        "effect",
+        "effect0",
+        "hit",
+        "weapon",
+        "weapon2",
+        "skillList"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "fix"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "effect0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "z",
+            "fix"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14"
+          ]
+        },
+        "hit": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211007": {
+      "id": "2211007",
+      "name": "瞬間移動精通",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211007",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211007",
+        "skillImage": "Skill/221.img/skill/2211007",
+        "stringNode": "String/Skill.img/2211007"
+      },
+      "string": {
+        "source": "String/Skill.img/2211007",
+        "json": {
+          "name": "瞬間移動精通",
+          "desc": "技能啟用時，雖然會額外消耗MP，但能讓瞬間移動地點的敵人們受到傷害並套用暈眩效果。額外永久提升格擋。\\n使用技能時可啟用效果，再次使用時可關閉效果#c開關技能#\\n需要技能 : #c瞬間移動5級以上#",
+          "h": "額外消耗#yMP，最多對#mobCount名敵人造成#damage%傷害，以#subProp%的機率炫#time秒\\n[被動效果:格擋增加#stanceProp%"
+        },
+        "binary": {
+          "name": "瞬間移動精通",
+          "desc": "技能啟用時，雖然會額外消耗MP，但能讓瞬間移動地點的敵人們受到傷害並套用暈眩效果。額外永久提升格擋。\\n使用技能時可啟用效果，再次使用時可關閉效果#c開關技能#\\n需要技能 : #c瞬間移動5級以上#",
+          "h": "額外消耗#yMP，最多對#mobCount名敵人造成#damage%傷害，以#subProp%的機率炫#time秒\\n[被動效果:格擋增加#stanceProp%"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "10",
+          "binary": 10,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "2001009": "5"
+          },
+          "binary": {
+            "2001009": 5
+          },
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "10",
+            "prop": "100",
+            "subProp": "30+5*x",
+            "y": "2*x",
+            "damage": "240+10*x",
+            "time": "2+d(x/5)",
+            "mobCount": "6",
+            "lt": {
+              "x": -120,
+              "y": -100
+            },
+            "rb": {
+              "x": 120,
+              "y": 10
+            },
+            "stanceProp": "4*x"
+          },
+          "binary": {
+            "maxLevel": 10,
+            "prop": "100",
+            "subProp": "30+5*x",
+            "y": "2*x",
+            "damage": "240+10*x",
+            "time": "2+d(x/5)",
+            "mobCount": "6",
+            "lt": {
+              "x": -120,
+              "y": -100
+            },
+            "rb": {
+              "x": 120,
+              "y": 10
+            },
+            "stanceProp": "4*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "alert2"
+          },
+          "binary": {
+            "0": "alert2"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "alert2"
+          ],
+          "binary": [
+            "alert2"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "16",
+            "affectedSkill": "2101002",
+            "affectedSkillEffect": "bodyAttack&&stun",
+            "magicDamage": "1"
+          },
+          "binary": {
+            "type": 16,
+            "affectedSkill": "2101002",
+            "affectedSkillEffect": "bodyAttack&&stun",
+            "magicDamage": 1
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "common",
+        "effect",
+        "effect0",
+        "hit",
+        "mob",
+        "action",
+        "req",
+        "info",
+        "weapon",
+        "weapon2",
+        "notRemoved",
+        "excl",
+        "psd",
+        "ignoreSpecialCore"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "common",
+        "effect",
+        "effect0",
+        "hit",
+        "mob",
+        "action",
+        "req",
+        "info",
+        "weapon",
+        "weapon2",
+        "notRemoved",
+        "excl",
+        "psd",
+        "ignoreSpecialCore"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        "effect0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "z"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        "hit": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "pos",
+            "repeat"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2"
+          ]
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211011": {
+      "id": "2211011",
+      "name": "閃電球",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211011",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211011",
+        "skillImage": "Skill/221.img/skill/2211011",
+        "stringNode": "String/Skill.img/2211011"
+      },
+      "string": {
+        "source": "String/Skill.img/2211011",
+        "json": {
+          "name": "閃電球",
+          "desc": "召喚由閃電凝聚而成的球體。球體會對周圍的敵人發射高壓電流，並以閃電屬性發動攻擊。和「「下」方向鍵」一起再次使用技能時，可讓球體固定在原處。被固定在原處的球體會在一段時間後，攻擊更大範圍內的敵人。球體的攻擊不會減少凍結的重疊。\\n使用指令時可不輸入方向鍵僅以技能鍵固定球體。\\n球體固定時無法登錄技能連續施放序列。\\n#c指令開關：滑鼠右鍵#",
+          "h": "消耗MP#mpCon，召喚出可持續#time的閃電球體，閃電球體最多可對#mobCount名敵人受到#damage%的傷害，並攻擊#attackCount次\\n#c和「下」方向鍵一起再次使用時，可讓球體固定在原處 #y秒，對最多#s名敵人以#w%的傷害攻擊#q次\\n攻擊一般怪物時，傷害增加#u2%p\\n"
+        },
+        "binary": {
+          "name": "閃電球",
+          "desc": "召喚由閃電凝聚而成的球體。球體會對周圍的敵人發射高壓電流，並以閃電屬性發動攻擊。和「「下」方向鍵」一起再次使用技能時，可讓球體固定在原處。被固定在原處的球體會在一段時間後，攻擊更大範圍內的敵人。球體的攻擊不會減少凍結的重疊。\\n使用指令時可不輸入方向鍵僅以技能鍵固定球體。\\n球體固定時無法登錄技能連續施放序列。\\n#c指令開關：滑鼠右鍵#",
+          "h": "消耗MP#mpCon，召喚出可持續#time的閃電球體，閃電球體最多可對#mobCount名敵人受到#damage%的傷害，並攻擊#attackCount次\\n#c和「下」方向鍵一起再次使用時，可讓球體固定在原處 #y秒，對最多#s名敵人以#w%的傷害攻擊#q次\\n攻擊一般怪物時，傷害增加#u2%p\\n"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "20",
+          "binary": 20,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "20",
+            "mpCon": "25+3*d(x/2)",
+            "damage": "250+6*x",
+            "time": "60+3*x",
+            "speed": "8",
+            "x": "300",
+            "u": "0",
+            "v": "-155",
+            "subTime": "1080",
+            "y": "20+2*x",
+            "w": "250+6*x",
+            "s": "6",
+            "q": "3",
+            "q2": "30",
+            "mobCount": "6",
+            "attackCount": "3",
+            "u2": "70+5*x"
+          },
+          "binary": {
+            "maxLevel": 20,
+            "mpCon": "25+3*d(x/2)",
+            "damage": "250+6*x",
+            "time": "60+3*x",
+            "speed": "8",
+            "x": "300",
+            "u": "0",
+            "v": "-155",
+            "subTime": "1080",
+            "y": "20+2*x",
+            "w": "250+6*x",
+            "s": "6",
+            "q": "3",
+            "q2": "30",
+            "mobCount": "6",
+            "attackCount": "3",
+            "u2": "70+5*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "thunderStorm"
+          },
+          "binary": {
+            "0": "thunderStorm"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "thunderStorm"
+          ],
+          "binary": [
+            "thunderStorm"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "l",
+          "binary": "l",
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "33",
+            "condition": "attack"
+          },
+          "binary": {
+            "type": 33,
+            "condition": "attack"
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "common",
+        "summon",
+        "effect",
+        "effect0",
+        "ball",
+        "hit",
+        "action",
+        "info",
+        "weapon",
+        "weapon2",
+        "elemAttr",
+        "showSummonedBuffIcon",
+        "skillList",
+        "changeSkill",
+        "isSequenceOn",
+        "ableJumpSummoned"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "common",
+        "summon",
+        "effect",
+        "effect0",
+        "ball",
+        "hit",
+        "action",
+        "info",
+        "weapon",
+        "weapon2",
+        "elemAttr",
+        "showSummonedBuffIcon",
+        "skillList",
+        "changeSkill",
+        "isSequenceOn",
+        "ableJumpSummoned"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "21"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "21"
+          ]
+        },
+        "effect0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "z"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20"
+          ]
+        },
+        "hit": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "ball": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2"
+          ]
+        },
+        "summon": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "summoned",
+            "stand",
+            "move",
+            "attack1",
+            "die"
+          ],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211012": {
+      "id": "2211012",
+      "name": "元素適應(雷、冰)",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211012",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211012",
+        "skillImage": "Skill/221.img/skill/2211012",
+        "stringNode": "String/Skill.img/2211012"
+      },
+      "string": {
+        "source": "String/Skill.img/2211012",
+        "json": {
+          "name": "元素適應(雷、冰)",
+          "desc": "展開冰和雷的保護網。保護網在防禦致命異常後會再生成，並在成功防禦一定次數後觸發冷卻時間。\\n另外永久增加異常狀態耐性與所有屬性耐性。",
+          "h": "消耗MP#mpCon啟用元素改造\\n消耗最大MP的#x%，以#prop%機率防禦致命的狀態異常，保護網最多再次形成#y次\\n冷卻時間 #cooltime秒\\n[被動效果：所有屬性及狀態耐性增加#asrR%]"
+        },
+        "binary": {
+          "name": "元素適應(雷、冰)",
+          "desc": "展開冰和雷的保護網。保護網在防禦致命異常後會再生成，並在成功防禦一定次數後觸發冷卻時間。\\n另外永久增加異常狀態耐性與所有屬性耐性。",
+          "h": "消耗MP#mpCon啟用元素改造\\n消耗最大MP的#x%，以#prop%機率防禦致命的狀態異常，保護網最多再次形成#y次\\n冷卻時間 #cooltime秒\\n[被動效果：所有屬性及狀態耐性增加#asrR%]"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "20",
+          "binary": 20,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "20",
+            "mpCon": "210-x",
+            "cooltime": "600-18*x",
+            "prop": "100",
+            "x": "12-d(x/2)",
+            "y": "7",
+            "asrR": "x",
+            "terR": "x"
+          },
+          "binary": {
+            "maxLevel": 20,
+            "mpCon": "210-x",
+            "cooltime": "600-18*x",
+            "prop": "100",
+            "x": "12-d(x/2)",
+            "y": "7",
+            "asrR": "x",
+            "terR": "x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "elementalAdapting"
+          },
+          "binary": {
+            "0": "elementalAdapting"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "elementalAdapting"
+          ],
+          "binary": [
+            "elementalAdapting"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "10",
+            "pvp": "0"
+          },
+          "binary": {
+            "type": 10,
+            "pvp": 0
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "info",
+        "action",
+        "common",
+        "effect",
+        "effect0",
+        "special",
+        "special0",
+        "number",
+        "psd",
+        "notRemoved",
+        "weapon",
+        "weapon2",
+        "canNotStealableSkill"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "info",
+        "action",
+        "common",
+        "effect",
+        "effect0",
+        "special",
+        "special0",
+        "number",
+        "psd",
+        "notRemoved",
+        "weapon",
+        "weapon2",
+        "canNotStealableSkill"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ]
+        },
+        "effect0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "z"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ]
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14"
+          ]
+        },
+        "special0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "z"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14"
+          ]
+        },
+        "number": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "icon1",
+            "icon2",
+            "icon3",
+            "icon4",
+            "icon5",
+            "icon6",
+            "icon7",
+            "icon8",
+            "icon9",
+            "icon10"
+          ],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211014": {
+      "id": "2211014",
+      "name": "冰川之牆",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211014",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211014",
+        "skillImage": "Skill/221.img/skill/2211014",
+        "stringNode": "String/Skill.img/2211014"
+      },
+      "string": {
+        "source": "String/Skill.img/2211014",
+        "json": {
+          "name": "冰川之牆",
+          "desc": "在自身前方生成高聳的冰牆，以彈開敵人並對其發動冰屬性攻擊。被攻擊命中的敵人將陷入冰凍狀態，其移動速度亦將受其影響而下降。此外，該攻擊可對火屬性敵人造成強力傷害。",
+          "h": "消耗MP#mpCon，以#damage%傷害對最多#mobCount名敵人發動#attackCount次攻擊"
+        },
+        "binary": {
+          "name": "冰川之牆",
+          "desc": "在自身前方生成高聳的冰牆，以彈開敵人並對其發動冰屬性攻擊。被攻擊命中的敵人將陷入冰凍狀態，其移動速度亦將受其影響而下降。此外，該攻擊可對火屬性敵人造成強力傷害。",
+          "h": "消耗MP#mpCon，以#damage%傷害對最多#mobCount名敵人發動#attackCount次攻擊"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "10",
+          "binary": 10,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "10",
+            "mpCon": "50+10*d(x/5)",
+            "damage": "175+8*x",
+            "mobCount": "8",
+            "attackCount": "4",
+            "time": "8",
+            "s": "-15",
+            "v": "-75",
+            "lt": {
+              "x": -490,
+              "y": -170
+            },
+            "rb": {
+              "x": 10,
+              "y": 10
+            },
+            "u": "480",
+            "w": "370"
+          },
+          "binary": {
+            "maxLevel": 10,
+            "mpCon": "50+10*d(x/5)",
+            "damage": "175+8*x",
+            "mobCount": "8",
+            "attackCount": "4",
+            "time": "8",
+            "s": "-15",
+            "v": "-75",
+            "lt": {
+              "x": -490,
+              "y": -170
+            },
+            "rb": {
+              "x": 10,
+              "y": 10
+            },
+            "u": "480",
+            "w": "370"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "glacialWall"
+          },
+          "binary": {
+            "0": "glacialWall"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "glacialWall"
+          ],
+          "binary": [
+            "glacialWall"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "i",
+          "binary": "i",
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "1",
+            "magicDamage": "1",
+            "areaAttack": "1"
+          },
+          "binary": {
+            "type": 1,
+            "magicDamage": 1,
+            "areaAttack": 1
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "mes": "cold"
+          },
+          "binary": {
+            "mes": "cold"
+          },
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "info",
+        "info2",
+        "action",
+        "common",
+        "effect",
+        "effect0",
+        "special",
+        "special0",
+        "hit",
+        "elemAttr",
+        "weapon",
+        "weapon2",
+        "skillList"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "info",
+        "info2",
+        "action",
+        "common",
+        "effect",
+        "effect0",
+        "special",
+        "special0",
+        "hit",
+        "elemAttr",
+        "weapon",
+        "weapon2",
+        "skillList"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ]
+        },
+        "effect0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "z"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        "hit": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "fix"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13"
+          ]
+        },
+        "special0": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "fix"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211015": {
+      "id": "2211015",
+      "name": "閃電球",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211015",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211015",
+        "skillImage": "Skill/221.img/skill/2211015",
+        "stringNode": "String/Skill.img/2211015"
+      },
+      "string": {
+        "source": "String/Skill.img/2211015",
+        "json": {
+          "name": "閃電球",
+          "desc": "召喚由閃電凝聚而成的球體。"
+        },
+        "binary": {
+          "name": "閃電球",
+          "desc": "召喚由閃電凝聚而成的球體。"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "20",
+          "binary": 20,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "20",
+            "mpCon": "25+3*d(x/2)",
+            "damage": "250+6*x",
+            "time": "20+2*x",
+            "subTime": "1080",
+            "u2": "70+5*x"
+          },
+          "binary": {
+            "maxLevel": 20,
+            "mpCon": "25+3*d(x/2)",
+            "damage": "250+6*x",
+            "time": "20+2*x",
+            "subTime": "1080",
+            "u2": "70+5*x"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "0": "thunderStorm"
+          },
+          "binary": {
+            "0": "thunderStorm"
+          },
+          "matches": true
+        },
+        "actionNames": {
+          "json": [
+            "thunderStorm"
+          ],
+          "binary": [
+            "thunderStorm"
+          ]
+        },
+        "elemAttr": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "l",
+          "binary": "l",
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "37",
+          "binary": 37,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "38",
+          "binary": 38,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "33",
+            "condition": "attack"
+          },
+          "binary": {
+            "type": 33,
+            "condition": "attack"
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "info",
+        "action",
+        "common",
+        "summon",
+        "hit",
+        "weapon",
+        "weapon2",
+        "elemAttr",
+        "showSummonedBuffIcon",
+        "invisible",
+        "maintainSplitSummoned",
+        "skillList",
+        "changeSkill",
+        "secondaryStatFreezeExcept"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "info",
+        "action",
+        "common",
+        "summon",
+        "hit",
+        "weapon",
+        "weapon2",
+        "elemAttr",
+        "showSummonedBuffIcon",
+        "invisible",
+        "maintainSplitSummoned",
+        "skillList",
+        "changeSkill",
+        "secondaryStatFreezeExcept"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0"
+          ],
+          "numericChildren": [
+            "0"
+          ]
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "summoned",
+            "stand",
+            "move",
+            "attack1",
+            "die"
+          ],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    },
+    "2211017": {
+      "id": "2211017",
+      "name": "瞬間移動爆發",
+      "source": {
+        "skillJson": "WZ_JSON_TW/Skill/221.json#skill.2211017",
+        "stringJson": "WZ_JSON_TW/String/Skill.json#2211017",
+        "skillImage": "Skill/221.img/skill/2211017",
+        "stringNode": "String/Skill.img/2211017"
+      },
+      "string": {
+        "source": "String/Skill.img/2211017",
+        "json": {
+          "name": "瞬間移動爆發",
+          "desc": "強化瞬間移動的威力，並增加其移動距離。無法和瞬間移動精通-提高射程同時使用。\\n使用技能時發動效果，並於再次使用時移除效果的#c開關技能#\\n需要技能 : #c瞬間移動5級以上#",
+          "h": "消耗MP#mpCon，並使瞬間移動的移動距離左右增加#x、上下增加#y"
+        },
+        "binary": {
+          "name": "瞬間移動爆發",
+          "desc": "強化瞬間移動的威力，並增加其移動距離。無法和瞬間移動精通-提高射程同時使用。\\n使用技能時發動效果，並於再次使用時移除效果的#c開關技能#\\n需要技能 : #c瞬間移動5級以上#",
+          "h": "消耗MP#mpCon，並使瞬間移動的移動距離左右增加#x、上下增加#y"
+        },
+        "matches": true,
+        "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/String/String_000.wz"
+      },
+      "sourceFields": {
+        "maxLevel": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": "1",
+          "binary": 1,
+          "matches": true
+        },
+        "hidden": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "fixLevel": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "invisible": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "psd": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "req": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "2001009": "5"
+          },
+          "binary": {
+            "2001009": 5
+          },
+          "matches": true
+        },
+        "common": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "maxLevel": "1",
+            "mpCon": "20",
+            "x": "65",
+            "y": "25"
+          },
+          "binary": {
+            "maxLevel": 1,
+            "mpCon": "20",
+            "x": "65",
+            "y": "25"
+          },
+          "matches": true
+        },
+        "action": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "actionNames": {
+          "json": [],
+          "binary": []
+        },
+        "elemAttr": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "weapon2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        },
+        "info": {
+          "jsonPresent": true,
+          "binaryPresent": true,
+          "json": {
+            "type": "16",
+            "affectedSkill": "2101002",
+            "affectedSkillEffect": "bodyAttack&&stun",
+            "magicDamage": "1"
+          },
+          "binary": {
+            "type": 16,
+            "affectedSkill": "2101002",
+            "affectedSkillEffect": "bodyAttack&&stun",
+            "magicDamage": 1
+          },
+          "matches": true
+        },
+        "info2": {
+          "jsonPresent": false,
+          "binaryPresent": false,
+          "json": null,
+          "binary": null,
+          "matches": true
+        }
+      },
+      "sourceJsonTopLevelKeys": [
+        "info",
+        "common",
+        "effect",
+        "notRemoved",
+        "req",
+        "canNotStealableSkill"
+      ],
+      "binaryTopLevelChildren": [
+        "icon",
+        "iconMouseOver",
+        "iconDisabled",
+        "info",
+        "common",
+        "effect",
+        "notRemoved",
+        "req",
+        "canNotStealableSkill"
+      ],
+      "visualGroups": {
+        "icon": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconMouseOver": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "iconDisabled": {
+          "present": true,
+          "type": "WzCanvasProperty",
+          "children": [
+            "origin",
+            "z",
+            "_outlink"
+          ],
+          "numericChildren": []
+        },
+        "effect": {
+          "present": true,
+          "type": "WzSubProperty",
+          "children": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10"
+          ],
+          "numericChildren": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10"
+          ]
+        },
+        "effect0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "hit": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "ball": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "summon": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "special0": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "number": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        },
+        "mob": {
+          "present": false,
+          "type": null,
+          "children": [],
+          "numericChildren": []
+        }
+      },
+      "binaryVerification": {
+        "status": "verified",
+        "nodeType": "WzSubProperty",
+        "sourceImage": "Skill/221.img",
+        "sourceArchive": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Packs/Skill_00001.ms",
+        "sourceArchiveEntryIndex": 4,
+        "extractedBytes": 66562,
+        "extractedSha256": "3f015e3823c5ac418ac2dc52f526edcb8a71adffe339d9eee1390027574adc81"
+      },
+      "unknowns": [
+        {
+          "field": "jobTransferCondition",
+          "status": "unknown",
+          "reason": "Skill/221 and String/Skill contain no verified transfer execution rule."
+        },
+        {
+          "field": "spGrantAndLearning",
+          "status": "unknown",
+          "reason": "Skill/221 source markers do not establish SP grant, learning permission, or runtime level ownership."
+        },
+        {
+          "field": "serverExecutionTiming",
+          "status": "unknown",
+          "reason": "Skill fields/visual groups do not establish server cast, hit, cancel, summon tick, or freeze timing."
+        }
+      ]
+    }
+  },
+  "quest1436Blocked": {
+    "status": "verified-source-flag-only",
+    "sourceJson": "WZ_JSON_TW/Quest/QuestData/1436.json#QuestInfo.blocked",
+    "sourceBinary": "Quest/QuestData/1436.img/QuestInfo/blocked",
+    "jsonValue": "1",
+    "binaryValue": 1,
+    "binaryType": "WzIntProperty",
+    "matches": true,
+    "sourceFile": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data/Quest/QuestData/QuestData_000.wz",
+    "semanticBoundary": "blocked=1 is recorded as a source flag; no transfer execution, timing, or job/SP rule is inferred here."
+  },
+  "implementationOverview": {
+    "reusableMechanisms": [
+      "Existing skill catalog sourceFields schema can carry common/maxLevel/req/info/info2 while preserving formula strings verbatim.",
+      "Existing WZ action/body-action mapping can reuse the verified action names where a matching character action is later confirmed.",
+      "Existing area/multi-target/freeze and passive-recalculation paths can consume source mobCount/attackCount/time/elemAttr and psd markers after server semantics are separately authorized.",
+      "2211014 describes a frontal ice-wall attack: reuse a facing-relative area attack unless separate execution evidence proves a persistent field. u/w and visual groups alone do not establish persistence."
+    ],
+    "newMechanismsIfImplemented": [
+      "2211011/2211015 require a summon lifecycle with summon state, periodic attack groups, changeSkill links, and split/sequence flags.",
+      "2211012 requires a cooldown plus elemental resistance/adaptation state; special/special0/number are source visual/state groups.",
+      "2211007 and 2211017 expose conditional post-teleport hooks through affectedSkill/affectedSkillEffect and req; this is a separate passive trigger path.",
+      "2211002 has a source hit delayedTime=330 and onlyOnce marker; this is evidence of a delayed hit group, not an authorized server timing value."
+    ],
+    "stillUnknown": [
+      "Three-job transfer execution and q1436 script semantics beyond the recorded blocked flag.",
+      "SP grant/learning order, level caps in runtime, and any job-specific permission beyond source markers.",
+      "Server cast/hit/cancel timing, summon tick cadence, freeze stacking/consumption, and visual frame timing.",
+      "2211014 field lifetime/persistence is not established by its visual groups or u/w fields.",
+      "2210013 defense-ignore and 2210016 elemental-resistance effects require verified monster defense/element inputs and final magic-damage integration; current adapter must not silently present them as effective against an unmodeled stat."
+    ]
+  }
+}

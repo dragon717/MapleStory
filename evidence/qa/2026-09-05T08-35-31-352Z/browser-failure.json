@@ -1,0 +1,6 @@
+{
+  "runId": "2026-09-05T08-35-31-352Z",
+  "server": "http://127.0.0.1:3010",
+  "completed": false,
+  "error": "browserType.launch: Executable doesn't exist at /Users/muniao/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+}

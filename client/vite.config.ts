@@ -20,6 +20,7 @@ export default defineConfig({
   },
   // TMS273 exports are the only active content source.
   publicDir: 'public-tms273',
-  build: { outDir: 'dist-tms273', emptyOutDir: true },
+  // Phaser's full runtime is bundled locally; retain a 1.6 MB warning budget.
+  build: { outDir: 'dist-tms273', emptyOutDir: true, chunkSizeWarningLimit: 1600 },
   server: { host: '0.0.0.0', proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } } },
 });

@@ -2,7 +2,7 @@ use crate::protocol::InventoryItem;
 use rand::Rng;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::BTreeMap, sync::OnceLock};
+use std::{collections::BTreeMap, iter::once, sync::OnceLock};
 
 /// Every regular MapleStory inventory tab has 24 local slots.
 pub const SLOT_LIMIT: u16 = 24;
@@ -231,6 +231,13 @@ pub fn equipment_slot(item_id: &str) -> Option<i16> {
         _ => return None,
     };
     Some(slot)
+}
+
+fn is_longcoat(item_id: &str) -> bool {
+    item_definition(item_id)
+        .and_then(|item| item.info.get("islot"))
+        .and_then(Value::as_str)
+        == Some("MaPn")
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -728,10 +735,26 @@ pub fn equip_items(
     let mut next_inventory = inventory.clone();
     let mut next_equipped = equipped.clone();
     next_inventory.remove(source_index);
-    if let Some(target_index) = equipped_index(&next_equipped, to_slot) {
-        let mut displaced = next_equipped.remove(target_index);
-        displaced.slot = u16::try_from(from_slot).unwrap_or(0);
-        next_inventory.push(displaced);
+    let extra_slot = if is_longcoat(&source.item_id) {
+        Some(-6)
+    } else if to_slot == -6 {
+        equipped_index(&next_equipped, -5)
+            .filter(|&index| is_longcoat(&next_equipped[index].item_id))
+            .map(|_| -5)
+    } else {
+        None
+    };
+    // P interaction adapter: return conflicts to the source/free slots atomically.
+    for slot in once(to_slot).chain(extra_slot) {
+        if let Some(index) = equipped_index(&next_equipped, slot) {
+            let mut displaced = next_equipped.remove(index);
+            let destination = once(u16::try_from(from_slot).unwrap_or(0))
+                .chain(1..=SLOT_LIMIT)
+                .find(|slot| !occupied(&next_inventory, 1, *slot))
+                .ok_or(InventoryError::InventoryFull)?;
+            displaced.slot = destination;
+            next_inventory.push(displaced);
+        }
     }
     let mut equipped_source = source.clone();
     ensure_equipment_instance(&mut equipped_source);
@@ -781,6 +804,7 @@ pub fn unequip_items(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     fn item(slot: u16, item_id: &str, quantity: u32) -> InventoryItem {
         InventoryItem {
@@ -891,5 +915,76 @@ mod tests {
         assert_eq!(inventory, vec![expected]);
         assert_eq!(inventory[0].slot, 1);
         assert!(equipped.is_empty());
+    }
+
+    #[test]
+    fn longcoat_and_pants_share_body_slots_atomically() {
+        let stats = EquipmentStats {
+            level: 10,
+            job: 500,
+            ..EquipmentStats::default()
+        };
+        let instance = |slot: u16,
+                        item_id: &str,
+                        pdd: i64,
+                        remaining_slots: u32,
+                        upgrade_count: u32| InventoryItem {
+            slot,
+            item_id: item_id.into(),
+            quantity: 1,
+            stats: Some(BTreeMap::from([(String::from("incPDD"), pdd)])),
+            remaining_slots: Some(remaining_slots),
+            upgrade_count: Some(upgrade_count),
+        };
+
+        let longcoat = instance(1, "1052095", 31, 2, 4);
+        let coat = instance(5, "1040002", 7, 4, 1);
+        let pants = instance(6, "1060002", 9, 5, 2);
+        let mut inventory = vec![longcoat.clone()];
+        let mut equipped = vec![coat.clone(), pants.clone()];
+        equip_items(&mut inventory, &mut equipped, stats, 1, -5).unwrap();
+
+        assert_eq!(equipped.iter().map(|item| item.item_id.as_str()).collect::<Vec<_>>(), vec!["1052095"]);
+        assert_eq!(
+            inventory.iter().find(|item| item.item_id == "1040002"),
+            Some(&InventoryItem { slot: 1, ..coat.clone() })
+        );
+        assert_eq!(
+            inventory.iter().find(|item| item.item_id == "1060002"),
+            Some(&InventoryItem { slot: 2, ..pants.clone() })
+        );
+        assert_eq!(equipped[0].stats, longcoat.stats);
+
+        let pants_slot = inventory
+            .iter()
+            .find(|item| item.item_id == "1060002")
+            .unwrap()
+            .slot;
+        equip_items(
+            &mut inventory,
+            &mut equipped,
+            stats,
+            pants_slot as i16,
+            -6,
+        )
+        .unwrap();
+        assert_eq!(
+            inventory.iter().find(|item| item.item_id == "1052095"),
+            Some(&InventoryItem { slot: pants_slot, ..longcoat.clone() })
+        );
+        assert_eq!(equipped[0].item_id, "1060002");
+        assert_eq!(equipped[0].stats, pants.stats);
+
+        let mut full_inventory = vec![instance(1, "1052095", 31, 2, 4)];
+        full_inventory.extend((2..=SLOT_LIMIT).map(|slot| instance(slot, "1040002", 7, 4, 1)));
+        let mut full_equipped = vec![coat.clone(), pants.clone()];
+        let original_inventory = full_inventory.clone();
+        let original_equipped = full_equipped.clone();
+        assert_eq!(
+            equip_items(&mut full_inventory, &mut full_equipped, stats, 1, -5),
+            Err(InventoryError::InventoryFull)
+        );
+        assert_eq!(full_inventory, original_inventory);
+        assert_eq!(full_equipped, original_equipped);
     }
 }

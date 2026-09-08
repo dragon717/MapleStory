@@ -1,5 +1,5 @@
 import type { QuestLogEntry } from '../../../../shared/protocol';
-import { uiLocale } from '../../app/i18n';
+import { uiLocale, displayText } from '../../app/i18n';
 import type { Manifest } from '../../assets/manifest';
 
 /**
@@ -151,8 +151,8 @@ export class QuestLogView {
    */
   private localize(entry: QuestLogEntry) {
     return {
-      name: entry.name || entry.questId,
-      summary: entry.summary,
+      name: displayText(entry.name || entry.questId),
+      summary: displayText(entry.summary),
     };
   }
 }

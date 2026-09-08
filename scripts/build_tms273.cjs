@@ -22,4 +22,5 @@ run(path.join(require('node:os').homedir(),'.cargo/bin/cargo'),['run','--quiet',
 for(const mode of ['maps','entities','ui','windows','portals','effects'])run(process.execPath,['scripts/export_tms273.cjs',mode]);
 run('python3',['scripts/generate_tms273_gameplay.py']);
 run(process.execPath,['scripts/export_tms273.cjs','items']);
-for(const script of ['export_tms273_avatar','export_tms273_inventory','export_tms273_combat','export_tms273_chat','assemble_tms273'])run(process.execPath,[`scripts/${script}.cjs`]);
+run(process.execPath,['scripts/export_tms273_avatar.cjs','--mage-actions']);
+for(const script of ['export_tms273_avatar','export_tms273_inventory','export_tms273_combat','export_tms273_chat','export_tms273_skills','export_tms273_skill_ui','export_tms273_npc_marker','export_tms273_mage_effects','export_tms273_character_ui','export_tms273_creation_items','export_tms273_entry','export_tms273_avatar_parts','export_tms273_skill_sounds','assemble_tms273'])run(process.execPath,[`scripts/${script}.cjs`]);

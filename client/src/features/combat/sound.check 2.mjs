@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
+
+const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
+const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
+const { CombatView } = await import(`data:text/javascript;base64,${Buffer.from(outputText.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
+const played = [];
+const scene = { sound: { play: key => played.push(key) }, cache: { audio: { exists: key => ['combat-hit', 'mob-hit-100101'].includes(key) } } };
+const view = new CombatView(scene, undefined, 0);
+let numbers = 0;
+view.spawnDamageNumber = () => numbers++;
+const event = { type: 'damageEvent', eventId: 'one', targetId: 'blue-snail', serverTick: 1, x: 1, y: 1, damage: 4 };
+view.receiveDamageEvent(event, 'mob-hit-100101');
+view.receiveDamageEvent(event, 'mob-hit-100101');
+assert.deepEqual(played, ['mob-hit-100101'], 'Correct monster sound is played once per authoritative event');
+view.receiveDamageEvent({ ...event, eventId: 'two' }, 'mob-hit-missing');
+assert.equal(numbers, 2, 'Missing audio does not suppress authoritative damage');
+assert.equal(played.length, 1, 'Missing monster audio does not use another monster sound');
+console.log('PASS: species-specific hit audio, deduplication and missing audio.');

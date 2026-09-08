@@ -1,17 +1,31 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 6;
-export const CONTENT_VERSION = 'tms273-1';
+export const CONTENT_VERSION = 'tms273-2';
 export type Facing = -1 | 1;
+export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
+export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
 export interface InventoryItem {
   slot: number; itemId: string; quantity: number;
   stats?: Record<string, number>; remainingSlots?: number; upgradeCount?: number;
 }
+export interface Appearance {
+  gender: number; face: number; hair: number; skin: number;
+  coat: number; pants: number; shoes: number; weapon: number;
+}
 export interface PlayerState {
-  id: string; username: string; x: number; y: number; vx: number; vy: number;
+  id: string; username: string; appearance?: Appearance; x: number; y: number; vx: number; vy: number;
   facing: Facing; grounded: boolean; action: 'stand' | 'walk' | 'jump' | 'attack' | 'climb' | 'ladder' | 'rope' | 'dead';
   actionId: string | null; actionStartedTick: number; lastInputSeq: number;
   climbing: boolean; ladderId: number | null;
   hp: number; maxHp: number; mp: number; maxMp: number;
+  /** Server-owned persisted job ID; absent on older protocol 6 servers. */
+  job?: number;
+  /** Server-owned learned levels by skill ID; missing entries mean level 0, absent map means unknown. */
+  skills?: Record<string, number>;
+  /** Server-owned SP balances; source SP group mapping is not yet established. */
+  skillPoints?: Record<string, number>;
+  abilityStats?: AbilityStats;
+  derivedStats?: { meditationRemainingMs?: number; iceTeleport?: boolean; magicAttack: number; defense: number; moveSpeed: number; magicGuard: boolean; strength?: number; dexterity?: number; intelligence?: number; luck?: number };
   level: number; exp: number; expToNext: number; mesos: number;
   inventory: InventoryItem[];
   equipped?: InventoryItem[];
@@ -19,7 +33,8 @@ export interface PlayerState {
 }
 export interface MonsterState {
   id: string; templateId: string; x: number; y: number; facing: Facing;
-  hp: number; maxHp: number; action: 'stand' | 'move' | 'hit' | 'die'; actionStartedTick: number;
+  freezeStacks?: number;
+  hp: number; maxHp: number; action: 'stand' | 'move' | 'hit' | 'freeze' | 'die'; actionStartedTick: number;
 }
 export interface NpcState {
   id: string; templateId: string;
@@ -29,12 +44,16 @@ export interface NpcState {
   nameZh?: string;
   x: number; y: number;
   facing: Facing; shopId?: string;
+  jobAdvancementAvailable?: boolean;
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
 export type ClientMessage =
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
   | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean }
   | { type: 'attack'; requestId: string }
+  | { type: 'allocateAp'; requestId: string; stat: AbilityStat }
+  | { type: 'learnSkill'; requestId: string; skillId: number }
+  | { type: 'castSkill'; requestId: string; skillId: number; direction?: -1 | 0 | 1; vertical?: -1 | 0 | 1 }
   | { type: 'revive'; requestId: string }
   | { type: 'pickup'; requestId: string; dropId: string }
   | { type: 'portal'; requestId: string; portalName: string }
@@ -56,16 +75,19 @@ export interface QuestRewardInfo {
   items: { itemId: string; quantity: number }[];
 }
 export type ServerMessage =
+  | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
   | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
-  | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean }
+  | { type: 'skillCast'; eventId: string; serverTick: number; playerId: string; skillId: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
+  | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast'; success: boolean; code: string }
+  | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean; skillId?: number; segment?: number; targetCount?: number }
   | { type: 'dropPickedUp'; mapId: string; dropId: string; playerId: string; x: number; y: number }
   | { type: 'pickupResult'; requestId: string; dropId: string; itemId: string; quantity: number; slot?: number }
   | { type: 'portalResult'; requestId: string; success: boolean; code: string; sourceMapId: string; targetMapId?: string }
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
-  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean }
+  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean }
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   | { type: 'questList'; quests: QuestLogEntry[] }
   | { type: 'questUpdate'; questId: string; name: string; status: QuestLogEntry['status']; summary: string; reward: QuestRewardInfo }

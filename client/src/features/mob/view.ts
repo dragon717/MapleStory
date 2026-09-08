@@ -11,25 +11,34 @@ export interface MonsterSnapshot {
   facing: -1 | 1;
   hp: number;
   maxHp: number;
-  action: 'stand' | 'move' | 'hit' | 'die';
+  action: 'stand' | 'move' | 'hit' | 'freeze' | 'die';
+  freezeStacks?: number;
   actionStartedTick: number;
 }
 
 /** Renders one server-owned mob without keeping a second gameplay state. */
 export class MonsterView {
   private readonly sprite: Phaser.GameObjects.Image;
+  private readonly freezeSprite?: Phaser.GameObjects.Image;
   private signature = '';
+  private freezeSignature = '';
   private currentFrame?: AssetFrame;
 
-  constructor(private scene: Phaser.Scene, private asset: MonsterAsset, depth: number) {
+  constructor(private scene: Phaser.Scene, private asset: MonsterAsset, depth: number, private freezeFrames: AssetFrame[] = []) {
     const first = asset.actions.stand[0];
     this.sprite = scene.add.image(0, 0, first.url).setOrigin(0).setDepth(depth);
+    const freezeFirst = freezeFrames[0];
+    if (freezeFirst) this.freezeSprite = scene.add.image(0, 0, freezeFirst.url).setOrigin(0).setDepth(depth + 1).setVisible(false);
   }
 
   update(monster: MonsterSnapshot, elapsed: number) {
-    const frames = this.asset.actions[monster.action] ?? this.asset.actions.stand;
+    // The server's freeze action is a state, not a source mob action. Keep
+    // the monster's stand pose and layer the source-backed freeze effect over
+    // it instead of looking up a fabricated `actions.freeze` animation.
+    const frames = monster.action === 'freeze' ? this.asset.actions.stand : this.asset.actions[monster.action] ?? this.asset.actions.stand;
     if (!frames.length) {
       this.sprite.setVisible(false);
+      this.freezeSprite?.setVisible(false);
       return;
     }
     const index = frameAt(frames.map(frame => frame.delay), elapsed, monster.action !== 'die');
@@ -46,6 +55,31 @@ export class MonsterView {
       // the image box, so reflect the source origin around its right edge.
       .setPosition(Math.round(flipped ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
       .setFlipX(flipped);
+
+    this.updateFreeze(monster, elapsed);
+  }
+
+  private updateFreeze(monster: MonsterSnapshot, elapsed: number) {
+    const sprite = this.freezeSprite;
+    if (!sprite || monster.action !== 'freeze' || !this.freezeFrames.length) {
+      sprite?.setVisible(false);
+      return;
+    }
+    const group = Math.max(0, Math.min(4, Math.max(1, Math.floor(monster.freezeStacks ?? 1)) - 1));
+    const grouped = this.freezeFrames.filter(frame => frame.source?.match(/\/mob\/(\d+)\//)?.[1] === String(group));
+    const frames = grouped.length ? grouped : this.freezeFrames;
+    const index = frameAt(frames.map(frame => frame.delay), elapsed, true);
+    const frame = frames[index];
+    if (!frame) return;
+    const signature = `${group}:${index}:${frame.url}`;
+    if (signature !== this.freezeSignature) {
+      this.freezeSignature = signature;
+      sprite.setTexture(frame.url);
+    }
+    const flipped = monster.facing === 1 && !Number(this.asset.info.noFlip ?? 0);
+    sprite.setVisible(true)
+      .setPosition(Math.round(flipped ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
+      .setFlipX(flipped);
   }
 
   /** Source head anchor of the currently displayed stance, like Mob::get_head_position. */
@@ -56,7 +90,7 @@ export class MonsterView {
     return { x: Math.round(monster.x + (flipped ? -head.x : head.x)), y: Math.round(monster.y + head.y) };
   }
 
-  destroy() { this.sprite.destroy(); }
+  destroy() { this.sprite.destroy(); this.freezeSprite?.destroy(); }
 }
 
 export interface DropSnapshot {

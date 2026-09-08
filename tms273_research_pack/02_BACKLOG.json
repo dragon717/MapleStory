@@ -1,0 +1,540 @@
+{
+  "note": "本项目提案；不是已经完成的开发或可承诺工期。",
+  "items": [
+    {
+      "id": "R001",
+      "milestone": "M0",
+      "priority": "P0",
+      "owner": "A",
+      "title": "冻结地区/版本/世界/活动清单",
+      "depends_on": [],
+      "acceptance": "每条规则有版本、证据类型与未确认状态",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R002",
+      "milestone": "M0",
+      "priority": "P0",
+      "owner": "A",
+      "title": "定义ID、坐标、时间单位与规则版本",
+      "depends_on": [
+        "R001"
+      ],
+      "acceptance": "各域使用同一字段约定",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R003",
+      "milestone": "M0",
+      "priority": "P0",
+      "owner": "H",
+      "title": "制作观察/截图/录像记录模板",
+      "depends_on": [
+        "R001"
+      ],
+      "acceptance": "无录像时不会伪造时间码；环境条件齐全",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R004",
+      "milestone": "M0",
+      "priority": "P0",
+      "owner": "C",
+      "title": "选择主职业与代表技能采样",
+      "depends_on": [
+        "R001",
+        "R003"
+      ],
+      "acceptance": "样本覆盖群攻/输出/位移/生存且证据可追溯",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R005",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "G",
+      "title": "最小地图与平台编辑数据",
+      "depends_on": [
+        "R002"
+      ],
+      "acceptance": "三层、梯绳、下跳、门与出生点可加载",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R006",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "C",
+      "title": "输入/移动/受击状态",
+      "depends_on": [
+        "R004",
+        "R005"
+      ],
+      "acceptance": "边缘、空中、落地、转向可复现",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R007",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "D",
+      "title": "属性来源与效果句柄",
+      "depends_on": [
+        "R002"
+      ],
+      "acceptance": "添加/移除来源无属性漂移",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R008",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "C",
+      "title": "技能校验和动作时间轴",
+      "depends_on": [
+        "R006",
+        "R007"
+      ],
+      "acceptance": "前摇/命中/收招/资源/CD分别可测",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R009",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "G",
+      "title": "怪物AI与刷怪生命周期",
+      "depends_on": [
+        "R005"
+      ],
+      "acceptance": "出生/死亡/刷新只结算一次",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R010",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "C",
+      "title": "多段命中、弹道与召唤样本",
+      "depends_on": [
+        "R008",
+        "R009"
+      ],
+      "acceptance": "目标上限/重复命中策略可配置",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R011",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "H",
+      "title": "HUD与输入焦点",
+      "depends_on": [
+        "R008"
+      ],
+      "acceptance": "聊天/模态窗口不触发角色动作",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R012",
+      "milestone": "M1",
+      "priority": "P0",
+      "owner": "C",
+      "title": "特效、音效与可读性",
+      "depends_on": [
+        "R010",
+        "R011"
+      ],
+      "acceptance": "危险预警在高特效场景仍可辨识",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R013",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "B",
+      "title": "任务状态与前置求值",
+      "depends_on": [
+        "R002"
+      ],
+      "acceptance": "可见/可接/完成/领取分别建模",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R014",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "E",
+      "title": "物品实例/背包/容量",
+      "depends_on": [
+        "R002"
+      ],
+      "acceptance": "堆叠、装备唯一性、绑定与容量有校验",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R015",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "E",
+      "title": "掉落归属与幂等拾取",
+      "depends_on": [
+        "R009",
+        "R014"
+      ],
+      "acceptance": "并发拾取最多一人成功；失败不吞物品",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R016",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "E",
+      "title": "任务领奖事务",
+      "depends_on": [
+        "R013",
+        "R014"
+      ],
+      "acceptance": "重复请求只到账一次；满包可恢复",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R017",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "F",
+      "title": "换装、套装与属性重算",
+      "depends_on": [
+        "R007",
+        "R014"
+      ],
+      "acceptance": "换装前后来源与套装效果正确",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R018",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "H",
+      "title": "背包对比/拖拽/错误反馈",
+      "depends_on": [
+        "R014",
+        "R017"
+      ],
+      "acceptance": "已装备/未满足条件/锁定/满包状态明确",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R019",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "B",
+      "title": "章节内容与推荐导航",
+      "depends_on": [
+        "R013",
+        "R016",
+        "R005"
+      ],
+      "acceptance": "玩家知道去哪里和奖励有什么用",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R020",
+      "milestone": "M2",
+      "priority": "P0",
+      "owner": "A",
+      "title": "存档版本/迁移/断线恢复",
+      "depends_on": [
+        "R016",
+        "R017"
+      ],
+      "acceptance": "重登不重复领奖、不丢合法装备",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R021",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "F",
+      "title": "版本化星力式强化",
+      "depends_on": [
+        "R017",
+        "R014"
+      ],
+      "acceptance": "费用、风险、保护和结果来自规则表",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R022",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "F",
+      "title": "潜能式强化及属性解释",
+      "depends_on": [
+        "R021",
+        "R007"
+      ],
+      "acceptance": "词条重置与阶级独立；预算消耗可模拟",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R023",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "F",
+      "title": "代表性V核心装配",
+      "depends_on": [
+        "R010",
+        "R014"
+      ],
+      "acceptance": "装配、卸下和强化改变正确技能来源",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R024",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "F",
+      "title": "HEXA式旧技能进化试炼",
+      "depends_on": [
+        "R023"
+      ],
+      "acceptance": "前置/材料/技能版本升级能被战斗验证",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R025",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "F",
+      "title": "区域力量与日常进度",
+      "depends_on": [
+        "R019",
+        "R020"
+      ],
+      "acceptance": "日常领取幂等，门槛与建议明确",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R026",
+      "milestone": "M3",
+      "priority": "P0",
+      "owner": "H",
+      "title": "统一强化与核心交互",
+      "depends_on": [
+        "R021",
+        "R022",
+        "R024"
+      ],
+      "acceptance": "费用/收益/风险/失败恢复可理解",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R027",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "G",
+      "title": "Boss1：走位和预警验证",
+      "depends_on": [
+        "R012",
+        "R019"
+      ],
+      "acceptance": "无伤害碾压时，学会机制能提高成功率",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R028",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "G",
+      "title": "Boss2：爆发和成长验证",
+      "depends_on": [
+        "R024",
+        "R027"
+      ],
+      "acceptance": "存在不同准备和输出窗口",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R029",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "E",
+      "title": "Boss练习/正式奖励隔离",
+      "depends_on": [
+        "R016",
+        "R027"
+      ],
+      "acceptance": "练习不发正式收益，正式结算幂等",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R030",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "A",
+      "title": "日周周期与结算事实",
+      "depends_on": [
+        "R025",
+        "R029"
+      ],
+      "acceptance": "业务时区/周期ID明确，跨周期恢复正确",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R031",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "H",
+      "title": "新玩家闭环可用性测试",
+      "depends_on": [
+        "R018",
+        "R026",
+        "R028",
+        "R030"
+      ],
+      "acceptance": "无需口头指导完成闭环；误解点有记录",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R032",
+      "milestone": "M4",
+      "priority": "P0",
+      "owner": "C",
+      "title": "性能与战斗重放测试",
+      "depends_on": [
+        "R028"
+      ],
+      "acceptance": "目标设备/负载/FPS目标先定义再报告实测",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R033",
+      "milestone": "M5",
+      "priority": "P1",
+      "owner": "C",
+      "title": "第二职业差异化接入",
+      "depends_on": [
+        "R031"
+      ],
+      "acceptance": "不复制核心属性/掉落/任务实现",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R034",
+      "milestone": "M5",
+      "priority": "P1",
+      "owner": "F",
+      "title": "传授/战地账号成长",
+      "depends_on": [
+        "R020",
+        "R033"
+      ],
+      "acceptance": "新号与成长号效果明确且不重复",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R035",
+      "milestone": "M5",
+      "priority": "P1",
+      "owner": "G",
+      "title": "小队地图与Boss实例",
+      "depends_on": [
+        "R029",
+        "R033"
+      ],
+      "acceptance": "退队/掉线/重入/分配有一致规则",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R036",
+      "milestone": "M5",
+      "priority": "P1",
+      "owner": "D",
+      "title": "队伍增益与光环生命周期",
+      "depends_on": [
+        "R007",
+        "R035"
+      ],
+      "acceptance": "来源离场正确回落，不误删仍有效来源",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R037",
+      "milestone": "M6",
+      "priority": "P2",
+      "owner": "E",
+      "title": "拍卖/交易与审计",
+      "depends_on": [
+        "R034",
+        "R035"
+      ],
+      "acceptance": "防复制、防双卖、明确手续费/限制",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R038",
+      "milestone": "M6",
+      "priority": "P2",
+      "owner": "A",
+      "title": "活动覆盖层与奖励运营",
+      "depends_on": [
+        "R030",
+        "R037"
+      ],
+      "acceptance": "活动有独立版本/期限，不污染永久成长",
+      "status": "planned_not_executed",
+      "estimate": null
+    },
+    {
+      "id": "R039",
+      "milestone": "M6",
+      "priority": "P2",
+      "owner": "H",
+      "title": "装扮/商城/收集社交扩展",
+      "depends_on": [
+        "R038"
+      ],
+      "acceptance": "预览、装备、绑定与到账分离；素材可用",
+      "status": "planned_not_executed",
+      "estimate": null
+    }
+  ]
+}
