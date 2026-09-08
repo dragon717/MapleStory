@@ -1,5 +1,5 @@
 :root{font-family:"Trebuchet MS","Microsoft YaHei",sans-serif;color:#e7e9da;background:#172d2a;font-synthesis:none;color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(ellipse at 20% 40%,#315045 0,transparent 60%)}button,input{font:inherit}button,a,input{outline-offset:4px}button{cursor:pointer}button:disabled{cursor:wait;opacity:.6}button:focus-visible,a:focus-visible,input:focus-visible,#game:focus-visible{outline:3px solid #efc269}header,footer{display:flex;align-items:center;justify-content:space-between;padding:24px 5vw;border-bottom:1px solid #ffffff17;gap:20px}.header-brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px}.release-badge{position:fixed;top:8px;left:5vw;z-index:10;pointer-events:none;color:#d7dfc8;font:10px/1.2 monospace;letter-spacing:.2px;white-space:nowrap}.brand{color:#f8e2aa;text-decoration:none;font:700 25px Georgia,serif}.brand small{font:12px "Trebuchet MS",sans-serif;color:#aebcaf;margin-left:15px}.leaf{color:#efb964;font-size:30px;margin-right:8px}.connection{font-size:12px;color:#a9b9af}.connection.online{color:#beeca7}main{max-width:1280px;margin:auto;padding:32px 5vw 20px}.welcome{min-height:65vh;display:grid;grid-template-columns:1fr 380px;align-items:center;gap:50px}.eyebrow{font-size:10px;letter-spacing:2px;color:#b7c8b6;font-weight:bold}h1{font:normal clamp(36px,4vw,58px)/1.35 Georgia,"Songti SC",serif;margin:25px 0;color:#fff0c9;letter-spacing:2px}.intro>p:not(.eyebrow){color:#b3c2b3;line-height:1.9;font-size:14px}.edition{font-size:11px;color:#a4b5a4;border-top:1px solid #a4b5a440;display:inline-block;margin-top:35px;padding-top:18px;letter-spacing:2px}.panel{background:#f3ecd9;color:#374336;border:1px solid #c9ba8a;box-shadow:0 9px 0 #112821,0 12px 25px #0003;padding:0 30px 20px;border-radius:5px}.panel-title{margin:0 -30px 26px;padding:14px 20px;background:#dfd2ac;border-bottom:1px solid #c2b487;font-size:12px;font-weight:bold;display:flex;justify-content:space-between}.panel-title span{color:#8d805b;font-size:10px}h2{font:normal 28px Georgia,"Songti SC",serif;margin:0 0 10px}.panel p{font-size:12px;color:#7b7c66}.panel label{font-size:12px;display:block;margin:24px 0 8px;font-weight:bold}.panel input{width:100%;background:#fffcef;color:#33412e;border:1px solid #c4c3a7;border-radius:3px;padding:12px;font-size:14px}.panel input::placeholder{color:#a2a28b}.primary{margin-top:25px;width:100%;background:#426844;color:#fffae5;border:1px solid #2b4c31;border-bottom:4px solid #2b4c31;border-radius:4px;padding:12px 16px;font-weight:bold;display:flex;justify-content:space-between}.primary:hover{background:#507c50}.text-button{display:block;width:100%;border:0;background:none;color:#5b7050;font-size:12px;margin:16px 0;padding:4px}.panel .form-note{border-top:1px solid #d8d2bd;padding-top:14px;text-align:center;font-size:10px}.world-toolbar{display:flex;align-items:center;gap:20px;margin-bottom:14px}.world-toolbar strong{display:block;color:#ffe6ac;font:20px Georgia,"Songti SC",serif;margin-top:4px}#population{font-size:12px;color:#b4c1ae}.actions{display:flex;gap:8px;margin-left:auto}.actions button{background:#2e463d;border:1px solid #648068;color:#e2e4c9;padding:8px 12px;border-radius:3px;font-size:12px}#game{width:100%;aspect-ratio:16/9;background:#112720;border:4px solid #849372;box-shadow:0 4px 0 #071d15;border-radius:3px;overflow:hidden}#game canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}#message{font-size:12px;min-height:20px;color:#c8d7b5;margin:24px 0 8px}#message.error{color:#ffbe9a}footer{border-top:1px solid #ffffff17;border-bottom:0;font-size:10px;color:#8ba494;letter-spacing:2px}footer span:first-child{margin-left:auto}[hidden]{display:none!important}@media(max-width:750px){header{padding:18px 5vw}.brand{font-size:20px}.brand small{display:none}.welcome{grid-template-columns:1fr;gap:25px}.intro{display:none}.panel{max-width:420px;width:100%;margin:10px auto 25px}.world-toolbar{gap:10px;flex-wrap:wrap}.actions{margin-left:auto}.actions button{padding:8px}.world-toolbar strong{font-size:16px}#population{font-size:10px}footer span:first-child{display:none}main{padding:20px 3vw}.connection{font-size:10px}}
-#play{max-width:min(100%,calc((100dvh - 260px)*16/9));margin:auto}@media(max-width:750px){#play{max-width:100%}}
+#play{margin:0}
 #game-shell{position:relative;width:100%}#game-shell>#game{position:relative;z-index:1}
 
 /* Source-backed UIWindow.img/Item. The source window is 175x289 (603x289
@@ -9,7 +9,7 @@
 /* v83 StatusBar chat shell. The controls use the exported source frames and
    the input stays native so it remains usable when the world is resized. */
 #game-shell>#chat{position:absolute;left:4px;bottom:79px;z-index:3;max-width:calc(100% - 8px);pointer-events:auto}.maple-chat{position:relative;width:min(566px,100%);color:#17242b;font:11px/1.2 Verdana,sans-serif;image-rendering:pixelated}.chat-panel{position:relative;width:100%;padding:0 0 3px}.chat-toolbar{display:flex;align-items:center;gap:3px;min-width:0}.chat-target,.chat-box-toggle,.chat-whisper{position:relative;flex:0 0 auto;padding:0;border:0;background:transparent;line-height:0;height:20px;overflow:hidden}.chat-target{width:81px}.chat-box-toggle{width:42px;height:19px}.chat-whisper{width:12px;height:19px}.chat-target-image,.chat-box-image,.chat-whisper-image{position:absolute;left:0;top:0;display:block;width:auto;height:auto;max-width:none;image-rendering:pixelated;pointer-events:none}.chat-target span{position:absolute;left:0;right:0;top:3px;color:#f0f2ed;font:10px/13px Verdana,sans-serif;text-align:center;text-shadow:1px 1px 0 #1b2731;pointer-events:none}.chat-form{display:flex;min-width:0;flex:1 1 auto;height:20px;margin:0}.chat-input{min-width:0;width:100%;height:20px;padding:2px 5px;border:1px solid #29333a;border-radius:2px;background:#f5f1dc;color:#1a2726;font:11px/14px Verdana,sans-serif;outline-offset:2px}.chat-input::placeholder{color:#70756c}.chat-input:disabled{cursor:not-allowed;opacity:.72}.chat-source-line{display:block;width:100%;height:5px;max-width:none;margin-top:1px;image-rendering:pixelated}.chat-availability{display:block;margin-top:1px;color:#e7ddbd;font-size:9px;line-height:11px;text-shadow:1px 1px 0 #0a1613}.chat-panel-closed .chat-form,.chat-panel-closed .chat-source-line,.chat-panel-closed .chat-availability{display:none}.chat-panel-closed .chat-toolbar{width:max-content}.chat-panel-closed .chat-target{display:none}.chat-panel-closed .chat-whisper{display:none}.chat-box-toggle:focus-visible,.chat-target:focus-visible,.chat-whisper:focus-visible{outline:2px solid #efc269;outline-offset:1px}
-@media(max-width:799px){#game-shell>#chat{position:relative;left:auto;bottom:auto;max-width:none;margin-top:4px;padding:0 4px}.maple-chat{width:min(566px,100%);margin:auto}.chat-toolbar{width:100%}}
+@media(max-width:799px){.chat-toolbar{width:100%}}
 @media(max-width:420px){#game-shell>#chat{margin-top:3px;padding:0 2px}.chat-toolbar{gap:2px}.chat-target{width:81px}.chat-form{flex-basis:0}.chat-input{font-size:10px;padding-left:3px;padding-right:3px}.chat-availability{font-size:8px}}
 
 /* Source-backed Basic.img/Notice death confirmation. */
@@ -139,7 +139,7 @@
 .tms-hud[hidden]{display:none}.tms-hud{width:100%;color:#fff;font:11px/1.2 Arial,"Microsoft YaHei",sans-serif;pointer-events:none}.tms-hud img{display:block;max-width:none;image-rendering:pixelated;pointer-events:none;user-select:none}.tms-hud-row{display:flex;align-items:flex-end;justify-content:center;gap:16px;padding:0 8px;flex-wrap:wrap}.tms-status{position:relative;flex:0 0 204px;height:70px}.tms-gauge-fill{position:absolute;overflow:hidden}.tms-gauge-text{position:absolute;display:flex;align-items:center;justify-content:center;line-height:13px;font-size:10px;text-shadow:1px 1px #000,-1px -1px #000}.tms-level{position:absolute;left:41px;top:6px;display:flex;align-items:center;gap:1px;height:15px}.tms-player-name{position:absolute;left:84px;top:7px;right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.tms-hud-actions{display:flex;gap:1px;align-items:flex-end;justify-content:center;flex-wrap:wrap;pointer-events:auto;padding-bottom:7px;max-width:100%}.tms-hud-actions button{padding:0;border:0;border-radius:0;background:transparent;cursor:pointer;flex:0 0 auto;min-width:34px;min-height:37px}.tms-hud-actions button:focus-visible{outline:2px solid #ffe278;outline-offset:2px}.tms-hud-actions .tms-shortcuts{border:1px solid #75828b;background:#293039e8;border-radius:4px;color:#fff;margin-left:6px;padding:0 7px;font-size:11px}.tms-exp{position:relative;height:16px;width:100%;border-top:1px solid #62666c;background:#171b22e8;overflow:hidden}.tms-exp-fill{position:absolute;inset:1px auto 1px 0;background-repeat:repeat-x;background-size:auto 100%;width:0}.tms-exp-text{position:relative;display:block;text-align:center;font-size:10px;line-height:14px;text-shadow:1px 1px #000,-1px -1px #000}@media(max-width:540px){.tms-hud-row{gap:0 8px;padding:0 4px}.tms-hud-actions{padding-bottom:3px}.tms-hud-actions .tms-shortcuts{margin-left:3px}.tms-hud{background:linear-gradient(transparent,#111820b3)}}
 
 /* TMS273 Quest.img frame uses its authored content rectangle. */
-.tms-quest-log{display:block;max-height:calc(100% - 8px);max-width:calc(100% - 8px);background-color:transparent;background-repeat:no-repeat;border:0;border-radius:0;box-shadow:none;image-rendering:pixelated}
+.tms-quest-log{display:block;top:calc((100% - var(--hud-height,0px))/2);transform:translate(-50%,-50%);max-height:calc(100% - var(--hud-height,0px) - 8px);max-width:calc(100% - 8px);background-color:transparent;background-repeat:no-repeat;border:0;border-radius:0;box-shadow:none;image-rendering:pixelated}
 .tms-quest-log .quest-log-title{position:absolute;left:12px;top:30px;padding:0;background:none;border:0;color:#ddd;font:12px sans-serif}
 .tms-quest-log .quest-log-body{position:absolute;padding:3px;background:transparent}
 .tms-quest-log .quest-log-row{background:#eeeeee;border-color:#d4d4d4;border-radius:0}
@@ -163,3 +163,57 @@
 .locale-picker select:focus-visible{outline:3px solid #efc269;outline-offset:4px}
 @media(max-width:750px){header{gap:10px}.header-tools{gap:8px}.locale-picker{font-size:10px}.locale-picker select{padding:3px 5px}}
 @media(max-width:420px){.locale-picker>span{display:none}.locale-picker select{max-width:90px}.header-tools{gap:6px}}
+
+.quest-tracker{position:absolute;right:12px;top:12px;max-width:min(280px,calc(100% - 24px));padding:8px 10px;border:1px solid #728087;border-radius:4px;background:#293238e8;color:#fff;text-align:left;font:12px/1.5 sans-serif;white-space:pre-line;cursor:pointer;pointer-events:auto}
+.quest-tracker[hidden]{display:none}
+.quest-tracker:focus-visible{outline:2px solid #f5d653}
+.quest-next{font-weight:600!important}
+@media(max-width:600px),(max-height:500px){.quest-tracker{top:4px;right:4px;max-width:min(230px,55%);max-height:88px;overflow:auto;font-size:11px}.tms-quest-log{background-size:100% 100%;transform:translate(-50%,-50%)}.tms-quest-log .quest-log-body{width:calc(100% - 24px)!important;max-height:calc(100% - 90px)}}
+
+/* Browser viewport and world pixels grow together; HUD keeps source-sized controls. */
+body.game-mode{overflow:hidden;min-width:0;min-height:0;background:#112720}
+.game-mode #app>main{max-width:none;margin:0;padding:0}
+.game-mode #play,.game-mode #game-shell{width:100%;height:100dvh;min-height:0}
+.game-mode #game{width:100%;height:100%;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none}
+.game-mode #game:focus-visible{outline:0}
+.game-mode #game-shell>#chat{position:absolute;left:max(8px,env(safe-area-inset-left));bottom:calc(var(--hud-height,86px) + 8px);width:min(566px,calc(100% - 16px));max-width:calc(100% - 16px);margin:0;padding:0}
+.game-mode #game-shell>#hud{padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#maple-news{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:0 18px 16px;overflow:auto;overscroll-behavior:contain;border:1px solid #93bec4;border-radius:12px;background:#eff5f4;color:#405c69;font:12px/1.6 "Microsoft YaHei","PingFang SC",sans-serif;box-shadow:0 8px 30px #0005;color-scheme:light}
+#maple-news::backdrop{background:#10232955}
+.news-heading{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;background:#eff5f4;border-bottom:2px solid #40b8d4}
+.news-heading h2{margin:0;color:#326b7b;font:700 18px/1.4 "Microsoft YaHei",sans-serif}
+#news-close{width:32px;height:32px;padding:0;border:1px solid #93bec4;border-radius:5px;background:#fff;color:#326b7b;font-size:22px}
+#news-content header{display:flex;flex-wrap:wrap;gap:12px;padding:14px 0;border:0}
+#news-content .brand{display:none}
+#news-content .release-badge{position:static;color:#687f88;white-space:normal}
+#news-content .header-tools{flex-wrap:wrap;margin:0;gap:10px}
+#news-content .connection,#news-content .locale-picker,#news-content #population,#news-content .eyebrow{color:#526e79}
+#news-content .connection.online{color:#287543}
+#news-content .locale-picker>span{display:inline}
+#news-content .world-toolbar{display:flex;flex-wrap:wrap;gap:12px;padding:12px 0;border-top:1px solid #cbdcdd;margin:0}
+#news-content .world-toolbar>div:first-child{flex-basis:100%;min-width:0}
+#news-content .world-toolbar strong{color:#326b7b;font:700 16px/1.6 "Microsoft YaHei",sans-serif}
+#news-content .map-route{display:block;color:#607986;overflow-wrap:anywhere}
+#news-content .actions{flex-wrap:wrap;margin:0}
+#news-content .actions button,#news-content select{background:#fff;color:#326b7b;border-color:#93bec4}
+#news-content #message{margin:8px 0;color:#405c69;overflow-wrap:anywhere}
+#news-content #message.error,#news-log .error{color:#ad3930}
+#news-content footer{display:flex;flex-wrap:wrap;gap:6px 12px;padding:10px 0;color:#687f88;letter-spacing:0;border-color:#cbdcdd}
+#news-content footer span:first-child{display:inline;margin:0}
+#maple-news details{border-top:1px solid #cbdcdd;padding-top:10px}
+#maple-news summary{cursor:pointer;color:#326b7b;font-weight:bold}
+#news-log{padding-left:20px;max-height:220px;overflow:auto;overflow-wrap:anywhere}
+#news-log li{padding:4px 0;border-bottom:1px solid #d9e4e5}
+#game-alert{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:8;max-width:calc(100% - 24px);max-height:25dvh;overflow:auto;padding:7px 12px;border:1px solid #9fc8d0;border-radius:6px;background:#233b45e8;color:#f0f9fa;font:12px/1.5 "Microsoft YaHei",sans-serif;overflow-wrap:anywhere}
+@media(max-height:480px){.game-mode .tms-hud-row{justify-content:flex-end;gap:8px}.game-mode #game-shell>#chat{width:min(340px,calc(100% - 16px))}}
+
+@media(max-width:600px),(max-height:500px){.tms-quest-log .quest-log-close{left:auto!important;right:8px}}
+
+#boss-practice { position:absolute; z-index:25; top:12px; left:50%; transform:translateX(-50%); width:min(360px, calc(100% - 24px)); padding:10px 14px; border:1px solid #b5caa3; border-radius:8px; background:rgba(248,250,239,.95); color:#30462e; box-shadow:0 3px 14px #142d1933; display:grid; gap:6px; pointer-events:auto; }
+#boss-practice[hidden] { display:none; }
+#boss-detail { font-size:12px; line-height:1.4; }
+#boss-practice > div { display:flex; gap:8px; }
+#boss-practice button { min-height:32px; cursor:pointer; }
+#boss-practice button:disabled { opacity:.5; cursor:default; }
+#boss-practice button:focus-visible { outline:2px solid #416c34; outline-offset:2px; }
+#boss-hp { width:100%; height:10px; accent-color:#bb5146; }

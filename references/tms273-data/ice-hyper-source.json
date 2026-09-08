@@ -1,0 +1,1301 @@
+{
+  "schemaVersion": 1,
+  "status": "runtime implementation in progress; not validated or published",
+  "version": "TMS273.7",
+  "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/222.json",
+  "sha256": "2d154a3063e96645fa45f0970c954b96e31056fc7d9649293cdbefa0923471d0",
+  "skills": {
+    "2220043": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "damR": {
+          "_dirType": "string",
+          "_value": "10"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "140"
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2211007": {
+          "_dirType": "sub"
+        }
+      }
+    },
+    "2220044": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "targetPlus": {
+          "_dirType": "string",
+          "_value": "2"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "150"
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2211007": {
+          "_dirType": "sub"
+        }
+      }
+    },
+    "2221045": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "x": {
+          "_dirType": "string",
+          "_value": "100"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "180"
+      },
+      "notRemoved": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "req": {
+        "_dirType": "sub",
+        "2211007": {
+          "_dirType": "int",
+          "_value": "10"
+        }
+      }
+    },
+    "2220046": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "damR": {
+          "_dirType": "string",
+          "_value": "20"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "140"
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2221006": {
+          "_dirType": "sub"
+        },
+        "2241000": {
+          "_dirType": "sub"
+        },
+        "2241001": {
+          "_dirType": "sub"
+        }
+      }
+    },
+    "2220047": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "targetPlus": {
+          "_dirType": "string",
+          "_value": "2"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "165"
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2221006": {
+          "_dirType": "sub"
+        },
+        "2241000": {
+          "_dirType": "sub"
+        },
+        "2241001": {
+          "_dirType": "sub"
+        }
+      }
+    },
+    "2220048": {
+      "_dirType": "sub",
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "attackCount": {
+          "_dirType": "string",
+          "_value": "1"
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "180"
+      }
+    },
+    "2220049": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "damR": {
+          "_dirType": "string",
+          "_value": "20"
+        }
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2221012": {
+          "_dirType": "sub"
+        },
+        "2241002": {
+          "_dirType": "sub"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "150"
+      }
+    },
+    "2220050": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "targetPlus": {
+          "_dirType": "string",
+          "_value": "2"
+        }
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2221012": {
+          "_dirType": "sub"
+        },
+        "2241002": {
+          "_dirType": "sub"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "165"
+      }
+    },
+    "2220051": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "cr": {
+          "_dirType": "string",
+          "_value": "20"
+        }
+      },
+      "psdSkill": {
+        "_dirType": "sub",
+        "2221012": {
+          "_dirType": "sub"
+        },
+        "2241002": {
+          "_dirType": "sub"
+        }
+      },
+      "psd": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "190"
+      }
+    },
+    "2221052": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "1"
+        }
+      },
+      "info2": {
+        "_dirType": "sub",
+        "ignoreCounter": {
+          "_dirType": "int",
+          "_value": "1"
+        }
+      },
+      "action": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "string",
+          "_value": "HY222lightningSphere"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mpCon": {
+          "_dirType": "string",
+          "_value": "30"
+        },
+        "damage": {
+          "_dirType": "string",
+          "_value": "150"
+        },
+        "attackCount": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "mobCount": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "x": {
+          "_dirType": "string",
+          "_value": "780"
+        },
+        "cooltime": {
+          "_dirType": "string",
+          "_value": "60"
+        },
+        "lt": {
+          "_dirType": "vector",
+          "_x": -450,
+          "_y": -350
+        },
+        "rb": {
+          "_dirType": "vector",
+          "_x": 50,
+          "_y": 50
+        },
+        "q": {
+          "_dirType": "string",
+          "_value": "2"
+        },
+        "w": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "s": {
+          "_dirType": "string",
+          "_value": "2000"
+        },
+        "s2": {
+          "_dirType": "string",
+          "_value": "140"
+        },
+        "s5": {
+          "_dirType": "string",
+          "_value": "50"
+        }
+      },
+      "PVPcommon": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mpCon": {
+          "_dirType": "string",
+          "_value": "30"
+        },
+        "damage": {
+          "_dirType": "string",
+          "_value": "700"
+        },
+        "attackCount": {
+          "_dirType": "string",
+          "_value": "1"
+        },
+        "mobCount": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "x": {
+          "_dirType": "string",
+          "_value": "1000"
+        },
+        "cooltime": {
+          "_dirType": "string",
+          "_value": "90"
+        },
+        "lt": {
+          "_dirType": "vector",
+          "_x": -450,
+          "_y": -350
+        },
+        "rb": {
+          "_dirType": "vector",
+          "_x": 50,
+          "_y": 50
+        }
+      },
+      "prepare": {
+        "_dirType": "sub",
+        "action": {
+          "_dirType": "string",
+          "_value": "HY222lightningSphere_prep"
+        },
+        "time": {
+          "_dirType": "int",
+          "_value": "780"
+        }
+      },
+      "keydown": {
+        "_dirType": "sub",
+        "action": {
+          "_dirType": "string",
+          "_value": "HY222lightningSphere"
+        },
+        "time": {
+          "_dirType": "int",
+          "_value": "960"
+        }
+      },
+      "keydownend": {
+        "_dirType": "sub",
+        "action": {
+          "_dirType": "string",
+          "_value": "HY222lightningSphere_end"
+        },
+        "time": {
+          "_dirType": "int",
+          "_value": "900"
+        }
+      },
+      "special": {
+        "_dirType": "sub",
+        "randomHitOrigin": {
+          "_dirType": "int",
+          "_value": "15"
+        },
+        "useZ": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "z": {
+          "_dirType": "int",
+          "_value": "1"
+        }
+      },
+      "hit": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "randomHitOrigin": {
+            "_dirType": "int",
+            "_value": "15"
+          },
+          "useZ": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "z": {
+            "_dirType": "int",
+            "_value": "1"
+          }
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "elemAttr": {
+        "_dirType": "string",
+        "_value": "l"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "2"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "160"
+      },
+      "skillList": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "int",
+          "_value": "400021000"
+        }
+      },
+      "weapon": {
+        "_dirType": "int",
+        "_value": "37"
+      },
+      "weapon2": {
+        "_dirType": "int",
+        "_value": "38"
+      },
+      "changeSkill": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "skill": {
+            "_dirType": "int",
+            "_value": "2241005"
+          },
+          "quickslot": {
+            "_dirType": "int",
+            "_value": "1"
+          }
+        }
+      }
+    },
+    "2221053": {
+      "_dirType": "sub",
+      "effect": {
+        "_dirType": "sub"
+      },
+      "effect0": {
+        "_dirType": "sub",
+        "z": {
+          "_dirType": "int",
+          "_value": "-1"
+        }
+      },
+      "affected": {
+        "_dirType": "sub"
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mpCon": {
+          "_dirType": "string",
+          "_value": "100"
+        },
+        "time": {
+          "_dirType": "string",
+          "_value": "60"
+        },
+        "cooltime": {
+          "_dirType": "string",
+          "_value": "120"
+        },
+        "indieDamR": {
+          "_dirType": "string",
+          "_value": "10"
+        },
+        "lt": {
+          "_dirType": "vector",
+          "_x": -400,
+          "_y": -300
+        },
+        "rb": {
+          "_dirType": "vector",
+          "_x": 400,
+          "_y": 300
+        }
+      },
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "50"
+        }
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "2"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "190"
+      },
+      "notRemoved": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "disabledDuringAction": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "isPetAutoBuff": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "isSequenceOn": {
+        "_dirType": "int",
+        "_value": "1"
+      }
+    },
+    "2221054": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "15"
+        },
+        "massSpell": {
+          "_dirType": "int",
+          "_value": "1"
+        }
+      },
+      "info2": {
+        "_dirType": "sub",
+        "ignoreCounter": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mes": {
+          "_dirType": "string",
+          "_value": "cold"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mpCon": {
+          "_dirType": "string",
+          "_value": "60"
+        },
+        "y": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "z": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "w": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "lt": {
+          "_dirType": "vector",
+          "_x": -350,
+          "_y": -200
+        },
+        "rb": {
+          "_dirType": "vector",
+          "_x": 350,
+          "_y": 150
+        },
+        "s": {
+          "_dirType": "string",
+          "_value": "-15"
+        },
+        "v": {
+          "_dirType": "string",
+          "_value": "-75"
+        },
+        "time": {
+          "_dirType": "string",
+          "_value": "8"
+        },
+        "mobCount": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "u": {
+          "_dirType": "string",
+          "_value": "30"
+        },
+        "q": {
+          "_dirType": "string",
+          "_value": "60"
+        }
+      },
+      "effect": {
+        "_dirType": "sub"
+      },
+      "start": {
+        "_dirType": "sub"
+      },
+      "repeat": {
+        "_dirType": "sub"
+      },
+      "end": {
+        "_dirType": "sub"
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "2"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "140"
+      },
+      "notRemoved": {
+        "_dirType": "int",
+        "_value": "1"
+      }
+    },
+    "2221055": {
+      "_dirType": "sub",
+      "info": {
+        "_dirType": "sub",
+        "type": {
+          "_dirType": "int",
+          "_value": "15"
+        },
+        "massSpell": {
+          "_dirType": "int",
+          "_value": "1"
+        }
+      },
+      "info2": {
+        "_dirType": "sub",
+        "ignoreCounter": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mes": {
+          "_dirType": "string",
+          "_value": "cold"
+        }
+      },
+      "common": {
+        "_dirType": "sub",
+        "maxLevel": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "mpCon": {
+          "_dirType": "string",
+          "_value": "60"
+        },
+        "y": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "z": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "w": {
+          "_dirType": "string",
+          "_value": "20"
+        },
+        "lt": {
+          "_dirType": "vector",
+          "_x": -300,
+          "_y": -270
+        },
+        "rb": {
+          "_dirType": "vector",
+          "_x": 300,
+          "_y": 30
+        },
+        "subTime": {
+          "_dirType": "string",
+          "_value": "1200"
+        },
+        "s": {
+          "_dirType": "string",
+          "_value": "-15"
+        },
+        "v": {
+          "_dirType": "string",
+          "_value": "-75"
+        },
+        "time": {
+          "_dirType": "string",
+          "_value": "8"
+        },
+        "mobCount": {
+          "_dirType": "string",
+          "_value": "15"
+        },
+        "cooltime": {
+          "_dirType": "string",
+          "_value": "60"
+        },
+        "u": {
+          "_dirType": "string",
+          "_value": "210"
+        },
+        "u2": {
+          "_dirType": "string",
+          "_value": "30"
+        }
+      },
+      "effect": {
+        "_dirType": "sub"
+      },
+      "tile": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        },
+        "2": {
+          "_dirType": "sub"
+        }
+      },
+      "tile0": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "z": {
+            "_dirType": "int",
+            "_value": "-1"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "z": {
+            "_dirType": "int",
+            "_value": "-1"
+          }
+        },
+        "2": {
+          "_dirType": "sub",
+          "z": {
+            "_dirType": "int",
+            "_value": "-1"
+          }
+        }
+      },
+      "hyper": {
+        "_dirType": "int",
+        "_value": "2"
+      },
+      "reqLev": {
+        "_dirType": "int",
+        "_value": "140"
+      },
+      "notRemoved": {
+        "_dirType": "int",
+        "_value": "1"
+      },
+      "invisible": {
+        "_dirType": "int",
+        "_value": "1"
+      }
+    }
+  },
+  "webReferences": [
+    {
+      "url": "https://www.maplesea.com/wiki/GettingStarted/CharacterStats",
+      "classification": "R",
+      "checkedAt": "2026-09-08",
+      "facts": {
+        "passivePointLevels": [
+          140,
+          150,
+          165,
+          180,
+          190
+        ],
+        "activeUnlockLevels": [
+          140,
+          160,
+          190
+        ],
+        "separateFromOrdinarySP": true,
+        "activeNotAffectedByCooldownReductionOrBuffDuration": true
+      }
+    },
+    {
+      "url": "https://beanfun-event.beanfun.com/EventAD_Mobile/EventAD?eventAdId=5310",
+      "classification": "T-historical-2019-not-same-patch",
+      "checkedAt": "2026-09-08",
+      "facts": {
+        "passiveRequirementLevels": [
+          140,
+          140,
+          150,
+          150,
+          165,
+          165,
+          180,
+          180,
+          190
+        ],
+        "activeRequirementLevels": [
+          140,
+          160,
+          190
+        ]
+      }
+    },
+    {
+      "url": "https://maplestory.nexon.com/Guide/N23GameInformation/Articles/403",
+      "classification": "R-current-KMS-not-TMS273",
+      "checkedAt": "2026-09-08",
+      "facts": {
+        "passivePointLevels": [
+          140,
+          150,
+          165,
+          180,
+          190
+        ],
+        "activeUnlockLevels": [
+          140,
+          160,
+          190
+        ],
+        "resetCostsMesos": [
+          100000,
+          1000000,
+          2000000,
+          5000000,
+          10000000
+        ],
+        "resetCostCapMesos": 10000000,
+        "activeNotAffectedByCooldownReductionOrBuffDuration": true
+      }
+    }
+  ],
+  "boundaries": [
+    "13 hyper-tagged nodes include hidden2221055; visible count12, not13 independent learnable skills.",
+    "2221045 has hyper=1 despite active-looking numeric ID; classify by source field.",
+    "Current runtime level cap140 and ordinary SP cannot support full Hyper progression. Extend growth deliberately after region/Boss closure; never grant free max skills.",
+    "Only source preparation: Hyper point persistence, reset cost, hidden toggle runtime, UI source and complete mechanics still need design."
+  ],
+  "stringSource": {
+    "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json",
+    "sha256": "df108f137307d9cd9a034d662b0e89832a7afa7ff8818b4573875875ac70409a"
+  },
+  "skillText": {
+    "2220043": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "瞬間移動精通-強化傷害"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "瞬間移動精通的傷害增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "提高傷害 #damR% "
+      }
+    },
+    "2220044": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "瞬間移動精通-臨時目標"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "瞬間移動精通的可攻擊的怪物最大數量增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "可攻擊的怪物最大數量增加#targetPlus"
+      }
+    },
+    "2221045": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "瞬間移動精通-提升距離"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "大幅增加瞬間移動的移動距離無法和瞬間移動爆發同時使用。\\n使用技能會開啟效果，再次使用會關閉效果的#cON/OFF技能#\\n需要技能 : #c瞬間移動精通10級以上#"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "移動距離 #x增加"
+      }
+    },
+    "2220046": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "閃電連擊-強化傷害"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "閃電連擊的傷害增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "提高傷害 #damR% "
+      }
+    },
+    "2220047": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "閃電連擊-臨時目標"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "閃電連擊可攻擊的怪物最大數量增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "可攻擊的怪物最大數量增加#targetPlus"
+      }
+    },
+    "2220048": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "閃電連擊-額外攻擊"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "閃電連擊的攻擊次數增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "攻擊次數增加#attackCount \t"
+      }
+    },
+    "2220049": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "冰鋒刃-強化傷害"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "讓鋒刃的傷害力增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "提高傷害#damR%"
+      }
+    },
+    "2220050": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "冰鋒刃-臨時目標"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "冰鋒刃的可攻擊的怪物最大數量增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "可攻擊的怪物最大數量增加#targetPlus"
+      }
+    },
+    "2220051": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "冰鋒刃-爆擊提升"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "讓冰鋒刃的會心一擊率增加。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "爆擊機率增加#cr%"
+      }
+    },
+    "2221052": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "雷霆萬鈞"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "朝前方召喚巨大的電球，並對怪物造成持續傷害。就算對攻擊反射狀態的敵方進行攻擊也不會受到傷害。使用技能期間不會被任何攻擊擊退，且不會陷入致命異常狀態。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "長壓技能，每次攻擊消耗MP#mpCon，以固定間隔對最多#mobCount名敵人造成#damage%傷害，攻擊#attackCount次，最多可按住#q秒，釋放按鍵時發動以#x%傷害攻擊#w次的最後一擊\\n長壓期間包括造成最大HP一定比例傷害的攻擊在內，受擊傷害減少#s5%\\n冷卻時間 #cooltime秒"
+      }
+    },
+    "2221053": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "傳說冒險"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "只有遊遍楓之谷世界每個角落的傳說中的冒險家才可使用的加持，可增加傷害。"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "消耗MP#mpCon，#time秒內傷害增加#indieDamR%。\\n只對隊員中的冒險家職業群產生效果\\n冷卻時間#cooltime秒"
+      }
+    },
+    "2221054": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "冰雪結界"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "對隊員施放由不碎寒氣環繞的光團。搭配「下」方向鍵再次使用技能時，將生成噴湧猛烈寒氣的漩渦。位於漩渦內的敵人將更快陷入冰凍狀態。\\n使用技能時發動效果，並於再次使用時移除效果的#c開關技能#"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "每秒消耗MP#mpCon，使包含自身在內的周圍隊員狀態異常耐性增加#z、所有屬性耐性增加#w%\\n所受傷害減少#y%\\n每隔一定週期可對最多#mobCount名敵人疊加冰凍狀態\\n#c漩渦#:#u秒內持續對龍捲風內的我軍套用如同冰雪結界般的效果，敵人則會更快的被凍結\\n龍捲風生成冷卻時間#q秒"
+      }
+    },
+    "2221055": {
+      "_dirType": "sub",
+      "name": {
+        "_dirType": "string",
+        "_value": "冰雪結界"
+      },
+      "desc": {
+        "_dirType": "string",
+        "_value": "對隊員施放由不碎寒氣環繞的光團。搭配「下」方向鍵再次使用技能時，將生成噴湧猛烈寒氣的漩渦。位於漩渦內的敵人將更快陷入冰凍狀態。\\n使用技能時發動效果，並於再次使用時移除效果的#c開關技能#"
+      },
+      "h": {
+        "_dirType": "string",
+        "_value": "每秒消耗MP#mpCon，使包含自身在內的周圍隊員狀態異常耐性增加#z、所有屬性耐性增加#w%\\n所受傷害減少#y%\\n每隔一定週期可對最多#mobCount名敵人疊加冰凍狀態\\n#c漩渦#:#u2秒持續，對位於漩渦內的友軍賦予冰雪結界效果，並使敵人更快陷入冰凍狀態\\n漩渦生成冷卻時間：#cooltime秒"
+      }
+    }
+  },
+  "behaviorReview": {
+    "2221045": {
+      "classification": "T fields / U execution",
+      "hyperPointKind": 1,
+      "onOffText": true,
+      "mutuallyExclusiveWithTeleportBoostText": true,
+      "distanceIncrease": 100,
+      "requires": {
+        "2211007": 10
+      },
+      "boundary": "No psd/psdSkill/action/effect: do not classify by numeric ID as an attack."
+    },
+    "2221052": {
+      "classification": "T fields / U hit scheduling",
+      "prepareMs": 780,
+      "keydownMs": 960,
+      "keydownendMs": 900,
+      "maxHoldSeconds": 2,
+      "hitInterval": "U",
+      "boundary": "PvPcommon is separate; keep sustained phase and final strike distinct."
+    },
+    "2221054/2221055": {
+      "classification": "T fields / inferred relation, execution U",
+      "visibleToggle": "2221054",
+      "hiddenVortexCandidate": "2221055",
+      "boundary": "No explicit changeSkill link; source names/text/tile structure suggest down-key variant. Do not expose hidden skill in learnable catalog."
+    }
+  },
+  "resetDesign": {
+    "classification": "P adopted from official R; same-patch TMS cost table unavailable",
+    "costsMesos": [
+      100000,
+      1000000,
+      2000000,
+      5000000,
+      10000000
+    ],
+    "boundary": "Persist saturated reset tier; quote exact cost before confirmation; reject stale quote; clear only Hyper investments with debit and request ledger in one transaction. Do not reset ordinary skills, ordinary SP, story, equipment or cooldowns. Architecture pending code review."
+  },
+  "runtimeDesign": {
+    "classification": "P execution adapters using T source fields and official R structure",
+    "storage": "Existing skills map and skill_actions ledger; separate derived passive/active point balances; persisted saturated reset tier.",
+    "passivePointLevels": [
+      140,
+      150,
+      165,
+      180,
+      190
+    ],
+    "activePointLevels": [
+      140,
+      160,
+      190
+    ],
+    "activeLearning": "P: manually invest one active Hyper point after source level gate; not auto-granted.",
+    "levelCap": 200,
+    "experience": "P: existing15*level^2 extended; ordinary fourth SP ends140.",
+    "sphere": {
+      "prepareMs": 780,
+      "maxHoldMs": 2000,
+      "holdStarts": "P after preparation",
+      "pulseMs": 200,
+      "pulseMp": 30,
+      "finalExtraMp": 0,
+      "failure": "Stop without final hit or catch-up if MP transaction fails; final release once.",
+      "initialMp": 30,
+      "firstPulse": "P: initial30MP prepays first pulse or early-release final; later pulses charge30, final has no additional charge.",
+      "mpModifiers": "P: initial and sustained charges both use source30MP, outside Elemental Amp/Infinity; the initial payment also covers an early-release final.",
+      "incomingDamage": "Source50 percent reduction and knockback immunity while held; do not inherit Ice Dragon Breath full invulnerability. Enemy fatal-status entry remains unavailable."
+    },
+    "aura": {
+      "mpPerSecond": 60,
+      "freezePulseMs": 2400,
+      "vortexFreezePulseMs": 1200,
+      "vortexDurationSeconds": 30,
+      "targetScope": "P self only; no party system.",
+      "vortexDamage": 0
+    },
+    "ui": "P reuse viewed TMS273 Skill shell/BtHyper with passive and active tabs; dedicated Hyper panel source unavailable.",
+    "boundary": "No claim that enemy fatal-status entry, party propagation or original timing is implemented."
+  }
+}

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "source": "Quest.wz/QuestData/{id}.img",
   "sourceJson": "Quest/QuestData/{id}.json",
-  "sourceRoot": "参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW",
+  "sourceRoot": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW",
   "encoding": "UTF-8",
   "gameVersion": 273,
   "region": "TW",
@@ -10,8 +10,11 @@
     "family": "冒險家原版出生地劇情",
     "area": 77,
     "idPattern": "36300-36399",
-    "requestedCount": 100,
-    "count": 63,
+    "prerequisiteQuestIds": [
+      "1402"
+    ],
+    "requestedCount": 101,
+    "count": 64,
     "missingIds": [
       "36300",
       "36305",
@@ -54,6 +57,382 @@
     "executable": false
   },
   "quests": [
+    {
+      "id": "1402",
+      "questId": 1402,
+      "source": "Quest.wz/QuestData/1402.img",
+      "sourceJson": "Quest/QuestData/1402.json",
+      "name": "[楓之谷世界的冒險家] 法師之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 法師之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 法師之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和魔法森林的法師轉職官漢斯交談，轉職為法師吧。",
+          "QuestInfo/1": "決定獲得魔法森林的法師轉職官漢斯的引導，並且轉職為法師。",
+          "QuestInfo/2": "已轉職為法師。",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q1402s",
+          "Check/1/endscript": "q1402e",
+          "Check/1/infoex/0/value": "2"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 法師之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和魔法森林的法師轉職官漢斯交談，轉職為法師吧。",
+          "QuestInfo/1": "決定獲得魔法森林的法師轉職官漢斯的引導，並且轉職為法師。",
+          "QuestInfo/2": "已轉職為法師。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {},
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 法師之路"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "和魔法森林的法師轉職官漢斯交談，轉職為法師吧。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "決定獲得魔法森林的法師轉職官漢斯的引導，並且轉職為法師。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "已轉職為法師。"
+        },
+        "disableAtStartTab": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "autoStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1032001"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q1402s"
+          },
+          "fieldEnter": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "101000003"
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "36307"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1032001"
+          },
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q1402e"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "infoNumber": {
+            "_dirType": "int",
+            "_value": "1406"
+          },
+          "infoex": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              },
+              "value": {
+                "_dirType": "string",
+                "_value": "2"
+              }
+            }
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q1402s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        },
+        {
+          "name": "q1402e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 法師之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和魔法森林的法師轉職官漢斯交談，轉職為法師吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定獲得魔法森林的法師轉職官漢斯的引導，並且轉職為法師。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "已轉職為法師。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1032001"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1402s"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "101000003"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1032001"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1402e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "2"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
     {
       "id": "36301",
       "questId": 36301,

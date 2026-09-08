@@ -13,6 +13,7 @@ export interface NpcSnapshot {
   facing: -1 | 1;
   shopId?: string;
   jobAdvancementAvailable?: boolean;
+  questAvailable?: boolean;
   /** World tick when the npc last changed pose; npcs only play `stand`. */
   actionStartedTick?: number;
 }
@@ -81,7 +82,7 @@ export class NpcView {
     // Nameplate floats above the sprite's top edge, centred on the figure.
     const label = this.ensureLabel(npc, sprite.depth);
     if (label) label.setPosition(left + frame.width / 2, top - 6);
-    if (npc.jobAdvancementAvailable && this.markerFrames.length) {
+    if ((npc.jobAdvancementAvailable || npc.questAvailable) && this.markerFrames.length) {
       const markerFrame = this.markerFrames[this.markerFrames.length === 1 ? 0 : frameAt(this.markerFrames.map(frame => frame.delay), elapsed, true)];
       if (!this.marker) this.marker = this.scene.add.image(0, 0, markerFrame.url).setOrigin(0).setDepth(sprite.depth + 11);
       this.marker.setTexture(markerFrame.url).setVisible(true)

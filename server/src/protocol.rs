@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 6;
-pub const CONTENT_VERSION: &str = "tms273-2";
+pub const PROTOCOL_VERSION: u32 = 10;
+pub const CONTENT_VERSION: &str = "tms273-9";
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum BossPracticeAction { Enter, Leave, Retry }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +77,12 @@ pub enum ClientMessage {
         request_id: String,
         stat: AbilityStat,
     },
+    ResetHyper {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "expectedCost")]
+        expected_cost: u64,
+    },
     LearnSkill {
         #[serde(rename = "requestId")]
         request_id: String,
@@ -88,6 +98,17 @@ pub enum ClientMessage {
         direction: Option<i8>,
         #[serde(default)]
         vertical: Option<i8>,
+    },
+    BossPractice {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        action: BossPracticeAction,
+        #[serde(rename = "encounterId", default)]
+        encounter_id: Option<String>,
+    },
+    ReleaseSkill {
+        #[serde(rename = "requestId")]
+        request_id: String,
     },
     Pickup {
         #[serde(rename = "requestId")]
@@ -158,6 +179,12 @@ pub enum ClientMessage {
     },
     /// Talk to a placed npc.  `step` is absent (or "start") for the opening
     /// message and otherwise selects the button the player pressed.
+    QuestInteract {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "questId")]
+        quest_id: String,
+    },
     NpcTalk {
         #[serde(rename = "requestId")]
         request_id: String,
@@ -206,10 +233,20 @@ impl ClientMessage {
                     && (-1..=1).contains(vertical)
             }
             Self::Attack { request_id }
+            | Self::ReleaseSkill { request_id }
             | Self::AllocateAp { request_id, .. }
             | Self::LearnSkill { request_id, .. }
             | Self::Pickup { request_id, .. }
             | Self::Revive { request_id } => valid_id(request_id),
+            Self::BossPractice { request_id, encounter_id, .. } => {
+                valid_id(request_id) && encounter_id.as_deref().is_none_or(|id| {
+                    id.len() <= 96 && crate::auth::is_practice_map(id)
+                        && id.bytes().all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
+                })
+            }
+            Self::ResetHyper { request_id, expected_cost } => {
+                valid_id(request_id) && matches!(*expected_cost, 100_000 | 1_000_000 | 2_000_000 | 5_000_000 | 10_000_000)
+            }
             Self::CastSkill {
                 request_id,
                 direction,
@@ -282,6 +319,7 @@ impl ClientMessage {
                 request_id,
                 quantity,
             } => valid_id(request_id) && (10..=50_000).contains(quantity),
+            Self::QuestInteract { request_id, quest_id } => valid_id(request_id) && valid_id(quest_id),
             Self::NpcTalk {
                 request_id,
                 npc_id,
@@ -347,6 +385,15 @@ pub struct InventoryItem {
     pub upgrade_count: Option<u32>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegenerationPassive {
+    pub id: &'static str,
+    pub book_id: u32,
+    pub hp_per_second: i64,
+    pub mp_per_second: i64,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DerivedStats {
@@ -354,10 +401,32 @@ pub struct DerivedStats {
     pub defense: i64,
     pub move_speed: f64,
     pub magic_guard: bool,
+    pub hyper_barrier_active: bool,
+    pub hyper_teleport_enabled: bool,
+    pub damage_reduction_percent: i64,
+    pub regeneration_passives: Vec<RegenerationPassive>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meditation_remaining_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_cooldowns: Option<BTreeMap<u32, u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_buffs: Option<BTreeMap<u32, u64>>,
+    #[serde(default)]
+    pub infinity_enhanced: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ice_teleport: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teleport_mastery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teleport_boost: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adaptation_charges: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adaptation_cooldown_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_resistance: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element_resistance: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strength: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -405,6 +474,9 @@ pub struct PlayerState {
     /// Source SP group id -> remaining points.  Group semantics and grants
     /// remain server-side until the matching source rules are verified.
     pub skill_points: BTreeMap<u32, u32>,
+    pub hyper_points: BTreeMap<u32, u32>,
+    pub hyper_reset_count: u8,
+    pub hyper_reset_cost: u64,
     pub inventory: Vec<InventoryItem>,
     pub equipped: Vec<InventoryItem>,
     pub monster_book: BTreeMap<String, u8>,
@@ -445,6 +517,8 @@ pub struct NpcState {
     /// Set only for the observer who can use the authored Hans job entry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub job_advancement_available: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quest_available: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -488,15 +562,15 @@ mod tests {
 
     #[test]
     fn client_job_field_is_not_an_authoritative_input() {
-        let message = r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","job":200}"#;
+        let message = r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-5","job":200}"#;
         assert!(serde_json::from_str::<ClientMessage>(message).is_err());
     }
 
     #[test]
     fn client_skill_state_fields_are_not_authoritative_inputs() {
         for message in [
-            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","skills":{"2001008":1}}"#,
-            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-2","skillPoints":{"1":5}}"#,
+            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-5","skills":{"2001008":1}}"#,
+            r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-5","skillPoints":{"1":5}}"#,
         ] {
             assert!(serde_json::from_str::<ClientMessage>(message).is_err());
         }

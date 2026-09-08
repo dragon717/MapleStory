@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-2';
+const version = 'tms273-9';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const mageAvatar = read('mage-avatar');
@@ -25,9 +25,14 @@ assert.deepEqual(gameplay.quests.map(q=>String(q.questId)).sort(),sourceQuests.m
 const manifest = {
   schemaVersion:2, contentVersion:version,
   ...skillManifest(read('windows-skills'), read('skills')),
+  bossEffects: read('boss-effects').bossEffects,
   npcQuestAvailable: read('npc-marker').npcQuestAvailable,
-  skillEffects: read('mage-effects').skillEffects,
-  skillSounds: Object.fromEntries(Object.entries(read('skill-sounds').skillSounds).map(([id, sounds]) => [id, { use: sounds.use, hit: sounds.hit }])),
+  skillEffects: Object.fromEntries(Object.entries(read('mage-effects').skillEffects).flatMap(([id, { levels, source, hidden, catalog, trigger, ...effects }]) => [
+    [id, effects], ...Object.entries(levels ?? {}).map(([level, frames]) => [`${id}:${level}`, frames]),
+  ])),
+  skillSounds: Object.fromEntries(Object.entries(read('skill-sounds').skillSounds).map(([id, sounds]) => [id, { use: sounds.use, hit: sounds.hit, loop: sounds.nodes?.Loop, end: sounds.nodes?.End, special: sounds.nodes?.Special, summonAttack: sounds.nodes?.SummonedAttack1 }])),
+  // P: choose the named LevelUp sequence; LevelUp2 is not proven to be an overlay.
+  levelUp: { layers: [read('levelup').layers[0]], sound: read('levelup').sound },
   characterUi: read('character-ui').characterUi,
   characterLayout: read('character-ui').characterLayout,
   source:{gameVersion:'TMS273.7', parser:'scripts/tms273_wz.cjs'},
@@ -43,23 +48,26 @@ for(const id of Object.keys(items))assert(manifest.items[id],`Item image export 
   Object.assign(gameplay.player,{attackAfterMs:extra.attack.hitAtMs,attackLt:extra.attack.hitbox.lt,attackRb:extra.attack.hitbox.rb});
   if(extra.expTable?.length)gameplay.expTable=extra.expTable;
 }
-// Preserve the same-version monster MP and boss flags for Magic Drain.
+// Preserve same-version monster MP, boss flags and magic defense.
 for (const monster of gameplay.monsters) {
   const raw = JSON.parse(fs.readFileSync(path.join(root, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Mob', monster.templateId.padStart(7, '0') + '.json'), 'utf8')).info;
   monster.maxMp = Number(raw.maxMP?._value ?? 0);
   monster.boss = Number(raw.boss?._value ?? 0) === 1;
+  monster.mdRate = Number(raw.MDRate?._value ?? 0);
+  assert(Number.isFinite(monster.mdRate) && monster.mdRate >= 0 && monster.mdRate <= 100);
   assert(Number.isSafeInteger(monster.maxMp) && monster.maxMp >= 0);
 }
 // P: temporary runnable level curve while TMS273's source EXP table is unavailable.
-// Level 60 is this curve's current ceiling; replace with a verified table to extend it.
-if (!gameplay.expTable?.length) gameplay.expTable = Array.from({length: 60}, (_, i) => i === 59 ? 0 : 15 * (i + 1) ** 2);
-gameplay.compatibility.experience = 'P: levels 1..59 need 15*level^2 EXP, level60 cap; each gained level grants 5 AP. Not an official TMS273 EXP table.';
+// P: level 200 permits every source Hyper level gate; replace with a verified EXP table.
+if (!gameplay.expTable?.length) gameplay.expTable = Array.from({length: 200}, (_, i) => i === 199 ? 0 : 15 * (i + 1) ** 2);
+gameplay.compatibility.experience = 'P: levels 1..199 need 15*level^2 EXP, level200 cap; each gained level grants 5 AP. Ordinary fourth-job SP stops at140; Hyper uses separate level-gated points. Not an official TMS273 EXP table.';
 // ponytail: existing movement/basic-combat engine remains a compatibility adapter;
 // replace these initial attributes only when verified 273 server rules are available.
 gameplay.player={job:0,baseStr:12,baseDex:5,baseInt:4,baseLuk:4,weaponType:130,weaponWatk:items["1302000"].info.incPAD,
   mastery:0.1,maxHp:50,maxMp:5,climbSpeed:125,attackReach:88,attackHeight:62,
   attackAfterMs:450,contactInvulnerabilityMs:2000,...gameplay.player};
 gameplay.contentVersion=version;
+gameplay.compatibility.bossPractice = 'P: private level25 practice at source map102020500; no EXP, drops, quest credit or formal clear credit. T: source Boss3220000 HP7500, animation and attack timings. R: MobSkill112/113 are defense buffs,114 heals x. P: corresponding damage*85%, heal700 below80%HP, action order/gaps, circle attack2 and visual anchors. Blocked quests2813..2816 remain untouched; official spawn/rewards unknown.';
 // User-requested shortcut (2026-09-08), separate from the missing original quest scripts.
 const mage = gameplay.npcs.find(npc => npc.templateId === '10201');
 assert(mage && gameplay.npcSpawns.some(npc => npc.id === '001020000-life-1' && npc.templateId === '10201' && npc.mapId === '001020000'), 'Mage transfer NPC is missing');
@@ -75,7 +83,12 @@ mage.script = {
 };
 gameplay.compatibility.mageTransfer = 'User-requested Magician selection at 001020000 / Hans; not the original q1402 quest script.';
 gameplay.compatibility.iceRuntime = 'P: Hans level30 shortcut 200->220, 5 initial book220 SP and 3 SP per later level; immediate multi-hit timing, five freeze layers with one layer change per cast/target, self-only Meditation and temporary teleport field execution. Source Skill values/art are TMS273.7; original transfer scripts and execution timing remain unverified.';
+gameplay.compatibility.iceThirdRuntime = 'P: Hans level60 shortcut 220->221, 5 initial book221 SP, then 3 SP per level; existing points/story/saves preserved. Immediate ice hits and one movable or stationary sphere per player at 1080ms pulses; eight adaptation charges and persistent source cooldown. Original third-job scripts and execution timing are unavailable; skills, art and source values remain TMS273.7.';
+gameplay.compatibility.beginnerRuntime = 'T: Skill/000.img and String/Skill.img define three beginner skills, max3, per-level MP/fixed damage/heal/speed/duration/cooldown. P: 5-second healing ticks inferred from source total and x; projectile reach/hit timing use the existing combat adapter. Buffs end on death/map exit/disconnect; skill levels, SP and cooldowns persist. Beginner SP follows the existing P 2..7 +1 rule. No shell item cost exists in the local skill source.';
+gameplay.compatibility.iceFourthRuntime = 'P: level100 Hans shortcut 221->222 preserves story; 3 initial SP plus historical cross-region 101..140 tiers, fixed frost passive. Bind uses a single cast and source-limited hold; orb uses 4000ms/210ms and 180px/s with contact slowdown; Ice Demon pulses every1080ms alongside thunder sphere; Infinity restores base HP/MP and ramps damage every5s. These execution adapters are not original TMS scripts. Source skill values and artwork remain TMS273.7.';
 gameplay.compatibility.player='Initial attributes and base combat formula use the existing runtime adapter; they are not certified TMS273 server parity.';
+const questText = read('quest-text'), npcNames = read('npc-names');
+require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('chapter'), questText, npcNames);
 const urls=new Set();
 function collect(value) {
   if(typeof value==='string' && value.startsWith('/assets/')) { assert(value.startsWith('/assets/tms273/'),`Foreign asset: ${value}`);urls.add(value); }
@@ -90,7 +103,7 @@ for(const url of urls) {
   const destination=path.join(publicRoot,url.slice(1));fs.mkdirSync(path.dirname(destination),{recursive:true});
   fs.copyFileSync(path.join(input,url.slice(1)),destination);
 }
-for(const [name,data] of Object.entries({gameplay,items,'quest-text':read('quest-text'),'npc-names':read('npc-names'),map:birth,maps:{birthMapId:birth.id,maps}})) {
+for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'npc-names':npcNames,map:birth,maps:{birthMapId:birth.id,maps}})) {
   // Rendering layers belong to the client manifest, not the server's map catalog.
   const serverData=name==='map'?(({layers,...map})=>map)(data):name==='maps'?{...data,maps:data.maps.map(({layers,...map})=>map)}:data;
   write(path.join(root,'shared',name+'.json'),serverData);

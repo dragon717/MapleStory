@@ -1,0 +1,185 @@
+{
+  "date": "2026-09-08",
+  "classification": "P: explicit user rule, not TMS273 original recovery values",
+  "rule": {
+    "beginner": {
+      "hpPerSecond": 1,
+      "mpPerSecond": 1
+    },
+    "magicianAdditional": {
+      "hpPerSecond": 0,
+      "mpPerSecond": 1
+    },
+    "warriorAdditional": {
+      "hpPerSecond": 2,
+      "mpPerSecond": 0
+    },
+    "stacking": "Base passive survives advancement; one extra passive per matching adventurer job family. No SP, duration, cast intent or arbitrary skill ID.",
+    "lifecycle": "Alive online simulation seconds only; clamp to maximum; no offline accumulation; persistence before HP/MP publication; no catch-up burst after failed persistence."
+  },
+  "localTms273Evidence": [
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/000.json",
+      "sha256": "05633a961b7850ceaa548df1c91aa773623e9df7a139c76818bf1249f0db0e65",
+      "node": "skill/0001001",
+      "fields": {
+        "level": {
+          "1": {
+            "hs": "h1",
+            "mpCon": "5",
+            "time": "30",
+            "x": "4",
+            "cooltime": "120"
+          },
+          "2": {
+            "hs": "h2",
+            "mpCon": "10",
+            "time": "30",
+            "x": "8",
+            "cooltime": "120"
+          },
+          "3": {
+            "hs": "h3",
+            "mpCon": "15",
+            "time": "30",
+            "x": "12",
+            "cooltime": "120"
+          }
+        },
+        "effect": {},
+        "info": {
+          "pvp": "0"
+        }
+      },
+      "text": {
+        "name": "治癒",
+        "desc": "[精通等級 : 3]\\n30秒間持續恢復自身的HP。\\n#c冷卻時間 : 2分#",
+        "h1": "消耗 MP 5 後，30秒之間恢復 HP 24",
+        "h2": "消耗 MP 10 後，30秒之間恢復 HP 48",
+        "h3": "消耗 MP 15 後，30秒之間恢復 HP 72"
+      }
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/200.json",
+      "sha256": "2cf857de17ae3b0be9144ed4d9756ce629f12d56c2d892afce76df69811b9846",
+      "node": "skill/2000006",
+      "fields": {
+        "common": {
+          "maxLevel": "20",
+          "mmpR": "x",
+          "lv2mmp": "20+5*x",
+          "actionSpeed": "-1"
+        },
+        "psd": "1",
+        "info": {
+          "type": "5"
+        },
+        "psdWT": {
+          "37": {
+            "cr": "5"
+          }
+        }
+      },
+      "text": {
+        "name": "魔力增幅",
+        "desc": "增加最大MP和攻擊速度，根據等級額外增加MP。",
+        "h": "最大MP增加#mmpR%，攻擊速度1階段增加，每個等級MP增加#lv2mmp\\n裝備短杖時，爆擊機率額外增加5%"
+      }
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/100.json",
+      "sha256": "0824ab1958fe6ef0ad37627f2824b99e52407f6e56c5578c5b8c5bfd1f85dece",
+      "node": "skill/1000003",
+      "fields": {
+        "info": {
+          "type": "10",
+          "magicSteal": "1"
+        },
+        "common": {
+          "maxLevel": "20",
+          "damAbsorbShieldR": "u(x/2)",
+          "pddX": "10*x",
+          "mhpR": "x"
+        },
+        "psd": "1"
+      },
+      "text": {
+        "name": "自身強化",
+        "desc": "將自己的防禦力與最大HP以一定比率增加，並減少被敵人襲擊時受到的傷害。",
+        "h": "增加#pddX防禦力，最大HP#mhpR%。被敵人攻擊時，傷害減少#damAbsorbShieldR%。"
+      }
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/100.json",
+      "sha256": "0824ab1958fe6ef0ad37627f2824b99e52407f6e56c5578c5b8c5bfd1f85dece",
+      "node": "skill/1000009",
+      "fields": {
+        "info": {
+          "type": "40",
+          "casterMove": "1",
+          "avaliableInJumpingState": "1"
+        },
+        "common": {
+          "maxLevel": "15",
+          "stanceProp": "10+2*x",
+          "psdJump": "2+u(x/2)",
+          "psdSpeed": "7+x",
+          "lv2mhp": "5+x",
+          "speedMax": "5+x"
+        },
+        "psd": "1"
+      },
+      "text": {
+        "name": "戰鬥技能",
+        "desc": "培養戰士的基本素養，增加移動速度與跳躍力、最大HP、最大移動速度，在敵人的攻擊下，有一定的機率不被擊退。",
+        "h": "增加移動速度 #psdSpeed、跳躍力#psdJump、最大移動速度 #speedMax、每等級最大HP#lv2mhp、格擋機率#stanceProp%。"
+      }
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/111.json",
+      "sha256": "ce069f9167287f792e60ad7b04bfeec5c4502af6f62203a8547359d547a70291",
+      "node": "skill/1110000",
+      "fields": {
+        "info": {
+          "type": "50"
+        },
+        "common": {
+          "maxLevel": "10",
+          "x": "u(x/4)+1",
+          "y": "u(x/4)+1",
+          "hcHp": "4000*x",
+          "u": "9-d(x/2)"
+        }
+      },
+      "text": {
+        "name": "強化恢復",
+        "h": "每#u秒恢復最大HP的#x%、以及最大MP的#y%",
+        "hch": "每一定週期追加恢復 HP #hcHp、MP #mp",
+        "desc": "每一定週期恢復 HP和 MP。戰鬥中也能進行恢復。"
+      }
+    }
+  ],
+  "interpretation": "0001001 is a 30-second active heal, 2000006 increases max/level-growth MP, 1000003 and1000009 max/level-growth HP. 1110000 is a later-job percent/interval recovery reference, not a first-job source. Keep all original skills unchanged.",
+  "onlineStructureReferences": [
+    {
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-effects-for-the-gameplay-ability-system-in-unreal-engine",
+      "classification": "R: engineering structure",
+      "use": "Infinite lifetime with periodic execution and additive effects; not adopting Unreal or claiming MapleStory numbers."
+    },
+    {
+      "url": "https://docs.unity.com/en-us/cloud-code/server-authority",
+      "classification": "R: engineering structure",
+      "use": "Server owns/enforces game state."
+    },
+    {
+      "url": "https://www.maplesea.com/info/characters/adventurers/",
+      "classification": "R: older cross-region official guide",
+      "use": "Separates active 30-second beginner Recovery from automatically owned passives. Historical cooldown/advancement values are not used."
+    }
+  ],
+  "presentation": {
+    "source": "UI/UIWindow2.img/Skill/main/skill0 and existing skill window",
+    "adaptation": "P: text-only permanent passive cards inside existing source grid, client reads server regenerationPassives. No fabricated official icon or catalog ID.",
+    "researchImage": "C06 https://grandislibrary.com/images/info/skill-expanded-ui.png failed web open; existing local273 background visually inspected."
+  }
+}

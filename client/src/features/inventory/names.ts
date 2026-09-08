@@ -2,7 +2,8 @@ import { uiLocale, displayText } from '../../app/i18n';
 import catalog from '../../../../shared/items.json';
 import type { InventoryItem } from '../../../../shared/protocol';
 
-type CatalogInfo = Record<string, string | number>;
+// Source info also retains nested metadata such as equipment growth levels.
+type CatalogInfo = Record<string, unknown>;
 
 /**
  * `islot` is the TMS273 source field used by server/src/inventory.rs.  Keep

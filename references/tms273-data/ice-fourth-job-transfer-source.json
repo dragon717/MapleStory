@@ -1,0 +1,480 @@
+{
+  "sourceVersion": "TMS273.7",
+  "evidenceKind": "local WZ_JSON_TW export; not a binary execution-script recovery",
+  "records": [
+    {
+      "questId": "36330",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36330.json",
+      "sha256": "1c8695c328a9a657a253d0d3c4f696dc0dcd6fdcfe08a4705a7789bb9e609c90",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 復活的徵兆",
+        "area": "77",
+        "type": "[轉職]",
+        "autoStart": "1",
+        "resignScript": "q36330x",
+        "0": "赫麗娜表示有事情想拜託。",
+        "1": "黑魔法師派出影子破壞楓之島之後，沒有發生任何事情，猶如暴風來臨之前的寧靜，確認看看鯨魚號是否安然無恙吧。",
+        "2": "從海盜轉職官卡伊琳那聆聽了關於德斯可疑的事情，莫非德斯是黑色翅膀嗎？",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "lvmin": "100",
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "npc": "1012100",
+          "QuestOrOption": "1",
+          "startscript": "q36330s",
+          "subJobFlags": "7",
+          "normalAutoStart": "1",
+          "lvmin": "100",
+          "quest": {
+            "0": {
+              "id": "1430",
+              "state": "2",
+              "order": "1"
+            },
+            "1": {
+              "id": "1434",
+              "state": "2",
+              "order": "1"
+            },
+            "2": {
+              "id": "1438",
+              "state": "2",
+              "order": "1"
+            },
+            "3": {
+              "id": "1441",
+              "state": "2",
+              "order": "1"
+            },
+            "4": {
+              "id": "1444",
+              "state": "2",
+              "order": "1"
+            }
+          },
+          "job": {
+            "0": "111",
+            "1": "121",
+            "2": "131",
+            "3": "211",
+            "4": "221",
+            "5": "231",
+            "6": "311",
+            "7": "321",
+            "8": "411",
+            "9": "421",
+            "10": "433",
+            "11": "511",
+            "12": "521",
+            "13": "531"
+          }
+        },
+        "1": {
+          "order": "1",
+          "npc": "1090000",
+          "endscript": "q36330e"
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    },
+    {
+      "questId": "36331",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36331.json",
+      "sha256": "58cdf2d132d989e17bd65fc9e839b696e9aeaab810dbca85ee5e7e122cf1e732",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 可疑的冒險者",
+        "area": "77",
+        "type": "[轉職]",
+        "resignScript": "q36331x",
+        "0": "去見#b航海室#k的#b卡伊琳#k了解鯨魚號有沒有什麼特別的事情吧。",
+        "1": "前往魔法森林#b森林的起始點#k追查德斯吧。",
+        "2": "德斯的表情猶如要沉沒在深海之中， 要對我說些什麼。",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "lvmin": "100",
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "npc": "1090000",
+          "startscript": "q36331s",
+          "subJobFlags": "7",
+          "lvmin": "100",
+          "quest": {
+            "0": {
+              "id": "36330",
+              "state": "2",
+              "order": "1"
+            }
+          },
+          "job": {
+            "0": "111",
+            "1": "121",
+            "2": "131",
+            "3": "211",
+            "4": "221",
+            "5": "231",
+            "6": "311",
+            "7": "321",
+            "8": "411",
+            "9": "421",
+            "10": "433",
+            "11": "511",
+            "12": "521",
+            "13": "531"
+          }
+        },
+        "1": {
+          "npc": "1541009",
+          "order": "1",
+          "endscript": "q36331e"
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    },
+    {
+      "questId": "36332",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36332.json",
+      "sha256": "d99e08c69c1407418309946ef53278c4f89ec17e3c92396a4cb2dd51d4c03c93",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 德斯的過去",
+        "area": "77",
+        "type": "[轉職]",
+        "resignScript": "q36332x",
+        "0": "聆聽德斯的事情吧。",
+        "1": "聆聽德斯的事情吧。",
+        "2": "據他所說這是一個很長的故事，對於長達數百年間的悲劇，我難以說出任何安慰的話語。在抹去德斯身上的詛咒這件事情上，我能夠幫上忙嗎？",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "lvmin": "100",
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "npc": "1541009",
+          "startscript": "q36332s",
+          "subJobFlags": "7",
+          "quest": {
+            "0": {
+              "id": "36331",
+              "state": "2",
+              "order": "1"
+            }
+          },
+          "lvmin": "100",
+          "job": {
+            "0": "111",
+            "1": "121",
+            "2": "131",
+            "3": "211",
+            "4": "221",
+            "5": "231",
+            "6": "311",
+            "7": "321",
+            "8": "411",
+            "9": "421",
+            "10": "433",
+            "11": "511",
+            "12": "521",
+            "13": "531"
+          }
+        },
+        "1": {
+          "order": "1"
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    },
+    {
+      "questId": "36333",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36333.json",
+      "sha256": "3796f04e317c3dcb22d934077cb472221201793beef26acdedc552244bf7aae6",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 再次，疑問的聲音",
+        "area": "77",
+        "type": "[轉職]",
+        "selfStart": "1",
+        "selfComplete": "1",
+        "resignScript": "q36333x",
+        "0": "腦中又響起疑問的聲音。",
+        "1": "腦中又響起疑問的聲音。\r\n\r\n\r\n#r(任務進行途中離開時，請放棄後重新接收再進行。)",
+        "2": "與疑問的聲音對話之後獲得了強烈的力量，他所說的命運指的是什麼意思呢？",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "lvmin": "100",
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "startscript": "q36333s",
+          "subJobFlags": "7",
+          "lvmin": "100",
+          "quest": {
+            "0": {
+              "id": "36332",
+              "state": "2",
+              "order": "1"
+            }
+          },
+          "job": {
+            "0": "111",
+            "1": "121",
+            "2": "131",
+            "3": "211",
+            "4": "221",
+            "5": "231",
+            "6": "311",
+            "7": "321",
+            "8": "411",
+            "9": "421",
+            "10": "433",
+            "11": "511",
+            "12": "521",
+            "13": "531"
+          }
+        },
+        "1": {
+          "order": "1",
+          "endscript": "q36333e",
+          "infoNumber": "36333",
+          "infoex": {
+            "0": {
+              "order": "1",
+              "value": "1",
+              "exVariable": "talk"
+            }
+          }
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    },
+    {
+      "questId": "1452",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/1452.json",
+      "sha256": "d100cbf19772d1e6963201ca35f8984a534fc06f47ed64447dc123b0e39db7cc",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 前往井口外側",
+        "type": "[轉職]",
+        "autoStart": "1",
+        "0": "又聽見可疑的聲音。去向長老取得建議吧。",
+        "1": "羅貝亞說若是想知道強悍的盡頭，就去一趟追求強悍的人的居住地，也就是祭司之林。",
+        "2": "在祭司之林和法師的祭司葛雷托見面了。",
+        "area": "77",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "lvmin": "100",
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "npc": "2020009",
+          "normalAutoStart": "1",
+          "lvmin": "100",
+          "quest": {
+            "0": {
+              "id": "13030",
+              "order": "1"
+            },
+            "1": {
+              "id": "36333",
+              "state": "2",
+              "order": "1"
+            }
+          },
+          "notInTeleportItemLimitedField": "1",
+          "job": {
+            "0": "211",
+            "1": "221",
+            "2": "231"
+          },
+          "job_TW": {}
+        },
+        "1": {
+          "npc": "2081200",
+          "order": "1"
+        }
+      },
+      "Act": {
+        "0": {
+          "transferField": "240010501"
+        },
+        "1": {}
+      }
+    },
+    {
+      "questId": "1453",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/1453.json",
+      "sha256": "06935d1d7994f43baca46b8ccf35c1c992c51b460ac647c8e6f4b674ecc4389a",
+      "QuestInfo": {
+        "name": "[楓之谷世界的冒險家] 真正的冒險家",
+        "type": "[轉職]",
+        "0": "在祭司之林和法師的祭司葛雷托對話看看。",
+        "1": "葛雷托說真正的冒險家和英雄不一樣，吩咐我必須背負的一切命運。",
+        "2": "身為真正的冒險家，能為楓之谷世界做什麼事呢？",
+        "area": "77",
+        "category": "0|2",
+        "reqType": "2",
+        "recommend": {
+          "except": {}
+        }
+      },
+      "Check": {
+        "0": {
+          "npc": "2081200",
+          "startscript": "q1453s",
+          "quest": {
+            "0": {
+              "id": "1452",
+              "state": "2",
+              "order": "1"
+            }
+          }
+        },
+        "1": {
+          "npc": "2081200",
+          "endscript": "q1453e",
+          "order": "1"
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    },
+    {
+      "questId": "13030",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/13030.json",
+      "sha256": "372df54e537b31df46db0ccb8bccc8583305b5d40efc6d9c9dc0f875e36ab2bb",
+      "QuestInfo": {
+        "name": "[活動] 冒險家的快速4轉- 法師",
+        "type": "[轉職]",
+        "autoStart": "1",
+        "0": "超技能活動期間，不用煩瑣的步驟就可以進行4轉。與葛雷托對話看看吧。",
+        "1": "超技能活動期間，不用煩瑣的步驟就可以進行4轉。與葛雷托對話看看吧。",
+        "2": "在超技能活動期間，省略了煩瑣的步驟進行了4轉。",
+        "area": "77",
+        "category": "99|0"
+      },
+      "Check": {
+        "0": {
+          "npc": "2081200",
+          "normalAutoStart": "1",
+          "startscript": "q13030s",
+          "lvmin": "100",
+          "end": "201306260000",
+          "end_t": "201306260000",
+          "quest": {
+            "0": {
+              "id": "1452"
+            },
+            "1": {
+              "id": "1453"
+            },
+            "2": {
+              "id": "12945",
+              "state": "2"
+            }
+          },
+          "job": {
+            "0": "211",
+            "1": "221",
+            "2": "231"
+          },
+          "job_TW": {}
+        },
+        "1": {
+          "order": "1"
+        }
+      },
+      "Act": {
+        "0": {},
+        "1": {}
+      }
+    }
+  ],
+  "networkReferences": [
+    {
+      "url": "https://support-maplestory.nexon.com/hc/en-us/articles/211588886-What-is-an-Open-Advancement",
+      "classification": "R",
+      "use": "Supports level100 fourth advancement for Explorers only. Open job-change reset rules are a separate system and are NOT imported."
+    },
+    {
+      "url": "https://maplestory.nexon.co.jp/job/adventurer/archmage02/",
+      "classification": "R",
+      "use": "Class progression and skill types only; exact numbers use local TMS273."
+    },
+    {
+      "url": "https://maplestory.nexon.co.jp/gameguide/growth/skill/",
+      "classification": "R",
+      "use": "Current JMS SP tiers: lv10-109=3,110-119=4,120-129=5,130-139=6,140=7; from101 endings0/3/6/9 double. Region/time differs from TMS273; do not claim T."
+    },
+    {
+      "url": "https://www.maplesea.com/updates/view/star_force_patch_notes/",
+      "classification": "R-historical",
+      "use": "Historical MSEA uses100-110=3,111-120=4,121-130=5,131-140=6, same double endings. Boundary differs from current JMS; not a TMS273 table."
+    }
+  ],
+  "conclusions": {
+    "level": 100,
+    "fromJob": 221,
+    "destinationFromQuest1452": "240010501",
+    "npcStart": "2020009",
+    "npcFinish": "2081200",
+    "sourcePrerequisite": "36333 completed; 13030 absent-state constraint preserved as raw field",
+    "excludedEventQuest": "13030 has 20130626 end timestamp, not a permanent fourth advancement implementation",
+    "executionMissing": [
+      "q1453s",
+      "q1453e",
+      "q36330s",
+      "q36330e",
+      "q36331s",
+      "q36331e",
+      "q36332s",
+      "q36333s",
+      "q36333e"
+    ],
+    "unverified": [
+      "SP grant and per-level distribution",
+      "trial objectives and rewards",
+      "story scene execution",
+      "script-owned 221 to 222 mutation"
+    ]
+  },
+  "spEvidence": {
+    "localVisibleNormalFourthSkills": 11,
+    "localSumMaxLevels": 256,
+    "hiddenAndHyperExcluded": true,
+    "conflict": "JMS and historical MSEA boundaries differ at110/120/130/140; initial fourth grant unverified",
+    "runtimeDecision": "P proposal: initial3 plus historical MSEA tier schedule101..140 yields255 learnable SP, matching local total. This arithmetic compatibility is not evidence of TMS273 grant rules. Preserve all existing books and balances; not implemented.",
+    "localFixedLevelSkill": "2220015 fixLevel=1 excluded from paid SP",
+    "localLearnableSpTotal": 255,
+    "historicalMsea101To140Total": 252,
+    "currentJms101To140Total": 260,
+    "proposedInitialGrant": 3
+  }
+}

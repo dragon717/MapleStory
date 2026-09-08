@@ -1,11 +1,12 @@
-import type { ClientMessage, PlayerState } from '../../../../shared/protocol';
+import type { ClientMessage, PlayerState, RegenerationPassive } from '../../../../shared/protocol';
 import type { SkillArt, SkillCatalogEntry, SkillWindowData, Manifest } from '../../assets/manifest';
 import { displayText } from '../../app/i18n';
+import { SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS } from '../player/input';
 import './style.css';
 
 type SkillBook = { name: string; tabIndex: number };
 type SkillMetric = 'mpCon' | 'damage' | 'mobCount' | 'attackCount';
-type SkillRequest = Extract<ClientMessage, { type: 'learnSkill' | 'castSkill' }>;
+type SkillRequest = Extract<ClientMessage, { type: 'learnSkill' | 'castSkill' | 'releaseSkill' | 'resetHyper' }>;
 
 export interface SkillViewOptions {
   send?: (message: SkillRequest) => boolean;
@@ -27,9 +28,9 @@ const METRICS: ReadonlyArray<readonly [SkillMetric, string, string]> = [
   ['attackCount', '攻击段数', ''],
 ];
 
-const ACTIVE_SKILLS = new Set(['2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009']);
-const TOGGLE_SKILLS = new Set(['2201001', '2201009']);
-const FIXED_SKILLS = new Set(['2200011']);
+const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012']);
+const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2001002', '2201009', '2211007', '2211017']);
+const FIXED_SKILLS = new Set(['2200011', '2220015']);
 const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
 const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
 
@@ -56,10 +57,24 @@ export class SkillView {
   private player?: PlayerState;
   private hasPlayerSnapshot = false;
   private selectedBookId?: string;
+  private hyperMode = false;
+  private hyperKind = 1;
   private selectedSkillId?: string;
   private openState = false;
   private destroyed = false;
   private requestSequence = 0;
+  private channelRequestId?: string;
+  releaseChannel = () => {
+    if (this.channelRequestId) this.send({ type: 'releaseSkill', requestId: this.channelRequestId });
+    this.channelRequestId = undefined;
+  };
+  private releaseChannelKey = (event: KeyboardEvent) => {
+    if (event.code === 'Space' || event.code === 'Enter') this.releaseChannel();
+  };
+  private releaseHiddenChannel = () => { if (document.hidden) this.releaseChannel(); };
+  private releaseOutsideChannel = (event: FocusEvent) => {
+    if (event.target instanceof Node && !this.window.contains(event.target)) this.releaseChannel();
+  };
 
   private readonly handleKeyDown = (event: KeyboardEvent) => {
     if (!this.openState || event.defaultPrevented || event.repeat || event.isComposing || event.metaKey || event.altKey || event.ctrlKey) return;
@@ -99,6 +114,7 @@ export class SkillView {
     this.tabs = document.createElement('nav');
     this.tabs.className = 'skill-tabs';
     this.tabs.setAttribute('aria-label', '技能书');
+    this.tabs.setAttribute('role', 'tablist');
     this.window.append(this.tabs);
 
     this.closeButton = this.createCloseButton();
@@ -127,6 +143,12 @@ export class SkillView {
 
     this.selectedBookId = this.books()[0]?.[0];
     document.addEventListener('keydown', this.handleKeyDown, true);
+    window.addEventListener('pointerup', this.releaseChannel);
+    window.addEventListener('pointercancel', this.releaseChannel);
+    window.addEventListener('keyup', this.releaseChannelKey);
+    window.addEventListener('blur', this.releaseChannel);
+    document.addEventListener('visibilitychange', this.releaseHiddenChannel);
+    document.addEventListener('focusin', this.releaseOutsideChannel);
     this.render();
   }
 
@@ -135,8 +157,14 @@ export class SkillView {
     const changed = !this.hasPlayerSnapshot
       || !sameSkills(this.player?.skills, player?.skills)
       || !sameSkills(this.player?.skillPoints, player?.skillPoints)
-      || this.player?.job !== player?.job;
+      || !sameSkills(this.player?.hyperPoints, player?.hyperPoints)
+      || this.player?.hyperResetCost !== player?.hyperResetCost
+      || this.player?.mesos !== player?.mesos
+      || this.player?.level !== player?.level
+      || this.player?.job !== player?.job
+      || this.castUiKey(this.player) !== this.castUiKey(player);
     this.player = player;
+    if (!player || player.hp <= 0) this.releaseChannel();
     this.hasPlayerSnapshot = true;
     if (changed) this.renderPreservingViewport();
   }
@@ -164,6 +192,7 @@ export class SkillView {
   }
 
   close() {
+    this.releaseChannel();
     const wasOpen = this.openState;
     this.openState = false;
     this.root.hidden = true;
@@ -186,8 +215,15 @@ export class SkillView {
 
   destroy() {
     if (this.destroyed) return;
+    this.releaseChannel();
     this.destroyed = true;
     document.removeEventListener('keydown', this.handleKeyDown, true);
+    window.removeEventListener('pointerup', this.releaseChannel);
+    window.removeEventListener('pointercancel', this.releaseChannel);
+    window.removeEventListener('keyup', this.releaseChannelKey);
+    window.removeEventListener('blur', this.releaseChannel);
+    document.removeEventListener('visibilitychange', this.releaseHiddenChannel);
+    document.removeEventListener('focusin', this.releaseOutsideChannel);
     this.root.remove();
   }
 
@@ -211,6 +247,20 @@ export class SkillView {
   }
 
   private appendBottomButtons() {
+    this.bottom.replaceChildren();
+    if (this.hyperMode) {
+      const back = this.createTextActionButton('普通技能', '返回普通技能', () => {
+        this.hyperMode = false; this.selectedSkillId = undefined; this.render();
+      }, 'skill-hyper-bottom');
+      const reset = this.createTextActionButton('重置', '重置超级技能点', () => this.resetHyper(), 'skill-hyper-bottom');
+      reset.dataset.hyperControl = 'reset';
+      back.dataset.hyperControl = 'back';
+      reset.disabled = !this.player || !(this.player.hyperResetCost && this.player.mesos >= this.player.hyperResetCost)
+        || ![...this.catalog().values()].some(entry => entry.hyper && (this.learnedLevel(entry.id) ?? 0) > 0);
+      reset.title = `重置费用：${this.player?.hyperResetCost?.toLocaleString() ?? '—'} 枫币`;
+      this.bottom.append(reset, back);
+      return;
+    }
     for (const [key, label] of BOTTOM_BUTTONS) {
       const states = this.data?.buttons?.[key];
       const art = states?.normal ?? states?.disabled;
@@ -218,14 +268,19 @@ export class SkillView {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `skill-bottom-button skill-bottom-button-${key}`;
-      button.disabled = true;
+      button.disabled = key !== 'BtHyper' || this.player?.job !== 222 || this.player.level < 140;
+      if (key === 'BtHyper') {
+        button.addEventListener('click', () => {
+          this.hyperMode = true; this.selectedBookId = '222'; this.selectedSkillId = undefined; this.render();
+        });
+      }
       button.setAttribute('aria-label', label);
-      button.title = label;
+      button.title = key === 'BtHyper' && button.disabled ? '140级冰雷魔导师可学习超级技能' : label;
       button.style.left = `${art.x}px`;
       button.style.top = `${art.y}px`;
       button.style.width = `${art.width}px`;
       button.style.height = `${art.height}px`;
-      this.appendArt(button, art, 'skill-bottom-button-art', true);
+      this.appendArt(button, button.disabled ? states?.disabled ?? art : art, 'skill-bottom-button-art', true);
       button.dataset.button = key;
       this.bottom.append(button);
     }
@@ -262,8 +317,11 @@ export class SkillView {
 
   private render() {
     if (this.destroyed) return;
+    if (this.player?.job !== 222) this.hyperMode = false;
+    this.window.dataset.hyper = String(this.hyperMode);
+    this.appendBottomButtons();
     const books = this.books();
-    if (!this.selectedBookId || !books.some(([id]) => id === this.selectedBookId)) this.selectedBookId = books[0]?.[0];
+    if (!this.selectedBookId || !books.some(([id]) => id === this.selectedBookId)) this.selectedBookId = books.find(([id]) => id === String(this.player?.job))?.[0] ?? books[0]?.[0];
     this.renderSkillPoint();
     this.renderTabs(books);
     const visible = this.visibleSkills(this.selectedBookId);
@@ -282,6 +340,7 @@ export class SkillView {
     const active = document.activeElement instanceof HTMLElement && this.root.contains(document.activeElement)
       ? document.activeElement
       : undefined;
+    const activeHyper = active?.dataset.hyperControl;
     const activeBookId = active?.dataset.bookId;
     const activeSkillId = active?.dataset.skillId;
     const wasClose = active === this.closeButton;
@@ -292,6 +351,7 @@ export class SkillView {
     this.list.scrollTop = listScroll;
     this.detailView.scrollTop = detailScroll;
     if (wasClose) this.closeButton.focus({ preventScroll: true });
+    else if (activeHyper) Array.from(this.window.querySelectorAll<HTMLElement>('[data-hyper-control]')).find(node => node.dataset.hyperControl === activeHyper)?.focus({ preventScroll: true });
     else if (activeBookId) this.focusDataNode(this.tabs, 'bookId', activeBookId);
     else if (activeSkillId) this.focusDataNode(this.list, 'skillId', activeSkillId);
     else if (wasDetailBack) this.detailView.querySelector<HTMLElement>('.skill-detail-back')?.focus({ preventScroll: true });
@@ -305,6 +365,19 @@ export class SkillView {
 
   private renderTabs(books: Array<[string, SkillBook]>) {
     this.tabs.replaceChildren();
+    if (this.hyperMode) {
+      for (const [kind, name] of [[1, '强化技能'], [2, '主动技能']] as const) {
+        const button = this.createTextActionButton(name, name, () => {
+          this.hyperKind = kind; this.selectedSkillId = undefined; this.render();
+          this.tabs.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
+        }, 'skill-hyper-tab');
+        button.dataset.hyperControl = `tab-${kind}`;
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-selected', String(this.hyperKind === kind));
+        this.tabs.append(button);
+      }
+      return;
+    }
     for (const [bookId, book] of books) {
       const selected = bookId === this.selectedBookId;
       const state = selected ? 'selected' : 'enabled';
@@ -337,21 +410,69 @@ export class SkillView {
   }
 
   private renderList(visible: SkillCatalogEntry[]) {
-    this.bookLabel.textContent = displayText(this.books().find(([id]) => id === this.selectedBookId)?.[1].name ?? '技能目录');
+    this.bookLabel.textContent = this.hyperMode ? `超级技能 · ${this.hyperKind === 1 ? '强化' : '主动'}` : displayText(this.books().find(([id]) => id === this.selectedBookId)?.[1].name ?? '技能目录');
     this.list.replaceChildren();
-    if (!visible.length) {
+    if (this.hyperMode) {
+      const guide = document.createElement('p');
+      guide.className = 'skill-hyper-guide';
+      guide.textContent = this.hyperKind === 1 ? '强化点：140 / 150 / 165 / 180 / 190级各获1点，选择强化已有技能。' : '主动点：140 / 160 / 190级各获1点。点击加号学习，再点击施放或使用快捷键。';
+      this.list.append(guide);
+    }
+    const passives = this.regenerationPassives();
+    for (const passive of passives) this.list.append(this.createRegenerationCard(passive));
+    if (!visible.length && !passives.length) {
       const empty = document.createElement('p');
       empty.className = 'skill-empty';
-      empty.textContent = '暂无可查看的技能。';
+      empty.textContent = this.selectedBookId === '0'
+        ? '初心者技能资源尚未加载。'
+        : '暂无可查看的技能。';
       this.list.append(empty);
       return;
     }
     for (const entry of visible) this.list.append(this.createSkillCard(entry));
   }
 
+  private regenerationPassives() {
+    if (this.hyperMode) return [];
+    return (this.player?.derivedStats?.regenerationPassives ?? [])
+      .filter(passive => String(passive.bookId) === this.selectedBookId);
+  }
+
+  private createRegenerationCard(passive: RegenerationPassive) {
+    const names: Record<string, string> = {
+      'beginner-recovery': '自然恢复',
+      'magician-recovery': '魔力自然恢复',
+      'warrior-recovery': '生命自然恢复',
+    };
+    const name = names[passive.id] ?? '自然恢复';
+    const gain = [passive.hpPerSecond > 0 ? `HP+${passive.hpPerSecond}` : '',
+      passive.mpPerSecond > 0 ? `MP+${passive.mpPerSecond}` : ''].filter(Boolean).join(' ');
+    const description = `${name}：永久被动，每秒额外恢复 ${gain}。自动获得，不消耗技能点，可与其他自然恢复叠加；死亡暂停，复活后继续，满值停止，离线不累计。`;
+    const item = document.createElement('div');
+    item.className = 'skill-cell-item';
+    item.setAttribute('role', 'listitem');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'skill-cell skill-regeneration';
+    button.dataset.passiveId = passive.id;
+    button.title = description;
+    button.setAttribute('aria-label', description);
+    const cell = this.data?.cells?.skill0 ?? this.data?.cells?.skillBlank;
+    if (cell) this.appendArt(button, cell, 'skill-cell-art');
+    for (const [className, text] of [['skill-cell-name', `${name} · 永久`], ['skill-cell-level', `${gain}/秒`]]) {
+      const label = document.createElement('span');
+      label.className = className;
+      label.textContent = displayText(text);
+      button.append(label);
+    }
+    button.addEventListener('click', () => this.status(description));
+    item.append(button);
+    return item;
+  }
+
   private renderSkillPoint() {
     const group = this.selectedBookId;
-    const points = group === undefined ? undefined : this.player?.skillPoints?.[group];
+    const points = this.hyperMode ? this.player?.hyperPoints?.[String(this.hyperKind)] : group === undefined || !this.player?.skillPoints ? undefined : (this.player.skillPoints[group] ?? 0);
     const known = typeof points === 'number' && Number.isSafeInteger(points) && points >= 0;
     this.skillPointValue.textContent = known ? String(points) : '—';
     this.skillPointValue.setAttribute('aria-label', known ? `技能点 ${points}` : '技能点未知');
@@ -360,7 +481,6 @@ export class SkillView {
   private createSkillCard(entry: SkillCatalogEntry) {
     const level = this.learnedLevel(entry.id);
     const canLearn = this.canLearn(entry);
-    const canCast = this.canCast(entry);
     const item = document.createElement('div');
     item.className = 'skill-cell-item';
     item.dataset.skillId = entry.id;
@@ -403,7 +523,7 @@ export class SkillView {
     button.append(name);
     const levelText = document.createElement('span');
     levelText.className = 'skill-cell-level';
-    levelText.textContent = this.levelLabel(level, entry.maxLevel);
+    levelText.textContent = entry.hyper && (this.player?.level ?? 0) < (entry.requiredLevel ?? 0) ? `需要角色等级 ${entry.requiredLevel}` : this.levelLabel(level, entry.maxLevel);
     button.append(levelText);
     button.addEventListener('click', () => {
       this.selectedSkillId = entry.id;
@@ -418,10 +538,8 @@ export class SkillView {
       item.append(learn);
       button.classList.add('has-learn-action');
     }
-    if (canCast) {
-      const label = this.isToggleSkill(entry) ? '切换' : '施放';
-      const cast = this.createTextActionButton(label, `${label}技能`, () => this.castSkill(entry), 'skill-cell-cast');
-      item.append(cast);
+    if (this.isActiveSkill(entry)) {
+      item.append(this.castButton(entry, 'skill-cell-cast'));
       button.classList.add('has-cast-action');
     }
     return item;
@@ -512,10 +630,51 @@ export class SkillView {
     actions.className = 'skill-detail-actions';
     if (this.data?.buttons?.BtSpUp) actions.append(this.createSkillActionButton('BtSpUp', '学习技能', this.canLearn(entry), () => this.learnSkill(entry), 'skill-detail-learn'));
     if (this.isActiveSkill(entry)) {
-      const label = this.isToggleSkill(entry) ? '切换' : '施放';
-      actions.append(this.createTextActionButton(label, `${label}技能`, () => this.castSkill(entry), 'skill-detail-cast'));
+      actions.append(this.castButton(entry, 'skill-detail-cast'));
     }
     if (actions.childElementCount) this.detailView.append(actions);
+
+    const fourthKey = Object.entries(FOURTH_SHORTCUT_SKILLS).find(([, id]) => String(id) === entry.id)?.[0];
+    const shortcut = fourthKey ? `Shift + ${fourthKey.slice(5)}` : this.player?.job === 0 && ['1000', '1001', '1002'].includes(entry.id) ? String(Number(entry.id) - 999) : Object.entries(SHORTCUT_SKILLS).find(([key, id]) => key.startsWith('Digit') && String(id) === entry.id)?.[0].slice(5);
+    if (shortcut) {
+      const hint = document.createElement('p');
+      hint.className = 'skill-detail-description';
+      hint.textContent = `快捷键：${shortcut}${entry.id === '2211011' ? '；按住 ↓ 再按 0 固定球体' : entry.id === '2221011' ? '；按住维持，松开结束' : ''}`;
+      this.detailView.append(hint);
+    }
+
+    if ((entry.bookId === '0' || entry.bookId === '222') && this.isActiveSkill(entry)) {
+      const state = document.createElement('p');
+      state.className = 'skill-detail-description';
+      const remaining = this.player?.derivedStats?.skillBuffs?.[entry.id] ?? 0;
+      state.textContent = `${remaining > 0 ? `效果剩余 ${Math.ceil(remaining / 1000)} 秒 · ` : ''}${this.castBlockReason(entry) || '可施放'}`;
+      this.detailView.append(state);
+    }
+
+    if (entry.id === '2211012') {
+      const state = document.createElement('p');
+      state.className = 'skill-detail-description';
+      state.textContent = `剩余防护次数：${this.player?.derivedStats?.adaptationCharges ?? 0} · ${this.castBlockReason(entry) || '可启用'}
+当前岛屿怪物没有致命异常攻击，防护不会由普通碰撞触发。`;
+      this.detailView.append(state);
+    }
+
+    if (entry.hyper) {
+      const hint = document.createElement('p');
+      hint.className = 'skill-detail-description';
+      hint.textContent = `需要角色等级 ${entry.requiredLevel} · 使用独立${entry.hyper === 1 ? '强化' : '主动'}点数。`;
+      if (entry.id === '2221052') hint.textContent += '按住施放，松开触发最后一击。';
+      if (entry.id === '2221053') hint.textContent += '当前队伍机制未开放，效果只作用于自身。';
+      if (entry.id === '2221054') {
+        hint.textContent += '开启后每秒消耗60 MP；生成漩涡后，站在范围内获得结界效果。';
+        const vortex = this.createTextActionButton('生成漩涡', '向下施放冰雪结界', () => this.castSkill(entry, undefined, 1), 'skill-detail-cast');
+        const cooldown = this.player?.derivedStats?.skillCooldowns?.['2221055'] ?? 0;
+        vortex.disabled = !this.canCast(entry) || cooldown > 0;
+        vortex.title = cooldown > 0 ? `漩涡冷却剩余 ${Math.ceil(cooldown / 1000)} 秒` : '生成30秒漩涡';
+        this.detailView.append(vortex);
+      }
+      this.detailView.append(hint);
+    }
 
     const description = sourceText(entry.description);
     if (description) {
@@ -615,12 +774,16 @@ export class SkillView {
   }
 
   private canLearn(entry: SkillCatalogEntry) {
-    if (FIXED_SKILLS.has(entry.id) || !this.player?.job || !this.player?.skills || entry.bookId !== this.selectedBookId) return false;
+    if (entry.hidden || FIXED_SKILLS.has(entry.id) || this.player?.job === undefined || !this.player?.skills || entry.bookId !== this.selectedBookId) return false;
+    if (entry.bookId === '0' && this.player.job !== 0 && !MAGE_JOB_WHITELIST.has(this.player.job)) return false;
     if (entry.bookId === '200' && !MAGE_JOB_WHITELIST.has(this.player.job)) return false;
     if (entry.bookId === '220' && !ICE_LIGHTNING_JOB_WHITELIST.has(this.player.job)) return false;
+    if (entry.bookId === '222' && this.player.job !== 222) return false;
+    if (entry.bookId === '221' && ![221, 222].includes(this.player.job)) return false;
     const level = this.learnedLevel(entry.id);
     if (level === undefined || level >= entry.maxLevel) return false;
-    const points = this.player.skillPoints?.[entry.bookId];
+    if ((this.player.level ?? 0) < (entry.requiredLevel ?? 0)) return false;
+    const points = entry.hyper ? this.player.hyperPoints?.[String(entry.hyper)] : this.player.skillPoints?.[entry.bookId];
     if (typeof points !== 'number' || !Number.isSafeInteger(points) || points < 1) return false;
     return Object.entries(entry.prerequisites ?? {}).every(([requiredId, requiredLevel]) => {
       const learned = this.learnedLevel(requiredId);
@@ -628,17 +791,56 @@ export class SkillView {
     });
   }
 
-  private canCast(entry: SkillCatalogEntry) {
+  private castUiKey(player?: PlayerState): string {
+    const stats = player?.derivedStats;
+    return [Boolean(player && player.hp > 0 && player.action !== 'dead'), player?.climbing, stats?.magicGuard, stats?.iceTeleport,
+      stats?.teleportMastery, stats?.teleportBoost, stats?.hyperBarrierActive, stats?.hyperTeleportEnabled, stats?.adaptationCharges,
+      JSON.stringify(stats?.regenerationPassives ?? []),
+      Object.entries(stats?.skillCooldowns ?? {}).map(([id, ms]) => `${id}:${Math.ceil(ms / 1000)}`).join(','),
+      Object.entries(stats?.skillBuffs ?? {}).map(([id, ms]) => `${id}:${Math.ceil(ms / 1000)}`).join(','),
+      Math.ceil((stats?.adaptationCooldownMs ?? 0) / 1000)].join(':');
+  }
+
+  private castBlockReason(entry: SkillCatalogEntry): string | undefined {
     const player = this.player;
-    const level = this.learnedLevel(entry.id);
-    const jobAllowed = entry.bookId === '220' ? ICE_LIGHTNING_JOB_WHITELIST.has(player?.job ?? -1) : MAGE_JOB_WHITELIST.has(player?.job ?? -1);
-    return player?.job !== undefined
-      && jobAllowed
-      && player.hp > 0
-      && player.action !== 'dead'
-      && this.isActiveSkill(entry)
-      && level !== undefined
-      && level > 0;
+    const jobAllowed = entry.bookId === '222' ? player?.job === 222 : entry.bookId === '0' ? player?.job === 0 || MAGE_JOB_WHITELIST.has(player?.job ?? -1) : entry.bookId === '221' ? [221, 222].includes(player?.job ?? -1)
+      : entry.bookId === '220' ? ICE_LIGHTNING_JOB_WHITELIST.has(player?.job ?? -1) : MAGE_JOB_WHITELIST.has(player?.job ?? -1);
+    if (entry.hidden || !this.isActiveSkill(entry)) return '此技能不直接施放';
+    if (!jobAllowed) return '完成对应转职后可使用';
+    if (!player || player.hp <= 0 || player.action === 'dead') return '复活后可使用';
+    if (player.climbing) return '离开梯绳后可使用';
+    if (entry.id === '2221045' && !player.derivedStats?.hyperTeleportEnabled && player.derivedStats?.teleportBoost) return '请先关闭瞬间移动爆发';
+    if (entry.id === '2211017' && !player.derivedStats?.teleportBoost && player.derivedStats?.hyperTeleportEnabled) return '请先关闭超级瞬移距离';
+    if ((player.derivedStats?.skillBuffs?.['2221052'] ?? 0) > 0) return '雷霆万钧持续中，松开按键结束';
+    if ((player.derivedStats?.skillBuffs?.['2221011'] ?? 0) > 0) return '冰龙吐息持续中，松开按键结束';
+    if (!(this.learnedLevel(entry.id)! > 0)) return '先学习此技能';
+    const cooldown = player.derivedStats?.skillCooldowns?.[entry.id] ?? (entry.id === '2211012' ? player.derivedStats?.adaptationCooldownMs ?? 0 : 0);
+    if (cooldown > 0) return `冷却中，剩余 ${Math.ceil(cooldown / 1000)} 秒`;
+    return undefined;
+  }
+
+  private canCast(entry: SkillCatalogEntry) { return !this.castBlockReason(entry); }
+
+  private castButton(entry: SkillCatalogEntry, className: string) {
+    const state = this.player?.derivedStats;
+    const enabled = entry.id === '2001002' ? state?.magicGuard : entry.id === '2201009' ? state?.iceTeleport
+      : entry.id === '2221045' ? state?.hyperTeleportEnabled : entry.id === '2221054' ? state?.hyperBarrierActive
+      : entry.id === '2211007' ? state?.teleportMastery : state?.teleportBoost;
+    const channel = entry.id === '2221011' || entry.id === '2221052';
+    const label = channel ? '按住施放' : this.isToggleSkill(entry) ? (enabled ? '关闭' : '开启') : '施放';
+    const reason = this.castBlockReason(entry);
+    const button = this.createTextActionButton(label, reason || `${label}技能`, () => { if (!channel) this.castSkill(entry); }, className);
+    button.disabled = Boolean(reason);
+    if (channel) {
+      const start = () => { if (!this.channelRequestId) this.channelRequestId = this.castSkill(entry); };
+      button.addEventListener('pointerdown', event => { if (event.button === 0) { event.preventDefault(); start(); } });
+      button.addEventListener('keydown', event => {
+        if (event.code === 'Space' || event.code === 'Enter') { event.preventDefault(); if (!event.repeat) start(); }
+      });
+      // Assistive-technology activation is a tap; physical holds use the events above.
+      button.addEventListener('click', event => { if (event.detail === 0) { start(); this.releaseChannel(); } });
+    }
+    return button;
   }
 
   private learnSkill(entry: SkillCatalogEntry) {
@@ -653,7 +855,7 @@ export class SkillView {
 
   private castSkill(entry: SkillCatalogEntry, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1) {
     if (!this.canCast(entry)) {
-      this.status('技能尚未学习。');
+      this.status(this.castBlockReason(entry) || '当前无法施放此技能。');
       return;
     }
     const resolvedVertical = vertical ?? (entry.id === '2001011' ? -1 : undefined);
@@ -664,18 +866,34 @@ export class SkillView {
       ...(direction === undefined ? {} : { direction }),
       ...(resolvedVertical === undefined ? {} : { vertical: resolvedVertical }),
     };
-    if (this.send(message)) this.status(`${this.isToggleSkill(entry) ? '切换' : '施放'}${displayText(entry.name)}…`);
+    if (this.send(message)) {
+      this.status(`${this.isToggleSkill(entry) ? '切换' : '施放'}${displayText(entry.name)}…`);
+      return message.requestId;
+    }
     else this.status('技能施放需要保持在线。');
   }
 
-  private requestId(kind: 'learn' | 'cast') {
+  private resetHyper() {
+    const cost = this.player?.hyperResetCost;
+    if (!cost || !this.player || this.player.mesos < cost) return;
+    if (!window.confirm(`消耗 ${cost.toLocaleString()} 枫币重置全部超级技能？返还强化与主动技能点，冷却时间保留。`)) return;
+    if (this.send({ type: 'resetHyper', requestId: this.requestId('reset'), expectedCost: cost })) this.status('正在重置超级技能…');
+    else this.status('重置需要保持在线。');
+  }
+
+  private requestId(kind: 'learn' | 'cast' | 'reset') {
     this.requestSequence += 1;
     return `skill-${kind}-${Date.now()}-${this.requestSequence}`;
   }
 
   private books(): Array<[string, SkillBook]> {
-    return Object.entries(this.manifest.skillBooks ?? {})
+    const warrior = this.player?.derivedStats?.regenerationPassives?.some(passive => passive.bookId === 100);
+    return Object.entries({ '0': { name: '初心者', tabIndex: 0 }, ...this.manifest.skillBooks,
+      ...(warrior ? { '100': { name: '战士', tabIndex: 1 } } : {}) })
+      .filter(([id]) => !warrior || id !== '200')
       .filter(([id]) => id !== '220' || ICE_LIGHTNING_JOB_WHITELIST.has(this.player?.job ?? -1))
+      .filter(([id]) => id !== '222' || this.player?.job === 222)
+      .filter(([id]) => id !== '221' || [221, 222].includes(this.player?.job ?? -1))
       .filter(([, book]) => book && Number.isSafeInteger(book.tabIndex))
       .sort(([, left], [, right]) => left.tabIndex - right.tabIndex);
   }
@@ -687,7 +905,7 @@ export class SkillView {
   private visibleSkills(bookId?: string): SkillCatalogEntry[] {
     if (!bookId) return [];
     return [...this.catalog().values()]
-      .filter(entry => entry.bookId === bookId && !entry.hidden)
+      .filter(entry => entry.bookId === bookId && !entry.hidden && (this.hyperMode ? entry.hyper === this.hyperKind : !entry.hyper))
       .sort((left, right) => Number(left.id) - Number(right.id));
   }
 

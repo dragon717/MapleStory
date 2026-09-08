@@ -60,7 +60,7 @@ export interface AssetFrame {
 }
 export interface MonsterAsset {
   templateId: string; source: string; info: Record<string, number | string>;
-  actions: Record<'stand' | 'move' | 'hit' | 'die', AssetFrame[]> & { jump?: AssetFrame[] };
+  actions: Record<'stand' | 'move' | 'hit' | 'die', AssetFrame[]> & { jump?: AssetFrame[]; attack1?: AssetFrame[]; attack2?: AssetFrame[]; skill1?: AssetFrame[] };
   damageSound?: { url: string; source: string };
 }
 export interface NpcAsset {
@@ -179,6 +179,7 @@ export interface SkillCatalogEntry {
   id: string; bookId: string; name: string; description: string;
   maxLevel: number; prerequisites: Record<string, number>;
   hidden: boolean;
+  hyper?: number; requiredLevel?: number;
   icons: { normal?: SkillArt; disabled?: SkillArt; mouseOver?: SkillArt };
   levelDescriptions?: string[];
   levelValues?: { level: number; mpCon: number; damage: number; mobCount: number; attackCount: number }[];
@@ -204,8 +205,9 @@ export interface Manifest {
   skillBooks?: Record<string, { name: string; tabIndex: number }>;
   skillCatalog?: Record<string, SkillCatalogEntry>;
   levelUp?: { layers: AssetFrame[][]; sound?: { url: string; source: string } };
-  skillEffects?: Record<string, { effect?: AssetFrame[]; hit?: AssetFrame[]; ball?: AssetFrame[]; tile?: AssetFrame[]; mob?: AssetFrame[] }>;
-  skillSounds?: Record<string, { use?: { url: string; source: string }; hit?: { url: string; source: string } }>;
+  skillEffects?: Record<string, { start?: AssetFrame[]; repeat?: AssetFrame[]; end?: AssetFrame[]; tile0?: AssetFrame[]; affected?: AssetFrame[]; effect?: AssetFrame[]; hit?: AssetFrame[]; ball?: AssetFrame[]; tile?: AssetFrame[]; mob?: AssetFrame[]; prepare?: AssetFrame[]; keydown?: AssetFrame[]; keydown0?: AssetFrame[]; keydownend?: AssetFrame[]; special?: AssetFrame[]; special0?: AssetFrame[]; effect0?: AssetFrame[]; summonStand?: AssetFrame[]; summonMove?: AssetFrame[]; summonAttack?: AssetFrame[] }>;
+  bossEffects?: Record<string, Record<string, AssetFrame[]>>;
+  skillSounds?: Record<string, { special?: { url: string; source: string }; use?: { url: string; source: string }; hit?: { url: string; source: string }; loop?: { url: string; source: string }; end?: { url: string; source: string }; summonAttack?: { url: string; source: string } }>;
   characterUi?: Record<string, SkillArt>;
   characterLayout?: Record<string, { x: number; y: number }>;
   npcQuestAvailable?: { frames: AssetFrame[] };

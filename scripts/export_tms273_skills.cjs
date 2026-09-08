@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// Export the verified mage skill assets from the TMS273.7 client data.
-// Retain source formulas and derive their level values; combat remains server-owned.
+// Export verified skill assets from the TMS273.7 client data.
+// Retain source formulas/direct beginner rows; combat remains server-owned.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -51,12 +51,236 @@ const SKILLS = [
     missingAssetKinds: ['effect0', 'ball', 'special'],
     unlockReason: 'Skill/220.img does not provide a verified job/level unlock condition in this export.',
   },
+  {
+    id: '2211002',
+    job: 221,
+    image: 'Skill/221.img',
+    skillJson: 'Skill/221.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'iceStrike',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit'],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/221.img has no verified job/level unlock rule in this export; the P job-transfer rule is applied by the runtime owner.',
+  },
+  {
+    // The client/source uses a six-digit id under Skill/000.img.  Runtime
+    // payloads use the normalized numeric id while every source reference
+    // keeps the original leading zeroes for auditability.
+    id: '1000',
+    sourceId: '0001000',
+    job: 0,
+    image: 'Skill/000.img',
+    skillJson: 'Skill/000.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_000.wz',
+    sourceAction: 'swingO1',
+    avatarAction: 'attack',
+    bodyAction: null,
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled'],
+    levelAssetKinds: ['ball', 'hit'],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/000.img has no verified job/level unlock rule in this export; beginner SP and availability remain runtime-owned.',
+  },
+  {
+    id: '1001',
+    sourceId: '0001001',
+    job: 0,
+    image: 'Skill/000.img',
+    skillJson: 'Skill/000.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_000.wz',
+    bodyAction: null,
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect'],
+    levelAssetKinds: [],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/000.img has no verified job/level unlock rule in this export; beginner SP and availability remain runtime-owned.',
+  },
+  {
+    id: '1002',
+    sourceId: '0001002',
+    job: 0,
+    image: 'Skill/000.img',
+    skillJson: 'Skill/000.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_000.wz',
+    bodyAction: null,
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect'],
+    levelAssetKinds: [],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/000.img has no verified job/level unlock rule in this export; beginner SP and availability remain runtime-owned.',
+  },
+  // The fourth-job book includes ordinary and Hyper source nodes.
+  // Hidden Hyper 2221055 remains a server-only variant, never a learning grant.
+  // The ordinary final-attack variant remains outside this catalog.
+  {
+    id: '2221000',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchives: [
+      'Skill/_Canvas/_Canvas_003.wz',
+      'Skill/_Canvas/_Canvas_038.wz',
+      'Skill/_Canvas/_Canvas_040.wz',
+    ],
+    bodyAction: null,
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0'],
+    missingAssetKinds: [],
+    catalogDefinition: true,
+    catalogSkillIds: [
+      '2220010', '2220013', '2220015',
+      '2221000', '2221004', '2221005', '2221006', '2221007',
+      '2221008', '2221011', '2221012',
+      '2220043', '2220044', '2221045', '2220046', '2220047', '2220048',
+      '2220049', '2220050', '2220051', '2221052', '2221053', '2221054', '2221055',
+    ],
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.',
+  },
+  {
+    id: '2220010',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchives: ['Skill/_Canvas/_Canvas_038.wz', 'Skill/_Canvas/_Canvas_040.wz'],
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'number'],
+    missingAssetKinds: [],
+    unlockReason: 'Source passive node; no verified job/level unlock rule is present in this export.',
+  },
+  {
+    id: '2220013',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled'],
+    missingAssetKinds: [],
+    unlockReason: 'Source passive node; no verified job/level unlock rule is present in this export.',
+  },
+  {
+    id: '2220014',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'hit'],
+    missingAssetKinds: ['effect', 'effect0'],
+    includeInCatalog: false,
+    unlockReason: 'Hidden final-attack source variant; exported for triggered hit/effect provenance only and excluded from the learnable catalog.',
+  },
+  {
+    id: '2220015',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled'],
+    missingAssetKinds: [],
+    unlockReason: 'Source fixed-level passive node; no verified job/level unlock rule is present in this export.',
+  },
+  {
+    id: '2221004',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchives: ['Skill/_Canvas/_Canvas_038.wz', 'Skill/_Canvas/_Canvas_040.wz'],
+    bodyAction: 'alert2',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'special', 'special0', 'specialAffected', 'specialAffected0'],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.',
+  },
+  {
+    id: '2221005',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'alert2',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'],
+    missingAssetKinds: [],
+    levelValues: true,
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; source req 2200006:10 is preserved for the runtime owner.',
+  },
+  {
+    id: '2221006',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'chainLightningNew',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'ball', 'hit', 'mob'],
+    missingAssetKinds: [],
+    levelValues: true,
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; chain target count and penalty remain source/runtime fields.',
+  },
+  {
+    id: '2221007',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'blizzardNew',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit', 'tile'],
+    missingAssetKinds: [],
+    levelValues: true,
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; 12 hits/15 targets and hidden additional attack stay source/runtime-owned.',
+  },
+  {
+    id: '2221008',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchives: ['Skill/_Canvas/_Canvas_003.wz', 'Skill/_Canvas/_Canvas_040.wz'],
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0'],
+    missingAssetKinds: [],
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; common.time=1 is retained without resolving the source String description timing.',
+  },
+  {
+    id: '2221011',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'armorMelting',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'mob', 'special', 'specialAffected', 'prepare', 'keydown', 'keydown0', 'keydownend'],
+    missingAssetKinds: ['effect', 'effect0', 'ball', 'hit'],
+    levelValues: true,
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; keydown bind duration formula and server start/cancel timing remain runtime-owned.',
+  },
+  {
+    id: '2221012',
+    job: 222,
+    image: 'Skill/222.img',
+    skillJson: 'Skill/222.json',
+    canvasArchive: 'Skill/_Canvas/_Canvas_040.wz',
+    bodyAction: 'frozenOrb',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit', 'ball'],
+    missingAssetKinds: [],
+    levelValues: true,
+    unlockReason: 'Skill/222.img has no verified job/level unlock rule in this export; common.time=4000 and attackDelay=210 remain raw source units.',
+  },
 ];
+// T: Hyper visuals and body pose; source animation timing is not hit scheduling.
+for (const [id, groups, bodyAction] of [
+  ['2221052', ['prepare', 'keydown', 'keydownend', 'special', 'hit'], 'HY222lightningSphere'],
+  ['2221053', ['effect', 'effect0', 'affected'], null],
+  ['2221054', ['effect', 'start', 'repeat', 'end'], null],
+  ['2221055', ['effect', 'tile', 'tile0'], null],
+]) SKILLS.push({
+  id, job: 222, image: 'Skill/222.img', skillJson: 'Skill/222.json', bodyAction,
+  canvasArchives: ['Skill/_Canvas/_Canvas_003.wz', 'Skill/_Canvas/_Canvas_038.wz', 'Skill/_Canvas/_Canvas_040.wz'],
+  assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', ...groups], missingAssetKinds: [],
+  unlockReason: 'T: source hyper/reqLev and hidden flags; independent Hyper points use the documented R/P runtime rule.',
+});
 const SKILL_ID = SKILLS[0].id;
 const SKILL_IMAGE = SKILLS[0].image;
 const SKILL_SOURCE = `Skill/200.img/skill/${SKILL_ID}`;
 const BODY_SOURCE = `Character/00002000.img/${SKILLS[0].bodyAction}`;
 const STRING_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json');
+
+function sourceSkillId(definition, id = definition.id) {
+  return definition.sourceId || id;
+}
+
+function runtimeSkillId(definition, id = definition.id) {
+  if (definition.job === 0 && /^0+\d+$/.test(id)) return String(Number(id));
+  return definition.runtimeId || id;
+}
 
 function children(node) {
   return [...(node?.wzProperties || [])];
@@ -136,6 +360,19 @@ function levelValues(common) {
     }
     return row;
   });
+}
+
+// Beginner Skill/000.img stores concrete rows under `level` instead of the
+// formula-bearing `common` node used by mage books. Keep those rows intact in
+// sourceFields; mageRules performs the narrow numeric projection for combat.
+function beginnerLevelRows(sourceFields) {
+  const levels = sourceFields?.level;
+  assert(levels && typeof levels === 'object', 'beginner level rows are missing');
+  const entries = Object.entries(levels)
+    .filter(([level]) => /^\d+$/.test(level))
+    .sort(([left], [right]) => Number(left) - Number(right));
+  assert(entries.length > 0, 'beginner level rows are empty');
+  return entries.map(([level, row]) => ({ level: Number(level), ...row }));
 }
 
 function sha256(file) {
@@ -274,7 +511,25 @@ async function exportAssetGroup(reader, skillSource, kind) {
   const source = `${skillSource}/${kind}`;
   const node = await get(reader, source);
   const groups = [];
-  for (const child of numeric(node)) {
+  // Most groups use numeric children, while `number`, `ball/front/rear`,
+  // and a few summon branches use named Canvas/sub-property children.  Keep
+  // both source forms and ignore scalar metadata nodes.
+  const numericChildren = numeric(node);
+  const namedFrames = new Set(['front', 'rear']);
+  const candidates = children(node)
+    .filter(child => /^\d+$/.test(child.name)
+      || (numericChildren.length === 0
+        && ['WzCanvasProperty', 'WzSubProperty', 'WzUOLProperty'].includes(child?.constructor?.name))
+      || namedFrames.has(child.name))
+    .sort((left, right) => {
+      const leftNumeric = /^\d+$/.test(left.name);
+      const rightNumeric = /^\d+$/.test(right.name);
+      if (leftNumeric && rightNumeric) return Number(left.name) - Number(right.name);
+      if (leftNumeric) return -1;
+      if (rightNumeric) return 1;
+      return left.name.localeCompare(right.name);
+    });
+  for (const child of candidates) {
     const childSource = `${source}/${child.name}`;
     const nested = numeric(child);
     if (nested.length === 0) {
@@ -320,7 +575,10 @@ async function main() {
   try {
     const images = [...new Set(SKILLS.map(skill => skill.image))];
     const extraction = runUnpacker(tempRoot, images);
-    const canvasArchives = [...new Set(SKILLS.map(skill => path.join(DATA, skill.canvasArchive)))];
+    const canvasArchives = [...new Set(SKILLS.flatMap(skill => {
+      const archives = skill.canvasArchives || (skill.canvasArchive ? [skill.canvasArchive] : []);
+      return archives.map(archive => path.join(DATA, archive));
+    }))];
     linkCanvasArchives(tempRoot, canvasArchives);
     reader = createReader(tempRoot, tempRoot);
     // Character/00002000.img is a separate WZ archive. Keep the targeted
@@ -340,16 +598,18 @@ async function main() {
     const metadataGaps = [];
     const assetGaps = [];
     for (const definition of SKILLS) {
-      const skillSource = `${definition.image}/skill/${definition.id}`;
-      const rawSkill = skillJsons.get(definition.skillJson)?.skill?.[definition.id];
-      const rawString = stringJson[definition.id];
-      assert(rawSkill && rawString, `${definition.id} source JSON is missing`);
+      const sourceId = sourceSkillId(definition);
+      const runtimeId = runtimeSkillId(definition);
+      const skillSource = `${definition.image}/skill/${sourceId}`;
+      const rawSkill = skillJsons.get(definition.skillJson)?.skill?.[sourceId];
+      const rawString = stringJson[sourceId];
+      assert(rawSkill && rawString, `${sourceId} source JSON is missing`);
       const skillNode = await get(reader, skillSource);
       const availableKinds = new Set(children(skillNode).map(child => child.name));
       const assetGroups = {};
       for (const kind of definition.assetKinds) {
         if (!availableKinds.has(kind)) {
-          assetGaps.push({ skill: definition.id, ...sourceGap(skillSource, kind, missingAssetReason(skillSource, kind)) });
+          assetGaps.push({ skill: runtimeId, ...sourceGap(skillSource, kind, missingAssetReason(skillSource, kind)) });
           continue;
         }
         assetGroups[kind] = kind.startsWith('icon')
@@ -358,25 +618,63 @@ async function main() {
       }
       for (const kind of definition.missingAssetKinds) {
         assert(!availableKinds.has(kind), `${skillSource}/${kind} unexpectedly exists; add it to assetKinds`);
-        assetGaps.push({ skill: definition.id, ...sourceGap(skillSource, kind, missingAssetReason(skillSource, kind)) });
+        assetGaps.push({ skill: runtimeId, ...sourceGap(skillSource, kind, missingAssetReason(skillSource, kind)) });
       }
-      const skillMetadataGaps = Object.values(assetGroups).flat().filter(frame => frame.metadataStatus !== 'complete');
-      metadataGaps.push(...skillMetadataGaps.map(frame => ({ skill: definition.id, source: frame.source, status: frame.metadataStatus })));
-      const timeline = await exportBodyTimeline(bodyReader, `Character/00002000.img/${definition.bodyAction}`);
+      const levelAssetGroups = {};
+      if (definition.levelAssetKinds?.length) {
+        const levelRootSource = `${skillSource}/level`;
+        const levelRoot = await get(reader, levelRootSource);
+        const levelNodes = numeric(levelRoot);
+        assert(levelNodes.length > 0, `${levelRootSource} has no level nodes`);
+        for (const levelNode of levelNodes) {
+          const level = levelNode.name;
+          const levelSource = `${levelRootSource}/${level}`;
+          const availableLevelKinds = new Set(children(levelNode).map(child => child.name));
+          levelAssetGroups[level] = {};
+          for (const kind of definition.levelAssetKinds) {
+            const source = `${levelSource}/${kind}`;
+            if (!availableLevelKinds.has(kind)) {
+              assetGaps.push({ skill: runtimeId, level: Number(level), ...sourceGap(levelSource, kind, missingAssetReason(levelSource, kind)) });
+              continue;
+            }
+            levelAssetGroups[level][kind] = await exportAssetGroup(reader, levelSource, kind);
+          }
+        }
+      }
+      const allAssetFrames = [
+        ...Object.values(assetGroups).flat(),
+        ...Object.values(levelAssetGroups).flatMap(level => Object.values(level).flat()),
+      ];
+      const skillMetadataGaps = allAssetFrames.filter(frame => frame.metadataStatus !== 'complete');
+      metadataGaps.push(...skillMetadataGaps.map(frame => ({ skill: runtimeId, source: frame.source, status: frame.metadataStatus })));
+      const timeline = definition.bodyAction
+        ? await exportBodyTimeline(bodyReader, `Character/00002000.img/${definition.bodyAction}`)
+        : null;
       const sourceFields = unwrap(rawSkill);
-      skillOutputs[definition.id] = {
-        id: definition.id,
+      const directBeginnerLevels = definition.job === 0 ? beginnerLevelRows(sourceFields) : null;
+      const source = {
+        skillJson: `WZ_JSON_TW/${definition.skillJson}#skill.${sourceId}`,
+        stringJson: `WZ_JSON_TW/String/Skill.json#${sourceId}`,
+        skillImage: skillSource,
+        bodyAction: timeline?.source ?? null,
+      };
+      if (definition.sourceAction) {
+        source.action = definition.sourceAction;
+        source.actionSource = `${skillSource}/action/0`;
+        source.reuseAvatarAction = definition.avatarAction;
+      }
+      skillOutputs[runtimeId] = {
+        id: runtimeId,
+        sourceSkillId: sourceId,
         job: definition.job,
         name: unwrap(rawString.name),
-        source: {
-          skillJson: `WZ_JSON_TW/${definition.skillJson}#skill.${definition.id}`,
-          stringJson: `WZ_JSON_TW/String/Skill.json#${definition.id}`,
-          skillImage: skillSource,
-          bodyAction: timeline.source,
-        },
+        source,
         rawWz: { skill: rawSkill, string: rawString },
         sourceFields,
-        levelValues: levelValues(sourceFields.common),
+        // Beginner rows are concrete source values (including fixdamage and
+        // healing x), so they stay under sourceFields.level rather than the
+        // four-field mage levelValues projection.
+        ...(definition.levelValues ? { levelValues: levelValues(sourceFields.common) } : {}),
         string: unwrap(rawString),
         runtimeUnknowns: [
           {
@@ -386,30 +684,43 @@ async function main() {
           },
           {
             field: 'formulaEvaluation',
-            status: 'unimplemented',
-            reason: 'Source MP, damage percentage and hit/target counts are evaluated in levelValues; final player-stat damage and runtime execution remain unimplemented.',
+            status: definition.job === 0 ? 'source-values' : 'unimplemented',
+            reason: definition.job === 0
+              ? `Skill/000.img provides ${directBeginnerLevels.length} concrete per-level rows; final runtime execution remains server-owned.`
+              : 'Source MP, damage percentage and hit/target counts are evaluated in levelValues; final player-stat damage and runtime execution remain unimplemented.',
           },
           {
             field: 'serverHitTiming',
             status: 'unverified',
-            reason: `${definition.bodyAction} is the source body action timeline; server input, hit and cancel windows are not inferred from animation delay.`,
+            reason: timeline
+              ? `${definition.bodyAction} is the source body action timeline; server input, hit and cancel windows are not inferred from animation delay.`
+              : definition.sourceAction
+                ? `Skill source action ${definition.sourceAction} reuses avatar.actions.${definition.avatarAction}; server input, hit and cancel windows are not inferred from animation delay.`
+                : 'This skill has no exported body action timeline; server input, effect and cancel windows remain runtime-owned.',
           },
         ],
         bodyTimeline: timeline,
         assets: assetGroups,
+        ...(Object.keys(levelAssetGroups).length ? { levelAssets: levelAssetGroups } : {}),
       };
     }
 
     const catalogBooks = {};
     const catalogSkills = {};
     const catalogIconGaps = [];
-    const catalogDefinitions = [...new Map(SKILLS.map(skill => [String(skill.job), skill])).values()];
+    const catalogDefinitions = [...new Set(
+      SKILLS
+        .filter(skill => skill.includeInCatalog !== false)
+        .map(skill => String(skill.job)),
+    )].map(bookId => SKILLS.find(skill => String(skill.job) === bookId && skill.catalogDefinition)
+      || SKILLS.find(skill => String(skill.job) === bookId && skill.includeInCatalog !== false));
     for (const definition of catalogDefinitions) {
       const bookId = String(definition.job);
+      const sourceBookId = definition.job === 0 ? '000' : bookId;
       const skillRoot = skillJsons.get(definition.skillJson)?.skill;
       assert(skillRoot, `${definition.skillJson} skill root is missing`);
-      const bookString = stringJson[bookId];
-      assert(bookString && hasField(bookString, 'bookName'), `${bookId} bookName source is missing`);
+      const bookString = stringJson[sourceBookId];
+      assert(bookString && hasField(bookString, 'bookName'), `${sourceBookId} bookName source is missing`);
       const bookName = unwrap(bookString.bookName);
       catalogBooks[bookId] = {
         id: bookId,
@@ -418,50 +729,60 @@ async function main() {
         bookName,
         source: {
           skillJson: `WZ_JSON_TW/${definition.skillJson}#skill`,
-          stringJson: `WZ_JSON_TW/String/Skill.json#${bookId}`,
+          stringJson: `WZ_JSON_TW/String/Skill.json#${sourceBookId}`,
         },
+        sourceId: sourceBookId,
         string: unwrap(bookString),
       };
 
-      const skillIds = Object.keys(skillRoot)
-        .filter(id => /^\d+$/.test(id))
-        .sort((left, right) => Number(left) - Number(right));
-      assert.equal(skillIds.length, bookId === '200' ? 8 : 9, `${bookId} catalog node count changed`);
-      for (const id of skillIds) {
-        const rawSkill = skillRoot[id];
-        const rawString = stringJson[id];
-        assert(rawSkill && rawString, `${id} catalog source JSON is missing`);
-        const skillSource = `${definition.image}/skill/${id}`;
+      const skillIds = definition.catalogSkillIds
+        ? [...definition.catalogSkillIds].sort((left, right) => Number(left) - Number(right))
+        : definition.job === 0
+        ? SKILLS.filter(skill => skill.job === 0).map(skill => sourceSkillId(skill)).sort((left, right) => Number(left) - Number(right))
+        : Object.keys(skillRoot)
+          .filter(id => /^\d+$/.test(id))
+          .sort((left, right) => Number(left) - Number(right));
+      const expectedCatalogCounts = { '0': 3, '200': 8, '220': 9, '221': 12, '222': 24 };
+      assert.equal(skillIds.length, expectedCatalogCounts[bookId], `${bookId} catalog node count changed`);
+      for (const sourceId of skillIds) {
+        const id = runtimeSkillId(definition, sourceId);
+        const rawSkill = skillRoot[sourceId];
+        const rawString = stringJson[sourceId];
+        assert(rawSkill && rawString, `${sourceId} catalog source JSON is missing`);
+        const skillSource = `${definition.image}/skill/${sourceId}`;
         // A catalog entry is valid only when its actual Skill root exists;
         // icon children may be absent and are then reported explicitly.
         const skillNode = await get(reader, skillSource);
-        const sourceFields = {
-          common: fieldValue(rawSkill, 'common'),
-          maxLevel: fieldValue(rawSkill.common, 'maxLevel'),
-          req: fieldValue(rawSkill, 'req'),
-          info: fieldValue(rawSkill, 'info'),
-          info2: fieldValue(rawSkill, 'info2'),
-        };
+        // Keep the complete unwrapped Skill node in the catalog projection.
+        // The previous projection retained only common/req/info fields, which
+        // silently discarded 221 summon lifecycle and special-variant fields.
+        const sourceFields = unwrap(rawSkill);
+        const common = sourceFields.common || {};
+        const maxLevel = common.maxLevel ?? (sourceFields.level ? String(Object.keys(sourceFields.level).length) : null);
+        const req = sourceFields.req ?? null;
+        const info = sourceFields.info ?? null;
+        const info2 = sourceFields.info2 ?? null;
         catalogSkills[id] = {
           id,
+          sourceSkillId: sourceId,
           job: definition.job,
           book: bookId,
           name: fieldValue(rawString, 'name'),
           description: fieldValue(rawString, 'desc'),
           source: {
-            skillJson: `WZ_JSON_TW/${definition.skillJson}#skill.${id}`,
-            stringJson: `WZ_JSON_TW/String/Skill.json#${id}`,
+            skillJson: `WZ_JSON_TW/${definition.skillJson}#skill.${sourceId}`,
+            stringJson: `WZ_JSON_TW/String/Skill.json#${sourceId}`,
             skillImage: skillSource,
           },
           rawWz: { skill: rawSkill, string: rawString },
           sourceFields,
           // Keep the source fields addressable without requiring a formula
           // evaluator or a second catalog-specific schema.
-          common: sourceFields.common,
-          maxLevel: sourceFields.maxLevel,
-          req: sourceFields.req,
-          info: sourceFields.info,
-          info2: sourceFields.info2,
+          common,
+          maxLevel,
+          req,
+          info,
+          info2,
           string: unwrap(rawString),
           displayFlags: catalogDisplayFlags(rawSkill),
           learnability: {
@@ -475,12 +796,11 @@ async function main() {
 
     const sourceArchivePaths = Object.values(extraction.entries).map(entry => path.join(ROOT, entry.archive));
     const sourceFiles = uniqueFiles([
-      path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/200.json'),
+      ...SKILLS.map(skill => path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW', skill.skillJson)),
       STRING_JSON,
       path.join(DATA, 'Packs/Skill_00000.ms'),
       path.join(DATA, 'Skill/_Canvas/_Canvas_035.wz'),
       bodyArchive,
-      ...SKILLS.slice(1).map(skill => path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW', skill.skillJson)),
       ...canvasArchives,
       ...sourceArchivePaths,
     ]).map(sourceFile);

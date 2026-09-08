@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { AssetFrame, MonsterAsset, Point } from '../../assets/manifest';
 import { frameAt } from '../player/animation';
+import type { BossPracticeState } from '../../../../shared/protocol';
 import { pickupMotion } from './pickup-motion';
 
 export interface MonsterSnapshot {
@@ -11,7 +12,7 @@ export interface MonsterSnapshot {
   facing: -1 | 1;
   hp: number;
   maxHp: number;
-  action: 'stand' | 'move' | 'hit' | 'freeze' | 'die';
+  action: 'stand' | 'move' | 'hit' | 'freeze' | 'die' | 'attack1' | 'attack2' | 'skill1';
   freezeStacks?: number;
   actionStartedTick: number;
 }
@@ -23,8 +24,9 @@ export class MonsterView {
   private signature = '';
   private freezeSignature = '';
   private currentFrame?: AssetFrame;
+  private bossSprites = new Map<string, Phaser.GameObjects.Image>();
 
-  constructor(private scene: Phaser.Scene, private asset: MonsterAsset, depth: number, private freezeFrames: AssetFrame[] = []) {
+  constructor(private scene: Phaser.Scene, private asset: MonsterAsset, depth: number, private freezeFrames: AssetFrame[] = [], private bossFrames: Record<string, Record<string, AssetFrame[]>> = {}) {
     const first = asset.actions.stand[0];
     this.sprite = scene.add.image(0, 0, first.url).setOrigin(0).setDepth(depth);
     const freezeFirst = freezeFrames[0];
@@ -41,7 +43,7 @@ export class MonsterView {
       this.freezeSprite?.setVisible(false);
       return;
     }
-    const index = frameAt(frames.map(frame => frame.delay), elapsed, monster.action !== 'die');
+    const index = frameAt(frames.map(frame => frame.delay), elapsed, monster.action === 'stand' || monster.action === 'move' || monster.action === 'freeze');
     const frame = frames[index];
     this.currentFrame = frame;
     const signature = `${monster.action}:${index}:${frame.url}`;
@@ -51,7 +53,7 @@ export class MonsterView {
     }
     const flipped = monster.facing === 1 && !Number(this.asset.info.noFlip ?? 0);
     this.sprite.setVisible(true)
-      // GMS83 mob canvases face left in their source orientation. Phaser flips
+      // Exported mob canvases face left in their source orientation. Phaser flips
       // the image box, so reflect the source origin around its right edge.
       .setPosition(Math.round(flipped ? monster.x - frame.x - frame.width : monster.x + frame.x), Math.round(monster.y + frame.y))
       .setFlipX(flipped);
@@ -90,7 +92,44 @@ export class MonsterView {
     return { x: Math.round(monster.x + (flipped ? -head.x : head.x)), y: Math.round(monster.y + head.y) };
   }
 
-  destroy() { this.sprite.destroy(); this.freezeSprite?.destroy(); }
+  updateBossEffects(monster: MonsterSnapshot, effects: BossPracticeState['effects'], sinceSnapshot: number) {
+    const visible = new Set<string>();
+    for (const effect of monster.hp > 0 ? effects ?? [] : []) {
+      const elapsed = effect.elapsedMs + sinceSnapshot;
+      if (effect.remainingMs <= sinceSnapshot) continue;
+      const groups = this.bossFrames[String(effect.skillId)];
+      if (!groups) continue;
+      // P anchoring: source offsets follow the mob head. The identical effect/mob0
+      // cast art plays once; the source defense icon persists with server status.
+      for (const group of ['mob0', 'mob']) {
+        const frames = groups[group];
+        if (!frames?.length || (group === 'mob' && effect.skillId === 114)) continue;
+        const duration = frames.reduce((sum, frame) => sum + frame.delay, 0);
+        if (group === 'mob0' && elapsed >= duration) continue;
+        const frame = frames[frameAt(frames.map(frame => frame.delay), elapsed, group === 'mob')];
+        const key = `${effect.skillId}:${group}`;
+        visible.add(key);
+        let sprite = this.bossSprites.get(key);
+        if (!sprite) {
+          sprite = this.scene.add.image(0, 0, frame.url).setOrigin(0).setDepth(this.sprite.depth + 2);
+          this.bossSprites.set(key, sprite);
+        }
+        const anchor = this.hitAnchor(monster);
+        // Keep the two simultaneous defense icons readable without altering source art.
+        const iconOffset = group === 'mob' ? (effect.skillId === 112 ? -12 : 12) : 0;
+        sprite.setTexture(frame.url).setPosition(anchor.x + frame.x + iconOffset, anchor.y + frame.y);
+      }
+    }
+    for (const [key, sprite] of this.bossSprites) {
+      if (!visible.has(key)) { sprite.destroy(); this.bossSprites.delete(key); }
+    }
+  }
+
+  destroy() {
+    this.sprite.destroy(); this.freezeSprite?.destroy();
+    for (const sprite of this.bossSprites.values()) sprite.destroy();
+    this.bossSprites.clear();
+  }
 }
 
 export interface DropSnapshot {

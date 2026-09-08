@@ -52,6 +52,7 @@ const NORMAL_SOURCES = {
 
 const EXTRA_EQUIPMENT = [
   { id: 1002067, part: 'cap', image: 'Character/Cap/01002067.img' },
+  { id: 1003134, part: 'cap', image: 'Character/Cap/01003134.img' },
   { id: 1040002, part: 'coat', image: 'Character/Coat/01040002.img' },
   { id: 1052095, part: 'coat', image: 'Character/Longcoat/01052095.img', longcoat: true },
 ];

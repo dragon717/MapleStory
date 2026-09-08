@@ -216,6 +216,180 @@ pub fn random_id() -> String {
 pub(crate) const DROP_PROTECTION_MS: i64 = 60_000;
 
 const MAGE_BOOK: u32 = 200;
+const THIRD_MAGE_BOOK: u32 = 221;
+const THIRD_JOB: u32 = 221;
+const THIRD_HIDDEN_SKILL: u32 = 2_211_015;
+const FOURTH_MAGE_BOOK: u32 = 222;
+const FOURTH_JOB: u32 = 222;
+const FOURTH_FIXED_SKILL: u32 = 2_220_015;
+const FOURTH_PASSIVE_SKILLS: [u32; 2] = [2_220_010, 2_220_013];
+const FOURTH_HIDDEN_SKILLS: [u32; 3] = [2_220_014, 2_221_055, 2_221_056];
+const FOURTH_PAID_SKILLS: [u32; 10] = [
+    2_220_010,
+    2_220_013,
+    2_221_000,
+    2_221_004,
+    2_221_005,
+    2_221_006,
+    2_221_007,
+    2_221_008,
+    2_221_011,
+    2_221_012,
+];
+const HYPER_HIDDEN_SKILL: u32 = 2_221_055;
+const HYPER_VORTEX_SKILL: u32 = 2_221_054;
+const HYPER_THUNDER_SKILL: u32 = 2_221_052;
+const HYPER_VISIBLE_SKILLS: [u32; 12] = [
+    2_220_043,
+    2_220_044,
+    2_221_045,
+    2_220_046,
+    2_220_047,
+    2_220_048,
+    2_220_049,
+    2_220_050,
+    2_220_051,
+    2_221_052,
+    2_221_053,
+    HYPER_VORTEX_SKILL,
+];
+
+/// Fixed TMS273 Hyper metadata.  Kind 1 is the passive pool and kind 2 is
+/// the active pool.  The hidden 2221055 variant is retained in the metadata
+/// so auth can reject it explicitly while World uses it only as the vortex's
+/// server-side cooldown key.
+pub(crate) fn hyper_skill_info(skill_id: u32) -> Option<(u32, u32)> {
+    match skill_id {
+        2_220_043 => Some((1, 140)),
+        2_220_044 => Some((1, 150)),
+        2_221_045 => Some((1, 180)),
+        2_220_046 => Some((1, 140)),
+        2_220_047 => Some((1, 165)),
+        2_220_048 => Some((1, 180)),
+        2_220_049 => Some((1, 150)),
+        2_220_050 => Some((1, 165)),
+        2_220_051 => Some((1, 190)),
+        2_221_052 => Some((2, 160)),
+        2_221_053 => Some((2, 190)),
+        HYPER_VORTEX_SKILL => Some((2, 140)),
+        HYPER_HIDDEN_SKILL => Some((2, 140)),
+        _ => None,
+    }
+}
+
+fn hyper_skill_hidden(skill_id: u32) -> bool {
+    skill_id == HYPER_HIDDEN_SKILL
+}
+
+fn hyper_skill_prerequisites(skill_id: u32) -> &'static [(u32, u32)] {
+    match skill_id {
+        // TMS273 source req: 2211007 level 10.
+        2_221_045 => &[(2_211_007, 10)],
+        _ => &[],
+    }
+}
+
+/// Return the remaining points in one independent Hyper pool.  The pool is
+/// derived from the durable level and learned Hyper levels, so reconnects
+/// cannot duplicate a level-up grant and ordinary SP remains untouched.
+pub(crate) fn hyper_points(
+    level: u32,
+    skills: &BTreeMap<u32, u32>,
+    kind: u32,
+) -> u32 {
+    let thresholds: &[u32] = match kind {
+        1 => &[140, 150, 165, 180, 190],
+        2 => &[140, 160, 190],
+        _ => return 0,
+    };
+    let earned = thresholds.iter().filter(|required| level >= **required).count() as u32;
+    let spent = HYPER_VISIBLE_SKILLS
+        .iter()
+        .filter(|skill_id| hyper_skill_info(**skill_id).is_some_and(|(skill_kind, _)| skill_kind == kind))
+        .fold(0_u32, |total, skill_id| {
+            total.saturating_add(skills.get(skill_id).copied().unwrap_or(0).min(1))
+        });
+    earned.saturating_sub(spent)
+}
+
+pub(crate) fn hyper_reset_cost(reset_count: u8) -> u64 {
+    [100_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000][usize::from(reset_count.min(4))]
+}
+
+/// Apply the one-time P first-job entitlement to an authoritative profile.
+///
+/// The caller decides whether the source interaction is authorized.  Keeping
+/// the field mutation here lets the quest completion path and the existing
+/// Hans shortcut use exactly the same grant without resetting older AP/SP or
+/// skills.
+pub(crate) fn grant_first_mage(profile: &mut Profile) {
+    profile.job = 200;
+    grant_first_mage_fields(
+        &mut profile.max_mp,
+        &mut profile.mp,
+        &mut profile.skills,
+        &mut profile.skill_points,
+    );
+}
+
+fn grant_first_mage_fields(
+    max_mp: &mut i64,
+    mp: &mut i64,
+    skills: &mut BTreeMap<u32, u32>,
+    skill_points: &mut BTreeMap<u32, u32>,
+) {
+    skill_points.entry(MAGE_BOOK).or_insert(5);
+    skills.entry(2_000_007).or_insert(1);
+    skills.entry(2_001_012).or_insert(1);
+    *max_mp = (*max_mp).max(100);
+    *mp = *max_mp;
+}
+
+fn fourth_sp_for_level(level: u32) -> u32 {
+    let base = match level {
+        101..=110 => 3,
+        111..=120 => 4,
+        121..=130 => 5,
+        131..=140 => 6,
+        _ => 0,
+    };
+    if base > 0 && matches!(level % 10, 0 | 3 | 6 | 9) {
+        base * 2
+    } else {
+        base
+    }
+}
+
+fn fourth_sp_through_level(level: u32) -> u32 {
+    if level < 100 {
+        return 0;
+    }
+    let mut total: u32 = 3;
+    let end = level.min(140);
+    if end >= 101 {
+        for current in 101..=end {
+            total = total.saturating_add(fourth_sp_for_level(current));
+        }
+    }
+    total
+}
+
+fn fourth_learned_sp(skills: &BTreeMap<u32, u32>) -> u32 {
+    FOURTH_PAID_SKILLS.iter().fold(0, |total, skill_id| {
+        total.saturating_add(skills.get(skill_id).copied().unwrap_or(0))
+    })
+}
+
+fn fourth_missing_sp(
+    level: u32,
+    skills: &BTreeMap<u32, u32>,
+    skill_points: &BTreeMap<u32, u32>,
+) -> u32 {
+    fourth_sp_through_level(level).saturating_sub(
+        fourth_learned_sp(skills)
+            .saturating_add(skill_points.get(&FOURTH_MAGE_BOOK).copied().unwrap_or(0)),
+    )
+}
 
 fn mage_job_allowed(job: u32) -> bool {
     matches!(job, 200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232)
@@ -227,6 +401,25 @@ pub(crate) fn now_ms() -> i64 {
         .map_or(0, |duration| {
             i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
         })
+}
+
+/// Recognize only the World-owned practice instance form
+/// `practice:<9-digit source map>:<encounter id>`.  Clients never provide
+/// this map id; World creates it when entering a practice encounter.
+pub(crate) fn is_practice_map(map_id: &str) -> bool {
+    let mut fields = map_id.split(':');
+    let (Some(prefix), Some(source_map), Some(encounter), None) = (
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+    ) else {
+        return false;
+    };
+    prefix == "practice"
+        && source_map.len() == 9
+        && source_map.chars().all(|character| character.is_ascii_digit())
+        && !encounter.is_empty()
 }
 
 impl Store {
@@ -258,7 +451,8 @@ impl Store {
                skills_json TEXT NOT NULL DEFAULT '{}',
                skill_points_json TEXT NOT NULL DEFAULT '{}',
                ability_stats_json TEXT NOT NULL DEFAULT '',
-               mage_support_granted INTEGER NOT NULL DEFAULT 0
+               mage_support_granted INTEGER NOT NULL DEFAULT 0,
+               hyper_reset_count INTEGER NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS inventory(
                account_id TEXT NOT NULL,
@@ -306,6 +500,7 @@ impl Store {
                request_id TEXT NOT NULL,
                action_id TEXT NOT NULL,
                event TEXT NOT NULL,
+               map_id TEXT NOT NULL DEFAULT '',
                resolved INTEGER NOT NULL DEFAULT 0,
                target_id TEXT,
                damage INTEGER NOT NULL DEFAULT 0,
@@ -330,7 +525,8 @@ impl Store {
                account_id TEXT NOT NULL,
                request_id TEXT NOT NULL,
                exp_gain INTEGER NOT NULL,
-               drop_id TEXT
+               drop_id TEXT,
+               practice INTEGER NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS monster_damage(
                monster_id TEXT NOT NULL,
@@ -501,6 +697,19 @@ impl Store {
                 [],
             )?;
         }
+        let has_hyper_reset_count: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='hyper_reset_count'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_hyper_reset_count.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN hyper_reset_count INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
         db.execute_batch(
             "CREATE TABLE IF NOT EXISTS skill_actions(
                account_id TEXT NOT NULL,
@@ -512,9 +721,29 @@ impl Store {
                skill_level INTEGER NOT NULL DEFAULT 0,
                remaining_sp INTEGER NOT NULL DEFAULT 0,
                mp INTEGER NOT NULL DEFAULT 0,
+               quoted_cost INTEGER NOT NULL DEFAULT 0,
                PRIMARY KEY(account_id,request_id)
+             );
+             CREATE TABLE IF NOT EXISTS skill_cooldowns(
+               account_id TEXT NOT NULL,
+               skill_id INTEGER NOT NULL,
+               ready_at_ms INTEGER NOT NULL,
+               PRIMARY KEY(account_id,skill_id)
              );",
         )?;
+        let has_quoted_cost: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('skill_actions') WHERE name='quoted_cost'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_quoted_cost.is_none() {
+            db.execute(
+                "ALTER TABLE skill_actions ADD COLUMN quoted_cost INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
         let has_drop_owner: Option<String> = db
             .query_row(
                 "SELECT name FROM pragma_table_info('drops') WHERE name='owner_account_id'",
@@ -613,6 +842,8 @@ impl Store {
             ("drops", "stats_json", "TEXT NOT NULL DEFAULT '{}'"),
             ("drops", "upgrade_count", "INTEGER NOT NULL DEFAULT 0"),
             ("drops", "remaining_slots", "INTEGER NOT NULL DEFAULT 0"),
+            ("attack_actions", "map_id", "TEXT NOT NULL DEFAULT ''"),
+            ("monster_rewards", "practice", "INTEGER NOT NULL DEFAULT 0"),
         ] {
             let exists: Option<String> = db
                 .query_row(
@@ -715,9 +946,62 @@ impl Store {
         .map_err(|_| "account persistence failed")?;
         ensure_starter_equipment_tx(&tx, account_id)?;
         normalize_equipped_tx(&tx)?;
-        let profile = read_profile(&tx, account_id)?;
+        let mut profile = read_profile(&tx, account_id)?;
+        let mut repair_needed = false;
+        // P: repair only the missing beginner entitlement, including spent SP.
+        // The balance itself makes retries idempotent; no reset or grant marker.
+        if profile.job == 0 {
+            let spent = [1000, 1001, 1002].iter().fold(0u32, |sum, id|
+                sum.saturating_add(profile.skills.get(id).copied().unwrap_or(0)));
+            let due = profile.level.saturating_sub(1).min(6).saturating_sub(spent);
+            if profile.skill_points.get(&0).copied().unwrap_or(0) < due {
+                profile.skill_points.insert(0, due);
+                repair_needed = true;
+            }
+        }
+        if profile.job == FOURTH_JOB {
+            // Legacy job-222 rows may predate the fourth-job transfer grant.
+            // Reconcile only the authored balance through the current level;
+            // learned ordinary levels and an existing balance are preserved.
+            if profile.skills.get(&FOURTH_FIXED_SKILL).copied().unwrap_or(0) == 0 {
+                profile.skills.insert(FOURTH_FIXED_SKILL, 1);
+                repair_needed = true;
+            }
+            let due = fourth_missing_sp(profile.level, &profile.skills, &profile.skill_points);
+            if due > 0 {
+                let available = profile.skill_points.entry(FOURTH_MAGE_BOOK).or_default();
+                *available = available.saturating_add(due);
+                repair_needed = true;
+            }
+        }
+        if repair_needed {
+            tx.execute(
+                "UPDATE player_stats SET skills_json=?2,skill_points_json=?3 WHERE account_id=?1",
+                params![
+                    account_id,
+                    serialize_skill_map(&profile.skills)?,
+                    serialize_skill_map(&profile.skill_points)?,
+                ],
+            )
+            .map_err(|_| "account persistence failed")?;
+        }
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(profile)
+    }
+
+    /// Read the durable Hyper reset tier without routing it through a stale
+    /// World/Profile snapshot.  The value is clamped to the authored 0..=4
+    /// price tiers for compatibility with older or manually repaired rows.
+    pub fn hyper_reset_count(&self, account_id: &str) -> Result<u8, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let count: i64 = db
+            .query_row(
+                "SELECT hyper_reset_count FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        Ok(u8::try_from(count.clamp(0, 4)).unwrap_or(0))
     }
 
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {
@@ -763,9 +1047,15 @@ impl Store {
         if from_job == job {
             return Ok(false);
         }
+        if !matches!(
+            (from_job, job),
+            (0, 200) | (200, 220) | (220, THIRD_JOB) | (THIRD_JOB, FOURTH_JOB)
+        ) {
+            return Ok(false);
+        }
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
-        let (current_job, max_mp, mp, skills_json, skill_points_json, mage_support_granted):
+        let (current_job, mut max_mp, mut mp, skills_json, skill_points_json, mage_support_granted):
             (i64, i64, i64, String, String, i64) = tx
             .query_row(
                 "SELECT job,max_mp,mp,skills_json,skill_points_json,mage_support_granted FROM player_stats WHERE account_id=?1",
@@ -781,13 +1071,20 @@ impl Store {
         }
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
+        let required_level: i64 = if from_job == 200 && job == 220 {
+            30
+        } else if from_job == 220 && job == THIRD_JOB {
+            60
+        } else if from_job == THIRD_JOB && job == FOURTH_JOB {
+            100
+        } else {
+            0
+        };
         if job == 200 {
             // P: TMS273.7 export has no transfer grant script. Five book-200
             // points and hidden companion levels make the authorized shortcut
             // playable without pretending this is an original q1402 reward.
-            skill_points.entry(200).or_insert(5);
-            skills.entry(2000007).or_insert(1);
-            skills.entry(2001012).or_insert(1);
+            grant_first_mage_fields(&mut max_mp, &mut mp, &mut skills, &mut skill_points);
         }
         if from_job == 200 && job == 220 {
             let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
@@ -795,6 +1092,32 @@ impl Store {
             if level < 30 { return Ok(false); }
             skill_points.entry(220).or_insert(5); // P: starter second-job SP, not a max-skill grant.
             skills.entry(2200011).or_insert(1); // Source fixLevel=1.
+        }
+        if from_job == 220 && job == THIRD_JOB {
+            let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
+                .map_err(|_| "account persistence failed")?;
+            if level < 60 { return Ok(false); }
+            // The first third-job transfer owns the authored five starter SP.
+            // The CAS on player_stats.job above makes this grant one-shot;
+            // no old job-221 row is re-seeded on reconnect.
+            skill_points.entry(THIRD_MAGE_BOOK).or_insert(5);
+        }
+        if from_job == THIRD_JOB && job == FOURTH_JOB {
+            let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
+                .map_err(|_| "account persistence failed")?;
+            if level < 100 { return Ok(false); }
+            // The fourth transfer owns the initial three points and the
+            // level-101..140 P schedule.  The job CAS below makes this grant
+            // one-shot; existing book-222 balances are preserved and only a
+            // positive authored deficit is added.
+            if skills.get(&FOURTH_FIXED_SKILL).copied().unwrap_or(0) == 0 {
+                skills.insert(FOURTH_FIXED_SKILL, 1);
+            }
+            let due = fourth_missing_sp(level, &skills, &skill_points);
+            if due > 0 {
+                let available = skill_points.entry(FOURTH_MAGE_BOOK).or_default();
+                *available = available.saturating_add(due);
+            }
         }
         let is_mage = job == 200;
         let new_max_mp = if is_mage { max_mp.max(100) } else { max_mp };
@@ -807,7 +1130,7 @@ impl Store {
         let changed = tx
             .execute(
                 "UPDATE player_stats SET job=?3,max_mp=?4,mp=?5,skills_json=?6,skill_points_json=?7,mage_support_granted=?8
-                 WHERE account_id=?1 AND job=?2",
+                 WHERE account_id=?1 AND job=?2 AND level>=?9",
                 params![
                     account_id,
                     from_job,
@@ -817,6 +1140,7 @@ impl Store {
                     serialize_skill_map(&skills)?,
                     serialize_skill_map(&skill_points)?,
                     next_support,
+                    required_level,
                 ],
             )
             .map_err(|_| "account persistence failed")?;
@@ -845,15 +1169,20 @@ impl Store {
         }
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
-        skill_points.entry(200).or_insert(5);
-        skills.entry(2000007).or_insert(1);
-        skills.entry(2001012).or_insert(1);
-        let new_max_mp = max_mp.max(100);
+        let mut new_max_mp = max_mp;
+        let mut new_mp = max_mp;
+        grant_first_mage_fields(
+            &mut new_max_mp,
+            &mut new_mp,
+            &mut skills,
+            &mut skill_points,
+        );
         tx.execute(
-            "UPDATE player_stats SET max_mp=?2,mp=?2,skills_json=?3,skill_points_json=?4,mage_support_granted=1 WHERE account_id=?1 AND job=200 AND mage_support_granted=0",
+            "UPDATE player_stats SET max_mp=?2,mp=?3,skills_json=?4,skill_points_json=?5,mage_support_granted=1 WHERE account_id=?1 AND job=200 AND mage_support_granted=0",
             params![
                 account_id,
                 new_max_mp,
+                new_mp,
                 serialize_skill_map(&skills)?,
                 serialize_skill_map(&skill_points)?,
             ],
@@ -919,6 +1248,8 @@ impl Store {
             prerequisites,
             hidden,
             0,
+            0,
+            skill_id,
         )
     }
 
@@ -932,6 +1263,32 @@ impl Store {
         max_level: u32,
         mp_cost: i64,
     ) -> Result<SkillActionOutcome, String> {
+        self.cast_skill_with_cooldown(
+            account_id,
+            request_id,
+            skill_id,
+            expected_job,
+            book_id,
+            max_level,
+            mp_cost,
+            0,
+        )
+    }
+
+    /// Atomically spend MP and start a server-authored skill cooldown.
+    /// `cooldown_ms` is supplied by the server's skill definition; callers
+    /// must never forward a client timestamp or client duration.
+    pub fn cast_skill_with_cooldown(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        skill_id: u32,
+        expected_job: u32,
+        book_id: u32,
+        max_level: u32,
+        mp_cost: i64,
+        cooldown_ms: i64,
+    ) -> Result<SkillActionOutcome, String> {
         self.skill_action(
             account_id,
             request_id,
@@ -943,7 +1300,188 @@ impl Store {
             &BTreeMap::new(),
             false,
             mp_cost,
+            cooldown_ms,
+            skill_id,
         )
+    }
+
+    /// Cast the public Hyper vortex (2221054).  Its cooldown is keyed to the
+    /// hidden server-only 2221055 variant so changing the visible skill id
+    /// cannot bypass the shared cooldown.
+    pub fn cast_hyper_vortex(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        mp_cost: i64,
+        cooldown_ms: i64,
+    ) -> Result<SkillActionOutcome, String> {
+        self.skill_action(
+            account_id,
+            request_id,
+            "cast",
+            HYPER_VORTEX_SKILL,
+            FOURTH_JOB,
+            FOURTH_MAGE_BOOK,
+            1,
+            &BTreeMap::new(),
+            false,
+            mp_cost,
+            cooldown_ms,
+            HYPER_HIDDEN_SKILL,
+        )
+    }
+
+    /// Atomically clear all visible Hyper investments and charge the
+    /// server-authored reset price.  The durable request ledger is checked
+    /// before current state so a replay returns the original result verbatim.
+    pub fn reset_hyper_skills(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        expected_cost: u64,
+    ) -> Result<SkillActionOutcome, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some((mut outcome, quoted_cost)) = tx
+            .query_row(
+                "SELECT operation,skill_id,success,code,skill_level,remaining_sp,mp,quoted_cost FROM skill_actions WHERE account_id=?1 AND request_id=?2",
+                params![account_id, request_id],
+                |row| {
+                    Ok((
+                        SkillActionOutcome {
+                            operation: row.get(0)?,
+                            skill_id: row.get::<_, i64>(1)?.try_into().unwrap_or(0),
+                            success: row.get::<_, i64>(2)? != 0,
+                            code: row.get(3)?,
+                            level: row.get::<_, i64>(4)?.try_into().unwrap_or(0),
+                            remaining_sp: row.get::<_, i64>(5)?.try_into().unwrap_or(0),
+                            mp: row.get(6)?,
+                            already_resolved: true,
+                        },
+                        row.get::<_, i64>(7)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        {
+            let expected_cost_i64 = i64::try_from(expected_cost).ok();
+            if outcome.operation != "hyper_reset"
+                || outcome.skill_id != 0
+                || expected_cost_i64 != Some(quoted_cost)
+            {
+                outcome.success = false;
+                outcome.code = "request_conflict".to_owned();
+            }
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(outcome);
+        }
+        let (job, level, mesos, current_mp, skills_json, reset_count):
+            (i64, i64, i64, i64, String, i64) = tx
+            .query_row(
+                "SELECT job,level,mesos,mp,skills_json,hyper_reset_count FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            )
+            .map_err(|_| "account persistence failed")?;
+        let current_level = u32::try_from(level.max(0)).unwrap_or(0);
+        let reset_count = u8::try_from(reset_count.clamp(0, 4)).unwrap_or(0);
+        let cost = hyper_reset_cost(reset_count);
+        let mut skills = parse_skill_map(&skills_json)?;
+        let has_investment = HYPER_VISIBLE_SKILLS
+            .iter()
+            .any(|skill_id| skills.get(skill_id).copied().unwrap_or(0) > 0);
+        let mut success = true;
+        let mut code = String::new();
+        if job != i64::from(FOURTH_JOB) {
+            success = false;
+            code = "wrong_job".to_owned();
+        } else if current_level < 140 {
+            success = false;
+            code = "level_requirement".to_owned();
+        } else if !has_investment {
+            success = false;
+            code = "hyper_no_investment".to_owned();
+        } else if expected_cost != cost {
+            success = false;
+            code = "cost_changed".to_owned();
+        } else if mesos < i64::try_from(cost).unwrap_or(i64::MAX) {
+            success = false;
+            code = "not_enough_mesos".to_owned();
+        } else {
+            for skill_id in HYPER_VISIBLE_SKILLS {
+                skills.remove(&skill_id);
+            }
+        }
+        let remaining_sp = 0_i64;
+        let ledger_cost = i64::try_from(if success { cost } else { expected_cost })
+            .unwrap_or(i64::MAX);
+        tx.execute(
+            "INSERT INTO skill_actions(account_id,request_id,operation,skill_id,success,code,skill_level,remaining_sp,mp,quoted_cost) VALUES(?1,?2,'hyper_reset',0,?3,?4,0,?5,?6,?7)",
+            params![
+                account_id,
+                request_id,
+                if success { 1 } else { 0 },
+                code.clone(),
+                remaining_sp,
+                current_mp.max(0),
+                ledger_cost,
+            ],
+        )
+        .map_err(|_| "account persistence failed")?;
+        if success {
+            let new_mesos = mesos - i64::try_from(cost).unwrap_or(i64::MAX);
+            let next_reset_count = i64::from(reset_count.min(4).saturating_add(1).min(4));
+            let changed = tx
+                .execute(
+                    "UPDATE player_stats SET mesos=?2,skills_json=?3,hyper_reset_count=?4
+                     WHERE account_id=?1 AND job=?5 AND level>=140 AND hyper_reset_count=?6",
+                    params![
+                        account_id,
+                        new_mesos,
+                        serialize_skill_map(&skills)?,
+                        next_reset_count,
+                        FOURTH_JOB,
+                        i64::from(reset_count),
+                    ],
+                )
+                .map_err(|_| "account persistence failed")?;
+            if changed != 1 {
+                return Err("account persistence failed".to_owned());
+            }
+        }
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(SkillActionOutcome {
+            operation: "hyper_reset".to_owned(),
+            skill_id: 0,
+            success,
+            code,
+            level: 0,
+            remaining_sp: u32::try_from(remaining_sp).unwrap_or(0),
+            mp: current_mp.max(0),
+            already_resolved: false,
+        })
+    }
+
+    /// Return the durable server-side cooldown remaining for a skill.
+    /// A missing or expired row is reported as zero.
+    pub fn skill_cooldown_remaining_ms(
+        &self,
+        account_id: &str,
+        skill_id: u32,
+    ) -> Result<u64, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let ready_at: Option<i64> = db
+            .query_row(
+                "SELECT ready_at_ms FROM skill_cooldowns WHERE account_id=?1 AND skill_id=?2",
+                params![account_id, i64::from(skill_id)],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?;
+        Ok(ready_at
+            .map(|value| value.saturating_sub(now_ms()).try_into().unwrap_or(0))
+            .unwrap_or(0))
     }
 
     /// Read an already settled skill request before any world-side validation
@@ -985,7 +1523,7 @@ impl Store {
         Ok(outcome)
     }
 
-    fn skill_action(
+    fn hyper_skill_action(
         &self,
         account_id: &str,
         request_id: &str,
@@ -993,11 +1531,20 @@ impl Store {
         skill_id: u32,
         expected_job: u32,
         book_id: u32,
-        max_level: u32,
-        prerequisites: &BTreeMap<u32, u32>,
-        hidden: bool,
+        _max_level: u32,
+        _prerequisites: &BTreeMap<u32, u32>,
+        _hidden: bool,
         mp_cost: i64,
+        cooldown_ms: i64,
+        cooldown_skill_id: u32,
     ) -> Result<SkillActionOutcome, String> {
+        let (kind, required_level) =
+            hyper_skill_info(skill_id).ok_or_else(|| "unknown Hyper skill".to_owned())?;
+        let cooldown_key = if cooldown_skill_id == 0 {
+            skill_id
+        } else {
+            cooldown_skill_id
+        };
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
         if let Some(mut outcome) = tx
@@ -1027,6 +1574,204 @@ impl Store {
             tx.commit().map_err(|_| "account persistence failed")?;
             return Ok(outcome);
         }
+        if cooldown_ms < 0 {
+            return Err("invalid skill cooldown".to_owned());
+        }
+        let (job, level, current_mp, skills_json): (i64, i64, i64, String) = tx
+            .query_row(
+                "SELECT job,level,mp,skills_json FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .map_err(|_| "account persistence failed")?;
+        let current_level = u32::try_from(level.max(0)).unwrap_or(0);
+        let mut skills = parse_skill_map(&skills_json)?;
+        let current_skill_level = skills.get(&skill_id).copied().unwrap_or(0).min(1);
+        let mut next_skill_level = current_skill_level;
+        let mut next_mp = current_mp.max(0);
+        let mut success = true;
+        let mut code = String::new();
+        if job != i64::from(FOURTH_JOB)
+            || expected_job != FOURTH_JOB
+            || book_id != FOURTH_MAGE_BOOK
+        {
+            success = false;
+            code = "wrong_job".to_owned();
+        } else if hyper_skill_hidden(skill_id) {
+            success = false;
+            code = "skill_hidden".to_owned();
+        } else if current_level < required_level {
+            success = false;
+            code = "level_requirement".to_owned();
+        } else if !matches!(operation, "learn" | "cast") {
+            success = false;
+            code = "invalid_operation".to_owned();
+        } else if operation == "learn" {
+            if current_skill_level >= 1 {
+                success = false;
+                code = "max_level".to_owned();
+            } else if hyper_skill_prerequisites(skill_id)
+                .iter()
+                .any(|(prerequisite, required)| {
+                    skills.get(prerequisite).copied().unwrap_or(0) < *required
+                })
+            {
+                success = false;
+                code = "prerequisite".to_owned();
+            } else if hyper_points(current_level, &skills, kind) == 0 {
+                success = false;
+                code = "not_enough_hyper_points".to_owned();
+            } else {
+                next_skill_level = 1;
+                skills.insert(skill_id, next_skill_level);
+            }
+        } else if current_skill_level == 0 {
+            success = false;
+            code = "not_learned".to_owned();
+        } else if kind == 1 && skill_id != 2_221_045 {
+            success = false;
+            code = "skill_passive".to_owned();
+        } else if mp_cost < 0 || current_mp < mp_cost {
+            success = false;
+            code = "not_enough_mp".to_owned();
+        } else {
+            // World emits each authorized 2221052 channel pulse as a fresh
+            // request with the fixed 30 MP charge and cooldown_ms=0.  The
+            // initial cast owns the durable 60-second cooldown; pulses must
+            // charge MP without being mistaken for a second initial cast.
+            let authorized_hyper_pulse =
+                skill_id == HYPER_THUNDER_SKILL && cooldown_ms == 0 && mp_cost == 30;
+            if !authorized_hyper_pulse {
+                let now = now_ms();
+                let ready_at: Option<i64> = tx
+                    .query_row(
+                        "SELECT ready_at_ms FROM skill_cooldowns WHERE account_id=?1 AND skill_id=?2",
+                        params![account_id, i64::from(cooldown_key)],
+                        |row| row.get(0),
+                    )
+                    .optional()
+                    .map_err(|_| "account persistence failed")?;
+                if ready_at.is_some_and(|value| value > now) {
+                    success = false;
+                    code = "skill_cooldown".to_owned();
+                }
+            }
+            if success {
+                next_mp = current_mp - mp_cost;
+            }
+        }
+        let remaining_sp = hyper_points(current_level, &skills, kind);
+        tx.execute(
+            "INSERT INTO skill_actions(account_id,request_id,operation,skill_id,success,code,skill_level,remaining_sp,mp,quoted_cost) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,0)",
+            params![
+                account_id,
+                request_id,
+                operation,
+                i64::from(skill_id),
+                if success { 1 } else { 0 },
+                code.clone(),
+                i64::from(next_skill_level),
+                i64::from(remaining_sp),
+                next_mp,
+            ],
+        )
+        .map_err(|_| "account persistence failed")?;
+        if success {
+            let changed = tx
+                .execute(
+                    "UPDATE player_stats SET skills_json=?2,mp=?3 WHERE account_id=?1",
+                    params![account_id, serialize_skill_map(&skills)?, next_mp],
+                )
+                .map_err(|_| "account persistence failed")?;
+            if changed != 1 {
+                return Err("account persistence failed".to_owned());
+            }
+            if operation == "cast" && cooldown_ms > 0 {
+                let ready_at = now_ms().saturating_add(cooldown_ms);
+                tx.execute(
+                    "INSERT INTO skill_cooldowns(account_id,skill_id,ready_at_ms) VALUES(?1,?2,?3)
+                     ON CONFLICT(account_id,skill_id) DO UPDATE SET ready_at_ms=excluded.ready_at_ms",
+                    params![account_id, i64::from(cooldown_key), ready_at],
+                )
+                .map_err(|_| "account persistence failed")?;
+            }
+        }
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(SkillActionOutcome {
+            operation: operation.to_owned(),
+            skill_id,
+            success,
+            code,
+            level: next_skill_level,
+            remaining_sp,
+            mp: next_mp,
+            already_resolved: false,
+        })
+    }
+
+    fn skill_action(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        operation: &str,
+        skill_id: u32,
+        expected_job: u32,
+        book_id: u32,
+        max_level: u32,
+        prerequisites: &BTreeMap<u32, u32>,
+        hidden: bool,
+        mp_cost: i64,
+        cooldown_ms: i64,
+        cooldown_skill_id: u32,
+    ) -> Result<SkillActionOutcome, String> {
+        if hyper_skill_info(skill_id).is_some() {
+            return self.hyper_skill_action(
+                account_id,
+                request_id,
+                operation,
+                skill_id,
+                expected_job,
+                book_id,
+                max_level,
+                prerequisites,
+                hidden,
+                mp_cost,
+                cooldown_ms,
+                cooldown_skill_id,
+            );
+        }
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some(mut outcome) = tx
+            .query_row(
+                "SELECT operation,skill_id,success,code,skill_level,remaining_sp,mp FROM skill_actions WHERE account_id=?1 AND request_id=?2",
+                params![account_id, request_id],
+                |row| {
+                    Ok(SkillActionOutcome {
+                        operation: row.get(0)?,
+                        skill_id: row.get::<_, i64>(1)?.try_into().unwrap_or(0),
+                        success: row.get::<_, i64>(2)? != 0,
+                        code: row.get(3)?,
+                        level: row.get::<_, i64>(4)?.try_into().unwrap_or(0),
+                        remaining_sp: row.get::<_, i64>(5)?.try_into().unwrap_or(0),
+                        mp: row.get(6)?,
+                        already_resolved: true,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+        {
+            if outcome.operation != operation || outcome.skill_id != skill_id {
+                outcome.success = false;
+                outcome.code = "request_conflict".to_owned();
+            }
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(outcome);
+        }
+        if cooldown_ms < 0 {
+            return Err("invalid skill cooldown".to_owned());
+        }
         let (job, current_mp, skills_json, skill_points_json): (i64, i64, String, String) = tx
             .query_row(
                 "SELECT job,mp,skills_json,skill_points_json FROM player_stats WHERE account_id=?1",
@@ -1038,19 +1783,45 @@ impl Store {
         let mut skill_points = parse_skill_map(&skill_points_json)?;
         let mut success = true;
         let mut code = String::new();
-        let job_allowed = if expected_job == 200 {
+        let job_allowed = if expected_job == 0 {
+            job == 0 || u32::try_from(job).ok().is_some_and(mage_job_allowed)
+        } else if expected_job == 200 {
             matches!(job, 200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232)
         } else if expected_job == 220 {
             matches!(job, 220 | 221 | 222)
+        } else if expected_job == THIRD_JOB {
+            matches!(job, 221 | 222)
+        } else if expected_job == FOURTH_JOB {
+            job == i64::from(FOURTH_JOB)
         } else {
             job == i64::from(expected_job)
         };
         let current_level = skills.get(&skill_id).copied().unwrap_or(0);
         let mut next_level = current_level;
         let mut next_mp = current_mp.max(0);
-        if !job_allowed || !matches!(book_id, 200 | 220) || skill_id / 10_000 != book_id || expected_job != book_id {
+        if !job_allowed
+            || !matches!(book_id, 0 | 200 | 220 | 221 | FOURTH_MAGE_BOOK)
+            || skill_id / 10_000 != book_id
+            || expected_job != book_id
+        {
             success = false;
             code = "wrong_job".to_owned();
+        } else if book_id == 0 && (!(1000..=1002).contains(&skill_id) || !(1..=3).contains(&max_level) || hidden) {
+            success = false;
+            code = "skill_unknown".to_owned();
+        } else if skill_id == THIRD_HIDDEN_SKILL || FOURTH_HIDDEN_SKILLS.contains(&skill_id) {
+            // 2211015 and the fourth-job hidden nodes are authored internal
+            // effects.  They are never client-learnable or client-cast,
+            // even if a caller tries to use the internal `hidden` bypass.
+            success = false;
+            code = "skill_hidden".to_owned();
+        } else if skill_id == FOURTH_FIXED_SKILL {
+            // The fixed level is granted by the transfer transaction only.
+            success = false;
+            code = "skill_fixed_level".to_owned();
+        } else if operation == "cast" && FOURTH_PASSIVE_SKILLS.contains(&skill_id) {
+            success = false;
+            code = "skill_passive".to_owned();
         } else if operation == "learn" {
             if current_level >= max_level {
                 success = false;
@@ -1080,6 +1851,22 @@ impl Store {
         } else {
             next_mp = current_mp - mp_cost;
         }
+        if success && operation == "cast" {
+            let now = now_ms();
+            let ready_at: Option<i64> = tx
+                .query_row(
+                    "SELECT ready_at_ms FROM skill_cooldowns WHERE account_id=?1 AND skill_id=?2",
+                    params![account_id, i64::from(cooldown_skill_id)],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "account persistence failed")?;
+            if ready_at.is_some_and(|value| value > now) {
+                success = false;
+                code = "skill_cooldown".to_owned();
+                next_mp = current_mp.max(0);
+            }
+        }
         let remaining_sp = skill_points.get(&book_id).copied().unwrap_or(0);
         tx.execute(
             "INSERT INTO skill_actions(account_id,request_id,operation,skill_id,success,code,skill_level,remaining_sp,mp) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
@@ -1107,6 +1894,15 @@ impl Store {
                 ],
             )
             .map_err(|_| "account persistence failed")?;
+            if operation == "cast" && cooldown_ms > 0 {
+                let ready_at = now_ms().saturating_add(cooldown_ms);
+                tx.execute(
+                    "INSERT INTO skill_cooldowns(account_id,skill_id,ready_at_ms) VALUES(?1,?2,?3)
+                     ON CONFLICT(account_id,skill_id) DO UPDATE SET ready_at_ms=excluded.ready_at_ms",
+                    params![account_id, i64::from(cooldown_skill_id), ready_at],
+                )
+                .map_err(|_| "account persistence failed")?;
+            }
         }
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(SkillActionOutcome {
@@ -1142,7 +1938,8 @@ impl Store {
         Ok(quests)
     }
 
-    /// Upsert one quest status row.
+    /// Upsert one quest status row for existing store-level fixtures.
+    #[cfg(test)]
     pub fn save_quest(&self, account_id: &str, quest_id: &str, status: &str) -> Result<(), String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.execute(
@@ -1152,6 +1949,191 @@ impl Store {
         )
         .map_err(|_| "account persistence failed")?;
         Ok(())
+    }
+
+    /// Commit a quest transition and its player-side rewards as one durable
+    /// business operation.  `(account_id, quest_id)` is the idempotency key;
+    /// a retry after a committed transition returns `false` and rolls back.
+    pub fn commit_quest(
+        &self,
+        account_id: &str,
+        quest_id: &str,
+        status: &str,
+        profile: &Profile,
+    ) -> Result<bool, String> {
+        if quest_id.trim().is_empty() {
+            return Err("invalid quest id".to_owned());
+        }
+        if !matches!(status, "active" | "completed") {
+            return Err("invalid quest status".to_owned());
+        }
+
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+
+        // Read through the same transaction so an unknown character cannot
+        // create a quest row or leave a partial reward behind.  The durable
+        // profile is also the authority for the q1402 transfer guard; the
+        // world-supplied profile is an internal candidate, never client input.
+        let durable_profile = read_profile(&tx, account_id)?;
+        let previous: Option<String> = tx
+            .query_row(
+                "SELECT status FROM player_quests WHERE account_id=?1 AND quest_id=?2",
+                params![account_id, quest_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?;
+
+        let transition_allowed = match previous.as_deref() {
+            None if status == "active" => true,
+            Some("active") if status == "completed" => true,
+            None if status == "completed" => {
+                return Err("quest is not active".to_owned());
+            }
+            None => return Err("invalid quest transition".to_owned()),
+            Some("active") | Some("completed") => false,
+            Some(_) => return Err("invalid saved quest status".to_owned()),
+        };
+        if !transition_allowed {
+            // Do not commit read_profile's normalization or any other write
+            // on an idempotent retry; the caller reloads authoritative state.
+            tx.rollback().map_err(|_| "account persistence failed")?;
+            return Ok(false);
+        }
+
+        let mut first_mage_transfer = false;
+        if quest_id == "1402" && status == "completed" {
+            if durable_profile.level < 10 {
+                return Err("q1402 level requirement missing".to_owned());
+            }
+            let prerequisite: Option<String> = tx
+                .query_row(
+                    "SELECT status FROM player_quests WHERE account_id=?1 AND quest_id='36307'",
+                    [account_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "account persistence failed")?;
+            if prerequisite.as_deref() != Some("completed") {
+                return Err("q1402 prerequisite missing".to_owned());
+            }
+            match durable_profile.job {
+                0 => {
+                    // World must prepare the candidate with the same pure
+                    // first-job grant. Compare only transfer-owned fields so
+                    // a stale beginner profile cannot overwrite job/SP/MP.
+                    let mut expected = durable_profile.clone();
+                    grant_first_mage(&mut expected);
+                    if profile.job != expected.job
+                        || profile.max_mp != expected.max_mp
+                        || profile.mp != expected.mp
+                        || profile.skills != expected.skills
+                        || profile.skill_points != expected.skill_points
+                    {
+                        return Err("invalid q1402 first-job candidate".to_owned());
+                    }
+                    first_mage_transfer = true;
+                }
+                200 | 220 | THIRD_JOB | FOURTH_JOB => {
+                    // A shortcut/older transferred character may recover the
+                    // original story, but q1402 must not grant another job,
+                    // SP or MP entitlement.
+                    if profile.job != durable_profile.job {
+                        return Err("q1402 job changed during story recovery".to_owned());
+                    }
+                }
+                _ => return Err("q1402 job is not eligible".to_owned()),
+            }
+        }
+
+        write_profile(&tx, account_id, profile)?;
+        write_inventory_tx(&tx, account_id, &profile.inventory)?;
+        if first_mage_transfer {
+            let changed = tx
+                .execute(
+                    "UPDATE player_stats SET mage_support_granted=1 WHERE account_id=?1 AND job=200",
+                    [account_id],
+                )
+                .map_err(|_| "account persistence failed")?;
+            if changed != 1 {
+                return Err("account persistence failed".to_owned());
+            }
+        }
+        tx.execute(
+            "INSERT INTO player_quests(account_id,quest_id,status) VALUES(?1,?2,?3)
+             ON CONFLICT(account_id,quest_id) DO UPDATE SET status=?3",
+            params![account_id, quest_id, status],
+        )
+        .map_err(|_| "account persistence failed")?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(true)
+    }
+
+    /// Recover the one authored quest interaction item from the durable
+    /// inventory fact.  The interaction has no request table: possession is
+    /// its idempotency key, so a retry with any request id cannot mint a
+    /// second hairpin.
+    pub fn commit_quest_interaction(
+        &self,
+        account_id: &str,
+        quest_id: &str,
+        item_id: &str,
+        quantity: u32,
+        profile: &Profile,
+    ) -> Result<bool, String> {
+        // P: the first authored interaction is Candy's quest 36301.  Keep
+        // both sides of the pair fixed here so a caller cannot turn this
+        // recovery hook into a generic item grant.
+        if quest_id != "36301" || item_id != "4036846" || quantity != 1 {
+            return Err("invalid quest interaction".to_owned());
+        }
+
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        let durable = read_profile(&tx, account_id)?;
+        let status: Option<String> = tx
+            .query_row(
+                "SELECT status FROM player_quests WHERE account_id=?1 AND quest_id=?2",
+                params![account_id, quest_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?;
+        if status.as_deref() != Some("active") {
+            return Err("quest is not active".to_owned());
+        }
+
+        let held = durable
+            .inventory
+            .iter()
+            .filter(|item| item.item_id == item_id)
+            .fold(0u32, |total, item| total.saturating_add(item.quantity));
+        if held >= quantity {
+            // read_profile may normalize legacy inventory rows.  An
+            // idempotent retry must not commit even that normalization.
+            tx.rollback().map_err(|_| "account persistence failed")?;
+            return Ok(false);
+        }
+
+        let missing = quantity - held;
+        let mut next_inventory = durable.inventory;
+        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing)
+            .map_err(|error| match error {
+                inventory::InventoryError::InventoryFull => "quest interaction inventory full",
+                inventory::InventoryError::UnknownItem => "quest interaction unknown item",
+                _ => "quest interaction rejected",
+            })?;
+
+        // Keep the world-supplied profile fields (notably its current
+        // position), but never trust its inventory snapshot: the DB fact is
+        // the base and only the missing quantity is added above.
+        let mut next_profile = profile.clone();
+        next_profile.inventory = next_inventory;
+        write_profile(&tx, account_id, &next_profile)?;
+        write_inventory_tx(&tx, account_id, &next_profile.inventory)?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(true)
     }
 
     /// Public wrapper around `write_inventory_tx` for callers that mutate
@@ -1172,21 +2154,33 @@ impl Store {
     pub fn claim_attack(
         &self,
         account_id: &str,
+        map_id: &str,
         request_id: &str,
         action_id: &str,
         event: &str,
     ) -> Result<AttackClaim, String> {
+        if map_id.is_empty() {
+            return Err("attack map missing".into());
+        }
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
-        let prior: Option<(String, String, i64)> = tx
+        let prior: Option<(String, String, i64, String)> = tx
             .query_row(
-                "SELECT action_id,event,resolved FROM attack_actions WHERE account_id=?1 AND request_id=?2",
+                "SELECT action_id,event,resolved,map_id FROM attack_actions WHERE account_id=?1 AND request_id=?2",
                 params![account_id, request_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()
             .map_err(|_| "account persistence failed")?;
-        if let Some((action_id, event, resolved)) = prior {
+        if let Some((action_id, event, resolved, prior_map_id)) = prior {
+            if resolved == 0 {
+                if prior_map_id.is_empty() {
+                    return Err("attack request has no bound map".into());
+                }
+                if prior_map_id != map_id {
+                    return Err("attack request map changed".into());
+                }
+            }
             tx.commit().map_err(|_| "account persistence failed")?;
             return Ok(AttackClaim {
                 action_id,
@@ -1195,8 +2189,8 @@ impl Store {
             });
         }
         tx.execute(
-            "INSERT INTO attack_actions(account_id,request_id,action_id,event) VALUES (?1,?2,?3,?4)",
-            params![account_id, request_id, action_id, event],
+            "INSERT INTO attack_actions(account_id,request_id,action_id,event,map_id) VALUES (?1,?2,?3,?4,?5)",
+            params![account_id, request_id, action_id, event, map_id],
         )
         .map_err(|_| "account persistence failed")?;
         tx.commit().map_err(|_| "account persistence failed")?;
@@ -1221,11 +2215,17 @@ impl Store {
         exp_table: &[u64],
         eligible_accounts: &[String],
     ) -> Result<AttackResolution, String> {
+        if map_id.is_empty() {
+            return Err("attack map missing".into());
+        }
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        let practice = is_practice_map(map_id);
+        let effective_exp_gain = if practice { 0 } else { exp_gain };
+        let effective_drops: &[DropRecord] = if practice { &[] } else { drops };
         let prior: Option<StoredResolution> = tx
             .query_row(
-                "SELECT resolved,target_id,damage,killed,exp_gain,drop_id,drop_item_id,drop_quantity,drop_x,drop_y
+                "SELECT map_id,resolved,target_id,damage,killed,exp_gain,drop_id,drop_item_id,drop_quantity,drop_x,drop_y
                  FROM attack_actions WHERE account_id=?1 AND request_id=?2",
                 params![account_id, request_id],
                 StoredResolution::from_row,
@@ -1249,6 +2249,12 @@ impl Store {
                 profile: None,
                 profiles: Vec::new(),
             });
+        }
+        if prior.map_id.is_empty() {
+            return Err("attack request has no bound map".into());
+        }
+        if prior.map_id != map_id {
+            return Err("attack request map changed".into());
         }
 
         if let Some(monster_id) = target_id.filter(|_| damage > 0) {
@@ -1274,17 +2280,21 @@ impl Store {
                     })
                     .map(|(participant, _)| participant.clone())
                     .unwrap_or_else(|| account_id.to_owned());
-                let exp_gain = i64::try_from(exp_gain).map_err(|_| "account persistence failed")?;
+                let persisted_exp_gain =
+                    i64::try_from(effective_exp_gain).map_err(|_| "account persistence failed")?;
+                // Practice rows are encounter facts only.  Any future formal
+                // kill/quest counter must query this table with practice=0.
                 reward_claimed = tx
                     .execute(
-                        "INSERT OR IGNORE INTO monster_rewards(monster_id,account_id,request_id,exp_gain,drop_id)
-                         VALUES (?1,?2,?3,?4,?5)",
+                        "INSERT OR IGNORE INTO monster_rewards(monster_id,account_id,request_id,exp_gain,drop_id,practice)
+                         VALUES (?1,?2,?3,?4,?5,?6)",
                         params![
                             monster_id,
                             winner.as_str(),
                             request_id,
-                            exp_gain,
-                            drops.first().map(|d| d.id.as_str())
+                            persisted_exp_gain,
+                            effective_drops.first().map(|d| d.id.as_str()),
+                            if practice { 1 } else { 0 },
                         ],
                     )
                     .map_err(|_| "account persistence failed")?
@@ -1295,7 +2305,7 @@ impl Store {
                         if !eligible_accounts.iter().any(|id| id == &participant) {
                             continue;
                         }
-                        let share = ((exp_gain.max(0) as f64) * (contribution.max(0) as f64)
+                        let share = ((persisted_exp_gain.max(0) as f64) * (contribution.max(0) as f64)
                             / total_damage)
                             .round()
                             .max(0.0) as u64;
@@ -1311,7 +2321,7 @@ impl Store {
                         profiles.push((participant, profile));
                     }
                     let protected_until_ms = now_ms().saturating_add(DROP_PROTECTION_MS);
-                    for drop in drops {
+                    for drop in effective_drops {
                         let mut drop = drop.clone();
                         drop.owner_id = Some(winner.clone());
                         drop.protected_until_ms = protected_until_ms;
@@ -3300,7 +4310,7 @@ fn write_profile(
     let skills_json = serialize_skill_map(&profile.skills)?;
     let skill_points_json = serialize_skill_map(&profile.skill_points)?;
     tx.execute(
-        "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,death_id=?11,skills_json=?12,skill_points_json=?13,ability_stats_json=?14
+        "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,death_id=?11,skills_json=?12,skill_points_json=?13,ability_stats_json=?14,map_id=?15,x=?16,y=?17
          WHERE account_id=?1",
         params![
             account_id,
@@ -3317,10 +4327,36 @@ fn write_profile(
             skills_json,
             skill_points_json,
             serde_json::to_string(&profile.ability_stats).map_err(|_| "account persistence failed")?,
+            profile.map_id,
+            profile.x,
+            profile.y,
         ],
     )
     .map_err(|_| "account persistence failed")?;
     Ok(())
+}
+
+/// P: beginner levels 2..=7 grant 1 SP (R: historical cross-region rule,
+/// https://en.wikibooks.org/wiki/MapleStory/Beginner_Guide/Skills; not a 273 script).
+/// supported Mage books keep the project's existing 3-SP-per-level rule.
+/// Call only after a real level increase, inside the reward transaction.
+pub(crate) fn grant_level_sp(job: u32, level: u32, points: &mut BTreeMap<u32, u32>) {
+    let (book, amount) = match job {
+        0 if (2..=7).contains(&level) => (0, 1),
+        THIRD_JOB => (THIRD_MAGE_BOOK, 3),
+        220 => (220, 3),
+        FOURTH_JOB => {
+            let amount = fourth_sp_for_level(level);
+            if amount == 0 {
+                return;
+            }
+            (FOURTH_MAGE_BOOK, amount)
+        }
+        job if mage_job_allowed(job) => (MAGE_BOOK, 3),
+        _ => return,
+    };
+    let available = points.entry(book).or_default();
+    *available = available.saturating_add(amount);
 }
 
 pub(crate) fn add_exp(profile: &mut Profile, amount: u64, exp_table: &[u64]) {
@@ -3333,15 +4369,7 @@ pub(crate) fn add_exp(profile: &mut Profile, amount: u64, exp_table: &[u64]) {
         profile.exp -= threshold;
         profile.level = profile.level.saturating_add(1);
         profile.ability_stats.available_ap = profile.ability_stats.available_ap.saturating_add(5);
-        // P: award three points in the current Mage/ice book per level.
-        // This lives inside the same reward transaction as the level update,
-        // so an attack replay returns the settled profile without awarding
-        // the points again.
-        if mage_job_allowed(profile.job) {
-            let book = if matches!(profile.job, 220 | 221 | 222) { 220 } else { MAGE_BOOK };
-            let points = profile.skill_points.entry(book).or_default();
-            *points = points.saturating_add(3);
-        }
+        grant_level_sp(profile.job, profile.level, &mut profile.skill_points);
         profile.exp_to_next = exp_table
             .get(profile.level.saturating_sub(1) as usize)
             .copied()
@@ -3355,6 +4383,7 @@ pub(crate) fn add_exp(profile: &mut Profile, amount: u64, exp_table: &[u64]) {
 
 #[derive(Clone, Debug)]
 struct StoredResolution {
+    map_id: String,
     resolved: bool,
     target_id: Option<String>,
     damage: i64,
@@ -3365,18 +4394,18 @@ struct StoredResolution {
 
 impl StoredResolution {
     fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
-        let drop_id: Option<String> = row.get(5)?;
+        let drop_id: Option<String> = row.get(6)?;
         let drop = if let Some(id) = drop_id {
             Some(DropRecord {
                 id,
-                item_id: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                item_id: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
                 quantity: row
-                    .get::<_, Option<i64>>(7)?
+                    .get::<_, Option<i64>>(8)?
                     .unwrap_or(0)
                     .try_into()
                     .unwrap_or(0),
-                x: row.get::<_, Option<f64>>(8)?.unwrap_or(0.0),
-                y: row.get::<_, Option<f64>>(9)?.unwrap_or(0.0),
+                x: row.get::<_, Option<f64>>(9)?.unwrap_or(0.0),
+                y: row.get::<_, Option<f64>>(10)?.unwrap_or(0.0),
                 owner_id: None,
                 protected_until_ms: 0,
                 ..DropRecord::default()
@@ -3385,11 +4414,12 @@ impl StoredResolution {
             None
         };
         Ok(Self {
-            resolved: row.get::<_, i64>(0)? != 0,
-            target_id: row.get(1)?,
-            damage: row.get(2)?,
-            killed: row.get::<_, i64>(3)? != 0,
-            exp_gain: row.get::<_, i64>(4)?.max(0) as u64,
+            map_id: row.get(0)?,
+            resolved: row.get::<_, i64>(1)? != 0,
+            target_id: row.get(2)?,
+            damage: row.get(3)?,
+            killed: row.get::<_, i64>(4)? != 0,
+            exp_gain: row.get::<_, i64>(5)?.max(0) as u64,
             drop,
         })
     }
@@ -3630,6 +4660,13 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
 
+    include!("quest_store_acceptance.rs");
+    include!("attack_store_acceptance.rs");
+    include!("third_store_acceptance.rs");
+    include!("fourth_store_acceptance.rs");
+    include!("hyper_store_acceptance.rs");
+    include!("continuation_store_acceptance.rs");
+
     #[tokio::test]
     async fn accounts_persist_and_sessions_require_valid_credentials() {
         let path = std::env::temp_dir().join(format!("maple-auth-{}.sqlite3", random_id()));
@@ -3748,7 +4785,7 @@ mod tests {
         // Attack reward settlement uses the transactional write_profile path;
         // it must carry the character job through the same update.
         store
-            .claim_attack("new", "job-attack", "job-action", "started")
+            .claim_attack("new", "map", "job-attack", "job-action", "started")
             .unwrap();
         store
             .resolve_attack(
@@ -3931,7 +4968,7 @@ mod tests {
         // The transactional reward path must read/write the complete profile
         // without dropping either skill map.
         store
-            .claim_attack("a", "skill-reward", "skill-action", "started")
+            .claim_attack("a", "map", "skill-reward", "skill-action", "started")
             .unwrap();
         let resolved = store
             .resolve_attack(
@@ -4082,6 +5119,113 @@ mod tests {
     }
 
     #[test]
+    fn beginner_learning_sp_and_cooldowns_survive_replay_and_reopen() {
+        let path = std::env::temp_dir().join(format!("beginner-skills-{}.sqlite3", random_id()));
+        let db = Connection::open(&path).unwrap();
+        Store::init(&db).unwrap();
+        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let base = Profile {
+            hp: 30, max_hp: 50, mp: 30, max_mp: 30, level: 3, job: 0,
+            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
+            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
+            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("beginner", &base).unwrap(); // Legacy repair grants 2 SP.
+        let learn = |request: &str, skill| store.learn_skill("beginner", request, skill, 0, 0, 3, &BTreeMap::new(), false).unwrap();
+        let first = learn("learn-1", 1001);
+        assert!(first.success);
+        assert_eq!((first.level, first.remaining_sp), (1, 1));
+        assert!(learn("learn-1", 1001).already_resolved);
+        assert_eq!(learn("learn-1", 1002).code, "request_conflict");
+        assert!(learn("learn-2", 1002).success);
+        assert_eq!(learn("learn-3", 1000).code, "not_enough_sp");
+        assert_eq!(store.load_profile("beginner", &base).unwrap().skill_points[&0], 0);
+        assert!(!store.learn_skill("beginner", "fake-book", 1000, 200, 200, 3, &BTreeMap::new(), false).unwrap().success);
+        assert!(!store.learn_skill("beginner", "fake-id", 1003, 0, 0, 3, &BTreeMap::new(), false).unwrap().success);
+        assert!(!store.learn_skill("beginner", "fake-free", 1000, 0, 0, 3, &BTreeMap::new(), true).unwrap().success);
+        let cast = store.cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000).unwrap();
+        assert!(cast.success);
+        assert_eq!(cast.mp, 25);
+        assert!(store.cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000).unwrap().already_resolved);
+        assert_eq!(store.cast_skill_with_cooldown("beginner", "heal-again", 1001, 0, 0, 3, 5, 120_000).unwrap().code, "skill_cooldown");
+        assert_eq!(store.load_profile("beginner", &base).unwrap().mp, 25);
+        assert!(store.advance_job("beginner", 0, 200).unwrap());
+        assert!(store.cast_skill_with_cooldown("beginner", "speed", 1002, 0, 0, 3, 4, 60_000).unwrap().success);
+        drop(store);
+        let db = Connection::open(&path).unwrap();
+        Store::init(&db).unwrap();
+        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let saved = store.load_profile("beginner", &base).unwrap();
+        assert_eq!(saved.skills[&1001], 1);
+        assert_eq!(saved.skill_points[&0], 0);
+        assert_eq!(saved.skill_points[&200], 5);
+        assert!(store.skill_cooldown_remaining_ms("beginner", 1001).unwrap() > 0);
+        assert_eq!(store.cast_skill_with_cooldown("beginner", "heal-reconnect", 1001, 0, 0, 3, 5, 120_000).unwrap().code, "skill_cooldown");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn beginner_sp_growth_and_legacy_repair_are_idempotent() {
+        let path = std::env::temp_dir().join(format!("maple-beginner-sp-{}.sqlite3", random_id()));
+        let db = Connection::open(&path).unwrap();
+        Store::init(&db).unwrap();
+        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let defaults = Profile {
+            hp: 50, max_hp: 50, mp: 5, max_mp: 5, level: 1, job: 0,
+            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
+            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
+            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        let mut profile = store.load_profile("old", &defaults).unwrap();
+        assert!(profile.skill_points.is_empty());
+        profile.level = 2; // Actual old-account failure: already leveled, no SP.
+        profile.skill_points.insert(200, 9);
+        store.save_profile("old", &profile).unwrap();
+        let repaired = store.load_profile("old", &defaults).unwrap();
+        assert_eq!(repaired.skill_points, BTreeMap::from([(0, 1), (200, 9)]));
+        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points, repaired.skill_points);
+        profile = repaired;
+        profile.level = 7;
+        profile.skills = BTreeMap::from([(1000, 3), (1001, 1)]);
+        store.save_profile("old", &profile).unwrap();
+        profile = store.load_profile("old", &defaults).unwrap();
+        assert_eq!(profile.skill_points[&0], 2); // 6 earned - 4 spent.
+        assert_eq!(profile.skills[&1000], 3);
+        profile.skill_points.insert(0, 20); // Never reclaim an existing surplus.
+        store.save_profile("old", &profile).unwrap();
+        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points[&0], 20);
+        drop(store);
+        let db = Connection::open(&path).unwrap();
+        Store::init(&db).unwrap();
+        let store = Store { db: Arc::new(Mutex::new(db)) };
+        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points[&0], 20);
+        let mut fresh = defaults.clone();
+        add_exp(&mut fresh, 7, &[1; 8]); // Cross levels 2..8: only six beginner SP.
+        assert_eq!((fresh.level, fresh.skill_points[&0]), (8, 6));
+        add_exp(&mut fresh, 0, &[1; 8]);
+        assert_eq!(fresh.skill_points[&0], 6);
+        for (job, book) in [(200, 200), (220, 220), (221, 221)] {
+            let mut mage = defaults.clone();
+            mage.job = job;
+            add_exp(&mut mage, 2, &[1; 8]);
+            assert_eq!(mage.skill_points, BTreeMap::from([(book, 6)]));
+        }
+        let mut fourth = defaults.clone();
+        fourth.job = FOURTH_JOB;
+        add_exp(&mut fourth, 2, &[1; 8]);
+        assert!(fourth.skill_points.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
     fn mage_level_up_grants_three_book_points_once_across_reward_replay() {
         let runtime: serde_json::Value = serde_json::from_str(include_str!("../../shared/gameplay.json")).unwrap();
         let exp_table: Vec<u64> = serde_json::from_value(runtime["expTable"].clone()).unwrap();
@@ -4113,7 +5257,7 @@ mod tests {
         store.load_profile("mage", &defaults).unwrap();
         store.save_profile("mage", &defaults).unwrap();
         store
-            .claim_attack("mage", "mage-level", "mage-level-action", "skill")
+            .claim_attack("mage", "map", "mage-level", "mage-level-action", "skill")
             .unwrap();
         let settled = store
             .resolve_attack(
@@ -4205,7 +5349,7 @@ mod tests {
         store.load_profile("a", &defaults).unwrap();
         store.load_profile("b", &defaults).unwrap();
         store
-            .claim_attack("a", "attack-1", "action-1", "started")
+            .claim_attack("a", "map", "attack-1", "action-1", "started")
             .unwrap();
         let drops = vec![
             DropRecord {
@@ -4688,7 +5832,7 @@ mod tests {
         store.load_profile("b", &defaults).unwrap();
         let active = vec!["a".to_owned(), "b".to_owned()];
         store
-            .claim_attack("a", "attack-a", "action-a", "started")
+            .claim_attack("a", "map", "attack-a", "action-a", "started")
             .unwrap();
         store
             .resolve_attack(
@@ -4706,7 +5850,7 @@ mod tests {
             )
             .unwrap();
         store
-            .claim_attack("b", "attack-b", "action-b", "started")
+            .claim_attack("b", "map", "attack-b", "action-b", "started")
             .unwrap();
         let drops = vec![DropRecord {
             id: "drop-1".into(),

@@ -413,7 +413,9 @@ def convert(args):
     visible_life = [(m, e) for m, e in life if active_source_life(e)]
     visible_mobs = [(m, e) for m, e in visible_life if e.get("type") == "m"]
     visible_npcs = [(m, e) for m, e in visible_life if e.get("type") == "n"]
-    raw_mob_ids = sorted({str(e.get("id", "")) for _, e in visible_mobs})
+    # P practice-only Boss template: never add it to authored Map.life.
+    practice_boss = "3220000"
+    raw_mob_ids = sorted({str(e.get("id", "")) for _, e in visible_mobs} | {practice_boss})
     raw_npc_ids = sorted({str(e.get("id", "")) for _, e in visible_npcs})
     if not all(raw_mob_ids) or not all(raw_npc_ids):
         raise ValueError("visible TMS273 life entry is missing id")
@@ -534,7 +536,8 @@ def convert(args):
 
         reward_path = mob_rewards_root / (runtime + ".json")
         drops = []
-        reward_rows = read_json(reward_path) if reward_path.exists() else []
+        # The private practice encounter has no loot eligibility; do not import custom Boss rewards.
+        reward_rows = read_json(reward_path) if reward_path.exists() and runtime != practice_boss else []
         if not reward_path.exists():
             issues.append("missing TMS273 MobReward/%s.json" % runtime)
         for row in reward_rows:
@@ -694,7 +697,8 @@ def convert(args):
             continue
         source = item_source(item_id, item_index, character_index)
         definition = item_definition(item_id, source, string_records, wz_root)
-        items[item_id] = definition
+        if source is not None:
+            items[item_id] = definition
         item_sources[item_id] = {
             "source": definition.get("source"),
             "spriteSource": definition.get("spriteSource"),
@@ -704,6 +708,14 @@ def convert(args):
             issues.append("missing TMS273 item stats JSON for item %s" % item_id)
         if not definition.get("name"):
             issues.append("missing TMS273 item name for item %s" % item_id)
+
+    # Server-pack reward rows can reference removed client items. Preserve the
+    # source record above, but never grant a fabricated default-stat item.
+    for monster in monster_templates:
+        if "drop" in monster:
+            monster["drop"] = [drop for drop in monster["drop"] if drop["itemId"] == "0" or drop["itemId"] in items]
+    for shop in shops:
+        shop["items"] = [item for item in shop["items"] if item["itemId"] in items]
 
     quest_doc_path = ROOT / "references/tms273-data/quests.json"
     quest_doc = read_json(quest_doc_path)

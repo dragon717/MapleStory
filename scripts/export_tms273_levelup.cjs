@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Export the source-backed TMS273 level-up effect and its game sound.
-// LevelUp and LevelUp2 are authored as separate synchronized layers; keep
-// them separate so the caller can preserve each WZ timeline and origin.
+// Preserve LevelUp and LevelUp2 as separate source sequences. Their names
+// do not prove that the client plays both together; selection is explicit below.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -185,6 +185,7 @@ async function main() {
       contentVersion: 'tms273-levelup',
       sourceVersion: 'TMS273.7',
       source: 'TMS273.7 client WZ / Effect/BasicEff.img and Sound/Game.img',
+      playbackPolicy: 'P: use LevelUp with Sound/Game.img/LevelUp on observed level increase. LevelUp2 is an unused alternative; simultaneous playback is not verified. LevelUp2 missing delays use reader default 100ms.',
       layerSources: EFFECT_SOURCES,
       layerFrameCounts: layers.map(layer => layer.length),
       layers,

@@ -23,12 +23,24 @@ pub struct MageSkill {
     pub max_level: u32,
     #[serde(default = "default_book_id")]
     pub book_id: u32,
+    /// TMS273 Skill/221 carries the elemental marker on the skill node rather
+    /// than on every level.  Keep it optional because the older 200/220
+    /// catalog does not export it.
+    #[serde(default, rename = "elemAttr")]
+    pub elem_attr: Option<String>,
     #[serde(default)]
     pub prerequisites: BTreeMap<String, u32>,
     #[serde(default)]
     pub hidden: bool,
     #[serde(default)]
     pub fixed_level: bool,
+    /// TMS273 Hyper pool: 0 ordinary, 1 passive pool, 2 active pool.
+    /// Hidden 2221055 is retained in the catalog as a source node but is
+    /// never exposed as a learnable skill by World.
+    #[serde(default)]
+    pub hyper: u32,
+    #[serde(default, rename = "requiredLevel")]
+    pub required_level: u32,
     #[serde(default)]
     pub booster_action_speed: Option<i64>,
     pub levels: Vec<MageLevel>,
@@ -38,6 +50,45 @@ pub struct MageSkill {
 #[serde(rename_all = "camelCase")]
 pub struct MageLevel {
     pub mp_con: Option<i64>,
+    pub z: Option<i64>,
+    #[serde(rename = "costmpR")]
+    pub costmp_r: Option<i64>,
+    #[serde(rename = "damR")]
+    pub dam_r: Option<i64>,
+    #[serde(rename = "criticaldamage")]
+    pub critical_damage: Option<i64>,
+    #[serde(rename = "subProp")]
+    pub sub_prop: Option<i64>,
+    #[serde(rename = "mdR")]
+    pub md_r: Option<i64>,
+    pub cooltime: Option<i64>,
+    #[serde(rename = "asrR")]
+    pub asr_r: Option<i64>,
+    #[serde(rename = "terR")]
+    pub ter_r: Option<i64>,
+    #[serde(rename = "stanceProp")]
+    pub stance_prop: Option<i64>,
+    #[serde(rename = "madX")]
+    pub mad_x: Option<i64>,
+    #[serde(rename = "bufftimeR")]
+    pub buff_time_r: Option<i64>,
+    #[serde(rename = "basicStatUp")]
+    pub basic_stat_up: Option<i64>,
+    #[serde(rename = "attackDelay")]
+    pub attack_delay: Option<i64>,
+    #[serde(rename = "ignoreMobpdpR")]
+    pub ignore_mob_pdp_r: Option<i64>,
+    #[serde(rename = "hcHp")]
+    pub hc_hp: Option<i64>,
+    pub speed: Option<i64>,
+    pub q: Option<i64>,
+    pub q2: Option<i64>,
+    #[serde(rename = "indieDamR")]
+    pub indie_dam_r: Option<i64>,
+    #[serde(rename = "targetPlus")]
+    pub target_plus: Option<u32>,
+    pub w2: Option<i64>,
+    pub u2: Option<i64>,
     #[serde(rename = "mmpR")]
     pub mmp_r: Option<i64>,
     pub lv2mmp: Option<i64>,
@@ -53,6 +104,8 @@ pub struct MageLevel {
     pub x: Option<i64>,
     pub y: Option<i64>,
     pub prop: Option<i64>,
+    #[serde(rename = "fixdamage")]
+    pub fixdamage: Option<i64>,
     pub time: Option<i64>,
     pub v: Option<i64>,
     pub w: Option<i64>,
@@ -97,6 +150,7 @@ impl MageSkills {
     }
 
     pub fn validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        const BEGINNER_IDS: [u32; 3] = [1_000, 1_001, 1_002];
         const FIRST_JOB_IDS: [u32; 8] = [
             2_000_006, 2_000_007, 2_000_010, 2_001_002, 2_001_008, 2_001_009, 2_001_011, 2_001_012,
         ];
@@ -104,8 +158,21 @@ impl MageSkills {
             2_200_000, 2_200_006, 2_200_007, 2_200_011, 2_200_012, 2_201_001, 2_201_005, 2_201_008,
             2_201_009,
         ];
+        const THIRD_JOB_IDS: [u32; 12] = [
+            2_210_000, 2_210_001, 2_210_009, 2_210_013, 2_210_016, 2_211_002, 2_211_007,
+            2_211_011, 2_211_012, 2_211_014, 2_211_015, 2_211_017,
+        ];
+        const FOURTH_JOB_IDS: [u32; 11] = [
+            2_220_010, 2_220_013, 2_220_015, 2_221_000, 2_221_004, 2_221_005,
+            2_221_006, 2_221_007, 2_221_008, 2_221_011, 2_221_012,
+        ];
+        const HYPER_IDS: [u32; 13] = [
+            2_220_043, 2_220_044, 2_221_045, 2_220_046, 2_220_047, 2_220_048,
+            2_220_049, 2_220_050, 2_220_051, 2_221_052, 2_221_053, 2_221_054,
+            2_221_055,
+        ];
         if self.source_version != "TMS273.7"
-            || !matches!(self.skills.len(), 8 | 17)
+            || !matches!(self.skills.len(), 8 | 17 | 29 | 32 | 43 | 56)
             || self.skills.len() == 8 && self.book_id != 200
         {
             return Err("invalid TMS273 mage skill catalog".into());
@@ -116,15 +183,28 @@ impl MageSkills {
                 200
             } else if SECOND_JOB_IDS.contains(&skill_id) {
                 220
+            } else if THIRD_JOB_IDS.contains(&skill_id) {
+                221
+            } else if FOURTH_JOB_IDS.contains(&skill_id) {
+                222
+            } else if HYPER_IDS.contains(&skill_id) {
+                222
+            } else if BEGINNER_IDS.contains(&skill_id) {
+                0
             } else {
                 0
             };
-            if expected_book == 0
+            if !BEGINNER_IDS.contains(&skill_id) && expected_book == 0
                 || skill.book_id != expected_book
                 || skill.max_level == 0
                 || skill.max_level > 100
                 || skill.levels.len() != skill.max_level as usize
                 || skill.name.is_empty()
+                || skill.hyper > 2
+                || (skill.hyper == 0 && skill.required_level != 0)
+                || (skill.hyper > 0 && (skill.book_id != 222 || skill.max_level != 1))
+                || (skill.hyper > 0 && skill.required_level < 140)
+                || skill.elem_attr.as_deref().is_some_and(|value| !matches!(value, "i" | "l"))
                 || skill.levels.iter().any(|level| {
                     level.mp_con.is_some_and(|value| value < 0)
                         || level.damage.is_some_and(|value| value < 0)
@@ -135,11 +215,45 @@ impl MageSkills {
                         || level.int_x.is_some_and(|value| value < 0)
                         || level.indie_mad.is_some_and(|value| value < 0)
                         || level.sub_time.is_some_and(|value| value < 0)
+                        || level.z.is_some_and(|value| value < 0)
+                        || level.costmp_r.is_some_and(|value| value < 0)
+                        || level.dam_r.is_some_and(|value| value < 0)
+                        || level.critical_damage.is_some_and(|value| value < 0)
+                        || level.sub_prop.is_some_and(|value| !(0..=100).contains(&value))
+                        || level.md_r.is_some_and(|value| value < 0)
+                        || level.cooltime.is_some_and(|value| value < 0)
+                        || level.asr_r.is_some_and(|value| !(0..=100).contains(&value))
+                        || level.ter_r.is_some_and(|value| !(0..=100).contains(&value))
+                        || level.stance_prop.is_some_and(|value| value < 0)
+                        || level.mad_x.is_some_and(|value| value < 0)
+                        || level.buff_time_r.is_some_and(|value| value < 0)
+                        || level.basic_stat_up.is_some_and(|value| value < 0)
+                        || level.attack_delay.is_some_and(|value| value < 0)
+                        || level.ignore_mob_pdp_r.is_some_and(|value| !(0..=100).contains(&value))
+                        || level.hc_hp.is_some_and(|value| value < 0)
+                        || level.speed.is_some_and(|value| value < 0)
+                        || level.fixdamage.is_some_and(|value| value < 0)
+                        || level.q.is_some_and(|value| value <= 0)
+                        || level.q2.is_some_and(|value| value < 0)
+                        || level.w2.is_some_and(|value| value < 0)
+                        || level.u2.is_some_and(|value| value < 0)
                         || level.mob_count.is_some_and(|value| value == 0)
                         || level.attack_count.is_some_and(|value| value == 0)
                         || level.range.is_some_and(|value| value < 0)
-                        || level.mob_count.is_some_and(|value| value > 6)
-                        || level.attack_count.is_some_and(|value| value > 4)
+                        || level.mob_count.is_some_and(|value| {
+                            value > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
+                                15
+                            } else {
+                                8
+                            }
+                        })
+                        || level.attack_count.is_some_and(|value| {
+                            value > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
+                                15
+                            } else {
+                                4
+                            }
+                        })
                         || level
                             .lt
                             .is_some_and(|point| !point.x.is_finite() || !point.y.is_finite())
@@ -172,6 +286,22 @@ impl MageSkills {
             };
             for level in &skill.levels {
                 match skill_id {
+                    1_000 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.fixdamage.is_some(), "fixdamage")?;
+                    }
+                    1_001 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
+                    1_002 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.speed.is_some(), "speed")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
                     2_000_006 => {
                         required(level.mmp_r.is_some(), "mmpR")?;
                         required(level.lv2mmp.is_some(), "lv2mmp")?;
@@ -256,6 +386,209 @@ impl MageSkills {
                         required(level.lt.is_some(), "lt")?;
                         required(level.rb.is_some(), "rb")?;
                     }
+                    2_210_000 => required(level.z.is_some(), "z")?,
+                    2_210_001 => {
+                        required(level.costmp_r.is_some(), "costmpR")?;
+                        required(level.dam_r.is_some(), "damR")?;
+                    }
+                    2_210_009 => {
+                        required(level.cr.is_some(), "cr")?;
+                        required(level.critical_damage.is_some(), "criticaldamage")?;
+                    }
+                    2_210_013 => {
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.sub_prop.is_some(), "subProp")?;
+                    }
+                    2_210_016 => {
+                        required(level.u.is_some(), "u")?;
+                        required(level.md_r.is_some(), "mdR")?;
+                    }
+                    2_211_002 | 2_211_014 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    2_211_007 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.sub_prop.is_some(), "subProp")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.stance_prop.is_some(), "stanceProp")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    2_211_011 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.s.is_some(), "s")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.q.is_some(), "q")?;
+                        required(level.u2.is_some(), "u2")?;
+                    }
+                    2_211_012 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.asr_r.is_some(), "asrR")?;
+                        required(level.ter_r.is_some(), "terR")?;
+                    }
+                    2_211_015 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.u2.is_some(), "u2")?;
+                    }
+                    2_211_017 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    2_220_010 => {
+                        required(level.ignore_mob_pdp_r.is_some(), "ignoreMobpdpR")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.time.is_some(), "time")?;
+                    }
+                    2_220_013 => {
+                        required(level.mad_x.is_some(), "madX")?;
+                        required(level.buff_time_r.is_some(), "bufftimeR")?;
+                        required(level.stance_prop.is_some(), "stanceProp")?;
+                    }
+                    2_220_015 => {
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    2_221_000 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.basic_stat_up.is_some(), "basicStatUp")?;
+                    }
+                    2_221_004 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.q.is_some(), "q")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
+                    2_221_005 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mastery.is_some(), "mastery")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                    }
+                    2_221_006 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.range.is_some(), "range")?;
+                        required(level.cr.is_some(), "cr")?;
+                    }
+                    2_221_007 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.x.is_some(), "x")?;
+                    }
+                    2_221_008 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.time.is_some(), "time")?;
+                    }
+                    2_221_011 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.q.is_some(), "q")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
+                    2_221_012 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.attack_delay.is_some(), "attackDelay")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
+                    2_220_043 | 2_220_046 | 2_220_049 => {
+                        required(level.dam_r.is_some(), "damR")?;
+                    }
+                    2_220_044 | 2_220_047 | 2_220_050 => {
+                        required(level.target_plus.is_some(), "targetPlus")?;
+                    }
+                    2_221_045 => required(level.x.is_some(), "x")?,
+                    2_220_048 => required(level.attack_count.is_some(), "attackCount")?,
+                    2_220_051 => required(level.cr.is_some(), "cr")?,
+                    2_221_052 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.q.is_some(), "q")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.s.is_some(), "s")?;
+                    }
+                    2_221_053 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.indie_dam_r.is_some(), "indieDamR")?;
+                    }
+                    2_221_054 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.q.is_some(), "q")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    2_221_055 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.u2.is_some(), "u2")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -282,7 +615,7 @@ mod tests {
     #[test]
     fn bundled_catalog_is_strict_and_has_energy_bolt_geometry() {
         let catalog = MageSkills::bundled();
-        assert_eq!(catalog.skills.len(), 17);
+        assert_eq!(catalog.skills.len(), 43);
         let bolt = catalog.get(2_001_008).expect("energy bolt catalog row");
         assert_eq!(bolt.max_level, 20);
         let level = catalog.level(2_001_008, 1).expect("energy bolt level 1");
@@ -303,5 +636,11 @@ mod tests {
         assert!(catalog
             .get(2_200_011)
             .is_some_and(|skill| skill.fixed_level));
+        let throw = catalog.level(1_000, 3).expect("beginner throw level 3");
+        assert_eq!(throw.mp_con, Some(7));
+        assert_eq!(throw.fixdamage, Some(40));
+        assert_eq!(catalog.level(1_001, 3).and_then(|level| level.x), Some(12));
+        assert_eq!(catalog.level(1_002, 3).and_then(|level| level.speed), Some(20));
+        assert!(catalog.get(2_211_015).is_some_and(|skill| skill.hidden));
     }
 }

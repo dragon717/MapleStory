@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-// Export only the source effect sequences needed by the first-job mage.
-// Damage, hit timing, and skill execution remain outside this asset export.
+// Export source-backed mage effect sequences for all local mage skill books.
+// Damage, hit timing, summon lifecycle, and skill execution remain outside
+// this asset export; named summon action arrays are visual source groups only.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -37,15 +38,191 @@ const EXTRA_SOURCES = {
     mob: 'Skill/220.img/skill/2200011/mob',
   },
 };
+// These groups are kept separate because the client renders the summon
+// lifecycle from snapshots.  `summoned` is a cast/spawn aura and is retained
+// only as source metadata below; it must not be used as the ball itself.
+const THIRD_JOB_SOURCES = {
+  '2210000': {
+    effect: 'Skill/221.img/skill/2210000/special',
+  },
+  '2211002': {
+    effect: 'Skill/221.img/skill/2211002/effect',
+    effect0: 'Skill/221.img/skill/2211002/effect0',
+    hit: 'Skill/221.img/skill/2211002/hit',
+  },
+  '2211007': {
+    effect: 'Skill/221.img/skill/2211007/effect',
+    effect0: 'Skill/221.img/skill/2211007/effect0',
+    hit: 'Skill/221.img/skill/2211007/hit',
+    mob: 'Skill/221.img/skill/2211007/mob',
+  },
+  '2211011': {
+    effect: 'Skill/221.img/skill/2211011/effect',
+    effect0: 'Skill/221.img/skill/2211011/effect0',
+    hit: 'Skill/221.img/skill/2211011/hit',
+    ball: 'Skill/221.img/skill/2211011/ball',
+    summonStand: 'Skill/221.img/skill/2211011/summon/stand',
+    summonMove: 'Skill/221.img/skill/2211011/summon/move',
+    summonAttack: 'Skill/221.img/skill/2211011/summon/attack1',
+  },
+  '2211012': {
+    effect: 'Skill/221.img/skill/2211012/effect',
+    effect0: 'Skill/221.img/skill/2211012/effect0',
+    special: 'Skill/221.img/skill/2211012/special',
+    special0: 'Skill/221.img/skill/2211012/special0',
+    number: 'Skill/221.img/skill/2211012/number',
+  },
+  '2211014': {
+    effect: 'Skill/221.img/skill/2211014/effect',
+    effect0: 'Skill/221.img/skill/2211014/effect0',
+    hit: 'Skill/221.img/skill/2211014/hit',
+    special: 'Skill/221.img/skill/2211014/special',
+    special0: 'Skill/221.img/skill/2211014/special0',
+  },
+  '2211015': {
+    hit: 'Skill/221.img/skill/2211015/hit',
+    summonStand: 'Skill/221.img/skill/2211015/summon/stand',
+    summonMove: 'Skill/221.img/skill/2211015/summon/move',
+    summonAttack: 'Skill/221.img/skill/2211015/summon/attack1',
+  },
+  '2211017': {
+    effect: 'Skill/221.img/skill/2211017/effect',
+  },
+};
+const THIRD_JOB_SUMMON_SOURCES = {
+  '2211011': 'Skill/221.img/skill/2211011/summon/summoned',
+  '2211015': 'Skill/221.img/skill/2211015/summon/summoned',
+};
+// Fourth-job source groups are kept one-to-one with the WZ names.  In
+// particular, Blizzard's hidden 2220014 final-attack variant is exported as
+// a triggered hit source but is deliberately absent from the learnable book.
+const FOURTH_JOB_SOURCES = {
+  '2220014': {
+    hit: 'Skill/222.img/skill/2220014/hit',
+  },
+  '2221000': {
+    effect: 'Skill/222.img/skill/2221000/effect',
+    effect0: 'Skill/222.img/skill/2221000/effect0',
+  },
+  '2221004': {
+    effect: 'Skill/222.img/skill/2221004/effect',
+    effect0: 'Skill/222.img/skill/2221004/effect0',
+    special: 'Skill/222.img/skill/2221004/special',
+    special0: 'Skill/222.img/skill/2221004/special0',
+    specialAffected: 'Skill/222.img/skill/2221004/specialAffected',
+    specialAffected0: 'Skill/222.img/skill/2221004/specialAffected0',
+  },
+  '2221005': {
+    effect: 'Skill/222.img/skill/2221005/effect',
+    hit: 'Skill/222.img/skill/2221005/hit',
+    summonStand: 'Skill/222.img/skill/2221005/summon/stand',
+    summonMove: 'Skill/222.img/skill/2221005/summon/move',
+    summonAttack: 'Skill/222.img/skill/2221005/summon/attack1',
+  },
+  '2221006': {
+    effect: 'Skill/222.img/skill/2221006/effect',
+    ball: 'Skill/222.img/skill/2221006/ball',
+    hit: 'Skill/222.img/skill/2221006/hit',
+    mob: 'Skill/222.img/skill/2221006/mob',
+  },
+  '2221007': {
+    effect: 'Skill/222.img/skill/2221007/effect',
+    effect0: 'Skill/222.img/skill/2221007/effect0',
+    hit: 'Skill/222.img/skill/2221007/hit',
+    tile: 'Skill/222.img/skill/2221007/tile',
+  },
+  '2221008': {
+    effect: 'Skill/222.img/skill/2221008/effect',
+    effect0: 'Skill/222.img/skill/2221008/effect0',
+  },
+  '2221011': {
+    mob: 'Skill/222.img/skill/2221011/mob',
+    special: 'Skill/222.img/skill/2221011/special',
+    specialAffected: 'Skill/222.img/skill/2221011/specialAffected',
+    prepare: 'Skill/222.img/skill/2221011/prepare',
+    keydown: 'Skill/222.img/skill/2221011/keydown',
+    keydown0: 'Skill/222.img/skill/2221011/keydown0',
+    keydownend: 'Skill/222.img/skill/2221011/keydownend',
+  },
+  '2221012': {
+    effect: 'Skill/222.img/skill/2221012/effect',
+    hit: 'Skill/222.img/skill/2221012/hit',
+    ball: 'Skill/222.img/skill/2221012/ball',
+  },
+  // Hyper nodes are kept one-to-one with the source tree.  These are visual
+  // groups only; execution, keydown cadence, and cooldown remain runtime
+  // concerns.  Do not merge the stages into one animation array.
+  '2221052': {
+    prepare: 'Skill/222.img/skill/2221052/prepare',
+    keydown: 'Skill/222.img/skill/2221052/keydown',
+    keydownend: 'Skill/222.img/skill/2221052/keydownend',
+    hit: 'Skill/222.img/skill/2221052/hit',
+    special: 'Skill/222.img/skill/2221052/special',
+  },
+  '2221053': {
+    effect: 'Skill/222.img/skill/2221053/effect',
+    effect0: 'Skill/222.img/skill/2221053/effect0',
+    affected: 'Skill/222.img/skill/2221053/affected',
+  },
+  '2221054': {
+    effect: 'Skill/222.img/skill/2221054/effect',
+    start: 'Skill/222.img/skill/2221054/start',
+    repeat: 'Skill/222.img/skill/2221054/repeat',
+    end: 'Skill/222.img/skill/2221054/end',
+  },
+  '2221055': {
+    effect: 'Skill/222.img/skill/2221055/effect',
+    tile: 'Skill/222.img/skill/2221055/tile',
+    tile0: 'Skill/222.img/skill/2221055/tile0',
+  },
+};
+const FOURTH_JOB_SUMMON_SOURCES = {
+  '2221005': {
+    summonSpawn: 'Skill/222.img/skill/2221005/summon/summoned',
+    summonDie: 'Skill/222.img/skill/2221005/summon/die',
+  },
+};
+// Beginner projectile frames are authored separately for each level.  Keep
+// the padded source ids in these paths while exposing normalized runtime keys.
+const BEGINNER_SOURCES = {
+  '1000': {
+    levels: {
+      '1': {
+        ball: 'Skill/000.img/skill/0001000/level/1/ball',
+        hit: 'Skill/000.img/skill/0001000/level/1/hit/0',
+      },
+      '2': {
+        ball: 'Skill/000.img/skill/0001000/level/2/ball',
+        hit: 'Skill/000.img/skill/0001000/level/2/hit/0',
+      },
+      '3': {
+        ball: 'Skill/000.img/skill/0001000/level/3/ball',
+        hit: 'Skill/000.img/skill/0001000/level/3/hit/0',
+      },
+    },
+  },
+  '1001': {
+    effect: 'Skill/000.img/skill/0001001/effect',
+  },
+  '1002': {
+    effect: 'Skill/000.img/skill/0001002/effect',
+  },
+};
 const PROJECTED_SKILLS = ['2001008', '2201008', '2201005'];
 const PROJECTED_SKILL = PROJECTED_SKILLS[0];
 const SKILL_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/200.json');
 const SKILL_220_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/220.json');
+const SKILL_221_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/221.json');
+const SKILL_222_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/222.json');
 const STRING_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json');
 const PACK_SOURCE = path.join(DATA, 'Packs/Skill_00000.ms');
 const PACK_220_SOURCE = path.join(DATA, 'Packs/Skill_00001.ms');
+const PACK_222_SOURCE = path.join(DATA, 'Packs/Skill_00002.ms');
 const CANVAS_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_035.wz');
 const CANVAS_220_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_040.wz');
+const CANVAS_COMMON_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_000.wz');
+const CANVAS_112_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_003.wz');
+const CANVAS_212_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_038.wz');
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -91,10 +268,24 @@ function displayDelay(rawDelay) {
   return Number.isFinite(value) ? Math.abs(value) : 0;
 }
 
+const SOURCE_METADATA_NAMES = new Set([
+  'origin', 'z', 'delay', '_outlink', '_inlink', 'fix', 'info', 'pos', 'repeat',
+]);
+
+function isCanvasNode(node) {
+  return node?.constructor?.name === 'WzCanvasProperty' || Boolean(node?.pngProperty);
+}
+
 function linkCanvasArchives(tempRoot) {
   const targetDir = path.join(tempRoot, 'Skill/_Canvas');
   fs.mkdirSync(targetDir, { recursive: true });
-  for (const source of [CANVAS_SOURCE, CANVAS_220_SOURCE]) {
+  for (const source of [
+    CANVAS_SOURCE,
+    CANVAS_220_SOURCE,
+    CANVAS_COMMON_SOURCE,
+    CANVAS_112_SOURCE,
+    CANVAS_212_SOURCE,
+  ]) {
     assert(fs.existsSync(source), `missing Canvas source: ${source}`);
     fs.symlinkSync(source, path.join(targetDir, path.basename(source)));
   }
@@ -102,7 +293,7 @@ function linkCanvasArchives(tempRoot) {
 
 function unpackSkillImages(tempRoot) {
   assert(fs.existsSync(UNPACKER), `missing Rust MS unpacker: ${UNPACKER}`);
-  const images = ['Skill/200.img', 'Skill/220.img'];
+  const images = ['Skill/000.img', 'Skill/200.img', 'Skill/220.img', 'Skill/221.img', 'Skill/222.img'];
   const result = spawnSync(UNPACKER, [
     '--packs', path.join(DATA, 'Packs'),
     '--out', tempRoot,
@@ -123,10 +314,27 @@ function unpackSkillImages(tempRoot) {
 
 async function collectFrameSources(reader, source, node = null) {
   const current = node || await reader.get(source);
+  if (isCanvasNode(current)) return [source];
   const nested = numericChildren(current);
-  if (nested.length === 0) return [source];
+  // Most effect groups use numeric children, while number/icon groups use
+  // named Canvas children.  Walk both forms but never descend into WZ
+  // metadata such as summon attack ranges or fixed z markers.
+  const candidates = children(current)
+    .filter(child => !SOURCE_METADATA_NAMES.has(child.name))
+    .filter(child => isCanvasNode(child)
+      || ['WzSubProperty', 'WzUOLProperty'].includes(child?.constructor?.name)
+      || children(child).length > 0)
+    .sort((left, right) => {
+      const leftNumeric = /^\d+$/.test(left.name);
+      const rightNumeric = /^\d+$/.test(right.name);
+      if (leftNumeric && rightNumeric) return Number(left.name) - Number(right.name);
+      if (leftNumeric) return -1;
+      if (rightNumeric) return 1;
+      return left.name.localeCompare(right.name);
+    });
+  if (candidates.length === 0) return [source];
   const result = [];
-  for (const child of nested) {
+  for (const child of candidates) {
     result.push(...await collectFrameSources(reader, `${source}/${child.name}`, child));
   }
   return result;
@@ -172,6 +380,12 @@ async function exportSourceGroups(reader, skillId, groups) {
   }
   assert(Object.keys(output).length > 1, `${skillId} has no exported groups`);
   return output;
+}
+
+async function sourceOnlyGroup(reader, source) {
+  const sourceNode = await reader.get(source);
+  const frames = await collectFrameSources(reader, source, sourceNode);
+  return { source, frameCount: frames.length, role: 'cast-aura-only' };
 }
 
 function projectExistingFrame(frame) {
@@ -222,6 +436,62 @@ async function main() {
       skillEffects[skillId] = await exportSourceGroups(reader, skillId, groups);
     }
 
+    for (const [skillId, groups] of Object.entries(THIRD_JOB_SOURCES)) {
+      skillEffects[skillId] = await exportSourceGroups(reader, skillId, groups);
+      const summonSpawn = THIRD_JOB_SUMMON_SOURCES[skillId];
+      if (summonSpawn) {
+        // Keep the authored cast aura addressable for review, but do not put
+        // its frames in effect/ball/summonStand: CombatView must render the
+        // persistent summon from stand/move/attack snapshots instead.
+        skillEffects[skillId].source.summonSpawn = await sourceOnlyGroup(reader, summonSpawn);
+      }
+    }
+
+    for (const [skillId, groups] of Object.entries(FOURTH_JOB_SOURCES)) {
+      skillEffects[skillId] = await exportSourceGroups(reader, skillId, groups);
+      if (skillId === '2220014') {
+        // 2220014 is a hidden Blizzard final-attack variant.  It has a real
+        // hit tree but no separate effect tree in this client; preserve that
+        // boundary explicitly instead of fabricating a duplicate effect.
+        skillEffects[skillId].hidden = true;
+        skillEffects[skillId].catalog = false;
+        skillEffects[skillId].trigger = '2221007.finalAttack';
+        skillEffects[skillId].source.missingEffect = {
+          status: 'source-missing',
+          reason: 'Skill/222.img/skill/2220014 has no effect/effect0 Canvas group in TMS273.7; hit is the source-backed additional attack tree.',
+        };
+      }
+      if (skillId === '2221055') {
+        // 2221055 is the authored hidden vortex variant paired with Hyper
+        // 2221054.  Keep its source-backed effects addressable for a triggered
+        // visual, while preventing it from becoming a learnable book entry.
+        skillEffects[skillId].hidden = true;
+        skillEffects[skillId].catalog = false;
+        skillEffects[skillId].trigger = '2221054.hiddenVariant';
+        skillEffects[skillId].source.relation = '2221054';
+      }
+      for (const [name, summonSource] of Object.entries(FOURTH_JOB_SUMMON_SOURCES[skillId] || {})) {
+        skillEffects[skillId].source[name] = await sourceOnlyGroup(reader, summonSource);
+      }
+    }
+
+    for (const [skillId, definition] of Object.entries(BEGINNER_SOURCES)) {
+      if (!definition.levels) {
+        // Heal and Nimble Feet keep the source's single root effect sequence;
+        // there is no per-level Canvas branch for either skill.
+        skillEffects[skillId] = await exportSourceGroups(reader, skillId, definition);
+        continue;
+      }
+      const output = { levels: {}, source: { levels: {} } };
+      for (const [level, groups] of Object.entries(definition.levels)) {
+        const exported = await exportSourceGroups(reader, `${skillId}/level/${level}`, groups);
+        const { source, ...frames } = exported;
+        output.levels[level] = frames;
+        output.source.levels[level] = source;
+      }
+      skillEffects[skillId] = output;
+    }
+
     const existing = JSON.parse(fs.readFileSync(SKILL_EXPORT, 'utf8'));
     for (const skillId of PROJECTED_SKILLS) {
       const projected = existing.skills?.[skillId];
@@ -239,13 +509,20 @@ async function main() {
       contentVersion: 'tms273-mage-effects',
       sourceVersion: 'TMS273.7',
       sourceFiles: [
+        sourceFile(path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/000.json')),
         sourceFile(SKILL_SOURCE_JSON),
         sourceFile(SKILL_220_SOURCE_JSON),
+        sourceFile(SKILL_221_SOURCE_JSON),
+        sourceFile(SKILL_222_SOURCE_JSON),
         sourceFile(STRING_SOURCE_JSON),
         sourceFile(PACK_SOURCE),
         sourceFile(PACK_220_SOURCE),
+        sourceFile(PACK_222_SOURCE),
         sourceFile(CANVAS_SOURCE),
         sourceFile(CANVAS_220_SOURCE),
+        sourceFile(CANVAS_COMMON_SOURCE),
+        sourceFile(CANVAS_112_SOURCE),
+        sourceFile(CANVAS_212_SOURCE),
         sourceFile(SKILL_EXPORT),
       ],
       extraction: {
@@ -260,8 +537,11 @@ async function main() {
           bytes: entry.bytes,
         }])),
         canvasArchives: {
+          [relative(CANVAS_COMMON_SOURCE)]: relative(CANVAS_COMMON_SOURCE),
           [relative(CANVAS_SOURCE)]: relative(CANVAS_SOURCE),
           [relative(CANVAS_220_SOURCE)]: relative(CANVAS_220_SOURCE),
+          [relative(CANVAS_112_SOURCE)]: relative(CANVAS_112_SOURCE),
+          [relative(CANVAS_212_SOURCE)]: relative(CANVAS_212_SOURCE),
         },
       },
       skillEffects,
@@ -272,10 +552,14 @@ async function main() {
       sourceVersion: output.sourceVersion,
       skills: Object.fromEntries(Object.entries(skillEffects).map(([id, value]) => [id, {
         effect: value.effect?.length || 0,
+        effect0: value.effect0?.length || 0,
         hit: value.hit?.length || 0,
         ball: value.ball?.length || 0,
         tile: value.tile?.length || 0,
         mob: value.mob?.length || 0,
+        summonStand: value.summonStand?.length || 0,
+        summonMove: value.summonMove?.length || 0,
+        summonAttack: value.summonAttack?.length || 0,
       }])),
       pngs: Object.values(skillEffects).flatMap(value => Object.values(value)
         .filter(frames => Array.isArray(frames))
@@ -292,4 +576,4 @@ if (require.main === module) main().catch(error => {
   process.exitCode = 1;
 });
 
-module.exports = { main, SOURCES, PROJECTED_SKILL };
+module.exports = { main, SOURCES, BEGINNER_SOURCES, PROJECTED_SKILL };

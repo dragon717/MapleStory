@@ -6,28 +6,39 @@ use crate::{
     npc::{self, DialogueContext, NpcSpawn, NpcTemplate, Shop},
     protocol::{
         reject, AbilityStat, AbilityStats, ClientMessage, DerivedStats, DropState, MonsterState,
-        NpcState, PlayerState,
+        NpcState, PlayerState, RegenerationPassive,
     },
 };
 use rand::Rng;
 use serde::{de::Error as DeError, Deserialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
+    hash::{Hash, Hasher},
     path::Path,
     time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
+#[path = "boss.rs"]
+mod boss;
+
 pub const TICK_MS: u64 = 50;
+const NATURAL_RECOVERY_INTERVAL_TICKS: u64 = 1_000 / TICK_MS;
 const MAGE_ADVANCE_MAP_ID: &str = "001020000";
+const BOSS_PRACTICE_FALLBACK_MAP_ID: &str = "102020500";
 const MAGE_ADVANCE_NPC_ID: &str = "001020000-life-1";
 const MAGE_ADVANCE_TEMPLATE_ID: &str = "10201";
 const BEGINNER_JOB: u32 = 0;
+const BEGINNER_BOOK: u32 = 0;
 const MAGICIAN_JOB: u32 = 200;
 const ALREADY_MAGICIAN_NODE: &str = "__already_magician__";
 const MAGE_BOOK: u32 = 200;
 const ICE_BOOK: u32 = 220;
 const ICE_MAGE_JOB: u32 = 220;
+const THIRD_BOOK: u32 = 221;
+const ICE_THIRD_JOB: u32 = 221;
+const FOURTH_BOOK: u32 = 222;
+const ICE_FOURTH_JOB: u32 = 222;
 const SKILL_MAGIC_BOOST: u32 = 2000006;
 const SKILL_ELEMENTAL_WEAKEN: u32 = 2000007;
 const SKILL_MAGIC_SHIELD: u32 = 2000010;
@@ -45,9 +56,77 @@ const SKILL_COLD_BEAM: u32 = 2201008;
 const SKILL_ICE_TELEPORT: u32 = 2201009;
 const SKILL_ICE_EFFECT: u32 = 2200011;
 const SKILL_BOOSTER: u32 = 2200012;
+const SKILL_EXTREME_MAGIC: u32 = 2210000;
+const SKILL_ELEMENT_AMP: u32 = 2210001;
+const SKILL_MAGIC_CRITICAL: u32 = 2210009;
+const SKILL_FROZEN_BREAK: u32 = 2210013;
+const SKILL_ELEMENTAL_RESET: u32 = 2210016;
+const SKILL_ICE_STORM: u32 = 2211002;
+const SKILL_TELEPORT_MASTERY: u32 = 2211007;
+const SKILL_THUNDER_SPHERE: u32 = 2211011;
+const SKILL_ELEMENTAL_ADAPTING: u32 = 2211012;
+const SKILL_GLACIAL_WALL: u32 = 2211014;
+const SKILL_THUNDER_SPHERE_HIDDEN: u32 = 2211015;
+const SKILL_TELEPORT_BOOST: u32 = 2211017;
+const SKILL_MYSTIC_STRIKE: u32 = 2220010;
+const SKILL_MASTER_MAGIC: u32 = 2220013;
+const SKILL_FOURTH_FREEZE: u32 = 2220015;
+const SKILL_MAPLE_WARRIOR: u32 = 2221000;
+const SKILL_INFINITY: u32 = 2221004;
+const SKILL_ICE_DEMON: u32 = 2221005;
+const SKILL_CHAIN_LIGHTNING: u32 = 2221006;
+const SKILL_BLIZZARD: u32 = 2221007;
+const SKILL_MAPLE_CURE: u32 = 2221008;
+const SKILL_ICE_DRAGON_BREATH: u32 = 2221011;
+const SKILL_FROZEN_ORB: u32 = 2221012;
+// Source-only follow-up hit for Blizzard's direct-hit passive.  It is kept out
+// of the learnable catalog and can only be emitted by the authoritative hit
+// path below.
+const SKILL_BLIZZARD_HIDDEN: u32 = 2220014;
+const SKILL_HYPER_TELEPORT_DAMAGE: u32 = 2220043;
+const SKILL_HYPER_TELEPORT_TARGET: u32 = 2220044;
+const SKILL_HYPER_TELEPORT_DISTANCE: u32 = 2221045;
+const SKILL_HYPER_CHAIN_DAMAGE: u32 = 2220046;
+const SKILL_HYPER_CHAIN_TARGET: u32 = 2220047;
+const SKILL_HYPER_CHAIN_ATTACK: u32 = 2220048;
+const SKILL_HYPER_ICE_DAMAGE: u32 = 2220049;
+const SKILL_HYPER_ICE_TARGET: u32 = 2220050;
+const SKILL_HYPER_ICE_CRIT: u32 = 2220051;
+const SKILL_HYPER_THUNDER: u32 = 2221052;
+const SKILL_HYPER_ADVENTURER: u32 = 2221053;
+const SKILL_HYPER_VORTEX: u32 = 2221054;
+const SKILL_HYPER_VORTEX_HIDDEN: u32 = 2221055;
+const HYPER_PASSIVE_IDS: [u32; 9] = [
+    SKILL_HYPER_TELEPORT_DAMAGE,
+    SKILL_HYPER_TELEPORT_TARGET,
+    SKILL_HYPER_TELEPORT_DISTANCE,
+    SKILL_HYPER_CHAIN_DAMAGE,
+    SKILL_HYPER_CHAIN_TARGET,
+    SKILL_HYPER_CHAIN_ATTACK,
+    SKILL_HYPER_ICE_DAMAGE,
+    SKILL_HYPER_ICE_TARGET,
+    SKILL_HYPER_ICE_CRIT,
+];
+const HYPER_ACTIVE_IDS: [u32; 3] = [
+    SKILL_HYPER_THUNDER,
+    SKILL_HYPER_ADVENTURER,
+    SKILL_HYPER_VORTEX,
+];
+const SKILL_THREE_SNAILS: u32 = 1000;
+const SKILL_RECOVERY: u32 = 1001;
+const SKILL_NIMBLE_FEET: u32 = 1002;
+const BEGINNER_SKILLS: [u32; 3] = [SKILL_THREE_SNAILS, SKILL_RECOVERY, SKILL_NIMBLE_FEET];
+const BEGINNER_HEAL_TICK_MS: u64 = 5_000;
+const BEGINNER_HEAL_TICKS: u32 = 6;
+const BEGINNER_THROW_RANGE: f64 = 340.0;
 const MAGE_TRANSFER_MIN_MP: i64 = 100;
 const SKILL_CAST_DURATION_MS: u64 = 500;
 const MAGE_TRAINING_NODE: &str = "__mage_training__";
+const QUEST_MENU_NODE: &str = "__quest_menu__";
+const QUEST_HIDDEN_NPC_1: &str = "1541000";
+const QUEST_HIDDEN_NPC_2: &str = "1541001";
+const QUEST_HIDDEN_NPC_3: &str = "1541002";
+const QUEST_OLIVIA_NPC: &str = "1541003";
 // P: the selected export exposes freeze duration but no authoritative stack
 // ledger; cap five layers and change one layer per cast/target.
 const ICE_FREEZE_STACK_CAP: u32 = 5;
@@ -756,6 +835,12 @@ pub struct MonsterTemplate {
     /// TMS273 Mob.info.PDRate is percentage defense, not an absolute PDD value.
     #[serde(default, alias = "PDRate")]
     pub pd_rate: Option<f64>,
+    /// P adapter for Mob magic-defense rate.  This is deliberately separate
+    /// from PDRate: Frozen Break can ignore part of this magic-defense rate,
+    /// while Elemental Reset's `u` needs a future elemental-resistance field
+    /// and must never be inferred from this value.
+    #[serde(default, alias = "MDRate")]
+    pub md_rate: Option<f64>,
     pub exp: u64,
     #[serde(default, deserialize_with = "deserialize_boolish")]
     pub body_attack: bool,
@@ -935,6 +1020,100 @@ struct QuestReward {
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct QuestItemRequirement {
+    #[serde(default)]
+    item_id: String,
+    #[serde(default)]
+    quantity: u32,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestPrerequisite {
+    #[serde(default)]
+    quest_id: String,
+    #[serde(default)]
+    status: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestConditions {
+    /// Source Check.job is an OR list.  P-compatible chapter data may include
+    /// the beginner and already-transferred jobs while retaining sourceJob.
+    #[serde(default)]
+    job: Vec<u32>,
+    // Source metadata; runtime eligibility uses conditions.job.
+    #[serde(default, rename = "sourceJob")]
+    _source_job: Vec<u32>,
+    #[serde(default)]
+    level_at_least: u32,
+    #[serde(default, alias = "prereq", alias = "prerequisites")]
+    quests: Vec<QuestPrerequisite>,
+    #[serde(default)]
+    items: Vec<QuestItemRequirement>,
+    #[serde(default)]
+    equipped_items: Vec<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestPhase {
+    /// This is the source Check NPC template id (for example 1541000), not
+    /// the placed runtime spawn id.
+    #[serde(default)]
+    npc_id: Option<String>,
+    #[serde(default)]
+    conditions: QuestConditions,
+    /// The generator briefly emitted an item list; current chapter data uses
+    /// the source-compatible boolean. Accept both while content rolls forward.
+    #[serde(default)]
+    consume_items: serde_json::Value,
+    #[serde(default)]
+    warp_map_id: Option<String>,
+    #[serde(default)]
+    warp_portal_name: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestObjective {
+    // Current objectives all use item counts; retain the source discriminator.
+    #[serde(default, rename = "kind", alias = "type")]
+    _kind: String,
+    #[serde(default)]
+    item_id: String,
+    #[serde(default)]
+    required: u32,
+    /// The generator may provide a localized object; keep it as JSON so the
+    /// server can select the player's language without inventing text.
+    #[serde(default)]
+    text: serde_json::Value,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestInteraction {
+    #[serde(default)]
+    map_id: String,
+    #[serde(default)]
+    map_layer_key: String,
+    #[serde(default)]
+    x: f64,
+    #[serde(default)]
+    y: f64,
+    #[serde(default)]
+    range: f64,
+    #[serde(default)]
+    item_id: String,
+    #[serde(default)]
+    quantity: u32,
+    #[serde(default)]
+    label: serde_json::Value,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct QuestSpec {
     #[serde(default)]
     executable: Option<bool>,
@@ -942,6 +1121,23 @@ struct QuestSpec {
     quest_id: String,
     #[serde(default)]
     reward: QuestReward,
+    #[serde(default)]
+    start_items: Vec<QuestRewardItem>,
+    #[serde(default)]
+    start: QuestPhase,
+    #[serde(default)]
+    complete: QuestPhase,
+    #[serde(default)]
+    objectives: Vec<QuestObjective>,
+    #[serde(default)]
+    interaction: Option<QuestInteraction>,
+    #[serde(default)]
+    summaries: BTreeMap<String, String>,
+    // Source metadata; runtime eligibility uses conditions.job.
+    #[serde(default, rename = "sourceJob")]
+    _source_job: Vec<u32>,
+    #[serde(default)]
+    return_map_id: Option<String>,
 }
 
 impl QuestSpec {
@@ -950,6 +1146,62 @@ impl QuestSpec {
             .items
             .iter()
             .all(|item| !item.item_id.is_empty() && item.quantity > 0)
+    }
+
+    fn executable(&self) -> bool {
+        self.executable.unwrap_or(false)
+    }
+
+    fn valid_execution(&self) -> bool {
+        if !self.executable() {
+            return true;
+        }
+        let valid_conditions = |conditions: &QuestConditions| {
+            conditions
+                .items
+                .iter()
+                .all(|item| !item.item_id.is_empty() && item.quantity > 0)
+                && conditions
+                    .equipped_items
+                    .iter()
+                    .all(|item_id| !item_id.trim().is_empty())
+                && conditions
+                    .quests
+                    .iter()
+                    .all(|quest| !quest.quest_id.is_empty())
+        };
+        let valid_consume = match &self.complete.consume_items {
+            serde_json::Value::Array(items) => items.iter().all(|item| {
+                item.get("itemId")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|item_id| !item_id.is_empty())
+                    && item
+                        .get("quantity")
+                        .and_then(serde_json::Value::as_u64)
+                        .is_some_and(|quantity| quantity > 0)
+            }),
+            serde_json::Value::Bool(_) | serde_json::Value::Null => true,
+            _ => false,
+        };
+        valid_conditions(&self.start.conditions)
+            && valid_conditions(&self.complete.conditions)
+            && valid_consume
+            && self
+                .start_items
+                .iter()
+                .all(|item| !item.item_id.is_empty() && item.quantity > 0)
+            && self.objectives.iter().all(|objective| {
+                !objective.item_id.is_empty() && objective.required > 0
+            })
+            && self.interaction.as_ref().is_none_or(|interaction| {
+                !interaction.map_id.is_empty()
+                    && !interaction.item_id.is_empty()
+                    && interaction.quantity > 0
+                    && interaction.range.is_finite()
+                    && interaction.range > 0.0
+                    && interaction.x.is_finite()
+                    && interaction.y.is_finite()
+            })
     }
 }
 
@@ -1013,6 +1265,9 @@ impl Gameplay {
                 || template
                     .pd_rate
                     .is_some_and(|rate| !rate.is_finite() || rate < 0.0)
+                || template
+                    .md_rate
+                    .is_some_and(|rate| !rate.is_finite() || !(0.0..=100.0).contains(&rate))
                 || template.stand_delay_ms.is_some_and(|delay| delay == 0)
                 || template
                     .move_duration_ms
@@ -1199,7 +1454,7 @@ impl Gameplay {
             }
         }
         for quest in &self.quests {
-            if quest.quest_id.trim().is_empty() || !quest.valid_reward() {
+            if quest.quest_id.trim().is_empty() || !quest.valid_reward() || !quest.valid_execution() {
                 return Err("invalid gameplay quest".into());
             }
         }
@@ -1210,6 +1465,33 @@ impl Gameplay {
                 .any(|prior| prior.quest_id == *quest)
             {
                 return Err("duplicate gameplay quest id".into());
+            }
+        }
+        let quest_ids: BTreeSet<&str> = self
+            .quests
+            .iter()
+            .map(|quest| quest.quest_id.as_str())
+            .collect();
+        for quest in self.quests.iter().filter(|quest| quest.executable()) {
+            if quest
+                .start
+                .npc_id
+                .as_deref()
+                .is_some_and(|npc_id| !template_ids.contains(npc_id))
+                || quest
+                    .complete
+                    .npc_id
+                    .as_deref()
+                    .is_some_and(|npc_id| !template_ids.contains(npc_id))
+                || quest
+                    .start
+                    .conditions
+                    .quests
+                    .iter()
+                    .chain(quest.complete.conditions.quests.iter())
+                    .any(|requirement| !quest_ids.contains(requirement.quest_id.as_str()))
+            {
+                return Err("quest references unknown npc or prerequisite".into());
             }
         }
         Ok(())
@@ -1284,6 +1566,42 @@ impl Gameplay {
                     "monster spawn {} has no foothold on map {}",
                     spawn.id, map_id
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_quest_maps(&self, maps: &BTreeMap<String, Map>) -> Result<(), String> {
+        for quest in self.quests.iter().filter(|quest| quest.executable()) {
+            if let Some(interaction) = quest.interaction.as_ref() {
+                if !maps.contains_key(&interaction.map_id) {
+                    return Err(format!(
+                        "quest {} interaction references unknown map {}",
+                        quest.quest_id, interaction.map_id
+                    ));
+                }
+            }
+            for map_id in [
+                quest.start.warp_map_id.as_ref(),
+                quest.complete.warp_map_id.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if !maps.contains_key(map_id) {
+                    return Err(format!(
+                        "quest {} warp references unknown map {}",
+                        quest.quest_id, map_id
+                    ));
+                }
+            }
+            if let Some(map_id) = quest.return_map_id.as_ref() {
+                if !maps.contains_key(map_id) {
+                    return Err(format!(
+                        "quest {} return references unknown map {}",
+                        quest.quest_id, map_id
+                    ));
+                }
             }
         }
         Ok(())
@@ -1477,6 +1795,7 @@ pub enum Command {
     },
 }
 
+#[derive(Clone)]
 struct Player {
     state: PlayerState,
     /// Persisted MP baseline before equipment/skill-derived bonuses.  The
@@ -1520,11 +1839,108 @@ struct Player {
     meditation_mad: i64,
     ice_teleport_enabled: bool,
     ice_fields: Vec<IceField>,
+    /// Third-job ON/OFF skills are world state.  Learned levels remain in the
+    /// profile; toggles and their temporary effects are intentionally reset on
+    /// reconnect/death/map change.
+    teleport_mastery_enabled: bool,
+    teleport_boost_enabled: bool,
+    adaptation_active: bool,
+    adaptation_charges: u32,
+    /// Remaining cooldown converted from auth's durable epoch value at join.
+    /// The world decrements this tick-local cache; it never queries SQLite in
+    /// the simulation loop.
+    adaptation_cooldown_ms: u64,
+    /// Durable cooldowns are loaded from auth at join and mirrored here so
+    /// the single world loop can expose an up-to-date remaining value.
+    skill_cooldowns: BTreeMap<u32, u64>,
+    /// Beginner buffs are intentionally session state: their effects clear on
+    /// reconnect, death, or map change while their skill cooldowns persist.
+    skill_buffs: BTreeMap<u32, u64>,
+    /// Next authoritative one-second natural-recovery boundary.  It is reset
+    /// on join, map entry, death, and revive; failed persistence only advances
+    /// this retry boundary, so a failed second is never replayed every tick.
+    natural_recovery_next_tick: u64,
+    beginner_heal_next_tick: u64,
+    beginner_heal_remaining_ticks: u32,
+    beginner_heal_per_tick: i64,
+    beginner_speed_percent: i64,
+    /// The third-job sphere keeps its old single-slot state for compatibility;
+    /// fourth-job summons use this bounded list so the ice demon and frozen
+    /// orb can coexist with that sphere.
+    summon: Option<ThunderSummon>,
+    summons: Vec<ThunderSummon>,
+    /// Four-segment Ice Dragon Breath is a single accepted cast.  The request
+    /// id binds the self-lock so ReleaseSkill cannot cancel another cast.
+    channel_request_id: Option<String>,
+    channel_skill_id: Option<u32>,
+    channel_until: u64,
+    channel_level: u32,
+    hyper_channel_prepare_until: u64,
+    hyper_channel_next_pulse: u64,
+    hyper_channel_pulse_index: u32,
+    hyper_vortex: Option<HyperVortex>,
+    hyper_barrier_enabled: bool,
+    hyper_barrier_next_mp: u64,
+    hyper_barrier_next_pulse: u64,
+    hyper_teleport_enabled: bool,
+    hyper_reset_count: u8,
+    status_immune_until: u64,
+    infinity_next_tick: u64,
+    infinity_damage_bonus: i64,
+    mystic_strike_stacks: u32,
+    mystic_strike_until: u64,
     /// quest id -> "active" | "completed".  Authored quest dialog branches on
     /// these rows and the complete effect grants the configured reward.
     quests: BTreeMap<String, String>,
     /// Display language for server-pushed quest text (see quest_text::LANG_*).
     lang: &'static str,
+}
+
+fn clear_beginner_buffs(player: &mut Player) {
+    player.skill_buffs.clear();
+    player.beginner_heal_next_tick = 0;
+    player.beginner_heal_remaining_ticks = 0;
+    player.beginner_heal_per_tick = 0;
+    player.beginner_speed_percent = 0;
+    player.summons.clear();
+    player.channel_request_id = None;
+    player.channel_skill_id = None;
+    player.channel_until = 0;
+    player.channel_level = 0;
+    player.hyper_channel_prepare_until = 0;
+    player.hyper_channel_next_pulse = 0;
+    player.hyper_channel_pulse_index = 0;
+    player.hyper_vortex = None;
+    player.hyper_barrier_enabled = false;
+    player.hyper_barrier_next_mp = 0;
+    player.hyper_barrier_next_pulse = 0;
+    player.hyper_teleport_enabled = false;
+    player.status_immune_until = 0;
+    player.infinity_next_tick = 0;
+    player.infinity_damage_bonus = 0;
+    player.mystic_strike_stacks = 0;
+    player.mystic_strike_until = 0;
+}
+
+fn clear_hyper_runtime(player: &mut Player) {
+    player.skill_buffs.remove(&SKILL_HYPER_THUNDER);
+    player.skill_buffs.remove(&SKILL_HYPER_ADVENTURER);
+    player.skill_buffs.remove(&SKILL_HYPER_VORTEX);
+    if player.channel_skill_id == Some(SKILL_HYPER_THUNDER) {
+        player.channel_request_id = None;
+        player.channel_skill_id = None;
+        player.channel_until = 0;
+        player.channel_level = 0;
+        player.hyper_channel_prepare_until = 0;
+        player.hyper_channel_next_pulse = 0;
+        player.hyper_channel_pulse_index = 0;
+        player.attack_until = 0;
+    }
+    player.hyper_vortex = None;
+    player.hyper_barrier_enabled = false;
+    player.hyper_barrier_next_mp = 0;
+    player.hyper_barrier_next_pulse = 0;
+    player.hyper_teleport_enabled = false;
 }
 
 struct Monster {
@@ -1538,6 +1954,15 @@ struct Monster {
     damage_by_player: BTreeMap<String, i64>,
     elemental_weaken_until: u64,
     freeze_until: u64,
+    stun_until: u64,
+    bind_until: u64,
+    bind_immune_until: u64,
+    /// Ice Dragon Breath's temporary armor-melting reductions.  They are
+    /// kept on the runtime mob rather than mutating the shared template, so
+    /// the values disappear with the bind/respawn and cannot leak to another
+    /// map instance.
+    bind_pd_rate_reduction: i64,
+    bind_md_rate_reduction: i64,
     death_until: Option<u64>,
     respawn_at: Option<u64>,
 }
@@ -1571,6 +1996,33 @@ struct IceField {
     expires_at: u64,
     next_hit_at: u64,
     sub_time_ms: u64,
+}
+
+#[derive(Clone)]
+struct ThunderSummon {
+    summon_id: String,
+    skill_id: u32,
+    level: u32,
+    map_id: String,
+    x: f64,
+    y: f64,
+    facing: i8,
+    anchored: bool,
+    expires_at: u64,
+    next_hit_at: u64,
+    pulse_index: u64,
+}
+
+#[derive(Clone)]
+struct HyperVortex {
+    request_id: String,
+    map_id: String,
+    x: f64,
+    y: f64,
+    facing: i8,
+    hidden: bool,
+    expires_at: u64,
+    next_pulse_at: u64,
 }
 
 /// A configured npc placed on a map.  Npcs do not move; the field mirrors
@@ -1630,6 +2082,16 @@ pub struct World {
     skill_requests: BTreeMap<(String, String), auth::SkillActionOutcome>,
     ability_requests: BTreeMap<(String, String), (AbilityStat, auth::AbilityActionOutcome)>,
     pending_attacks: BTreeMap<String, PendingAttack>,
+    /// One private first-Boss practice encounter per connected character.
+    /// The instance map is runtime-only; profile persistence canonicalizes it
+    /// back to the authored source map.
+    boss_practices: BTreeMap<String, boss::BossPractice>,
+    /// Bounded request idempotency for BossPractice lifecycle commands.  The
+    /// encounter id is part of the key's semantic value so a stale Leave or
+    /// Retry cannot mutate a newer private instance.
+    boss_requests: BTreeMap<(String, String), boss::BossRequestRecord>,
+    boss_request_sequence: u64,
+    hyper_reset_quotes: BTreeMap<(String, String), u64>,
     /// Offline multilingual quest display-text catalog (shared/quest-text.json).
     /// The authoritative source for the localized names/summaries the server
     /// pushes in questList/questUpdate.
@@ -1695,6 +2157,10 @@ impl World {
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
+            boss_practices: BTreeMap::new(),
+            boss_requests: BTreeMap::new(),
+            boss_request_sequence: 0,
+            hyper_reset_quotes: BTreeMap::new(),
             quest_text: crate::quest_text::QuestTextCorpus::default(),
             npc_names_zh: BTreeMap::new(),
             tick: 0,
@@ -1805,6 +2271,7 @@ impl World {
         }
         self.gameplay
             .validate_spawns_against_maps(&self.maps, &self.map.id)?;
+        self.gameplay.validate_quest_maps(&self.maps)?;
         self.spawn_configured_monsters()
     }
 
@@ -1934,6 +2401,11 @@ impl World {
                 damage_by_player: BTreeMap::new(),
                 elemental_weaken_until: 0,
                 freeze_until: 0,
+                stun_until: 0,
+                bind_until: 0,
+                bind_immune_until: 0,
+                bind_pd_rate_reduction: 0,
+                bind_md_rate_reduction: 0,
                 death_until: None,
                 respawn_at: None,
             },
@@ -1991,6 +2463,7 @@ impl World {
                     facing: spawn.facing,
                     shop_id: template.shop_id.clone(),
                     job_advancement_available: None,
+                    quest_available: None,
                 },
                 map_id,
                 template_id: template.template_id,
@@ -2015,8 +2488,16 @@ impl World {
             .players
             .get(id)
             .is_some_and(|player| player.state.hp > 0 && player.state.action != "dead");
-        let observer_can_ice_advance = self.players.get(id).is_some_and(|player| {
+        let observer_can_second_advance = self.players.get(id).is_some_and(|player| {
             observer_can_advance && player.state.job == MAGICIAN_JOB && player.state.level >= 30
+        });
+        // A stale 8/17-node catalog must not advertise the third transfer:
+        // the NPC menu and this marker share the same source skill gate.
+        let observer_can_third_advance = self.players.get(id).is_some_and(|player| {
+            observer_can_advance
+                && player.state.job == ICE_MAGE_JOB
+                && player.state.level >= 60
+                && self.mage_skills.get(SKILL_ICE_STORM).is_some()
         });
         let observer_can_use_mage_training = self.players.get(id).is_some_and(|player| {
             observer_can_advance && matches!(player.state.job, MAGICIAN_JOB | 220 | 221 | 222)
@@ -2024,7 +2505,7 @@ impl World {
         let npcs = self
             .npcs
             .values()
-            .filter(|npc| npc.map_id == map_id)
+            .filter(|npc| npc.map_id == map_id && self.quest_npc_visible(id, npc))
             .map(|npc| {
                 let mut state = npc.state.clone();
                 if observer_job == BEGINNER_JOB
@@ -2032,7 +2513,7 @@ impl World {
                     && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);
-                } else if observer_can_ice_advance
+                } else if (observer_can_second_advance || observer_can_third_advance)
                     && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);
@@ -2041,10 +2522,53 @@ impl World {
                 {
                     state.job_advancement_available = Some(true);
                 }
+                if !self.quest_menu_choices(id, &npc.template_id).is_empty() {
+                    state.quest_available = Some(true);
+                }
                 state
             })
             .collect::<Vec<_>>();
-        serde_json::json!({
+        let quest_interactions = self.quest_interactions_for(id, map_id);
+        let mut summons = self
+            .players
+            .iter()
+            .flat_map(|(player_id, player)| {
+                player
+                    .summon
+                    .iter()
+                    .chain(player.summons.iter())
+                    .filter(move |summon| summon.map_id == map_id && summon.expires_at > self.tick)
+                    .map(move |summon| {
+                        serde_json::json!({
+                            "id": summon.summon_id,
+                            "playerId": player_id,
+                            "skillId": summon.skill_id,
+                            "x": summon.x,
+                            "y": summon.y,
+                            "facing": summon.facing,
+                            "expiresInMs": (summon.expires_at - self.tick).saturating_mul(TICK_MS),
+                            "stationary": summon.anchored,
+                        })
+                    })
+            })
+            .collect::<Vec<_>>();
+        for (player_id, player) in &self.players {
+            if let Some(vortex) = player.hyper_vortex.as_ref().filter(|vortex| {
+                vortex.map_id == map_id && vortex.expires_at > self.tick
+            }) {
+                summons.push(serde_json::json!({
+                    "id": format!("hyper-vortex-{player_id}-{}", vortex.request_id),
+                    "playerId": player_id,
+                    "skillId": if vortex.hidden { SKILL_HYPER_VORTEX_HIDDEN } else { SKILL_HYPER_VORTEX },
+                    "x": vortex.x,
+                    "y": vortex.y,
+                    "facing": vortex.facing,
+                    "expiresInMs": (vortex.expires_at - self.tick).saturating_mul(TICK_MS),
+                    "stationary": true,
+                }));
+            }
+        }
+        let mut snapshot = serde_json::json!({
             "type":"snapshot",
             "serverTick":self.tick,
             "tickMs":TICK_MS,
@@ -2053,9 +2577,15 @@ impl World {
             "players":self.players.values().filter(|p| p.map_id == map_id).map(|p| &p.state).collect::<Vec<_>>(),
             "monsters":self.monsters.values().filter(|m| m.map_id == map_id).map(|m| &m.state).collect::<Vec<_>>(),
             "npcs":npcs,
+            "questInteractions":quest_interactions,
+            "summons": summons,
             "drops":self.drops.iter().filter(|(drop_id, _)| self.drop_maps.get(*drop_id).is_some_and(|drop_map| drop_map == map_id)).map(|(_, drop)| drop).collect::<Vec<_>>()
-        })
-        .to_string()
+        });
+        if let Some((source_map_id, boss_practice)) = self.boss_snapshot_fields(id, map_id) {
+            snapshot["sourceMapId"] = source_map_id.into();
+            snapshot["bossPractice"] = boss_practice;
+        }
+        snapshot.to_string()
     }
 
     fn broadcast_to_map(&mut self, map_id: &str, message: &str) {
@@ -2071,6 +2601,7 @@ impl World {
             )
             .collect();
         for id in failed {
+            self.disconnect_boss_player(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
             self.pending_attacks
@@ -2088,13 +2619,23 @@ impl World {
                 lang,
             } => {
                 if self.players.contains_key(&identity.id) {
-                    let _ = output.try_send(reject(
-                        "already_connected",
-                        "This character is already connected",
-                        None,
-                    ));
-                    let _ = reply.send(false);
-                    return;
+                    // A reconnect replaces the stale session.  Resolve its
+                    // private Boss instance before replacing the Player row;
+                    // otherwise the old practice entry could move the new
+                    // connection into a deleted encounter on the next tick.
+                    if !self.prepare_boss_replacement(&identity.id) {
+                        let _ = output.try_send(reject(
+                            "persistence",
+                            "旧连接的练习位置尚未保存，请稍后重连。",
+                            None,
+                        ));
+                        let _ = reply.send(false);
+                        return;
+                    }
+                    self.players.remove(&identity.id);
+                    self.end_conversation(&identity.id);
+                    self.pending_attacks
+                        .retain(|_, attack| attack.player_id != identity.id);
                 }
                 let mut profile = match self.store.as_ref() {
                     Some(store) => {
@@ -2169,6 +2710,11 @@ impl World {
                     None => None,
                 };
                 let id = identity.id.clone();
+                if auth::is_practice_map(&profile.map_id) {
+                    // Migrate any profile written by an older runtime before
+                    // the private-map canonicalization was installed.
+                    profile.map_id = BOSS_PRACTICE_FALLBACK_MAP_ID.to_owned();
+                }
                 // Restore the player's last map + coordinates from the
                 // persisted profile.  The map must still exist in the runtime
                 // catalog and the persisted point must land inside the map
@@ -2195,8 +2741,65 @@ impl World {
                     .map(|(id, _)| id)
                     .unwrap_or(0);
                 let quests = match self.store.as_ref() {
-                    Some(store) => store.load_quests(&identity.id).unwrap_or_default(),
+                    Some(store) => match store.load_quests(&identity.id) {
+                        Ok(quests) => quests,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
                     None => BTreeMap::new(),
+                };
+                let adaptation_cooldown_ms = match self.store.as_ref() {
+                    Some(store) => match store.skill_cooldown_remaining_ms(&id, SKILL_ELEMENTAL_ADAPTING) {
+                        Ok(remaining) => remaining,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
+                    None => 0,
+                };
+                let mut skill_cooldowns = BTreeMap::new();
+                if let Some(store) = self.store.as_ref() {
+                    for skill_id in [
+                        SKILL_RECOVERY,
+                        SKILL_NIMBLE_FEET,
+                        SKILL_INFINITY,
+                        SKILL_BLIZZARD,
+                        SKILL_MAPLE_CURE,
+                        SKILL_ICE_DRAGON_BREATH,
+                        SKILL_FROZEN_ORB,
+                        SKILL_HYPER_THUNDER,
+                        SKILL_HYPER_ADVENTURER,
+                        SKILL_HYPER_VORTEX_HIDDEN,
+                    ] {
+                        let remaining = match store.skill_cooldown_remaining_ms(&id, skill_id) {
+                            Ok(remaining) => remaining,
+                            Err(error) => {
+                                let _ = output.try_send(reject("persistence", &error, None));
+                                let _ = reply.send(false);
+                                return;
+                            }
+                        };
+                        if remaining > 0 {
+                            skill_cooldowns.insert(skill_id, remaining);
+                        }
+                    }
+                }
+                let hyper_points = hyper_points_for_state(profile.level, &profile.skills);
+                let hyper_reset_count = match self.store.as_ref() {
+                    Some(store) => match store.hyper_reset_count(&id) {
+                        Ok(count) => count,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
+                    None => 0,
                 };
                 let (derived_stats, derived_max_mp) = compute_derived_stats(
                     &self.gameplay,
@@ -2211,6 +2814,15 @@ impl World {
                     0,
                     None,
                     false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    0,
+                    (adaptation_cooldown_ms > 0).then_some(adaptation_cooldown_ms),
+                    0,
+                    &skill_cooldowns,
+                    &BTreeMap::new(),
                 );
                 let derived_move_speed = derived_stats.move_speed;
                 self.players.insert(
@@ -2248,6 +2860,9 @@ impl World {
                             mesos: profile.mesos,
                             skills: profile.skills,
                             skill_points: profile.skill_points,
+                            hyper_points,
+                            hyper_reset_count,
+                            hyper_reset_cost: auth::hyper_reset_cost(hyper_reset_count),
                             inventory: profile.inventory,
                             equipped,
                             monster_book,
@@ -2278,6 +2893,40 @@ impl World {
                         meditation_mad: 0,
                         ice_teleport_enabled: false,
                         ice_fields: Vec::new(),
+                        teleport_mastery_enabled: false,
+                        teleport_boost_enabled: false,
+                        adaptation_active: false,
+                        adaptation_charges: 0,
+                        adaptation_cooldown_ms,
+                        skill_cooldowns,
+                        skill_buffs: BTreeMap::new(),
+                        natural_recovery_next_tick: self
+                            .tick
+                            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS),
+                        beginner_heal_next_tick: 0,
+                        beginner_heal_remaining_ticks: 0,
+                        beginner_heal_per_tick: 0,
+                        beginner_speed_percent: 0,
+                        summon: None,
+                        summons: Vec::new(),
+                        channel_request_id: None,
+                        channel_skill_id: None,
+                        channel_until: 0,
+                        channel_level: 0,
+                        hyper_channel_prepare_until: 0,
+                        hyper_channel_next_pulse: 0,
+                        hyper_channel_pulse_index: 0,
+                        hyper_vortex: None,
+                        hyper_barrier_enabled: false,
+                        hyper_barrier_next_mp: 0,
+                        hyper_barrier_next_pulse: 0,
+                        hyper_teleport_enabled: false,
+                        hyper_reset_count,
+                        status_immune_until: 0,
+                        infinity_next_tick: 0,
+                        infinity_damage_bonus: 0,
+                        mystic_strike_stacks: 0,
+                        mystic_strike_until: 0,
                         quests,
                         lang: crate::quest_text::normalize_lang(Some(&lang)),
                     },
@@ -2295,6 +2944,7 @@ impl World {
                     .get(&id)
                     .is_some_and(|p| p.connection == connection)
                 {
+                    self.disconnect_boss_player(&id);
                     self.players.remove(&id);
                     self.end_conversation(&id);
                     self.pending_attacks
@@ -2302,6 +2952,8 @@ impl World {
                     self.inventory_requests
                         .retain(|(player_id, _), _| player_id != &id);
                     self.skill_requests
+                        .retain(|(player_id, _), _| player_id != &id);
+                    self.hyper_reset_quotes
                         .retain(|(player_id, _), _| player_id != &id);
                     self.ability_requests
                         .retain(|(player_id, _), _| player_id != &id);
@@ -2329,7 +2981,16 @@ impl World {
                         let Some(player) = self.players.get_mut(&id) else {
                             return;
                         };
+                        let (mut direction, mut vertical, mut jump) = (direction, vertical, jump);
                         player.state.last_input_seq = seq;
+                        if player.channel_until > self.tick {
+                            // Ice Dragon Breath owns movement for its source
+                            // q-window; input heartbeats remain acknowledged
+                            // but cannot move or jump the authoritative body.
+                            direction = 0;
+                            vertical = 0;
+                            jump = false;
+                        }
                         if player.fall_boundary_hold && (direction == 0 || vertical != 0 || jump) {
                             // Horizontal input alone may be a held-key
                             // heartbeat; a neutral packet is the release
@@ -2350,12 +3011,26 @@ impl World {
                         request_id,
                         skill_id,
                     } => self.handle_learn_skill(id, request_id, skill_id),
+                    ClientMessage::ResetHyper {
+                        request_id,
+                        expected_cost,
+                    } => self.handle_reset_hyper(id, request_id, expected_cost),
                     ClientMessage::CastSkill {
                         request_id,
                         skill_id,
                         direction,
                         vertical,
                     } => self.handle_cast_skill(id, request_id, skill_id, direction, vertical),
+                    ClientMessage::BossPractice {
+                        request_id,
+                        action,
+                        encounter_id,
+                    } => {
+                        self.handle_boss_practice(id, request_id, action, encounter_id)
+                    }
+                    ClientMessage::ReleaseSkill { request_id } => {
+                        self.handle_release_skill(id, request_id)
+                    }
                     ClientMessage::Pickup {
                         request_id,
                         drop_id,
@@ -2419,6 +3094,10 @@ impl World {
                         quantity,
                     } => self.handle_drop_mesos(id, request_id, quantity),
                     ClientMessage::Revive { request_id } => self.handle_revive(id, request_id),
+                    ClientMessage::QuestInteract {
+                        request_id,
+                        quest_id,
+                    } => self.handle_quest_interact(id, request_id, quest_id),
                     ClientMessage::NpcTalk {
                         request_id,
                         npc_id,
@@ -2517,6 +3196,9 @@ impl World {
             return;
         };
         player.map_id = target_map_id.clone();
+        player.natural_recovery_next_tick = self
+            .tick
+            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.state.x = target_x;
         player.state.y = target_y;
         player.state.vx = 0.0;
@@ -2538,8 +3220,15 @@ impl World {
         player.attack_until = 0;
         player.meditation_until = 0;
         player.meditation_mad = 0;
+        clear_beginner_buffs(player);
         player.ice_teleport_enabled = false;
         player.ice_fields.clear();
+        player.teleport_mastery_enabled = false;
+        player.teleport_boost_enabled = false;
+        player.adaptation_active = false;
+        player.adaptation_charges = 0;
+        player.summon = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         self.send_portal_result(
             &id,
             &request_id,
@@ -2579,7 +3268,10 @@ impl World {
         let Some(player) = self.players.get(&id) else {
             return;
         };
-        if player.state.climbing || player.state.action == "dead" {
+        if player.state.climbing
+            || player.state.action == "dead"
+            || player.channel_until > self.tick
+        {
             let _ = player.output.try_send(reject(
                 "invalid_state",
                 "Cannot attack while climbing or dead",
@@ -2593,6 +3285,7 @@ impl World {
         let result = self.combat.attack(
             self.store.as_ref(),
             &id,
+            &map_id,
             &request_id,
             self.tick,
             active_until,
@@ -2765,6 +3458,132 @@ impl World {
         );
     }
 
+    fn handle_reset_hyper(&mut self, id: String, request_id: String, expected_cost: u64) {
+        let store_prior = if let Some(store) = self.store.as_ref() {
+            match store.prior_skill_action(&id, &request_id, "hyper_reset", 0) {
+                Ok(prior) => prior,
+                Err(error) => {
+                    self.send_reject(&id, "persistence", &error, Some(&request_id));
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+        if self.store.is_none() {
+            if let Some(prior) = self
+            .skill_requests
+            .get(&(id.clone(), request_id.clone()))
+            .cloned()
+            {
+                let quoted = self
+                    .hyper_reset_quotes
+                    .get(&(id.clone(), request_id.clone()))
+                    .copied();
+                let mut outcome = prior;
+                outcome.already_resolved = true;
+                if outcome.operation != "hyper_reset"
+                    || outcome.skill_id != 0
+                    || quoted != Some(expected_cost)
+                {
+                    outcome.success = false;
+                    outcome.code = "request_conflict".to_owned();
+                }
+                self.send_skill_result_with_request(&id, &request_id, &outcome);
+                return;
+            }
+        }
+        if store_prior.is_none()
+            && self
+                .players
+                .get(&id)
+                .is_none_or(|player| player.state.hp <= 0)
+        {
+            self.send_reject(&id, "invalid_state", "当前状态不能重置Hyper技能。", Some(&request_id));
+            return;
+        }
+        let outcome = match self.store.as_ref() {
+            Some(store) => store.reset_hyper_skills(&id, &request_id, expected_cost),
+            None => Ok(self.local_reset_hyper(&id, &request_id, expected_cost)),
+        };
+        let Ok(outcome) = outcome else {
+            self.send_reject(&id, "persistence", "Hyper重置保存失败，请重试。", Some(&request_id));
+            return;
+        };
+        if outcome.already_resolved {
+            self.send_skill_result_with_request(&id, &request_id, &outcome);
+            return;
+        }
+        if !outcome.success {
+            self.send_skill_result_with_request(&id, &request_id, &outcome);
+            return;
+        }
+        let next_reset_count = self
+            .store
+            .as_ref()
+            .and_then(|store| store.hyper_reset_count(&id).ok());
+        if let Some(player) = self.players.get_mut(&id) {
+            player.state.skills.retain(|skill_id, _| !is_hyper_skill(*skill_id));
+            player.state.mesos = player.state.mesos.saturating_sub(expected_cost);
+            player.hyper_reset_count = next_reset_count
+                .unwrap_or_else(|| player.hyper_reset_count.saturating_add(1).min(4));
+            player.state.hyper_reset_count = player.hyper_reset_count;
+            player.state.hyper_reset_cost = auth::hyper_reset_cost(player.hyper_reset_count);
+            player.state.hyper_points = hyper_points_for_state(player.state.level, &player.state.skills);
+            clear_hyper_runtime(player);
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        }
+        self.send_skill_result_with_request(&id, &request_id, &outcome);
+        self.send_snapshot(&id);
+    }
+
+    fn local_reset_hyper(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        expected_cost: u64,
+    ) -> auth::SkillActionOutcome {
+        if let Some(prior) = self
+            .skill_requests
+            .get(&(id.to_owned(), request_id.to_owned()))
+        {
+            let mut prior = prior.clone();
+            prior.already_resolved = true;
+            return prior;
+        }
+        let Some(player) = self.players.get_mut(id) else {
+            return auth::SkillActionOutcome {
+                operation: "hyper_reset".into(),
+                skill_id: 0,
+                success: false,
+                code: "player_unknown".into(),
+                level: 0,
+                remaining_sp: 0,
+                mp: 0,
+                already_resolved: false,
+            };
+        };
+        let current = auth::hyper_reset_cost(player.hyper_reset_count);
+        let success = player.state.hp > 0
+            && expected_cost == current
+            && player.state.mesos >= expected_cost;
+        let outcome = auth::SkillActionOutcome {
+            operation: "hyper_reset".into(),
+            skill_id: 0,
+            success,
+            code: if success { String::new() } else { "invalid_state".into() },
+            level: 0,
+            remaining_sp: auth::hyper_points(player.state.level, &player.state.skills, 1),
+            mp: player.state.mp,
+            already_resolved: false,
+        };
+        self.hyper_reset_quotes
+            .insert((id.to_owned(), request_id.to_owned()), expected_cost);
+        self.skill_requests
+            .insert((id.to_owned(), request_id.to_owned()), outcome.clone());
+        outcome
+    }
+
     fn handle_learn_skill(&mut self, id: String, request_id: String, skill_id: u32) {
         if let Some(store) = self.store.as_ref() {
             match store.prior_skill_action(&id, &request_id, "learn", skill_id) {
@@ -2826,6 +3645,27 @@ impl World {
             );
             return;
         }
+        if skill.hyper > 0 {
+            let kind = skill.hyper;
+            if player.state.level < skill.required_level {
+                self.send_reject(
+                    &id,
+                    "level_requirement",
+                    "尚未达到Hyper技能等级要求。",
+                    Some(&request_id),
+                );
+                return;
+            }
+            if auth::hyper_points(player.state.level, &player.state.skills, kind) == 0 {
+                self.send_reject(
+                    &id,
+                    "not_enough_hyper_points",
+                    "没有可用的Hyper点数。",
+                    Some(&request_id),
+                );
+                return;
+            }
+        }
         let prerequisites = skill
             .prerequisites
             .iter()
@@ -2871,6 +3711,9 @@ impl World {
             }
         }
         self.send_skill_result_with_request(&id, &request_id, &outcome);
+        if outcome.success && skill.hyper > 0 {
+            self.send_snapshot(&id);
+        }
     }
 
     fn local_learn_skill(
@@ -2929,17 +3772,22 @@ impl World {
             .any(|(id, required)| player.state.skills.get(id).copied().unwrap_or(0) < *required)
         {
             outcome.code = "prerequisite".into();
-        } else if outcome.remaining_sp == 0 {
+        } else if hyper_skill_kind(skill_id).is_none() && outcome.remaining_sp == 0 {
             outcome.code = "not_enough_sp".into();
         } else {
             outcome.success = true;
             outcome.level = current + 1;
-            outcome.remaining_sp -= 1;
+            if hyper_skill_kind(skill_id).is_none() {
+                outcome.remaining_sp -= 1;
+            }
             player.state.skills.insert(skill_id, outcome.level);
-            player
-                .state
-                .skill_points
-                .insert(book_id, outcome.remaining_sp);
+            if hyper_skill_kind(skill_id).is_none() {
+                player
+                    .state
+                    .skill_points
+                    .insert(book_id, outcome.remaining_sp);
+            }
+            player.state.hyper_points = hyper_points_for_state(player.state.level, &player.state.skills);
         }
         self.skill_requests
             .insert((id.to_owned(), request_id.to_owned()), outcome.clone());
@@ -3034,11 +3882,29 @@ impl World {
             );
             return;
         }
+        if player.channel_until > self.tick {
+            self.send_reject(
+                &id,
+                "skill_busy",
+                "冰龙吐息进行中。",
+                Some(&request_id),
+            );
+            return;
+        }
         let skill_level = player.state.skills.get(&skill_id).copied().unwrap_or(0);
         let Some(level) = self.mage_skills.level(skill_id, skill_level).cloned() else {
             self.send_reject(&id, "not_learned", "请先学习该技能。", Some(&request_id));
             return;
         };
+        if skill.hyper > 0 && player.state.level < skill.required_level {
+            self.send_reject(
+                &id,
+                "level_requirement",
+                "尚未达到Hyper技能等级要求。",
+                Some(&request_id),
+            );
+            return;
+        }
         let mut direction = direction.unwrap_or(player.state.facing).clamp(-1, 1);
         let vertical = vertical.unwrap_or(0).clamp(-1, 1);
         if direction == 0 && vertical == 0 {
@@ -3055,11 +3921,71 @@ impl World {
                 | SKILL_COLD_BEAM
                 | SKILL_THUNDER_BOLT
                 | SKILL_ICE_TELEPORT
+                | SKILL_ICE_STORM
+                | SKILL_GLACIAL_WALL
+                | SKILL_THUNDER_SPHERE
+                | SKILL_ELEMENTAL_ADAPTING
+                | SKILL_TELEPORT_MASTERY
+                | SKILL_TELEPORT_BOOST
+                | SKILL_HYPER_TELEPORT_DISTANCE
+                | SKILL_MAPLE_WARRIOR
+                | SKILL_INFINITY
+                | SKILL_ICE_DEMON
+                | SKILL_CHAIN_LIGHTNING
+                | SKILL_BLIZZARD
+                | SKILL_MAPLE_CURE
+                | SKILL_ICE_DRAGON_BREATH
+                | SKILL_FROZEN_ORB
+                | SKILL_HYPER_THUNDER
+                | SKILL_HYPER_ADVENTURER
+                | SKILL_HYPER_VORTEX
+                | SKILL_THREE_SNAILS
+                | SKILL_RECOVERY
+                | SKILL_NIMBLE_FEET
         ) {
             self.send_reject(
                 &id,
                 "skill_passive",
                 "被动技能不能主动施放。",
+                Some(&request_id),
+            );
+            return;
+        }
+        if skill_id == SKILL_ELEMENTAL_ADAPTING && player.adaptation_cooldown_ms > 0 {
+            self.send_reject(
+                &id,
+                "skill_cooldown",
+                "元素适应尚在冷却中。",
+                Some(&request_id),
+            );
+            return;
+        }
+        if player
+            .skill_cooldowns
+            .get(&skill_id)
+            .copied()
+            .is_some_and(|remaining| remaining > 0)
+        {
+            self.send_reject(
+                &id,
+                "skill_cooldown",
+                "技能尚在冷却中。",
+                Some(&request_id),
+            );
+            return;
+        }
+        if skill_id == SKILL_HYPER_VORTEX
+            && vertical > 0
+            && player
+                .skill_cooldowns
+                .get(&SKILL_HYPER_VORTEX_HIDDEN)
+                .copied()
+                .is_some_and(|remaining| remaining > 0)
+        {
+            self.send_reject(
+                &id,
+                "skill_cooldown",
+                "漩涡生成尚在冷却中。",
                 Some(&request_id),
             );
             return;
@@ -3106,14 +4032,70 @@ impl World {
         }
         if matches!(
             skill_id,
-            SKILL_ENERGY_BOLT | SKILL_COLD_BEAM | SKILL_THUNDER_BOLT
+            SKILL_ENERGY_BOLT
+                | SKILL_THREE_SNAILS
+                | SKILL_COLD_BEAM
+                | SKILL_THUNDER_BOLT
+                | SKILL_ICE_STORM
+                | SKILL_GLACIAL_WALL
+                | SKILL_THUNDER_SPHERE
+                | SKILL_ICE_DEMON
+                | SKILL_CHAIN_LIGHTNING
+                | SKILL_BLIZZARD
+                | SKILL_ICE_DRAGON_BREATH
+                | SKILL_FROZEN_ORB
+                | SKILL_HYPER_THUNDER
         ) && player.attack_until > self.tick
         {
             self.send_reject(&id, "skill_busy", "技能动作尚未结束。", Some(&request_id));
             return;
         }
-        let mp_cost = level.mp_con.unwrap_or(0).max(0);
+        let mut mp_cost = self.skill_mp_cost(
+            &id,
+            skill_id,
+            &level,
+            vertical,
+        );
+        if skill_id == SKILL_HYPER_VORTEX
+            && player.hyper_barrier_enabled
+            && vertical <= 0
+        {
+            // Turning the barrier off does not charge the next second.
+            mp_cost = 0;
+        }
+        let cooldown_ms: i64 = if BEGINNER_SKILLS.contains(&skill_id)
+            || skill_id == SKILL_ELEMENTAL_ADAPTING
+            || (skill.book_id == FOURTH_BOOK && level.cooltime.is_some())
+        {
+            level.cooltime.unwrap_or(0).max(0).saturating_mul(1_000)
+        } else {
+            0
+        };
         let outcome = match self.store.as_ref() {
+            Some(store) if skill_id == SKILL_HYPER_VORTEX && vertical > 0 => store.cast_hyper_vortex(
+                &id,
+                &request_id,
+                mp_cost,
+                if vertical > 0 {
+                    level
+                        .cooltime
+                        .unwrap_or(60)
+                        .max(0)
+                        .saturating_mul(1_000)
+                } else {
+                    0
+                },
+            ),
+            Some(store) if cooldown_ms > 0 => store.cast_skill_with_cooldown(
+                &id,
+                &request_id,
+                skill_id,
+                skill.book_id,
+                skill.book_id,
+                skill.max_level,
+                mp_cost,
+                cooldown_ms,
+            ),
             Some(store) => store.cast_skill(
                 &id,
                 &request_id,
@@ -3144,12 +4126,57 @@ impl World {
         }
         if let Some(player) = self.players.get_mut(&id) {
             player.state.mp = outcome.mp;
+            if cooldown_ms > 0 {
+                player.skill_cooldowns.insert(
+                    skill_id,
+                    u64::try_from(cooldown_ms).unwrap_or(u64::MAX),
+                );
+            }
+            if skill_id == SKILL_HYPER_VORTEX && vertical > 0 {
+                let vortex_cooldown = u64::try_from(level.cooltime.unwrap_or(60).max(0))
+                    .unwrap_or(60)
+                    .saturating_mul(1_000);
+                if vortex_cooldown > 0 {
+                    player
+                        .skill_cooldowns
+                        .insert(SKILL_HYPER_VORTEX_HIDDEN, vortex_cooldown);
+                }
+            }
         }
-        let duration_ms = if skill_id == SKILL_MAGIC_WAVE_HIDDEN {
+        let duration_ms = if skill_id == SKILL_THREE_SNAILS {
+            SKILL_CAST_DURATION_MS
+        } else if skill_id == SKILL_HYPER_THUNDER {
+            780
+        } else if matches!(skill_id, SKILL_HYPER_ADVENTURER | SKILL_HYPER_VORTEX) {
+            600
+        } else if skill_id == SKILL_MAGIC_WAVE_HIDDEN {
             level.time.unwrap_or(5).max(0).try_into().unwrap_or(5_000) * 1_000
+        } else if skill_id == SKILL_INFINITY {
+            // The source has an alert/activation action but no authored
+            // duration field.  Keep the visual cast finite and independent
+            // of weapon action speed; the actual buff duration is tracked
+            // separately by activate_infinity.
+            600
+        } else if skill_id == SKILL_ICE_DRAGON_BREATH {
+            // q is the held-key maximum from String.h.  Master Magic
+            // buff-time does not extend this channel ceiling.
+            u64::try_from(level.q.unwrap_or(0).max(0)).unwrap_or(0) * 1_000
         } else if matches!(
             skill_id,
-            SKILL_ENERGY_BOLT | SKILL_MAGIC_WAVE | SKILL_COLD_BEAM | SKILL_THUNDER_BOLT
+            SKILL_ENERGY_BOLT
+                | SKILL_MAGIC_WAVE
+                | SKILL_COLD_BEAM
+                | SKILL_THUNDER_BOLT
+                | SKILL_ICE_STORM
+                | SKILL_GLACIAL_WALL
+                | SKILL_THUNDER_SPHERE
+                | SKILL_ICE_DEMON
+                | SKILL_CHAIN_LIGHTNING
+                | SKILL_BLIZZARD
+                | SKILL_ICE_DRAGON_BREATH
+                | SKILL_FROZEN_ORB
+                | SKILL_HYPER_THUNDER
+                | SKILL_HYPER_VORTEX
         ) {
             if skill_id == SKILL_ENERGY_BOLT {
                 self.energy_duration_ms(&id)
@@ -3159,7 +4186,26 @@ impl World {
         } else {
             0
         };
-        let event = self.skill_cast_event(&id, &request_id, skill_id, duration_ms, &level);
+        let event = if skill_id == SKILL_HYPER_THUNDER {
+            self.skill_cast_event_phase(
+                &id,
+                &request_id,
+                skill_id,
+                duration_ms,
+                &level,
+                Some("prepare"),
+                None,
+            )
+        } else {
+            self.skill_cast_event(
+                &id,
+                &request_id,
+                skill_id,
+                duration_ms,
+                &level,
+                (skill_id == SKILL_THREE_SNAILS).then_some(skill_level),
+            )
+        };
         let map_id = self.players.get(&id).map(|player| player.map_id.clone());
         if let Some(map_id) = map_id.as_deref() {
             self.broadcast_to_map(map_id, &event);
@@ -3181,6 +4227,22 @@ impl World {
                     if let Some((start_x, start_y)) = start {
                         self.maybe_create_ice_field(&id, start_x, start_y);
                     }
+                    let mastery = self.players.get(&id).and_then(|player| {
+                        player
+                            .teleport_mastery_enabled
+                            .then(|| player.state.skills.get(&SKILL_TELEPORT_MASTERY).copied())
+                            .flatten()
+                            .and_then(|level| self.mage_skills.level(SKILL_TELEPORT_MASTERY, level))
+                            .cloned()
+                    });
+                    if let Some(mastery) = mastery {
+                        if let Err(error) =
+                            self.cast_teleport_mastery(&id, &request_id, &mastery)
+                        {
+                            self.handle_accepted_effect_error(&id, &request_id, &error);
+                            return;
+                        }
+                    }
                 }
             }
             SKILL_MEDITATION => self.apply_meditation(&id, &level),
@@ -3188,7 +4250,7 @@ impl World {
                 if let Err(error) =
                     self.cast_elemental_area(&id, &request_id, skill_id, &level, false)
                 {
-                    self.send_reject(&id, "persistence", &error, Some(&request_id));
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
                 if let Some(player) = self.players.get_mut(&id) {
@@ -3201,13 +4263,179 @@ impl World {
                 if let Err(error) =
                     self.cast_elemental_area(&id, &request_id, skill_id, &level, true)
                 {
-                    self.send_reject(&id, "persistence", &error, Some(&request_id));
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
                 if let Some(player) = self.players.get_mut(&id) {
                     player.state.action = "attack";
                     player.state.action_started_tick = self.tick;
                     player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_ICE_STORM => {
+                if let Err(error) =
+                    self.cast_elemental_area(&id, &request_id, skill_id, &level, false)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_GLACIAL_WALL => {
+                if let Err(error) = self.cast_glacial_wall(&id, &request_id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_THUNDER_SPHERE => {
+                if let Err(error) = self.cast_thunder_sphere(&id, &request_id, &level, vertical) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_ELEMENTAL_ADAPTING => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    // Elemental Adapting is a guarded activation with a
+                    // durable cooldown, not an on/off toggle.  A successful
+                    // cast always refreshes its source charge count.
+                    player.adaptation_active = true;
+                    player.adaptation_charges = u32::try_from(level.y.unwrap_or(7).max(0))
+                        .unwrap_or(0)
+                        .max(1);
+                    player.adaptation_cooldown_ms = u64::try_from(cooldown_ms).unwrap_or(0);
+                }
+            }
+            SKILL_MAPLE_WARRIOR => {
+                let duration_ms = self
+                    .buff_duration_ms(&id, &level, level.time.unwrap_or(0).max(0) as u64 * 1_000);
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.skill_buffs.insert(SKILL_MAPLE_WARRIOR, duration_ms);
+                }
+            }
+            SKILL_INFINITY => {
+                if let Err(error) = self.activate_infinity(&id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+            }
+            SKILL_ICE_DEMON => {
+                if let Err(error) = self.cast_ice_demon(&id, &request_id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_CHAIN_LIGHTNING | SKILL_BLIZZARD => {
+                if let Err(error) = self.cast_elemental_area(
+                    &id,
+                    &request_id,
+                    skill_id,
+                    &level,
+                    skill_id == SKILL_CHAIN_LIGHTNING,
+                ) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+                if skill_id == SKILL_CHAIN_LIGHTNING {
+                    self.apply_chain_stun(&id, &request_id, &level);
+                }
+            }
+            SKILL_MAPLE_CURE => self.activate_status_cleanse(&id, &level),
+            SKILL_ICE_DRAGON_BREATH => {
+                if let Err(error) = self.cast_ice_dragon_breath(&id, &request_id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = player.channel_until;
+                }
+            }
+            SKILL_HYPER_THUNDER => {
+                if let Err(error) = self.start_hyper_thunder(&id, &request_id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+            }
+            SKILL_HYPER_ADVENTURER => {
+                self.activate_hyper_adventurer(&id, &level);
+            }
+            SKILL_HYPER_VORTEX => {
+                if let Err(error) = self.activate_hyper_vortex(&id, &request_id, &level, vertical) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+            }
+            SKILL_FROZEN_ORB => {
+                if let Err(error) = self.cast_frozen_orb(&id, &request_id, &level) {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_THREE_SNAILS => {
+                if let Err(error) =
+                    self.cast_beginner_throw(&id, &request_id, &level, skill_level)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
+            SKILL_RECOVERY | SKILL_NIMBLE_FEET => {
+                self.activate_beginner_buff(&id, skill_id, &level);
+            }
+            SKILL_TELEPORT_MASTERY => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.teleport_mastery_enabled = !player.teleport_mastery_enabled;
+                }
+            }
+            SKILL_TELEPORT_BOOST => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.teleport_boost_enabled = !player.teleport_boost_enabled;
+                    if player.teleport_boost_enabled {
+                        player.hyper_teleport_enabled = false;
+                    }
+                }
+            }
+            SKILL_HYPER_TELEPORT_DISTANCE => {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.hyper_teleport_enabled = !player.hyper_teleport_enabled;
+                    if player.hyper_teleport_enabled {
+                        player.teleport_boost_enabled = false;
+                    }
                 }
             }
             SKILL_ICE_TELEPORT => {
@@ -3220,7 +4448,7 @@ impl World {
             }
             SKILL_ENERGY_BOLT => {
                 if let Err(error) = self.cast_energy_bolt(&id, &request_id, skill_id, &level) {
-                    self.send_reject(&id, "persistence", &error, Some(&request_id));
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
             }
@@ -3231,11 +4459,168 @@ impl World {
         }
         if self.store.is_some() {
             if let Err(error) = self.persist_player(&id) {
-                self.send_reject(&id, "persistence", &error, Some(&request_id));
+                self.handle_accepted_effect_error(&id, &request_id, &error);
                 return;
             }
         }
         self.send_skill_result_with_request(&id, &request_id, &outcome);
+    }
+
+    fn handle_release_skill(&mut self, id: String, request_id: String) {
+        let Some((channel_skill, channel_request, channel_until, hp, action)) = self
+            .players
+            .get(&id)
+            .map(|player| {
+                (
+                    player.channel_skill_id,
+                    player.channel_request_id.clone(),
+                    player.channel_until,
+                    player.state.hp,
+                    player.state.action,
+                )
+            })
+        else {
+            return;
+        };
+        let valid = matches!(
+            channel_skill,
+            Some(SKILL_ICE_DRAGON_BREATH) | Some(SKILL_HYPER_THUNDER)
+        )
+            && channel_request.as_deref().is_some_and(|value| value == request_id)
+            && channel_until > self.tick
+            && action != "dead"
+            && hp > 0;
+        if !valid {
+            // Key-up can arrive after the channel naturally expired, after a
+            // death/map change cleared it, or as a duplicate network packet.
+            // Treat those cases as an idempotent no-op so a stale release
+            // cannot surface a false gameplay error or affect a new channel.
+            return;
+        }
+        if channel_skill == Some(SKILL_HYPER_THUNDER) {
+            if let Err(error) = self.finish_hyper_thunder(&id, &request_id) {
+                self.handle_accepted_effect_error(&id, &request_id, &error);
+            }
+            return;
+        }
+        let Some(player) = self.players.get_mut(&id) else {
+            return;
+        };
+        player.channel_request_id = None;
+        player.channel_skill_id = None;
+        player.channel_until = 0;
+        player.channel_level = 0;
+        player.skill_buffs.remove(&SKILL_ICE_DRAGON_BREATH);
+        player.attack_until = self.tick;
+        player.state.action = "stand";
+        player.state.action_started_tick = self.tick;
+        let map_id = player.map_id.clone();
+        let event = serde_json::json!({
+            "type": "skillCast",
+            "eventId": format!("skill-release-{id}-{request_id}"),
+            "serverTick": self.tick,
+            "playerId": id,
+            "skillId": SKILL_ICE_DRAGON_BREATH,
+            "requestId": request_id,
+            "x": player.state.x,
+            "y": player.state.y,
+            "facing": player.state.facing,
+            "durationMs": 0,
+            "released": true,
+        })
+        .to_string();
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        self.broadcast_to_map(&map_id, &event);
+    }
+
+    fn handle_accepted_effect_error(&mut self, id: &str, request_id: &str, error: &str) {
+        // MP/cooldown was already committed by auth.  Never turn a durable
+        // cast into a client-visible retry that could spend it twice.  A
+        // fresh snapshot lets the client reconcile MP/toggles before the next
+        // request; the explicit code tells it that only the effect failed.
+        self.send_reject(id, "effect_persistence", error, Some(request_id));
+        self.send_snapshot(id);
+    }
+
+    fn skill_mp_cost(&self, id: &str, skill_id: u32, level: &MageLevel, vertical: i8) -> i64 {
+        // Hyper Thunder's accepted cast is the first sustained pulse: the P
+        // contract charges its authored 30 MP up front and starts the durable
+        // 60-second cooldown.  Keep it outside Amp/Infinity adjustments so a
+        // tap cannot create a free release or an under/overcharged first hit.
+        if skill_id == SKILL_HYPER_THUNDER {
+            return level.mp_con.unwrap_or(30).max(0);
+        }
+        let mut cost = level.mp_con.unwrap_or(0).max(0);
+        if is_magic_attack_skill(skill_id) {
+            let amp_level = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_ELEMENT_AMP))
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_ELEMENT_AMP, level));
+            if let Some(amp) = amp_level {
+                cost = cost
+                    .saturating_mul(100 + amp.costmp_r.unwrap_or(0).max(0))
+                    / 100;
+            }
+        }
+        if skill_id == SKILL_TELEPORT {
+            if let Some(master_level) = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_TELEPORT_MASTERY))
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_TELEPORT_MASTERY, level))
+            {
+                if self
+                    .players
+                    .get(id)
+                    .is_some_and(|player| player.teleport_mastery_enabled)
+                {
+                    cost = cost.saturating_add(master_level.y.unwrap_or(0).max(0));
+                }
+            }
+        } else if skill_id == SKILL_TELEPORT_BOOST
+            && self
+                .players
+                .get(id)
+                .is_some_and(|player| player.teleport_boost_enabled)
+        {
+            // Turning the toggle off has no source MP cost.
+            cost = 0;
+        } else if skill_id == SKILL_THUNDER_SPHERE
+            && vertical > 0
+            && self.players.get(id).is_some_and(|player| {
+                player
+                    .summon
+                    .as_ref()
+                    .is_some_and(|summon| {
+                        matches!(
+                            summon.skill_id,
+                            SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+                        )
+                    })
+            })
+        {
+            // Re-anchoring the existing sphere is a control action; only the
+            // initial summon consumes its authored mpCon.
+            cost = 0;
+        }
+        // Infinity is an authoritative active buff.  Its no-MP rule applies
+        // to every other accepted skill, including skills whose source value
+        // is zero or whose Elemental Amp adjustment was already calculated.
+        if skill_id != SKILL_INFINITY
+            && self.players.get(id).is_some_and(|player| {
+                player
+                    .skill_buffs
+                    .get(&SKILL_INFINITY)
+                    .copied()
+                    .is_some_and(|remaining| remaining > 0)
+            })
+        {
+            cost = 0;
+        }
+        cost
     }
 
     fn local_cast_skill(
@@ -3308,6 +4693,7 @@ impl World {
         skill_id: u32,
         duration_ms: u64,
         level: &MageLevel,
+        skill_level: Option<u32>,
     ) -> String {
         let (x, y, facing) = self
             .players
@@ -3326,14 +4712,33 @@ impl World {
             "facing": facing,
             "durationMs": duration_ms,
         });
+        if let Some(skill_level) = skill_level {
+            value["skillLevel"] = skill_level.into();
+        }
         if matches!(
             skill_id,
-            SKILL_ENERGY_BOLT | SKILL_COLD_BEAM | SKILL_THUNDER_BOLT
+            SKILL_THREE_SNAILS
+                | SKILL_ENERGY_BOLT
+                | SKILL_COLD_BEAM
+                | SKILL_THUNDER_BOLT
+                | SKILL_ICE_STORM
+                | SKILL_GLACIAL_WALL
+                | SKILL_TELEPORT_MASTERY
+                | SKILL_THUNDER_SPHERE
+                | SKILL_ICE_DEMON
+                | SKILL_CHAIN_LIGHTNING
+                | SKILL_BLIZZARD
+                | SKILL_ICE_DRAGON_BREATH
+                | SKILL_FROZEN_ORB
+                | SKILL_HYPER_THUNDER
+                | SKILL_HYPER_VORTEX
         ) {
-            let target_ids = if skill_id == SKILL_ENERGY_BOLT {
+            let target_ids = if skill_id == SKILL_THREE_SNAILS {
+                self.beginner_throw_targets(id)
+            } else if skill_id == SKILL_ENERGY_BOLT {
                 self.energy_targets(id, level)
             } else {
-                self.area_targets(id, level)
+                self.skill_area_targets(id, skill_id, level)
             };
             if let Some(target_id) = target_ids.first() {
                 if let Some(target) = self.monsters.get(target_id) {
@@ -3342,13 +4747,1074 @@ impl World {
                     value["targetY"] = target.state.y.into();
                 }
             } else {
-                value["targetX"] = (x + f64::from(if facing < 0 { -1 } else { 1 })
-                    * level.range.unwrap_or(0).max(0) as f64)
+                let range = if skill_id == SKILL_THREE_SNAILS {
+                    BEGINNER_THROW_RANGE
+                } else {
+                    level.range.unwrap_or(0).max(0) as f64
+                };
+                value["targetX"] = (x + f64::from(if facing < 0 { -1 } else { 1 }) * range)
                     .into();
                 value["targetY"] = y.into();
             }
         }
         value.to_string()
+    }
+
+    fn skill_cast_event_phase(
+        &self,
+        id: &str,
+        request_id: &str,
+        skill_id: u32,
+        duration_ms: u64,
+        level: &MageLevel,
+        phase: Option<&str>,
+        skill_level: Option<u32>,
+    ) -> String {
+        let mut value: serde_json::Value = serde_json::from_str(&self.skill_cast_event(
+            id,
+            request_id,
+            skill_id,
+            duration_ms,
+            level,
+            skill_level,
+        ))
+        .unwrap_or_else(|_| serde_json::json!({"type":"skillCast"}));
+        if let Some(phase) = phase {
+            value["phase"] = serde_json::Value::String(phase.to_owned());
+        }
+        value.to_string()
+    }
+
+    fn activate_beginner_buff(&mut self, id: &str, skill_id: u32, level: &MageLevel) {
+        let duration_ms = u64::try_from(level.time.unwrap_or(0).max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000);
+        let duration_ms = self.buff_duration_ms(id, level, duration_ms);
+        if duration_ms == 0 {
+            return;
+        }
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        player.skill_buffs.insert(skill_id, duration_ms);
+        match skill_id {
+            SKILL_RECOVERY => {
+                player.beginner_heal_next_tick = self
+                    .tick
+                    .saturating_add((BEGINNER_HEAL_TICK_MS / TICK_MS).max(1));
+                player.beginner_heal_remaining_ticks = BEGINNER_HEAL_TICKS;
+                player.beginner_heal_per_tick = level.x.unwrap_or(0).max(0);
+            }
+            SKILL_NIMBLE_FEET => {
+                player.beginner_speed_percent = level.speed.unwrap_or(0).clamp(0, 100);
+            }
+            _ => {}
+        }
+    }
+
+    fn beginner_throw_targets(&self, id: &str) -> Vec<String> {
+        // P: the selected export has no authoritative 1000 rectangle/range.
+        // Reuse the existing remote bolt adapter's 340 px range while keeping
+        // the source's single target/count semantics explicit.
+        let level = MageLevel {
+            range: Some(BEGINNER_THROW_RANGE as i64),
+            mob_count: Some(1),
+            attack_count: Some(1),
+            ..MageLevel::default()
+        };
+        self.energy_targets(id, &level)
+    }
+
+    fn apply_beginner_heal_tick(&mut self, id: &str) {
+        let Some((state, map_id, death_id, base_max_mp, next_tick, remaining_ticks, per_tick)) =
+            self.players.get(id).and_then(|player| {
+                (player
+                    .skill_buffs
+                    .get(&SKILL_RECOVERY)
+                    .copied()
+                    .is_some_and(|remaining| remaining > 0))
+                .then(|| {
+                    (
+                        player.state.clone(),
+                        player.map_id.clone(),
+                        player.death_id.clone(),
+                        player.base_max_mp,
+                        player.beginner_heal_next_tick,
+                        player.beginner_heal_remaining_ticks,
+                        player.beginner_heal_per_tick,
+                    )
+                })
+            })
+        else {
+            return;
+        };
+        if state.hp <= 0 || next_tick > self.tick || remaining_ticks == 0 || per_tick <= 0 {
+            return;
+        }
+        let healed_hp = state
+            .hp
+            .saturating_add(per_tick)
+            .min(state.max_hp.max(1));
+        let next_remaining_ticks = remaining_ticks.saturating_sub(1);
+        let next_tick = if next_remaining_ticks > 0 {
+            self.tick
+                .saturating_add((BEGINNER_HEAL_TICK_MS / TICK_MS).max(1))
+        } else {
+            0
+        };
+        if healed_hp != state.hp {
+            let mut healed_state = state;
+            healed_state.hp = healed_hp;
+            if let Some(store) = self.store.as_ref() {
+                let profile = profile_from_state(&healed_state, &map_id, &death_id, base_max_mp);
+                // The durable profile is written before the in-memory HP is
+                // advanced.  A transient DB failure therefore cannot make a
+                // heal appear in a snapshot that was never saved.
+                if store.save_profile(id, &profile).is_err() {
+                    return;
+                }
+            }
+            if let Some(player) = self.players.get_mut(id) {
+                player.state.hp = healed_hp;
+            }
+        }
+        if let Some(player) = self.players.get_mut(id) {
+            player.beginner_heal_remaining_ticks = next_remaining_ticks;
+            player.beginner_heal_next_tick = next_tick;
+        }
+    }
+
+    /// Apply one authoritative one-second natural-recovery interval.  The
+    /// candidate profile is durable before HP/MP advance in memory; a failed
+    /// write schedules only the next one-second retry and never replays the
+    /// failed interval on every 50 ms tick.
+    fn step_natural_recovery(&mut self, id: &str) {
+        let retry_tick = self
+            .tick
+            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        let (state, map_id, death_id, base_max_mp, hp_per_second, mp_per_second) = {
+            let Some(player) = self.players.get_mut(id) else {
+                return;
+            };
+            if player.state.hp <= 0 || player.state.action == "dead" {
+                player.natural_recovery_next_tick = retry_tick;
+                return;
+            }
+            if player.natural_recovery_next_tick > self.tick {
+                return;
+            }
+            let (hp_per_second, mp_per_second) = regeneration_passives_for_job(player.state.job)
+                .into_iter()
+                .fold((0_i64, 0_i64), |(hp, mp), passive| {
+                    (
+                        hp.saturating_add(passive.hp_per_second.max(0)),
+                        mp.saturating_add(passive.mp_per_second.max(0)),
+                    )
+                });
+            if player.state.hp >= player.state.max_hp.max(0)
+                && player.state.mp >= player.state.max_mp.max(0)
+            {
+                player.natural_recovery_next_tick = retry_tick;
+                return;
+            }
+            (
+                player.state.clone(),
+                player.map_id.clone(),
+                player.death_id.clone(),
+                player.base_max_mp,
+                hp_per_second,
+                mp_per_second,
+            )
+        };
+        let candidate_hp = state
+            .hp
+            .saturating_add(hp_per_second)
+            .min(state.max_hp.max(0));
+        let candidate_mp = state
+            .mp
+            .saturating_add(mp_per_second)
+            .min(state.max_mp.max(0));
+        if candidate_hp == state.hp && candidate_mp == state.mp {
+            // Full resources consume the interval without issuing an SQLite
+            // write, so taking damage immediately after a full interval still
+            // waits for a complete new second before recovery.
+            if let Some(player) = self.players.get_mut(id) {
+                player.natural_recovery_next_tick = retry_tick;
+            }
+            return;
+        }
+        let mut candidate = state;
+        candidate.hp = candidate_hp;
+        candidate.mp = candidate_mp;
+        if let Some(store) = self.store.as_ref() {
+            if store
+                .save_profile(id, &profile_from_state(&candidate, &map_id, &death_id, base_max_mp))
+                .is_err()
+            {
+                if let Some(player) = self.players.get_mut(id) {
+                    player.natural_recovery_next_tick = retry_tick;
+                }
+                return;
+            }
+        }
+        if let Some(player) = self.players.get_mut(id) {
+            player.state.hp = candidate_hp;
+            player.state.mp = candidate_mp;
+            player.natural_recovery_next_tick = retry_tick;
+        }
+    }
+
+    fn buff_duration_ms(&self, id: &str, level: &MageLevel, base_ms: u64) -> u64 {
+        let bufftime = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_MASTER_MAGIC))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_MASTER_MAGIC, level))
+            .and_then(|level| level.buff_time_r)
+            .unwrap_or(0)
+            .max(0) as u64;
+        let _ = level;
+        base_ms.saturating_mul(100 + bufftime) / 100
+    }
+
+    fn activate_infinity(&mut self, id: &str, level: &MageLevel) -> Result<(), String> {
+        let base_ms = u64::try_from(level.time.unwrap_or(0).max(0))
+            .map_err(|_| "infinity_duration_invalid".to_owned())?
+            .saturating_mul(1_000);
+        let duration_ms = self.buff_duration_ms(id, level, base_ms);
+        if duration_ms == 0 {
+            return Err("infinity_duration_invalid".to_owned());
+        }
+        let next_tick = self
+            .tick
+            .saturating_add((5_000_u64 / TICK_MS).max(1));
+        let initial_bonus = level.q.unwrap_or(0).max(0);
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.skill_buffs.insert(SKILL_INFINITY, duration_ms);
+        player.infinity_next_tick = next_tick;
+        player.infinity_damage_bonus = initial_bonus.min(level.w.unwrap_or(0).max(0));
+        Ok(())
+    }
+
+    /// Apply Infinity's five-second HP/MP candidate only after the profile
+    /// write succeeds.  The damage stage is session state and advances on the
+    /// same successful interval; a failed write leaves both stages retryable.
+    fn step_infinity_tick(&mut self, id: &str) {
+        let Some(snapshot) = self.players.get(id).map(|player| {
+            (
+                player.state.clone(),
+                player.map_id.clone(),
+                player.death_id.clone(),
+                player.base_max_mp,
+                player.infinity_next_tick,
+                player
+                    .skill_buffs
+                    .get(&SKILL_INFINITY)
+                    .copied()
+                    .unwrap_or(0),
+                player
+                    .state
+                    .skills
+                    .get(&SKILL_INFINITY)
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(SKILL_INFINITY, level).cloned()),
+            )
+        }) else {
+            return;
+        };
+        let (state, map_id, death_id, base_max_mp, next_tick, remaining, level) = snapshot;
+        if remaining == 0 || next_tick > self.tick || state.hp <= 0 {
+            return;
+        }
+        let Some(level) = level else {
+            return;
+        };
+        let percent = level.y.unwrap_or(0).clamp(0, 100);
+        let hp_gain = state.max_hp.max(0).saturating_mul(percent) / 100;
+        // String.h specifies the base MP recovery.  Do not let Magic Boost,
+        // equipment, or a previous recomputation turn the tick into a larger
+        // percentage of the derived MP pool.
+        let mp_gain = base_max_mp.max(0).saturating_mul(percent) / 100;
+        let candidate_hp = state.hp.saturating_add(hp_gain).min(state.max_hp.max(1));
+        let candidate_mp = state.mp.saturating_add(mp_gain).min(state.max_mp.max(0));
+        let mut candidate = state.clone();
+        candidate.hp = candidate_hp;
+        candidate.mp = candidate_mp;
+        if let Some(store) = self.store.as_ref() {
+            if store
+                .save_profile(&id, &profile_from_state(&candidate, &map_id, &death_id, base_max_mp))
+                .is_err()
+            {
+                return;
+            }
+        }
+        if let Some(player) = self.players.get_mut(id) {
+            player.state.hp = candidate_hp;
+            player.state.mp = candidate_mp;
+            let increment = level.damage.unwrap_or(0).max(0);
+            let cap = level.w.unwrap_or(0).max(0);
+            player.infinity_damage_bonus = player
+                .infinity_damage_bonus
+                .saturating_add(increment)
+                .min(cap.max(player.infinity_damage_bonus));
+            player.infinity_next_tick = self
+                .tick
+                .saturating_add((5_000_u64 / TICK_MS).max(1));
+        }
+    }
+
+    fn activate_status_cleanse(&mut self, id: &str, _level: &MageLevel) {
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        // No current monster template emits a player abnormal-status field,
+        // so there is no status instance to clear here.  Keep the source's
+        // separate three-second immunity window authoritative; a future
+        // abnormal-status entry point must consume this deadline.
+        player.status_immune_until = self
+            .tick
+            .saturating_add((3_000_u64 / TICK_MS).max(1));
+        player.skill_buffs.insert(SKILL_MAPLE_CURE, 3_000);
+    }
+
+    fn cast_ice_demon(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+    ) -> Result<(), String> {
+        let Some((map_id, x, y, facing, skill_level)) = self.players.get(id).map(|player| {
+            (
+                player.map_id.clone(),
+                player.state.x,
+                player.state.y,
+                player.state.facing,
+                player.state.skills.get(&SKILL_ICE_DEMON).copied().unwrap_or(1),
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        let duration_ticks = u64::try_from(level.time.unwrap_or(0).max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS)
+            .max(1);
+        let summon = ThunderSummon {
+            summon_id: format!("ice-demon-{id}-{request_id}"),
+            skill_id: SKILL_ICE_DEMON,
+            level: skill_level,
+            map_id,
+            x,
+            y,
+            facing,
+            anchored: true,
+            expires_at: self.tick.saturating_add(duration_ticks),
+            next_hit_at: self.tick.saturating_add((1_080_u64 / TICK_MS).max(1)),
+            pulse_index: 0,
+        };
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.summons.retain(|old| old.skill_id != SKILL_ICE_DEMON);
+        if player.summons.len() >= 2 {
+            return Err("summon_limit".to_owned());
+        }
+        player.summons.push(summon);
+        Ok(())
+    }
+
+    fn cast_frozen_orb(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        _level: &MageLevel,
+    ) -> Result<(), String> {
+        let Some((map_id, x, y, facing, skill_level)) = self.players.get(id).map(|player| {
+            (
+                player.map_id.clone(),
+                player.state.x,
+                player.state.y,
+                player.state.facing,
+                player.state.skills.get(&SKILL_FROZEN_ORB).copied().unwrap_or(1),
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        let summon = ThunderSummon {
+            summon_id: format!("frozen-orb-{id}-{request_id}"),
+            skill_id: SKILL_FROZEN_ORB,
+            level: skill_level,
+            map_id,
+            x,
+            y,
+            facing,
+            anchored: false,
+            expires_at: self.tick.saturating_add(4_000_u64.div_ceil(TICK_MS)),
+            next_hit_at: self.tick.saturating_add((210_u64 / TICK_MS).max(1)),
+            pulse_index: 0,
+        };
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.summons.retain(|old| old.skill_id != SKILL_FROZEN_ORB);
+        if player.summons.len() >= 2 {
+            return Err("summon_limit".to_owned());
+        }
+        player.summons.push(summon);
+        Ok(())
+    }
+
+    fn cast_ice_dragon_breath(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+    ) -> Result<(), String> {
+        let targets = self.area_targets(id, level);
+        let excluded: BTreeSet<String> = targets
+            .iter()
+            .filter(|target_id| {
+                self.monsters
+                    .get(*target_id)
+                    .is_some_and(|monster| monster.bind_immune_until > self.tick)
+            })
+            .cloned()
+            .collect();
+        let before: BTreeMap<String, (i64, i64)> = targets
+            .iter()
+            .filter(|target_id| !excluded.contains(*target_id))
+            .filter_map(|target_id| {
+                self.monsters
+                    .get(target_id)
+                    .map(|monster| (target_id.clone(), (monster.state.hp, monster.state.max_hp)))
+            })
+            .collect();
+        if !before.is_empty() {
+            self.cast_elemental_area_at_filtered(
+                id,
+                request_id,
+                SKILL_ICE_DRAGON_BREATH,
+                level,
+                false,
+                None,
+                Some(&excluded),
+            )?;
+        }
+        let base_seconds = u64::try_from(level.time.unwrap_or(0).max(0)).unwrap_or(0);
+        let base_ticks = base_seconds.saturating_mul(1_000).div_ceil(TICK_MS).max(1);
+        for (target_id, (old_hp, max_hp)) in before {
+            let Some(monster) = self.monsters.get_mut(&target_id) else {
+                continue;
+            };
+            if monster.state.hp <= 0 || monster.bind_immune_until > self.tick {
+                continue;
+            }
+            let dealt = old_hp.saturating_sub(monster.state.hp).max(0);
+            if dealt == 0 {
+                continue;
+            }
+            let ratio = if max_hp > 0 {
+                ((dealt as i128 * 100) / max_hp as i128).clamp(0, 100) as u64
+            } else {
+                0
+            };
+            let bind_ticks = base_ticks
+                .saturating_mul(100 + ratio)
+                .div_ceil(100)
+                .max(1);
+            monster.bind_until = self.tick.saturating_add(bind_ticks);
+            monster.bind_immune_until = self
+                .tick
+                .saturating_add((90_000_u64 / TICK_MS).max(1));
+            // String.h calls this action armor melting: v lowers PDRate and
+            // w lowers MDRate for the bind window.  Keep both reductions
+            // independent from the ninety-second bind immunity timer.
+            monster.bind_pd_rate_reduction = level.v.unwrap_or(0).clamp(0, 100);
+            monster.bind_md_rate_reduction = level.w.unwrap_or(0).clamp(0, 100);
+            monster.state.action = "hit";
+            monster.state.action_started_tick = self.tick;
+        }
+        // String.h makes q the hard held-key maximum; only ordinary buffs
+        // use Master Magic's buff-time multiplier.
+        let duration_ms = u64::try_from(level.q.unwrap_or(0).max(0)).unwrap_or(0) * 1_000;
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.channel_request_id = Some(request_id.to_owned());
+        player.channel_skill_id = Some(SKILL_ICE_DRAGON_BREATH);
+        player.channel_until = self.tick.saturating_add(duration_ms.div_ceil(TICK_MS).max(1));
+        player.channel_level = player
+            .state
+            .skills
+            .get(&SKILL_ICE_DRAGON_BREATH)
+            .copied()
+            .unwrap_or(1);
+        player
+            .skill_buffs
+            .insert(SKILL_ICE_DRAGON_BREATH, duration_ms);
+        Ok(())
+    }
+
+    fn start_hyper_thunder(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+    ) -> Result<(), String> {
+        let prepare_ticks = 780_u64.div_ceil(TICK_MS).max(1);
+        let hold_ticks = u64::try_from(level.q.unwrap_or(2).max(0))
+            .unwrap_or(2)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS)
+            .max(1);
+        let channel_until = self.tick.saturating_add(prepare_ticks + hold_ticks);
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.channel_request_id = Some(request_id.to_owned());
+        player.channel_skill_id = Some(SKILL_HYPER_THUNDER);
+        player.channel_until = channel_until;
+        player.channel_level = player
+            .state
+            .skills
+            .get(&SKILL_HYPER_THUNDER)
+            .copied()
+            .unwrap_or(1);
+        player.hyper_channel_prepare_until = self.tick.saturating_add(prepare_ticks);
+        player.hyper_channel_next_pulse = player.hyper_channel_prepare_until;
+        player.hyper_channel_pulse_index = 0;
+        player.skill_buffs.insert(
+            SKILL_HYPER_THUNDER,
+            (prepare_ticks + hold_ticks).saturating_mul(TICK_MS),
+        );
+        player.state.action = "attack";
+        player.state.action_started_tick = self.tick;
+        player.attack_until = channel_until;
+        Ok(())
+    }
+
+    fn step_hyper_channels(&mut self) {
+        let ids: Vec<String> = self
+            .players
+            .iter()
+            .filter_map(|(id, player)| {
+                (player.channel_skill_id == Some(SKILL_HYPER_THUNDER)).then_some(id.clone())
+            })
+            .collect();
+        for id in ids {
+            let Some(snapshot) = self.players.get(&id).map(|player| {
+                (
+                    player.channel_until,
+                    player.hyper_channel_prepare_until,
+                    player.hyper_channel_next_pulse,
+                    player.hyper_channel_pulse_index,
+                    player.channel_request_id.clone(),
+                    player.channel_level,
+                    player.state.hp,
+                )
+            }) else {
+                continue;
+            };
+            if snapshot.6 <= 0 || snapshot.0 <= self.tick {
+                if snapshot.6 > 0 {
+                    let request = snapshot.4.as_deref().unwrap_or("hyper-timeout");
+                    if let Err(error) = self.finish_hyper_thunder(&id, request) {
+                        self.handle_accepted_effect_error(&id, request, &error);
+                    }
+                } else {
+                    self.stop_hyper_thunder(&id, snapshot.4.as_deref().unwrap_or("hyper-dead"));
+                }
+                continue;
+            }
+            if self.tick < snapshot.1 || self.tick < snapshot.2 {
+                continue;
+            }
+            let Some(level) = self
+                .mage_skills
+                .level(SKILL_HYPER_THUNDER, snapshot.5.max(1))
+                .cloned()
+            else {
+                self.stop_hyper_thunder(&id, snapshot.4.as_deref().unwrap_or("hyper-invalid"));
+                continue;
+            };
+            let base_request = snapshot.4.as_deref().unwrap_or("hyper");
+            let pulse_request = format!("{base_request}:pulse:{}", snapshot.3 + 1);
+            // The accepted cast pre-pays the first source MP charge and owns
+            // the durable 60-second cooldown.  The first pulse therefore
+            // resolves without a second debit; every later pulse is its own
+            // durable 30 MP action with cooldown=0.
+            let prepaid_first_pulse = snapshot.3 == 0;
+            let mut pulse_mp = self.players.get(&id).map(|p| p.state.mp).unwrap_or(0);
+            if !prepaid_first_pulse {
+                let outcome = match self.store.as_ref() {
+                    Some(store) => store.cast_skill_with_cooldown(
+                        &id,
+                        &pulse_request,
+                        SKILL_HYPER_THUNDER,
+                        ICE_FOURTH_JOB,
+                        FOURTH_BOOK,
+                        1,
+                        level.mp_con.unwrap_or(30).max(0),
+                        0,
+                    ),
+                    None => Ok(self.local_cast_skill(
+                        &id,
+                        &pulse_request,
+                        SKILL_HYPER_THUNDER,
+                        FOURTH_BOOK,
+                        level.mp_con.unwrap_or(30).max(0),
+                    )),
+                };
+                let Ok(outcome) = outcome else {
+                    self.stop_hyper_thunder(&id, base_request);
+                    self.send_reject(&id, "effect_persistence", "Hyper持续脉冲保存失败。", None);
+                    continue;
+                };
+                if !outcome.success {
+                    self.stop_hyper_thunder(&id, base_request);
+                    self.send_reject(&id, "hyper_pulse_stopped", "MP不足，Hyper持续攻击已结束。", None);
+                    continue;
+                }
+                pulse_mp = outcome.mp;
+            }
+            if let Some(player) = self.players.get_mut(&id) {
+                player.state.mp = pulse_mp;
+                player.hyper_channel_pulse_index = player.hyper_channel_pulse_index.saturating_add(1);
+                player.hyper_channel_next_pulse = self.tick.saturating_add(200_u64.div_ceil(TICK_MS));
+            }
+            if let Err(error) = self.cast_elemental_area(
+                &id,
+                &pulse_request,
+                SKILL_HYPER_THUNDER,
+                &level,
+                false,
+            ) {
+                self.stop_hyper_thunder(&id, base_request);
+                self.handle_accepted_effect_error(&id, &pulse_request, &error);
+                continue;
+            }
+            if snapshot.3 == 0 {
+                let event = self.skill_cast_event_phase(
+                    &id,
+                    base_request,
+                    SKILL_HYPER_THUNDER,
+                    2_000,
+                    &level,
+                    Some("sustain"),
+                    None,
+                );
+                if let Some(map_id) = self.players.get(&id).map(|player| player.map_id.clone()) {
+                    self.broadcast_to_map(&map_id, &event);
+                }
+            }
+        }
+    }
+
+    fn stop_hyper_thunder(&mut self, id: &str, request_id: &str) {
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        let map_id = player.map_id.clone();
+        let x = player.state.x;
+        let y = player.state.y;
+        let facing = player.state.facing;
+        player.channel_request_id = None;
+        player.channel_skill_id = None;
+        player.channel_until = 0;
+        player.channel_level = 0;
+        player.hyper_channel_prepare_until = 0;
+        player.hyper_channel_next_pulse = 0;
+        player.hyper_channel_pulse_index = 0;
+        player.skill_buffs.remove(&SKILL_HYPER_THUNDER);
+        player.attack_until = self.tick;
+        if player.state.action == "attack" {
+            player.state.action = "stand";
+            player.state.action_started_tick = self.tick;
+        }
+        let event = serde_json::json!({
+            "type": "skillCast",
+            "eventId": format!("skill-hyper-stop-{id}-{request_id}"),
+            "serverTick": self.tick,
+            "playerId": id,
+            "skillId": SKILL_HYPER_THUNDER,
+            "requestId": request_id,
+            "x": x,
+            "y": y,
+            "facing": facing,
+            "durationMs": 0,
+            "phase": "sustain",
+        })
+        .to_string();
+        self.broadcast_to_map(&map_id, &event);
+    }
+
+    fn finish_hyper_thunder(&mut self, id: &str, request_id: &str) -> Result<(), String> {
+        let Some((level, map_id)) = self.players.get(id).map(|player| {
+            (
+                self.mage_skills
+                    .level(SKILL_HYPER_THUNDER, player.channel_level.max(1))
+                    .cloned()
+                    .unwrap_or_default(),
+                player.map_id.clone(),
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        let mut final_level = level.clone();
+        final_level.damage = level.x.or(level.damage);
+        final_level.attack_count = Some(level.w.unwrap_or(15).max(0) as u32);
+        final_level.mob_count = Some(level.mob_count.unwrap_or(15));
+        self.stop_hyper_thunder(id, request_id);
+        self.cast_elemental_area(
+            id,
+            &format!("{request_id}:final"),
+            SKILL_HYPER_THUNDER,
+            &final_level,
+            false,
+        )?;
+        if let Some(player) = self.players.get_mut(id) {
+            player.attack_until = self.tick.saturating_add(900_u64.div_ceil(TICK_MS).max(1));
+            player.state.action = "attack";
+            player.state.action_started_tick = self.tick;
+        }
+        let event = self.skill_cast_event_phase(
+            id,
+            request_id,
+            SKILL_HYPER_THUNDER,
+            900,
+            &final_level,
+            Some("final"),
+            None,
+        );
+        self.broadcast_to_map(&map_id, &event);
+        Ok(())
+    }
+
+    fn activate_hyper_adventurer(&mut self, id: &str, level: &MageLevel) {
+        // The source describes an adventurer-wide damage buff.  This project
+        // has no party model, so the P adapter applies it to the caster only;
+        // its duration is independent of Master Magic's buff-time multiplier.
+        let duration_ms = u64::try_from(level.time.unwrap_or(60).max(0))
+            .unwrap_or(60)
+            .saturating_mul(1_000);
+        if duration_ms == 0 {
+            return;
+        }
+        if let Some(player) = self.players.get_mut(id) {
+            player.skill_buffs.insert(SKILL_HYPER_ADVENTURER, duration_ms);
+        }
+    }
+
+    fn activate_hyper_vortex(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+        vertical: i8,
+    ) -> Result<(), String> {
+        let Some((map_id, x, y, facing, barrier_enabled)) = self.players.get(id).map(|player| {
+            (
+                player.map_id.clone(),
+                player.state.x,
+                player.state.y,
+                player.state.facing,
+                player.hyper_barrier_enabled,
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        if vertical > 0 {
+            let hidden_level = self
+                .mage_skills
+                .level(SKILL_HYPER_VORTEX_HIDDEN, 1)
+                .cloned()
+                .unwrap_or_else(|| level.clone());
+            let duration_ms = u64::try_from(hidden_level.u2.unwrap_or(30).max(0))
+                .unwrap_or(30)
+                .saturating_mul(1_000);
+            let pulse_ms = u64::try_from(hidden_level.sub_time.unwrap_or(1_200).max(1))
+                .unwrap_or(1_200);
+            if duration_ms == 0 || pulse_ms == 0 {
+                return Err("invalid_hyper_vortex".to_owned());
+            }
+            let Some(player) = self.players.get_mut(id) else {
+                return Err("player_unknown".to_owned());
+            };
+            player.hyper_vortex = Some(HyperVortex {
+                request_id: request_id.to_owned(),
+                map_id: map_id.clone(),
+                x,
+                y,
+                facing,
+                hidden: true,
+                expires_at: self.tick.saturating_add(duration_ms.div_ceil(TICK_MS)),
+                next_pulse_at: self.tick,
+            });
+            // A down-key vortex is a separate area object; it does not turn
+            // the visible ON/OFF barrier off or on and has no damage path.
+            let event = serde_json::json!({
+                "type": "skillCast",
+                "eventId": format!("skill-hyper-vortex-{id}-{request_id}"),
+                "serverTick": self.tick,
+                "playerId": id,
+                "skillId": SKILL_HYPER_VORTEX_HIDDEN,
+                "requestId": request_id,
+                "x": x,
+                "y": y,
+                "facing": facing,
+                "durationMs": duration_ms,
+            })
+            .to_string();
+            self.broadcast_to_map(&map_id, &event);
+        } else {
+            let Some(player) = self.players.get_mut(id) else {
+                return Err("player_unknown".to_owned());
+            };
+            player.hyper_barrier_enabled = !barrier_enabled;
+            if player.hyper_barrier_enabled {
+                player.hyper_barrier_next_mp = self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
+                player.hyper_barrier_next_pulse = self.tick;
+            } else {
+                player.hyper_barrier_next_mp = 0;
+                player.hyper_barrier_next_pulse = 0;
+            }
+        }
+        Ok(())
+    }
+
+    fn step_hyper_effects(&mut self) {
+        let ids: Vec<String> = self.players.keys().cloned().collect();
+        for id in ids {
+            let Some(snapshot) = self.players.get(&id).map(|player| {
+                (
+                    player.state.hp,
+                    player.map_id.clone(),
+                    player.hyper_barrier_enabled,
+                    player.hyper_barrier_next_mp,
+                    player.hyper_barrier_next_pulse,
+                    player.hyper_vortex.clone(),
+                )
+            }) else {
+                continue;
+            };
+            if snapshot.0 <= 0 {
+                if let Some(player) = self.players.get_mut(&id) {
+                    clear_hyper_runtime(player);
+                    refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+                }
+                continue;
+            }
+
+            if snapshot.2 && snapshot.3 <= self.tick {
+                let upkeep_request = format!("hyper-barrier:{id}:{}", self.tick);
+                let cost = if self
+                    .players
+                    .get(&id)
+                    .is_some_and(|player| player.skill_buffs.contains_key(&SKILL_INFINITY))
+                {
+                    0
+                } else {
+                    60
+                };
+                let outcome = match self.store.as_ref() {
+                    Some(store) => store.cast_skill(
+                        &id,
+                        &upkeep_request,
+                        SKILL_HYPER_VORTEX,
+                        ICE_FOURTH_JOB,
+                        FOURTH_BOOK,
+                        1,
+                        cost,
+                    ),
+                    None => Ok(self.local_cast_skill(
+                        &id,
+                        &upkeep_request,
+                        SKILL_HYPER_VORTEX,
+                        FOURTH_BOOK,
+                        cost,
+                    )),
+                };
+                match outcome {
+                    Ok(outcome) if outcome.success => {
+                        if let Some(player) = self.players.get_mut(&id) {
+                            player.state.mp = outcome.mp;
+                            player.hyper_barrier_next_mp = self
+                                .tick
+                                .saturating_add(1_000_u64.div_ceil(TICK_MS));
+                        }
+                    }
+                    Ok(_) | Err(_) => {
+                        if let Some(player) = self.players.get_mut(&id) {
+                            player.hyper_barrier_enabled = false;
+                            player.hyper_barrier_next_mp = 0;
+                            player.hyper_barrier_next_pulse = 0;
+                            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+                        }
+                        self.send_reject(&id, "hyper_barrier_stopped", "MP不足，冰雪結界已结束。", None);
+                        self.send_snapshot(&id);
+                    }
+                }
+            }
+
+            // The upkeep transaction may turn the barrier off in this same
+            // tick.  Read the committed runtime flag again before applying
+            // its freeze pulse; the pre-charge snapshot must not grant one
+            // last free effect after an MP/persistence failure.
+            let barrier_enabled = self
+                .players
+                .get(&id)
+                .is_some_and(|player| player.hyper_barrier_enabled);
+            if barrier_enabled && snapshot.4 <= self.tick {
+                let Some(level) = self.mage_skills.level(SKILL_HYPER_VORTEX, 1).cloned() else {
+                    continue;
+                };
+                let targets = self.area_targets(&id, &level);
+                for target_id in targets {
+                    self.freeze_target(&target_id, 1);
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.hyper_barrier_next_pulse = self
+                        .tick
+                        .saturating_add(2_400_u64.div_ceil(TICK_MS));
+                }
+            }
+
+            let Some(vortex) = snapshot.5 else {
+                continue;
+            };
+            if vortex.map_id != snapshot.1 || vortex.expires_at <= self.tick {
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.hyper_vortex = None;
+                }
+                let event = serde_json::json!({
+                    "type": "skillCast",
+                    "eventId": format!("skill-hyper-vortex-stop-{id}-{}", vortex.request_id),
+                    "serverTick": self.tick,
+                    "playerId": id,
+                    "skillId": SKILL_HYPER_VORTEX_HIDDEN,
+                    "requestId": vortex.request_id,
+                    "x": vortex.x,
+                    "y": vortex.y,
+                    "facing": vortex.facing,
+                    "durationMs": 0,
+                })
+                .to_string();
+                self.broadcast_to_map(&snapshot.1, &event);
+                self.refresh_hyper_player_derived(&id);
+                continue;
+            }
+            if vortex.next_pulse_at <= self.tick {
+                let Some(level) = self.mage_skills.level(SKILL_HYPER_VORTEX_HIDDEN, 1).cloned() else {
+                    continue;
+                };
+                let targets = self.area_targets_at(
+                    &id,
+                    &level,
+                    vortex.x,
+                    vortex.y,
+                    vortex.facing,
+                );
+                for target_id in targets {
+                    self.freeze_target(&target_id, 1);
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    if let Some(active) = player.hyper_vortex.as_mut() {
+                        let pulse_ms = u64::try_from(level.sub_time.unwrap_or(1_200).max(1))
+                            .unwrap_or(1_200);
+                        active.next_pulse_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
+                    }
+                }
+            }
+            self.refresh_hyper_player_derived(&id);
+        }
+    }
+
+    fn refresh_hyper_player_derived(&mut self, id: &str) {
+        if let Some(player) = self.players.get_mut(id) {
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        }
+    }
+
+    fn maybe_cast_blizzard_follow_up(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        target_id: &str,
+    ) -> Result<(), String> {
+        let Some(level) = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_BLIZZARD))
+            .copied()
+            .and_then(|skill_level| self.mage_skills.level(SKILL_BLIZZARD, skill_level))
+            .cloned()
+        else {
+            return Ok(());
+        };
+        let Some((target_x, target_y, map_id)) = self.monsters.get(target_id).and_then(|monster| {
+            (monster.state.hp > 0).then_some((monster.state.x, monster.state.y, monster.map_id.clone()))
+        }) else {
+            return Ok(());
+        };
+        if self.players.get(id).is_none_or(|player| player.map_id != map_id) {
+            return Ok(());
+        }
+        let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
+        if deterministic_percent(&[id, request_id, target_id, "blizzard-follow-up"])
+            >= prop
+        {
+            return Ok(());
+        }
+        let mut follow = level.clone();
+        follow.damage = level.x;
+        follow.mob_count = Some(1);
+        follow.attack_count = Some(1);
+        follow.lt = Some(crate::mage::MagePoint { x: -500.0, y: -500.0 });
+        follow.rb = Some(crate::mage::MagePoint { x: 500.0, y: 500.0 });
+        // Anchor the hidden hit at the target that actually survived the
+        // triggering cast, then exclude every other mob.  A second scan from
+        // the caster would let a nearby mob steal the passive hit.
+        let excluded = self
+            .monsters
+            .keys()
+            .filter(|other_id| other_id.as_str() != target_id)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        self.cast_elemental_area_at_filtered(
+            id,
+            &format!("{request_id}:blizzard-passive"),
+            SKILL_BLIZZARD_HIDDEN,
+            &follow,
+            false,
+            Some((target_x, target_y, self.players.get(id).map(|p| p.state.facing).unwrap_or(1))),
+            Some(&excluded),
+        )
+    }
+
+    fn apply_chain_stun(&mut self, id: &str, request_id: &str, level: &MageLevel) {
+        let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
+        let duration_ticks = u64::try_from(level.time.unwrap_or(1).max(0))
+            .unwrap_or(1)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS)
+            .max(1);
+        for target_id in self.skill_area_targets(id, SKILL_CHAIN_LIGHTNING, level) {
+            if deterministic_percent(&[id, request_id, target_id.as_str(), "chain-stun"])
+                >= prop
+            {
+                continue;
+            }
+            if let Some(monster) = self.monsters.get_mut(&target_id) {
+                if monster.state.hp > 0 {
+                    monster.stun_until = self.tick.saturating_add(duration_ticks);
+                    monster.state.action = "hit";
+                    monster.state.action_started_tick = self.tick;
+                }
+            }
+        }
     }
 
     fn energy_duration_ms(&self, id: &str) -> u64 {
@@ -3385,12 +5851,188 @@ impl World {
         first.min(0).saturating_add(second.min(0))
     }
 
+    fn cast_beginner_throw(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+        skill_level: u32,
+    ) -> Result<(), String> {
+        let target_id = self.beginner_throw_targets(id).into_iter().next();
+        let Some(target_id) = target_id else {
+            return Ok(());
+        };
+        let Some((target_template, target_hp, target_max_hp, target_x, target_y, map_id, quests)) =
+            self.monsters.get(&target_id).map(|monster| {
+                let quests = self
+                    .players
+                    .get(id)
+                    .map(|player| player.quests.clone())
+                    .unwrap_or_default();
+                (
+                    monster.template.clone(),
+                    monster.state.hp,
+                    monster.state.max_hp,
+                    monster.state.x,
+                    monster.state.y,
+                    monster.map_id.clone(),
+                    quests,
+                )
+            })
+        else {
+            return Ok(());
+        };
+        let damage = level.fixdamage.unwrap_or(0).max(0);
+        let killed = damage >= target_hp;
+        let applied_damage = damage.min(target_hp.max(0));
+        let practice = auth::is_practice_map(&map_id);
+        let drops = if killed && !practice {
+            self.choose_drops(&target_template, target_x, target_y, id, &quests)
+        } else {
+            Vec::new()
+        };
+        let action_request = format!("{request_id}:t{target_id}");
+        let action_id = format!("skill-{request_id}-{target_id}");
+        let resolution = if let Some(store) = self.store.as_ref() {
+            let claim = store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
+            if claim.resolved {
+                return Ok(());
+            }
+            store.resolve_attack(
+                id,
+                &map_id,
+                &action_request,
+                Some(&target_id),
+                applied_damage,
+                killed,
+                target_template.exp,
+                target_max_hp,
+                &drops,
+                &self.gameplay.exp_table,
+                &self.players.keys().cloned().collect::<Vec<_>>(),
+            )?
+        } else {
+            auth::AttackResolution {
+                already_resolved: false,
+                target_id: Some(target_id.clone()),
+                damage: applied_damage,
+                killed,
+                exp_gain: if killed && !practice { target_template.exp } else { 0 },
+                drop: drops.first().cloned(),
+                drops,
+                profile: None,
+                profiles: Vec::new(),
+            }
+        };
+        if resolution.already_resolved {
+            return Ok(());
+        }
+        if let Some(monster) = self.monsters.get_mut(&target_id) {
+            if resolution.damage > 0 {
+                let contribution = monster.damage_by_player.entry(id.to_owned()).or_default();
+                *contribution = contribution.saturating_add(resolution.damage);
+            }
+            monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+            monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
+            monster.state.action_started_tick = self.tick;
+            if monster.state.hp == 0 {
+                monster.freeze_until = 0;
+                monster.state.freeze_stacks = None;
+                monster.stun_until = 0;
+                let die_ticks = monster
+                    .template
+                    .die_duration_ms
+                    .unwrap_or(1)
+                    .div_ceil(TICK_MS)
+                    .max(1);
+                monster.death_until = Some(self.tick + die_ticks);
+                monster.respawn_at = match monster.spawn.mob_time {
+                    -1 => None,
+                    0 => self.gameplay.monster_respawn_ms.map(|ms| {
+                        let interval = ms.div_ceil(TICK_MS).max(1);
+                        (self.tick / interval + 1) * interval
+                    }),
+                    seconds => Some(
+                        self.tick
+                            + u64::try_from(seconds)
+                                .unwrap_or(u64::MAX)
+                                .saturating_mul(1_000)
+                                .div_ceil(TICK_MS),
+                    ),
+                };
+            }
+        }
+        if resolution.damage > 0 {
+            self.broadcast_to_map(
+                &map_id,
+                &serde_json::json!({
+                    "type": "damageEvent",
+                    "eventId": format!("damage-event-{id}-{request_id}-{target_id}"),
+                    "serverTick": self.tick,
+                    "attackerId": id,
+                    "targetId": target_id,
+                    "x": target_x,
+                    "y": target_y,
+                    "damage": resolution.damage,
+                    "killed": resolution.killed,
+                    "skillId": SKILL_THREE_SNAILS,
+                    "skillLevel": skill_level,
+                })
+                .to_string(),
+            );
+        }
+        if !resolution.profiles.is_empty() {
+            for (participant, profile) in resolution.profiles {
+                if let Some(player) = self.players.get_mut(&participant) {
+                    apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+                }
+            }
+        } else if let Some(profile) = resolution.profile {
+            if let Some(player) = self.players.get_mut(id) {
+                apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+            }
+        } else if resolution.exp_gain > 0 && self.store.is_none() {
+            if let Some(player) = self.players.get_mut(id) {
+                Self::add_exp(&mut player.state, resolution.exp_gain, &self.gameplay.exp_table);
+                refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+            }
+        }
+        for drop in resolution.drops {
+            let drop_id = drop.id.clone();
+            self.drops.insert(
+                drop_id.clone(),
+                DropState {
+                    id: drop.id.clone(),
+                    item_id: drop.item_id.clone(),
+                    quantity: drop.quantity,
+                    x: drop.x,
+                    y: drop.y,
+                },
+            );
+            self.drop_instances
+                .insert(drop_id.clone(), DropInstance::from_record(&drop));
+            self.drop_owners
+                .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
+            self.drop_maps.insert(drop_id, map_id.clone());
+        }
+        Ok(())
+    }
+
     fn skill_duration_ms(&self, id: &str, skill_id: u32) -> u64 {
         // P: no server hit scheduler is exported for these second-job attacks;
         // resolve all authored attackCount segments immediately and retain a
         // 600 ms action lock (500 ms after action-speed reductions).
         let base = match skill_id {
-            SKILL_COLD_BEAM | SKILL_THUNDER_BOLT => 600,
+            SKILL_COLD_BEAM
+            | SKILL_THUNDER_BOLT
+            | SKILL_ICE_STORM
+            | SKILL_GLACIAL_WALL
+            | SKILL_THUNDER_SPHERE
+            | SKILL_ICE_DEMON
+            | SKILL_CHAIN_LIGHTNING
+            | SKILL_BLIZZARD
+            | SKILL_ICE_DRAGON_BREATH
+            | SKILL_FROZEN_ORB => 600,
             _ => SKILL_CAST_DURATION_MS,
         };
         let action_speed = self
@@ -3416,9 +6058,40 @@ impl World {
             return Err("teleport_no_direction".to_owned());
         }
         let map_id = player.map_id.clone();
-        let map = self.map_for(&map_id);
-        let horizontal = level.x.unwrap_or(0).max(0) as f64 * f64::from(direction);
-        let vertical_distance = level.y.unwrap_or(0).max(0) as f64 * f64::from(vertical);
+        let map = self.map_for(&map_id).clone();
+        let boost = if player.teleport_boost_enabled {
+            self.players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_TELEPORT_BOOST))
+                .copied()
+                .and_then(|skill_level| self.mage_skills.level(SKILL_TELEPORT_BOOST, skill_level))
+        } else {
+            None
+        };
+        let (boost_x, boost_y) = boost
+            .map(|level| (level.x.unwrap_or(0).max(0), level.y.unwrap_or(0).max(0)))
+            .unwrap_or((0, 0));
+        let hyper_distance = if player.hyper_teleport_enabled {
+            self.players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_HYPER_TELEPORT_DISTANCE))
+                .copied()
+                .and_then(|skill_level| {
+                    self.mage_skills
+                        .level(SKILL_HYPER_TELEPORT_DISTANCE, skill_level)
+                })
+                .and_then(|value| value.x)
+                .unwrap_or(0)
+                .max(0)
+        } else {
+            0
+        };
+        let horizontal_distance = level.x.unwrap_or(0).max(0) as f64
+            + boost_x as f64
+            + hyper_distance as f64;
+        let vertical_distance_abs = level.y.unwrap_or(0).max(0) as f64 + boost_y as f64;
+        let horizontal = horizontal_distance * f64::from(direction);
+        let vertical_distance = vertical_distance_abs * f64::from(vertical);
         let mut target_x = (player.state.x + horizontal).clamp(map.bounds.x_min, map.bounds.x_max);
         if direction != 0 && player.state.grounded {
             let wall = map.wall_for(player.foothold_id, direction < 0, player.state.y);
@@ -3444,7 +6117,7 @@ impl World {
             if let Some((id, ground)) = map.ground_near(target_x, target_y) {
                 if ground >= player.state.y - 1.0
                     && ground <= target_y + 24.0
-                    && ground - player.state.y <= level.y.unwrap_or(0).max(0) as f64 + 24.0
+                    && ground - player.state.y <= vertical_distance_abs + 24.0
                 {
                     foothold_id = id;
                     target_y = ground;
@@ -3582,6 +6255,78 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Vec::new();
         };
+        self.area_targets_at(
+            id,
+            level,
+            player.state.x,
+            player.state.y,
+            player.state.facing,
+        )
+    }
+
+    fn skill_area_targets(&self, id: &str, skill_id: u32, level: &MageLevel) -> Vec<String> {
+        self.area_targets(id, &self.hyper_area_level(id, skill_id, level))
+    }
+
+    fn hyper_area_level(&self, id: &str, skill_id: u32, level: &MageLevel) -> MageLevel {
+        let mut adjusted = level.clone();
+        if skill_id == SKILL_CHAIN_LIGHTNING && adjusted.lt.is_none() && adjusted.rb.is_none() {
+            // Chain Lightning's source exposes range=420 and y=350 rather
+            // than an lt/rb rectangle.  Keep that authored envelope while
+            // allowing the Hyper target passive to add two slots.
+            let range = adjusted.range.unwrap_or(420).max(0) as f64;
+            let vertical = adjusted.y.unwrap_or(350).abs() as f64;
+            adjusted.lt = Some(crate::mage::MagePoint {
+                x: -range,
+                y: -vertical,
+            });
+            adjusted.rb = Some(crate::mage::MagePoint {
+                x: range,
+                y: vertical,
+            });
+        }
+        let target_plus_id = match skill_id {
+            SKILL_TELEPORT_MASTERY => Some(SKILL_HYPER_TELEPORT_TARGET),
+            SKILL_CHAIN_LIGHTNING => Some(SKILL_HYPER_CHAIN_TARGET),
+            SKILL_ICE_DEMON => Some(SKILL_HYPER_ICE_TARGET),
+            _ => None,
+        };
+        if let Some(passive_id) = target_plus_id {
+            let learned = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&passive_id))
+                .copied()
+                .unwrap_or(0);
+            if learned > 0 {
+                let plus = self
+                    .mage_skills
+                    .level(passive_id, learned)
+                    .and_then(|value| value.target_plus)
+                    .unwrap_or(0);
+                adjusted.mob_count = Some(
+                    adjusted
+                        .mob_count
+                        .unwrap_or(1)
+                        .saturating_add(plus)
+                        .min(15),
+                );
+            }
+        }
+        adjusted
+    }
+
+    fn area_targets_at(
+        &self,
+        id: &str,
+        level: &MageLevel,
+        origin_x: f64,
+        origin_y: f64,
+        facing: i8,
+    ) -> Vec<String> {
+        let Some(player) = self.players.get(id) else {
+            return Vec::new();
+        };
         let (lt, rb) = level.lt.zip(level.rb).map(|(lt, rb)| (lt, rb)).unwrap_or((
             crate::mage::MagePoint {
                 x: -250.0,
@@ -3589,8 +6334,8 @@ impl World {
             },
             crate::mage::MagePoint { x: 250.0, y: 75.0 },
         ));
-        let max_targets = level.mob_count.unwrap_or(1).clamp(1, 6) as usize;
-        let facing = if player.state.facing < 0 { -1.0 } else { 1.0 };
+        let max_targets = level.mob_count.unwrap_or(1).clamp(1, 15) as usize;
+        let facing = if facing < 0 { -1.0 } else { 1.0 };
         let mut candidates = self
             .monsters
             .iter()
@@ -3600,10 +6345,10 @@ impl World {
                 }
                 // WZ rectangles are authored facing left; mirroring the local
                 // x coordinate keeps the source lt/rb geometry for both ways.
-                let local_x = -((monster.state.x - player.state.x) * facing);
-                let local_y = monster.state.y - player.state.y;
+                let local_x = -((monster.state.x - origin_x) * facing);
+                let local_y = monster.state.y - origin_y;
                 (local_x >= lt.x && local_x <= rb.x && local_y >= lt.y && local_y <= rb.y)
-                    .then_some(((monster.state.x - player.state.x).abs(), monster_id.clone()))
+                    .then_some(((monster.state.x - origin_x).abs(), monster_id.clone()))
             })
             .collect::<Vec<_>>();
         candidates.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
@@ -3615,16 +6360,18 @@ impl World {
     }
 
     fn apply_meditation(&mut self, id: &str, level: &MageLevel) {
+        let duration_ms = self.buff_duration_ms(
+            id,
+            level,
+            level.time.unwrap_or(40).max(0) as u64 * 1_000,
+        );
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
-        let seconds = level.time.unwrap_or(40).max(0) as u64;
         // P: the selected data has no party-target contract, so this buff is
         // self-only until an authored group effect is available.
         player.meditation_mad = level.indie_mad.unwrap_or(10).max(0);
-        player.meditation_until = self
-            .tick
-            .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
+        player.meditation_until = self.tick.saturating_add(duration_ms.div_ceil(TICK_MS));
     }
 
     fn maybe_absorb_monster_mp(&mut self, id: &str, target_id: &str) {
@@ -3732,6 +6479,13 @@ impl World {
             .and_then(|level| self.mage_skills.level(SKILL_SPELL_MASTERY, *level))
             .and_then(|level| level.cr)
             .unwrap_or(0);
+        let third_crit = player
+            .state
+            .skills
+            .get(&SKILL_MAGIC_CRITICAL)
+            .and_then(|level| self.mage_skills.level(SKILL_MAGIC_CRITICAL, *level))
+            .and_then(|level| level.cr)
+            .unwrap_or(0);
         let wand_crit = player
             .state
             .skills
@@ -3745,7 +6499,251 @@ impl World {
                         .ok()
                         .is_some_and(|item_id| item_id / 10_000 == 137)
             });
-        (mastery_crit + if wand_crit { 5 } else { 0 }).clamp(0, 100)
+        let hyper_ice_crit = player
+            .state
+            .skills
+            .get(&SKILL_HYPER_ICE_CRIT)
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_HYPER_ICE_CRIT, level))
+            .and_then(|level| level.cr)
+            .unwrap_or(0)
+            .max(0);
+        (mastery_crit + third_crit + hyper_ice_crit + if wand_crit { 5 } else { 0 }).clamp(0, 100)
+    }
+
+    fn magic_damage_with_passives(
+        &self,
+        id: &str,
+        skill_id: u32,
+        target_id: &str,
+        base_damage: i64,
+        critical: bool,
+        request_id: &str,
+        segment: u32,
+    ) -> i64 {
+        let Some(target) = self.monsters.get(target_id) else {
+            return base_damage.max(1);
+        };
+        let mut damage = base_damage.max(1);
+        let frozen_stacks = target
+            .state
+            .freeze_stacks
+            .unwrap_or(0)
+            .min(ICE_FREEZE_STACK_CAP);
+        let frozen_break = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_FROZEN_BREAK))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_FROZEN_BREAK, level));
+        let mut ignored_md_rate = 0_i64;
+        if let Some(level) = frozen_break {
+            let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
+            let sub_prop = level.sub_prop.unwrap_or(0).clamp(0, 100) as u64;
+            for layer in 0..frozen_stacks {
+                let roll = deterministic_percent(&[
+                    id,
+                    request_id,
+                    target_id,
+                    &segment.to_string(),
+                    &layer.to_string(),
+                ]);
+                // subProp is the per-layer chance; a successful layer adds
+                // prop percent of magic defense ignore, capped at five layers.
+                if roll < sub_prop {
+                    ignored_md_rate = ignored_md_rate.saturating_add(prop as i64);
+                }
+            }
+        }
+        let (mystic_ignore, mystic_bonus, infinity_bonus) = self
+            .players
+            .get(id)
+            .map(|player| {
+                let mystic = player
+                    .state
+                    .skills
+                    .get(&SKILL_MYSTIC_STRIKE)
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(SKILL_MYSTIC_STRIKE, level));
+                (
+                    mystic
+                        .and_then(|level| level.ignore_mob_pdp_r)
+                        .unwrap_or(0)
+                        .clamp(0, 100),
+                    if is_nonsummon_direct_skill(skill_id) {
+                        mystic
+                            .and_then(|level| level.x)
+                            .unwrap_or(0)
+                            .max(0)
+                            .saturating_mul(i64::from(player.mystic_strike_stacks))
+                    } else {
+                        0
+                    },
+                    if player.skill_buffs.contains_key(&SKILL_INFINITY) {
+                        player.infinity_damage_bonus.max(0)
+                    } else {
+                        0
+                    },
+                )
+            })
+            .unwrap_or((0, 0, 0));
+        ignored_md_rate = ignored_md_rate.saturating_add(mystic_ignore);
+        let bind_md_rate = (target.bind_until > self.tick)
+            .then_some(target.bind_md_rate_reduction)
+            .unwrap_or(0)
+            .clamp(0, 100) as f64;
+        if let Some(md_rate) = target.template.md_rate {
+            let md_rate = (md_rate - bind_md_rate).max(0.0);
+            let effective_md_rate = (md_rate
+                * (100.0 - ignored_md_rate.clamp(0, 100) as f64)
+                / 100.0)
+                .clamp(0.0, 100.0);
+            damage = (damage as f64 * (100.0 - effective_md_rate) / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        let hyper_damage_percent = self
+            .players
+            .get(id)
+            .and_then(|player| {
+                let passive = match skill_id {
+                    SKILL_TELEPORT_MASTERY => SKILL_HYPER_TELEPORT_DAMAGE,
+                    SKILL_CHAIN_LIGHTNING => SKILL_HYPER_CHAIN_DAMAGE,
+                    SKILL_ICE_DEMON => SKILL_HYPER_ICE_DAMAGE,
+                    _ => 0,
+                };
+                let passive_bonus = (passive != 0)
+                    .then(|| player.state.skills.get(&passive).copied().unwrap_or(0))
+                    .and_then(|level| self.mage_skills.level(passive, level))
+                    .and_then(|level| level.dam_r)
+                    .unwrap_or(0)
+                    .max(0);
+                let adventurer_bonus = player
+                    .skill_buffs
+                    .get(&SKILL_HYPER_ADVENTURER)
+                    .copied()
+                    .filter(|remaining| *remaining > 0)
+                    .map(|_| {
+                        self.mage_skills
+                            .level(SKILL_HYPER_ADVENTURER, 1)
+                            .and_then(|level| level.indie_dam_r)
+                            .unwrap_or(10)
+                    })
+                    .unwrap_or(0)
+                    .max(0);
+                Some(passive_bonus.saturating_add(adventurer_bonus))
+            })
+            .unwrap_or(0);
+        if hyper_damage_percent > 0 {
+            damage = (damage as f64 * (100 + hyper_damage_percent) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        let amp = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_ELEMENT_AMP))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_ELEMENT_AMP, level))
+            .and_then(|level| level.dam_r)
+            .unwrap_or(0)
+            .max(0);
+        if is_magic_attack_skill(skill_id) && amp > 0 {
+            damage = (damage as f64 * (100 + amp) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        let reset = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_ELEMENTAL_RESET))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_ELEMENTAL_RESET, level))
+            .and_then(|level| level.md_r)
+            .unwrap_or(0)
+            .max(0);
+        // P: no current mob export carries an elemental-resistance target, so
+        // source `u` is intentionally not applied to mdRate.  mdR is the
+        // independent final-damage multiplier and always applies here.
+        if reset > 0 {
+            damage = (damage as f64 * (100 + reset) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        let extreme = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_EXTREME_MAGIC))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_EXTREME_MAGIC, level))
+            .and_then(|level| level.z)
+            .unwrap_or(0)
+            .max(0);
+        let has_status = target.state.freeze_stacks.unwrap_or(0) > 0
+            || target.stun_until > self.tick;
+        if extreme > 0 && has_status {
+            damage = (damage as f64 * (100 + extreme) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        if critical {
+            let critical_damage = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_MAGIC_CRITICAL))
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_MAGIC_CRITICAL, level))
+                .and_then(|level| level.critical_damage)
+                .unwrap_or(0)
+                .max(0);
+            damage = (damage as f64 * (200 + critical_damage) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        if mystic_bonus > 0 {
+            damage = (damage as f64 * (100 + mystic_bonus) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        if infinity_bonus > 0 {
+            damage = (damage as f64 * (100 + infinity_bonus) as f64 / 100.0)
+                .floor()
+                .max(1.0) as i64;
+        }
+        if let Some(map_id) = self.monsters.get(target_id).map(|monster| monster.map_id.clone()) {
+            let guard_percent = self.boss_damage_multiplier(&map_id, true);
+            damage = (damage as i128 * i128::from(guard_percent) / 100)
+                .max(1) as i64;
+        }
+        damage
+    }
+
+    fn advance_mystic_strike(&mut self, id: &str, request_id: &str, target_id: &str) {
+        let Some(level) = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_MYSTIC_STRIKE))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_MYSTIC_STRIKE, level).cloned())
+        else {
+            return;
+        };
+        let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
+        if prop == 0
+            || deterministic_percent(&[id, request_id, target_id, "mystic-strike"]) >= prop
+        {
+            return;
+        }
+        let cap = u32::try_from(level.y.unwrap_or(5).max(0)).unwrap_or(5).min(5);
+        let duration_ticks = u64::try_from(level.time.unwrap_or(5).max(0))
+            .unwrap_or(5)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS)
+            .max(1);
+        if let Some(player) = self.players.get_mut(id) {
+            player.mystic_strike_stacks = player.mystic_strike_stacks.saturating_add(1).min(cap);
+            player.mystic_strike_until = self.tick.saturating_add(duration_ticks);
+        }
     }
 
     fn cast_elemental_area(
@@ -3756,9 +6754,68 @@ impl World {
         level: &MageLevel,
         lightning: bool,
     ) -> Result<(), String> {
-        let targets = self.area_targets(id, level);
-        let attack_count = level.attack_count.unwrap_or(1).clamp(1, 3);
+        self.cast_elemental_area_at(id, request_id, skill_id, level, lightning, None)
+    }
+
+    fn cast_elemental_area_at(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+        lightning: bool,
+        origin: Option<(f64, f64, i8)>,
+    ) -> Result<(), String> {
+        self.cast_elemental_area_at_filtered(
+            id,
+            request_id,
+            skill_id,
+            level,
+            lightning,
+            origin,
+            None,
+        )
+    }
+
+    fn cast_elemental_area_at_filtered(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+        lightning: bool,
+        origin: Option<(f64, f64, i8)>,
+        excluded: Option<&BTreeSet<String>>,
+    ) -> Result<(), String> {
+        let target_level = self.hyper_area_level(id, skill_id, level);
+        let targets = origin
+            .map(|(x, y, facing)| self.area_targets_at(id, &target_level, x, y, facing))
+            .unwrap_or_else(|| self.area_targets(id, &target_level))
+            .into_iter()
+            .filter(|target_id| excluded.is_none_or(|excluded| !excluded.contains(target_id)))
+            .collect::<Vec<_>>();
+        let mut attack_count = level
+            .attack_count
+            .unwrap_or(1)
+            .clamp(1, if skill_id == SKILL_HYPER_THUNDER { 15 } else { 12 });
+        if skill_id == SKILL_CHAIN_LIGHTNING {
+            let learned = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_HYPER_CHAIN_ATTACK))
+                .copied()
+                .unwrap_or(0);
+            if learned > 0 {
+                let extra = self
+                    .mage_skills
+                    .level(SKILL_HYPER_CHAIN_ATTACK, learned)
+                    .and_then(|value| value.attack_count)
+                    .unwrap_or(1);
+                attack_count = attack_count.saturating_add(extra).min(12);
+            }
+        }
         let target_count = targets.len();
+        let lightning_effect = lightning || skill_id == SKILL_CHAIN_LIGHTNING;
         let magic_attack = self
             .players
             .get(id)
@@ -3766,8 +6823,9 @@ impl World {
             .unwrap_or(1)
             .max(1);
         let mut consumed = BTreeMap::new();
+        let mut successful_direct_targets = BTreeSet::new();
         for target_id in &targets {
-            if lightning {
+            if lightning_effect {
                 if self
                     .monsters
                     .get(target_id)
@@ -3789,20 +6847,32 @@ impl World {
                             .unwrap_or(0),
                     );
                 }
-            } else {
-                self.freeze_target(target_id, 1);
             }
         }
-        let fixed_effect = self
-            .players
-            .get(id)
-            .and_then(|player| player.state.skills.get(&SKILL_ICE_EFFECT))
-            .copied()
-            .and_then(|level| self.mage_skills.level(SKILL_ICE_EFFECT, level))
-            .map(|level| (level.x.unwrap_or(0).max(0), level.y.unwrap_or(0).max(0)));
+        // Preserve the existing freeze-effect coverage for every elemental
+        // area source, including summons and the hidden Blizzard follow-up.
+        // Fourth-job fixed level replaces the third-job node when both are
+        // present; it must never create two independent layers.
+        let fixed_effect = {
+            let fourth = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_FOURTH_FREEZE))
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_FOURTH_FREEZE, level));
+            fourth
+                .or_else(|| {
+                    self.players
+                        .get(id)
+                        .and_then(|player| player.state.skills.get(&SKILL_ICE_EFFECT))
+                        .copied()
+                        .and_then(|level| self.mage_skills.level(SKILL_ICE_EFFECT, level))
+                })
+                .map(|level| (level.x.unwrap_or(0).max(0), level.y.unwrap_or(0).max(0)))
+        };
         let fixed_crit = fixed_effect.map(|effect| effect.0).unwrap_or(0);
         let fixed_lightning = fixed_effect.map(|effect| effect.1).unwrap_or(0);
-        if !lightning && fixed_effect.is_some() {
+        if !lightning_effect && fixed_effect.is_some() {
             for target_id in &targets {
                 if let Some(stacks) = self
                     .monsters
@@ -3815,7 +6885,14 @@ impl World {
                 }
             }
         }
-        let critical_chance = self.magic_critical_chance(id);
+        let critical_chance = self
+            .magic_critical_chance(id)
+            .saturating_add(
+                (skill_id == SKILL_CHAIN_LIGHTNING)
+                    .then_some(level.cr.unwrap_or(0).max(0))
+                    .unwrap_or(0),
+            )
+            .clamp(0, 100);
         let weaken_level = self
             .players
             .get(id)
@@ -3851,8 +6928,12 @@ impl World {
                         ),
                         None => continue,
                     };
-                let mut damage = (magic_attack as f64 * level.damage.unwrap_or(1).max(1) as f64
-                    / 100.0)
+                let normal_bonus = if !target_template.boss
+                    && matches!(skill_id, SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN) {
+                    level.u2.unwrap_or(0).max(0)
+                } else { 0 };
+                let multiplier = level.damage.unwrap_or(1).max(1).saturating_add(normal_bonus);
+                let mut damage = (magic_attack as f64 * multiplier as f64 / 100.0)
                     .floor()
                     .max(1.0) as i64;
                 if weaken.as_ref().is_some_and(|_| {
@@ -3888,18 +6969,25 @@ impl World {
                 }
                 let critical = rand::thread_rng().gen_range(0..100) < critical_chance;
                 if let Some(stacks) = consumed.get(target_id).copied() {
-                    let layer_bonus = if lightning { fixed_lightning } else { 0 }
+                    let layer_bonus = if lightning_effect { fixed_lightning } else { 0 }
                         .saturating_add(if critical { fixed_crit } else { 0 });
                     damage = (damage as f64 * (1.0 + layer_bonus as f64 * stacks as f64 / 100.0))
                         .floor()
                         .max(1.0) as i64;
                 }
-                if critical {
-                    damage = damage.saturating_mul(2);
-                }
+                damage = self.magic_damage_with_passives(
+                    id,
+                    skill_id,
+                    target_id,
+                    damage,
+                    critical,
+                    request_id,
+                    segment,
+                );
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
-                let drops = if killed {
+                let practice = auth::is_practice_map(&map_id);
+                let drops = if killed && !practice {
                     self.choose_drops(&target_template, target_x, target_y, id, &quests)
                 } else {
                     Vec::new()
@@ -3907,7 +6995,7 @@ impl World {
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
-                    let claim = store.claim_attack(id, &action_request, &action_id, "skill")?;
+                    let claim = store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
                     if claim.resolved {
                         continue;
                     }
@@ -3930,7 +7018,7 @@ impl World {
                         target_id: Some(target_id.clone()),
                         damage: applied_damage,
                         killed,
-                        exp_gain: if killed { target_template.exp } else { 0 },
+                        exp_gain: if killed && !practice { target_template.exp } else { 0 },
                         drop: drops.first().cloned(),
                         drops,
                         profile: None,
@@ -3940,6 +7028,10 @@ impl World {
                 if resolution.already_resolved {
                     continue;
                 }
+                if resolution.damage > 0 && is_nonsummon_direct_skill(skill_id) {
+                    self.advance_mystic_strike(id, request_id, target_id);
+                    successful_direct_targets.insert(target_id.clone());
+                }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
@@ -3947,6 +7039,7 @@ impl World {
                     if monster.state.hp == 0 {
                         monster.freeze_until = 0;
                         monster.state.freeze_stacks = None;
+                        monster.stun_until = 0;
                         monster.death_until = Some(
                             self.tick
                                 + monster
@@ -4008,11 +7101,11 @@ impl World {
                     if let Some(player) = self.players.get_mut(id) {
                         apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
                     }
-                } else if resolution.killed && self.store.is_none() {
+                } else if resolution.exp_gain > 0 && self.store.is_none() {
                     if let Some(player) = self.players.get_mut(id) {
                         Self::add_exp(
                             &mut player.state,
-                            target_template.exp,
+                            resolution.exp_gain,
                             &self.gameplay.exp_table,
                         );
                         refresh_player_derived(&self.gameplay, &self.mage_skills, player);
@@ -4023,7 +7116,7 @@ impl World {
                     // the MP delta cannot be overwritten by the old profile.
                     self.maybe_absorb_monster_mp(id, target_id);
                 }
-                if lightning
+                if lightning_effect
                     && segment == 1
                     && fixed_effect.is_some()
                     && consumed.contains_key(target_id)
@@ -4032,6 +7125,20 @@ impl World {
                     // resolution succeeds, so a persistent replay/failure
                     // cannot spend a freeze stack.
                     self.freeze_target(target_id, -1);
+                }
+                if !lightning
+                    && skill_id != SKILL_CHAIN_LIGHTNING
+                    && segment == 1
+                    && resolution.damage > 0
+                    && self
+                        .monsters
+                        .get(target_id)
+                        .is_some_and(|monster| monster.state.hp > 0)
+                {
+                    // Freeze is a post-resolution effect.  This prevents a
+                    // failed/duplicate DB claim from leaving a free stack,
+                    // and the same cast cannot consume the stack it creates.
+                    self.freeze_target(target_id, 1);
                 }
                 for drop in resolution.drops {
                     let drop_id = drop.id.clone();
@@ -4050,6 +7157,299 @@ impl World {
                     self.drop_owners
                         .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
                     self.drop_maps.insert(drop_id, map_id.clone());
+                }
+            }
+        }
+        if is_nonsummon_direct_skill(skill_id) && skill_id != SKILL_BLIZZARD_HIDDEN {
+            if !successful_direct_targets.is_empty() {
+                let index = deterministic_percent(&[id, request_id, "blizzard-target"])
+                    as usize
+                    % successful_direct_targets.len();
+                if let Some(target_id) = successful_direct_targets.iter().nth(index).cloned() {
+                    self.maybe_cast_blizzard_follow_up(id, request_id, &target_id)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn cast_thunder_sphere(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+        vertical: i8,
+    ) -> Result<(), String> {
+        let Some(player_snapshot) = self.players.get(id).map(|player| {
+            (
+                player.map_id.clone(),
+                player.state.x,
+                player.state.y,
+                player.state.facing,
+                player.summon.clone(),
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        let (map_id, x, y, facing, existing) = player_snapshot;
+        let hidden_level = self
+            .mage_skills
+            .level(
+                SKILL_THUNDER_SPHERE_HIDDEN,
+                self.players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(&SKILL_THUNDER_SPHERE))
+                    .copied()
+                    .unwrap_or(1),
+            )
+            .cloned()
+            .unwrap_or_else(|| level.clone());
+        let anchor = vertical > 0;
+        let duration_source = if anchor {
+            hidden_level.time.unwrap_or(20)
+        } else {
+            level.time.unwrap_or(60)
+        };
+        let duration_ticks = u64::try_from(duration_source.max(0))
+            .unwrap_or(if anchor { 20 } else { 60 })
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS)
+            .max(1);
+        if let Some(existing) = existing
+            .clone()
+            .filter(|summon| {
+                summon.skill_id == SKILL_THUNDER_SPHERE
+                    || summon.skill_id == SKILL_THUNDER_SPHERE_HIDDEN
+            })
+            .filter(|_| anchor)
+        {
+            if let Some(player) = self.players.get_mut(id) {
+                player.summon = Some(ThunderSummon {
+                    x,
+                    y,
+                    facing,
+                    anchored: true,
+                    skill_id: SKILL_THUNDER_SPHERE_HIDDEN,
+                    expires_at: existing
+                        .expires_at
+                        .min(self.tick.saturating_add(duration_ticks)),
+                    ..existing
+                });
+            }
+            return Ok(());
+        }
+        let summon = ThunderSummon {
+            summon_id: format!("thunder-sphere-{id}-{request_id}"),
+            skill_id: if anchor {
+                SKILL_THUNDER_SPHERE_HIDDEN
+            } else {
+                SKILL_THUNDER_SPHERE
+            },
+            level: self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_THUNDER_SPHERE))
+                .copied()
+                .unwrap_or(1),
+            map_id,
+            x,
+            y,
+            facing,
+            anchored: anchor,
+            expires_at: self.tick.saturating_add(duration_ticks),
+            next_hit_at: self.tick,
+            pulse_index: 0,
+        };
+        if let Some(player) = self.players.get_mut(id) {
+            player.summon = Some(summon);
+        }
+        Ok(())
+    }
+
+    fn step_summons(&mut self) {
+        let ids: Vec<String> = self.players.keys().cloned().collect();
+        let mut due = Vec::new();
+        for id in ids {
+            let map_id = self
+                .players
+                .get(&id)
+                .map(|player| player.map_id.clone())
+                .unwrap_or_default();
+            let map = self.map_for(&map_id).clone();
+            let Some(player) = self.players.get_mut(&id) else {
+                continue;
+            };
+            if player.state.action == "dead" {
+                player.summon = None;
+                player.summons.clear();
+                continue;
+            }
+            if let Some(mut summon) = player.summon.take() {
+                if summon.expires_at > self.tick && summon.map_id == player.map_id {
+                    if !summon.anchored {
+                        summon.x = player.state.x;
+                        summon.y = player.state.y;
+                        summon.facing = player.state.facing;
+                    }
+                    if summon.next_hit_at <= self.tick {
+                        due.push((id.clone(), summon.clone()));
+                        let pulse_skill = if summon.skill_id == SKILL_THUNDER_SPHERE_HIDDEN {
+                            SKILL_THUNDER_SPHERE_HIDDEN
+                        } else {
+                            SKILL_THUNDER_SPHERE
+                        };
+                        let pulse_ms = self
+                            .mage_skills
+                            .level(pulse_skill, summon.level)
+                            .and_then(|level| level.sub_time)
+                            .unwrap_or(1_080)
+                            .max(1) as u64;
+                        summon.next_hit_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
+                        summon.pulse_index = summon.pulse_index.saturating_add(1);
+                    }
+                    player.summon = Some(summon);
+                }
+            }
+            let mut retained = Vec::with_capacity(player.summons.len());
+            for mut summon in std::mem::take(&mut player.summons) {
+                if summon.expires_at <= self.tick || summon.map_id != player.map_id {
+                    continue;
+                }
+                if summon.skill_id == SKILL_FROZEN_ORB {
+                    let direction = if summon.facing < 0 { -1.0 } else { 1.0 };
+                    summon.x = (summon.x + direction * 180.0 * TICK_MS as f64 / 1_000.0)
+                        .clamp(map.bounds.x_min, map.bounds.x_max);
+                }
+                if summon.next_hit_at <= self.tick {
+                    due.push((id.clone(), summon.clone()));
+                    let pulse_ms = match summon.skill_id {
+                        // The exported subTime is a source-side delay field,
+                        // while this P implementation's periodic demon hit
+                        // is explicitly 1080ms.  Do not interpret source 8
+                        // as eight milliseconds.
+                        SKILL_ICE_DEMON => 1_080,
+                        SKILL_FROZEN_ORB => self
+                            .mage_skills
+                            .level(SKILL_FROZEN_ORB, summon.level)
+                            .and_then(|level| level.attack_delay)
+                            .unwrap_or(210)
+                            .max(1) as u64,
+                        _ => 1_080,
+                    };
+                    summon.next_hit_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
+                    summon.pulse_index = summon.pulse_index.saturating_add(1);
+                }
+                retained.push(summon);
+            }
+            player.summons = retained;
+        }
+        for (id, summon) in due {
+            let Some(pulse_level) = self
+                .mage_skills
+                .level(summon.skill_id, summon.level)
+                .cloned()
+                .or_else(|| self.mage_skills.level(SKILL_THUNDER_SPHERE, summon.level).cloned())
+            else {
+                continue;
+            };
+            let request_id = format!("{}-pulse-{}", summon.summon_id, summon.pulse_index);
+            let lightning = matches!(
+                summon.skill_id,
+                SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+            );
+            let result = self.cast_elemental_area_at(
+                &id,
+                &request_id,
+                summon.skill_id,
+                &pulse_level,
+                lightning,
+                Some((summon.x, summon.y, summon.facing)),
+            );
+            if let Err(error) = result {
+                self.handle_accepted_effect_error(&id, &request_id, &error);
+            }
+        }
+    }
+
+    fn cast_glacial_wall(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+    ) -> Result<(), String> {
+        let targets = self.area_targets(id, level);
+        self.cast_elemental_area(id, request_id, SKILL_GLACIAL_WALL, level, false)?;
+        for target_id in targets {
+            self.apply_glacial_push(id, &target_id);
+        }
+        Ok(())
+    }
+
+    fn apply_glacial_push(&mut self, caster_id: &str, target_id: &str) {
+        let Some(caster_facing) = self.players.get(caster_id).map(|player| player.state.facing)
+        else {
+            return;
+        };
+        let Some((map_id, x, y)) = self.monsters.get(target_id).map(|monster| {
+            (
+                monster.map_id.clone(),
+                monster.state.x,
+                monster.state.y,
+            )
+        }) else {
+            return;
+        };
+        let map = self.map_for(&map_id).clone();
+        let direction = if caster_facing < 0 { -1.0 } else { 1.0 };
+        // P: String/Skill has no server displacement contract for `u=480`;
+        // use one bounded source-facing push so the wall has a visible,
+        // collision-safe effect without inventing a map-wide knockback.
+        let pushed_x = (x + direction * 48.0).clamp(map.bounds.x_min, map.bounds.x_max);
+        let Some((foothold_id, pushed_y)) = map
+            .ground_near(pushed_x, y)
+            .filter(|(_, ground)| (ground - y).abs() <= 48.0)
+            .map(|(foothold_id, ground)| (foothold_id, ground))
+        else {
+            return;
+        };
+        if let Some(monster) = self.monsters.get_mut(target_id) {
+            if monster.state.hp <= 0 {
+                return;
+            }
+            monster.state.x = pushed_x;
+            monster.state.y = pushed_y;
+            monster.foothold_id = foothold_id;
+        }
+    }
+
+    fn cast_teleport_mastery(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        level: &MageLevel,
+    ) -> Result<(), String> {
+        let targets = self.skill_area_targets(id, SKILL_TELEPORT_MASTERY, level);
+        self.cast_elemental_area(id, request_id, SKILL_TELEPORT_MASTERY, level, true)?;
+        let chance = level.sub_prop.unwrap_or(0).clamp(0, 100) as u64;
+        let duration_ticks = u64::try_from(level.time.unwrap_or(2).max(0))
+            .unwrap_or(2)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS);
+        for target_id in targets {
+            let roll = deterministic_percent(&[
+                id,
+                request_id,
+                target_id.as_str(),
+                "teleport-mastery",
+            ]);
+            if roll >= chance {
+                continue;
+            }
+            if let Some(monster) = self.monsters.get_mut(&target_id) {
+                if monster.state.hp > 0 {
+                    monster.stun_until = self.tick.saturating_add(duration_ticks.max(1));
+                    monster.state.action = "hit";
+                    monster.state.action_started_tick = self.tick;
                 }
             }
         }
@@ -4232,20 +7632,31 @@ impl World {
             .map(|player| player.state.derived_stats.magic_attack)
             .unwrap_or(1)
             .max(1);
-        let damage = (magic_attack as f64 * field.damage_percent as f64 / 100.0)
+        let base_damage = (magic_attack as f64 * field.damage_percent as f64 / 100.0)
             .floor()
             .max(1.0) as i64;
+        let request_id = format!("{}-hit-{}-{}", field.field_id, self.tick, target_id);
+        let critical = rand::thread_rng().gen_range(0..100) < self.magic_critical_chance(id);
+        let damage = self.magic_damage_with_passives(
+            id,
+            SKILL_ICE_TELEPORT,
+            target_id,
+            base_damage,
+            critical,
+            &request_id,
+            1,
+        );
         let killed = damage >= target_hp;
         let applied_damage = damage.min(target_hp.max(0));
-        let drops = if killed {
+        let practice = auth::is_practice_map(&field.map_id);
+        let drops = if killed && !practice {
             self.choose_drops(&template, x, y, id, &quests)
         } else {
             Vec::new()
         };
-        let request_id = format!("{}-hit-{}-{}", field.field_id, self.tick, target_id);
         let resolution = if let Some(store) = self.store.as_ref() {
             let action_id = request_id.clone();
-            let claim = store.claim_attack(id, &request_id, &action_id, "skill")?;
+            let claim = store.claim_attack(id, &field.map_id, &request_id, &action_id, "skill")?;
             if claim.resolved {
                 return Ok(());
             }
@@ -4268,7 +7679,7 @@ impl World {
                 target_id: Some(target_id.to_owned()),
                 damage: applied_damage,
                 killed,
-                exp_gain: if killed { template.exp } else { 0 },
+                exp_gain: if killed && !practice { template.exp } else { 0 },
                 drop: drops.first().cloned(),
                 drops,
                 profile: None,
@@ -4286,6 +7697,7 @@ impl World {
             if monster.state.hp == 0 {
                 monster.freeze_until = 0;
                 monster.state.freeze_stacks = None;
+                monster.stun_until = 0;
                 monster.death_until = Some(
                     self.tick
                         + monster
@@ -4327,7 +7739,7 @@ impl World {
                     "skillId": SKILL_ICE_TELEPORT,
                     "segment": 1,
                     "targetCount": 1,
-                    "critical": false,
+                    "critical": critical,
                 })
                 .to_string(),
             );
@@ -4342,9 +7754,9 @@ impl World {
             if let Some(player) = self.players.get_mut(id) {
                 apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
             }
-        } else if resolution.killed && self.store.is_none() {
+        } else if resolution.exp_gain > 0 && self.store.is_none() {
             if let Some(player) = self.players.get_mut(id) {
-                Self::add_exp(&mut player.state, template.exp, &self.gameplay.exp_table);
+                Self::add_exp(&mut player.state, resolution.exp_gain, &self.gameplay.exp_table);
                 refresh_player_derived(&self.gameplay, &self.mage_skills, player);
             }
         }
@@ -4386,6 +7798,7 @@ impl World {
             .unwrap_or(1)
             .max(1);
         let critical_chance = self.magic_critical_chance(id);
+        let mut successful_direct_targets = BTreeSet::new();
         for segment in 1..=attack_count {
             for target_id in &targets {
                 if self
@@ -4457,12 +7870,21 @@ impl World {
                 // P/R: Character/Weapon 1372000's source display flag carries
                 // cr=5; second-job Spell Mastery adds its exported `cr`.
                 if rand::thread_rng().gen_range(0..100) < critical_chance {
-                    damage = damage.saturating_mul(2);
                     critical = true;
                 }
+                damage = self.magic_damage_with_passives(
+                    id,
+                    skill_id,
+                    target_id,
+                    damage,
+                    critical,
+                    request_id,
+                    segment,
+                );
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
-                let drops = if killed {
+                let practice = auth::is_practice_map(&map_id);
+                let drops = if killed && !practice {
                     self.choose_drops(&target_template, target_x, target_y, id, &quests)
                 } else {
                     Vec::new()
@@ -4470,7 +7892,7 @@ impl World {
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
-                    let claim = store.claim_attack(id, &action_request, &action_id, "skill")?;
+                    let claim = store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
                     if claim.resolved {
                         continue;
                     }
@@ -4493,7 +7915,7 @@ impl World {
                         target_id: Some(target_id.clone()),
                         damage: applied_damage,
                         killed,
-                        exp_gain: if killed { target_template.exp } else { 0 },
+                        exp_gain: if killed && !practice { target_template.exp } else { 0 },
                         drop: drops.first().cloned(),
                         drops,
                         profile: None,
@@ -4502,6 +7924,10 @@ impl World {
                 };
                 if resolution.already_resolved {
                     continue;
+                }
+                if resolution.damage > 0 {
+                    self.advance_mystic_strike(id, request_id, target_id);
+                    successful_direct_targets.insert(target_id.clone());
                 }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     if resolution.damage > 0 {
@@ -4515,6 +7941,7 @@ impl World {
                     if monster.state.hp == 0 {
                         monster.freeze_until = 0;
                         monster.state.freeze_stacks = None;
+                        monster.stun_until = 0;
                         let die_ticks = monster
                             .template
                             .die_duration_ms
@@ -4597,6 +8024,9 @@ impl World {
                     self.drop_maps.insert(drop_id, map_id.clone());
                 }
             }
+        }
+        if let Some(target_id) = successful_direct_targets.iter().next() {
+            self.maybe_cast_blizzard_follow_up(id, request_id, target_id)?;
         }
         // Leave the player action visible for the source/client animation.
         let attack_duration_ticks = self.energy_duration_ms(id).div_ceil(TICK_MS);
@@ -4798,6 +8228,7 @@ impl World {
                 .to_string();
                 self.broadcast_to_map(&map_id, &event);
                 self.send_pickup_outcome(&id, &request_id, outcome);
+                self.send_quest_list(&id);
             }
             Ok(outcome) => {
                 self.send_pickup_outcome(&id, &request_id, outcome);
@@ -4921,6 +8352,9 @@ impl World {
                         }
                     }
                     self.send_inventory_outcome(&id, &outcome);
+                    if outcome.success {
+                        self.send_quest_list(&id);
+                    }
                 }
                 Err(error) => {
                     if let Some(player) = self.players.get(&id) {
@@ -5027,6 +8461,9 @@ impl World {
         self.inventory_requests
             .insert((id.clone(), request_id), outcome.clone());
         self.send_inventory_outcome(&id, &outcome);
+        if outcome.success {
+            self.send_quest_list(&id);
+        }
     }
 
     fn handle_inventory_drop(
@@ -5043,6 +8480,15 @@ impl World {
         let map_id = player.map_id.clone();
         let drop_x = player.state.x;
         let drop_y = player.state.y;
+        if auth::is_practice_map(&map_id) {
+            self.send_reject(
+                &id,
+                "practice_inventory_locked",
+                "练习中不能丢弃物品。",
+                Some(&request_id),
+            );
+            return;
+        }
         if let Some(store) = self.store.clone() {
             match store.prior_inventory(&id, &request_id) {
                 Ok(Some(prior)) => {
@@ -5110,6 +8556,9 @@ impl World {
                         self.ensure_inventory_drop_at(&outcome, drop_x, drop_y, &map_id);
                     }
                     self.send_inventory_outcome(&id, &outcome);
+                    if outcome.success {
+                        self.send_quest_list(&id);
+                    }
                 }
                 Err(error) => {
                     if let Some(player) = self.players.get(&id) {
@@ -5197,6 +8646,9 @@ impl World {
         self.inventory_requests
             .insert((id.clone(), request_id), outcome.clone());
         self.send_inventory_outcome(&id, &outcome);
+        if outcome.success {
+            self.send_quest_list(&id);
+        }
     }
 
     fn equipment_stats(&self, id: &str) -> inventory::EquipmentStats {
@@ -5421,6 +8873,11 @@ impl World {
                                 );
                                 if let Ok(equipped) = store.load_equipped(&id) {
                                     player.state.equipped = equipped;
+                                    refresh_player_derived(
+                                        &self.gameplay,
+                                        &self.mage_skills,
+                                        player,
+                                    );
                                 }
                                 if let Ok(monster_book) = store.load_monster_book(&id) {
                                     player.state.monster_book = monster_book;
@@ -5429,6 +8886,12 @@ impl World {
                         }
                     }
                     self.send_inventory_outcome(&id, &outcome);
+                    if outcome.success
+                        && matches!(outcome.operation.as_str(), "equip" | "unequip")
+                    {
+                        self.send_quest_list(&id);
+                        self.send_snapshot(&id);
+                    }
                 }
                 Err(error) => {
                     if let Some(player) = self.players.get(&id) {
@@ -5553,6 +9016,7 @@ impl World {
                 if let Some(player) = self.players.get_mut(&id) {
                     player.state.inventory = inventory_items;
                     player.state.equipped = equipped_items;
+                    refresh_player_derived(&self.gameplay, &self.mage_skills, player);
                 }
                 (true, result_code)
             }
@@ -5573,6 +9037,10 @@ impl World {
         self.inventory_requests
             .insert((id.clone(), request_id), outcome.clone());
         self.send_inventory_outcome(&id, &outcome);
+        if outcome.success && matches!(outcome.operation.as_str(), "equip" | "unequip") {
+            self.send_quest_list(&id);
+            self.send_snapshot(&id);
+        }
     }
 
     fn handle_drop_mesos(&mut self, id: String, request_id: String, quantity: u32) {
@@ -5582,6 +9050,15 @@ impl World {
         let map_id = player.map_id.clone();
         let x = player.state.x;
         let y = player.state.y;
+        if auth::is_practice_map(&map_id) {
+            self.send_reject(
+                &id,
+                "practice_inventory_locked",
+                "练习中不能丢弃枫币。",
+                Some(&request_id),
+            );
+            return;
+        }
         if let Some(store) = self.store.clone() {
             match store.prior_inventory(&id, &request_id) {
                 Ok(Some(prior)) => {
@@ -5782,6 +9259,27 @@ impl World {
     }
 
     fn handle_revive(&mut self, id: String, request_id: String) {
+        if self.players.get(&id).is_some_and(|player| {
+            auth::is_practice_map(&player.map_id) && player.state.action == "dead"
+        }) {
+            // Resolve the private encounter before applying the normal revive
+            // transaction, so a revived player cannot remain in a deleted
+            // practice map or revive a Boss state that was already failed.
+            if !self.finish_boss_practice(
+                &id,
+                Some(boss::BossPracticeStatus::Failed),
+                true,
+                true,
+            ) {
+                self.send_reject(
+                    &id,
+                    "persistence",
+                    "练习结果尚未保存，请稍后重试。",
+                    Some(&request_id),
+                );
+                return;
+            }
+        }
         // Check a persisted request first.  A response from an earlier death
         // must never revive a later death that happens to reuse the same
         // client request id.
@@ -5933,14 +9431,24 @@ impl World {
         player.state.action = "stand";
         player.state.action_started_tick = self.tick;
         player.death_id.clear();
+        player.natural_recovery_next_tick = self
+            .tick
+            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.attack_until = 0;
         player.magic_wave_used = false;
         player.magic_wave_float_used = false;
         player.slow_fall_until = 0;
         player.meditation_until = 0;
         player.meditation_mad = 0;
+        clear_beginner_buffs(player);
         player.ice_teleport_enabled = false;
         player.ice_fields.clear();
+        player.teleport_mastery_enabled = false;
+        player.teleport_boost_enabled = false;
+        player.adaptation_active = false;
+        player.adaptation_charges = 0;
+        player.summon = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         player.contact_invulnerable_until = 0;
         player.direction = 0;
         player.vertical = 0;
@@ -6047,6 +9555,16 @@ impl World {
                 );
                 return;
             }
+            if !self.quest_npc_visible(&id, npc) {
+                self.end_conversation(&id);
+                self.send_reject(
+                    &id,
+                    "npc_unavailable",
+                    "npc is not available for this quest stage",
+                    Some(&request_id),
+                );
+                return;
+            }
             (
                 npc.template_id.clone(),
                 npc.state.x,
@@ -6087,6 +9605,19 @@ impl World {
             );
             return;
         };
+        if self.handle_quest_npc_menu(
+            &id,
+            &request_id,
+            &npc_id,
+            &template_id,
+            &name,
+            name_zh.as_deref(),
+            lang,
+            step,
+            selection,
+        ) {
+            return;
+        }
         let opening = step.is_none_or(|step| step == "start");
         if mage_entry && opening {
             match job {
@@ -6141,6 +9672,20 @@ impl World {
                                 "Advance to Ice/Lightning Magician"
                             } else {
                                 "转职为冰雷法师"
+                            }
+                            .to_owned(),
+                        ));
+                    }
+                    if job == ICE_MAGE_JOB
+                        && level >= 60
+                        && self.mage_skills.get(SKILL_ICE_STORM).is_some()
+                    {
+                        options.push((
+                            3,
+                            if lang == crate::quest_text::LANG_EN {
+                                "Advance to Ice/Lightning Arch Magician"
+                            } else {
+                                "转职为冰雷大魔导士"
                             }
                             .to_owned(),
                         ));
@@ -6306,6 +9851,49 @@ impl World {
                         }
                     }
                 }
+                (Some("select"), Some(3))
+                    if job == ICE_MAGE_JOB
+                        && level >= 60
+                        && self.mage_skills.get(SKILL_ICE_STORM).is_some() =>
+                {
+                    match self.apply_job_advance(
+                        &id,
+                        &map_id,
+                        &npc_id,
+                        &template_id,
+                        ICE_MAGE_JOB,
+                        ICE_THIRD_JOB,
+                    ) {
+                        Ok(true) => {
+                            let mut value = npc::DialogueView::End.to_json(
+                                &request_id,
+                                &npc_id,
+                                &name,
+                                name_zh.as_deref(),
+                            );
+                            value["openSkills"] = serde_json::Value::Bool(true);
+                            value["trainingResult"] = serde_json::json!({
+                                "kind": "jobAdvance",
+                                "job": ICE_THIRD_JOB,
+                            });
+                            self.end_conversation(&id);
+                            self.send_npc_dialogue(&id, value);
+                        }
+                        Ok(false) => {
+                            self.end_conversation(&id);
+                            self.send_reject(
+                                &id,
+                                "job_advance_unavailable",
+                                "冰雷三转条件不满足。",
+                                Some(&request_id),
+                            );
+                        }
+                        Err(error) => {
+                            self.end_conversation(&id);
+                            self.send_reject(&id, "persistence", &error, Some(&request_id));
+                        }
+                    }
+                }
                 (Some("end"), _) => {
                     self.end_conversation(&id);
                     self.send_npc_dialogue(
@@ -6428,7 +10016,16 @@ impl World {
                 // Warp immediately when the dialogue resolves to one.
                 if let npc::DialogueView::Warp { map_id: warp_to } = &view {
                     let target = warp_to.clone();
-                    self.warp_player(&id, target);
+                    if !self.warp_player(&id, target) {
+                        self.end_conversation(&id);
+                        self.send_reject(
+                            &id,
+                            "persistence",
+                            "傳送未能保存，請稍後重試。",
+                            Some(&request_id),
+                        );
+                        return;
+                    }
                 }
                 self.send_npc_dialogue(&id, value);
                 // Apply the one-shot quest effect after the client has been
@@ -6461,8 +10058,9 @@ impl World {
     ) -> Result<bool, String> {
         let first_transfer = from_job == BEGINNER_JOB && job == MAGICIAN_JOB;
         let second_transfer = from_job == MAGICIAN_JOB && job == ICE_MAGE_JOB;
+        let third_transfer = from_job == ICE_MAGE_JOB && job == ICE_THIRD_JOB;
         if !is_mage_advance_npc(map_id, npc_id, template_id)
-            || (!first_transfer && !second_transfer)
+            || (!first_transfer && !second_transfer && !third_transfer)
         {
             return Ok(false);
         }
@@ -6473,6 +10071,9 @@ impl World {
             || player.state.hp <= 0
             || player.state.action == "dead"
             || (second_transfer && player.state.level < 30)
+            || (third_transfer
+                && (player.state.level < 60
+                    || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
         {
             return Ok(false);
         }
@@ -6483,9 +10084,12 @@ impl World {
         }
         let loaded_profile = if self.store.is_some() {
             let defaults = self.default_profile();
-            self.store
-                .as_ref()
-                .and_then(|store| store.load_profile(id, &defaults).ok())
+            Some(
+                self.store
+                    .as_ref()
+                    .ok_or_else(|| "account store unavailable".to_owned())?
+                    .load_profile(id, &defaults)?,
+            )
         } else {
             None
         };
@@ -6507,9 +10111,12 @@ impl World {
                         .or_insert(1);
                     player.state.max_mp = player.base_max_mp;
                     player.state.mp = player.state.max_mp;
-                } else {
+                } else if second_transfer {
                     player.state.skill_points.entry(ICE_BOOK).or_insert(5);
                     player.state.skills.entry(SKILL_ICE_EFFECT).or_insert(1);
+                }
+                if third_transfer {
+                    player.state.skill_points.entry(THIRD_BOOK).or_insert(5);
                 }
                 refresh_player_derived(&self.gameplay, &self.mage_skills, player);
             } else {
@@ -6571,6 +10178,728 @@ impl World {
         }
     }
 
+    fn quest_item_count(inventory: &[crate::protocol::InventoryItem], item_id: &str) -> u32 {
+        inventory
+            .iter()
+            .filter(|item| item.item_id == item_id)
+            .fold(0_u32, |total, item| total.saturating_add(item.quantity))
+    }
+
+    fn quest_equipped_item_count(
+        equipped: &[crate::protocol::InventoryItem],
+        item_id: &str,
+    ) -> u32 {
+        equipped
+            .iter()
+            .filter(|item| item.item_id == item_id)
+            .fold(0_u32, |total, item| total.saturating_add(item.quantity.max(1)))
+    }
+
+    fn quest_jobs_match(conditions: &QuestConditions, job: u32) -> bool {
+        conditions.job.is_empty() || conditions.job.contains(&job)
+    }
+
+    fn quest_conditions_match(player: &Player, conditions: &QuestConditions) -> bool {
+        (conditions.level_at_least == 0 || player.state.level >= conditions.level_at_least)
+            && Self::quest_jobs_match(conditions, player.state.job)
+            && conditions.quests.iter().all(|requirement| {
+                let expected = requirement.status.as_deref().unwrap_or("completed");
+                player
+                    .quests
+                    .get(&requirement.quest_id)
+                    .is_some_and(|status| status == expected)
+            })
+            && conditions.items.iter().all(|requirement| {
+                !requirement.item_id.is_empty()
+                    && requirement.quantity > 0
+                    && Self::quest_item_count(&player.state.inventory, &requirement.item_id)
+                        >= requirement.quantity
+            })
+            && conditions.equipped_items.iter().all(|item_id| {
+                !item_id.is_empty()
+                    && Self::quest_equipped_item_count(&player.state.equipped, item_id) > 0
+            })
+    }
+
+    fn quest_phase_matches_npc(phase: &QuestPhase, template_id: &str) -> bool {
+        phase
+            .npc_id
+            .as_deref()
+            .is_some_and(|npc_id| npc_id == template_id)
+    }
+
+    fn quest_complete_items(spec: &QuestSpec) -> Vec<QuestItemRequirement> {
+        spec.complete.conditions.items.clone()
+    }
+
+    fn quest_consume_items(spec: &QuestSpec) -> Vec<QuestItemRequirement> {
+        match &spec.complete.consume_items {
+            serde_json::Value::Array(items) => serde_json::from_value(serde_json::Value::Array(items.clone()))
+                .unwrap_or_else(|_| Self::quest_complete_items(spec)),
+            serde_json::Value::Bool(false) => Vec::new(),
+            _ => Self::quest_complete_items(spec),
+        }
+    }
+
+    fn quest_objective_text(&self, value: &serde_json::Value, lang: &'static str) -> Option<String> {
+        if let Some(text) = value.as_str().filter(|text| !text.is_empty()) {
+            return Some(text.to_owned());
+        }
+        value
+            .as_object()
+            .and_then(|object| {
+                object
+                    .get(lang)
+                    .or_else(|| object.get(crate::quest_text::LANG_ZH))
+                    .or_else(|| object.get(crate::quest_text::LANG_EN))
+            })
+            .and_then(serde_json::Value::as_str)
+            .filter(|text| !text.is_empty())
+            .map(str::to_owned)
+    }
+
+    fn quest_objective_rows(
+        &self,
+        spec: &QuestSpec,
+        player: &Player,
+        lang: &'static str,
+    ) -> Vec<serde_json::Value> {
+        let fallback = self.quest_summary(spec, "active", lang);
+        if spec.objectives.is_empty() {
+            return Self::quest_complete_items(spec)
+                .into_iter()
+                .map(|requirement| {
+                    let current = Self::quest_item_count(
+                        &player.state.inventory,
+                        &requirement.item_id,
+                    );
+                    serde_json::json!({
+                        "text": fallback,
+                        "current": current,
+                        "required": requirement.quantity,
+                    })
+                })
+                .collect();
+        }
+        spec.objectives
+            .iter()
+            .map(|objective| {
+                let current = self.quest_objective_count(objective, player);
+                let text = self
+                    .quest_objective_text(&objective.text, lang)
+                    .unwrap_or_else(|| fallback.clone());
+                serde_json::json!({
+                    "text": text,
+                    "current": current,
+                    "required": objective.required,
+                })
+            })
+            .collect()
+    }
+
+    fn quest_objective_count(&self, objective: &QuestObjective, player: &Player) -> u32 {
+        if objective.item_id.is_empty() {
+            return 0;
+        }
+        if objective._kind == "equip" {
+            Self::quest_equipped_item_count(&player.state.equipped, &objective.item_id)
+        } else {
+            Self::quest_item_count(&player.state.inventory, &objective.item_id)
+        }
+    }
+
+    fn quest_objectives_complete(&self, spec: &QuestSpec, player: &Player) -> bool {
+        let objectives_ok = spec.objectives.iter().all(|objective| {
+            objective.required > 0
+                && !objective.item_id.is_empty()
+                && self.quest_objective_count(objective, player) >= objective.required
+        });
+        let complete_items_ok = Self::quest_complete_items(spec).iter().all(|requirement| {
+            requirement.quantity > 0
+                && !requirement.item_id.is_empty()
+                && Self::quest_item_count(&player.state.inventory, &requirement.item_id)
+                    >= requirement.quantity
+        });
+        objectives_ok && complete_items_ok
+    }
+
+    fn quest_status_for<'a>(player: &'a Player, quest_id: &str) -> Option<&'a str> {
+        player.quests.get(quest_id).map(String::as_str)
+    }
+
+    fn quest_summary(&self, spec: &QuestSpec, status: &str, lang: &'static str) -> String {
+        if lang == crate::quest_text::LANG_ZH {
+            let phase = match status {
+                "available" => "available",
+                "active" | "objectivesComplete" => "active",
+                "completed" => "completed",
+                _ => "active",
+            };
+            if let Some(summary) = spec.summaries.get(phase).filter(|text| !text.is_empty()) {
+                return summary.clone();
+            }
+        }
+        self.quest_text.summary(&spec.quest_id, lang)
+    }
+
+    fn quest_map_label(&self, map_id: &str) -> String {
+        match map_id {
+            "000010000" => "楓葉山丘".to_owned(),
+            "001020000" => "選擇岔道".to_owned(),
+            "002000000" => "楓之港".to_owned(),
+            "002000100" => "碼頭".to_owned(),
+            "104000000" => "維多利亞港".to_owned(),
+            "100000201" => "弓箭手培訓中心".to_owned(),
+            "130000000" => "耶雷弗".to_owned(),
+            "310050000" => "發電廠大廳".to_owned(),
+            _ => map_id.to_owned(),
+        }
+    }
+
+    fn quest_npc_map(&self, template_id: Option<&str>) -> Option<String> {
+        let template_id = template_id?;
+        self.npcs
+            .values()
+            .find(|npc| {
+                npc.template_id == template_id
+                    && (template_id != QUEST_OLIVIA_NPC || npc.map_id == "130000000")
+            })
+            .map(|npc| npc.map_id.clone())
+    }
+
+    fn quest_npc_label(&self, template_id: Option<&str>) -> String {
+        let Some(template_id) = template_id else {
+            return "任務目標".to_owned();
+        };
+        self.npc_names_zh
+            .get(template_id)
+            .cloned()
+            .or_else(|| {
+                self.gameplay
+                    .npcs
+                    .iter()
+                    .find(|npc| npc.template_id == template_id)
+                    .map(|npc| npc.name.clone())
+            })
+            .unwrap_or_else(|| template_id.to_owned())
+    }
+
+    fn quest_menu_choices(&self, id: &str, template_id: &str) -> Vec<(String, String)> {
+        let Some(player) = self.players.get(id) else {
+            return Vec::new();
+        };
+        let mut choices = Vec::new();
+        for spec in self.gameplay.quests.iter().filter(|spec| spec.executable()) {
+            let status = Self::quest_status_for(player, &spec.quest_id);
+            match status {
+                None => {
+                    if Self::quest_phase_matches_npc(&spec.start, template_id)
+                        && Self::quest_conditions_match(player, &spec.start.conditions)
+                    {
+                        choices.push((spec.quest_id.clone(), "start".to_owned()));
+                    }
+                }
+                Some("active") => {
+                    // A phase warp is also a resumable route while the quest is
+                    // active.  The same tuple is re-derived on selection, so a
+                    // stale menu cannot move a player after the quest changes.
+                    if Self::quest_phase_matches_npc(&spec.start, template_id)
+                        && spec
+                            .start
+                            .warp_map_id
+                            .as_ref()
+                            .is_some_and(|map_id| self.maps.contains_key(map_id))
+                    {
+                        choices.push((spec.quest_id.clone(), "route_start".to_owned()));
+                    }
+                    if Self::quest_phase_matches_npc(&spec.complete, template_id) {
+                        if Self::quest_conditions_match(player, &spec.complete.conditions)
+                            && self.quest_objectives_complete(spec, player)
+                        {
+                            choices.push((spec.quest_id.clone(), "complete".to_owned()));
+                        } else {
+                            choices.push((spec.quest_id.clone(), "pending".to_owned()));
+                        }
+                    }
+                }
+                Some("completed") => {
+                    if Self::quest_phase_matches_npc(&spec.start, template_id)
+                        && spec
+                            .start
+                            .warp_map_id
+                            .as_ref()
+                            .is_some_and(|map_id| self.maps.contains_key(map_id))
+                    {
+                        choices.push((spec.quest_id.clone(), "route_start".to_owned()));
+                    }
+                    if Self::quest_phase_matches_npc(&spec.complete, template_id) {
+                        if spec
+                            .complete
+                            .warp_map_id
+                            .as_ref()
+                            .is_some_and(|map_id| self.maps.contains_key(map_id))
+                        {
+                            choices.push((spec.quest_id.clone(), "route_complete".to_owned()));
+                        }
+                        if spec
+                            .return_map_id
+                            .as_ref()
+                            .is_some_and(|map_id| self.maps.contains_key(map_id))
+                        {
+                            choices.push((spec.quest_id.clone(), "return".to_owned()));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        choices
+    }
+
+    fn quest_route_map_id<'a>(spec: &'a QuestSpec, action: &str) -> Option<&'a str> {
+        match action {
+            "route_start" => spec.start.warp_map_id.as_deref(),
+            "route_complete" => spec.complete.warp_map_id.as_deref(),
+            "return" => spec.return_map_id.as_deref(),
+            _ => None,
+        }
+    }
+
+    fn quest_route_target(
+        &self,
+        id: &str,
+        quest_id: &str,
+        template_id: &str,
+        action: &str,
+    ) -> Option<(String, Option<String>)> {
+        let player = self.players.get(id)?;
+        let spec = self.gameplay.quests.iter().find(|spec| spec.quest_id == quest_id)?;
+        let status = Self::quest_status_for(player, quest_id);
+        let phase = match action {
+            "route_start" if matches!(status, Some("active") | Some("completed")) => &spec.start,
+            "route_complete" | "return" if status == Some("completed") => &spec.complete,
+            _ => return None,
+        };
+        let recheck_active_start = action == "route_start" && status == Some("active");
+        if !Self::quest_phase_matches_npc(phase, template_id)
+            || (recheck_active_start && !Self::quest_conditions_match(player, &phase.conditions))
+        {
+            return None;
+        }
+        let map_id = Self::quest_route_map_id(spec, action)?;
+        self.maps.contains_key(map_id).then(|| {
+            (
+                map_id.to_owned(),
+                match action {
+                    "route_start" => spec.start.warp_portal_name.clone(),
+                    "route_complete" => spec.complete.warp_portal_name.clone(),
+                    _ => None,
+                },
+            )
+        })
+    }
+
+    fn quest_npc_visible(&self, id: &str, npc: &NpcInstance) -> bool {
+        let Some(player) = self.players.get(id) else {
+            return !matches!(
+                npc.template_id.as_str(),
+                QUEST_HIDDEN_NPC_1 | QUEST_HIDDEN_NPC_2 | QUEST_HIDDEN_NPC_3 | QUEST_OLIVIA_NPC
+            );
+        };
+        match npc.template_id.as_str() {
+            QUEST_HIDDEN_NPC_1 => !matches!(Self::quest_status_for(player, "36301"), Some("completed")),
+            QUEST_HIDDEN_NPC_2 => {
+                Self::quest_status_for(player, "36301") == Some("completed")
+                    && !matches!(Self::quest_status_for(player, "36304"), Some("completed"))
+            }
+            QUEST_HIDDEN_NPC_3 => Self::quest_status_for(player, "36306") == Some("completed"),
+            QUEST_OLIVIA_NPC => {
+                npc.map_id == "130000000"
+                    && Self::quest_status_for(player, "36309") == Some("active")
+            }
+            _ => true,
+        }
+    }
+
+    fn quest_interactions_for(&self, id: &str, map_id: &str) -> Vec<serde_json::Value> {
+        let Some(player) = self.players.get(id) else {
+            return Vec::new();
+        };
+        if player.state.hp <= 0 || player.state.action == "dead" {
+            return Vec::new();
+        }
+        self.gameplay
+            .quests
+            .iter()
+            .filter(|spec| spec.executable())
+            .filter_map(|spec| {
+                let interaction = spec.interaction.as_ref()?;
+                if Self::quest_status_for(player, &spec.quest_id) != Some("active")
+                    || interaction.map_id != map_id
+                    || interaction.item_id.is_empty()
+                    || interaction.quantity == 0
+                    || Self::quest_item_count(&player.state.inventory, &interaction.item_id)
+                        >= interaction.quantity
+                {
+                    return None;
+                }
+                let range = if interaction.range > 0.0 {
+                    interaction.range
+                } else {
+                    64.0
+                };
+                let label = self
+                    .quest_objective_text(&interaction.label, player.lang)
+                    .unwrap_or_else(|| self.quest_text.summary(&spec.quest_id, player.lang));
+                Some(serde_json::json!({
+                    "questId": spec.quest_id,
+                    "mapId": interaction.map_id,
+                    "mapLayerKey": interaction.map_layer_key,
+                    "x": interaction.x,
+                    "y": interaction.y,
+                    "range": range,
+                    "label": label,
+                }))
+            })
+            .collect()
+    }
+
+    fn quest_entry(&self, id: &str, spec: &QuestSpec, persisted: Option<&str>) -> Option<serde_json::Value> {
+        let player = self.players.get(id)?;
+        let status = match persisted {
+            Some("completed") => "completed",
+            Some("active") if self.quest_objectives_complete(spec, player) => "objectivesComplete",
+            Some("active") => "active",
+            Some(_) => return None,
+            None if spec.executable()
+                && Self::quest_conditions_match(player, &spec.start.conditions) => "available",
+            None => return None,
+        };
+        let objective_rows = self.quest_objective_rows(spec, player, player.lang);
+        let (target_map_id, target_npc_id, next_action) = match status {
+            "available" => (
+                self.quest_npc_map(spec.start.npc_id.as_deref()),
+                spec.start.npc_id.clone(),
+                spec.start.npc_id.as_deref().and_then(|npc_id| {
+                    self.quest_npc_map(Some(npc_id)).map(|map_id| {
+                        format!("前往{}，與{}交談接取任務", self.quest_map_label(&map_id), self.quest_npc_label(Some(npc_id)))
+                    })
+                }),
+            ),
+            "active" => {
+                let interaction = spec.interaction.as_ref();
+                let target_map_id = interaction
+                    .map(|interaction| interaction.map_id.clone())
+                    .or_else(|| self.quest_npc_map(spec.complete.npc_id.as_deref()));
+                let target_npc_id = if interaction.is_some() {
+                    None
+                } else {
+                    spec.complete.npc_id.clone()
+                };
+                let next_action = if let Some(interaction) = interaction {
+                    let label = self
+                        .quest_objective_text(&interaction.label, player.lang)
+                        .unwrap_or_else(|| self.quest_summary(spec, "active", player.lang));
+                    Some(format!(
+                        "前往{}，点击{}",
+                        self.quest_map_label(&interaction.map_id),
+                        label
+                    ))
+                } else {
+                    spec.complete.npc_id.as_deref().and_then(|npc_id| {
+                        self.quest_npc_map(Some(npc_id)).map(|map_id| {
+                            let delivery = format!(
+                                "前往{}，與{}交談交付任務",
+                                self.quest_map_label(&map_id),
+                                self.quest_npc_label(Some(npc_id))
+                            );
+                            let has_equipment_goal =
+                                spec.objectives.iter().any(|objective| objective._kind == "equip");
+                            let has_collect_goal = !Self::quest_complete_items(spec).is_empty()
+                                || spec
+                                    .objectives
+                                    .iter()
+                                    .any(|objective| objective._kind != "equip");
+                            if has_equipment_goal && !has_collect_goal {
+                                format!("先完成裝備目標；完成後{}", delivery)
+                            } else if has_collect_goal {
+                                format!("先收集任務目標；完成後{}", delivery)
+                            } else {
+                                delivery
+                            }
+                        })
+                    })
+                };
+                (target_map_id, target_npc_id, next_action)
+            },
+            "objectivesComplete" => (
+                self.quest_npc_map(spec.complete.npc_id.as_deref()),
+                spec.complete.npc_id.clone(),
+                spec.complete.npc_id.as_deref().and_then(|npc_id| {
+                    self.quest_npc_map(Some(npc_id)).map(|map_id| {
+                        format!("前往{}，與{}交談交付任務", self.quest_map_label(&map_id), self.quest_npc_label(Some(npc_id)))
+                    })
+                }),
+            ),
+            "completed" => (
+                spec.return_map_id.clone(),
+                None,
+                spec.return_map_id.as_deref().map(|map_id| {
+                    format!("返回{}", self.quest_map_label(map_id))
+                }),
+            ),
+            _ => (None, None, None),
+        };
+        let mut entry = serde_json::json!({
+            "questId": spec.quest_id,
+            "name": self.quest_text.name(&spec.quest_id, player.lang),
+            "status": status,
+            "summary": self.quest_summary(spec, status, player.lang),
+        });
+        if !objective_rows.is_empty() {
+            entry["objectives"] = serde_json::Value::Array(objective_rows);
+        }
+        if let Some(target_map_id) = target_map_id.filter(|value| !value.is_empty()) {
+            entry["targetMapId"] = target_map_id.into();
+        }
+        if let Some(target_npc_id) = target_npc_id.filter(|value| !value.is_empty()) {
+            entry["targetNpcId"] = target_npc_id.into();
+        }
+        if let Some(next_action) = next_action {
+            entry["nextAction"] = next_action.into();
+        }
+        Some(entry)
+    }
+
+    fn quest_log_entries(&self, id: &str) -> Vec<serde_json::Value> {
+        let Some(player) = self.players.get(id) else {
+            return Vec::new();
+        };
+        let mut entries = Vec::new();
+        let catalog_ids: BTreeSet<&str> = self
+            .gameplay
+            .quests
+            .iter()
+            .map(|spec| spec.quest_id.as_str())
+            .collect();
+        for spec in &self.gameplay.quests {
+            if let Some(entry) = self.quest_entry(id, spec, player.quests.get(&spec.quest_id).map(String::as_str)) {
+                entries.push(entry);
+            }
+        }
+        // Preserve old save rows even when their content definition is no
+        // longer present in the current catalog. They remain display-only;
+        // execution still requires an executable catalog entry.
+        for (quest_id, status) in &player.quests {
+            if !catalog_ids.contains(quest_id.as_str()) {
+                entries.push(serde_json::json!({
+                    "questId": quest_id,
+                    "name": self.quest_text.name(quest_id, player.lang),
+                    "status": status,
+                    "summary": self.quest_text.summary(quest_id, player.lang),
+                }));
+            }
+        }
+        entries
+    }
+
+    fn handle_quest_npc_menu(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        template_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        lang: &'static str,
+        step: Option<&str>,
+        selection: Option<u32>,
+    ) -> bool {
+        let current_node = self
+            .npcs
+            .get(npc_id)
+            .and_then(|npc| npc.conversation.get(id).cloned());
+        let opening = step.is_none_or(|value| value == "start");
+        let cached_choices = current_node
+            .as_deref()
+            .and_then(|node| node.strip_prefix(QUEST_MENU_NODE))
+            .and_then(|json| serde_json::from_str::<Vec<(String, String)>>(json).ok());
+        if cached_choices.is_none() && opening {
+            let choices = self.quest_menu_choices(id, template_id);
+            if choices.is_empty() {
+                return false;
+            }
+            let options = choices
+                .iter()
+                .enumerate()
+                .map(|(index, (quest_id, action))| {
+                    let name = self.quest_text.name(quest_id, lang);
+                    let route_map = self
+                        .gameplay
+                        .quests
+                        .iter()
+                        .find(|spec| spec.quest_id == quest_id.as_str())
+                        .and_then(|spec| Self::quest_route_map_id(spec, action))
+                        .map(|map_id| self.quest_map_label(map_id));
+                    let text = match action.as_str() {
+                        "start" if lang == crate::quest_text::LANG_EN => format!("Accept: {name}"),
+                        "complete" if lang == crate::quest_text::LANG_EN => format!("Turn in: {name}"),
+                        "pending" if lang == crate::quest_text::LANG_EN => format!("View: {name}"),
+                        "route_start" if lang == crate::quest_text::LANG_EN => format!(
+                            "Go to {}: {name}",
+                            route_map.as_deref().unwrap_or("the next area")
+                        ),
+                        "route_complete" if lang == crate::quest_text::LANG_EN => format!(
+                            "Go to {}: {name}",
+                            route_map.as_deref().unwrap_or("the destination")
+                        ),
+                        "return" if lang == crate::quest_text::LANG_EN => format!(
+                            "Return: {}",
+                            route_map.as_deref().unwrap_or("the return route")
+                        ),
+                        "start" => format!("接取：{name}"),
+                        "complete" => format!("交付：{name}"),
+                        "pending" => format!("查看：{name}"),
+                        "route_start" => format!(
+                            "前往{}繼續：{name}",
+                            route_map.as_deref().unwrap_or("下一站")
+                        ),
+                        "route_complete" => format!(
+                            "前往{}：{name}",
+                            route_map.as_deref().unwrap_or("任務目的地")
+                        ),
+                        "return" => format!(
+                            "返回{}",
+                            route_map.as_deref().unwrap_or("選擇岔道")
+                        ),
+                        _ => format!("返回選擇岔道：{name}"),
+                    };
+                    (
+                        u32::try_from(index).unwrap_or(u32::MAX),
+                        text,
+                    )
+                })
+                .collect();
+            if let Some(npc) = self.npcs.get_mut(npc_id) {
+                let encoded = serde_json::to_string(&choices).unwrap_or_else(|_| "[]".to_owned());
+                npc.conversation
+                    .insert(id.to_owned(), format!("{QUEST_MENU_NODE}{encoded}"));
+            }
+            let text = choices
+                .first()
+                .map(|(quest_id, _)| self.quest_text.summary(quest_id, lang))
+                .unwrap_or_default();
+            self.send_npc_dialogue(
+                id,
+                npc::DialogueView::Say {
+                    text,
+                    kind: "simple".to_owned(),
+                    options,
+                }
+                .to_json(request_id, npc_id, name, name_zh),
+            );
+            return true;
+        }
+        let Some(cached_choices) = cached_choices else {
+            return false;
+        };
+        match (step, selection) {
+            (Some("select"), Some(index)) => {
+                let Some((quest_id, action)) = cached_choices.get(index as usize).cloned() else {
+                    self.end_conversation(id);
+                    self.send_reject(id, "quest_step_invalid", "quest option is not offered", Some(request_id));
+                    return true;
+                };
+                let still_offered = self
+                    .quest_menu_choices(id, template_id)
+                    .iter()
+                    .any(|choice| choice == &(quest_id.clone(), action.clone()));
+                if !still_offered {
+                    self.end_conversation(id);
+                    self.send_reject(
+                        id,
+                        "quest_option_unavailable",
+                        "任務選項已更新，請重新開啟NPC對話。",
+                        Some(request_id),
+                    );
+                    return true;
+                }
+                self.end_conversation(id);
+                if matches!(action.as_str(), "route_start" | "route_complete" | "return") {
+                    let Some((route_map_id, route_portal_name)) =
+                        self.quest_route_target(id, &quest_id, template_id, &action)
+                    else {
+                        self.send_reject(
+                            id,
+                            "quest_return_unavailable",
+                            "任務路線已更新，請重新開啟NPC對話。",
+                            Some(request_id),
+                        );
+                        return true;
+                    };
+                    if !self.warp_player_at(id, route_map_id, route_portal_name.as_deref()) {
+                        self.send_reject(
+                            id,
+                            "persistence",
+                            "傳送未能保存，請稍後重試。",
+                            Some(request_id),
+                        );
+                        return true;
+                    }
+                    self.send_npc_dialogue(
+                        id,
+                        npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+                    );
+                    return true;
+                }
+                if action == "pending" {
+                    let text = self
+                        .gameplay
+                        .quests
+                        .iter()
+                        .find(|spec| spec.quest_id == quest_id)
+                        .map(|spec| self.quest_summary(spec, "active", lang))
+                        .unwrap_or_default();
+                    self.send_npc_dialogue(
+                        id,
+                        npc::DialogueView::Say {
+                            text,
+                            kind: "ok".to_owned(),
+                            options: Vec::new(),
+                        }
+                        .to_json(request_id, npc_id, name, name_zh),
+                    );
+                    return true;
+                }
+                let effect = if action == "start" {
+                    npc::QuestEffect::Start(quest_id)
+                } else {
+                    npc::QuestEffect::Complete(quest_id)
+                };
+                if self.apply_quest_effect_at(id, effect, Some(template_id), Some(request_id)) {
+                    self.send_npc_dialogue(
+                        id,
+                        npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+                    );
+                }
+                true
+            }
+            (Some("end"), _) => {
+                self.end_conversation(id);
+                self.send_npc_dialogue(
+                    id,
+                    npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+                );
+                true
+            }
+            _ => {
+                self.end_conversation(id);
+                self.send_reject(id, "quest_step_invalid", "quest conversation step is not offered", Some(request_id));
+                true
+            }
+        }
+    }
+
     fn quest_reward(&self, quest_id: &str) -> QuestReward {
         self.gameplay
             .quests
@@ -6595,13 +10924,7 @@ impl World {
             }
             state.level = next_level;
             state.ability_stats.available_ap = state.ability_stats.available_ap.saturating_add(5);
-            // P: every level gained in a skill-book family grants three
-            // points to that family's pool.  Combat and quest rewards use
-            // the same authoritative state path.
-            if let Some(book_id) = skill_book_for_job(state.job) {
-                let points = state.skill_points.entry(book_id).or_default();
-                *points = points.saturating_add(3);
-            }
+            auth::grant_level_sp(state.job, state.level, &mut state.skill_points);
             state.exp_to_next = exp_table
                 .get(state.level.saturating_sub(1) as usize)
                 .copied()
@@ -6629,55 +10952,168 @@ impl World {
     }
 
     fn apply_quest_effect(&mut self, id: &str, effect: npc::QuestEffect) {
+        let _ = self.apply_quest_effect_at(id, effect, None, None);
+    }
+
+    /// Settle a quest transition after all authored gates have been checked.
+    /// `npc_template` is supplied by the dynamic chapter menu; scripted legacy
+    /// effects keep the old call path and therefore omit the NPC gate.
+    fn apply_quest_effect_at(
+        &mut self,
+        id: &str,
+        effect: npc::QuestEffect,
+        npc_template: Option<&str>,
+        request_id: Option<&str>,
+    ) -> bool {
         let (quest_id, wanted) = match effect {
             npc::QuestEffect::Start(quest_id) => (quest_id, "active"),
             npc::QuestEffect::Complete(quest_id) => (quest_id, "completed"),
-            npc::QuestEffect::JobAdvance { .. } => return,
+            npc::QuestEffect::JobAdvance { .. } => return false,
         };
-        if self
+        let Some(spec) = self
             .gameplay
             .quests
             .iter()
-            .any(|quest| quest.quest_id == quest_id && quest.executable == Some(false))
-        {
+            .find(|quest| quest.quest_id == quest_id)
+            .cloned()
+        else {
+            self.send_reject(id, "quest_unknown", "此任務不在目前的任務目錄中。", request_id);
+            return false;
+        };
+        if !spec.executable() {
             self.send_reject(
                 id,
                 "quest_script_unavailable",
                 "此任務的原版劇情腳本尚未接入。",
-                None,
+                request_id,
             );
-            return;
+            return false;
         }
-        // Only accept the authored transition: available -> active and
-        // active -> completed.  Repeat accepts and double turn-ins are no-ops.
-        let transition_ok = match self
-            .players
-            .get(id)
-            .map(|player| player.quests.get(&quest_id).cloned())
+        let phase = if wanted == "active" {
+            &spec.start
+        } else {
+            &spec.complete
+        };
+        let Some(player_snapshot) = self.players.get(id).cloned() else {
+            return false;
+        };
+        if player_snapshot.state.hp <= 0 || player_snapshot.state.action == "dead" {
+            self.send_reject(id, "invalid_state", "死亡角色不能處理任務。", request_id);
+            return false;
+        }
+        if npc_template.is_some_and(|template| !Self::quest_phase_matches_npc(phase, template)) {
+            self.send_reject(id, "quest_npc_unavailable", "此任務NPC目前無法處理任務。", request_id);
+            return false;
+        }
+        if quest_id == "1402"
+            && (npc_template != Some("1032001") || player_snapshot.map_id != "101000003")
         {
-            Some(None) => wanted == "active",
-            Some(Some(previous)) => previous == "active" && wanted == "completed",
-            None => false,
+            self.send_reject(id, "quest_npc_unavailable", "請前往魔法森林圖書館與漢斯交談。", request_id);
+            return false;
+        }
+        let transition_ok = match player_snapshot.quests.get(&quest_id).map(String::as_str) {
+            None => wanted == "active",
+            Some("active") => wanted == "completed",
+            Some("completed") => false,
+            Some(_) => false,
         };
         if !transition_ok {
-            return;
+            self.send_reject(id, "quest_transition_invalid", "任務狀態已更新。", request_id);
+            return false;
         }
+        if !Self::quest_conditions_match(&player_snapshot, &phase.conditions)
+            || (wanted == "completed" && !self.quest_objectives_complete(&spec, &player_snapshot))
+        {
+            self.send_reject(id, "quest_requirements_missing", "任務條件尚未完成。", request_id);
+            return false;
+        }
+
+        let mut next_state = player_snapshot.state.clone();
+        let mut next_quests = player_snapshot.quests.clone();
         let reward = if wanted == "completed" {
             self.quest_reward(&quest_id)
         } else {
             QuestReward::default()
         };
-
-        let mut next_state = match self.players.get(id) {
-            Some(player) => player.state.clone(),
-            None => return,
-        };
-        let mut next_quests = match self.players.get(id) {
-            Some(player) => player.quests.clone(),
-            None => return,
-        };
-
+        if wanted == "active" {
+            // Start items are part of the same profile/quest transaction as
+            // the status transition.  Count equipped copies too so a
+            // reconnect or an already-worn quest hat cannot mint a second
+            // copy; only the missing quantity is provisioned.
+            for item in &spec.start_items {
+                let held = Self::quest_item_count(&next_state.inventory, &item.item_id)
+                    .saturating_add(Self::quest_equipped_item_count(
+                        &player_snapshot.state.equipped,
+                        &item.item_id,
+                    ));
+                let missing = item.quantity.saturating_sub(held);
+                if missing == 0 {
+                    continue;
+                }
+                if let Err(error) = inventory::add_items(
+                    &mut next_state.inventory,
+                    item.item_id.clone(),
+                    missing,
+                ) {
+                    let code = match error {
+                        inventory::InventoryError::InventoryFull => "quest_start_inventory_full",
+                        inventory::InventoryError::UnknownItem => "quest_start_unknown_item",
+                        _ => "quest_start_rejected",
+                    };
+                    let message = if code == "quest_start_inventory_full" {
+                        "背包空間不足，任務尚未接取。請整理背包後再次與NPC交談。"
+                    } else {
+                        "任務起始物品暫時無法取得，任務尚未接取。"
+                    };
+                    self.send_reject(id, code, message, request_id);
+                    return false;
+                }
+            }
+        }
         if wanted == "completed" {
+            for requirement in Self::quest_consume_items(&spec) {
+                if requirement.item_id.is_empty() || requirement.quantity == 0 {
+                    continue;
+                }
+                let mut remaining = requirement.quantity;
+                let slots: Vec<i16> = next_state
+                    .inventory
+                    .iter()
+                    .filter(|item| item.item_id == requirement.item_id)
+                    .filter_map(|item| i16::try_from(item.slot).ok())
+                    .collect();
+                for slot in slots {
+                    if remaining == 0 {
+                        break;
+                    }
+                    let available = next_state
+                        .inventory
+                        .iter()
+                        .find(|item| item.slot == u16::try_from(slot).unwrap_or(0) && item.item_id == requirement.item_id)
+                        .map(|item| item.quantity)
+                        .unwrap_or(0);
+                    let removed = remaining.min(available);
+                    if removed > 0 {
+                        let Some(kind) = inventory::inventory_type(&requirement.item_id) else {
+                            self.send_reject(id, "quest_requirements_missing", "任務物品無效。", request_id);
+                            return false;
+                        };
+                        match inventory::remove_items(&mut next_state.inventory, kind, slot, removed) {
+                            Ok((removed_item, actual)) if removed_item == requirement.item_id => {
+                                remaining = remaining.saturating_sub(actual);
+                            }
+                            Ok(_) | Err(_) => {
+                                self.send_reject(id, "quest_requirements_missing", "任務物品無法扣除。", request_id);
+                                return false;
+                            }
+                        }
+                    }
+                }
+                if remaining > 0 {
+                    self.send_reject(id, "quest_requirements_missing", "任務物品數量不足。", request_id);
+                    return false;
+                }
+            }
             next_state.mesos = next_state.mesos.saturating_add(reward.mesos);
             if reward.exp > 0 {
                 Self::add_exp(&mut next_state, reward.exp, &self.gameplay.exp_table);
@@ -6693,83 +11129,384 @@ impl World {
                         inventory::InventoryError::UnknownItem => "quest_reward_unknown_item",
                         _ => "quest_reward_rejected",
                     };
-                    self.send_reject(id, code, "quest reward failed", None);
+                    let message = if code == "quest_reward_inventory_full" {
+                        "背包空間不足。請整理背包後再次與任務NPC交談，獎勵尚未領取。"
+                    } else {
+                        "任務獎勵暫時無法領取，進度已保留。請稍後重試。"
+                    };
+                    self.send_reject(id, code, message, request_id);
+                    return false;
+                }
+            }
+        }
+
+        let mut next_map_id = player_snapshot.map_id.clone();
+        let mut warp = None;
+        if let Some(target_map_id) = phase.warp_map_id.clone() {
+            let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
+                self.send_reject(id, "map_unavailable", "任務目的地目前無法使用。", request_id);
+                return false;
+            };
+            let spawn = (target_map.spawn.x, target_map.spawn.y);
+            let preferred = phase
+                .warp_portal_name
+                .as_deref()
+                .and_then(|name| target_map.portals.iter().find(|portal| portal.name == name))
+                .map(|portal| (portal.x, portal.y))
+                .unwrap_or(spawn);
+            let resolve_spawn = |(x, y): (f64, f64)| {
+                if !x.is_finite()
+                    || !y.is_finite()
+                    || !(target_map.bounds.x_min..=target_map.bounds.x_max).contains(&x)
+                    || !(target_map.bounds.y_min..=target_map.bounds.y_max).contains(&y)
+                {
+                    return None;
+                }
+                // Authored map spawns may be airborne above their first
+                // foothold. Preserve that source point and let normal
+                // gravity land the player instead of inventing a corner
+                // position or selecting an unrelated upper platform.
+                let (foothold_id, ground) = target_map.ground_below(x, y)?;
+                if (ground - y).abs() <= 24.0 {
+                    Some((x, ground, foothold_id, true))
+                } else {
+                    Some((x, y, 0, false))
+                }
+            };
+            let Some((x, y, foothold_id, grounded)) =
+                resolve_spawn(preferred).or_else(|| resolve_spawn(spawn))
+            else {
+                self.send_reject(id, "map_unavailable", "任務目的地沒有可用出生點。", request_id);
+                return false;
+            };
+            next_map_id = target_map_id;
+            next_state.x = x;
+            next_state.y = y;
+            next_state.vx = 0.0;
+            next_state.vy = 0.0;
+            next_state.grounded = grounded;
+            next_state.action = if grounded { "stand" } else { "jump" };
+            warp = Some(foothold_id);
+        }
+        next_quests.insert(quest_id.clone(), wanted.to_owned());
+        let did_warp = warp.is_some();
+        let warp_foothold = warp.unwrap_or(0);
+
+        let mut profile = profile_from_state(
+            &next_state,
+            &next_map_id,
+            &player_snapshot.death_id,
+            player_snapshot.base_max_mp,
+        );
+        // P: the original q1402 scripts are absent. Explicit completion at
+        // Hans uses the same first-job grant as the authorized shortcut.
+        // Existing mage jobs recover only the story; they receive no grant.
+        let first_mage_transfer = quest_id == "1402" && wanted == "completed" && profile.job == 0;
+        if first_mage_transfer {
+            if profile.level < 10 || player_snapshot.quests.get("36307").map(String::as_str) != Some("completed") {
+                self.send_reject(id, "quest_requirements_missing", "請先完成前置劇情並達到10級。", request_id);
+                return false;
+            }
+            auth::grant_first_mage(&mut profile);
+            apply_profile(&mut next_state, profile.clone());
+        }
+        if let Some(store) = self.store.as_ref() {
+            match store.commit_quest(id, &quest_id, wanted, &profile) {
+                Ok(true) => {}
+                Ok(false) => {
+                    let restored = store
+                        .load_profile(id, &profile)
+                        .and_then(|profile| store.load_quests(id).map(|quests| (profile, quests)));
+                    match restored {
+                        Ok((profile, quests)) => {
+                            if let Some(player) = self.players.get_mut(id) {
+                                apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+                                player.quests = quests;
+                            }
+                            self.send_quest_list(id);
+                        }
+                        Err(error) => self.send_reject(id, "persistence", &error, request_id),
+                    }
+                    return false;
+                }
+                Err(error) => {
+                    self.send_reject(id, "persistence", &error, request_id);
+                    return false;
+                }
+            }
+        }
+        if let Some(player) = self.players.get_mut(id) {
+            player.map_id = next_map_id;
+            player.state = next_state;
+            player.quests = next_quests;
+            if first_mage_transfer {
+                player.base_max_mp = profile.max_mp;
+            }
+            if did_warp {
+                player.natural_recovery_next_tick = self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+                player.state.facing = 1;
+                player.state.climbing = false;
+                player.state.ladder_id = None;
+                player.state.action_id = None;
+                player.state.action_started_tick = self.tick;
+                player.direction = 0;
+                player.vertical = 0;
+                player.jump = false;
+                player.foothold_id = warp_foothold;
+                player.last_foothold_id = player.foothold_id;
+                player.fall_boundary_hold = false;
+                player.meditation_until = 0;
+                player.meditation_mad = 0;
+                clear_beginner_buffs(player);
+                player.ice_teleport_enabled = false;
+                player.ice_fields.clear();
+                player.teleport_mastery_enabled = false;
+                player.teleport_boost_enabled = false;
+                player.adaptation_active = false;
+                player.adaptation_charges = 0;
+                player.summon = None;
+            }
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        }
+        self.send_quest_update(id, &quest_id, wanted, reward);
+        self.send_quest_list(id);
+        // Quest phase changes also alter hidden chapter NPCs and interaction
+        // markers, so refresh the snapshot even when the reward did not warp.
+        self.send_snapshot(id);
+        true
+    }
+
+    fn handle_quest_interact(&mut self, id: String, request_id: String, quest_id: String) {
+        let Some(spec) = self
+            .gameplay
+            .quests
+            .iter()
+            .find(|spec| spec.quest_id == quest_id)
+            .cloned()
+        else {
+            self.send_reject(&id, "quest_unknown", "此任務不在目前的任務目錄中。", Some(&request_id));
+            return;
+        };
+        if !spec.executable() {
+            self.send_reject(
+                &id,
+                "quest_script_unavailable",
+                "此任務的原版劇情腳本尚未接入。",
+                Some(&request_id),
+            );
+            return;
+        }
+        let Some(interaction) = spec.interaction.clone() else {
+            self.send_reject(&id, "quest_interaction_unavailable", "此任務目前沒有可互動目標。", Some(&request_id));
+            return;
+        };
+        let Some(player_snapshot) = self.players.get(&id).cloned() else {
+            return;
+        };
+        if Self::quest_status_for(&player_snapshot, &quest_id) != Some("active") {
+            self.send_reject(&id, "quest_interaction_unavailable", "此任務尚未進入互動階段。", Some(&request_id));
+            return;
+        }
+        if player_snapshot.state.hp <= 0 || player_snapshot.state.action == "dead" {
+            self.send_reject(&id, "invalid_state", "死亡角色不能進行任務互動。", Some(&request_id));
+            return;
+        }
+        let range = if interaction.range > 0.0 { interaction.range } else { 64.0 };
+        if player_snapshot.map_id != interaction.map_id
+            || (player_snapshot.state.x - interaction.x).hypot(player_snapshot.state.y - interaction.y) > range
+        {
+            self.send_reject(&id, "quest_interaction_too_far", "請靠近任務互動目標。", Some(&request_id));
+            return;
+        }
+        if interaction.item_id.is_empty() || interaction.quantity == 0 {
+            self.send_reject(&id, "quest_interaction_done", "任務互動已完成。", Some(&request_id));
+            return;
+        }
+        let mut next_state = player_snapshot.state.clone();
+        if self.store.is_none() {
+            let held = Self::quest_item_count(&player_snapshot.state.inventory, &interaction.item_id);
+            if held >= interaction.quantity {
+                self.send_reject(&id, "quest_interaction_done", "任務互動已完成。", Some(&request_id));
+                return;
+            }
+            let missing = interaction.quantity.saturating_sub(held);
+            if let Err(error) = inventory::add_items(
+                &mut next_state.inventory,
+                interaction.item_id.clone(),
+                missing,
+            ) {
+                let code = match error {
+                    inventory::InventoryError::InventoryFull => "quest_interaction_inventory_full",
+                    inventory::InventoryError::UnknownItem => "quest_interaction_unknown_item",
+                    _ => "quest_interaction_rejected",
+                };
+                self.send_reject(&id, code, "背包空間不足或互動物品無法取得。", Some(&request_id));
+                return;
+            }
+        }
+
+        let mut authoritative_profile = None;
+        if let Some(store) = self.store.as_ref() {
+            let profile = profile_from_state(
+                &next_state,
+                &player_snapshot.map_id,
+                &player_snapshot.death_id,
+                player_snapshot.base_max_mp,
+            );
+            match store.commit_quest_interaction(
+                &id,
+                &quest_id,
+                &interaction.item_id,
+                interaction.quantity,
+                &profile,
+            ) {
+                Ok(true) => {
+                    match store.load_profile(&id, &profile) {
+                        Ok(profile) => authoritative_profile = Some(profile),
+                        Err(error) => {
+                            self.send_reject(&id, "persistence", &error, Some(&request_id));
+                            self.players.remove(&id);
+                            self.end_conversation(&id);
+                            self.pending_attacks
+                                .retain(|_, attack| attack.player_id != id);
+                            return;
+                        }
+                    }
+                }
+                Ok(false) => {
+                    let restored = store
+                        .load_profile(&id, &profile)
+                        .and_then(|profile| store.load_quests(&id).map(|quests| (profile, quests)));
+                    match restored {
+                        Ok((profile, quests)) => {
+                            if let Some(player) = self.players.get_mut(&id) {
+                                apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+                                player.quests = quests;
+                            }
+                            self.send_quest_list(&id);
+                            self.send_snapshot(&id);
+                        }
+                        Err(error) => self.send_reject(&id, "persistence", &error, Some(&request_id)),
+                    }
+                    return;
+                }
+                Err(error) => {
+                    self.send_reject(&id, "persistence", &error, Some(&request_id));
                     return;
                 }
             }
         }
-        next_quests.insert(quest_id.clone(), wanted.to_owned());
-
-        if let Some(store) = self.store.as_ref() {
-            if let Err(error) = store.save_quest(id, &quest_id, wanted) {
-                let _ = self.players.get(id).and_then(|player| {
-                    player
-                        .output
-                        .try_send(reject("persistence", &error, None))
-                        .ok()
-                });
-                return;
-            }
+        if let Some(profile) = authoritative_profile {
+            apply_profile(&mut next_state, profile);
         }
-        {
-            let Some(player) = self.players.get_mut(id) else {
-                return;
-            };
+        if let Some(player) = self.players.get_mut(&id) {
             player.state = next_state;
-            player.quests = next_quests;
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         }
-        if wanted == "completed" {
-            let player = match self.players.get(id) {
-                Some(player) => player,
-                None => return,
-            };
-            if let Some(store) = self.store.as_ref() {
-                let _ = store.write_inventory(id, &player.state.inventory);
-                let _ = store.save_profile(
-                    id,
-                    &profile_from_state(
-                        &player.state,
-                        &player.map_id,
-                        &player.death_id,
-                        player.base_max_mp,
-                    ),
-                );
-            }
-        }
-        // Authoritative localized questUpdate so the client quest log and
-        // accept/complete chat hints reflect exactly what the server settled.
-        self.send_quest_update(id, &quest_id, wanted, reward);
+        self.send_quest_update(&id, &quest_id, "active", QuestReward::default());
+        self.send_quest_list(&id);
+        self.send_snapshot(&id);
     }
 
-    fn warp_player(&mut self, player_id: &str, map_id: String) {
+    fn warp_player(&mut self, player_id: &str, map_id: String) -> bool {
+        self.warp_player_at(player_id, map_id, None)
+    }
+
+    fn warp_player_at(
+        &mut self,
+        player_id: &str,
+        map_id: String,
+        portal_name: Option<&str>,
+    ) -> bool {
         let Some(map) = self.maps.get(&map_id).cloned() else {
-            return;
+            return false;
         };
-        // Park at the first portal for the target map; the client will
-        // reconcile against the in-band portal metadata.
-        let (x, y) = map
+        let spawn = (map.spawn.x, map.spawn.y);
+        let preferred = map
             .portals
-            .first()
+            .iter()
+            .find(|portal| portal_name.is_some_and(|name| portal.name == name))
+            .or_else(|| map.portals.first())
             .map(|portal| (portal.x, portal.y))
-            .unwrap_or((map.bounds.x_min, map.bounds.y_min));
-        self.end_conversation(player_id);
-        if let Some(player) = self.players.get_mut(player_id) {
-            player.map_id = map_id.clone();
-            player.state.x = x;
-            player.state.y = y;
-            player.state.vx = 0.0;
-            player.state.vy = 0.0;
-            player.state.grounded = true;
-            player.foothold_id = 0;
-            player.last_foothold_id = 0;
-            player.fall_boundary_hold = false;
-            player.meditation_until = 0;
-            player.meditation_mad = 0;
-            player.ice_teleport_enabled = false;
-            player.ice_fields.clear();
+            .unwrap_or(spawn);
+        let resolve_spawn = |(x, y): (f64, f64)| {
+            if !x.is_finite()
+                || !y.is_finite()
+                || !(map.bounds.x_min..=map.bounds.x_max).contains(&x)
+                || !(map.bounds.y_min..=map.bounds.y_max).contains(&y)
+            {
+                return None;
+            }
+            let (foothold_id, ground) = map.ground_below(x, y)?;
+            if (ground - y).abs() <= 24.0 {
+                Some((x, ground, foothold_id, true))
+            } else {
+                Some((x, y, 0, false))
+            }
+        };
+        let Some((x, y, foothold_id, grounded)) =
+            resolve_spawn(preferred).or_else(|| resolve_spawn(spawn))
+        else {
+            return false;
+        };
+        let Some(mut candidate) = self.players.get(player_id).cloned() else {
+            return false;
+        };
+        candidate.map_id = map_id.clone();
+        candidate.natural_recovery_next_tick = self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        candidate.state.x = x;
+        candidate.state.y = y;
+        candidate.state.vx = 0.0;
+        candidate.state.vy = 0.0;
+        candidate.state.facing = 1;
+        candidate.state.grounded = grounded;
+        candidate.state.climbing = false;
+        candidate.state.ladder_id = None;
+        candidate.state.action = if grounded { "stand" } else { "jump" };
+        candidate.state.action_id = None;
+        candidate.state.action_started_tick = self.tick;
+        candidate.direction = 0;
+        candidate.vertical = 0;
+        candidate.jump = false;
+        candidate.foothold_id = foothold_id;
+        candidate.last_foothold_id = foothold_id;
+        candidate.drop_fh = 0;
+        candidate.fall_boundary_hold = false;
+        candidate.attack_until = 0;
+        candidate.contact_invulnerable_until = 0;
+        candidate.knockback_vx = 0.0;
+        candidate.knockback_until = 0;
+        candidate.meditation_until = 0;
+        candidate.meditation_mad = 0;
+        clear_beginner_buffs(&mut candidate);
+        candidate.ice_teleport_enabled = false;
+        candidate.ice_fields.clear();
+        candidate.teleport_mastery_enabled = false;
+        candidate.teleport_boost_enabled = false;
+        candidate.adaptation_active = false;
+        candidate.adaptation_charges = 0;
+        candidate.summon = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, &mut candidate);
+
+        let profile = profile_from_state(
+            &candidate.state,
+            &candidate.map_id,
+            &candidate.death_id,
+            candidate.base_max_mp,
+        );
+        if let Some(store) = self.store.as_ref() {
+            if store.save_profile(player_id, &profile).is_err() {
+                return false;
+            }
         }
+        self.end_conversation(player_id);
+        let Some(player) = self.players.get_mut(player_id) else {
+            return false;
+        };
+        *player = candidate;
         // Drops for the destination map arrive via the next snapshot.
-        let _ = self.send_snapshot(player_id);
+        self.send_snapshot(player_id);
+        true
     }
 
     fn send_snapshot(&mut self, id: &str) {
@@ -6786,28 +11523,7 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return;
         };
-        let lang = player.lang;
-        let quests: Vec<serde_json::Value> = player
-            .quests
-            .iter()
-            // Retain historical account records, but only expose quests from the active content catalog.
-            .filter(|(quest_id, _)| {
-                self.gameplay.quests.is_empty()
-                    || self
-                        .gameplay
-                        .quests
-                        .iter()
-                        .any(|quest| quest.quest_id == **quest_id)
-            })
-            .map(|(quest_id, status)| {
-                serde_json::json!({
-                    "questId": quest_id,
-                    "name": self.quest_text.name(quest_id, lang),
-                    "status": status,
-                    "summary": self.quest_text.summary(quest_id, lang),
-                })
-            })
-            .collect();
+        let quests = self.quest_log_entries(id);
         let message = serde_json::json!({ "type": "questList", "quests": quests }).to_string();
         let _ = player.output.try_send(message);
     }
@@ -6824,16 +11540,27 @@ impl World {
             .into_iter()
             .map(|item| serde_json::json!({ "itemId": item.item_id, "quantity": item.quantity }))
             .collect();
-        let message = serde_json::json!({
-            "type": "questUpdate",
-            "questId": quest_id,
-            "name": self.quest_text.name(quest_id, lang),
-            "status": status,
-            "summary": self.quest_text.summary(quest_id, lang),
-            "reward": { "mesos": reward.mesos, "exp": reward.exp, "items": reward_items },
-        })
-        .to_string();
-        let _ = player.output.try_send(message);
+        let mut message = self
+            .gameplay
+            .quests
+            .iter()
+            .find(|spec| spec.quest_id == quest_id)
+            .and_then(|spec| self.quest_entry(id, spec, Some(status)))
+            .unwrap_or_else(|| {
+                serde_json::json!({
+                    "questId": quest_id,
+                    "name": self.quest_text.name(quest_id, lang),
+                    "status": status,
+                    "summary": self.quest_text.summary(quest_id, lang),
+                })
+            });
+        message["type"] = serde_json::Value::String("questUpdate".to_owned());
+        message["reward"] = serde_json::json!({
+            "mesos": reward.mesos,
+            "exp": reward.exp,
+            "items": reward_items,
+        });
+        let _ = player.output.try_send(message.to_string());
     }
 
     fn send_reject(&self, id: &str, code: &str, message: &str, request_id: Option<&str>) {
@@ -7021,6 +11748,9 @@ impl World {
         self.tick += 1;
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
+            self.apply_beginner_heal_tick(&id);
+            self.step_infinity_tick(&id);
+            self.step_natural_recovery(&id);
             let map_id = self
                 .players
                 .get(&id)
@@ -7034,6 +11764,92 @@ impl World {
             let old_mp = player.state.mp;
             let old_max_hp = player.state.max_hp;
             let old_max_mp = player.state.max_mp;
+            player.adaptation_cooldown_ms = player
+                .adaptation_cooldown_ms
+                .saturating_sub(TICK_MS);
+            player.skill_cooldowns.retain(|_, remaining| {
+                *remaining = remaining.saturating_sub(TICK_MS);
+                *remaining > 0
+            });
+            for remaining in player.skill_buffs.values_mut() {
+                *remaining = remaining.saturating_sub(TICK_MS);
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_RECOVERY)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_RECOVERY);
+                player.beginner_heal_next_tick = 0;
+                player.beginner_heal_remaining_ticks = 0;
+                player.beginner_heal_per_tick = 0;
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_NIMBLE_FEET)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_NIMBLE_FEET);
+                player.beginner_speed_percent = 0;
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_INFINITY)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_INFINITY);
+                player.infinity_next_tick = 0;
+                player.infinity_damage_bonus = 0;
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_MAPLE_WARRIOR)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_MAPLE_WARRIOR);
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_MAPLE_CURE)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_MAPLE_CURE);
+                player.status_immune_until = 0;
+            }
+            if player
+                .skill_buffs
+                .get(&SKILL_HYPER_ADVENTURER)
+                .copied()
+                .is_some_and(|remaining| remaining == 0)
+            {
+                player.skill_buffs.remove(&SKILL_HYPER_ADVENTURER);
+            }
+            if player.channel_request_id.is_some()
+                && player.channel_skill_id.is_some()
+                && player.channel_skill_id != Some(SKILL_HYPER_THUNDER)
+                && player.channel_until > 0
+                && player.channel_until <= self.tick
+            {
+                player.channel_request_id = None;
+                player.channel_skill_id = None;
+                player.channel_until = 0;
+                player.channel_level = 0;
+                player.skill_buffs.remove(&SKILL_ICE_DRAGON_BREATH);
+                if player.state.action == "attack" {
+                    player.state.action = "stand";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick;
+                }
+            }
+            if player.mystic_strike_until <= self.tick {
+                player.mystic_strike_stacks = 0;
+                player.mystic_strike_until = 0;
+            }
             if player.meditation_until <= self.tick {
                 player.meditation_until = 0;
                 player.meditation_mad = 0;
@@ -7056,6 +11872,19 @@ impl World {
                 player.meditation_mad,
                 meditation_remaining_ms,
                 player.ice_teleport_enabled,
+                player.teleport_mastery_enabled,
+                player.teleport_boost_enabled,
+                hyper_barrier_active(player),
+                player.hyper_teleport_enabled,
+                if player.adaptation_active {
+                    player.adaptation_charges
+                } else {
+                    0
+                },
+                (player.adaptation_cooldown_ms > 0).then_some(player.adaptation_cooldown_ms),
+                player.beginner_speed_percent,
+                &player.skill_cooldowns,
+                &player.skill_buffs,
             );
             let derived = self.gameplay.player.with_ability_stats(
                 &player.state.ability_stats,
@@ -7087,9 +11916,13 @@ impl World {
                 let _ = self.persist_player(&id);
             }
         }
+        self.step_hyper_channels();
+        self.step_hyper_effects();
         self.resolve_pending_attacks();
+        self.step_boss_practice();
         self.step_monsters();
         self.step_ice_fields();
+        self.step_summons();
         self.apply_contact_damage();
         self.respawn_monsters();
         let failed: Vec<_> = self
@@ -7101,6 +11934,7 @@ impl World {
             })
             .collect();
         for id in failed {
+            self.disconnect_boss_player(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
             self.pending_attacks
@@ -7170,6 +12004,7 @@ impl World {
                         pa_damage: None,
                         pd_damage: None,
                         pd_rate: None,
+                        md_rate: None,
                         exp: 0,
                         body_attack: false,
                         move_speed: None,
@@ -7186,7 +12021,22 @@ impl World {
                     player.state.x,
                     player.state.y,
                 ));
-            let damage = self
+            let mut target_template = target_template;
+            if let Some(target_id) = target_id.as_ref() {
+                let bind_pdr = self
+                    .monsters
+                    .get(target_id)
+                    .filter(|monster| monster.bind_until > self.tick)
+                    .map(|monster| monster.bind_pd_rate_reduction)
+                    .unwrap_or(0)
+                    .clamp(0, 100) as f64;
+                if bind_pdr > 0.0 {
+                    if let Some(rate) = target_template.pd_rate.as_mut() {
+                        *rate = (*rate - bind_pdr).max(0.0);
+                    }
+                }
+            }
+            let mut damage = self
                 .gameplay
                 .player
                 .with_ability_stats(
@@ -7195,12 +12045,72 @@ impl World {
                     player.state.job,
                 )
                 .attack_damage_against(player.state.level, &target_template);
+            if player
+                .skill_buffs
+                .get(&SKILL_INFINITY)
+                .copied()
+                .is_some_and(|remaining| remaining > 0)
+            {
+                damage = (damage as f64
+                    * (100 + player.infinity_damage_bonus.max(0)) as f64
+                    / 100.0)
+                    .floor()
+                    .max(1.0) as i64;
+            }
+            if let Some(level) = player
+                .state
+                .skills
+                .get(&SKILL_MYSTIC_STRIKE)
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_MYSTIC_STRIKE, level))
+            {
+                let bonus = level
+                    .x
+                    .unwrap_or(0)
+                    .max(0)
+                    .saturating_mul(i64::from(player.mystic_strike_stacks));
+                if bonus > 0 {
+                    damage = (damage as f64 * (100 + bonus) as f64 / 100.0)
+                        .floor()
+                        .max(1.0) as i64;
+                }
+            }
+            let hyper_adventurer_bonus = if player
+                .skill_buffs
+                .get(&SKILL_HYPER_ADVENTURER)
+                .copied()
+                .is_some_and(|remaining| remaining > 0)
+            {
+                player
+                    .state
+                    .skills
+                    .get(&SKILL_HYPER_ADVENTURER)
+                    .copied()
+                    .and_then(|skill_level| {
+                        self.mage_skills
+                            .level(SKILL_HYPER_ADVENTURER, skill_level)
+                    })
+                    .and_then(|level| level.indie_dam_r)
+                    .unwrap_or(10)
+                    .clamp(0, 100)
+            } else {
+                0
+            };
+            if hyper_adventurer_bonus > 0 {
+                damage = (damage as f64 * (100 + hyper_adventurer_bonus) as f64 / 100.0)
+                    .floor()
+                    .max(1.0) as i64;
+            }
+            let guard_percent = self.boss_damage_multiplier(&map_id, false);
+            damage = (damage as i128 * i128::from(guard_percent) / 100)
+                .max(1) as i64;
             let killed = target_id.is_some() && target_hp > 0 && damage >= target_hp;
             let applied_damage = target_id
                 .is_some()
                 .then_some(damage.min(target_hp.max(0)))
                 .unwrap_or(0);
-            let drops = if killed {
+            let practice = auth::is_practice_map(&map_id);
+            let drops = if killed && !practice {
                 self.choose_drops(
                     &target_template,
                     target_x,
@@ -7231,7 +12141,7 @@ impl World {
                     target_id: target_id.clone(),
                     damage: applied_damage,
                     killed,
-                    exp_gain: if killed { target_template.exp } else { 0 },
+                    exp_gain: if killed && !practice { target_template.exp } else { 0 },
                     drop: drops.first().cloned(),
                     drops,
                     profile: None,
@@ -7254,6 +12164,11 @@ impl World {
             if resolution.already_resolved {
                 continue;
             }
+            if resolution.damage > 0 {
+                if let Some(target_id) = resolution.target_id.as_deref() {
+                    self.advance_mystic_strike(&attack.player_id, &attack.request_id, target_id);
+                }
+            }
             if let Some(target_id) = resolution.target_id.as_deref() {
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     if resolution.damage > 0 {
@@ -7269,6 +12184,7 @@ impl World {
                     if monster.state.hp == 0 {
                         monster.freeze_until = 0;
                         monster.state.freeze_stacks = None;
+                        monster.stun_until = 0;
                         let die_ticks = monster
                             .template
                             .die_duration_ms
@@ -7312,6 +12228,25 @@ impl World {
                     self.broadcast_to_map(&map_id, &damage_event);
                 }
             }
+            if resolution.damage > 0 {
+                if let Some(target_id) = resolution.target_id.as_deref() {
+                    // A normal player attack is also a non-summon direct hit.
+                    // The passive helper rechecks the live target and learned
+                    // Blizzard level, so a lethal hit cannot proc on a dead mob
+                    // and a replay cannot create a second hidden attack.
+                    if let Err(error) = self.maybe_cast_blizzard_follow_up(
+                        &attack.player_id,
+                        &attack.request_id,
+                        target_id,
+                    ) {
+                        self.handle_accepted_effect_error(
+                            &attack.player_id,
+                            &attack.request_id,
+                            &error,
+                        );
+                    }
+                }
+            }
             if !resolution.profiles.is_empty() {
                 for (participant, profile) in resolution.profiles {
                     if let Some(player) = self.players.get_mut(&participant) {
@@ -7322,11 +12257,11 @@ impl World {
                 if let Some(player) = self.players.get_mut(&attack.player_id) {
                     apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
                 }
-            } else if resolution.killed && self.store.is_none() {
+            } else if resolution.exp_gain > 0 && self.store.is_none() {
                 if let Some(player) = self.players.get_mut(&attack.player_id) {
                     Self::add_exp(
                         &mut player.state,
-                        target_template.exp,
+                        resolution.exp_gain,
                         &self.gameplay.exp_table,
                     );
                     refresh_player_derived(&self.gameplay, &self.mage_skills, player);
@@ -7441,11 +12376,33 @@ impl World {
                 .get(&id)
                 .map(|monster| monster.map_id.clone())
                 .unwrap_or_else(|| self.map.id.clone());
+            if auth::is_practice_map(&map_id) {
+                // Practice Boss timing/control is advanced by the private
+                // encounter state machine.  Generic mob AI must not move or
+                // clear its source attack/guard action underneath it.
+                continue;
+            }
             let map = self.map_for(&map_id).clone();
             let Some(monster) = self.monsters.get_mut(&id) else {
                 continue;
             };
             if monster.state.hp <= 0 {
+                continue;
+            }
+            if monster.bind_until <= self.tick {
+                // Armor melting ends with the bind even when its separate
+                // 90-second resistance is still active.
+                monster.bind_pd_rate_reduction = 0;
+                monster.bind_md_rate_reduction = 0;
+            }
+            if monster.bind_until > self.tick {
+                monster.state.action = "hit";
+                monster.horizontal_speed = 0.0;
+                continue;
+            }
+            if monster.stun_until > self.tick {
+                monster.state.action = "hit";
+                monster.horizontal_speed = 0.0;
                 continue;
             }
             if monster.freeze_until > self.tick {
@@ -7581,49 +12538,196 @@ impl World {
         }
     }
 
+    /// Commit incoming player damage through the same profile transaction used
+    /// by contact hits and Boss practice attacks.  The runtime state is only
+    /// changed after SQLite accepts the candidate, so a persistence failure
+    /// cannot leave the client damaged while the profile still has old HP/MP.
+    pub(super) fn commit_incoming_damage(
+        &mut self,
+        id: &str,
+        raw_damage_after_weapon_defense: i64,
+    ) -> Option<(i64, i64, bool)> {
+        let Some(snapshot) = self.players.get(id).map(|player| {
+            (
+                player.state.clone(),
+                player.death_id.clone(),
+                player.base_max_mp,
+                player.magic_guard,
+                player.contact_invulnerable_until,
+                player.channel_until,
+                player.channel_skill_id,
+            )
+        }) else {
+            return None;
+        };
+        if snapshot.0.action == "dead"
+            || snapshot.0.hp <= 0
+            || snapshot.4 > self.tick
+            || (snapshot.5 > self.tick && snapshot.6 == Some(SKILL_ICE_DRAGON_BREATH))
+        {
+            return None;
+        }
+        let shield_level = snapshot
+            .0
+            .skills
+            .get(&SKILL_MAGIC_SHIELD)
+            .copied()
+            .unwrap_or(0);
+        let shield_bonus = self
+            .mage_skills
+            .level(SKILL_MAGIC_SHIELD, shield_level)
+            .and_then(|level| level.pdd_x)
+            .unwrap_or(0)
+            .max(0);
+        let barrier_percent = self
+            .players
+            .get(id)
+            .filter(|player| hyper_barrier_active(player))
+            .map(|_| 20_i64)
+            .unwrap_or(0);
+        let barrier_damage = (raw_damage_after_weapon_defense.max(1) as i128
+            * i128::from(100_i64.saturating_sub(barrier_percent.clamp(0, 100)))
+            / 100)
+            .max(1) as i64;
+        // Thunder's sustained channel is damageable, unlike Ice Dragon's
+        // source q-window.  It halves incoming damage and keeps the channel
+        // from being interrupted by contact/boss damage.
+        let channel_damage = if snapshot.5 > self.tick
+            && snapshot.6 == Some(SKILL_HYPER_THUNDER)
+        {
+            (barrier_damage as i128 * 50 / 100).max(1) as i64
+        } else {
+            barrier_damage
+        };
+        let reduced_damage = channel_damage
+            .saturating_sub(shield_bonus)
+            .max(1);
+        let guard_level = snapshot
+            .0
+            .skills
+            .get(&SKILL_MAGIC_GUARD)
+            .copied()
+            .unwrap_or(0);
+        let guard_ratio = if snapshot.3 {
+            self.mage_skills
+                .level(SKILL_MAGIC_GUARD, guard_level)
+                .and_then(|level| level.x)
+                .unwrap_or(0)
+                .clamp(0, 100)
+        } else {
+            0
+        };
+        let mp_damage = ((reduced_damage as i128 * guard_ratio as i128 + 99) / 100)
+            .clamp(0, snapshot.0.mp.max(0) as i128) as i64;
+        let hp_damage = reduced_damage.saturating_sub(mp_damage).max(0);
+        let mut candidate = snapshot.0.clone();
+        candidate.mp = candidate.mp.saturating_sub(mp_damage).max(0);
+        candidate.hp = candidate.hp.saturating_sub(hp_damage).max(0);
+        let killed = candidate.hp == 0;
+        let death_id = if killed {
+            auth::random_id()
+        } else {
+            snapshot.1.clone()
+        };
+        if let Some(store) = self.store.as_ref() {
+            let map_id = self
+                .players
+                .get(id)
+                .map(|player| player.map_id.clone())
+                .unwrap_or_default();
+            let mut persisted_state = candidate.clone();
+            if auth::is_practice_map(&map_id) {
+                let source_map = self.map_for(BOSS_PRACTICE_FALLBACK_MAP_ID).clone();
+                let mut x = candidate
+                    .x
+                    .clamp(source_map.bounds.x_min, source_map.bounds.x_max);
+                let mut y = candidate
+                    .y
+                    .clamp(source_map.bounds.y_min, source_map.bounds.y_max);
+                if let Some((_, ground)) = source_map.ground_near(x, y) {
+                    y = ground;
+                } else {
+                    x = source_map.spawn.x;
+                    y = source_map
+                        .ground_near(x, source_map.spawn.y)
+                        .map(|(_, ground)| ground)
+                        .unwrap_or(source_map.spawn.y);
+                }
+                persisted_state.x = x;
+                persisted_state.y = y;
+            }
+            let profile = profile_from_state(&persisted_state, &map_id, &death_id, snapshot.2);
+            if let Err(error) = store.save_profile(id, &profile) {
+                self.send_reject(id, "persistence", &error, None);
+                return None;
+            }
+        }
+        let Some(player) = self.players.get_mut(id) else {
+            return None;
+        };
+        player.state = candidate;
+        player.death_id = death_id;
+        player.contact_invulnerable_until = self.tick
+            + self
+                .gameplay
+                .player
+                .contact_invulnerability_ms
+                .unwrap_or(0)
+                .div_ceil(TICK_MS)
+                .max(1);
+        if killed {
+            player.state.action = "dead";
+            player.state.action_started_tick = self.tick;
+            player.state.action_id = None;
+            player.natural_recovery_next_tick = self
+                .tick
+                .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+            player.state.climbing = false;
+            player.state.ladder_id = None;
+            player.attack_until = 0;
+            player.magic_guard = false;
+            clear_beginner_buffs(player);
+            player.ice_teleport_enabled = false;
+            player.ice_fields.clear();
+            player.teleport_mastery_enabled = false;
+            player.teleport_boost_enabled = false;
+            player.adaptation_active = false;
+            player.adaptation_charges = 0;
+            player.summon = None;
+            player.knockback_vx = 0.0;
+            player.knockback_until = 0;
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        } else {
+            if snapshot.6 != Some(SKILL_HYPER_THUNDER) {
+                player.attack_until = 0;
+                player.state.action_id = None;
+            }
+        }
+        Some((hp_damage, mp_damage, killed))
+    }
+
     fn apply_contact_damage(&mut self) {
         let ids: Vec<String> = self.players.keys().cloned().collect();
-        let invulnerability_ticks = self
-            .gameplay
-            .player
-            .contact_invulnerability_ms
-            .unwrap_or(0)
-            .div_ceil(TICK_MS);
         for id in ids {
             let Some(player) = self.players.get(&id) else {
                 continue;
             };
-            if player.state.action == "dead" || self.tick < player.contact_invulnerable_until {
+            if player.state.action == "dead"
+                || self.tick < player.contact_invulnerable_until
+                || (player.channel_until > self.tick
+                    && player.channel_skill_id == Some(SKILL_ICE_DRAGON_BREATH))
+            {
+                // Ice Dragon Breath's q-window is a sourced self-invincible
+                // channel; Hyper Thunder remains damageable but halves
+                // damage and resists the contact knockback below.
                 continue;
             }
-            let guard_level = player
-                .state
-                .skills
-                .get(&SKILL_MAGIC_GUARD)
-                .copied()
-                .unwrap_or(0);
-            let guard_ratio = if player.magic_guard {
-                self.mage_skills
-                    .level(SKILL_MAGIC_GUARD, guard_level)
-                    .and_then(|level| level.x)
-                    .unwrap_or(0)
-                    .clamp(0, 100)
-            } else {
-                0
-            };
-            let shield_level = player
-                .state
-                .skills
-                .get(&SKILL_MAGIC_SHIELD)
-                .copied()
-                .unwrap_or(0);
-            let shield_bonus = self
-                .mage_skills
-                .level(SKILL_MAGIC_SHIELD, shield_level)
-                .and_then(|level| level.pdd_x)
-                .unwrap_or(0)
-                .max(0);
             let map_id = player.map_id.clone();
+            if auth::is_practice_map(&map_id) {
+                // The private Boss state machine owns its source attack
+                // windows; generic body contact must not add a second hit.
+                continue;
+            }
             let hit = self
                 .monsters
                 .values()
@@ -7654,51 +12758,50 @@ impl World {
                         .total_cmp(&(b.state.x - player.state.x).abs())
                 })
                 .and_then(|monster| {
-                    self.gameplay
-                        .player
-                        .with_ability_stats(
-                            &player.state.ability_stats,
-                            &player.state.equipped,
-                            player.state.job,
-                        )
-                        .contact_damage(&monster.template)
-                        .map(|damage| (monster.state.id.clone(), monster.state.x, damage))
+                    monster
+                        .template
+                        .pa_damage
+                        .map(|damage| (monster.state.id.clone(), monster.state.x, damage.max(1)))
                 });
-            let Some((monster_id, monster_x, damage)) = hit else {
+            let Some((monster_id, monster_x, raw_damage)) = hit else {
                 continue;
             };
-            let Some(player) = self.players.get_mut(&id) else {
+            let stance_prop = self
+                .players
+                .get(&id)
+                .and_then(|player| player.state.skills.get(&SKILL_MASTER_MAGIC))
+                .copied()
+                .and_then(|level| self.mage_skills.level(SKILL_MASTER_MAGIC, level))
+                .and_then(|level| level.stance_prop)
+                .unwrap_or(0)
+                .clamp(0, 100) as u64;
+            let defense = self
+                .gameplay
+                .player
+                .with_ability_stats(
+                    &player.state.ability_stats,
+                    &player.state.equipped,
+                    player.state.job,
+                )
+                .weapon_defense
+                .unwrap_or(0)
+                .max(0);
+            let Some((hp_damage, mp_damage, killed)) = self
+                .commit_incoming_damage(&id, raw_damage.saturating_sub(defense).max(1))
+            else {
                 continue;
             };
-            let reduced_damage = damage.saturating_sub(shield_bonus).max(1);
-            let mp_damage = if guard_ratio > 0 {
-                (((reduced_damage as i128 * guard_ratio as i128 + 99) / 100) as i64)
-                    .min(player.state.mp.max(0))
-            } else {
-                0
-            };
-            let hp_damage = reduced_damage.saturating_sub(mp_damage).max(0);
-            player.state.mp = (player.state.mp - mp_damage).max(0);
-            player.state.hp = (player.state.hp - hp_damage).max(0);
-            player.contact_invulnerable_until = self.tick + invulnerability_ticks;
-            if player.state.hp == 0 {
-                player.state.action = "dead";
-                player.state.action_started_tick = self.tick;
-                player.state.action_id = None;
-                player.state.climbing = false;
-                player.state.ladder_id = None;
-                player.attack_until = 0;
-                player.magic_wave_used = false;
-                player.magic_wave_float_used = false;
-                player.slow_fall_until = 0;
-                player.meditation_until = 0;
-                player.meditation_mad = 0;
-                player.ice_teleport_enabled = false;
-                player.ice_fields.clear();
-                player.death_id = auth::random_id();
-                player.knockback_vx = 0.;
-                player.knockback_until = 0;
-            } else {
+            if !killed {
+                let Some(player) = self.players.get_mut(&id) else {
+                    continue;
+                };
+                let hyper_thunder_channel = player.channel_until > self.tick
+                    && player.channel_skill_id == Some(SKILL_HYPER_THUNDER);
+                if hyper_thunder_channel {
+                    // The sustained Hyper channel keeps its action and lock;
+                    // the damage transaction above already applied its 50%
+                    // reduction and the hit must not add a knockback hop.
+                } else {
                 // Body hit: interrupt the current attack and start the
                 // knockback hop.  The body leaves its foothold with a small
                 // upward launch plus a short horizontal push away from the
@@ -7712,26 +12815,43 @@ impl World {
                     player.state.climbing = false;
                     player.state.ladder_id = None;
                 }
-                player.state.grounded = false;
-                player.foothold_id = 0;
-                player.drop_fh = 0;
-                let away = if player.state.x >= monster_x {
-                    1.0
+                let resists_knockback = stance_prop > 0
+                    && deterministic_percent(&[
+                        &id,
+                        &monster_id,
+                        &self.tick.to_string(),
+                        "teleport-mastery-stance",
+                    ]) < stance_prop;
+                if resists_knockback {
+                    player.state.action = if player.state.grounded {
+                        "stand"
+                    } else {
+                        "jump"
+                    };
+                    player.state.action_started_tick = self.tick;
                 } else {
-                    -1.0
-                };
-                let tenacity = self
-                    .gameplay
-                    .player
-                    .tenacity
-                    .unwrap_or(0.0)
-                    .clamp(0.0, TENACITY_CAP);
-                let factor = 1.0 - tenacity;
-                player.knockback_vx = away * KNOCKBACK_SPEED * factor;
-                player.knockback_until = self.tick + KNOCKBACK_TICKS;
-                player.state.vy = -KNOCKBACK_JUMP * factor;
-                player.state.action = "jump";
-                player.state.action_started_tick = self.tick;
+                    player.state.grounded = false;
+                    player.foothold_id = 0;
+                    player.drop_fh = 0;
+                    let away = if player.state.x >= monster_x {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let tenacity = self
+                        .gameplay
+                        .player
+                        .tenacity
+                        .unwrap_or(0.0)
+                        .clamp(0.0, TENACITY_CAP);
+                    let factor = 1.0 - tenacity;
+                    player.knockback_vx = away * KNOCKBACK_SPEED * factor;
+                    player.knockback_until = self.tick + KNOCKBACK_TICKS;
+                    player.state.vy = -KNOCKBACK_JUMP * factor;
+                    player.state.action = "jump";
+                    player.state.action_started_tick = self.tick;
+                }
+                }
             }
             // Broadcast an authoritative damage event so every client can show
             // the damage number and hurt flash at the player's current spot.
@@ -7741,17 +12861,16 @@ impl World {
                 "serverTick": self.tick,
                 "attackerId": monster_id,
                 "targetId": id,
-                "x": player.state.x,
-                "y": player.state.y,
+                "x": self.players.get(&id).map(|player| player.state.x).unwrap_or(monster_x),
+                "y": self.players.get(&id).map(|player| player.state.y).unwrap_or(0.0),
                 "damage": hp_damage,
                 "mpDamage": mp_damage,
-                "killed": player.state.hp == 0,
+                "killed": killed,
             })
             .to_string();
             self.pending_attacks
                 .retain(|_, attack| attack.player_id != id);
             self.broadcast_to_map(&map_id, &damage_event);
-            let _ = self.persist_player(&id);
         }
     }
 
@@ -7810,20 +12929,132 @@ fn mage_job_allowed(job: u32) -> bool {
 
 fn skill_job_allowed(job: u32, book_id: u32) -> bool {
     match book_id {
+        BEGINNER_BOOK => job == BEGINNER_JOB || mage_job_allowed(job),
         MAGE_BOOK => mage_job_allowed(job),
         ICE_BOOK => matches!(job, 220 | 221 | 222),
+        THIRD_BOOK => matches!(job, 221 | 222),
+        FOURTH_BOOK => job == ICE_FOURTH_JOB,
         _ => false,
     }
 }
 
-fn skill_book_for_job(job: u32) -> Option<u32> {
-    if matches!(job, 220 | 221 | 222) {
-        Some(ICE_BOOK)
-    } else if mage_job_allowed(job) {
-        Some(MAGE_BOOK)
+fn regeneration_passives_for_job(job: u32) -> Vec<RegenerationPassive> {
+    let mut passives = vec![RegenerationPassive {
+        id: "beginner-recovery",
+        book_id: BEGINNER_BOOK,
+        hp_per_second: 1,
+        mp_per_second: 1,
+    }];
+    if mage_job_allowed(job) {
+        passives.push(RegenerationPassive {
+            id: "magician-recovery",
+            book_id: MAGE_BOOK,
+            hp_per_second: 0,
+            mp_per_second: 1,
+        });
+    } else if matches!(job, 100 | 110 | 111 | 112 | 120 | 121 | 122 | 130 | 131 | 132) {
+        passives.push(RegenerationPassive {
+            id: "warrior-recovery",
+            book_id: 100,
+            hp_per_second: 2,
+            mp_per_second: 0,
+        });
+    }
+    passives
+}
+
+
+fn is_magic_attack_skill(skill_id: u32) -> bool {
+    matches!(
+        skill_id,
+        SKILL_ENERGY_BOLT
+            | SKILL_COLD_BEAM
+            | SKILL_THUNDER_BOLT
+            | SKILL_ICE_TELEPORT
+            | SKILL_ICE_STORM
+            | SKILL_GLACIAL_WALL
+            | SKILL_TELEPORT_MASTERY
+            | SKILL_THUNDER_SPHERE
+            | SKILL_THUNDER_SPHERE_HIDDEN
+            | SKILL_CHAIN_LIGHTNING
+            | SKILL_BLIZZARD
+            | SKILL_BLIZZARD_HIDDEN
+            | SKILL_ICE_DEMON
+            | SKILL_ICE_DRAGON_BREATH
+            | SKILL_FROZEN_ORB
+            | SKILL_HYPER_THUNDER
+    )
+}
+
+fn is_nonsummon_direct_skill(skill_id: u32) -> bool {
+    matches!(
+        skill_id,
+        SKILL_ENERGY_BOLT
+            | SKILL_COLD_BEAM
+            | SKILL_THUNDER_BOLT
+            | SKILL_ICE_STORM
+            | SKILL_GLACIAL_WALL
+            | SKILL_TELEPORT_MASTERY
+            | SKILL_CHAIN_LIGHTNING
+            | SKILL_BLIZZARD
+            | SKILL_ICE_DRAGON_BREATH
+    )
+}
+
+fn deterministic_percent(parts: &[&str]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for part in parts {
+        part.hash(&mut hasher);
+        0xff_u8.hash(&mut hasher);
+    }
+    hasher.finish() % 100
+}
+
+fn hyper_points_for_state(level: u32, skills: &BTreeMap<u32, u32>) -> BTreeMap<u32, u32> {
+    BTreeMap::from([
+        (1, auth::hyper_points(level, skills, 1)),
+        (2, auth::hyper_points(level, skills, 2)),
+    ])
+}
+
+fn hyper_skill_kind(skill_id: u32) -> Option<u32> {
+    if HYPER_PASSIVE_IDS.contains(&skill_id) {
+        Some(1)
+    } else if HYPER_ACTIVE_IDS.contains(&skill_id) {
+        Some(2)
+    } else if skill_id == SKILL_HYPER_VORTEX_HIDDEN {
+        Some(2)
     } else {
         None
     }
+}
+
+fn is_hyper_skill(skill_id: u32) -> bool {
+    hyper_skill_kind(skill_id).is_some()
+}
+
+fn hyper_vortex_contains(player: &Player, vortex: &HyperVortex) -> bool {
+    if player.map_id != vortex.map_id
+        || !player.state.x.is_finite()
+        || !player.state.y.is_finite()
+    {
+        return false;
+    }
+    // The source hidden node carries lt[-300,-270]/rb[300,30].  The runtime
+    // uses that authored rectangle as the self-only vortex effect envelope;
+    // the client receives the same fixed origin through snapshot.summons.
+    let facing = if vortex.facing < 0 { -1.0 } else { 1.0 };
+    let local_x = -((player.state.x - vortex.x) * facing);
+    let local_y = player.state.y - vortex.y;
+    local_x >= -300.0 && local_x <= 300.0 && local_y >= -270.0 && local_y <= 30.0
+}
+
+fn hyper_barrier_active(player: &Player) -> bool {
+    player.hyper_barrier_enabled
+        || player
+            .hyper_vortex
+            .as_ref()
+            .is_some_and(|vortex| vortex.expires_at > 0 && hyper_vortex_contains(player, vortex))
 }
 
 fn compute_derived_stats(
@@ -7839,6 +13070,15 @@ fn compute_derived_stats(
     meditation_mad: i64,
     meditation_remaining_ms: Option<u64>,
     ice_teleport: bool,
+    teleport_mastery: bool,
+    teleport_boost: bool,
+    hyper_barrier_active: bool,
+    hyper_teleport_enabled: bool,
+    adaptation_charges: u32,
+    adaptation_cooldown_ms: Option<u64>,
+    beginner_speed_percent: i64,
+    skill_cooldowns: &BTreeMap<u32, u64>,
+    skill_buffs: &BTreeMap<u32, u64>,
 ) -> (DerivedStats, i64) {
     let mut config = gameplay.player.clone();
     // PlayerConfig::with_equipment treats maxMp as the unmodified character
@@ -7856,6 +13096,22 @@ fn compute_derived_stats(
         .sum::<i64>();
     let mut ability = ability_stats.clone();
     ability.intelligence = ability.intelligence.saturating_add(int_bonus);
+    // Maple Warrior's source marker is an AP-only percentage.  Apply it to
+    // the persisted four stat values before equipment is folded in, so gear
+    // never receives the passive multiplier.
+    let basic_stat_up = skills
+        .get(&SKILL_MAPLE_WARRIOR)
+        .and_then(|level| mage_skills.level(SKILL_MAPLE_WARRIOR, *level))
+        .and_then(|level| level.basic_stat_up)
+        .unwrap_or(0)
+        .clamp(0, 100);
+    if basic_stat_up > 0 {
+        let scale = |value: i64| value.saturating_mul(100 + basic_stat_up) / 100;
+        ability.strength = scale(ability.strength);
+        ability.dexterity = scale(ability.dexterity);
+        ability.intelligence = scale(ability.intelligence);
+        ability.luck = scale(ability.luck);
+    }
     let mut derived = config.with_ability_stats(&ability, equipped, job);
     let bonus = |key: &str| {
         equipped.iter().fold(0i64, |total, item| {
@@ -7878,16 +13134,30 @@ fn compute_derived_stats(
         } else {
             0
         });
-    derived.mastery = Some(
-        skills
-            .get(&SKILL_SPELL_MASTERY)
-            .and_then(|level| mage_skills.level(SKILL_SPELL_MASTERY, *level))
-            .and_then(|level| level.mastery)
-            .map(|value| (value as f64 / 100.0).clamp(0.0, 1.0))
-            .unwrap_or_else(|| derived.mastery.unwrap_or(0.1)),
-    );
+    let spell_mastery = skills
+        .get(&SKILL_SPELL_MASTERY)
+        .and_then(|level| mage_skills.level(SKILL_SPELL_MASTERY, *level))
+        .and_then(|level| level.mastery)
+        .map(|value| (value as f64 / 100.0).clamp(0.0, 1.0))
+        .unwrap_or_else(|| derived.mastery.unwrap_or(0.1));
+    let demon_mastery = skills
+        .get(&SKILL_ICE_DEMON)
+        .and_then(|level| mage_skills.level(SKILL_ICE_DEMON, *level))
+        .and_then(|level| level.mastery)
+        .map(|value| (value as f64 / 100.0).clamp(0.0, 1.0))
+        .unwrap_or(0.0);
+    // Ice Demon's source mastery is a permanent coverage value: it replaces
+    // a lower Spell Mastery value and never adds a second mastery band.
+    derived.mastery = Some(spell_mastery.max(demon_mastery));
     let int = derived.base_int.unwrap_or(0).max(0);
     let luk = derived.base_luk.unwrap_or(0).max(0);
+    let master_magic_level = skills
+        .get(&SKILL_MASTER_MAGIC)
+        .and_then(|level| mage_skills.level(SKILL_MASTER_MAGIC, *level));
+    let master_magic_mad = master_magic_level
+        .and_then(|level| level.mad_x)
+        .unwrap_or(0)
+        .max(0);
     // P: the selected export does not contain the final player magic formula;
     // this deliberately visible first-job rule gives INT/LUK/level/MAD all a
     // real effect while keeping the same value in damage and snapshots.
@@ -7904,6 +13174,7 @@ fn compute_derived_stats(
                 .max(0),
         )
         .saturating_add(meditation_mad.max(0))
+        .saturating_add(master_magic_mad)
         .saturating_add(bonus("incMAD"))
         .max(1);
     let shield_level = skills.get(&SKILL_MAGIC_SHIELD).copied().unwrap_or(0);
@@ -7930,7 +13201,7 @@ fn compute_derived_stats(
         .max(0);
     // P: psdSpeed is the passive percent and speedMax is used as its source
     // cap; the exported values are applied to the real 125 px/s walker.
-    let speed_percent = bonus("incSpeed").saturating_add(teleport_speed).clamp(
+    let source_speed_percent = bonus("incSpeed").saturating_add(teleport_speed).clamp(
         0,
         if teleport_speed_max > 0 {
             teleport_speed_max.min(100)
@@ -7938,15 +13209,66 @@ fn compute_derived_stats(
             100
         },
     );
+    let speed_percent = source_speed_percent
+        .saturating_add(beginner_speed_percent.max(0))
+        .clamp(0, 100);
     let move_speed = WALK_SPEED * (1.0 + speed_percent as f64 / 100.0);
+    let adaptation_level = skills
+        .get(&SKILL_ELEMENTAL_ADAPTING)
+        .copied()
+        .and_then(|level| mage_skills.level(SKILL_ELEMENTAL_ADAPTING, level));
+    let status_resistance = adaptation_level.and_then(|level| level.asr_r);
+    let element_resistance = adaptation_level.and_then(|level| level.ter_r);
+    let infinity_enhanced = skill_buffs
+        .get(&SKILL_INFINITY)
+        .copied()
+        .filter(|remaining| *remaining > 0)
+        .is_some_and(|remaining| {
+            let Some(infinity_level) = skills
+                .get(&SKILL_INFINITY)
+                .and_then(|level| mage_skills.level(SKILL_INFINITY, *level))
+            else {
+                return false;
+            };
+            let source_time_ms = u64::try_from(infinity_level.time.unwrap_or(0).max(0))
+                .unwrap_or(0)
+                .saturating_mul(1_000);
+            let bufftime = master_magic_level
+                .and_then(|level| level.buff_time_r)
+                .unwrap_or(0)
+                .max(0) as u64;
+            let full_ms = source_time_ms.saturating_mul(100 + bufftime) / 100;
+            let threshold_percent = infinity_level.w2.unwrap_or(30).clamp(0, 100) as u64;
+            let threshold = full_ms.saturating_mul(threshold_percent) / 100;
+            full_ms > 0 && remaining <= threshold
+        });
     (
         DerivedStats {
             magic_attack,
             defense,
             move_speed,
             magic_guard: magic_guard && skills.get(&SKILL_MAGIC_GUARD).copied().unwrap_or(0) > 0,
+            hyper_barrier_active,
+            hyper_teleport_enabled,
+            damage_reduction_percent: if hyper_barrier_active { 20 } else { 0 },
+            regeneration_passives: regeneration_passives_for_job(job),
             meditation_remaining_ms,
+            skill_cooldowns: (!skill_cooldowns.is_empty()).then(|| skill_cooldowns.clone()),
+            skill_buffs: (!skill_buffs.is_empty()).then(|| skill_buffs.clone()),
+            infinity_enhanced,
             ice_teleport: Some(ice_teleport),
+            teleport_mastery: skills
+                .contains_key(&SKILL_TELEPORT_MASTERY)
+                .then_some(teleport_mastery),
+            teleport_boost: skills
+                .contains_key(&SKILL_TELEPORT_BOOST)
+                .then_some(teleport_boost),
+            adaptation_charges: skills
+                .contains_key(&SKILL_ELEMENTAL_ADAPTING)
+                .then_some(adaptation_charges),
+            adaptation_cooldown_ms,
+            status_resistance,
+            element_resistance,
             strength: Some(derived.base_str.unwrap_or(0).max(0)),
             dexterity: Some(derived.base_dex.unwrap_or(0).max(0)),
             intelligence: Some(int),
@@ -7970,6 +13292,19 @@ fn refresh_player_derived(gameplay: &Gameplay, mage_skills: &MageSkills, player:
         player.meditation_mad,
         None,
         player.ice_teleport_enabled,
+        player.teleport_mastery_enabled,
+        player.teleport_boost_enabled,
+        hyper_barrier_active(player),
+        player.hyper_teleport_enabled,
+        if player.adaptation_active {
+            player.adaptation_charges
+        } else {
+            0
+        },
+        (player.adaptation_cooldown_ms > 0).then_some(player.adaptation_cooldown_ms),
+        player.beginner_speed_percent,
+        &player.skill_cooldowns,
+        &player.skill_buffs,
     );
     player.state.derived_stats = derived_stats.clone();
     player.state.max_mp = derived_max_mp;
@@ -7983,6 +13318,18 @@ fn profile_from_state(
     death_id: &str,
     base_max_mp: i64,
 ) -> Profile {
+    let persisted_map_id = if auth::is_practice_map(map_id) {
+        // Private Boss maps are runtime-only.  Persist the authored source
+        // map so a reconnect can never resurrect an instance id that was
+        // already torn down.
+        map_id
+            .split(':')
+            .nth(1)
+            .filter(|source| *source == BOSS_PRACTICE_FALLBACK_MAP_ID)
+            .unwrap_or(BOSS_PRACTICE_FALLBACK_MAP_ID)
+    } else {
+        map_id
+    };
     Profile {
         hp: state.hp,
         max_hp: state.max_hp,
@@ -7994,7 +13341,7 @@ fn profile_from_state(
         exp_to_next: state.exp_to_next,
         mesos: state.mesos,
         death_id: death_id.to_owned(),
-        map_id: map_id.to_owned(),
+        map_id: persisted_map_id.to_owned(),
         x: state.x,
         y: state.y,
         inventory: state.inventory.clone(),
@@ -8016,6 +13363,7 @@ fn apply_profile(state: &mut PlayerState, profile: Profile) {
     state.mesos = profile.mesos;
     state.skills = profile.skills;
     state.skill_points = profile.skill_points;
+    state.hyper_points = hyper_points_for_state(state.level, &state.skills);
     state.ability_stats = profile.ability_stats;
     state.inventory = profile.inventory;
     inventory::sort_items(&mut state.inventory);
@@ -8147,6 +13495,19 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         player.jump = false;
     }
     if player.state.action == "dead" {
+        return;
+    }
+    if player.channel_until > tick {
+        // Ice Dragon Breath owns the body for its q-window.  Holding the
+        // channel must not let residual jump velocity or a stale input packet
+        // move the authoritative position.
+        player.direction = 0;
+        player.vertical = 0;
+        player.jump = false;
+        player.state.vx = 0.0;
+        player.state.vy = 0.0;
+        player.state.action = "attack";
+        player.state.action_started_tick = tick;
         return;
     }
 
@@ -8626,6 +13987,7 @@ mod tests {
             pa_damage: Some(3),
             pd_damage: Some(0),
             pd_rate: None,
+            md_rate: None,
             exp: 1,
             body_attack: false,
             move_speed: None,
@@ -8663,6 +14025,501 @@ mod tests {
             monster_respawn_ms: Some(500),
             ..Gameplay::default()
         }
+    }
+
+    fn join_test_player(world: &mut World, id: &str) -> mpsc::Receiver<String> {
+        let (output, rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: id.to_owned(),
+                username: id.to_owned(),
+            },
+            connection: format!("{id}-connection"),
+            output,
+            reply,
+            lang: "zh".to_owned(),
+        });
+        rx
+    }
+
+    #[test]
+    fn natural_recovery_passives_follow_job_without_skill_stacking() {
+        let empty = BTreeMap::new();
+        let (beginner, _) = compute_derived_stats(
+            &Gameplay::default(),
+            &MageSkills::default(),
+            BEGINNER_JOB,
+            5,
+            1,
+            &empty,
+            &AbilityStats::default(),
+            &[],
+            false,
+            0,
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            0,
+            None,
+            0,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+        );
+        assert_eq!(
+            beginner.regeneration_passives,
+            vec![RegenerationPassive {
+                id: "beginner-recovery",
+                book_id: 0,
+                hp_per_second: 1,
+                mp_per_second: 1,
+            }]
+        );
+        let forged_skills = BTreeMap::from([(SKILL_RECOVERY, 30), (1000003, 30), (1000009, 30)]);
+        let (magician, _) = compute_derived_stats(
+            &Gameplay::default(),
+            &MageSkills::default(),
+            ICE_MAGE_JOB,
+            5,
+            30,
+            &forged_skills,
+            &AbilityStats::default(),
+            &[],
+            false,
+            0,
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            0,
+            None,
+            0,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+        );
+        assert_eq!(
+            magician.regeneration_passives,
+            vec![
+                RegenerationPassive {
+                    id: "beginner-recovery",
+                    book_id: 0,
+                    hp_per_second: 1,
+                    mp_per_second: 1,
+                },
+                RegenerationPassive {
+                    id: "magician-recovery",
+                    book_id: 200,
+                    hp_per_second: 0,
+                    mp_per_second: 1,
+                },
+            ]
+        );
+        let (warrior, _) = compute_derived_stats(
+            &Gameplay::default(),
+            &MageSkills::default(),
+            100,
+            5,
+            30,
+            &forged_skills,
+            &AbilityStats::default(),
+            &[],
+            false,
+            0,
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            0,
+            None,
+            0,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+        );
+        assert_eq!(
+            warrior.regeneration_passives,
+            vec![
+                RegenerationPassive {
+                    id: "beginner-recovery",
+                    book_id: 0,
+                    hp_per_second: 1,
+                    mp_per_second: 1,
+                },
+                RegenerationPassive {
+                    id: "warrior-recovery",
+                    book_id: 100,
+                    hp_per_second: 2,
+                    mp_per_second: 0,
+                },
+            ]
+        );
+        for job in [112, 132] {
+            assert_eq!(regeneration_passives_for_job(job), warrior.regeneration_passives);
+        }
+        for job in [222, 232] {
+            assert_eq!(
+                regeneration_passives_for_job(job),
+                magician.regeneration_passives
+            );
+        }
+        assert_eq!(
+            regeneration_passives_for_job(300),
+            beginner.regeneration_passives
+        );
+    }
+
+    #[test]
+    fn natural_recovery_waits_a_second_caps_and_resets_after_death() {
+        let gameplay = Gameplay {
+            player: PlayerConfig {
+                max_hp: Some(3),
+                max_mp: Some(4),
+                ..PlayerConfig::default()
+            },
+            ..Gameplay::default()
+        };
+        let mut world = World::new_with_gameplay(life_map("test"), 600, gameplay);
+        let mut rx = join_test_player(&mut world, "natural");
+        while rx.try_recv().is_ok() {}
+        {
+            let player = world.players.get_mut("natural").unwrap();
+            player.state.hp = 1;
+            player.state.mp = 1;
+        }
+        for _ in 0..19 {
+            world.step();
+        }
+        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (1, 1));
+        world.step();
+        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (2, 2));
+        for _ in 0..40 {
+            world.step();
+        }
+        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (3, 4));
+        let full_tick = world.tick;
+        world.players.get_mut("natural").unwrap().state.hp = 1;
+        for _ in 0..19 {
+            world.step();
+        }
+        assert_eq!(world.players["natural"].state.hp, 1);
+        world.step();
+        assert_eq!(world.players["natural"].state.hp, 2);
+        assert!(world.tick > full_tick);
+        {
+            let player = world.players.get_mut("natural").unwrap();
+            player.state.hp = 0;
+            player.state.action = "dead";
+        }
+        for _ in 0..40 {
+            world.step();
+        }
+        assert_eq!(world.players["natural"].state.hp, 0);
+        assert_eq!(world.players["natural"].state.action, "dead");
+        world.players.get_mut("natural").unwrap().death_id = "natural-death".into();
+        world.complete_revive("natural", "natural-death");
+        assert_eq!(world.players["natural"].state.action, "stand");
+        world.players.get_mut("natural").unwrap().state.hp = 1;
+        for _ in 0..19 {
+            world.step();
+        }
+        assert_eq!(world.players["natural"].state.hp, 1);
+        world.step();
+        assert_eq!(world.players["natural"].state.hp, 2);
+    }
+
+    #[test]
+    fn natural_recovery_does_not_restore_offline_time_or_update_on_failed_save() {
+        let path = std::env::temp_dir().join(format!("maple-natural-recovery-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        let store = service.store.clone();
+        let gameplay = Gameplay {
+            player: PlayerConfig {
+                max_hp: Some(3),
+                max_mp: Some(4),
+                ..PlayerConfig::default()
+            },
+            ..Gameplay::default()
+        };
+        let mut world = World::new_with_store(life_map("test"), 600, gameplay, store.clone()).unwrap();
+        let mut rx = join_test_player(&mut world, "natural-store");
+        while rx.try_recv().is_ok() {}
+        {
+            let player = world.players.get_mut("natural-store").unwrap();
+            player.state.hp = 1;
+            player.state.mp = 1;
+            store
+                .save_profile(
+                    "natural-store",
+                    &profile_from_state(&player.state, &player.map_id, &player.death_id, player.base_max_mp),
+                )
+                .unwrap();
+        }
+        world.tick = 200;
+        let mut reconnect_rx = join_test_player(&mut world, "natural-store");
+        while reconnect_rx.try_recv().is_ok() {}
+        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        assert_eq!(
+            world.players["natural-store"].natural_recovery_next_tick,
+            world.tick + NATURAL_RECOVERY_INTERVAL_TICKS
+        );
+        world.tick = world.players["natural-store"].natural_recovery_next_tick;
+        world.step_natural_recovery("natural-store");
+        assert_eq!(
+            (world.players["natural-store"].state.hp, world.players["natural-store"].state.mp),
+            (2, 2)
+        );
+        let saved = store
+            .load_profile("natural-store", &world.default_profile())
+            .unwrap();
+        assert_eq!((saved.hp, saved.mp), (2, 2));
+        {
+            let player = world.players.get_mut("natural-store").unwrap();
+            player.state.hp = 1;
+            player.state.mp = 1;
+        }
+        world.tick = world.players["natural-store"].natural_recovery_next_tick;
+        store
+            .with_db(|db| {
+                db.execute("DROP TABLE player_stats", [])
+                    .map(|_| ())
+                    .map_err(|_| "drop player_stats failed".to_owned())
+            })
+            .unwrap();
+        world.step_natural_recovery("natural-store");
+        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        let retry_tick = world.players["natural-store"].natural_recovery_next_tick;
+        assert_eq!(retry_tick, world.tick + NATURAL_RECOVERY_INTERVAL_TICKS);
+        world.tick += 1;
+        world.step_natural_recovery("natural-store");
+        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        drop(world);
+        drop(service);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    fn beginner_skills_fixture() -> MageSkills {
+        serde_json::from_str(
+            r#"{"sourceVersion":"TMS273.7","bookId":200,"skills":{
+                "1000":{"name":"嫩寶丟擲術","maxLevel":3,"bookId":0,"levels":[{"mpCon":3,"fixdamage":10},{"mpCon":5,"fixdamage":25},{"mpCon":7,"fixdamage":40}]},
+                "1001":{"name":"治癒","maxLevel":3,"bookId":0,"levels":[{"mpCon":5,"time":30,"x":4,"cooltime":120},{"mpCon":10,"time":30,"x":8,"cooltime":120},{"mpCon":15,"time":30,"x":12,"cooltime":120}]},
+                "1002":{"name":"疾風之步","maxLevel":3,"bookId":0,"levels":[{"mpCon":4,"time":4,"speed":10,"cooltime":60},{"mpCon":7,"time":8,"speed":15,"cooltime":60},{"mpCon":10,"time":12,"speed":20,"cooltime":60}]
+            }}}"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn beginner_skill_runtime_locks_fixed_damage_and_timed_buffs() {
+        let mut gameplay = life_gameplay(vec![life_spawn("beginner-mob", "test", 300.0, 1, -1)]);
+        gameplay.player.max_hp = Some(35);
+        gameplay.player.max_mp = Some(50);
+        gameplay.player.attack_reach = Some(88.0);
+        gameplay.monsters[0].max_hp = 50;
+        let mut world = World::new_with_gameplay(life_map("test"), 600, gameplay)
+            .with_mage_skills(beginner_skills_fixture());
+        let (output, mut rx) = mpsc::channel(4096);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "beginner-runtime".into(),
+                username: "beginner-runtime".into(),
+            },
+            connection: "beginner-runtime-connection".into(),
+            output,
+            reply,
+            lang: "zh".into(),
+        });
+        while rx.try_recv().is_ok() {}
+        {
+            let player = world.players.get_mut("beginner-runtime").unwrap();
+            player.state.x = 10.0;
+            player.state.y = 100.0;
+            player.state.grounded = true;
+            player.state.action = "stand";
+            player.state.skills = BTreeMap::from([
+                (SKILL_THREE_SNAILS, 1),
+                (SKILL_RECOVERY, 1),
+                (SKILL_NIMBLE_FEET, 1),
+            ]);
+            player.state.mp = 50;
+            player.state.hp = 12;
+            player.foothold_id = 1;
+            player.last_foothold_id = 1;
+            refresh_player_derived(&world.gameplay, &world.mage_skills, player);
+        }
+        let monster_id = world.monsters.keys().next().cloned().unwrap();
+        let drain = |rx: &mut mpsc::Receiver<String>| {
+            let mut values = Vec::new();
+            while let Ok(message) = rx.try_recv() {
+                values.push(serde_json::from_str::<serde_json::Value>(&message).unwrap());
+            }
+            values
+        };
+
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "snails-1".into(),
+            SKILL_THREE_SNAILS,
+            Some(1),
+            Some(0),
+        );
+        let first_cast = drain(&mut rx);
+        let cast_event = first_cast
+            .iter()
+            .find(|value| value["type"] == "skillCast")
+            .expect("beginner skillCast");
+        assert_eq!(cast_event["skillId"], SKILL_THREE_SNAILS);
+        assert_eq!(cast_event["skillLevel"], 1);
+        assert_eq!(cast_event["targetId"], monster_id);
+        let damage_event = first_cast
+            .iter()
+            .find(|value| value["type"] == "damageEvent")
+            .expect("beginner damageEvent");
+        assert_eq!(damage_event["damage"], 10);
+        assert_eq!(damage_event["skillLevel"], 1);
+        assert_eq!(world.monsters[&monster_id].state.hp, 40);
+        assert_eq!(world.players["beginner-runtime"].state.mp, 47);
+        assert!(world.players["beginner-runtime"].attack_until > world.tick);
+
+        // The cast animation lock is authoritative, while the same request is
+        // a replay and returns without spending MP or applying damage again.
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "snails-2".into(),
+            SKILL_THREE_SNAILS,
+            Some(1),
+            Some(0),
+        );
+        let busy = drain(&mut rx);
+        assert!(busy.iter().any(|value| {
+            value["type"] == "rejected" && value["code"] == "skill_busy"
+        }));
+        assert_eq!(world.players["beginner-runtime"].state.mp, 47);
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "snails-1".into(),
+            SKILL_THREE_SNAILS,
+            Some(1),
+            Some(0),
+        );
+        let replay = drain(&mut rx);
+        assert_eq!(replay.len(), 1);
+        assert_eq!(replay[0]["type"], "skillResult");
+        assert_eq!(world.monsters[&monster_id].state.hp, 40);
+        assert_eq!(world.players["beginner-runtime"].state.mp, 47);
+
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "recovery-1".into(),
+            SKILL_RECOVERY,
+            Some(0),
+            Some(0),
+        );
+        let recovery = drain(&mut rx);
+        assert!(recovery.iter().any(|value| {
+            value["type"] == "skillResult" && value["success"] == true
+        }));
+        assert_eq!(world.players["beginner-runtime"].state.mp, 42);
+        assert_eq!(
+            world.players["beginner-runtime"]
+                .state
+                .derived_stats
+                .skill_buffs
+                .as_ref()
+                .and_then(|buffs| buffs.get(&SKILL_RECOVERY)),
+            Some(&30_000)
+        );
+        assert_eq!(
+            world.players["beginner-runtime"]
+                .state
+                .derived_stats
+                .skill_cooldowns
+                .as_ref()
+                .and_then(|cooldowns| cooldowns.get(&SKILL_RECOVERY)),
+            Some(&120_000)
+        );
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "recovery-2".into(),
+            SKILL_RECOVERY,
+            Some(0),
+            Some(0),
+        );
+        let cooldown = drain(&mut rx);
+        assert!(cooldown.iter().any(|value| {
+            value["type"] == "rejected" && value["code"] == "skill_cooldown"
+        }));
+        assert_eq!(world.players["beginner-runtime"].state.mp, 42);
+        assert_eq!(world.tick, 0);
+        assert_eq!(world.players["beginner-runtime"].state.max_hp, 35);
+        assert_eq!(world.players["beginner-runtime"].beginner_heal_next_tick, 100);
+        assert_eq!(world.players["beginner-runtime"].beginner_heal_remaining_ticks, 6);
+        assert_eq!(world.players["beginner-runtime"].beginner_heal_per_tick, 4);
+        for _ in 0..99 {
+            world.step();
+        }
+        assert_eq!(world.tick, 99);
+        assert_eq!(world.players["beginner-runtime"].beginner_heal_next_tick, 100);
+        assert_eq!(world.players["beginner-runtime"].beginner_heal_remaining_ticks, 6);
+        assert!(world.players["beginner-runtime"].skill_buffs.contains_key(&SKILL_RECOVERY));
+        assert_eq!(world.players["beginner-runtime"].state.hp, 16);
+        world.step();
+        // Tick 100 applies the active 4 HP heal and the permanent +1 HP/s
+        // beginner passive after four earlier natural intervals.
+        assert_eq!(world.players["beginner-runtime"].state.hp, 21);
+        for _ in 0..500 {
+            world.step();
+        }
+        assert_eq!(world.players["beginner-runtime"].state.hp, 35);
+        assert!(world.players["beginner-runtime"].state.derived_stats.skill_buffs.is_none());
+        assert_eq!(
+            world.players["beginner-runtime"]
+                .skill_cooldowns
+                .get(&SKILL_RECOVERY),
+            Some(&90_000)
+        );
+        assert_eq!(
+            world.players["beginner-runtime"]
+                .state
+                .derived_stats
+                .skill_cooldowns
+                .as_ref()
+                .and_then(|cooldowns| cooldowns.get(&SKILL_RECOVERY)),
+            Some(&90_000)
+        );
+
+        world.handle_cast_skill(
+            "beginner-runtime".into(),
+            "nimble-1".into(),
+            SKILL_NIMBLE_FEET,
+            Some(1),
+            Some(0),
+        );
+        let nimble = drain(&mut rx);
+        assert!(nimble.iter().any(|value| {
+            value["type"] == "skillResult" && value["success"] == true
+        }));
+        // Natural MP recovery reaches the 50 MP cap during the long buff
+        // window, so Nimble Feet's 4 MP cost leaves 46.
+        assert_eq!(world.players["beginner-runtime"].state.mp, 46);
+        assert_eq!(world.players["beginner-runtime"].state.derived_stats.move_speed, 137.5);
+        world.players.get_mut("beginner-runtime").unwrap().state.hp = 1;
+        world.players.get_mut("beginner-runtime").unwrap().state.x = 300.0;
+        world.monsters.get_mut(&monster_id).unwrap().template.body_attack = true;
+        world.monsters.get_mut(&monster_id).unwrap().template.pa_damage = Some(2);
+        world.apply_contact_damage();
+        assert_eq!(world.players["beginner-runtime"].state.hp, 0);
+        assert!(world.players["beginner-runtime"].skill_buffs.is_empty());
+        assert_eq!(world.players["beginner-runtime"].beginner_speed_percent, 0);
+        assert!(world.players["beginner-runtime"].state.derived_stats.skill_buffs.is_none());
     }
 
     #[test]
@@ -8989,7 +14846,7 @@ mod tests {
         store.load_profile("a", &defaults).unwrap();
         let stats = BTreeMap::from([(String::from("incPDD"), 12_i64)]);
         store
-            .claim_attack("a", "world-reward", "world-action", "attack")
+            .claim_attack("a", "test", "world-reward", "world-action", "attack")
             .unwrap();
         store
             .resolve_attack(
@@ -10035,7 +15892,7 @@ mod tests {
     #[test]
     fn config_drop_and_exp_are_authoritative_without_client_values() {
         let gameplay: Gameplay = serde_json::from_str(
-            r#"{"contentVersion":"tms273-2","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
+            r#"{"contentVersion":"tms273-3","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
         )
         .unwrap();
         gameplay.validate().unwrap();
@@ -10412,6 +16269,7 @@ mod tests {
                     pa_damage: Some(12),
                     pd_damage: None,
                     pd_rate: None,
+                    md_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -10598,6 +16456,7 @@ mod tests {
                     pa_damage: Some(12),
                     pd_damage: None,
                     pd_rate: None,
+                    md_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -10654,6 +16513,7 @@ mod tests {
                     pa_damage: Some(12),
                     pd_damage: None,
                     pd_rate: None,
+                    md_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -10727,6 +16587,7 @@ mod tests {
                     pa_damage: Some(12),
                     pd_damage: None,
                     pd_rate: None,
+                    md_rate: None,
                     exp: 3,
                     body_attack: true,
                     move_speed: None,
@@ -11106,6 +16967,27 @@ mod tests {
         assert_eq!(w.players["a"].state.action, "stand");
     }
 
+    #[test]
+    fn quest_consume_items_accepts_array_and_boolean_forms() {
+        let mut spec = QuestSpec::default();
+        spec.complete.conditions.items = vec![QuestItemRequirement {
+            item_id: "4000000".into(), quantity: 2,
+        }];
+        spec.complete.consume_items = serde_json::json!([{"itemId":"4000001","quantity":3}]);
+        let items = World::quest_consume_items(&spec);
+        assert_eq!(items.len(), 1);
+        assert_eq!((&*items[0].item_id, items[0].quantity), ("4000001", 3));
+        for empty in [serde_json::json!([]), serde_json::json!(false)] {
+            spec.complete.consume_items = empty;
+            assert!(World::quest_consume_items(&spec).is_empty());
+        }
+        for fallback in [serde_json::json!(true), serde_json::Value::Null] {
+            spec.complete.consume_items = fallback;
+            let items = World::quest_consume_items(&spec);
+            assert_eq!((&*items[0].item_id, items[0].quantity), ("4000000", 2));
+        }
+    }
+
     // Localization/transition unit fixtures are independent of the active content edition.
     fn quest_test_text() -> crate::quest_text::QuestTextCorpus {
         serde_json::from_str(r#"{"quests": {"1021": {"name": {"en": "Roger's Apple", "zh": "罗杰的苹果"}, "log": {"zh": "前往冒险岛路与罗杰对话，使用他给你的罗杰的苹果恢复 HP 到满值。", "en": "Talk to Roger on Maple Road. Use the Roger's Apple he hands you and recover your HP to full."}}, "maple-road-training": {"name": {"en": "Training Camp Check", "zh": "训练营任务确认"}, "log": {"zh": "赛拉让你在离开营地前，先让希娜确认你的训练记录。", "en": "Sera asked you to let Heena confirm your training record before you leave the camp."}}}}"#).unwrap()
@@ -11179,6 +17061,7 @@ mod tests {
         gameplay.quests = vec![
             QuestSpec {
                 quest_id: "maple-road-training".into(),
+                executable: Some(true),
                 reward: QuestReward {
                     mesos: 300,
                     exp: 0,
@@ -11188,6 +17071,7 @@ mod tests {
             },
             QuestSpec {
                 quest_id: "1021".into(),
+                executable: Some(true),
                 reward: QuestReward {
                     mesos: 0,
                     exp: 10,
@@ -11207,6 +17091,11 @@ mod tests {
         ];
         gameplay
     }
+
+    include!("chapter_acceptance.rs");
+    include!("continuation_acceptance.rs");
+    include!("third_acceptance.rs");
+    include!("boss_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
@@ -11314,13 +17203,14 @@ mod tests {
         let accepted: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
         assert_eq!(accepted["type"], "questUpdate");
         assert_eq!(accepted["questId"], "maple-road-training");
-        assert_eq!(accepted["status"], "active");
+        assert_eq!(accepted["status"], "objectivesComplete");
         assert_eq!(accepted["name"], "训练营任务确认");
         assert_eq!(
             accepted["summary"],
             "赛拉让你在离开营地前，先让希娜确认你的训练记录。"
         );
         assert_eq!(accepted["reward"]["mesos"], 0);
+        while rx.try_recv().is_ok() {} // Full log/snapshot follow the transition.
 
         world.apply_quest_effect(
             "a",
@@ -11356,7 +17246,8 @@ mod tests {
         let mut world = world;
         world.apply_quest_effect("a", npc::QuestEffect::Start("1021".into()));
         let accepted: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
-        assert_eq!(accepted["status"], "active");
+        assert_eq!(accepted["status"], "objectivesComplete");
+        while rx.try_recv().is_ok() {}
 
         world.apply_quest_effect("a", npc::QuestEffect::Complete("1021".into()));
         let completed: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
@@ -12364,5 +18255,254 @@ mod tests {
         assert!(world.players["ice-mage"].state.mp >= mp_before_absorb);
         world.step_ice_fields();
         assert!(world.monsters[&first_monster].state.freeze_stacks.is_some());
+    }
+
+    #[test]
+    fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
+        let mut gameplay = life_gameplay(vec![
+            life_spawn("fourth-m1", "test", 140.0, 1, -1),
+            life_spawn("fourth-m2", "test", 165.0, 1, -1),
+        ]);
+        gameplay.player.max_hp = Some(1_000);
+        gameplay.player.max_mp = Some(1_000);
+        for template in &mut gameplay.monsters {
+            template.max_hp = 1_000_000;
+            template.md_rate = Some(50.0);
+            template.pd_rate = Some(50.0);
+        }
+        let mut world = World::new_with_gameplay(life_map("test"), 600, gameplay)
+            .with_mage_skills(MageSkills::bundled());
+        let (output, mut rx) = mpsc::channel(4_096);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "fourth-runtime".into(),
+                username: "fourth-runtime".into(),
+            },
+            connection: "fourth-runtime-connection".into(),
+            output,
+            reply,
+            lang: "zh".into(),
+        });
+        while rx.try_recv().is_ok() {}
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.state.job = ICE_FOURTH_JOB;
+            player.state.level = 100;
+            player.base_max_mp = 1_000;
+            player.state.hp = 1_000;
+            player.state.mp = 1_000;
+            player.state.skills = BTreeMap::from([
+                (SKILL_MASTER_MAGIC, 1),
+                (SKILL_ICE_DRAGON_BREATH, 1),
+                (SKILL_ICE_DEMON, 1),
+                (SKILL_FROZEN_ORB, 1),
+                (SKILL_INFINITY, 1),
+                (SKILL_BLIZZARD, 1),
+                (SKILL_COLD_BEAM, 1),
+                (SKILL_CHAIN_LIGHTNING, 1),
+            ]);
+            player.state.x = 100.0;
+            player.state.y = 100.0;
+            player.state.grounded = true;
+            player.state.action = "stand";
+            player.foothold_id = 1;
+            player.last_foothold_id = 1;
+            refresh_player_derived(&world.gameplay, &world.mage_skills, player);
+        }
+        let drain = |rx: &mut mpsc::Receiver<String>| {
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .map(|message| serde_json::from_str::<serde_json::Value>(&message).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let target_id = world.monsters.keys().next().cloned().unwrap();
+        let damage_without_bind = world.magic_damage_with_passives(
+            "fourth-runtime",
+            SKILL_COLD_BEAM,
+            &target_id,
+            100,
+            false,
+            "before-bind",
+            1,
+        );
+
+        // channel_until == 0 is an inactive state; it must not reset an
+        // ordinary attack on the next simulation tick.
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.state.action = "attack";
+            player.attack_until = player.channel_until.saturating_add(10);
+        }
+        world.step();
+        assert_eq!(world.players["fourth-runtime"].channel_until, 0);
+        assert_eq!(world.players["fourth-runtime"].state.action, "attack");
+        world.players.get_mut("fourth-runtime").unwrap().attack_until = world.tick;
+
+        world.handle_cast_skill(
+            "fourth-runtime".into(),
+            "dragon-1".into(),
+            SKILL_ICE_DRAGON_BREATH,
+            Some(1),
+            Some(0),
+        );
+        let dragon_messages = drain(&mut rx);
+        let dragon_event = dragon_messages
+            .iter()
+            .find(|value| value["type"] == "skillCast" && value["skillId"] == SKILL_ICE_DRAGON_BREATH)
+            .expect("dragon cast event");
+        assert_eq!(dragon_event["durationMs"], 7_000);
+        let dragon_until = world.players["fourth-runtime"].channel_until;
+        assert_eq!(dragon_until - world.tick, 140);
+        assert!(world.monsters[&target_id].bind_until > world.tick);
+        assert!(world.monsters[&target_id].bind_immune_until > world.tick);
+        assert_eq!(world.monsters[&target_id].bind_pd_rate_reduction, 10);
+        assert_eq!(world.monsters[&target_id].bind_md_rate_reduction, 20);
+        let damage_with_bind = world.magic_damage_with_passives(
+            "fourth-runtime",
+            SKILL_COLD_BEAM,
+            &target_id,
+            100,
+            false,
+            "before-bind",
+            1,
+        );
+        assert!(damage_with_bind > damage_without_bind);
+
+        // A release after the q window is a silent idempotent no-op.
+        world.tick = dragon_until;
+        world.step();
+        assert!(world.players["fourth-runtime"].channel_request_id.is_none());
+        world.handle_release_skill("fourth-runtime".into(), "dragon-1".into());
+        assert!(drain(&mut rx).iter().all(|value| {
+            value["type"] != "skillCast" || value["requestId"] != "dragon-1"
+        }));
+
+        // The ninety-second immunity is independent from bind duration and
+        // rejects a second Dragon cast without changing either mob's HP.
+        let hp_before_immune = world
+            .monsters
+            .iter()
+            .map(|(id, monster)| (id.clone(), monster.state.hp))
+            .collect::<BTreeMap<_, _>>();
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.skill_cooldowns.remove(&SKILL_ICE_DRAGON_BREATH);
+            player.attack_until = player.channel_until;
+        }
+        world.handle_cast_skill(
+            "fourth-runtime".into(),
+            "dragon-2".into(),
+            SKILL_ICE_DRAGON_BREATH,
+            Some(1),
+            Some(0),
+        );
+        let _ = drain(&mut rx);
+        assert!(world
+            .monsters
+            .iter()
+            .all(|(id, monster)| monster.state.hp == hp_before_immune[id]));
+
+        let player_x = world.players["fourth-runtime"].state.x;
+        let demon = world
+            .mage_skills
+            .level(SKILL_ICE_DEMON, 1)
+            .cloned()
+            .unwrap();
+        let orb = world
+            .mage_skills
+            .level(SKILL_FROZEN_ORB, 1)
+            .cloned()
+            .unwrap();
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.channel_request_id = None;
+            player.channel_skill_id = None;
+            player.channel_until = 0;
+            player.attack_until = 0;
+        }
+        world
+            .cast_ice_demon("fourth-runtime", "demon-1", &demon)
+            .unwrap();
+        world
+            .cast_frozen_orb("fourth-runtime", "orb-1", &orb)
+            .unwrap();
+        assert_eq!(world.players["fourth-runtime"].summons.len(), 2);
+        assert!(world.players["fourth-runtime"]
+            .summons
+            .iter()
+            .any(|summon| summon.skill_id == SKILL_ICE_DEMON));
+        assert!(world.players["fourth-runtime"]
+            .summons
+            .iter()
+            .any(|summon| summon.skill_id == SKILL_FROZEN_ORB));
+        world.step_summons();
+        assert_eq!(world.players["fourth-runtime"].state.x, player_x);
+
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.base_max_mp = 100;
+            player.state.mp = 0;
+            refresh_player_derived(&world.gameplay, &world.mage_skills, player);
+        }
+        let infinity = world
+            .mage_skills
+            .level(SKILL_INFINITY, 1)
+            .cloned()
+            .unwrap();
+        world.activate_infinity("fourth-runtime", &infinity).unwrap();
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.state.mp = 0;
+            player.infinity_next_tick = world.tick;
+        }
+        world.step_infinity_tick("fourth-runtime");
+        assert_eq!(world.players["fourth-runtime"].state.mp, 1);
+        {
+            let player = world.players.get_mut("fourth-runtime").unwrap();
+            player.skill_buffs.insert(SKILL_INFINITY, 1_000);
+            refresh_player_derived(&world.gameplay, &world.mage_skills, player);
+        }
+        assert!(world.players["fourth-runtime"]
+            .state
+            .derived_stats
+            .infinity_enhanced);
+
+        // Blizzard's hidden proc is selected from the actual successful
+        // direct targets and is excluded from its own direct-skill chain.
+        let cold = world
+            .mage_skills
+            .level(SKILL_COLD_BEAM, 1)
+            .cloned()
+            .unwrap();
+        let mut found_follow_up = false;
+        for index in 0..300 {
+            let request_id = format!("cold-follow-{index}");
+            world.cast_elemental_area(
+                "fourth-runtime",
+                &request_id,
+                SKILL_COLD_BEAM,
+                &cold,
+                false,
+            )
+            .unwrap();
+            let messages = drain(&mut rx);
+            let main_targets = messages
+                .iter()
+                .filter(|value| value["type"] == "damageEvent" && value["skillId"] == SKILL_COLD_BEAM)
+                .filter_map(|value| value["targetId"].as_str())
+                .collect::<BTreeSet<_>>();
+            let follow_ups = messages
+                .iter()
+                .filter(|value| value["type"] == "damageEvent" && value["skillId"] == SKILL_BLIZZARD_HIDDEN)
+                .collect::<Vec<_>>();
+            if !follow_ups.is_empty() {
+                assert_eq!(follow_ups.len(), 1);
+                let target = follow_ups[0]["targetId"].as_str().unwrap();
+                assert!(main_targets.contains(target));
+                found_follow_up = true;
+                break;
+            }
+        }
+        assert!(found_follow_up, "deterministic Blizzard proc did not occur");
     }
 }

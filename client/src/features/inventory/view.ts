@@ -68,6 +68,7 @@ export class InventoryView {
   private inventory: InventoryPlayer['inventory'] = [];
   private equipped: InventoryItem[] = [];
   private mesos = 0;
+  private practice = false;
   private slotsSignature = '';
   private draggedSlot?: number;
   private draggedTab?: number;
@@ -267,7 +268,9 @@ export class InventoryView {
       : ({ close: 'button:close', sort: 'button:sort', coin: 'button:meso' } as const)[kind]}/normal/0`, full);
   }
 
-  update(player: InventoryPlayer | undefined) {
+  update(player: InventoryPlayer | undefined, practice = false) {
+    this.practice = practice;
+    if (this.coinButton) { this.coinButton.disabled = practice; this.coinButton.title = practice ? this.t('练习中不能丢弃金币', 'Cannot drop mesos during practice') : this.t('丢弃金币', 'Drop mesos'); }
     if (!this.window) return;
     if (!player) {
       this.clear();
@@ -790,6 +793,7 @@ export class InventoryView {
   }
 
   private dropSlot(sourceTab: number, sourceSlot: number) {
+    if (this.practice) { this.status(this.t('请退出练习后再丢弃物品。', 'Leave practice before dropping items.')); return; }
     const item = this.itemAt(sourceSlot, sourceTab);
     if (!item || sourceSlot < 1 || sourceSlot > this.inventoryLayout.backendSlotLimit) return;
     let quantity = Math.max(0, Math.floor(item.quantity));
@@ -893,6 +897,7 @@ export class InventoryView {
   }
 
   private dropMesos() {
+    if (this.practice) { this.status(this.t('请退出练习后再丢弃金币。', 'Leave practice before dropping mesos.')); return; }
     if (this.mesos < MIN_DROP_MESOS) {
       this.status(this.t('至少需要 10 金币才能丢弃。', 'At least 10 mesos are required to drop mesos.'));
       return;

@@ -72,6 +72,7 @@ export class MenuView {
     private onChannel?: () => void,
     private onCharacters?: () => void,
     private onSettings?: () => void,
+    private onNews?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -261,7 +262,8 @@ export class MenuView {
       : entry.type === 4 ? this.onEquipment
         : entry.type === 17 ? this.onQuest
           : entry.type === 11 ? this.onSkills
-            : entry.type === 0 ? this.onCharacterInfo : undefined;
+            : entry.type === 0 ? this.onCharacterInfo
+              : entry.type === 36 ? this.onNews : undefined;
     if (action) {
       this.close();
       action();

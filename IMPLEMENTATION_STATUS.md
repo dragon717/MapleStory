@@ -506,3 +506,173 @@ Luna/max mage_sp_official续作导出72张额外PNG与mage-effects.json，另复
 - 用户报错来自未引用的main 2.ts、names 2.ts、world 2.ts旧副本；index.html实际入口为main.ts，现用调用已经传入manifest和完整CombatView参数。tsconfig保留src完整类型检查，仅排除src/**/* 2.ts，保留副本文件，不把旧副本改造成第二套运行实现。
 - Request::Verify及对应match分支、creation_default仅由cfg(test)模块调用，改为cfg(test)，正式认证继续走VerifyCharacter。未使用allow(dead_code)。
 - npm --prefix client run build通过；cargo build与cargo test --no-run通过，无所报Rust警告。只重建产物，未执行启动器、重启服务或修改用户库。
+
+
+## 2026-09-08 升级原版反馈 v0.6.1
+
+- Luna/max导出中因用量限制终止，root接管已有scripts/export_tms273_levelup.cjs与levelup.json，检查通过：Effect/BasicEff.img/LevelUp为21帧（首500ms，其余90ms，共2300ms），Sound/Game.img/LevelUp MP3为10920字节；3个实际WZ来源SHA256已保存。核看两序列第8帧，未把不同外观等同同步叠层，删除未证实的同步声明。
+- LevelUp2的23帧单独保存，缺delay沿用reader默认100ms且不投入运行；播放选择明确P。现用只加载LevelUp和原版音效，原点/透明度/帧时间保留。导出进入既有build_tms273管线，assemble投影到可选levelUp字段。
+- PlayerView沿用角色生命周期：观察等级上升、跨级单次播放、最高已见等级抑制旧快照重播；初次入图和重连不播。特效跟随脚点且不随角色朝向镜像，独立源帧到期销毁，声音完成或角色离开销毁；World统一预载并沿用静音。
+- levelup.check.mjs已加入npm check，定向覆盖跨级/旧快照/初入图/重连、跟随、源时长、声音结束与离开清理；此前该检查及typecheck通过。本次资源指纹检查、生产构建通过，最终dist确认21帧/2300ms与MP3齐全，前端v0.6.1。较早产物检查发生在构建尚未完成时，最终构建完成后重检通过。
+- 仅更新静态产物，未重启3010或修改账号；观察到现有PID4661监听，非本任务启动。实际运行表现交用户验收。
+
+## 浏览器铺满游戏与枫之谷消息（2026-09-08，实现/定向检查完成）
+
+- root修改main.ts/style.css/menu/view.ts：移除主游戏外层宽高限制与边框，100dvh承载Phaser RESIZE，ResizeObserver同步渲染与动态HUD占高；聊天置于HUD上方，宽屏/横屏/窄竖屏保留原尺寸按钮换行。world.ts仅调整centerOn垂直偏移为min(120,height×0.1)，修复844×390角色名字被HUD挡住；保留其他任务同文件修改。
+- 复用273 UITotalMenu menu/buttonInfo/6/1（type36，楓之谷消息）入口，独立原生dialog集中原页面地图/传送门路线、连接/人数、版本、语言、声音、重连/返回角色和最近30条状态。开窗释放输入，模态键盘不穿透；Esc/关闭与离图恢复节点、焦点和监听器，错误提示仍可打开消息恢复连接。消息排版为本次用户授权的网页适配，非官方273新闻窗口1:1声明。
+- 来源：研究包workstreams/08及PDF第2/3/5页、HTML A01图卡已读取；A01原图https://hackmd.io/_uploads/HkUqz2C5lx.png本轮打开失败，标未核看。已实际查看本地273 UI/_Canvas/UITotalMenu.img/main/backgrnd（client/public-tms273/assets/tms273/UI__Canvas_UITotalMenu.img_main_backgrnd-588cd18411.png）与清单type36入口，沿用现有青白色菜单结构。
+- Luna/max viewport_trace只读追踪容器/相机/背景平铺链，确认Phaser相机随scale更新、背景读取动态相机尺寸，无额外背景resize机制；未启动独立QA。地图bounds保持原权威范围，小室内图在超大视口下可能露出边界外背景色，完整地图边缘实玩待用户验收。
+- 新增唯一必要脚本client/src/app/viewport.check.mjs（node运行，沿用仓库esbuild/已装Playwright），真实主入口、Phaser、273单地图和默认角色，网络/入口为内存替身，所有请求限定viewport.test。1440×900、844×390、390×844、320×568、1920×1080及回切横屏通过：canvas/相机尺寸一致、无横向溢出、HUD按钮在界内、聊天/HUD不相交、角色名字高于HUD、type36打开/关闭、信息迁移、模态输入隔离、30条去重上限、断线重连和离图节点还原；无pageerror。截图及results.json位于output/playwright/viewport/。
+- npm --prefix client run build -- --outDir dist-viewport-check --emptyOutDir false通过（含tsc，46模块）；未覆盖运行dist、未动在线服务或数据库。共享协议已由并行任务升级7，发布由「执行 tms273 复刻计划」任务下一次统一完成；已发送交接，不宣称在线生效。
+
+## 启动3010的E0308修复（2026-09-08）
+
+- 用户报告world.rs quest_consume_items将Vec<Value>传给serde_json::from_value导致启动脚本服务端编译失败；唯一调用在任务完成的消耗道具分支。已仅将数组包装回serde_json::Value::Array，保留布尔/默认消耗语义与并行任务修改。
+- cargo build --manifest-path server/Cargo.toml通过；定向world::tests::quest_consume_items_accepts_array_and_boolean_forms通过（1 passed），覆盖显式数组、空数组、false不消耗以及true/null沿用条件物品。现存3条未读取字段警告不阻断构建。
+- 本轮未执行启动/停止脚本、未触碰在线库；原服务继续由既有进程运行。已向并行任务交接修复。
+
+## 3010健康检查失败恢复与全屏前端上线（2026-09-08）
+
+- 日志证实程序要求tms273-3而gameplay仍为tms273-2，导致退出且3010无监听。并行任务完成真实首章资源装配后恢复；本任务未重复装配或仅改版本标签。
+- 启动3010.command在停服前复用check_tms273_runtime.cjs并传入CONTENT_VERSION；检查脚本接收预期版本参数。匹配通过与故意不匹配拒绝的定向检查通过。
+- 统一启动脚本exit0：17图/17049引用检查、Rust和前端构建、health版本检查通过。服务PID21001，原凭据bot PID21067已连接，v0.6.1 / protocol7 / tms273-3，全屏及枫之谷消息上线。数据库账号未重置。
+- 启动恢复不等于首章业务验收，后续业务验证仍由并行任务执行；代码写入与启动已释放并交接。
+
+## Rust三条未使用字段警告清理（2026-09-08）
+
+- QuestConditions和QuestSpec的source_job为来源元数据，运行权限读取conditions.job；当前4个QuestObjective均为collect，进度读取item_id/required。内部字段改_source_job/_kind并保留serde显式sourceJob/kind及type别名，不改变业务或数据结构。未添加全局allow或删除来源信息。
+- cargo build --manifest-path server/Cargo.toml通过，无warning；git diff --check通过。未重启服务或修改存档。
+
+## 全屏背景露底修复（2026-09-08）
+
+- 用户选择岔道截图上下浅色带为Phaser底色：273 grassySoil_new/back/0天空738高与back/12水色267高只横向平铺，大屏超出垂直范围。已查看两张源图，Luna/max只读核节点及alpha；同来源被多张地图复用。
+- 最终只对这两条已核背景色带增加垂直覆盖：天空上缘不足时上移到0并拉长色带，水色下缘不足时延至视口底。色带渐变连续，建筑、云层、视差参数、角色、地形及物理坐标保留；不新增纹理或边缘精灵，不整屏缩放。其它垂直平铺背景继续先归一化再定位。
+- 现有viewport.check.mjs保留首章/任务/HUD/消息检查，补选择岔道1800×1083、2560×1440、3600×2166、390×844、844×390及回切，顶部/中上部/底部像素拒绝原画布底色，背景清理通过。真实Phaser离线检查通过，宽屏及竖屏截图已目视核对，证据output/playwright/viewport/background-*.png；未使用在线账号或启动独立QA。
+- 最终tsc/Vite生产构建通过；已复制新hash JS/CSS并原子替换运行dist的index.html，保留原资源及旧hash文件。前端现为index-B-3x5MB9.js，服务及bot未重启，数据库未改动，刷新生效。
+
+## 2026-09-08：冒险家开局六任务大模块与有限核心验证
+
+- 已接36301/36302/36303/36304/36306/36307：原273条件/文本、原NPC素材与位置，接取→叶堆取发夹/蜗牛壳收集→NPC交付→船票消耗及维多利亚港→返回汉斯。任务状态、奖励、背包和地图同一SQLite事务；重复提交不重复发奖，持久交互以DB背包事实恢复。保留既有任务记录与职业，不重置存档。
+- 来源：官方日服 https://maplestory.nexon.co.jp/gameguide/basic/quest/ 与SEA https://www.maplesea.com/guide/user_interface/ 仅作R任务状态/追踪交互结构；跨区Wiki Sugar's Suggestion、Victoria Island or Bust仅佐证收壳/船票剧情。本地273 Quest Check/QuestInfo、NPC life、Item info为T。原q363脚本缺失，EXP15/30/45/90/120/150、对白代替过场、叶堆点击、4033919船票映射和返回路线均P；未实现原版礼盒内容/过场，未称1:1或完整M2。
+- 素材静态纠错：guide/tutorial/key/0实际为方向键帽，已排除。真正叶堆使用出生图obj-5-0，acc1/mapleIsland/maple/6，源锚点(-432,646)、215×55、origin(107,27)，客户端使用源矩形(-539,619)绑定点击；缺失原版脚本绑定仍为P。
+- 后端有限检查：`cargo test --manifest-path server/Cargo.toml chapter_ -- --nocapture` 3/3通过，实际shared数据+临时SQLite+真实NPC菜单贯通六任务、船票/地图/重登、死亡/远程选择/未接取拒绝；事务检查含重开重放、EXP/mesos/物品/位置不被重放覆盖、未知物品回滚、满包失败后重试。无在线账号探针或在线DB写入。
+- 原任务兼容定向5项初次3过2失败（无目标任务现在投影为objectivesComplete且发送全量日志）；更新两处旧断言并排空新增推送后，两项各自精确复验通过。未接入脚本拒绝修改任务状态的精确检查1/1通过。未重复通过的其它项。
+- 界面有限检查复用`client/src/app/viewport.check.mjs`：真实Phaser/本地273图，5尺寸+回切、叶堆点击仅发送一个意图、进度变化、热点消失/断线清理、任务日志不横溢且不挡生命栏。实际截图发现追踪条叠标题/小屏挡HUD后修复并复验通过；证据`output/playwright/viewport/quest-320x568.png`等。并行背景修复任务随后保留这些检查扩展并通过，前端最终build及静态发布由该任务完成。
+- 检查规模：4个独立脚本当前507行（chapter203、store125、viewport146、runtime33）；另world/auth内嵌检查及适配不足40行，总计6文件、不到550行，低于本模块7文件/1000行上限。`git diff --check`通过。
+- 发布边界：用户另一个启动修复任务已统一启动protocol7/content tms273-3并保留数据库和陪测bot，前端包含上述任务UI。最后的后端读档失败处理/提示/历史记录兼容修正已通过测试，尚未另行重启在线进程，待下一次用户启动统一带入。真实移动手感、原过场及后续36308+剧情仍不属于本次通过项。
+
+
+## 初心者升级SP漏发与旧档差额补偿（2026-09-08）
+
+- 根因：auth与world升级仅给法师职业SP；当前库只读快照为两条lv2/job0、skills与SP为空。前端目录也无初心者页，原先显示法师SP未知。
+- 修复：auth::grant_level_sp供持久奖励/World奖励共用；job0升2..7每级1SP入book0，法师200/220/221及历史222规则不变。load_profile事务仅对job0补max(0,min(level-1,6)-skills[1000]-skills[1001]-skills[1002]-现有book0余额)，保留超额、其他技能书、技能/AP/任务；余额即幂等依据，失败整体回滚，不按总等级覆盖法师SP。
+- 前端复用原技能窗tab0显示独立余额；初心者技能尚未开放学习，页面明确说明，不虚造可学习技能或把新手SP混入法师书。
+- Luna/max只读核定本地`参考/273/TMS273少爷一键端/手工服务端/tms273-1/WZ_JSON_TW/Skill/000.json`含0001000/0001001/0001002，均maxLevel3；同树String/Skill.json名称为嫩寶丟擲術/治癒/疾風之步。源不含SP授予脚本，未将技能节点当作升级规则证明。
+- 来源：跨区历史R规则 https://en.wikibooks.org/wiki/MapleStory/Beginner_Guide/Skills 与 https://strategywiki.org/wiki/MapleStory/Job_Advancements 支持2..7各1SP；JMS官方 https://maplestory.nexon.co.jp/gameguide/growth/skill/ 只作现代职业SP背景。该初心者数值暂标P，未宣称来自TMS273执行脚本。
+- 验证通过：cargo test beginner_sp_growth_and_legacy_repair_are_idempotent（旧档已升级/已消费/超额保留、重复登录、数据库重开、2..8跨级、法师200/220/221/222隔离）；cargo test mage_level_up_grants_three_book_points_once_across_reward_replay；client npm run typecheck；node client/src/features/skills/points.check.mjs。新增检查仅2文件约90行。初次编译遇三转在途类型错误，所有者修复后本任务两项通过；旧view.check精神强化toggle断言由三转任务收口，未以其失败冒充全套通过。
+- 发布边界：本任务未重启服务、未写在线库或更新dist。两条旧初心者各1SP为待补差额，新版本统一发布后首次角色入图自动写入；用户实玩与实际补偿到账待验。
+
+
+## 冰雷三转核心大模块：代码与有限验证完成，未在线发布（2026-09-08）
+
+- 联网核对 https://maplestory.nexon.co.jp/job/adventurer/archmage02/ ，仅采用R职业结构/技能类型；TMS273.7 Skill/221、String、任务36329/1434与实际Mob源决定数值/等级/素材。旧1436 blocked=1不启用；缺原版脚本与执行时序继续标P，不替换冒险家原剧情或重置存档。
+- P汉斯lv60/job220→221入口、book221首次5SP/之后每级3SP；CAS防重发，旧221不自动补点，222沿用原220升级点数并可花已有221点。已合并并行初心者SP差额修复（其独立验证见对应历史）。临时经验曲线沿用15*level²扩至100，仍非官方经验表。
+- 源目录29节点/三本书，新增12个221节点，隐藏2211015禁止直接学习/施放。全部三转原图/音效、5种角色姿态及两性/装扮部件导出；冰风暴原始0 delay保留元数据、显示至少1ms。雷球stand/move/attack源序列独立于施法光效。装配content tms273-4，17图/3215引用素材；protocol7只新增可选派生/召唤快照字段。
+- 权威World接冰风暴/冰墙8目标4段、瞬移增距与精通伤害/眩晕、精通被动抗击退、魔力激发MP/伤害、暴击、终极魔法状态增伤、冻结逐层概率无视魔防、自然重置独立最终伤害。真实4怪MDRate=10；没有元素抗性源，不把mdRate冒当元素抗性。
+- P雷球每角色至多1个，1080ms脉冲；普通2211011移动/time60+3x，↓0转固定2211015/time20+2x，沿用主技能等级，转换不延长原到期或重置脉冲。独立攻击原点不改角色坐标；同请求不重扣MP、不重建球；死亡/离图/断线/到期清理。u2只给普通怪追加源倍率，Boss不加。
+- 元素适应MP/CD同SQLite事务、重登不能绕过CD，P施放即启动CD并刷新8次防护计数；源被动异常/元素耐性常驻，不依赖开关或剩余次数。当前4怪没有致命异常攻击，防护消耗/重建尚无实际敌方状态入口，不能宣称已验证完整异常防御；后续Boss/状态模块补齐。原作在防御次数耗尽后启动CD的时点尚未复刻。
+- K技能页显示三转/学习门槛、施放或开关、冷却/防护次数、不可用原因；8冰风暴、9冰墙、0雷球、↓0固定。客户端按权威召唤快照用原帧呈现并清理；精神强化修正为限时buff刷新，非开关。
+- 验证：auth third_store_* 3/3；world third_* 3/3，失败仅修测试夹具的Join、持久skills seed与baseMP，再精确复跑失败项。另补雷球真实脉冲/固定原点/同tick不重复、普通331%×3与Boss256%×3、未开启元素适应仍有被动抗性断言，精确通过；最后Rust编译无警告。冻结只在首次成功结算后加层，失败不留免费层。
+- 有限检查脚本：third_acceptance.rs 247行、third_store_acceptance.rs 137行、skills/view.check.mjs 156行、combat/skill.check.mjs 93行、check_tms273_runtime.cjs 37行，共670行；加auth/world两处include合计7文件、672行，未超≤7/≤1000。客户端三脚本通过；npm run build -- --outDir dist-third-check成功；git diff --check通过。无独立QA或在线测试账号。
+- 离线生产构建v0.7.0在client/dist-third-check（JS index-DOWHxrA2.js），未覆盖在线dist-tms273、未重启服务或更改在线数据库。在线仍v0.6.1/content3；下次通过启动3010.command构建加载。用户实玩动作、声音、击退、遮挡与技能节奏待验。
+- 已释放业务/导出/协议文件给用户初心者技能任务01a07ef8-4afc-7762-b743-f0b90a481015继续0001000/1/2；其后续32目录/content5不属于上述29目录验证结果。完整冰雷四转、后续区域/成长/Boss、36308+及原版执行时序仍未完成，未触发Codex彩蛋，整体goal保持进行中。
+
+## 冰雷四转来源核定（2026-09-08，尚未接运行）
+
+- ice-fourth-job-source.json记录Skill/222的26节点（普通11、Hyper12、隐藏3），实际Skill包entry14解出144988 bytes；JSON/WZ共享语义与String字段一致，保留文件哈希、原始公式/req、动作、视觉outlink和Sound/UOL。不是技能已可玩证据。
+- 已确认10/12段与15目标、按压束缚/90秒抗性、AP投入属性被动、冰魔与雷球共存、固定2220015。冰锋刃time4000/attackDelay210单位及服务器时序仍需明确P执行；净化common.time1与文本免疫3秒分开，不使用旧pdesc覆盖当前h。
+- ice-fourth-job-transfer-source.json保留1452/1453/36330–36333及排除事件13030的原条件/文本/哈希；lv100/job221有同版来源，未恢复原执行脚本。JMS官方职业与成长指南、MSEA历史SP/2023技能公告仅为R；初始3加101–140累计252恰为255学习SP，仅为P候选，不证明TMS授予规则。
+- 只做来源和静态架构核对，未运行四转业务测试、未改在线服务/数据库。后续定向查明112/212分别在_Canvas_003/038.wz；完整reader可解析，先前假缺失来自临时目录只挂载000/035/040。源产物已补两个archive哈希与代表性帧尺寸，四转导出时补挂载即可，不需改通用reader。
+
+
+## 初心者三技能内容闭环（2026-09-08，v0.7.1 / content5）
+
+- 用户要求先查现有参考、缺失再联网。本地实际TMS273.7 Skill/000.img、String/Skill.img与Sound/Skill.img已核并导出：0001000嫩寶丟擲術、0001001治癒、0001002疾風之步，内容key规范1000/1001/1002，book0、max3，原前导零路径与指纹保留在resources/tms273-export/skills.json、mage-effects.json、skill-sounds.json。其余五个可见节点缺默认授予/解锁依据，未擅自免费开放。
+- T数值：丢掷MP3/5/7、固定伤害10/25/40；治愈MP5/10/15、30秒恢复24/48/72HP、CD120秒；疾风MP4/7/10、持续4/8/12秒、速度+10/15/20、CD60秒。源无壳消耗字段，不套Classic/私服材料消耗。三技能图标与各级说明；丢掷每级球3帧/命中6帧、治愈13帧/疾风12帧、原Use/Hit音效均已导出。
+- 复用SP/技能动作账本与MP/冷却事务，book0仅允许这三项最高3级；重放不重复扣SP/MP，转职后保留初心者学习/使用权限，已消费SP不会被旧档补偿重新加回。丢掷单目标固定伤害、不受魔攻/暴击/魔防影响，具有动作锁；治愈六次tick先持久保存再改内存HP，不超上限；疾风实际改变移动速度，死亡/离图/断线清buff，CD仍持久且重登可见。
+- P适配边界：源未给1000精确距离/命中调度，复用当前远程340px与600ms动作锁，立即权威结算；回血每5秒一次由源x与30秒总量推导。针对本地缺失的执行时点已补查 https://maplestorywiki.net/w/Three_Snails 与 https://maplestorywiki.net/w/Recovery 等跨区资料，未取得TMS273精确执行证据，不采用Classic冲突数值。现有基础MP容量/成长保持原规则，未为施放免费加MP或降低源消耗。
+- 前端K初心者页可学习/施放，初心者1/2/3分别丢掷/治愈/疾风；转职后快捷键恢复原职业映射，初心者页仍可操作。显示效果/CD剩余时间；skillCast/damageEvent可选skillLevel锁定对应球/命中素材。DerivedStats新增可选skillCooldowns/skillBuffs，协议7兼容，content5。运行manifest将分级效果投影为1000:1..3扁平组并去掉顶层来源对象，维持预加载数组契约；完整来源仍留原导出。
+- 验证通过：auth::beginner_learning_sp_and_cooldowns_survive_replay_and_reopen；world::beginner_skill_runtime_locks_fixed_damage_and_timed_buffs；mage::bundled_catalog_is_strict_and_has_energy_bolt_geometry（真实32节点）；cargo check；client typecheck；points.check.mjs/input.check.mjs/combat/skill.check.mjs；check_tms273_runtime.cjs tms273-5（17地图、24034素材引用）；Vite生产构建到client/dist-beginner-check；定向diff空白检查。核心检查变更7文件、不到500行，无独立QA。
+- 发布与用户待验：源码/资源装配已完成，未更新在线dist-tms273、未重启服务、未写在线账号库；下次根启动3010.command统一带入。待用户实际验收K加点、1/2/3施放、原素材朝向/位置、MP提示和旧账号补点到账。初心者三技能已完成，不能把更高转职或所有000事件技能算作完成。
+
+
+## 2026-09-08 普通四转运行基线 v0.8.0 / protocol8 / content6
+
+- 已接11普通四转源节点，累计43目录；原初心者/前三转保留。Hans P lv100四转、SP差额修复/学习前置/固定技能在现有CAS，原剧情和存档保留。按压释放、束缚与90秒免疫、防御削减、独立冰魔/冰锋刃/雷球、Infinity基础MP恢复/后段提示、实际命中触发暴风雪追加及属性接入。
+- 源资源装配17图/3929素材/52NPC/4怪、31845资源引用。修复隐藏追加元数据混入数组、按压初始0误清普攻、q受buff时长放大、Infinity毫秒/tick混用、追加攻击目标错配和净化伪清攻击。旁观者恢复双层按压与声音清理已接。
+- 必要验证：world::tests::fourth_job_core_channel_bind_summon_infinity_and_blizzard 1/1；mage::tests::bundled_catalog_is_strict_and_has_energy_bolt_geometry 1/1；fourth_store_ 4/4；mage_level_up_grants_three_book_points_once_across_reward_replay 1/1；cargo check通过。前端typecheck、skills/view.check.mjs、combat/skill.check.mjs、check_tms273_runtime.cjs通过；dist-fourth-check生产构建通过。
+- 核心检查共7文件，独立4文件507行+world新增247行+mage既有检查约35行/auth接入及旧用例范围，合计低于1000行。没有独立QA或重复全套验收。
+- 边界：SP历史MSEA分档、Hans入口、部分执行节拍均P而非原脚本；Hyper未开放。净化虽保留3秒免疫权威窗口，但当前敌方异常入口仍缺，尚不能宣称真实异常解除/拦截完成，需接后续状态/Boss。原版四转剧情脚本未恢复。在线dist/服务/数据库未修改，实际画面与手感用户待验。
+
+
+## 2026-09-08 区域成长与首只Boss练习 v0.9.0 / protocol9 / content7
+
+- 开发与有限核心验证完成：30张原地图、85NPC资源、17怪模板（16图内+独立树妖王）、459真实物品，37647源资源引用。新增13图按原门户/foothold/life导入；缺源2212004保留来源缺口，禁止生成假属性/假图标并从激活掉落和商店过滤。导出入口统一实际TMS273目录，不再误标旧路径。
+- 树妖王3220000仅为102020500的P私有练习，Lv25入口；原HP7500、3420ms攻击、1500/1320ms命中时点向上取整，原防御/治疗动作和真实MobSkill特效。服务端遭遇ID隔离、操作去重和旧场次拒绝；零经验/掉落，不写原任务完成，不占正式奖励。强控取消排队攻击，死亡保留源动画后返回，失败/退出/断线恢复真实地图；已完成状态可关闭/重试。
+- 接触与Boss受击复用候选Profile提交后才更新世界，错误不吞；退出提交失败不缓存成功。攻击账本增加map绑定，新claim和未完成resolve双重拒绝跨地图；旧无地图未完成记录拒绝恢复，已完成结果仍安全重放。实践击杀账本practice=1、Store强制零奖励；无Store路径也实际验证零奖励。原账号和剧情保持，未触碰在线数据库。
+- 前端复用sourceMapId地图/原动作；BGM按资源URL复用避免私有图漏加载与重试增长。预警由服务端世界坐标驱动，入口/HP/阶段/退出重试可见，练习禁止丢物和金币。112/113重复effect与mob0只播一组800ms光效，状态图标延续；114保留1100ms源空帧与2060ms总时间，缺失effect不伪造。死亡/离图清理，成功提示不显示成错误。新增装备level嵌套元数据由unknown值类型保留，原数值读取路径不变。
+- 验证：attack_store_ 2/2通过（含临时DB关闭重开、旧schema迁移、旧未完成/跨map拒绝、已完成重放、正式奖励保留）；boss_practice_ 3/3通过（实际30图资格和站位、观察者隔离、旧遭遇/重复请求、失败可重试、真实无Store普攻击杀零奖励、断线恢复、受击失败不改HP/MP、死亡时序、朝向、控制、112/113/114边界）。cargo check通过；仅既存contact_damage dead-code警告。
+- 前端typecheck、boss.check.mjs、check_tms273_runtime.cjs通过；最后一次dist-boss-check离线构建通过，JS约1.70MB触发现有体积阈值提示，没有为此引入新拆包机制。git diff --check通过。核心6文件：4个集中脚本共507行（264+121+54+68），另auth/world宿主和必要签名增量后不足550行；未跑独立QA。
+- 来源边界：victoria-first-boss-source.json保留T原字段、R官方MSEA练习隔离与Swordie v206 MobSkill语义、P执行选择。2813–2816及上游任务blocked，未解封；两个私服千万HP/地图冲突配置排除。112/113保留对应伤害85%、114以80%门槛恢复700、调度节拍、圆形attack2与特效挂点为P，不冒称原作精确执行。原正式生成/奖励和敌方玩家异常仍U；未把首只练习等同完整M4。
+- 在线dist-tms273/服务未更新；用户待验实际30图行走、Boss手感/预警/特效遮挡、宽屏/横屏/窄屏交互。后续启动统一启动3010.command，正常保留存档。
+
+
+## 技能详情灰白遮挡与273快捷栏（2026-09-08）
+
+- root统筹main/input集成与离线组件验收；skill_detail、shortcut_hud、shortcut_source均Luna/max。未启动独立QA、未重启在线服务或修改账号库。
+- 根因已用真实273资源复现：详情学习按钮的skill-action-art继承绝对定位与100%宽高，缺少定位父级，渲染为299×260覆盖详情（技能图标仍32×32）。skills/style.css为详情动作按钮补position:relative，修复所有按钮态，不改源素材。before-detail-1440x900.png与修复截图保存在output/playwright/hud-skills/。
+- HudView接32个源槽与18个现有绑定（1–0、四转Shift+1–8），显示技能图标/等级/冷却秒数/不可用态/开关态，支持点击与2221011长按请求及松手、焦点变化、死亡、隐藏、清理、切图释放。指针操作保持游戏焦点；键盘仍可Tab进入。input.ts的shortcutSkill由HUD和物理键盘复用，main复用同一施放请求生成器；无服务端或协议修改。
+- T依据：已实际打开UI/StatusBar3.img/mainBar/quickSlot/backgrnd原始557×67图，16×2、32px槽、35px间距；参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/UI/UIQuickSlot.json明确35间距和4×2至16×2设置范围。网页响应式重排、文字折叠按钮与现有固定映射为P适配；未拿83槽态替代273。尚无完整改键、道具绑定、原版设置/折叠控件导出，不宣称整个273键盘设置1:1。
+- 研究包HTML A01/A02只作为候选索引；A01仅核到远图元数据，A02远图未作视觉结论。MSEA官方https://www.maplesea.com/guide/user_interface/ 与https://www.maplesea.com/guide/control/ 的展开/收起及技能/物品绑定说明为R结构参照，不当作TMS273精确默认键位。
+- 验证通过：input.check.mjs（含共享映射初心者/一转/Numpad/四转边界）；skills/view.check.mjs；HUD gauge检查；scripts/check_hud_skill_ui.mjs（79行离线真实组件：1440×900、844×390、390×844、320×568和回到桌面，无横溢出/按钮出界、详情图像不越32px；32槽/普通点击/冷却/折叠/指针保持游戏焦点/快照禁用后松手/焦点变化立即释放/玩家消失释放）。最终npm run build -- --outDir ../output/hud-ui-build通过，TS通过；现有Phaser大包仍有约1.71MB体积警告。
+- 在线dist-tms273未覆盖；后续统一启动3010.command带入，实际地图遮挡/战斗手感交用户亲测。
+
+
+## 自然恢复永久被动（2026-09-08）
+
+- 用户P数值：初心者基础HP/MP各+1每秒；冒险家法师系额外MP+1，战士系额外HP+2，后续转职保留基础与对应职业被动（合计初心者1/1、法师1/2、战士3/1）。每职业一个额外永久被动，自动获得，不消耗SP，不发送施放意图，不污染原版技能ID或技能等级存档。
+- 同版依据与联网工程方案保存于references/tms273-data/natural-recovery-source.json：0001001是主动30秒治癒；2000006、1000003、1000009是MP/HP上限或成长；1110000周期恢复为后续职业参考。联网Epic Gameplay Effects采用Infinite+Periodic结构、Unity为服务器权威参考；MSEA历史初心者指南仅作主动/被动区分，不套用其旧冷却/转职值。
+- Rust world.rs在单一顺序step内结算，每角色入图完整1秒后恢复；死亡暂停，复活/切图重置计时，重连不补离线，HP/MP分别封顶。只到恢复边界且缺资源才复制候选/写SQLite，保存成功后改世界，失败等下秒重试不补欠账。永久被动按权威job派生，独立于有期限skill_buffs，玩家输入与伪造技能等级不能堆叠它。
+- 协议新增兼容regenerationPassives（id/bookId/hpPerSecond/mpPerSecond），TS为可选，旧快照不虚构恢复；bot直接保留服务器快照，无新增发送字段。K窗口复用273 skill0原格展示永久文字卡，点击仅显示说明；战士被动有对应book100标签。未伪造原版图标/技能ID，未扩展战士转职入口。C06远程图本轮无法打开，已查看现有本地273背景并复用组件。
+- 验证：`/Users/muniao/.cargo/bin/cargo test natural_recovery -- --nocapture` 3/3通过，覆盖职业/后续转职/非对应职业、不受技能叠加、19/20 tick、封顶、死亡复活、重连无离线、成功落库和保存失败不改内存/不密集重试；`beginner_skill_runtime_locks_fixed_damage_and_timed_buffs` 1/1通过，原治癒与新增秒回叠加断言同步。最初章节测试两处Result索引编译错误由章节开发者修复后通过，不改其业务范围。
+- 前端`npm run typecheck`通过；`node scripts/check_hud_skill_ui.mjs --regeneration`通过权威快照/点击不发请求/职业继承/死亡保留、1440×900、844×390、390×844、320×568与resize。截图output/playwright/hud-skills/regeneration-*.png；390×844已目视检查。`npx vite build --outDir ../output/regeneration-build`通过（现有包体积警告保留），无覆盖在线dist。定向检查新增/修改仅world.rs内联检查与现有UI检查脚本，不启动独立QA。
+- 本模块文件释放；在线服务/数据库未变，下次统一启动3010.command加载。尚未实际账号实玩，数值遵从用户P规则，不冒称TMS273原作秒回。
+
+
+## 2026-09-08 原剧情接续执行 v0.10.0 / protocol9 / content8
+
+- 接续九任务1402→36337→36308…36314已接入，累计15条可执行任务、64条原始任务；任务导入器补收363xx之外的1402。41张源地图与NPC/物品已装配，源Mob0210100从同版MS解包，帽子1003134的两性纸娃娃动作沿已有导出器接入。
+- T：保留原QuestInfo/Check、NPC模板/源life、地图几何和物品数值；帽子reqLevel=0、reqJob=0、防御30及原禁止交易字段保留。adventurer-continuation-source.json与chapter.json保存源指纹/原始节点。R：官方MSEA v217的有条件主动跳剧情仅作为结构参照，不自动补记剧情。
+- P：明确NPC接取/交付替代缺失q1402/q363演出；选择法师路线恢复，不自动填写1406或其它职业剧情。章节EXP依次0/300/450/600/750/900/1050/1200/1500，无金币。那因哈特接取时发书信；伦多接取潜入时发原帽子、需实际戴帽；潜入后伦多交接找到的文件/封印石，回赫丽娜交付。物品不可交易/丢弃，重复接取不额外发放。Olivia使用原模板放在耶雷弗源入口平台，仅36309进行中显示；原源位置仍留档。
+- P交通：图书馆/弓箭手中心缺脚本门户绑定本地对应端点；远程章节传送及在发起NPC续行明确为适配。任务ID与菜单动作绑定，选择时重验状态/源NPC/条件；源空中出生点保留自然下落。原版完整过场、取得物品的演出与精确奖励/交通脚本仍U，不宣称原场景1:1完成。
+- 后端：q1402通过现有commit_quest同事务提交职业/SP/MP、任务与mage_support_granted；DB核10级/36307/旧职业，错误候选拒绝。既有200/220/221/222仅恢复剧情，不降职、不重复授予。startItems与任务/传送同事务，满包无半提交；装备目标读取真实equipped，换装刷新日志。warp_player由候选先落库再发布，失败保留位置/施法/恢复时钟，可重试；已与自然恢复模块同步地图切换时钟。
+- 有限核心：continuation_store_ 2/2通过；world::tests::continuation_ 3/3通过，使用实际41图/NPC菜单走完整链、重连书信、真实戴帽、重复领奖、23格占用后的双物品原子回滚、过期菜单、旧222职业/SP与保存失败后重试。新脚本276+111行；既有Boss图数断言仅维护为41、未重跑Boss；源检查85行通过41图/42672资源引用/两端几何和前置源一致。计6文件，集中脚本736行，含宿主增量不足750行。
+- 编译由上述定向Cargo测试完成；相关git diff --check通过。前端复用并行自然恢复任务本次通过的typecheck与output/regeneration-build离线构建：root核实产物manifest与当前public SHA相同、content8/41图，源码TS/CSS无更新；未重复构建。自然恢复3+1测试属于其独立用户模块，不计本章节验收，也不冒充章节覆盖。
+- 未发布在线dist、未启动/重启服务、未改在线库。用户待验实体路线与门户、长任务文本/目标提示、源NPC挂点与帽子层、原地图行走/遮挡/音效。下次仅通过根启动3010.command加载。完整M2、Hyper/V/HEXA及后续研究包目标继续在PLAN，不触发冰雷完成彩蛋。
+
+## 网页右键浏览器菜单拦截（2026-09-08）
+
+- client/src/app/main.ts初始化时在document捕获contextmenu并preventDefault，覆盖登录与游戏页面，不停止事件传播，保留背包丢弃/装备卸下右键逻辑。
+- Node EventTarget定向自检通过：contextmenu默认行为取消、后续游戏监听器仍执行、普通click不取消；npm --prefix client run typecheck通过。未更新在线dist或重启服务，下次统一构建加载，真实浏览器右键待用户验收。
+
+## 启动资源检查过期修复（2026-09-08）
+
+- 用户运行启动3010.command在资源检查阶段失败：Hyper生成/装配已为content9、200级经验表和56技能，check_tms273_runtime.cjs仍保留content8、140级、43技能预期。仅更新三处检查契约，保留完整经验公式、等级上限终值0和资源检查，不回退数据或绕过检查。
+- node scripts/check_tms273_runtime.cjs tms273-9通过（41 maps、44582 source references）。仅离线检查；未重启服务、未更新dist或更改存档；不代表在途Hyper业务已完成验收。
+
+## 用户启动编译恢复（2026-09-08）
+
+- 启动失败根因是同工作区Hyper在途代码未完成：world.rs缺Player会话字段、两个激活方法和错名常量。协调所属任务01a07eb1-c556-72d1-9874-7078fb1772c0/Luna完成实现并冻结，本任务compile_trace Luna/max只读核世界循环与快照入口；未交叉编辑业务。
+- 统一构建进一步发现并由所属开发者修复：combat/view.ts两处player空值收窄、world.rs增伤分支多余闭括号。并行核心检查修复窄屏纵向定位和结界Use重复音效后，本任务对最终代码重建。
+- 最终/Users/muniao/.cargo/bin/cargo build --manifest-path server/Cargo.toml通过，7.78s；仅contact_damage dead_code警告。npm run build -- --outDir ../output/startup-recovery-build通过（含tsc），47模块/5.18s；产物index-CSBIPrvv.js、index-CmB4sO2_.css，仅chunk超1600kB预算提示。启动资源检查已有通过证据，未重复运行。
+- 未重启在线服务、未覆盖online dist、未修改存档；恢复的是构建阻塞，Hyper核心业务验收仍由所属任务继续，不把编译通过当作全部业务完成。用户可用根启动3010.command加载，实际启动/实玩待验。

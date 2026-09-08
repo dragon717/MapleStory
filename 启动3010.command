@@ -76,6 +76,7 @@ CONTENT_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimenta
 CARGO_BIN="$(command -v cargo || true)"
 [[ -n "$CARGO_BIN" ]] || CARGO_BIN="$HOME/.cargo/bin/cargo"
 [[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
+"$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" || die "运行资源未装配或不兼容，未停止正在运行的服务"
 print -- "正在构建客户端与服务器；构建成功后重启 3010…"
 "$CARGO_BIN" build --manifest-path "$ROOT/server/Cargo.toml" || die "服务端构建失败，未停止正在运行的服务"
 (cd -- "$ROOT/client" && npm run build) || die "客户端构建失败，未停止正在运行的服务"

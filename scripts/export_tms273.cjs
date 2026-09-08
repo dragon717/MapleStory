@@ -1,6 +1,9 @@
 // Export the selected 273 maps and UI from their own WZ files; no v83 fallback.
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
 const assert = require('node:assert/strict');
 const wz = require('@tybys/wz');
 const { createReader } = require('./tms273_wz.cjs');
@@ -8,7 +11,14 @@ const root = path.resolve(__dirname, '..');
 const data = path.join(root, '参考/273/TMS273少爷一键端/客户端/TMS273.7/Data');
 const output = path.join(root, 'resources/tms273-export');
 const assets = path.join(output, 'assets/tms273');
+const bossEffectsAssets = path.join(assets, 'boss-effects');
+const unpacker = path.join(root, 'scripts/unpack_tms273_ms/target/debug/unpack_tms273_ms');
+const mobSkillSourceJson = path.join(root, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/MobSkill');
 const reader = createReader(data, path.join(output, 'ms'));
+// The first Victoria boss was unpacked separately from the same TMS273.7 MS
+// archive flow because it is not placed in the 30-map life catalog.  Keep the
+// source reader pointed at that real image; do not synthesize boss frames.
+const bossReader = createReader(data, '/tmp/tms273-inspect-boss');
 const children = n => [...(n?.wzProperties || [])];
 const val = (n, k, fallback = 0) => n?.at?.(k)?.wzValue ?? fallback;
 const numeric = n => children(n).filter(c => /^\d+$/.test(c.name)).sort((a, b) => Number(a.name) - Number(b.name));
@@ -28,23 +38,220 @@ function resolved(n) {
   return n;
 }
 const exported = new Map();
-async function frame(source) {
-  if (!exported.has(source)) {
-    const f = await reader.frame(source, assets);
+async function frameFrom(resourceReader, source) {
+  const cacheKey = resourceReader === reader ? source : `boss\0${source}`;
+  if (!exported.has(cacheKey)) {
+    const f = await resourceReader.frame(source, assets);
     assert(f.width > 0 && f.height > 0 && Number.isFinite(f.delay) && f.delay > 0, source);
-    exported.set(source, { ...f, url: '/assets/tms273/' + f.url });
+    exported.set(cacheKey, { ...f, url: '/assets/tms273/' + f.url });
     if (exported.size % 25 === 0) console.log(`273 exported ${exported.size} source frames`);
   }
-  return exported.get(source);
+  return exported.get(cacheKey);
 }
-async function frames(source) {
-  const n = resolved(await get(source));
-  if (n instanceof wz.WzCanvasProperty) return [await frame(source)];
+async function frame(source) { return frameFrom(reader, source); }
+
+const bossEffectFrames = new Map();
+function sha256File(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+function relative(file) {
+  return path.relative(root, path.resolve(file)).split(path.sep).join('/');
+}
+function jsonValue(value) {
+  if (typeof value === 'bigint') {
+    return value <= BigInt(Number.MAX_SAFE_INTEGER) && value >= BigInt(Number.MIN_SAFE_INTEGER)
+      ? Number(value)
+      : String(value);
+  }
+  if (Array.isArray(value)) return value.map(jsonValue);
+  if (value && typeof value === 'object') {
+    if (Number.isFinite(Number(value.x)) && Number.isFinite(Number(value.y))) {
+      return { x: Number(value.x), y: Number(value.y) };
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, jsonValue(item)]));
+  }
+  return value;
+}
+function authoredFields(node) {
+  const fields = {};
+  for (const child of children(node)) {
+    if (/^\d+$/.test(child.name)) continue;
+    const value = child.wzValue;
+    if (value === null || value === undefined) continue;
+    const converted = jsonValue(value);
+    if (['string', 'number', 'boolean'].includes(typeof converted)
+      || converted === null
+      || (converted && typeof converted === 'object' && Number.isFinite(converted.x) && Number.isFinite(converted.y))) {
+      fields[child.name] = converted;
+    }
+  }
+  return fields;
+}
+async function bossFrame(resourceReader, source) {
+  const cacheKey = `${resourceReader.dataRoot}\0${source}`;
+  if (!bossEffectFrames.has(cacheKey)) {
+    const raw = await resourceReader.get(source);
+    const rendered = await resourceReader.frame(source, bossEffectsAssets);
+    assert(rendered.width > 0 && rendered.height > 0 && Number.isFinite(rendered.delay) && rendered.delay > 0, source);
+    assert(rendered.url, `missing boss PNG: ${source}`);
+    const file = path.join(bossEffectsAssets, rendered.url);
+    assert(fs.existsSync(file), `missing boss PNG file: ${file}`);
+    bossEffectFrames.set(cacheKey, {
+      ...rendered,
+      url: '/assets/tms273/boss-effects/' + rendered.url,
+      rawDelay: raw.at?.('delay')?.wzValue ?? null,
+      outlink: raw.at?.('_outlink')?.wzValue ?? null,
+      sha256: sha256File(file),
+    });
+  }
+  return bossEffectFrames.get(cacheKey);
+}
+async function getFrom(resourceReader, source) {
+  try {
+    const n = await resourceReader.get(source);
+    if (n instanceof wz.WzImage) assert(await n.parseImage(), source);
+    return n;
+  } catch (error) { throw new Error(`${source}: ${error.message}`, { cause: error }); }
+}
+async function framesFrom(resourceReader, source) {
+  const n = resolved(await getFrom(resourceReader, source));
+  if (n instanceof wz.WzCanvasProperty) return [await frameFrom(resourceReader, source)];
   const nodes = numeric(n);
   assert(nodes.length, `No drawable animation: ${source}`);
   const result = [];
-  for (const c of nodes) result.push(await frame(source + '/' + c.name));
+  for (const c of nodes) result.push(await frameFrom(resourceReader, source + '/' + c.name));
   return result;
+}
+async function frames(source) { return framesFrom(reader, source); }
+
+const bossEffectSpecs = [
+  { skillId: '112', level: 1 },
+  { skillId: '113', level: 1 },
+  { skillId: '114', level: 15 },
+];
+
+function linkMobSkillCanvasArchives(tempRoot) {
+  const sourceDir = path.join(data, 'Skill/MobSkill/_Canvas');
+  const targetDir = path.join(tempRoot, 'Skill/MobSkill/_Canvas');
+  fs.mkdirSync(targetDir, { recursive: true });
+  const archives = fs.readdirSync(sourceDir).filter(name => name.endsWith('.wz')).sort();
+  assert(archives.length, `missing MobSkill Canvas archives: ${sourceDir}`);
+  for (const name of archives) fs.symlinkSync(path.join(sourceDir, name), path.join(targetDir, name));
+  return archives.map(name => `Skill/MobSkill/_Canvas/${name}`);
+}
+
+function unpackMobSkillImages(tempRoot) {
+  assert(fs.existsSync(unpacker), `missing MS unpacker: ${unpacker}`);
+  const images = bossEffectSpecs.map(({ skillId }) => `Skill/MobSkill/${skillId}.img`);
+  const result = spawnSync(unpacker, [
+    '--packs', path.join(data, 'Packs'), '--out', tempRoot,
+    ...images.flatMap(image => ['--image', image]),
+  ], { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, `MobSkill image unpack failed:\n${result.stdout}\n${result.stderr}`);
+  const manifestPath = path.join(tempRoot, 'manifest.json');
+  assert(fs.existsSync(manifestPath), `missing MobSkill unpack manifest: ${manifestPath}`);
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const image of images) {
+    const entry = manifest.entries?.find(item => item.image === image && item.status === 'ok');
+    assert(entry && fs.existsSync(path.join(tempRoot, image)), `${image} was not unpacked`);
+  }
+  linkMobSkillCanvasArchives(tempRoot);
+  return manifest;
+}
+
+function drawableGroupNames(levelNode) {
+  return children(levelNode)
+    .filter(child => !/^\d+$/.test(child.name))
+    .filter(child => {
+      const value = child.wzValue;
+      if (value !== null && value !== undefined && (typeof value !== 'object' || value.x === undefined || value.y === undefined)) return false;
+      const group = resolved(child);
+      return group instanceof wz.WzCanvasProperty || numeric(group).length > 0;
+    })
+    .map(child => child.name);
+}
+
+async function exportBossEffects() {
+  fs.mkdirSync(bossEffectsAssets, { recursive: true });
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tms273-boss-effects-'));
+  let skillReader;
+  try {
+    const unpackManifest = unpackMobSkillImages(tempRoot);
+    skillReader = createReader(tempRoot, tempRoot);
+    const bossEffects = {};
+    const metadata = {};
+    for (const { skillId, level } of bossEffectSpecs) {
+      const source = `Skill/MobSkill/${skillId}.img`;
+      const levelSource = `${source}/level/${level}`;
+      const levelNode = resolved(await getFrom(skillReader, levelSource));
+      const imageFile = path.join(tempRoot, source);
+      const sourceJsonFile = path.join(mobSkillSourceJson, `${skillId}.json`);
+      assert(fs.existsSync(imageFile), `missing unpacked MobSkill source: ${imageFile}`);
+      assert(fs.existsSync(sourceJsonFile), `missing MobSkill JSON source: ${sourceJsonFile}`);
+      const sourceHash = sha256File(sourceJsonFile);
+      const binaryHash = sha256File(imageFile);
+      const unpackEntry = unpackManifest.entries.find(item => item.image === source);
+      const archive = unpackEntry?.archive && fs.existsSync(unpackEntry.archive) ? unpackEntry.archive : null;
+      const skillMetadata = {
+        source,
+        level,
+        sourceHash,
+        sourceSha256: sourceHash,
+        binarySha256: binaryHash,
+        sourceJson: { path: relative(sourceJsonFile), bytes: fs.statSync(sourceJsonFile).size, sha256: sourceHash },
+        sourceImage: { path: source, bytes: fs.statSync(imageFile).size, sha256: binaryHash },
+        sourceArchive: archive ? { path: relative(archive), bytes: fs.statSync(archive).size, sha256: sha256File(archive) } : null,
+        levelFields: authoredFields(levelNode),
+        groups: {},
+      };
+      const groups = {};
+      for (const groupName of drawableGroupNames(levelNode)) {
+        const groupSource = `${levelSource}/${groupName}`;
+        const groupNode = resolved(await getFrom(skillReader, groupSource));
+        const frameNodes = numeric(groupNode);
+        const frames = [];
+        for (const node of frameNodes) {
+          const frameSource = `${groupSource}/${node.name}`;
+          frames.push(await bossFrame(skillReader, frameSource));
+        }
+        assert(frames.length, `${groupSource} has no drawable frames`);
+        groups[groupName] = frames;
+        skillMetadata.groups[groupName] = {
+          source: groupSource,
+          fields: authoredFields(groupNode),
+          frameCount: frames.length,
+          status: 'source-backed',
+        };
+      }
+      // The selected 114/15 level has no effect group in TMS273.7.  Keep the
+      // missing source explicit so consumers cannot silently invent a frame.
+      for (const groupName of ['effect', 'mob', 'mob0']) {
+        if (!skillMetadata.groups[groupName]) {
+          skillMetadata.groups[groupName] = {
+            source: `${levelSource}/${groupName}`,
+            fields: null,
+            frameCount: 0,
+            status: 'source-missing',
+          };
+        }
+      }
+      bossEffects[skillId] = groups;
+      metadata[skillId] = skillMetadata;
+      console.log(`273 MobSkill ${skillId} level ${level}: ${Object.entries(groups).map(([name, frames]) => `${name}=${frames.length}`).join(', ')}`);
+    }
+    save('boss-effects.json', {
+      schemaVersion: 1,
+      contentVersion: 'tms273',
+      source: 'TMS273.7 client WZ / Data/Packs',
+      sourceImages: bossEffectSpecs.map(({ skillId }) => `Skill/MobSkill/${skillId}.img`),
+      metadata,
+      bossEffects,
+    });
+  } finally {
+    if (skillReader) skillReader.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 function geometry(map, id) {
   const info = map.at('info'), footholds = [];
@@ -68,6 +275,10 @@ function geometry(map, id) {
     assert([w,h,cx,cy].every(Number.isFinite) && w>0 && h>0,`Missing authored bounds: ${id}`);
     bounds={xMin:-cx,xMax:w-cx,yMin:-cy,yMax:h-cy};
   }
+  // WZ scalar subtraction can preserve a signed zero.  It is the same
+  // authored world coordinate, but strict metadata comparison would reject
+  // -0 against the JSON source's 0.
+  bounds=Object.fromEntries(Object.entries(bounds).map(([key,value]) => [key, Object.is(value,-0) ? 0 : value]));
   assert(spawns.length && footholds.length && Object.values(bounds).every(Number.isFinite), `Missing geometry: ${id}`);
   return {id, name:id, streetName:'', assetStatus:'rendered', source:`TMS273/Map/Map/Map${id[0]}/${id}.img`, bounds, spawn:spawns[0], spawns, footholds, ladders, portals,
     bgmSource:val(info,'bgm',''), entryScripts:{first:val(info,'onFirstUserEnter',''),each:val(info,'onUserEnter','')}};
@@ -150,10 +361,16 @@ async function exportEntities() {
   const maps=JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps;
   const result={npcs:{},monsters:{}};
   for(const [kind,folder,table] of [['n','Npc','npcs'],['m','Mob','monsters']]) {
-    const ids=[...new Set(maps.flatMap(m=>m.life.filter(l=>l.type===kind&&!l.hide).map(l=>String(Number(l.id)))))].sort();
+    // Export every map life template, including map-hidden NPCs.  Placement
+    // visibility remains in the map life record; dropping hidden templates
+    // here would make legitimate server-side interactions impossible to load.
+    const idsSet=new Set(maps.flatMap(m=>m.life.filter(l=>l.type===kind).map(l=>String(Number(l.id)))));
+    if(kind==='m') idsSet.add('3220000');
+    const ids=[...idsSet].sort((a,b)=>Number(a)-Number(b));
     for(const id of ids) {
       const source=`${folder}/${id.padStart(7,'0')}.img`;
-      const node=await get(source), info=node.at('info');
+      const entityReader=kind==='m'&&id==='3220000'?bossReader:reader;
+      const node=await getFrom(entityReader, source), info=node.at('info');
       const link=val(info,'link',null), sprite=link?`${folder}/${String(link).padStart(7,'0')}.img`:source;
       if(kind==='n') {
         const name=val(await get(`String/Npc.img/${id}`),'name',id);
@@ -162,8 +379,26 @@ async function exportEntities() {
         result.npcs[id]={name,source,hidden,stand:await frames(sprite+'/stand')};
       } else {
         const actions={};
-        for(const [action,sourceAction] of [['stand','stand'],['move','move'],['hit','hit1'],['die','die1']]) actions[action]=await frames(sprite+'/'+sourceAction);
-        result.monsters[id]={templateId:id,source,info:Object.fromEntries(children(info).filter(n=>['number','string'].includes(typeof n.wzValue)).map(n=>[n.name,n.wzValue])),actions};
+        for(const [action,sourceAction] of [['stand','stand'],['move','move'],['hit','hit1'],['die','die1']]) actions[action]=await framesFrom(entityReader, sprite+'/'+sourceAction);
+        const entity={templateId:id,source,info:Object.fromEntries(children(info).filter(n=>['number','string'].includes(typeof n.wzValue)).map(n=>[n.name,n.wzValue])),actions};
+        if(id==='3220000') {
+          const actionMeta={};
+          for(const action of ['attack1','attack2','skill1']) {
+            const actionSource=`${source}/${action}`;
+            const actionNode=await getFrom(entityReader, actionSource);
+            const actionFrames=await framesFrom(entityReader, actionSource);
+            actions[action]=actionFrames;
+            const metadata={source:actionSource,frameCount:actionFrames.length,durationMs:actionFrames.reduce((total,frame)=>total+frame.delay,0)};
+            const actionInfo=actionNode.at('info');
+            const attackAfter=val(actionInfo,'attackAfter',null);
+            if(attackAfter!==null) metadata.attackAfter=attackAfter;
+            const range=actionInfo?.at?.('range');
+            if(range) metadata.range=Object.fromEntries(children(range).map(child=>[child.name, child.wzValue]));
+            actionMeta[action]=metadata;
+          }
+          entity.actionMeta=actionMeta;
+        }
+        result.monsters[id]=entity;
       }
       console.log(`273 ${folder} ${id}`);
     }
@@ -218,6 +453,7 @@ async function main() {
   if(mode==='portals') return exportPortals();
   if(mode==='effects') return exportEffects();
   if(mode==='items') return exportItems();
+  if(mode==='boss-effects') return exportBossEffects();
   const ids=process.argv.slice(2).filter(x=>/^\d{9}$/.test(x));
   const metadata=JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps;
   const selected=ids.length?ids:metadata.map(m=>m.id);
@@ -231,5 +467,5 @@ async function main() {
   }
   save('maps-rendered.json',{contentVersion:'tms273',birthMapId:maps[0].id,source:'TMS273.7 client WZ',maps});
 }
-if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1}).finally(()=>reader.close());
+if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1}).finally(()=>{reader.close();bossReader.close();});
 module.exports={exportMap,geometry};

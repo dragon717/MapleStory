@@ -36,6 +36,7 @@ impl Combat {
         &mut self,
         store: Option<&Store>,
         player: &str,
+        map_id: &str,
         request: &str,
         tick: u64,
         active_until: u64,
@@ -74,7 +75,7 @@ impl Combat {
         })
         .to_string();
         let claim = match store
-            .map(|store| store.claim_attack(player, request, &action_id, &event))
+            .map(|store| store.claim_attack(player, map_id, request, &action_id, &event))
             .unwrap_or_else(|| {
                 Ok(crate::auth::AttackClaim {
                     action_id: action_id.clone(),

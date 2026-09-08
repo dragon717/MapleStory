@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import Any, Iterable
@@ -25,14 +26,11 @@ DEFAULT_WZ_ROOT = (
     / "参考"
     / "273"
     / "TMS273少爷一键端"
-    / "手工服务端"
-    / "tms273"
+    / "TMS273"
     / "WZ_JSON_TW"
 )
 DEFAULT_MAPS_JSON = ROOT / "shared" / "maps.json"
 DEFAULT_OUTPUT = ROOT / "references" / "tms273-data"
-SOURCE_ROOT_LABEL = "参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW"
-SERVER_ROOT_LABEL = "参考/273/TMS273少爷一键端/手工服务端/tms273"
 
 _INT_TYPES = {"byte", "short", "int", "long", "ubyte", "ushort", "uint", "ulong"}
 _FLOAT_TYPES = {"float", "double"}
@@ -44,8 +42,22 @@ _STRING_TYPES = {"string", "wstring", "stringPool"}
 # (its source info has onUserEnter=goLith and returnMap=104000000), and 1541002
 # is on Victoria Harbor.  002010000 has no direct portal target in the source;
 # keeping its metadata does not synthesize one.
-ADDITIONAL_STORY_MAP_IDS = ("002000100", "002010000", "104000000")
+ADDITIONAL_STORY_MAP_IDS = (
+    "002000100", "002010000", "104000000",
+    "101010100", "101010000", "101000000", "101000003",
+    "100010100", "100010000", "100000000", "100000201",
+    "130000000", "310040200", "310050000",
+)
+# TMS273 portal-linked route from Lith Harbor to the Perion field Boss area.
+# Selection adds source geometry only; it does not unlock blocked quest records.
+ADDITIONAL_REGION_MAP_IDS = (
+    "104010000", "104010100", "104010200", "104020000", "102010100",
+    "102010000", "102000000", "102020000", "102020100", "102020200",
+    "102020300", "102020400", "102020500",
+)
 STORY_QUEST_PREFIX = "363"
+# Original Magician advancement is a real prerequisite of 36337, outside the prefix.
+STORY_PREREQUISITE_QUEST_IDS = ("1402",)
 
 
 def read_json(path: Path) -> Any:
@@ -570,7 +582,7 @@ def build_maps(
 ) -> dict[str, Any]:
     server_root = server_root or wz_root.parent
     catalog_ids = requested_map_ids(maps_path)
-    requested = list(dict.fromkeys([*catalog_ids, *ADDITIONAL_STORY_MAP_IDS]))
+    requested = list(dict.fromkeys([*catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
     missing: list[str] = []
@@ -605,12 +617,13 @@ def build_maps(
         "schemaVersion": 1,
         "source": "Map.wz/Map/Map{first-id-digit}/*.img",
         "sourceJson": "Map/Map/Map{first-id-digit}/{id}.json",
-        "sourceRoot": SOURCE_ROOT_LABEL,
+        "sourceRoot": os.path.relpath(wz_root, ROOT),
         "encoding": "UTF-8",
         "gameVersion": 273,
         "region": "TW",
         "birthMapId": "000010000",
         "storyMapIds": list(ADDITIONAL_STORY_MAP_IDS),
+        "regionMapIds": list(ADDITIONAL_REGION_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,
@@ -625,7 +638,7 @@ def build_maps(
 
 
 def quest_id_from_file(path: Path) -> str | None:
-    if not re.fullmatch(r"363\d{2}", path.stem):
+    if path.stem not in STORY_PREREQUISITE_QUEST_IDS and not re.fullmatch(r"363\d{2}", path.stem):
         return None
     return path.stem
 
@@ -707,7 +720,9 @@ def quest_script_refs(raw: dict[str, Any], server_root: Path) -> list[dict[str, 
 def build_quests(wz_root: Path, server_root: Path) -> dict[str, Any]:
     quest_root = wz_root / "Quest" / "QuestData"
     records: list[dict[str, Any]] = []
-    for path in sorted(quest_root.glob(f"{STORY_QUEST_PREFIX}*.json")):
+    paths = set(quest_root.glob(f"{STORY_QUEST_PREFIX}*.json"))
+    paths.update(quest_root / f"{quest_id}.json" for quest_id in STORY_PREREQUISITE_QUEST_IDS)
+    for path in sorted(path for path in paths if path.is_file()):
         quest_id = quest_id_from_file(path)
         if quest_id is None:
             continue
@@ -745,14 +760,14 @@ def build_quests(wz_root: Path, server_root: Path) -> dict[str, Any]:
         }
         records.append(record)
 
-    requested_ids = [f"{STORY_QUEST_PREFIX}{index:02d}" for index in range(100)]
+    requested_ids = [*STORY_PREREQUISITE_QUEST_IDS, *[f"{STORY_QUEST_PREFIX}{index:02d}" for index in range(100)]]
     imported_ids = [record["id"] for record in records]
 
     return {
         "schemaVersion": 1,
         "source": "Quest.wz/QuestData/{id}.img",
         "sourceJson": "Quest/QuestData/{id}.json",
-        "sourceRoot": SOURCE_ROOT_LABEL,
+        "sourceRoot": os.path.relpath(wz_root, ROOT),
         "encoding": "UTF-8",
         "gameVersion": 273,
         "region": "TW",
@@ -760,6 +775,7 @@ def build_quests(wz_root: Path, server_root: Path) -> dict[str, Any]:
             "family": "冒險家原版出生地劇情",
             "area": 77,
             "idPattern": "36300-36399",
+            "prerequisiteQuestIds": list(STORY_PREREQUISITE_QUEST_IDS),
             "requestedCount": len(requested_ids),
             "count": len(records),
             "missingIds": [item for item in requested_ids if item not in imported_ids],
@@ -803,8 +819,8 @@ def build_manifest(
         "gameVersion": 273,
         "region": "TW",
         "source": {
-            "root": SOURCE_ROOT_LABEL,
-            "serverRoot": SERVER_ROOT_LABEL,
+            "root": maps["sourceRoot"],
+            "serverRoot": os.path.relpath(server_root, ROOT),
             "mapJson": "Map/Map/{first-id-digit}/{id}.json",
             "questJson": "Quest/QuestData/{id}.json",
         },

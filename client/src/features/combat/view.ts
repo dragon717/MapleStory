@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { PlayerState, SummonState } from '../../../../shared/protocol';
 import type { AssetFrame, CombatAssets, Manifest } from '../../assets/manifest';
 import { assetFrameAlpha } from '../../assets/manifest';
 import { damageNumberAdvances } from './damage-number';
@@ -36,16 +37,19 @@ export interface AuthoritativeDamageEvent {
   killed?: boolean;
   critical?: boolean;
   skillId?: number;
+  skillLevel?: number;
   segment?: number;
   targetCount?: number;
 }
 
 export interface SkillCastEvent {
+  phase?: 'prepare' | 'sustain' | 'final';
   type: 'skillCast';
   eventId: string;
   serverTick: number;
   playerId: string;
   skillId: number;
+  skillLevel?: number;
   requestId: string;
   x: number;
   y: number;
@@ -57,6 +61,11 @@ export interface SkillCastEvent {
 }
 
 export type CombatEvent = CombatActionStartedEvent | AuthoritativeDamageEvent | SkillCastEvent;
+
+type SummonVisual = {
+  state: SummonState; sprite: Phaser.GameObjects.Image; startedAt: number; updatedAt: number;
+  expiresAt: number; fromX: number; fromY: number; x: number; y: number; attackAt?: number;
+};
 
 type Slash = {
   event: CombatActionStartedEvent;
@@ -70,8 +79,13 @@ type SkillVisual = {
   startedAtMs: number;
   sprite: Phaser.GameObjects.Image;
   loopMs?: number;
+  buffSkillId?: number;
+  sourceSummonId?: string;
   travel?: { fromX: number; fromY: number; toX: number; toY: number };
 };
+
+type SourceSummon = { playerId: string; skillId: number; expiresAt: number };
+type HyperThunderPhase = { requestId: string; phase: NonNullable<SkillCastEvent['phase']>; serverTick: number; cancelled: boolean };
 
 function nowMs() {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
@@ -89,13 +103,34 @@ function validFrame(frame: AssetFrame | undefined) {
   return Boolean(frame?.url && frame.width > 0 && frame.height > 0 && frame.delay > 0);
 }
 
+function sourceVariants(frames: AssetFrame[], group: string): AssetFrame[][] {
+  const variants = new Map<string, AssetFrame[]>();
+  for (const frame of frames) {
+    const tail = frame.source?.split(`/${group}/`)[1]?.split('/');
+    if (!tail || tail.length < 2 || !/^\d+$/.test(tail[0])) continue;
+    const entries = variants.get(tail[0]) ?? [];
+    entries.push(frame); variants.set(tail[0], entries);
+  }
+  return variants.size ? [...variants].sort(([a], [b]) => Number(a) - Number(b)).map(([, entries]) => entries) : [frames];
+}
+
 /** Renders source-backed combat presentation driven by server events. */
 export class CombatView {
   private readonly slashes: Slash[] = [];
+  private readonly summons = new Map<string, SummonVisual>();
+  private readonly sourceSummons = new Map<string, SourceSummon>();
+  private summonSnapshot?: SummonState[];
+  private playerSnapshot?: PlayerState[];
+  private playerStates = new Map<string, PlayerState>();
   private readonly skillVisuals: SkillVisual[] = [];
+  private readonly hyperThunderPhases = new Map<string, HyperThunderPhase>();
+  private readonly hyperBarrierCancelled = new Map<string, string>();
+  private readonly pendingBarrierStarts = new Set<string>();
   private readonly damageNumbers = new Set<Phaser.GameObjects.Container>();
   private readonly seen = new Set<string>();
   private readonly skillAudio = new Map<Phaser.Sound.BaseSound, string>();
+  private readonly auraAudio = new Map<string, Phaser.Sound.BaseSound>();
+  private readonly channelAudio = new Map<string, { skillId?: number; requestId: string; startAt: number; expiresAt: number; sound?: Phaser.Sound.BaseSound }>();
 
   /** `hitSoundKey` must be the key used by World.preload for manifest.combat.hit.sound. */
   constructor(
@@ -139,6 +174,14 @@ export class CombatView {
     // P: one source Hit cue per target's first authoritative damage segment.
     if ((event.segment ?? 1) === 1 && event.skillId !== undefined) this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.hit?.url);
     this.spawnDamageNumber(event);
+    if ([2211011, 2211015, 2221005].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
+      for (const summon of this.summons.values()) if (summon.state.playerId === event.attackerId && summon.state.skillId === event.skillId) summon.attackAt = this.clock();
+      const soundId = `summon:${event.attackerId}:${event.skillId}:${event.serverTick}`;
+      if (!this.seen.has(soundId)) {
+        this.seen.add(soundId);
+        this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.summonAttack?.url);
+      }
+    }
   }
 
   receive(event: CombatEvent) {
@@ -154,9 +197,107 @@ export class CombatView {
     const id = `skill:${event.eventId}`;
     if (this.seen.has(id)) return false;
     this.seen.add(id);
+    if (event.skillId === 2221052) {
+      const set = this.skillEffects?.['2221052'];
+      // A legacy envelope can omit phase. Treat it as the held/sustain stage
+      // so the player pose and world VFX choose the same source group.
+      const phase = event.phase ?? 'sustain';
+      const phaseKey = `${event.playerId}:2221052`;
+      const phaseRank = phase === 'prepare' ? 0 : phase === 'sustain' ? 1 : 2;
+      const prior = this.hyperThunderPhases.get(phaseKey);
+      if (prior && event.serverTick < prior.serverTick) return false;
+      // The release envelope is deliberately a zero-duration sustain with
+      // the same requestId. It must pass through once to cancel the held
+      // visual; only positive-duration duplicate phases are ignored.
+      if (prior && prior.requestId === event.requestId && event.durationMs > 0
+        && phaseRank <= (prior.phase === 'prepare' ? 0 : prior.phase === 'sustain' ? 1 : 2)) return false;
+      this.hyperThunderPhases.set(phaseKey, { requestId: event.requestId, phase, serverTick: event.serverTick, cancelled: event.durationMs === 0 });
+      for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+        const visual = this.skillVisuals[i];
+        if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId && visual.event.skillId === event.skillId) {
+          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+        }
+      }
+      this.stopChannelAudio(event.playerId);
+      const frames = phase === 'final' ? set?.keydownend : phase === 'prepare' ? set?.prepare : set?.keydown;
+      if (event.durationMs > 0 && frames?.length && frames.every(validFrame)) {
+        const visual = this.spawnSkillVisual(event, frames, undefined, event.durationMs);
+        if (visual && phase !== 'final') visual.buffSkillId = 2221052;
+      }
+      if (phase === 'sustain' && event.durationMs > 0) this.channelAudio.set(event.playerId, {
+        skillId: 2221052, requestId: event.requestId, startAt: this.clock(), expiresAt: this.clock() + event.durationMs,
+      });
+      if (event.durationMs > 0 && (phase !== 'sustain' || event.phase === undefined)) {
+        this.playSkillSound(event.playerId, phase === 'final' ? this.skillSounds?.['2221052']?.end?.url : this.skillSounds?.['2221052']?.use?.url);
+      }
+      return true;
+    }
+    if (event.skillId === 2221054) {
+      const set = this.skillEffects?.['2221054'];
+      for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+        const visual = this.skillVisuals[i];
+        if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId && visual.event.skillId === event.skillId) {
+          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+        }
+      }
+      if (event.durationMs <= 0) {
+        this.hyperBarrierCancelled.set(event.playerId, event.requestId);
+        this.stopAuraAudio(event.playerId);
+        const end = set?.end;
+        if (end?.length && end.every(validFrame)) this.spawnSkillVisual(event, end);
+        this.playSkillSound(event.playerId, this.skillSounds?.['2221054']?.end?.url);
+        return true;
+      }
+      this.hyperBarrierCancelled.delete(event.playerId);
+      // The server emits the same positive cast envelope when the toggle is
+      // turned off. Wait for the authoritative player snapshot before playing
+      // Use, so a rejected/off transition cannot sound like activation.
+      this.pendingBarrierStarts.add(event.playerId);
+      const start = set?.start;
+      if (start?.length && start.every(validFrame)) {
+        const visual = this.spawnSkillVisual(event, start);
+        if (visual) visual.buffSkillId = 2221054;
+      }
+      const repeat = set?.repeat;
+      if (repeat?.length && repeat.every(validFrame)) {
+        const visual = this.spawnSkillVisual(event, repeat, undefined, event.durationMs);
+        if (visual) visual.buffSkillId = 2221054;
+      }
+      return true;
+    }
+    // 2221055 is a hidden snapshot summon. Its tiles are created from the
+    // authoritative summon entry below; a separate cast envelope must not
+    // replay the public vortex's Use cue.
+    if (event.skillId === 2221055) return true;
+    if (event.skillId === 2221011 && event.durationMs === 0) {
+      const audio = this.channelAudio.get(event.playerId);
+      if (!audio || !audio.requestId || audio.requestId === event.requestId) this.stopChannelAudio(event.playerId);
+      this.playSkillSound(event.playerId, this.skillSounds?.['2221011']?.end?.url);
+      for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+        const visual = this.skillVisuals[i];
+        if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId
+          && (!visual.event.requestId || visual.event.requestId === event.requestId) && visual.event.skillId === event.skillId) {
+          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+        }
+      }
+      const end = this.skillEffects?.[String(event.skillId)]?.keydownend;
+      if (end?.length && end.every(validFrame)) this.spawnSkillVisual(event, end);
+      return true;
+    }
     // A generated ice field reuses skillCast but is not another player cast.
     if (!(event.skillId === 2201009 && event.targetX !== undefined)) this.playSkillSound(event.playerId, this.skillSounds?.[String(event.skillId)]?.use?.url);
     const set = this.skillEffects?.[String(event.skillId)];
+    if (event.skillId === 2221011) {
+      const prepare = set?.prepare;
+      const preparingMs = prepare?.every(validFrame) ? prepare.reduce((sum, frame) => sum + frame.delay, 0) : 0;
+      this.stopChannelAudio(event.playerId);
+      this.channelAudio.set(event.playerId, { requestId: event.requestId, startAt: this.clock() + preparingMs, expiresAt: this.clock() + event.durationMs });
+      if (prepare?.length && preparingMs > 0) this.spawnSkillVisual(event, prepare);
+      for (const frames of [set?.keydown, set?.keydown0]) if (frames?.length && frames.every(validFrame) && event.durationMs > preparingMs) {
+        const held = this.spawnSkillVisual(event, frames, undefined, event.durationMs - preparingMs);
+        if (held) held.startedAtMs += preparingMs;
+      }
+    }
     if (event.skillId === 2201009 && set?.tile?.length && event.durationMs > 0
       && validPoint(event.targetX ?? NaN, event.targetY ?? NaN)) {
       const frames = set.tile.filter(frame => frame.source?.includes('/tile/1/'));
@@ -169,19 +310,190 @@ export class CombatView {
         }, frames, undefined, event.durationMs);
       }
     }
+    if (event.skillId >= 2220000 && set?.effect0?.length && set.effect0.every(validFrame)) this.spawnSkillVisual(event, set.effect0);
     if (set?.effect?.length && set.effect.every(validFrame)) this.spawnSkillVisual(event, set.effect);
+    if (event.skillId === 2221007 && set?.tile?.length) {
+      const variants = sourceVariants(set.tile, 'tile');
+      // P: cover the source 800px area at tile.effectDistance=260 spacing.
+      // Each source variant is a separate falling ice animation, not 213 frames in sequence.
+      for (let i = 0; i < 4; i++) {
+        const frames = variants[i % variants.length];
+        if (frames.length && frames.every(validFrame)) this.spawnSkillVisual({ ...event, x: event.x - 390 + i * 260 }, frames);
+      }
+    }
     // The server may provide the authoritative destination for a projectile.
     // Without it, keep the source cast aura and do not invent a hit location.
-    if (set?.ball?.length && set.ball.every(validFrame) && validPoint(event.targetX ?? NaN, event.targetY ?? NaN)) {
-      this.spawnSkillVisual(event, set.ball, {
+    const rawBall = this.skillEffects?.[`${event.skillId}:${event.skillLevel}`]?.ball ?? set?.ball;
+    const ball = event.skillId === 2221006 && rawBall ? sourceVariants(rawBall, 'ball')[0] : rawBall;
+    if (ball?.length && ball.every(validFrame) && validPoint(event.targetX ?? NaN, event.targetY ?? NaN)) {
+      this.spawnSkillVisual(event, ball, {
         fromX: event.x, fromY: event.y, toX: event.targetX!, toY: event.targetY!,
       });
     }
     return true;
   }
 
+  syncSummons(entries?: SummonState[]) {
+    if (this.summonSnapshot === entries) return;
+    this.summonSnapshot = entries;
+    const now = this.clock();
+    const present = new Set<string>();
+    for (const state of entries ?? []) {
+      const set = this.skillEffects?.[String(state.skillId)];
+      if (state.skillId === 2221055 && state.id && validPoint(state.x, state.y) && validFacing(state.facing) && Number.isFinite(state.expiresInMs) && state.expiresInMs > 0) {
+        present.add(state.id);
+        this.sourceSummons.set(state.id, { playerId: state.playerId, skillId: state.skillId, expiresAt: now + state.expiresInMs });
+        for (const visual of this.skillVisuals) if (visual.sourceSummonId === state.id && visual.event.type === 'skillCast') {
+          visual.event.x = state.x; visual.event.y = state.y; visual.event.facing = state.facing;
+        }
+        if (!this.skillVisuals.some(visual => visual.sourceSummonId === state.id)) {
+          for (const group of ['tile0', 'tile'] as const) for (const frames of sourceVariants(set?.[group] ?? [], group)) {
+            if (!frames.length || !frames.every(validFrame)) continue;
+            const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: state.id, requestId: '', playerId: state.playerId,
+              skillId: state.skillId, serverTick: 0, x: state.x, y: state.y, facing: state.facing, durationMs: state.expiresInMs }, frames, undefined, state.expiresInMs);
+            if (visual) visual.sourceSummonId = state.id;
+          }
+        }
+        continue;
+      }
+      const frames = set?.summonStand ?? (state.skillId === 2221012 ? set?.ball : undefined);
+      if (!state.id || !validPoint(state.x, state.y) || !validFacing(state.facing)
+        || !Number.isFinite(state.expiresInMs) || state.expiresInMs <= 0 || !frames?.length || !frames.every(validFrame)) continue;
+      present.add(state.id);
+      const current = this.summons.get(state.id);
+      if (current) {
+        current.fromX = current.x; current.fromY = current.y;
+        current.updatedAt = now; current.expiresAt = now + state.expiresInMs;
+        if (current.state.skillId !== state.skillId) current.startedAt = now;
+        current.state = state;
+      } else {
+        this.summons.set(state.id, { state, startedAt: now, updatedAt: now, expiresAt: now + state.expiresInMs,
+          fromX: state.x, fromY: state.y, x: state.x, y: state.y,
+          sprite: this.scene.add.image(0, 0, frames[0].url).setOrigin(0).setDepth(this.depth).setVisible(false) });
+      }
+    }
+    for (const id of this.sourceSummons.keys()) if (!present.has(id)) this.finishSourceSummon(id, true);
+    for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+      const visual = this.skillVisuals[i];
+      if (visual.sourceSummonId && !present.has(visual.sourceSummonId)) { visual.sprite.destroy(); this.skillVisuals.splice(i, 1); }
+    }
+    for (const [id, summon] of this.summons) if (!present.has(id)) { summon.sprite.destroy(); this.summons.delete(id); }
+  }
+
+  syncPlayers(players?: PlayerState[]) {
+    if (this.playerSnapshot === players) return;
+    this.playerSnapshot = players;
+    this.playerStates = new Map((players ?? []).map(player => [player.id, player]));
+    const endingAuraOwners = new Set<string>();
+    for (const [owner, sound] of this.auraAudio) {
+      const player = this.playerStates.get(owner);
+      if (player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(owner);
+      if (!player || player.hp <= 0 || !player.derivedStats?.hyperBarrierActive) {
+        sound.destroy(); this.auraAudio.delete(owner);
+      }
+    }
+    const auraKey = this.skillSounds?.['2221054']?.loop?.url;
+    if (auraKey && this.scene.cache.audio.exists(auraKey)) for (const player of players ?? []) {
+      if (player.hp <= 0 || !player.derivedStats?.hyperBarrierActive || this.hyperBarrierCancelled.has(player.id) || this.auraAudio.has(player.id)) continue;
+      if (this.pendingBarrierStarts.delete(player.id)) this.playSkillSound(player.id, this.skillSounds?.['2221054']?.use?.url);
+      const sound = this.scene.sound.add(auraKey);
+      if (sound.play({ loop: true, volume: 0.2 })) this.auraAudio.set(player.id, sound); else sound.destroy();
+    }
+    for (const player of players ?? []) if (player.hp <= 0 || !player.derivedStats?.hyperBarrierActive) this.pendingBarrierStarts.delete(player.id);
+    for (const owner of this.channelAudio.keys()) {
+      const player = this.playerStates.get(owner);
+      if (!player || player.hp <= 0 || (player.derivedStats?.skillBuffs?.[String(this.channelAudio.get(owner)?.skillId ?? 2221011)] ?? 0) <= 0) this.stopChannelAudio(owner);
+    }
+    for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+      const visual = this.skillVisuals[i];
+      if (!visual.buffSkillId || visual.event.type !== 'skillCast') continue;
+      const player = this.playerStates.get(visual.event.playerId);
+      if (!player || player.hp <= 0 || (visual.buffSkillId === 2221054 ? !player.derivedStats?.hyperBarrierActive : (player.derivedStats?.skillBuffs?.[String(visual.buffSkillId)] ?? 0) <= 0)
+        || (visual.buffSkillId === 2221004 && !player.derivedStats?.infinityEnhanced)) {
+        if (visual.buffSkillId === 2221054 && player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(player.id);
+        visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+      }
+    }
+    for (const owner of endingAuraOwners) {
+      const player = this.playerStates.get(owner);
+      const end = this.skillEffects?.['2221054']?.end;
+      if (player && end?.length && end.every(validFrame)) this.spawnSkillVisual({ type: 'skillCast', eventId: `hyper-barrier-end-${owner}-${this.clock()}`, requestId: '',
+        playerId: owner, skillId: 2221054, serverTick: 0, x: player.x, y: player.y, facing: player.facing, durationMs: 0 }, end);
+      this.playSkillSound(owner, this.skillSounds?.['2221054']?.end?.url);
+    }
+    for (const player of players ?? []) for (const skillId of [2221052, 2221054]) {
+      const remaining = skillId === 2221054 ? (player.derivedStats?.hyperBarrierActive ? 60_000 : 0) : player.derivedStats?.skillBuffs?.['2221052'] ?? 0;
+      const frames = skillId === 2221054 ? this.skillEffects?.['2221054']?.repeat : this.skillEffects?.['2221052']?.keydown;
+      const phase = skillId === 2221052 ? this.hyperThunderPhases.get(`${player.id}:2221052`) : undefined;
+      if (player.hp <= 0 || remaining <= 0 || !frames?.length || !frames.every(validFrame)
+        || (skillId === 2221054 && this.hyperBarrierCancelled.has(player.id))
+        || phase?.cancelled || phase?.phase === 'prepare' || phase?.phase === 'final'
+        || this.skillVisuals.some(visual => visual.buffSkillId === skillId && visual.event.type === 'skillCast' && visual.event.playerId === player.id)) continue;
+      const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `hyper-${player.id}-${skillId}`, requestId: '',
+        playerId: player.id, skillId, serverTick: 0, x: player.x, y: player.y, facing: player.facing, durationMs: remaining }, frames, undefined, remaining);
+      if (visual) visual.buffSkillId = skillId;
+      if (skillId === 2221052 && !this.channelAudio.has(player.id)) this.channelAudio.set(player.id, {
+        skillId, requestId: '', startAt: this.clock(), expiresAt: this.clock() + remaining,
+      });
+    }
+    const channelFrames = this.skillEffects?.['2221011']?.keydown;
+    if (channelFrames?.length && channelFrames.every(validFrame)) for (const player of players ?? []) {
+      const remaining = player.derivedStats?.skillBuffs?.['2221011'] ?? 0;
+      if (player.hp <= 0 || remaining <= 0 || this.skillVisuals.some(visual => visual.event.type === 'skillCast'
+        && visual.event.playerId === player.id && visual.event.skillId === 2221011)) continue;
+      // A newly joined observer receives the ongoing hold in the snapshot.
+      for (const heldFrames of [channelFrames, this.skillEffects?.['2221011']?.keydown0]) {
+        if (!heldFrames?.length || !heldFrames.every(validFrame)) continue;
+        const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `hold-${player.id}`, requestId: '',
+          playerId: player.id, skillId: 2221011, serverTick: 0, x: player.x, y: player.y, facing: player.facing,
+          durationMs: remaining }, heldFrames, undefined, remaining);
+        if (visual) visual.buffSkillId = 2221011;
+      }
+      if (!this.channelAudio.has(player.id)) this.channelAudio.set(player.id, {
+        requestId: '', startAt: this.clock(), expiresAt: this.clock() + remaining,
+      });
+    }
+    const frames = this.skillEffects?.['2221004']?.special;
+    if (!frames?.length || !frames.every(validFrame)) return;
+    for (const player of players ?? []) {
+      const remaining = player.derivedStats?.skillBuffs?.['2221004'] ?? 0;
+      if (player.hp <= 0 || !player.derivedStats?.infinityEnhanced || remaining <= 0
+        || this.skillVisuals.some(visual => visual.buffSkillId === 2221004 && visual.event.type === 'skillCast' && visual.event.playerId === player.id)) continue;
+      const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `infinity-${player.id}`, requestId: '',
+        playerId: player.id, skillId: 2221004, serverTick: 0, x: player.x, y: player.y, facing: player.facing,
+        durationMs: remaining }, frames, undefined, remaining);
+      if (visual) visual.buffSkillId = 2221004;
+    }
+  }
+
   /** Advance source afterimage timing, opacity and per-frame origins. */
   update(time = this.clock()) {
+    for (const [id, summon] of this.sourceSummons) if (time >= summon.expiresAt) this.finishSourceSummon(id, true);
+    for (const [owner, audio] of this.channelAudio) {
+      if (time >= audio.expiresAt) { this.stopChannelAudio(owner); continue; }
+      const key = this.skillSounds?.[String(audio.skillId ?? 2221011)]?.loop?.url;
+      if (!audio.sound && time >= audio.startAt && key && this.scene.cache.audio.exists(key)) {
+        audio.sound = this.scene.sound.add(key);
+        if (!audio.sound.play({ loop: true, volume: 0.28 })) this.stopChannelAudio(owner);
+      }
+    }
+    for (const [id, summon] of this.summons) {
+      if (time >= summon.expiresAt) { summon.sprite.destroy(); this.summons.delete(id); continue; }
+      const set = this.skillEffects?.[String(summon.state.skillId)];
+      const attacking = summon.attackAt !== undefined && time - summon.attackAt < (set?.summonAttack?.reduce((sum, frame) => sum + frame.delay, 0) ?? 0);
+      const moving = !summon.state.stationary && Math.hypot(summon.state.x - summon.fromX, summon.state.y - summon.fromY) > 1;
+      const frames = (attacking ? set?.summonAttack : moving ? set?.summonMove : undefined) ?? set?.summonStand ?? (summon.state.skillId === 2221012 ? set?.ball : undefined);
+      if (!frames?.length || !frames.every(validFrame)) continue;
+      const elapsed = Math.max(0, time - (attacking ? summon.attackAt! : summon.startedAt));
+      const frame = frames[frameAt(frames.map(frame => frame.delay), elapsed, true)];
+      if (!frame) continue;
+      // P: interpolate the server's positions over its existing 50ms snapshot cadence.
+      const progress = Math.min(1, Math.max(0, time - summon.updatedAt) / 50);
+      summon.x = summon.fromX + (summon.state.x - summon.fromX) * progress;
+      summon.y = summon.fromY + (summon.state.y - summon.fromY) * progress;
+      const left = summon.state.facing === 1 ? summon.x - frame.x - frame.width : summon.x + frame.x;
+      summon.sprite.setTexture(frame.url).setVisible(true).setPosition(Math.round(left), Math.round(summon.y + frame.y)).setFlipX(summon.state.facing === 1);
+    }
     const afterimage = this.assets?.attack?.afterimage;
     if (afterimage) {
       for (let i = this.slashes.length - 1; i >= 0; i--) {
@@ -212,6 +524,7 @@ export class CombatView {
     for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
       const visual = this.skillVisuals[i];
       const elapsed = time - visual.startedAtMs;
+      if (elapsed < 0) continue;
       const duration = visual.frames.reduce((sum, frame) => sum + frame.delay, 0);
       if (elapsed >= (visual.loopMs ?? duration)) {
         visual.sprite.destroy();
@@ -223,13 +536,15 @@ export class CombatView {
       const frame = visual.frames[index];
       if (!frame) continue;
       const frameElapsed = frameTime - visual.frames.slice(0, index).reduce((sum, current) => sum + current.delay, 0);
-      const base = visual.travel
+      const owner = visual.event.type === 'skillCast' && (visual.buffSkillId || [2221000, 2221004, 2221008, 2221053, 2221054].includes(visual.event.skillId))
+        ? this.playerStates.get(visual.event.playerId) : undefined;
+      const base = owner ? { x: owner.x, y: owner.y } : visual.travel
         ? {
           x: visual.travel.fromX + (visual.travel.toX - visual.travel.fromX) * Math.min(1, elapsed / duration),
           y: visual.travel.fromY + (visual.travel.toY - visual.travel.fromY) * Math.min(1, elapsed / duration),
         }
         : { x: visual.event.x, y: visual.event.y };
-      const facing = 'facing' in visual.event && validFacing(visual.event.facing) ? visual.event.facing : 1;
+      const facing = owner?.facing ?? ('facing' in visual.event && validFacing(visual.event.facing) ? visual.event.facing : 1);
       const left = facing === 1 ? base.x - frame.x - frame.width : base.x + frame.x;
       visual.sprite.setTexture(frame.url).setAlpha(assetFrameAlpha(frame, frameElapsed)).setVisible(true)
         .setPosition(Math.round(left), Math.round(base.y + frame.y))
@@ -238,6 +553,17 @@ export class CombatView {
   }
 
   clear() {
+    for (const sound of this.auraAudio.values()) sound.destroy();
+    this.auraAudio.clear();
+    for (const owner of this.channelAudio.keys()) this.stopChannelAudio(owner);
+    for (const id of this.sourceSummons.keys()) this.finishSourceSummon(id, false);
+    this.sourceSummons.clear();
+    for (const summon of this.summons.values()) summon.sprite.destroy();
+    this.summons.clear(); this.summonSnapshot = undefined;
+    this.playerStates.clear(); this.playerSnapshot = undefined;
+    this.hyperThunderPhases.clear();
+    this.hyperBarrierCancelled.clear();
+    this.pendingBarrierStarts.clear();
     for (const sound of this.skillAudio.keys()) sound.destroy();
     this.skillAudio.clear();
     for (const slash of this.slashes) slash.sprite.destroy();
@@ -255,6 +581,13 @@ export class CombatView {
   /** Remove only one player's pending spell presentation on death/despawn. */
   clearSkillPlayer(playerId: string) {
     if (!playerId) return;
+    this.stopChannelAudio(playerId);
+    this.stopAuraAudio(playerId);
+    this.hyperThunderPhases.delete(`${playerId}:2221052`);
+    this.hyperBarrierCancelled.delete(playerId);
+    this.pendingBarrierStarts.delete(playerId);
+    for (const [id, summon] of this.sourceSummons) if (summon.playerId === playerId) this.finishSourceSummon(id, false);
+    for (const [id, summon] of this.summons) if (summon.state.playerId === playerId) { summon.sprite.destroy(); this.summons.delete(id); }
     for (const [sound, owner] of this.skillAudio) if (owner === playerId) { sound.destroy(); this.skillAudio.delete(sound); }
     for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
       const visual = this.skillVisuals[i];
@@ -266,6 +599,31 @@ export class CombatView {
   }
 
   destroy() { this.clear(); }
+
+  private stopChannelAudio(owner: string) {
+    this.channelAudio.get(owner)?.sound?.destroy();
+    this.channelAudio.delete(owner);
+  }
+
+  private stopAuraAudio(owner: string) {
+    this.auraAudio.get(owner)?.destroy();
+    this.auraAudio.delete(owner);
+  }
+
+  private finishSourceSummon(id: string, playEnd: boolean) {
+    const summon = this.sourceSummons.get(id);
+    if (!summon) return;
+    this.sourceSummons.delete(id);
+    for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
+      if (this.skillVisuals[i].sourceSummonId !== id) continue;
+      this.skillVisuals[i].sprite.destroy();
+      this.skillVisuals.splice(i, 1);
+    }
+    const owner = this.playerStates.get(summon.playerId);
+    if (playEnd && summon.skillId === 2221055 && owner && owner.hp > 0 && owner.action !== 'dead') {
+      this.playSkillSound(summon.playerId, this.skillSounds?.['2221055']?.end?.url);
+    }
+  }
 
   private playSkillSound(owner: string | undefined, key: string | undefined) {
     if (!owner || !key || !this.scene.cache.audio.exists(key)) return;
@@ -312,7 +670,17 @@ export class CombatView {
 
   private spawnSkillHit(event: AuthoritativeDamageEvent) {
     if (event.skillId === undefined || !validPoint(event.x, event.y)) return;
-    const frames = this.skillEffects?.[String(event.skillId)]?.hit;
+    const effects = this.skillEffects?.[String(event.skillId)];
+    // 2221052.special is a separate source-backed terminal tree, but the
+    // protocol has no selector distinguishing it from a normal pulse hit.
+    // Keep it exported/preloaded and wait for an authoritative event marker;
+    // do not guess from caster or target coordinates.
+    let frames = this.skillEffects?.[`${event.skillId}:${event.skillLevel}`]?.hit ?? effects?.hit;
+    if (event.skillId === 2220014 && frames?.length) {
+      const variants = sourceVariants(frames, 'hit');
+      const variant = [...event.targetId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % variants.length;
+      frames = variants[variant];
+    }
     if (!frames?.length || !frames.every(validFrame)) return;
     this.spawnSkillVisual(event, frames);
   }
@@ -321,6 +689,8 @@ export class CombatView {
     const first = frames[0];
     if (!first) return;
     const sprite = this.scene.add.image(0, 0, first.url).setOrigin(0).setDepth(this.depth).setVisible(false);
-    this.skillVisuals.push({ event, frames, startedAtMs: this.clock(), sprite, travel, loopMs });
+    const visual: SkillVisual = { event, frames, startedAtMs: this.clock(), sprite, travel, loopMs };
+    this.skillVisuals.push(visual);
+    return visual;
   }
 }

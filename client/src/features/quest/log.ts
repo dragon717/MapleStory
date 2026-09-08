@@ -15,6 +15,7 @@ export class QuestLogView {
   private readonly root: HTMLDivElement;
   private readonly body: HTMLDivElement;
   private readonly badge: HTMLSpanElement;
+  private readonly tracker: HTMLButtonElement;
   private readonly entries = new Map<string, QuestLogEntry>();
   private openState = false;
 
@@ -54,13 +55,24 @@ export class QuestLogView {
         Object.assign(close.style, { left: `${closeFrame.x}px`, top: `${closeFrame.y}px`, width: `${closeFrame.width}px`, height: `${closeFrame.height}px`, backgroundImage: `url("${closeFrame.url}")` });
       }
     }
-    this.host.append(this.root);
+    this.tracker = document.createElement('button');
+    this.tracker.type = 'button';
+    this.tracker.className = 'quest-tracker';
+    this.tracker.title = '打开任务日志（Q）';
+    this.tracker.addEventListener('click', () => this.open());
+    this.host.append(this.root, this.tracker);
     this.render();
   }
 
   setList(quests: QuestLogEntry[]) {
     this.entries.clear();
     for (const entry of quests) this.entries.set(entry.questId, entry);
+    this.render();
+  }
+
+  clear() {
+    this.entries.clear();
+    this.close();
     this.render();
   }
 
@@ -92,24 +104,25 @@ export class QuestLogView {
   /** Number of in-progress quests, shown to the player as a small hint. */
   activeCount(): number {
     let count = 0;
-    for (const entry of this.entries.values()) if (entry.status === 'active') count += 1;
+    for (const entry of this.entries.values()) if (entry.status === 'active' || entry.status === 'objectivesComplete') count += 1;
     return count;
   }
 
   destroy() {
     this.root.remove();
+    this.tracker.remove();
   }
 
   private apply() {
     this.root.hidden = !this.openState;
-    if (this.openState) this.render();
+    this.render();
   }
 
   private render() {
     this.body.replaceChildren();
     const list = [...this.entries.values()]
       .map(entry => ({ entry, displayName: this.localize(entry).name }))
-      .sort((a, b) => Number(b.entry.status === 'active') - Number(a.entry.status === 'active') || a.displayName.localeCompare(b.displayName))
+      .sort((a, b) => this.priority(a.entry) - this.priority(b.entry) || a.displayName.localeCompare(b.displayName))
       .map(item => item.entry);
     if (!list.length) {
       const empty = document.createElement('p');
@@ -129,15 +142,30 @@ export class QuestLogView {
       name.textContent = localized.name;
       const chip = document.createElement('span');
       chip.className = 'quest-log-status';
-      chip.textContent = uiLocale() === 'en'
-        ? (entry.status === 'active' ? 'In progress' : 'Completed')
-        : (entry.status === 'active' ? '进行中' : '已完成');
+      chip.textContent = this.statusLabel(entry);
       head.append(name, chip);
       const summary = document.createElement('p');
       summary.textContent = localized.summary;
       row.append(head, summary);
+      for (const objective of entry.objectives ?? []) {
+        const progress = document.createElement('p');
+        progress.textContent = `${displayText(objective.text)} ${objective.current} / ${objective.required}`;
+        row.append(progress);
+      }
+      if (entry.nextAction || entry.blockReason) {
+        const next = document.createElement('p');
+        next.className = 'quest-next';
+        next.textContent = displayText(entry.blockReason || entry.nextAction || '');
+        row.append(next);
+      }
       this.body.append(row);
     }
+    const tracked = list.find(entry => entry.status !== 'completed');
+    this.tracker.hidden = !tracked || this.openState;
+    if (tracked) this.tracker.textContent = `${this.statusLabel(tracked)} · ${displayText(tracked.name)}
+${displayText(tracked.blockReason || tracked.nextAction || tracked.summary)}${(tracked.objectives ?? []).map(o => `
+${displayText(o.text)} ${o.current}/${o.required}`).join('')}
+任务日志（Q）`;
     const active = this.activeCount();
     this.badge.hidden = !active;
     this.badge.textContent = uiLocale() === 'en' ? `${active} active` : `${active} 个进行中`;
@@ -149,6 +177,17 @@ export class QuestLogView {
    * guard is a blank-name fallback to the quest id so a row can never be
    * rendered without a title.
    */
+  private priority(entry: QuestLogEntry): number {
+    return { objectivesComplete: 0, active: 1, available: 2, completed: 3 }[entry.status];
+  }
+
+  private statusLabel(entry: QuestLogEntry): string {
+    const labels = uiLocale() === 'en'
+      ? { available: 'Available', active: 'In progress', objectivesComplete: 'Ready to claim', completed: 'Claimed' }
+      : { available: '可接取', active: '进行中', objectivesComplete: '可交付', completed: '已领奖' };
+    return labels[entry.status];
+  }
+
   private localize(entry: QuestLogEntry) {
     return {
       name: displayText(entry.name || entry.questId),

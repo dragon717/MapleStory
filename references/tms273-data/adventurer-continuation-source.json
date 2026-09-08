@@ -1,0 +1,1606 @@
+{
+  "schemaVersion": 1,
+  "gameVersion": "TMS273.7",
+  "status": "implemented and core-validated as v0.10.0/protocol9/tms273-8; online unchanged; original scenes still unavailable",
+  "quests": [
+    {
+      "questId": "1402",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/1402.json",
+      "sha256": "018807cba889379db6edcf7e1b4a4798120d1d5b0abc582060293d44fc83eb9d",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 法師之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和魔法森林的法師轉職官漢斯交談，轉職為法師吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定獲得魔法森林的法師轉職官漢斯的引導，並且轉職為法師。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "已轉職為法師。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1032001"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1402s"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "101000003"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1032001"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1402e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "2"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36337",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36337.json",
+      "sha256": "6ff01c811bac4184ba4b56386103b4883bd9e2dc9c24d9a3723ead56b674c116",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 德斯的幫忙"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "selfStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "德斯搭話表示會幫助我了解神秘的楓葉。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "為了聆聽神秘的楓葉與德斯相見。\r\n\r\n\r\n#r(任務途中離開時，請放棄後重新接取任務。)"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "德斯表示修練之後就能自然而然了解神秘的楓葉。"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "QuestOrOption": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36337s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "1401"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "1": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "1402"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "2": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "1403"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "3": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "1404"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "4": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "1405"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "5": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "2684"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "6": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "2570"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36308",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36308.json",
+      "sha256": "567d937d0ba58e61312510562cf89b8d08a99d23c9e7dc8c61174ceac8eb19c3",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 失竊的寶物"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "selfStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "是從弓箭手培訓中心傳來的紙條，要不要讀看看呢？"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "打開紙條一看，是將奧莉維亞指認成是竊盜嫌疑人的通緝文，趕緊前往#b弓箭手培訓中心#k了解事件的背景吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "為了聆聽事件的背景前往了弓箭手培訓中心。"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36308x"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "QuestOrOption": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36308s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36337"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q36308e"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36309",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36309.json",
+      "sha256": "de951aa1f6104a444259adb5f9270273625fa969e74e6815a797f940f30f8e75",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 奧莉維亞，居留？"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "奧莉維亞怎麼會變成竊盜嫌疑人呢？向#b赫麗娜#k搭話詢問詳細的狀況吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "如果奧莉維亞真的是犯人的話，一定得抓到他才行，搜查耶雷弗吧。\r\n\r\n\r\n#r(失敗時，放棄任務之後重新接受將可再次進行。)"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "奧莉維亞主張自己是遭到冤枉的，究竟是真的嗎？按照奧莉維亞所說的，去見那因哈特吧。"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36309x"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36309s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36308"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36310",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36310.json",
+      "sha256": "a7d7d0921c8d7ed89b814210476abff1dadfbf91cb9236431f554a82b063a911",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 關於變身術士的情報"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "demandSummary": {
+            "_dirType": "string",
+            "_value": "#questorder1##i4033888:#  #t4033888:# #c4033888# / 1"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36310x"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "從那因哈特聆聽關於變身術士的情報吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "已從那因哈特那獲取變身術士的資訊。前往#b弓箭手培訓中心#k找尋#b赫麗娜#k，傳達那因哈特的書信吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "已將藏有變身術士情報的那因哈特書信提交給赫麗娜。"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1101002"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36310s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36309"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q36310e"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36311",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36311.json",
+      "sha256": "99454d79b971d547a38769a5ec22a7d64b1302d2ce8eba3a2eea371b5177f88a",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 維多利亞島的封印石"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "赫麗娜似乎已經閱讀了那因哈特的書信，前往搭話看看吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "遭竊的寶物是維多利亞島的貴重寶物「封印石」。"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36311x"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36311s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36310"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36312",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36312.json",
+      "sha256": "fec9998057cd5e163651900256d6244cb32eb6c064afea749e6d29d5bb8926f4",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 可疑的黑色翅膀"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36312x"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "幫助奧莉維亞證明她的清白吧！"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "幫助奧莉維亞證明她的清白吧！"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "在雷本礦山入口見到可疑的人物，並獲取了黑色翅膀相關的情報。"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36312s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36311"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36313",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36313.json",
+      "sha256": "65e7e35ac3f0e85ce712d2173d99dcd69bd3ed975f755a3df68b199b18730076",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 潛入"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36313x"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "戴著#b黑色翅膀的帽子#k偽裝成黑色翅膀潛入礦山吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "戴著#b黑色翅膀的帽子#k偽裝成黑色翅膀潛入礦山吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "成功潛入。"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1541004"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36313s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36312"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "questId": "36314",
+      "source": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Quest/QuestData/36314.json",
+      "sha256": "fd6e3c28bf9ef840bfbf58284ae13beae2686b118290fa6afc03852089f01acd",
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 尋回的封印石"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "demandSummary": {
+            "_dirType": "string",
+            "_value": "#questorder1##i4033889:#  #t4033889:# #c4033889# / 1\r\n#questorder1##i4036847:#  #t4036847:# #c4036847# / 1\r\n"
+          },
+          "resignScript": {
+            "_dirType": "string",
+            "_value": "q36314x"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "找回封印石了！回到朋友們所位在的礦山入口吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "將封印石與文件遞交給弓箭手培訓中心的赫麗娜吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "已將寫有重回封印石與黑色翅膀的文件交給赫麗娜。"
+          },
+          "resignBlocked": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1541005"
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "15"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q36314s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "notInTeleportItemLimitedField": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "normalAutoStart": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36313"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100"
+              },
+              "1": {
+                "_dirType": "int",
+                "_value": "200"
+              },
+              "2": {
+                "_dirType": "int",
+                "_value": "300"
+              },
+              "3": {
+                "_dirType": "int",
+                "_value": "400"
+              },
+              "4": {
+                "_dirType": "int",
+                "_value": "430"
+              },
+              "5": {
+                "_dirType": "int",
+                "_value": "500"
+              },
+              "6": {
+                "_dirType": "int",
+                "_value": "501"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q36314e"
+            },
+            "item": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "4033889"
+                },
+                "count": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "1": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "4036847"
+                },
+                "count": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    }
+  ],
+  "references": [
+    {
+      "classification": "R",
+      "url": "https://www.maplesea.com/updates/view/v217_Patch_Notes_3/",
+      "published": "2022-09-21",
+      "checked": "2026-09-08",
+      "scope": "Official cross-region optional story skip and Lv10 first advancement structure; not TMS273 scripts or reward values."
+    }
+  ],
+  "design": {
+    "dependencyChain": [
+      "36307",
+      "1402",
+      "36337",
+      "36308",
+      "36309",
+      "36310",
+      "36311",
+      "36312",
+      "36313",
+      "36314"
+    ],
+    "classification": "P",
+    "existingSaveRecovery": "Explicit original-NPC quest interaction may preserve jobs 200/220/221/222. Never infer quest completion from the shortcut job alone; never regrant job SP or refill MP for story recovery.",
+    "transaction": "Prepare next profile and commit quest state, job/SP and inventory through the existing single quest transaction. No separate job commit before the quest commit.",
+    "story": "Preserve original QuestInfo and Check. Missing scripts do not authorize invented original dialogue.",
+    "unresolved": [
+      "Missing q1402/q363 scripts and info1406 transition",
+      "36337 NPC binding",
+      "Scripted portals and remote story travel",
+      "36310 letter and 36313 hat execution",
+      "36314 document/seal acquisition and original reward amounts"
+    ],
+    "temporaryExecution": {
+      "classification": "P",
+      "npcBindings": {
+        "36337": "1541009 forest",
+        "36308": "1541009 to 1012100",
+        "36309": "1012100 to source Olivia1541003 placed at Ereve entry floor",
+        "36312": "1012100 to mine Rondo1541004",
+        "36313": "1541004; must equip source cap1003134",
+        "36314": "1541005 hands recovered items to player for 1012100 delivery"
+      },
+      "acquisition": "36310 start letter4033888; 36313 start cap1003134; after infiltration36314 start4033889+4036847. Exactly quest transition commit, no repeat grants. Original acquisition scene missing.",
+      "rewardsExp": [
+        0,
+        300,
+        450,
+        600,
+        750,
+        900,
+        1050,
+        1200,
+        1500
+      ],
+      "mesos": 0,
+      "maps": [
+        "101010100",
+        "101010000",
+        "101000000",
+        "101000003",
+        "100010100",
+        "100010000",
+        "100000000",
+        "100000201",
+        "130000000",
+        "310040200",
+        "310050000"
+      ],
+      "transport": "Source local portal links retained. Missing library/training centre scripts mapped to selected local endpoints; remote story warps and resume at issuing NPC are project adapters."
+    }
+  }
+}

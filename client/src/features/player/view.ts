@@ -6,7 +6,7 @@ import { frameAt } from './animation';
 import { appearanceKey, composeAppearance } from '../entry/appearance';
 
 const supportedEquipment = new Set(['1002067', '1040002', '1052095', '1302000']);
-type SkillAction = 'skill2001008' | 'skill2001011' | 'skill2001012' | 'skill2201008' | 'skill2201005' | 'skill2201001';
+type SkillAction = `skill${number}` | 'skill2221052prepare' | 'skill2221052final';
 type SkillFrames = AvatarActionSet['stand'];
 
 export class PlayerView {
@@ -23,7 +23,7 @@ export class PlayerView {
   private flashStartedAt = 0;
   private flashUntil = 0;
   private flashWhite = false;
-  private skillAction?: SkillAction;
+  private skillAction?: SkillAction | 'attack';
   private skillActionStartedAt = 0;
   private skillActionUntil = 0;
   /** Feet-to-head offset of the current rendered frame, for damage numbers. */
@@ -48,15 +48,19 @@ export class PlayerView {
     return this.headOffsetY;
   }
   /** Play a source-exported spell pose for the authoritative server duration. */
-  startSkill(skillId: number, durationMs: number) {
-    const action = skillId === 2001008 ? 'skill2001008'
-      : skillId === 2001011 ? 'skill2001011'
-        : skillId === 2001012 ? 'skill2001012'
-          : skillId === 2201008 ? 'skill2201008'
-            : skillId === 2201005 ? 'skill2201005'
-              : skillId === 2201001 ? 'skill2201001' : undefined;
-    if (!action || !Number.isFinite(durationMs) || durationMs <= 0) return;
-    this.skillAction = action;
+  startSkill(skillId: number, durationMs: number, phase?: 'prepare' | 'sustain' | 'final') {
+    if ([2221011, 2221052].includes(skillId) && durationMs === 0) {
+      if (this.skillAction?.startsWith(`skill${skillId}`)) this.skillAction = undefined;
+      return;
+    }
+    if (![1000, 2001008, 2001011, 2001012, 2201008, 2201005, 2201001, 2211002, 2211007, 2211011, 2211012, 2211014,
+      2221000, 2221004, 2221005, 2221006, 2221007, 2221008, 2221011, 2221012, 2221052].includes(skillId)
+      || !Number.isFinite(durationMs) || durationMs <= 0) return;
+    // Older skillCast envelopes omit phase; CombatView treats that as the
+    // held/sustain stage, so the actor and VFX remain on the same timeline.
+    const resolvedPhase = phase ?? 'sustain';
+    this.skillAction = skillId === 1000 ? 'attack' : skillId === 2221052 && resolvedPhase === 'prepare' ? 'skill2221052prepare'
+      : skillId === 2221052 && resolvedPhase === 'final' ? 'skill2221052final' : `skill${skillId}`;
     this.skillActionStartedAt = this.scene.time.now;
     this.skillActionUntil = this.skillActionStartedAt + durationMs;
     this.signature = '';

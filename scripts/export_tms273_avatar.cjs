@@ -406,7 +406,7 @@ async function buildAction(action, sourceAction, frameNode, selected, starter, o
 
   return {
     index: Number(frameIndex),
-    delay: Number(value(frameNode, 'delay', 0)),
+    delay: Number(value(frameNode, 'delay', NaN)),
     parts,
     anchors: renderedAnchors,
     filteredParts: rejected,
@@ -460,7 +460,62 @@ const MAGE_ACTIONS = [
   ['skill2201008', 'coldBeam'],
   ['skill2201005', 'thunderBolt'],
   ['skill2201001', 'alert2'],
+  ['skill2211002', 'iceStrike'],
+  ['skill2211007', 'alert2'],
+  ['skill2211011', 'thunderStorm'],
+  ['skill2211012', 'elementalAdapting'],
+  ['skill2211014', 'glacialWall'],
+  ['skill2221004', 'alert2'],
+  ['skill2221005', 'alert2'],
+  ['skill2221006', 'chainLightningNew'],
+  ['skill2221007', 'blizzardNew'],
+  ['skill2221011', 'armorMelting'],
+  ['skill2221012', 'frozenOrb'],
+  ['skill2221052prepare', 'HY222lightningSphere_prep'],
+  ['skill2221052', 'HY222lightningSphere'],
+  ['skill2221052final', 'HY222lightningSphere_end'],
 ];
+
+async function resolveMagePose(bodySource, sourceAction, frameNode) {
+  const rawAction = value(frameNode, 'action', sourceAction);
+  const rawFrame = value(frameNode, 'frame', frameNode.name);
+  const actionName = String(rawAction || sourceAction);
+  const frameText = String(rawFrame ?? frameNode.name);
+  const numericFrame = /^\d+$/.test(frameText) ? Number(frameText) : null;
+  const candidates = numericFrame === null
+    ? [
+      // A few Character skill timelines use the `frame` field as an action
+      // alias (for example `alert`).  Resolve that alias to its authored 0th
+      // frame instead of ever treating the string as a numeric frame index.
+      { action: frameText, frame: 0, mode: 'frame-action-alias' },
+      { action: actionName, frame: 0, mode: 'action-default-frame' },
+    ]
+    : [{ action: actionName, frame: numericFrame, mode: 'direct' }];
+  let lastError;
+  for (const candidate of candidates) {
+    const source = `${bodySource}/${candidate.action}/${candidate.frame}`;
+    try {
+      const node = resolved(await get(source));
+      return {
+        node,
+        source,
+        linkedAction: candidate.action,
+        linkedFrame: candidate.frame,
+        rawAction,
+        rawFrame,
+        linkResolution: candidate.mode,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!error.message.includes('找不到 273 WZ 节点')) throw error;
+    }
+  }
+  throw new Error(
+    `Unable to resolve mage pose link ${sourceAction}/${frameNode.name}: `
+      + `${String(rawAction)}/${String(rawFrame)} (${lastError?.message || 'no candidate'})`,
+    { cause: lastError },
+  );
+}
 
 /** Export the source-linked mage pose set using the same frame compositor. */
 async function mageActionSet(selected, starter, options = {}) {
@@ -471,19 +526,22 @@ async function mageActionSet(selected, starter, options = {}) {
     actions[key] = [];
     const sourceFrames = numeric(resolved(await get(`${bodySource}/${sourceAction}`)));
     for (const frameNode of sourceFrames) {
-      const linkedAction = value(frameNode, 'action', sourceAction);
-      const linkedIndex = value(frameNode, 'frame', frameNode.name);
-      const linked = resolved(await get(`${bodySource}/${linkedAction}/${linkedIndex}`));
-      const frame = await buildAction(key, linkedAction, linked, selected, starter, options);
-      const rawDelay = Number(value(frameNode, 'delay', 0));
-      assert(Number.isFinite(rawDelay) && rawDelay !== 0, `Missing skill pose delay ${sourceAction}/${frameNode.name}`);
+      const pose = await resolveMagePose(bodySource, sourceAction, frameNode);
+      const frame = await buildAction(key, pose.linkedAction, pose.node, selected, starter, options);
+      const rawDelay = Number(value(frameNode, 'delay', NaN));
+      assert(Number.isFinite(rawDelay), `Missing skill pose delay ${sourceAction}/${frameNode.name}`);
       const move = value(frameNode, 'move', { x: 0, y: 0 });
-      // Negative source delay is preserved; abs is presentation only, never a hit schedule.
-      frame.delay = Math.abs(rawDelay);
+      // P: a zero-duration source pose uses one display millisecond; raw timing remains intact.
+      // Negative delay uses abs for presentation only, never a server hit schedule.
+      frame.delay = Math.max(1, Math.abs(rawDelay));
       frame.rawDelay = rawDelay;
       frame.source = `${bodySource}/${sourceAction}/${frameNode.name}`;
-      frame.linkedAction = linkedAction;
-      frame.linkedFrame = Number(linkedIndex);
+      frame.linkedAction = pose.linkedAction;
+      frame.linkedFrame = pose.linkedFrame;
+      frame.rawLinkedAction = pose.rawAction;
+      frame.rawLinkedFrame = pose.rawFrame;
+      frame.linkResolution = pose.linkResolution;
+      frame.linkedSource = pose.source;
       frame.move = { x: Number(move.x), y: Number(move.y) };
       for (const part of frame.parts) { part.x += frame.move.x; part.y += frame.move.y; }
       for (const anchor of Object.values(frame.anchors)) { anchor.x += frame.move.x; anchor.y += frame.move.y; }
@@ -515,37 +573,7 @@ async function main() {
   await loadSourceTables();
 
   if (process.argv.includes('--mage-actions')) {
-    const catalog = [
-      ['skill2001008', 'energyBolt'], ['skill2001011', 'manaWave'], ['skill2001012', 'manaWaveFloat'],
-      ['skill2201008', 'coldBeam'], ['skill2201005', 'thunderBolt'], ['skill2201001', 'alert2'],
-    ];
-    async function mageActions(selected, starter) {
-      const actions = {};
-      for (const [key, sourceAction] of catalog) {
-        actions[key] = [];
-        for (const frameNode of numeric(resolved(await get(`${BODY}/${sourceAction}`)))) {
-          const linkedAction = value(frameNode, 'action', sourceAction);
-          const linkedIndex = value(frameNode, 'frame', frameNode.name);
-          const linked = resolved(await get(`${BODY}/${linkedAction}/${linkedIndex}`));
-          const frame = await buildAction(key, linkedAction, linked, selected, starter);
-          const rawDelay = Number(value(frameNode, 'delay', 0));
-          assert(Number.isFinite(rawDelay) && rawDelay !== 0, `Missing skill pose delay ${sourceAction}/${frameNode.name}`);
-          const move = value(frameNode, 'move', { x: 0, y: 0 });
-          // Negative source delay is preserved; abs is presentation only, never a hit schedule.
-          frame.delay = Math.abs(rawDelay);
-          frame.rawDelay = rawDelay;
-          frame.source = `${BODY}/${sourceAction}/${frameNode.name}`;
-          frame.linkedAction = linkedAction;
-          frame.linkedFrame = Number(linkedIndex);
-          frame.move = { x: Number(move.x), y: Number(move.y) };
-          for (const part of frame.parts) { part.x += frame.move.x; part.y += frame.move.y; }
-          for (const anchor of Object.values(frame.anchors)) { anchor.x += frame.move.x; anchor.y += frame.move.y; }
-          actions[key].push(frame);
-        }
-        assert(actions[key].length, `Missing skill pose ${sourceAction}`);
-      }
-      return actions;
-    }
+    const mageActions = async (selected, starter) => (await mageActionSet(selected, starter)).actions;
     const output = { sourceVersion: 'TMS273.7', actions: await mageActions([], true), equipmentLoadouts: {} };
     for (const itemIds of LOADOUT_IDS) output.equipmentLoadouts[itemIds.length ? [...itemIds].sort().join('+') : 'empty'] = await mageActions(itemIds, false);
     fs.writeFileSync(path.join(OUTPUT, 'mage-avatar.json'), JSON.stringify(output, null, 2) + '\n', 'utf8');

@@ -21,6 +21,7 @@ export class World extends Phaser.Scene {
   private players = new Map<string, PlayerView>();
   private monsters = new Map<string, MonsterView>();
   private npcs = new Map<string, NpcView>();
+  private questTargets = new Map<string, Phaser.GameObjects.Container>();
   private drops = new Map<string, DropView>();
   private portals = new Map<string, PortalView>();
   private actions = new Map<string, { actionId: string; tick: number }>();
@@ -33,6 +34,7 @@ export class World extends Phaser.Scene {
   private loaded = false;
   private failed = false;
   private bgm?: Phaser.Sound.BaseSound;
+  private bossWarning?: Phaser.GameObjects.Graphics;
   private combat?: CombatView;
   private portalCooldownUntil = 0;
   constructor(
@@ -40,11 +42,16 @@ export class World extends Phaser.Scene {
     private status: (message: string, error?: boolean) => void,
     private onPortal?: PortalHandler,
     private onNpcTalk?: (npc: NpcState) => void,
+    private onQuestInteract?: (questId: string) => void,
   ) { super('world'); }
   get mapId() { return this.manifest.map.id; }
-  getMap(mapId = this.mapId): MapDefinition | MapCatalogEntry | undefined {
+  getMap(mapId = this.mapId, sourceMapId?: string): MapDefinition | MapCatalogEntry | undefined {
     if (mapId === this.mapId) return this.manifest.map;
-    return this.manifest.mapCatalog?.maps.find(map => map.id === mapId);
+    const source = this.manifest.mapCatalog?.maps.find(map => map.id === (sourceMapId ?? mapId));
+    if (source && sourceMapId && mapId.startsWith(`practice:${sourceMapId}:`)) {
+      return { ...source, id: mapId, name: `${source.name} · P练习`, portals: [] };
+    }
+    return source?.id === mapId ? source : undefined;
   }
   switchMap(mapId: string, map?: MapDefinition, snapshot?: Snapshot): boolean {
     if (mapId === this.mapId && !map) return true;
@@ -131,17 +138,19 @@ export class World extends Phaser.Scene {
       for (const frame of [...Object.values(set?.first ?? {}), ...Object.values(set?.rest ?? {})]) images.set(frame.url, frame.url);
     }
     for (const set of Object.values(this.manifest.skillEffects ?? {})) {
-      for (const frame of [
-        ...(set.effect ?? []), ...(set.hit ?? []), ...(set.ball ?? []),
-        ...(set.tile ?? []), ...(set.mob ?? []),
-      ]) images.set(frame.url, frame.url);
+      for (const frames of Object.values(set)) for (const frame of frames ?? []) images.set(frame.url, frame.url);
+    }
+    for (const groups of Object.values(this.manifest.bossEffects ?? {})) {
+      for (const frames of Object.values(groups)) for (const frame of frames) images.set(frame.url, frame.url);
     }
     for (const frames of this.manifest.levelUp?.layers ?? []) for (const frame of frames) images.set(frame.url, frame.url);
     if (this.manifest.levelUp?.sound) this.load.audio(this.manifest.levelUp.sound.url, this.manifest.levelUp.sound.url);
     for (const [key, url] of images) this.load.image(key, url);
-    const skillAudio = new Set(Object.values(this.manifest.skillSounds ?? {}).flatMap(set => [set.use?.url, set.hit?.url]).filter((url): url is string => Boolean(url)));
+    const skillAudio = new Set(Object.values(this.manifest.skillSounds ?? {}).flatMap(set => [set.use?.url, set.hit?.url, set.loop?.url, set.end?.url, set.special?.url, set.summonAttack?.url]).filter((url): url is string => Boolean(url)));
     for (const url of skillAudio) this.load.audio(url, url);
-    for (const map of maps) if (map.bgm) this.load.audio(`bgm-${map.id}`, map.bgm);
+    for (const url of new Set(maps.map(map => map.bgm).filter((url): url is string => Boolean(url)))) {
+      if (!this.cache.audio.exists(url)) this.load.audio(url, url);
+    }
     if (this.manifest.avatar.attackSound) this.load.audio('attack', this.manifest.avatar.attackSound);
     if (this.manifest.combat?.hit?.sound) this.load.audio('combat-hit', this.manifest.combat.hit.sound);
     for (const monster of Object.values(this.manifest.monsters ?? {})) {
@@ -194,14 +203,14 @@ export class World extends Phaser.Scene {
       const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, portal.x, portal.y, portalDepth);
       this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
     }
-    if (this.manifest.map.bgm) { this.bgm = this.sound.add(`bgm-${this.mapId}`, { loop: true, volume: 0.25 }); this.bgm.play(); }
+    if (this.manifest.map.bgm) { this.bgm = this.sound.add(this.manifest.map.bgm, { loop: true, volume: 0.25 }); this.bgm.play(); }
     this.status('地图已就绪，等待服务器快照…');
     this.events.once('shutdown', () => { this.clear(); this.bgm?.destroy(); });
   }
   receive(message: ServerMessage) {
     if (message.type === 'snapshot') {
       if (message.mapId !== this.mapId) {
-        const map = this.getMap(message.mapId);
+        const map = this.getMap(message.mapId, message.sourceMapId);
         if (map?.layers?.length && this.switchMap(message.mapId, map as MapDefinition, message)) return;
         this.status(map ? `地图资源待接入：${map.name} (${message.mapId})` : `地图资源不匹配：${message.mapId}`, true);
         return;
@@ -222,7 +231,7 @@ export class World extends Phaser.Scene {
       const accepted = this.combat?.receiveSkillCast(event) ?? true;
       if (!accepted) return;
       const view = this.players.get(event.playerId);
-      if (view) view.startSkill(event.skillId, event.durationMs);
+      if (view) view.startSkill(event.skillId, event.durationMs, event.phase);
       else this.pendingSkillCasts.set(event.playerId, event);
     }
     if (message.type === 'damageEvent' && this.loaded) {
@@ -258,10 +267,13 @@ export class World extends Phaser.Scene {
     }
   }
   clear() {
+    this.bossWarning?.destroy(); this.bossWarning = undefined;
     this.snapshot = undefined;
     for (const player of this.players.values()) player.destroy();
     for (const monster of this.monsters.values()) monster.destroy();
     for (const npc of this.npcs.values()) npc.destroy();
+    for (const target of this.questTargets.values()) target.destroy();
+    this.questTargets.clear();
     for (const drop of this.drops.values()) drop.destroy();
     for (const portal of this.portals.values()) portal.destroy();
     for (const view of this.animatedLayers) for (const image of view.images) image.destroy();
@@ -353,6 +365,12 @@ export class World extends Phaser.Scene {
       let y = bg.y + view.motionY + offsetY;
       if (repeatX) x = ((x % tileWidth) + tileWidth) % tileWidth - tileWidth;
       if (repeatY) y = ((y % tileHeight) + tileHeight) % tileHeight - tileHeight;
+      // Only the verified 273 sky/water color strips adapt vertically. Keep
+      // scenery, parallax anchors, actors and collision geometry at source scale.
+      const sourceTop = y - originY;
+      const top = layer.source === 'Map/Back/grassySoil_new.img/back/0' ? Math.min(0, sourceTop) : sourceTop;
+      const bottom = layer.source === 'Map/Back/grassySoil_new.img/back/12' ? Math.max(height, sourceTop + frameHeight) : sourceTop + frameHeight;
+      const scaleY = (bottom - top) / frameHeight;
       const columns = repeatX ? Math.ceil(width / tileWidth) + 2 : 1;
       const rows = repeatY ? Math.ceil(height / tileHeight) + 2 : 1;
       const needed = columns * rows;
@@ -360,32 +378,54 @@ export class World extends Phaser.Scene {
       while (images.length < needed) images.push(this.add.image(0, 0, url).setOrigin(0).setDepth(layer.depth).setFlipX(flip).setAlpha(alpha).setScrollFactor(0));
       let i = 0;
       const left = flip ? x + originX - frameWidth : x - originX;
-      for (let tx = 0; tx < columns; tx++) for (let ty = 0; ty < rows; ty++) images[i++].setVisible(true).setPosition(left + tx * tileWidth, y + ty * tileHeight - originY).setFlipX(flip).setAlpha(alpha);
+      for (let tx = 0; tx < columns; tx++) for (let ty = 0; ty < rows; ty++) images[i++].setVisible(true).setPosition(left + tx * tileWidth, top + ty * tileHeight).setScale(1, scaleY).setFlipX(flip).setAlpha(alpha);
       for (; i < images.length; i++) images[i].setVisible(false);
+    }
+  }
+  private drawBossWarning() {
+    this.bossWarning?.clear();
+    const warning = this.snapshot?.bossPractice?.telegraph;
+    if (!warning || ![warning.x, warning.y, warning.remainingMs].every(Number.isFinite)) return;
+    const remaining = warning.remainingMs - Math.max(0, performance.now() - this.receivedAt);
+    if (remaining <= 0) return;
+    // P: explicit server hit geometry, drawn in the same world coordinates as source footholds.
+    const shape = this.bossWarning ??= this.add.graphics().setDepth(8_000);
+    shape.fillStyle(0xe65a36, 0.2).lineStyle(3, 0xffdb78, 0.95);
+    if (warning.kind === 'circle' && Number.isFinite(warning.radius) && warning.radius! > 0 && warning.radius! <= 2000) {
+      shape.fillCircle(warning.x, warning.y, warning.radius!);
+      shape.strokeCircle(warning.x, warning.y, warning.radius!);
+    } else if (warning.kind === 'rect' && Number.isFinite(warning.width) && Number.isFinite(warning.height)
+      && warning.width! > 0 && warning.width! <= 4000 && warning.height! > 0 && warning.height! <= 4000) {
+      shape.fillRect(warning.x, warning.y, warning.width!, warning.height!);
+      shape.strokeRect(warning.x, warning.y, warning.width!, warning.height!);
     }
   }
   update(_time?: number, delta = 8) {
     if (!this.loaded) return;
     this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);
+    this.combat?.syncPlayers(this.snapshot?.players);
+    this.combat?.syncSummons(this.snapshot?.summons);
     this.combat?.update();
+    this.drawBossWarning();
     if (!this.snapshot) return;
     const snapshot = this.snapshot;
     const ids = new Set(snapshot.players.map(player => player.id));
-    for (const [id, view] of this.players) if (!ids.has(id)) { view.destroy(); this.players.delete(id); this.actions.delete(id); }
+    for (const [id, view] of this.players) if (!ids.has(id)) { this.combat?.clearSkillPlayer(id); view.destroy(); this.players.delete(id); this.actions.delete(id); }
     for (const player of snapshot.players) {
       let view = this.players.get(player.id);
       if (!view) {
         view = new PlayerView(this, this.manifest, player.username, player.id === snapshot.selfId);
         this.players.set(player.id, view);
         const pending = this.pendingSkillCasts.get(player.id);
-        if (pending) { view.startSkill(pending.skillId, pending.durationMs); this.pendingSkillCasts.delete(player.id); }
+        if (pending) { view.startSkill(pending.skillId, pending.durationMs, pending.phase); this.pendingSkillCasts.delete(player.id); }
       }
       if (player.hp <= 0 || player.action === 'dead') this.combat?.clearSkillPlayer(player.id);
       const elapsed = (snapshot.serverTick - player.actionStartedTick) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
       view.update(player, elapsed);
       if (player.id === snapshot.selfId) {
-        this.cameras.main.centerOn(Math.round(player.x), Math.round(player.y - 120));
+        // Keep the player and name above the HUD in short browser viewports.
+        this.cameras.main.centerOn(Math.round(player.x), Math.round(player.y - Math.min(120, this.cameras.main.height * 0.1)));
         this.tryPortal(player, true);
       }
     }
@@ -475,9 +515,10 @@ export class World extends Phaser.Scene {
       const asset = this.manifest.monsters?.[monster.templateId];
       if (!asset) continue;
       let view = this.monsters.get(monster.id);
-      if (!view) { view = new MonsterView(this, asset, actorDepth, this.manifest.skillEffects?.['2200011']?.mob); this.monsters.set(monster.id, view); }
+      if (!view) { view = new MonsterView(this, asset, actorDepth, this.manifest.skillEffects?.['2200011']?.mob, this.manifest.bossEffects); this.monsters.set(monster.id, view); }
       const elapsed = (snapshot.serverTick - monster.actionStartedTick) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
       view.update(monster, elapsed);
+      view.updateBossEffects(monster, monster.templateId === snapshot.bossPractice?.bossId ? snapshot.bossPractice.effects : undefined, Math.max(0, performance.now() - this.receivedAt));
     }
 
     const drops = snapshot.drops ?? [];
@@ -493,6 +534,36 @@ export class World extends Phaser.Scene {
       view.update(drop);
     }
 
+    const interactions = snapshot.questInteractions ?? [];
+    const interactionIds = new Set(interactions.map(entry => entry.questId));
+    for (const [id, target] of this.questTargets) {
+      if (!interactionIds.has(id)) { target.destroy(); this.questTargets.delete(id); }
+    }
+    for (const entry of interactions) {
+      let target = this.questTargets.get(entry.questId);
+      if (!target) {
+        target = this.add.container(entry.x, entry.y).setDepth(actorDepth + 12);
+        const label = this.add.text(0, -40, `点击${entry.label} ▸`, {
+          fontFamily: 'sans-serif', fontSize: '13px', color: '#fff4a3',
+          stroke: '#273138', strokeThickness: 4, backgroundColor: '#273138cc', padding: { x: 8, y: 6 },
+        }).setOrigin(0.5, 1).setInteractive({ useHandCursor: true });
+        const click = (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+          event.stopPropagation();
+          if (pointer.button === 0) this.onQuestInteract?.(entry.questId);
+        };
+        label.on('pointerdown', click);
+        target.add(label);
+        const layer = this.manifest.map.layers.find(layer => layer.key === entry.mapLayerKey);
+        if (layer?.width && layer.height) {
+          const zone = this.add.zone(layer.x - entry.x, layer.y - entry.y, layer.width, layer.height)
+            .setOrigin(0).setInteractive({ useHandCursor: true });
+          zone.on('pointerdown', click);
+          target.add(zone);
+        }
+        this.questTargets.set(entry.questId, target);
+      }
+      target.setPosition(entry.x, entry.y);
+    }
     const npcs = snapshot.npcs ?? [];
     const npcIds = new Set(npcs.map(npc => npc.id));
     for (const [id, view] of this.npcs) {

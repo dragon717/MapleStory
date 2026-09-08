@@ -1,0 +1,183 @@
+/* The exported 273 quickSlot/backgrnd is a 16 x 2 atlas: 32 px cells,
+   35 px source interval. Each cell keeps its authored crop while the grid
+   reflows to the available viewport instead of scaling the whole bitmap. */
+.tms-quick-slot {
+  --quick-slot-width: 557px;
+  position: relative;
+  flex: 0 1 var(--quick-slot-width);
+  width: min(var(--quick-slot-width), calc(100vw - 12px));
+  max-width: 100%;
+  min-width: 0;
+  margin-left: auto;
+  pointer-events: auto;
+  filter: drop-shadow(0 2px 2px #0008);
+}
+
+.tms-quick-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(32px, 1fr));
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.tms-quick-slot [hidden] {
+  display: none !important;
+}
+
+.tms-shortcut-cell {
+  position: relative;
+  justify-self: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: var(--quick-slot-background);
+  background-repeat: no-repeat;
+  background-position: calc(var(--slot-x) * -1) calc(var(--slot-y) * -1);
+  color: #fff;
+  cursor: pointer;
+  image-rendering: pixelated;
+  line-height: 1;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.tms-shortcut-cell:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.tms-shortcut-cell:focus-visible {
+  z-index: 2;
+  outline: 2px solid #ffe278;
+  outline-offset: 1px;
+}
+
+.tms-shortcut-icon {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 32px;
+  height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tms-shortcut-key,
+.tms-shortcut-level,
+.tms-shortcut-cooldown {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  pointer-events: none;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+  white-space: nowrap;
+}
+
+.tms-shortcut-key {
+  left: 2px;
+  top: 1px;
+  color: #f7f4dd;
+  font: 700 8px/9px Verdana, "Microsoft YaHei", sans-serif;
+}
+
+.tms-shortcut-level {
+  right: 1px;
+  bottom: 1px;
+  color: #fff5bd;
+  font: 700 7px/8px Verdana, "Microsoft YaHei", sans-serif;
+}
+
+.tms-shortcut-cooldown {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #10182099;
+  color: #fff;
+  font: 700 14px/1 Verdana, "Microsoft YaHei", sans-serif;
+  text-shadow: 1px 1px 0 #000, 0 0 2px #000;
+}
+
+.tms-shortcut-cell.is-disabled .tms-shortcut-icon {
+  filter: grayscale(1) brightness(.72);
+}
+
+.tms-shortcut-cell.is-cooldown .tms-shortcut-icon {
+  filter: brightness(.62);
+}
+
+.tms-shortcut-cell.is-active {
+  box-shadow: inset 0 0 0 2px #f4d46c, inset 0 0 7px #fff3a766;
+}
+
+.tms-shortcut-cell.is-channeling {
+  box-shadow: inset 0 0 0 2px #a6e9ff, inset 0 0 8px #68c8ffcc;
+}
+
+.tms-quick-slot-toggle {
+  position: absolute;
+  right: 0;
+  top: -19px;
+  z-index: 3;
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #77838b;
+  border-radius: 3px 3px 0 0;
+  background: #202a31e8;
+  color: #fff4bf;
+  cursor: pointer;
+  font: 700 15px/15px Verdana, sans-serif;
+  pointer-events: auto;
+}
+
+.tms-quick-slot-toggle:hover,
+.tms-quick-slot-toggle:focus-visible {
+  background: #3b4b54f2;
+}
+
+.tms-quick-slot-toggle:focus-visible {
+  outline: 2px solid #ffe278;
+  outline-offset: 1px;
+}
+
+.tms-quick-slot.is-collapsed .tms-shortcut-cell:nth-child(n + 17) {
+  display: none;
+}
+
+.tms-quick-slot.is-collapsed .tms-quick-slot-grid {
+  grid-template-rows: auto;
+}
+
+/* At small sizes the source cells stay usable and wrap by rows. The status
+   panel remains a separate flex item so its HP/MP information stays visible. */
+@media (max-width: 600px) {
+  .tms-quick-slot {
+    flex-basis: 100%;
+    width: min(557px, calc(100vw - 8px));
+  }
+
+  .tms-quick-slot-grid {
+    grid-template-columns: repeat(auto-fit, minmax(32px, 1fr));
+  }
+}
+
+@media (max-height: 500px) {
+  .tms-quick-slot-toggle {
+    top: -17px;
+    height: 16px;
+    font-size: 13px;
+    line-height: 13px;
+  }
+}

@@ -19,13 +19,24 @@ const CATALOG_PATH = path.join(OUTPUT, 'skills.json');
 const OUTPUT_PATH = path.join(OUTPUT, 'skill-sounds.json');
 const SOUND_ROOT = 'Sound/Skill.img';
 
-// These are the executable entries in the 17-skill 200/220 catalog. Passive
-// entries remain in the output with an explicit absent source; this prevents a
-// missing sound from being mistaken for an omitted skill.
+// These are the executable/triggered entries in the 56-skill catalog. Passive
+// entries remain in the output with an explicit absent source; the hidden
+// Blizzard final-attack variant is exported separately below as a triggered
+// source and never becomes a learnable catalog entry.
 const EXECUTABLE_SKILL_IDS = [
   '2001002', '2001008', '2001009', '2001011', '2001012',
   '2201001', '2201005', '2201008', '2201009',
+  '2211002', '2211007', '2211011', '2211012', '2211014', '2211017',
+  '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012',
+  '2221052', '2221053', '2221054',
+  '1000', '1001', '1002',
 ];
+const HIDDEN_TRIGGERED_SOUND_IDS = ['2220014', '2221055'];
+const SOURCE_SKILL_IDS = {
+  '1000': '0001000',
+  '1001': '0001001',
+  '1002': '0001002',
+};
 
 const reader = createReader(DATA);
 const sourceFileCache = new Map();
@@ -164,13 +175,15 @@ async function exportNode(rawNode, source, baseSource) {
 }
 
 async function exportSkill(id) {
-  const base = `${SOUND_ROOT}/${id}`;
+  const sourceId = SOURCE_SKILL_IDS[id] || id;
+  const base = `${SOUND_ROOT}/${sourceId}`;
   let node;
   try {
     node = await reader.get(base);
   } catch (error) {
     return {
       source: base,
+      sourceSkillId: sourceId,
       available: false,
       status: 'missing',
       nodeNames: [],
@@ -178,7 +191,7 @@ async function exportSkill(id) {
     };
   }
 
-  const result = { source: base, available: true, status: 'complete', nodeNames: [], nodes: {} };
+  const result = { source: base, sourceSkillId: sourceId, available: true, status: 'complete', nodeNames: [], nodes: {} };
   for (const rawNode of children(node)) {
     const source = `${base}/${rawNode.name}`;
     const entry = await exportNode(rawNode, source, base);
@@ -200,15 +213,16 @@ function catalogSkillIds() {
   const skills = catalog?.catalog?.skills;
   assert(skills && typeof skills === 'object', `catalog.skills missing: ${CATALOG_PATH}`);
   const ids = Object.keys(skills).sort();
-  assert.equal(ids.length, 17, `expected 17 catalog skills, got ${ids.length}`);
+  assert.equal(ids.length, 56, `expected 56 catalog skills, got ${ids.length}`);
   for (const id of EXECUTABLE_SKILL_IDS) assert(id in skills, `executable skill missing from catalog: ${id}`);
   return ids;
 }
 
 async function main() {
   const ids = catalogSkillIds();
+  const soundIds = [...new Set([...ids, ...HIDDEN_TRIGGERED_SOUND_IDS])];
   const skillSounds = {};
-  for (const id of ids) skillSounds[id] = await exportSkill(id);
+  for (const id of soundIds) skillSounds[id] = await exportSkill(id);
 
   const sourceFiles = [...sourceFileCache.values()].sort((a, b) => a.path.localeCompare(b.path));
   const executable = new Set(EXECUTABLE_SKILL_IDS);
@@ -224,7 +238,12 @@ async function main() {
     },
     catalogSkillIds: ids,
     executableSkillIds: EXECUTABLE_SKILL_IDS,
-    passiveOrTriggeredSkillIds: ids.filter(id => !executable.has(id)),
+    hiddenTriggeredSkillIds: HIDDEN_TRIGGERED_SOUND_IDS,
+    passiveOrTriggeredSkillIds: [...new Set([
+      ...ids.filter(id => !executable.has(id)),
+      ...HIDDEN_TRIGGERED_SOUND_IDS,
+    ])],
+    soundSkillIds: soundIds,
     sourceFiles,
     skillSounds,
   };
