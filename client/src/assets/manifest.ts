@@ -23,6 +23,7 @@ export interface MapLayer {
   key: string; url: string; x: number; y: number; origin?: Point; depth: number;
   alpha?: number; flip?: boolean; type?: number; background?: Background; frames?: AssetFrame[];
   source?: string; resolvedSource?: string; width?: number; height?: number;
+  crop?: { x: number; y: number; width: number; height: number };
   mapObject?: { layer: number; oS: string; l0?: string; l1?: string; l2?: string; x: number; y: number; z?: number; zM?: number };
   mapTile?: { layer: number; x: number; y: number; u: string; no: number; zM?: number };
 }
@@ -41,6 +42,7 @@ export interface MapCatalogEntry {
   id: string; name: string; streetName: string; source: string;
   assetStatus: 'rendered' | 'metadata'; bounds: MapBounds; bgm?: string;
   portals: MapPortal[]; layers?: MapLayer[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
+  water?: (MapBounds & { floor?: Point[] })[];
   spawn?: MapSpawn; spawns?: MapSpawn[];
 }
 export interface MapCatalog {
@@ -51,6 +53,7 @@ export interface ControlGuide { id: string; keys: string[]; separator: '/' | '+'
 export interface MapDefinition {
   id: string; name: string; bounds: MapBounds; layers: MapLayer[];
   source?: string; portals?: MapPortal[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
+  water?: (MapBounds & { floor?: Point[] })[];
   spawn?: MapSpawn; spawns?: MapSpawn[]; bgm?: string;
 }
 export interface AssetFrame {

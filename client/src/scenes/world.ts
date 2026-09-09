@@ -7,6 +7,7 @@ import { PlayerView } from '../features/player/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
 import { NpcView, type NpcSnapshot } from '../features/npc/view';
 import { PortalView } from '../features/world/portal-view';
+import { WaterView } from '../features/world/water';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
@@ -26,6 +27,7 @@ export class World extends Phaser.Scene {
   private portals = new Map<string, PortalView>();
   private actions = new Map<string, { actionId: string; tick: number }>();
   private pendingSkillCasts = new Map<string, SkillCastEvent>();
+  private waters: WaterView[] = [];
   private animatedLayers: MapLayerView[] = [];
   private backgrounds: BackgroundView[] = [];
   private snapshot?: Snapshot;
@@ -180,9 +182,11 @@ export class World extends Phaser.Scene {
       else {
         const point = layer.flip && layer.width && layer.height
           ? mapFramePosition(layer, { origin: layer.origin ?? {x:0,y:0}, width: layer.width, height: layer.height }) : layer;
-        this.add.image(point.x, point.y, layer.url).setOrigin(0).setDepth(layer.depth).setFlipX(layer.flip ?? false).setAlpha((layer.alpha ?? 255) / 255);
+        const image = this.add.image(point.x, point.y, layer.url).setOrigin(0).setDepth(layer.depth).setFlipX(layer.flip ?? false).setAlpha((layer.alpha ?? 255) / 255);
+        if (layer.crop) image.setCrop(layer.crop.x, layer.crop.y, layer.crop.width, layer.crop.height);
       }
     }
+    this.createWater();
     this.cameras.main.setBounds(b.xMin, b.yMin, b.xMax - b.xMin, b.yMax - b.yMin);
     this.updateBackgrounds(0);
     // Place portal effects above regular map layers while keeping foreground
@@ -206,6 +210,10 @@ export class World extends Phaser.Scene {
     if (this.manifest.map.bgm) { this.bgm = this.sound.add(this.manifest.map.bgm, { loop: true, volume: 0.25 }); this.bgm.play(); }
     this.status('地图已就绪，等待服务器快照…');
     this.events.once('shutdown', () => { this.clear(); this.bgm?.destroy(); });
+  }
+  private createWater() {
+    const depth = actorDepthForLayers(this.manifest.map.layers);
+    this.waters = (this.manifest.map.water ?? []).map(zone => new WaterView(this, zone, depth));
   }
   receive(message: ServerMessage) {
     if (message.type === 'snapshot') {
@@ -278,8 +286,9 @@ export class World extends Phaser.Scene {
     for (const portal of this.portals.values()) portal.destroy();
     for (const view of this.animatedLayers) for (const image of view.images) image.destroy();
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
+    for (const water of this.waters) water.destroy();
     this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
-    this.animatedLayers = []; this.backgrounds = [];
+    this.animatedLayers = []; this.backgrounds = []; this.waters = [];
     this.combat?.clear();
   }
   setMuted(muted: boolean) { this.sound.mute = muted; }
@@ -404,6 +413,7 @@ export class World extends Phaser.Scene {
     if (!this.loaded) return;
     this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);
+    for (const water of this.waters) water.update(delta);
     this.combat?.syncPlayers(this.snapshot?.players);
     this.combat?.syncSummons(this.snapshot?.summons);
     this.combat?.update();
@@ -423,13 +433,16 @@ export class World extends Phaser.Scene {
       if (player.hp <= 0 || player.action === 'dead') this.combat?.clearSkillPlayer(player.id);
       const elapsed = (snapshot.serverTick - player.actionStartedTick) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
       view.update(player, elapsed);
+      // P: ripples and the entry splash are display-only; the server owns the
+      // swim position and the water column the player is actually inside.
+      for (const water of this.waters) water.noteActor(player.id, player.x, player.y, player.vx, performance.now());
       if (player.id === snapshot.selfId) {
         // Keep the player and name above the HUD in short browser viewports.
         this.cameras.main.centerOn(Math.round(player.x), Math.round(player.y - Math.min(120, this.cameras.main.height * 0.1)));
         this.tryPortal(player, true);
       }
     }
-    this.updateGameplayEntities(snapshot as GameplaySnapshot);
+    this.updateGameplayEntities(snapshot as GameplaySnapshot, delta);
   }
 
   nearestDropId(): string | null {
@@ -504,7 +517,23 @@ export class World extends Phaser.Scene {
     return equipped.some(item => item.itemId === '1302000');
   }
 
-  private updateGameplayEntities(snapshot: GameplaySnapshot) {
+  /**
+   * Client-side buoyancy for one drop icon: the server already parks a drop
+   * that fell into the pool at its floating anchor, so this only adds the
+   * spring settling, the wave bob and the tilt (P display layer).
+   */
+  private dropFloat(id: string, dropX: number, dropY: number, frame: AssetFrame, delta: number) {
+    if (!this.waters.length) return undefined;
+    const centerX = dropX + frame.x + frame.width / 2;
+    const bottom = dropY + frame.y + frame.height;
+    for (const water of this.waters) {
+      const float = water.floatFor(id, centerX, frame.height, bottom, delta / 1000);
+      if (float) return { y: float.bottom - frame.y - frame.height, tilt: float.tilt };
+    }
+    return undefined;
+  }
+
+  private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);
     const monsters = snapshot.monsters ?? [];
     const monsterIds = new Set(monsters.map(monster => monster.id));
@@ -531,8 +560,13 @@ export class World extends Phaser.Scene {
       if (!asset) continue;
       let view = this.drops.get(drop.id);
       if (!view) { view = new DropView(this, asset, actorDepth + 1); this.drops.set(drop.id, view); }
-      view.update(drop);
+      const float = this.dropFloat(drop.id, drop.x, drop.y, asset, delta);
+      // A floating icon belongs under the translucent surface layer, a grounded
+      // one stays above the actors so it keeps its pickup readability.
+      view.setDepth(float ? actorDepth + WaterView.OVERLAY_OFFSET - 0.01 : actorDepth + 1);
+      view.update(drop, float);
     }
+    for (const water of this.waters) water.pruneFloats(dropIds);
 
     const interactions = snapshot.questInteractions ?? [];
     const interactionIds = new Set(interactions.map(entry => entry.questId));

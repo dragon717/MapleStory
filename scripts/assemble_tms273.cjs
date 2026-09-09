@@ -16,6 +16,7 @@ Object.assign(avatar.actions, mageAvatar.actions);
 for (const [key, actions] of Object.entries(mageAvatar.equipmentLoadouts)) Object.assign(avatar.equipmentLoadouts[key].actions, actions);
 const windows = read('windows'), inventory = read('windows-inventory');
 const maps = catalog.maps.map(map => ({...map, bgm:effects.bgm[map.id]}));
+maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
 const birth = maps.find(map => map.id === catalog.birthMapId);
 assert(birth, 'Birth map absent');
 assert(maps.length === JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps.length, 'Map export is stale');

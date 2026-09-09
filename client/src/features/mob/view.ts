@@ -151,9 +151,21 @@ export class DropView {
     this.sprite = scene.add.image(0, 0, frame.url).setOrigin(0).setDepth(depth);
   }
 
-  update(drop: DropSnapshot) {
+  /** Re-layered while an icon floats so the water surface tints its draft. */
+  setDepth(depth: number) { this.sprite.setDepth(depth); }
+
+  /** `float` carries the buoyant anchor computed by the water view (P display layer). */
+  update(drop: DropSnapshot, float?: { y: number; tilt: number }) {
     if (this.pickingUp) return;
-    this.sprite.setVisible(true)
+    if (float) {
+      // Pivot around the icon centre so the tilt reads as rocking on the
+      // surface instead of swinging around the top-left corner.
+      this.sprite.setVisible(true).setOrigin(0.5, 0.5)
+        .setRotation(float.tilt)
+        .setPosition(drop.x + this.frame.x + this.frame.width / 2, float.y + this.frame.y + this.frame.height / 2);
+      return;
+    }
+    this.sprite.setVisible(true).setOrigin(0, 0).setRotation(0)
       .setPosition(Math.round(drop.x + this.frame.x), Math.round(drop.y + this.frame.y));
   }
 

@@ -692,3 +692,12 @@ Luna/max mage_sp_official续作导出72张额外PNG与mage-effects.json，另复
 - MapleStory-TMS273-resources.zip：209,418,874 bytes（约200 MiB），5,901文件，client/public-tms273完整运行树+shared/*.json；无源码、node_modules、原WZ、账号库/凭据。SHA256=5d507f8bf45ae800d3b9612c9ecd90c1c593ed9eedc617c8220a1f19d27811ba，另附.sha256；ZIP被gitignore排除，需单独传输。
 - scripts/package_windows_resources.py可复现打包，CRC、逐文件SHA256和数量校验通过；运行检查14 JSON/104429素材引用/41图通过。中文空格临时目录干净解压、不含参考WZ的检查通过；错误contentVersion和缺引用文件拒绝通过。BAT CRLF/ASCII与静态diff检查通过。
 - scripts/windows-control.ps1 -SelfTest保留PID/路径/启动时间匹配检查。本机无Windows/PowerShell，未运行PS解析或自检、Windows编译/真实启动/停止/浏览器验收；由用户Windows实机验证。未修改游戏业务、重启在线服务或操作账号数据库。
+
+## 选择岔道水域与木架踏板：平面物理水与游泳（2026-09-09）
+
+- 地图几何（P，用户指定两条截图标记）：001020000 移除木架竖墙 foothold 58、右岸 foothold 15 左端由 637 改为 580 并断开 prev、新增踏板 foothold 59（620..690，y=180），构成「岸→踏板→木架 foothold 57」两跳路线；新增水区 x 0..580、水面 y=224、池底折线 278..340。改动由装配脚本 `scripts/tms273_split_road.cjs` 单一生成，对齐/幂等/运行时数据自检通过，已同步 `shared/maps.json` 与 `client/public-tms273/assets/manifest.json`。
+- 踏板贴图取自同图 `Map/Obj/acc1.img/grassySoil_new/house5/1` 木架原图的 crop(570,130,70,20)，对齐到 foothold 59 的世界坐标，不是自绘资源；渲染侧新增 `MapLayer.crop` 字段支持。
+- 服务端（`server/src/world.rs`、`server/src/water_acceptance.rs`，Luna/max后端子代理）：`WaterRect`（含 floor 插值与启动校验）、`water_at/water_entry/water_below`、玩家 `swimming` 状态、↓+跳下跳入水、水域边缘进入、水中按方向游动与跳跃上岸、掉落物漂浮常量 `DROP_WATER_DRAFT = 16`（锚点=水面 y_min+16，夹在 floor 内，保证游泳玩家 32px 拾取范围可达；木架与岸上坐标不受影响，幂等）。
+- 客户端（新增 `client/src/features/world/water.ts`，root）：按 `Web_TS_2D_Water_Development_Plan` 的模拟核心在 Phaser 内实现一维高度场水面（反射边界、两条环境波、固定 1/120 步长与积压裁剪、位移限幅）、按接触宽度归一化的入水冲量（网格细化不改变总注入冲量）、池化水花、掉落物固定吃水浮力（弹簧趋近、随波起伏、随水面斜率倾斜）、玩家入水/游动涟漪；水体前后两层绘制，使游泳角色与漂浮物水下部分由同一条水线着色。计划原定 Three.js + Rapier 的 Demo 栈未引入：本项目已有 Phaser 渲染与服务端权威物理，只移植模拟核心，客户端不回写任何权威坐标。
+- 验证：`cargo test --offline water_` 2 项通过（`water_is_finite_enterable_and_swimmable_without_foothold_edges`、`water_drops_float_to_surface_but_not_onto_land`）；全量 `cargo test --offline` 127 passed / 4 failed，4 项失败经 stash 基线复现为既有问题（auth third_store_book_split、mage bundled_catalog、world config_drop_and_exp、world third_sphere），与本轮无关。前端 `tsc --noEmit` 通过、`client/src/features/world/water.check.mjs` 六组水面/浮力检查通过、`vite build`（dist-water-check，1m10s）通过，仅既有 chunk 体积警告。`npm run check` 中 `input.check.mjs` 在既有快捷键断言（222/Digit9）失败，与本轮无关、未修改。
+- 待验（用户实玩）：波浪幅度、水花密度、漂浮姿态与吃水位置的手感；踏板两跳上木架；岸→水→岸与水中拾取。游泳沿用 jump pose（当前头像契约没有 swim 动作，未改协议）。未重启在线服务、未改数据库、未启动独立 QA。

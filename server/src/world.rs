@@ -166,6 +166,11 @@ const TENACITY_CAP: f64 = 0.6; // knockback-reduction cap, mirroring LoL soft ca
                                // before cancelling the fixed climb state.  Reuse that source boundary when
                                // resolving the foothold at an allowed top exit.
 const LADDER_END_PROBE_PX: f64 = 5.0;
+// P: user-authorized adaptation (not original TMS273 rule). When an item drop
+// lands in a water zone it is pinned 16px below the surface so a swimming
+// player (pickup range is |dx|,|dy| <= 32 at world.rs:8215) can actually reach
+// it instead of it resting on the pool floor. y grows downward in world coords.
+const DROP_WATER_DRAFT: f64 = 16.0;
 // The Snail WZ animation manifest has a 100 ms stand frame and five move
 // frames at 180 ms each (900 ms per move loop).  HeavenClient's controlled
 // mob counter is the longer gate; the 50 ms authoritative loop uses the
@@ -344,6 +349,59 @@ impl Ladder {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaterRect {
+    pub x_min: f64,
+    pub x_max: f64,
+    /// The water surface and floor in world-space foot coordinates.
+    pub y_min: f64,
+    pub y_max: f64,
+    #[serde(default)]
+    pub floor: Vec<Point>,
+}
+
+impl WaterRect {
+    fn valid(&self, bounds: &Bounds) -> bool {
+        [self.x_min, self.x_max, self.y_min, self.y_max]
+            .iter()
+            .all(|value| value.is_finite())
+            && self.x_min < self.x_max
+            && self.y_min < self.y_max
+            && self.x_min >= bounds.x_min
+            && self.x_max <= bounds.x_max
+            && self.y_min >= bounds.y_min
+            && self.y_max <= bounds.y_max
+            && (self.floor.is_empty() || (self.floor.len() >= 2
+                && self.floor.first().is_some_and(|p| p.x == self.x_min)
+                && self.floor.last().is_some_and(|p| p.x == self.x_max)
+                && self.floor.iter().all(|p| p.x.is_finite() && p.y.is_finite()
+                    && p.y >= self.y_min && p.y <= self.y_max)
+                && self.floor.windows(2).all(|p| p[0].x < p[1].x)))
+    }
+
+    fn floor_at(&self, x: f64) -> f64 {
+        self.floor.windows(2).find(|p| x >= p[0].x && x <= p[1].x)
+            .map(|p| p[0].y + (p[1].y - p[0].y) * (x - p[0].x) / (p[1].x - p[0].x))
+            .unwrap_or(self.y_max)
+    }
+
+    fn contains_x(&self, x: f64) -> bool {
+        x >= self.x_min - 0.001 && x <= self.x_max + 0.001
+    }
+
+    fn contains(&self, x: f64, y: f64) -> bool {
+        self.contains_x(x) && y >= self.y_min - 0.001 && y <= self.y_max + 0.001
+    }
+}
+
+fn deserialize_water_zones<'de, D>(deserializer: D) -> Result<Vec<WaterRect>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<Vec<WaterRect>>::deserialize(deserializer).map(Option::unwrap_or_default)
+}
+
+#[derive(Clone, Deserialize)]
 pub struct Map {
     pub id: String,
     pub bounds: Bounds,
@@ -353,6 +411,10 @@ pub struct Map {
     pub ladders: Vec<Ladder>,
     #[serde(default)]
     pub portals: Vec<Portal>,
+    /// Optional map-authored flat water rectangles.  Older exports carry a
+    /// null field, so normalize both null and an absent field to an empty list.
+    #[serde(default, deserialize_with = "deserialize_water_zones")]
+    pub water: Vec<WaterRect>,
 }
 
 impl Map {
@@ -387,6 +449,7 @@ impl Map {
                     || l.id == 0
                     || l.top() == l.bottom()
             })
+            || map.water.iter().any(|water| !water.valid(b))
             || map.portals.iter().any(|portal| {
                 portal.name.is_empty()
                     || ![portal.x, portal.y].iter().all(|x| x.is_finite())
@@ -690,6 +753,81 @@ impl Map {
         self.ladders
             .iter()
             .find(|ladder| ladder.accepts(x, y, upwards))
+    }
+
+    fn water_at(&self, x: f64, y: f64) -> Option<&WaterRect> {
+        self.water.iter().find(|water| water.contains(x, y))
+    }
+
+    fn water_entry(
+        &self,
+        from_x: f64,
+        to_x: f64,
+        from_y: f64,
+        to_y: f64,
+    ) -> Option<(f64, f64)> {
+        const EPSILON: f64 = 0.001;
+        if to_y < from_y - EPSILON {
+            return None;
+        }
+        self.water.iter().find_map(|water| {
+            if from_y < water.y_min - EPSILON && to_y >= water.y_min - EPSILON {
+                let denominator = to_y - from_y;
+                let t = if denominator.abs() <= EPSILON {
+                    0.0
+                } else {
+                    ((water.y_min - from_y) / denominator).clamp(0.0, 1.0)
+                };
+                let x = from_x + (to_x - from_x) * t;
+                return water.contains_x(x).then_some((x.clamp(water.x_min, water.x_max), water.y_min));
+            }
+            if from_y >= water.y_min - EPSILON
+                && from_y <= water.y_max + EPSILON
+                && (from_x.min(to_x) <= water.x_max + EPSILON)
+                && (from_x.max(to_x) >= water.x_min - EPSILON)
+            {
+                let x = if water.contains_x(to_x) {
+                    to_x
+                } else {
+                    to_x.clamp(water.x_min, water.x_max)
+                };
+                return Some((x, from_y.clamp(water.y_min, water.floor_at(x))));
+            }
+            None
+        })
+    }
+
+    fn water_below(&self, current_id: u64, x: f64) -> bool {
+        let Some(current_ground) = self.get(current_id)
+            .filter(|foothold| foothold.forbid_fall_down == 0)
+            .and_then(|foothold| foothold.at(x)) else {
+            return false;
+        };
+        self.water.iter().any(|water| {
+            water.contains_x(x)
+                && water.y_min > current_ground + 0.001
+                && water.y_min - current_ground < DOWNJUMP_RANGE
+        })
+    }
+
+    /// P: user-authorized drop floating (not original TMS273 rule). If a drop
+    /// anchor falls inside a water zone (same x span and at or below the
+    /// surface), pin it `DROP_WATER_DRAFT` below the surface so a swimming
+    /// player can pick it up. Surface is `y_min` (y grows downward), so the
+    /// floated y is `y_min + DROP_WATER_DRAFT`. The result is clamped to the
+    /// water's surface..floor span so it never floats onto land or punches
+    /// through the floor. Idempotent: re-applying to an already-floated y is a
+    /// no-op.
+    fn water_float_y(&self, x: f64, y: f64) -> f64 {
+        for water in &self.water {
+            if water.contains_x(x) && y >= water.y_min {
+                let floated = (water.y_min + DROP_WATER_DRAFT)
+                    .max(water.y_min)
+                    .min(water.floor_at(x));
+                return floated;
+            }
+        }
+        y
     }
 }
 
@@ -1810,6 +1948,7 @@ struct Player {
     direction: i8,
     vertical: i8,
     jump: bool,
+    swimming: bool,
     foothold_id: u64,
     // HeavenClient keeps the current foothold available to its lower-border
     // recovery even while a jump has temporarily cleared the active fhid.
@@ -2173,14 +2312,17 @@ impl World {
             for drop in store.load_drops(&world.map.id)? {
                 let drop_id = drop.id.clone();
                 let owner_id = drop.owner_id.clone();
+                // P: user-authorized drop floating — re-pin any stored drop
+                // that sits in water to just below the surface.
+                let (load_x, load_y) = (drop.x, world.map.water_float_y(drop.x, drop.y));
                 world.drops.insert(
                     drop_id.clone(),
                     DropState {
                         id: drop.id.clone(),
                         item_id: drop.item_id.clone(),
                         quantity: drop.quantity,
-                        x: drop.x,
-                        y: drop.y,
+                        x: load_x,
+                        y: load_y,
                     },
                 );
                 world
@@ -2248,19 +2390,21 @@ impl World {
         for map in catalog.maps {
             let map_id = map.id.clone();
             self.maps.insert(map_id.clone(), map);
-            if let Some(store) = self.store.as_ref() {
-                for drop in store.load_drops(&map_id)? {
-                    let drop_id = drop.id.clone();
-                    self.drops.insert(
-                        drop_id.clone(),
-                        DropState {
-                            id: drop.id.clone(),
-                            item_id: drop.item_id.clone(),
-                            quantity: drop.quantity,
-                            x: drop.x,
-                            y: drop.y,
-                        },
-                    );
+                if let Some(store) = self.store.as_ref() {
+                    for drop in store.load_drops(&map_id)? {
+                        let drop_id = drop.id.clone();
+                        // P: user-authorized drop floating.
+                        let (load_x, load_y) = (drop.x, self.map.water_float_y(drop.x, drop.y));
+                        self.drops.insert(
+                            drop_id.clone(),
+                            DropState {
+                                id: drop.id.clone(),
+                                item_id: drop.item_id.clone(),
+                                quantity: drop.quantity,
+                                x: load_x,
+                                y: load_y,
+                            },
+                        );
                     self.drop_instances
                         .insert(drop_id.clone(), DropInstance::from_record(&drop));
                     self.drop_owners
@@ -2875,6 +3019,7 @@ impl World {
                         direction: 0,
                         vertical: 0,
                         jump: false,
+                        swimming: false,
                         foothold_id,
                         last_foothold_id: foothold_id,
                         fall_boundary_hold: false,
@@ -3210,6 +3355,7 @@ impl World {
         player.state.action_id = None;
         player.state.action = if grounded { "stand" } else { "jump" };
         player.state.action_started_tick = self.tick;
+        player.swimming = false;
         player.direction = 0;
         player.vertical = 0;
         player.jump = false;
@@ -6155,6 +6301,7 @@ impl World {
         player.state.action_id = None;
         player.state.action = if plan.grounded { "stand" } else { "jump" };
         player.state.action_started_tick = self.tick;
+        player.swimming = false;
         player.foothold_id = plan.foothold_id;
         player.last_foothold_id = plan.foothold_id;
         player.drop_fh = 0;
@@ -8612,6 +8759,9 @@ impl World {
                     (true, String::new(), None)
                 } else {
                     let drop_id = auth::random_id();
+                    // P: user-authorized drop floating — pin to surface if the
+                    // player dropped the item while swimming.
+                    let drop_y = self.map.water_float_y(drop_x, drop_y);
                     self.drops.insert(
                         drop_id.clone(),
                         DropState {
@@ -9130,7 +9280,9 @@ impl World {
                     item_id: "0".to_owned(),
                     quantity,
                     x,
-                    y,
+                    // P: user-authorized drop floating — mesos dropped while
+                    // swimming pin to just below the surface.
+                    y: self.map.water_float_y(x, y),
                 },
             );
             self.drop_instances
@@ -9209,14 +9361,16 @@ impl World {
             return;
         };
         if let Ok(Some(drop)) = store.load_drop(map_id, drop_id) {
+            // P: user-authorized drop floating.
+            let (load_x, load_y) = (drop.x, self.map.water_float_y(drop.x, drop.y));
             self.drops.insert(
                 drop_id.to_owned(),
                 DropState {
                     id: drop.id.clone(),
                     item_id: drop.item_id.clone(),
                     quantity: drop.quantity,
-                    x: drop.x,
-                    y: drop.y,
+                    x: load_x,
+                    y: load_y,
                 },
             );
             self.drop_instances
@@ -9237,6 +9391,8 @@ impl World {
         let Some(drop_id) = outcome.drop_id.as_deref() else {
             return;
         };
+        // P: user-authorized drop floating — pin to surface if dropped in water.
+        let float_y = self.map.water_float_y(x, y);
         self.drops.insert(
             drop_id.to_owned(),
             DropState {
@@ -9244,7 +9400,7 @@ impl World {
                 item_id: outcome.item_id.clone(),
                 quantity: outcome.quantity,
                 x,
-                y,
+                y: float_y,
             },
         );
         let instance = self
@@ -9430,6 +9586,7 @@ impl World {
         player.state.action_id = None;
         player.state.action = "stand";
         player.state.action_started_tick = self.tick;
+        player.swimming = false;
         player.death_id.clear();
         player.natural_recovery_next_tick = self
             .tick
@@ -12353,12 +12510,15 @@ impl World {
                     .filter(|max| *max >= spec.quantity)
                     .map(|max| rand::thread_rng().gen_range(spec.quantity..=max))
                     .unwrap_or(spec.quantity);
+                // P: user-authorized drop floating — pin drops that land in
+                // water to just below the surface so swimmers can reach them.
+                let drop_y = self.map.water_float_y(x, y);
                 drops.push(auth::DropRecord {
                     id,
                     item_id: spec.item_id,
                     quantity,
                     x,
-                    y,
+                    y: drop_y,
                     owner_id: Some(owner_id.to_owned()),
                     protected_until_ms: auth::now_ms() + auth::DROP_PROTECTION_MS,
                     ..auth::DropRecord::default()
@@ -12679,6 +12839,7 @@ impl World {
             player.state.action = "dead";
             player.state.action_started_tick = self.tick;
             player.state.action_id = None;
+            player.swimming = false;
             player.natural_recovery_next_tick = self
                 .tick
                 .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
@@ -13553,6 +13714,62 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
     }
 
+    if player.swimming && !knockback_active {
+        if let Some(water) = map.water_at(player.state.x, player.state.y).cloned() {
+            if player.jump {
+                // Jump is the explicit swim-to-land transition.  Leave the
+                // rectangle at the current depth and let the normal ballistic
+                // path find a bank or re-enter the water surface.
+                player.swimming = false;
+                player.state.grounded = false;
+                player.state.climbing = false;
+                player.state.ladder_id = None;
+                player.state.vy = -JUMP_SPEED;
+                player.foothold_id = 0;
+                player.last_foothold_id = 0;
+                player.drop_fh = 0;
+                player.vertical = 0;
+            } else {
+                const SWIM_SPEED: f64 = 140.0;
+                player.state.vx = player.direction as f64 * SWIM_SPEED;
+                player.state.vy = player.vertical as f64 * SWIM_SPEED;
+                if player.direction != 0 {
+                    player.state.facing = player.direction;
+                }
+                player.state.x = (player.state.x
+                    + player.state.vx * (TICK_MS as f64 / 1000.0))
+                    .clamp(water.x_min, water.x_max);
+                player.state.y = (player.state.y
+                    + player.state.vy * (TICK_MS as f64 / 1000.0))
+                    .clamp(water.y_min, water.floor_at(player.state.x));
+                if player.state.x <= water.x_min || player.state.x >= water.x_max {
+                    player.state.vx = 0.0;
+                }
+                if player.state.y <= water.y_min || player.state.y >= water.floor_at(player.state.x) {
+                    player.state.vy = 0.0;
+                }
+                player.state.grounded = false;
+                player.state.climbing = false;
+                player.state.ladder_id = None;
+                player.foothold_id = 0;
+                player.drop_fh = 0;
+                player.jump = false;
+                if tick >= player.attack_until {
+                    player.state.action_id = None;
+                    if player.state.action != "jump" {
+                        player.state.action_started_tick = tick;
+                    }
+                    // No dedicated swimming sprite is part of the current
+                    // avatar contract; keep the existing jump pose.
+                    player.state.action = "jump";
+                }
+                return;
+            }
+        } else {
+            player.swimming = false;
+        }
+    }
+
     if player.state.climbing {
         if player.jump && player.direction != 0 {
             player.jump = false;
@@ -13642,9 +13859,10 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     if player.state.grounded {
         let down_jump_intent = player.vertical > 0 && player.jump;
         let down_jump = down_jump_intent
-            && map
+            && (map
                 .downjump_target(player.foothold_id, player.state.x)
-                .is_some();
+                .is_some()
+                || map.water_below(player.foothold_id, player.state.x));
         if down_jump {
             // Match the v83 down-jump sequence: leave the current foothold by
             // one pixel, then use the short upward hop while ignoring that
@@ -13690,21 +13908,30 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     } else {
         player.last_foothold_id
     };
-    let chain_wall = (player.state.vx != 0.0 && chain_anchor != 0)
+    let intended_x = player.state.x + player.state.vx * (TICK_MS as f64 / 1000.0);
+    let projected_vy = (player.state.vy + GRAVITY * (TICK_MS as f64 / 1000.0)).min(FALL_SPEED);
+    let water_entry_ahead = map
+        .water_entry(
+            old_x,
+            intended_x,
+            player.state.y,
+            player.state.y + projected_vy * (TICK_MS as f64 / 1000.0),
+        )
+        .is_some();
+    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0)
         .then(|| map.chain_wall_for(chain_anchor, player.state.vx < 0.0, player.state.y));
     if let Some(Some(wall)) = chain_wall {
-        let intended = player.state.x + player.state.vx * (TICK_MS as f64 / 1000.0);
         let crossed = if player.state.vx < 0.0 {
-            player.state.x >= wall && intended <= wall
+            player.state.x >= wall && intended_x <= wall
         } else {
-            player.state.x <= wall && intended >= wall
+            player.state.x <= wall && intended_x >= wall
         };
-        player.state.x = if crossed { wall } else { intended };
+        player.state.x = if crossed { wall } else { intended_x };
         if crossed {
             player.state.vx = 0.0;
         }
     } else {
-        player.state.x += player.state.vx * (TICK_MS as f64 / 1000.0);
+        player.state.x = intended_x;
     }
     player.state.x = player.state.x.clamp(map.bounds.x_min, map.bounds.x_max);
 
@@ -13763,13 +13990,27 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         }
         let next_y = player.state.y + player.state.vy * (TICK_MS as f64 / 1000.0);
         if player.state.vy >= 0.0 {
-            if let Some((foothold_id, landing_x, ground)) =
+            if let Some((water_x, water_y)) =
+                map.water_entry(old_x, player.state.x, player.state.y, next_y)
+            {
+                player.state.x = water_x;
+                player.state.y = water_y;
+                player.state.vx = 0.0;
+                player.state.vy = 0.0;
+                player.state.grounded = false;
+                player.swimming = true;
+                player.foothold_id = 0;
+                player.last_foothold_id = 0;
+                player.fall_boundary_hold = false;
+                player.drop_fh = 0;
+            } else if let Some((foothold_id, landing_x, ground)) =
                 map.landing_on_sweep(old_x, player.state.x, player.state.y, next_y, ignored_fh)
             {
                 player.state.x = landing_x;
                 player.state.y = ground;
                 player.state.vy = 0.0;
                 player.state.grounded = true;
+                player.swimming = false;
                 player.foothold_id = foothold_id;
                 player.last_foothold_id = foothold_id;
                 player.drop_fh = 0;
@@ -13779,7 +14020,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         } else {
             player.state.y = next_y;
         }
-        if player.state.y > map.fall_boundary() {
+        if !player.swimming && player.state.vy >= 0.0 && player.state.y > map.fall_boundary() {
             recover_at_fall_boundary(map, player, tick);
         }
         if player.state.y < map.bounds.y_min {
@@ -13890,6 +14131,7 @@ fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
     player.direction = 0;
     player.vertical = 0;
     player.jump = false;
+    player.swimming = false;
     player.state.action = if player.state.grounded {
         "stand"
     } else {
@@ -13974,6 +14216,7 @@ mod tests {
             }],
             ladders: Vec::new(),
             portals: Vec::new(),
+            water: Vec::new(),
         }
     }
 
@@ -17097,6 +17340,7 @@ mod tests {
     include!("third_acceptance.rs");
     include!("boss_acceptance.rs");
     include!("hyper_acceptance.rs");
+    include!("water_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
