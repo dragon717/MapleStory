@@ -1,3 +1,29 @@
+## 2026-09-10 聊天输入焦点 bug 修复（第二弹：根因在 snapshot 触发 focusGame 抢焦点）
+
+- 现象（用户实测复述）：按 Enter 后光标短暂进入聊天输入框"闪一下"即消失，再按键又触发游戏快捷键。
+- 根因：服务端 `world.rs` 每个世界 tick(~50ms)向每个玩家 `try_send(snapshot)`（tick 尾部 players 全量快照）；客户端 `Connection.onmessage` 对**每一条 snapshot** 都回调 `state('online')`；`main.ts` 连接状态回调对每次 online 执行 `focusGame()`（rAF 聚焦 `#game`）。于是 Enter 聚焦输入框后不足 50ms 即被下一个 snapshot 触发 focusGame 抢走焦点——"闪一下就没"。此前 headless mock 只触发一次 online，故未暴露。
+- 修复（`client/src/network/session.ts`）：新增 `lastState` + `report()`，仅当 connecting/online/offline 真正变化时回调 `state()`；snapshot 只作为"已连接"确认，不再每 tick 重复上报 online。离线复现脚本 `chat-focus.check.mjs` 的 mock 相应模拟修复后契约（仅在变化时上报）。
+- 验证：chat-focus.check.mjs 新增场景 10a/10b 精确复现并验证——legacy 模式（每 snapshot 上报 online）下 Enter 聚焦 260ms 后被抢回 `DIV`（复现"闪没"）；修复模式（幂等上报）下持续 snapshot(~400ms/8 tick) 输入框焦点保持、`focusGame` 零额外调用、打字正常落框；加上此前 9 场景全过；`tsc --noEmit` 通过。保留为回归测试。
+- 未上线：在线服务仍跑旧构建；待 `启动3010.command` 统一构建（protocol 11）后实玩验证（Enter 后光标驻留、打字不触发快捷键）。
+
+## 2026-09-10 聊天输入焦点 bug 修复（无法输入/打字触发游戏快捷键）
+
+- 现象：聊天栏打字"无法输入"，按键触发游戏系统快捷键（移动/技能等）。
+- 排查方法：纸面梳理 PlayerInput/ChatView 焦点与键盘守卫后，用离线 Playwright 复现脚本（`client/src/app/chat-focus.check.mjs`，esbuild 打包真实 app + mock Connection，复用 viewport.check 骨架）做逐键断言；证明"焦点真正落输入框时零泄漏"（方向/空格/Z/X/数字/A/D 全不穿透），按住方向键开聊的 HELD 场景在 focusin→reset 时发 direction:0 立即停止。
+- 根因一：聊天面板折叠后 `input.disabled=true`，ChatView `onGlobalKeyDown` 的 Enter 分支因 `this.input?.disabled` 直接 return——不展开面板、不聚焦输入框，玩家按 Enter 无反应，后续按键全部落到游戏快捷键。
+- 根因二：273 皮肤可见"输入框底图"大于真实 input（`chat273-input` 绝对定位仅 15px 高），点击底图空白处焦点落在页面 body（非 input 控件），PlayerInput.blocked() 不生效 → 打字触发游戏键。
+- 修复（`client/src/features/chat/view.ts`）：① Enter 分支守卫由 `this.input?.disabled` 改为 `!this.available`，先 `setOpen(true)`（`updateInputState` 解除 disabled）再 `focus()`，折叠态 Enter 可重开并聚焦；② 新增 `onRootPointerDown`：点击面板非控件/非日志区域（排除 input/textarea/select/button/contenteditable/.chat273-log/.chat-log）→ preventDefault + setOpen(true) + 聚焦输入框，日志保留原生滚动，`destroy()` 同步移除。`input.ts` 仅注释说明"blocked 时不得 re-add held"的既有不变式（无逻辑改动）。
+- 验证：chat-focus.check.mjs 9 场景全过（Enter 聚焦、打字/逐键隔离、提交、Esc 回游戏、按住移动键开聊立即停止、折叠 Enter 重开聚焦、点击面板空白聚焦输入框）；`tsc --noEmit` 通过。复现脚本保留为回归测试。
+- 未上线：在线服务仍跑旧前端；待 `启动3010.command` 统一构建（protocol 11）后实玩验证。
+
+## 2026-09-09 地图公共聊天（chat_ops P1-C04）开发与定向验证完成
+
+- 按 `MapleStory_Rust_Chat_Ops_Development_Plan` 落实 P0-C00 真实盘点（启动入口/network/world 权威循环/protocol/socket writer/客户端聊天与渲染现状）与 P1 C03/C04 最小闭环；当前服务端为单进程权威 World、每连接有界 `mpsc::Sender<String>` 出站队列、玩家以 `map_id` 归属，无频道/多实例体系（P：地图房间=map_id）。
+- 协议 protocolVersion 10→11，server `protocol.rs` 与 `shared/protocol.ts` 同步：`chatSend`（requestId+text）与 `chatMessage`（messageId/requestId 可选/mapId/authorId/authorName/text/occurredAtTick）。客户端仅交文本；地图房间/作者/展示名由服务端会话推导；伪造 mapId/authorName/GM/system 字段在反序列化层被拒。
+- 服务端 world.rs：新增 `handle_chat`（当前地图成员房间 fan-out、文本策略 ≤200 字符且 ≤1KiB 且无控制符、令牌桶突发5 速率1/s 按 tick 惰性补充、request_id 幂等窗口64：同ID同正文不重复广播/异正文冲突拒绝）、`chat_reject`、`chat_consume_token`；Player 增 chat_tokens/chat_bucket_tick/chat_recent，World 增 chat_sequence。发送者 echo 带 requestId，其它玩家载荷不带；慢连接出站队列满则丢弃该条临时消息，不阻塞世界 tick、不踢人。
+- 客户端：ChatView 接入真实提交与 pending 合并（requestId 匹配升级行；服务端拒绝恢复草稿可改后重发）、IME composition 保护、Enter 聚焦/Esc 退出、面板可用文案；`scenes/world.ts` 对 `chatMessage` 在 Phaser 角色头顶渲染 4 秒气泡（仅他人发言，切图/历史重放不生成）；`i18n.ts` 补 chat_rate_limited/invalid_chat_text/idempotency_conflict 文案。
+- 验证证据：`cargo test` chat 定向 7 项通过（房间隔离、伪造拒绝、幂等重复/冲突、令牌限流及 1s 恢复、慢连接满队列不阻塞、文本策略/线级校验），`cargo build --offline` 通过（仅既有 contact_damage 警告），前端 `tsc --noEmit` 通过。全量 `cargo test` 另有 4 项失败经 stash 验证为基线既有（third_store/bundled_catalog/config_drop/third_sphere，09-09 装配回退与数值待办范围，与聊天无关）。未覆盖在线 dist/服务/数据库、未重启服务；vite 生产构建留给 `启动3010.command` 统一发布。用户实玩待验（Enter 发言、气泡、房间隔离、限流、IME）。
+
 ## 2026-09-07 默认简体中文与语言入口
 
 - 默认简体中文；页面提供简体中文/English 选择并保存偏好，URL lang 优先。禁用本地存储时仍可通过 URL 切换。

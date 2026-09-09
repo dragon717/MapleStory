@@ -93,7 +93,13 @@ export class PlayerInput {
     if (!this.ready || event.defaultPrevented || event.isComposing || event.metaKey || event.altKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ', 'KeyQ', 'KeyK', ...Object.keys(SHORTCUT_SKILLS)].includes(event.code)) return;
     if (event.code === 'KeyK' && event.ctrlKey) return;
-    if (this.blocked()) { this.releaseBlockedInput(); return; }
+    if (this.blocked()) {
+      // A modal window or a focused text control owns the keyboard: clear any
+      // movement held before focus moved, and never re-add keys from key
+      // repeat while blocked — otherwise the player keeps walking during chat.
+      this.releaseBlockedInput();
+      return;
+    }
     event.preventDefault();
     if (event.code === 'KeyQ' || event.code === 'KeyK') {
       if (event.repeat) return;

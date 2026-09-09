@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 export const CONTENT_VERSION = 'tms273-9';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -86,7 +86,8 @@ export type ClientMessage =
   | { type: 'dropMesos'; requestId: string; quantity: number }
   | { type: 'questInteract'; requestId: string; questId: string }
   | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
-  | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number };
+  | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number }
+  | { type: 'chatSend'; requestId: string; text: string };
 export interface DialogueOption { index: number; text: string }
 export interface QuestLogEntry {
   questId: string; name: string;
@@ -116,7 +117,8 @@ export type ServerMessage =
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   | { type: 'questList'; quests: QuestLogEntry[] }
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
-  | { type: 'rejected'; code: string; message: string; requestId?: string };
+  | { type: 'rejected'; code: string; message: string; requestId?: string }
+  | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

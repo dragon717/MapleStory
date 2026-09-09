@@ -216,6 +216,15 @@ export class World extends Phaser.Scene {
     this.waters = (this.manifest.map.water ?? []).map(zone => new WaterView(this, zone, depth));
   }
   receive(message: ServerMessage) {
+    if (message.type === 'chatMessage') {
+      // Own echoes live only in the chat log (merged by request id); bubbles
+      // present other members' speech.  Messages never replay history and the
+      // PlayerView is destroyed on map switches, so a bubble cannot leak into
+      // another map instance.
+      if (this.snapshot && message.authorId === this.snapshot.selfId) return;
+      this.players.get(message.authorId)?.showBubble(message.authorName, message.text);
+      return;
+    }
     if (message.type === 'snapshot') {
       if (message.mapId !== this.mapId) {
         const map = this.getMap(message.mapId, message.sourceMapId);

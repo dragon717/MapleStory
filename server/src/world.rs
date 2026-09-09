@@ -12,7 +12,7 @@ use crate::{
 use rand::Rng;
 use serde::{de::Error as DeError, Deserialize};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet, VecDeque},
     hash::{Hash, Hasher},
     path::Path,
     time::{Duration, Instant},
@@ -24,6 +24,14 @@ mod boss;
 
 pub const TICK_MS: u64 = 50;
 const NATURAL_RECOVERY_INTERVAL_TICKS: u64 = 1_000 / TICK_MS;
+/// Map-chat rate limit (per character): burst of 5 with a 1 token/second
+/// refill.  Chat_ops plan §10.3 defaults; a sender cannot re-establish the
+/// allowance by switching maps or reconnecting because the bucket lives on
+/// the authoritative Player row.
+const CHAT_TOKEN_BURST: u32 = 5;
+const CHAT_TOKEN_REFILL_PER_SEC: u32 = 1;
+/// Per-session chat request-id idempotency window (bounded; §9.1 ephemeral).
+const CHAT_RECENT_WINDOW: usize = 64;
 const MAGE_ADVANCE_MAP_ID: &str = "001020000";
 const BOSS_PRACTICE_FALLBACK_MAP_ID: &str = "102020500";
 const MAGE_ADVANCE_NPC_ID: &str = "001020000-life-1";
@@ -133,6 +141,41 @@ const ICE_FREEZE_STACK_CAP: u32 = 5;
 const ICE_FREEZE_DURATION_MS: u64 = 8_000;
 // P: quantize the authored subTime=1200 ms to this world's 50 ms tick.
 const ICE_TELEPORT_FIELD_DEFAULT_SUB_TIME_MS: u64 = 1_200;
+// Fallback map respawn cycle for spawns whose source mobTime is 0 (Cosmic
+// semantics: "use the map's normal respawn cycle").  The TMS273 export keeps
+// no map-level respawn interval, and the earlier assembled gameplay used
+// 10000 ms; keep that cycle as the default so a dead mob always returns.
+const DEFAULT_MONSTER_RESPAWN_MS: u64 = 10_000;
+
+/// Respawn deadline for one source spawn, measured in world ticks.
+///
+/// TMS273 Map life keeps no map-wide respawn interval: normal spawns carry
+/// mobTime 0, which Cosmic interprets as "follow the map respawn cycle".
+/// The assembled gameplay left the map cycle empty, so the default above is
+/// applied; without it those mobs were removed on death and never returned,
+/// emptying each map over time.
+fn respawn_deadline(tick: u64, map_respawn_ms: Option<u64>, mob_time: i64) -> Option<u64> {
+    match mob_time {
+        // One forced spawn that never respawns.
+        -1 => None,
+        // The map's normal respawn cycle.
+        0 => {
+            let interval_ticks = map_respawn_ms
+                .unwrap_or(DEFAULT_MONSTER_RESPAWN_MS)
+                .div_ceil(TICK_MS)
+                .max(1);
+            Some((tick / interval_ticks + 1) * interval_ticks)
+        }
+        // Positive source mobTime is a private SpawnPoint delay measured
+        // from death, expressed in seconds.
+        seconds => {
+            let delay_ms = u64::try_from(seconds)
+                .unwrap_or(u64::MAX)
+                .saturating_mul(1_000);
+            Some(tick + delay_ms.div_ceil(TICK_MS).max(1))
+        }
+    }
+}
 
 fn is_mage_advance_npc(map_id: &str, npc_id: &str, template_id: &str) -> bool {
     map_id == MAGE_ADVANCE_MAP_ID
@@ -2033,6 +2076,15 @@ struct Player {
     quests: BTreeMap<String, String>,
     /// Display language for server-pushed quest text (see quest_text::LANG_*).
     lang: &'static str,
+    /// Map-chat token bucket (1 token/s refill, burst 5) replenished lazily
+    /// from the authoritative tick so rate limits stay deterministic.
+    chat_tokens: u32,
+    chat_bucket_tick: u64,
+    /// Bounded recent ChatSend request ids (request_id -> echoed text).  A
+    /// network retry with the same id and text must not re-broadcast; the same
+    /// id with a different body is a conflict.  Oldest entries fall out once
+    /// the window is full (ephemeral chat tolerates the small gap).
+    chat_recent: VecDeque<(String, String)>,
 }
 
 fn clear_beginner_buffs(player: &mut Player) {
@@ -2244,6 +2296,10 @@ pub struct World {
     store: Option<Store>,
     mage_skills: MageSkills,
     next_monster: u64,
+    /// Monotonic map-chat message sequence for this node.  Every accepted
+    /// ephemeral message gets a unique id; the sequence never resets inside a
+    /// process so message ids stay distinct across reconnects.
+    chat_sequence: u64,
 }
 
 impl World {
@@ -2307,6 +2363,7 @@ impl World {
             store,
             mage_skills: MageSkills::default(),
             next_monster: 0,
+            chat_sequence: 0,
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
@@ -3074,6 +3131,9 @@ impl World {
                         mystic_strike_until: 0,
                         quests,
                         lang: crate::quest_text::normalize_lang(Some(&lang)),
+                        chat_tokens: CHAT_TOKEN_BURST,
+                        chat_bucket_tick: self.tick,
+                        chat_recent: VecDeque::new(),
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
@@ -3255,10 +3315,167 @@ impl World {
                         item_id,
                         quantity,
                     } => self.handle_shop_buy(id, request_id, shop_id, item_id, quantity),
+                    ClientMessage::ChatSend { request_id, text } => {
+                        self.handle_chat(id, request_id, text)
+                    }
                     ClientMessage::Hello { .. } => {}
                 }
             }
         }
+    }
+
+    /// Map public chat (P1-C04).  The client submits only a ChatSend intent;
+    /// the authoritative room (current map), author identity and display name
+    /// are all resolved here.  Control flow stays inside the world tick and
+    /// every outbound write is a bounded try_send, so a slow reader or a
+    /// spammer cannot stall gameplay on another map or another player.
+    fn handle_chat(&mut self, id: String, request_id: String, text: String) {
+        // 1. Room: the sender's current authoritative map.  The client cannot
+        //    widen the audience — protocol parsing denies unknown fields, so a
+        //    forged map/channel/realm field never reaches this function.
+        let map_id = match self.players.get(&id) {
+            Some(player) => player.map_id.clone(),
+            None => return,
+        };
+        // 2. Text policy before any bookkeeping.
+        if !crate::protocol::valid_chat_text(&text) {
+            let _ = self.chat_reject(
+                &id,
+                &request_id,
+                "invalid_chat_text",
+                "消息为空、过长或包含不允许的字符。",
+            );
+            return;
+        }
+        let text = text.trim().to_owned();
+        // 3. Bounded per-session idempotency (§9.1/§9.2): a retry with the
+        //    same request id and body never re-broadcasts; the same id with a
+        //    different body is rejected as a conflict.
+        enum Duplicate {
+            Replay,
+            Conflict,
+        }
+        let duplicate = {
+            let Some(player) = self.players.get_mut(&id) else {
+                return;
+            };
+            let mut duplicate = None;
+            for (seen_id, seen_text) in player.chat_recent.iter() {
+                if seen_id == &request_id {
+                    duplicate = Some(if seen_text == &text {
+                        Duplicate::Replay
+                    } else {
+                        Duplicate::Conflict
+                    });
+                    break;
+                }
+            }
+            if duplicate.is_none() {
+                if player.chat_recent.len() >= CHAT_RECENT_WINDOW {
+                    player.chat_recent.pop_front();
+                }
+                player
+                    .chat_recent
+                    .push_back((request_id.clone(), text.clone()));
+            }
+            duplicate
+        };
+        match duplicate {
+            Some(Duplicate::Replay) => return,
+            Some(Duplicate::Conflict) => {
+                let _ = self.chat_reject(
+                    &id,
+                    &request_id,
+                    "idempotency_conflict",
+                    "重复请求使用了不同的内容。",
+                );
+                return;
+            }
+            None => {}
+        }
+        // 4. Rate limit: burst 5, refill 1/s.  The bucket lives on the
+        //    authoritative Player row, so map changes cannot reset it.
+        if !self.chat_consume_token(&id) {
+            let _ = self.chat_reject(
+                &id,
+                &request_id,
+                "chat_rate_limited",
+                "发言太快，请稍后再试。",
+            );
+            return;
+        }
+        // 5. Immutable message fact; the server is the only author.
+        self.chat_sequence += 1;
+        let message_id = format!("chat-{id}-{}", self.chat_sequence);
+        let (author_id, author_name) = match self.players.get(&id) {
+            Some(player) => (player.state.id.clone(), player.state.username.clone()),
+            None => return,
+        };
+        let common = serde_json::json!({
+            "type": "chatMessage",
+            "messageId": message_id,
+            "mapId": map_id,
+            "authorId": author_id,
+            "authorName": author_name,
+            "text": text,
+            "occurredAtTick": self.tick,
+        });
+        let mut sender_payload = common.clone();
+        sender_payload["requestId"] = serde_json::Value::String(request_id);
+        let sender_payload = sender_payload.to_string();
+        let peer_payload = common.to_string();
+        // 6. Ephemeral fan-out to the current map-room membership.  A full
+        //    bounded outbox drops this best-effort message instead of blocking
+        //    the tick; the sender merges its own echo by request id.
+        let recipients: Vec<(String, mpsc::Sender<String>)> = self
+            .players
+            .iter()
+            .filter(|(_, player)| player.map_id == map_id)
+            .map(|(player_id, player)| (player_id.clone(), player.output.clone()))
+            .collect();
+        for (player_id, output) in recipients {
+            let payload = if player_id == id {
+                &sender_payload
+            } else {
+                &peer_payload
+            };
+            let _ = output.try_send(payload.clone());
+        }
+    }
+
+    /// Best-effort private rejection to one sender.  A full outbox drops the
+    /// reply; ephemeral chat never blocks on it.
+    fn chat_reject(&self, id: &str, request_id: &str, code: &str, message: &str) -> bool {
+        match self.players.get(id) {
+            Some(player) => player
+                .output
+                .try_send(reject(code, message, Some(request_id)))
+                .is_ok(),
+            None => false,
+        }
+    }
+
+    /// Lazy token-bucket consume for map chat: refill 1 token/second up to
+    /// burst 5, driven purely by the authoritative tick for deterministic
+    /// tests (no wall clock dependency).
+    fn chat_consume_token(&mut self, id: &str) -> bool {
+        let Some(player) = self.players.get_mut(id) else {
+            return false;
+        };
+        let ticks_per_second = 1_000 / TICK_MS;
+        let elapsed = self.tick.saturating_sub(player.chat_bucket_tick);
+        let whole_seconds = elapsed / ticks_per_second;
+        if whole_seconds > 0 {
+            player.chat_bucket_tick = self.tick - elapsed % ticks_per_second;
+            player.chat_tokens = (player.chat_tokens
+                + whole_seconds as u32 * CHAT_TOKEN_REFILL_PER_SEC)
+                .min(CHAT_TOKEN_BURST);
+        }
+        if player.chat_tokens == 0 {
+            return false;
+        }
+        player.chat_tokens -= 1;
+        true
     }
 
     fn handle_portal(&mut self, id: String, request_id: String, portal_name: String) {
@@ -6092,20 +6309,7 @@ impl World {
                     .div_ceil(TICK_MS)
                     .max(1);
                 monster.death_until = Some(self.tick + die_ticks);
-                monster.respawn_at = match monster.spawn.mob_time {
-                    -1 => None,
-                    0 => self.gameplay.monster_respawn_ms.map(|ms| {
-                        let interval = ms.div_ceil(TICK_MS).max(1);
-                        (self.tick / interval + 1) * interval
-                    }),
-                    seconds => Some(
-                        self.tick
-                            + u64::try_from(seconds)
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(1_000)
-                                .div_ceil(TICK_MS),
-                    ),
-                };
+                monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
             }
         }
         if resolution.damage > 0 {
@@ -7196,20 +7400,7 @@ impl World {
                                     .div_ceil(TICK_MS)
                                     .max(1),
                         );
-                        monster.respawn_at = match monster.spawn.mob_time {
-                            -1 => None,
-                            0 => self.gameplay.monster_respawn_ms.map(|ms| {
-                                let interval = ms.div_ceil(TICK_MS).max(1);
-                                (self.tick / interval + 1) * interval
-                            }),
-                            seconds => Some(
-                                self.tick
-                                    + u64::try_from(seconds)
-                                        .unwrap_or(u64::MAX)
-                                        .saturating_mul(1_000)
-                                        .div_ceil(TICK_MS),
-                            ),
-                        };
+                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
                     }
                 }
                 if resolution.damage > 0 {
@@ -7854,20 +8045,7 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1),
                 );
-                monster.respawn_at = match monster.spawn.mob_time {
-                    -1 => None,
-                    0 => self.gameplay.monster_respawn_ms.map(|ms| {
-                        let interval = ms.div_ceil(TICK_MS).max(1);
-                        (self.tick / interval + 1) * interval
-                    }),
-                    seconds => Some(
-                        self.tick
-                            + u64::try_from(seconds)
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(1_000)
-                                .div_ceil(TICK_MS),
-                    ),
-                };
+                monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
             }
         }
         if resolution.damage > 0 {
@@ -8096,20 +8274,7 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1);
                         monster.death_until = Some(self.tick + die_ticks);
-                        monster.respawn_at = match monster.spawn.mob_time {
-                            -1 => None,
-                            0 => self.gameplay.monster_respawn_ms.map(|ms| {
-                                let interval = ms.div_ceil(TICK_MS).max(1);
-                                (self.tick / interval + 1) * interval
-                            }),
-                            seconds => Some(
-                                self.tick
-                                    + u64::try_from(seconds)
-                                        .unwrap_or(u64::MAX)
-                                        .saturating_mul(1_000)
-                                        .div_ceil(TICK_MS),
-                            ),
-                        };
+                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
                     }
                 }
                 if resolution.damage > 0 {
@@ -12349,24 +12514,7 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1);
                         monster.death_until = Some(self.tick + die_ticks);
-                        monster.respawn_at = match monster.spawn.mob_time {
-                            -1 => None,
-                            0 => self.gameplay.monster_respawn_ms.map(|ms| {
-                                // Cosmic schedules mobTime=0 through the
-                                // map-wide RespawnTask cycle.  Keep the
-                                // cycle gate separate from the die animation.
-                                let interval_ticks = ms.div_ceil(TICK_MS).max(1);
-                                (self.tick / interval_ticks + 1) * interval_ticks
-                            }),
-                            seconds => {
-                                // Positive source mobTime is a private
-                                // SpawnPoint delay measured from death.
-                                let delay_ms = u64::try_from(seconds)
-                                    .unwrap_or(u64::MAX)
-                                    .saturating_mul(1_000);
-                                Some(self.tick + delay_ms.div_ceil(TICK_MS).max(1))
-                            }
-                        };
+                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
                     }
                 }
                 if resolution.damage > 0 {
@@ -15757,6 +15905,33 @@ mod tests {
     }
 
     #[test]
+    fn map_cycle_mob_time_zero_respawns_even_without_configured_interval() {
+        // mobTime 0 means "follow the map respawn cycle"; when the assembled
+        // gameplay leaves the map cycle empty the fallback 10 s cycle must
+        // still return a deadline, otherwise the mob is removed forever and
+        // every map empties over time.
+        let interval_ticks = DEFAULT_MONSTER_RESPAWN_MS.div_ceil(TICK_MS);
+        assert!(respawn_deadline(10_000, None, 0).is_some());
+        assert_eq!(
+            respawn_deadline(0, None, 0),
+            Some(interval_ticks),
+            "cycle-aligned deadline must land on the next interval boundary"
+        );
+        assert_eq!(
+            respawn_deadline(10_000, Some(500), 0),
+            Some(10_010),
+            "explicit map cycle is preferred over the default"
+        );
+        assert_eq!(respawn_deadline(0, Some(500), 0), Some(10), "500 ms -> 10 ticks");
+        assert_eq!(respawn_deadline(0, None, -1), None, "mobTime -1 never respawns");
+        assert_eq!(
+            respawn_deadline(1_000, None, 5),
+            Some(1_000 + 5_000 / TICK_MS),
+            "positive source mobTime is a death-relative second delay"
+        );
+    }
+
+    #[test]
     fn full_snapshot_queue_keeps_player_connected() {
         let mut world = World::new(map(), 600);
         let (output, mut rx) = mpsc::channel(1);
@@ -17341,6 +17516,7 @@ mod tests {
     include!("boss_acceptance.rs");
     include!("hyper_acceptance.rs");
     include!("water_acceptance.rs");
+    include!("chat_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

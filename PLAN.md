@@ -1,5 +1,45 @@
 # 当前工作计划
 
+## 聊天输入焦点根因修复：Enter 后光标被 snapshot 抢走（2026-09-10 凌晨）
+
+- 现象（用户实测）：Enter 后光标"闪一下"即从聊天输入框消失，再按键又触发游戏快捷键。
+- 根因：服务端每世界 tick(~50ms)向每个玩家推 snapshot；客户端 `Connection.onmessage` 对每条 snapshot 都回调 `state('online')`；`main.ts` 对每次 online 执行 `focusGame()`（rAF 聚焦 `#game`）。Enter 聚焦输入框后不足 50ms 即被下一个 snapshot 触发抢焦点。此前离线 mock 只触发一次 online，故复现脚本第一轮未暴露。
+- 修复：`client/src/network/session.ts` 状态上报幂等（`lastState`+`report()`，仅变化时回调）。`chat-focus.check.mjs` mock 同步修复后契约并新增 10a(legacy 复现抢焦点)/10b(修复后 400ms 焦点保持、focusGame 零调用)场景。
+- 待验（用户）：在线仍跑旧构建；下次 `启动3010.command` 统一构建加载后实玩确认：Enter 后光标驻留输入框、可连续打字、不触发快捷键、Esc 正常返回游戏。
+
+## 地图聊天输入焦点修复：完成开发与定向验证，待统一加载后实玩（2026-09-10）
+
+- 范围：修复"聊天栏无法输入、打字触发游戏快捷键"。`client/src/features/chat/view.ts` 两处：① Enter 分支不再因折叠态 `input.disabled` 早退（改为 `!this.available` 守卫 + 先 `setOpen(true)` 解除 disabled 再 focus），折叠面板按 Enter 可重开并聚焦；② 新增 `onRootPointerDown`：点击聊天面板非控件/非日志区域即聚焦输入框（273 底图大于真实 input，此前点偏导致焦点落页面、打字落游戏键）。
+- 验证：新增离线复现脚本 `client/src/app/chat-focus.check.mjs`（esbuild 打包真实 app+mock 连接）9 场景全过：Enter 聚焦输入、打字零泄漏、方向/空格/Z/X/数字/A/D 逐键不穿透、提交/Esc 正常、按住方向键开聊立即停止、折叠 Enter 重开聚焦、点击面板空白聚焦。`tsc --noEmit` 通过。
+- 待验（用户）：在线服务仍跑旧构建，本次修复未上线。下次经根目录 `启动3010.command` 统一构建加载后实玩：折叠聊天框后按 Enter 应展开并可直接输入；点击聊天框底图任意处应聚焦输入框；聊天打字时角色不应移动/施法。
+
+## 地图聊天 P1-C04：已完成开发与定向验证，待统一启动加载/用户实玩（2026-09-09）
+
+- 范围：按 `MapleStory_Rust_Chat_Ops_Development_Plan` 完成 P0-C00 真实盘点 + P1 C03/C04 最小闭环（地图公共聊天），未做私聊/离线/跨服/公告/GM。
+- 协议：protocolVersion 10→11（server protocol.rs 与 shared/protocol.ts 同步）；新增 `chatSend`（requestId+text）与 `chatMessage`（messageId/可选 requestId/mapId/authorId/authorName/text/occurredAtTick）。消息房间只由服务端从会话当前地图推导，`deny_unknown_fields` 拒绝伪造 mapId/author/GM/system 字段。
+- 服务端（world.rs 权威边界 `handle_chat`）：按当前 `map_id` 成员做房间广播（复用每连接有界 output，`try_send` 不阻塞 tick）；文本策略 ≤200 字符/≤1KiB/无控制字符；每角色令牌桶（突发5、1/s 惰性按 tick 补充，换图不可重置）；request_id 幂等窗口 64（同ID同正文不重复广播，同ID异正文 `idempotency_conflict`）。
+- 客户端：ChatView 接入提交与 pending（按 requestId 合并回显、拒绝恢复草稿可改后重发）、IME composition 防误发、Enter 聚焦输入/Esc 退出、273 面板由"暂未开放"转可用；Phaser 同图玩家头顶气泡（4s、非本人发言、切图/重放不生成）；i18n 补 3 个聊天错误码。
+- P 边界：项目无频道/多实例体系，地图房间=map_id（同模板不同实例隔离以不同 map_id 覆盖验证）；私聊/频道/世界聊天/禁言/审计后续工单。
+- 验证：chat 定向 7 项验收全通过（房间隔离、伪造拒绝、重复/冲突幂等、令牌限流与恢复、慢连接满队列不阻塞他人、文本策略）；`cargo test` 全量 135 通过 + 4 项基线既有失败（stash 掉聊天改动后同样失败，与聊天无关，属 09-09 装配回退/数值待办范围）；`cargo build` 通过（仅既有 contact_damage 警告）；前端 `tsc --noEmit` 通过。未跑 vite build——在线 dist/protocol10 服务运行中，避免覆盖与版本错配；未重启服务/改库。
+- 待验（用户）：下次经根目录 `启动3010.command` 统一构建加载（protocol 11）后实玩：Enter 发言、他人头顶气泡、同图可见/异图不可见、连发限流提示与拒绝草稿恢复、中文输入法候选确认不误发。
+
+
+## 地图怪物刷新修复：怪死后不重生（2026-09-09）
+
+- 现象：地图怪物被清空后不再刷新，数量补不回出生点上限（离图再回也不恢复）。
+- 根因：`shared/gameplay.json` 的 `monsterRespawnMs` 为 null（TMS273 迁移后装配脚本未写该字段，v83 时代为 10000）；377/390 出生点 `mobTime=0` 表示"走地图刷新周期"，代码里周期缺失→ `respawn_at=None` → 死后仅移除不重生。
+- 修复：① `server/src/world.rs` 收敛 5 处 kill→重生赋值为 `respawn_deadline()`，`mobTime=0` 且无配置周期时用默认 10s（`DEFAULT_MONSTER_RESPAWN_MS`），`-1` 保持一次性、正数按死亡起算秒延迟；② `scripts/generate_tms273_gameplay.py` 输出 `monsterRespawnMs:10000` 并在 compatibility 注明 P 来源；③ 同步 resources/export、shared、client/public 三份 gameplay.json 该字段（三份一致）。
+- 验证：cargo build 通过（仅既有 contact_damage 未使用警告）；新增定向测试 `map_cycle_mob_time_zero_respawns_even_without_configured_interval` 及 respawn/life/contact 相关 5 项通过；`check_tms273_runtime.cjs tms273-9` 通过（41 maps/44583 refs）。在线服务/库未动。
+- 待验（用户）：下次通过根目录 `启动3010.command` 加载后，杀光地图怪观察 ~10s 后按出生点补刷、数量不超过该图出生点数。
+
+## 36315–36324 楓之島災禍篇：来源已核、装配回退待基线（2026-09-09）
+
+- 范围确认：接续 36314，原版 36315–36324 共 10 条任务；36325+ 被 1410/1430/1462 转职前置与 lv60/100/200 门槛挡住，保留 TODO。
+- 已核来源（T，本地 TMS273，记录于 `references/tms273-data/maple-island-calamity-source.json`，保留）：任务 QuestData/36315..24（Act/Say 空、q3631xs/e 脚本体缺失→执行标 P）；怪物 8645261 藍色蘑菇王(lv22/HP2175)、8645262 黑色影子(lv30/HP4500/boss)、8645264 黑漆漆的嫩寶(lv25/HP525)；NPC 1520000 糖果；原版图 993166100/434/019·351/021·042·043·044·023/200/175/024·025（本地 Map JSON 为空不可解→U）。job 源列 [100,200,300,400,430,500,501] 缺 220/221/222→按职业群解释（P）。
+- 本轮已回退（世界状态恢复 HEAD 已知良好组合）：装配子代理重建了 shared/gameplay.json 与 client/public-tms273 公开资源，但导出中间产物本身不一致（entities.json 仅 4 怪、mage-effects.json 仅 18 效果、appearance.json 缺 1003134），导致 manifest 从线上基线 18 怪/37 效果跌到 7 怪/18 效果，运行检查在 skillEffects 1000 与 disguise 处失败。已全部 git checkout 回退，并把公开 manifest/gameplay/items/entry-appearance 从在线 3010 服务还原为线上基线；`check_tms273_runtime.cjs tms273-9` 通过（41 maps/44583 refs），cargo build 通过，在线服务与库未动。
+- 续接前提：先把导出中间产物与客户端 Data 对齐基线（entities 18 怪、mage-effects 含 1000/1001/1002、appearance 含 1003134，校验 `check_tms273_runtime` 与 `check_tms273_mage_effects`），再重做「数据装配→后端子代理（world.rs + calamity_acceptance.rs，击杀计数/任务刷怪/selfComplete）→前端」。
+- 子代理频率限制：通用子代理 09-10 01:52 前不可再派发，后端骨架（world.rs 结构体+qkill 装载拆分）已随回退丢弃，续做时按来源记录重建即可。
+
 ## 最新目标：编译收尾完成（覆盖此前持续复刻目标）
 
 - 用户要求尽快结束目标：前后端语法正确、编译正常，未完成但不影响编译的业务转TODO；本轮停止新增模块及研究派发。

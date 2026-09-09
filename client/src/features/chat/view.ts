@@ -4,9 +4,33 @@ import './style.css';
 
 type ChatButtonState = 'normal' | 'pressed' | 'disabled' | 'mouseOver' | 'checked';
 
+export interface ChatMessageEnvelope {
+  requestId?: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+}
+export interface ChatViewHooks {
+  /** Send one map-chat intent; resolves false when the socket is not open. */
+  send?: (requestId: string, text: string) => boolean;
+  /** Modal UI check (skills/inventory/menu/quest/dialogue open). */
+  isBlocked?: () => boolean;
+  /** Return focus to the game viewport after leaving the input box. */
+  focusGame?: () => void;
+  /** Current character id (to colour your own lines like the source UI). */
+  selfId?: () => string | undefined;
+}
+interface PendingEntry {
+  line: HTMLDivElement;
+  text: string;
+}
+
 /**
- * The 273 StatusBar3 chat surface is source-backed, while the input remains
- * native until the chat protocol is available.
+ * The 273 StatusBar3 chat surface is source-backed; the input stays native
+ * (IME-safe) and talks to the authoritative map-chat protocol (chat.send →
+ * chatMessage echo / rejected).  Local pending lines merge by request id so a
+ * successful message is never shown twice and a rejection can restore the
+ * draft for editing.
  */
 export class ChatView {
   private readonly root: HTMLDivElement;
@@ -22,8 +46,16 @@ export class ChatView {
   private toggleClosedFrames?: ChatUiFrameStates;
   private available = false;
   private openState = true;
+  private composing = false;
+  private sendSequence = 0;
+  private readonly pending = new Map<string, PendingEntry>();
 
-  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void) {
+  constructor(
+    private host: HTMLElement,
+    manifest: Manifest,
+    private status: (message: string, error?: boolean) => void,
+    private hooks: ChatViewHooks = {},
+  ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-chat';
     this.root.hidden = true;
@@ -33,18 +65,22 @@ export class ChatView {
     const chatUi = manifest.chatUi;
     if (chatUi?.panel?.background && chatUi.panel.collapseButton?.normal && chatUi.panel.expandButton?.normal && chatUi.input?.background && chatUi.input.target?.normal) this.init273(chatUi);
     else throw new Error('273 聊天面板资源不完整');
+    window.addEventListener('keydown', this.onGlobalKeyDown);
+    this.root.addEventListener('pointerdown', this.onRootPointerDown);
   }
 
   setAvailable(available: boolean) {
     this.available = available;
     this.root.dataset.available = String(available);
     this.updateInputState();
-    if (this.statusLine) this.statusLine.textContent = available ? '聊天暂未开放' : '聊天暂不可用';
+    if (this.statusLine) this.statusLine.textContent = available ? '地图聊天：Enter 发言' : '连接断开，聊天暂不可用';
   }
 
   clear() {
     this.setAvailable(false);
     if (this.input) this.input.value = '';
+    for (const entry of this.pending.values()) entry.line.remove();
+    this.pending.clear();
   }
 
   appendSystem(message: string, eventId?: string) {
@@ -58,10 +94,126 @@ export class ChatView {
     return true;
   }
 
+  /** Merge one server chatMessage: an own echo upgrades its pending line by
+   *  request id; everything else becomes a fresh player line. */
+  appendChatMessage(message: ChatMessageEnvelope) {
+    if (!this.systemLog) return;
+    const own = this.hooks.selfId?.() === message.authorId;
+    if (message.requestId) {
+      const entry = this.pending.get(message.requestId);
+      if (entry) {
+        this.pending.delete(message.requestId);
+        this.renderPlayerLine(entry.line, message.authorName, message.text, own);
+        return;
+      }
+    }
+    const line = document.createElement('div');
+    line.className = this.chat273 ? 'chat273-player-line' : 'chat-player-line';
+    this.renderPlayerLine(line, message.authorName, message.text, own);
+    appendChatLogLine(this.systemLog, line);
+  }
+
+  /** A rejected chat send: restore the draft and surface the server reason. */
+  failPending(requestId: string | undefined, reason: string) {
+    if (!requestId) return;
+    const entry = this.pending.get(requestId);
+    if (!entry) return;
+    this.pending.delete(requestId);
+    entry.line.remove();
+    if (this.input) {
+      this.input.value = entry.text;
+      this.input.focus({ preventScroll: true });
+    }
+    this.status(reason, true);
+  }
+
   destroy() {
+    window.removeEventListener('keydown', this.onGlobalKeyDown);
+    this.root.removeEventListener('pointerdown', this.onRootPointerDown);
     this.root.remove();
     this.host.replaceChildren();
     this.host.hidden = true;
+  }
+
+  /** Clicking the chat surface outside a control (the source panel art is
+   *  larger than the real input) must still route typing into the input box;
+   *  otherwise focus falls back to the page and keys hit the game shortcuts.
+   *  The scrollable log keeps native events so drag-scrolling still works. */
+  private onRootPointerDown = (event: PointerEvent) => {
+    const target = event.target as Element | null;
+    if (!(target instanceof Element)) return;
+    if (target.closest?.('input, textarea, select, button, [contenteditable], .chat273-log, .chat-log')) return;
+    if (!this.available) return;
+    event.preventDefault();
+    this.setOpen(true);
+    this.input?.focus({ preventScroll: true });
+  };
+
+  private onGlobalKeyDown = (event: KeyboardEvent) => {
+    if (!this.available || event.isComposing || event.metaKey || event.altKey) return;
+    if (event.code === 'Enter' && !event.repeat) {
+      const active = document.activeElement;
+      const typing = active instanceof HTMLElement && (active.matches('input, textarea, select, [contenteditable]') || Boolean(active.closest('input, textarea, select, [contenteditable]')));
+      if (typing || !this.available || this.hooks.isBlocked?.()) return;
+      event.preventDefault();
+      // Expand a collapsed panel first; updateInputState re-enables the input
+      // so focus() below can land. Without this, Enter on a collapsed chat is
+      // ignored and the following keystrokes reach the game shortcuts.
+      this.setOpen(true);
+      this.input?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.code === 'Escape' && document.activeElement === this.input) {
+      event.preventDefault();
+      this.input?.blur();
+      this.hooks.focusGame?.();
+    }
+  };
+
+  private renderPlayerLine(line: HTMLDivElement, authorName: string, text: string, own: boolean) {
+    line.classList.toggle('self', own);
+    line.replaceChildren();
+    const name = document.createElement('span');
+    name.className = own ? 'chat273-name chat273-name-self' : 'chat273-name chat273-name-other';
+    name.textContent = authorName;
+    const body = document.createElement('span');
+    body.className = 'chat273-body';
+    body.textContent = `：${text}`;
+    line.append(name, body);
+  }
+
+  private addPending(requestId: string, text: string) {
+    if (!this.systemLog) return;
+    const line = document.createElement('div');
+    line.className = this.chat273 ? 'chat273-player-line chat273-pending-line' : 'chat-player-line';
+    line.textContent = `发送中：${text}`;
+    appendChatLogLine(this.systemLog, line);
+    this.pending.set(requestId, { line, text });
+    while (this.pending.size > 32) {
+      const oldest = this.pending.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      const entry = this.pending.get(oldest)!;
+      entry.line.remove();
+      this.pending.delete(oldest);
+    }
+  }
+
+  private submit() {
+    if (this.composing || !this.input || !this.available) return;
+    const message = this.input.value.trim();
+    if (!message) {
+      this.status('请输入聊天内容。');
+      return;
+    }
+    this.input.value = '';
+    const requestId = `chat-${Date.now()}-${++this.sendSequence}`;
+    if (!this.hooks.send?.(requestId, message)) {
+      this.input.value = message;
+      this.input.focus({ preventScroll: true });
+      this.status('连接不可用，消息未发送，请重连后再试。', true);
+      return;
+    }
+    this.addPending(requestId, message);
   }
 
   private init273(chatUi: ChatUi) {
@@ -89,7 +241,7 @@ export class ChatView {
     const systemLog = document.createElement('div');
     systemLog.className = 'chat273-log';
     systemLog.setAttribute('role', 'log');
-    systemLog.setAttribute('aria-label', '系统消息');
+    systemLog.setAttribute('aria-label', '聊天消息');
     systemLog.setAttribute('aria-live', 'polite');
     surface.append(systemLog);
     this.systemLog = systemLog;
@@ -100,12 +252,16 @@ export class ChatView {
     const targetButton = document.createElement('button');
     targetButton.type = 'button';
     targetButton.className = 'chat273-target';
-    targetButton.setAttribute('aria-label', '聊天频道：全部');
-    targetButton.title = '聊天频道：全部';
+    targetButton.setAttribute('aria-label', '聊天频道：地图');
+    targetButton.title = '地图聊天';
     const targetImage = this.createImage(targetFrame, 'chat273-target-image');
     targetButton.append(targetImage);
     this.bindSourceFrames(targetButton, targetImage, inputUi.target);
-    targetButton.addEventListener('click', () => this.status('聊天频道暂未开放。'));
+    targetButton.addEventListener('click', () => {
+      this.setOpen(true);
+      this.input?.focus({ preventScroll: true });
+      this.status('当前频道：地图聊天（同地图可见）。');
+    });
     toolbar.append(targetButton);
 
     const form = document.createElement('form');
@@ -118,13 +274,14 @@ export class ChatView {
     input.name = 'chat';
     input.autocomplete = 'off';
     input.maxLength = 200;
-    input.placeholder = '聊天（暂未开放）';
+    input.placeholder = '地图聊天';
     input.setAttribute('aria-label', '聊天内容');
+    input.addEventListener('compositionstart', () => { this.composing = true; });
+    input.addEventListener('compositionend', () => { this.composing = false; });
     form.append(input);
     form.addEventListener('submit', event => {
       event.preventDefault();
-      const message = input.value.trim();
-      this.status(message ? '聊天暂未开放，消息未发送。' : '请输入聊天内容。');
+      this.submit();
     });
     toolbar.append(form);
     this.input = input;
@@ -168,7 +325,7 @@ export class ChatView {
     surface.append(toolbar);
     const note = document.createElement('span');
     note.className = 'chat273-availability';
-    note.textContent = '聊天发送功能暂未接入';
+    note.textContent = '地图聊天：Enter 发言';
     note.setAttribute('aria-live', 'polite');
     surface.append(note);
     this.statusLine = note;

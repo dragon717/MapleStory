@@ -1,0 +1,317 @@
+{
+  "module": "楓之島災禍篇 (Maple Island Calamity)",
+  "questIds": ["36315", "36316", "36317", "36318", "36319", "36320", "36321", "36322", "36323", "36324"],
+  "generatedAt": "2026-09-09",
+  "ruleVersion": "tms273-calamity-p1",
+  "sourceRoot": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW",
+  "sourcePaths": {
+    "questData": "Quest.wz/QuestData/<id>.img (JSON mirror: references/tms273-data/quests.json)",
+    "questString": "String/Quest.json#<id>",
+    "mob": "Mob/<id>.json (WZ_JSON_TW) + Mob/<id>.img (client Data/Packs)",
+    "npc": "Npc/1520000.img (client Data/Packs) + String/Npc.json#1520000",
+    "maps": "Map/Map/Map0/<id>.img (client Data/Packs); 993166xxx 专用地图几何本地不可解"
+  },
+  "quests": [
+    {
+      "id": "36315",
+      "name": "[楓之谷世界的冒險家] 奧莉維亞的特別修練",
+      "source": "Quest.wz/QuestData/36315.img",
+      "check": {
+        "0": { "lvmin": 20, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36314"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": { "0": { "order": "1", "value": "1", "exVariable": "kill" } }, "mob": [] }
+      },
+      "questInfo": {
+        "0": "既然已經找回封印石，要不要去修練看看呀？",
+        "1": "",
+        "2": "竟然因為難以說出感謝的話語就刻意製造是非，奧莉維亞還真是害羞。話說回來放著那個叫做黑色翅膀的組織不管，真的沒關係嗎？"
+      },
+      "classification": { "selfStart": true, "selfComplete": true, "kill": { "mobId": "8645261", "count": 1 } },
+      "boundary": "T: QuestInfo/Check/infoex kill 目标。P: q36315s/e 脚本体缺；击杀完成与对话为适配器。U: 原版 993166xxx 修练地图几何。"
+    },
+    {
+      "id": "36316",
+      "name": "[楓之谷世界的冒險家] 調查時間神殿",
+      "source": "Quest.wz/QuestData/36316.img",
+      "check": {
+        "0": { "lvmin": 20, "job": [100, 200, 300, 400, 430, 500, 501], "npc": "1012100", "quest": ["36315"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "總覺得那個叫做黑色翅膀的組織還是很令人在意，去找赫麗娜詢問看看有沒有什麼需要幫忙的吧。",
+        "1": "",
+        "2": "照理來說應該要緊閉的現在的門卻是開啟的狀態。"
+      },
+      "classification": { "selfStart": false, "selfComplete": false, "completeNpc": "1012100", "kill": null },
+      "boundary": "T: 起/接 NPC 1012100（赫麗娜）。P: q36316e 脚本体缺；交付为适配器。"
+    },
+    {
+      "id": "36317",
+      "name": "[楓之谷世界的冒險家] 再次前往現在的門",
+      "source": "Quest.wz/QuestData/36317.img",
+      "check": {
+        "0": { "lvmin": 20, "job": [100, 200, 300, 400, 430, 500, 501], "npc": "1012100", "quest": ["36316"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": { "0": { "order": "1", "value": "1", "exVariable": "dummy" } }, "mob": [] }
+      },
+      "questInfo": {
+        "0": "必須告訴赫麗娜現在的門敞開的事情。",
+        "1": "",
+        "2": "封印石更換失敗，是黑魔法師的封印被解開了嗎？"
+      },
+      "classification": { "selfStart": false, "selfComplete": false, "completeNpc": "1012100", "kill": null },
+      "boundary": "T: 起/接 NPC 1012100。P: q36317e 脚本体缺；infoex dummy（非击杀）。"
+    },
+    {
+      "id": "36318",
+      "name": "[楓之谷世界的冒險家] 災禍降臨的楓之島",
+      "source": "Quest.wz/QuestData/36318.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36317"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "奧莉維亞前來搭話。",
+        "1": "",
+        "2": "我因為受到黑魔法師封印解除的影響，而導致楓之島被破壞了。當初就不該展開冒險。"
+      },
+      "classification": { "selfStart": true, "selfComplete": false, "completeNpc": "1012100", "kill": null },
+      "boundary": "T: QuestInfo 文本。P: 奥莉维娅对话与触发为适配器；接取 NPC 缺失按 selfStart 处理。"
+    },
+    {
+      "id": "36319",
+      "name": "[楓之谷世界的冒險家] 陷入危機的糖果",
+      "source": "Quest.wz/QuestData/36319.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36318"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": { "0": { "order": "1", "value": "kill", "exVariable": "1" } }, "mob": [] }
+      },
+      "questInfo": {
+        "0": "必須救出糖果才行。",
+        "1": "",
+        "2": "糖果倒臥在壟罩黑色火焰的楓樹之下。"
+      },
+      "classification": { "selfStart": true, "selfComplete": true, "kill": { "mobId": "8645264", "count": 1 } },
+      "boundary": "T: QuestInfo/Check/infoex kill。P: q36319s 脚本体缺；救出与击杀为适配器。U: 原版 993166xxx 危机地图几何。"
+    },
+    {
+      "id": "36320",
+      "name": "[楓之谷世界的冒險家] 另一片楓葉",
+      "source": "Quest.wz/QuestData/36320.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": "1541006", "quest": ["36319"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "必須帶著糖果逃走才行。",
+        "1": "",
+        "2": "糖果始終如一的相信著我，如她所說待我扎穩了根，總有一天就會有滿開的花朵綻放，對決黑色影子吧。"
+      },
+      "classification": { "selfStart": false, "selfComplete": false, "completeNpc": "1541006", "kill": null },
+      "boundary": "T: 起/接 NPC 1541006。P: q36320e 脚本体缺；逃离交付为适配器。"
+    },
+    {
+      "id": "36321",
+      "name": "[楓之谷世界的冒險家] 疑問的聲音",
+      "source": "Quest.wz/QuestData/36321.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36320"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "疑問的聲音在腦海中響起。",
+        "1": "",
+        "2": "與疑問的聲音對話之後，感受到一股未知的力量。總覺得能贏過與黑色影子的戰鬥。"
+      },
+      "classification": { "selfStart": true, "selfComplete": false, "completeNpc": "1541006", "kill": null },
+      "boundary": "T: QuestInfo 文本。P: 内心声音交互与力量赋予为适配器；接取 NPC 缺失按 selfStart。"
+    },
+    {
+      "id": "36322",
+      "name": "[楓之谷世界的冒險家] 與黑色影子的戰鬥",
+      "source": "Quest.wz/QuestData/36322.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36321"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": { "0": { "order": "1", "value": "1", "exVariable": "kill" } }, "mob": [] }
+      },
+      "questInfo": {
+        "0": "擊退黑色影子吧。",
+        "1": "",
+        "2": "擊退黑色影子吧。"
+      },
+      "classification": { "selfStart": true, "selfComplete": true, "kill": { "mobId": "8645262", "count": 1 } },
+      "boundary": "T: QuestInfo/Check/infoex kill；q36322e 脚本索引存在但体缺。P: 战斗完成与结果演出为适配器。U: 原版 993166xxx 决战地图几何。"
+    },
+    {
+      "id": "36323",
+      "name": "[楓之谷世界的冒險家] 楓葉的奇蹟",
+      "source": "Quest.wz/QuestData/36323.img",
+      "check": {
+        "0": { "lvmin": 25, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36322"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": null, "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "確認看看糖果的狀態吧。",
+        "1": "",
+        "2": "已使用封印石復原楓之島，糖果已重回女神定居於楓樹。糖果，之後能夠再見面嗎？"
+      },
+      "classification": { "selfStart": true, "selfComplete": false, "completeNpc": "1012100", "kill": null },
+      "boundary": "T: QuestInfo 文本。P: q36323e 脚本体缺；状态确认与交付为适配器。"
+    },
+    {
+      "id": "36324",
+      "name": "[楓之谷世界的冒險家] 疑問的力量",
+      "source": "Quest.wz/QuestData/36324.img",
+      "check": {
+        "0": { "lvmin": 30, "job": [100, 200, 300, 400, 430, 500, 501], "npc": null, "quest": ["36323"], "subJobFlags": null },
+        "1": { "lvmin": null, "npc": "1012100", "infoex": null, "mob": [] }
+      },
+      "questInfo": {
+        "0": "把在楓之島發生的事情告訴赫麗娜吧。",
+        "1": "",
+        "2": "赫麗娜表示在我身上蘊藏了一股神祕的力量，還有說到了我必須要變得更強。只是個初學冒險者的我，究竟有辦法拯救一切嗎？"
+      },
+      "classification": { "selfStart": true, "selfComplete": false, "completeNpc": "1012100", "kill": null },
+      "boundary": "T: 交付 NPC 1012100，lvmin 30。P: q36324e 脚本体缺；回报演出为适配器。"
+    }
+  ],
+  "monsters": {
+    "8645261": {
+      "name": "藍色蘑菇王",
+      "source": "Mob/8645261.json",
+      "statsSource": { "level": 22, "maxHP": 2175, "maxMP": 4000, "PADamage": 145, "MADamage": 144, "speed": -20, "acc": 40, "eva": 3, "pushed": 100, "fs": 10, "category": "2", "mobType": "7N" },
+      "entitySource": "Mob/8645261.img",
+      "dropSource": null,
+      "exp": 0,
+      "expNote": "WZ_JSON_TW/Mob/8645261.json 无 exp 字段 → 按契约 exp=0",
+      "boss": 0,
+      "graphicsAvailable": false,
+      "graphicsNote": "客户端 Data/Mob 仅 Mob.wz 单一归档，8645261.img 不本地存在；不自制 PNG，actions 为空"
+    },
+    "8645264": {
+      "name": "黑漆漆的嫩寶",
+      "source": "Mob/8645264.json",
+      "statsSource": { "level": 25, "maxHP": 525, "maxMP": 80, "PADamage": 115, "MADamage": 110, "speed": null, "acc": 40, "eva": 3, "pushed": 10, "fs": null, "category": null, "mobType": null },
+      "entitySource": "Mob/8645264.img",
+      "dropSource": null,
+      "exp": 0,
+      "expNote": "WZ_JSON_TW/Mob/8645264.json exp=0（显式）",
+      "boss": 0,
+      "graphicsAvailable": false,
+      "graphicsNote": "同上，8645264.img 不本地存在；不自制 PNG"
+    },
+    "8645262": {
+      "name": "黑色影子",
+      "source": "Mob/8645262.json",
+      "statsSource": { "level": 30, "maxHP": 4500, "maxMP": 6000, "PADamage": 319, "MADamage": 144, "speed": -10, "acc": 63, "eva": 13, "pushed": 300, "fs": null, "category": null, "mobType": null },
+      "entitySource": "Mob/8645262.img",
+      "dropSource": null,
+      "exp": 0,
+      "expNote": "WZ_JSON_TW/Mob/8645262.json 无 exp 字段 → 按契约 exp=0",
+      "boss": 1,
+      "graphicsAvailable": false,
+      "graphicsNote": "同上，8645262.img 不本地存在；不自制 PNG"
+    }
+  },
+  "npc": {
+    "1520000": {
+      "name": "糖果",
+      "source": "Npc/1520000.img",
+      "stringSource": "String/Npc.json#1520000",
+      "graphicsAvailable": true,
+      "graphicsNote": "客户端 Data/Npc 存在 Npc/1520000.img，stand 动画 1 帧，已导出 PNG",
+      "spawn": { "mapId": "000010000", "id": "000010000-life-candy", "x": "spawn.x - 150", "y": "spawn.y", "source": "P: 原版 993166xxx 糖果地图不可用，改用 000010000 楓葉山丘" }
+    }
+  },
+  "pBoundaries": [
+    {
+      "id": "P-job-as-group",
+      "topic": "职业门槛语义",
+      "detail": "源 Check/job = [100,200,300,400,430,500,501]，不含本项目在用的 220/221/222。判定为「职业群」语义：法师群 200/220/221/222 一律放行（applyCalamity MAGE_GROUP=[200,220,221,222]）。源 omission 220/221/222 记为 P 解释依据。",
+      "where": "scripts/tms273_chapter.cjs applyCalamity conditions.job"
+    },
+    {
+      "id": "P-exp-curve",
+      "topic": "经验曲线",
+      "detail": "10 条任务 EXP 采用项目现有 P 曲线：1700/1900/2100/2400/2700/3000/3300/3700/4100/4600（递增、无 mesos）。非原版数值。",
+      "where": "scripts/tms273_chapter.cjs rows.exp / quest.reward.exp"
+    },
+    {
+      "id": "P-script-bodies",
+      "topic": "脚本体缺失",
+      "detail": "q36315s/e、q36319s、q36322e、q36324e 及全部 Act/Say 脚本体本地 TMS273 无对应 .js；击杀完成、旅行、对话、回报演出均为适配器。",
+      "where": "executionEvidence / compatibility.mapleIslandCalamity"
+    },
+    {
+      "id": "P-maps-existing-41",
+      "topic": "地图适配",
+      "detail": "原版专用地图 993166xxx 几何本地不可解；任务 spawn 与 NPC 糖果 spawn 改用在现有 41 张地图（000010000/000020000/000030000）P 适配。",
+      "where": "applyCalamity spawnMap / candy spawn"
+    },
+    {
+      "id": "P-monster-graphics",
+      "topic": "怪物图形",
+      "detail": "8645261/8645262/8645264 的 .img 实体不本地存在；仅保留 stats（来自 WZ_JSON_TW/Mob/<id>.json）与 source 引用，不自制 PNG/动画。",
+      "where": "export_tms273_chapter.cjs exportMonster graphicsAvailable=false"
+    }
+  ],
+  "uBoundaries": [
+    {
+      "id": "U-993166-maps",
+      "topic": "原版灾祸地图",
+      "detail": "993166xxx 系列专用地图几何本地不可解，本轮不新增地图（U）。所有空间引用回退到现有 41 图。"
+    },
+    {
+      "id": "U-original-scripts",
+      "topic": "原版执行脚本",
+      "detail": "q36315–q36324 的原版执行脚本、精确过场时序、原版 993166xxx 地图布局均不可用；运行时击杀/生成使用所选本地地图。"
+    },
+    {
+      "id": "U-drops",
+      "topic": "掉落",
+      "detail": "data/MobReward 缺失，三怪均无掉落来源（dropSource=null），不声明掉落。"
+    }
+  ],
+  "verification": {
+    "status": "self-check PASS; runtime-check BLOCKED by pre-existing environment degradation (not calamity-module caused)",
+    "selfCheck": {
+      "script": "scripts/check_tms273_calamity.cjs",
+      "result": "PASS",
+      "checks": [
+        "10 calamity quests executable + ruleVersion tms273-calamity-p1",
+        "prerequisite chain 36314 -> ...36324 closed",
+        "3 monsters (8645261/8645262/8645264) in gameplay + manifest, exp=0",
+        "candy NPC 1520000 spawn + manifest entry",
+        "field shapes (start/complete conditions, kill objectives, selfComplete, reward no-mesos, exp curve)",
+        "calamity questSpawns reference live maps/monsters",
+        "41-map consistency preserved",
+        "no dangling assets for graphics-less monsters"
+      ]
+    },
+    "runtimeCheck": {
+      "script": "scripts/check_tms273_runtime.cjs",
+      "result": "BLOCKED (pre-existing, outside calamity scope)",
+      "calamityRelevantAssertionsPass": [
+        "L18 gameplay.monsters 3220000 maxHp=7500 (baseline boss preserved)",
+        "L54 executable quest count updated 15 -> 25 (calamity adds 10 executable quests)"
+      ],
+      "preExistingFailures": [
+        "L34 manifest.skillEffects['1000:1'].ball undefined — 新手技能 1000 的 ball/hit 帧缺失（mage-effects/skills 导出不完整，P 子系统，非本模块）",
+        "L47 manifest.monsters 缺失部分基线怪物（130100 等客户端 Mob.wz 本地缺图，环境退化，非本模块）"
+      ],
+      "note": "本地客户端 WZ 自 09-07 以来缺失部分怪物图与技能帧；check_tms273_runtime.cjs 的客户端侧断言无法在本环境完整通过。该退化早于本模块工作，非楓之島災禍篇所致。"
+    },
+    "typecheck": {
+      "script": "npm --prefix client run typecheck",
+      "result": "PASS (tsc --noEmit clean)"
+    },
+    "manifestSummary": {
+      "contentVersion": "tms273-9",
+      "maps": 41,
+      "assets": 4179,
+      "npcs": 60,
+      "monstersInManifest": 7,
+      "monstersInGameplay": 21,
+      "monstersNote": "manifest 仅 7 怪（4 基线 + 3 灾祸）因本地客户端 Mob 图缺失而无法重建完整基线怪物实体；gameplay（服务端）含完整 21 怪（18 基线 + 3 灾祸），3010 服务端不受影响。"
+    },
+    "notes": "服务端产物 shared/gameplay.json 已正确重建（21 怪、25 可执行、灾祸全链路可执行、3 怪+糖果+3 questSpawns 接入）。客户端 manifest 受本地素材缺失限制为尽力重建。运行时检查客户端侧失败为环境退化，非本模块引入。"
+  }
+}

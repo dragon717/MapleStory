@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 10;
+pub const PROTOCOL_VERSION: u32 = 11;
 pub const CONTENT_VERSION: &str = "tms273-9";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -202,6 +202,13 @@ pub enum ClientMessage {
         item_id: String,
         quantity: u32,
     },
+    /// Map-chat intent.  The client only supplies text; the authoritative map
+    /// room, sender identity and display name are all resolved server-side.
+    ChatSend {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        text: String,
+    },
 }
 
 impl ClientMessage {
@@ -344,8 +351,29 @@ impl ClientMessage {
                     && valid_id(item_id)
                     && (1..=100).contains(quantity)
             }
+            Self::ChatSend { request_id, text } => {
+                valid_id(request_id) && valid_chat_text(text)
+            }
         }
     }
+}
+
+/// Map/player chat body policy: non-empty after trimming, bounded by characters
+/// and UTF-8 bytes, and free of C0/C1 control characters (chat is a one-line
+/// body; control characters cannot carry layout or terminal commands).
+///
+/// P: the 200 limit counts Unicode scalar values, not extended grapheme
+/// clusters.  The 1 KiB byte cap keeps surrogate-safe CJK/emoji within the
+/// wire budget; precise grapheme accounting can move to unicode-segmentation
+/// if a source rule ever needs it.
+pub fn valid_chat_text(text: &str) -> bool {
+    if text.trim().is_empty() {
+        return false;
+    }
+    if text.chars().count() > 200 || text.len() > 1024 {
+        return false;
+    }
+    !text.chars().any(char::is_control)
 }
 
 fn valid_inventory_move(inventory_type: u8, source_slot: i16, target_slot: i16) -> bool {

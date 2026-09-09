@@ -737,6 +737,11 @@ def convert(args):
         "spawns": monster_spawns,
         "expTable": [],
         "dropChanceDenominator": DROP_DENOMINATOR,
+        # P: TMS273 map life keeps mobTime (units) per spawn and no map-wide
+        # respawn cycle.  Normal spawns carry mobTime 0, so the server treats
+        # them as "follow the map respawn cycle" with this fallback interval
+        # (10000 ms matches the earlier assembled runtime).
+        "monsterRespawnMs": 10000,
         "npcs": sorted(npc_templates, key=lambda item: int(item["templateId"])),
         "npcSpawns": npc_spawns,
         "shops": shops,
@@ -762,6 +767,7 @@ def convert(args):
             "runtimeIds": "numeric template/item/NPC ids use no leading zero; source ids remain in sources.",
             "pdRate": "273 PDRate is a percentage and is emitted as pdRate; it must not be converted to absolute pdDamage.",
             "mdRate": "273 MDRate is retained in sources.monsters until a server field exists.",
+            "respawn": "P: source spawn mobTime 0 is handled as the map respawn cycle; monsterRespawnMs=10000 is the fallback cycle (matches the earlier runtime) because TMS273 keeps no map-wide interval.",
             "player": "No confirmed TMS273 initial player stat record was selected; engine defaults remain compatibility behavior.",
             "quests": "Quest text is zh-only and QuestData execution is disabled by source metadata.",
         },

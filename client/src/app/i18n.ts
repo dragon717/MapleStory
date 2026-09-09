@@ -74,6 +74,9 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   quantity_overflow: { zh: '道具数量过大', en: 'Item quantity is too large' },
   invalid_slot: { zh: '物品栏格子无效', en: 'Inventory slot is invalid' },
   persistence: { zh: '保存失败，请稍后重试', en: 'Persistence failed; try again' },
+  chat_rate_limited: { zh: '发言太快，请稍后再试', en: 'You are chatting too fast; wait a moment' },
+  invalid_chat_text: { zh: '消息为空、过长或包含不允许的字符', en: 'Empty, overlong, or disallowed characters' },
+  idempotency_conflict: { zh: '重复请求使用了不同的内容', en: 'A retried request changed its content' },
 });
 
 export function uiLocale(): UiLocale { return locale; }

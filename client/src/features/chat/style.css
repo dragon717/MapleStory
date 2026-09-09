@@ -10,6 +10,10 @@
 .chat273-background-closed{display:none}
 .chat273-log{position:relative;z-index:1;display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-height:22px;max-height:66px;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#8c9aa3 #25333a;margin:0 0 4px;color:#e6eef0;font-size:10px;line-height:12px;text-shadow:1px 1px 0 #111820}
 .chat273-system-line{flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat273-player-line{flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat273-player-line .chat273-name{font-weight:bold}
+.chat273-name-other{color:#7fd4ff}.chat273-name-self{color:#fff3a5}
+.chat273-pending-line{opacity:.55}.chat273-pending-line .chat273-name{color:#cfd8dc}
 .chat273-toolbar{position:relative;z-index:2;display:flex;align-items:center;gap:3px;width:100%;min-width:0;min-height:25px}
 .chat273-target,.chat273-whisper,.chat273-toggle{position:relative;flex:0 0 auto;padding:0;border:0;background:transparent;line-height:0;overflow:hidden}
 .chat273-target{height:24px}.chat273-whisper{width:24px;height:25px}.chat273-toggle{width:26px;height:20px;margin-left:auto}

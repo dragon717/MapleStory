@@ -28,6 +28,15 @@ export class PlayerView {
   private skillActionUntil = 0;
   /** Feet-to-head offset of the current rendered frame, for damage numbers. */
   private headOffsetY = -40;
+  /** Live map-chat bubble above the name label (P display layer; the server
+   *  only forwards chatMessage to the same-map members, bubbles never replay
+   *  history and never reposition across a map switch because this view is
+   *  destroyed with the scene). */
+  private bubble?: { container: Phaser.GameObjects.Container; until: number; width: number; height: number };
+  /** Server-visible clip for the on-map bubble; the chat log keeps the full
+   *  authoritative text. */
+  private static readonly BUBBLE_MAX_CHARS = 96;
+  private static readonly BUBBLE_MS = 4_000;
   constructor(private scene: Phaser.Scene, private manifest: Manifest, username: string, self: boolean) {
     // ponytail: one map layer for actors; add explicit actorDepth when a map needs foreground occlusion.
     const depth = actorDepthForLayers(manifest.map.layers);
@@ -116,8 +125,59 @@ export class PlayerView {
     }
     this.body.setPosition(Math.round(player.x), Math.round(player.y)).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
     this.name.setPosition(Math.round(player.x), Math.round(player.y + 8));
+    this.updateBubble(player);
     this.updateFlash();
     this.updateLevelFeedback(player);
+  }
+
+  /** Present one incoming same-map chat message above the character head.
+   *  Ephemeral, time-boxed and clipped: it never replays and never follows the
+   *  body into another map. */
+  showBubble(authorName: string, text: string) {
+    this.clearBubble();
+    if (!authorName && !text) return;
+    const scene = this.scene;
+    const container = scene.add.container(0, 0).setDepth(this.name.depth + 3);
+    const clipped = text.length > PlayerView.BUBBLE_MAX_CHARS
+      ? `${text.slice(0, PlayerView.BUBBLE_MAX_CHARS)}…` : text;
+    const nameLabel = scene.add.text(0, 0, authorName, { fontFamily: 'Verdana, sans-serif', fontSize: '11px', color: '#8fd0ff' });
+    const bodyLabel = scene.add.text(0, 0, clipped, {
+      fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: '#ffffff',
+      wordWrap: { width: 320 }, lineSpacing: 2,
+    });
+    // Measure after word-wrap; then lay the label rows inside the bubble box.
+    bodyLabel.updateText();
+    const padX = 10;
+    const padY = 6;
+    const width = Math.max(nameLabel.width, bodyLabel.width) + padX * 2;
+    const height = nameLabel.height + bodyLabel.height + padY * 2 + 2;
+    const box = scene.add.graphics();
+    box.fillStyle(0x0a1420, 0.82).fillRoundedRect(0, 0, width, height, 7);
+    box.lineStyle(1, 0x3d556e, 0.9).strokeRoundedRect(0.5, 0.5, width - 1, height - 1, 7);
+    container.add(box);
+    nameLabel.setPosition(padX, padY);
+    bodyLabel.setPosition(padX, padY + nameLabel.height + 2);
+    container.add([nameLabel, bodyLabel]);
+    this.bubble = { container, until: scene.time.now + PlayerView.BUBBLE_MS, width, height };
+  }
+
+  private updateBubble(player: PlayerState) {
+    const bubble = this.bubble;
+    if (!bubble) return;
+    if (this.scene.time.now >= bubble.until || player.hp <= 0 || player.action === 'dead') {
+      this.clearBubble();
+      return;
+    }
+    bubble.container.setPosition(
+      Math.round(player.x - bubble.width / 2),
+      Math.round(player.y + 8 - this.name.height - bubble.height - 4),
+    );
+  }
+
+  private clearBubble() {
+    if (!this.bubble) return;
+    this.bubble.container.destroy(true);
+    this.bubble = undefined;
   }
   private updateLevelFeedback(player: PlayerState) {
     const level = player.level;

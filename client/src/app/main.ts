@@ -182,7 +182,12 @@ async function enterGame(session: LoginResponse) {
     el('map-name').textContent = mapText(manifest.map.id, manifest.map.name);
     renderMapRoute(manifest);
     chat?.destroy();
-    chat = new ChatView(el('chat'), manifest, message => status(message));
+    chat = new ChatView(el('chat'), manifest, message => status(message), {
+      send: (requestId, text) => connection?.send({ type: 'chatSend', requestId, text }) ?? false,
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
+      focusGame,
+      selfId: () => selfState?.id,
+    });
     deathNotice?.destroy();
     deathNotice = new DeathNoticeView(el('notices'), manifest, requestId => connection?.send({ type: 'revive', requestId }) ?? false, message => status(message));
     npcDialogue?.destroy();
@@ -247,6 +252,10 @@ async function enterGame(session: LoginResponse) {
     connection = new Connection(session, message => {
       world?.receive(message);
       inventory?.receive(message);
+      if (message.type === 'chatMessage') {
+        chat?.appendChatMessage(message);
+        return;
+      }
       if (message.type === 'npcResult') {
         npcDialogue?.receive(message);
         if (message.openSkills) {
@@ -320,7 +329,10 @@ async function enterGame(session: LoginResponse) {
       }
       else if (message.type === 'rejected') {
         if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
-        if (['boss_practice_cleared', 'boss_practice_left', 'boss_practice_failed'].includes(message.code)) {
+        else if (['chat_rate_limited', 'invalid_chat_text', 'idempotency_conflict'].includes(message.code)) {
+          // A rejected chat restores the draft and shows the server reason.
+          chat?.failPending(message.requestId, protocolText(message.code, message.message));
+        } else if (['boss_practice_cleared', 'boss_practice_left', 'boss_practice_failed'].includes(message.code)) {
           status(protocolText(message.code, message.message), message.code === 'boss_practice_failed');
         } else if (!deathNotice?.reject(message)) status(`${protocolText(message.code, message.message)} (${message.code})`, true);
       }
