@@ -9,7 +9,11 @@ const MAX_DROP_MESOS = 50_000;
 const TAB_COUNT = 5;
 const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventorySetup', 'inventoryEtc', 'inventoryCash'] as const;
 
-type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & { equipped?: InventoryItem[] };
+/** Consumable cooldowns are server-owned; the window only renders them. */
+type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & {
+  equipped?: InventoryItem[];
+  potionCooldowns?: Record<string, number>;
+};
 type AssetSet = Record<string, AssetFrame>;
 type SendClientMessage = (message: ClientMessage) => boolean;
 type UseItemMessage = Extract<ClientMessage, { type: 'useItem' }>;
@@ -68,6 +72,8 @@ export class InventoryView {
   private inventory: InventoryPlayer['inventory'] = [];
   private equipped: InventoryItem[] = [];
   private mesos = 0;
+  /** Server-owned consumable cooldowns (item id -> remaining ms); display only. */
+  private potionCooldowns: Record<string, number> = {};
   private practice = false;
   private slotsSignature = '';
   private draggedSlot?: number;
@@ -279,6 +285,7 @@ export class InventoryView {
     this.inventory = player.inventory.slice();
     this.equipped = (player.equipped ?? []).slice();
     this.mesos = Math.max(0, Math.floor(player.mesos));
+    this.potionCooldowns = { ...(player.potionCooldowns ?? {}) };
     this.root.dataset.inventory = this.inventory
       .map(item => String(itemCategoryTab(item.itemId) + 1) + ':' + item.slot + ':' + item.itemId + ':' + item.quantity)
       .join(',');
@@ -290,6 +297,11 @@ export class InventoryView {
       .sort((left, right) => itemCategoryTab(left.itemId) - itemCategoryTab(right.itemId) || left.slot - right.slot)
       .map(item => String(itemCategoryTab(item.itemId)) + ':' + item.slot + ':' + JSON.stringify(item))
       .concat(this.equipped.map(item => 'equipped:' + item.slot + ':' + JSON.stringify(item)))
+      // Cooldown seconds tick down, so they belong to the render signature:
+      // without this the badge would freeze at the value it had when the
+      // inventory last changed.
+      .concat(Object.entries(this.potionCooldowns)
+        .map(([itemId, ms]) => `cd:${itemId}:${Math.ceil(ms / 1000)}`))
       .join('|');
     if (signature !== this.slotsSignature) {
       if (!this.keepGatherResultMode) this.sortMode = false;
@@ -373,6 +385,7 @@ export class InventoryView {
     this.inventory = [];
     this.equipped = [];
     this.mesos = 0;
+    this.potionCooldowns = {};
     this.slotsSignature = '';
     this.root.dataset.inventory = '';
     this.root.dataset.mesos = '0';
@@ -681,6 +694,22 @@ export class InventoryView {
           quantity.style.bottom = 'auto';
         }
         slot.append(quantity);
+      }
+      // Consumable cooldown badge.  The remaining time is server-owned and
+      // arrives with the snapshot; the window only renders it, so a client can
+      // never shorten or clear a cooldown by not drawing it.
+      const remaining = this.potionCooldowns[item.itemId] ?? 0;
+      if (remaining > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'inventory-item-cooldown';
+        badge.textContent = `${Math.ceil(remaining / 1000)}s`;
+        badge.setAttribute('aria-hidden', 'true');
+        slot.append(badge);
+        slot.classList.add('inventory-slot-cooling');
+        slot.setAttribute('aria-label', this.t(
+          `道具 ${itemName(item.itemId)} 冷却中，还需 ${Math.ceil(remaining / 1000)} 秒`,
+          `Item ${itemName(item.itemId)} is cooling down: ${Math.ceil(remaining / 1000)}s remaining`,
+        ));
       }
     }
     this.renderEquipment();

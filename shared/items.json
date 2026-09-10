@@ -10826,11 +10826,13 @@
   },
   "2000000": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 3000,
     "info": {
       "price": 3
     },
-    "spec": {},
+    "spec": {
+      "hp": 50
+    },
     "source": null,
     "sourceItemId": "02000000",
     "spriteSource": "Item/Consume/0200.img/02000000/info/icon",
@@ -10843,11 +10845,13 @@
   },
   "2000001": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 3000,
     "info": {
       "price": 24
     },
-    "spec": {},
+    "spec": {
+      "hp": 150
+    },
     "source": null,
     "sourceItemId": "02000001",
     "spriteSource": "Item/Consume/0200.img/02000001/info/icon",
@@ -10860,11 +10864,13 @@
   },
   "2000002": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 3000,
     "info": {
       "price": 48
     },
-    "spec": {},
+    "spec": {
+      "hp": 300
+    },
     "source": null,
     "sourceItemId": "02000002",
     "spriteSource": "Item/Consume/0200.img/02000002/info/icon",
@@ -10877,11 +10883,13 @@
   },
   "2010000": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 300,
     "info": {
       "price": 2
     },
-    "spec": {},
+    "spec": {
+      "hp": 30
+    },
     "source": null,
     "sourceItemId": "02010000",
     "spriteSource": "Item/Consume/0201.img/02010000/info/icon",
@@ -10894,11 +10902,13 @@
   },
   "2010002": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 300,
     "info": {
       "price": 3
     },
-    "spec": {},
+    "spec": {
+      "hp": 50
+    },
     "source": null,
     "sourceItemId": "02010002",
     "spriteSource": "Item/Consume/0201.img/02010002/info/icon",
@@ -10911,11 +10921,13 @@
   },
   "2010009": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 300,
     "info": {
       "price": 30
     },
-    "spec": {},
+    "spec": {
+      "mp": 30
+    },
     "source": null,
     "sourceItemId": "02010009",
     "spriteSource": "Item/Consume/0201.img/02010009/info/icon",
@@ -10928,11 +10940,13 @@
   },
   "2012002": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 300,
     "info": {
       "price": 700
     },
-    "spec": {},
+    "spec": {
+      "time": 300000
+    },
     "source": null,
     "sourceItemId": "02012002",
     "spriteSource": "Item/Consume/0201.img/02012002/info/icon",
@@ -11387,7 +11401,7 @@
   },
   "2060000": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 9999,
     "info": {},
     "spec": {},
     "source": null,
@@ -11402,7 +11416,7 @@
   },
   "2061000": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 9999,
     "info": {},
     "spec": {},
     "source": null,
@@ -11417,7 +11431,7 @@
   },
   "2070009": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 800,
     "info": {
       "price": 500
     },
@@ -11466,7 +11480,7 @@
   },
   "2330000": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 800,
     "info": {
       "price": 250
     },
@@ -11498,7 +11512,7 @@
   },
   "2431174": {
     "inventoryType": 2,
-    "slotMax": 100,
+    "slotMax": 300,
     "info": {
       "price": 1
     },

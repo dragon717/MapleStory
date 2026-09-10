@@ -617,16 +617,83 @@ pub fn sort_items(items: &mut Vec<InventoryItem>) {
     items.sort_by_key(|item| (inventory_type(&item.item_id).unwrap_or(0), item.slot));
 }
 
-pub fn use_effect(item_id: &str) -> Result<(i64, i64), InventoryError> {
+/// One authored consumable-recovery effect.
+///
+/// The original has two independent recovery forms and an item may use either
+/// or both at once (T, read from the TMS273.7 `Item/Consume` `spec` node):
+///   * **flat**  — `spec.hp` / `spec.mp`, an absolute amount (紅色藥水 hp=50);
+///   * **rate**  — `spec.hpR` / `spec.mpR`, a percentage of the character's
+///     own maximum pool (超級藥水 hpR=100).  A percentage heal is why the
+///     same potion is worth using at level 1 and at level 200, and it is also
+///     why the original puts those specific items behind a cooldown.
+///
+/// Percentages are resolved against the caller's maximum pool rather than
+/// being baked into the catalog, so equipment and skill bonuses that raise
+/// max HP/MP are honoured without re-exporting any item data.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UseEffect {
+    /// Flat HP restored, always >= 0.
+    pub hp: i64,
+    /// Flat MP restored, always >= 0.
+    pub mp: i64,
+    /// HP restored as a whole-percent share of max HP (`hpR` = 100 → full).
+    pub hp_percent: i64,
+    /// MP restored as a whole-percent share of max MP.
+    pub mp_percent: i64,
+    /// Authored use cooldown in milliseconds; `None` means the item has none.
+    pub cooldown_ms: Option<u64>,
+}
+
+impl UseEffect {
+    /// Resolve the effect into concrete amounts for one body.
+    ///
+    /// `rounding` is deliberately floor-with-a-minimum-of-1 for the percentage
+    /// part: a positive percentage must always restore at least 1 point, so a
+    /// low-level character is never handed a potion that silently does
+    /// nothing.  Flat and percentage parts are added, and the caller clamps
+    /// the total to the maximum pool.
+    pub fn resolve(&self, max_hp: i64, max_mp: i64) -> (i64, i64) {
+        let percent_hp = if self.hp_percent > 0 {
+            (max_hp.max(0) * self.hp_percent / 100).max(1)
+        } else {
+            0
+        };
+        let percent_mp = if self.mp_percent > 0 {
+            (max_mp.max(0) * self.mp_percent / 100).max(1)
+        } else {
+            0
+        };
+        (self.hp + percent_hp, self.mp + percent_mp)
+    }
+
+    /// True when the item restores anything at all.
+    pub fn recovers(&self) -> bool {
+        self.hp > 0 || self.mp > 0 || self.hp_percent > 0 || self.mp_percent > 0
+    }
+}
+
+/// Read the authored recovery effect of a consumable.
+///
+/// Returns `ItemNotUsable` when the item restores nothing — that is the
+/// original's behaviour for arrows, bullets, and other Use-tab items that
+/// are consumed by the attack system rather than by a drink.
+pub fn use_effect(item_id: &str) -> Result<UseEffect, InventoryError> {
     if inventory_type(item_id) != Some(2) {
         return Err(InventoryError::ItemNotUsable);
     }
-    let hp = spec_i64(item_id, "hp").unwrap_or(0).max(0);
-    let mp = spec_i64(item_id, "mp").unwrap_or(0).max(0);
-    if hp == 0 && mp == 0 {
+    let effect = UseEffect {
+        hp: spec_i64(item_id, "hp").unwrap_or(0).max(0),
+        mp: spec_i64(item_id, "mp").unwrap_or(0).max(0),
+        hp_percent: spec_i64(item_id, "hpR").unwrap_or(0).max(0),
+        mp_percent: spec_i64(item_id, "mpR").unwrap_or(0).max(0),
+        cooldown_ms: spec_i64(item_id, "time")
+            .and_then(|value| u64::try_from(value.max(0)).ok())
+            .filter(|value| *value > 0),
+    };
+    if !effect.recovers() {
         return Err(InventoryError::ItemNotUsable);
     }
-    Ok((hp, mp))
+    Ok(effect)
 }
 
 pub fn scroll_effect(item_id: &str) -> Option<BTreeMap<String, i64>> {
@@ -900,7 +967,13 @@ mod tests {
 
     #[test]
     fn potion_effect_and_equip_requirements() {
-        assert_eq!(use_effect("2000000"), Ok((50, 0)));
+        // 紅色藥水 authors a flat 50 HP recovery in the TMS273 `spec` node.
+        // Before the spec backfill this returned ItemNotUsable for every
+        // potion in the catalog, so this assertion pins the data contract.
+        let red = use_effect("2000000").expect("紅色藥水 must be drinkable");
+        assert_eq!(red.hp, 50);
+        assert_eq!(red.mp, 0);
+        assert_eq!(red.cooldown_ms, None, "a plain potion has no cooldown");
         assert_eq!(use_effect("2041006"), Err(InventoryError::ItemNotUsable));
 
         let mut inventory = vec![item(1, "1002067", 1)];

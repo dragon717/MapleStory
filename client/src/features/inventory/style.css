@@ -78,6 +78,24 @@
   white-space: nowrap;
 }
 
+/* Consumable cooldown: the remaining seconds are server-owned, so the badge is
+   presentation only.  The slot is dimmed rather than disabled — the item is
+   still there and still selectable, it simply cannot be drunk yet. */
+.tms273-inventory-host .inventory-item-cooldown {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  padding: 0 2px;
+  color: #ffe37a;
+  font: 10px/12px Verdana, sans-serif;
+  text-shadow: 0 0 2px #000, 0 1px 0 #000;
+  pointer-events: none;
+}
+
+.tms273-inventory-host .inventory-slot-cooling .inventory-item-icon {
+  opacity: 0.55;
+}
+
 .tms273-inventory-host .inventory-window-button {
   box-sizing: content-box;
 }

@@ -2368,6 +2368,13 @@ struct Player {
     quests: BTreeMap<String, String>,
     /// Display language for server-pushed quest text (see quest_text::LANG_*).
     lang: &'static str,
+    /// Per-item consumable cooldowns: item id -> tick at which the item may be
+    /// drunk again.  Only items that author a `spec.time` cooldown ever get an
+    /// entry, so ordinary potions stay spammable exactly as in the original.
+    /// The cooldown gates the *recovery effect* of that item id; it is world
+    /// state that resets on join/death/map change, matching the session-scoped
+    /// treatment every other temporary player state here gets.
+    potion_cooldowns: BTreeMap<String, u64>,
     /// Map-chat token bucket (1 token/s refill, burst 5) replenished lazily
     /// from the authoritative tick so rate limits stay deterministic.
     chat_tokens: u32,
@@ -2403,6 +2410,11 @@ fn clear_beginner_buffs(player: &mut Player) {
     player.infinity_damage_bonus = 0;
     player.mystic_strike_stacks = 0;
     player.mystic_strike_until = 0;
+    // Consumable cooldowns share the session-scoped lifetime of every other
+    // temporary player state here, so a map change, death or reconnect clears
+    // them.  Without this a player could carry a lock across a revive and be
+    // unable to drink for a minute with no way to see why.
+    player.potion_cooldowns.clear();
 }
 
 fn clear_hyper_runtime(player: &mut Player) {
@@ -3198,6 +3210,38 @@ impl World {
     /// time and run the side effects exactly once per transition.  Called at
     /// the top of each tick and again on any control boundary, so a command
     /// never trusts a cached stage that time has already moved past.
+    /// Expire finished consumable cooldowns and refresh the wire mirror.
+    ///
+    /// The cooldown map is keyed by item id and only ever holds entries for
+    /// items the source actually gives a cooldown, but a long session could
+    /// still accumulate entries for items the player no longer carries.  This
+    /// sweep removes the finished ones each tick and republishes the rest, so
+    /// the wire value is always derived from the authoritative tick rather
+    /// than from a countdown that a paused client would read stale.
+    fn expire_potion_cooldowns(&mut self) {
+        let tick = self.tick;
+        for player in self.players.values_mut() {
+            if player.potion_cooldowns.is_empty() {
+                if player.state.potion_cooldowns.is_some() {
+                    player.state.potion_cooldowns = None;
+                }
+                continue;
+            }
+            player.potion_cooldowns.retain(|_, ready| *ready > tick);
+            player.state.potion_cooldowns = if player.potion_cooldowns.is_empty() {
+                None
+            } else {
+                Some(
+                    player
+                        .potion_cooldowns
+                        .iter()
+                        .map(|(item_id, ready)| (item_id.clone(), (ready - tick) * TICK_MS))
+                        .collect(),
+                )
+            };
+        }
+    }
+
     fn advance_away_windows(&mut self) {
         let now = Instant::now();
         let mut entering_residency: Vec<String> = Vec::new();
@@ -3706,6 +3750,7 @@ impl World {
                             hyper_points,
                             hyper_reset_count,
                             hyper_reset_cost: auth::hyper_reset_cost(hyper_reset_count),
+                            potion_cooldowns: None,
                             inventory: profile.inventory,
                             equipped,
                             monster_book,
@@ -3780,6 +3825,7 @@ impl World {
                         chat_tokens: CHAT_TOKEN_BURST,
                         chat_bucket_tick: self.tick,
                         chat_recent: VecDeque::new(),
+                        potion_cooldowns: BTreeMap::new(),
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
@@ -9934,6 +9980,23 @@ impl World {
         let Some(player) = self.players.get(&id) else {
             return;
         };
+        // Consumable cooldown gate.  Only items that author a `spec.time`
+        // cooldown are ever in this map; an ordinary potion has no entry and
+        // can be drunk as fast as the player can click, which is the
+        // original's behaviour.  The check runs before any persistence so a
+        // rejected use never spends an item.
+        if let Some(ready_tick) = player.potion_cooldowns.get(&item_id).copied() {
+            if self.tick < ready_tick {
+                let remaining_ms = ready_tick.saturating_sub(self.tick) * TICK_MS;
+                self.send_reject(
+                    &id,
+                    "potion_cooldown",
+                    &format_potion_cooldown(remaining_ms, player.lang),
+                    Some(&request_id),
+                );
+                return;
+            }
+        }
         if let Some(store) = self.store.clone() {
             let derived_max_mp = player.state.max_mp;
             match store.prior_inventory(&id, &request_id) {
@@ -9955,6 +10018,7 @@ impl World {
                 }
             }
             let stats = self.equipment_stats(&id);
+            let recovery = inventory::use_effect(&item_id).ok();
             match store.use_item_with_max_mp(
                 &id,
                 &request_id,
@@ -9968,6 +10032,7 @@ impl World {
             ) {
                 Ok(outcome) => {
                     if outcome.success {
+                        self.arm_potion_cooldown(&id, &item_id, recovery);
                         let defaults = self.default_profile();
                         if let Ok(profile) = store.load_profile(&id, &defaults) {
                             if let Some(player) = self.players.get_mut(&id) {
@@ -10076,8 +10141,12 @@ impl World {
             });
             if !item_matches {
                 Err(inventory::InventoryError::SourceEmpty)
-            } else if let Ok((hp, mp)) = inventory::use_effect(&item_id) {
+            } else if let Ok(effect) = inventory::use_effect(&item_id) {
+                // Percentage recovery (`hpR`/`mpR`) is resolved against this
+                // body's own maxima, so the same potion scales with the
+                // character instead of carrying a baked-in amount.
                 if let Some(player) = self.players.get_mut(&id) {
+                    let (hp, mp) = effect.resolve(player.state.max_hp, player.state.max_mp);
                     player.state.hp = (player.state.hp + hp).min(player.state.max_hp);
                     player.state.mp = (player.state.mp + mp).min(player.state.max_mp);
                 }
@@ -10119,6 +10188,13 @@ impl World {
         };
         let (success, code) = match result {
             Ok(()) => {
+                if operation == "use" {
+                    self.arm_potion_cooldown(
+                        &id,
+                        &item_id,
+                        inventory::use_effect(&item_id).ok(),
+                    );
+                }
                 if let Some(player) = self.players.get_mut(&id) {
                     player.state.inventory = inventory_items;
                     player.state.equipped = equipped_items;
@@ -12677,6 +12753,25 @@ impl World {
         let _ = player.output.try_send(message.to_string());
     }
 
+    /// Register the authored use cooldown of a consumable that was just drunk.
+    ///
+    /// Only an item whose `spec.time` the source authors a cooldown for gets an
+    /// entry; everything else is left out of the map so the common case (a
+    /// stack of 紅色藥水) stays free of any per-item bookkeeping.  A cooldown
+    /// is stored as the tick at which the item becomes usable again, and the
+    /// world loop never has to touch it — the gate is evaluated on use.
+    fn arm_potion_cooldown(&mut self, id: &str, item_id: &str, effect: Option<inventory::UseEffect>) {
+        let Some(cooldown_ms) = effect.and_then(|effect| effect.cooldown_ms) else {
+            return;
+        };
+        let ticks = cooldown_ms.div_ceil(TICK_MS).max(1);
+        if let Some(player) = self.players.get_mut(id) {
+            player
+                .potion_cooldowns
+                .insert(item_id.to_owned(), self.tick + ticks);
+        }
+    }
+
     fn send_reject(&self, id: &str, code: &str, message: &str, request_id: Option<&str>) {
         let Some(player) = self.players.get(id) else {
             return;
@@ -13155,6 +13250,10 @@ impl World {
 
     pub fn step(&mut self) {
         self.tick += 1;
+        // Drop consumable cooldowns that have expired so the per-player map
+        // cannot grow without bound over a long session, and mirror what is
+        // left onto the wire state for the client to render.
+        self.expire_potion_cooldowns();
         // Derive every away stage from the current time before simulating, so
         // no branch below can act on a stage that has already expired.
         self.advance_away_windows();
@@ -15427,6 +15526,20 @@ fn recover_at_fall_boundary(map: &Map, player: &mut Player, tick: u64) {
         }
     }
     reset_player_to_spawn(map, player, tick);
+}
+
+/// Human-readable remaining time for a rejected consumable use.
+///
+/// The remaining value comes from the authoritative cooldown, so the text only
+/// has to render it.  Seconds are rounded up so a player is never told "0
+/// seconds" while the item is still locked.
+fn format_potion_cooldown(remaining_ms: u64, lang: &'static str) -> String {
+    let seconds = remaining_ms.div_ceil(1000).max(1);
+    if lang == crate::quest_text::LANG_EN {
+        format!("This item is cooling down: {seconds}s remaining.")
+    } else {
+        format!("道具冷却中，还需 {seconds} 秒。")
+    }
 }
 
 fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
@@ -18746,6 +18859,7 @@ mod tests {
     include!("away_acceptance.rs");
     include!("reactor_acceptance.rs");
     include!("shop_sell_acceptance.rs");
+    include!("consume_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

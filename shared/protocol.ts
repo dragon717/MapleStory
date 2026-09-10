@@ -34,6 +34,10 @@ export interface PlayerState {
   skillPoints?: Record<string, number>;
   hyperPoints?: Record<string, number>;
   hyperResetCount?: number; hyperResetCost?: number;
+  /** Server-owned consumable cooldowns: item id -> remaining ms. Only items
+   *  that author a source cooldown appear; an empty or absent map means every
+   *  carried potion is ready. Clients render this; they never decide it. */
+  potionCooldowns?: Record<string, number>;
   abilityStats?: AbilityStats;
   derivedStats?: { hyperBarrierActive?: boolean; hyperTeleportEnabled?: boolean; damageReductionPercent?: number; regenerationPassives?: RegenerationPassive[]; infinityEnhanced?: boolean; skillCooldowns?: Record<string, number>; skillBuffs?: Record<string, number>; meditationRemainingMs?: number; iceTeleport?: boolean; teleportMastery?: boolean; teleportBoost?: boolean; adaptationCharges?: number; adaptationCooldownMs?: number; statusResistance?: number; elementResistance?: number; magicAttack: number; defense: number; moveSpeed: number; magicGuard: boolean; strength?: number; dexterity?: number; intelligence?: number; luck?: number };
   level: number; exp: number; expToNext: number; mesos: number;

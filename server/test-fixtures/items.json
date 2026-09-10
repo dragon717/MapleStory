@@ -28,5 +28,23 @@
     "spec": {
       "consumeOnPickup": 1
     }
+  },
+  "2009001": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "info": { "price": 3 },
+    "spec": { "hp": 50 }
+  },
+  "2009002": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "info": { "price": 2500 },
+    "spec": { "hpR": 100, "mpR": 100 }
+  },
+  "2009003": {
+    "inventoryType": 2,
+    "slotMax": 100,
+    "info": { "price": 1 },
+    "spec": { "hp": 50, "time": 30000 }
   }
 }

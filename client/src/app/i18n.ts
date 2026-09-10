@@ -93,6 +93,7 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   shop_slot_empty: { zh: '这个格子没有道具', en: 'That slot is empty' },
   shop_item_unsellable: { zh: '这个道具无法出售给商店', en: 'This item cannot be sold to a shop' },
   shop_rejected: { zh: '商店拒绝了这次交易', en: 'The shop rejected this trade' },
+  potion_cooldown: { zh: '道具冷却中，请稍后再使用', en: 'This item is cooling down' },
 });
 
 export function uiLocale(): UiLocale { return locale; }

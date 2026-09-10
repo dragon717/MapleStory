@@ -2956,7 +2956,22 @@ impl Store {
             });
             if !source_exists {
                 Err(inventory::InventoryError::SourceEmpty)
-            } else if let Ok((hp, mp)) = inventory::use_effect(item_id) {
+            } else if let Ok(effect) = inventory::use_effect(item_id) {
+                // A percentage (`hpR`/`mpR`) potion heals a share of the
+                // body's own pool, so the concrete amount has to be resolved
+                // against the row's authored maxima inside the same
+                // transaction that spends the item.  `max_mp_override` carries
+                // the Mage's derived cap (equipment + Magic Boost) so the
+                // potion heals what the player actually sees, without that
+                // derived value ever being persisted as a new baseline.
+                let (max_hp, base_max_mp): (i64, i64) = tx
+                    .query_row(
+                        "SELECT max_hp,max_mp FROM player_stats WHERE account_id=?1",
+                        params![account_id],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )
+                    .map_err(|_| "account persistence failed".to_owned())?;
+                let (hp, mp) = effect.resolve(max_hp, max_mp_override.unwrap_or(base_max_mp));
                 inventory::remove_items(&mut inventory, 2, source_slot, 1).and_then(|_| {
                     let changed = tx
                         .execute(

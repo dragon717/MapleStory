@@ -575,6 +575,12 @@ pub struct PlayerState {
     pub hyper_points: BTreeMap<u32, u32>,
     pub hyper_reset_count: u8,
     pub hyper_reset_cost: u64,
+    /// Server-owned consumable cooldowns: item id -> remaining ms.  Only items
+    /// whose source `spec.time` authors a cooldown appear here, so an ordinary
+    /// potion never occupies an entry.  Emitted for display only — the client
+    /// cannot set, shorten or clear a cooldown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub potion_cooldowns: Option<BTreeMap<String, u64>>,
     pub inventory: Vec<InventoryItem>,
     pub equipped: Vec<InventoryItem>,
     pub monster_book: BTreeMap<String, u8>,
