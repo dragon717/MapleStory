@@ -532,3 +532,9 @@
 - 分工：root负责地图/装配/渲染与台账；Luna/max后端子代理只改 `server/src/world.rs` 与 `server/src/water_acceptance.rs`，不交叉写。共享地图字段由root通过 `scripts/tms273_split_road.cjs` 单一写入。
 - 验收：后端 `cargo test --offline water_` 2项通过；前端 `tsc --noEmit`、`water.check.mjs`、`vite build` 通过。不重启服务、不改数据库、不启动独立QA。
 - 待验（用户）：波浪/水花/漂浮姿态手感、踏板两跳上木架、岸→水→岸通行与游泳拾取；游泳沿用jump pose（当前头像契约无swim动作）。
+
+## 魔力波動缺陷修复（2026-09-10）：已改完并重启服务，待用户实玩
+
+- 需求：发动魔力波動时往上位移为普通跳的 1.5 倍，并按源 v=95 px/s 做明显的缓慢下降。
+- 状态：已改 `server/src/world.rs` 并通过定向测试，3010 已用新二进制重启；证据与P边界见 IMPLEMENTATION_STATUS.md 同名条目。
+- 待验（用户）：上升高度与缓降观感；不够明显就调 `MAGIC_WAVE_LAUNCH_HEIGHT_RATIO` 与 `MAGIC_WAVE_SLOW_FALL_SPEED`。

@@ -727,3 +727,11 @@ Luna/max mage_sp_official续作导出72张额外PNG与mage-effects.json，另复
 - 客户端（新增 `client/src/features/world/water.ts`，root）：按 `Web_TS_2D_Water_Development_Plan` 的模拟核心在 Phaser 内实现一维高度场水面（反射边界、两条环境波、固定 1/120 步长与积压裁剪、位移限幅）、按接触宽度归一化的入水冲量（网格细化不改变总注入冲量）、池化水花、掉落物固定吃水浮力（弹簧趋近、随波起伏、随水面斜率倾斜）、玩家入水/游动涟漪；水体前后两层绘制，使游泳角色与漂浮物水下部分由同一条水线着色。计划原定 Three.js + Rapier 的 Demo 栈未引入：本项目已有 Phaser 渲染与服务端权威物理，只移植模拟核心，客户端不回写任何权威坐标。
 - 验证：`cargo test --offline water_` 2 项通过（`water_is_finite_enterable_and_swimmable_without_foothold_edges`、`water_drops_float_to_surface_but_not_onto_land`）；全量 `cargo test --offline` 127 passed / 4 failed，4 项失败经 stash 基线复现为既有问题（auth third_store_book_split、mage bundled_catalog、world config_drop_and_exp、world third_sphere），与本轮无关。前端 `tsc --noEmit` 通过、`client/src/features/world/water.check.mjs` 六组水面/浮力检查通过、`vite build`（dist-water-check，1m10s）通过，仅既有 chunk 体积警告。`npm run check` 中 `input.check.mjs` 在既有快捷键断言（222/Digit9）失败，与本轮无关、未修改。
 - 待验（用户实玩）：波浪幅度、水花密度、漂浮姿态与吃水位置的手感；踏板两跳上木架；岸→水→岸与水中拾取。游泳沿用 jump pose（当前头像契约没有 swim 动作，未改协议）。未重启在线服务、未改数据库、未启动独立 QA。
+
+## 魔力波動上升与缓降修正（2026-09-10，缺陷修复）
+
+- 问题：`上+空格` 的 2001011 魔力波動 只把源 y=1200 换算成 1.0 倍普通跳初速，并在 `apply_magic_wave` 里显式把 `slow_fall_until` 清 0，所以发动后与普通跳一样直接落下，没有缓降。
+- 修改（`server/src/world.rs`）：新增 `MAGIC_WAVE_LAUNCH_HEIGHT_RATIO=1.5`（上升位移倍率）、`MAGIC_WAVE_SLOW_FALL_SPEED=95.0` px/s、`MAGIC_WAVE_SLOW_FALL_SECONDS=5`；两条分支统一为「往上位移=普通跳的 1.5 倍」——高度与初速是平方关系，故初速取 `JUMP_SPEED*sqrt(1.5)`，非隐藏分支继续保留源 y 的 0.75~1.5 缩放；发动后按源 2001012 的 v=95 px/s 给 5 秒缓降窗口，`step_player` 的下坠上限改用同一常量。落地/入水仍清零 `slow_fall_until`，不影响之后的普通跳。
+- 验证：`cargo test mage_` 10 项通过，其中 `mage_skill_runtime_...` 新增断言：2001011 初速等于 `JUMP_SPEED*sqrt(1.5)` 且 `slow_fall_until > tick`；全量 `cargo test` 196 passed / 10 failed，10 项失败为既有问题（auth third_store/inventory、mage bundled_catalog、world config_drop 等），与本轮无关。客户端无改动，未重打包。
+- 服务：服务端已 `cargo build` 并用新二进制重启 3010（`/api/health` ok，content tms273-9 / protocol 12），数据库 `server/data/tms273.sqlite3` 未改动；陪测 bot 凭据本就缺失，未创建账号。注：我先重启的实例 PID 7043 已被用户随后运行的 `启动3010.command` 取代，当前在线实例 PID 8447，其映射的二进制 inode 与本次构建产物一致（即修复已生效）。
+- 待验（用户实玩）：1.5 倍上升与 95 px/s 缓降的观感。若仍不够明显，只调 `MAGIC_WAVE_LAUNCH_HEIGHT_RATIO`（高度倍率）与 `MAGIC_WAVE_SLOW_FALL_SPEED`（下坠秒速）两个常量即可。

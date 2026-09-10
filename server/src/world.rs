@@ -235,6 +235,13 @@ const WALK_SPEED: f64 = 125.0;
 const JUMP_SPEED: f64 = 555.0;
 const GRAVITY: f64 = 2_000.0;
 const FALL_SPEED: f64 = 670.0;
+// 魔力波動 (2001011) 与其隐藏的浮空节点 (2001012) 共用同一套手感：发动时向
+// 上的位移是普通跳的 1.5 倍。位移与初速是平方关系（h = v²/2g），所以初速取
+// JUMP_SPEED * sqrt(1.5)。下降阶段在下坠速度上限之外再压到源数据 2001012 的
+// v=95 px/s，缓降才看得出与普通下落的区别。
+const MAGIC_WAVE_LAUNCH_HEIGHT_RATIO: f64 = 1.5;
+const MAGIC_WAVE_SLOW_FALL_SPEED: f64 = 95.0;
+const MAGIC_WAVE_SLOW_FALL_SECONDS: i64 = 5;
 const DOWNJUMP_RANGE: f64 = 600.0;
 const DOWNJUMP_LAUNCH: f64 = 196.0;
 /// Height of the authored foot-point collision proxy used by `Foothold::blocks`
@@ -5237,26 +5244,29 @@ impl World {
         } else {
             None
         };
+        let has_magic_wave = player
+            .state
+            .skills
+            .get(&SKILL_MAGIC_WAVE)
+            .copied()
+            .unwrap_or(0)
+            > 0;
+        let has_magic_wave_hidden = player
+            .state
+            .skills
+            .get(&SKILL_MAGIC_WAVE_HIDDEN)
+            .copied()
+            .unwrap_or(0)
+            > 0;
+        let has_magic_wave_skill = (skill_id == SKILL_MAGIC_WAVE && has_magic_wave)
+            || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && has_magic_wave_hidden);
         if matches!(skill_id, SKILL_MAGIC_WAVE | SKILL_MAGIC_WAVE_HIDDEN)
-            && (player
-                .state
-                .skills
-                .get(&SKILL_MAGIC_WAVE)
-                .copied()
-                .unwrap_or(0)
-                == 0
-                || player
-                    .state
-                    .skills
-                    .get(&SKILL_MAGIC_WAVE_HIDDEN)
-                    .copied()
-                    .unwrap_or(0)
-                    == 0
+            && (!has_magic_wave_skill
                 || (skill_id == SKILL_MAGIC_WAVE && vertical >= 0)
                 || (skill_id == SKILL_MAGIC_WAVE_HIDDEN
                     && (vertical <= 0 || player.state.grounded))
                 || (skill_id == SKILL_MAGIC_WAVE && player.magic_wave_used)
-                || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.magic_wave_float_used))
+            || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.magic_wave_float_used))
         {
             self.send_reject(
                 &id,
@@ -7387,31 +7397,35 @@ impl World {
     }
 
     fn apply_magic_wave(&mut self, id: &str, level: &MageLevel, _vertical: i8, hidden: bool) {
+        let tick = self.tick;
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
-        if hidden {
-            // P: the source's v=95 is a server-authoritative slow-fall
-            // velocity for the one-use-in-jump companion action.
-            player.state.vy = level.v.unwrap_or(95).max(0) as f64;
-            player.state.grounded = false;
-            player.state.action = "jump";
-            player.magic_wave_float_used = true;
-            let seconds = level.time.unwrap_or(5).max(0) as u64;
-            player.slow_fall_until = self
-                .tick
-                .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
+        // Both nodes share one feel: 1.5x the normal jump displacement, then a
+        // slow descent at the source's v=95 px/s for the source's time window.
+        // The visible node keeps its authored y scaling around that baseline.
+        let authored = if hidden {
+            1.0
         } else {
-            let launch = level.y.unwrap_or(1_200).max(0) as f64;
-            player.state.vy = -(JUMP_SPEED * (launch / 1_200.0).clamp(0.75, 1.5));
-            player.state.grounded = false;
-            player.state.action = "jump";
+            (level.y.unwrap_or(1_200).max(0) as f64 / 1_200.0).clamp(0.75, 1.5)
+        };
+        player.state.vy = -(JUMP_SPEED * MAGIC_WAVE_LAUNCH_HEIGHT_RATIO.sqrt() * authored);
+        player.state.grounded = false;
+        player.state.action = "jump";
+        player.state.action_started_tick = tick;
+        let seconds = level
+            .time
+            .unwrap_or(MAGIC_WAVE_SLOW_FALL_SECONDS)
+            .max(0) as u64;
+        player.slow_fall_until = tick
+            .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
+        if hidden {
+            player.magic_wave_float_used = true;
+        } else {
             player.foothold_id = 0;
             player.magic_wave_used = true;
             player.magic_wave_float_used = false;
-            player.slow_fall_until = 0;
         }
-        player.state.action_started_tick = self.tick;
     }
 
     fn energy_targets(&self, id: &str, level: &MageLevel) -> Vec<String> {
@@ -15781,8 +15795,9 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
         let next_vy = (player.state.vy + GRAVITY * (TICK_MS as f64 / 1000.0)).min(FALL_SPEED);
         if tick < player.slow_fall_until {
             // P: the hidden companion's source v=95 is treated as the
-            // downward-speed cap for its time window.
-            player.state.vy = next_vy.min(95.0);
+            // downward-speed cap for its time window.  魔力波动 itself now
+            // uses the same cap so the float is visible on the casted skill.
+            player.state.vy = next_vy.min(MAGIC_WAVE_SLOW_FALL_SPEED);
         } else {
             player.slow_fall_until = 0;
             player.state.vy = next_vy;
@@ -20078,7 +20093,13 @@ mod tests {
         assert_eq!(wave_up["success"], true);
         assert!(world.players["mage-runtime"].magic_wave_used);
         assert!(!world.players["mage-runtime"].magic_wave_float_used);
-        assert!(world.players["mage-runtime"].state.vy < 0.0);
+        // The casted wave must climb 1.5x a normal jump and keep floating.
+        let wave_launch = world.players["mage-runtime"].state.vy;
+        assert!(
+            (wave_launch.abs() - JUMP_SPEED * MAGIC_WAVE_LAUNCH_HEIGHT_RATIO.sqrt()).abs() < 1.0,
+            "魔力波動 should launch at 1.5x the normal jump displacement"
+        );
+        assert!(world.players["mage-runtime"].slow_fall_until > world.tick);
         world.handle_cast_skill(
             "mage-runtime".into(),
             "wave-float".into(),
