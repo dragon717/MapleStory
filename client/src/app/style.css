@@ -97,7 +97,10 @@
 .npc-shop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:463px;height:339px;pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:2;image-rendering:pixelated}
 .npc-shop-backgrnd{position:absolute;inset:0;display:block;width:463px;height:339px;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
 .npc-shop-title{position:absolute;left:28px;top:14px;width:300px;height:18px;overflow:hidden;color:#5b4225;font:bold 11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;letter-spacing:.2px;pointer-events:none;text-shadow:0 1px 0 #ffe0a4}
-.npc-shop-list{position:absolute;left:14px;top:52px;width:435px;height:236px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9;background:transparent;padding-right:4px}
+.npc-shop-tabs{position:absolute;left:14px;top:36px;width:435px;height:18px;display:flex;gap:4px;pointer-events:auto;z-index:1}
+.npc-shop-tab{flex:0 0 auto;min-width:70px;height:18px;padding:0 10px;box-sizing:border-box;cursor:pointer;color:#5b4225;background:linear-gradient(#efe7d0,#ddd2b2);border:1px solid #cabb8f;border-bottom:none;border-radius:3px 3px 0 0;font:bold 11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.npc-shop-tab.is-active{color:#fff8e2;background:linear-gradient(#8a6a3a,#6d512a);border-color:#5b4225;text-shadow:0 1px 0 #3d2b12}
+.npc-shop-list{position:absolute;left:14px;top:54px;width:435px;height:234px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9;background:transparent;padding-right:4px}
 .npc-shop-row{display:flex;align-items:center;gap:8px;height:36px;flex:0 0 36px;padding:0 6px;background:linear-gradient(#fffef8,#efe7d0);border:1px solid #cabb8f;border-radius:2px}
 .npc-shop-row:nth-child(even){background:linear-gradient(#faf5e6,#e9dfc4)}
 .npc-shop-icon{flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:#20242a;border:1px solid #8d7c55;image-rendering:pixelated}

@@ -1,3 +1,4 @@
+use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -202,6 +203,21 @@ pub enum ClientMessage {
         item_id: String,
         quantity: u32,
     },
+    /// Intent to sell one inventory stack back to an NPC shop.  The client
+    /// names the shop, the tab and the slot; the identity of the item, how
+    /// many are actually there, whether it may be sold and the mesos paid
+    /// are all resolved here.  No item id, quantity or price is accepted.
+    ShopSell {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "shopId")]
+        shop_id: String,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
+        #[serde(rename = "sourceSlot")]
+        source_slot: i16,
+        quantity: u32,
+    },
     /// Intent to strike one authored map reactor.  The client identifies the
     /// prop; the server decides range, whether it is still interactable, and
     /// which state comes next.  No damage, position or state is accepted.
@@ -382,6 +398,19 @@ impl ClientMessage {
                 valid_id(request_id)
                     && valid_id(shop_id)
                     && valid_id(item_id)
+                    && (1..=100).contains(quantity)
+            }
+            Self::ShopSell {
+                request_id,
+                shop_id,
+                inventory_type,
+                source_slot,
+                quantity,
+            } => {
+                valid_id(request_id)
+                    && valid_id(shop_id)
+                    && inventory::valid_inventory_type(*inventory_type)
+                    && inventory::valid_slot(*source_slot)
                     && (1..=100).contains(quantity)
             }
             Self::ChatSend { request_id, text } => {

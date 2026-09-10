@@ -169,6 +169,19 @@ const REACTOR_HIT_LOCK_MS: u64 = 600;
 /// reachable rather than requiring the character to step past it.
 const REACTOR_REACH_BACK_PX: f64 = 12.0;
 
+/// Fraction of an item's catalog `price` that an NPC shop pays when buying it
+/// back from a player.
+///
+/// P: the TMS273 export carries no authored sell/buyback price, and neither
+/// the local reference server nor the research pack records one, so the
+/// long-standing "shops pay half" behaviour is used as a temporary rule.  It
+/// is deliberately expressed as a ratio of the catalog `price` (the same
+/// field the shop's own sale prices are authored in) so replacing it with a
+/// verified TMS273 value is a one-line change.  Not an official number.
+const SHOP_SELL_PRICE_PERCENT: u64 = 50;
+/// Denominator for [`SHOP_SELL_PRICE_PERCENT`].
+const SHOP_SELL_PRICE_DIVISOR: u64 = 100;
+
 /// Respawn deadline for one source spawn, measured in world ticks.
 ///
 /// TMS273 Map life keeps no map-wide respawn interval: normal spawns carry
@@ -2444,6 +2457,22 @@ struct PendingAttack {
     hit_tick: u64,
 }
 
+/// The remembered result of one `ShopSell`, replayed verbatim if the same
+/// request id arrives again.  Selling moves mesos, so without this a retried
+/// packet would pay twice for a stack that is already gone.
+#[derive(Clone)]
+#[allow(dead_code)] // fields are replayed through the wire message, not read back.
+struct ShopSellOutcome {
+    success: bool,
+    code: String,
+    shop_id: String,
+    item_id: String,
+    quantity: u32,
+    slot: i16,
+    mesos_gained: u64,
+    mesos: u64,
+}
+
 struct TeleportPlan {
     map_id: String,
     x: f64,
@@ -2549,6 +2578,10 @@ pub struct World {
     drop_maps: BTreeMap<String, String>,
     revive_requests: BTreeMap<(String, String), auth::ReviveOutcome>,
     inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
+    /// Authoritative outcome of the last shop sell-back per (player, request),
+    /// so a replayed `ShopSell` re-sends the original result instead of paying
+    /// mesos a second time for the same stack.
+    shop_sell_requests: BTreeMap<(String, String), ShopSellOutcome>,
     skill_requests: BTreeMap<(String, String), auth::SkillActionOutcome>,
     ability_requests: BTreeMap<(String, String), (AbilityStat, auth::AbilityActionOutcome)>,
     pending_attacks: BTreeMap<String, PendingAttack>,
@@ -2635,6 +2668,7 @@ impl World {
             drop_maps: BTreeMap::new(),
             revive_requests: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
+            shop_sell_requests: BTreeMap::new(),
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
@@ -3821,6 +3855,8 @@ impl World {
                     .retain(|_, attack| attack.player_id != id);
                 self.inventory_requests
                     .retain(|(player_id, _), _| player_id != &id);
+                self.shop_sell_requests
+                    .retain(|(player_id, _), _| player_id != &id);
                 self.skill_requests
                     .retain(|(player_id, _), _| player_id != &id);
                 self.hyper_reset_quotes
@@ -3840,6 +3876,8 @@ impl World {
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != id);
                     self.inventory_requests
+                        .retain(|(player_id, _), _| player_id != &id);
+                    self.shop_sell_requests
                         .retain(|(player_id, _), _| player_id != &id);
                     self.skill_requests
                         .retain(|(player_id, _), _| player_id != &id);
@@ -4054,6 +4092,20 @@ impl World {
                         item_id,
                         quantity,
                     } => self.handle_shop_buy(id, request_id, shop_id, item_id, quantity),
+                    ClientMessage::ShopSell {
+                        request_id,
+                        shop_id,
+                        inventory_type,
+                        source_slot,
+                        quantity,
+                    } => self.handle_shop_sell(
+                        id,
+                        request_id,
+                        shop_id,
+                        inventory_type,
+                        source_slot,
+                        quantity,
+                    ),
                     ClientMessage::ChatSend { request_id, text } => {
                         self.handle_chat(id, request_id, text)
                     }
@@ -12780,6 +12832,301 @@ impl World {
         );
     }
 
+    /// Authoritative NPC shop sell-back (`ShopSell`), the other half of the
+    /// shop loop.
+    ///
+    /// The client only names the shop, the tab and the slot.  Which item sits
+    /// there, how many it holds, whether the source lets it be sold and how
+    /// many mesos it is worth are all resolved here, so a tampered request can
+    /// neither rename the item nor name its own price.
+    ///
+    /// The whole exchange is one atomic step: the stack is removed from a
+    /// cloned inventory and only committed together with the mesos credit, so
+    /// a failure can never pay out without taking the item (or vice versa).
+    fn handle_shop_sell(
+        &mut self,
+        id: String,
+        request_id: String,
+        shop_id: String,
+        inventory_type: u8,
+        source_slot: i16,
+        quantity: u32,
+    ) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        // A sell credits mesos, so a replayed request must not run twice.
+        // Re-send the remembered result instead of touching the inventory.
+        if let Some(prior) = self.shop_sell_requests.get(&(id.clone(), request_id.clone())) {
+            let prior = prior.clone();
+            self.send_shop_sell_outcome(&id, &request_id, &prior);
+            return;
+        }
+        // The merchant must be on the player's own map and within talking
+        // range, exactly as for a purchase; otherwise a client could trade
+        // with a shop it never walked to.
+        let shop_known = self
+            .gameplay
+            .shops
+            .iter()
+            .any(|shop| shop.shop_id == shop_id);
+        if !shop_known {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_unknown",
+                &shop_id,
+                "",
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        let npc_in_range = self.npcs.values().any(|npc| {
+            npc.map_id == player.map_id
+                && npc.state.shop_id.as_deref() == Some(shop_id.as_str())
+                && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
+                && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y
+        });
+        if !npc_in_range {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_too_far",
+                &shop_id,
+                "",
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        // Resolve the stack server-side; the client's idea of what is in the
+        // slot is never trusted.
+        let Some(stack) = player
+            .state
+            .inventory
+            .iter()
+            .find(|item| item.slot == source_slot as u16)
+            .filter(|item| inventory::inventory_type(&item.item_id) == Some(inventory_type))
+        else {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_slot_empty",
+                &shop_id,
+                "",
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        };
+        let item_id = stack.item_id.clone();
+        let available = stack.quantity;
+        if available < quantity {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_quantity_invalid",
+                &shop_id,
+                &item_id,
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        // Source-authored restrictions: quest/cash/one-of-a-kind items carry
+        // no shop value, so selling them is refused rather than paying mesos
+        // for something the original never lets leave the inventory.
+        if inventory::is_unsellable(&item_id) || inventory::is_cash_item(&item_id) {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_item_unsellable",
+                &shop_id,
+                &item_id,
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        let Some(unit_price) = inventory::item_price(&item_id) else {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_item_unsellable",
+                &shop_id,
+                &item_id,
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        };
+        // P: shops pay a fraction of the catalog price (see
+        // SHOP_SELL_PRICE_PERCENT).  Rounding is down so a shop can never pay
+        // out more than the authored value allows.
+        let unit_payout = unit_price
+            .saturating_mul(SHOP_SELL_PRICE_PERCENT)
+            / SHOP_SELL_PRICE_DIVISOR;
+        if unit_payout == 0 {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                "shop_item_unsellable",
+                &shop_id,
+                &item_id,
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        let payout = match unit_payout.checked_mul(u64::from(quantity)) {
+            Some(payout) => payout,
+            None => {
+                self.send_shop_sell_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_quantity_invalid",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    source_slot,
+                    0,
+                );
+                return;
+            }
+        };
+        // Atomic against a clone: the removal must fully succeed before any
+        // mesos move, so a partial state can never be persisted.
+        let mut next_inventory = player.state.inventory.clone();
+        if let Err(error) = inventory::remove_items(
+            &mut next_inventory,
+            inventory_type,
+            source_slot,
+            quantity,
+        ) {
+            self.send_shop_sell_result(
+                &id,
+                &request_id,
+                false,
+                match error {
+                    inventory::InventoryError::InvalidInventoryType => "shop_rejected",
+                    inventory::InventoryError::InvalidSlot => "shop_slot_empty",
+                    inventory::InventoryError::SourceEmpty => "shop_slot_empty",
+                    inventory::InventoryError::QuantityMissing => "shop_quantity_invalid",
+                    _ => "shop_rejected",
+                },
+                &shop_id,
+                &item_id,
+                quantity,
+                source_slot,
+                0,
+            );
+            return;
+        }
+        let new_mesos = player.state.mesos.saturating_add(payout);
+        let player = match self.players.get_mut(&id) {
+            Some(player) => player,
+            None => return,
+        };
+        player.state.inventory = next_inventory;
+        player.state.mesos = new_mesos;
+        if let Some(store) = self.store.as_ref() {
+            let _ = store.write_inventory(&id, &player.state.inventory);
+            let _ = store.save_profile(
+                &id,
+                &profile_from_state(
+                    &player.state,
+                    &player.map_id,
+                    &player.death_id,
+                    player.base_max_mp,
+                ),
+            );
+        }
+        self.send_shop_sell_result(
+            &id,
+            &request_id,
+            true,
+            "",
+            &shop_id,
+            &item_id,
+            quantity,
+            source_slot,
+            payout,
+        );
+    }
+
+    /// Record one sell-back outcome and send it.  Every path goes through here
+    /// so the idempotency window sees refusals as well: a request that was
+    /// already refused stays refused, and a request that already paid is never
+    /// charged twice.
+    fn send_shop_sell_result(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        shop_id: &str,
+        item_id: &str,
+        quantity: u32,
+        slot: i16,
+        mesos_gained: u64,
+    ) {
+        let mesos = self
+            .players
+            .get(id)
+            .map(|player| player.state.mesos)
+            .unwrap_or(0);
+        let outcome = ShopSellOutcome {
+            success,
+            code: code.to_owned(),
+            shop_id: shop_id.to_owned(),
+            item_id: item_id.to_owned(),
+            quantity,
+            slot,
+            mesos_gained,
+            mesos,
+        };
+        self.shop_sell_requests
+            .insert((id.to_owned(), request_id.to_owned()), outcome.clone());
+        self.send_shop_sell_outcome(id, request_id, &outcome);
+    }
+
+    /// Emit the `shopSold` wire message for an already-decided outcome.
+    fn send_shop_sell_outcome(&self, id: &str, request_id: &str, outcome: &ShopSellOutcome) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"shopSold",
+            "requestId":request_id,
+            "success":outcome.success,
+            "code":outcome.code,
+            "shopId":outcome.shop_id,
+            "itemId":outcome.item_id,
+            "quantity":outcome.quantity,
+            "slot":outcome.slot,
+            "mesosGained":outcome.mesos_gained,
+            "mesos":player.state.mesos,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
     fn send_pickup_outcome(&self, id: &str, request_id: &str, outcome: auth::PickupOutcome) {
         let Some(player) = self.players.get(id) else {
             return;
@@ -18398,6 +18745,7 @@ mod tests {
     include!("realmaps.rs");
     include!("away_acceptance.rs");
     include!("reactor_acceptance.rs");
+    include!("shop_sell_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

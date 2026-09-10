@@ -110,6 +110,10 @@ export type ClientMessage =
   | { type: 'questInteract'; requestId: string; questId: string }
   | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
   | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number }
+  /** Intent to sell one inventory stack back to an NPC shop. The client names
+   *  the shop, tab and slot only; the item, its sellability and the mesos paid
+   *  are all resolved server-side. No itemId or price is accepted. */
+  | { type: 'shopSell'; requestId: string; shopId: string; inventoryType: number; sourceSlot: number; quantity: number }
   | { type: 'chatSend'; requestId: string; text: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
@@ -146,6 +150,9 @@ export type ServerMessage =
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
   | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean }
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
+  /** Authoritative result of selling one stack to an NPC shop. `mesosGained`
+   *  is 0 for every refusal; `mesos` is the fresh authoritative balance. */
+  | { type: 'shopSold'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; slot: number; mesosGained: number; mesos: number }
   | { type: 'questList'; quests: QuestLogEntry[] }
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }

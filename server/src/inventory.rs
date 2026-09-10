@@ -88,6 +88,28 @@ pub fn equipment_upgrade_slots(item_id: &str) -> u32 {
     info_i64(item_id, "tuc").unwrap_or(0).max(0) as u32
 }
 
+/// The catalog `price` of one item, i.e. the same WZ field the NPC shop
+/// entries are authored in.  `None` means the item has no recorded value and
+/// therefore cannot be sold back to a shop for mesos.
+pub fn item_price(item_id: &str) -> Option<u64> {
+    info_i64(item_id, "price")
+        .and_then(|price| u64::try_from(price.max(0)).ok())
+        .filter(|price| *price > 0)
+}
+
+/// Whether an item may be handed to an NPC shop.  Source `tradeBlock` /
+/// `dropBlock` mark quest and cash items the original never lets a player
+/// move out of the inventory, so those stay unsellable.
+pub fn is_unsellable(item_id: &str) -> bool {
+    is_drop_restricted(item_id) || is_only(item_id)
+}
+
+/// Cash items carry no shop value in the original: they are bought with NX,
+/// not mesos, so a shop must never pay mesos out for one.
+pub fn is_cash_item(item_id: &str) -> bool {
+    info_i64(item_id, "cash").unwrap_or(0) != 0
+}
+
 /// Return the absolute WZ attributes for a freshly-created equipment
 /// instance.  Persisting these values on the instance lets a scroll update
 /// survive an equip/unequip or a server restart without re-applying the

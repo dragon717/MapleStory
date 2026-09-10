@@ -1,7 +1,8 @@
 import type {
-  ClientMessage, NpcState, PlayerState, ServerMessage,
+  ClientMessage, InventoryItem, NpcState, PlayerState, ServerMessage,
 } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { itemCategoryTab } from '../inventory/names';
 import { uiLocale, uiText, displayText } from '../../app/i18n';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
@@ -22,6 +23,26 @@ interface ShopOpenState {
   nameZh?: string;
   items: { itemId: string; price: number; name: string; icon?: string; source?: string }[];
 }
+
+/** One sellable stack taken from the authoritative player snapshot. */
+interface SellEntry {
+  itemId: string;
+  inventoryType: number;
+  slot: number;
+  quantity: number;
+  /** What the shop pays for the whole stack, already rounded by the server's
+   *  rules; shown as a preview only and never sent back. */
+  preview: number;
+  name: string;
+  icon?: string;
+}
+
+type ShopTab = 'buy' | 'sell';
+
+/** Fraction of an item's catalog price an NPC shop pays. Mirrors the server's
+ *  SHOP_SELL_PRICE_PERCENT; the server remains authoritative and this is only
+ *  used to preview the payout before the player confirms. */
+const SHOP_SELL_PERCENT = 50;
 
 /** Pick the zh/en name the server ships (zh is the product default). */
 function displayName(zh?: string, en?: string): string {
@@ -71,6 +92,13 @@ export class NpcDialogueView {
   private shopItemsRoot?: HTMLDivElement;
   private shopMesos?: HTMLSpanElement;
   private shopCurrent?: ShopOpenState;
+  private shopTab: ShopTab = 'buy';
+  private shopTabsRoot?: HTMLDivElement;
+  /** Authoritative inventory from the latest snapshot, used by the sell tab. */
+  private playerInventory: InventoryItem[] = [];
+  private playerMesos = 0;
+  /** Catalog price lookup for the sell preview. */
+  private itemPrices: Record<string, number> = {};
   private readonly send: SendClientMessage;
   private readonly destroyFns: Array<() => void> = [];
   private requestSequence = 0;
@@ -110,15 +138,29 @@ export class NpcDialogueView {
       const map = items as Record<string, { name?: string; source?: string }>;
       this.itemNames = Object.fromEntries(Object.entries(map).map(([id, entry]) => [id, entry.name ?? id]));
       this.itemSources = Object.fromEntries(Object.entries(map).map(([id, entry]) => [id, entry.source ?? '']));
+      // Catalog price drives the sell preview.  It is the same field the shop
+      // sale prices are authored in, so an item with no recorded price simply
+      // has no preview and the server will refuse it.
+      const prices: Record<string, number> = {};
+      for (const [id, entry] of Object.entries(map as Record<string, { info?: { price?: number } }>)) {
+        const price = entry.info?.price ?? 0;
+        if (price > 0) prices[id] = price;
+      }
+      this.itemPrices = prices;
       if (this.shopCurrent) this.renderShop();
     } catch (error) {
       this.status(`NPC 资源加载失败：${(error as Error).message}`, true);
     }
   }
 
-  /** Refresh the mesos display inside the shop window from a player update. */
-  syncPlayer(player: Pick<PlayerState, 'mesos'>) {
+  /** Refresh the mesos display and the sell tab's inventory from a player update. */
+  syncPlayer(player: Pick<PlayerState, 'mesos'> & Partial<Pick<PlayerState, 'inventory'>>) {
+    this.playerMesos = player.mesos;
+    if (player.inventory) this.playerInventory = player.inventory;
     if (this.shopMesos) this.shopMesos.textContent = this.formatMesos(player.mesos);
+    // The sell tab mirrors live inventory, so a purchase or a pickup has to
+    // refresh it while the window stays open.
+    if (this.shopCurrent && this.shopTab === 'sell') this.renderShopList();
   }
 
   receive(message: Extract<ServerMessage, { type: 'npcResult' }>) {
@@ -441,6 +483,13 @@ export class NpcDialogueView {
       title.className = 'npc-shop-title';
       root.appendChild(title);
 
+      // Buy/sell tabs.  Both live in the same 273 merchant window; the sell
+      // tab lists the player's own inventory instead of the shop catalog.
+      const tabs = document.createElement('div');
+      tabs.className = 'npc-shop-tabs';
+      this.shopTabsRoot = tabs;
+      root.appendChild(tabs);
+
       const list = document.createElement('div');
       list.className = 'npc-shop-list';
       this.shopItemsRoot = list;
@@ -468,8 +517,36 @@ export class NpcDialogueView {
     const root = this.shopRoot;
     const title = root.querySelector<HTMLElement>('.npc-shop-title');
     if (title) title.textContent = displayName(current.nameZh, current.name);
-    if (!this.shopItemsRoot) return;
+    this.renderShopTabs();
+    this.renderShopList();
+  }
+
+  /** The buy/sell switch at the top of the merchant window. */
+  private renderShopTabs() {
+    if (!this.shopTabsRoot) return;
+    this.shopTabsRoot.replaceChildren();
+    for (const tab of ['buy', 'sell'] as ShopTab[]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `npc-shop-tab${this.shopTab === tab ? ' is-active' : ''}`;
+      button.textContent = uiText(tab === 'buy' ? 'shopBuyTab' : 'shopSellTab');
+      button.addEventListener('click', () => {
+        if (this.shopTab === tab) return;
+        this.shopTab = tab;
+        this.renderShop();
+      });
+      this.shopTabsRoot.appendChild(button);
+    }
+  }
+
+  private renderShopList() {
+    const current = this.shopCurrent;
+    if (!current || !this.shopItemsRoot) return;
     this.shopItemsRoot.replaceChildren();
+    if (this.shopTab === 'sell') {
+      this.renderSellList();
+      return;
+    }
     if (!current.items.length) {
       const empty = document.createElement('div');
       empty.className = 'npc-shop-empty';
@@ -496,6 +573,82 @@ export class NpcDialogueView {
       row.append(iconWrap, name, price, buyWrap);
       this.shopItemsRoot.appendChild(row);
     }
+  }
+
+  /**
+   * Sell tab: the player's own inventory, one row per stack.
+   *
+   * Only items with a catalog price are listed.  The payout shown is a
+   * preview of the server's own rule — the request itself carries just the
+   * shop, tab, slot and count, so a tampered row cannot claim a price.
+   */
+  private renderSellList() {
+    const entries = this.sellEntries();
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'npc-shop-empty';
+      empty.textContent = uiLocale() === 'en' ? 'You have nothing to sell.' : '背包中没有可以出售的物品。';
+      this.shopItemsRoot?.appendChild(empty);
+      return;
+    }
+    for (const entry of entries) {
+      const row = document.createElement('div');
+      row.className = 'npc-shop-row';
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'npc-shop-icon';
+      if (entry.icon) iconWrap.appendChild(frame(entry.icon));
+      const name = document.createElement('span');
+      name.className = 'npc-shop-name';
+      const label = entry.quantity > 1 ? `${entry.name} × ${entry.quantity}` : entry.name;
+      name.textContent = displayText(label);
+      name.title = displayText(entry.name);
+      const price = document.createElement('span');
+      price.className = 'npc-shop-price';
+      price.textContent = `${entry.preview.toLocaleString()} ${uiText('meso')}`;
+      const sellWrap = document.createElement('div');
+      sellWrap.className = 'npc-shop-buy';
+      // Reuse the source BtBuy sprite; the 273 merchant window has no
+      // separate sell button art in the exported subtree.
+      sellWrap.appendChild(this.spriteButton('shopUi', 'BtBuy', () => this.sell(entry)));
+      row.append(iconWrap, name, price, sellWrap);
+      this.shopItemsRoot?.appendChild(row);
+    }
+  }
+
+  /** Inventory rows the shop would accept, with the payout preview filled in. */
+  private sellEntries(): SellEntry[] {
+    const entries: SellEntry[] = [];
+    for (const item of this.playerInventory) {
+      const price = this.itemPrices[item.itemId];
+      if (!price) continue;
+      const quantity = item.quantity ?? 0;
+      if (quantity <= 0) continue;
+      entries.push({
+        itemId: item.itemId,
+        // `itemCategoryTab` is the 0-based view tab; the protocol's
+        // inventoryType is the 1-based WZ category, as used by dropItem.
+        inventoryType: itemCategoryTab(item.itemId) + 1,
+        slot: item.slot,
+        quantity,
+        preview: Math.floor((price * SHOP_SELL_PERCENT) / 100) * quantity,
+        name: this.itemNames[item.itemId] ?? item.itemId,
+        icon: this.manifest.items?.[item.itemId]?.url,
+      });
+    }
+    return entries.sort((left, right) => left.slot - right.slot);
+  }
+
+  private sell(entry: SellEntry) {
+    if (!this.shopCurrent) return;
+    const requestId = `shop-${++this.requestSequence}-${Date.now().toString(36)}`;
+    this.send({
+      type: 'shopSell',
+      requestId,
+      shopId: this.shopCurrent.shopId,
+      inventoryType: entry.inventoryType,
+      sourceSlot: entry.slot,
+      quantity: entry.quantity,
+    });
   }
 
   private buy(itemId: string, quantity: number) {

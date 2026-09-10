@@ -44,6 +44,8 @@ const TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Objec
   shortcutMonsterBook: { zh: '怪物图鉴', en: 'Monster Book' },
   shortcutRanking: { zh: '排行榜', en: 'Ranking' },
   meso: { zh: '金币', en: 'mesos' },
+  shopBuyTab: { zh: '购买', en: 'Buy' },
+  shopSellTab: { zh: '出售', en: 'Sell' },
 });
 
 const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
@@ -82,6 +84,15 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   npc_unavailable: { zh: '该 NPC 当前无法与你对话', en: 'That NPC cannot talk right now' },
   npc_step_invalid: { zh: '该对话选项已失效，请重新与 NPC 交谈', en: 'This conversation option is no longer available' },
   job_advance_unavailable: { zh: '当前状态无法进行转职', en: 'Job advancement is unavailable right now' },
+  shop_unknown: { zh: '找不到这家商店', en: 'That shop is not available' },
+  shop_too_far: { zh: '距离太远，请靠近商人', en: 'Stand closer to the merchant' },
+  shop_item_unknown: { zh: '商店不出售此道具', en: 'The shop does not carry this item' },
+  shop_not_enough_mesos: { zh: '金币不足', en: 'Not enough mesos' },
+  shop_inventory_full: { zh: '物品栏已满', en: 'Inventory is full' },
+  shop_quantity_invalid: { zh: '数量无效或道具不足', en: 'Invalid quantity or not enough items' },
+  shop_slot_empty: { zh: '这个格子没有道具', en: 'That slot is empty' },
+  shop_item_unsellable: { zh: '这个道具无法出售给商店', en: 'This item cannot be sold to a shop' },
+  shop_rejected: { zh: '商店拒绝了这次交易', en: 'The shop rejected this trade' },
 });
 
 export function uiLocale(): UiLocale { return locale; }

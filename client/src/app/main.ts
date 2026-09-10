@@ -286,6 +286,13 @@ async function enterGame(session: LoginResponse) {
           status(`${uiLocale() === 'en' ? 'Purchase failed' : '购买失败'} (${message.code})`, true);
         }
       }
+      if (message.type === 'shopSold') {
+        if (message.success) {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Sold' : '出售'} ${itemName(message.itemId)} × ${message.quantity}（+${message.mesosGained} ${uiText('meso')}）`, `shop:${message.requestId}`);
+        } else {
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Sale failed' : '出售失败'}（${message.code}）`), true);
+        }
+      }
       if (message.type === 'pickupResult') {
         chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
       }
