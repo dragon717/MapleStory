@@ -127,6 +127,20 @@ def main():
     if any(not template.get("name") for template in gameplay.get("npcs", [])):
         fail(errors, "active NPC has no TMS273 source name")
 
+    # NPC names must come from String/Npc.json only.  NPC ids (2000..29999,
+    # 100xxxx) collide with Eqp/Face/Skin ids, so a merged String table would
+    # overwrite the correct NPC name with a face/equipment name (e.g. NPC 22000
+    # 霸西力 vs Face 22000 小怪物粉豆臉型).  Guard every emitted name against
+    # the authoritative source so this cross-category leak cannot recur.
+    npc_source = read(TMS_ROOT / "WZ_JSON_TW" / "String" / "Npc.json")
+    for template_id, emitted in npc_names.get("npcs", {}).items():
+        record = npc_source.get(template_id, {})
+        correct = record.get("name", {}) if isinstance(record, dict) else None
+        if isinstance(correct, dict):
+            correct = correct.get("_value")
+        if correct and emitted != correct:
+            fail(errors, "NPC %s name %r does not match String/Npc.json %r" % (template_id, emitted, correct))
+
     # NPCs stand on the authored cy (the map editor's life.y is the sprite's
     # upper position).  Keep sourceY available for provenance and audit it
     # against each source life row.

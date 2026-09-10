@@ -77,6 +77,11 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   chat_rate_limited: { zh: '发言太快，请稍后再试', en: 'You are chatting too fast; wait a moment' },
   invalid_chat_text: { zh: '消息为空、过长或包含不允许的字符', en: 'Empty, overlong, or disallowed characters' },
   idempotency_conflict: { zh: '重复请求使用了不同的内容', en: 'A retried request changed its content' },
+  npc_too_far: { zh: '距离太远，请靠近 NPC 后再对话', en: 'Stand closer to the NPC to talk' },
+  npc_unknown: { zh: '找不到该 NPC', en: 'That NPC is not available' },
+  npc_unavailable: { zh: '该 NPC 当前无法与你对话', en: 'That NPC cannot talk right now' },
+  npc_step_invalid: { zh: '该对话选项已失效，请重新与 NPC 交谈', en: 'This conversation option is no longer available' },
+  job_advance_unavailable: { zh: '当前状态无法进行转职', en: 'Job advancement is unavailable right now' },
 });
 
 export function uiLocale(): UiLocale { return locale; }

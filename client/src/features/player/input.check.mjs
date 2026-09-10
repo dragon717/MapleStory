@@ -26,6 +26,7 @@ try {
   let skillToggles = 0;
   const skillCasts = [];
   let grounded = true;
+  let swimming = false;
   let job = 200;
   const learnedSkills = {
     '2001002': 1, '2001008': 1, '2001009': 1, '2001011': 1, '2001012': 1,
@@ -40,7 +41,7 @@ try {
     toggleQuestLog: () => questLogToggles++,
     toggleSkills: () => skillToggles++,
     castSkill: (skillId, direction, vertical) => skillCasts.push({ skillId, direction, vertical }),
-    playerState: () => ({ grounded, job, skills: learnedSkills }),
+    playerState: () => ({ grounded, swimming, job, skills: learnedSkills }),
     isBlocked: () => modalBlocked,
   });
   input.setReady(true);
@@ -104,6 +105,19 @@ try {
   grounded = false;
   dispatchCode('Space');
   assert.equal(skillCasts.at(-1).skillId, 2001012, 'air jump requests the authoritative float intent');
+  // While swimming the body is never grounded, but Space must still jump
+  // instead of casting: routing it to the float skill made the mage unable to
+  // act in water (the server then rejected the cast with skill_cooldown).
+  swimming = true;
+  const castsBeforeSwimJump = skillCasts.length;
+  const inputBeforeSwimJump = messages.filter(message => message.type === 'input').length;
+  dispatchCode('Space');
+  assert.equal(skillCasts.length, castsBeforeSwimJump, 'swimming does not cast the wave skill');
+  assert.ok(
+    messages.filter(message => message.type === 'input').length > inputBeforeSwimJump,
+    'swimming jump sends a normal jump input'
+  );
+  swimming = false;
   window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
   const pickups = () => messages.filter(message => message.type === 'pickup');
   const repeat = () => [...timers.values()].find(timer => timer.delay === 200);

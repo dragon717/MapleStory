@@ -182,3 +182,17 @@ assert.equal(sent.at(-1).type, 'releaseSkill');
 assert.equal(sent.at(-1).requestId, holdId);
 assert.equal(sent.filter(message => message.type === 'releaseSkill' && message.requestId === holdId).length, 1);
 console.log('PASS: fourth book gates, fixed/passive skills, hold and cooldown feedback, matching release.');
+
+// A 初心者 has not taken the magician job: the 法师 pages stay out of the
+// window until Hans actually advances the character.
+const beginner = { job: 0, hp: 100, action: 'stand', skills: {}, skillPoints: { '0': 3 } };
+view.player = beginner;
+const beginnerBooks = view.books().map(([id]) => id);
+assert.ok(beginnerBooks.includes('0'), 'a beginner keeps the 初心者 book');
+assert.ok(!beginnerBooks.includes('200'), 'a beginner must not see the 法师入门 book');
+assert.ok(!beginnerBooks.includes('220'), 'a beginner must not see the 冰/雷魔法指南 book');
+assert.equal(view.canLearn(catalog['2001008']), false, 'a beginner cannot learn magician skills');
+view.player = mage();
+const magicianBooks = view.books().map(([id]) => id);
+assert.ok(magicianBooks.includes('200'), 'a magician sees the 法师入门 book');
+console.log('PASS: beginner skill window hides every magician book; magician keeps them.');

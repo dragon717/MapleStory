@@ -7,11 +7,13 @@ import { PlayerView } from '../features/player/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
 import { NpcView, type NpcSnapshot } from '../features/npc/view';
 import { PortalView } from '../features/world/portal-view';
+import { ReactorView, reactorStateAsset } from '../features/world/reactor-view';
 import { WaterView } from '../features/world/water';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
+type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
 type MapLayerView = { layer: MapLayer; frames: AssetFrame[]; images: Phaser.GameObjects.Image[]; elapsed: number; frameIndex: number };
 type BackgroundView = MapLayerView & { motionX: number; motionY: number };
 export interface PortalRequest {
@@ -28,6 +30,7 @@ export class World extends Phaser.Scene {
   private actions = new Map<string, { actionId: string; tick: number }>();
   private pendingSkillCasts = new Map<string, SkillCastEvent>();
   private waters: WaterView[] = [];
+  private reactors = new Map<string, ReactorView>();
   private animatedLayers: MapLayerView[] = [];
   private backgrounds: BackgroundView[] = [];
   private snapshot?: Snapshot;
@@ -134,6 +137,11 @@ export class World extends Phaser.Scene {
     for (const portal of Object.values(this.manifest.portals ?? {})) {
       for (const frame of portal.frames ?? []) images.set(frame.url, frame.url);
     }
+    for (const template of Object.values(this.manifest.reactors?.templates ?? {})) {
+      for (const state of Object.values(template.states)) {
+        for (const frame of [...state.frames, ...state.hitFrames]) images.set(frame.url, frame.url);
+      }
+    }
     const afterimage = this.manifest.combat?.attack?.afterimage;
     for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
     for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {
@@ -146,6 +154,12 @@ export class World extends Phaser.Scene {
       for (const frames of Object.values(groups)) for (const frame of frames) images.set(frame.url, frame.url);
     }
     for (const frames of this.manifest.levelUp?.layers ?? []) for (const frame of frames) images.set(frame.url, frame.url);
+    // Source-backed nine-slice + arrow for the map-chat bubble.  Each slice
+    // is registered under its own URL key (matching the texture used by
+    // PlayerView.showBubble), so loading is shared across all characters.
+    if (this.manifest.chatBalloon) {
+      for (const slice of Object.values(this.manifest.chatBalloon.slices)) images.set(slice.url, slice.url);
+    }
     if (this.manifest.levelUp?.sound) this.load.audio(this.manifest.levelUp.sound.url, this.manifest.levelUp.sound.url);
     for (const [key, url] of images) this.load.image(key, url);
     const skillAudio = new Set(Object.values(this.manifest.skillSounds ?? {}).flatMap(set => [set.use?.url, set.hit?.url, set.loop?.url, set.end?.url, set.special?.url, set.summonAttack?.url]).filter((url): url is string => Boolean(url)));
@@ -195,11 +209,15 @@ export class World extends Phaser.Scene {
     for (const portal of this.manifest.map.portals ?? []) {
       // Only render the animated beam for *real* visible gates: a target
       // portal on another map.  Map.wz mixes several kinds under the same
-      // `portal` slot — spawn anchors (type 0 `sp`), script triggers
-      // (`script: ...` payload) and the actual doorways — and rendering any
-      // non-gate slot duplicates the glow at neighbouring positions.
-      if (!portal.targetMapId) continue;
-      if (portal.script) continue;
+      // `portal` slot — spawn anchors (type 0 `sp`) and same-map links (type
+      // 10 `bottom0`/`top0`) — and rendering a non-gate slot duplicates the
+      // glow at neighbouring positions.
+      // A `script` payload no longer disqualifies a gate: TMS273 ships several
+      // story doorways (楓之港 `east00` → 碼頭 with `pt_southperry`, 弓箭手村
+      // `Achter00` → 培訓中心 with `enterAchter`, …) whose WZ `tm` is
+      // 999999999 and whose route is assigned by the chapter adapter, so
+      // skipping them hid beams that players must be able to see and enter.
+      if (!portal.targetMapId || portal.targetMapId === this.manifest.map.id) continue;
       const asset = this.manifest.portals?.[`${this.manifest.map.id}/${portal.name}`];
       if (!asset?.frames?.length) continue;
       // The exporter keeps the WZ portal origin in every frame; PortalView
@@ -217,11 +235,11 @@ export class World extends Phaser.Scene {
   }
   receive(message: ServerMessage) {
     if (message.type === 'chatMessage') {
-      // Own echoes live only in the chat log (merged by request id); bubbles
-      // present other members' speech.  Messages never replay history and the
-      // PlayerView is destroyed on map switches, so a bubble cannot leak into
-      // another map instance.
-      if (this.snapshot && message.authorId === this.snapshot.selfId) return;
+      // Every same-map member sees the head bubble, including the speaker:
+      // the server echoes the sender's own chatMessage (tagged with requestId)
+      // and 273 shows the bubble above your own character as well.  Messages
+      // never replay history and the PlayerView is destroyed on map switches,
+      // so a bubble cannot leak into another map instance.
       this.players.get(message.authorId)?.showBubble(message.authorName, message.text);
       return;
     }
@@ -269,6 +287,13 @@ export class World extends Phaser.Scene {
         }
       }
     }
+    if (message.type === 'reactorState' && message.mapId === this.mapId) {
+      // The authoritative result: play the one-shot impact animation for the
+      // exact window the server locked, so the prop becomes interactive again
+      // precisely when the server says it does.
+      this.reactors.get(message.reactorId)?.playHit(message.hitDurationMs);
+      return;
+    }
     if (message.type === 'dropPickedUp' && message.mapId === this.mapId) {
       this.drops.get(message.dropId)?.pickUp(() => {
         const body = this.players.get(message.playerId)?.body;
@@ -292,11 +317,12 @@ export class World extends Phaser.Scene {
     for (const target of this.questTargets.values()) target.destroy();
     this.questTargets.clear();
     for (const drop of this.drops.values()) drop.destroy();
+    for (const reactor of this.reactors.values()) reactor.destroy();
     for (const portal of this.portals.values()) portal.destroy();
     for (const view of this.animatedLayers) for (const image of view.images) image.destroy();
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     for (const water of this.waters) water.destroy();
-    this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
+    this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
     this.animatedLayers = []; this.backgrounds = []; this.waters = [];
     this.combat?.clear();
   }
@@ -542,6 +568,55 @@ export class World extends Phaser.Scene {
     return undefined;
   }
 
+  /**
+   * Sync the placed map reactors with the authoritative snapshot.
+   *
+   * State always wins over local animation: if the server says a prop moved on
+   * (or came back), the local frame cursor is reset to that state instead of
+   * continuing whatever was playing.  Two clients therefore agree on whether
+   * the flower is still there even if one of them only just arrived.
+   */
+  private updateReactors(snapshot: GameplaySnapshot, actorDepth: number, delta: number) {
+    const reactors = (snapshot as { reactors?: ReactorSnapshot[] }).reactors ?? [];
+    const ids = new Set(reactors.map(reactor => reactor.id));
+    for (const [id, view] of this.reactors) {
+      if (!ids.has(id)) { view.destroy(); this.reactors.delete(id); }
+    }
+    const templates = this.manifest.reactors?.templates;
+    for (const reactor of reactors) {
+      const asset = reactorStateAsset(templates, reactor.templateId, reactor.state);
+      if (!asset) continue;
+      let view = this.reactors.get(reactor.id);
+      if (!view) {
+        view = new ReactorView(this, asset, reactor.x, reactor.y, reactor.flip, actorDepth + 1);
+        this.reactors.set(reactor.id, view);
+      }
+      // A state change re-anchors the prop; an unchanged one keeps animating.
+      if (view.currentState !== reactor.state || view.isSpent !== reactor.spent) {
+        view.setState(asset, reactor.state, reactor.spent);
+      }
+      view.update(delta);
+    }
+  }
+
+  /** The nearest reactor the local player can actually interact with. */
+  nearestReactor(): ReactorSnapshot | null {
+    const snapshot = this.snapshot as (GameplaySnapshot & { reactors?: ReactorSnapshot[] }) | undefined;
+    if (!snapshot) return null;
+    const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
+    if (!player) return null;
+    const candidates = (snapshot.reactors ?? [])
+      .filter(reactor => !reactor.spent)
+      .map(reactor => ({ reactor, dx: reactor.x - player.x, dy: reactor.y - player.y }))
+      .filter(({ dx, dy }) => Math.abs(dx) <= World.REACTOR_RANGE_X && Math.abs(dy) <= World.REACTOR_RANGE_Y)
+      .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+    return candidates[0]?.reactor ?? null;
+  }
+
+  /** Client-side reach hint only; the server re-checks range authoritatively. */
+  private static readonly REACTOR_RANGE_X = 96;
+  private static readonly REACTOR_RANGE_Y = 72;
+
   private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);
     const monsters = snapshot.monsters ?? [];
@@ -607,6 +682,8 @@ export class World extends Phaser.Scene {
       }
       target.setPosition(entry.x, entry.y);
     }
+    this.updateReactors(snapshot, actorDepth, delta);
+
     const npcs = snapshot.npcs ?? [];
     const npcIds = new Set(npcs.map(npc => npc.id));
     for (const [id, view] of this.npcs) {

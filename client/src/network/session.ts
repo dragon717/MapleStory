@@ -12,10 +12,23 @@ export async function authenticate(username: string, password: string, register:
   if (session.protocolVersion !== PROTOCOL_VERSION || session.contentVersion !== CONTENT_VERSION) throw new Error('客户端与服务器版本不一致，请刷新页面。');
   return session;
 }
+/** Terminal results must stop the retry loop, otherwise two pages or a banned
+ *  session would fight forever over the same character. */
+const TERMINAL_CODES = new Set([
+  'unauthenticated',
+  'invalid_hello',
+  'session_replaced',
+  'banned',
+  'character_missing',
+]);
+
 export class Connection {
   private socket?: WebSocket;
   private timeout?: ReturnType<typeof setTimeout>;
   private lastState?: 'connecting' | 'online' | 'offline';
+  private retry?: ReturnType<typeof setTimeout>;
+  private attempt = 0;
+  private stopped = false;
   constructor(private session: LoginResponse, private message: (message: ServerMessage) => void, private state: (status: 'connecting' | 'online' | 'offline', reason?: string) => void) {}
   /** The server pushes a snapshot every world tick (~50 ms), so `onmessage`
    *  sees one constantly. Only report a status change when the connection
@@ -28,6 +41,7 @@ export class Connection {
     this.state(status, reason);
   }
   connect() {
+    this.stopped = false;
     this.close();
     this.report('connecting');
     let handshakeFailure = '';
@@ -39,13 +53,35 @@ export class Connection {
       if (this.socket !== socket) return;
       try {
         const message = JSON.parse(event.data) as ServerMessage;
-        if (message.type === 'snapshot') { acknowledged = true; clearTimeout(this.timeout); this.report('online'); }
+        if (message.type === 'snapshot') { acknowledged = true; clearTimeout(this.timeout); this.attempt = 0; this.report('online'); }
         else if (message.type === 'rejected' && !acknowledged) handshakeFailure = `${message.message} (${message.code})`;
         this.message(message);
       } catch { this.report('offline', '服务器消息无法解析，请重连。'); socket.close(); }
     };
-    socket.onclose = event => { if (this.socket === socket) { clearTimeout(this.timeout); this.report('offline', event.reason || handshakeFailure || '连接已断开，请重新连接。'); } };
+    socket.onclose = event => {
+      if (this.socket !== socket) return;
+      clearTimeout(this.timeout);
+      this.report('offline', event.reason || handshakeFailure || '连接已断开，正在尝试恢复…');
+      this.scheduleReconnect(handshakeFailure);
+    };
     socket.onerror = () => { if (this.socket === socket) this.report('offline', '无法连接服务器，请检查网络。'); };
+  }
+  /** Exponential backoff with jitter.  Hidden pages wait longer because a
+   *  background tab is typically frozen and would only burn timers. */
+  private scheduleReconnect(handshakeFailure = '') {
+    if (this.stopped) return;
+    const code = handshakeFailure.match(/\(([a-z_]+)\)\s*$/)?.[1];
+    if (code && TERMINAL_CODES.has(code)) {
+      this.stopped = true;
+      this.report('offline', code === 'session_replaced' ? '该角色已在其他页面或设备恢复。' : '登录状态已失效，请重新登录。');
+      return;
+    }
+    const base = document.hidden ? 8000 : 1000;
+    const delay = Math.min(base * 2 ** Math.min(this.attempt, 5), 30_000);
+    this.attempt += 1;
+    const jitter = delay * (0.5 + Math.random() * 0.5);
+    clearTimeout(this.retry);
+    this.retry = setTimeout(() => { if (!this.stopped) this.connect(); }, jitter);
   }
   send(message: ClientMessage): boolean {
     const socket = this.socket;
@@ -57,5 +93,5 @@ export class Connection {
       return false;
     }
   }
-  close() { clearTimeout(this.timeout); const socket = this.socket; this.socket = undefined; socket?.close(); }
+  close() { clearTimeout(this.timeout); clearTimeout(this.retry); this.stopped = true; const socket = this.socket; this.socket = undefined; socket?.close(); }
 }

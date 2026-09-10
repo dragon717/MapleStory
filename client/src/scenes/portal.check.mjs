@@ -77,4 +77,27 @@ world.enterPortal();
 assert.equal(requests.length, 6, 'Closer-to-east gate now wins');
 assert.equal(requests.at(-1).portalName, 'east00');
 
-console.log('PASS: manual regular portals, touch portals, cooldown, player guards, range ceiling, and nearest-gate selection.');
+// TMS273 scripted doorways (楓之港 `east00` → 碼頭 via `pt_southperry`) carry a
+// `script` payload but are real gates once the chapter adapter assigns their
+// route.  A `script` field must never hide the beam or block entry again.
+{
+  const scripted = { name: 'east00', type: 7, x: 2520, y: 290, targetMapId: '002000100', targetPortalName: 'sp', script: 'pt_southperry' };
+  const sameMap = { name: 'top0', type: 10, x: 1859, y: -5, targetMapId: '002000000', targetPortalName: 'bottom0' };
+  const pier = new World({ map: { id: '002000000', portals: [scripted, sameMap] } }, () => {}, request => requests.push(request));
+  pier.loaded = true;
+  pier.portalCooldownUntil = 0;
+  pier.snapshot = { selfId: 'self', players: [{ id: 'self', hp: 50, action: 'stand', x: 2520, y: 290 }] };
+  pier.enterPortal();
+  assert.equal(requests.length, 7, 'A scripted cross-map gate accepts the Up key');
+  assert.equal(requests.at(-1).portalName, 'east00');
+  assert.equal(requests.at(-1).targetMapId, '002000100');
+  // Stand next to the same-map link instead: it is enterable but must never be
+  // preferred over a real gate, and it is excluded from beam rendering.
+  pier.portalCooldownUntil = 0;
+  pier.snapshot = { selfId: 'self', players: [{ id: 'self', hp: 50, action: 'stand', x: 1859, y: -5 }] };
+  pier.enterPortal();
+  assert.equal(requests.at(-1).portalName, 'top0', 'Same-map links stay enterable');
+  assert.equal(requests.at(-1).targetMapId, '002000000');
+}
+
+console.log('PASS: manual regular portals, touch portals, cooldown, player guards, range ceiling, nearest-gate selection, and scripted gate entry.');

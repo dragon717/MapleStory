@@ -1,5 +1,170 @@
 # 当前工作计划
 
+## 地图反应器（Reactor）：已完成，待统一加载实玩（2026-09-10）
+
+- 选题：静态盘点确认 41 图中 9 张共 39 个 `raw.reactor` 放置，而导出器/服务端/客户端三层全无 reactor——原版基础地图交互里唯一整层缺失的模块。来源 T：本地 TMS273.7 `Reactor.wz` + `Map.wz` reactor 子树。
+- 实装五层：① 新增 `scripts/export_tms273_reactor.cjs`（6 模板/39 放置，含 `info.link` 别名解析 9102001→9102000）；② `assemble_tms273.cjs` 给每图挂 `reactors`（坐标/reactorTime/stateCount/hitType/hitboxLt|Rb），manifest 挂 `reactors`，管线加入导出步；③ `world.rs` 加 `ReactorPlacement`/`ReactorInstance`/`Map.reactors` + 校验、`rebuild_reactors()` 幂等重建、`step_reactors()` 按源 timer 复位、`handle_reactor_hit()` 权威判定、快照 `reactors[]`、广播 `reactorState`；④ 协议 11→12，新增 `ReactorHit` 意图与 `reactorState` 广播（Rust + `shared/protocol.ts` 同步，线级 id 校验）；⑤ 客户端新增 `features/world/reactor-view.ts`（待机循环/受击一次性/采空隐藏），`scenes/world.ts` 装载同步清理，`input.ts` 普攻键优先敲 prop。
+- 权威边界：客户端只发"我要敲这个 prop"，距离/是否可交互/下一状态全部服务端判定；命中锁 600ms 防连点跳帧连跳级；状态变化一律由广播驱动，客户端绝不自行推进。拒绝码 `reactor_unknown/busy/spent/out_of_range`。
+- 验证：`cargo build` 通过且警告仍是基线 6 条零新增；新增 `reactor_acceptance.rs` 9 项全过；客户端 `reactor.check.mjs` 8 项全过；`tsc --noEmit`、`vite build`、`check_tms273_runtime`(41图/44991) 全过；真实 41 图目录端到端探针 31 个 reactor 加载并命中 0→1 广播正确（探针已删）。全量 `cargo test` 11 项失败经"禁用 reactor 校验后失败集不变"证实为既有（auth/inventory/mage 领域）。
+- 已知取舍（不冒充完成）：本地参考服务端**无** reactor 掉落脚本（action 名 vFlowerItem0/periItem0 等均不存在），只保留 action 供溯源、不执行；**敲 reactor 当前只推进状态与表现，不掉道具**。8 个落在地图 bounds 之外的放置（閃爍森林两图，bounds 由 miniMap 推导）记入 `omitted` 保留理由，不篡改坐标、不静默丢弃。
+- 待验（用户）：经 `启动3010.command` 统一构建加载（protocol 12）后实玩——風塵山丘/小岩石路/暴風地帶/大岩石路/粗岩地帶/楓葉村民家/魔法森林圖書館等图应出现原版花丛与遗物 prop，靠近按 X/Ctrl 有受击动画，敲满后消失并按源 timer 回来。
+- 下一步（TODO）：reactor 掉落表需原版证据后再接；`type=9` 踩区 prop 目前靠普攻触发，原版为点击/碰撞触发，交互入口可再补点击。
+
+
+## 楓之港↔碼頭 传送落点不对：已修复，待重启服务生效（2026-09-10 凌晨）
+
+- 现象（用户）：碼頭→楓之港、楓之港→碼頭 传送后位置都不对（落到半空/错误位置）。
+- 根因：章节适配器把脚本门的落点写成了目标图的默认出生点 `sp`。但 WZ 的 `sp` 是**作者标注的出生锚点**，不是地面——
+  楓之港/碼頭 的 `sp` 都在 (71,432)，而两地实际地面在 y=527，两者差 95px。服务端 `handle_portal` 只在
+  `|ground-dest.y| <= 24` 内吸附地面，超出即保持悬空，玩家落到半空再坠下 → 表现为「位置不对」。
+- 原版依据（T）：`Map/Map/Graph.json` 给出脚本渡口的作者落点——
+  `002000000/portal/2 → 2000100`、`002000100/portal/1 → 2000000`，且都落**配对门**而非出生点。
+  按 portalNum 定位：楓之港→碼頭 落碼頭 `west00`(32,528)；碼頭→楓之港 落楓之港 `in00`(855,523)。两者 Δ 分别 -1/+4，贴地。
+- 修复（`scripts/tms273_chapter.cjs` 两处，共 5 个落点）：
+  - 渡口：`002000000/east00` 落点 `sp`→`west00`；`002000100/west00` 落点 `sp`→`in00`。
+  - 剧情门：`101000000/jobin00` `sp`→`jobout00`；`100000000/Achter00` `sp`→`out02`（Δ 129/26 → -1/-4）。
+  - 顺带修既有哑引用：`000030001/out00` 的 `tn=in01` 在嫩寶花園不存在（只有 in00/out00），服务器回落到出生点悬空 63px；改 `in00`（Δ=2）。
+- 新增回归断言（两处，双向锁死）：
+  - `check_tms273_runtime.cjs`：全量遍历所有跨图门，复刻 `ground_near`+24px 吸附窗口，落点离地 >24px 即失败；并断言渡口双向落点。
+  - `server/src/world.rs::tms273_warp_landings_are_grounded`：读真实 `shared/maps.json`，用真正 `Map::ground_near` 验证全部落点贴地 + 渡口双向配对。
+- 验证：全量落点 0 悬空；`check_tms273_runtime`（41图/44882引用）、`cargo test portal`(2)、新断言(1)、`tsc --noEmit`、
+  `portal.check.mjs`、`vite build`(→/tmp/dist-portal-check2) 全部通过；`cargo build` 仅既有 6 条警告。
+- 改动范围：仅 5 个传送门落点变更（+ 上一条的 89 光束），monsters18/skillEffects37/items489/npcs174 零变化。
+- 已同步 `client/dist-tms273/assets/manifest.json`（在线 89 门、落点已正确）。
+- **重要**：服务端 `MAP_CATALOG` 是**启动时**读取的，运行中的 PID 11921 仍是旧落点。
+  需经根目录 `启动3010.command` 重启后本次修复才对服务端生效（会保留数据库与账号）。
+- 待验（用户）：重启后实玩——楓之港右側傳陣→落到碼頭左側棧橋；碼頭左側傳陣→落到楓之港街上；两者均落地稳定不再下坠。
+
+## Web 后台保活与暂离驻留：切角色残留 + 回归后无法移动 已修复，待统一加载实玩（2026-09-10）
+
+- 用户实测两个 bug（均由上一轮保活改动引入，已修复）：
+  ① 登录 A → 下线 → 登录 B，A 仍留在世界里；② 重新登录回 A，A 无法移动。
+- 根因 1（A 残留）：`leaveGame()` 的 `connection.close()` 让服务端把 socket 关闭判为
+  `Departure::Detached`（只解绑不删）。socket 关闭与"玩家登出"在服务端不可区分——
+  切标签、刷新、关页面看起来完全一样。
+  修复：协议新增 `ClientMessage::Logout`（唯一能删除角色的客户端消息）；
+  `leaveGame(logout)` 在登出/切角色/菜单退出时先发 `logout` 再关连接；
+  `pagehide`/`visibilitychange` 仍不发 logout（那是切屏不是登出）。
+- 根因 2（A 无法移动）：接管驻留角色时复用了旧 `Player` 行，`state.last_input_seq`
+  仍是上一会话高值（如 30），而新客户端 `PlayerInput.seq` 从 1 重开
+  → `seq <= last_input_seq` 全部丢弃 → 角色冻住。
+  修复：接管时 `existing.state.last_input_seq = 0`（已反向验证：去掉该行 a14 即失败）。
+- 验证：新增 `away_acceptance.rs` a13/a14/a15（含用户完整流程端到端：A→登出→B→登出→回 A 可走）；
+  away 用例 15 项全过；全量 165 过 / 11 失败，为基线 12 项的子集（T09 已被并行侧壁修复解决），零回归；
+  `cargo build`、`tsc --noEmit` 通过。
+
+## Web 后台保活与暂离驻留：P0 核查 + P1 内核已完成，待统一加载实玩（2026-09-10）
+
+- 方案来源：`bugfix/MapleStory_Web后台保活与暂离驻留_开发方案`（P0—P5）。核查结论另存 `bugfix/MapleStory_Web后台保活与暂离驻留_P0仓库核查.md`。
+- 根因（有代码证据）：① `network.rs` 30 秒无上行即 `break` 并 `Command::Leave`；② `world.rs:3146 Leave` 直接 `players.remove(&id)`；③ `main.ts:382 pagehide` 无条件 `connection.close()`。连接关闭 = 角色删除，非渲染暂停。
+- 服务端 P1（`server/src/world.rs`、`protocol.rs`、`network.rs`）：
+  - 新增 `Detach`/`Exit` 命令与 `AwayWindow`/`AwayPhase`/`AwayReason`；阶段由 `Instant` 派生，不存可变布尔。`AWAY_FULL_RETENTION=600s`、`AWAY_MAX_TOTAL=3600s`。
+  - `Leave`→`Detach` 语义分离：仅解绑 `connection/output`（`detached=true`）并清输入，**不删角色**；`broadcast_to_map` 与 `step()` 快照循环跳过 `detached`，队列满只丢快照不删角色。
+  - `Join` 改为接管驻留角色：同一实体、同一 away 窗口，`away_sequence+1`，清输入，重算自然恢复边界（避免离场时间被兑成免费 HP/MP）。
+  - `step()` 开头 `advance_away_windows()`：达 600s 进基础驻留，达 3600s 走正常退出；一次跨多阈值直接到当前阶段，只播报一次。
+  - 快照 `players[]` 增加 `away{residency,remainingMs}`，旁观者可见暂离标记；不改碰撞/受击/物理。
+  - 协议新增 `ClientMessage::Lifecycle`（仅提示，不开 away 窗口的关闭权限）；`network.rs` 区分传输响应与应用进度，超时 30s→45s。
+- 前端 P1（`client/src/app/main.ts`、`network/session.ts`、`features/player/input.ts`、`features/notice/away.ts`）：
+  - `pagehide` 不再 `close()`，只清输入；新增带抖动退避自动重连，终止性结果（鉴权失败/被替代）停止重试。
+  - 仅 `hidden` 上报暂离（`blur` 只清输入，双窗口不误判）；新增暂离驻留非阻塞横幅（继续冒险/保持暂离）。
+- 验证：`cargo build` 通过；新增 `server/src/away_acceptance.rs` 12 项全过（a01—a12，注入时钟不等待）；`cargo test` 148 通过 / 12 失败，失败集与真基线（`HEAD` + 既有 `sidewall_acceptance` include）**完全一致**，零回归；`tsc --noEmit` 通过。
+- 已知既有失败（非本次引入，含 `t09_fast_descent` 在真基线同样失败）：见上方失败清单。
+- 待验（用户）：下次 `启动3010.command` 统一构建加载后实测——切标签 5 分钟返回自动继续不重建角色；隐藏 12 分钟后 B 仍见同一带暂离标记角色；A 返回先同步再出提示；按住方向键切出不卡键；真实断网后重连接管原角色且只有一个实体。**未跑浏览器实机冻结/回收场景（T27—T33）**，不冒称多浏览器保证。
+- 未做（方案 P2—P5 剩余）：后台订阅降频（`Reduced`/`Minimal` 策略）、队列字节级预算、`freeze/resume` 事件、多标签 `SESSION_REPLACED` 终止码落地、驻留容量监控指标。
+
+## 法师在水中跳不起来（魔力波動 skill_cooldown）：已修复（2026-09-10）
+
+- 现象：法师入水后按跳跃弹出"魔力波動当前不能使用。(skill_cooldown)"且跳不起来；初心者正常。
+- 根因（两层，缺一不可，也正因如此只有法师中招）：
+  1. **服务端**：`magic_wave_used` / `magic_wave_float_used` 只在 `grounded` 时复位；游泳时 `grounded` 恒为 false → 标志位首次施放后永久置位，之后每次都被 `skill_cooldown` 拒绝。
+  2. **客户端**：`castJumpSkill()` 在 `!grounded` 时把空格完全转给 2001012 并不再发跳跃输入；水中 `!grounded` 恒成立，所以空格只施法、永不跳跃。初心者不在法师职业白名单，直接走普通跳跃，故不受影响。
+- 修复：
+  - `world.rs`：每 tick 增加 `player.state.swimming = player.swimming`，并在游泳分支同样复位一次性波动标志（离水即清）；
+  - `protocol.rs` + `shared/protocol.ts`：快照新增 `swimming` 字段（客户端需要区分"游泳"与"空中"）；
+  - `client/src/features/player/input.ts`：`castJumpSkill()` 遇 `player.swimming` 直接返回 false，让空格走普通跳跃。
+- 验证：
+  - 服务端新增 `swimming_resets_the_one_use_magic_wave_flags`（水中连续 3 次施放全部成功、离水后标志清零）；**已用"临时移除修复→该测试失败"反证其有效性**。
+  - 客户端独立脚本验证：游泳时不施法且发出 `jump` 输入；非游泳空中仍照旧施放 2001012（不破坏空中缓降）。
+  - `cargo build`、`tsc --noEmit` 均通过。全量 165 过 / 11 失败——其中 7 项为并行工作改 `shared/items.json` 导致的背包/道具可用性用例（已用"回退 items.json → 失败降为 4 项基线"证实），4 项为既有基线失败，本改动零回归。
+- 待验（用户）：实玩确认法师入水后可正常跳跃/上浮，且空中缓降（二段）不受影响。
+
+## 水中无法起跳：已修复（2026-09-10 凌晨，用户报"严重"）
+
+- 现象：在水中按跳跃完全跳不起来。
+- 根因：`step_player` 游泳分支里 `if player.jump` **无条件** `swimming=false` 并施加陆跳速度 `-JUMP_SPEED`。角色以全速弹出水面、随即落回水里，净效果就是"跳不起来"（无论深水浅水，实测每次只上升 ~22px 就被判定离水回落）。
+- 修复：跳跃改为"水中划水上升"——保留 `swimming`，施加 `SWIM_JUMP_SPEED=260`（P 值，无 TMS273 源数值），并把位移 clamp 在水体内；只有身体已到水面（`y <= y_min+4`）时跳跃才走原来的"离水登岸"弹道，保证仍能上岸。
+- 验证：新增 `water_jump_rises_while_submerged_and_exits_at_the_surface`（3 种水深：均保持游泳且上升 50+px；水面跳跃仍正常离水 `vy<0`）。同时修正 `water_acceptance.rs` 中把旧错误行为写成断言的两处（原断言"深水跳跃必须离水"，正是用户报的 bug）。全量 158 过 / 4 失败（4 项与基线一致）。
+
+## 下落时从两平台中间掉下去：已核查，非碰撞缺陷（2026-09-10 凌晨）
+
+- 用户报："下落时还是会从两个上下不挨着但左右挨着的平台中间掉下去"。
+- 核查结论：**未按缺陷修复，因为实测是物理正确行为**。逐帧回放显示：角色走下左平台边缘后，重力使其在下落 2 tick 内下降 15px；若右平台仅低 10~15px 且相距 12px 以上，角色到达其 x 范围时已位于台面**下方** 4px，属于从缝隙下方穿过，不是穿透。
+- 判定依据：① 同一缝隙**跳跃可以通过**（证明是真实空隙而非漏检）；② 有 `prev/next` 链条相连的台阶（含竖墙）100% 正确阻挡；③ 41 张真实地图横走回归全部保持 `grounded`，无掉落；④ 扫描真实地图所有"疑似穿透"告警，逐条核对均为**走下平台端点**（如 fh57 在 x=637 结束、fh59 在 x=620 开始），属正常离台。
+- 做了对照实验：曾尝试放宽 `landing_on_sweep` 的落点判定（合成矩阵 90 组中 45 组"失败"），但证实放宽会把"本应从下方穿过"的合法情形误判为落地（等于凭空登高），故**已回退该改动**，未引入。
+- 若用户实际遇到的是别的地形，请把具体地图/坐标或录屏给我，我再针对性定位——目前合成场景与真实地图均无法复现"非物理"掉落。
+
+## 平台侧壁碰撞：定位+修复完成，已并入主工作区（2026-09-10 凌晨）
+
+- 方案来源：`bugfix/MapleStory_Platform_Sidewall_Collision_Plan.md`。先做定位再改代码，不预设答案。
+- 定位结论（与原方案假设不同）：**现有代码并没有"空中失效"的状态分支缺陷**。`step_player` 里行走/上升/下落共用同一个 `chain_wall_for` 入口，`grounded` 不是墙是否存在的开关；起跳后用 `last_foothold_id` 兜住候选，走路撞墙（T01）本来就正确。
+- 真实缺陷是**高速下落时的沿途漏检（T09）**：`chain_wall_for` 只用 tick 起始脚点 `y` 判断墙的纵向重叠。单 tick 下落可达 ~33px，角色可能在这一 tick 内从墙顶上方掉到墙的纵向范围内并越过墙面——起点在墙上方（不挡）、终点已过墙（不判），于是直接穿墙。实测 41 张真实地图共 695 段竖墙，`offset=112` 是唯一可复现的穿透相位（下落到 y≈104、墙范围 100..600）。
+- 修复（第二阶段"沿途检测"，最小改动）：新增 `Foothold::blocks_at_crossing` 与 `Map::chain_wall_on_sweep`，把纵向重叠判定从 tick 边界改为**接触时刻** `t=(wall_x-from_x)/dx` 的插值 y。行走路径退化为 `t=0`，与 `chain_wall_for` 同一代码路径，保证"走路挡、跳跃也挡"不分裂。新增 `BODY_HEIGHT_PX=50` 复用既有脚点代理高度常量，未引入身体 AABB、未改跳跃参数/坐标精度。
+- 关键取舍：不能改用"起止点纵向区间并集"判重叠——那会把"上升途中已越过墙顶"的合法跳跃也拦住（实测会破坏 T02/T06）。必须按接触时刻判定。
+- 验证（隔离 worktree `/tmp/ms-sidewall`，HEAD=c37f5b0）：
+  - 新增 `server/src/sidewall_acceptance.rs`（10 用例：T01/T02/T03/T05/T06/T07/T09/T11/T13 + 不变量断言）。**修复前 9 过 1 失败（T09 穿透），修复后 10 全过**。
+  - 41 张真实地图静置回归全过（`real_map_walk_regression`，位置均有限、未掉出世界）。
+  - 全量 `cargo test`：145 通过 / 4 失败，4 项与基线完全一致（`third_store_book_split_222`、`bundled_catalog_...`、`config_drop_and_exp_...`、`third_sphere_and_adaptation_...`），已用"回退修复后重跑同样失败"证实与本改动无关。
+  - `cargo build` 通过，仅既有两个未使用告警（`contact_damage` 等在基线即有）。
+- **未合并**：`server/src/world.rs` 正被另一并行工作（Web 后台保活/暂离驻留，新增 Detach/Exit 与 chrono 依赖）持续写入，为避免互相覆盖，本次未落盘主工作区。补丁已存 `bugfix/sidewall_fix.patch`（131 行，仅改 world.rs 的 3 处 + 常量），全量已修文件 `bugfix/world.rs.sidewall-fixed`。等对方稳定后 `git apply bugfix/sidewall_fix.patch` 或手工合并即可（三处：常量区 `BODY_HEIGHT_PX`、`Foothold` impl 加 `blocks_at_crossing`、`Map` impl 加 `chain_wall_on_sweep` + `step_player` 调用点）。
+- 未验证范围（按用户验收政策，交用户亲测）：真实手感、斜坡/接缝（T13 仅覆盖链条几何）、冲刺/击退/瞬移（T18）、双端一致性（客户端无本地物理预测，权威全在服务端，故 T17 不适用）。未重启在线服务、未改数据库。
+
+## 枫之港看不到前往码头的传送阵：已修复并上线（2026-09-10 凌晨）
+
+- 现象（用户）：楓之港（002000000）看不到前往碼頭（002000100）的传送阵；该门实际可交互，只是没有光束。
+- 根因（两处独立过滤叠加）：
+  1. 导出器 `scripts/export_tms273.cjs::exportPortals` 只导出 `type===2 && targetMapId && !script` 的门。而 TMS273 里楓之港 `east00` 是 `pt=7` 且带 `script: pt_southperry`，WZ 原始 `tm=999999999`（无目标）；它的目标图是后来由 `tms273_chapter.cjs` 的 P 适配在装配期补上的。因此导出阶段它既不是 type2 又无目标 → 从未进入 `portals.json`（84 项里没有它）。
+  2. 渲染层 `client/src/scenes/world.ts` 无条件 `if (portal.script) continue;`，即使装配后已有了目标也仍被跳过。
+- 修复：
+  - `scripts/assemble_tms273.cjs`：在 `applyChapter` 之后（路线已分配）补一段——对每张图里「有 targetMapId 且目标不是本图、且目标图在 41 图装配目录内、且尚未有光束」的门，复用共享 `pv/default` 光束（8 帧）。目标图未装配的门（104020100/310040210）不加光束，避免诱导走不通的路线。同图 type10（bottom0/top0）保持不可见。
+  - `client/src/scenes/world.ts`：删除 `if (portal.script) continue;`，改为 `if (!portal.targetMapId || portal.targetMapId === this.manifest.map.id) continue;`（脚本不再作为排除条件）。
+  - `client/src/features/world/portal-view.ts`：修首帧锚点单位 bug——`AssetFrame.origin` 是源像素，而 Phaser `setOrigin` 需要 0..1 归一化值；原代码首帧直接传像素（如 y=134），与换帧逻辑 `applyFrame` 不一致，会让光束偏移约 134px。统一抽 `normalizedOrigin()` 供两处共用。
+- 结果：manifest portals 84 → 89，新增 `002000000/east00`、`002000100/west00`、`101000000/jobin00`、`100000000/Achter00`、`100000201/out02`；除 portals 外无任何顶层字段变化（monsters18/skillEffects37/items489/npcs174 均不变）。
+- 验证：`check_tms273_runtime.cjs tms273-9` 通过（41 maps / 44882 refs）；`cargo build` 通过（仅既有 6 条警告）；前端 `tsc --noEmit` 通过；`portal.check.mjs` 9 场景通过（新增脚本门可进、同图链仍可进）；`vite build` 通过（因沙箱批量删除保护挡住 `emptyOutDir`，改用 `/tmp/dist-portal-check` 验证，产物 89 门 + 8 张光束 PNG 齐全）。
+- 新增回归断言：`check_tms273_runtime.cjs` 增加「所有跨图门必须有光束」全量校验 + 楓之港/碼頭双向门断言；`portal.check.mjs` 增加脚本门交互用例。
+- 发布：已把新 manifest 同步到 `client/dist-tms273`（在线服务正在使用），在线 `/assets/manifest.json` 已返回 89 门。**未重启服务、未改数据库**（光束 PNG 本就复用同一批 8 张，dist 不缺文件）。
+- 待验（用户）：刷新浏览器实玩——楓之港右側碼頭方向（x≈2520, y≈290）应出现原版 pv/default 光束，按 ↑ 可前往碼頭；碼頭左側（x≈32, y≈528）同样有光束可返回楓之港；光束贴合地面不偏移。
+
+## 选择岔道法师NPC距离限制移除 + 拒绝提示中文化 + 初心者隐藏法师技能页（2026-09-10 凌晨）
+
+- 需求：选择岔道（001020000）汉斯 NPC 不再有「stand closer to the npc」距离限制；该限制改为合适的中文提示；初心者（job 0）技能界面不显示法师技能页。
+- 服务端 `server/src/world.rs handle_npc_talk`：
+  - `mage_entry`（map 001020000 + npc 001020000-life-1 + template 10201）直接跳过距离判定，不再复用 100×80 的放宽范围；其余 NPC 保持 `npc::TALK_RANGE_X/Y`（800×600）。
+  - 4 处英文拒绝文案按 `lang` 出中文：`npc_too_far`（请靠近 NPC 后再与其对话 / 该 NPC 不在当前地图）、`npc_unknown`（找不到该 NPC / 该 NPC 资料缺失，暂时无法对话）、`npc_unavailable`（该 NPC 当前无法与你对话）、`npc_step_invalid`（该对话选项已失效，请重新与 NPC 交谈）；`LANG_EN` 保留英文。
+  - 测试 `mage_job_advance_is_menu_bound_authorized_and_persisted`：原 `x=250` 断言 `npc_too_far` 改为断言返回 `npcResult`/`kind=simple`（远距离仍可开菜单），并 `end_conversation` 复位，后续步骤不变。
+- 客户端 `client/src/app/i18n.ts` `PROTOCOL_ERRORS` 新增：`npc_too_far`、`npc_unknown`、`npc_unavailable`、`npc_step_invalid`、`job_advance_unavailable` 的 zh/en 文案，避免英文原串直接暴露。
+- 客户端 `client/src/features/skills/view.ts`：
+  - `books()` 新增过滤 `id !== '200' || MAGE_JOB_WHITELIST.has(job)`，初心者不再出现「法师入门/冰雷指南」等页；220/221/222 过滤保持原样。
+  - `update()` 记录 `jobChanged`，转职后清空 `selectedBookId`，`render()` 自动落到新职业页（否则转职后停留在初心者页）。
+  - `view.check.mjs` 追加断言：初心者 books 含 '0' 且不含 '200'/'220'、`canLearn(2001008)` 为 false；法师 books 含 '200'。
+- 验证：`cargo build` 通过（仅既有 `contact_damage` 未使用警告）；`cargo test mage_job_advance_...` 通过；`cargo test chapter` 3 项通过；`cargo test` 全量 128 通过 / 11 失败，与 stash 掉本次改动后的基线完全一致（失败集中在 inventory/auth/mage/third，属既有问题）；前端 `tsc --noEmit` 通过；skills/npc dialogue/npc view/combat/character/levelup/water 检查通过。`input.check.mjs` 与 `hud/gauge.check.ts` 的失败为既有问题（未改动其源码，`npm run check` 未整体跑通）。在线服务与数据库未重启、未改动。
+- 待验（用户）：下次 `启动3010.command` 统一构建加载后实玩确认：① 选择岔道任意位置点击/↑ 与汉斯对话不再提示距离；② 其他地图远距离点 NPC 提示「请靠近 NPC 后再与其对话」；③ 初心者按 K 只看到初心者页，转职为法师后自动切到法师页。
+
+## 头顶聊天气泡：替换为原版 273 ChatBalloon 素材（2026-09-10 凌晨）
+
+- 现状（替换前）：`PlayerView.showBubble` 用 Phaser Graphics 自绘半透明圆角矩形 + 浅蓝名字 + 白字正文，色系和原版 273 不一致；仅他人发言显示气泡，自己的 echo 只入聊天日志。
+- 目标：参考原版 273 素材做气泡框，并按"气泡绑定角色"逻辑跟随角色移动、显示 4 秒、死亡/切图清理。
+- 实装：
+  - 新增 `scripts/export_tms273_balloon.cjs`：导出 `UI/ChatBalloon.img/0` 的 9 切片（nw/n/ne/w/c/e/sw/s/se 6×6/12×6/6×14/12×14/13×13）+ `arrow` 13×13 共 10 张 PNG 到 `resources/tms273-export/assets/tms273`，并生成 `balloon.json`（含 `slices.url/width/height/origin/x/y` 与 `clr=-16777216`）。
+  - `scripts/assemble_tms273.cjs`：新增 `chatBalloon: read('balloon')` 合并到 manifest，`collect()` 自动把这 10 个 `/assets/tms273/...` 复制到 `client/public-tms273/assets/tms273`，`client/public-tms273/assets/manifest.json` 中已含 `chatBalloon` 节点。`build_tms273.cjs` 管线加入 `export_tms273_balloon`。
+  - `client/src/assets/manifest.ts`：新增 `ChatBalloonData`/`ChatBalloonAsset` 类型与 `Manifest.chatBalloon` 字段。
+  - `client/src/scenes/world.ts preload`：收集 `chatBalloon.slices` 全部 URL 用 `load.image(key, url)` 注册为纹理。
+  - `client/src/features/player/view.ts`：
+    - 新增 `private readonly self: boolean` 保留构造函数传入标志，用于气泡名字颜色（自己 #fff3a5 / 其他人 #5b9bcc）。
+    - `showBubble` 拆分为 `buildSourceBubble` 与 `buildFallbackBubble`：源切片可用时用 9 个 `add.image` 拼九宫格（角部 6×6 不拉伸，n/s 用 `setDisplaySize(textW, 6)`、w/e 用 `setDisplaySize(6, textH)`，c 用 `setDisplaySize(textW, textH)`，arrow 居中贴底边）；文字 `nameLabel`/`bodyLabel` 用 `add.text`，body 用黑色 + 黑色 1px 描边（来自 `clr`）保可读性；`BUBBLE_MAX_CHARS=96` 保留。`clearBubble` 同时清理 `pendingBubble` 防止重复重建。`updateBubble` 改为锚定 `player.y + headOffsetY - bubble.height - 4`，气泡底部紧贴角色头顶。
+    - 旧 graphics 矩形保留为 fallback（无 `chatBalloon` 资源时仍能渲染）。
+- 验证：`client/tsc --noEmit` 通过；`client/npm run build` 跑过（dist-tms273/assets 含 10 张 ChatBalloon PNG + 新 index-*.js）；在线服务未重启、未碰数据库。
+- 待验（用户）：下次 `启动3010.command` 统一加载后实玩确认：自己/他人发言时头顶出现白底气泡+箭头，名字+正文清晰可读，气泡随角色移动 4 秒后自动消失，死亡/换图清理，多人同时发言不串位、arrow 不被角色身体遮挡。
+
 ## 聊天输入焦点根因修复：Enter 后光标被 snapshot 抢走（2026-09-10 凌晨）
 
 - 现象（用户实测）：Enter 后光标"闪一下"即从聊天输入框消失，再按键又触发游戏快捷键。

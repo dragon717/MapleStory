@@ -25,6 +25,10 @@ interface Interactable {
   enterPortal: () => void;
   nearestNpc: () => NpcState | null;
   talkTo: (npc: NpcState) => void;
+  /** Nearest usable map reactor; attacking near one strikes it (original behaviour). */
+  nearestReactor?: () => string | null;
+  /** Send a server-owned reactor intent; range and state are decided there. */
+  hitReactor?: (reactorId: string) => string | void;
   toggleQuestLog: () => void;
   toggleSkills?: () => void;
   /** Send a server-owned skill intent; this input layer never applies damage or MP. */
@@ -136,14 +140,34 @@ export class PlayerInput {
         this.targets.enterPortal();
       }
     }
-    if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
+    if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.sendAttack();
     else this.emit(event.code === 'Space');
   };
+  /**
+   * A normal swing doubles as the map-reactor interaction, exactly like the
+   * original: standing next to a flower and attacking shakes it.  Only the
+   * intent is sent — the server decides range, whether the prop is still
+   * usable, and the resulting state, so a client cannot skip an animation or
+   * harvest a prop twice.
+   */
+  private sendAttack() {
+    const reactorId = this.targets.nearestReactor?.();
+    if (reactorId && this.targets.hitReactor) {
+      this.targets.hitReactor(reactorId);
+      return;
+    }
+    this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
+  }
   private castJumpSkill() {
     if (!this.targets.castSkill) return false;
     const player = this.targets.playerState?.();
     if (!player || player.job === undefined || !MAGE_JOB_WHITELIST.has(player.job) || !player.skills) return false;
     const waveLevel = player.skills['2001011'] ?? 0;
+    // While swimming the body is never grounded, but the jump key must still
+    // swim/jump rather than cast: routing it to the air-float skill here made
+    // the mage unable to act in water (and the server then rejected the cast
+    // with skill_cooldown).
+    if (player.swimming) return false;
     if (!player.grounded) {
       if (waveLevel <= 0 || (player.skills['2001012'] ?? 0) <= 0) return false;
       this.targets.castSkill(2001012, this.direction(), this.vertical());
@@ -172,6 +196,9 @@ export class PlayerInput {
     this.channel = undefined;
   }
   reset = () => { this.releaseChannel(); this.stopPickup(); this.held.clear(); this.emit(false, true); };
+  /** Losing input focus is not leaving the game: the window may simply be
+   *  unfocused while still visible.  Only hidden pages start an away window,
+   *  so a second monitor or a side-by-side window is not misread as absence. */
   private visibility = () => { if (document.hidden) this.reset(); };
   private focus = () => { if (this.blocked()) this.reset(); };
   destroy() { this.reset(); clearInterval(this.timer); window.removeEventListener('keydown', this.down); window.removeEventListener('keyup', this.up); window.removeEventListener('blur', this.reset); document.removeEventListener('visibilitychange', this.visibility); document.removeEventListener('focusin', this.focus); }

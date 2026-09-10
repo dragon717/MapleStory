@@ -17,6 +17,47 @@ for (const [key, actions] of Object.entries(mageAvatar.equipmentLoadouts)) Objec
 const windows = read('windows'), inventory = read('windows-inventory');
 const maps = catalog.maps.map(map => ({...map, bgm:effects.bgm[map.id]}));
 maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
+// Map reactors are authored per map (Map.wz reactor subtree).  Each placement
+// carries the source point plus the interaction box the *first* state declares,
+// so the authoritative server can reject out-of-range hits without any client
+// geometry, and the client can render the prop at its authored anchor.
+{
+  const reactor = read('reactor');
+  const byMap = new Map();
+  for (const placement of reactor.placements) {
+    if (!byMap.has(placement.mapId)) byMap.set(placement.mapId, []);
+    byMap.get(placement.mapId).push(placement);
+  }
+  for (const map of maps) {
+    map.reactors = (byMap.get(map.id) ?? []).map(placement => {
+      const template = reactor.templates[placement.templateId];
+      assert(template, `Missing reactor template ${placement.templateId}`);
+      // The last authored state is the "used up" empty state; the prop is
+      // interactable for every state before it.
+      const stateCount = Object.keys(template.states).length;
+      const first = template.states['0'];
+      const event = first?.events?.[0];
+      return {
+        id: placement.id,
+        templateId: placement.templateId,
+        x: placement.x,
+        y: placement.y,
+        flip: placement.flip,
+        // Source seconds until the prop returns after being used up.
+        reactorTime: placement.reactorTime,
+        stateCount,
+        // Type 9 reactors are clicked / bumped into, type 0 ones are hit with a
+        // normal attack.  Both are server-decided; the client only sends intent.
+        hitType: event?.type ?? 0,
+        // Character-local interaction box (Reactor event lt/rb), authored for
+        // the left-facing form exactly like the player attack hitbox.
+        hitboxLt: event?.lt ?? null,
+        hitboxRb: event?.rb ?? null,
+      };
+    });
+  }
+  assert(maps.reduce((sum,map)=>sum+map.reactors.length,0) === reactor.placements.length, 'Reactor placement export is stale');
+}
 const birth = maps.find(map => map.id === catalog.birthMapId);
 assert(birth, 'Birth map absent');
 assert(maps.length === JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps.length, 'Map export is stale');
@@ -40,6 +81,11 @@ const manifest = {
   avatar, map:birth, mapCatalog:{...catalog,maps},
   monsters:entities.monsters,npcs:entities.npcs,items:read('item-images'),
   hud:read('hud'),portals:read('portals'),combat:effects.combat,...windows,...inventory,chatUi:read('chat').chatUi,
+  // Source-backed UI/ChatBalloon.img/0 used by PlayerView for map-chat bubbles
+  // above speaking characters. PNGs are exported by export_tms273_balloon.cjs
+  // and copied into client/public-tms273/assets.
+  chatBalloon: read('balloon'),
+  reactors: read('reactor'),
 };
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {
@@ -90,6 +136,26 @@ gameplay.compatibility.iceFourthRuntime = 'P: level100 Hans shortcut 221->222 pr
 gameplay.compatibility.player='Initial attributes and base combat formula use the existing runtime adapter; they are not certified TMS273 server parity.';
 const questText = read('quest-text'), npcNames = read('npc-names');
 require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('chapter'), questText, npcNames);
+// P: portal beams are exported from `maps-rendered.json` before the chapter
+// adapter assigns routes, and scripted gates (WZ `tm: 999999999`) carry no
+// target at that point.  Every gate that now leads to *another* map reuses the
+// shared `pv/default` beam so scripted doorways (楓之港 `east00` → 碼頭,
+// 弓箭手村 `Achter00` → 培訓中心, …) are visible like any type-2 gate.
+// Same-map links (type 10 `bottom0`/`top0`) stay invisible on purpose.
+{
+  const beam = Object.values(manifest.portals)[0];
+  assert(beam?.frames?.length, 'Missing shared portal beam');
+  const assembled = new Set(maps.map(map => map.id));
+  for (const map of maps) for (const portal of map.portals) {
+    if (!portal.targetMapId || portal.targetMapId === map.id) continue;
+    // Gates into maps that are not part of the current 41-map catalog stay
+    // invisible; a beam there would advertise a route the player cannot take.
+    if (!assembled.has(portal.targetMapId)) continue;
+    const key = `${map.id}/${portal.name}`;
+    if (manifest.portals[key]) continue;
+    manifest.portals[key] = { ...beam, mapId: map.id, portalName: portal.name, type: portal.type, frames: beam.frames, frameDelay: beam.frameDelay };
+  }
+}
 const urls=new Set();
 function collect(value) {
   if(typeof value==='string' && value.startsWith('/assets/')) { assert(value.startsWith('/assets/tms273/'),`Foreign asset: ${value}`);urls.add(value); }

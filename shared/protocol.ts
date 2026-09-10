@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 export const CONTENT_VERSION = 'tms273-9';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -18,7 +18,11 @@ export interface RegenerationPassive {
 }
 export interface PlayerState {
   id: string; username: string; appearance?: Appearance; x: number; y: number; vx: number; vy: number;
-  facing: Facing; grounded: boolean; action: 'stand' | 'walk' | 'jump' | 'attack' | 'climb' | 'ladder' | 'rope' | 'dead';
+  facing: Facing; grounded: boolean;
+  /** True while inside an authored water rectangle. A swimming body is never
+   *  grounded, so clients need this to route the jump key correctly. */
+  swimming?: boolean;
+  action: 'stand' | 'walk' | 'jump' | 'attack' | 'climb' | 'ladder' | 'rope' | 'dead';
   actionId: string | null; actionStartedTick: number; lastInputSeq: number;
   climbing: boolean; ladderId: number | null;
   hp: number; maxHp: number; mp: number; maxMp: number;
@@ -36,6 +40,16 @@ export interface PlayerState {
   inventory: InventoryItem[];
   equipped?: InventoryItem[];
   monsterBook?: Record<string, number>;
+  /** Server-owned away marker; display only, grants no protection or assets. */
+  away?: AwayMarker;
+}
+/** Away presentation state. Durations are display-only; the server re-derives
+ *  the stage from its own clock and decides when residency actually ends. */
+export interface AwayMarker {
+  /** True once continuous absence reached the full-retention threshold. */
+  residency: boolean;
+  /** Milliseconds until the normal exit path runs. Display only. */
+  remainingMs: number;
 }
 export interface MonsterState {
   id: string; templateId: string; x: number; y: number; facing: Facing;
@@ -59,6 +73,12 @@ export interface NpcState {
   questAvailable?: boolean;
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
+/** Authoritative live state of one placed map reactor. `state` is the authored
+ *  WZ state index; the last state is the empty "used up" form. */
+export interface ReactorState {
+  id: string; templateId: string; x: number; y: number; flip: boolean;
+  state: number; spent: boolean; hitting: boolean; respawnInMs?: number;
+}
 export interface BossPracticeState {
   status: 'available' | 'active' | 'cleared' | 'failed';
   sourceMapId: string; bossId: string; minimumLevel: number; encounterId?: string;
@@ -78,6 +98,9 @@ export type ClientMessage =
   | { type: 'releaseSkill'; requestId: string }
   | { type: 'revive'; requestId: string }
   | { type: 'pickup'; requestId: string; dropId: string }
+  /** Intent to strike one authored map reactor. The client only names the prop;
+   *  the server decides range, whether it is still usable, and the next state. */
+  | { type: 'reactorHit'; requestId: string; reactorId: string }
   | { type: 'portal'; requestId: string; portalName: string }
   | { type: 'inventoryMove'; requestId: string; inventoryType: number; sourceSlot: number; targetSlot: number; quantity: number }
   | { type: 'dropItem'; requestId: string; inventoryType: number; sourceSlot: number; quantity: number }
@@ -87,7 +110,12 @@ export type ClientMessage =
   | { type: 'questInteract'; requestId: string; questId: string }
   | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
   | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number }
-  | { type: 'chatSend'; requestId: string; text: string };
+  | { type: 'chatSend'; requestId: string; text: string }
+  /** Page lifecycle hint. Server keeps its own away clock; this never grants
+   *  assets, invulnerability, or control of the away window. */
+  | { type: 'lifecycle'; hidden: boolean; away?: boolean; clientNowMs?: number }
+  /** Explicit logout: removes the character instead of keeping it resident. */
+  | { type: 'logout' };
 export interface DialogueOption { index: number; text: string }
 export interface QuestLogEntry {
   questId: string; name: string;
@@ -102,12 +130,15 @@ export interface QuestRewardInfo {
 }
 export type ServerMessage =
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; drops: DropState[] }
+  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
   | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean; skillId?: number; skillLevel?: number; segment?: number; targetCount?: number }
   | { type: 'dropPickedUp'; mapId: string; dropId: string; playerId: string; x: number; y: number }
+  /** Authoritative result of one reactor hit, broadcast to the whole map so
+   *  every observer plays the same one-shot animation and sees the same state. */
+  | { type: 'reactorState'; serverTick: number; mapId: string; reactorId: string; state: number; spent: boolean; hitDurationMs: number; respawnInMs?: number; playerId: string }
   | { type: 'pickupResult'; requestId: string; dropId: string; itemId: string; quantity: number; slot?: number }
   | { type: 'portalResult'; requestId: string; success: boolean; code: string; sourceMapId: string; targetMapId?: string }
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }

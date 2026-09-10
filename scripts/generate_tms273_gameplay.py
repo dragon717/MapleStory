@@ -231,11 +231,25 @@ def action_duration(frames):
 
 def load_string_records(wz_root, wanted):
     result = {}
-    for name in ("Mob", "Npc", "Consume", "Etc", "Ins", "Eqp"):
+    for name in ("Mob", "Consume", "Etc", "Ins", "Eqp"):
         path = wz_root / "String" / (name + ".json")
         if path.exists():
             result.update(find_records(read_json(path), wanted))
     return result
+
+
+def load_npc_string_records(wz_root, wanted):
+    """Load NPC display names from String/Npc.json only.
+
+    NPC ids (2000..29999, 100xxxx) collide with Eqp/Face/Skin ids from
+    String/Eqp.json (e.g. Face 22000 vs NPC 22000), so NPC names must never be
+    looked up from the cross-category merged ``string_records`` table: the Eqp
+    category would overwrite the correct NPC name with a face/equipment name.
+    """
+    path = wz_root / "String" / "Npc.json"
+    if path.exists():
+        return find_records(read_json(path), wanted)
+    return {}
 
 
 def build_source_index(base):
@@ -604,13 +618,14 @@ def convert(args):
     wanted_npcs = set(runtime_id(str(e["id"])) for _, e in active_npcs)
     wanted_npcs.update(runtime_id(str(e["id"])) for _, e in visible_npcs)
     string_records = load_string_records(wz_root, set(runtime_id(i) for i in raw_mob_ids) | wanted_npcs | item_ids)
+    npc_string_records = load_npc_string_records(wz_root, wanted_npcs)
     npc_templates = []
     npc_spawns = []
     shops = []
     shop_item_ids = set()
     shops_root = tms_root / "data" / "Shop"
     for runtime in sorted(set(runtime_id(str(e["id"])) for _, e in active_npcs), key=lambda value: (not value.isdigit(), int(value) if value.isdigit() else value)):
-        record = string_records.get(runtime, {})
+        record = npc_string_records.get(runtime, {})
         entity = entity_npcs.get(runtime, {}) if not args.metadata_only else {}
         name = record.get("name") if isinstance(record, dict) else None
         if not name:

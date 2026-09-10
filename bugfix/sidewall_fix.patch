@@ -1,0 +1,131 @@
+diff --git a/server/src/world.rs b/server/src/world.rs
+index ee3d558..5a9e3ca 100644
+--- a/server/src/world.rs
++++ b/server/src/world.rs
+@@ -194,6 +194,11 @@ const GRAVITY: f64 = 2_000.0;
+ const FALL_SPEED: f64 = 670.0;
+ const DOWNJUMP_RANGE: f64 = 600.0;
+ const DOWNJUMP_LAUNCH: f64 = 196.0;
++/// Height of the authored foot-point collision proxy used by `Foothold::blocks`
++/// and the sidewall tests.  The project has no full body AABB; this is the
++/// existing 50px figure the wall checks already assumed, now named once so the
++/// swept test and the point test cannot drift apart.
++const BODY_HEIGHT_PX: f64 = 50.0;
+ // Body-hit knockback from a monster's contact damage is a short hop, not a
+ // long ground slide: the body leaves the foothold with a small upward launch,
+ // arcs back a short horizontal distance and stands again on landing.  Both the
+@@ -313,6 +318,26 @@ impl Foothold {
+     fn blocks(&self, top: f64, bottom: f64) -> bool {
+         self.is_wall() && self.top() <= bottom && self.bottom() >= top
+     }
++
++    /// Wall test at the moment the body reaches the wall plane, for a step
++    /// that starts at `from_y`, ends at `to_y`, and crosses the plane at
++    /// fraction `t` of the step.
++    ///
++    /// The check must be made at the contact time, not at the tick boundary.
++    /// A body falling fast can drop past a wall's top inside one tick: at the
++    /// tick start it is above the wall, at the tick end it has already crossed
++    /// the plane, and a test at either endpoint alone tunnels straight through.
++    /// Conversely a rising body that clears the wall top *before* reaching the
++    /// plane must be allowed over it — testing the union of both endpoints
++    /// would wrongly block that legal jump, so the contact-time y is what
++    /// matters.
++    fn blocks_at_crossing(&self, from_y: f64, to_y: f64, t: f64) -> bool {
++        if !self.is_wall() {
++            return false;
++        }
++        let contact_y = from_y + (to_y - from_y) * t.clamp(0.0, 1.0);
++        self.blocks(contact_y - BODY_HEIGHT_PX, contact_y - 1.0)
++    }
+ }
+ 
+ fn endpoint(foothold: &Foothold, left: bool) -> (f64, f64) {
+@@ -733,7 +758,37 @@ impl Map {
+     /// jumps only need a physical barrier: the body intentionally crosses
+     /// the authored edge to recover past the fall boundary on the next sweep,
+     /// and the outer wall must not pin it at the take-off point.
++    /// Zero-length-step form of `chain_wall_on_sweep`, kept for the geometry
++    /// tests that assert the chain resolution directly.  Production movement
++    /// always goes through `chain_wall_on_sweep` so the overlap is evaluated at
++    /// the contact fraction rather than at a tick boundary.
++    #[cfg(test)]
+     fn chain_wall_for(&self, current_id: u64, left: bool, foot_y: f64) -> Option<f64> {
++        self.chain_wall_on_sweep(current_id, left, 0.0, 0.0, foot_y, foot_y)
++    }
++
++    /// `chain_wall_for` for a movement step from `(from_x, from_y)` to
++    /// `(to_x, to_y)`.  The vertical overlap is evaluated where the body
++    /// actually reaches each candidate wall plane, not at the tick boundary.
++    ///
++    /// A body falling fast can drop past a wall's top inside one tick: at the
++    /// tick start it is above the wall, at the tick end it has already crossed
++    /// the plane, and testing either endpoint alone tunnels through.  A rising
++    /// body that clears the top *before* the plane must still pass, so the
++    /// check is made at the contact fraction `t = (wall_x - from_x) / dx`.
++    ///
++    /// `chain_wall_for` is the degenerate zero-length step, so the grounded
++    /// walker and the airborne body share one code path and a wall cannot be
++    /// valid for one state and missing for the other.
++    fn chain_wall_on_sweep(
++        &self,
++        current_id: u64,
++        left: bool,
++        from_x: f64,
++        to_x: f64,
++        from_y: f64,
++        to_y: f64,
++    ) -> Option<f64> {
+         let current = self.get(current_id)?;
+         let mut id = if left { current.prev } else { current.next };
+         let mut edge = if left {
+@@ -741,9 +796,15 @@ impl Map {
+         } else {
+             current.right()
+         };
++        let dx = to_x - from_x;
+         for _ in 0..2 {
+             let Some(candidate) = self.get(id) else { break };
+-            if candidate.blocks(foot_y - 50.0, foot_y - 1.0) {
++            let t = if dx.abs() <= 0.001 {
++                0.0
++            } else {
++                ((edge - from_x) / dx).clamp(0.0, 1.0)
++            };
++            if candidate.blocks_at_crossing(from_y, to_y, t) {
+                 return Some(edge);
+             }
+             edge = if left {
+@@ -14066,8 +14127,21 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
+             player.state.y + projected_vy * (TICK_MS as f64 / 1000.0),
+         )
+         .is_some();
+-    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0)
+-        .then(|| map.chain_wall_for(chain_anchor, player.state.vx < 0.0, player.state.y));
++    // Test the wall where the body actually reaches the wall plane, not at the
++    // tick-start foot position: a fast fall can cross the plane after dropping
++    // past the wall top inside a single tick, which the point-only test
++    // tunnels straight through.
++    let swept_y = player.state.y + projected_vy * (TICK_MS as f64 / 1000.0);
++    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0).then(|| {
++        map.chain_wall_on_sweep(
++            chain_anchor,
++            player.state.vx < 0.0,
++            player.state.x,
++            intended_x,
++            player.state.y,
++            swept_y,
++        )
++    });
+     if let Some(Some(wall)) = chain_wall {
+         let crossed = if player.state.vx < 0.0 {
+             player.state.x >= wall && intended_x <= wall
+@@ -17517,6 +17591,8 @@ mod tests {
+     include!("hyper_acceptance.rs");
+     include!("water_acceptance.rs");
+     include!("chat_acceptance.rs");
++    include!("sidewall_acceptance.rs");
++    include!("realmaps.rs");
+ 
+     #[test]
+     fn quest_list_on_join_is_localized_to_player_language() {

@@ -40,6 +40,7 @@ fn water_is_finite_enterable_and_swimmable_without_foothold_edges() {
         ladders: Vec::new(),
         portals: Vec::new(),
         water: vec![water],
+        reactors: Vec::new(),
     };
     assert!(map.validate().is_ok());
     assert!(map.water_below(1, 250.0));
@@ -94,8 +95,38 @@ fn water_is_finite_enterable_and_swimmable_without_foothold_edges() {
     }
     assert_eq!(world.players["water"].state.y, 340.0);
 
+    // Jump while submerged is a swim stroke: the body rises and STAYS in the
+    // water. (It used to pop out with full land-jump speed and fall straight
+    // back in, so the player could never actually rise — the reported
+    // "can't jump in water" bug.)
+    let deep = world.players["water"].state.y;
     input(&mut world, 40, 1, 0, true);
-    assert!(!world.players["water"].swimming);
+    assert!(
+        world.players["water"].swimming,
+        "a submerged jump must keep swimming, not eject the body"
+    );
+    assert!(
+        world.players["water"].state.y < deep,
+        "a submerged jump must rise: {deep} -> {}",
+        world.players["water"].state.y
+    );
+    assert_eq!(world.players["water"].state.action, "jump");
+
+    // Rising all the way to the surface and jumping again leaves the water on
+    // the normal ballistic path, so the player can climb onto a bank.
+    for seq in 41..80 {
+        input(&mut world, seq, 0, -1, false);
+    }
+    assert!(
+        world.players["water"].state.y <= 224.0 + 6.0,
+        "holding up must reach the surface, got y={}",
+        world.players["water"].state.y
+    );
+    input(&mut world, 80, 1, 0, true);
+    assert!(
+        !world.players["water"].swimming,
+        "a jump at the surface must exit the water"
+    );
     assert!(world.players["water"].state.vy < 0.0);
     assert_eq!(world.players["water"].state.action, "jump");
 
@@ -113,10 +144,34 @@ fn water_is_finite_enterable_and_swimmable_without_foothold_edges() {
         player.last_foothold_id = 0;
         player.swimming = false;
     }
-    input(&mut world, 41, 0, 0, false);
-    input(&mut world, 42, 0, 0, false);
+    // (The remaining checks re-enter the pool from above, so restore the
+    // airborne-above-water setup they expect.)
+    {
+        let player = world.players.get_mut("water").unwrap();
+        // x=250 is inside the pool (xMin 0 .. xMax 300); the original case
+        // used x=300, the rectangle's own edge.
+        player.state.x = 250.0;
+        player.state.y = 201.0;
+        player.state.vx = 0.0;
+        player.state.vy = 200.0;
+        player.state.grounded = false;
+        player.state.action = "jump";
+        player.foothold_id = 0;
+        player.last_foothold_id = 0;
+        player.swimming = false;
+    }
+    for seq in 41..60 {
+        input(&mut world, seq, 0, 0, false);
+        if world.players["water"].swimming {
+            break;
+        }
+    }
     assert!(world.players["water"].swimming);
-    assert_eq!(world.players["water"].state.x, 300.0);
+    assert!(
+        world.players["water"].state.y >= 224.0,
+        "the body should be held at/below the surface, got y={}",
+        world.players["water"].state.y
+    );
 
     let shared_maps = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
     let catalog = MapCatalog::load(&shared_maps).expect("shared map catalog with water");
@@ -228,6 +283,7 @@ fn water_drops_float_to_surface_but_not_onto_land() {
         ladders: Vec::new(),
         portals: Vec::new(),
         water: vec![water],
+        reactors: Vec::new(),
     };
     assert!(map.validate().is_ok());
 
@@ -279,3 +335,108 @@ fn water_drops_float_to_surface_but_not_onto_land() {
     assert_eq!(split_road.water_float_y(585.0, 215.0), 215.0);
 }
 
+
+/// Acceptance: jump in water must lift the body while it stays swimming, and
+/// jumping at the surface must still leave the water. Both were broken: jump
+/// always cleared `swimming`, so the body popped out with full land-jump speed
+/// and fell straight back in — the player could never rise.
+#[test]
+fn water_jump_rises_while_submerged_and_exits_at_the_surface() {
+    let pool = |depth: f64| -> Map {
+        serde_json::from_value(serde_json::json!({
+            "id":"pool","bounds":{"xMin":0,"xMax":500,"yMin":-100,"yMax":700},
+            "spawn":{"x":250,"y":200},
+            "footholds":[{"id":1,"x1":0,"y1":200,"x2":500,"y2":200,"prev":0,"next":0}],
+            "ladders":[],
+            "water":[{"xMin":0,"xMax":500,"yMin":300,"yMax":(300.0+depth),"floor":[]}]
+        }))
+        .unwrap()
+    };
+
+    // Submerged: repeatedly jumping must raise the body, staying in water.
+    for (depth, start) in [(100.0, 350.0), (200.0, 450.0), (400.0, 550.0)] {
+        let mut world = World::new_with_gameplay(pool(depth), 600, Gameplay::default());
+        let mut rx = join_test_player(&mut world, "p");
+        while rx.try_recv().is_ok() {}
+        for _ in 0..40 {
+            world.step();
+            while rx.try_recv().is_ok() {}
+            if world.players["p"].state.grounded {
+                break;
+            }
+        }
+        {
+            let p = world.players.get_mut("p").unwrap();
+            p.state.y = start;
+            p.swimming = true;
+            p.state.grounded = false;
+            p.foothold_id = 0;
+            p.state.vy = 0.0;
+        }
+        let mut seq = 0u64;
+        let mut highest = start;
+        for i in 0..16 {
+            seq += 1;
+            world.command(Command::Input {
+                id: "p".into(),
+                connection: "p-connection".into(),
+                message: ClientMessage::Input {
+                    seq,
+                    direction: 0,
+                    vertical: 0,
+                    jump: i % 4 == 0,
+                },
+            });
+            world.step();
+            while rx.try_recv().is_ok() {}
+            highest = highest.min(world.players["p"].state.y);
+        }
+        let p = &world.players["p"];
+        assert!(
+            p.swimming,
+            "depth {depth}: a submerged jump must keep the body swimming"
+        );
+        assert!(
+            highest < start - 20.0,
+            "depth {depth}: submerged jumps must raise the body, {start} -> {highest}"
+        );
+    }
+
+    // At the surface: jump must exit the water on the ballistic path.
+    let mut world = World::new_with_gameplay(pool(100.0), 600, Gameplay::default());
+    let mut rx = join_test_player(&mut world, "p");
+    while rx.try_recv().is_ok() {}
+    for _ in 0..40 {
+        world.step();
+        while rx.try_recv().is_ok() {}
+        if world.players["p"].state.grounded {
+            break;
+        }
+    }
+    {
+        let p = world.players.get_mut("p").unwrap();
+        p.state.y = 302.0;
+        p.swimming = true;
+        p.state.grounded = false;
+        p.foothold_id = 0;
+        p.state.vy = 0.0;
+    }
+    world.command(Command::Input {
+        id: "p".into(),
+        connection: "p-connection".into(),
+        message: ClientMessage::Input {
+            seq: 1,
+            direction: 1,
+            vertical: 0,
+            jump: true,
+        },
+    });
+    world.step();
+    while rx.try_recv().is_ok() {}
+    let p = &world.players["p"];
+    assert!(
+        !p.swimming,
+        "a jump at the surface must leave the water so the player can climb out"
+    );
+    assert!(p.state.vy < 0.0, "surface exit must launch upward");
+}

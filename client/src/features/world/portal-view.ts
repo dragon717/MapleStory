@@ -50,14 +50,19 @@ export class PortalView {
   }
   private makeImage(scene: Phaser.Scene, frame: AssetFrame, x: number, y: number) {
     return scene.add.image(x, y, frame.url)
-      .setOrigin(frame.origin?.x ?? 0, frame.origin?.y ?? frame.height / frame.height)
+      .setOrigin(...this.normalizedOrigin(frame))
       .setDepth(this.depth);
   }
   private applyFrame(frame: AssetFrame, x: number, y: number) {
     this.sprite.setTexture(frame.url, undefined as unknown as string);
-    const ox = (frame.origin?.x ?? 0) / frame.width;
-    const oy = (frame.origin?.y ?? frame.height) / frame.height;
-    this.sprite.setOrigin(ox, oy).setPosition(x, y);
+    this.sprite.setOrigin(...this.normalizedOrigin(frame)).setPosition(x, y);
+  }
+  // `AssetFrame.origin` is in source pixels, while Phaser's `setOrigin` is
+  // normalised to 0..1.  Converting here keeps the very first frame anchored
+  // exactly like every animated frame, so the beam sits on the portal
+  // coordinate instead of ~134 px above it.
+  private normalizedOrigin(frame: AssetFrame): [number, number] {
+    return [(frame.origin?.x ?? 0) / (frame.width || 1), (frame.origin?.y ?? frame.height) / (frame.height || 1)];
   }
   destroy() {
     this.timer?.remove();

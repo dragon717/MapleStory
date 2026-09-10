@@ -154,6 +154,7 @@ export class SkillView {
 
   update(player?: PlayerState) {
     if (this.destroyed) return;
+    const jobChanged = this.hasPlayerSnapshot && this.player?.job !== player?.job;
     const changed = !this.hasPlayerSnapshot
       || !sameSkills(this.player?.skills, player?.skills)
       || !sameSkills(this.player?.skillPoints, player?.skillPoints)
@@ -166,6 +167,9 @@ export class SkillView {
     this.player = player;
     if (!player || player.hp <= 0) this.releaseChannel();
     this.hasPlayerSnapshot = true;
+    // A job change (Hans advancing the character) makes the old book invalid;
+    // drop it so `render()` lands on the new job's page instead of 初心者.
+    if (jobChanged) this.selectedBookId = undefined;
     if (changed) this.renderPreservingViewport();
   }
 
@@ -891,6 +895,9 @@ export class SkillView {
     return Object.entries({ '0': { name: '初心者', tabIndex: 0 }, ...this.manifest.skillBooks,
       ...(warrior ? { '100': { name: '战士', tabIndex: 1 } } : {}) })
       .filter(([id]) => !warrior || id !== '200')
+      // A 初心者 has not taken the magician job yet; the 法师 pages must stay
+      // out of the window until Hans actually advances the character.
+      .filter(([id]) => id !== '200' || MAGE_JOB_WHITELIST.has(this.player?.job ?? -1))
       .filter(([id]) => id !== '220' || ICE_LIGHTNING_JOB_WHITELIST.has(this.player?.job ?? -1))
       .filter(([id]) => id !== '222' || this.player?.job === 222)
       .filter(([id]) => id !== '221' || [221, 222].includes(this.player?.job ?? -1))

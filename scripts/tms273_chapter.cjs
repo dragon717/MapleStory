@@ -76,10 +76,18 @@ function applyChapter(gameplay, items, manifest, chapter, questText, npcNames) {
     if (!gameplay.npcSpawns.some(n => n.id === spawn.id)) gameplay.npcSpawns.push(spawn);
   }
   // P: enter_20000 / pier script bodies are absent. Preserve source portals and expose their local route.
-  for (const [mapId, portalName, targetMapId] of [['002000000','east00','002000100'], ['002000100','west00','002000000']]) {
+  // T: `Map/Map/Graph.json` gives the authored landing for each scripted ferry —
+  // 002000000/portal/2 → 2000100 and 002000100/portal/1 → 2000000 — and both
+  // land on the *paired* gate (portalNum 1 = 碼頭 `west00`, 楓之港 `in00`),
+  // not on the destination map's default spawn.  Landing on `sp` dropped the
+  // player 95 px above the pier floor.
+  for (const [mapId, portalName, targetMapId, targetPortalName] of [
+    ['002000000', 'east00', '002000100', 'west00'],
+    ['002000100', 'west00', '002000000', 'in00'],
+  ]) {
     const portal = manifest.mapCatalog.maps.find(m => m.id === mapId)?.portals.find(p => p.name === portalName);
     assert(portal, `Missing source portal ${mapId}/${portalName}`);
-    portal.targetMapId = targetMapId; portal.targetPortalName = 'sp';
+    portal.targetMapId = targetMapId; portal.targetPortalName = targetPortalName;
   }
   gameplay.compatibility.openingChapter = {
     ruleVersion: 'tms273-opening-p1',
@@ -153,10 +161,19 @@ function applyContinuation(gameplay, items, manifest, source, questText) {
     }));
   }
   const maps = manifest.mapCatalog.maps;
+  // Landing on the paired exit gate rather than the destination's default
+  // `sp`: a WZ `sp` marks the authored spawn, which sits 26..129 px above the
+  // walkable floor in these maps and dropped the player into mid-air.
+  // `000030001/out00` is a source dangling reference: its authored `tn` is
+  // `in01`, but 嫩寶花園 only has `in00`/`out00`, so the server fell back to the
+  // spawn and dropped the player 63 px above the floor.  `Map/Map/Graph.json`
+  // routes this edge to 嫩寶花園 without a named landing; `in00` is that map's
+  // only authored entrance.
   for (const [mapId, name, targetMapId, targetPortalName] of [
-    ['101000000', 'jobin00', '101000003', 'sp'],
-    ['100000000', 'Achter00', '100000201', 'sp'],
+    ['101000000', 'jobin00', '101000003', 'jobout00'],
+    ['100000000', 'Achter00', '100000201', 'out02'],
     ['100000201', 'out02', '100000000', 'Achter00'],
+    ['000030001', 'out00', '000030000', 'in00'],
   ]) {
     const portal = maps.find(m => m.id === mapId)?.portals.find(p => p.name === name);
     assert(portal, `Missing source scripted portal ${mapId}/${name}`);

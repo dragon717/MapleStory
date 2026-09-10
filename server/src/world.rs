@@ -32,6 +32,17 @@ const CHAT_TOKEN_BURST: u32 = 5;
 const CHAT_TOKEN_REFILL_PER_SEC: u32 = 1;
 /// Per-session chat request-id idempotency window (bounded; §9.1 ephemeral).
 const CHAT_RECENT_WINDOW: usize = 64;
+
+/// Continuous-away policy: how long the authoritative character is kept with
+/// its normal world rules before it drops to basic residency, and the hard
+/// bound after which the normal exit path is requested.  Both are counted
+/// from a single away start, not from each other.  The 600 s value is the
+/// requested product behaviour; 3600 s is a first-version test bound and is
+/// meant to be tuned.  Policy is snapshotted into each away window so a live
+/// config change cannot silently shorten an in-flight grace period.
+const AWAY_FULL_RETENTION: Duration = Duration::from_secs(600);
+const AWAY_MAX_TOTAL: Duration = Duration::from_secs(3600);
+
 const MAGE_ADVANCE_MAP_ID: &str = "001020000";
 const BOSS_PRACTICE_FALLBACK_MAP_ID: &str = "102020500";
 const MAGE_ADVANCE_NPC_ID: &str = "001020000-life-1";
@@ -147,6 +158,17 @@ const ICE_TELEPORT_FIELD_DEFAULT_SUB_TIME_MS: u64 = 1_200;
 // 10000 ms; keep that cycle as the default so a dead mob always returns.
 const DEFAULT_MONSTER_RESPAWN_MS: u64 = 10_000;
 
+/// How long a reactor's one-shot hit animation owns the sprite.  The source
+/// `hit` frames carry their own per-frame delays and the client plays them
+/// once; the server only needs a lock long enough that a fast second request
+/// cannot skip the art or double-advance the state.
+const REACTOR_HIT_LOCK_MS: u64 = 600;
+/// Tolerance behind the character when deciding whether a swing reached a
+/// reactor without an authored interaction box.  The player's foot point sits
+/// inside its own hitbox, so a prop overlapping the body must still be
+/// reachable rather than requiring the character to step past it.
+const REACTOR_REACH_BACK_PX: f64 = 12.0;
+
 /// Respawn deadline for one source spawn, measured in world ticks.
 ///
 /// TMS273 Map life keeps no map-wide respawn interval: normal spawns carry
@@ -194,6 +216,11 @@ const GRAVITY: f64 = 2_000.0;
 const FALL_SPEED: f64 = 670.0;
 const DOWNJUMP_RANGE: f64 = 600.0;
 const DOWNJUMP_LAUNCH: f64 = 196.0;
+/// Height of the authored foot-point collision proxy used by `Foothold::blocks`
+/// and the sidewall tests.  The project has no full body AABB; this is the
+/// existing 50px figure the wall checks already assumed, now named once so the
+/// swept test and the point test cannot drift apart.
+const BODY_HEIGHT_PX: f64 = 50.0;
 // Body-hit knockback from a monster's contact damage is a short hop, not a
 // long ground slide: the body leaves the foothold with a small upward launch,
 // arcs back a short horizontal distance and stands again on landing.  Both the
@@ -313,6 +340,25 @@ impl Foothold {
     fn blocks(&self, top: f64, bottom: f64) -> bool {
         self.is_wall() && self.top() <= bottom && self.bottom() >= top
     }
+
+    /// Wall test at the moment the body reaches the wall plane, for a step
+    /// that starts at `from_y`, ends at `to_y`, and crosses the plane at
+    /// fraction `t` of the step.
+    ///
+    /// The check must be made at the contact time, not at a tick boundary.
+    /// A body falling fast can drop past a wall's top inside one tick: at the
+    /// tick start it is above the wall, at the tick end it has already crossed
+    /// the plane, and a test at either endpoint alone tunnels straight
+    /// through.  Conversely a rising body that clears the wall top *before*
+    /// reaching the plane must be allowed over it — testing the union of both
+    /// endpoints would wrongly block that legal jump.
+    fn blocks_at_crossing(&self, from_y: f64, to_y: f64, t: f64) -> bool {
+        if !self.is_wall() {
+            return false;
+        }
+        let contact_y = from_y + (to_y - from_y) * t.clamp(0.0, 1.0);
+        self.blocks(contact_y - BODY_HEIGHT_PX, contact_y - 1.0)
+    }
 }
 
 fn endpoint(foothold: &Foothold, left: bool) -> (f64, f64) {
@@ -391,6 +437,82 @@ impl Ladder {
     }
 }
 
+/// One authored reactor placement (Map.wz `reactor` subtree).
+///
+/// A reactor is the original interactive map prop — a flower shaken for an
+/// item, a herb patch, a quest container.  Unlike a background layer it owns
+/// authoritative state: every accepted hit advances it one state, and the last
+/// state is the empty "used up" form until the authored `reactorTime` expires.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReactorPlacement {
+    pub id: String,
+    pub template_id: String,
+    /// Authored world anchor, in the same foot coordinates as footholds.
+    pub x: f64,
+    pub y: f64,
+    #[serde(default)]
+    pub flip: bool,
+    /// Source seconds until the prop returns after being used up.  `0` means
+    /// it never comes back.
+    #[serde(default)]
+    pub reactor_time: u32,
+    /// Number of authored states.  The last one is the empty form, so a
+    /// reactor is interactable while `state + 1 < state_count`.
+    pub state_count: u32,
+    /// 0 = hit by a normal attack, 9 = clicked / bumped into via an authored
+    /// area.  Carried from the source `event/0/type` so the server and client
+    /// agree on how the prop is meant to be used instead of guessing.
+    #[serde(default)]
+    pub hit_type: u32,
+    /// Character-local interaction box authored by the source `event/0/lt|rb`.
+    /// Mirrored for right-facing like the player attack hitbox.
+    #[serde(default)]
+    pub hitbox_lt: Option<Point>,
+    #[serde(default)]
+    pub hitbox_rb: Option<Point>,
+}
+
+impl ReactorPlacement {
+    /// Source event type 9: the prop is used by clicking it or standing in the
+    /// authored `lt`/`rb` area rather than by swinging a weapon at it.
+    const TYPE_AREA: u32 = 9;
+
+    /// The last authored state is the empty "used up" form.
+    fn interactable_at(&self, state: u32) -> bool {
+        self.state_count > 0 && state + 1 < self.state_count
+    }
+
+    /// True when the source expects the player to walk into / click the prop.
+    fn area_triggered(&self) -> bool {
+        self.hit_type == Self::TYPE_AREA
+    }
+
+    /// Authored interaction box in world coordinates, or `None` when the
+    /// source declares none (those reactors fall back to the attack reach).
+    fn hit_bounds(&self) -> Option<(f64, f64, f64, f64)> {
+        let (lt, rb) = (self.hitbox_lt.as_ref()?, self.hitbox_rb.as_ref()?);
+        let (x_min, x_max) = (lt.x.min(rb.x), lt.x.max(rb.x));
+        let (y_min, y_max) = (lt.y.min(rb.y), lt.y.max(rb.y));
+        Some((self.x + x_min, self.x + x_max, self.y + y_min, self.y + y_max))
+    }
+}
+
+/// Live reactor state for one placement.  Session-scoped on purpose: a
+/// half-used flower is a moment-to-moment world fact, and losing it on a
+/// restart is far better than persisting a state the source would have reset.
+#[derive(Clone)]
+struct ReactorInstance {
+    map_id: String,
+    placement: ReactorPlacement,
+    state: u32,
+    /// Tick until which the one-shot hit animation owns the sprite; the client
+    /// plays `hitFrames` once and then returns to the new state's idle frames.
+    hit_until: u64,
+    /// Tick at which a used-up reactor returns to state 0.
+    respawn_at: Option<u64>,
+}
+
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WaterRect {
@@ -458,6 +580,10 @@ pub struct Map {
     /// null field, so normalize both null and an absent field to an empty list.
     #[serde(default, deserialize_with = "deserialize_water_zones")]
     pub water: Vec<WaterRect>,
+    /// Authored interactive props (source Map.wz `reactor` subtree).  Absent
+    /// on maps that place none, which is the majority.
+    #[serde(default)]
+    pub reactors: Vec<ReactorPlacement>,
 }
 
 impl Map {
@@ -502,8 +628,16 @@ impl Map {
                         .as_deref()
                         .is_some_and(str::is_empty)
             })
+            || map.reactors.iter().any(|reactor| {
+                reactor.id.is_empty()
+                    || reactor.template_id.is_empty()
+                    || ![reactor.x, reactor.y].iter().all(|value| value.is_finite())
+                    || reactor.state_count == 0
+                    || !(b.x_min..=b.x_max).contains(&reactor.x)
+                    || !(b.y_min..=b.y_max).contains(&reactor.y)
+            })
         {
-            return Err("invalid map bounds/spawn/footholds/ladders/portals".into());
+            return Err("invalid map bounds/spawn/footholds/ladders/portals/reactors".into());
         }
         Ok(())
     }
@@ -733,7 +867,33 @@ impl Map {
     /// jumps only need a physical barrier: the body intentionally crosses
     /// the authored edge to recover past the fall boundary on the next sweep,
     /// and the outer wall must not pin it at the take-off point.
+    /// Zero-length-step form of `chain_wall_on_sweep`, kept for the geometry
+    /// tests that assert the chain resolution directly.  Production movement
+    /// always goes through `chain_wall_on_sweep` so the overlap is evaluated at
+    /// the contact fraction rather than at a tick boundary.
+    #[cfg(test)]
     fn chain_wall_for(&self, current_id: u64, left: bool, foot_y: f64) -> Option<f64> {
+        self.chain_wall_on_sweep(current_id, left, 0.0, 0.0, foot_y, foot_y)
+    }
+
+    /// `chain_wall_for` for a movement step from `(from_x, from_y)` to
+    /// `(to_x, to_y)`.  The vertical overlap is evaluated where the body
+    /// actually reaches each candidate wall plane, not at the tick boundary.
+    ///
+    /// A body falling fast can drop past a wall's top inside one tick: at the
+    /// tick start it is above the wall, at the tick end it has already crossed
+    /// the plane, and testing either endpoint alone tunnels through.  A rising
+    /// body that clears the top *before* the plane must still pass, so the
+    /// check is made at the contact fraction `t = (wall_x - from_x) / dx`.
+    fn chain_wall_on_sweep(
+        &self,
+        current_id: u64,
+        left: bool,
+        from_x: f64,
+        to_x: f64,
+        from_y: f64,
+        to_y: f64,
+    ) -> Option<f64> {
         let current = self.get(current_id)?;
         let mut id = if left { current.prev } else { current.next };
         let mut edge = if left {
@@ -741,9 +901,15 @@ impl Map {
         } else {
             current.right()
         };
+        let dx = to_x - from_x;
         for _ in 0..2 {
             let Some(candidate) = self.get(id) else { break };
-            if candidate.blocks(foot_y - 50.0, foot_y - 1.0) {
+            let t = if dx.abs() <= 0.001 {
+                0.0
+            } else {
+                ((edge - from_x) / dx).clamp(0.0, 1.0)
+            };
+            if candidate.blocks_at_crossing(from_y, to_y, t) {
                 return Some(edge);
             }
             edge = if left {
@@ -1970,10 +2136,111 @@ pub enum Command {
         connection: String,
         message: ClientMessage,
     },
+    /// The transport went away or went silent.  The authoritative character is
+    /// **detached, not deleted**: it keeps its world entity, map, social
+    /// identity and an away window so a later connection can take it over.
+    /// Only `Exit` (explicit logout / ban / residency expiry) removes a
+    /// character from the world.
+    Detach {
+        id: String,
+        connection: String,
+        reason: AwayReason,
+    },
+    /// Explicit, permanent departure: player logout, ban, or the normal exit
+    /// path after a residency window expires.
+    Exit {
+        id: String,
+        connection: Option<String>,
+    },
     Leave {
         id: String,
         connection: String,
     },
+}
+
+/// Why a character entered an away window.  Stored as a fact next to the
+/// window start so the same continuous absence is never restarted by a
+/// re-hide, a reconnect, or a transport Pong.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AwayReason {
+    /// The client reported `document.hidden`.
+    Hidden,
+    /// The client reported an explicit away/stay-away intent.
+    Manual,
+    /// Transport was alive but the application stopped making progress.
+    ApplicationStalled,
+    /// The socket closed, timed out, or failed to write.
+    TransportLost,
+}
+
+/// Derived stage of one continuous away window.  Never stored as a mutable
+/// field that can drift out of sync; it is computed from elapsed time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AwayPhase {
+    /// Within `full_retention`: the character keeps normal world rules.
+    Grace,
+    /// Past `full_retention`: basic residency, still visible to others.
+    Idle,
+    /// Past `max_total`: the normal exit path must run.
+    ExitDue,
+}
+
+/// The single fact describing one continuous absence.  Elapsed time is derived
+/// from `started` at every decision point, so a stage can never be stale.
+#[derive(Debug, Clone)]
+struct AwayWindow {
+    id: u64,
+    started: Instant,
+    started_unix_ms: i64,
+    full_retention: Duration,
+    max_total: Duration,
+    reason: AwayReason,
+    /// Last stage already broadcast, used only for notification de-duplication.
+    /// It never replaces re-deriving the stage from the current time.
+    announced: AwayPhase,
+}
+
+impl AwayWindow {
+    fn new(id: u64, reason: AwayReason) -> Self {
+        Self {
+            id,
+            started: Instant::now(),
+            started_unix_ms: unix_now_ms(),
+            full_retention: AWAY_FULL_RETENTION,
+            max_total: AWAY_MAX_TOTAL,
+            reason,
+            announced: AwayPhase::Grace,
+        }
+    }
+    fn phase(&self, now: Instant) -> AwayPhase {
+        let elapsed = now.saturating_duration_since(self.started);
+        if elapsed >= self.max_total {
+            AwayPhase::ExitDue
+        } else if elapsed >= self.full_retention {
+            AwayPhase::Idle
+        } else {
+            AwayPhase::Grace
+        }
+    }
+    fn elapsed(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.started)
+    }
+    fn remaining_until_exit_ms(&self, now: Instant) -> i64 {
+        self.max_total
+            .saturating_sub(self.elapsed(now))
+            .as_millis()
+            .min(i64::MAX as u128) as i64
+    }
+}
+
+/// Wall-clock milliseconds for display and logs only.  Away decisions are made
+/// from `Instant`, never from this value, so a client cannot manipulate the
+/// grace window by forging times or by moving the system clock.
+fn unix_now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[derive(Clone)]
@@ -1988,6 +2255,18 @@ struct Player {
     death_id: String,
     connection: String,
     output: mpsc::Sender<String>,
+    /// The authoritative character survives its transport.  `None` means the
+    /// character is resident without a controlling socket; world rules
+    /// (gravity, damage, buffs, death) keep applying to it.
+    away: Option<AwayWindow>,
+    /// Set when the controlling socket is gone.  The stale `output` channel is
+    /// left in place but is never written to again, so a closed receiver can
+    /// no longer be mistaken for "broadcast failed, delete the character".
+    detached: bool,
+    /// Incremented on every successful takeover.  Commands and late close
+    /// events carry the connection string they were issued for, so a stale
+    /// socket can never move or delete a newer controller's character.
+    away_sequence: u64,
     direction: i8,
     vertical: i8,
     jump: bool,
@@ -2277,6 +2556,10 @@ pub struct World {
     /// The instance map is runtime-only; profile persistence canonicalizes it
     /// back to the authored source map.
     boss_practices: BTreeMap<String, boss::BossPractice>,
+    /// Live reactor state, keyed by the authored placement id.  Session-scoped
+    /// world fact: a used-up prop returns on the source timer, and a restart
+    /// legitimately resets it.
+    reactors: BTreeMap<String, ReactorInstance>,
     /// Bounded request idempotency for BossPractice lifecycle commands.  The
     /// encounter id is part of the key's semantic value so a stale Leave or
     /// Retry cannot mutate a newer private instance.
@@ -2292,6 +2575,9 @@ pub struct World {
     /// npcs consistently with quest text without shipping a client table.
     npc_names_zh: BTreeMap<String, String>,
     tick: u64,
+    /// Monotonic id source for away windows, so each continuous absence has a
+    /// stable identity for prompt de-duplication and logging.
+    next_away: u64,
     combat: Combat,
     store: Option<Store>,
     mage_skills: MageSkills,
@@ -2352,6 +2638,7 @@ impl World {
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
+            reactors: BTreeMap::new(),
             boss_practices: BTreeMap::new(),
             boss_requests: BTreeMap::new(),
             boss_request_sequence: 0,
@@ -2359,6 +2646,7 @@ impl World {
             quest_text: crate::quest_text::QuestTextCorpus::default(),
             npc_names_zh: BTreeMap::new(),
             tick: 0,
+            next_away: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
             store,
             mage_skills: MageSkills::default(),
@@ -2367,6 +2655,7 @@ impl World {
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
+
                 let drop_id = drop.id.clone();
                 let owner_id = drop.owner_id.clone();
                 // P: user-authorized drop floating — re-pin any stored drop
@@ -2391,6 +2680,10 @@ impl World {
                 world.drop_maps.insert(drop_id, world.map.id.clone());
             }
         }
+        // Reactors are authored per map, so build them once the map set is
+        // known.  `attach_catalog` calls this again for the full catalog; it is
+        // idempotent and never rolls back state a player already advanced.
+        world.rebuild_reactors();
         Ok(world)
     }
 
@@ -2473,7 +2766,49 @@ impl World {
         self.gameplay
             .validate_spawns_against_maps(&self.maps, &self.map.id)?;
         self.gameplay.validate_quest_maps(&self.maps)?;
+        self.rebuild_reactors();
         self.spawn_configured_monsters()
+    }
+
+    /// (Re)build live reactor state from every known map's placements.
+    ///
+    /// Called once the map set is final: at `build` for the single-map worlds
+    /// and again from `attach_catalog` once the full catalog is known.  It is
+    /// idempotent — a placement already carrying live state keeps it, so
+    /// attaching a catalog never resets a prop a player already used.
+    fn rebuild_reactors(&mut self) {
+        let placements = self
+            .maps
+            .values()
+            .flat_map(|map| {
+                map.reactors
+                    .iter()
+                    .map(|placement| (map.id.clone(), placement.clone()))
+            })
+            .collect::<Vec<_>>();
+        for (map_id, placement) in placements {
+            let id = placement.id.clone();
+            let entry = self
+                .reactors
+                .entry(id)
+                .or_insert_with(|| ReactorInstance {
+                    map_id: map_id.clone(),
+                    placement: placement.clone(),
+                    state: 0,
+                    hit_until: 0,
+                    respawn_at: None,
+                });
+            // Keep the authored geometry current if the map data was reloaded,
+            // but never roll back state a player already advanced.
+            entry.map_id = map_id;
+            entry.placement = placement;
+        }
+        let known: BTreeSet<String> = self
+            .maps
+            .values()
+            .flat_map(|map| map.reactors.iter().map(|placement| placement.id.clone()))
+            .collect();
+        self.reactors.retain(|id, _| known.contains(id));
     }
 
     fn map_for(&self, map_id: &str) -> &Map {
@@ -2769,17 +3104,48 @@ impl World {
                 }));
             }
         }
+        // Away state is attached per observer row so every client that can see
+        // the character also sees the marker.  It never removes the character
+        // from anyone's view and never changes its physics or damage rules.
+        let now = Instant::now();
+        let mut player_rows = Vec::new();
+        for player in self.players.values().filter(|p| p.map_id == map_id) {
+            let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
+            if let Some(away) = player.away.as_ref() {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert(
+                        "away".to_owned(),
+                        serde_json::json!({
+                            "residency": away.phase(now) != AwayPhase::Grace,
+                            "remainingMs": away.remaining_until_exit_ms(now),
+                        }),
+                    );
+                }
+            }
+            player_rows.push(row);
+        }
         let mut snapshot = serde_json::json!({
             "type":"snapshot",
             "serverTick":self.tick,
             "tickMs":TICK_MS,
             "mapId":map_id,
             "selfId":id,
-            "players":self.players.values().filter(|p| p.map_id == map_id).map(|p| &p.state).collect::<Vec<_>>(),
+            "players":player_rows,
             "monsters":self.monsters.values().filter(|m| m.map_id == map_id).map(|m| &m.state).collect::<Vec<_>>(),
             "npcs":npcs,
             "questInteractions":quest_interactions,
             "summons": summons,
+            "reactors":self.reactors.values().filter(|reactor| reactor.map_id == map_id).map(|reactor| serde_json::json!({
+                "id": reactor.placement.id,
+                "templateId": reactor.placement.template_id,
+                "x": reactor.placement.x,
+                "y": reactor.placement.y,
+                "flip": reactor.placement.flip,
+                "state": reactor.state,
+                "spent": !reactor.placement.interactable_at(reactor.state),
+                "hitting": reactor.hit_until > self.tick,
+                "respawnInMs": reactor.respawn_at.map(|tick| (tick.saturating_sub(self.tick)).saturating_mul(TICK_MS)),
+            })).collect::<Vec<_>>(),
             "drops":self.drops.iter().filter(|(drop_id, _)| self.drop_maps.get(*drop_id).is_some_and(|drop_map| drop_map == map_id)).map(|(_, drop)| drop).collect::<Vec<_>>()
         });
         if let Some((source_map_id, boss_practice)) = self.boss_snapshot_fields(id, map_id) {
@@ -2789,11 +3155,79 @@ impl World {
         snapshot.to_string()
     }
 
+    fn next_away_id(&mut self) -> u64 {
+        self.next_away = self.next_away.wrapping_add(1);
+        self.next_away
+    }
+
+    /// Advance every away window to the stage implied by the current server
+    /// time and run the side effects exactly once per transition.  Called at
+    /// the top of each tick and again on any control boundary, so a command
+    /// never trusts a cached stage that time has already moved past.
+    fn advance_away_windows(&mut self) {
+        let now = Instant::now();
+        let mut entering_residency: Vec<String> = Vec::new();
+        let mut must_exit: Vec<String> = Vec::new();
+        for (id, player) in self.players.iter_mut() {
+            let Some(away) = player.away.as_mut() else {
+                continue;
+            };
+            let phase = away.phase(now);
+            if phase == away.announced {
+                continue;
+            }
+            // A single check may have skipped stages; jump straight to the
+            // current one and never replay the intermediate transitions.
+            away.announced = phase;
+            match phase {
+                AwayPhase::Grace => {}
+                AwayPhase::Idle => entering_residency.push(id.clone()),
+                AwayPhase::ExitDue => must_exit.push(id.clone()),
+            }
+        }
+        for id in entering_residency {
+            // The character stays in the world and stays visible; only the
+            // away marker changes, which the next snapshot carries to
+            // everyone who can see it.
+            if let Some(player) = self.players.get_mut(&id) {
+                player.direction = 0;
+                player.vertical = 0;
+                player.jump = false;
+            }
+        }
+        for id in must_exit {
+            self.disconnect_boss_player(&id);
+            self.players.remove(&id);
+            self.end_conversation(&id);
+            self.pending_attacks
+                .retain(|_, attack| attack.player_id != id);
+            self.inventory_requests
+                .retain(|(player_id, _), _| player_id != &id);
+            self.skill_requests
+                .retain(|(player_id, _), _| player_id != &id);
+            self.hyper_reset_quotes
+                .retain(|(player_id, _), _| player_id != &id);
+            self.ability_requests
+                .retain(|(player_id, _), _| player_id != &id);
+        }
+    }
+
+    /// True when the character is a resident without a controlling socket, or
+    /// is controlling but has an away window past the grace threshold.
+    fn away_visible_phase(&self, id: &str) -> Option<AwayPhase> {
+        let player = self.players.get(id)?;
+        let away = player.away.as_ref()?;
+        Some(away.phase(Instant::now()))
+    }
+
     fn broadcast_to_map(&mut self, map_id: &str, message: &str) {
+        // A resident character with no controlling socket is skipped entirely:
+        // it stays in the world and stays visible to others, it simply has
+        // nobody to push this particular message to.
         let failed: Vec<String> = self
             .players
             .iter()
-            .filter(|(_, player)| player.map_id == map_id)
+            .filter(|(_, player)| player.map_id == map_id && !player.detached)
             .filter_map(
                 |(id, player)| match player.output.try_send(message.to_owned()) {
                     Err(TrySendError::Closed(_)) => Some(id.clone()),
@@ -2810,6 +3244,143 @@ impl World {
         }
     }
 
+    /// Return used-up reactors to state 0 when their authored timer expires.
+    ///
+    /// `reactorTime` is source seconds.  `0` means the prop never comes back,
+    /// which is the correct behaviour for the one-shot quest containers.
+    fn step_reactors(&mut self) {
+        for reactor in self.reactors.values_mut() {
+            if reactor.respawn_at.is_some_and(|tick| tick <= self.tick) {
+                reactor.state = 0;
+                reactor.respawn_at = None;
+                reactor.hit_until = 0;
+            }
+        }
+    }
+
+    /// Authoritative reactor hit: advance one state, or reject the attempt.
+    ///
+    /// The client only sends "I hit this reactor".  Everything that matters is
+    /// decided here — range from the authoritative player position, whether
+    /// this prop is still interactable, and which state comes next.  A forged
+    /// request for a reactor on another map, or a second request while the
+    /// first is still animating, resolves to a rejection instead of a state
+    /// change.
+    fn handle_reactor_hit(&mut self, id: String, request_id: String, reactor_id: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let map_id = player.map_id.clone();
+        let (x, y, facing) = (player.state.x, player.state.y, player.state.facing);
+        let dead = player.state.action == "dead" || player.state.hp <= 0;
+        let busy = player.channel_until > self.tick || player.state.climbing;
+        let output = player.output.clone();
+
+        let reject_with = |code: &'static str, output: &mpsc::Sender<String>| {
+            let _ = output.try_send(reject(code, "Reactor hit rejected", Some(&request_id)));
+        };
+        if dead || busy {
+            reject_with("invalid_state", &output);
+            return;
+        }
+
+        let Some(reactor) = self.reactors.get(&reactor_id) else {
+            reject_with("reactor_unknown", &output);
+            return;
+        };
+        // A reactor belongs to one map.  A request naming one on another map
+        // is either stale (the player walked through a portal) or forged.
+        if reactor.map_id != map_id {
+            reject_with("reactor_unknown", &output);
+            return;
+        }
+        let placement = reactor.placement.clone();
+        let state = reactor.state;
+        let hit_until = reactor.hit_until;
+        if !placement.interactable_at(state) {
+            // Already used up: returning this instead of silently ignoring
+            // lets the client stop prompting for a spent prop.
+            reject_with("reactor_spent", &output);
+            return;
+        }
+        if hit_until > self.tick {
+            // One hit animation per state.  Accepting another now would skip
+            // the art and let a fast client double-advance the state.
+            reject_with("reactor_busy", &output);
+            return;
+        }
+        if !self.reactor_in_reach(&placement, x, y, facing) {
+            reject_with("reactor_out_of_range", &output);
+            return;
+        }
+
+        let next_state = state + 1;
+        let hit_ms = REACTOR_HIT_LOCK_MS;
+        let hit_ticks = hit_ms.div_ceil(TICK_MS).max(1);
+        let spent = !placement.interactable_at(next_state);
+        let respawn_at = if spent && placement.reactor_time > 0 {
+            Some(
+                self.tick
+                    + u64::from(placement.reactor_time)
+                        .saturating_mul(1_000)
+                        .div_ceil(TICK_MS)
+                        .max(1),
+            )
+        } else {
+            None
+        };
+        let Some(reactor) = self.reactors.get_mut(&reactor_id) else {
+            return;
+        };
+        reactor.state = next_state;
+        reactor.hit_until = self.tick + hit_ticks;
+        reactor.respawn_at = respawn_at;
+
+        // Broadcast the authoritative result: every observer on the map plays
+        // the same one-shot animation and sees the same new state, so two
+        // clients cannot disagree about whether the flower is still there.
+        let event = serde_json::json!({
+            "type": "reactorState",
+            "serverTick": self.tick,
+            "mapId": map_id,
+            "reactorId": reactor_id,
+            "state": next_state,
+            "spent": spent,
+            "hitDurationMs": hit_ms,
+            "respawnInMs": respawn_at.map(|tick| (tick - self.tick).saturating_mul(TICK_MS)),
+            "playerId": id,
+        })
+        .to_string();
+        self.broadcast_to_map(&map_id, &event);
+    }
+
+    /// Range check for one reactor, mirroring how the source decides it.
+    ///
+    /// Source type 9 reactors publish a character-local `lt`/`rb` box and are
+    /// meant to be bumped into at close range.  Type 0 reactors (and any
+    /// placement the source left without a box) are struck with a normal
+    /// attack, so they reuse the authoritative attack reach the server already
+    /// uses for monsters — one reach rule, no client-supplied geometry.
+    fn reactor_in_reach(&self, placement: &ReactorPlacement, x: f64, y: f64, facing: i8) -> bool {
+        // Area-triggered props (source type 9) own an authored box and ignore
+        // facing entirely: you walk into the flower, you do not swing at it.
+        if placement.area_triggered() {
+            let Some((x_min, x_max, y_min, y_max)) = placement.hit_bounds() else {
+                return false;
+            };
+            return x >= x_min && x <= x_max && y >= y_min && y <= y_max;
+        }
+        // Everything else is struck with a normal attack, so it reuses the
+        // authored afterimage hitbox the server already trusts for monsters.
+        // `attackReach`/`attackHeight` are that WZ box's size; reactors sit on
+        // the ground like a monster does.
+        let reach = self.gameplay.player.attack_reach.unwrap_or(88.0).max(1.0);
+        let height = self.gameplay.player.attack_height.unwrap_or(62.0).max(1.0);
+        let facing = if facing == 0 { 1 } else { facing };
+        let dx = if facing < 0 { x - placement.x } else { placement.x - x };
+        dx >= -REACTOR_REACH_BACK_PX && dx <= reach && (placement.y - y).abs() <= height
+    }
+
     pub fn command(&mut self, command: Command) {
         match command {
             Command::Join {
@@ -2819,9 +3390,15 @@ impl World {
                 reply,
                 lang,
             } => {
+                // Take over the resident character instead of building a new
+                // one.  A character is only recreated when it is genuinely
+                // absent from the world (fresh login or after a completed
+                // exit), so reconnecting never produces a second entity and
+                // never restarts the away window that is already running.
+                let mut carried_away_sequence = 0;
                 if self.players.contains_key(&identity.id) {
                     // A reconnect replaces the stale session.  Resolve its
-                    // private Boss instance before replacing the Player row;
+                    // private Boss instance before rebinding the Player row;
                     // otherwise the old practice entry could move the new
                     // connection into a deleted encounter on the next tick.
                     if !self.prepare_boss_replacement(&identity.id) {
@@ -2833,10 +3410,40 @@ impl World {
                         let _ = reply.send(false);
                         return;
                     }
-                    self.players.remove(&identity.id);
                     self.end_conversation(&identity.id);
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != identity.id);
+                    if let Some(existing) = self.players.get_mut(&identity.id) {
+                        existing.away_sequence += 1;
+                        carried_away_sequence = existing.away_sequence;
+                        existing.connection = connection.clone();
+                        existing.output = output.clone();
+                        existing.detached = false;
+                        // Control is handed over clean: no stale held key, no
+                        // queued channel release, no resurrected attack.
+                        existing.direction = 0;
+                        existing.vertical = 0;
+                        existing.jump = false;
+                        existing.last_input = Instant::now();
+                        // The new client starts its input sequence at 1 again.
+                        // Keeping the old high-water mark would make every
+                        // fresh packet look stale and silently drop it, so the
+                        // character would stand frozen and unmovable.
+                        existing.state.last_input_seq = 0;
+                        // Recovery boundaries restart from now.  Without this,
+                        // time spent away would be paid out as recovery on
+                        // return, handing the character free HP/MP for doing
+                        // nothing.
+                        existing.natural_recovery_next_tick = self
+                            .tick
+                            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+                        existing.beginner_heal_next_tick = 0;
+                        existing.beginner_heal_remaining_ticks = 0;
+                        let _ = output.try_send(self.snapshot(&identity.id));
+                        self.send_quest_list(&identity.id);
+                        let _ = reply.send(true);
+                        return;
+                    }
                 }
                 let mut profile = match self.store.as_ref() {
                     Some(store) => {
@@ -3039,6 +3646,7 @@ impl World {
                             vy: 0.,
                             facing: 1,
                             grounded: false,
+                            swimming: false,
                             // A persisted zero-HP profile reconnects into
                             // the same dead state so the source revive flow
                             // remains available after a process restart.
@@ -3067,12 +3675,16 @@ impl World {
                             inventory: profile.inventory,
                             equipped,
                             monster_book,
+                            away: None,
                         },
                         base_max_mp: profile.max_mp.max(0),
                         map_id: resolved_map_id,
                         death_id: profile.death_id,
                         connection,
                         output: output.clone(),
+                        away: None,
+                        detached: false,
+                        away_sequence: carried_away_sequence,
                         direction: 0,
                         vertical: 0,
                         jump: false,
@@ -3143,6 +3755,79 @@ impl World {
                 self.send_quest_list(&id);
                 let _ = reply.send(true);
             }
+            Command::Detach {
+                id,
+                connection,
+                reason,
+            } => {
+                // Only the socket that currently owns the character may detach
+                // it.  A late close event from a superseded connection is
+                // ignored, so it can never delete someone else's character.
+                if !self
+                    .players
+                    .get(&id)
+                    .is_some_and(|p| p.connection == connection)
+                {
+                    return;
+                }
+                self.disconnect_boss_player(&id);
+                self.end_conversation(&id);
+                self.pending_attacks
+                    .retain(|_, attack| attack.player_id != id);
+                // A repeated hide, a reconnect, or a transport Pong never
+                // restarts the grace period: the existing window is kept and
+                // only a genuinely new absence allocates a new away id.
+                let needs_window = self
+                    .players
+                    .get(&id)
+                    .is_some_and(|player| player.away.is_none());
+                let away_id = if needs_window {
+                    self.next_away_id()
+                } else {
+                    0
+                };
+                let Some(player) = self.players.get_mut(&id) else {
+                    return;
+                };
+                // Stop honouring any held intent immediately; the character
+                // must not keep walking or attacking without authorization.
+                player.direction = 0;
+                player.vertical = 0;
+                player.jump = false;
+                player.channel_request_id = None;
+                player.channel_until = 0;
+                // The stale channel is retained but marked dead: residency is
+                // modelled by the character row, not by keeping a socket
+                // receiver alive, and a later close can never delete the row.
+                player.detached = true;
+                if player.away.is_none() {
+                    player.away = Some(AwayWindow::new(away_id, reason));
+                }
+            }
+            Command::Exit { id, connection } => {
+                if let Some(expected) = connection.as_ref() {
+                    if !self
+                        .players
+                        .get(&id)
+                        .is_some_and(|p| p.connection == *expected)
+                    {
+                        return;
+                    }
+                }
+                self.disconnect_boss_player(&id);
+                self.players.remove(&id);
+                self.end_conversation(&id);
+                self.pending_attacks
+                    .retain(|_, attack| attack.player_id != id);
+                self.inventory_requests
+                    .retain(|(player_id, _), _| player_id != &id);
+                self.skill_requests
+                    .retain(|(player_id, _), _| player_id != &id);
+                self.hyper_reset_quotes
+                    .retain(|(player_id, _), _| player_id != &id);
+                self.ability_requests
+                    .retain(|(player_id, _), _| player_id != &id);
+            }
             Command::Leave { id, connection } => {
                 if self
                     .players
@@ -3174,6 +3859,56 @@ impl World {
                     return;
                 };
                 match message {
+                    // An explicit logout removes the character.  This is the
+                    // only client message allowed to do so: a socket that
+                    // merely closes is a tab switch or a reload, not a
+                    // departure, and must keep the character resident.
+                    ClientMessage::Logout => {
+                        self.disconnect_boss_player(&id);
+                        self.players.remove(&id);
+                        self.end_conversation(&id);
+                        self.pending_attacks
+                            .retain(|_, attack| attack.player_id != id);
+                        self.inventory_requests
+                            .retain(|(player_id, _), _| player_id != &id);
+                        self.skill_requests
+                            .retain(|(player_id, _), _| player_id != &id);
+                        self.hyper_reset_quotes
+                            .retain(|(player_id, _), _| player_id != &id);
+                        self.ability_requests
+                            .retain(|(player_id, _), _| player_id != &id);
+                    }
+                    ClientMessage::Lifecycle { hidden, away, .. } => {
+                        // A lifecycle report is advisory.  It may open an away
+                        // window but it can never close one: only completing a
+                        // real takeover ends an absence.  Re-reporting hidden
+                        // keeps the original start, so flashing the tab cannot
+                        // extend the grace period.
+                        if hidden || away.unwrap_or(false) {
+                            let reason = if away.unwrap_or(false) {
+                                AwayReason::Manual
+                            } else {
+                                AwayReason::Hidden
+                            };
+                            let needs_window = self
+                                .players
+                                .get(&id)
+                                .is_some_and(|player| player.away.is_none());
+                            let away_id =
+                                if needs_window { self.next_away_id() } else { 0 };
+                            let Some(player) = self.players.get_mut(&id) else {
+                                return;
+                            };
+                            // Leaving sight must not leave a key held down: the
+                            // character stops acting on stale intent at once.
+                            player.direction = 0;
+                            player.vertical = 0;
+                            player.jump = false;
+                            if player.away.is_none() {
+                                player.away = Some(AwayWindow::new(away_id, reason));
+                            }
+                        }
+                    }
                     ClientMessage::Input {
                         seq,
                         direction,
@@ -3240,6 +3975,10 @@ impl World {
                         request_id,
                         drop_id,
                     } => self.handle_pickup(id, request_id, drop_id),
+                    ClientMessage::ReactorHit {
+                        request_id,
+                        reactor_id,
+                    } => self.handle_reactor_hit(id, request_id, reactor_id),
                     ClientMessage::Portal {
                         request_id,
                         portal_name,
@@ -9859,32 +10598,32 @@ impl World {
         // Locate the npc and its template.
         let npc_view = {
             let Some(npc) = self.npcs.get(&npc_id) else {
-                self.send_reject(
-                    &id,
-                    "npc_unknown",
-                    "npc not placed on a map",
-                    Some(&request_id),
-                );
+                let (code, message) = if lang == crate::quest_text::LANG_EN {
+                    ("npc_unknown", "That NPC is not on this map.")
+                } else {
+                    ("npc_unknown", "找不到该 NPC。")
+                };
+                self.send_reject(&id, code, message, Some(&request_id));
                 return;
             };
             if npc.map_id != map_id {
                 self.end_conversation(&id);
-                self.send_reject(
-                    &id,
-                    "npc_too_far",
-                    "npc is on a different map",
-                    Some(&request_id),
-                );
+                let (code, message) = if lang == crate::quest_text::LANG_EN {
+                    ("npc_too_far", "That NPC is on another map.")
+                } else {
+                    ("npc_too_far", "该 NPC 不在当前地图。")
+                };
+                self.send_reject(&id, code, message, Some(&request_id));
                 return;
             }
             if !self.quest_npc_visible(&id, npc) {
                 self.end_conversation(&id);
-                self.send_reject(
-                    &id,
-                    "npc_unavailable",
-                    "npc is not available for this quest stage",
-                    Some(&request_id),
-                );
+                let (code, message) = if lang == crate::quest_text::LANG_EN {
+                    ("npc_unavailable", "That NPC cannot help you at this quest stage.")
+                } else {
+                    ("npc_unavailable", "该 NPC 当前无法与你对话。")
+                };
+                self.send_reject(&id, code, message, Some(&request_id));
                 return;
             }
             (
@@ -9897,19 +10636,20 @@ impl World {
         };
         let (template_id, nx, ny, name, name_zh) = npc_view;
         let mage_entry = is_mage_advance_npc(&map_id, &npc_id, &template_id);
-        let (talk_range_x, talk_range_y) = if mage_entry {
-            (100.0, 80.0)
-        } else {
-            (npc::TALK_RANGE_X, npc::TALK_RANGE_Y)
-        };
-        if (px - nx).abs() > talk_range_x || (py - ny).abs() > talk_range_y {
+        // The 选择岔道 magician instructor deliberately has no talk range: the
+        // player opens Hans from the map shortcut, so a distance rule would
+        // only reject a request the client intentionally offers.  Every other
+        // npc keeps the shared talk range below.
+        if !mage_entry
+            && ((px - nx).abs() > npc::TALK_RANGE_X || (py - ny).abs() > npc::TALK_RANGE_Y)
+        {
             self.end_conversation(&id);
-            self.send_reject(
-                &id,
-                "npc_too_far",
-                "stand closer to the npc",
-                Some(&request_id),
-            );
+            let (code, message) = if lang == crate::quest_text::LANG_EN {
+                ("npc_too_far", "Please stand closer to the NPC to talk.")
+            } else {
+                ("npc_too_far", "请靠近 NPC 后再与其对话。")
+            };
+            self.send_reject(&id, code, message, Some(&request_id));
             return;
         }
         let Some(template) = self
@@ -9919,12 +10659,12 @@ impl World {
             .find(|template| template.template_id == template_id)
             .cloned()
         else {
-            self.send_reject(
-                &id,
-                "npc_unknown",
-                "npc template missing",
-                Some(&request_id),
-            );
+            let (code, message) = if lang == crate::quest_text::LANG_EN {
+                ("npc_unknown", "NPC data is missing.")
+            } else {
+                ("npc_unknown", "该 NPC 资料缺失，暂时无法对话。")
+            };
+            self.send_reject(&id, code, message, Some(&request_id));
             return;
         };
         if self.handle_quest_npc_menu(
@@ -10230,12 +10970,12 @@ impl World {
                 }
                 _ => {
                     self.end_conversation(&id);
-                    self.send_reject(
-                        &id,
-                        "npc_step_invalid",
-                        "npc conversation step is not offered",
-                        Some(&request_id),
-                    );
+                    let (code, message) = if lang == crate::quest_text::LANG_EN {
+                        ("npc_step_invalid", "This conversation option is no longer available.")
+                    } else {
+                        ("npc_step_invalid", "该对话选项已失效，请重新与 NPC 交谈。")
+                    };
+                    self.send_reject(&id, code, message, Some(&request_id));
                 }
             }
             return;
@@ -10261,12 +11001,12 @@ impl World {
                 );
             } else {
                 self.end_conversation(&id);
-                self.send_reject(
-                    &id,
-                    "npc_step_invalid",
-                    "npc conversation step is not offered",
-                    Some(&request_id),
-                );
+                let (code, message) = if lang == crate::quest_text::LANG_EN {
+                    ("npc_step_invalid", "This conversation option is no longer available.")
+                } else {
+                    ("npc_step_invalid", "该对话选项已失效，请重新与 NPC 交谈。")
+                };
+                self.send_reject(&id, code, message, Some(&request_id));
             }
             return;
         }
@@ -12068,6 +12808,9 @@ impl World {
 
     pub fn step(&mut self) {
         self.tick += 1;
+        // Derive every away stage from the current time before simulating, so
+        // no branch below can act on a stage that has already expired.
+        self.advance_away_windows();
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
             self.apply_beginner_heal_tick(&id);
@@ -12222,7 +12965,19 @@ impl World {
             let old_x = player.state.x;
             let old_y = player.state.y;
             step_player(&map, &self.gameplay, player, self.tick);
+            // Mirror the authoritative swim flag into the snapshot so clients
+            // can tell "swimming" (never grounded) apart from "airborne".
+            player.state.swimming = player.swimming;
             if player.state.grounded {
+                player.magic_wave_used = false;
+                player.magic_wave_float_used = false;
+                player.slow_fall_until = 0;
+            } else if player.swimming {
+                // Leaving the water counts as landing for the one-use wave
+                // flags.  A swimming body is never `grounded`, so grounding was
+                // the only reset path and `magic_wave_float_used` latched
+                // forever: the first float worked, then every later press was
+                // rejected with `skill_cooldown` and the mage could not act.
                 player.magic_wave_used = false;
                 player.magic_wave_float_used = false;
                 player.slow_fall_until = 0;
@@ -12241,15 +12996,21 @@ impl World {
         self.step_hyper_channels();
         self.step_hyper_effects();
         self.resolve_pending_attacks();
+        self.step_reactors();
         self.step_boss_practice();
         self.step_monsters();
         self.step_ice_fields();
         self.step_summons();
         self.apply_contact_damage();
         self.respawn_monsters();
+        // Full retention for residents: they keep being simulated and stay in
+        // every observer's snapshot, but nothing is pushed to a dead channel.
+        // A full queue only drops this tick's snapshot, it never deletes the
+        // character, so a slow or frozen client cannot lose its role.
         let failed: Vec<_> = self
             .players
             .iter()
+            .filter(|(_, p)| !p.detached)
             .filter_map(|(id, p)| match p.output.try_send(self.snapshot(id)) {
                 Err(TrySendError::Closed(_)) => Some(id.clone()),
                 Err(TrySendError::Full(_)) | Ok(()) => None,
@@ -13865,18 +14626,63 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     if player.swimming && !knockback_active {
         if let Some(water) = map.water_at(player.state.x, player.state.y).cloned() {
             if player.jump {
-                // Jump is the explicit swim-to-land transition.  Leave the
-                // rectangle at the current depth and let the normal ballistic
-                // path find a bank or re-enter the water surface.
-                player.swimming = false;
+                // Jump while swimming is a stroke upward.  Clearing
+                // `swimming` unconditionally made the key unusable
+                // underwater: the body popped out of the rectangle with full
+                // land-jump speed and fell straight back in, so the player
+                // could never actually rise.  The body now stays in the water
+                // and rises; only when the stroke carries it to the surface
+                // does it leave the water on the normal ballistic path, which
+                // is what lets a player climb out onto a bank.
+                //
+                // `SWIM_JUMP_SPEED` is a P value: no TMS273 source number for
+                // an in-water jump impulse was found, so it is tuned to lift
+                // the body a useful distance per press.
+                const SWIM_JUMP_SPEED: f64 = 260.0;
+                const SURFACE_EXIT_MARGIN: f64 = 4.0;
+                let surface = water.y_min;
+                let body_at_surface = player.state.y <= surface + SURFACE_EXIT_MARGIN;
+                if body_at_surface {
+                    // Explicit swim-to-land transition at the surface: leave
+                    // the rectangle and let the normal path find a bank.
+                    player.swimming = false;
+                    player.state.grounded = false;
+                    player.state.climbing = false;
+                    player.state.ladder_id = None;
+                    player.state.vy = -JUMP_SPEED;
+                    player.foothold_id = 0;
+                    player.last_foothold_id = 0;
+                    player.drop_fh = 0;
+                    player.vertical = 0;
+                    if tick >= player.attack_until {
+                        player.state.action_id = None;
+                        player.state.action = "jump";
+                        player.state.action_started_tick = tick;
+                    }
+                    return;
+                }
+                player.state.vy = -SWIM_JUMP_SPEED;
                 player.state.grounded = false;
                 player.state.climbing = false;
                 player.state.ladder_id = None;
-                player.state.vy = -JUMP_SPEED;
                 player.foothold_id = 0;
-                player.last_foothold_id = 0;
                 player.drop_fh = 0;
                 player.vertical = 0;
+                player.state.y = (player.state.y
+                    + player.state.vy * (TICK_MS as f64 / 1000.0))
+                    .clamp(water.y_min, water.floor_at(player.state.x));
+                if player.state.y <= water.y_min {
+                    player.state.vy = 0.0;
+                }
+                player.jump = false;
+                if tick >= player.attack_until {
+                    player.state.action_id = None;
+                    if player.state.action != "jump" {
+                        player.state.action_started_tick = tick;
+                    }
+                    player.state.action = "jump";
+                }
+                return;
             } else {
                 const SWIM_SPEED: f64 = 140.0;
                 player.state.vx = player.direction as f64 * SWIM_SPEED;
@@ -14066,8 +14872,21 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
             player.state.y + projected_vy * (TICK_MS as f64 / 1000.0),
         )
         .is_some();
-    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0)
-        .then(|| map.chain_wall_for(chain_anchor, player.state.vx < 0.0, player.state.y));
+    // Test the wall where the body actually reaches the wall plane, not at the
+    // tick-start foot position: a fast fall can cross the plane after dropping
+    // past the wall top inside a single tick, which the point-only test
+    // tunnels straight through.
+    let swept_y = player.state.y + projected_vy * (TICK_MS as f64 / 1000.0);
+    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0).then(|| {
+        map.chain_wall_on_sweep(
+            chain_anchor,
+            player.state.vx < 0.0,
+            player.state.x,
+            intended_x,
+            player.state.y,
+            swept_y,
+        )
+    });
     if let Some(Some(wall)) = chain_wall {
         let crossed = if player.state.vx < 0.0 {
             player.state.x >= wall && intended_x <= wall
@@ -14365,6 +15184,7 @@ mod tests {
             ladders: Vec::new(),
             portals: Vec::new(),
             water: Vec::new(),
+            reactors: Vec::new(),
         }
     }
 
@@ -15711,6 +16531,62 @@ mod tests {
             portal("000040000", "in00").target_map_id.as_deref(),
             Some("000020000")
         );
+    }
+
+    /// A warp must land on the floor.  The arrival resolution in
+    /// `handle_portal` only snaps to ground within 24 px, so a landing whose
+    /// nearest foothold is farther than that leaves the player airborne until
+    /// gravity pulls them down — visible as "landed in the wrong place".
+    /// The bug was routing several scripted gates to the destination's default
+    /// spawn (`sp`), which marks the authored spawn point rather than a floor.
+    #[test]
+    fn tms273_warp_landings_are_grounded() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json");
+        let catalog = MapCatalog::load(&path).expect("generated TMS273 map catalog");
+        let ids: BTreeSet<&str> = catalog.maps.iter().map(|map| map.id.as_str()).collect();
+        let map = |id: &str| catalog.maps.iter().find(|map| map.id == id).unwrap();
+        let gate = |id: &str, name: &str| {
+            map(id)
+                .portals
+                .iter()
+                .find(|portal| portal.name == name)
+                .unwrap()
+        };
+        for source in &catalog.maps {
+            for portal in &source.portals {
+                let Some(target_id) = portal.target_map_id.as_deref() else {
+                    continue;
+                };
+                if target_id == source.id || !ids.contains(target_id) {
+                    continue;
+                }
+                let target = map(target_id);
+                let landing = portal
+                    .target_portal_name
+                    .as_deref()
+                    .and_then(|name| target.portals.iter().find(|p| p.name == name))
+                    .map(|p| (p.x, p.y))
+                    .unwrap_or((target.spawn.x, target.spawn.y));
+                let ground = target.ground_near(landing.0, landing.1);
+                let distance = ground.map_or(f64::INFINITY, |(_, y)| (y - landing.1).abs());
+                assert!(
+                    distance <= 24.0,
+                    "{} / {} -> {} / {} lands {:?}px off the ground",
+                    source.id,
+                    portal.name,
+                    target_id,
+                    portal.target_portal_name.as_deref().unwrap_or("spawn"),
+                    distance
+                );
+            }
+        }
+        // The pier ferry both ways, per `Map/Map/Graph.json`.
+        let pier = gate("002000000", "east00");
+        assert_eq!(pier.target_map_id.as_deref(), Some("002000100"));
+        assert_eq!(pier.target_portal_name.as_deref(), Some("west00"));
+        let back = gate("002000100", "west00");
+        assert_eq!(back.target_map_id.as_deref(), Some("002000000"));
+        assert_eq!(back.target_portal_name.as_deref(), Some("in00"));
     }
 
     #[test]
@@ -17517,6 +18393,11 @@ mod tests {
     include!("hyper_acceptance.rs");
     include!("water_acceptance.rs");
     include!("chat_acceptance.rs");
+    include!("sidewall_acceptance.rs");
+    include!("wave_acceptance.rs");
+    include!("realmaps.rs");
+    include!("away_acceptance.rs");
+    include!("reactor_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
@@ -17818,6 +18699,8 @@ mod tests {
             Some(serde_json::Value::Bool(true))
         );
 
+        // The 选择岔道 magician instructor has no talk range: a beginner far
+        // away still gets the menu, and only the death guard can refuse.
         world.players.get_mut("beginner").unwrap().state.x = 250.0;
         world.handle_npc_talk(
             "beginner".into(),
@@ -17828,8 +18711,10 @@ mod tests {
         );
         let far: serde_json::Value =
             serde_json::from_str(&beginner_rx.try_recv().unwrap()).unwrap();
-        assert_eq!(far["code"], "npc_too_far");
+        assert_eq!(far["type"], "npcResult");
+        assert_eq!(far["dialog"]["kind"], "simple");
         assert_eq!(world.players["beginner"].state.job, BEGINNER_JOB);
+        world.end_conversation("beginner");
 
         world.players.get_mut("beginner").unwrap().state.x = 100.0;
         world.handle_npc_talk(

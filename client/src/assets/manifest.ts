@@ -119,12 +119,73 @@ export interface AfterimageAsset {
   startMs: number;
   frames: AssetFrame[];
 }
+/** One authored state of a Reactor.wz template: the looping idle animation and
+ *  the one-shot impact animation played when the prop is struck. `repeat`
+ *  mirrors the source flag; without it the idle animation holds its last frame. */
+export interface ReactorStateAsset {
+  frames: AssetFrame[];
+  hitFrames: AssetFrame[];
+  events: { type: number; nextState: number; lt?: Point; rb?: Point }[];
+  repeat: boolean;
+}
+/** Source-backed Reactor.wz templates plus their per-map placements. */
+export interface ReactorData {
+  contentVersion: string;
+  source: string;
+  templates: Record<string, {
+    templateId: string;
+    artId?: string;
+    /** Source script name; retained for tracing only — no reactor script runs. */
+    action: string | null;
+    states: Record<string, ReactorStateAsset>;
+  }>;
+  placements: {
+    id: string; mapId: string; templateId: string;
+    x: number; y: number; flip: boolean; reactorTime: number;
+  }[];
+  /** Placements the source authors outside the map's own bounds (unreachable). */
+  omitted?: { id: string; mapId: string; reason: string }[];
+}
 export interface ChatUiFrameStates {
   normal?: AssetFrame;
   pressed?: AssetFrame;
   disabled?: AssetFrame;
   mouseOver?: AssetFrame;
   checked?: AssetFrame;
+}
+/** Source-backed UI/ChatBalloon.img style (nine-slice + arrow) used by the
+ *  PlayerView to render a map-chat bubble above a speaking character. Each
+ *  slice is an independent texture (corner pieces keep their natural size,
+ *  edges and the center stretch to fit the bubble width/height). */
+export interface ChatBalloonAsset {
+  url: string;
+  width: number;
+  height: number;
+  origin: Point;
+  x: number;
+  y: number;
+  source?: string;
+}
+export interface ChatBalloonData {
+  contentVersion: string;
+  source: string;
+  style: string;
+  /** ARGB int from the source WZ clr field; used as the text-stroke colour
+   *  (MapleStory ChatBalloon text is rendered with a dark stroke on top of
+   *  the light fill so it stays readable against any map background). */
+  clr: number;
+  slices: {
+    nw: ChatBalloonAsset;
+    n: ChatBalloonAsset;
+    ne: ChatBalloonAsset;
+    w: ChatBalloonAsset;
+    c: ChatBalloonAsset;
+    e: ChatBalloonAsset;
+    sw: ChatBalloonAsset;
+    s: ChatBalloonAsset;
+    se: ChatBalloonAsset;
+    arrow: ChatBalloonAsset;
+  };
 }
 export interface ChatUiNineSlice {
   nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
@@ -215,6 +276,7 @@ export interface Manifest {
   characterLayout?: Record<string, { x: number; y: number }>;
   npcQuestAvailable?: { frames: AssetFrame[] };
   chatUi?: ChatUi;
+  chatBalloon?: ChatBalloonData;
   /** Source-backed UIWindow.img/Item subtree, keyed relative to Item. */
   inventoryUi?: Record<string, AssetFrame>;
   equipmentUi?: Record<string, AssetFrame>;
@@ -244,6 +306,8 @@ export interface Manifest {
   dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */
   portals?: Record<string, PortalAsset>;
+  /** Source-backed interactive map props (Reactor.wz + Map.wz placements). */
+  reactors?: ReactorData;
 }
 export function mapFrameAt(frames: readonly Pick<AssetFrame, 'delay'>[], elapsed: number): number {
   const delays = frames.map(frame => frame.delay);

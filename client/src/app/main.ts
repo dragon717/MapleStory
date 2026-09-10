@@ -9,6 +9,7 @@ import { InventoryView } from '../features/inventory/view';
 import { itemName } from '../features/inventory/names';
 import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
+import { AwayNoticeView } from '../features/notice/away';
 import { MenuView } from '../features/menu/view';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
@@ -51,6 +52,7 @@ let hud: HudView | undefined;
 let inventory: InventoryView | undefined;
 let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
+let awayNotice: AwayNoticeView | undefined;
 let menus: MenuView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
 let questLog: QuestLogView | undefined;
@@ -131,6 +133,7 @@ function toggleCharacterInfo() {
   return characterInfo?.toggle() ?? false;
 }
 let currentBossPractice: BossPracticeState | undefined;
+let connectionState: 'connecting' | 'online' | 'offline' = 'offline';
 function renderBossPractice(state: BossPracticeState | undefined, player: PlayerState | undefined, monsters: { templateId: string; hp: number; maxHp: number }[] = []) {
   currentBossPractice = state;
   const panel = el('boss-practice');
@@ -190,6 +193,18 @@ async function enterGame(session: LoginResponse) {
     });
     deathNotice?.destroy();
     deathNotice = new DeathNoticeView(el('notices'), manifest, requestId => connection?.send({ type: 'revive', requestId }) ?? false, message => status(message));
+    awayNotice?.destroy();
+    awayNotice = new AwayNoticeView(el('notices'), () => {
+      // Resuming is an intent, not a claim: the server re-checks identity,
+      // binding and the away window, and only the next authoritative snapshot
+      // actually reopens input.  The wake-up click must never also fire a
+      // skill, purchase, or pickup.
+      connection?.send({ type: 'lifecycle', hidden: false, away: false, clientNowMs: Date.now() });
+    }, () => {
+      // Staying away keeps the original window: it does not extend the
+      // residency limit and does not reopen interaction.
+      connection?.send({ type: 'lifecycle', hidden: true, away: true, clientNowMs: Date.now() });
+    }, message => status(message));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     questLog?.destroy();
@@ -207,7 +222,7 @@ async function enterGame(session: LoginResponse) {
       manifest,
       message => status(message),
       () => inventory?.toggle(),
-      () => { leaveGame(); entry.showLogin(); },
+      () => { leaveGame(true); entry.showLogin(); },
       () => inventory?.toggleEquipment(),
       () => questLog?.open(),
       toggleSkills,
@@ -229,7 +244,7 @@ async function enterGame(session: LoginResponse) {
     });
     world = new World(manifest, (message, error) => {
       status(message, error);
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
@@ -317,6 +332,7 @@ async function enterGame(session: LoginResponse) {
         skills?.update(self);
         characterInfo?.update(self);
         deathNotice?.update(self);
+        awayNotice?.update(self, message.selfId);
         if (self) npcDialogue?.syncPlayer(self);
         if (announcedMapId !== message.mapId) {
           npcDialogue?.clear();
@@ -327,8 +343,13 @@ async function enterGame(session: LoginResponse) {
           status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
         }
       }
-      else if (message.type === 'rejected') {
+      else       if (message.type === 'rejected') {
         if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
+        else if (['reactor_unknown', 'reactor_busy', 'reactor_spent', 'reactor_out_of_range'].includes(message.code)) {
+          // A reactor rejection is a normal gameplay outcome, not an error:
+          // the prop may already have been taken by someone else on the map.
+          if (message.code === 'reactor_out_of_range') status(english ? 'Move closer to interact with that.' : '再靠近一些才能互动。');
+        }
         else if (['chat_rate_limited', 'invalid_chat_text', 'idempotency_conflict'].includes(message.code)) {
           // A rejected chat restores the draft and shows the server reason.
           chat?.failPending(message.requestId, protocolText(message.code, message.message));
@@ -338,19 +359,26 @@ async function enterGame(session: LoginResponse) {
       }
       else if (message.type === 'reviveResult') deathNotice?.receive(message);
     }, (state, reason) => {
+      connectionState = state;
       el('connection').textContent = state === 'online' ? `● ${english ? 'Connected' : '已连接'} · ${session.username}` : state === 'connecting' ? (english ? 'Connecting…' : '正在连接…') : (english ? 'Disconnected' : '连接已断开');
       el('connection').classList.toggle('online', state === 'online');
       el('reconnect').hidden = state !== 'offline';
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); npcDialogue?.clear(); questLog?.clear(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); questLog?.clear(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
       enterPortal: () => world?.enterPortal(),
       nearestNpc: () => world?.nearestNpc() ?? null,
       talkTo: talkToNpc,
+      nearestReactor: () => world?.nearestReactor()?.id ?? null,
+      hitReactor: reactorId => {
+        if (!connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId })) {
+          status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
+        }
+      },
       toggleQuestLog: () => questLog?.toggle() ?? false,
       toggleSkills,
       castSkill,
@@ -365,10 +393,15 @@ const entry = new EntryView(el('welcome'), enterGame);
 el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
 el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
 el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = english ? `Sound: ${muted ? 'Off' : 'On'}` : `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
-function leaveGame() {
+function leaveGame(logout = false) {
+  // Closing the socket is not a logout: the server keeps the character
+  // resident so a tab switch or reload can take it over.  Only an explicit
+  // logout tells the server to remove the character, so switching to another
+  // character does not leave the previous one standing in the world.
+  if (logout) connection?.send({ type: 'logout' });
   layoutObserver?.disconnect(); layoutObserver = undefined;
   setPlayLayout(false);
-  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';
   el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }
@@ -377,6 +410,19 @@ function castSkill(skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 
   return connection?.send({ type: 'castSkill', requestId, skillId, direction, vertical }) ? requestId : undefined;
 }
 
-function returnToEntry(stage: 'characters' | 'channel') { leaveGame(); void entry.returnTo(stage); }
+function returnToEntry(stage: 'characters' | 'channel') { leaveGame(true); void entry.returnTo(stage); }
 el('logout').onclick = () => returnToEntry('characters');
-window.addEventListener('pagehide', () => { input?.destroy(); connection?.close(); });
+// Leaving or reloading the page is not a logout.  Closing the socket here used
+// to be the main reason a tab switch dropped the character: the server saw a
+// clean close and removed the authoritative player.  The character now stays
+// resident and a later load takes it over, so only clear local input state.
+window.addEventListener('pagehide', () => { input?.reset(); });
+// Report visibility so the server can start an away window from the moment the
+// page is hidden instead of waiting for a transport timeout.  This is only a
+// hint: the server keeps the authoritative away clock and decides residency.
+// Becoming visible again retries immediately, but a reconnect is never treated
+// as "recovered" — only a fresh authoritative snapshot reopens input.
+document.addEventListener('visibilitychange', () => {
+  connection?.send({ type: 'lifecycle', hidden: document.hidden, clientNowMs: Date.now() });
+  if (!document.hidden && connectionState === 'offline') connection?.connect();
+});

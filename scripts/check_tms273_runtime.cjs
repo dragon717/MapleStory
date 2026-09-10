@@ -44,6 +44,58 @@ for(const map of catalog.maps) {
   assert(rendered?.layers.length,`Map lacks source layers: ${map.id}`);
   for(const field of ['bounds','footholds','portals','ladders','spawn'])assert.deepEqual(rendered[field],map[field]);
 }
+// Every gate leading to another assembled map must expose a beam.  Scripted
+// doorways (WZ `tm: 999999999`, e.g. 楓之港 `east00` → 碼頭 via `pt_southperry`)
+// get their route from the chapter adapter, so the beam is added after it runs.
+{
+  const assembled=new Set(catalog.maps.map(map=>map.id));
+  const missing=[];
+  for(const map of catalog.maps)for(const portal of map.portals) {
+    if(!portal.targetMapId || portal.targetMapId===map.id)continue;
+    if(!assembled.has(portal.targetMapId))continue;
+    const beam=manifest.portals[`${map.id}/${portal.name}`];
+    if(!beam?.frames?.length)missing.push(`${map.id}/${portal.name}`);
+  }
+  assert.deepEqual(missing,[],`Scripted cross-map portal lacks a beam: ${missing.join(', ')}`);
+  assert(manifest.portals['002000000/east00']?.frames.length>0,'楓之港 → 碼頭 gate must be visible');
+  assert(manifest.portals['002000100/west00']?.frames.length>0,'碼頭 → 楓之港 gate must be visible');
+}
+// A warp must land on the floor, not in mid-air.  Mirrors `world.rs`'s arrival
+// resolution (`ground_near` + the 24 px snap window): when the resolved ground
+// is farther than that the player stays airborne and falls on the next tick.
+// Landing on a destination's default `sp` was the bug — a WZ `sp` marks the
+// authored spawn, which sits up to 129 px above the walkable floor.
+{
+  const byId=new Map(catalog.maps.map(map=>[map.id,map]));
+  const groundNear=(map,x,y)=>{
+    let best=null;
+    for(const f of map.footholds) {
+      if(f.x1===f.x2)continue;                       // a wall has no `at()`
+      const lo=Math.min(f.x1,f.x2),hi=Math.max(f.x1,f.x2);
+      if(!(lo-0.001<=x && x<=hi+0.001))continue;
+      const g=f.y1+(x-f.x1)/(f.x2-f.x1)*(f.y2-f.y1);
+      if(best===null||Math.abs(g-y)<Math.abs(best-y))best=g;
+    }
+    return best;
+  };
+  const floating=[];
+  for(const map of catalog.maps)for(const portal of map.portals) {
+    const targetId=portal.targetMapId;
+    if(!targetId || targetId===map.id || !byId.has(targetId))continue;
+    const target=byId.get(targetId);
+    const landing=target.portals.find(p=>p.name===portal.targetPortalName) ?? target.spawn;
+    const ground=groundNear(target,landing.x,landing.y);
+    if(ground===null||Math.abs(ground-landing.y)>24)floating.push(`${map.id}/${portal.name} → ${targetId}/${portal.targetPortalName ?? 'spawn'} (Δ${ground===null?'none':Math.round(ground-landing.y)}px)`);
+  }
+  assert.deepEqual(floating,[],`Warp landing is not grounded: ${floating.join('; ')}`);
+  // The pier ferry in both directions, per `Map/Map/Graph.json`.
+  const pier=byId.get('002000000').portals.find(p=>p.name==='east00');
+  assert.equal(pier.targetMapId,'002000100');
+  assert.equal(pier.targetPortalName,'west00','楓之港 → 碼頭 must land on the pier gate');
+  const back=byId.get('002000100').portals.find(p=>p.name==='west00');
+  assert.equal(back.targetMapId,'002000000');
+  assert.equal(back.targetPortalName,'in00','碼頭 → 楓之港 must land on the town gate');
+}
 for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
 for(const shop of gameplay.shops)for(const entry of shop.items)assert(manifest.items[entry.itemId],entry.itemId);

@@ -28,19 +28,30 @@ export class PlayerView {
   private skillActionUntil = 0;
   /** Feet-to-head offset of the current rendered frame, for damage numbers. */
   private headOffsetY = -40;
-  /** Live map-chat bubble above the name label (P display layer; the server
-   *  only forwards chatMessage to the same-map members, bubbles never replay
-   *  history and never reposition across a map switch because this view is
-   *  destroyed with the scene). */
+  /** Live map-chat bubble above the head. The server only forwards chatMessage
+   *  to the same-map members, so bubbles never replay history and never
+   *  reposition across a map switch (this view is destroyed with the scene).
+   *  Source-backed UI/ChatBalloon.img/0 nine-slice is rendered when the
+   *  manifest provides it; otherwise we fall back to the legacy placeholder. */
   private bubble?: { container: Phaser.GameObjects.Container; until: number; width: number; height: number };
   /** Server-visible clip for the on-map bubble; the chat log keeps the full
    *  authoritative text. */
   private static readonly BUBBLE_MAX_CHARS = 96;
   private static readonly BUBBLE_MS = 4_000;
+  private readonly self: boolean;
+  private static readonly BUBBLE_CORNER = 6;
+  /** Padding inside the bubble box before the text rows. */
+  private static readonly BUBBLE_TEXT_PAD_X = 8;
+  private static readonly BUBBLE_TEXT_PAD_Y = 5;
+  /** Maximum width of the text area inside the bubble. */
+  private static readonly BUBBLE_MAX_TEXT_WIDTH = 260;
+  /** Vertical gap between the bubble bottom edge and the arrow tip. */
+  private static readonly BUBBLE_ARROW_GAP = 1;
   constructor(private scene: Phaser.Scene, private manifest: Manifest, username: string, self: boolean) {
     // ponytail: one map layer for actors; add explicit actorDepth when a map needs foreground occlusion.
     const depth = actorDepthForLayers(manifest.map.layers);
     this.body = scene.add.container(0, 0).setDepth(depth);
+    this.self = self;
     this.name = scene.add.text(0, 0, username, { fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: self ? '#fff3a5' : '#ffffff', backgroundColor: '#25322bd9', padding: { x: 6, y: 3 } }).setOrigin(0.5, 0).setDepth(depth + 1);
   }
   /** Begin the server-driven hurt presentation: white double-flash while the
@@ -132,10 +143,86 @@ export class PlayerView {
 
   /** Present one incoming same-map chat message above the character head.
    *  Ephemeral, time-boxed and clipped: it never replays and never follows the
-   *  body into another map. */
+   *  body into another map.  When the source-backed nine-slice is available
+   *  it forms the bubble background; otherwise we draw the legacy rounded
+   *  rectangle so older content versions still render. */
   showBubble(authorName: string, text: string) {
     this.clearBubble();
     if (!authorName && !text) return;
+    const balloon = this.manifest.chatBalloon;
+    const width = balloon ? this.buildSourceBubble(balloon, authorName, text) : this.buildFallbackBubble(authorName, text);
+    if (width === 0) return;
+    this.bubble = {
+      container: this.pendingBubble!,
+      until: this.scene.time.now + PlayerView.BUBBLE_MS,
+      width: this.pendingBubbleWidth!,
+      height: this.pendingBubbleHeight!,
+    };
+    this.pendingBubble = undefined;
+    this.pendingBubbleWidth = undefined;
+    this.pendingBubbleHeight = undefined;
+  }
+  /** Build the source-backed bubble (nine-slice background + arrow + name/body
+   *  text) and stash the resulting container so `showBubble` can record its
+   *  bounding box.  Returns the bubble width so the caller can detect success. */
+  private buildSourceBubble(balloon: NonNullable<typeof this.manifest.chatBalloon>, authorName: string, text: string): number {
+    const scene = this.scene;
+    const slices = balloon.slices;
+    const corner = PlayerView.BUBBLE_CORNER;
+    const padX = PlayerView.BUBBLE_TEXT_PAD_X;
+    const padY = PlayerView.BUBBLE_TEXT_PAD_Y;
+    const maxTextWidth = PlayerView.BUBBLE_MAX_TEXT_WIDTH;
+    const clipped = text.length > PlayerView.BUBBLE_MAX_CHARS
+      ? `${text.slice(0, PlayerView.BUBBLE_MAX_CHARS)}…` : text;
+    const nameLabel = scene.add.text(0, 0, authorName, {
+      fontFamily: 'Verdana, sans-serif', fontSize: '11px',
+      color: this.self ? '#fff3a5' : '#5b9bcc',
+    });
+    const bodyLabel = scene.add.text(0, 0, clipped, {
+      fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: '#1d1d1d',
+      // Clr -16777216 (0xff000000) is opaque black; use it as the text
+      // stroke colour so 273-style dark text stays readable on the light
+      // ChatBalloon background regardless of the map backdrop.
+      stroke: '#000000', strokeThickness: 1,
+      wordWrap: { width: maxTextWidth - padX * 2 }, lineSpacing: 1,
+    });
+    nameLabel.updateText();
+    bodyLabel.updateText();
+    const textAreaW = Math.max(corner * 2 + padX * 2, Math.min(maxTextWidth, Math.max(nameLabel.width, bodyLabel.width) + padX * 2));
+    const textAreaH = nameLabel.height + bodyLabel.height + padY * 2 + 2;
+    const bubbleW = textAreaW + corner * 2;
+    const bubbleH = textAreaH + corner * 2;
+    const bg = scene.add.container(0, 0);
+    const nw = scene.add.image(0, 0, slices.nw.url).setOrigin(0);
+    const n = scene.add.image(corner, 0, slices.n.url).setOrigin(0).setDisplaySize(textAreaW, corner);
+    const ne = scene.add.image(bubbleW - corner, 0, slices.ne.url).setOrigin(0);
+    const w = scene.add.image(0, corner, slices.w.url).setOrigin(0).setDisplaySize(corner, textAreaH);
+    const c = scene.add.image(corner, corner, slices.c.url).setOrigin(0).setDisplaySize(textAreaW, textAreaH);
+    const e = scene.add.image(bubbleW - corner, corner, slices.e.url).setOrigin(0).setDisplaySize(corner, textAreaH);
+    const sw = scene.add.image(0, bubbleH - corner, slices.sw.url).setOrigin(0);
+    const s = scene.add.image(corner, bubbleH - corner, slices.s.url).setOrigin(0).setDisplaySize(textAreaW, corner);
+    const se = scene.add.image(bubbleW - corner, bubbleH - corner, slices.se.url).setOrigin(0);
+    const arrow = scene.add.image(
+      Math.round((bubbleW - slices.arrow.width) / 2),
+      bubbleH - PlayerView.BUBBLE_ARROW_GAP,
+      slices.arrow.url,
+    ).setOrigin(0);
+    bg.add([nw, n, ne, w, c, e, sw, s, se, arrow]);
+    const textLayer = scene.add.container(0, 0);
+    nameLabel.setPosition(padX, padY);
+    bodyLabel.setPosition(padX, padY + nameLabel.height + 1);
+    textLayer.add([nameLabel, bodyLabel]);
+    const container = scene.add.container(0, 0).setDepth(this.name.depth + 4);
+    container.add([bg, textLayer]);
+    this.pendingBubble = container;
+    this.pendingBubbleWidth = bubbleW;
+    this.pendingBubbleHeight = bubbleH + slices.arrow.height - PlayerView.BUBBLE_ARROW_GAP;
+    return bubbleW;
+  }
+  /** Legacy placeholder used when the content version predates the export of
+   *  UI/ChatBalloon.img.  Matches the previous semi-transparent rounded box so
+   *  older builds do not regress. */
+  private buildFallbackBubble(authorName: string, text: string): number {
     const scene = this.scene;
     const container = scene.add.container(0, 0).setDepth(this.name.depth + 3);
     const clipped = text.length > PlayerView.BUBBLE_MAX_CHARS
@@ -145,7 +232,6 @@ export class PlayerView {
       fontFamily: 'Verdana, sans-serif', fontSize: '12px', color: '#ffffff',
       wordWrap: { width: 320 }, lineSpacing: 2,
     });
-    // Measure after word-wrap; then lay the label rows inside the bubble box.
     bodyLabel.updateText();
     const padX = 10;
     const padY = 6;
@@ -158,8 +244,15 @@ export class PlayerView {
     nameLabel.setPosition(padX, padY);
     bodyLabel.setPosition(padX, padY + nameLabel.height + 2);
     container.add([nameLabel, bodyLabel]);
-    this.bubble = { container, until: scene.time.now + PlayerView.BUBBLE_MS, width, height };
+    this.pendingBubble = container;
+    this.pendingBubbleWidth = width;
+    this.pendingBubbleHeight = height;
+    return width;
   }
+  /** Scratch fields that hand the freshly built container and size to showBubble. */
+  private pendingBubble?: Phaser.GameObjects.Container;
+  private pendingBubbleWidth?: number;
+  private pendingBubbleHeight?: number;
 
   private updateBubble(player: PlayerState) {
     const bubble = this.bubble;
@@ -168,16 +261,23 @@ export class PlayerView {
       this.clearBubble();
       return;
     }
+    // Anchor the bubble just above the character head so the arrow tip points
+    // at the speaker.  headOffsetY is negative (frame top relative to the
+    // feet anchor) so player.y + headOffsetY is the world-space head y.
     bubble.container.setPosition(
       Math.round(player.x - bubble.width / 2),
-      Math.round(player.y + 8 - this.name.height - bubble.height - 4),
+      Math.round(player.y + this.headOffsetY - bubble.height - 4),
     );
   }
 
   private clearBubble() {
-    if (!this.bubble) return;
-    this.bubble.container.destroy(true);
+    if (!this.bubble && !this.pendingBubble) return;
+    this.bubble?.container.destroy(true);
+    this.pendingBubble?.destroy(true);
     this.bubble = undefined;
+    this.pendingBubble = undefined;
+    this.pendingBubbleWidth = undefined;
+    this.pendingBubbleHeight = undefined;
   }
   private updateLevelFeedback(player: PlayerState) {
     const level = player.level;

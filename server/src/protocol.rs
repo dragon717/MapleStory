@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 11;
+pub const PROTOCOL_VERSION: u32 = 12;
 pub const CONTENT_VERSION: &str = "tms273-9";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -202,12 +202,41 @@ pub enum ClientMessage {
         item_id: String,
         quantity: u32,
     },
+    /// Intent to strike one authored map reactor.  The client identifies the
+    /// prop; the server decides range, whether it is still interactable, and
+    /// which state comes next.  No damage, position or state is accepted.
+    ReactorHit {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "reactorId")]
+        reactor_id: String,
+    },
     /// Map-chat intent.  The client only supplies text; the authoritative map
     /// room, sender identity and display name are all resolved server-side.
     ChatSend {
         #[serde(rename = "requestId")]
         request_id: String,
         text: String,
+    },
+    /// Explicit logout: the player asked to leave, so the authoritative
+    /// character must be removed instead of being kept resident.  A socket
+    /// that just closes cannot be read as a logout, because a tab switch or a
+    /// reload looks identical to one.
+    Logout,
+    /// Page lifecycle report.  This is a hint for session policy only: it
+    /// never grants assets, invulnerability, or any exemption from world
+    /// rules, and a forged report cannot shorten or extend an away window
+    /// because the server keeps the authoritative start time.
+    Lifecycle {
+        /// `true` when `document.visibilityState === 'hidden'`.
+        hidden: bool,
+        /// `true` when the player explicitly asked to stay away.
+        #[serde(default)]
+        away: Option<bool>,
+        /// Client wall clock for diagnostics only; never used for decisions.
+        #[serde(default)]
+        #[serde(rename = "clientNowMs")]
+        client_now_ms: Option<i64>,
     },
 }
 
@@ -245,6 +274,10 @@ impl ClientMessage {
             | Self::LearnSkill { request_id, .. }
             | Self::Pickup { request_id, .. }
             | Self::Revive { request_id } => valid_id(request_id),
+            Self::ReactorHit {
+                request_id,
+                reactor_id,
+            } => valid_id(request_id) && valid_id(reactor_id),
             Self::BossPractice { request_id, encounter_id, .. } => {
                 valid_id(request_id) && encounter_id.as_deref().is_none_or(|id| {
                     id.len() <= 96 && crate::auth::is_practice_map(id)
@@ -354,6 +387,10 @@ impl ClientMessage {
             Self::ChatSend { request_id, text } => {
                 valid_id(request_id) && valid_chat_text(text)
             }
+            // A lifecycle report is only ever a hint; there is nothing to
+            // validate beyond the shape, and nothing it can unlock.
+            Self::Lifecycle { .. } => true,
+            Self::Logout => true,
         }
     }
 }
@@ -478,6 +515,10 @@ pub struct PlayerState {
     pub vy: f64,
     pub facing: i8,
     pub grounded: bool,
+    /// True while the body is inside an authored water rectangle.  A swimming
+    /// body is never `grounded`, so clients need this to tell "swimming" apart
+    /// from "airborne": the two must not share the same jump-key routing.
+    pub swimming: bool,
     pub action: &'static str,
     pub action_id: Option<String>,
     pub action_started_tick: u64,
@@ -508,6 +549,24 @@ pub struct PlayerState {
     pub inventory: Vec<InventoryItem>,
     pub equipped: Vec<InventoryItem>,
     pub monster_book: BTreeMap<String, u8>,
+    /// Server-owned away marker.  Other clients use it to label the character
+    /// as 暂离; it grants the marker's owner no protection, no asset and no
+    /// exemption from normal world rules.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub away: Option<AwayMarker>,
+}
+
+/// Away presentation state attached to a snapshot player row.  Present only
+/// while the character has an open away window; `residency` distinguishes the
+/// grace stage from basic residency.  Durations are display-only — the server
+/// re-derives the stage from its own clock on every decision.
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AwayMarker {
+    /// True once continuous absence reached the full-retention threshold.
+    pub residency: bool,
+    /// Milliseconds until the normal exit path runs.  Display only.
+    pub remaining_ms: i64,
 }
 
 #[derive(Clone, Serialize)]
