@@ -83,6 +83,20 @@ export interface ReactorState {
   id: string; templateId: string; x: number; y: number; flip: boolean;
   state: number; spent: boolean; hitting: boolean; respawnInMs?: number;
 }
+/** Direction of one warehouse move. The client only names the direction, the
+ *  tab and the slot; the server resolves the item and its quantity. */
+export type StorageDirection = 'deposit' | 'withdraw';
+/** One authoritative view of the account warehouse. Sent only to its owner. */
+export interface StorageState {
+  /** Warehouse rows ordered by slot; equipment keeps its instance stats. */
+  items: InventoryItem[];
+  /** Warehouse mesos, a balance separate from the character's purse. */
+  mesos: number;
+  /** Total number of rows the warehouse can hold. */
+  slotLimit: number;
+  /** The storage keeper this window belongs to. */
+  npcId: string;
+}
 export interface BossPracticeState {
   status: 'available' | 'active' | 'cleared' | 'failed';
   sourceMapId: string; bossId: string; minimumLevel: number; encounterId?: string;
@@ -118,6 +132,15 @@ export type ClientMessage =
    *  the shop, tab and slot only; the item, its sellability and the mesos paid
    *  are all resolved server-side. No itemId or price is accepted. */
   | { type: 'shopSell'; requestId: string; shopId: string; inventoryType: number; sourceSlot: number; quantity: number }
+  /** Open the account warehouse at a placed storage keeper. The server decides
+   *  whether that npc is a keeper and whether the player is close enough. */
+  | { type: 'storageOpen'; requestId: string; npcId: string }
+  /** Move one stack between the inventory and the warehouse. The client names
+   *  only the direction, tab and slot; item identity, quantity and capacity are
+   *  resolved server-side. */
+  | { type: 'storageTransfer'; requestId: string; operation: StorageDirection; inventoryType: number; slot: number; quantity: number }
+  /** Move mesos between the character purse and the warehouse. */
+  | { type: 'storageMesos'; requestId: string; operation: StorageDirection; quantity: number }
   | { type: 'chatSend'; requestId: string; text: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
@@ -152,7 +175,10 @@ export type ServerMessage =
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
-  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean }
+  | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[] }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean;
+  /** Set when the npc is an account warehouse keeper, so the client opens the
+   *  storage window instead of rendering a dialogue tree. */
+  openStorage?: boolean }
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   /** Authoritative result of selling one stack to an NPC shop. `mesosGained`
    *  is 0 for every refusal; `mesos` is the fresh authoritative balance. */
@@ -160,7 +186,14 @@ export type ServerMessage =
   | { type: 'questList'; quests: QuestLogEntry[] }
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }
-  | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number };
+  | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number }
+  /** Result of one storage intent. `quantity` is the amount that actually
+   *  moved, so 0 always means nothing changed. */
+  | { type: 'storageResult'; requestId: string; success: boolean; code: string; npcId: string; inventoryType: number; slot: number; quantity: number }
+  /** Result of one mesos move; both balances are the post-move values. */
+  | { type: 'storageMesos'; requestId: string; success: boolean; code: string; operation: StorageDirection; quantity: number; mesos: number; storedMesos: number }
+  /** Full warehouse view, or `closed: true` when the session ended. */
+  | { type: 'storageState'; closed?: boolean; npcId?: string; items?: InventoryItem[]; mesos?: number; slotLimit?: number };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

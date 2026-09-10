@@ -187,6 +187,62 @@ pub struct InventoryOutcome {
     pub code: String,
 }
 
+/// Which way a warehouse transfer moves goods.  The client names only the
+/// direction, the tab and the slot; item identity, quantity and price are all
+/// resolved here, exactly like `ShopSell`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StorageOperation {
+    /// Character inventory -> account warehouse.
+    Deposit,
+    /// Account warehouse -> character inventory.
+    Withdraw,
+}
+
+impl StorageOperation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StorageOperation::Deposit => "storageDeposit",
+            StorageOperation::Withdraw => "storageWithdraw",
+        }
+    }
+}
+
+/// Authoritative result of one item transfer.  `quantity` is the amount that
+/// actually moved — 0 on every refusal — so a client can never mistake a
+/// partial or rejected transfer for a completed one.
+#[derive(Clone, Debug)]
+pub struct StorageOutcome {
+    pub request_id: String,
+    pub operation: StorageOperation,
+    pub inventory_type: u8,
+    pub slot: i16,
+    pub item_id: String,
+    pub quantity: u32,
+    pub success: bool,
+    pub code: String,
+}
+
+/// Authoritative result of one mesos transfer.  Both balances are re-read
+/// inside the transaction so the client is always shown the post-move state.
+#[derive(Clone, Debug)]
+pub struct StorageMesosOutcome {
+    pub request_id: String,
+    pub operation: StorageOperation,
+    pub quantity: u32,
+    pub success: bool,
+    pub code: String,
+    /// Character purse after the transfer.
+    pub mesos: u64,
+    /// Warehouse balance after the transfer.
+    pub stored_mesos: u64,
+}
+
+/// Warehouse capacity.  The original's storage window is fixed at a small
+/// number of rows; keep the same limit server-side so a client cannot grow the
+/// warehouse past what the UI can show.
+pub const STORAGE_SLOT_LIMIT: u16 = 24;
+
 #[derive(Clone, Debug)]
 pub struct ReviveOutcome {
     pub request_id: String,
@@ -480,6 +536,43 @@ impl Store {
                item_id TEXT NOT NULL,
                quantity INTEGER NOT NULL,
                PRIMARY KEY(account_id,item_id)
+             );
+             CREATE TABLE IF NOT EXISTS storage(
+               account_id TEXT NOT NULL,
+               slot INTEGER NOT NULL,
+               item_id TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               stats_json TEXT NOT NULL DEFAULT '{}',
+               upgrade_count INTEGER NOT NULL DEFAULT 0,
+               remaining_slots INTEGER NOT NULL DEFAULT 0,
+               PRIMARY KEY(account_id,slot)
+             );
+             CREATE TABLE IF NOT EXISTS storage_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               operation TEXT NOT NULL,
+               inventory_type INTEGER NOT NULL DEFAULT 0,
+               item_id TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               slot INTEGER,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
+             );
+             CREATE TABLE IF NOT EXISTS storage_mesos(
+               account_id TEXT PRIMARY KEY,
+               mesos INTEGER NOT NULL DEFAULT 0
+             );
+             CREATE TABLE IF NOT EXISTS storage_mesos_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               operation TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               mesos INTEGER NOT NULL DEFAULT 0,
+               stored_mesos INTEGER NOT NULL DEFAULT 0,
+               PRIMARY KEY(account_id,request_id)
              );
              CREATE TABLE IF NOT EXISTS inventory_actions(
                account_id TEXT NOT NULL,
@@ -3326,6 +3419,742 @@ impl Store {
             code,
         })
     }
+
+    /// Read the account's warehouse.  Storage is account-wide and shared by
+    /// every character on it, which is why the row key is the account and not
+    /// the character — the original keeps deposited goods available to a newly
+    /// created character of the same account.
+    pub fn load_storage(&self, account_id: &str) -> Result<Vec<InventoryItem>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        read_storage_db(&db, account_id)
+    }
+
+    /// Move one stack between the character's inventory and the account
+    /// warehouse.  Both directions run in a single transaction so a crash can
+    /// never leave an item in both places or in neither.
+    pub fn storage_transfer(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        operation: StorageOperation,
+        inventory_type: u8,
+        slot: i16,
+        quantity: u32,
+    ) -> Result<StorageOutcome, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        // Replaying a request must never move an item twice.  Re-send the
+        // recorded result without touching either side again.
+        if let Some(prior) = read_storage_action(&tx, account_id, request_id)? {
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(prior);
+        }
+        // Validate the whole move *before* mutating either side.  A refused
+        // transfer must be a true no-op, and recording the refusal in the same
+        // transaction keeps a replay idempotent for failures as well as
+        // successes.
+        let (success, code, item_id, moved) = match operation {
+            StorageOperation::Deposit => match peek_inventory_stack(
+                &tx,
+                account_id,
+                inventory_type,
+                slot,
+                quantity,
+            )? {
+                Err(reason) => (false, reason, String::new(), 0),
+                Ok(stack) => {
+                    if let Err(reason) =
+                        reserve_storage_slot(&tx, account_id, &stack.item_id, stack.quantity)
+                    {
+                        (false, reason, stack.item_id, 0)
+                    } else {
+                        take_inventory_stack(&tx, account_id, inventory_type, slot, quantity)?;
+                        insert_storage_stack(&tx, account_id, &stack)?;
+                        (true, String::new(), stack.item_id, stack.quantity)
+                    }
+                }
+            },
+            StorageOperation::Withdraw => {
+                match peek_storage_stack(&tx, account_id, slot, quantity)? {
+                    Err(reason) => (false, reason, String::new(), 0),
+                    Ok(stack) => {
+                        if !inventory_has_room(&tx, account_id, &stack)? {
+                            (false, "inventory_full".to_owned(), stack.item_id, 0)
+                        } else {
+                            take_storage_stack(&tx, account_id, slot, quantity)?;
+                            add_inventory_tx(
+                                &tx,
+                                account_id,
+                                &stack.item_id,
+                                stack.quantity,
+                                stack.stats.as_ref(),
+                                stack.remaining_slots,
+                                stack.upgrade_count,
+                            )
+                            .map_err(|error| error)?
+                            .map_err(|reason| reason.to_owned())?;
+                            (true, String::new(), stack.item_id, stack.quantity)
+                        }
+                    }
+                }
+            }
+        };
+        let outcome = StorageOutcome {
+            request_id: request_id.to_owned(),
+            operation,
+            inventory_type,
+            slot,
+            item_id,
+            quantity: moved,
+            success,
+            code,
+        };
+        insert_storage_action(&tx, account_id, &outcome)?;
+        if success {
+            normalize_inventory_tx(&tx)?;
+        }
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(outcome)
+    }
+
+    /// Deposit or withdraw mesos.  Warehouse mesos are a separate balance from
+    /// the character's purse, so a transfer must debit one and credit the other
+    /// atomically.
+    pub fn storage_mesos(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        operation: StorageOperation,
+        quantity: u32,
+    ) -> Result<StorageMesosOutcome, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some(prior) = read_storage_mesos_action(&tx, account_id, request_id)? {
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(prior);
+        }
+        let amount = i64::from(quantity);
+        let (success, code) = if quantity == 0 {
+            (false, "invalid_quantity".to_owned())
+        } else {
+            // The warehouse balance gets its own row (upsert), but the purse
+            // lives on the existing profile row — `player_stats` has NOT NULL
+            // columns, so a partial INSERT would fail.  A storage session
+            // implies a loaded profile, so a plain UPDATE is correct and a
+            // missing row is a real error rather than a silent credit.
+            let (debit, credit) = match operation {
+                StorageOperation::Deposit => (
+                    "UPDATE player_stats SET mesos=mesos-?2 WHERE account_id=?1 AND mesos>=?2",
+                    "INSERT INTO storage_mesos(account_id,mesos) VALUES (?1,?2)
+                     ON CONFLICT(account_id) DO UPDATE SET mesos=mesos+excluded.mesos",
+                ),
+                StorageOperation::Withdraw => (
+                    "UPDATE storage_mesos SET mesos=mesos-?2 WHERE account_id=?1 AND mesos>=?2",
+                    "UPDATE player_stats SET mesos=mesos+?2 WHERE account_id=?1",
+                ),
+            };
+            let changed = tx
+                .execute(debit, params![account_id, amount])
+                .map_err(|_| "account persistence failed")?;
+            if changed != 1 {
+                (false, "mesos_insufficient".to_owned())
+            } else {
+                let credited = tx
+                    .execute(credit, params![account_id, amount])
+                    .map_err(|_| "account persistence failed")?;
+                if credited != 1 {
+                    (false, "profile_unavailable".to_owned())
+                } else {
+                    (true, String::new())
+                }
+            }
+        };
+        let mesos = read_mesos_tx(&tx, account_id)?;
+        let stored = read_storage_mesos_tx(&tx, account_id)?;
+        let outcome = StorageMesosOutcome {
+            request_id: request_id.to_owned(),
+            operation,
+            quantity,
+            success,
+            code,
+            mesos,
+            stored_mesos: stored,
+        };
+        insert_storage_mesos_action(&tx, account_id, &outcome)?;
+        if success {
+            tx.commit().map_err(|_| "account persistence failed")?;
+        } else {
+            tx.rollback()
+                .map_err(|_| "account persistence failed")?;
+        }
+        Ok(outcome)
+    }
+
+    /// Current warehouse mesos.  Read-only; a client never supplies this value.
+    pub fn storage_mesos_balance(&self, account_id: &str) -> Result<u64, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        read_storage_mesos_db(&db, account_id)
+    }
+}
+
+fn read_storage_db(db: &Connection, account_id: &str) -> Result<Vec<InventoryItem>, String> {
+    let mut stmt = db
+        .prepare(
+            "SELECT slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM storage
+             WHERE account_id=?1 AND quantity>0 ORDER BY slot",
+        )
+        .map_err(|_| "account persistence failed")?;
+    let collected = {
+        let result = stmt.query_map([account_id], |row| {
+            let mut item = InventoryItem {
+                slot: row.get::<_, i64>(0)?.try_into().unwrap_or(0),
+                item_id: row.get(1)?,
+                quantity: row.get::<_, i64>(2)?.try_into().unwrap_or(0),
+                stats: row
+                    .get::<_, String>(3)
+                    .ok()
+                    .and_then(|json| serde_json::from_str(&json).ok()),
+                upgrade_count: row
+                    .get::<_, i64>(4)
+                    .ok()
+                    .and_then(|value| u32::try_from(value.max(0)).ok()),
+                remaining_slots: row
+                    .get::<_, i64>(5)
+                    .ok()
+                    .and_then(|value| u32::try_from(value.max(0)).ok()),
+            };
+            // A deposited weapon keeps the exact instance stats it was created
+            // with, so round-tripping through the warehouse must not reset a
+            // scroll's upgrades.
+            inventory::ensure_equipment_instance(&mut item);
+            Ok(item)
+        });
+        result
+            .map_err(|_| "account persistence failed")?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| "account persistence failed".to_owned())?
+    };
+    Ok(collected)
+}
+
+/// One stack read out of either side of a transfer, with the instance fields
+/// that must survive the trip unchanged.
+struct StorageStack {
+    item_id: String,
+    quantity: u32,
+    stats: Option<BTreeMap<String, i64>>,
+    upgrade_count: Option<u32>,
+    remaining_slots: Option<u32>,
+}
+
+/// Read one inventory stack and check it can supply `quantity`.  Nothing is
+/// mutated, so a refusal later in the same transaction costs nothing.
+fn peek_inventory_stack(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    inventory_type: u8,
+    slot: i16,
+    quantity: u32,
+) -> Result<Result<StorageStack, String>, String> {
+    if !inventory::valid_slot(slot) {
+        return Ok(Err("invalid_slot".to_owned()));
+    }
+    if quantity == 0 {
+        return Ok(Err("invalid_quantity".to_owned()));
+    }
+    let row: Option<(String, i64, String, i64, i64)> = tx
+        .query_row(
+            "SELECT item_id,quantity,stats_json,upgrade_count,remaining_slots FROM inventory
+             WHERE account_id=?1 AND inventory_type=?2 AND slot=?3",
+            params![account_id, inventory_type, slot],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
+        return Ok(Err("source_empty".to_owned()));
+    };
+    let available = u32::try_from(available.max(0)).unwrap_or(0);
+    if available < quantity {
+        return Ok(Err("invalid_quantity".to_owned()));
+    }
+    Ok(Ok(StorageStack {
+        item_id,
+        quantity,
+        stats: serde_json::from_str::<BTreeMap<String, i64>>(&stats_json).ok(),
+        upgrade_count: u32::try_from(upgrade.max(0)).ok(),
+        remaining_slots: u32::try_from(remaining.max(0)).ok(),
+    }))
+}
+
+/// Mirror of `peek_inventory_stack` for the warehouse side.
+fn peek_storage_stack(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    slot: i16,
+    quantity: u32,
+) -> Result<Result<StorageStack, String>, String> {
+    if !valid_storage_slot(slot) {
+        return Ok(Err("invalid_slot".to_owned()));
+    }
+    if quantity == 0 {
+        return Ok(Err("invalid_quantity".to_owned()));
+    }
+    let row: Option<(String, i64, String, i64, i64)> = tx
+        .query_row(
+            "SELECT item_id,quantity,stats_json,upgrade_count,remaining_slots FROM storage
+             WHERE account_id=?1 AND slot=?2",
+            params![account_id, slot],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
+        return Ok(Err("storage_slot_empty".to_owned()));
+    };
+    let available = u32::try_from(available.max(0)).unwrap_or(0);
+    if available < quantity {
+        return Ok(Err("invalid_quantity".to_owned()));
+    }
+    Ok(Ok(StorageStack {
+        item_id,
+        quantity,
+        stats: serde_json::from_str::<BTreeMap<String, i64>>(&stats_json).ok(),
+        upgrade_count: u32::try_from(upgrade.max(0)).ok(),
+        remaining_slots: u32::try_from(remaining.max(0)).ok(),
+    }))
+}
+
+/// Remove `quantity` from one inventory stack.  The row is deleted when the
+/// stack empties, which is what lets a later deposit reuse the slot.
+fn take_inventory_stack(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    inventory_type: u8,
+    slot: i16,
+    quantity: u32,
+) -> Result<(), String> {
+    let remaining: i64 = tx
+        .query_row(
+            "SELECT quantity FROM inventory
+             WHERE account_id=?1 AND inventory_type=?2 AND slot=?3",
+            params![account_id, inventory_type, slot],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?
+        .unwrap_or(0);
+    if remaining <= i64::from(quantity) {
+        tx.execute(
+            "DELETE FROM inventory WHERE account_id=?1 AND inventory_type=?2 AND slot=?3",
+            params![account_id, inventory_type, slot],
+        )
+        .map_err(|_| "account persistence failed")?;
+    } else {
+        tx.execute(
+            "UPDATE inventory SET quantity=quantity-?4
+             WHERE account_id=?1 AND inventory_type=?2 AND slot=?3",
+            params![account_id, inventory_type, slot, i64::from(quantity)],
+        )
+        .map_err(|_| "account persistence failed")?;
+    }
+    Ok(())
+}
+
+/// Mirror of `take_inventory_stack` for the warehouse side.
+fn take_storage_stack(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    slot: i16,
+    quantity: u32,
+) -> Result<(), String> {
+    let remaining: i64 = tx
+        .query_row(
+            "SELECT quantity FROM storage WHERE account_id=?1 AND slot=?2",
+            params![account_id, slot],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?
+        .unwrap_or(0);
+    if remaining <= i64::from(quantity) {
+        tx.execute(
+            "DELETE FROM storage WHERE account_id=?1 AND slot=?2",
+            params![account_id, slot],
+        )
+        .map_err(|_| "account persistence failed")?;
+    } else {
+        tx.execute(
+            "UPDATE storage SET quantity=quantity-?3 WHERE account_id=?1 AND slot=?2",
+            params![account_id, slot, i64::from(quantity)],
+        )
+        .map_err(|_| "account persistence failed")?;
+    }
+    Ok(())
+}
+
+/// Decide whether a deposit can fit, and if so where the row(s) would go.
+/// Checked before any mutation so a full warehouse refuses cleanly instead of
+/// destroying the stack.
+fn reserve_storage_slot(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    item_id: &str,
+    quantity: u32,
+) -> Result<(), String> {
+    let mut need = i64::from(quantity);
+    // Equipment instances never merge: two identical-looking weapons with a
+    // different scroll history are different items.
+    if !inventory::is_equipment(item_id) {
+        let slot_max = i64::from(inventory::item_slot_max(item_id));
+        let mergeable: i64 = tx
+            .query_row(
+                "SELECT COALESCE(SUM(?3-quantity),0) FROM storage
+                 WHERE account_id=?1 AND item_id=?2 AND quantity>0 AND quantity<?3",
+                params![account_id, item_id, slot_max],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+            .unwrap_or(0);
+        need = (need - mergeable.max(0)).max(0);
+    }
+    if need <= 0 {
+        return Ok(());
+    }
+    let free: i64 = tx
+        .query_row(
+            "SELECT ?2 - COUNT(*) FROM storage WHERE account_id=?1",
+            params![account_id, i64::from(STORAGE_SLOT_LIMIT)],
+            |row| row.get(0),
+        )
+        .map_err(|_| "account persistence failed")?;
+    if free <= 0 {
+        return Err("storage_full".to_owned());
+    }
+    // A single slot can hold at most `slotMax`; more than one new row is only
+    // needed when the amount exceeds a fresh stack.  Equipment needs exactly
+    // one row and always fits in a free slot.
+    let per_row = i64::from(inventory::item_slot_max(item_id)).max(1);
+    let rows_needed = (need + per_row - 1) / per_row;
+    if rows_needed > free {
+        return Err("storage_full".to_owned());
+    }
+    Ok(())
+}
+
+/// Put a prepared stack into the warehouse, merging into an identical stack
+/// when the item is stackable and there is room.
+fn insert_storage_stack(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    stack: &StorageStack,
+) -> Result<(), String> {
+    let stats_json = serde_json::to_string(stack.stats.as_ref().unwrap_or(&BTreeMap::new()))
+        .unwrap_or_else(|_| "{}".to_owned());
+    let upgrade = i64::from(stack.upgrade_count.unwrap_or(0));
+    let remaining = i64::from(stack.remaining_slots.unwrap_or(0));
+    let mut left = i64::from(stack.quantity);
+    if !inventory::is_equipment(&stack.item_id) {
+        let slot_max = i64::from(inventory::item_slot_max(&stack.item_id));
+        while left > 0 {
+            let target: Option<(i64, i64)> = tx
+                .query_row(
+                    "SELECT slot,quantity FROM storage
+                     WHERE account_id=?1 AND item_id=?2 AND quantity>0 AND quantity<?3
+                     ORDER BY slot LIMIT 1",
+                    params![account_id, stack.item_id, slot_max],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()
+                .map_err(|_| "account persistence failed")?;
+            let Some((slot, existing)) = target else { break };
+            let added = left.min((slot_max - existing).max(0));
+            if added <= 0 {
+                break;
+            }
+            tx.execute(
+                "UPDATE storage SET quantity=quantity+?3 WHERE account_id=?1 AND slot=?2",
+                params![account_id, slot, added],
+            )
+            .map_err(|_| "account persistence failed")?;
+            left -= added;
+        }
+    }
+    while left > 0 {
+        let slot: i64 = (1..=i64::from(STORAGE_SLOT_LIMIT))
+            .find(|candidate| {
+                tx.query_row(
+                    "SELECT 1 FROM storage WHERE account_id=?1 AND slot=?2",
+                    params![account_id, candidate],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()
+                .unwrap_or(None)
+                .is_none()
+            })
+            .ok_or_else(|| "storage_full".to_owned())?;
+        let in_row = if inventory::is_equipment(&stack.item_id) {
+            left
+        } else {
+            left.min(i64::from(inventory::item_slot_max(&stack.item_id)).max(1))
+        };
+        tx.execute(
+            "INSERT INTO storage(account_id,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![
+                account_id,
+                slot,
+                stack.item_id,
+                in_row,
+                stats_json,
+                upgrade,
+                remaining
+            ],
+        )
+        .map_err(|_| "account persistence failed")?;
+        left -= in_row;
+    }
+    Ok(())
+}
+
+/// Whether the character's inventory can accept a withdrawal.  Only decides
+/// yes/no; the authoritative insert is `add_inventory_tx`.
+fn inventory_has_room(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    stack: &StorageStack,
+) -> Result<bool, String> {
+    let kind = match inventory::inventory_type(&stack.item_id) {
+        Some(kind) => kind,
+        None => return Ok(false),
+    };
+    let mut need = i64::from(stack.quantity);
+    if !inventory::is_equipment(&stack.item_id) {
+        let slot_max = i64::from(inventory::item_slot_max(&stack.item_id));
+        let mergeable: i64 = tx
+            .query_row(
+                "SELECT COALESCE(SUM(?4-quantity),0) FROM inventory
+                 WHERE account_id=?1 AND inventory_type=?2 AND item_id=?3
+                   AND quantity>0 AND quantity<?4",
+                params![account_id, kind, stack.item_id, slot_max],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed")?
+            .unwrap_or(0);
+        need = (need - mergeable.max(0)).max(0);
+    }
+    if need <= 0 {
+        return Ok(true);
+    }
+    let free: i64 = tx
+        .query_row(
+            "SELECT ?3 - COUNT(*) FROM inventory WHERE account_id=?1 AND inventory_type=?2",
+            params![account_id, kind, i64::from(inventory::SLOT_LIMIT)],
+            |row| row.get(0),
+        )
+        .map_err(|_| "account persistence failed")?;
+    if free <= 0 {
+        return Ok(false);
+    }
+    if inventory::is_equipment(&stack.item_id) {
+        return Ok(true);
+    }
+    let per_row = i64::from(inventory::item_slot_max(&stack.item_id)).max(1);
+    Ok((need + per_row - 1) / per_row <= free)
+}
+
+pub fn valid_storage_slot(slot: i16) -> bool {
+    (1..=STORAGE_SLOT_LIMIT as i16).contains(&slot)
+}
+
+fn read_storage_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    request_id: &str,
+) -> Result<Option<StorageOutcome>, String> {
+    let row: Option<(String, i64, i64, String, i64, i64, String)> = tx
+        .query_row(
+            "SELECT operation,inventory_type,slot,item_id,quantity,success,code FROM storage_actions
+             WHERE account_id=?1 AND request_id=?2",
+            params![account_id, request_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    let Some((operation, inventory_type, slot, item_id, quantity, success, code)) = row else {
+        return Ok(None);
+    };
+    let operation = if operation == "storageWithdraw" {
+        StorageOperation::Withdraw
+    } else {
+        StorageOperation::Deposit
+    };
+    Ok(Some(StorageOutcome {
+        request_id: request_id.to_owned(),
+        operation,
+        inventory_type: u8::try_from(inventory_type).unwrap_or(0),
+        slot: i16::try_from(slot).unwrap_or(0),
+        item_id,
+        quantity: u32::try_from(quantity.max(0)).unwrap_or(0),
+        success: success != 0,
+        code,
+    }))
+}
+
+fn insert_storage_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    outcome: &StorageOutcome,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO storage_actions(account_id,request_id,operation,inventory_type,item_id,quantity,slot,success,code)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![
+            account_id,
+            outcome.request_id,
+            outcome.operation.as_str(),
+            i64::from(outcome.inventory_type),
+            outcome.item_id,
+            i64::from(outcome.quantity),
+            outcome.slot,
+            if outcome.success { 1 } else { 0 },
+            outcome.code
+        ],
+    )
+    .map_err(|_| "account persistence failed")?;
+    Ok(())
+}
+
+fn read_storage_mesos_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    request_id: &str,
+) -> Result<Option<StorageMesosOutcome>, String> {
+    let row: Option<(String, i64, i64, String, i64, i64)> = tx
+        .query_row(
+            "SELECT operation,quantity,success,code,mesos,stored_mesos FROM storage_mesos_actions
+             WHERE account_id=?1 AND request_id=?2",
+            params![account_id, request_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    let Some((operation, quantity, success, code, mesos, stored)) = row else {
+        return Ok(None);
+    };
+    let operation = if operation == "storageWithdraw" {
+        StorageOperation::Withdraw
+    } else {
+        StorageOperation::Deposit
+    };
+    Ok(Some(StorageMesosOutcome {
+        request_id: request_id.to_owned(),
+        operation,
+        quantity: u32::try_from(quantity.max(0)).unwrap_or(0),
+        success: success != 0,
+        code,
+        mesos: u64::try_from(mesos.max(0)).unwrap_or(0),
+        stored_mesos: u64::try_from(stored.max(0)).unwrap_or(0),
+    }))
+}
+
+fn insert_storage_mesos_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    outcome: &StorageMesosOutcome,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO storage_mesos_actions(account_id,request_id,operation,quantity,success,code,mesos,stored_mesos)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+        params![
+            account_id,
+            outcome.request_id,
+            outcome.operation.as_str(),
+            i64::from(outcome.quantity),
+            if outcome.success { 1 } else { 0 },
+            outcome.code,
+            i64::try_from(outcome.mesos).unwrap_or(i64::MAX),
+            i64::try_from(outcome.stored_mesos).unwrap_or(i64::MAX),
+        ],
+    )
+    .map_err(|_| "account persistence failed")?;
+    Ok(())
+}
+
+fn read_mesos_tx(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<u64, String> {
+    let mesos: i64 = tx
+        .query_row(
+            "SELECT mesos FROM player_stats WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?
+        .unwrap_or(0);
+    Ok(u64::try_from(mesos.max(0)).unwrap_or(0))
+}
+
+fn read_storage_mesos_tx(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<u64, String> {
+    let mesos: i64 = tx
+        .query_row(
+            "SELECT mesos FROM storage_mesos WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?
+        .unwrap_or(0);
+    Ok(u64::try_from(mesos.max(0)).unwrap_or(0))
+}
+
+fn read_storage_mesos_db(db: &Connection, account_id: &str) -> Result<u64, String> {
+    let mesos: i64 = db
+        .query_row(
+            "SELECT mesos FROM storage_mesos WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?
+        .unwrap_or(0);
+    Ok(u64::try_from(mesos.max(0)).unwrap_or(0))
 }
 
 fn migrate_inventory_schema(

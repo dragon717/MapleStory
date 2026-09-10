@@ -187,6 +187,15 @@ export interface ChatBalloonData {
     arrow: ChatBalloonAsset;
   };
 }
+/** Source-backed UIWindow.img/Trunk window used by the account warehouse.
+ *  `slotLimit` mirrors the server's row cap so the UI can draw the same number
+ *  of slots the server will actually accept. */
+export interface StorageUiData {
+  contentVersion: string;
+  source: string;
+  slotLimit: number;
+  ui: Record<string, AssetFrame>;
+}
 export interface ChatUiNineSlice {
   nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
   w?: AssetFrame; c?: AssetFrame; e?: AssetFrame;
@@ -302,6 +311,10 @@ export interface Manifest {
   npcs?: Record<string, NpcAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
   shopUi?: Record<string, AssetFrame>;
+  /** Source-backed UIWindow.img/Trunk entries used by the account-warehouse
+   *  window.  Flat keys (`backgrnd`, `select`, `BtGet/normal`,
+   *  `Tab/enabled/0`) mirror the shop convention. */
+  storageUi?: StorageUiData;
   /** Source-backed UtilDlgEx dialog pieces used by npc conversation boxes. */
   dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */

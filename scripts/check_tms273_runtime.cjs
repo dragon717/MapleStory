@@ -128,6 +128,29 @@ function visit(value) {
 visit(manifest);
 console.log(`TMS273 runtime: ${catalog.maps.length} maps; ${checked} source references; client/server geometry and quest generation agree.`);
 
+// Account warehouse: the client window is drawn entirely from the TMS273
+// UIWindow.img/Trunk export, and its row cap must agree with the server's
+// STORAGE_SLOT_LIMIT or the UI would offer slots the server refuses.
+assert(manifest.storageUi,'storage window export is missing');
+assert(manifest.storageUi.contentVersion==='tms273-storage',manifest.storageUi.contentVersion);
+for(const key of ['backgrnd','select','BtGet/normal','BtPut/normal','BtExit/normal','BtGetAll/normal','BtSort/normal','BtInCoin/normal','BtOutCoin/normal']) {
+  assert(manifest.storageUi.ui[key],`storage art missing: ${key}`);
+}
+for(const state of ['normal','pressed','disabled','mouseOver']) {
+  for(const button of ['BtGet','BtPut','BtExit','BtGetAll','BtSort']) {
+    assert(manifest.storageUi.ui[`${button}/${state}`],`storage state missing: ${button}/${state}`);
+  }
+}
+for(const state of ['enabled','disabled']) {
+  for(let i=0;i<5;i+=1) assert(manifest.storageUi.ui[`Tab/${state}/${i}`],`storage tab missing: ${state}/${i}`);
+}
+{
+  const worldSrc=fs.readFileSync(path.join(root,'server/src/auth.rs'),'utf8');
+  const limit=Number(worldSrc.match(/pub const STORAGE_SLOT_LIMIT: u16 = (\d+);/)?.[1]);
+  assert(limit>0,'STORAGE_SLOT_LIMIT not found in the server source');
+  assert.equal(manifest.storageUi.slotLimit,limit,'storage slot limit drifted between client and server');
+}
+
 assert(!manifest.skillCatalog['2220014']);
 for(const id of ['2221004','2221005','2221006','2221007','2221011','2221012']) assert(manifest.avatar.actions['skill'+id].length>0);
 for(const key of ['prepare','keydown','keydown0','keydownend']) assert(manifest.skillEffects['2221011'][key].length>0);

@@ -13,6 +13,13 @@ pub enum BossPracticeAction { Enter, Leave, Retry }
 #[serde(rename_all = "camelCase")]
 pub enum AbilityStat { Strength, Dexterity, Intelligence, Luck }
 
+/// Direction of one warehouse move.  Kept as its own wire enum so an unknown
+/// or misspelled direction is a deserialization error rather than a silently
+/// ignored field.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum StorageTransferOperation { Deposit, Withdraw }
+
 impl AbilityStat {
     pub fn as_str(self) -> &'static str {
         match self { Self::Strength => "strength", Self::Dexterity => "dexterity",
@@ -218,6 +225,39 @@ pub enum ClientMessage {
         source_slot: i16,
         quantity: u32,
     },
+    /// Open (or refresh) the account warehouse at a placed storage keeper.
+    /// The client names the npc it is standing at; the server decides whether
+    /// that npc is a storage keeper, whether the player is in range, and what
+    /// the warehouse actually contains.
+    StorageOpen {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "npcId")]
+        npc_id: String,
+    },
+    /// Intent to move one stack between the character inventory and the
+    /// account warehouse.  The client names only the direction, the tab and
+    /// the slot; the item identity, how many are really there and whether the
+    /// destination has room are all resolved server-side.  No item id is
+    /// accepted, so a forged request cannot deposit an item the player does
+    /// not own.
+    StorageTransfer {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        /// `deposit` moves inventory -> warehouse, `withdraw` the reverse.
+        operation: StorageTransferOperation,
+        #[serde(rename = "inventoryType")]
+        inventory_type: u8,
+        slot: i16,
+        quantity: u32,
+    },
+    /// Intent to move mesos between the character purse and the warehouse.
+    StorageMesos {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        operation: StorageTransferOperation,
+        quantity: u32,
+    },
     /// Intent to strike one authored map reactor.  The client identifies the
     /// prop; the server decides range, whether it is still interactable, and
     /// which state comes next.  No damage, position or state is accepted.
@@ -413,6 +453,27 @@ impl ClientMessage {
                     && inventory::valid_slot(*source_slot)
                     && (1..=100).contains(quantity)
             }
+            Self::StorageOpen {
+                request_id,
+                npc_id,
+            } => valid_id(request_id) && valid_id(npc_id),
+            Self::StorageTransfer {
+                request_id,
+                inventory_type,
+                slot,
+                quantity,
+                ..
+            } => {
+                valid_id(request_id)
+                    && inventory::valid_inventory_type(*inventory_type)
+                    && inventory::valid_slot(*slot)
+                    && (1..=500).contains(quantity)
+            }
+            Self::StorageMesos {
+                request_id,
+                quantity,
+                ..
+            } => valid_id(request_id) && (1..=1_000_000_000).contains(quantity),
             Self::ChatSend { request_id, text } => {
                 valid_id(request_id) && valid_chat_text(text)
             }
@@ -641,6 +702,22 @@ pub struct NpcState {
     pub job_advancement_available: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quest_available: Option<bool>,
+}
+
+/// One full view of a character's account warehouse, sent only to the owner.
+/// Storage is private, so this is never placed in a map snapshot.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageState {
+    /// Warehouse rows, ordered by slot.  Equipment keeps its instance stats.
+    pub items: Vec<InventoryItem>,
+    /// Warehouse mesos, a balance separate from the character's purse.
+    pub mesos: u64,
+    /// How many rows the warehouse can hold in total.
+    pub slot_limit: u16,
+    /// The storage keeper this window belongs to, so a stale window can be
+    /// closed when the player walks away from it.
+    pub npc_id: String,
 }
 
 #[derive(Clone, Serialize)]

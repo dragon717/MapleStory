@@ -86,6 +86,10 @@ const manifest = {
   // and copied into client/public-tms273/assets.
   chatBalloon: read('balloon'),
   reactors: read('reactor'),
+  // Source-backed UI/UIWindow.img/Trunk used by the account-warehouse window.
+  // PNGs are exported by export_tms273_storage.cjs and copied into
+  // client/public-tms273/assets alongside the other UI art.
+  storageUi: read('storage'),
 };
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {

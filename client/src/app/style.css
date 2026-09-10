@@ -116,6 +116,39 @@
 .npc-shop-empty{color:#6a6244;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin-top:60px}
 @media(max-width:799px){.npc-shop{transform:translate(-50%,-50%) scale(.9)}}
 
+/* Account warehouse, built from the TMS273 UIWindow.img/Trunk source art.
+   The shell image sets --storage-width so the panes, the action row and the
+   coin row all share the authored frame width; the lists scroll inside it. */
+.storage-window{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:3;image-rendering:pixelated}
+.storage-window[hidden]{display:none!important}
+.storage-shell{position:relative;width:var(--storage-width,463px);padding:6px;box-sizing:border-box;background:#f3ecd9f2;border:1px solid #c9ba8a;border-radius:5px;box-shadow:0 9px 0 #112821,0 12px 25px #0006;display:flex;flex-direction:column;gap:6px}
+.storage-backgrnd{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated;pointer-events:none;z-index:0}
+.storage-heading{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 8px;background:#dfd2ac;border-bottom:1px solid #c2b487;color:#5a4a23;font:700 13px/1.4 Georgia,"Songti SC",serif;letter-spacing:1px}
+.storage-panes{position:relative;z-index:1;display:flex;gap:8px;align-items:stretch}
+.storage-pane{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.storage-pane-label{color:#5a4a23;font:700 11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.storage-list{height:190px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9}
+.storage-row{display:flex;align-items:center;gap:6px;height:32px;flex:0 0 32px;padding:0 5px;background:linear-gradient(#fffef8,#efe7d0);border:1px solid #cabb8f;border-radius:2px;cursor:pointer;font:11px/16px Verdana,"Microsoft YaHei",sans-serif;color:#33301f;text-align:left}
+.storage-row:nth-child(even){background:linear-gradient(#faf5e6,#e9dfc4)}
+.storage-row.is-selected{outline:2px solid #9a3c13;outline-offset:-2px}
+.storage-row.is-restricted{opacity:.55;cursor:not-allowed}
+.storage-row-icon{flex:0 0 auto;width:26px;height:26px;object-fit:contain;image-rendering:pixelated}
+.storage-row-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.storage-empty{color:#6a6244;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin-top:40px}
+.storage-actions{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.storage-coin{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.storage-amount{width:96px;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid #c2b487;border-radius:3px;background:#fffdf5;color:#33301f;font:11px/20px Verdana,sans-serif}
+.storage-mesos{color:#303030;font:bold 11px/16px Verdana,sans-serif}
+.storage-button{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:22px;padding:0 8px;box-sizing:border-box;cursor:pointer;background:linear-gradient(#efe7d0,#ddd2b2);border:1px solid #cabb8f;border-radius:3px;color:#5b4225;font:bold 11px/20px Verdana,"Microsoft YaHei",sans-serif}
+.storage-button.is-sprite{padding:0;border:none;background:none;min-width:0;height:auto}
+.storage-button.is-sprite img{display:block;image-rendering:pixelated}
+.storage-button-caption{position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);white-space:nowrap;color:#5a4a23;font:9px/12px Verdana,"Microsoft YaHei",sans-serif;opacity:0;pointer-events:none;transition:opacity .12s}
+.storage-button.is-sprite:hover .storage-button-caption,.storage-button.is-sprite:focus-visible .storage-button-caption{opacity:1}
+.storage-status{position:relative;z-index:1;min-height:16px;color:#3f6b3f;font:11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.storage-status.is-error{color:#9a3c13}
+@media(max-width:799px){.storage-panes{flex-direction:column}.storage-list{height:132px}}
+@media(max-width:520px){.storage-shell{width:min(var(--storage-width,463px),calc(100vw - 16px))}}
+
 /* Quest log panel (server-driven entries, parchment styling like the other
    source windows; the v83 UIWindow.img/Quest artwork export is tracked as a
    future visual pass). */

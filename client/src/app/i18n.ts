@@ -94,6 +94,12 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   shop_item_unsellable: { zh: '这个道具无法出售给商店', en: 'This item cannot be sold to a shop' },
   shop_rejected: { zh: '商店拒绝了这次交易', en: 'The shop rejected this trade' },
   potion_cooldown: { zh: '道具冷却中，请稍后再使用', en: 'This item is cooling down' },
+  storage_unknown: { zh: '找不到这个仓库管理员', en: 'That storage keeper is not available' },
+  storage_not_keeper: { zh: '这个 NPC 不是仓库管理员', en: 'That NPC is not a storage keeper' },
+  storage_too_far: { zh: '距离太远，请靠近仓库管理员', en: 'Stand closer to the storage keeper' },
+  storage_closed: { zh: '仓库已关闭，请重新打开', en: 'The storage window is closed; open it again' },
+  storage_slot_empty: { zh: '仓库这个格子没有道具', en: 'That storage slot is empty' },
+  storage_full: { zh: '仓库已满', en: 'The storage is full' },
 });
 
 export function uiLocale(): UiLocale { return locale; }

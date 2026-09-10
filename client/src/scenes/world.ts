@@ -142,6 +142,10 @@ export class World extends Phaser.Scene {
         for (const frame of [...state.frames, ...state.hitFrames]) images.set(frame.url, frame.url);
       }
     }
+    // The account-warehouse shell and buttons are DOM-rendered, but preloading
+    // them here keeps them on the same cache as the rest of the UI art and
+    // lets the window open without a flash of missing sprites.
+    for (const frame of Object.values(this.manifest.storageUi?.ui ?? {})) images.set(frame.url, frame.url);
     const afterimage = this.manifest.combat?.attack?.afterimage;
     for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
     for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {

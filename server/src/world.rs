@@ -6,7 +6,7 @@ use crate::{
     npc::{self, DialogueContext, NpcSpawn, NpcTemplate, Shop},
     protocol::{
         reject, AbilityStat, AbilityStats, ClientMessage, DerivedStats, DropState, MonsterState,
-        NpcState, PlayerState, RegenerationPassive,
+        NpcState, PlayerState, RegenerationPassive, StorageState, StorageTransferOperation,
     },
 };
 use rand::Rng;
@@ -178,6 +178,14 @@ const REACTOR_REACH_BACK_PX: f64 = 12.0;
 /// is deliberately expressed as a ratio of the catalog `price` (the same
 /// field the shop's own sale prices are authored in) so replacing it with a
 /// verified TMS273 value is a one-line change.  Not an official number.
+/// Npc.wz `func` marker for an account warehouse keeper.  TMS273 authors three
+/// of them (倉庫老闆 金先生 / 倉庫王老闆 / 倉庫管理員朴先生) and all three sit
+/// in maps that are part of the assembled catalog, so the warehouse is
+/// reachable in normal play.  Matching on the authored marker — rather than on
+/// a hard-coded npc id — means a newly placed keeper works without a code
+/// change, and a forged request for a non-keeper npc is refused.
+const STORAGE_KEEPER_FUNC: &str = "倉庫";
+
 const SHOP_SELL_PRICE_PERCENT: u64 = 50;
 /// Denominator for [`SHOP_SELL_PRICE_PERCENT`].
 const SHOP_SELL_PRICE_DIVISOR: u64 = 100;
@@ -2594,6 +2602,10 @@ pub struct World {
     /// so a replayed `ShopSell` re-sends the original result instead of paying
     /// mesos a second time for the same stack.
     shop_sell_requests: BTreeMap<(String, String), ShopSellOutcome>,
+    /// Which storage keeper each character currently has open, if any.  The
+    /// window is bound to the npc so walking away (or a different keeper)
+    /// closes it instead of silently operating on a shop the player left.
+    open_storage: BTreeMap<String, String>,
     skill_requests: BTreeMap<(String, String), auth::SkillActionOutcome>,
     ability_requests: BTreeMap<(String, String), (AbilityStat, auth::AbilityActionOutcome)>,
     pending_attacks: BTreeMap<String, PendingAttack>,
@@ -2681,6 +2693,7 @@ impl World {
             revive_requests: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
+            open_storage: BTreeMap::new(),
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
@@ -4152,6 +4165,29 @@ impl World {
                         source_slot,
                         quantity,
                     ),
+                    ClientMessage::StorageOpen {
+                        request_id,
+                        npc_id,
+                    } => self.handle_storage_open(id, request_id, npc_id),
+                    ClientMessage::StorageTransfer {
+                        request_id,
+                        operation,
+                        inventory_type,
+                        slot,
+                        quantity,
+                    } => self.handle_storage_transfer(
+                        id,
+                        request_id,
+                        operation,
+                        inventory_type,
+                        slot,
+                        quantity,
+                    ),
+                    ClientMessage::StorageMesos {
+                        request_id,
+                        operation,
+                        quantity,
+                    } => self.handle_storage_mesos(id, request_id, operation, quantity),
                     ClientMessage::ChatSend { request_id, text } => {
                         self.handle_chat(id, request_id, text)
                     }
@@ -10795,6 +10831,27 @@ impl World {
             self.send_reject(&id, code, message, Some(&request_id));
             return;
         };
+        // A warehouse keeper has no authored dialogue script: talking to one
+        // *is* the "open my storage" action in the original.  Answering with
+        // the shared `openStorage` marker keeps the same one-marker pattern as
+        // `openSkills`, so the client opens the window without a bespoke
+        // conversation tree per keeper.
+        if template.func.contains(STORAGE_KEEPER_FUNC) {
+            self.end_conversation(&id);
+            if !can_advance {
+                self.send_reject(&id, "dead", "死亡角色不能使用仓库。", Some(&request_id));
+                return;
+            }
+            let mut value = npc::DialogueView::End.to_json(
+                &request_id,
+                &npc_id,
+                &name,
+                name_zh.as_deref(),
+            );
+            value["openStorage"] = serde_json::Value::Bool(true);
+            self.send_npc_dialogue(&id, value);
+            return;
+        }
         if self.handle_quest_npc_menu(
             &id,
             &request_id,
@@ -11235,6 +11292,10 @@ impl World {
         for npc in self.npcs.values_mut() {
             npc.conversation.remove(player_id);
         }
+        // Closing the conversation also closes the warehouse window: the two
+        // are the same interaction with the same npc, so a player who walks
+        // away must not keep a live storage session behind.
+        self.close_storage(player_id);
     }
 
     fn apply_job_advance(
@@ -13220,6 +13281,331 @@ impl World {
         })
         .to_string();
         let _ = player.output.try_send(message);
+    }
+
+    /// Close the character's warehouse window, if one is open.  Called from
+    /// `end_conversation`, so leaving the npc, changing map or dying all end
+    /// the session through one path.
+    fn close_storage(&mut self, player_id: &str) {
+        if self.open_storage.remove(player_id).is_some() {
+            self.send_storage_state(player_id, None);
+        }
+    }
+
+    /// Open the account warehouse at a placed storage keeper.
+    ///
+    /// The client names the npc; whether it is a storage keeper, whether the
+    /// player is standing close enough and what the warehouse holds are all
+    /// decided here.  Storage is account-wide, so two characters of the same
+    /// account see the same rows.
+    fn handle_storage_open(&mut self, id: String, request_id: String, npc_id: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let Some(npc) = self.npcs.get(&npc_id) else {
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_unknown",
+                "0",
+                0,
+                0,
+                0,
+            );
+            return;
+        };
+        // The keeper must be authored as one in Npc.wz *and* the player must
+        // be on its map within talking range: a client cannot open the
+        // warehouse from across the world.
+        let template_id = npc.template_id.clone();
+        let is_keeper = self
+            .gameplay
+            .npcs
+            .iter()
+            .find(|template| template.template_id == template_id)
+            .is_some_and(|template| template.func.contains(STORAGE_KEEPER_FUNC));
+        if !is_keeper {
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_not_keeper",
+                "0",
+                0,
+                0,
+                0,
+            );
+            return;
+        }
+        let in_range = npc.map_id == player.map_id
+            && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
+            && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y;
+        if !in_range {
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_too_far",
+                "0",
+                0,
+                0,
+                0,
+            );
+            return;
+        }
+        if player.state.hp <= 0 || player.state.action == "dead" {
+            self.send_storage_result(&id, &request_id, false, "dead", "0", 0, 0, 0);
+            return;
+        }
+        self.open_storage.insert(id.clone(), npc_id.clone());
+        self.send_storage_result(&id, &request_id, true, "", &npc_id, 0, 0, 0);
+        self.send_storage_state(&id, Some(&npc_id));
+    }
+
+    /// Move one stack between the inventory and the warehouse.
+    ///
+    /// The window must already be open at a keeper in range — that is the
+    /// authority that the player actually walked to a warehouse, and it is
+    /// re-checked on every transfer so a client cannot bank items from the
+    /// field.
+    fn handle_storage_transfer(
+        &mut self,
+        id: String,
+        request_id: String,
+        operation: StorageTransferOperation,
+        inventory_type: u8,
+        slot: i16,
+        quantity: u32,
+    ) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        let Some(npc_id) = self.open_storage.get(&id).cloned() else {
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_closed",
+                "0",
+                inventory_type,
+                slot,
+                quantity,
+            );
+            return;
+        };
+        if !self.storage_keeper_in_range(&id, &npc_id) {
+            self.close_storage(&id);
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_too_far",
+                &npc_id,
+                inventory_type,
+                slot,
+                quantity,
+            );
+            return;
+        }
+        let (operation, kind) = match operation {
+            StorageTransferOperation::Deposit => (auth::StorageOperation::Deposit, inventory_type),
+            StorageTransferOperation::Withdraw => (auth::StorageOperation::Withdraw, inventory_type),
+        };
+        let Some(store) = self.store.clone() else {
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "persistence",
+                &npc_id,
+                inventory_type,
+                slot,
+                quantity,
+            );
+            return;
+        };
+        match store.storage_transfer(&id, &request_id, operation, kind, slot, quantity) {
+            Ok(outcome) => {
+                self.send_storage_transfer_result(&id, &request_id, &npc_id, &outcome);
+                // Refresh the authoritative view from *inside the world* is
+                // not needed for the warehouse (the DB just wrote it), but the
+                // inventory side changed, so reload it to keep the snapshot
+                // and the window consistent.
+                self.reload_storage_side_effects(&id, &store);
+                self.send_storage_state(&id, Some(&npc_id));
+                if outcome.success {
+                    self.send_quest_list(&id);
+                }
+            }
+            Err(error) => {
+                if let Some(player) = self.players.get(&id) {
+                    let _ = player
+                        .output
+                        .try_send(reject("persistence", &error, Some(&request_id)));
+                }
+            }
+        }
+    }
+
+    /// Move mesos between the character purse and the warehouse.
+    fn handle_storage_mesos(
+        &mut self,
+        id: String,
+        request_id: String,
+        operation: StorageTransferOperation,
+        quantity: u32,
+    ) {
+        let Some(npc_id) = self.open_storage.get(&id).cloned() else {
+            self.send_storage_result(&id, &request_id, false, "storage_closed", "0", 0, 0, quantity);
+            return;
+        };
+        if !self.storage_keeper_in_range(&id, &npc_id) {
+            self.close_storage(&id);
+            self.send_storage_result(&id, &request_id, false, "storage_too_far", &npc_id, 0, 0, quantity);
+            return;
+        }
+        let operation = match operation {
+            StorageTransferOperation::Deposit => auth::StorageOperation::Deposit,
+            StorageTransferOperation::Withdraw => auth::StorageOperation::Withdraw,
+        };
+        let Some(store) = self.store.clone() else {
+            self.send_storage_result(&id, &request_id, false, "persistence", &npc_id, 0, 0, quantity);
+            return;
+        };
+        match store.storage_mesos(&id, &request_id, operation, quantity) {
+            Ok(outcome) => {
+                // The purse lives in the profile, so mirror the new balance
+                // into the in-memory state before the next snapshot.
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.mesos = outcome.mesos;
+                }
+                let message = serde_json::json!({
+                    "type":"storageMesos",
+                    "requestId":request_id,
+                    "success":outcome.success,
+                    "code":outcome.code,
+                    "operation":outcome.operation.as_str(),
+                    "quantity":outcome.quantity,
+                    "mesos":outcome.mesos,
+                    "storedMesos":outcome.stored_mesos,
+                })
+                .to_string();
+                if let Some(player) = self.players.get(&id) {
+                    let _ = player.output.try_send(message);
+                }
+                self.send_storage_state(&id, Some(&npc_id));
+            }
+            Err(error) => {
+                if let Some(player) = self.players.get(&id) {
+                    let _ = player
+                        .output
+                        .try_send(reject("persistence", &error, Some(&request_id)));
+                }
+            }
+        }
+    }
+
+    /// Re-verify that the open keeper is still on the player's map and close.
+    fn storage_keeper_in_range(&self, id: &str, npc_id: &str) -> bool {
+        let Some(player) = self.players.get(id) else {
+            return false;
+        };
+        self.npcs.get(npc_id).is_some_and(|npc| {
+            npc.map_id == player.map_id
+                && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
+                && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y
+        })
+    }
+
+    /// Reload the character-owned rows a storage transfer can change.  Only
+    /// the inventory moves here; the warehouse itself was just written.
+    fn reload_storage_side_effects(&mut self, id: &str, store: &auth::Store) {
+        let defaults = self.default_profile();
+        let Ok(profile) = store.load_profile(id, &defaults) else {
+            return;
+        };
+        if let Some(player) = self.players.get_mut(id) {
+            player.state.inventory = profile.inventory;
+        }
+    }
+
+    /// Record and send one transfer outcome.  Refusals are routed through the
+    /// same path as successes so the client always gets a single, authoritative
+    /// answer to the request it sent.
+    fn send_storage_transfer_result(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        outcome: &auth::StorageOutcome,
+    ) {
+        self.send_storage_result(
+            id,
+            request_id,
+            outcome.success,
+            &outcome.code,
+            npc_id,
+            outcome.inventory_type,
+            outcome.slot,
+            outcome.quantity,
+        );
+    }
+
+    fn send_storage_result(
+        &self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        npc_id: &str,
+        inventory_type: u8,
+        slot: i16,
+        quantity: u32,
+    ) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"storageResult",
+            "requestId":request_id,
+            "success":success,
+            "code":code,
+            "npcId":npc_id,
+            "inventoryType":inventory_type,
+            "slot":slot,
+            "quantity":quantity,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Push the owner a full warehouse view.  `npc_id` is `None` when the
+    /// session just closed, which tells the client to dismiss the window.
+    fn send_storage_state(&self, id: &str, npc_id: Option<&str>) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let Some(npc_id) = npc_id else {
+            let _ = player
+                .output
+                .try_send(serde_json::json!({"type":"storageState","closed":true}).to_string());
+            return;
+        };
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let state = StorageState {
+            items: store.load_storage(id).unwrap_or_default(),
+            mesos: store.storage_mesos_balance(id).unwrap_or(0),
+            slot_limit: auth::STORAGE_SLOT_LIMIT,
+            npc_id: npc_id.to_owned(),
+        };
+        let mut message = serde_json::to_value(&state).unwrap_or_default();
+        if let Some(object) = message.as_object_mut() {
+            object.insert("type".into(), serde_json::Value::from("storageState"));
+        }
+        let _ = player.output.try_send(message.to_string());
     }
 
     fn send_pickup_outcome(&self, id: &str, request_id: &str, outcome: auth::PickupOutcome) {
@@ -18860,6 +19246,7 @@ mod tests {
     include!("reactor_acceptance.rs");
     include!("shop_sell_acceptance.rs");
     include!("consume_acceptance.rs");
+    include!("storage_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

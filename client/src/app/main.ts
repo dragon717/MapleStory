@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { LoginResponse, NpcState, PlayerState, BossPracticeState } from '../../../shared/protocol';
 import { Connection } from '../network/session';
 import { PlayerInput } from '../features/player/input';
+import { StorageView } from '../features/world/storage-view';
 import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
@@ -55,6 +56,7 @@ let deathNotice: DeathNoticeView | undefined;
 let awayNotice: AwayNoticeView | undefined;
 let menus: MenuView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
+let storage: StorageView | undefined;
 let questLog: QuestLogView | undefined;
 let skills: SkillView | undefined;
 let characterInfo: CharacterInfoView | undefined;
@@ -187,7 +189,7 @@ async function enterGame(session: LoginResponse) {
     chat?.destroy();
     chat = new ChatView(el('chat'), manifest, message => status(message), {
       send: (requestId, text) => connection?.send({ type: 'chatSend', requestId, text }) ?? false,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -207,6 +209,8 @@ async function enterGame(session: LoginResponse) {
     }, message => status(message));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
+    storage?.destroy();
+    storage = new StorageView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
     skills?.destroy();
@@ -237,7 +241,7 @@ async function enterGame(session: LoginResponse) {
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
       castSkill: skillId => {
-        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()) return;
+        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()) return;
         return castSkill(skillId);
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
@@ -251,7 +255,7 @@ async function enterGame(session: LoginResponse) {
         status(english ? `Portal request: ${request.sourceMapId}/${request.portalName} → ${request.targetMapId}` : `传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
     }, talkToNpc, questId => {
-      if (news.open || npcDialogue?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen()) return;
+      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen()) return;
       input?.reset();
       connection?.send({ type: 'questInteract', requestId: `quest-${Date.now()}-${++skillRequestSequence}`, questId });
     });
@@ -277,6 +281,48 @@ async function enterGame(session: LoginResponse) {
           npcDialogue?.clear();
           skills?.open();
           status('技能窗口已打开。');
+        }
+        // A warehouse keeper has no dialogue tree: the answer *is* the open
+        // action, so ask the server for the authoritative contents and let it
+        // decide whether the player really is at a keeper in range.
+        if (message.openStorage) {
+          npcDialogue?.clear();
+          connection?.send({
+            type: 'storageOpen',
+            requestId: `storage-open-${Date.now().toString(36)}`,
+            npcId: message.npcId,
+          });
+        }
+      }
+      if (message.type === 'storageState') {
+        if (message.closed) {
+          storage?.close();
+        } else if (message.npcId && message.items && message.slotLimit !== undefined) {
+          storage?.open({
+            npcId: message.npcId,
+            items: message.items,
+            mesos: message.mesos ?? 0,
+            slotLimit: message.slotLimit,
+          });
+        }
+      }
+      if (message.type === 'storageResult') {
+        if (!message.success) {
+          storage?.showResult(message.code, false);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Storage action failed' : '仓库操作失败'}（${message.code}）`), true);
+        } else {
+          storage?.showResult('', true);
+        }
+      }
+      if (message.type === 'storageMesos') {
+        if (message.success) {
+          chat?.appendSystem(
+            `${message.operation === 'deposit' ? (uiLocale() === 'en' ? 'Stored' : '存入') : (uiLocale() === 'en' ? 'Withdrew' : '取出')} ${message.quantity} ${uiText('meso')}`,
+            `storage:${message.requestId}`,
+          );
+        } else {
+          storage?.showResult(message.code, false);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Mesos transfer failed' : '枫币搬运失败'}（${message.code}）`), true);
         }
       }
       if (message.type === 'shopResult') {
@@ -341,8 +387,12 @@ async function enterGame(session: LoginResponse) {
         deathNotice?.update(self);
         awayNotice?.update(self, message.selfId);
         if (self) npcDialogue?.syncPlayer(self);
+        // The warehouse's deposit side mirrors the live bag + purse, so a
+        // pickup or a sale while the window is open is reflected at once.
+        if (self) storage?.syncPlayer(self);
         if (announcedMapId !== message.mapId) {
           npcDialogue?.clear();
+          storage?.close();
           skills?.releaseChannel();
           hud?.releaseChannel();
           input?.reset();
@@ -373,7 +423,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); questLog?.clear(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); questLog?.clear(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
@@ -390,7 +440,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
