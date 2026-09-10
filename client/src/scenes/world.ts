@@ -48,6 +48,7 @@ export class World extends Phaser.Scene {
     private onPortal?: PortalHandler,
     private onNpcTalk?: (npc: NpcState) => void,
     private onQuestInteract?: (questId: string) => void,
+    private onReactorHit?: (reactorId: string) => void,
   ) { super('world'); }
   get mapId() { return this.manifest.map.id; }
   getMap(mapId = this.mapId, sourceMapId?: string): MapDefinition | MapCatalogEntry | undefined {
@@ -519,35 +520,58 @@ export class World extends Phaser.Scene {
     if (pointer.button !== undefined && pointer.button !== 0) return;
     const snapshot = this.snapshot as GameplaySnapshot | undefined;
     const npcs = snapshot?.npcs ?? [];
-    if (!npcs.length) return;
-    // pointer.worldX/Y are absolute map-space coordinates (camera scroll handled
-    // by Phaser).  Use the per-NPC stand frame to estimate the click box so the
-    // hit area matches the on-screen sprite.
+    if (!npcs.length && (!snapshot?.reactors?.length || !this.onReactorHit)) return;
     const worldX = pointer.worldX;
     const worldY = pointer.worldY;
-    let best: { npc: NpcState; dist: number } | null = null;
-    for (const npc of npcs) {
-      const asset = this.manifest.npcs?.[npc.templateId];
-      const frames = asset?.stand ?? [];
-      const frame = frames[0];
-      if (!frame) continue;
-      // NpcView applies origin(0) and offsets `frame.x`/`frame.y` from
-      // `(npc.x, npc.y)` plus a horizontal flip when `npc.facing === 1`.  We
-      // bound the click area to the visible sprite body so a click far away
-      // does not start a conversation.
-      const left = npc.facing === 1 ? npc.x - frame.x - frame.width : npc.x + frame.x;
-      const top = npc.y + frame.y;
-      const right = left + frame.width;
-      const bottom = top + frame.height;
-      const markerHit = this.npcs.get(npc.id)?.containsMarker(worldX, worldY);
-      if (!markerHit && (worldX < left - 8 || worldX > right + 8 || worldY < top - 16 || worldY > bottom + 24)) continue;
-      const dx = npc.x - worldX;
-      const dy = npc.y - worldY;
-      const dist = dx * dx + dy * dy;
-      if (!best || dist < best.dist) best = { npc, dist };
+
+    // 1) Try NPC interaction first, matching the existing desktop v83 order.
+    {
+      let best: { npc: NpcState; dist: number } | null = null;
+      for (const npc of npcs) {
+        const asset = this.manifest.npcs?.[npc.templateId];
+        const frames = asset?.stand ?? [];
+        const frame = frames[0];
+        if (!frame) continue;
+        // NpcView applies origin(0) and offsets `frame.x`/`frame.y` from
+        // `(npc.x, npc.y)` plus a horizontal flip when `npc.facing === 1`.  We
+        // bound the click area to the visible sprite body so a click far away
+        // does not start a conversation.
+        const left = npc.facing === 1 ? npc.x - frame.x - frame.width : npc.x + frame.x;
+        const top = npc.y + frame.y;
+        const right = left + frame.width;
+        const bottom = top + frame.height;
+        const markerHit = this.npcs.get(npc.id)?.containsMarker(worldX, worldY);
+        if (!markerHit && (worldX < left - 8 || worldX > right + 8 || worldY < top - 16 || worldY > bottom + 24)) continue;
+        const dx = npc.x - worldX;
+        const dy = npc.y - worldY;
+        const dist = dx * dx + dy * dy;
+        if (!best || dist < best.dist) best = { npc, dist };
+      }
+      if (best) {
+        callback?.(best.npc);
+        return;
+      }
     }
-    if (best) callback(best.npc);
+
+    // 2) Fallback to the nearest reactor hotspot for click-based interaction
+    // (the server still validates final range/state, this only selects intent).
+    const reactor = this.nearestReactorAt(worldX, worldY);
+    if (reactor) {
+      this.onReactorHit?.(reactor.id);
+    }
   };
+
+  private nearestReactorAt(worldX: number, worldY: number): ReactorSnapshot | null {
+    const snapshot = this.snapshot as (GameplaySnapshot & { reactors?: ReactorSnapshot[] }) | undefined;
+    if (!snapshot) return null;
+    const candidates = (snapshot.reactors ?? [])
+      // 点击道具入口仅用于 type 9（原始踩区/碰撞触发）反应器；其余交互由攻击键处理。
+      .filter(reactor => (reactor.hitType ?? 0) === 9 && !reactor.spent)
+      .map(reactor => ({ reactor, dx: reactor.x - worldX, dy: reactor.y - worldY }))
+      .filter(({ dx, dy }) => Math.abs(dx) <= World.REACTOR_CLICK_RANGE_X && Math.abs(dy) <= World.REACTOR_CLICK_RANGE_Y)
+      .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+    return candidates[0]?.reactor ?? null;
+  }
 
   private playerHasStarterSword(playerId: string) {
     const player = this.snapshot?.players.find(candidate => candidate.id === playerId);
@@ -612,7 +636,8 @@ export class World extends Phaser.Scene {
     const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
     if (!player) return null;
     const candidates = (snapshot.reactors ?? [])
-      .filter(reactor => !reactor.spent)
+      // 攻击键互动沿用原始敲击语义：跳过 type 9（区域/点击型）反应器，避免重复触发。
+      .filter(reactor => (reactor.hitType ?? 0) !== 9 && !reactor.spent)
       .map(reactor => ({ reactor, dx: reactor.x - player.x, dy: reactor.y - player.y }))
       .filter(({ dx, dy }) => Math.abs(dx) <= World.REACTOR_RANGE_X && Math.abs(dy) <= World.REACTOR_RANGE_Y)
       .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
@@ -622,6 +647,8 @@ export class World extends Phaser.Scene {
   /** Client-side reach hint only; the server re-checks range authoritatively. */
   private static readonly REACTOR_RANGE_X = 96;
   private static readonly REACTOR_RANGE_Y = 72;
+  private static readonly REACTOR_CLICK_RANGE_X = 56;
+  private static readonly REACTOR_CLICK_RANGE_Y = 80;
 
   private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);

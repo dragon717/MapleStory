@@ -1,0 +1,229 @@
+/* The minimap window, assembled from the exported UI/UIMap.img/MiniMap
+   slices.  The chrome pieces (nw/n/ne/w/e/sw/s/se/c plus MaxMap's nw2 label
+   plate) arrive as CSS variables set by MiniMapView; every position variable
+   is either authored in the source or derived from a measured slice, so the
+   window keeps the source geometry at any map size. */
+
+#game-shell>#minimap {
+  position: absolute;
+  top: var(--minimap-dock-left-y, 5px);
+  left: var(--minimap-dock-left-x, 5px);
+  z-index: 2;
+  pointer-events: none;
+}
+
+#game-shell>#minimap[data-dock='right'] {
+  left: auto;
+  right: var(--minimap-dock-right-x, 26px);
+}
+
+.tms-minimap {
+  position: relative;
+  pointer-events: auto;
+  filter: drop-shadow(0 2px 3px #0006);
+}
+
+/* One dark shell for all three modes.  The shell colour is the slices' own
+   body colour (46,53,61): the 1x1 white c slice is NOT stretched over the
+   plate area — the original window shows the dark shell through the canvas's
+   transparent regions, and only the bare Min bar uses its own dark c fill. */
+.tms-minimap-window {
+  position: relative;
+  width: var(--minimap-window-width, 185px);
+  min-height: calc(var(--minimap-header, 0px) + var(--minimap-body-height, 0px) + var(--minimap-bottom-y, 16px));
+  background-color: rgb(46 53 61);
+  background-origin: padding-box;
+  background-repeat: no-repeat;
+  background-image:
+    var(--minimap-nw), var(--minimap-nw2, none), var(--minimap-ne),
+    var(--minimap-w), var(--minimap-e),
+    var(--minimap-sw), var(--minimap-s), var(--minimap-se);
+  background-position:
+    left top, var(--minimap-nw2-x, 44px) top, right top,
+    left var(--minimap-header, 0px), right var(--minimap-header, 0px),
+    left bottom, center bottom, right bottom;
+  background-size:
+    auto auto, auto auto, auto auto,
+    var(--minimap-edge-x, 9px) calc(100% - var(--minimap-header, 0px) - var(--minimap-bottom-y, 16px)),
+    var(--minimap-edge-x, 9px) calc(100% - var(--minimap-header, 0px) - var(--minimap-bottom-y, 16px)),
+    auto auto, calc(100% - 30px) auto, auto auto;
+  image-rendering: pixelated;
+}
+
+/* The strip mode is the authored Min bar: w / c / e only, 30 px tall. */
+.tms-minimap[data-mode='strip'] .tms-minimap-window {
+  min-height: var(--minimap-bar-height, 30px);
+  background-image: var(--minimap-w), var(--minimap-e), var(--minimap-c);
+  background-position: left top, right top, 0 0;
+  background-size:
+    var(--minimap-edge-x, 9px) 100%,
+    var(--minimap-edge-x, 9px) 100%,
+    100% 100%;
+}
+
+/* The thumbnail and the marker layer share one transform (set per frame by
+   MiniMapView.applyTransform), so a marker can never drift off the terrain
+   pixel it is plotted on. */
+.tms-minimap-body {
+  position: absolute;
+  left: var(--minimap-body-left, 9px);
+  top: var(--minimap-body-top, 76px);
+  width: var(--minimap-body-width, 0px);
+  height: var(--minimap-body-height, 0px);
+  overflow: hidden;
+}
+
+.tms-minimap-canvas,
+.tms-minimap-markers {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: var(--minimap-map-transform, scale(1));
+}
+
+.tms-minimap-canvas {
+  display: block;
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+.tms-minimap[data-mode='strip'] .tms-minimap-body {
+  left: var(--minimap-edge-x, 9px);
+  top: 0;
+  width: calc(var(--minimap-window-width, 185px) - var(--minimap-edge-x, 9px) * 2);
+  height: var(--minimap-bar-height, 30px);
+}
+
+.tms-minimap[data-mode='strip'] .tms-minimap-canvas {
+  display: none;
+}
+
+/* The bare bar carries no map, so it carries no markers either. */
+.tms-minimap[data-mode='strip'] .tms-minimap-markers {
+  display: none;
+}
+
+.tms-minimap-markers {
+  inset: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.tms-minimap-marker {
+  position: absolute;
+  display: block;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: auto;
+}
+
+.tms-minimap-marker.is-outside {
+  opacity: 0.65;
+}
+
+/* Every character travels on the authored iconDirection arrow; the party
+   tint is opacity only, since the source authors no separate party sprite.
+   The self arrow keeps full opacity so it always reads first. */
+.tms-minimap-marker.is-player {
+  opacity: 0.78;
+}
+
+.tms-minimap-marker.is-player.is-party {
+  opacity: 1;
+}
+
+.tms-minimap-street,
+.tms-minimap-name {
+  position: absolute;
+  left: var(--minimap-street-x, 50px);
+  overflow: hidden;
+  max-width: calc(var(--minimap-window-width, 185px) - var(--minimap-street-x, 50px) - 8px);
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: var(--minimap-font-size, 12px);
+  line-height: 1.2;
+  color: var(--minimap-street-color, #d4e1e5);
+  text-shadow: 0 1px 0 #000a;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tms-minimap-street {
+  top: var(--minimap-street-y, 30px);
+}
+
+.tms-minimap-name {
+  left: var(--minimap-name-x, 50px);
+  top: var(--minimap-name-y, 48px);
+  max-width: calc(var(--minimap-window-width, 185px) - var(--minimap-name-x, 50px) - 8px);
+  color: var(--minimap-name-color, #ffffff);
+}
+
+.tms-minimap[data-mode='compact'] .tms-minimap-name,
+.tms-minimap[data-mode='strip'] .tms-minimap-name {
+  display: none;
+}
+
+.tms-minimap[data-mode='strip'] .tms-minimap-street {
+  top: calc((var(--minimap-bar-height, 30px) - var(--minimap-font-size, 12px)) / 2);
+  max-width: calc(var(--minimap-window-width, 185px) - var(--minimap-edge-x, 9px) * 2 - 60px);
+}
+
+.tms-minimap-empty {
+  margin: 8px 12px;
+  padding: 0;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d4e1e5;
+  text-shadow: 0 1px 0 #000a;
+}
+
+.tms-minimap:not([data-unavailable]) .tms-minimap-empty {
+  display: none;
+}
+
+/* Button row: the authored 21x21 sprites at the authored 21 px pitch.  The
+   strip keeps the row left of the street name; the plate windows right-align
+   it inside the strip (see the view's P note). */
+.tms-minimap-buttons {
+  position: absolute;
+  top: var(--minimap-buttons-y, 4px);
+  left: var(--minimap-buttons-x, 0px);
+  display: flex;
+  gap: 0;
+}
+
+.tms-minimap[data-mode='compact'] .tms-minimap-buttons,
+.tms-minimap[data-mode='full'] .tms-minimap-buttons {
+  left: auto;
+  right: calc(var(--minimap-edge-x, 9px) + 10px);
+}
+
+.tms-minimap-button {
+  flex: 0 0 auto;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.tms-minimap-button + .tms-minimap-button {
+  margin-left: calc(var(--minimap-button-interval, 21px) - 21px);
+}
+
+.tms-minimap-button img {
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+.tms-minimap[data-unavailable] .tms-minimap-buttons,
+.tms-minimap[data-unavailable] .tms-minimap-body {
+  display: none;
+}

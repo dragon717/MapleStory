@@ -168,6 +168,10 @@ export class PlayerInput {
     // the mage unable to act in water (and the server then rejected the cast
     // with skill_cooldown).
     if (player.swimming) return false;
+    // Same for climbing: a body on a ladder/rope is never grounded, and the
+    // air-float cast swallowed the jump key entirely, so the mage could never
+    // hop off the rope. The server detaches climbing bodies on jump+direction.
+    if (player.climbing) return false;
     if (!player.grounded) {
       if (waveLevel <= 0 || (player.skills['2001012'] ?? 0) <= 0) return false;
       this.targets.castSkill(2001012, this.direction(), this.vertical());

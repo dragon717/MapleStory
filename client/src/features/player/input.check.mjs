@@ -9,7 +9,7 @@ assert.equal(shortcutSkill(0, 'Digit1'), 1000);
 assert.equal(shortcutSkill(0, 'Digit4'), undefined);
 assert.equal(shortcutSkill(200, 'Numpad1'), 2001008);
 assert.equal(shortcutSkill(222, 'Numpad6', true), 2221011);
-assert.equal(shortcutSkill(222, 'Digit9', true), undefined);
+assert.equal(shortcutSkill(222, 'Digit9', true), 2221052);
 const original = { window: globalThis.window, document: globalThis.document, setInterval, clearInterval };
 const timers = new Map();
 const messages = [];
@@ -118,6 +118,24 @@ try {
     'swimming jump sends a normal jump input'
   );
   swimming = false;
+  window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
+  // While climbing the body is also never grounded; Space must keep sending
+  // the normal jump input so the server can detach the body on jump+direction.
+  // Routing it to the float skill made the mage unable to leave a rope.
+  grounded = false;
+  let climbing = false;
+  const stateWithClimbing = { swimming: false, job, skills: learnedSkills, get grounded() { return grounded; }, get climbing() { return climbing; } };
+  input.targets.playerState = () => stateWithClimbing;
+  climbing = true;
+  const castsBeforeClimbJump = skillCasts.length;
+  const inputBeforeClimbJump = messages.filter(message => message.type === 'input').length;
+  dispatchCode('Space');
+  assert.equal(skillCasts.length, castsBeforeClimbJump, 'climbing does not cast the wave skill');
+  assert.ok(
+    messages.filter(message => message.type === 'input').length > inputBeforeClimbJump,
+    'climbing jump sends a normal jump input'
+  );
+  climbing = false;
   window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
   const pickups = () => messages.filter(message => message.type === 'pickup');
   const repeat = () => [...timers.values()].find(timer => timer.delay === 200);

@@ -2407,6 +2407,9 @@ struct Player {
     /// id with a different body is a conflict.  Oldest entries fall out once
     /// the window is full (ephemeral chat tolerates the small gap).
     chat_recent: VecDeque<(String, String)>,
+    /// Track which area-type reactors are currently overlapped so automatic
+    /// stepping only triggers a hit on entry, not every tick while standing.
+    area_reactor_overlaps: BTreeSet<String>,
 }
 
 fn clear_beginner_buffs(player: &mut Player) {
@@ -2438,6 +2441,7 @@ fn clear_beginner_buffs(player: &mut Player) {
     // them.  Without this a player could carry a lock across a revive and be
     // unable to drink for a minute with no way to see why.
     player.potion_cooldowns.clear();
+    player.area_reactor_overlaps.clear();
 }
 
 fn clear_hyper_runtime(player: &mut Player) {
@@ -3262,6 +3266,7 @@ impl World {
                 "x": reactor.placement.x,
                 "y": reactor.placement.y,
                 "flip": reactor.placement.flip,
+                "hitType": reactor.placement.hit_type,
                 "state": reactor.state,
                 "spent": !reactor.placement.interactable_at(reactor.state),
                 "hitting": reactor.hit_until > self.tick,
@@ -3532,6 +3537,57 @@ impl World {
         let facing = if facing == 0 { 1 } else { facing };
         let dx = if facing < 0 { x - placement.x } else { placement.x - x };
         dx >= -REACTOR_REACH_BACK_PX && dx <= reach && (placement.y - y).abs() <= height
+    }
+
+    /// Trigger type-9 area reactors when the character enters their authored
+    /// box.  This reuses the authoritative `handle_reactor_hit` path so
+    /// cooldown/state checks stay centralized.
+    fn step_area_reactor_interactions(&mut self, id: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        if player.state.action == "dead" || player.state.hp <= 0 {
+            return;
+        }
+        if player.channel_until > self.tick || player.state.climbing {
+            return;
+        }
+        let map_id = player.map_id.clone();
+        let x = player.state.x;
+        let y = player.state.y;
+        let facing = player.state.facing;
+        let prev_overlaps = player.area_reactor_overlaps.clone();
+
+        let mut next_overlaps = BTreeSet::new();
+        let mut to_hit = Vec::new();
+        for (reactor_id, reactor) in &self.reactors {
+            if reactor.map_id != map_id || !reactor.placement.area_triggered() {
+                continue;
+            }
+            if reactor.hit_until > self.tick || !reactor.placement.interactable_at(reactor.state) {
+                continue;
+            }
+            if !self.reactor_in_reach(&reactor.placement, x, y, facing) {
+                continue;
+            }
+            if !next_overlaps.insert(reactor_id.clone()) {
+                continue;
+            }
+            if !prev_overlaps.contains(reactor_id) {
+                to_hit.push(reactor_id.clone());
+            }
+        }
+
+        if let Some(player) = self.players.get_mut(id) {
+            player.area_reactor_overlaps = next_overlaps;
+        }
+        for reactor_id in to_hit {
+            self.handle_reactor_hit(
+                id.to_owned(),
+                format!("auto-area:{id}:{reactor_id}:{}", self.tick),
+                reactor_id,
+            );
+        }
     }
 
     pub fn command(&mut self, command: Command) {
@@ -3901,6 +3957,7 @@ impl World {
                         chat_bucket_tick: self.tick,
                         chat_recent: VecDeque::new(),
                         potion_cooldowns: BTreeMap::new(),
+                        area_reactor_overlaps: BTreeSet::new(),
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
@@ -14457,6 +14514,7 @@ impl World {
             {
                 let _ = self.persist_player(&id);
             }
+            self.step_area_reactor_interactions(&id);
         }
         self.step_hyper_channels();
         self.step_hyper_effects();

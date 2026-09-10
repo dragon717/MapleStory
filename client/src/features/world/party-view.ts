@@ -107,6 +107,15 @@ export class PartyView {
     return Boolean(self && this.roster && this.roster.leaderId === self);
   }
 
+  /**
+   * The character ids currently in the roster, for views that tint party
+   * members differently (the minimap).  Read-only: the roster itself is only
+   * ever replaced by an authoritative `partyState` message.
+   */
+  memberIds(): string[] {
+    return (this.roster?.members ?? []).map(member => member.id);
+  }
+
   // ---------------------------------------------------------------- lifecycle
 
   isOpen(): boolean {

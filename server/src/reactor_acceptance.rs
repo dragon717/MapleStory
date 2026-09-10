@@ -207,6 +207,59 @@ fn reactor_without_a_respawn_timer_stays_spent() {
 }
 
 #[test]
+fn reactor_area_herb_auto_triggers_once_per_entry_and_can_trigger_again_after_exit() {
+    let mut map = reactor_map();
+    // Keep the herb multi-state so repeated entry has an effect to observe.
+    map.reactors[1].state_count = 4;
+    let mut world = World::new_with_gameplay(map, 600, Gameplay::default());
+    let mut output = join_test_player(&mut world, "reactor");
+    while output.try_recv().is_ok() {}
+    for _ in 0..4 {
+        world.step();
+        while output.try_recv().is_ok() {}
+    }
+
+    // Enter once: area auto-trigger should advance to state 1.
+    {
+        let player = world.players.get_mut("reactor").unwrap();
+        player.state.x = 400.0;
+        player.state.y = 200.0;
+        player.foothold_id = 1;
+    }
+    world.step();
+    while output.try_recv().is_ok() {}
+    assert_eq!(snapshot_reactor(&mut world, "area-herb").get("state").and_then(|v| v.as_u64()), Some(1));
+
+    // Stay in the box: it should not keep advancing from standing there.
+    for _ in 0..REACTOR_HIT_LOCK_MS.div_ceil(TICK_MS) {
+        world.step();
+        while output.try_recv().is_ok() {}
+    }
+    assert_eq!(snapshot_reactor(&mut world, "area-herb").get("state").and_then(|v| v.as_u64()), Some(1));
+
+    // Leave the box and re-enter: now it should advance to state 2.
+    {
+        let player = world.players.get_mut("reactor").unwrap();
+        player.state.x = 300.0;
+        player.state.y = 200.0;
+        player.foothold_id = 1;
+    }
+    world.step();
+    while output.try_recv().is_ok() {}
+    {
+        let player = world.players.get_mut("reactor").unwrap();
+        player.state.x = 400.0;
+        player.state.y = 200.0;
+        player.foothold_id = 1;
+    }
+    for _ in 0..REACTOR_HIT_LOCK_MS.div_ceil(TICK_MS) {
+        world.step();
+        while output.try_recv().is_ok() {}
+    }
+    assert_eq!(snapshot_reactor(&mut world, "area-herb").get("state").and_then(|v| v.as_u64()), Some(2));
+}
+
+#[test]
 fn reactor_hit_is_rejected_for_a_dead_or_busy_player() {
     let (mut world, mut output) = reactor_world();
     world.players.get_mut("reactor").unwrap().state.hp = 0;

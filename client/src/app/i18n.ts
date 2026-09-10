@@ -134,7 +134,26 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   party_kicked: { zh: '你已被移出队伍', en: 'You were removed from the party' },
 });
 
+/** Minimap window copy (UI/UIMap.img/MiniMap).  The controls themselves are
+ *  pure art with no authored label, so these are their tooltips plus the one
+ *  line shown for maps the source ships no minimap for. */
+const MINIMAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  minimapShow: { zh: '展开小地图', en: 'Expand minimap' },
+  minimapHide: { zh: '收起小地图', en: 'Collapse minimap' },
+  minimapCompact: { zh: '切换为精简小地图', en: 'Switch to compact minimap' },
+  minimapFull: { zh: '切换为完整小地图', en: 'Switch to full minimap' },
+  minimapZoomOut: { zh: '缩小地图', en: 'Zoom out' },
+  minimapZoomIn: { zh: '放大地图', en: 'Zoom in' },
+  minimapNpc: { zh: 'NPC 标记', en: 'NPC markers' },
+  minimapPortal: { zh: '传送门标记', en: 'Portal markers' },
+  minimapParty: { zh: '队伍成员标记', en: 'Party markers' },
+  minimapWorld: { zh: '世界地图', en: 'World map' },
+  minimapWorldUnavailable: { zh: '世界地图尚未接入，请先通过传送点移动。', en: 'The world map is not wired yet; travel through portals for now.' },
+  minimapNoSource: { zh: '这张地图在原版没有小地图素材。', en: 'The original ships no minimap art for this map.' },
+  minimapSelf: { zh: '你的位置', en: 'Your position' },
+});
+
 export function uiLocale(): UiLocale { return locale; }
-export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? fallback; }
+export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? fallback; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
 export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }

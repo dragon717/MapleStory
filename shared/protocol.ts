@@ -81,6 +81,9 @@ export interface DropState { id: string; itemId: string; quantity: number; x: nu
  *  WZ state index; the last state is the empty "used up" form. */
 export interface ReactorState {
   id: string; templateId: string; x: number; y: number; flip: boolean;
+  /** Source event type from ReactorPlacement: 0=attack, 9=area/click.
+   *  Older snapshots may omit this, so clients should treat missing as 0. */
+  hitType?: number;
   state: number; spent: boolean; hitting: boolean; respawnInMs?: number;
 }
 /** Direction of one warehouse move. The client only names the direction, the

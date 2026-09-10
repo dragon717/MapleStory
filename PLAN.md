@@ -673,3 +673,10 @@
 - 需求：发动魔力波動时往上位移为普通跳的 1.5 倍，并按源 v=95 px/s 做明显的缓慢下降。
 - 状态：已改 `server/src/world.rs` 并通过定向测试，3010 已用新二进制重启；证据与P边界见 IMPLEMENTATION_STATUS.md 同名条目。
 - 待验（用户）：上升高度与缓降观感；不够明显就调 `MAGIC_WAVE_LAUNCH_HEIGHT_RATIO` 与 `MAGIC_WAVE_SLOW_FALL_SPEED`。
+
+## 小地图窗口（2026-09-10）：已交付，待用户实玩
+
+- 模块：源背书小地图（UI/UIMap.img/MiniMap）。导出器 `scripts/export_tms273_minimap.cjs` 输出 37 图 canvas + 46 UI 帧 + NPC/传送门/8 向箭头标记；`assemble_tms273.cjs` 以 `miniMap` 键装入 manifest，PNG 走既有 collect 复制。
+- 客户端：`features/world/minimap-view.ts` 纯视图（三模式 Min/MinMap/MaxMap、右下角停靠变量、fit/放大 2x 跟随、NPC/传送门/玩家点标记、队伍着色），样式 `features/world/minimap.css` 九层背景拼装；main.ts 在 snapshot 分发数据、断线清屏。坐标模型按 16142 踏脚样本验证（90.5% 落点）。
+- P 边界：7 张无 miniMap 节点的图显示"无素材"行；按钮无源坐标（条带模式按源布局左置，窗口模式右对齐顶条）；所有角色统一用源 iconDirection 箭头标记，队伍成员仅以不透明度区分（源无独立队伍精灵）；世界地图按钮仅提示未接入。
+- 验证：`tsc --noEmit`、`vite build`、导出+组装管线全部通过；未重启服务（纯客户端模块）。

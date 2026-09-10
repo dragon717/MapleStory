@@ -277,6 +277,63 @@ export interface SkillWindowData {
   tabs: Record<'enabled' | 'disabled' | 'selected', SkillArt[]>;
   buttons: Record<string, Record<string, SkillArt>>;
 }
+/** One source-backed miniMap canvas plus the authored world rectangle it
+ *  covers.  The rectangle is `[xMin, xMin + width] x [yMin, yMin + height]`,
+ *  which is exactly the range the exporter derived from `centerX`/`centerY`:
+ *  canvas pixel (0,0) is the rectangle's top-left corner. */
+export interface MiniMapMapAsset {
+  mapId: string;
+  url: string;
+  /** Canvas pixels — the natural size the original window draws. */
+  width: number;
+  height: number;
+  world: { xMin: number; yMin: number; width: number; height: number };
+  centerX: number;
+  centerY: number;
+  /** Source magnification hint, kept for tracing: 4 on every assembled map. */
+  mag: number | null;
+  source?: string;
+  resolvedSource?: string;
+}
+export interface MiniMapFont { family: string; size: number; color: string; alpha: number }
+/** Authored window layout read straight out of `UI/UIMap.img/MiniMap`. */
+export interface MiniMapLayout {
+  /** `MinMap/minWidth` — the authored minimum window width. */
+  minWidth: number;
+  /** `buttonInterval` — the authored button pitch, in pixels. */
+  buttonInterval: number;
+  /** `vector:left` / `vecotr:right` (the typo is the source's own). */
+  docks: { left: Point; right: Point };
+  mapName: Point;
+  streetName: Point;
+  mapMark: Point;
+  minStreetName: Point;
+  minInterval: number;
+  fonts: { mapName: MiniMapFont; streetName: MiniMapFont };
+}
+/** Source-backed UI/UIMap.img/MiniMap window used by the minimap.
+ *  `maps` is keyed by map id and only holds maps whose source authors a
+ *  `miniMap` node; `missing` records the ones that do not. */
+export interface MiniMapUiData {
+  contentVersion: string;
+  source: string;
+  maps: Record<string, MiniMapMapAsset>;
+  missing: { mapId: string; name: string; reason: string }[];
+  /** Flat keys mirroring the WZ layout: `MaxMap/nw`, `BtMap/normal`,
+   *  `button:small/pressed`, `Min/c` … */
+  ui: Record<string, AssetFrame>;
+  icons: {
+    /** `iconNpc/0` — the one NPC marker the local client's semantics establish. */
+    npc: AssetFrame;
+    /** `iconPortal/0` — same for portals. */
+    portal: AssetFrame;
+    /** `iconDirection/<compass>` — the player's own arrow, one frame per
+     *  facing.  The source authors four frames per facing and all four
+     *  `_outlink` to the same PNG, so the arrow does not animate. */
+    direction: Record<string, AssetFrame>;
+  };
+  layout: MiniMapLayout;
+}
 export interface Manifest {
   appearanceCatalog?: AppearanceCatalog;
   contentVersion: string;
@@ -336,6 +393,9 @@ export interface Manifest {
   portals?: Record<string, PortalAsset>;
   /** Source-backed interactive map props (Reactor.wz + Map.wz placements). */
   reactors?: ReactorData;
+  /** Source-backed UI/UIMap.img/MiniMap window plus one Map.wz miniMap canvas
+   *  per assembled map.  PNGs are exported by export_tms273_minimap.cjs. */
+  miniMap?: MiniMapUiData;
 }
 export function mapFrameAt(frames: readonly Pick<AssetFrame, 'delay'>[], elapsed: number): number {
   const delays = frames.map(frame => frame.delay);
