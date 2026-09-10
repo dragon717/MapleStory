@@ -196,6 +196,18 @@ export interface StorageUiData {
   slotLimit: number;
   ui: Record<string, AssetFrame>;
 }
+/** Source-backed UIWindow.img/UserList (Party tab) window used by the party
+ *  window.  `memberSlots` mirrors the server's roster cap (and the six authored
+ *  `partyN` chrome pieces), so the window cannot draw a row the server would
+ *  never accept. */
+export interface PartyUiData {
+  contentVersion: string;
+  source: string;
+  memberSlots: number;
+  /** Flat keys mirroring the WZ layout: `backgrnd`, `icon0`, `icon1`,
+   *  `party0`..`party5` and `BtInvite/normal`-style button states. */
+  ui: Record<string, AssetFrame>;
+}
 export interface ChatUiNineSlice {
   nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
   w?: AssetFrame; c?: AssetFrame; e?: AssetFrame;
@@ -315,6 +327,9 @@ export interface Manifest {
    *  window.  Flat keys (`backgrnd`, `select`, `BtGet/normal`,
    *  `Tab/enabled/0`) mirror the shop convention. */
   storageUi?: StorageUiData;
+  /** Source-backed UIWindow.img/UserList (Party tab) entries used by the party
+   *  window.  Flat keys mirror the WZ layout (`backgrnd`, `BtKick/normal`). */
+  partyUi?: PartyUiData;
   /** Source-backed UtilDlgEx dialog pieces used by npc conversation boxes. */
   dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */

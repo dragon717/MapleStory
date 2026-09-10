@@ -33,6 +33,14 @@ const CHAT_TOKEN_REFILL_PER_SEC: u32 = 1;
 /// Per-session chat request-id idempotency window (bounded; §9.1 ephemeral).
 const CHAT_RECENT_WINDOW: usize = 64;
 
+/// How many characters one party can hold.
+/// P: the TMS273 export carries no party-size field, so the cap follows the
+/// original party size the rest of these rules are written against.
+const PARTY_MAX_MEMBERS: usize = 6;
+/// Per-character bounded request-id idempotency window for party intents, so
+/// a network retry cannot send a second invitation or kick twice.
+const PARTY_REQUEST_WINDOW: usize = 32;
+
 /// Continuous-away policy: how long the authoritative character is kept with
 /// its normal world rules before it drops to basic residency, and the hard
 /// bound after which the normal exit path is requested.  Both are counted
@@ -2592,6 +2600,41 @@ impl DropInstance {
     }
 }
 
+/// One authoritative party.  Membership is session state, the same way a
+/// reactor's state is: a party is a fact about characters currently in the
+/// world, so a restart legitimately dissolves it.  Nothing here is persisted,
+/// and nothing here can be created, joined or left by a client claim — every
+/// transition goes through the handlers below.
+#[derive(Clone)]
+struct Party {
+    id: String,
+    /// The member allowed to invite, kick and hand over leadership.  P: the
+    /// source carries no invite-permission field; leader-only matches the
+    /// authored `BtKick` / `BtChangeBoss` buttons living on the leader's row.
+    leader_id: String,
+    members: Vec<String>,
+}
+
+/// A pending invitation, stored on the *invited* character so only that
+/// character can answer it.  The party id is captured at send time: if the
+/// party is gone by the time the answer arrives, the answer simply fails
+/// instead of silently creating a new one.
+#[derive(Clone)]
+struct PartyInvite {
+    inviter_id: String,
+    party_id: String,
+}
+
+/// Outcome of one party intent, kept for request-id idempotency.
+#[derive(Clone)]
+struct PartyOutcome {
+    success: bool,
+    code: String,
+}
+
+/// Live party state.  Session-scoped and derived from `players` every tick: a
+/// member who is no longer in the world is pruned by `step_parties`, so no
+/// removal site has to remember to clean a party up.
 pub struct World {
     pub map: Map,
     pub gameplay: Gameplay,
@@ -2613,6 +2656,14 @@ pub struct World {
     /// window is bound to the npc so walking away (or a different keeper)
     /// closes it instead of silently operating on a shop the player left.
     open_storage: BTreeMap<String, String>,
+    /// Authoritative parties, keyed by a monotonic id.
+    parties: BTreeMap<String, Party>,
+    /// Pending invitations keyed by the invited character, so an invitation
+    /// can only ever be answered by the character it was addressed to.
+    party_invites: BTreeMap<String, PartyInvite>,
+    /// Bounded request-id idempotency for party intents (player, request).
+    party_requests: BTreeMap<(String, String), PartyOutcome>,
+    party_sequence: u64,
     skill_requests: BTreeMap<(String, String), auth::SkillActionOutcome>,
     ability_requests: BTreeMap<(String, String), (AbilityStat, auth::AbilityActionOutcome)>,
     pending_attacks: BTreeMap<String, PendingAttack>,
@@ -2701,6 +2752,10 @@ impl World {
             inventory_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
             open_storage: BTreeMap::new(),
+            parties: BTreeMap::new(),
+            party_invites: BTreeMap::new(),
+            party_requests: BTreeMap::new(),
+            party_sequence: 0,
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
@@ -4198,6 +4253,24 @@ impl World {
                     ClientMessage::ChatSend { request_id, text } => {
                         self.handle_chat(id, request_id, text)
                     }
+                    ClientMessage::PartyInvite {
+                        request_id,
+                        player_name,
+                    } => self.handle_party_invite(id, request_id, player_name),
+                    ClientMessage::PartyRespond { request_id, accept } => {
+                        self.handle_party_respond(id, request_id, accept)
+                    }
+                    ClientMessage::PartyLeave { request_id } => {
+                        self.handle_party_leave(id, request_id)
+                    }
+                    ClientMessage::PartyKick {
+                        request_id,
+                        player_id,
+                    } => self.handle_party_kick(id, request_id, player_id),
+                    ClientMessage::PartyLeader {
+                        request_id,
+                        player_id,
+                    } => self.handle_party_leader(id, request_id, player_id),
                     ClientMessage::Hello { .. } => {}
                 }
             }
@@ -5309,13 +5382,25 @@ impl World {
             // Turning the barrier off does not charge the next second.
             mp_cost = 0;
         }
-        let cooldown_ms: i64 = if BEGINNER_SKILLS.contains(&skill_id)
+        // 用户指定规则（2026-09-10）：瞬移全等级固定 10 MP，等级差异体现在距离与冷却。
+        // 数值来自 shared/mage-skills.json#2001009（覆盖表见 scripts/tms273_skill_manifest.cjs），
+        // 原版 TMS273 为 mpCon 28→20 且没有 cooltime——此处按用户指定执行，不冒充原作。
+        let cooldown_ms: i64 = if skill_id == SKILL_TELEPORT {
+            level.cooldown_ms.unwrap_or(0).max(0)
+        } else if BEGINNER_SKILLS.contains(&skill_id)
             || skill_id == SKILL_ELEMENTAL_ADAPTING
             || (skill.book_id == FOURTH_BOOK && level.cooltime.is_some())
         {
             level.cooltime.unwrap_or(0).max(0).saturating_mul(1_000)
         } else {
             0
+        };
+        // 瞬移是高频移动技能：冷却只进内存 skill_cooldowns 做施放节流，不写 skill_cooldowns 表。
+        // 逐次瞬移都落一条持久冷却只会制造无谓事务，秒级冷却也没有跨登录保留的意义。
+        let durable_cooldown_ms = if skill_id == SKILL_TELEPORT {
+            0
+        } else {
+            cooldown_ms
         };
         let outcome = match self.store.as_ref() {
             Some(store) if skill_id == SKILL_HYPER_VORTEX && vertical > 0 => store.cast_hyper_vortex(
@@ -5332,7 +5417,7 @@ impl World {
                     0
                 },
             ),
-            Some(store) if cooldown_ms > 0 => store.cast_skill_with_cooldown(
+            Some(store) if durable_cooldown_ms > 0 => store.cast_skill_with_cooldown(
                 &id,
                 &request_id,
                 skill_id,
@@ -6740,17 +6825,20 @@ impl World {
     }
 
     fn activate_hyper_adventurer(&mut self, id: &str, level: &MageLevel) {
-        // The source describes an adventurer-wide damage buff.  This project
-        // has no party model, so the P adapter applies it to the caster only;
-        // its duration is independent of Master Magic's buff-time multiplier.
+        // The source describes an adventurer-wide damage buff.  It now reaches
+        // the party members standing on the caster's map; a caster without a
+        // party still gets exactly the old self-only behaviour.  Its duration
+        // is independent of Master Magic's buff-time multiplier.
         let duration_ms = u64::try_from(level.time.unwrap_or(60).max(0))
             .unwrap_or(60)
             .saturating_mul(1_000);
         if duration_ms == 0 {
             return;
         }
-        if let Some(player) = self.players.get_mut(id) {
-            player.skill_buffs.insert(SKILL_HYPER_ADVENTURER, duration_ms);
+        for target in self.party_members_on_map(id) {
+            if let Some(player) = self.players.get_mut(&target) {
+                player.skill_buffs.insert(SKILL_HYPER_ADVENTURER, duration_ms);
+            }
         }
     }
 
@@ -7144,7 +7232,7 @@ impl World {
             if claim.resolved {
                 return Ok(());
             }
-            store.resolve_attack(
+            store.resolve_attack_with_party(
                 id,
                 &map_id,
                 &action_request,
@@ -7156,6 +7244,7 @@ impl World {
                 &drops,
                 &self.gameplay.exp_table,
                 &self.players.keys().cloned().collect::<Vec<_>>(),
+                &self.party_exp_members(id),
             )?
         } else {
             auth::AttackResolution {
@@ -7603,13 +7692,21 @@ impl World {
             level,
             level.time.unwrap_or(40).max(0) as u64 * 1_000,
         );
-        let Some(player) = self.players.get_mut(id) else {
-            return;
-        };
-        // P: the selected data has no party-target contract, so this buff is
-        // self-only until an authored group effect is available.
-        player.meditation_mad = level.indie_mad.unwrap_or(10).max(0);
-        player.meditation_until = self.tick.saturating_add(duration_ms.div_ceil(TICK_MS));
+        let mad = level.indie_mad.unwrap_or(10).max(0);
+        // With a party model the buff finally has someone to reach: it now
+        // applies to the party members actually standing on the caster's map.
+        // `party_members_on_map` returns the caster alone when there is no
+        // party, so solo behaviour is unchanged.  P: the source still has no
+        // party-target contract; the level/floor rules are untouched.
+        let targets = self.party_members_on_map(id);
+        let until = self.tick.saturating_add(duration_ms.div_ceil(TICK_MS));
+        for target in targets {
+            let Some(player) = self.players.get_mut(&target) else {
+                continue;
+            };
+            player.meditation_mad = mad;
+            player.meditation_until = until;
+        }
     }
 
     fn maybe_absorb_monster_mp(&mut self, id: &str, target_id: &str) {
@@ -8237,7 +8334,7 @@ impl World {
                     if claim.resolved {
                         continue;
                     }
-                    store.resolve_attack(
+                    store.resolve_attack_with_party(
                         id,
                         &map_id,
                         &action_request,
@@ -8249,6 +8346,7 @@ impl World {
                         &drops,
                         &self.gameplay.exp_table,
                         &self.players.keys().cloned().collect::<Vec<_>>(),
+                        &self.party_exp_members(id),
                     )?
                 } else {
                     auth::AttackResolution {
@@ -8885,7 +8983,7 @@ impl World {
             if claim.resolved {
                 return Ok(());
             }
-            store.resolve_attack(
+            store.resolve_attack_with_party(
                 id,
                 &field.map_id,
                 &request_id,
@@ -8897,6 +8995,7 @@ impl World {
                 &drops,
                 &self.gameplay.exp_table,
                 &self.players.keys().cloned().collect::<Vec<_>>(),
+                &self.party_exp_members(id),
             )?
         } else {
             auth::AttackResolution {
@@ -9108,7 +9207,7 @@ impl World {
                     if claim.resolved {
                         continue;
                     }
-                    store.resolve_attack(
+                    store.resolve_attack_with_party(
                         id,
                         &map_id,
                         &action_request,
@@ -9120,6 +9219,7 @@ impl World {
                         &drops,
                         &self.gameplay.exp_table,
                         &self.players.keys().cloned().collect::<Vec<_>>(),
+                        &self.party_exp_members(id),
                     )?
                 } else {
                     auth::AttackResolution {
@@ -13532,6 +13632,521 @@ impl World {
         })
     }
 
+    // ----------------------------------------------------------------- party
+    //
+    // A party is session state owned entirely by the world, in the same sense
+    // a reactor's state is: it is a fact about characters that are currently
+    // in the world, so a restart legitimately dissolves it and no SQLite row
+    // has to be kept in step.  The client only ever names a character to
+    // invite, or answers an invitation with yes/no — whether a party exists,
+    // who leads it, how many fit and who shares EXP are all decided here.
+
+    /// The party `id` belongs to, if any.
+    fn party_id_of(&self, id: &str) -> Option<String> {
+        self.parties
+            .iter()
+            .find(|(_, party)| party.members.iter().any(|member| member == id))
+            .map(|(party_id, _)| party_id.clone())
+    }
+
+    fn next_party_id(&mut self) -> u64 {
+        self.party_sequence += 1;
+        self.party_sequence
+    }
+
+    /// Resolve a typed character name to a character that is in the world.
+    /// Matching is exact first and case-insensitive as a fallback, so a name
+    /// typed with the wrong capitalisation still reaches its owner without
+    /// ever becoming a claim about an identity.
+    fn find_player_by_name(&self, name: &str) -> Option<String> {
+        let needle = name.trim();
+        self.players
+            .iter()
+            .find(|(_, player)| player.state.username == needle)
+            .or_else(|| {
+                self.players
+                    .iter()
+                    .find(|(_, player)| player.state.username.eq_ignore_ascii_case(needle))
+            })
+            .map(|(id, _)| id.clone())
+    }
+
+    /// Party members sharing the map with `id`, always including `id` itself.
+    /// Grouping is a same-map fact: being listed in a party is not enough to
+    /// share a buff or a kill.
+    fn party_members_on_map(&self, id: &str) -> Vec<String> {
+        let fallback = || vec![id.to_owned()];
+        let Some(party_id) = self.party_id_of(id) else {
+            return fallback();
+        };
+        let Some(party) = self.parties.get(&party_id) else {
+            return fallback();
+        };
+        let Some(map_id) = self.players.get(id).map(|player| player.map_id.clone()) else {
+            return fallback();
+        };
+        let members: Vec<String> = party
+            .members
+            .iter()
+            .filter(|member| {
+                self.players
+                    .get(*member)
+                    .is_some_and(|player| player.map_id == map_id && player.state.hp > 0)
+            })
+            .cloned()
+            .collect();
+        if members.is_empty() {
+            fallback()
+        } else {
+            members
+        }
+    }
+
+    /// Members that take part in a kill's EXP bonus.  Empty for a solo kill,
+    /// which leaves every existing solo EXP number exactly as it is.
+    fn party_exp_members(&self, id: &str) -> Vec<String> {
+        let members = self.party_members_on_map(id);
+        if members.len() < 2 {
+            Vec::new()
+        } else {
+            members
+        }
+    }
+
+    /// One authoritative view of a party.  Members that are no longer in the
+    /// world are omitted — the view is rebuilt from `players`, not from a
+    /// cached roster.
+    fn party_view(&self, party_id: &str) -> Option<serde_json::Value> {
+        let party = self.parties.get(party_id)?;
+        let members: Vec<serde_json::Value> = party
+            .members
+            .iter()
+            .filter_map(|member| {
+                let player = self.players.get(member)?;
+                Some(serde_json::json!({
+                    "id": player.state.id,
+                    "name": player.state.username,
+                    "level": player.state.level,
+                    "job": player.state.job,
+                    "mapId": player.map_id,
+                    "hp": player.state.hp,
+                    "maxHp": player.state.max_hp,
+                    "mp": player.state.mp,
+                    "maxMp": player.state.max_mp,
+                    "leader": *member == party.leader_id,
+                }))
+            })
+            .collect();
+        Some(serde_json::json!({
+            "type": "partyState",
+            "partyId": party.id,
+            "leaderId": party.leader_id,
+            "members": members,
+        }))
+    }
+
+    /// Push the authoritative party view to every listed character.  A
+    /// character without a party receives `closed: true`, which is what makes
+    /// a removed member's window disappear.
+    fn push_party_state(&self, ids: &[String]) {
+        for id in ids {
+            let message = self
+                .party_id_of(id)
+                .and_then(|party_id| self.party_view(&party_id))
+                .unwrap_or_else(|| serde_json::json!({"type":"partyState","closed":true}))
+                .to_string();
+            if let Some(player) = self.players.get(id).filter(|player| !player.detached) {
+                let _ = player.output.try_send(message);
+            }
+        }
+    }
+
+    /// Inform a character about a party event its own request did not cause —
+    /// a declined invitation, a kick.  Display only: the authoritative state
+    /// still arrives as a `partyState` view, so a lost notice cannot desync a
+    /// window.
+    fn send_party_notice(&self, recipient: &str, code: &str, actor_id: &str) {
+        let Some(player) = self.players.get(recipient) else {
+            return;
+        };
+        let actor_name = self
+            .players
+            .get(actor_id)
+            .map(|player| player.state.username.clone())
+            .unwrap_or_default();
+        let message = serde_json::json!({
+            "type":"partyNotice",
+            "code":code,
+            "playerId":actor_id,
+            "playerName":actor_name,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    fn send_party_result(&self, id: &str, request_id: &str, success: bool, code: &str) {        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"partyResult",
+            "requestId":request_id,
+            "success":success,
+            "code":code,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Bounded request-id idempotency for party intents: a retried invite or
+    /// kick replays the recorded outcome instead of acting a second time.
+    fn remember_party_request(&mut self, id: &str, request_id: &str, success: bool, code: &str) {
+        if self.party_requests.len() >= PARTY_REQUEST_WINDOW * self.players.len().max(1) {
+            self.party_requests
+                .retain(|(player_id, _), _| self.players.contains_key(player_id));
+        }
+        self.party_requests.insert(
+            (id.to_owned(), request_id.to_owned()),
+            PartyOutcome {
+                success,
+                code: code.to_owned(),
+            },
+        );
+    }
+
+    fn replayed_party_request(&self, id: &str, request_id: &str) -> Option<(bool, String)> {
+        self.party_requests
+            .get(&(id.to_owned(), request_id.to_owned()))
+            .map(|outcome| (outcome.success, outcome.code.clone()))
+    }
+
+    /// Everything that can make an invitation impossible, checked in the
+    /// order a player would notice it.
+    fn party_invite_target(&self, id: &str, player_name: &str) -> Result<String, String> {
+        let Some(target) = self.find_player_by_name(player_name) else {
+            return Err("party_unknown_player".to_owned());
+        };
+        if target == id {
+            return Err("party_self".to_owned());
+        }
+        if self.party_invites.contains_key(&target) {
+            return Err("party_busy".to_owned());
+        }
+        if let Some(party) = self.party_id_of(id).and_then(|party_id| self.parties.get(&party_id)) {
+            if party.leader_id != id {
+                return Err("party_not_leader".to_owned());
+            }
+            if party.members.contains(&target) {
+                return Err("party_already".to_owned());
+            }
+            if party.members.len() >= PARTY_MAX_MEMBERS {
+                return Err("party_full".to_owned());
+            }
+        }
+        if self.party_id_of(&target).is_some() {
+            return Err("party_already".to_owned());
+        }
+        Ok(target)
+    }
+
+    fn create_party(&mut self, leader_id: &str) -> String {
+        let id = format!("party-{}", self.next_party_id());
+        self.parties.insert(
+            id.clone(),
+            Party {
+                id: id.clone(),
+                leader_id: leader_id.to_owned(),
+                members: vec![leader_id.to_owned()],
+            },
+        );
+        self.push_party_state(&[leader_id.to_owned()]);
+        id
+    }
+
+    /// Drop one member and hand leadership on when the leader is the one
+    /// leaving.  Returns every character whose party view changed.
+    fn remove_from_party(&mut self, id: &str) -> Vec<String> {
+        let Some(party_id) = self.party_id_of(id) else {
+            return vec![id.to_owned()];
+        };
+        let mut affected = vec![id.to_owned()];
+        let mut disbanded = false;
+        if let Some(party) = self.parties.get_mut(&party_id) {
+            party.members.retain(|member| member != id);
+            affected.extend(party.members.iter().cloned());
+            if party.members.len() < 2 {
+                disbanded = true;
+            } else if party.leader_id == id {
+                party.leader_id = party.members.first().cloned().unwrap_or_default();
+            }
+        }
+        if disbanded {
+            self.parties.remove(&party_id);
+            // An invitation into a party that no longer exists cannot be
+            // accepted, so it is dropped instead of failing later.
+            self.party_invites
+                .retain(|_, invite| invite.party_id != party_id);
+        }
+        affected
+    }
+
+    /// Invite one character.  When the inviter has no party yet, the first
+    /// invitation creates it — that is what the authored `BtCreate` button
+    /// stands for in the original window.
+    fn handle_party_invite(&mut self, id: String, request_id: String, player_name: String) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some((success, code)) = self.replayed_party_request(&id, &request_id) {
+            self.send_party_result(&id, &request_id, success, &code);
+            return;
+        }
+        let target = match self.party_invite_target(&id, &player_name) {
+            Ok(target) => target,
+            Err(code) => {
+                self.remember_party_request(&id, &request_id, false, &code);
+                self.send_party_result(&id, &request_id, false, &code);
+                return;
+            }
+        };
+        let party_id = self
+            .party_id_of(&id)
+            .unwrap_or_else(|| self.create_party(&id));
+        let invitation_id = format!("party-invite-{}", self.next_party_id());
+        let inviter_name = self
+            .players
+            .get(&id)
+            .map(|player| player.state.username.clone())
+            .unwrap_or_default();
+        self.party_invites.insert(
+            target.clone(),
+            PartyInvite {
+                inviter_id: id.clone(),
+                party_id,
+            },
+        );
+        self.remember_party_request(&id, &request_id, true, "");
+        self.send_party_result(&id, &request_id, true, "");
+        if let Some(player) = self.players.get(&target) {
+            let message = serde_json::json!({
+                "type":"partyInvite",
+                "invitationId":invitation_id,
+                "fromId":id,
+                "fromName":inviter_name,
+            })
+            .to_string();
+            let _ = player.output.try_send(message);
+        }
+    }
+
+    /// Accept or decline the pending invitation.
+    fn handle_party_respond(&mut self, id: String, request_id: String, accept: bool) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some((success, code)) = self.replayed_party_request(&id, &request_id) {
+            self.send_party_result(&id, &request_id, success, &code);
+            return;
+        }
+        let Some(invite) = self.party_invites.remove(&id) else {
+            self.remember_party_request(&id, &request_id, false, "party_no_invite");
+            self.send_party_result(&id, &request_id, false, "party_no_invite");
+            return;
+        };
+        if !accept {
+            // Declining closes the "create, then invite" window immediately:
+            // the party only existed for this invitation.  Prune now instead of
+            // waiting for the next tick so the inviter's window cannot linger.
+            self.step_parties();
+            // The inviter is told as well, so its window does not sit waiting
+            // on an answer that will never come.
+            self.send_party_notice(&invite.inviter_id, "party_declined", &id);
+            self.remember_party_request(&id, &request_id, false, "party_declined");
+            self.send_party_result(&id, &request_id, false, "party_declined");
+            return;
+        }
+        // Every fact is re-checked at answer time: the party may have been
+        // disbanded, filled by someone else, or the inviter may have left
+        // while the invitation was pending.
+        let joinable = self
+            .parties
+            .get(&invite.party_id)
+            .is_some_and(|party| {
+                party.members.len() < PARTY_MAX_MEMBERS
+                    && !party.members.contains(&id)
+                    && self.players.contains_key(&invite.inviter_id)
+            })
+            && self.party_id_of(&id).is_none();
+        if !joinable {
+            let code = "party_unavailable";
+            self.remember_party_request(&id, &request_id, false, code);
+            self.send_party_result(&id, &request_id, false, code);
+            return;
+        }
+        let mut affected = vec![id.clone()];
+        if let Some(party) = self.parties.get_mut(&invite.party_id) {
+            party.members.push(id.clone());
+            affected.extend(party.members.iter().cloned());
+        }
+        self.remember_party_request(&id, &request_id, true, "");
+        self.send_party_result(&id, &request_id, true, "");
+        affected.sort();
+        affected.dedup();
+        self.push_party_state(&affected);
+    }
+
+    fn handle_party_leave(&mut self, id: String, request_id: String) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some((success, code)) = self.replayed_party_request(&id, &request_id) {
+            self.send_party_result(&id, &request_id, success, &code);
+            return;
+        }
+        if self.party_id_of(&id).is_none() {
+            let code = "party_not_member";
+            self.remember_party_request(&id, &request_id, false, code);
+            self.send_party_result(&id, &request_id, false, code);
+            return;
+        }
+        let mut affected = self.remove_from_party(&id);
+        self.remember_party_request(&id, &request_id, true, "");
+        self.send_party_result(&id, &request_id, true, "");
+        affected.sort();
+        affected.dedup();
+        self.push_party_state(&affected);
+    }
+
+    /// Remove one member.  Only the leader may, and only from its own party.
+    fn handle_party_kick(&mut self, id: String, request_id: String, player_id: String) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some((success, code)) = self.replayed_party_request(&id, &request_id) {
+            self.send_party_result(&id, &request_id, success, &code);
+            return;
+        }
+        let code = self.party_leader_action_code(&id, &player_id);
+        if let Some(code) = code {
+            self.remember_party_request(&id, &request_id, false, &code);
+            self.send_party_result(&id, &request_id, false, &code);
+            return;
+        }
+        let mut affected = self.remove_from_party(&player_id);
+        self.send_party_notice(&player_id, "party_kicked", &id);
+        self.remember_party_request(&id, &request_id, true, "");
+        self.send_party_result(&id, &request_id, true, "");
+        affected.sort();
+        affected.dedup();
+        self.push_party_state(&affected);
+    }
+
+    /// Hand leadership to another member of the same party.
+    fn handle_party_leader(&mut self, id: String, request_id: String, player_id: String) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some((success, code)) = self.replayed_party_request(&id, &request_id) {
+            self.send_party_result(&id, &request_id, success, &code);
+            return;
+        }
+        let code = self.party_leader_action_code(&id, &player_id);
+        if let Some(code) = code {
+            self.remember_party_request(&id, &request_id, false, &code);
+            self.send_party_result(&id, &request_id, false, &code);
+            return;
+        }
+        let party_id = self.party_id_of(&id).unwrap_or_default();
+        let mut affected = vec![player_id.clone()];
+        if let Some(party) = self.parties.get_mut(&party_id) {
+            party.leader_id = player_id.clone();
+            affected.extend(party.members.iter().cloned());
+        }
+        self.remember_party_request(&id, &request_id, true, "");
+        self.send_party_result(&id, &request_id, true, "");
+        affected.sort();
+        affected.dedup();
+        self.push_party_state(&affected);
+    }
+
+    /// Shared guards for the two leader-only actions: the actor must be in a
+    /// party and be its leader, and the target must be another member of it.
+    fn party_leader_action_code(&self, id: &str, player_id: &str) -> Option<&'static str> {
+        if player_id == id {
+            return Some("party_self");
+        }
+        let party = self
+            .party_id_of(id)
+            .and_then(|party_id| self.parties.get(&party_id))?;
+        if party.leader_id != id {
+            return Some("party_not_leader");
+        }
+        if !party.members.iter().any(|member| member == player_id) {
+            return Some("party_not_party_member");
+        }
+        None
+    }
+
+    /// Prune membership every tick so no removal site has to know about
+    /// parties: a character that left the world simply stops being a member,
+    /// leadership moves on, and a party with one member stops existing.
+    fn step_parties(&mut self) {
+        let mut affected: Vec<String> = Vec::new();
+        let mut dissolved: Vec<String> = Vec::new();
+        for (party_id, party) in self.parties.iter_mut() {
+            let before = party.members.len();
+            party.members.retain(|member| self.players.contains_key(member));
+            if party.members.len() != before {
+                affected.extend(party.members.iter().cloned());
+            }
+            if !party.members.iter().any(|member| *member == party.leader_id) {
+                if let Some(next) = party.members.first().cloned() {
+                    party.leader_id = next;
+                    affected.extend(party.members.iter().cloned());
+                }
+            }
+            if party.members.len() < 2 {
+                // A party of one is only meaningful while an invitation it
+                // just sent is still pending — that is the "create, then
+                // invite" window.  Once the answer arrives (or the inviter is
+                // gone) the roster has nothing left to hold together.
+                let pending = self
+                    .party_invites
+                    .values()
+                    .any(|invite| invite.party_id == *party_id);
+                if party.members.is_empty() || !pending {
+                    dissolved.push(party_id.clone());
+                    affected.extend(party.members.iter().cloned());
+                }
+            }
+        }
+        for party_id in &dissolved {
+            self.parties.remove(party_id);
+        }
+        if !dissolved.is_empty() {
+            self.party_invites
+                .retain(|_, invite| !dissolved.contains(&invite.party_id));
+        }
+        // An invitation is meaningless once either side is gone.
+        let stale: Vec<String> = self
+            .party_invites
+            .iter()
+            .filter(|(invitee, invite)| {
+                !self.players.contains_key(*invitee)
+                    || !self.players.contains_key(&invite.inviter_id)
+            })
+            .map(|(invitee, _)| invitee.clone())
+            .collect();
+        for invitee in stale {
+            self.party_invites.remove(&invitee);
+        }
+        if affected.is_empty() {
+            return;
+        }
+        affected.sort();
+        affected.dedup();
+        self.push_party_state(&affected);
+    }
+
     /// Reload the character-owned rows a storage transfer can change.  Only
     /// the inventory moves here; the warehouse itself was just written.
     fn reload_storage_side_effects(&mut self, id: &str, store: &auth::Store) {
@@ -13654,6 +14269,10 @@ impl World {
         // cannot grow without bound over a long session, and mirror what is
         // left onto the wire state for the client to render.
         self.expire_potion_cooldowns();
+        // Left-over membership is pruned from the authoritative player map, so
+        // a logout, a transport loss or an expired away window all end a
+        // membership through the same single path.
+        self.step_parties();
         // Derive every away stage from the current time before simulating, so
         // no branch below can act on a stage that has already expired.
         self.advance_away_windows();
@@ -14052,7 +14671,7 @@ impl World {
             };
             let eligible_accounts: Vec<String> = self.players.keys().cloned().collect();
             let resolution = match self.store.as_ref() {
-                Some(store) => store.resolve_attack(
+                Some(store) => store.resolve_attack_with_party(
                     &attack.player_id,
                     &map_id,
                     &attack.request_id,
@@ -14064,6 +14683,7 @@ impl World {
                     &drops,
                     &self.gameplay.exp_table,
                     &eligible_accounts,
+                    &self.party_exp_members(&attack.player_id),
                 ),
                 None => Ok(auth::AttackResolution {
                     already_resolved: false,
@@ -17448,6 +18068,22 @@ mod tests {
         let back = gate("002000100", "west00");
         assert_eq!(back.target_map_id.as_deref(), Some("002000000"));
         assert_eq!(back.target_portal_name.as_deref(), Some("in00"));
+        // 維多利亞港三家商店：原版 273 的三个 type-2 店门，以及店内的返回门。
+        // 目标图不在目录里时 `handle_portal` 会回 `map_unavailable`，所以这里
+        // 同时断言配对与目录归属，而上面的循环断言落点贴地。
+        for (town, name, shop, exit_name) in [
+            ("104000000", "in00", "104000001", "out00"),
+            ("104000000", "in01", "104000002", "out01"),
+            ("104000000", "in02", "104000003", "out00"),
+        ] {
+            assert!(ids.contains(shop), "{shop} must be part of the assembled catalog");
+            let enter = gate(town, name);
+            assert_eq!(enter.target_map_id.as_deref(), Some(shop));
+            assert_eq!(enter.target_portal_name.as_deref(), Some(exit_name));
+            let exit = gate(shop, exit_name);
+            assert_eq!(exit.target_map_id.as_deref(), Some(town));
+            assert_eq!(exit.target_portal_name.as_deref(), Some(name));
+        }
     }
 
     #[test]
@@ -19262,6 +19898,7 @@ mod tests {
     include!("shop_sell_acceptance.rs");
     include!("consume_acceptance.rs");
     include!("storage_acceptance.rs");
+    include!("party_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
@@ -20043,10 +20680,68 @@ mod tests {
             .expect("teleport result");
         assert_eq!(teleport["success"], true);
         assert!(world.players["mage-runtime"].state.x > 100.0);
+        // 用户指定规则：瞬移全等级扣 10 MP（原版为 28→20）。
         assert_eq!(
             world.players["mage-runtime"].state.mp,
-            mp_before_teleport - 28
+            mp_before_teleport - 10
         );
+        // 冷却内不允许再次瞬移，且被拒时不扣 MP。
+        world.handle_cast_skill(
+            "mage-runtime".into(),
+            "teleport-cooldown".into(),
+            SKILL_TELEPORT,
+            Some(1),
+            Some(0),
+        );
+        let cooling = drain(&mut rx).into_iter().next().expect("cooldown result");
+        assert_eq!(cooling["type"], "rejected");
+        assert_eq!(cooling["code"], "skill_cooldown");
+        assert_eq!(
+            world.players["mage-runtime"].state.mp,
+            mp_before_teleport - 10
+        );
+        assert_eq!(
+            world.players["mage-runtime"]
+                .skill_cooldowns
+                .get(&SKILL_TELEPORT)
+                .copied(),
+            Some(1_200)
+        );
+        // 等级越高冷却越短：5 级为 600ms（P 值，见覆盖表）。
+        {
+            let player = world.players.get_mut("mage-runtime").unwrap();
+            player.skill_cooldowns.remove(&SKILL_TELEPORT);
+            player.state.skills.insert(SKILL_TELEPORT, 5);
+        }
+        let mp_before_level_five = world.players["mage-runtime"].state.mp;
+        world.handle_cast_skill(
+            "mage-runtime".into(),
+            "teleport-level-five".into(),
+            SKILL_TELEPORT,
+            Some(1),
+            Some(0),
+        );
+        let level_five = drain(&mut rx)
+            .into_iter()
+            .find(|value| value["type"] == "skillResult")
+            .expect("level five teleport result");
+        assert_eq!(level_five["success"], true);
+        assert_eq!(
+            world.players["mage-runtime"].state.mp,
+            mp_before_level_five - 10
+        );
+        assert_eq!(
+            world.players["mage-runtime"]
+                .skill_cooldowns
+                .get(&SKILL_TELEPORT)
+                .copied(),
+            Some(600)
+        );
+        {
+            let player = world.players.get_mut("mage-runtime").unwrap();
+            player.skill_cooldowns.remove(&SKILL_TELEPORT);
+            player.state.skills.insert(SKILL_TELEPORT, 1);
+        }
         {
             let player = world.players.get_mut("mage-runtime").unwrap();
             player.state.x = 475.0;

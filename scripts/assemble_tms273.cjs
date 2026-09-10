@@ -90,6 +90,10 @@ const manifest = {
   // PNGs are exported by export_tms273_storage.cjs and copied into
   // client/public-tms273/assets alongside the other UI art.
   storageUi: read('storage'),
+  // Source-backed UI/UIWindow.img/UserList (Party tab) used by the party
+  // window.  PNGs are exported by export_tms273_party.cjs and copied into
+  // client/public-tms273/assets alongside the other UI art.
+  partyUi: read('party'),
 };
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {

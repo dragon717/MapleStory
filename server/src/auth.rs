@@ -243,6 +243,13 @@ pub struct StorageMesosOutcome {
 /// warehouse past what the UI can show.
 pub const STORAGE_SLOT_LIMIT: u16 = 24;
 
+/// Party EXP bonus (P): every extra grouped character present on the killer's
+/// map adds this share of the monster's authored EXP to a bonus pool, capped
+/// at `PARTY_EXP_BONUS_CAP`.  Kept here so the single transaction that settles
+/// a kill is the only place that can pay it.
+const PARTY_EXP_BONUS_PER_MEMBER: f64 = 0.05;
+const PARTY_EXP_BONUS_CAP: f64 = 0.20;
+
 #[derive(Clone, Debug)]
 pub struct ReviveOutcome {
     pub request_id: String,
@@ -2294,6 +2301,9 @@ impl Store {
         })
     }
 
+    /// Settle one attack without a party: the solo path every caller used
+    /// before parties existed, and the entry point the store's own tests use.
+    #[allow(dead_code)] // production callers pass a party list; tests use the solo form.
     pub fn resolve_attack(
         &self,
         account_id: &str,
@@ -2307,6 +2317,44 @@ impl Store {
         drops: &[DropRecord],
         exp_table: &[u64],
         eligible_accounts: &[String],
+    ) -> Result<AttackResolution, String> {
+        self.resolve_attack_with_party(
+            account_id,
+            map_id,
+            request_id,
+            target_id,
+            damage,
+            killed,
+            exp_gain,
+            target_max_hp,
+            drops,
+            exp_table,
+            eligible_accounts,
+            &[],
+        )
+    }
+
+    /// Settle one attack, optionally sharing a party EXP bonus.
+    ///
+    /// `party_members` are the characters the world says are grouped with the
+    /// killer *and* standing on the killer's map, already resolved to real
+    /// accounts; an empty slice leaves the existing damage-share arithmetic
+    /// untouched.  The bonus is granted inside the same transaction as the
+    /// kill, so a retry of the same request settles exactly once.
+    pub fn resolve_attack_with_party(
+        &self,
+        account_id: &str,
+        map_id: &str,
+        request_id: &str,
+        target_id: Option<&str>,
+        damage: i64,
+        killed: bool,
+        exp_gain: u64,
+        target_max_hp: i64,
+        drops: &[DropRecord],
+        exp_table: &[u64],
+        eligible_accounts: &[String],
+        party_members: &[String],
     ) -> Result<AttackResolution, String> {
         if map_id.is_empty() {
             return Err("attack map missing".into());
@@ -2359,10 +2407,13 @@ impl Store {
             .map_err(|_| "account persistence failed")?;
         }
 
+        // A member can be both a damage contributor and a party member; the
+        // map keeps one authoritative row per character so the world never has
+        // to decide which of two profiles is newer.
+        let mut profiles: BTreeMap<String, Profile> = BTreeMap::new();
         let mut awarded_exp = 0u64;
         let mut awarded_drops = Vec::new();
         let mut reward_claimed = false;
-        let mut profiles = Vec::new();
         if killed {
             if let Some(monster_id) = target_id {
                 let contributions = read_damage_contributions(&tx, monster_id)?;
@@ -2411,7 +2462,56 @@ impl Store {
                         if participant == account_id {
                             awarded_exp = share;
                         }
-                        profiles.push((participant, profile));
+                        profiles.insert(participant, profile);
+                    }
+                    // Party bonus pool.  P: the TMS273 export carries no
+                    // party EXP rule, so the bonus is a fixed share of the
+                    // monster's authored EXP split by level between the
+                    // grouped characters that are actually present — including
+                    // members who never hit the monster, which is the reason
+                    // to form a party at all.  It sits inside the kill
+                    // transaction so a retried request cannot pay it twice.
+                    if party_members.len() > 1 && persisted_exp_gain > 0 {
+                        let rate = (PARTY_EXP_BONUS_PER_MEMBER
+                            * (party_members.len() - 1) as f64)
+                            .min(PARTY_EXP_BONUS_CAP);
+                        let pool = ((persisted_exp_gain as f64) * rate).round() as u64;
+                        if pool > 0 {
+                            // Read every grouped character once: it is both the
+                            // level weight and the row the new total is written
+                            // back into.
+                            let mut weights: Vec<(String, u64)> = Vec::new();
+                            let mut rows: BTreeMap<String, Profile> = BTreeMap::new();
+                            for member in party_members {
+                                let profile = match profiles.remove(member) {
+                                    Some(profile) => profile,
+                                    None => read_profile(&tx, member)?,
+                                };
+                                weights.push((member.clone(), profile.level.max(1) as u64));
+                                rows.insert(member.clone(), profile);
+                            }
+                            let total_weight: u64 = weights
+                                .iter()
+                                .map(|(_, level)| *level)
+                                .sum::<u64>()
+                                .max(1);
+                            for (member, level) in weights {
+                                let Some(mut profile) = rows.remove(&member) else {
+                                    continue;
+                                };
+                                let share = ((pool as f64) * (level as f64)
+                                    / total_weight as f64)
+                                    .floor() as u64;
+                                if share > 0 {
+                                    add_exp(&mut profile, share, exp_table);
+                                    write_profile(&tx, &member, &profile)?;
+                                    if member == account_id {
+                                        awarded_exp = awarded_exp.saturating_add(share);
+                                    }
+                                }
+                                profiles.insert(member, profile);
+                            }
+                        }
                     }
                     let protected_until_ms = now_ms().saturating_add(DROP_PROTECTION_MS);
                     for drop in effective_drops {
@@ -2454,10 +2554,7 @@ impl Store {
             }
         }
 
-        let profile = profiles
-            .iter()
-            .find(|(participant, _)| participant == account_id)
-            .map(|(_, profile)| profile.clone());
+        let profile = profiles.get(account_id).cloned();
         tx.execute(
             "UPDATE attack_actions SET resolved=1,target_id=?3,damage=?4,killed=?5,exp_gain=?6,
              drop_id=?7,drop_item_id=?8,drop_quantity=?9,drop_x=?10,drop_y=?11
@@ -2487,7 +2584,7 @@ impl Store {
             drop: awarded_drops.first().cloned(),
             drops: awarded_drops,
             profile,
-            profiles,
+            profiles: profiles.into_iter().collect(),
         })
     }
 

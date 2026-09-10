@@ -62,6 +62,10 @@ pub struct MageLevel {
     #[serde(rename = "mdR")]
     pub md_r: Option<i64>,
     pub cooltime: Option<i64>,
+    /// 用户指定规则字段（2026-09-10，**非 TMS273 源字段**）：等級冷卻，单位毫秒。
+    /// 目前只有 2001009 瞬移使用；由 `scripts/tms273_skill_manifest.cjs` 的
+    /// USER_SPECIFIED_SKILL_RULES 写入（原版瞬移没有 cooltime，数值为 P）。
+    pub cooldown_ms: Option<i64>,
     #[serde(rename = "asrR")]
     pub asr_r: Option<i64>,
     #[serde(rename = "terR")]
@@ -222,6 +226,7 @@ impl MageSkills {
                         || level.sub_prop.is_some_and(|value| !(0..=100).contains(&value))
                         || level.md_r.is_some_and(|value| value < 0)
                         || level.cooltime.is_some_and(|value| value < 0)
+                        || level.cooldown_ms.is_some_and(|value| value < 0)
                         || level.asr_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.ter_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.stance_prop.is_some_and(|value| value < 0)

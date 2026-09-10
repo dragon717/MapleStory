@@ -149,6 +149,50 @@
 @media(max-width:799px){.storage-panes{flex-direction:column}.storage-list{height:132px}}
 @media(max-width:520px){.storage-shell{width:min(var(--storage-width,463px),calc(100vw - 16px))}}
 
+/* Party window, built from the TMS273 UIWindow.img/UserList (Party tab) art.
+   The shell image sets --party-width/--party-height so the roster, the authored
+   column header strip and the action row all sit inside the authored frame. */
+.party-window{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:3;image-rendering:pixelated}
+.party-window[hidden]{display:none!important}
+.party-shell{position:relative;width:var(--party-width,312px);min-height:var(--party-height,389px);padding:6px;box-sizing:border-box;background:#e9eef7f2;border:1px solid #9aa8c2;border-radius:5px;box-shadow:0 9px 0 #112821,0 12px 25px #0006;display:flex;flex-direction:column;gap:5px}
+.party-backgrnd{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated;pointer-events:none;z-index:0}
+.party-heading{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 7px;background:#cfd8ea;border-bottom:1px solid #a4b0c8;color:#2f3a52;font:700 13px/1.4 Georgia,"Songti SC",serif;letter-spacing:1px}
+.party-close{width:20px;height:20px;line-height:16px;padding:0;cursor:pointer;background:#f2f5fb;border:1px solid #a4b0c8;border-radius:3px;color:#2f3a52;font:bold 13px/16px Verdana,sans-serif}
+.party-close:hover{background:#fff}
+.party-columns{position:relative;z-index:1;display:flex;align-items:center;justify-content:center}
+.party-columns-image{display:block;max-width:100%;image-rendering:pixelated}
+.party-roster{position:relative;z-index:1;flex:1 1 auto;min-height:150px;max-height:210px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding-right:3px;scrollbar-width:thin;scrollbar-color:#9aa8c2 #e9eef7}
+.party-separator{display:block;width:100%;image-rendering:pixelated;pointer-events:none;opacity:.85}
+.party-row{display:grid;grid-template-columns:18px 1fr 82px 40px;align-items:center;gap:5px;height:26px;flex:0 0 26px;padding:0 5px;background:linear-gradient(#fdfefe,#e8eef8);border:1px solid #b9c4d8;border-radius:2px;cursor:pointer;font:11px/16px Verdana,"Microsoft YaHei",sans-serif;color:#26304a;text-align:left}
+.party-row:nth-of-type(even){background:linear-gradient(#f4f8fe,#dee6f4)}
+.party-row.is-selected{outline:2px solid #1f5fa8;outline-offset:-2px}
+.party-row.is-self .party-row-name{font-weight:700}
+.party-row-marker{width:16px;height:16px;object-fit:contain;image-rendering:pixelated}
+.party-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.party-row-job{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#41506e;font-size:10px}
+.party-row-level{text-align:right;color:#41506e;font-size:10px}
+.party-empty{color:#4a5670;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin:26px 8px}
+.party-invite{position:relative;z-index:1;display:flex;gap:5px;align-items:center}
+.party-invite[hidden]{display:none}
+.party-name{flex:1 1 auto;min-width:0;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid #a4b0c8;border-radius:3px;background:#fffdf8;color:#26304a;font:11px/20px Verdana,sans-serif}
+.party-actions{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.party-button{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:22px;padding:0 8px;box-sizing:border-box;cursor:pointer;background:linear-gradient(#eef3fb,#d7e0f0);border:1px solid #a4b0c8;border-radius:3px;color:#25304a;font:bold 11px/20px Verdana,"Microsoft YaHei",sans-serif}
+.party-button:disabled{opacity:.5;cursor:not-allowed}
+.party-button.is-sprite{padding:0;border:none;background:none;min-width:0;height:auto}
+.party-button.is-sprite img{display:block;image-rendering:pixelated}
+.party-button-caption{position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);white-space:nowrap;color:#2f3a52;font:9px/12px Verdana,"Microsoft YaHei",sans-serif;opacity:0;pointer-events:none;transition:opacity .12s}
+.party-button.is-sprite:hover .party-button-caption,.party-button.is-sprite:focus-visible .party-button-caption{opacity:1}
+.party-status{position:relative;z-index:1;min-height:16px;color:#2f6b3f;font:11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.party-status.is-error{color:#9a3c13}
+.party-prompt{position:relative;z-index:2;display:flex;flex-direction:column;gap:6px;padding:8px;background:#fdf6e3;border:1px solid #c9b06a;border-radius:4px;box-shadow:0 3px 8px #0003}
+.party-prompt[hidden]{display:none}
+.party-prompt-text{margin:0;color:#4a3c18;font:12px/18px Verdana,"Microsoft YaHei",sans-serif}
+.party-prompt-actions{display:flex;gap:6px}
+.party-prompt-accept,.party-prompt-decline{flex:1 1 0;height:22px;cursor:pointer;border-radius:3px;font:bold 11px/20px Verdana,"Microsoft YaHei",sans-serif}
+.party-prompt-accept{background:linear-gradient(#e6f3e2,#c9e2c1);border:1px solid #86ac7c;color:#254a1c}
+.party-prompt-decline{background:linear-gradient(#f7e7e7,#e6c9c9);border:1px solid #b98c8c;color:#5c2222}
+@media(max-width:520px){.party-shell{width:min(var(--party-width,312px),calc(100vw - 16px))}.party-row{grid-template-columns:18px 1fr 60px 34px}}
+
 /* Quest log panel (server-driven entries, parchment styling like the other
    source windows; the v83 UIWindow.img/Quest artwork export is tracked as a
    future visual pass). */

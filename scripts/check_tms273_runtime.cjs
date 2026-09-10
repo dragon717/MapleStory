@@ -14,7 +14,7 @@ for(const mob of gameplay.monsters) {
   assert.equal(mob.mdRate,Number(raw.MDRate?._value ?? 0));
   assert.equal(mob.boss,Number(raw.boss?._value ?? 0)===1);
 }
-assert.equal(catalog.maps.length,41);
+assert.equal(catalog.maps.length,44);
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
 assert(!gameplay.spawns.some(spawn=>spawn.templateId==='3220000'),'practice Boss must not become a formal map spawn');
 assert(gameplay.compatibility.bossPractice.startsWith('P:'));
@@ -25,6 +25,21 @@ for(const id of ['112','113']) {
 assert.equal(manifest.bossEffects['114'].mob0.reduce((sum,f)=>sum+f.delay,0),2060);
 assert(!manifest.bossEffects['114'].effect,'missing source art must stay absent');
 assert.equal(Object.keys(manifest.skillCatalog).length,56);
+// 用户指定规则（2026-09-10）：瞬移全等级 10MP + 等级冷却。设置该规则的唯一来源是
+// scripts/tms273_skill_manifest.cjs 的 USER_SPECIFIED_SKILL_RULES；原版 TMS273 为
+// mpCon 28→20 且没有 cooltime，所以这里同时锁定"运行时数值=指定值、rawCommon=源记录"。
+{
+  const teleport=manifest.skillCatalog['2001009'];
+  assert.equal(teleport.maxLevel,5);
+  assert.equal(teleport.levelDescriptions.length,5);
+  for(const description of teleport.levelDescriptions) assert.match(description,/^消耗10MP，/);
+  assert.match(teleport.levelDescriptions[4],/朝左右瞬移190並朝上下瞬移295/,'source distance must stay verbatim');
+  const rules=read('shared/mage-skills.json').skills['2001009'];
+  assert.deepEqual(rules.levels.map(level=>level.mpCon),[10,10,10,10,10]);
+  assert.deepEqual(rules.levels.map(level=>level.cooldownMs),[1200,1050,900,750,600]);
+  assert.equal(rules.rawCommon.mpCon,'30-2*x');
+}
+
 for (const effects of Object.values(manifest.skillEffects)) assert(Object.values(effects).every(Array.isArray), 'runtime effect groups must remain frame arrays');
 for (const id of ['1000','1001','1002']) {
   assert.equal(manifest.skillCatalog[id].bookId,'0');
@@ -95,6 +110,21 @@ for(const map of catalog.maps) {
   const back=byId.get('002000100').portals.find(p=>p.name==='west00');
   assert.equal(back.targetMapId,'002000000');
   assert.equal(back.targetPortalName,'in00','碼頭 → 楓之港 must land on the town gate');
+  // 維多利亞港三家商店：原版 273 的三个 type-2 店门必须能进，且双向都贴地。
+  for(const [mapId,name,target,gate] of [
+    ['104000000','in00','104000001','out00'],
+    ['104000000','in01','104000002','out01'],
+    ['104000000','in02','104000003','out00'],
+  ]) {
+    const town=byId.get(mapId).portals.find(p=>p.name===name);
+    assert.equal(town.targetMapId,target,`${mapId}/${name} must enter the source shop map`);
+    assert.equal(town.targetPortalName,gate);
+    const shop=byId.get(target),exit=shop.portals.find(p=>p.name===gate);
+    assert.equal(exit.targetMapId,mapId,`${target}/${gate} must return to 維多利亞港`);
+    assert.equal(exit.targetPortalName,name);
+    assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
+    assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);
+  }
 }
 for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);

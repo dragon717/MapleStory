@@ -97,6 +97,21 @@ export interface StorageState {
   /** The storage keeper this window belongs to. */
   npcId: string;
 }
+/** One row of an authoritative party roster. The roster is rebuilt server-side
+ *  from the characters actually in the world, so a departed member never
+ *  lingers and a stale cached copy can never be trusted. */
+export interface PartyMember {
+  id: string; name: string; level: number; job: number;
+  mapId: string; hp: number; maxHp: number; mp: number; maxMp: number;
+  /** Exactly one row per party carries this; it is the leader the server owns. */
+  leader: boolean;
+}
+/** One authoritative view of a party, or `closed: true` when the character is
+ *  no longer in one — a party of fewer than two members stops existing, except
+ *  while the invitation it just sent is still pending. */
+export interface PartyState {
+  partyId: string; leaderId: string; members: PartyMember[];
+}
 export interface BossPracticeState {
   status: 'available' | 'active' | 'cleared' | 'failed';
   sourceMapId: string; bossId: string; minimumLevel: number; encounterId?: string;
@@ -141,6 +156,21 @@ export type ClientMessage =
   | { type: 'storageTransfer'; requestId: string; operation: StorageDirection; inventoryType: number; slot: number; quantity: number }
   /** Move mesos between the character purse and the warehouse. */
   | { type: 'storageMesos'; requestId: string; operation: StorageDirection; quantity: number }
+  /** Invite one character into a party. The client names only the character;
+   *  the server resolves the name to somebody actually in the world, decides
+   *  whether a party has to be created, and owns the pending invitation. */
+  | { type: 'partyInvite'; requestId: string; playerName: string }
+  /** Accept or decline the pending invitation. The server owns which
+   *  invitation exists and who it was addressed to, so a client can never
+   *  answer somebody else's invitation or join a party uninvited. */
+  | { type: 'partyRespond'; requestId: string; accept: boolean }
+  /** Leave the party the character currently belongs to. */
+  | { type: 'partyLeave'; requestId: string }
+  /** Remove one member. Leader only; the server re-checks both the leadership
+   *  and the membership, and `playerId` is validated before it is used. */
+  | { type: 'partyKick'; requestId: string; playerId: string }
+  /** Hand leadership to another member (source `BtChangeBoss`). */
+  | { type: 'partyLeader'; requestId: string; playerId: string }
   | { type: 'chatSend'; requestId: string; text: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
@@ -193,7 +223,19 @@ export type ServerMessage =
   /** Result of one mesos move; both balances are the post-move values. */
   | { type: 'storageMesos'; requestId: string; success: boolean; code: string; operation: StorageDirection; quantity: number; mesos: number; storedMesos: number }
   /** Full warehouse view, or `closed: true` when the session ended. */
-  | { type: 'storageState'; closed?: boolean; npcId?: string; items?: InventoryItem[]; mesos?: number; slotLimit?: number };
+  | { type: 'storageState'; closed?: boolean; npcId?: string; items?: InventoryItem[]; mesos?: number; slotLimit?: number }
+  /** Full party roster for the character, or `closed: true` when it is no
+   *  longer grouped. The roster is derived from live characters, never cached. */
+  | { type: 'partyState'; closed?: boolean; partyId?: string; leaderId?: string; members?: PartyMember[] }
+  /** Display-only invitation prompt. Answer it with `partyRespond`; the
+   *  authoritative outcome still arrives as a `partyState` view. */
+  | { type: 'partyInvite'; invitationId: string; fromId: string; fromName: string }
+  /** Result of one party intent. A replayed `requestId` replays this same
+   *  outcome instead of acting a second time. */
+  | { type: 'partyResult'; requestId: string; success: boolean; code: string }
+  /** Display-only notice for a party event the character did not cause itself
+   *  — a declined invitation, or being kicked. Never authoritative state. */
+  | { type: 'partyNotice'; code: string; playerId: string; playerName: string };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

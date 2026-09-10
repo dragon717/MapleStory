@@ -38,6 +38,13 @@ const CHARACTER_JOBS: Record<number, string> = {
   230: '牧师',
 };
 
+/** Display name for a server-owned job id.  Shared with the party roster so a
+ *  member's job reads the same in both windows. */
+export function characterJobName(job: number | undefined) {
+  if (job === undefined) return '—';
+  return CHARACTER_JOBS[job] ?? `职业 ${job}`;
+}
+
 /** Source-backed UICharacterInfo window with a native-size, scrollable canvas. */
 export class CharacterInfoView {
   private readonly manifest: Manifest;
@@ -439,8 +446,7 @@ export class CharacterInfoView {
   }
 
   private jobName(job: number | undefined) {
-    if (job === undefined) return '—';
-    return CHARACTER_JOBS[job] ?? `职业 ${job}`;
+    return characterJobName(job);
   }
 
   private pair(current: number, maximum: number) {

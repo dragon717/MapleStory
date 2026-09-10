@@ -258,6 +258,45 @@ pub enum ClientMessage {
         operation: StorageTransferOperation,
         quantity: u32,
     },
+    /// Invite one character into a party.  The client names the character and
+    /// nothing else: the server resolves the name to a character that is
+    /// actually in the world, decides whether a party has to be created, and
+    /// owns the pending invitation.
+    PartyInvite {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerName")]
+        player_name: String,
+    },
+    /// Accept or decline the pending invitation.  The server owns which
+    /// invitation exists and who it was addressed to, so a client cannot
+    /// answer somebody else's invitation or join a party it was never asked
+    /// to join.
+    PartyRespond {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        accept: bool,
+    },
+    /// Leave the party the character currently belongs to.
+    PartyLeave {
+        #[serde(rename = "requestId")]
+        request_id: String,
+    },
+    /// Remove one member.  Only the leader may do this; the server re-checks
+    /// both the leadership and the membership.
+    PartyKick {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerId")]
+        player_id: String,
+    },
+    /// Hand leadership to another member (source `BtChangeBoss`).
+    PartyLeader {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerId")]
+        player_id: String,
+    },
     /// Intent to strike one authored map reactor.  The client identifies the
     /// prop; the server decides range, whether it is still interactable, and
     /// which state comes next.  No damage, position or state is accepted.
@@ -474,6 +513,21 @@ impl ClientMessage {
                 quantity,
                 ..
             } => valid_id(request_id) && (1..=1_000_000_000).contains(quantity),
+            Self::PartyInvite {
+                request_id,
+                player_name,
+            } => valid_id(request_id) && valid_player_name(player_name),
+            Self::PartyRespond { request_id, .. } | Self::PartyLeave { request_id } => {
+                valid_id(request_id)
+            }
+            Self::PartyKick {
+                request_id,
+                player_id,
+            }
+            | Self::PartyLeader {
+                request_id,
+                player_id,
+            } => valid_id(request_id) && valid_id(player_id),
             Self::ChatSend { request_id, text } => {
                 valid_id(request_id) && valid_chat_text(text)
             }
@@ -516,6 +570,18 @@ fn valid_inventory_move(inventory_type: u8, source_slot: i16, target_slot: i16) 
         return true;
     }
     crate::inventory::valid_slot(source_slot) && crate::inventory::valid_slot(target_slot)
+}
+
+/// Character-name policy for party invitations.  Names are display text, so
+/// they may hold any script, but they are still bounded (length + bytes) and
+/// free of control characters, which keeps them usable in JSON and in logs
+/// without letting an invitation carry layout or terminal escapes.
+fn valid_player_name(name: &str) -> bool {
+    let trimmed = name.trim();
+    !trimmed.is_empty()
+        && trimmed.chars().count() <= 24
+        && trimmed.len() <= 96
+        && !trimmed.chars().any(char::is_control)
 }
 
 fn valid_id(id: &str) -> bool {

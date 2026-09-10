@@ -73,6 +73,7 @@ export class MenuView {
     private onCharacters?: () => void,
     private onSettings?: () => void,
     private onNews?: () => void,
+    private onParty?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -263,7 +264,9 @@ export class MenuView {
         : entry.type === 17 ? this.onQuest
           : entry.type === 11 ? this.onSkills
             : entry.type === 0 ? this.onCharacterInfo
-              : entry.type === 36 ? this.onNews : undefined;
+              // Source UITotalMenu type 25 is the 組隊 / Party shortcut.
+              : entry.type === 25 ? this.onParty
+                : entry.type === 36 ? this.onNews : undefined;
     if (action) {
       this.close();
       action();

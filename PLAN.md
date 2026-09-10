@@ -1,5 +1,140 @@
 # 当前工作计划
 
+## 維多利亞港三家商店传送修复：装配目录 41→44 图，待统一加载实玩（2026-09-10）
+
+- 选题：用户报告「维多利亚港很多传送阵进不去」。定向核查确认 104000000 的 in00/in01/in02 三个门源数据**正确**
+  （type 2 带光束，→`104000001/out00`、`104000002/out01`、`104000003/out00`，与原版 273 逐字段一致），
+  但三张目标图不在当时 41 图装配目录，服务端 `world.rs::handle_portal` 查不到 `target_map_id` 即回 `map_unavailable`——门是"死"的。
+  用户选定只补这三家商店；同区域另有 24 个同类死门（六條岔道→廢棄的工地/通往海岸的路、弓箭手村 6、魔法森林 4、勇士之村 2、耶雷弗 2 等）本轮不动。
+- 来源 T：本地 TMS273.7 客户端 `Map/Map/Map1/104000001.img`（防具）/`104000002.img`（雜貨）/`104000003.img`（武器），
+  NPC 1001001 娜塔莎、1001100 米娜、1001000 賽爾文；三家 bgm 均 `Bgm02/AboveTheTreetops`，与 104000000 同源。
+- 管线受阻与绕行：`scripts/build_tms273.cjs` 首步 `import_tms273.py` 依赖
+  `参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Map/Map/Map*/`，该目录在本机为空（iCloud 未下载），整链无法重跑。
+  新增一次性导出工具 **`scripts/dump_tms273_wz_json.cjs`**（约 90 行），用 `@tybys/wz` 直接把 WZ 镜像还原成 importer 消费的 typed-JSON
+  （`sub`/`convex`/`vector`/`uol`/`null`/`string`/`int`/`short`/`long`/`float`/`double`），供 `import_tms273.py --maps-only` 生成同构元数据。
+- 实装五层：① `references/tms273-data/maps.json` 41→44（三图紧随 104000000，`requestedMapIds`/`importedMapIds` 同步）；
+  ② `resources/tms273-export/maps-rendered.json` 41→44（layers/footholds/portals/bounds 与源一致）；
+  ③ `entities.json` npcs 173→176（+1001000/1001001/1001100）；④ `gameplay.json` npcs 113→117 / npcSpawns 157→160 / shops 6→9；
+  ⑤ `assemble_tms273.cjs` 产出 `shared/*` 与 `client/public-tms273/assets/manifest.json`（maps 41→44、**portals 89→92**，新增 3 个 `out` 门并自动补 `pv/default` 光束）。
+- 顺带补回两处中间产物缺口（**非本次引入**，不补会在装配时丢失）：`item-images.json` 482→489
+  （7 个章节道具图标 1003134/4033888/4033889/4033914/4033919/4036846/4036847，此前装配即报 `Item image export is stale: 1003134`）；
+  `npc-names.json` / `entities.json` 补回 1520000 糖果（在线 `shared/gameplay.json` 有、中间产物无）。
+- 验收结果：`assemble_tms273.cjs` 输出 `{"version":"tms273-9","maps":44,"assets":6013,"npcs":177,"monsters":18}`；
+  `check_tms273_runtime.cjs` 通过（`44 maps; 45182 source references; client/server geometry and quest generation agree`，41 图时为 45076）；
+  `cargo build --offline` 通过（仍基线 6 条警告、零新增）；`cargo test --offline` **211 过 / 10 失败**，
+  10 项与既有基线失败集逐条一致（auth third_store×3、inventory×2、mage bundled_catalog、inventory_acceptance、world config_drop/memory_pickup/third_sphere），
+  **零回归**；`tms273_warp_landings` 定向 1/1 通过。
+- 断言维护（数据变更的连带契约）：`server/src/boss_acceptance.rs` 图数 41→44 + 三张商店图归属断言；
+  `server/src/world.rs::tms273_warp_landings_are_grounded` 末尾新增三家商店 (town/shop/exit_name) 配对与落点贴地断言
+  （双向落点 Δ ≤ 4px，在 24px 吸附窗口内）；`scripts/check_tms273_runtime.cjs` 41→44 + 三对双向门/落点/光束断言。
+- 客户端：`tsc --noEmit` 通过；`vite build` 因构建沙箱批量删除保护不准 `emptyOutDir` 清空 dist-tms273（6053 文件 > 阈值），
+  改为构建到 `dist-tms273-new` 后**原子替换**（旧产物移入 `~/.Trash/MapleStory-dist-tms273-20260910-201442`，可恢复）。
+  产物 `client/dist-tms273/assets/manifest.json` 已核：44 图 / 92 门，104000001/2/3 在目录内，6 个相关门（含 3 个 `out`）光束齐备。
+- 待验（用户）：`启动3010.command` 重启后实玩——維多利亞港 in00/in01/in02 三个门出现光束并分别进入防具/雜貨/武器商店；
+  店内 NPC 为娜塔莎/米娜/賽爾文，可对话开商店；店内 `out` 门返回維多利亞港。
+- 已知边界：同区域另有 24 个同类死门未处理（整片区域全通需继续补图）；`client/public-tms273/assets/` 下有 3 个 iCloud 冲突副本
+  （`gameplay 2.json`/`items 2.json`/`manifest 2.json`，2026-09-08）会被原样复制进构建产物，本轮未清理。
+
+## 瞬移改为「全等级 10MP + 等级冷却」：用户指定规则，待统一加载实玩（2026-09-10）
+
+- 用户口径（2026-09-10）：瞬移（2001009）全等级消耗一样都是 10 MP，不同等级的区别在距离和 CD。
+- **与原版的冲突已核并记录**：本地 TMS273 `Skill/200.json#2001009` 为 `mpCon="30-2*x"`（28/26/24/22/20）、
+  `x=130→190`、`y=275→295`、**无 cooltime 字段**；maplestorywiki 与台服 V271/V280 攻略一致（满级 20 MP、无 CD）。
+  全等级固定 10 MP 的原版技能只有**魔力波動 2001011**（2001012 浮空为 20 MP）。
+  故本条按**用户指定**落地，不冒充原作；`rawCommon` / `sourceMetadata` 继续保留源记录。
+- 数据（单点）：`scripts/tms273_skill_manifest.cjs` 新增 `USER_SPECIFIED_SKILL_RULES` 覆盖表 →
+  `mageRules()` 产出 `mpCon=10` 与 `cooldownMs=[1200,1050,900,750,600]`；同一表驱动 `skillManifest()` 的
+  `levelDescriptions`，K 窗文案与服务器扣费同源（不再显示 28→20）。
+- 服务端：`mage.rs` 的 `MageLevel` 新增 `cooldownMs`；`world.rs handle_cast_skill` 对 2001009 取该值作冷却，
+  **只写内存 `skill_cooldowns`、不落 `skill_cooldowns` 表**——高频移动技能逐次写库是无谓事务，秒级冷却也无跨登录意义。
+- P 值（单点可调）：冷却 1.2s→0.6s 属用户指定下的 P（原版无冷却），位置见 `USER_SPECIFIED_SKILL_RULES`。
+  距离与被动速度保持源数值不变；三转「瞬移精通」的追加 MP 逻辑不变。
+- 已装配产物：`shared/mage-skills.json`（只动 2001009 一条，其余 55 条与顶层字段逐项断言不变）、
+  `client/public-tms273/assets/manifest.json` 与 `client/dist-tms273/assets/manifest.json` 的 `levelDescriptions`
+  （现为「消耗10MP…」，距离与被动速度仍为源数值）。两者都随 `.gitignore`，不入库。
+- 验收结果：`cargo build` 通过（仍是基线 6 条警告）；定向测试
+  `mage_skill_runtime_covers_learning_targets_replay_guard_teleport_and_wave` 通过（扣 10 MP / CD 内二次瞬移被拒且不扣 MP /
+  lv1 CD=1200ms / lv5 CD=600ms）；**反向验证**——把瞬移冷却分支临时改成 0，该用例立刻失败（第二次施放没被拒），证明新分支确实生效；
+  全量 `cargo test` **211 过 / 10 失败**，与 PLAN 记录的既有失败集（auth/inventory/mage/world 内容数据）逐条一致，零回归。
+  `check_tms273_skill_manifest.cjs` 通过（顺带把该脚本从 17 技能时代对齐到当前 56 技能目录：计数断言与已废弃的 `levelValues` 断言
+  已改用 `levelDescriptions`，此前它就已跑不过）；`check_tms273_runtime.cjs tms273-9` 通过（41 图 / 45076 引用，新增瞬移规则断言）。
+  未改任何客户端源码，故未跑 `tsc`。
+- 已知边界：K 窗各级说明仍是源文案模板，**不显示冷卻秒数**（只显示冷却中的剩余时间）；若要在技能说明里直接列出每级 CD，需要改源文案，待用户定。
+- 待验（用户）：`启动3010.command` 重启后实玩——每级瞬移都只扣 10 MP；连按第二次提示冷却中且不扣 MP；满级 CD 明显短于 1 级。
+
+## 组队（Party / 組隊）：已完成，待统一加载实玩（2026-09-10）
+
+- 选题：静态盘点确认 **`party` 在服务端 0 处匹配**——`world.rs:6744` / `world.rs:7609` 两处 P 注释明写"无队伍模型"，
+  是 R036 待办的阻塞项。菜单 `totalMenuEntries` 里 `type 25`（組隊）**条目早已存在但没有回调**，点了没反应；
+  同时全仓库唯一"多人"语义的钩子（经验、掉落归属、`Meditation`/`Hyper Adventurer` 的施法目标）
+  全都只认**施法者自己**——玩家能看见别人，却无法与之组成任何"我们"。这是社交/协作层唯一整层缺失的一端。
+- 来源 T：窗口素材来自本地 TMS273.7 客户端 `UI/UIWindow.img/UserList` 的 **Party 分页**
+  （`backgrnd` 312×389 / `icon0` 星标 / `icon1` 队长标 / `party0`–`party5` / 8 个按钮 × 4 态），非自绘、非 v83。
+  经 PNG 逐张渲染确认 `party0`–`party5` 是**窗口构件**（`隊伍開放` 开关板 / 分隔线 / 细线 / 列头 名稱-職業-等級），
+  **不是 6 行切片**——行由客户端自己排版，这也决定了客户端的渲染方式。
+- 实装五层：
+  ① 新增 `scripts/export_tms273_party.cjs`（**41 张 PNG** + `party.json`），管线加入导出步并挂 `manifest.partyUi`；
+     `assemble_tms273.cjs` 同步 `partyUi: read('party')`；`manifest.ts` 新增 `PartyUiData`。
+  ② `world.rs` 新增 `Party`（`id` / `leader_id` / `members`）、`PartyInvite`、`PartyOutcome` 三个结构与
+     `parties` / `party_invites` / `party_requests` 三张 session 表 + `party_sequence`，以及
+     `create_party` / `remove_from_party` / `handle_party_{invite,respond,leave,kick,leader}` /
+     `party_view` / `send_party_{state,result,notice}` / `party_members_on_map` / `party_exp_members` / `step_parties`。
+     `step_parties()` 挂在 `step()` 首部（与 `step1` 同一节拍，权威时钟唯一）。
+  ③ `auth.rs` 新增 `resolve_attack_with_party(...)` 与**队伍经验池**：击杀奖励在**同一事务内**为同图成员结算；
+     原 `resolve_attack` 保留为单人包装（标注 `#[allow(dead_code)]`）；`profiles` 由 `Vec` 改 `BTreeMap` 以去重。
+  ④ 协议 12（未升版，同版扩展）：新增 `PartyInvite` / `PartyRespond` / `PartyLeave` / `PartyKick` / `PartyLeader`
+     五个意图与 `partyState` / `partyInvite` / `partyResult` / `partyNotice` 四个下行，Rust 与 `shared/protocol.ts` 同步。
+  ⑤ 客户端新增 `features/world/party-view.ts` + `style.css` 面板 + `i18n.ts` 11 条错误码/文案，
+     `main.ts` 接消息/菜单/模态/切图清理，`scenes/world.ts` 预载 41 张素材，`menu/view.ts` 把 `type 25` 接到队伍窗。
+- 权威边界：客户端只发**意图**——`partyInvite` 只带 `playerName`，`partyRespond` 只带 `accept`，
+  `partyKick`/`partyLeader` 只带 `playerId`（**永远不发队伍 id、位置、成员表**）；
+  队伍身份、队长归属、名册内容、经验分配比例**全部服务端推导**。名册由服务端主动推送（`partyState`），
+  客户端不做本地乐观更新——被拒/被踢/解散都会以服务端下行为准覆盖回去。
+- 队伍存在规则（本轮设计要点）：**队伍只在"≥2 名成员"或"存在未决邀请"时存在**，掉到 1 人即自动解散并推 `closed` 快照。
+  因此不提供 `PartyDisband` 指令——解散是人数收敛的副产物而非一个动作，避免"队长退队"与"解散"两条路径产生分歧。
+- 组队范围 vs. 生效范围：**邀请不限地图**（可跨图邀请，与好友语义一致），但
+  **经验共享与队伍 buff 只对"同图且 hp > 0"的成员生效**（`party_members_on_map`）。
+  `apply_meditation` 与 `activate_hyper_adventurer` 已从 `self.players.get_mut(自己)` 改为遍历该集合——
+  这是本轮把"队伍"真正接到既有机制上的两处改动。
+- 经验共享：`PARTY_EXP_BONUS_PER_MEMBER = 0.05`、`PARTY_EXP_BONUS_CAP = 0.20`，
+  `rate = min(0.05 × (n-1), 0.20)`，`pool = round(exp_gain × rate)`，按成员等级权重拆分；
+  **单人击杀逐位不变**（p12 专测），池子与主体经验在同一次击杀内写入同一事务，不存在"发了主体没发池子"的中间态。
+- 幂等：邀请/应答等写操作按 `requestId` 落 `party_requests`，重放同 ID **重发原结果、不二次建队/不二次入队**；
+  请求窗口按 `PARTY_REQUEST_WINDOW = 32 × 玩家数` 有界回收，长会话不无限增长。
+- 拒绝码：`party_unknown_player / party_self / party_busy / party_not_leader / party_already / party_full /
+  party_no_invite / party_declined / party_not_member / party_unavailable / party_kicked`；
+  失败一律 `success = false` 且携带码，客户端不可能把被拒操作误当成功。
+- P 临时规则（已注明单点）：`PARTY_MAX_MEMBERS = 6`——TMS273 无本地字段，取原版队伍上限作 P。
+- 本轮修掉的**两个真实缺陷**：
+  ① 拒绝邀请后，只剩 1 人的队伍要**等到下一个 tick** 才解散，期间会短暂存在一支"幽灵 1 人队"；
+     已在 `handle_party_respond` 的 `!accept` 分支内**同步调用 `step_parties()`**，拒绝即收敛。
+  ② 验收夹具用 `Gameplay::default()`，其 `attackLt`/`attackRb` 为空 → `attack_bounds` 返回 `None` →
+     攻击找不到目标 → **击杀从未发生、经验恒为 0**，p11/p12 假红；已改为从 `shared/gameplay.json` 载入真实
+     `PlayerConfig`（`attackLt {x:-88,y:-62}` / `attackRb {x:-18,y:-6}` / `attackAfterMs 450`）。
+- 验证：
+  - `cargo build` 通过，警告仍是**基线 6 条零新增**。
+  - 新增 `party_acceptance.rs` **15 项全过**（首邀建队并加入 / 拒绝陌生人·自己·重复·忙目标 / 名册上限与满员拒邀 /
+    仅队长可邀可踢可移交 / 踢人后队长不变 / 退队移交队长与空名册解散 / 拒绝通知双方且无人成组 /
+    无邀请应答·无队伍退队被拒 / 重放邀请读回原结果 / 断线剪除成员并广播新名册 /
+    击杀向同图成员发奖励 / **单人击杀毫发无损** / 只发给击杀者同图成员 / 队伍 buff 只覆盖同图成员 /
+    移交队长不变动名册）。
+  - **反向验证**：把 p06/p15 写成 2 人队来测"掉到 1 人还保留窗口"会失败——证明"掉人即解散"这条规则确实生效
+    （用例因此改为 3 人队 a/b/c）。
+  - 全量 `cargo test` **211 过 / 10 失败**；在 HEAD 建 worktree 跑出的**真基线为 196 过 / 10 失败且失败集逐条一致**
+    （auth/inventory/mage/world 既有内容数据问题），即 **+15 项新通过、零回归**。
+  - `tsc --noEmit` 通过；`vite build` 通过（1,780 KB，仅既有 chunk 体积警告）。
+  - 客户端新增 `party.check.mjs` **12 项全过**（无队伍时不发意图且渲染单人提示 / 名册只随权威快照渲染 /
+    名单行含队长标·名字·职业·等级 / 满员时按 `memberSlots` 截断 / 邀请只发名字且本地拦截空名与重复 /
+    应答只发 accept / 非队长看不到管理按钮 / 队长可见邀请·踢人·移交 / 拒绝码本地化成文案 /
+    通知带引发者名字 / 关闭后清空选择 / 重开不残留状态）。
+- 待验（用户）：经 `启动3010.command` 统一构建加载后实玩——菜单点「組隊」（type 25）应弹队伍窗；
+  输入角色名邀请，对方应弹邀请面板，接受后两边名册同图同步；组队后同图打怪两边都吃经验加成；
+  队长可踢人/移交，队员可退队；两人中一人退队后队伍应解散且窗口关闭；切图/断线后名册正确收敛。
+- 已知边界：**未做 `PartySearch`（隊伍搜尋）**；**未做队伍聊天频道**（`BtChat` / `BtWhisper` 仅转发既有聊天/私聊语义）；
+  **未做队伍血条**（`BtHP` 未接线）；**未做跨频道/跨频道组队**；**组队状态不落库**——会话级，与反应堆/仓库会话同一策略，
+  服务端重启或成员全部离线即散队（原版有持久队伍，此处是明确的 P 取舍）。
+- 收尾：临时探测脚本 `scripts/probe_party.cjs` 已删除（一次性 WZ 结构探测，不属管线资产）。
+
 ## 账号仓库（Storage / 倉庫）：已完成，待统一加载实玩（2026-09-10）
 
 - 选题：静态盘点确认 **`storage` 在服务端/客户端全仓库 0 处匹配**——`shared/gameplay.json` 里 3 个 `func: "倉庫老闆"`
