@@ -105,6 +105,13 @@ try {
   grounded = false;
   dispatchCode('Space');
   assert.equal(skillCasts.at(-1).skillId, 2001012, 'air jump requests the authoritative float intent');
+  // 2026-09-12: the float is the jump half of 魔力波動, so the second step is
+  // plain 跳 — releasing ↑/↓ must not change the intent the client sends.
+  window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
+  skillCasts.length = 0;
+  dispatchCode('Space');
+  assert.equal(skillCasts.at(-1).skillId, 2001012, 'a plain air jump still requests the float intent');
+  assert.equal(skillCasts.at(-1).vertical, 0, 'a plain air jump carries no held direction');
   // While swimming the body is never grounded, but Space must still jump
   // instead of casting: routing it to the float skill made the mage unable to
   // act in water (the server then rejected the cast with skill_cooldown).

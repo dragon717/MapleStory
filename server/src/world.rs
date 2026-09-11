@@ -6341,11 +6341,16 @@ impl World {
             > 0;
         let has_magic_wave_skill = (skill_id == SKILL_MAGIC_WAVE && has_magic_wave)
             || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && has_magic_wave_hidden);
+        // The hidden float node (2001012) is the *jump* half of 魔力波動: once
+        // the body is airborne one jump press is enough.  It used to also
+        // demand a held ↓ (`vertical <= 0` -> reject), which turned the skill
+        // into the 上+跳 / 下+跳 two-step; ↑/↓ no longer participates, so `跳`
+        // alone floats.  Landing / leaving the water still resets the one-use
+        // flag, and the visible node (2001011) keeps requiring ↑.
         if matches!(skill_id, SKILL_MAGIC_WAVE | SKILL_MAGIC_WAVE_HIDDEN)
             && (!has_magic_wave_skill
                 || (skill_id == SKILL_MAGIC_WAVE && vertical >= 0)
-                || (skill_id == SKILL_MAGIC_WAVE_HIDDEN
-                    && (vertical <= 0 || player.state.grounded))
+                || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.state.grounded)
                 || (skill_id == SKILL_MAGIC_WAVE && player.magic_wave_used)
                 || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.magic_wave_float_used))
         {
