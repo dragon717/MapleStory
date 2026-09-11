@@ -252,26 +252,34 @@ assert(gameplay.npcSpawns.some(n=>n.templateId==='1541003'&&n.mapId==='130000000
 assert(gameplay.npcSpawns.every(n=>catalog.maps.some(m=>m.id===n.mapId)));
 assert(!gameplay.quests.some(q=>q.questId==='1021'||q.questId.startsWith('322')));
 let checked=0;
+let healed=0;
 function visit(value) {
   if(typeof value==='string'&&value.startsWith('/assets/')) {
     assert(value.startsWith('/assets/tms273/'),value);
-    // client/public-tms273/ 是生成物且不被 git 跟踪，单个文件丢失时给出自助修复路径，
-    // 而不是一屏裸 ENOENT（2026-09-12 双击启动被一个小地图 PNG 挡住的真实案例）。
+    // client/public-tms273/ 是生成物且不被 git 跟踪。本仓库躺在 iCloud 同步盘里，
+    // 2026-09-12 出现过同一个装配 PNG 在数分钟内被外界删除两次（dist 快照始终完好）。
+    // 因此这里选择自愈：缺失且 dist 快照（最近一次构建时 public 的拷贝）里有同名文件
+    // ⇒ 原地补回再继续，不挡启动；两处都没有才是真装配缺口，报错并指向重跑装配。
     const asset=path.join(root,'client/public-tms273',value);
     let size;
     try { size=fs.statSync(asset).size; }
     catch {
       const twin=path.join(root,'client/dist-tms273',value);
-      const hint=fs.existsSync(twin)
-        ? `dist-tms273 里有同名拷贝（构建时的 public 快照），可先对比再复制回 public-tms273`
-        : `public-tms273 与 dist-tms273 都没有，需要重跑装配脚本而不是改 check`;
-      throw new Error(`装配资源缺失: ${value}\n  修复提示: ${hint}`);
+      if(fs.existsSync(twin)&&fs.statSync(twin).size>0) {
+        fs.mkdirSync(path.dirname(asset),{recursive:true});
+        fs.copyFileSync(twin,asset);
+        size=fs.statSync(asset).size;
+        healed++;
+      } else {
+        throw new Error(`装配资源缺失且 dist 快照里也没有: ${value}\n  修复提示: 重跑装配脚本，不要改本 check`);
+      }
     }
     assert(size>0,value);checked++;
   } else if(value&&typeof value==='object')for(const child of Object.values(value))visit(child);
 }
 visit(manifest);
 console.log(`TMS273 runtime: ${catalog.maps.length} maps; ${checked} source references; client/server geometry and quest generation agree.`);
+if(healed>0)console.log(`注意: ${healed} 个装配资源在 public-tms273 里缺失，已从 dist 快照自动补回（本仓库在 iCloud 盘，资源会无故消失；若反复出现请把仓库移出同步盘或排除 client/public-tms273）。`);
 
 // Account warehouse: the client window is drawn entirely from the TMS273
 // UIWindow.img/Trunk export, and its row cap must agree with the server's

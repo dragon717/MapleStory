@@ -114,12 +114,12 @@
     },
     {
       "path": "server/src/world.rs",
-      "physical_lines": 20408,
-      "nonblank_lines": 19882,
+      "physical_lines": 18979,
+      "nonblank_lines": 18488,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "block",
-      "churn_last_100_commits": 38
+      "churn_last_100_commits": 39
     },
     {
       "path": "references/browser-probe/manifest.json",
@@ -186,12 +186,12 @@
     },
     {
       "path": "artifacts/refactor/large-files.json",
-      "physical_lines": 3682,
-      "nonblank_lines": 3681,
+      "physical_lines": 3691,
+      "nonblank_lines": 3690,
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 2
+      "churn_last_100_commits": 3
     },
     {
       "path": "shared/quest-glossary.json",
@@ -228,6 +228,15 @@
       "budget_exempt": false,
       "verdict": "needs-justification",
       "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/quest.rs",
+      "physical_lines": 1455,
+      "nonblank_lines": 1418,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 0
     },
     {
       "path": "MapleStory_Rust_Chat_Ops_Development_Plan.md",
@@ -398,7 +407,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "Web_TS_2D_Water_Development_Plan.md",
@@ -1292,6 +1301,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "docs/architecture/large-file-audit.md",
+      "physical_lines": 232,
+      "nonblank_lines": 181,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
       "path": "qa/contact_respawn_probe.mjs",
       "physical_lines": 232,
       "nonblank_lines": 210,
@@ -1427,15 +1445,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "docs/architecture/large-file-audit.md",
-      "physical_lines": 215,
-      "nonblank_lines": 167,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 2
-    },
-    {
       "path": "server/src/chapter_acceptance.rs",
       "physical_lines": 215,
       "nonblank_lines": 199,
@@ -1553,6 +1562,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "BACKEND_ARCHITECTURE.md",
+      "physical_lines": 184,
+      "nonblank_lines": 133,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
       "path": "UI_WINDOW_SYSTEM.md",
       "physical_lines": 184,
       "nonblank_lines": 147,
@@ -1560,15 +1578,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
-    },
-    {
-      "path": "BACKEND_ARCHITECTURE.md",
-      "physical_lines": 183,
-      "nonblank_lines": 132,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 3
     },
     {
       "path": "references/tms273-data/manifest.json",

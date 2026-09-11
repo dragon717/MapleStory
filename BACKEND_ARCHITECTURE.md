@@ -27,6 +27,7 @@
 | `world::inventory_ops`（`inventory_ops.rs`） | 物品意图的完整事务外观：拾取 / 拖动 / 丢弃 / 整理 / 使用 / 丢金币 |
 | `world::social`（`social.rs`） | 组队与好友 / 黑名单：关系生命周期、在线状态派生、requestId 幂等重放 |
 | `world::trade`（`trade.rs`） | NPC 商店买 / 卖与账号仓库：事务外观、keeper 距离复核、转账副作用重读、回执下发 |
+| `world::quest`（`quest.rs`） | 任务列表 / NPC 菜单 / 交互与效果结算、任务规则纯判定、经验入账 `add_exp` |
 | `world::boss`（`boss.rs`） | Boss 练习场的源规则常量与阶段；`#[path]` 子模块的**最早先例** |
 | `inventory.rs` | 物品目录、堆叠与容量规则、装备属性计算（与 `inventory_ops` 分工见 2.2 第 10 条） |
 | `npc.rs` | NPC 摆放、数据驱动对话状态机、商店 |
@@ -34,7 +35,7 @@
 | `quest_text.rs` | 任务显示文案的多语言目录 |
 | `*_acceptance.rs` | 行为测试，由 `include!` 挂进 `world::tests`；**不是生产模块，不计入模块依赖** |
 
-`world::messaging` / `world::inventory_ops` / `world::social` / `world::trade` 四者是**同一份世界状态拆出的不同职责**，不是独立业务模块：它们共享 `world` 的全部私有项与状态，只是代码位置分开。
+`world::messaging` / `world::inventory_ops` / `world::social` / `world::trade` / `world::quest` 五者是**同一份世界状态拆出的不同职责**，不是独立业务模块：它们共享 `world` 的全部私有项与状态，只是代码位置分开。
 
 先一个 crate，不因目录数量就拆多个 crate。业务状态由 world / 对应业务模块拥有；网络处理器只把经过验证的请求投递进模拟流程，不从多个连接任务直接并发修改同一角色、怪物或掉落。
 

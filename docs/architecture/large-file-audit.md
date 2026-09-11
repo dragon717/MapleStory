@@ -47,7 +47,7 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 
 | 真实路径 | 类别 / 行数 | 修改热点证据 | 混合职责 | 写状态范围 | 首个提取点 | 验证方式 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `server/src/world.rs` | 手写 / 23,992（block）→ 治理后 **20,407** | **churn 36/100**，全仓第 1 | 拆出 4 块后仍剩：权威状态持有 + Tick 调度 + 技能施法（≈4,400）、任务（≈1,450）、怪物与掉落（≈2,000），`impl World` 仍单块 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯（§4.1）→ 背包物品（§4.2）→ 社交（§4.3）→ 交易（§4.4）已完成 | 24 个既有 `*_acceptance.rs` | **P1（进行中）** |
+| `server/src/world.rs` | 手写 / 23,992（block）→ 治理后 **18,978** | **churn 36/100**，全仓第 1 | 拆出 5 块后仍剩：权威状态持有 + Tick 调度 + 技能施法（≈4,400）、怪物与掉落（≈2,000），`impl World` 仍单块 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯（§4.1）→ 背包物品（§4.2）→ 社交（§4.3）→ 交易（§4.4）→ 任务（§4.5）已完成 | 24 个既有 `*_acceptance.rs` | **P1（进行中）** |
 | `server/src/auth.rs` | 手写 / **8,410**（block） | churn 17/100，第 3 | 持久化（SQLite `Store`）+ 会话/身份 + **领域规则**（四转/超技 SP 计算、技能书、组队经验加成、仓库）+ 30 余个 DTO | `Store` 连接与事务，以及各 `*Outcome` | 四转/超技 SP 规则（纯计算） | `third_store_acceptance.rs` 等（当前有既有失败） | P2 |
 | `client/src/features/inventory/view.ts` | 手写 / **1,640**（block） | churn 13/100，客户端第 1 | 单个 `InventoryView` 类同时管页签、网格、拖拽、提示、金币、渲染与出站消息 | DOM 树 + 拖拽 payload + 请求序号 | 页签/分类映射与网格渲染 | `scripts/check_inventory.mjs` | P2 |
 | `server/src/protocol.rs` | 手写 / 1,032（warn） | churn **21/100**，第 2 | Wire DTO + 解析/校验 + `valid()` 形状校验 | 无状态（纯类型与校验） | 不建议拆：它是协议契约面，拆开反而增加同步成本 | — | P3（保持单文件） |
@@ -174,10 +174,27 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 | 全量回归 | `cargo test --offline` **292 过 / 6 失败**，失败集与基线逐条一致，零回归 |
 | 编译警告 | 同命令前后对比：`cargo build` **10 → 10**、`cargo test` **44 → 44**，零新增 |
 
-**下一步（候选，尚未开始）**：任务（≈1,450 行，与击杀/拾取进度有耦合，需先确认热路径边界）；
-技能施法（≈4,400 行，热路径，最后拆）；怪物与掉落（≈2,000 行）；
-`auth.rs` 8,410 行是下一个超大文件；客户端 `features/inventory/view.ts` 单类拆分；
-客户端既有的 1 处循环与 1 处越界依赖（见 `module-boundaries.md`）。
+### 4.5 第五个机械拆分（任务职责，已完成）
+
+选它的理由：§4 判据成立，任务是最大的"非每帧行为"职责（≈1,430 行），且有
+`chapter_acceptance.rs` / `continuation_acceptance.rs` / `quest_store_acceptance.rs` 兜底。
+它与击杀/拾取进度的耦合被证实是**单向的**：事件 handler 留在 `world.rs` / `inventory_ops`，调用任务侧的纯判定函数。
+
+| 项 | 结果 |
+| --- | --- |
+| 新模块 | `server/src/quest.rs`，挂载 `#[path = "quest.rs"] mod quest;`（紧随 trade 之后） |
+| 搬移内容 | **29 个函数**：任务规则纯判定（`quest_*` 静态函数）、NPC 菜单 / 条目 / 日志、`handle_quest_interact` / `handle_quest_npc_menu` / `apply_quest_effect_at`，以及经验入账 `add_exp`，共 **1,430 行**，外补 `impl World { … }` 外壳后 1,454 行 |
+| 搬移保真度 | 归一化逐行断言：**1,396 个有效行零丢失** |
+| 可见性 | 自动推导 **12 个** `pub(super) fn`；其余 17 个保持私有 |
+| 推导再次立功 | `add_exp` 在 **`auth.rs`（7 处）与 `third/fourth_store_acceptance.rs`** 也有引用——只扫 `world.rs` 必漏。核实后确认那是 `auth.rs:5974` 的**同名不同签名**函数（吃 `Profile`，crate 级；world 版吃 `PlayerState`），属于无害的误报放宽；`pub(super)` 本就不改变可达范围 |
+| 自由函数不失联的原因 | world.rs 对这些静态函数的调用全部写成 `Self::add_exp(...)` / `World::quest_consume_items(...)` —— 关联函数走**类型解析**，与定义所在模块无关；只有裸名调用才会因搬移失联 |
+| `world.rs` 行数 | 20,407 → **18,978**（五次拆分合计 23,993 → 18,978，**-5,015 行**） |
+| 全量回归 | `cargo test --offline` **292 过 / 6 失败**，失败集与基线逐条一致，零回归 |
+| 编译警告 | 同命令前后对比：`cargo build` **10 → 10**、`cargo test` **44 → 44**，零新增 |
+
+**下一步（候选，尚未开始）**：怪物与掉落（≈2,000 行，含 `respawn_monsters` ≈1,300 行的巨型函数，需先拆函数再拆模块）；
+技能施法（≈4,400 行，热路径，最后拆）；`auth.rs` 8,410 行是下一个超大文件；
+客户端 `features/inventory/view.ts` 单类拆分；客户端既有的 1 处循环与 1 处越界依赖（见 `module-boundaries.md`）。
 
 ## 5. 已知缺陷与既有失败（与重构分开记录）
 
