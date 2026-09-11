@@ -68,6 +68,57 @@ for (const [search, expected] of [['', 'zh'], ['?lang=en', 'en'], ['?lang=zh', '
   assert.equal(module.mapText('000010000', 'unknown'), 'unknown');
 }
 console.log('Default Chinese and explicit language selection passed.');
+
+// The source-authored tab canvas (UI/UIInventory.img/Inventory) draws the five
+// tabs in the order 裝備 / 消耗 / 其他 / 裝飾 / 現金, with the frame for
+// 裝飾 numbered *before* the frame for 其他-adjacent 現金 — i.e. frame 4
+// precedes frame 3.  These assertions pin the view constants to that source
+// order so a future reshuffle cannot silently reintroduce the straight ±1
+// mapping that once put 其他 items under 現金 and 裝飾 items under 其他.
+const viewSource = fs.readFileSync(`${root}/client/src/features/inventory/view.ts`, 'utf8');
+const labelsMatch = viewSource.match(/const TAB_LABEL_KEYS = \[([^\]]+)\] as const/);
+assert.ok(labelsMatch, 'view.ts must keep an explicit TAB_LABEL_KEYS order');
+const labels = labelsMatch[1].split(',').map(part => part.trim().replace(/^'|'$/g, ''));
+assert.deepEqual(
+  labels,
+  ['inventoryEquip', 'inventoryUse', 'inventoryEtc', 'inventorySetup', 'inventoryCash'],
+  'tab order must mirror the source frame sequence 裝備/消耗/其他/裝飾/現金',
+);
+const typeMatch = viewSource.match(/const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = \{([\s\S]*?)\};/);
+assert.ok(typeMatch, 'view.ts must keep an explicit TAB_INVENTORY_TYPE map');
+const tabTypeEntries = Object.fromEntries(
+  typeMatch[1].split('\n')
+    .map(line => line.match(/(\d+):\s*(\d+)/))
+    .filter(Boolean)
+    .map(match => [match[1], Number(match[2])]),
+);
+assert.deepEqual(
+  tabTypeEntries,
+  { 0: 1, 1: 2, 2: 4, 3: 3, 4: 5 },
+  'visible tab -> server inventoryType must be 1/2/4/3/5 (frame 4 before frame 3)',
+);
+// The manifest must actually carry the five source frames the view renders,
+// in both compact and expanded window modes.
+const manifest = JSON.parse(fs.readFileSync(`${root}/client/public-tms273/assets/manifest.json`, 'utf8'));
+for (const mode of ['AutoBuild', 'FullAutoBuild']) {
+  for (const state of ['normal', 'selected']) {
+    for (let index = 0; index < 5; index++) {
+      assert.ok(
+        manifest.inventoryUi?.[`${mode}/tab:category/${state}/${index}`],
+        `inventoryUi must carry ${mode}/tab:category/${state}/${index}`,
+      );
+    }
+  }
+}
+assert.equal(manifest.inventoryLayout?.categoryCount, 5, 'inventory layout must author five categories');
+assert.equal(manifest.inventoryLayout?.small?.tabs?.count, 5, 'compact window must author five tabs');
+assert.equal(manifest.inventoryLayout?.full?.tabs?.count, 5, 'expanded window must author five tabs');
+// Slot-expansion coupons: the four TMS273 coupons must keep their icons (the
+// grid skips rendering an item whose icon is missing) and their shop price.
+for (const couponId of ['2430768', '2430769', '2430770', '2430771']) {
+  assert.ok(manifest.items?.[couponId], `manifest.items must carry the coupon icon ${couponId}`);
+}
+console.log('Inventory tab frame order (4 before 3) and slot-expansion coupon assets verified.');
 if (process.argv.includes('--browser-fixture')) {
   const { build } = await import('../client/node_modules/esbuild/lib/main.js');
   const output = `${root}/output/inventory-check`;

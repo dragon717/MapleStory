@@ -22,7 +22,9 @@ const TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Objec
   inventoryTitle: { zh: '物品栏', en: 'Inventory' },
   inventoryEquip: { zh: '装备', en: 'Equip' },
   inventoryUse: { zh: '消耗', en: 'Use' },
-  inventorySetup: { zh: '设置', en: 'Setup' },
+  // The TMS273 source tab canvas reads 裝飾 for the third slot-order tab
+  // (frame 4 before frame 3); keep the aria label aligned with that drawing.
+  inventorySetup: { zh: '装饰', en: 'Setup' },
   inventoryEtc: { zh: '其他', en: 'Etc' },
   inventoryCash: { zh: '现金', en: 'Cash' },
   menu: { zh: '菜单', en: 'Menu' },
