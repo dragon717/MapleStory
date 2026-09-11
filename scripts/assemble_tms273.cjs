@@ -62,6 +62,15 @@ maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
 const birth = maps.find(map => map.id === catalog.birthMapId);
 assert(birth, 'Birth map absent');
 assert(maps.length === JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps.length, 'Map export is stale');
+// `returnMaps` is the per-map `info/returnMap` lookup a 回家卷軸 resolves
+// against.  It is a catalog fact, not geometry, so it is asserted as a whole
+// table: one entry per assembled map, always in the 9-digit form the server
+// snapshot and the scroll handler speak.  A town outside this catalog is
+// legal data (the archive has maps this build does not ship) — the scroll is
+// refused at use time instead of teleporting into nothing.
+const returnMaps = catalog.returnMaps ?? {};
+assert.deepEqual(Object.keys(returnMaps).sort(), maps.map(map => map.id).sort(), 'returnMap export is stale');
+for (const [mapId, townId] of Object.entries(returnMaps)) assert.match(townId, /^\d{9}$/, `returnMap target must be the 9-digit form: ${mapId} -> ${townId}`);
 assert.deepEqual(Object.keys(gameplay.sources.maps).sort(),maps.map(map=>map.id).sort(),'Gameplay export is stale');
 const sourceQuests=JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/quests.json'),'utf8')).quests;
 assert.deepEqual(gameplay.quests.map(q=>String(q.questId)).sort(),sourceQuests.map(q=>String(q.id)).sort(),'Quest export is stale');
@@ -162,6 +171,18 @@ gameplay.compatibility.iceThirdRuntime = 'P: Hans level60 shortcut 220->221, 5 i
 gameplay.compatibility.beginnerRuntime = 'T: Skill/000.img and String/Skill.img define three beginner skills, max3, per-level MP/fixed damage/heal/speed/duration/cooldown. P: 5-second healing ticks inferred from source total and x; projectile reach/hit timing use the existing combat adapter. Buffs end on death/map exit/disconnect; skill levels, SP and cooldowns persist. Beginner SP follows the existing P 2..7 +1 rule. No shell item cost exists in the local skill source.';
 gameplay.compatibility.iceFourthRuntime = 'P: level100 Hans shortcut 221->222 preserves story; 3 initial SP plus historical cross-region 101..140 tiers, fixed frost passive. Bind uses a single cast and source-limited hold; orb uses 4000ms/210ms and 180px/s with contact slowdown; Ice Demon pulses every1080ms alongside thunder sphere; Infinity restores base HP/MP and ramps damage every5s. These execution adapters are not original TMS scripts. Source skill values and artwork remain TMS273.7.';
 gameplay.compatibility.player='Initial attributes and base combat formula use the existing runtime adapter; they are not certified TMS273 server parity.';
+// 傳送類消耗品 (map-move consumables).  The item side is source data
+// (`Item/Consume` `spec.moveTo`), the destination side is source data
+// (`Map.wz .../info/returnMap`), and the runtime only joins them.
+{
+  const moveItems = Object.entries(items).filter(([, item]) => item.spec && 'moveTo' in item.spec);
+  assert(moveItems.length > 0, 'No map-move consumable is present in the item export');
+  for (const [itemId, item] of moveItems) {
+    const value = item.spec.moveTo;
+    assert(Number.isInteger(value) && value > 0, `moveTo must be a positive integer: ${itemId}`);
+  }
+  gameplay.compatibility.returnScroll = 'T: `Item/Consume` spec.moveTo selects the map-move consumables (2030000 回家卷軸 sentinel 999999999, 2030001 維多利亞港卷軸 104000000) and Map.wz info/returnMap is the town 2030000 targets. The runtime consumes one unit and lands the body on the destination map\'s authored `sp` spawn. P: the landing is a scroll\'s own arrival (no landing gate exists in the source item), and a town outside the assembled catalog is refused instead of being entered; field-limit rules that would forbid a scroll are not implemented.';
+}
 // Chat emoticons (表情貼圖).  The server only needs what it must *own*: the set
 // of sendable sticker ids and the source's own send budget
 // (UI/ChatEmoticon.img/ChatLimit) — never the artwork, which is presentation.
@@ -221,7 +242,7 @@ for(const url of urls) {
   const destination=path.join(publicRoot,url.slice(1));fs.mkdirSync(path.dirname(destination),{recursive:true});
   fs.copyFileSync(path.join(input,url.slice(1)),destination);
 }
-for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'npc-names':npcNames,map:birth,maps:{birthMapId:birth.id,maps}})) {
+for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'npc-names':npcNames,map:birth,maps:{birthMapId:birth.id,returnMaps,maps}})) {
   // Rendering layers belong to the client manifest, not the server's map catalog.
   const serverData=name==='map'?(({layers,...map})=>map)(data):name==='maps'?{...data,maps:data.maps.map(({layers,...map})=>map)}:data;
   write(path.join(root,'shared',name+'.json'),serverData);

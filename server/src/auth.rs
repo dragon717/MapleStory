@@ -3249,6 +3249,16 @@ impl Store {
                     }
                     Err(error) => Err(error),
                 }
+            } else if inventory::move_target(item_id).is_some() {
+                // A map-move consumable spends exactly one unit here, and only
+                // here: *where* the body lands is the world's decision, and the
+                // world has already proven the destination is reachable before
+                // it asks for the item to be spent.  A scroll with nowhere to
+                // go is therefore refused by the caller and never reaches this
+                // branch — the item can never be paid for nothing.
+                inventory::remove_items(&mut inventory, 2, source_slot, 1).map(|_| {
+                    result_code = Some("map_move");
+                })
             } else {
                 Err(inventory::InventoryError::ItemNotUsable)
             }

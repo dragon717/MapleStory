@@ -15,6 +15,30 @@ for(const mob of gameplay.monsters) {
   assert.equal(mob.boss,Number(raw.boss?._value ?? 0)===1);
 }
 assert.equal(catalog.maps.length,44);
+// 傳送類消耗品 (map-move consumables): the client never names a destination —
+// the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
+// the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
+// are pinned here: a missing or un-normalized entry would silently turn a
+// working scroll into a refused one, or worse, land a character on the wrong map.
+{
+  const reference=read('references/tms273-data/maps.json').maps;
+  assert.deepEqual(Object.keys(catalog.returnMaps).sort(),catalog.maps.map(map=>map.id).sort(),'returnMap table must cover every assembled map');
+  for(const map of catalog.maps) {
+    const source=reference.find(entry=>entry.id===map.id).returnMap;
+    assert.match(catalog.returnMaps[map.id],/^\d{9}$/,`returnMap must be the 9-digit form: ${map.id}`);
+    assert.equal(catalog.returnMaps[map.id],String(Math.trunc(Number(source))).padStart(9,'0'),`returnMap drifted from the source: ${map.id}`);
+  }
+  // The two authored map-move consumables and nothing else.  2030000 uses the
+  // 999999999 sentinel ("this map's returnMap"), 2030001 names 維多利亞港.
+  const movable=Object.entries(read('shared/items.json')).filter(([,item])=>item.spec&&'moveTo' in item.spec);
+  assert.deepEqual(movable.map(([id])=>id).sort(),['2030000','2030001'],'the map-move consumable set changed');
+  assert.equal(movable.find(([id])=>id==='2030000')[1].spec.moveTo,999999999);
+  assert.equal(movable.find(([id])=>id==='2030001')[1].spec.moveTo,104000000);
+  // A town the catalog does not ship stays legal data: the scroll is refused at
+  // use time.  Pinning it keeps the refusal honest rather than a silent wrong map.
+  const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
+  assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),['310040200->310000000','310050000->310000000'],'unshipped returnMap targets changed');
+}
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
 assert(!gameplay.spawns.some(spawn=>spawn.templateId==='3220000'),'practice Boss must not become a formal map spawn');
 assert(gameplay.compatibility.bossPractice.startsWith('P:'));

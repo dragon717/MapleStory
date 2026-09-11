@@ -693,6 +693,45 @@ pub fn use_effect(item_id: &str) -> Result<UseEffect, InventoryError> {
     Ok(effect)
 }
 
+/// The `spec.moveTo` sentinel the source uses for 回家卷軸: "send me to this
+/// map's own `returnMap`".  The original never writes a town id into that item,
+/// so its destination cannot be read off the catalog — only off the map the
+/// character is standing on when the scroll is used.
+pub const RETURN_MAP_SENTINEL: i64 = 999_999_999;
+
+/// Where a map-move consumable sends the body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MapMoveTarget {
+    /// `spec.moveTo = 999999999` — the current map's authored `returnMap`.
+    ReturnMap,
+    /// `spec.moveTo = <id>` — the town the item names outright, in the
+    /// 9-digit form the rest of the runtime speaks.
+    Map(String),
+}
+
+/// Read the authored destination of a map-move consumable.
+///
+/// Only `spec.moveTo` marks this family (2030000 回家卷軸, 2030001
+/// 維多利亞港卷軸, …).  A recovery item authors `hp`/`mp` and an upgrade scroll
+/// authors `incPAD`-style keys, so the three families stay mutually exclusive
+/// and an item can never be both "drinkable" and "a teleport".
+pub fn move_target(item_id: &str) -> Option<MapMoveTarget> {
+    if inventory_type(item_id) != Some(2) {
+        return None;
+    }
+    let value = spec_i64(item_id, "moveTo")?;
+    if value <= 0 {
+        return None;
+    }
+    if value == RETURN_MAP_SENTINEL {
+        return Some(MapMoveTarget::ReturnMap);
+    }
+    // A fixed destination is an ordinary map id.  Anything at or above the
+    // sentinel is not a map the runtime could ever load, so it is not offered
+    // as a destination at all rather than being padded into a fake map id.
+    (value < RETURN_MAP_SENTINEL).then(|| MapMoveTarget::Map(format!("{value:09}")))
+}
+
 pub fn scroll_effect(item_id: &str) -> Option<BTreeMap<String, i64>> {
     if inventory_type(item_id) != Some(2) {
         return None;
@@ -1007,6 +1046,26 @@ mod tests {
         assert_eq!(inventory, vec![expected]);
         assert_eq!(inventory[0].slot, 1);
         assert!(equipped.is_empty());
+    }
+
+    #[test]
+    fn only_a_move_to_consumable_is_a_map_move() {
+        // 回家卷軸 authors the 999999999 sentinel: "this map's returnMap".  The
+        // id is deliberately impossible as a map, so a naive parse would pad it
+        // into a nonexistent town instead of routing through the catalog.
+        assert_eq!(move_target("2030000"), Some(MapMoveTarget::ReturnMap));
+        assert_eq!(
+            move_target("2030001"),
+            Some(MapMoveTarget::Map("104000000".into())),
+            "an explicit town id must be normalized to the 9-digit form"
+        );
+        // The three consumable families are mutually exclusive: a potion
+        // recovers, an upgrade scroll enhances, and neither may teleport.
+        assert_eq!(move_target("2000000"), None);
+        assert_eq!(move_target("2009003"), None);
+        assert_eq!(move_target("2041006"), None);
+        assert_eq!(move_target("2060000"), None);
+        assert_eq!(move_target("1002067"), None, "equipment is never usable");
     }
 
     #[test]

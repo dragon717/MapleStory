@@ -1120,6 +1120,13 @@ pub struct MapCatalog {
     pub birth_map_id: String,
     #[serde(default)]
     pub maps: Vec<Map>,
+    /// Source `Map.wz .../info/returnMap` per map id, normalized to 9 digits.
+    /// This is the whole destination table for 回家卷軸: the item carries only
+    /// the `spec.moveTo = 999999999` sentinel, so the town has to come from the
+    /// map the character is standing on.  Absent in catalogs that predate the
+    /// export, which simply leaves the scroll with no target.
+    #[serde(default)]
+    pub return_maps: BTreeMap<String, String>,
 }
 
 impl MapCatalog {
@@ -2787,6 +2794,12 @@ pub struct World {
     pub map: Map,
     pub gameplay: Gameplay,
     maps: BTreeMap<String, Map>,
+    /// `Map.wz .../info/returnMap` per map id, already normalized to the
+    /// 9-digit form — the town a 回家卷軸 (`spec.moveTo = 999999999`) sends a
+    /// character to.  It lives beside the catalog rather than on `Map` because
+    /// the scroll resolves it by the *current* map id, the same way the
+    /// snapshot and the world map already speak those ids.
+    return_maps: BTreeMap<String, String>,
     players: BTreeMap<String, Player>,
     monsters: BTreeMap<String, Monster>,
     npcs: BTreeMap<String, NpcInstance>,
@@ -2918,6 +2931,7 @@ impl World {
             .unwrap_or_default();
         let mut world = Self {
             maps: BTreeMap::from([(map.id.clone(), map.clone())]),
+            return_maps: BTreeMap::new(),
             map,
             gameplay,
             players: BTreeMap::new(),
@@ -3036,13 +3050,14 @@ impl World {
     }
 
     fn attach_catalog(&mut self, catalog: MapCatalog) -> Result<(), String> {
-        if catalog.birth_map_id != self.map.id {
+        let MapCatalog { birth_map_id, maps, return_maps } = catalog;
+        if birth_map_id != self.map.id {
             return Err(format!(
                 "map catalog birth map {} does not match {}",
-                catalog.birth_map_id, self.map.id
+                birth_map_id, self.map.id
             ));
         }
-        for map in catalog.maps {
+        for map in maps {
             let map_id = map.id.clone();
             self.maps.insert(map_id.clone(), map);
             if let Some(store) = self.store.as_ref() {
@@ -3068,6 +3083,24 @@ impl World {
                 }
             }
         }
+        // Validate the return table before it can ever be used: every key must
+        // be a map this world actually loaded, and every town must at least be
+        // shaped like a map id.  A town *outside* the catalog stays legal data —
+        // the archive ships maps this build does not — and is refused when a
+        // scroll actually asks for it, which is why membership is not required.
+        for (map_id, town_id) in &return_maps {
+            if town_id.len() != 9 || !town_id.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(format!(
+                    "map catalog returnMap target {town_id} for {map_id} is not a 9-digit map id"
+                ));
+            }
+            if !self.maps.contains_key(map_id) {
+                return Err(format!(
+                    "map catalog returnMap names an unloaded map: {map_id}"
+                ));
+            }
+        }
+        self.return_maps = return_maps;
         self.gameplay
             .validate_spawns_against_maps(&self.maps, &self.map.id)?;
         self.gameplay.validate_quest_maps(&self.maps)?;
@@ -10857,6 +10890,85 @@ impl World {
         self.send_inventory_outcome(&id, &outcome);
     }
 
+    /// Resolve where a map-move consumable (`spec.moveTo`) would send this
+    /// character, or refuse it.
+    ///
+    /// The item side is source data, but the *destination* is a world fact:
+    /// 回家卷軸 asks for the current map's authored `returnMap`, a fixed scroll
+    /// names its town outright.  Resolving here — before either persistence
+    /// path — is what makes "a scroll with nowhere to go is never spent" true
+    /// by construction, because the item is only ever paid for after this has
+    /// returned a reachable map.  `Ok(None)` means the item is not a map-move
+    /// consumable at all, i.e. the ordinary potion/scroll paths keep working.
+    fn plan_map_move(&self, id: &str, item_id: &str) -> Result<Option<String>, &'static str> {
+        let Some(target) = inventory::move_target(item_id) else {
+            return Ok(None);
+        };
+        let Some(player) = self.players.get(id) else {
+            return Err("item_unavailable");
+        };
+        if player.state.action == "dead" || player.state.hp <= 0 {
+            return Err("dead");
+        }
+        // A Boss practice instance is not part of the map catalog, so the
+        // character's `returnMap` would resolve against the wrong map — and
+        // leaving a practice encounter is the practice window's own decision,
+        // never a scroll's.  Mirrors the practice guards on the other
+        // escape-like intents (dropping mesos, leaving the map).
+        if auth::is_practice_map(&player.map_id) {
+            return Err("scroll_blocked");
+        }
+        let current_map_id = player.map_id.as_str();
+        let destination = match target {
+            inventory::MapMoveTarget::ReturnMap => match self.return_maps.get(current_map_id) {
+                Some(town_id) => town_id.clone(),
+                None => return Err("scroll_no_target"),
+            },
+            inventory::MapMoveTarget::Map(town_id) => town_id,
+        };
+        if !self.maps.contains_key(&destination) {
+            return Err("scroll_unavailable");
+        }
+        Ok(Some(destination))
+    }
+
+    /// Land one character on a town the scroll named, after that scroll has
+    /// actually been spent.
+    ///
+    /// A scroll names a *map*, never a gate, so the body arrives on that map's
+    /// authored `sp` spawn point — the same landing a fresh join uses, re-grounded
+    /// through the shared foothold lookup.  Every scene-scoped field the portal
+    /// path clears is cleared here too; otherwise a scroll and a gate would
+    /// leave different residue behind (a live summon or an ice field floating in
+    /// a town the caster is no longer in).
+    fn land_player_on_return_map(&mut self, id: &str, target_map_id: &str) {
+        let Some(target_map) = self.maps.get(target_map_id).cloned() else {
+            return;
+        };
+        self.end_conversation(id);
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        player.map_id = target_map_id.to_owned();
+        player.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        reset_player_to_spawn(&target_map, player, self.tick);
+        player.attack_until = 0;
+        player.meditation_until = 0;
+        player.meditation_mad = 0;
+        clear_beginner_buffs(player);
+        player.ice_teleport_enabled = false;
+        player.ice_fields.clear();
+        player.teleport_mastery_enabled = false;
+        player.teleport_boost_enabled = false;
+        player.adaptation_active = false;
+        player.adaptation_charges = 0;
+        player.summon = None;
+        player.state.action_id = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        self.send_snapshot(id);
+    }
+
     fn handle_use_item(
         &mut self,
         id: String,
@@ -10907,6 +11019,23 @@ impl World {
                     return;
                 }
             }
+            // Resolve a map-move destination only for a *fresh* request: the
+            // idempotency peek above has already answered a replay with its
+            // original result, so a retried scroll can never move the body a
+            // second time.  An unusable scroll is refused here, before the
+            // transaction, and therefore spends nothing.
+            let move_destination = match self.plan_map_move(&id, &item_id) {
+                Ok(destination) => destination,
+                Err(code) => {
+                    self.send_reject(
+                        &id,
+                        code,
+                        map_move_reject_message(code, player.lang),
+                        Some(&request_id),
+                    );
+                    return;
+                }
+            };
             let stats = self.equipment_stats(&id);
             let recovery = inventory::use_effect(&item_id).ok();
             match store.use_item_with_max_mp(
@@ -10946,6 +11075,15 @@ impl World {
                             }
                         }
                     }
+                    if outcome.success {
+                        if let Some(destination) = move_destination.as_deref() {
+                            // The scroll is persisted and the unit is already
+                            // gone; only now does the body travel.  Nothing can
+                            // fail here — the destination was proven to be an
+                            // assembled map before the transaction ran.
+                            self.land_player_on_return_map(&id, destination);
+                        }
+                    }
                     self.send_inventory_outcome(&id, &outcome);
                     if outcome.success && matches!(outcome.operation.as_str(), "equip" | "unequip")
                     {
@@ -10977,6 +11115,20 @@ impl World {
             }
             return;
         }
+        // Mirrors the store branch: only a fresh request resolves a destination,
+        // so the idempotency peek above stays the single answer for a retry.
+        let move_destination = match self.plan_map_move(&id, &item_id) {
+            Ok(destination) => destination,
+            Err(code) => {
+                self.send_reject(
+                    &id,
+                    code,
+                    map_move_reject_message(code, player.lang),
+                    Some(&request_id),
+                );
+                return;
+            }
+        };
         let mut inventory_items = player.state.inventory.clone();
         let mut equipped_items = player.state.equipped.clone();
         let stats = self.equipment_stats(&id);
@@ -11069,6 +11221,13 @@ impl World {
                     }
                     Err(error) => Err(error),
                 }
+            } else if inventory::move_target(&item_id).is_some() {
+                // Mirrors the store branch: `plan_map_move` already proved the
+                // destination is an assembled map, so this only has to spend a
+                // unit.  The body itself travels after the state commit below,
+                // which keeps "paid for" and "moved" in that order.
+                inventory::remove_items(&mut inventory_items, 2, source_slot, 1)
+                    .map(|_| result_code = "map_move".to_owned())
             } else {
                 Err(inventory::InventoryError::ItemNotUsable)
             }
@@ -11089,6 +11248,14 @@ impl World {
             }
             Err(error) => (false, error.code().to_owned()),
         };
+        if success {
+            if let Some(destination) = move_destination.as_deref() {
+                // Persisted-then-travel, same order as the store branch: the
+                // unit is already gone from the committed inventory, so the
+                // landing can never leave an unpaid scroll behind.
+                self.land_player_on_return_map(&id, destination);
+            }
+        }
         let outcome = auth::InventoryOutcome {
             request_id: request_id.clone(),
             operation,
@@ -17851,6 +18018,44 @@ fn format_potion_cooldown(remaining_ms: u64, lang: &'static str) -> String {
     }
 }
 
+/// Explain why a map-move consumable did nothing.
+///
+/// Every code here comes from `plan_map_move`, and every one of them is a
+/// *reason the scroll was not spent* — the player-visible contract is that a
+/// refused teleport never costs an item, so the text says what was missing
+/// rather than what went wrong.  The fallback covers the impossible case so a
+/// future code cannot silently ship with an empty message.
+fn map_move_reject_message(code: &str, lang: &'static str) -> &'static str {
+    let (zh, en) = match code {
+        "dead" => (
+            "角色死亡时无法使用传送卷軸。",
+            "You cannot use a teleport scroll while dead.",
+        ),
+        "scroll_blocked" => (
+            "练习中不能使用传送卷軸。",
+            "Teleport scrolls cannot be used during practice.",
+        ),
+        "scroll_no_target" => (
+            "此地图没有可返回的城镇，卷軸未被消耗。",
+            "This map has no return town, so the scroll was not consumed.",
+        ),
+        "scroll_unavailable" => (
+            "目标城镇尚未开放，卷軸未被消耗。",
+            "The destination town is not open yet, so the scroll was not consumed.",
+        ),
+        "item_unavailable" => ("道具已不可用。", "That item is no longer usable."),
+        _ => (
+            "无法使用该传送卷軸。",
+            "The teleport scroll could not be used.",
+        ),
+    };
+    if lang == crate::quest_text::LANG_EN {
+        en
+    } else {
+        zh
+    }
+}
+
 fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
     let spawn_ground = map.ground_near(map.spawn.x, map.spawn.y);
     player.state.x = map.spawn.x;
@@ -19307,6 +19512,7 @@ mod tests {
         world
             .attach_catalog(MapCatalog {
                 birth_map_id: "test".into(),
+                return_maps: BTreeMap::new(),
                 maps: vec![birth, target],
             })
             .unwrap();
@@ -19478,6 +19684,7 @@ mod tests {
         world
             .attach_catalog(MapCatalog {
                 birth_map_id: "birth".into(),
+                return_maps: BTreeMap::new(),
                 maps: vec![birth, target],
             })
             .unwrap();
@@ -19580,6 +19787,7 @@ mod tests {
     fn authored_life_rejects_unknown_map_foothold_and_template() {
         let catalog = || MapCatalog {
             birth_map_id: "birth".into(),
+            return_maps: BTreeMap::new(),
             maps: vec![life_map("birth"), life_map("target")],
         };
         let cases = [
@@ -21504,6 +21712,7 @@ mod tests {
     include!("reactor_acceptance.rs");
     include!("shop_sell_acceptance.rs");
     include!("consume_acceptance.rs");
+    include!("scroll_acceptance.rs");
     include!("storage_acceptance.rs");
     include!("party_acceptance.rs");
     include!("friend_acceptance.rs");

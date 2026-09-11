@@ -474,7 +474,23 @@ async function main() {
     }
     maps.push(map);
   }
-  save('maps-rendered.json',{contentVersion:'tms273',birthMapId:maps[0].id,source:'TMS273.7 client WZ',maps});
+  // `Map.wz .../info/returnMap` is the town a 回家卷軸 (`Item/Consume` `spec.moveTo
+  // = 999999999`) sends a character back to.  The archive stores it as a bare
+  // integer while the whole runtime speaks 9-digit map ids, so normalize it here
+  // — the same defect class as `MapList/*/mapNo` on the world map.  It is a
+  // catalog-level lookup unlike the per-map geometry, so it is written once for
+  // every exported map rather than repeated inside each map record.
+  const returnMaps={};
+  for(const id of selected) {
+    const reference=metadata.find(m=>m.id===id);
+    const target=reference?.returnMap ?? reference?.info?.returnMap;
+    if(target===undefined||target===null||target==='')continue;
+    const value=Math.trunc(Number(target));
+    assert(Number.isFinite(value)&&value>0&&value<999999999,`273 returnMap is not a map id: ${id} -> ${target}`);
+    returnMaps[id]=String(value).padStart(9,'0');
+  }
+  assert.equal(Object.keys(returnMaps).length,maps.length,'273 returnMap export is incomplete');
+  save('maps-rendered.json',{contentVersion:'tms273',birthMapId:maps[0].id,returnMaps,source:'TMS273.7 client WZ',maps});
 }
 if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1}).finally(()=>{reader.close();bossReader.close();});
 module.exports={exportMap,geometry};

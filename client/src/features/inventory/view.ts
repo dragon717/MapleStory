@@ -734,7 +734,14 @@ export class InventoryView {
       this.keepGatherResultMode = message.operation === 'gather';
       this.refreshGatherButton();
     }
-    if (message.code === 'scroll_success' || message.code === 'scroll_failed') {
+    if (
+      message.code === 'scroll_success' ||
+      message.code === 'scroll_failed' ||
+      // A map-move consumable reports its own outcome: the server already
+      // decided where the body lands, so this is a notice, not a request for
+      // the client to do anything.
+      message.code === 'map_move'
+    ) {
       this.status(protocolText(message.code, message.code));
       return;
     }
