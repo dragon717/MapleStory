@@ -154,6 +154,15 @@ export class EntryView {
       button.addEventListener('dblclick', () => { this.selected = button.dataset.select; void this.run(() => this.startGame()); });
     });
     this.host.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(button => button.addEventListener('click', () => { this.page = Number(button.dataset.page); this.render(); }));
+    if (this.stage === 'login') this.focusLoginField();
+  }
+  private focusLoginField() {
+    let savedId = '';
+    try { savedId = localStorage.getItem('maple-saved-id') ?? ''; } catch { /* Optional preference. */ }
+    const username = this.host.querySelector<HTMLInputElement>('#username');
+    const password = this.host.querySelector<HTMLInputElement>('#password');
+    if (savedId) password?.focus();
+    else username?.focus();
   }
   private action(action: string) {
     if (action === 'help') return this.setNote(text('账号：3–32位英文字母、数字、_或-。密码至少8位。首次游玩请注册，再创建冒险家角色。', 'ID: 3–32 ASCII letters, digits, _ or -. Password: at least 8 characters. Register an account, then create an Explorer.'));

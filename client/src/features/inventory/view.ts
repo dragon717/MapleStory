@@ -13,6 +13,7 @@ const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventorySetup', 'inv
 type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & {
   equipped?: InventoryItem[];
   potionCooldowns?: Record<string, number>;
+  inventorySlots?: Record<number, number>;
 };
 type AssetSet = Record<string, AssetFrame>;
 type SendClientMessage = (message: ClientMessage) => boolean;
@@ -74,6 +75,8 @@ export class InventoryView {
   private mesos = 0;
   /** Server-owned consumable cooldowns (item id -> remaining ms); display only. */
   private potionCooldowns: Record<string, number> = {};
+  /** Server-owned per-tab slot capacity (inventoryType 1..=5 -> slot count). */
+  private inventorySlots: Record<number, number> = {};
   private practice = false;
   private slotsSignature = '';
   private draggedSlot?: number;
@@ -286,6 +289,7 @@ export class InventoryView {
     this.equipped = (player.equipped ?? []).slice();
     this.mesos = Math.max(0, Math.floor(player.mesos));
     this.potionCooldowns = { ...(player.potionCooldowns ?? {}) };
+    this.inventorySlots = { ...(player.inventorySlots ?? {}) };
     this.root.dataset.inventory = this.inventory
       .map(item => String(itemCategoryTab(item.itemId) + 1) + ':' + item.slot + ':' + item.itemId + ':' + item.quantity)
       .join(',');
@@ -302,6 +306,10 @@ export class InventoryView {
       // inventory last changed.
       .concat(Object.entries(this.potionCooldowns)
         .map(([itemId, ms]) => `cd:${itemId}:${Math.ceil(ms / 1000)}`))
+      // Slot capacities change which cells are enabled, so they belong to the
+      // signature: expanding a tab must re-render its grid immediately.
+      .concat(Object.entries(this.inventorySlots)
+        .map(([type, slots]) => `cap:${type}:${slots}`))
       .join('|');
     if (signature !== this.slotsSignature) {
       if (!this.keepGatherResultMode) this.sortMode = false;
@@ -386,6 +394,7 @@ export class InventoryView {
     this.equipped = [];
     this.mesos = 0;
     this.potionCooldowns = {};
+    this.inventorySlots = {};
     this.slotsSignature = '';
     this.root.dataset.inventory = '';
     this.root.dataset.mesos = '0';
@@ -630,7 +639,7 @@ export class InventoryView {
       this.status(this.t('请在装备栏中选择目标装备。', 'Choose the target equipment in the Equip window.'));
       return;
     }
-    if (slotNumber > this.inventoryLayout.backendSlotLimit) return;
+    if (slotNumber > this.slotLimit(this.selectedTab)) return;
     const item = this.itemAt(slotNumber);
     if (!item) return;
     if (this.isScroll(item)) {
@@ -653,7 +662,7 @@ export class InventoryView {
       const slotNumber = Number(slot.dataset.slot);
       const item = this.itemAt(slotNumber);
       const visible = slotNumber <= mode.slots.itemCount;
-      const available = visible && slotNumber <= this.inventoryLayout.backendSlotLimit;
+      const available = visible && slotNumber <= this.slotLimit(this.selectedTab);
       const targetable = false;
       slot.hidden = !visible;
       slot.disabled = !available;
@@ -740,7 +749,10 @@ export class InventoryView {
       // A map-move consumable reports its own outcome: the server already
       // decided where the body lands, so this is a notice, not a request for
       // the client to do anything.
-      message.code === 'map_move'
+      message.code === 'map_move' ||
+      // A slot-expansion coupon reports its own outcome; the authoritative new
+      // capacity arrives with the next snapshot, so this is a notice.
+      message.code === 'slot_expand'
     ) {
       this.status(protocolText(message.code, message.code));
       return;
@@ -791,6 +803,11 @@ export class InventoryView {
     return this.inventory.find(item => item.slot === slot && itemCategoryTab(item.itemId) === tab);
   }
 
+  /** The current server-owned slot capacity for one tab (1-based tab index). */
+  private slotLimit(tab: number) {
+    return this.inventorySlots[tab + 1] ?? this.inventoryLayout.backendSlotLimit;
+  }
+
   private visibleItemAt(slot: number) {
     return this.itemAt(slot, this.selectedTab);
   }
@@ -812,7 +829,7 @@ export class InventoryView {
 
   private moveSlot(sourceTab: number, sourceSlot: number, targetSlot: number) {
     const item = this.itemAt(sourceSlot, sourceTab);
-    const maxSlot = this.inventoryLayout.backendSlotLimit;
+    const maxSlot = this.slotLimit(sourceTab);
     if (!item || sourceSlot < 1 || sourceSlot > maxSlot || targetSlot < 1 || targetSlot > maxSlot) return;
     if (!this.send({
       type: 'inventoryMove',
@@ -831,7 +848,7 @@ export class InventoryView {
   private dropSlot(sourceTab: number, sourceSlot: number) {
     if (this.practice) { this.status(this.t('请退出练习后再丢弃物品。', 'Leave practice before dropping items.')); return; }
     const item = this.itemAt(sourceSlot, sourceTab);
-    if (!item || sourceSlot < 1 || sourceSlot > this.inventoryLayout.backendSlotLimit) return;
+    if (!item || sourceSlot < 1 || sourceSlot > this.slotLimit(sourceTab)) return;
     let quantity = Math.max(0, Math.floor(item.quantity));
     if (quantity > 1) {
       const answer = window.prompt(
@@ -1551,7 +1568,7 @@ export class InventoryView {
   }
 
   private backendOnlyDisabled(slot: number) {
-    return slot > this.inventoryLayout.backendSlotLimit && slot <= this.inventoryMode().slots.itemCount && !this.itemAt(slot);
+    return slot > this.slotLimit(this.selectedTab) && slot <= this.inventoryMode().slots.itemCount && !this.itemAt(slot);
   }
 
   private assetImage(frame: AssetFrame, className: string) {

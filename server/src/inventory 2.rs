@@ -77,20 +77,21 @@ pub fn valid_inventory_type(inventory_type: u8) -> bool {
     (1..=5).contains(&inventory_type)
 }
 
+/// Shape check for a local inventory slot number.  A slot is structurally
+/// valid if it falls in the source's 1..=128 range; whether it is *within the
+/// owning character's current capacity* is a world question answered at the
+/// point of use with that character's `inventory_slots` map, not here.
 pub fn valid_slot(slot: i16) -> bool {
     (1..=MAX_SLOT_LIMIT as i16).contains(&slot)
 }
 
-pub fn valid_equipment_slot(slot: i16) -> bool {
-    (-50..=-1).contains(&slot)
+/// True when `slot` is inside a character's current per-tab capacity.
+pub fn slot_within_capacity(slot: i16, capacity: u16) -> bool {
+    (1..=capacity as i16).contains(&slot)
 }
 
-/// Whether a local slot is inside the character's *current* tab capacity.
-/// Slot-expansion coupons raise a tab's capacity above the 24-slot default,
-/// so the protocol shape check (`valid_slot`, up to `MAX_SLOT_LIMIT`) must be
-/// narrowed by the world-level capacity before accepting a move/unequip.
-pub fn slot_within_capacity(slot: i16, slot_limit: u16) -> bool {
-    slot > 0 && u16::try_from(slot).map(|s| s <= slot_limit).unwrap_or(false)
+pub fn valid_equipment_slot(slot: i16) -> bool {
+    (-50..=-1).contains(&slot)
 }
 
 fn value_i64(value: Option<&Value>) -> Option<i64> {
@@ -244,22 +245,6 @@ pub fn is_only(item_id: &str) -> bool {
     info_i64(item_id, "only").unwrap_or(0) != 0
 }
 
-/// The TMS273 slot-expansion coupon family.  `info.slotExpand` names the tab a
-/// coupon grows (1=equip, 2=use, 3=setup, 4=etc); a plain consumable has no
-/// such field and returns `None`.  The source also authors `info.notConsume`
-/// to keep a coupon in the inventory after use, but those are script-driven
-/// (an NPC runs `consume_243xxxx`); the runtime executes only the direct
-/// double-click form, which is consumed on use.
-pub fn slot_expand_target(item_id: &str) -> Option<u8> {
-    let kind = inventory_type(item_id)?;
-    if kind != 2 {
-        return None;
-    }
-    info_i64(item_id, "slotExpand")
-        .and_then(|value| u8::try_from(value).ok())
-        .filter(|value| (1..=4).contains(value))
-}
-
 /// The source's `EquipSlot` values, kept as the negative slots used by the
 /// inventory protocol for an equipped item.
 pub fn equipment_slot(item_id: &str) -> Option<i16> {
@@ -341,7 +326,6 @@ pub enum InventoryError {
     ItemNotUsable,
     RequirementsNotMet,
     LegendarySpiritRequired,
-    SlotExpandMax,
 }
 
 impl InventoryError {
@@ -359,7 +343,6 @@ impl InventoryError {
             Self::ItemNotUsable => "item_not_usable",
             Self::RequirementsNotMet => "requirements_not_met",
             Self::LegendarySpiritRequired => "legendary_spirit_required",
-            Self::SlotExpandMax => "slot_expand_max",
         }
     }
 }
@@ -487,7 +470,6 @@ pub fn add_items(
     items: &mut Vec<InventoryItem>,
     item_id: String,
     quantity: u32,
-    slot_limit: u16,
 ) -> Result<u16, InventoryError> {
     if item_id.is_empty() || quantity == 0 {
         return Err(InventoryError::QuantityMissing);
@@ -523,7 +505,7 @@ pub fn add_items(
         1
     };
     while remaining > 0 {
-        let slot = (1..=slot_limit)
+        let slot = (1..=SLOT_LIMIT)
             .find(|slot| !occupied(&next, kind, *slot))
             .ok_or(InventoryError::InventoryFull)?;
         let amount = remaining.min(max);
@@ -550,12 +532,11 @@ pub fn add_item_instance(
     items: &mut Vec<InventoryItem>,
     item_id: String,
     quantity: u32,
-    slot_limit: u16,
     stats: Option<&BTreeMap<String, i64>>,
     remaining_slots: Option<u32>,
     upgrade_count: Option<u32>,
 ) -> Result<u16, InventoryError> {
-    let slot = add_items(items, item_id.clone(), quantity, slot_limit)?;
+    let slot = add_items(items, item_id.clone(), quantity)?;
     if is_equipment(&item_id) {
         if let Some(item) = items
             .iter_mut()
@@ -878,7 +859,6 @@ pub fn equip_items(
     stats: EquipmentStats,
     from_slot: i16,
     to_slot: i16,
-    slot_limit: u16,
 ) -> Result<(String, u32), InventoryError> {
     if !valid_slot(from_slot) {
         return Err(InventoryError::InvalidSlot);
@@ -919,7 +899,7 @@ pub fn equip_items(
         if let Some(index) = equipped_index(&next_equipped, slot) {
             let mut displaced = next_equipped.remove(index);
             let destination = once(u16::try_from(from_slot).unwrap_or(0))
-                .chain(1..=slot_limit)
+                .chain(1..=SLOT_LIMIT)
                 .find(|slot| !occupied(&next_inventory, 1, *slot))
                 .ok_or(InventoryError::InventoryFull)?;
             displaced.slot = destination;
@@ -943,12 +923,11 @@ pub fn unequip_items(
     equipped: &mut Vec<InventoryItem>,
     from_slot: i16,
     to_slot: i16,
-    slot_limit: u16,
 ) -> Result<(String, u32), InventoryError> {
     if !valid_equipment_slot(from_slot) {
         return Err(InventoryError::InvalidEquipmentSlot);
     }
-    if !slot_within_capacity(to_slot, slot_limit) {
+    if !valid_slot(to_slot) {
         return Err(InventoryError::InvalidSlot);
     }
     let Some(source_index) = equipped_index(equipped, from_slot) else {
@@ -1006,7 +985,7 @@ mod tests {
         assert!(items.iter().all(|i| i.slot != 1));
 
         let mut items = vec![item(1, "2041006", 90)];
-        let slot = add_items(&mut items, "2041006".into(), 25, SLOT_LIMIT).unwrap();
+        let slot = add_items(&mut items, "2041006".into(), 25).unwrap();
         assert_eq!(slot, 1);
         assert_eq!(items.iter().find(|i| i.slot == 1).unwrap().quantity, 100);
         assert_eq!(items.iter().find(|i| i.slot == 2).unwrap().quantity, 15);
@@ -1066,8 +1045,7 @@ mod tests {
                 &mut equipped,
                 EquipmentStats::default(),
                 1,
-                -1,
-                SLOT_LIMIT,
+                -1
             ),
             Err(InventoryError::RequirementsNotMet)
         );
@@ -1075,7 +1053,7 @@ mod tests {
             level: 5,
             ..EquipmentStats::default()
         };
-        equip_items(&mut inventory, &mut equipped, stats, 1, -1, SLOT_LIMIT).unwrap();
+        equip_items(&mut inventory, &mut equipped, stats, 1, -1).unwrap();
         assert!(inventory.is_empty());
         assert_eq!(
             equipped,
@@ -1089,7 +1067,7 @@ mod tests {
             }]
         );
         let expected = equipped[0].clone();
-        unequip_items(&mut inventory, &mut equipped, -1, 1, SLOT_LIMIT).unwrap();
+        unequip_items(&mut inventory, &mut equipped, -1, 1).unwrap();
         assert_eq!(inventory, vec![expected]);
         assert_eq!(inventory[0].slot, 1);
         assert!(equipped.is_empty());
@@ -1139,7 +1117,7 @@ mod tests {
         let pants = instance(6, "1060002", 9, 5, 2);
         let mut inventory = vec![longcoat.clone()];
         let mut equipped = vec![coat.clone(), pants.clone()];
-        equip_items(&mut inventory, &mut equipped, stats, 1, -5, SLOT_LIMIT).unwrap();
+        equip_items(&mut inventory, &mut equipped, stats, 1, -5).unwrap();
 
         assert_eq!(
             equipped
@@ -1169,7 +1147,7 @@ mod tests {
             .find(|item| item.item_id == "1060002")
             .unwrap()
             .slot;
-        equip_items(&mut inventory, &mut equipped, stats, pants_slot as i16, -6, SLOT_LIMIT).unwrap();
+        equip_items(&mut inventory, &mut equipped, stats, pants_slot as i16, -6).unwrap();
         assert_eq!(
             inventory.iter().find(|item| item.item_id == "1052095"),
             Some(&InventoryItem {
@@ -1186,7 +1164,7 @@ mod tests {
         let original_inventory = full_inventory.clone();
         let original_equipped = full_equipped.clone();
         assert_eq!(
-            equip_items(&mut full_inventory, &mut full_equipped, stats, 1, -5, SLOT_LIMIT),
+            equip_items(&mut full_inventory, &mut full_equipped, stats, 1, -5),
             Err(InventoryError::InventoryFull)
         );
         assert_eq!(full_inventory, original_inventory);

@@ -27,6 +27,7 @@ import { World } from '../scenes/world';
 import './style.css';
 import '../features/hud/style.css';
 import { EntryView } from '../features/entry/view';
+import { LoadingOverlay } from '../features/loading/view';
 
 document.addEventListener('contextmenu', event => event.preventDefault(), { capture: true });
 
@@ -75,6 +76,7 @@ let characterInfo: CharacterInfoView | undefined;
 let game: Phaser.Game | undefined;
 let layoutObserver: ResizeObserver | undefined;
 let alertTimer: ReturnType<typeof setTimeout> | undefined;
+let loadingOverlay: LoadingOverlay | undefined;
 const news = el<HTMLDialogElement>('maple-news');
 const newsSections = [document.querySelector<HTMLElement>('#app > header')!, el('play').querySelector<HTMLElement>('.world-toolbar')!, el('message'), document.querySelector<HTMLElement>('#app > footer')!].map(node => {
   const marker = document.createComment('page information');
@@ -124,6 +126,11 @@ function status(message: string, error = false) {
   alert.textContent = `${message} · ${english ? 'View messages' : '查看消息'}`;
   alert.hidden = news.open;
   if (!error) alertTimer = setTimeout(() => { alert.hidden = true; }, 4000);
+  // LoadingOverlay is mounted on demand while the game view boots.  Pipe the
+  // same status text through so the overlay can advance its stage + progress
+  // bar without inventing a new progress channel.  `applyStatus` is a no-op
+  // once the overlay has been hidden.
+  loadingOverlay?.applyStatus(message);
 }
 function focusGame() { requestAnimationFrame(() => el('game').focus({ preventScroll: true })); }
 function characterInfoIsOpen() {
@@ -189,6 +196,16 @@ function renderMapRoute(manifest: Manifest) {
 }
 async function enterGame(session: LoginResponse) {
   const current = ++generation;
+  // Mount the loading overlay first so the very first status line ("正在读取
+  // 资源清单…" / "Loading resources…") advances the progress bar instead of
+  // drifting off-screen as plain text.  The overlay attaches to `#game-shell`
+  // and stays hidden behind `#play`'s `hidden` attribute until the manifest
+  // has been fetched; once the play section is revealed it paints over the
+  // Phaser canvas.
+  loadingOverlay?.hide();
+  loadingOverlay = new LoadingOverlay(el('game-shell'));
+  loadingOverlay.show();
+  loadingOverlay.update('manifest', null);
   status(english ? 'Loading resources…' : '正在读取资源清单…');
   try {
     const manifest = await loadManifest();
@@ -198,6 +215,10 @@ async function enterGame(session: LoginResponse) {
     setPlayLayout(true);
     el('map-name').textContent = mapText(manifest.map.id, manifest.map.name);
     renderMapRoute(manifest);
+    // The manifest has arrived; advance the overlay into the asset-loading
+    // stage.  Phaser's own loader still has hundreds of textures to fetch,
+    // and `World.preload` will report the real percentage through `status`.
+    loadingOverlay.update('assets', null);
     chat?.destroy();
     chat = new ChatView(el('chat'), manifest, message => status(message), {
       send: (requestId, text) => connection?.send({ type: 'chatSend', requestId, text }) ?? false,
@@ -289,7 +310,7 @@ async function enterGame(session: LoginResponse) {
     });
     world = new World(manifest, (message, error) => {
       status(message, error);
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
@@ -494,6 +515,12 @@ async function enterGame(session: LoginResponse) {
           hud?.releaseChannel();
           input?.reset();
           announcedMapId = message.mapId;
+          // First authoritative snapshot for this session: the server has
+          // accepted our identity, the player is on a real map, and the
+          // overlay has done its job.  Tear it down so the Phaser canvas
+          // can receive input without stealing focus or blocking clicks.
+          loadingOverlay?.hide();
+          loadingOverlay = undefined;
           status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
         }
       }
@@ -564,6 +591,9 @@ function leaveGame(logout = false) {
   // character does not leave the previous one standing in the world.
   if (logout) connection?.send({ type: 'logout' });
   layoutObserver?.disconnect(); layoutObserver = undefined;
+  // Hide the loading overlay before the game view collapses so a partially
+  // bootstrapped session doesn't leave an orphaned progress card behind.
+  loadingOverlay?.hide(); loadingOverlay = undefined;
   setPlayLayout(false);
   generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');

@@ -796,6 +796,36 @@ def convert(args):
     for shop in shops:
         shop["items"] = [item for item in shop["items"] if item["itemId"] in items]
 
+    # P: TMS273 sources the four slot-expansion coupons (Item/Consume/0243
+    # info.slotExpand) through an NPC script (`consume_243xxxx`), never through
+    # a Shop row.  The runtime models only the direct double-click form, so a
+    # testable entry point is injected into the general-goods store (Mina,
+    # 1001100) next to the source's own 還原外型使用券 (2432805).  The coupon
+    # definitions themselves (including info.slotExpand) live in the runtime
+    # items catalog, not here; this only authors the shop rows.
+    SLOT_EXPAND_COUPONS = [
+        ("2430768", 1),   # equip +8
+        ("2430769", 2),   # use +8
+        ("2430770", 3),   # setup +8
+        ("2430771", 4),   # etc +8
+    ]
+    SLOT_EXPAND_PRICE = 50000
+    SLOT_EXPAND_SHOP = "1001100"
+    for shop in shops:
+        if shop.get("shopId") != SLOT_EXPAND_SHOP:
+            continue
+        existing = {item["itemId"] for item in shop["items"]}
+        next_position = max((item.get("position", -1) for item in shop["items"]), default=-1) + 1
+        for item_id, _tab in SLOT_EXPAND_COUPONS:
+            if item_id in existing:
+                continue
+            shop["items"].append({
+                "itemId": item_id,
+                "price": SLOT_EXPAND_PRICE,
+                "position": next_position,
+            })
+            next_position += 1
+
     quest_doc_path = ROOT / "references/tms273-data/quests.json"
     quest_doc = read_json(quest_doc_path)
     quest_text = build_quest_text(quest_doc)
@@ -849,6 +879,7 @@ def convert(args):
             "respawn": "P: source spawn mobTime 0 is handled as the map respawn cycle; monsterRespawnMs=10000 is the fallback cycle (matches the earlier runtime) because TMS273 keeps no map-wide interval.",
             "player": "No confirmed TMS273 initial player stat record was selected; engine defaults remain compatibility behavior.",
             "quests": "Quest text is zh-only and QuestData execution is disabled by source metadata.",
+            "slotExpand": "P: the four slot-expansion coupons (2430768-771) are sourced via NPC script consume_243xxxx in TMS273, not via Shop rows; the runtime sells them at the general-goods store (Mina, 1001100) as a testable double-click entry point. Each grows one tab by 8 slots up to 128.",
         },
     }
     return gameplay, items, quest_text, {"schemaVersion": 1, "kind": "npc-name-zh", "generatedFrom": "TMS273 WZ_JSON_TW/String/Npc.json", "encoding": "UTF-8", "npcs": {item["templateId"]: item["name"] for item in npc_templates}}

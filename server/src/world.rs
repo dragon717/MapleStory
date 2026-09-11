@@ -562,6 +562,11 @@ pub struct ReactorPlacement {
     pub hitbox_lt: Option<Point>,
     #[serde(default)]
     pub hitbox_rb: Option<Point>,
+    /// P drop table rolled when the prop is used up (see the exporter's
+    /// `DROP_TABLES`).  `None` when the template's `action` has no known drop
+    /// semantics — the reactor still breaks, it just yields nothing.
+    #[serde(default)]
+    pub drop_table: Option<DropInput>,
 }
 
 impl ReactorPlacement {
@@ -2531,6 +2536,11 @@ fn unix_now_ms() -> i64 {
 #[derive(Clone)]
 struct Player {
     state: PlayerState,
+    /// Durable per-tab inventory slot capacities (inventory type -> slot
+    /// count).  Loaded from auth at join; the world reads it to bound
+    /// `add_items`/`move_items` and the slot-expansion coupon writes a new
+    /// value back through `Store::save_inventory_slots`.
+    inventory_slots: BTreeMap<u8, u16>,
     /// Persisted MP baseline before equipment/skill-derived bonuses.  The
     /// wire state's maxMp is a snapshot and must never become the next
     /// baseline, otherwise reconnecting after Magic Boost would compound the
@@ -3884,6 +3894,41 @@ impl World {
         reactor.hit_until = self.tick + hit_ticks;
         reactor.respawn_at = respawn_at;
 
+        // A prop used up for the last time pays out its drop table.  The
+        // break is the one and only drop event: intermediate states advance
+        // the animation without reward, so re-hitting a half-broken prop can
+        // never farm the table.  The reactor's own anchor is the drop point,
+        // and the breaker owns the protection window so they get first reach.
+        if spent {
+            if let Some(specs) = placement.drop_table.as_ref() {
+                let drops = {
+                    let specs = match specs {
+                        DropInput::One(spec) => vec![spec.clone()],
+                        DropInput::Many(specs) => specs.clone(),
+                    };
+                    self.roll_drop_specs(&specs, placement.x, placement.y, &id)
+                };
+                for drop in drops {
+                    let drop_id = drop.id.clone();
+                    self.drops.insert(
+                        drop_id.clone(),
+                        DropState {
+                            id: drop.id.clone(),
+                            item_id: drop.item_id.clone(),
+                            quantity: drop.quantity,
+                            x: drop.x,
+                            y: drop.y,
+                        },
+                    );
+                    self.drop_instances
+                        .insert(drop_id.clone(), DropInstance::from_record(&drop));
+                    self.drop_owners
+                        .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
+                    self.drop_maps.insert(drop_id, map_id.clone());
+                }
+            }
+        }
+
         // Broadcast the authoritative result: every observer on the map plays
         // the same one-shot animation and sees the same new state, so two
         // clients cannot disagree about whether the flower is still there.
@@ -4108,6 +4153,17 @@ impl World {
                     },
                     None => (inventory::starter_equipment(), BTreeMap::new()),
                 };
+                let inventory_slots = match self.store.as_ref() {
+                    Some(store) => match store.load_inventory_slots(&identity.id) {
+                        Ok(slots) => slots,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
+                    None => inventory::default_inventory_slots(),
+                };
                 let appearance = match self.store.as_ref() {
                     Some(store) => match store.character_appearance(&identity.id) {
                         Ok(appearance) => appearance,
@@ -4290,9 +4346,11 @@ impl World {
                             potion_cooldowns: None,
                             inventory: profile.inventory,
                             equipped,
+                            inventory_slots: inventory_slots.clone(),
                             monster_book,
                             away: None,
                         },
+                        inventory_slots,
                         base_max_mp: profile.max_mp.max(0),
                         map_id: resolved_map_id,
                         death_id: profile.death_id,
@@ -10463,10 +10521,17 @@ impl World {
             } else {
                 let mut inventory = player.state.inventory.clone();
                 let instance = self.drop_instances.get(&drop_id);
+                let kind = inventory::inventory_type(&drop.item_id).unwrap_or(4);
+                let slot_limit = player
+                    .inventory_slots
+                    .get(&kind)
+                    .copied()
+                    .unwrap_or(inventory::SLOT_LIMIT);
                 let can_add = inventory::add_item_instance(
                     &mut inventory,
                     drop.item_id.clone(),
                     drop.quantity,
+                    slot_limit,
                     instance.and_then(|value| value.stats.as_ref()),
                     instance.and_then(|value| value.remaining_slots),
                     instance.and_then(|value| value.upgrade_count),
@@ -10551,10 +10616,17 @@ impl World {
                             .saturating_add(u8::try_from(amount).unwrap_or(0))
                             .min(5);
                     } else {
+                        let kind = inventory::inventory_type(&outcome.item_id).unwrap_or(4);
+                        let slot_limit = player
+                            .inventory_slots
+                            .get(&kind)
+                            .copied()
+                            .unwrap_or(inventory::SLOT_LIMIT);
                         outcome.slot = inventory::add_item_instance(
                             &mut player.state.inventory,
                             outcome.item_id.clone(),
                             outcome.quantity,
+                            slot_limit,
                             drop_instance
                                 .as_ref()
                                 .and_then(|value| value.stats.as_ref()),
@@ -10641,6 +10713,11 @@ impl World {
                             .players
                             .get_mut(&id)
                             .map(|player| {
+                                let slot_limit = player
+                                    .inventory_slots
+                                    .get(&kind)
+                                    .copied()
+                                    .unwrap_or(inventory::SLOT_LIMIT);
                                 if kind == 1
                                     && inventory::valid_slot(from_slot)
                                     && inventory::valid_equipment_slot(to_slot)
@@ -10651,6 +10728,7 @@ impl World {
                                         equipment_stats,
                                         from_slot,
                                         to_slot,
+                                        slot_limit,
                                     )
                                     .is_ok()
                                 } else if kind == 1
@@ -10662,6 +10740,7 @@ impl World {
                                         &mut player.state.equipped,
                                         from_slot,
                                         to_slot,
+                                        slot_limit,
                                     )
                                     .is_ok()
                                 } else {
@@ -10732,6 +10811,11 @@ impl World {
         }
         let mut next_inventory = player.state.inventory.clone();
         let mut next_equipped = player.state.equipped.clone();
+        let slot_limit = player
+            .inventory_slots
+            .get(&inventory_type)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
         let item_id = next_inventory
             .iter()
             .find(|item| {
@@ -10771,10 +10855,11 @@ impl World {
                 self.equipment_stats(&id),
                 from_slot,
                 target,
+                slot_limit,
             )
             .map(|_| ())
         } else if operation == "unequip" {
-            inventory::unequip_items(&mut next_inventory, &mut next_equipped, from_slot, to_slot)
+            inventory::unequip_items(&mut next_inventory, &mut next_equipped, from_slot, to_slot, slot_limit)
                 .map(|_| ())
         } else {
             inventory::move_items(
@@ -11408,6 +11493,11 @@ impl World {
         };
         let mut inventory_items = player.state.inventory.clone();
         let mut equipped_items = player.state.equipped.clone();
+        let slot_limit = player
+            .inventory_slots
+            .get(&inventory_type)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
         let stats = self.equipment_stats(&id);
         let mut operation = "use".to_owned();
         let mut result_code = String::new();
@@ -11422,6 +11512,7 @@ impl World {
                     stats,
                     source_slot,
                     expected,
+                    slot_limit,
                 )
                 .map(|_| ())
             } else {
@@ -11431,7 +11522,7 @@ impl World {
             if target_slot.is_some() || target_item_id.is_some() {
                 Err(inventory::InventoryError::InvalidEquipmentSlot)
             } else {
-                let destination = (1..=inventory::SLOT_LIMIT as i16).find(|slot| {
+                let destination = (1..=slot_limit as i16).find(|slot| {
                     inventory_items.iter().all(|item| {
                         !(item.slot == u16::try_from(*slot).unwrap_or(0)
                             && inventory::inventory_type(&item.item_id) == Some(1))
@@ -11445,6 +11536,7 @@ impl World {
                             &mut equipped_items,
                             source_slot,
                             destination,
+                            slot_limit,
                         )
                         .map(|_| ())
                     }
@@ -11459,6 +11551,28 @@ impl World {
             });
             if !item_matches {
                 Err(inventory::InventoryError::SourceEmpty)
+            } else if let Some(target_tab) = inventory::slot_expand_target(&item_id) {
+                // In-memory slot expansion mirrors the store branch: grow the
+                // tab by one step and consume the coupon, atomically.
+                let capacity = player
+                    .inventory_slots
+                    .get(&target_tab)
+                    .copied()
+                    .unwrap_or(inventory::SLOT_LIMIT);
+                let grown = capacity.saturating_add(inventory::SLOT_EXPAND_STEP);
+                if grown > inventory::MAX_SLOT_LIMIT {
+                    Err(inventory::InventoryError::SlotExpandMax)
+                } else {
+                    let mut slots = player.inventory_slots.clone();
+                    slots.insert(target_tab, grown);
+                    inventory::remove_items(&mut inventory_items, 2, source_slot, 1)
+                        .map(|_| {
+                            if let Some(player) = self.players.get_mut(&id) {
+                                player.inventory_slots = slots;
+                            }
+                            result_code = "slot_expand".to_owned();
+                        })
+                }
             } else if let Ok(effect) = inventory::use_effect(&item_id) {
                 // Percentage recovery (`hpR`/`mpR`) is resolved against this
                 // body's own maxima, so the same potion scales with the
@@ -13677,8 +13791,14 @@ impl World {
                 if missing == 0 {
                     continue;
                 }
+                let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
+                let slot_limit = player_snapshot
+                    .inventory_slots
+                    .get(&kind)
+                    .copied()
+                    .unwrap_or(inventory::SLOT_LIMIT);
                 if let Err(error) =
-                    inventory::add_items(&mut next_state.inventory, item.item_id.clone(), missing)
+                    inventory::add_items(&mut next_state.inventory, item.item_id.clone(), missing, slot_limit)
                 {
                     let code = match error {
                         inventory::InventoryError::InventoryFull => "quest_start_inventory_full",
@@ -13767,10 +13887,17 @@ impl World {
                 Self::add_exp(&mut next_state, reward.exp, &self.gameplay.exp_table);
             }
             for item in reward.items.iter() {
+                let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
+                let slot_limit = player_snapshot
+                    .inventory_slots
+                    .get(&kind)
+                    .copied()
+                    .unwrap_or(inventory::SLOT_LIMIT);
                 if let Err(error) = inventory::add_items(
                     &mut next_state.inventory,
                     item.item_id.clone(),
                     item.quantity,
+                    slot_limit,
                 ) {
                     let code = match error {
                         inventory::InventoryError::InventoryFull => "quest_reward_inventory_full",
@@ -14043,10 +14170,17 @@ impl World {
                 return;
             }
             let missing = interaction.quantity.saturating_sub(held);
+            let kind = inventory::inventory_type(&interaction.item_id).unwrap_or(4);
+            let slot_limit = player_snapshot
+                .inventory_slots
+                .get(&kind)
+                .copied()
+                .unwrap_or(inventory::SLOT_LIMIT);
             if let Err(error) = inventory::add_items(
                 &mut next_state.inventory,
                 interaction.item_id.clone(),
                 missing,
+                slot_limit,
             ) {
                 let code = match error {
                     inventory::InventoryError::InventoryFull => "quest_interaction_inventory_full",
@@ -14418,7 +14552,13 @@ impl World {
         // Apply: deduct mesos, add items.  Insertion is atomic against a
         // cloned inventory so a full-tab failure cancels the gold spend.
         let mut next_inventory = player.state.inventory.clone();
-        if let Err(error) = inventory::add_items(&mut next_inventory, item_id.clone(), quantity) {
+        let kind = inventory::inventory_type(&item_id).unwrap_or(4);
+        let slot_limit = player
+            .inventory_slots
+            .get(&kind)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
+        if let Err(error) = inventory::add_items(&mut next_inventory, item_id.clone(), quantity, slot_limit) {
             self.send_shop_result(
                 &id,
                 &request_id,
@@ -16570,16 +16710,35 @@ impl World {
         owner_id: &str,
         quests: &BTreeMap<String, String>,
     ) -> Vec<auth::DropRecord> {
-        let denominator = self.gameplay.drop_chance_denominator;
-        let mut drops = Vec::new();
-        for spec in template.drops() {
-            let should_drop = match spec.quest_id.as_deref() {
+        let specs: Vec<DropSpec> = template
+            .drops()
+            .into_iter()
+            .filter(|spec| match spec.quest_id.as_deref() {
                 None => true,
                 Some(quest_id) => quests.get(quest_id).is_some_and(|state| state == "active"),
-            };
-            if !should_drop {
-                continue;
-            }
+            })
+            .collect();
+        self.roll_drop_specs(&specs, x, y, owner_id)
+    }
+
+    /// Roll a drop table into concrete `DropRecord`s.  Shared by monster
+    /// death and reactor use-up so the two produce drops with identical
+    /// chance/quantity/ownership semantics — one roll rule, no drift.
+    ///
+    /// `chance` is a numerator over the runtime `dropChanceDenominator`; a
+    /// spec without `chance` always drops.  `quantity_max` widens the amount
+    /// into a uniform range.  Meso bundles use `item_id == "0"` and carry the
+    /// meso count in `quantity`.
+    fn roll_drop_specs(
+        &self,
+        specs: &[DropSpec],
+        x: f64,
+        y: f64,
+        owner_id: &str,
+    ) -> Vec<auth::DropRecord> {
+        let denominator = self.gameplay.drop_chance_denominator;
+        let mut drops = Vec::new();
+        for spec in specs {
             if spec.quantity == 0 {
                 continue;
             }
@@ -16589,27 +16748,28 @@ impl World {
                     denominator > 0 && rand::thread_rng().gen_range(0..denominator) < chance
                 }),
             };
-            if eligible {
-                let id = format!("drop-{}", auth::random_id());
-                let quantity = spec
-                    .quantity_max
-                    .filter(|max| *max >= spec.quantity)
-                    .map(|max| rand::thread_rng().gen_range(spec.quantity..=max))
-                    .unwrap_or(spec.quantity);
-                // P: user-authorized drop floating — pin drops that land in
-                // water to just below the surface so swimmers can reach them.
-                let drop_y = self.map.water_float_y(x, y);
-                drops.push(auth::DropRecord {
-                    id,
-                    item_id: spec.item_id,
-                    quantity,
-                    x,
-                    y: drop_y,
-                    owner_id: Some(owner_id.to_owned()),
-                    protected_until_ms: auth::now_ms() + auth::DROP_PROTECTION_MS,
-                    ..auth::DropRecord::default()
-                });
+            if !eligible {
+                continue;
             }
+            let id = format!("drop-{}", auth::random_id());
+            let quantity = spec
+                .quantity_max
+                .filter(|max| *max >= spec.quantity)
+                .map(|max| rand::thread_rng().gen_range(spec.quantity..=max))
+                .unwrap_or(spec.quantity);
+            // P: user-authorized drop floating — pin drops that land in
+            // water to just below the surface so swimmers can reach them.
+            let drop_y = self.map.water_float_y(x, y);
+            drops.push(auth::DropRecord {
+                id,
+                item_id: spec.item_id.clone(),
+                quantity,
+                x,
+                y: drop_y,
+                owner_id: Some(owner_id.to_owned()),
+                protected_until_ms: auth::now_ms() + auth::DROP_PROTECTION_MS,
+                ..auth::DropRecord::default()
+            });
         }
         drops
     }
@@ -22248,6 +22408,7 @@ mod tests {
     include!("whisper_acceptance.rs");
     include!("emoticon_acceptance.rs");
     include!("monster_status_acceptance.rs");
+    include!("slot_expand_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

@@ -43,7 +43,18 @@ fn chapter_place(world: &mut World, id: &str, map_id: &str, x: f64, y: f64) {
 
 fn chapter_add_item(world: &mut World, id: &str, item_id: &str, quantity: u32) {
     let player = world.players.get_mut(id).unwrap();
-    inventory::add_items(&mut player.state.inventory, item_id.to_owned(), quantity).unwrap();
+    let slot_limit = player
+        .inventory_slots
+        .get(&inventory::inventory_type(item_id).unwrap_or(1))
+        .copied()
+        .unwrap_or(inventory::SLOT_LIMIT);
+    inventory::add_items(
+        &mut player.state.inventory,
+        item_id.to_owned(),
+        quantity,
+        slot_limit,
+    )
+    .unwrap();
 }
 
 fn chapter_count(world: &World, id: &str, item_id: &str) -> u32 {

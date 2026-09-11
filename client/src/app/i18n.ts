@@ -121,6 +121,8 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   shop_rejected: { zh: '商店拒绝了这次交易', en: 'The shop rejected this trade' },
   potion_cooldown: { zh: '道具冷却中，请稍后再使用', en: 'This item is cooling down' },
   map_move: { zh: '已使用传送卷轴，正在移动', en: 'Teleport scroll used; moving' },
+  slot_expand_max: { zh: '该物品栏已扩充到上限，无法继续扩充', en: 'This inventory tab is already at its maximum capacity' },
+  slot_expand: { zh: '已扩充物品栏', en: 'Inventory expanded' },
   scroll_blocked: { zh: '练习中不能使用传送卷轴', en: 'Teleport scrolls cannot be used during practice' },
   scroll_no_target: { zh: '此地图没有可返回的城镇，卷轴未被消耗', en: 'This map has no return town, so the scroll was not consumed' },
   scroll_unavailable: { zh: '目标城镇尚未开放，卷轴未被消耗', en: 'The destination town is not open yet, so the scroll was not consumed' },

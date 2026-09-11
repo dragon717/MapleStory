@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 13;
+pub const PROTOCOL_VERSION: u32 = 12;
 pub const CONTENT_VERSION: &str = "tms273-9";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -854,12 +854,6 @@ pub struct PlayerState {
     pub potion_cooldowns: Option<BTreeMap<String, u64>>,
     pub inventory: Vec<InventoryItem>,
     pub equipped: Vec<InventoryItem>,
-    /// Server-owned per-tab slot capacity: inventory type (1=equip, 2=use,
-    /// 3=setup, 4=etc, 5=cash) -> current slot count.  Each tab starts at 24
-    /// and is grown by the TMS273 slot-expansion coupons up to 128.  Absent or
-    /// empty means every tab is at the default 24.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub inventory_slots: BTreeMap<u8, u16>,
     pub monster_book: BTreeMap<String, u8>,
     /// Server-owned away marker.  Other clients use it to label the character
     /// as 暂离; it grants the marker's owner no protection, no asset and no

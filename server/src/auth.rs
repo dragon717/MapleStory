@@ -510,7 +510,8 @@ impl Store {
                skill_points_json TEXT NOT NULL DEFAULT '{}',
                ability_stats_json TEXT NOT NULL DEFAULT '',
                mage_support_granted INTEGER NOT NULL DEFAULT 0,
-               hyper_reset_count INTEGER NOT NULL DEFAULT 0
+               hyper_reset_count INTEGER NOT NULL DEFAULT 0,
+               inventory_slots_json TEXT NOT NULL DEFAULT ''
              );
              CREATE TABLE IF NOT EXISTS inventory(
                account_id TEXT NOT NULL,
@@ -830,6 +831,22 @@ impl Store {
                 [],
             )?;
         }
+        // Per-tab inventory slot capacities (TMS273 slot-expansion coupons).
+        // Empty means every tab is at the default 24; older rows are read as
+        // the default rather than resetting progress.
+        let has_inventory_slots: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='inventory_slots_json'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_inventory_slots.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN inventory_slots_json TEXT NOT NULL DEFAULT ''",
+                [],
+            )?;
+        }
         db.execute_batch(
             "CREATE TABLE IF NOT EXISTS skill_actions(
                account_id TEXT NOT NULL,
@@ -1132,6 +1149,47 @@ impl Store {
             )
             .map_err(|_| "account persistence failed")?;
         Ok(u8::try_from(count.clamp(0, 4)).unwrap_or(0))
+    }
+
+    /// Read the durable per-tab inventory slot capacities.  An empty or absent
+    /// JSON (older rows) means every tab is at the default 24.
+    pub fn load_inventory_slots(&self, account_id: &str) -> Result<BTreeMap<u8, u16>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let raw: String = db
+            .query_row(
+                "SELECT inventory_slots_json FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        if raw.is_empty() {
+            return Ok(inventory::default_inventory_slots());
+        }
+        let parsed: BTreeMap<u8, u16> =
+            serde_json::from_str(&raw).map_err(|_| "account persistence failed")?;
+        let mut slots = inventory::default_inventory_slots();
+        for (kind, capacity) in parsed {
+            if inventory::valid_inventory_type(kind) {
+                slots.insert(kind, capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT));
+            }
+        }
+        Ok(slots)
+    }
+
+    /// Persist the durable per-tab inventory slot capacities.
+    pub fn save_inventory_slots(
+        &self,
+        account_id: &str,
+        slots: &BTreeMap<u8, u16>,
+    ) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let json = serde_json::to_string(slots).map_err(|_| "account persistence failed")?;
+        db.execute(
+            "UPDATE player_stats SET inventory_slots_json=?2 WHERE account_id=?1",
+            params![account_id, json],
+        )
+        .map_err(|_| "account persistence failed")?;
+        Ok(())
     }
 
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {
@@ -2280,7 +2338,13 @@ impl Store {
 
         let missing = quantity - held;
         let mut next_inventory = durable.inventory;
-        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing).map_err(
+        let slots = read_inventory_slots_tx(&tx, account_id)
+            .map_err(|_| "quest interaction rejected".to_owned())?;
+        let slot_limit = slots
+            .get(&inventory::inventory_type(item_id).unwrap_or(4))
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
+        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing, slot_limit).map_err(
             |error| match error {
                 inventory::InventoryError::InventoryFull => "quest interaction inventory full",
                 inventory::InventoryError::UnknownItem => "quest interaction unknown item",
@@ -2954,6 +3018,12 @@ impl Store {
         }
         let mut inventory = read_inventory_tx(&tx, account_id)?;
         let mut equipped = read_equipped_tx(&tx, account_id)?;
+        let inventory_slots = read_inventory_slots_tx(&tx, account_id)
+            .map_err(|_| "account persistence failed".to_owned())?;
+        let slot_limit = inventory_slots
+            .get(&inventory_type)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
         let item_id = if inventory_type == 1 && inventory::valid_equipment_slot(from_slot) {
             equipped
                 .iter()
@@ -2983,9 +3053,9 @@ impl Store {
             "move"
         };
         let mutation = if operation == "equip" {
-            inventory::equip_items(&mut inventory, &mut equipped, stats, from_slot, to_slot)
+            inventory::equip_items(&mut inventory, &mut equipped, stats, from_slot, to_slot, slot_limit)
         } else if operation == "unequip" {
-            inventory::unequip_items(&mut inventory, &mut equipped, from_slot, to_slot)
+            inventory::unequip_items(&mut inventory, &mut equipped, from_slot, to_slot, slot_limit)
         } else {
             inventory::move_items(&mut inventory, inventory_type, from_slot, to_slot, quantity)
                 .map(|()| (item_id.clone(), quantity))
@@ -3134,6 +3204,12 @@ impl Store {
         }
         let mut inventory = read_inventory_tx(&tx, account_id)?;
         let mut equipped = read_equipped_tx(&tx, account_id)?;
+        let inventory_slots = read_inventory_slots_tx(&tx, account_id)
+            .map_err(|_| "account persistence failed".to_owned())?;
+        let equip_slot_limit = inventory_slots
+            .get(&1)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
         let result_item = item_id.to_owned();
         let result_quantity = 1;
         let mut operation = "use".to_owned();
@@ -3160,6 +3236,7 @@ impl Store {
                         stats,
                         source_slot,
                         expected,
+                        equip_slot_limit,
                     )
                     .map(|_| ())
                 } else {
@@ -3174,7 +3251,7 @@ impl Store {
                 {
                     Err(inventory::InventoryError::SourceEmpty)
                 } else {
-                    let destination = (1..=SLOT_LIMIT as i16).find(|slot| {
+                    let destination = (1..=equip_slot_limit as i16).find(|slot| {
                         inventory.iter().all(|item| {
                             !(item.slot == u16::try_from(*slot).unwrap_or(0)
                                 && inventory::inventory_type(&item.item_id) == Some(1))
@@ -3188,6 +3265,7 @@ impl Store {
                                 &mut equipped,
                                 source_slot,
                                 destination,
+                                equip_slot_limit,
                             )
                             .map(|_| ())
                         }
@@ -3205,6 +3283,28 @@ impl Store {
             });
             if !source_exists {
                 Err(inventory::InventoryError::SourceEmpty)
+            } else if let Some(target_tab) = inventory::slot_expand_target(item_id) {
+                // A slot-expansion coupon grows one tab by `SLOT_EXPAND_STEP`
+                // slots and is consumed on use.  The capacity is a durable
+                // per-tab value, updated in the same transaction that spends
+                // the coupon, so a rejected (already-at-cap) use spends nothing
+                // and a replayed request never expands twice.
+                let capacity = inventory_slots
+                    .get(&target_tab)
+                    .copied()
+                    .unwrap_or(inventory::SLOT_LIMIT);
+                let grown = capacity.saturating_add(inventory::SLOT_EXPAND_STEP);
+                if grown > inventory::MAX_SLOT_LIMIT {
+                    Err(inventory::InventoryError::SlotExpandMax)
+                } else {
+                    let mut slots = inventory_slots.clone();
+                    slots.insert(target_tab, grown);
+                    write_inventory_slots_tx(&tx, account_id, &slots)
+                        .and_then(|_| inventory::remove_items(&mut inventory, 2, source_slot, 1))
+                        .map(|_| {
+                            result_code = Some("slot_expand");
+                        })
+                }
             } else if let Ok(effect) = inventory::use_effect(item_id) {
                 // A percentage (`hpR`/`mpR`) potion heals a share of the
                 // body's own pool, so the concrete amount has to be resolved
@@ -5232,6 +5332,47 @@ fn write_equipped_tx(
     Ok(())
 }
 
+/// Read the durable per-tab slot capacities inside a transaction.  An empty
+/// JSON (older rows) means every tab is at the default 24.
+fn read_inventory_slots_tx(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+) -> Result<BTreeMap<u8, u16>, inventory::InventoryError> {
+    let raw: String = tx
+        .query_row(
+            "SELECT inventory_slots_json FROM player_stats WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    if raw.is_empty() {
+        return Ok(inventory::default_inventory_slots());
+    }
+    let parsed: BTreeMap<u8, u16> = serde_json::from_str(&raw)
+        .map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    let mut slots = inventory::default_inventory_slots();
+    for (kind, capacity) in parsed {
+        if inventory::valid_inventory_type(kind) {
+            slots.insert(kind, capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT));
+        }
+    }
+    Ok(slots)
+}
+
+fn write_inventory_slots_tx(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    slots: &BTreeMap<u8, u16>,
+) -> Result<(), inventory::InventoryError> {
+    let json = serde_json::to_string(slots).map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    tx.execute(
+        "UPDATE player_stats SET inventory_slots_json=?2 WHERE account_id=?1",
+        params![account_id, json],
+    )
+    .map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    Ok(())
+}
+
 fn apply_scroll_tx(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
@@ -5383,7 +5524,10 @@ fn add_inventory_tx(
         return Ok(Err("quantity_mismatch"));
     }
     let mut inventory_items = read_inventory_tx(tx, account_id)?;
-    match inventory::add_items(&mut inventory_items, item_id.to_owned(), quantity) {
+    let slots = read_inventory_slots_tx(tx, account_id)
+        .map_err(|_| "account persistence failed")?;
+    let slot_limit = slots.get(&kind).copied().unwrap_or(inventory::SLOT_LIMIT);
+    match inventory::add_items(&mut inventory_items, item_id.to_owned(), quantity, slot_limit) {
         Ok(slot) => {
             if kind == 1 {
                 if let Some(item) = inventory_items.iter_mut().find(|item| {

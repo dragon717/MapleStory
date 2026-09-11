@@ -42,13 +42,13 @@ export interface PlayerState {
   derivedStats?: { hyperBarrierActive?: boolean; hyperTeleportEnabled?: boolean; damageReductionPercent?: number; regenerationPassives?: RegenerationPassive[]; infinityEnhanced?: boolean; skillCooldowns?: Record<string, number>; skillBuffs?: Record<string, number>; meditationRemainingMs?: number; iceTeleport?: boolean; teleportMastery?: boolean; teleportBoost?: boolean; adaptationCharges?: number; adaptationCooldownMs?: number; statusResistance?: number; elementResistance?: number; magicAttack: number; defense: number; moveSpeed: number; magicGuard: boolean; strength?: number; dexterity?: number; intelligence?: number; luck?: number };
   level: number; exp: number; expToNext: number; mesos: number;
   inventory: InventoryItem[];
+  /** Server-owned per-tab slot capacity: inventory type (1=equip, 2=use,
+   *  3=setup, 4=etc, 5=cash) -> current slot count.  Each tab starts at 24 and
+   *  is grown by the TMS273 slot-expansion coupons up to 128.  Absent or empty
+   *  means every tab is at the default 24, so older snapshots stay readable. */
+  inventorySlots?: Record<number, number>;
   equipped?: InventoryItem[];
   monsterBook?: Record<string, number>;
-  /** Server-owned per-tab inventory capacity. Keys are inventoryType 1..=5
-   *  (equip/use/setup/etc/cash), values are the current slot count. A fresh
-   *  character starts at 24 per tab; slot-expansion coupons raise a tab by 8
-   *  up to 128. Absent means every tab defaults to 24. */
-  inventorySlots?: Record<number, number>;
   /** Server-owned away marker; display only, grants no protection or assets. */
   away?: AwayMarker;
   /** Monster-inflicted abnormal statuses, present only while at least one is
