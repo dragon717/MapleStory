@@ -180,6 +180,16 @@ export class World extends Phaser.Scene {
     if (this.manifest.chatBalloon) {
       for (const slice of Object.values(this.manifest.chatBalloon.slices)) images.set(slice.url, slice.url);
     }
+    // Chat emoticons: the window shell is DOM-rendered, but the *head*
+    // animation plays inside the scene, so every sticker's frames have to be on
+    // the Phaser texture cache before the first `emoticonMessage` arrives —
+    // otherwise the first sticker anybody shows would render with no texture.
+    for (const frame of Object.values(this.manifest.emoticon?.ui ?? {})) images.set(frame.url, frame.url);
+    for (const group of this.manifest.emoticon?.groups ?? []) images.set(group.icon.url, group.icon.url);
+    for (const sticker of this.manifest.emoticon?.stickers ?? []) {
+      images.set(sticker.icon.url, sticker.icon.url);
+      for (const frame of sticker.frames) images.set(frame.url, frame.url);
+    }
     if (this.manifest.levelUp?.sound) this.load.audio(this.manifest.levelUp.sound.url, this.manifest.levelUp.sound.url);
     for (const [key, url] of images) this.load.image(key, url);
     const skillAudio = new Set(Object.values(this.manifest.skillSounds ?? {}).flatMap(set => [set.use?.url, set.hit?.url, set.loop?.url, set.end?.url, set.special?.url, set.summonAttack?.url]).filter((url): url is string => Boolean(url)));
@@ -261,6 +271,17 @@ export class World extends Phaser.Scene {
       // never replay history and the PlayerView is destroyed on map switches,
       // so a bubble cannot leak into another map instance.
       this.players.get(message.authorId)?.showBubble(message.authorName, message.text);
+      return;
+    }
+    if (message.type === 'emoticonMessage') {
+      // The sticker is resolved through the *exported catalogue*, not through
+      // any geometry the sender supplied, so a message that names an id this
+      // build does not know simply renders nothing — the server is the only
+      // thing that decides whether an id exists at all.  Same room rules as
+      // map chat: only same-map members are ever told, and the sender sees its
+      // own sticker because the server echoes it.
+      const frames = this.manifest.emoticon?.stickers.find(sticker => sticker.id === message.emoticonId)?.frames ?? [];
+      this.players.get(message.authorId)?.showEmoticon(frames);
       return;
     }
     if (message.type === 'snapshot') {

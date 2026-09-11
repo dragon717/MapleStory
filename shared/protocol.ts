@@ -206,6 +206,13 @@ export type ClientMessage =
    *  the pair may talk (self / offline / either blacklist), and is the only
    *  author of the delivered message. No id, map or channel is accepted. */
   | { type: 'whisperSend'; requestId: string; targetName: string; text: string }
+  /** Show one chat emoticon (表情貼圖) to the current map. The client names
+   *  only a catalogue id (`<groupId>:<sourceName>`) taken from the exported
+   *  `UI/ChatEmoticon.img` table; the server checks that id against the same
+   *  table, owns the source send budget (`ChatLimit`, 4 per 5000 ms) and is
+   *  the only author of the delivered message, so a modified client can
+   *  neither invent a sticker nor flood the room. */
+  | { type: 'emoticonSend'; requestId: string; emoticonId: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
   | { type: 'lifecycle'; hidden: boolean; away?: boolean; clientNowMs?: number }
@@ -251,6 +258,13 @@ export type ServerMessage =
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }
   | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number }
+  /** One emoticon shown by one character, broadcast to the sender's map room
+   *  exactly like map chat (and filtered by the same blacklist). Every field is
+   *  server-authored: the room, the author identity, the catalogue id and the
+   *  tick. `requestId` is present only on the sender's own echo so a pending
+   *  line can be merged instead of duplicated. The sticker's icon and head
+   *  animation frames are resolved client-side from `manifest.emoticon`. */
+  | { type: 'emoticonMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; emoticonId: string; occurredAtTick: number }
   /** One whisper, delivered to exactly two characters. The server is the only
    *  author of every field: a client cannot choose the sender, the recipient,
    *  the body or the timestamp. `requestId` is present only on the sender's own

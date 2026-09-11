@@ -9,6 +9,7 @@ import '../features/world/minimap.css';
 import { WorldMapView } from '../features/world/worldmap-view';
 import '../features/world/worldmap.css';
 import { FriendView } from '../features/world/friend-view';
+import { EmoticonView } from '../features/chat/emoticon-view';
 import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
@@ -65,6 +66,7 @@ let npcDialogue: NpcDialogueView | undefined;
 let storage: StorageView | undefined;
 let party: PartyView | undefined;
 let friends: FriendView | undefined;
+let emoticons: EmoticonView | undefined;
 let miniMap: MiniMapView | undefined;
 let worldMap: WorldMapView | undefined;
 let questLog: QuestLogView | undefined;
@@ -202,7 +204,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -231,6 +233,11 @@ async function enterGame(session: LoginResponse) {
     // on open instead of waiting for a push the way the session-scoped party
     // window does.
     friends = new FriendView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => selfState?.id);
+    // The emoticon window is a picker with no state of its own: it sends one
+    // `emoticonSend` intent and the server decides whether the sticker exists,
+    // whether the source send budget allows it, and who in the map room sees it.
+    emoticons?.destroy();
+    emoticons = new EmoticonView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     miniMap?.destroy();
     miniMap = new MiniMapView(el('minimap'), manifest);
     miniMap.mount();
@@ -267,31 +274,33 @@ async function enterGame(session: LoginResponse) {
       () => party?.toggle() ?? false,
       // Source UITotalMenu type 24 is the 好友&黑名單 shortcut.
       () => friends?.toggle() ?? false,
+      // Source UITotalMenu type 29 is the 表情 / chat emoticon shortcut.
+      () => emoticons?.toggle() ?? false,
     );
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
       castSkill: skillId => {
-        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
+        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
         return castSkill(skillId);
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
     });
     world = new World(manifest, (message, error) => {
       status(message, error);
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
         status(english ? `Portal request: ${request.sourceMapId}/${request.portalName} → ${request.targetMapId}` : `传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
     }, talkToNpc, questId => {
-      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
+      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
       input?.reset();
       connection?.send({ type: 'questInteract', requestId: `quest-${Date.now()}-${++skillRequestSequence}`, questId });
     }, reactorId => {
-      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
+      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
       input?.reset();
       connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId });
     });
@@ -498,6 +507,13 @@ async function enterGame(session: LoginResponse) {
         // A rejected whisper behaves exactly like a rejected chat line: the
         // draft is restored (still addressed to the same target) and the
         // server's reason is shown.
+        else if (['emoticon_unknown', 'emoticon_rate_limited'].includes(message.code)) {
+          // The emoticon window is a picker, so its refusals belong in the
+          // window's own caption bar where the player is looking; the status
+          // line mirrors the same reason for the message log.
+          emoticons?.receiveRejection(message.code, message.message);
+          status(protocolText(message.code, message.message), true);
+        }
         else if (['chat_rate_limited', 'invalid_chat_text', 'idempotency_conflict', 'whisper_unknown_player', 'whisper_self', 'whisper_offline', 'whisper_blocked', 'whisper_ignored'].includes(message.code)) {
           // A rejected chat restores the draft and shows the server reason.
           chat?.failPending(message.requestId, protocolText(message.code, message.message));
@@ -514,7 +530,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
@@ -531,7 +547,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -549,9 +565,8 @@ function leaveGame(logout = false) {
   if (logout) connection?.send({ type: 'logout' });
   layoutObserver?.disconnect(); layoutObserver = undefined;
   setPlayLayout(false);
-  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
-  muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';
-  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
+  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }
 function castSkill(skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1): string | undefined {
   const requestId = `skill-cast-${Date.now()}-${++skillRequestSequence}`;

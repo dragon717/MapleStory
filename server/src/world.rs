@@ -51,6 +51,11 @@ const FRIEND_REQUEST_WINDOW: usize = 32;
 /// protects the common network retry; it is not what makes a replay safe.
 const WHISPER_RECENT_WINDOW: usize = 32;
 
+/// Per-session chat-emoticon idempotency window, bounded like the other two.
+/// An emoticon is ephemeral and has no durable record, so this only protects
+/// the common network retry from broadcasting the head animation twice.
+const EMOTICON_RECENT_WINDOW: usize = 32;
+
 /// Continuous-away policy: how long the authoritative character is kept with
 /// its normal world rules before it drops to basic residency, and the hard
 /// bound after which the normal exit path is requested.  Both are counted
@@ -1638,6 +1643,41 @@ impl QuestSpec {
     }
 }
 
+/// The sendable chat-emoticon catalogue, exported from
+/// `UI/ChatEmoticon.img` into `shared/gameplay.json` (`emoticons`).
+///
+/// The server never needs the artwork — the sticker icons and the head
+/// animation frames are presentation, and live in the client manifest.  It
+/// needs only what it must *own*: which ids are real, and the source's own
+/// send budget.  Both are facts about TMS273.7, so id validation and rate
+/// limiting reuse them instead of inventing a list or a limit of our own.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmoticonCatalogue {
+    /// `<groupId>:<sourceName>`, e.g. `1036:10360001`.  The group qualifier is
+    /// load-bearing: group 1043 re-releases group 1036's six stickers under the
+    /// same authored node names (byte-identical canvases, different captions),
+    /// so the bare node name is only unique *inside* its group.
+    pub ids: Vec<String>,
+    /// `UI/ChatEmoticon.img/ChatLimit`.
+    pub limit: EmoticonLimit,
+    /// Export provenance stamp (`tms273-emoticon`); informational only.
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+/// The source's emoticon send budget: at most `count` stickers inside any
+/// `time_ms` window.  TMS273.7 authors 4 stickers per 5000 ms, which is a
+/// sliding window, not a token bucket — the original client refuses the next
+/// sticker while the `count`-th most recent one is still inside `time_ms`.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmoticonLimit {
+    pub count: u32,
+    #[serde(rename = "timeMs")]
+    pub time_ms: u64,
+}
+
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Gameplay {
@@ -1663,6 +1703,11 @@ pub struct Gameplay {
     pub shops: Vec<Shop>,
     #[serde(default)]
     quests: Vec<QuestSpec>,
+    /// Chat-emoticon catalogue (表情貼圖).  `None` for worlds built without the
+    /// export — unit-test worlds use `Gameplay::default()` — in which case an
+    /// emoticon intent is rejected instead of quietly accepted.
+    #[serde(default)]
+    pub emoticons: Option<EmoticonCatalogue>,
     #[serde(default)]
     pub sources: Sources,
 }
@@ -1926,6 +1971,19 @@ impl Gameplay {
                     .any(|requirement| !quest_ids.contains(requirement.quest_id.as_str()))
             {
                 return Err("quest references unknown npc or prerequisite".into());
+            }
+        }
+        // An export that lost its sticker ids or authored a nonsensical send
+        // budget would silently turn every emoticon intent into a rejection, so
+        // it is a load error rather than a runtime surprise.
+        if let Some(emoticons) = &self.emoticons {
+            let ids: BTreeSet<&str> = emoticons.ids.iter().map(String::as_str).collect();
+            if emoticons.ids.is_empty()
+                || ids.len() != emoticons.ids.len()
+                || emoticons.limit.count == 0
+                || emoticons.limit.time_ms == 0
+            {
+                return Err("emoticon catalogue is malformed".into());
             }
         }
         Ok(())
@@ -2464,6 +2522,17 @@ struct Player {
     /// body is a conflict.  Kept separate from `chat_recent` so a burst of map
     /// chat cannot evict a whisper's idempotency record (and vice versa).
     whisper_recent: VecDeque<(String, String, String)>,
+    /// Bounded recent EmoticonSend request ids: (request id, sticker id).  A
+    /// retry with the same id and sticker must not replay the animation a
+    /// second time; the same id with a different sticker is a conflict.  Kept
+    /// apart from `chat_recent`/`whisper_recent` so a burst of talk cannot
+    /// evict an emoticon's idempotency record.
+    emoticon_recent: VecDeque<(String, String)>,
+    /// Ticks of the recent accepted emoticon sends, oldest first.  The source
+    /// `ChatLimit` is a sliding window (`count` stickers per `time_ms`), not a
+    /// refilling bucket, so the exact send times are kept and pruned lazily
+    /// against the authoritative tick.
+    emoticon_sends: VecDeque<u64>,
     /// Characters this account has on its blacklist, cached at join and after
     /// every block/unblock so the chat fan-out never has to reach for SQLite.
     /// Enforced on the server: a blocked sender's map chat is dropped here,
@@ -2797,6 +2866,13 @@ pub struct World {
     /// id never has to carry a room kind in its prefix and the two streams stay
     /// independently readable in logs.
     whisper_sequence: u64,
+    /// Monotonic emoticon sequence.  Separate from the chat and whisper
+    /// sequences so the three ephemeral streams stay independently readable in
+    /// logs while every message id remains unique inside the process.
+    emoticon_sequence: u64,
+    /// The exported sticker ids, flattened into a set once at construction so
+    /// the map-room hot path never scans the catalogue.
+    emoticon_ids: BTreeSet<String>,
 }
 
 impl World {
@@ -2833,6 +2909,13 @@ impl World {
         store: Option<Store>,
     ) -> Result<Self, String> {
         let hit_after_ms = gameplay.player.attack_after_ms.unwrap_or(duration_ms);
+        // Flatten the exported sticker ids once; the catalogue is a publication
+        // detail after this point.
+        let emoticon_ids: BTreeSet<String> = gameplay
+            .emoticons
+            .as_ref()
+            .map(|catalogue| catalogue.ids.iter().cloned().collect())
+            .unwrap_or_default();
         let mut world = Self {
             maps: BTreeMap::from([(map.id.clone(), map.clone())]),
             map,
@@ -2873,6 +2956,8 @@ impl World {
             next_monster: 0,
             chat_sequence: 0,
             whisper_sequence: 0,
+            emoticon_sequence: 0,
+            emoticon_ids,
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
@@ -4072,6 +4157,8 @@ impl World {
                         chat_bucket_tick: self.tick,
                         chat_recent: VecDeque::new(),
                         whisper_recent: VecDeque::new(),
+                        emoticon_recent: VecDeque::new(),
+                        emoticon_sends: VecDeque::new(),
                         blocked,
                         potion_cooldowns: BTreeMap::new(),
                         area_reactor_overlaps: BTreeSet::new(),
@@ -4430,6 +4517,10 @@ impl World {
                         target_name,
                         text,
                     } => self.handle_whisper(id, request_id, target_name, text),
+                    ClientMessage::EmoticonSend {
+                        request_id,
+                        emoticon_id,
+                    } => self.handle_emoticon(id, request_id, emoticon_id),
                     ClientMessage::PartyInvite {
                         request_id,
                         player_name,
@@ -4866,6 +4957,178 @@ impl World {
             return false;
         }
         player.chat_tokens -= 1;
+        true
+    }
+
+    /// Chat emoticon (表情貼圖) — the third chat surface, and the only one whose
+    /// payload is not free text: the client submits one catalogue id and the
+    /// server owns everything else.
+    ///
+    ///   * the id must exist in the exported `UI/ChatEmoticon.img` table, so a
+    ///     modified client cannot push an arbitrary key into other clients'
+    ///     renderers;
+    ///   * the send budget is the source's own `ChatLimit` and lives on the
+    ///     authoritative `Player` row, so changing map or reconnecting cannot
+    ///     refill it;
+    ///   * the room, the author identity and the tick are derived here — none of
+    ///     them is on the wire — so a sticker can never be shown as somebody
+    ///     else or into a map its author is not standing in;
+    ///   * the fan-out honours the blacklist at the server, exactly like map
+    ///     chat, so a modified client cannot opt back into seeing a character it
+    ///     blocked.
+    ///
+    /// Control flow stays inside the world tick and every outbound write is a
+    /// bounded `try_send`, so a spammer cannot stall gameplay anywhere else.
+    fn handle_emoticon(&mut self, id: String, request_id: String, emoticon_id: String) {
+        // 1. Room: the sender's current authoritative map, exactly as chat does
+        //    it.  A forged map/channel field never reaches this function
+        //    because protocol parsing denies unknown fields.
+        let map_id = match self.players.get(&id) {
+            Some(player) => player.map_id.clone(),
+            None => return,
+        };
+        // 2. Catalogue membership before any bookkeeping.  The set is built from
+        //    the export at construction, so this is the same table the client
+        //    renders from.
+        if !self.emoticon_ids.contains(&emoticon_id) {
+            let _ = self.chat_reject(&id, &request_id, "emoticon_unknown", "未知的表情贴图。");
+            return;
+        }
+        // 3. Bounded per-session idempotency, same contract as map chat: a retry
+        //    with the same id and sticker never plays the animation twice, and
+        //    the same id with a different sticker is a conflict.  Recording the
+        //    id first (as chat does) means a retry of anything already seen is
+        //    idempotent even if it was refused below.
+        enum Duplicate {
+            Replay,
+            Conflict,
+        }
+        let duplicate = {
+            let Some(player) = self.players.get_mut(&id) else {
+                return;
+            };
+            let mut duplicate = None;
+            for (seen_id, seen_sticker) in player.emoticon_recent.iter() {
+                if seen_id == &request_id {
+                    duplicate = Some(if seen_sticker == &emoticon_id {
+                        Duplicate::Replay
+                    } else {
+                        Duplicate::Conflict
+                    });
+                    break;
+                }
+            }
+            if duplicate.is_none() {
+                if player.emoticon_recent.len() >= EMOTICON_RECENT_WINDOW {
+                    player.emoticon_recent.pop_front();
+                }
+                player
+                    .emoticon_recent
+                    .push_back((request_id.clone(), emoticon_id.clone()));
+            }
+            duplicate
+        };
+        match duplicate {
+            Some(Duplicate::Replay) => return,
+            Some(Duplicate::Conflict) => {
+                let _ = self.chat_reject(
+                    &id,
+                    &request_id,
+                    "idempotency_conflict",
+                    "重复请求使用了不同的内容。",
+                );
+                return;
+            }
+            None => {}
+        }
+        // 4. Source send budget (`ChatLimit`).  Sharing the chat token bucket
+        //    would have been the easy option, but the source authors a separate
+        //    sticker limit, so the sticker limit is what is enforced.
+        if !self.emoticon_consume_budget(&id) {
+            let _ = self.chat_reject(
+                &id,
+                &request_id,
+                "emoticon_rate_limited",
+                "表情发送太快，请稍后再试。",
+            );
+            return;
+        }
+        // 5. Immutable message fact; the server is the only author.
+        self.emoticon_sequence += 1;
+        let message_id = format!("emoticon-{id}-{}", self.emoticon_sequence);
+        let (author_id, author_name) = match self.players.get(&id) {
+            Some(player) => (player.state.id.clone(), player.state.username.clone()),
+            None => return,
+        };
+        let common = serde_json::json!({
+            "type": "emoticonMessage",
+            "messageId": message_id,
+            "mapId": map_id,
+            "authorId": author_id,
+            "authorName": author_name,
+            "emoticonId": emoticon_id,
+            "occurredAtTick": self.tick,
+        });
+        let mut sender_payload = common.clone();
+        sender_payload["requestId"] = serde_json::Value::String(request_id);
+        let sender_payload = sender_payload.to_string();
+        let peer_payload = common.to_string();
+        // 6. Ephemeral fan-out to the current map-room membership, with the same
+        //    blacklist filter map chat uses.  The sender always gets its own
+        //    echo so the animation plays locally from the authoritative fact
+        //    rather than from an optimistic local guess.
+        let recipients: Vec<(String, mpsc::Sender<String>)> = self
+            .players
+            .iter()
+            .filter(|(player_id, player)| {
+                player.map_id == map_id && (**player_id == id || !player.blocked.contains(&id))
+            })
+            .map(|(player_id, player)| (player_id.clone(), player.output.clone()))
+            .collect();
+        for (player_id, output) in recipients {
+            let payload = if player_id == id {
+                &sender_payload
+            } else {
+                &peer_payload
+            };
+            let _ = output.try_send(payload.clone());
+        }
+    }
+
+    /// Lazily prune and consume the source emoticon budget.
+    ///
+    /// `ChatLimit` is a sliding window — at most `count` stickers inside any
+    /// `time_ms` — not a refilling bucket, so the accepted send ticks are kept
+    /// oldest-first and pruned against the authoritative tick.  That keeps the
+    /// limit exactly reproducible in tests without reading a wall clock.
+    fn emoticon_consume_budget(&mut self, id: &str) -> bool {
+        // `EmoticonLimit` is `Copy`, so the immutable borrow of `gameplay` ends
+        // with this statement and the mutable borrow of `players` is free.
+        let Some(limit) = self
+            .gameplay
+            .emoticons
+            .as_ref()
+            .map(|catalogue| catalogue.limit)
+        else {
+            return false;
+        };
+        let window_ticks = (limit.time_ms + TICK_MS - 1) / TICK_MS;
+        let window_ticks = window_ticks.max(1);
+        let tick = self.tick;
+        let Some(player) = self.players.get_mut(id) else {
+            return false;
+        };
+        while let Some(oldest) = player.emoticon_sends.front() {
+            if tick.saturating_sub(*oldest) >= window_ticks {
+                player.emoticon_sends.pop_front();
+            } else {
+                break;
+            }
+        }
+        if player.emoticon_sends.len() >= limit.count as usize {
+            return false;
+        }
+        player.emoticon_sends.push_back(tick);
         true
     }
 
@@ -21245,6 +21508,7 @@ mod tests {
     include!("party_acceptance.rs");
     include!("friend_acceptance.rs");
     include!("whisper_acceptance.rs");
+    include!("emoticon_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

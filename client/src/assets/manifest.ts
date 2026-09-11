@@ -220,6 +220,79 @@ export interface FriendUiData {
   tabCount: number;
   ui: Record<string, AssetFrame>;
 }
+/** One sticker in the chat-emoticon catalogue.  `id` is `<groupId>:<sourceName>`
+ *  — the exact string the wire carries — because the authored node name is only
+ *  unique *inside* its group: group 1043 re-releases group 1036's six stickers
+ *  under the same node names (byte-identical canvases, different captions). */
+export interface EmoticonSticker {
+  id: string;
+  groupId: string;
+  sourceName: string;
+  name: string;
+  /** The 32x32 list icon, resolved per sticker (some outlink to the group icon). */
+  icon: AssetFrame;
+  /** Head animation frames, played above the character that used the sticker. */
+  frames: AssetFrame[];
+  durationMs: number;
+}
+export interface EmoticonGroup {
+  id: string;
+  name: string;
+  icon: AssetFrame;
+  /** Stickers this group owns, and where its slice starts in the flat
+   *  `EmoticonData.stickers` catalogue (each group's stickers are contiguous). */
+  stickerCount: number;
+  firstSticker: number;
+  /** `slotCount`-cell sheets this group needs.  A group is one 3x3 sheet
+   *  unless it overflows, which only group 1000 does (10 stickers). */
+  sheetCount: number;
+}
+/** The authored UI/ChatEmoticon window geometry, copied verbatim so the client
+ *  places the grid, the group strip and the page dots exactly where the source
+ *  does instead of hard-coding numbers. */
+export interface EmoticonLayout {
+  columns: number;
+  rows: number;
+  slotCount: number;
+  slotOffset: Point;
+  slotSpace: Point;
+  slotSize: { width: number; height: number };
+  /** Offset and size of a sticker drawn inside one slot. */
+  emoticon: Point;
+  pageOffset: Point;
+  pageIconSpace: number;
+  groupOffset: Point;
+  groupSpace: Point;
+  /** How many group chips one strip page carries. */
+  groupCount: number;
+  name: { offset: Point; width: number; font: string; size: number; color: string; bold: boolean };
+}
+/** Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue plus the 表情
+ *  window shell used by the emoticon window.  PNGs are exported by
+ *  `export_tms273_emoticon.cjs`. */
+export interface EmoticonData {
+  contentVersion: string;
+  source: string;
+  /** The source's own send budget (`ChatLimit`).  Mirrored from the server's
+   *  copy merely so the window can explain a refusal; the server is the only
+   *  thing that enforces it. */
+  limit: { count: number; timeMs: number; source: string };
+  /** Pages of the group strip (`groupCount` chips each).  The authored
+   *  `pageUp`/`pageDown` buttons and the `pageIcon` dots drive this. */
+  pageCount: number;
+  /** Sticker sheets in the whole catalogue, summed over the groups: the grid is
+   *  scoped to one group, so this is not `ceil(stickers / slotCount)`. */
+  sheetCount: number;
+  /** Dots the authored strip holds before running under `pageDown`. */
+  dotCapacity: number;
+  groups: EmoticonGroup[];
+  stickers: EmoticonSticker[];
+  layout: EmoticonLayout;
+  /** Flat keys mirroring the WZ layout: `backgrnd`, `slotBase`,
+   *  `layer:emptySlot`, `groupBase`, `groupSelect`, `pageIcon/on`,
+   *  `pageIcon/off` and `button:close/normal`-style button states. */
+  ui: Record<string, AssetFrame>;
+}
 export interface ChatUiNineSlice {
   nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
   w?: AssetFrame; c?: AssetFrame; e?: AssetFrame;
@@ -460,6 +533,9 @@ export interface Manifest {
    *  used by the friend window.  Flat keys mirror the WZ layout
    *  (`backgrnd`, `Tab/enabled/0`, `BlackList/BtAdd/normal`). */
   friendUi?: FriendUiData;
+  /** Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue and the 表情
+   *  window shell used by the emoticon window. */
+  emoticon?: EmoticonData;
   /** Source-backed UtilDlgEx dialog pieces used by npc conversation boxes. */
   dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */

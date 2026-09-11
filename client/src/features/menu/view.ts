@@ -75,6 +75,8 @@ export class MenuView {
     private onNews?: () => void,
     private onParty?: () => void,
     private onFriend?: () => void,
+    /** Source UITotalMenu type 29 (表情) opens the chat emoticon window. */
+    private onEmoticon?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -269,7 +271,9 @@ export class MenuView {
               // type 24 is the 好友&黑名單 / Friends & Blacklist shortcut.
               : entry.type === 25 ? this.onParty
                 : entry.type === 24 ? this.onFriend
-                  : entry.type === 36 ? this.onNews : undefined;
+                  // Type 29 is the 表情 / chat emoticon shortcut.
+                  : entry.type === 29 ? this.onEmoticon
+                    : entry.type === 36 ? this.onNews : undefined;
     if (action) {
       this.close();
       action();

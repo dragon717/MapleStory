@@ -34,6 +34,14 @@ export class PlayerView {
    *  Source-backed UI/ChatBalloon.img/0 nine-slice is rendered when the
    *  manifest provides it; otherwise we fall back to the legacy placeholder. */
   private bubble?: { container: Phaser.GameObjects.Container; until: number; width: number; height: number };
+  /** Live chat emoticon (表情貼圖) above the head.  One at a time, like the
+   *  source: a newer sticker replaces the running one.  The frames, their order
+   *  and their delays are the exported `effect` animation, and the whole thing
+   *  is anchored to the head exactly like the chat bubble is, so it follows the
+   *  character while it plays and dies with the view on a map switch. */
+  private emoticon?: { frames: AssetFrame[]; image: Phaser.GameObjects.Image; startedAt: number; durationMs: number };
+  /** Gap between the head top and the sticker's authored anchor point. */
+  private static readonly EMOTICON_HEAD_GAP = 6;
   /** Server-visible clip for the on-map bubble; the chat log keeps the full
    *  authoritative text. */
   private static readonly BUBBLE_MAX_CHARS = 96;
@@ -137,6 +145,7 @@ export class PlayerView {
     this.body.setPosition(Math.round(player.x), Math.round(player.y)).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
     this.name.setPosition(Math.round(player.x), Math.round(player.y + 8));
     this.updateBubble(player);
+    this.updateEmoticon(player);
     this.updateFlash();
     this.updateLevelFeedback(player);
   }
@@ -279,6 +288,51 @@ export class PlayerView {
     this.pendingBubbleWidth = undefined;
     this.pendingBubbleHeight = undefined;
   }
+  /** Present one emoticon above the head.  `frames` is the sticker's exported
+   *  `effect` animation; an empty list simply clears, which can only happen
+   *  with a manifest older than the protocol (the server already checked the id
+   *  against the same exported catalogue). */
+  showEmoticon(frames: AssetFrame[]) {
+    this.clearEmoticon();
+    if (!frames.length) return;
+    const image = this.scene.add.image(0, 0, frames[0].url).setOrigin(0).setDepth(this.body.depth + 3);
+    this.emoticon = {
+      frames,
+      image,
+      startedAt: this.scene.time.now,
+      durationMs: frames.reduce((total, frame) => total + frame.delay, 0),
+    };
+  }
+
+  private clearEmoticon() {
+    if (!this.emoticon) return;
+    this.emoticon.image.destroy();
+    this.emoticon = undefined;
+  }
+
+  /** Advance the running sticker animation and keep it anchored above the head. */
+  private updateEmoticon(player: PlayerState) {
+    const emoticon = this.emoticon;
+    if (!emoticon) return;
+    const elapsed = this.scene.time.now - emoticon.startedAt;
+    if (elapsed >= emoticon.durationMs || player.hp <= 0 || player.action === 'dead') {
+      this.clearEmoticon();
+      return;
+    }
+    const index = frameAt(emoticon.frames.map(frame => frame.delay), elapsed, false);
+    const frame = emoticon.frames[index];
+    // The authored origin is the sticker's own anchor, so anchoring it a fixed
+    // gap above the head keeps every frame of the animation in the same place
+    // instead of jittering with the transparent padding around each canvas.
+    emoticon.image
+      .setTexture(frame.url)
+      .setPosition(
+        Math.round(player.x - frame.origin.x),
+        Math.round(player.y + this.headOffsetY - PlayerView.EMOTICON_HEAD_GAP - frame.origin.y),
+      )
+      .setAlpha(assetFrameAlpha(frame, elapsed - emoticon.frames.slice(0, index).reduce((sum, value) => sum + value.delay, 0)));
+  }
+
   private updateLevelFeedback(player: PlayerState) {
     const level = player.level;
     if (!Number.isSafeInteger(level) || level < 1) return;
@@ -354,5 +408,5 @@ export class PlayerView {
     if (!link) return actions.climb?.length ? 'climb' : 'ladder';
     return link.l === 1 ? 'ladder' : 'rope';
   }
-  destroy() { this.clearLevelFeedback(); this.skillAction = undefined; this.body.destroy(); this.name.destroy(); }
+  destroy() { this.clearLevelFeedback(); this.clearEmoticon(); this.skillAction = undefined; this.body.destroy(); this.name.destroy(); }
 }

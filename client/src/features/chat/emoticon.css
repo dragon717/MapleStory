@@ -1,0 +1,38 @@
+/* Chat emoticon (表情) window, drawn entirely from TMS273 `UI/ChatEmoticon.img`
+   art.  Unlike the UserList-based party / friend windows, the source
+   `backgrnd` already carries the whole shell — the EMOTICON title, the group
+   strip plate, the slot grid and the bottom information bar — so this
+   stylesheet adds no chrome of its own.  Every control is absolutely
+   positioned at the coordinate the export recorded, which is what keeps the
+   window pixel-faithful instead of merely similar. */
+.emoticon-window{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:3;image-rendering:pixelated}
+.emoticon-shell{position:relative;width:var(--emoticon-width,370px);height:var(--emoticon-height,530px)}
+.emoticon-backgrnd{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated;pointer-events:none}
+/* The three placement layers are pass-through; only the controls inside them
+   take the pointer, so a click on the window art never falls through to the
+   game viewport behind it. */
+.emoticon-groups,.emoticon-grid,.emoticon-pages{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}
+.emoticon-slot{position:absolute;padding:0;margin:0;background:none;border:0;cursor:pointer;pointer-events:auto;overflow:hidden}
+.emoticon-slot.is-empty{cursor:default}
+.emoticon-slot-plate{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated}
+.emoticon-slot-icon{position:absolute;display:block;max-width:none;image-rendering:pixelated}
+.emoticon-slot:not(.is-empty):hover .emoticon-slot-icon{filter:drop-shadow(0 0 4px #fff)}
+/* The authored label strip at the bottom of `slotBase`: same font size, colour
+   and width the WZ `name` node declares, set inline by the view. */
+.emoticon-slot-name{position:absolute;display:block;text-align:center;line-height:14px;text-shadow:0 1px 0 #000a;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none}
+.emoticon-group{position:absolute;padding:0;margin:0;background:none;border:0;cursor:pointer;pointer-events:auto}
+.emoticon-group-plate,.emoticon-group-icon{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated}
+.emoticon-group-select{position:absolute;display:block;max-width:none;image-rendering:pixelated;pointer-events:none}
+.emoticon-group.is-active .emoticon-group-icon{filter:brightness(1.2) drop-shadow(0 0 3px #ffe9a8)}
+/* The dot strip pages the group strip, so every dot is a control that jumps to
+   its page rather than decoration. */
+.emoticon-dot{position:absolute;padding:0;margin:0;background:none;border:0;cursor:pointer;pointer-events:auto}
+.emoticon-dot-icon{display:block;max-width:none;image-rendering:pixelated}
+.emoticon-dot[aria-current="true"]{cursor:default}
+.emoticon-button{position:absolute;padding:0;margin:0;background:none;border:0;cursor:pointer;pointer-events:auto}
+.emoticon-button img{display:block;max-width:none;image-rendering:pixelated}
+.emoticon-button.is-disabled{cursor:default;opacity:.5}
+/* The window's authored bottom bar is where the source draws its own status
+   text, so the pick hint and every server refusal are shown there. */
+.emoticon-caption{position:absolute;height:20px;box-sizing:border-box;display:flex;align-items:center;padding:0 6px;color:#d7e2f5;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none}
+.emoticon-caption.is-error{color:#ffc0c0}

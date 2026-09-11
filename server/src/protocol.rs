@@ -396,6 +396,18 @@ pub enum ClientMessage {
         target_name: String,
         text: String,
     },
+    /// Chat emoticon (表情貼圖) intent.  The client names only a catalogue id
+    /// (`<groupId>:<sourceName>`) and never an author, a room or a timestamp.
+    /// The server checks the id against the exported `UI/ChatEmoticon.img`
+    /// table, owns the source send budget (`ChatLimit`) and is the only author
+    /// of the delivered message, so a modified client can neither invent a
+    /// sticker nor flood the map.
+    EmoticonSend {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "emoticonId")]
+        emoticon_id: String,
+    },
     /// Explicit logout: the player asked to leave, so the authoritative
     /// character must be removed instead of being kept resident.  A socket
     /// that just closes cannot be read as a logout, because a tab switch or a
@@ -657,6 +669,14 @@ impl ClientMessage {
             }
             // A lifecycle report is only ever a hint; there is nothing to
             // validate beyond the shape, and nothing it can unlock.
+            // An emoticon carries a catalogue id, so only the *shape* is
+            // checked here — whether that id exists in the exported
+            // `UI/ChatEmoticon.img` table is a world question, answered by the
+            // authoritative world (`handle_emoticon`).
+            Self::EmoticonSend {
+                request_id,
+                emoticon_id,
+            } => valid_id(request_id) && valid_id(emoticon_id),
             Self::Lifecycle { .. } => true,
             Self::Logout => true,
         }

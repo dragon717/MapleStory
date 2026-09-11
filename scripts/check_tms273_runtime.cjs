@@ -269,3 +269,104 @@ assert(manifest.skillEffects['2220014'].hit.length>0);
 assert(manifest.skillEffects['2221000'].effect0.length>0);
 assert(manifest.skillEffects['2221004'].special.length>0);
 assert(manifest.skillSounds['2221011'].loop.url && manifest.skillSounds['2221011'].end.url);
+
+// Chat emoticons (表情貼圖): the window is drawn from UI/ChatEmoticon.img, the
+// head animation plays the exported `effect` frames, and the *server* owns the
+// catalogue and the send budget.  The client and server therefore have to agree
+// about both, or the window would offer stickers the server refuses (or hide
+// ones it accepts).
+{
+  const emoticon=manifest.emoticon;
+  assert(emoticon,'emoticon export is missing');
+  assert.equal(emoticon.contentVersion,'tms273-emoticon',emoticon.contentVersion);
+  assert.equal(emoticon.groups.length,51);
+  assert.equal(emoticon.stickers.length,298);
+  assert.equal(emoticon.limit.count,4);
+  assert.equal(emoticon.limit.timeMs,5000);
+  assert.equal(emoticon.limit.source,'UI/ChatEmoticon.img/ChatLimit');
+  // `<groupId>:<sourceName>`.  The group qualifier is load-bearing: group 1043
+  // re-releases group 1036's six stickers under the same authored node names.
+  const ids=emoticon.stickers.map(sticker=>sticker.id);
+  for(const id of ids) assert.match(id,/^\d{4,8}:\d{4,12}$/,`malformed sticker id: ${id}`);
+  assert.equal(new Set(ids).size,ids.length,'sticker ids must be unique');
+  // The grid is 3x3 and the row count is *proved* by the authored empty-state
+  // panel: it is drawn over exactly one grid, so a fourth row would overflow it.
+  const {columns,rows,slotCount,slotOffset,slotSpace,slotSize,groupCount,pageOffset,pageIconSpace}=emoticon.layout;
+  assert.deepEqual([columns,rows,slotCount],[3,3,9]);
+  assert.equal(slotCount,columns*rows);
+  const gridWidth=slotOffset.x+(columns-1)*slotSpace.x+slotSize.width;
+  const gridHeight=slotOffset.y+(rows-1)*slotSpace.y+slotSize.height;
+  const background=emoticon.ui.backgrnd;
+  assert(gridWidth<=background.width&&gridHeight<=background.height,'slot grid overflows the window');
+  const empty=emoticon.ui['layer:emptySlot'];
+  assert(empty,'authored empty-state panel is missing');
+  assert(Math.abs(gridWidth-slotOffset.x-empty.width)<=4,`empty-state panel width disagrees with the grid: ${empty.width}`);
+  assert(Math.abs(gridHeight-slotOffset.y-empty.height)<=4,`empty-state panel height disagrees with the grid: ${empty.height}`);
+  // The authored nav buttons sit on the chip row and flank the strip, while the
+  // dots are drawn 5px under the chips: that geometry is what makes the strip --
+  // not the grid -- the thing `pageUp`/`pageDown`/`pageIcon` page, so it is
+  // asserted here and a source revision cannot quietly move them elsewhere.
+  const groupBase=emoticon.ui.groupBase,upButton=emoticon.ui['button:pageUp/normal'],downButton=emoticon.ui['button:pageDown/normal'];
+  const stripRight=emoticon.layout.groupOffset.x+(groupCount-1)*emoticon.layout.groupSpace.x+groupBase.width;
+  const chipBottom=emoticon.layout.groupOffset.y+groupBase.height;
+  assert(upButton.x<emoticon.layout.groupOffset.x,'pageUp does not sit left of the group strip');
+  assert(downButton.x>=stripRight,'pageDown does not sit right of the group strip');
+  for(const [name,button] of [['pageUp',upButton],['pageDown',downButton]]) {
+    assert(button.y<chipBottom&&button.y+button.height>emoticon.layout.groupOffset.y,`${name} is not on the group strip row`);
+  }
+  assert(pageOffset.y>=chipBottom&&pageOffset.y<slotOffset.y,'the page dots do not sit between the strip and the grid');
+  // The grid is scoped to the selected group, so the sheet count is summed over
+  // the groups instead of being derived from the flat catalogue length.
+  assert.equal(emoticon.pageCount,Math.ceil(emoticon.groups.length/groupCount));
+  assert.equal(emoticon.sheetCount,emoticon.groups.reduce((total,group)=>total+group.sheetCount,0));
+  assert(emoticon.groups.some(group=>group.sheetCount>1),'no group overflows one sheet any more; the sheet model was built for exactly one');
+  let cursor=0;
+  for(const group of emoticon.groups) {
+    assert(group.stickerCount>=1,`group ${group.id} has no stickers`);
+    assert.equal(group.firstSticker,cursor,`${group.id} does not start where the previous group ended`);
+    assert.equal(group.sheetCount,Math.ceil(group.stickerCount/slotCount),`${group.id} sheet count drifted`);
+    for(let offset=0;offset<group.stickerCount;offset++) assert.equal(emoticon.stickers[cursor+offset].groupId,group.id,`${group.id} stickers are not contiguous in the catalogue`);
+    cursor+=group.stickerCount;
+  }
+  assert.equal(cursor,emoticon.stickers.length,'group ranges do not cover the catalogue');
+  // Dots have to fit between `pageOffset` and the authored `pageDown` button.
+  assert.equal(emoticon.dotCapacity,Math.floor((downButton.x-pageOffset.x-emoticon.ui['pageIcon/on'].width)/pageIconSpace)+1);
+  assert(emoticon.pageCount<=emoticon.dotCapacity,`the strip needs ${emoticon.pageCount} dots but only ${emoticon.dotCapacity} fit before pageDown`);
+  // The window has to place its grid from the exported group ranges; a flat walk
+  // would put a group's stickers on a page that its own chip does not describe.
+  const viewSrc=fs.readFileSync(path.join(root,'client/src/features/chat/emoticon-view.ts'),'utf8');
+  assert(/group\.firstSticker/.test(viewSrc),'the emoticon window does not slice a group out of the catalogue');
+  assert(/sheetCount/.test(viewSrc),'the emoticon window ignores the exported sheet count');
+  for(const key of ['backgrnd','slotBase','layer:emptySlot','groupBase','groupSelect','pageIcon/on','pageIcon/off']) {
+    assert(emoticon.ui[key],`emoticon art missing: ${key}`);
+  }
+  for(const state of ['normal','pressed','disabled','mouseOver']) {
+    for(const button of ['close','pageUp','pageDown']) {
+      assert(emoticon.ui[`button:${button}/${state}`],`emoticon button state missing: ${button}/${state}`);
+    }
+  }
+  const groupIds=new Set(emoticon.groups.map(group=>group.id));
+  for(const group of emoticon.groups) assert(group.icon?.url,`group icon missing: ${group.id}`);
+  const perGroup=new Map();
+  for(const sticker of emoticon.stickers) {
+    assert(groupIds.has(sticker.groupId),`sticker ${sticker.id} names an unknown group`);
+    assert(sticker.frames.length>0,`sticker ${sticker.id} has no animation frames`);
+    assert.equal(sticker.durationMs,sticker.frames.reduce((sum,frame)=>sum+frame.delay,0),`sticker ${sticker.id} duration drifted`);
+    perGroup.set(sticker.groupId,(perGroup.get(sticker.groupId)??0)+1);
+  }
+  for(const group of emoticon.groups) assert((perGroup.get(group.id)??0)>0,`group ${group.id} has no stickers`);
+  // The authoritative world validates ids against its own flattened copy of the
+  // same list and enforces the same authored budget.
+  assert.equal(gameplay.emoticons.source,emoticon.contentVersion);
+  assert.deepEqual(gameplay.emoticons.ids,ids,'client and server emoticon catalogues disagree');
+  assert.equal(gameplay.emoticons.limit.count,emoticon.limit.count);
+  assert.equal(gameplay.emoticons.limit.timeMs,emoticon.limit.timeMs);
+  // Both refusal codes the server can send must be explainable in the UI,
+  // otherwise the window would show a bare code.
+  const serverSrc=fs.readFileSync(path.join(root,'server/src/world.rs'),'utf8');
+  const i18nSrc=fs.readFileSync(path.join(root,'client/src/app/i18n.ts'),'utf8');
+  for(const code of ['emoticon_unknown','emoticon_rate_limited']) {
+    assert(serverSrc.includes(`"${code}"`),`server never sends ${code}`);
+    assert(i18nSrc.includes(`${code}:`),`the client cannot explain ${code}`);
+  }
+}

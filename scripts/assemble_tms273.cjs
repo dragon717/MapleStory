@@ -15,6 +15,7 @@ const mageAvatar = read('mage-avatar');
 Object.assign(avatar.actions, mageAvatar.actions);
 for (const [key, actions] of Object.entries(mageAvatar.equipmentLoadouts)) Object.assign(avatar.equipmentLoadouts[key].actions, actions);
 const windows = read('windows'), inventory = read('windows-inventory');
+const emoticonExport = read('emoticon');
 const maps = catalog.maps.map(map => ({...map, bgm:effects.bgm[map.id]}));
 maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
 // Map reactors are authored per map (Map.wz reactor subtree).  Each placement
@@ -108,6 +109,11 @@ const manifest = {
   // export_tms273_worldmap.cjs and copied into client/public-tms273/assets
   // alongside the other UI art.
   worldMap: read('worldmap'),
+  // Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue (desc, 32x32
+  // icon and the head animation frames) plus the 表情 window shell used by the
+  // emoticon window.  PNGs are exported by export_tms273_emoticon.cjs and
+  // copied into client/public-tms273/assets alongside the other UI art.
+  emoticon: emoticonExport,
 };
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {
@@ -156,6 +162,29 @@ gameplay.compatibility.iceThirdRuntime = 'P: Hans level60 shortcut 220->221, 5 i
 gameplay.compatibility.beginnerRuntime = 'T: Skill/000.img and String/Skill.img define three beginner skills, max3, per-level MP/fixed damage/heal/speed/duration/cooldown. P: 5-second healing ticks inferred from source total and x; projectile reach/hit timing use the existing combat adapter. Buffs end on death/map exit/disconnect; skill levels, SP and cooldowns persist. Beginner SP follows the existing P 2..7 +1 rule. No shell item cost exists in the local skill source.';
 gameplay.compatibility.iceFourthRuntime = 'P: level100 Hans shortcut 221->222 preserves story; 3 initial SP plus historical cross-region 101..140 tiers, fixed frost passive. Bind uses a single cast and source-limited hold; orb uses 4000ms/210ms and 180px/s with contact slowdown; Ice Demon pulses every1080ms alongside thunder sphere; Infinity restores base HP/MP and ramps damage every5s. These execution adapters are not original TMS scripts. Source skill values and artwork remain TMS273.7.';
 gameplay.compatibility.player='Initial attributes and base combat formula use the existing runtime adapter; they are not certified TMS273 server parity.';
+// Chat emoticons (表情貼圖).  The server only needs what it must *own*: the set
+// of sendable sticker ids and the source's own send budget
+// (UI/ChatEmoticon.img/ChatLimit) — never the artwork, which is presentation.
+// Both values are facts about TMS273.7, so validation and rate limiting reuse
+// them instead of inventing a list or a token bucket.
+{
+  assert(emoticonExport.stickers.length > 0, 'Emoticon export is empty');
+  const ids = emoticonExport.stickers.map(sticker => sticker.id);
+  assert.equal(new Set(ids).size, ids.length, 'Emoticon export has duplicate sticker ids');
+  // `<groupId>:<sourceName>`, e.g. `1036:10360001`.  The colon matters: group
+  // 1043 re-releases group 1036's stickers under the same authored node names.
+  assert(ids.every(id => /^\d{4,8}:\d{4,12}$/.test(id)), 'Emoticon export has a malformed sticker id');
+  gameplay.emoticons = {
+    limit: {
+      count: emoticonExport.limit.count,
+      timeMs: emoticonExport.limit.timeMs,
+      source: emoticonExport.limit.source,
+    },
+    ids,
+    source: emoticonExport.contentVersion,
+  };
+  gameplay.compatibility.chatEmoticon = `T: sendable sticker ids, per-sticker animation frames, the send budget (${emoticonExport.limit.count} per ${emoticonExport.limit.timeMs}ms) and every window coordinate come from UI/ChatEmoticon.img. P: the window is scoped to the selected group (${emoticonExport.groups.length} groups over ${emoticonExport.pageCount} strip pages of ${emoticonExport.layout.groupCount} chips, ${emoticonExport.sheetCount} sticker sheets), the authored pageUp/pageDown buttons and the pageIcon dots drive the group strip because that is the row they are drawn on, the ${emoticonExport.layout.slotCount}-cell grid shows one group at a time, the second sheet of a group wider than that grid is reached with the up/down keys, and selecting a sticker sends it and leaves the window open. Bookmark tabs, the key-setting window, the save/edit mode and limited-time stickers are not implemented.`;
+}
 const questText = read('quest-text'), npcNames = read('npc-names');
 require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('chapter'), questText, npcNames);
 // P: portal beams are exported from `maps-rendered.json` before the chapter

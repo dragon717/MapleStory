@@ -144,6 +144,8 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   friend_declined: { zh: '对方已把你加入黑名单', en: 'That character has blocked you' },
   friend_not_friend: { zh: '对方不是你的好友', en: 'That character is not your friend' },
   friend_not_blocked: { zh: '对方不在黑名单中', en: 'That character is not on the blacklist' },
+  emoticon_unknown: { zh: '未知的表情贴图', en: 'Unknown emoticon' },
+  emoticon_rate_limited: { zh: '表情发送太快，请稍后再试', en: 'You are sending emoticons too fast; wait a moment' },
 });
 
 /** Minimap window copy (UI/UIMap.img/MiniMap).  The controls themselves are
