@@ -199,6 +199,9 @@ async function enterGame(session: LoginResponse) {
     chat?.destroy();
     chat = new ChatView(el('chat'), manifest, message => status(message), {
       send: (requestId, text) => connection?.send({ type: 'chatSend', requestId, text }) ?? false,
+      // A whisper carries only the typed name and the body; the server resolves
+      // the identity and decides whether the pair may talk at all.
+      sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
       isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
@@ -306,6 +309,10 @@ async function enterGame(session: LoginResponse) {
       inventory?.receive(message);
       if (message.type === 'chatMessage') {
         chat?.appendChatMessage(message);
+        return;
+      }
+      if (message.type === 'whisperMessage') {
+        chat?.appendWhisperMessage(message);
         return;
       }
       if (message.type === 'npcResult') {
@@ -488,7 +495,10 @@ async function enterGame(session: LoginResponse) {
           // the prop may already have been taken by someone else on the map.
           if (message.code === 'reactor_out_of_range') status(english ? 'Move closer to interact with that.' : '再靠近一些才能互动。');
         }
-        else if (['chat_rate_limited', 'invalid_chat_text', 'idempotency_conflict'].includes(message.code)) {
+        // A rejected whisper behaves exactly like a rejected chat line: the
+        // draft is restored (still addressed to the same target) and the
+        // server's reason is shown.
+        else if (['chat_rate_limited', 'invalid_chat_text', 'idempotency_conflict', 'whisper_unknown_player', 'whisper_self', 'whisper_offline', 'whisper_blocked', 'whisper_ignored'].includes(message.code)) {
           // A rejected chat restores the draft and shows the server reason.
           chat?.failPending(message.requestId, protocolText(message.code, message.message));
         } else if (['boss_practice_cleared', 'boss_practice_left', 'boss_practice_failed'].includes(message.code)) {

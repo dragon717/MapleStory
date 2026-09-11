@@ -14,6 +14,11 @@
 .chat273-player-line .chat273-name{font-weight:bold}
 .chat273-name-other{color:#7fd4ff}.chat273-name-self{color:#fff3a5}
 .chat273-pending-line{opacity:.55}.chat273-pending-line .chat273-name{color:#cfd8dc}
+/* A whisper is a private line in the same log: the source marks it with a
+   bracketed tag instead of opening a second window. */
+.chat273-player-line.chat273-whisper-line .chat273-whisper-tag{display:inline-block;margin-right:3px;padding:0 2px;border:1px solid #6f7f87;border-radius:2px;color:#ffd77a;font-size:9px;line-height:11px}
+.chat273-input[data-mode="whisper-target"],.chat273-input[data-mode="whisper-body"]{background:#f2e7c8;border-color:#8a7433}
+.chat273-input[data-mode="whisper-target"]::placeholder,.chat273-input[data-mode="whisper-body"]::placeholder{color:#7d6a2c}
 .chat273-toolbar{position:relative;z-index:2;display:flex;align-items:center;gap:3px;width:100%;min-width:0;min-height:25px}
 .chat273-target,.chat273-whisper,.chat273-toggle{position:relative;flex:0 0 auto;padding:0;border:0;background:transparent;line-height:0;overflow:hidden}
 .chat273-target{height:24px}.chat273-whisper{width:24px;height:25px}.chat273-toggle{width:26px;height:20px;margin-left:auto}

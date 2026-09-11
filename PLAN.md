@@ -1,5 +1,85 @@
 # 当前工作计划
 
+## 悄悄話 / 私聊（Whisper）：已完成，待统一加载实玩（2026-09-11）
+
+- 选题：聊天模块缺失的另一半，也是好友模块留下的已知边界（那里明写 `BtWhisper` 未接线）。
+  273 输入条的私聊按钮此前只弹「私聊暂未开放。」；地图聊天是**房间事实**（由发送者所在地图推导），
+  悄悄話是**一对事实**（由键入的名字解析），两者的权威边界不同，所以必须单独做一层意图。
+- 来源 T（本轮实测，非猜）：本地 TMS273.7 `UI/StatusBar3.img/chat/ingame/input/button:chat`
+  的直读属性 **`id = 2`、`ToolTip = 悄悄話`**，24×25 四态帧（`normal/pressed/disabled/mouseOver`），
+  即 `resources/tms273-export/chat.json` 里的 `chatUi.input.whisper`。
+  同目录 `input/chatTarget` 有 `base/all/friend/party/guild/association/master/disciple` 八个频道位——
+  **那是地图聊天的对象选择器，本轮不碰**（见已知边界）。客户端文案统一用来源自己的词**悄悄話**，不另造"密語"。
+- 权威边界（服务端 `world.rs::handle_whisper`，八步顺序即规则）：
+  ① 正文策略与地图聊天同一条 `valid_chat_text`；② 名字→身份只走 `resolve_friend_name()`
+  （与好友/组队同一个权威查名），**不接受 id/地图/频道**；③ 自己 → `whisper_self`；
+  ④ 按 `(requestId, 解析后的目标, 正文)` 记幂等：重放只**重发给发送者自己的回显**，收件人绝不会收到两遍，
+  同 id 换内容算冲突 `idempotency_conflict`；⑤ 无会话 → `whisper_offline`（**不造离线收件箱**，
+  存一条永远送不出的消息等于编功能）；⑥ 黑名单**双向**生效（`whisper_blocked` / `whisper_ignored`）——
+  封锁是对"这一对"的声明，不是对频道的；⑦ 与地图聊天**共用令牌桶**，密语不是绕过发言限速的口子；
+  ⑧ 消息 id/时间戳/收发双方全由服务端落定，客户端无可伪造字段。
+- 协议（协议 12 未升版，同版扩展）：`shared/protocol.ts` 与 `server/src/protocol.rs` 各加
+  `whisperSend{requestId,targetName,text}` 与 `whisperMessage{messageId,requestId?,fromId,fromName,toId,toName,text,occurredAtTick,replay?}`；
+  `valid()` 校验 `targetName` 用 `valid_player_name`、`text` 用 `valid_chat_text`。
+  伪造信封测试点名拒绝 `targetId/mapId/fromName/occurredAtTick` 等客户端自造字段（`deny_unknown_fields`）。
+- 客户端（`features/chat/view.ts`，纯展示层）：
+  - **两步输入**：273 输入条只有一行，故先收对象名、再收正文，不另开第二个窗口
+    （`whisper-target` → `whisper-body`，输入框底色与 placeholder 随模式变）；地图模式下
+    `/w <名字> <正文>` 一次性发同一意图。
+  - 方向由 `selfId === fromId` **本地推导**，不用任何客户端提供的方向位；自己的回显按 `requestId`
+    **合并掉"发送中"占位行**，重放回显（`replay`）靠有界集合（32）去重，一行密语永不显示两次。
+  - 被拒时（`main.ts` 把 5 个 whisper 错误码并入既有的 chat 失败分支）**恢复草稿且保留对象**，
+    玩家改一遍正文即可重发。
+  - Esc 先退出悄悄話输入、再关输入框；空行退出；`clear()` 丢弃半句密语，不把上一个会话的目标带进新会话。
+- 验证：
+  - `cargo build` 零新增警告；新增 `server/src/whisper_acceptance.rs` **10 项全过**（双方各收一份且第三人收不到 /
+    跨地图可达 / 陌生名与自己被报未送达 / 无会话报离线 / 黑名单双向拦截 / 重放只回显给发送者且冲突被拒 /
+    共用令牌桶 / 正文策略与地图聊天一致 / 伪造信封永不解析 / 幂等窗口有界）。
+  - 全量 `cargo test` **243 过 / 6 失败**；临时摘掉 `include!("whisper_acceptance.rs")` 的真基线为
+    **233 过 / 6 失败且失败集逐条一致**（`auth::third_store_book_split…`、`mage::bundled_catalog…`、
+    `world::config_drop…`、`world::portal_command…`、`world::reactor_area_herb…`、`world::third_sphere…`），
+    即 **+10 项新通过、零回归**。
+  - **反向验证**（按仓库惯例）：把黑名单拦截那一行加 `&& false` → `blacklist_blocks_a_whisper_in_both_directions`
+    立刻失败；把客户端重放去重那行加 `&& false` → w06 立刻报 `actual 2, expected 1`。两处均已还原。
+  - `client/tsc --noEmit` 通过；`vite build`（→/tmp/dist-whisper-check）通过，仅既有 chunk 体积警告；
+    `node src/features/chat/whisper.check.mjs` **9 项全过**（w01 `/w` 只带名字与正文 / w02 按钮两步输入且第一步不发 / 
+    w03 空行退出 / w04 收件只认权威信封且标记为来信 / w05 自己的回显合并占位行 / w06 重放不重复 / 
+    w07 被拒保留对象与草稿 / w08 离开世界丢弃半句 / w09 无 hook 时不静默丢进地图聊天）。
+- 待验（用户）：`启动3010.command` 重启后实玩——点输入条左起第一个按钮（`悄悄話`）开始密语；
+  输入对方角色名 → 输入内容 → Enter，双方聊天框各出一行（自己那行带「致 名字」，对方那行是对方名字）；
+  在**另一张地图**也能收到；给不存在的名字/自己/离线角色发会给出对应中文提示；被黑名单者发密语会被拒。
+- 已知边界：**无离线留言**（不在线即拒绝，不假装排队）；**未接好友窗里的密语按钮**
+  （`friend-view.ts` 本轮未动，好友名册上还没有条目入口，需另起一轮）；**未做 `chatTarget` 频道选择器**
+  （好友/组队/公会/师徒频道）、**未做悄悄話历史与回复快捷键**、**未做管理员/GM 密语**。
+
+## 怪物追击/仇恨系统（Monster Aggro & Pursuit）：已完成，待统一加载实玩（2026-09-11）
+
+- 选题：补齐怪物基础 AI 里缺失的"被打会追人"一整环。原 `step_monsters` 只有站/随机走两种行为，
+  并在迁移代码里明确注释 *"this world has no sourced aggro routine, so never invent target chasing"*
+  （旧逻辑连随机走也会被落地墙反向往回弹）。做的是**纯服务端权威**的受击记恨→同图追击→脱离/归位：
+  不再需要客户端传任何命中或仇恨意图，攻击结算处自动把伤害来源记为该怪目标。
+- 机制与规则（行为链，全在 `server/src/world.rs`）：
+  - **记恨**：玩家攻击真正命中（`resolution.damage > 0`）时，在该怪的 `aggro_target=该玩家`，并刷新
+    `aggro_until = now + 4s` 的追猎窗口，同时取消正在进行的归位。三个攻击结算位（普通攻击 / 法师多段 /
+    第三职业恢复路径）统一走新增的 `mark_monster_hit_aggro()`。身体接触伤害不记恨（怪已在玩家身上）。
+  - **追击**：`step_monsters` 每拍重估目标是否可追——目标必须**仍在同图、未死亡、未到追猎超时**，且
+    **与出生点距离 ≤ 900px 的牵引半径**（超出即放弃，防把怪永久拉离家）。可追则把 `state.facing` 定为人
+    所在方向并跳过随机走/站判定，持续贴脸；站桩怪（`can_move()==false`）不追。
+  - **脱离/归位**：目标离图、死亡、走出牵引半径、或 4s 内未再被打时，清 `aggro_target` 并置
+    `returning_home=true`，怪转身走回出生点；回到出生点 2px 半径内再恢复随机闲逛。
+  - **切图/死亡清仇恨**：死/离图由上面的"同图+存活"重估天然清除；怪的死亡/重生走 `spawn_monster_on_map`
+    新建对象，仇恨字段随之为空，天然不跨重生残留。
+- 新增字段/常量/函数（都在 `world.rs`）：`Monster` 增 `aggro_target` / `aggro_until` / `returning_home` 三字段；
+  常量 `MOB_AGGRO_LEASH`(900px) / `MOB_AGGRO_HOLD_TICKS`(4s) / `MOB_HOME_RADIUS`(2px)；新增
+  `mark_monster_hit_aggro()` 与逐拍追击判定。追击/**归位**复用既有两种移动（`movement_force` 力模式与
+  `movement_step` 步进模式），只控制朝向，不动独立物理。
+- 新增 4 项 acceptance 用例（`world.rs` tests）：被打追人（走离出生点贴脸并稳定朝向）、过期/脱离后走回家、
+  目标死亡或离图立即被忘、目标逃出牵引半径被放弃。反向验证与仓库惯例一致：把 `aggro_until` 改回超长或把
+  `MOB_AGGRO_LEASH` 改大，相应断言即失败。
+- 验证：`cargo build` 零新增警告；`cargo test monster` 8 项（4 新 + 4 旧）全过；全量 `cargo test`
+  233 通过 / 6 失败，那 6 个与本次改动无关（`git stash` 后原版同样失败 229→6，属既有环境/数据问题，
+  本次仅新增 4 项通过用例）。在线服务与用户数据库未动，待下次根 `启动3010.command` 统一加载后实玩。
+
 ## 大地图（World Map）：地图 ID 补零缺陷修复 + 打开落在所在区域页，待实玩（2026-09-11）
 
 - 选题：接续小地图窗口，把大地图做成可用的第二半。小地图 `BtMap`（源 `UIMap.img/MiniMap` 右侧第二个按钮）
@@ -108,7 +188,8 @@
 - 待验（用户）：`启动3010.command` 重启后实玩——菜单点「好友&黑名單」（type 24）应弹窗；
   输入角色名新增好友，双方名册同步出现；选中行可删除/封锁；黑名单页可解封；
   好友上线/下线时名册在线标记与地图名实时变化；被拉黑的玩家发言不再出现在自己聊天框。
-- 已知边界：**未做私聊/密语**（`BtWhisper`/`BtChat`/`BtMessage` 未接线）、**未做好友分组**
+- 已知边界：**私聊已单独成模块**（见顶部「悄悄話 / 私聊」章节），但**好友窗里的密语入口仍未接**
+  （`BtWhisper`/`BtChat`/`BtMessage` 本轮未动 `friend-view.ts`，不做假入口）、**未做好友分组**
   （`BtAddGroup`/`BtMod`/`BtGroupWhisper`）、**未做情侣系统**（`BtMate`）、
   **未做「显示在线/显示全部」过滤**（`BtShowOnline`/`BtShowAll`）、**未做查找好友位置**
   （`BtWhere`，原版为消耗道具查询）。这些按钮素材已导出但无服务端语义，不做假入口。

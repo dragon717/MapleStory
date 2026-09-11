@@ -46,6 +46,11 @@ const PARTY_REQUEST_WINDOW: usize = 32;
 /// second read; it is not what makes a replay safe.
 const FRIEND_REQUEST_WINDOW: usize = 32;
 
+/// Per-session whisper (密語) idempotency window, bounded like the chat one.
+/// A whisper is ephemeral and has no durable record, so this window only
+/// protects the common network retry; it is not what makes a replay safe.
+const WHISPER_RECENT_WINDOW: usize = 32;
+
 /// Continuous-away policy: how long the authoritative character is kept with
 /// its normal world rules before it drops to basic residency, and the hard
 /// bound after which the normal exit path is requested.  Both are counted
@@ -299,6 +304,22 @@ const MOB_MOVE_DECISION_MS: u64 = 1_800;
 // on the counter gate, so this recovery window is the authoritative state
 // transition used here.
 const MOB_HIT_RECOVERY_MS: u64 = 248;
+
+// ---- Monster pursuit / aggro (server-authoritative). ----
+// Being hit marks a mob's attacker as its target.  It then chases that
+// target while the target stays alive on the same map within the leash
+// radius of the spawn point; once it loses interest (target leaves the map,
+// dies, walks beyond the leash, or the hold window elapses without a new
+// hit) it forgets and walks back to its spawn point.
+/// Euclidean radius (world px) around a mob's spawn that it will leave to
+/// pursue a target.  Beyond it the mob gives up and returns home.
+const MOB_AGGRO_LEASH: f64 = 900.0;
+/// How long a mob keeps pursuing after the last hit it took, before giving
+/// up, measured in world ticks.
+const MOB_AGGRO_HOLD_TICKS: u64 = 4_000_u64.div_ceil(TICK_MS);
+/// Horizontal distance (world px) from the spawn point at which a returning
+/// mob considers itself home and resumes its idle wander.
+const MOB_HOME_RADIUS: f64 = 2.0;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1364,6 +1385,17 @@ fn random_monster_facing() -> i8 {
     }
 }
 
+/// Record a player's hit on a mob as an aggro request: remember the attacker,
+/// refresh the pursue-withhold window, and cancel a return-home that is still
+/// in progress.  Called only for real player attacks (not body contact, which
+/// already has the mob on the player).  Taking `&mut Monster` keeps callers
+/// free to use `self.monsters.get_mut` first without a self re-borrow.
+fn mark_monster_hit_aggro(monster: &mut Monster, attacker_id: &str, tick: u64) {
+    monster.aggro_target = Some(attacker_id.to_owned());
+    monster.aggro_until = tick.saturating_add(MOB_AGGRO_HOLD_TICKS);
+    monster.returning_home = false;
+}
+
 fn default_monster_facing() -> i8 {
     1
 }
@@ -2426,6 +2458,12 @@ struct Player {
     /// id with a different body is a conflict.  Oldest entries fall out once
     /// the window is full (ephemeral chat tolerates the small gap).
     chat_recent: VecDeque<(String, String)>,
+    /// Bounded recent WhisperSend request ids: (request id, resolved target id,
+    /// text).  A retry with the same id re-sends the *sender's* echo only — the
+    /// recipient is never whispered twice — and the same id with a different
+    /// body is a conflict.  Kept separate from `chat_recent` so a burst of map
+    /// chat cannot evict a whisper's idempotency record (and vice versa).
+    whisper_recent: VecDeque<(String, String, String)>,
     /// Characters this account has on its blacklist, cached at join and after
     /// every block/unblock so the chat fan-out never has to reach for SQLite.
     /// Enforced on the server: a blocked sender's map chat is dropped here,
@@ -2498,6 +2536,19 @@ struct Monster {
     horizontal_speed: f64,
     mp: i64,
     damage_by_player: BTreeMap<String, i64>,
+    /// Active pursuit target set by being hit.  `None` means the mob idles.
+    /// While set, `step_monsters` chases the target on the same map instead of
+    /// walking at random.
+    aggro_target: Option<String>,
+    /// World tick at which the current pursuit expires if the target does not
+    /// deal another hit before then.  Combined with the same-map/death/leash
+    /// checks, this is the whole "脱离" (give up) rule: a uniform wall-clock
+    /// window independent of how many times the target hit the mob.
+    aggro_until: u64,
+    /// True while the mob walks back to its spawn point after losing interest.
+    /// Set once when aggro breaks, cleared when it is home or lands a fresh
+    /// hit again.
+    returning_home: bool,
     elemental_weaken_until: u64,
     freeze_until: u64,
     stun_until: u64,
@@ -2742,6 +2793,10 @@ pub struct World {
     /// ephemeral message gets a unique id; the sequence never resets inside a
     /// process so message ids stay distinct across reconnects.
     chat_sequence: u64,
+    /// Monotonic whisper sequence.  Separate from `chat_sequence` so a message
+    /// id never has to carry a room kind in its prefix and the two streams stay
+    /// independently readable in logs.
+    whisper_sequence: u64,
 }
 
 impl World {
@@ -2817,6 +2872,7 @@ impl World {
             mage_skills: MageSkills::default(),
             next_monster: 0,
             chat_sequence: 0,
+            whisper_sequence: 0,
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
@@ -3096,6 +3152,11 @@ impl World {
                 horizontal_speed: 0.0,
                 mp: monster_mp,
                 damage_by_player: BTreeMap::new(),
+                // A freshly spawned mob has no memory of any prior attacker;
+                // aggro only ever appears by taking a hit in this room.
+                aggro_target: None,
+                aggro_until: 0,
+                returning_home: false,
                 elemental_weaken_until: 0,
                 freeze_until: 0,
                 stun_until: 0,
@@ -4010,6 +4071,7 @@ impl World {
                         chat_tokens: CHAT_TOKEN_BURST,
                         chat_bucket_tick: self.tick,
                         chat_recent: VecDeque::new(),
+                        whisper_recent: VecDeque::new(),
                         blocked,
                         potion_cooldowns: BTreeMap::new(),
                         area_reactor_overlaps: BTreeSet::new(),
@@ -4363,6 +4425,11 @@ impl World {
                     ClientMessage::ChatSend { request_id, text } => {
                         self.handle_chat(id, request_id, text)
                     }
+                    ClientMessage::WhisperSend {
+                        request_id,
+                        target_name,
+                        text,
+                    } => self.handle_whisper(id, request_id, target_name, text),
                     ClientMessage::PartyInvite {
                         request_id,
                         player_name,
@@ -4549,6 +4616,221 @@ impl World {
                 &peer_payload
             };
             let _ = output.try_send(payload.clone());
+        }
+    }
+
+    /// Whisper (密語): one character talks to one other character.
+    ///
+    /// This is the missing half of the chat module — map chat is a *room* fact
+    /// derived from the sender's map, while a whisper is a *pair* fact resolved
+    /// from a typed name.  Everything the client is not allowed to decide is
+    /// decided here:
+    ///
+    ///   * who the typed name belongs to (`resolve_friend_name`, the same
+    ///     authoritative lookup the friend and party modules use);
+    ///   * whether the pair may talk at all (self, offline, either blacklist);
+    ///   * the message body, id and timestamp — the server is the only author;
+    ///   * the rate budget, shared with map chat because a whisper is still
+    ///     one outgoing line of chat.
+    ///
+    /// A whisper is session-routed only: it is delivered to a character that is
+    /// currently in the world and never stored.  There is deliberately no
+    /// offline inbox — pretending to queue a message we cannot later deliver
+    /// would be inventing a feature the source does not back.
+    fn handle_whisper(
+        &mut self,
+        id: String,
+        request_id: String,
+        target_name: String,
+        text: String,
+    ) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        // 1. Body policy, before any bookkeeping.  Same rule as map chat so a
+        //    whisper cannot smuggle a layout/control payload past the reader.
+        if !crate::protocol::valid_chat_text(&text) {
+            self.whisper_reject(
+                &id,
+                &request_id,
+                "invalid_chat_text",
+                "消息为空、过长或包含不允许的字符。",
+            );
+            return;
+        }
+        let text = text.trim().to_owned();
+        let typed_name = target_name.trim().to_owned();
+        // 2. Resolve the typed name into an identity.  A whisper is addressed
+        //    to a character, never to an id, so this is the same authoritative
+        //    lookup the friend and party modules use.
+        let target_id = match self.resolve_friend_name(&typed_name) {
+            Some(target_id) => target_id,
+            None => {
+                self.whisper_reject(
+                    &id,
+                    &request_id,
+                    "whisper_unknown_player",
+                    "找不到这个名字的角色。",
+                );
+                return;
+            }
+        };
+        if target_id == id {
+            self.whisper_reject(&id, &request_id, "whisper_self", "不能给自己发密语。");
+            return;
+        }
+        // 3. Idempotency, keyed by (request id, resolved target, text).  A
+        //    retry re-sends the sender's own echo from the recorded fact and
+        //    stays silent to the recipient — the recipient already has the
+        //    message and must never receive it twice.  The same id with a
+        //    different body is a conflict.
+        let mut replay = None;
+        let mut conflict = false;
+        if let Some(player) = self.players.get_mut(&id) {
+            for (seen_id, seen_target, seen_text) in player.whisper_recent.iter() {
+                if seen_id == &request_id {
+                    if *seen_target == target_id && seen_text == &text {
+                        replay = Some(seen_text.clone());
+                    } else {
+                        conflict = true;
+                    }
+                    break;
+                }
+            }
+        } else {
+            return;
+        }
+        if conflict {
+            self.whisper_reject(
+                &id,
+                &request_id,
+                "idempotency_conflict",
+                "重复请求使用了不同的内容。",
+            );
+            return;
+        }
+        if let Some(recorded_text) = replay {
+            self.whisper_echo(&id, &request_id, &target_id, &recorded_text, true);
+            return;
+        }
+        // 4. Presence.  A whisper is routed to a live session; there is no
+        //    offline inbox, so "not in the world right now" is a reported
+        //    outcome rather than a queued message.
+        let Some(target) = self.players.get(&target_id) else {
+            self.whisper_reject(&id, &request_id, "whisper_offline", "对方当前不在线。");
+            return;
+        };
+        // 5. Blacklist, both directions.  A blocked sender must not be able to
+        //    reach the blocker by switching to a different chat surface, and a
+        //    player who blocked somebody should not be able to talk to them
+        //    either — the block is a statement about the pair, not about the
+        //    channel.
+        let target_blocked_sender = target.blocked.contains(&id);
+        let sender_blocked_target = self
+            .players
+            .get(&id)
+            .is_some_and(|sender| sender.blocked.contains(&target_id));
+        if target_blocked_sender {
+            self.whisper_reject(&id, &request_id, "whisper_blocked", "对方已把你加入黑名单。");
+            return;
+        }
+        if sender_blocked_target {
+            self.whisper_reject(&id, &request_id, "whisper_ignored", "你已把对方加入黑名单。");
+            return;
+        }
+        // 6. Rate limit — the shared chat bucket, so whispering is not a way
+        //    around the map-chat limit.
+        if !self.chat_consume_token(&id) {
+            self.whisper_reject(&id, &request_id, "chat_rate_limited", "发言太快，请稍后再试。");
+            return;
+        }
+        // 7. Immutable message fact; the server is the only author.
+        if let Some(player) = self.players.get_mut(&id) {
+            if player.whisper_recent.len() >= WHISPER_RECENT_WINDOW {
+                player.whisper_recent.pop_front();
+            }
+            player
+                .whisper_recent
+                .push_back((request_id.clone(), target_id.clone(), text.clone()));
+        }
+        self.whisper_sequence += 1;
+        let message_id = format!("whisper-{id}-{}", self.whisper_sequence);
+        let (author_id, author_name, target_name) = {
+            let Some(sender) = self.players.get(&id) else {
+                return;
+            };
+            let Some(target) = self.players.get(&target_id) else {
+                return;
+            };
+            (
+                sender.state.id.clone(),
+                sender.state.username.clone(),
+                target.state.username.clone(),
+            )
+        };
+        let common = serde_json::json!({
+            "type": "whisperMessage",
+            "messageId": message_id,
+            "fromId": author_id,
+            "fromName": author_name,
+            "toId": target_id,
+            "toName": target_name,
+            "text": text,
+            "occurredAtTick": self.tick,
+        });
+        // The sender's echo carries the request id so a pending line can be
+        // merged instead of duplicated; the recipient's copy never needs it.
+        let mut sender_payload = common.clone();
+        sender_payload["requestId"] = serde_json::Value::String(request_id);
+        let sender_payload = sender_payload.to_string();
+        let peer_payload = common.to_string();
+        // 8. Two-party fan-out.  A full outbox drops the message instead of
+        //    blocking the tick, exactly as map chat does.
+        if let Some(target) = self.players.get(&target_id) {
+            let _ = target.output.try_send(peer_payload);
+        }
+        if let Some(sender) = self.players.get(&id) {
+            let _ = sender.output.try_send(sender_payload);
+        }
+    }
+
+    /// Re-send one recorded whisper to its sender only, used when a network
+    /// retry replays a request id.  `recorded` is the text stored with the id,
+    /// so a replay can never change what was said.
+    fn whisper_echo(
+        &self,
+        id: &str,
+        request_id: &str,
+        target_id: &str,
+        text: &str,
+        replay: bool,
+    ) {
+        let (Some(sender), Some(target)) = (self.players.get(id), self.players.get(target_id))
+        else {
+            return;
+        };
+        let mut payload = serde_json::json!({
+            "type": "whisperMessage",
+            "messageId": format!("whisper-{id}-replay-{request_id}"),
+            "fromId": sender.state.id,
+            "fromName": sender.state.username,
+            "toId": target.state.id,
+            "toName": target.state.username,
+            "text": text,
+            "occurredAtTick": self.tick,
+            "replay": replay,
+        });
+        payload["requestId"] = serde_json::Value::String(request_id.to_owned());
+        let _ = sender.output.try_send(payload.to_string());
+    }
+
+    fn whisper_reject(&self, id: &str, request_id: &str, code: &str, message: &str) -> bool {
+        match self.players.get(id) {
+            Some(player) => player
+                .output
+                .try_send(reject(code, message, Some(request_id)))
+                .is_ok(),
+            None => false,
         }
     }
 
@@ -7436,6 +7718,10 @@ impl World {
             if resolution.damage > 0 {
                 let contribution = monster.damage_by_player.entry(id.to_owned()).or_default();
                 *contribution = contribution.saturating_add(resolution.damage);
+                // A successful hit is what turns the mob hostile toward this
+                // attacker (pursuit resolution happens each step in
+                // `step_monsters`).
+                mark_monster_hit_aggro(monster, &id, self.tick);
             }
             monster.state.hp = (monster.state.hp - resolution.damage).max(0);
             monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
@@ -9430,6 +9716,9 @@ impl World {
                         let contribution =
                             monster.damage_by_player.entry(id.to_owned()).or_default();
                         *contribution = contribution.saturating_add(resolution.damage);
+                        // Prey turns hostile to this attacker; see
+                        // `step_monsters` for the per-step pursuit resolution.
+                        mark_monster_hit_aggro(monster, &id, self.tick);
                     }
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
@@ -15399,6 +15688,9 @@ impl World {
                             .entry(attack.player_id.clone())
                             .or_default();
                         *contribution = contribution.saturating_add(resolution.damage);
+                        // A direct normal attack marks its author as hostile;
+                        // see `step_monsters` for the pursuit resolution.
+                        mark_monster_hit_aggro(monster, &attack.player_id, self.tick);
                     }
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
@@ -15635,6 +15927,53 @@ impl World {
                 }
             }
             let can_move = monster.template.can_move();
+            // ---- Aggro / pursuit resolution (server-authoritative) ----
+            // Each step a mob re-checks its target once.  A target stays
+            // pursueable only while it is still alive on the same map AND
+            // within the leash radius of the spawn point AND its last hit is
+            // still inside the hold window; break any part and the mob forgets
+            // (記恨 lost) and walks back home.  `pursuit` resolves to the
+            // facing needed to close on the target or return to spawn, or
+            // `None` to fall back to the idle stand/move wander below.
+            let pursuit: Option<i8> = if !can_move {
+                None
+            } else {
+                let mobile_target = monster
+                    .aggro_target
+                    .as_deref()
+                    .filter(|_| self.tick <= monster.aggro_until)
+                    .and_then(|target| self.players.get(target))
+                    .filter(|player| {
+                        player.map_id == monster.map_id
+                            && player.state.action != "dead"
+                            && player.state.hp > 0
+                            && {
+                                let dx = player.state.x - monster.spawn.x;
+                                let dy = player.state.y - monster.spawn.y;
+                                dx.hypot(dy) <= MOB_AGGRO_LEASH
+                            }
+                    });
+                if mobile_target.is_none() && monster.aggro_target.take().is_some() {
+                    // Interest broke (離脫): the walk home flips on now and a
+                    // later hit can flip it back off via mark_monster_hit_aggro.
+                    monster.returning_home = true;
+                }
+                if let Some(target) = mobile_target {
+                    monster.returning_home = false;
+                    Some(if monster.state.x < target.state.x { 1 } else { -1 })
+                } else if monster.returning_home {
+                    let dx = monster.spawn.x - monster.state.x;
+                    if dx.abs() <= MOB_HOME_RADIUS {
+                        // Back on the spawn point: resume idle behaviour.
+                        monster.returning_home = false;
+                        None
+                    } else {
+                        Some(if dx < 0.0 { -1 } else { 1 })
+                    }
+                } else {
+                    None
+                }
+            };
             if monster.state.action == "hit" {
                 let recovery_ticks = MOB_HIT_RECOVERY_MS.div_ceil(TICK_MS);
                 if self.tick.saturating_sub(monster.state.action_started_tick) < recovery_ticks {
@@ -15655,17 +15994,25 @@ impl World {
                 if !can_move {
                     continue;
                 }
-                let elapsed_ms = self
-                    .tick
-                    .saturating_sub(monster.state.action_started_tick)
-                    .saturating_mul(TICK_MS);
-                if elapsed_ms < monster.template.ai_decision_ms("stand") {
-                    continue;
+                if let Some(direction) = pursuit {
+                    // A live target / a pending return-home should not linger
+                    // in idle stand: close on it immediately.
+                    monster.state.action = "move";
+                    monster.state.facing = direction;
+                    monster.state.action_started_tick = self.tick;
+                } else {
+                    let elapsed_ms = self
+                        .tick
+                        .saturating_sub(monster.state.action_started_tick)
+                        .saturating_mul(TICK_MS);
+                    if elapsed_ms < monster.template.ai_decision_ms("stand") {
+                        continue;
+                    }
+                    // Mob::next_move(): STAND -> MOVE and randomize direction.
+                    monster.state.action = "move";
+                    monster.state.facing = random_monster_facing();
+                    monster.state.action_started_tick = self.tick;
                 }
-                // Mob::next_move(): STAND -> MOVE and randomize direction.
-                monster.state.action = "move";
-                monster.state.facing = random_monster_facing();
-                monster.state.action_started_tick = self.tick;
             }
 
             if monster.state.action == "move" {
@@ -15675,31 +16022,39 @@ impl World {
                     monster.horizontal_speed = 0.0;
                     continue;
                 }
-                let elapsed_ms = self
-                    .tick
-                    .saturating_sub(monster.state.action_started_tick)
-                    .saturating_mul(TICK_MS);
-                if elapsed_ms >= monster.template.ai_decision_ms("move") {
-                    // Mob::next_move(): MOVE -> random 0(STAND), 1(MOVE
-                    // left), or 2(MOVE right).  Snail has no JUMP action in
-                    // its WZ metadata, so the 25% canjump branch is absent.
-                    match rand::thread_rng().gen_range(0..3) {
-                        0 => {
-                            monster.state.action = "stand";
-                            monster.horizontal_speed = 0.0;
-                        }
-                        1 => {
-                            monster.state.action = "move";
-                            monster.state.facing = -1;
-                        }
-                        _ => {
-                            monster.state.action = "move";
-                            monster.state.facing = 1;
-                        }
-                    }
+                if let Some(direction) = pursuit {
+                    // Pursuing a target or returning home: keep pressing the
+                    // same direction every step, ignoring the wander timer.
+                    monster.state.action = "move";
+                    monster.state.facing = direction;
                     monster.state.action_started_tick = self.tick;
-                    if monster.state.action == "stand" {
-                        continue;
+                } else {
+                    let elapsed_ms = self
+                        .tick
+                        .saturating_sub(monster.state.action_started_tick)
+                        .saturating_mul(TICK_MS);
+                    if elapsed_ms >= monster.template.ai_decision_ms("move") {
+                        // Mob::next_move(): MOVE -> random 0(STAND), 1(MOVE
+                        // left), or 2(MOVE right).  Snail has no JUMP action in
+                        // its WZ metadata, so the 25% canjump branch is absent.
+                        match rand::thread_rng().gen_range(0..3) {
+                            0 => {
+                                monster.state.action = "stand";
+                                monster.horizontal_speed = 0.0;
+                            }
+                            1 => {
+                                monster.state.action = "move";
+                                monster.state.facing = -1;
+                            }
+                            _ => {
+                                monster.state.action = "move";
+                                monster.state.facing = 1;
+                            }
+                        }
+                        monster.state.action_started_tick = self.tick;
+                        if monster.state.action == "stand" {
+                            continue;
+                        }
                     }
                 }
             }
@@ -15714,11 +16069,11 @@ impl World {
             if step <= 0.0 {
                 continue;
             }
-            // Mapleweb receives a server-selected movement stance/direction;
-            // this world has no sourced aggro routine, so never invent target
-            // chasing. An explicit legacy speed simply continues the
-            // authoritative facing until the linked foothold wall turns it
-            // around.
+            // Mapleweb receives a server-selected movement stance/direction.
+            // During pursuit (`pursuit.is_some()`) the facing was fixed by the
+            // aggro block above to walk toward the target or home; otherwise
+            // the walk continues in the current authoritative facing until a
+            // linked foothold wall turns it around.
             let direction = if monster.state.facing < 0 { -1 } else { 1 };
             let current_x = monster.state.x;
             let next_x = current_x + direction as f64 * step;
@@ -20200,6 +20555,224 @@ mod tests {
         assert_eq!(monster.horizontal_speed, 0.0);
     }
 
+    /// A deterministic boss/world-independent grid mob: step-based movement
+    /// (`move_speed` 100 -> 5 px / world tick) so pursuit distance is linear
+    /// and easy to assert.  Home/spawn point is `spawn_x` on the `map()` test
+    /// floor.
+    fn aggro_mob_gameplay(spawn_x: f64) -> Gameplay {
+        Gameplay {
+            monsters: vec![MonsterTemplate {
+                template_id: "100100".into(),
+                level: 1,
+                max_hp: 100,
+                max_mp: 0,
+                boss: false,
+                pa_damage: Some(3),
+                pd_damage: None,
+                pd_rate: None,
+                md_rate: None,
+                exp: 1,
+                body_attack: false,
+                move_speed: Some(100.0),
+                source_speed: None,
+                hitbox_width: None,
+                hitbox_height: None,
+                hitbox_lt: None,
+                hitbox_rb: None,
+                die_duration_ms: Some(50),
+                stand_delay_ms: None,
+                move_duration_ms: None,
+                drop: None,
+            }],
+            spawns: vec![MonsterSpawn {
+                id: "sa".into(),
+                template_id: "100100".into(),
+                x: spawn_x,
+                y: 100.0,
+                foothold_id: Some(1),
+                map_id: String::new(),
+                facing: 1,
+                mob_time: 0,
+                rx0: None,
+                rx1: None,
+            }],
+            monster_respawn_ms: Some(500),
+            ..Gameplay::default()
+        }
+    }
+
+    #[test]
+    fn monster_pursues_the_character_that_hit_it() {
+        let mut w = World::new_with_gameplay(map(), 600, aggro_mob_gameplay(100.0));
+        let _rx = join_test_player(&mut w, "a");
+        let monster_id = w.monsters.keys().next().cloned().unwrap();
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.map_id = "test".into();
+            player.state.x = 300.0;
+            player.state.y = 100.0;
+            player.state.action = "stand";
+        }
+        {
+            let mob = w.monsters.get_mut(&monster_id).unwrap();
+            mob.state.x = 100.0;
+            mob.state.y = 100.0;
+            mob.state.action = "stand";
+            mob.state.action_started_tick = 0;
+            // Take a hit from "a": both remember the attacker and refresh the
+            // hold window so the chase does not drop out mid-assertion.
+            mark_monster_hit_aggro(mob, "a", w.tick);
+            assert_eq!(mob.aggro_target.as_deref(), Some("a"));
+            assert!(!mob.returning_home);
+        }
+        let start_x = w.monsters[&monster_id].state.x;
+        // 10 ticks x 5 px keeps the mob closing on the (rightward) target while
+        // staying left of the x=200 foothold seam, so facing is stable at 1.
+        for _ in 0..10 {
+            w.tick += 1;
+            w.step_monsters();
+        }
+        let mob = &w.monsters[&monster_id];
+        // The mob leaves idle stand, faces the target and closes ground each
+        // step instead of drifting at random.
+        assert_eq!(mob.state.action, "move");
+        assert_eq!(mob.state.facing, 1);
+        assert!(
+            mob.state.x > start_x + 30.0,
+            "mob should close on the target, moved to {}",
+            mob.state.x
+        );
+    }
+
+    #[test]
+    fn monster_drops_aggro_and_walks_home() {
+        let mut w = World::new_with_gameplay(map(), 600, aggro_mob_gameplay(100.0));
+        let _rx = join_test_player(&mut w, "a");
+        let monster_id = w.monsters.keys().next().cloned().unwrap();
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.map_id = "test".into();
+            player.state.x = 300.0;
+            player.state.y = 100.0;
+        }
+        {
+            let mob = w.monsters.get_mut(&monster_id).unwrap();
+            // The mob pursued deep right (x=300); home is the spawn at x=100.
+            mob.state.x = 300.0;
+            mob.state.y = 100.0;
+            mob.foothold_id = 2; // x=300 sits on foothold 2 (200-500), not 1
+            mob.state.action = "move";
+            mob.state.action_started_tick = 0;
+            mob.aggro_target = Some("a".into());
+            // The last hit happened long ago: the hold window already closed,
+            // which is the "interest expires" (脱离) case.
+            mob.aggro_until = 0;
+            mob.returning_home = false;
+        }
+        w.tick = 5;
+        w.step_monsters();
+        {
+            let mob = &w.monsters[&monster_id];
+            assert!(mob.aggro_target.is_none(), "expired aggro must be forgotten");
+            assert!(mob.returning_home, "mob must start walking home");
+            assert_eq!(mob.state.facing, -1, "walking back toward the spawn");
+        }
+        let start_x = w.monsters[&monster_id].state.x;
+        for _ in 0..30 {
+            w.tick += 1;
+            w.step_monsters();
+        }
+        let mob = &w.monsters[&monster_id];
+        assert!(
+            mob.state.x < start_x - 40.0,
+            "mob should walk back toward home ({} -> {})",
+            start_x,
+            mob.state.x
+        );
+        assert!(
+            mob.returning_home || (mob.state.x - 100.0).abs() <= MOB_HOME_RADIUS + 5.0,
+            "still returning or already home"
+        );
+    }
+
+    #[test]
+    fn monster_forgets_a_dead_or_departed_target() {
+        let mut w = World::new_with_gameplay(map(), 600, aggro_mob_gameplay(100.0));
+        let _rx = join_test_player(&mut w, "a");
+        let monster_id = w.monsters.keys().next().cloned().unwrap();
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.map_id = "test".into();
+            player.state.x = 300.0;
+            player.state.y = 100.0;
+        }
+        // A valid aggro window, but the target's body is dead: the mob must
+        // treat it as gone immediately (no waiting out the hold window).
+        {
+            let mob = w.monsters.get_mut(&monster_id).unwrap();
+            // Park the mob away from its spawn so the walk-home assert is real.
+            mob.state.x = 200.0;
+            mob.state.y = 100.0;
+            mob.state.action = "move";
+            mark_monster_hit_aggro(mob, "a", w.tick);
+        }
+        w.players.get_mut("a").unwrap().state.action = "dead";
+        w.tick = 10;
+        w.step_monsters();
+        {
+            let mob = &w.monsters[&monster_id];
+            assert!(mob.aggro_target.is_none());
+            assert!(mob.returning_home);
+        }
+        // Same window, but the target left the map: also forgotten.
+        let monster_id2 = w.monsters.keys().next().cloned().unwrap();
+        {
+            let mob = w.monsters.get_mut(&monster_id2).unwrap();
+            mob.state.x = 200.0;
+            mob.state.action = "move";
+            mark_monster_hit_aggro(mob, "a", w.tick);
+            assert!(mob.aggro_target.is_some());
+        }
+        w.players.get_mut("a").unwrap().map_id = "another-map".into();
+        w.players.get_mut("a").unwrap().state.action = "stand";
+        w.tick = 11;
+        w.step_monsters();
+        let mob = &w.monsters[&monster_id2];
+        assert!(mob.aggro_target.is_none(), "off-map target is not pursued");
+        assert!(mob.returning_home);
+    }
+
+    #[test]
+    fn monster_gives_up_when_target_flees_beyond_the_leash() {
+        let mut w = World::new_with_gameplay(map(), 600, aggro_mob_gameplay(100.0));
+        let _rx = join_test_player(&mut w, "a");
+        let monster_id = w.monsters.keys().next().cloned().unwrap();
+        {
+            let player = w.players.get_mut("a").unwrap();
+            player.map_id = "test".into();
+            player.state.x = 300.0;
+            player.state.y = 100.0;
+        }
+        {
+            let mob = w.monsters.get_mut(&monster_id).unwrap();
+            mob.state.x = 200.0;
+            mob.state.y = 100.0;
+            mob.state.action = "move";
+            mob.state.action_started_tick = 0;
+            mark_monster_hit_aggro(mob, "a", w.tick);
+        }
+        // The player runs off past the leash radius (spawn 100 + leash 900).
+        w.players.get_mut("a").unwrap().state.x = 1100.0;
+        w.tick = 3;
+        w.step_monsters();
+        {
+            let mob = &w.monsters[&monster_id];
+            assert!(mob.aggro_target.is_none(), "out-of-leash target is dropped");
+            assert!(mob.returning_home);
+            assert_eq!(mob.state.facing, -1);
+        }
+    }
+
     #[test]
     fn player_damage_range_uses_source_stat_and_weapon_formula() {
         let config: PlayerConfig = serde_json::from_str(
@@ -20671,6 +21244,7 @@ mod tests {
     include!("storage_acceptance.rs");
     include!("party_acceptance.rs");
     include!("friend_acceptance.rs");
+    include!("whisper_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

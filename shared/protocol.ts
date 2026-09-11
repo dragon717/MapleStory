@@ -201,6 +201,11 @@ export type ClientMessage =
   /** Take one character off the blacklist. */
   | { type: 'friendUnblock'; requestId: string; playerId: string }
   | { type: 'chatSend'; requestId: string; text: string }
+  /** Whisper one character (密語). The client types the *other* character's
+   *  display name and the body; the server resolves the name, decides whether
+   *  the pair may talk (self / offline / either blacklist), and is the only
+   *  author of the delivered message. No id, map or channel is accepted. */
+  | { type: 'whisperSend'; requestId: string; targetName: string; text: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
   | { type: 'lifecycle'; hidden: boolean; away?: boolean; clientNowMs?: number }
@@ -246,6 +251,12 @@ export type ServerMessage =
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }
   | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number }
+  /** One whisper, delivered to exactly two characters. The server is the only
+   *  author of every field: a client cannot choose the sender, the recipient,
+   *  the body or the timestamp. `requestId` is present only on the sender's own
+   *  echo (and on a replay of it), so a pending line can be merged instead of
+   *  duplicated; `replay` marks such a re-delivered echo. */
+  | { type: 'whisperMessage'; messageId: string; requestId?: string; fromId: string; fromName: string; toId: string; toName: string; text: string; occurredAtTick: number; replay?: boolean }
   /** Result of one storage intent. `quantity` is the amount that actually
    *  moved, so 0 always means nothing changed. */
   | { type: 'storageResult'; requestId: string; success: boolean; code: string; npcId: string; inventoryType: number; slot: number; quantity: number }

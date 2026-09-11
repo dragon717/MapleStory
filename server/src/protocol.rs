@@ -382,6 +382,20 @@ pub enum ClientMessage {
         request_id: String,
         text: String,
     },
+    /// Whisper (密語) intent.  Like every other social intent the client only
+    /// names the *other* character — never an id, a map, or a channel.  The
+    /// server resolves the name, decides whether the pair may talk at all
+    /// (blacklist, offline, self) and is the only author of the delivered
+    /// message, so no client can whisper as somebody else or reach a player
+    /// that blacklisted it.
+    WhisperSend {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        /// Display name typed by the player; resolved server-side.
+        #[serde(rename = "targetName")]
+        target_name: String,
+        text: String,
+    },
     /// Explicit logout: the player asked to leave, so the authoritative
     /// character must be removed instead of being kept resident.  A socket
     /// that just closes cannot be read as a logout, because a tab switch or a
@@ -630,6 +644,17 @@ impl ClientMessage {
                 player_id,
             } => valid_id(request_id) && valid_id(player_id),
             Self::ChatSend { request_id, text } => valid_id(request_id) && valid_chat_text(text),
+            // A whisper carries the same body policy as map chat and the same
+            // display-name policy as a party invitation: the target is a typed
+            // character name, never an id, so the server stays the only place
+            // where a name becomes an identity.
+            Self::WhisperSend {
+                request_id,
+                target_name,
+                text,
+            } => {
+                valid_id(request_id) && valid_player_name(target_name) && valid_chat_text(text)
+            }
             // A lifecycle report is only ever a hint; there is nothing to
             // validate beyond the shape, and nothing it can unlock.
             Self::Lifecycle { .. } => true,

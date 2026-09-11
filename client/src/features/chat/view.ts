@@ -10,9 +10,24 @@ export interface ChatMessageEnvelope {
   authorName: string;
   text: string;
 }
+/** One delivered whisper.  The direction is derived locally from `selfId`,
+ *  never from a client-supplied flag, so a forged envelope cannot present an
+ *  incoming message as one the player sent. */
+export interface WhisperEnvelope {
+  requestId?: string;
+  replay?: boolean;
+  fromId: string;
+  fromName: string;
+  toId: string;
+  toName: string;
+  text: string;
+}
 export interface ChatViewHooks {
   /** Send one map-chat intent; resolves false when the socket is not open. */
   send?: (requestId: string, text: string) => boolean;
+  /** Send one whisper intent.  Only the *other* character's display name and
+   *  the body travel up; identity, presence and blacklist are server-side. */
+  sendWhisper?: (requestId: string, targetName: string, text: string) => boolean;
   /** Modal UI check (skills/inventory/menu/quest/dialogue open). */
   isBlocked?: () => boolean;
   /** Return focus to the game viewport after leaving the input box. */
@@ -24,6 +39,14 @@ interface PendingEntry {
   line: HTMLDivElement;
   text: string;
 }
+
+/**
+ * Where typed text goes.  `map` is the public map channel; the two whisper
+ * steps exist because the 273 input bar has room for one line only, so the
+ * target is collected first and the body second instead of inventing a second
+ * window the source does not have.
+ */
+type ChatInputMode = 'map' | 'whisper-target' | 'whisper-body';
 
 /**
  * The 273 StatusBar3 chat surface is source-backed; the input stays native
@@ -48,7 +71,16 @@ export class ChatView {
   private openState = true;
   private composing = false;
   private sendSequence = 0;
+  /** Input routing: map channel, or one of the two whisper steps. */
+  private mode: ChatInputMode = 'map';
+  /** Name typed for the pending whisper; empty unless a body is being written. */
+  private whisperTarget = '';
   private readonly pending = new Map<string, PendingEntry>();
+  /** Request ids of whisper echoes already rendered.  The server re-sends a
+   *  sender echo when a retry replays its request id, so without this a single
+   *  whisper could appear twice.  Bounded like `pending`. */
+  private readonly whisperEchoes = new Set<string>();
+  private readonly whisperEchoOrder: string[] = [];
 
   constructor(
     private host: HTMLElement,
@@ -74,6 +106,7 @@ export class ChatView {
     this.root.dataset.available = String(available);
     this.updateInputState();
     if (this.statusLine) this.statusLine.textContent = available ? '地图聊天：Enter 发言' : '连接断开，聊天暂不可用';
+    if (!available) this.updateMode();
   }
 
   clear() {
@@ -81,6 +114,13 @@ export class ChatView {
     if (this.input) this.input.value = '';
     for (const entry of this.pending.values()) entry.line.remove();
     this.pending.clear();
+    this.whisperEchoes.clear();
+    this.whisperEchoOrder.length = 0;
+    // Leaving the world drops the half-typed whisper too; a stale target must
+    // not be pre-filled into the next session's map chat.
+    this.mode = 'map';
+    this.whisperTarget = '';
+    this.updateMode();
   }
 
   appendSystem(message: string, eventId?: string) {
@@ -111,6 +151,64 @@ export class ChatView {
     line.className = this.chat273 ? 'chat273-player-line' : 'chat-player-line';
     this.renderPlayerLine(line, message.authorName, message.text, own);
     appendChatLogLine(this.systemLog, line);
+  }
+
+  /** Merge one server whisperMessage: an own echo (or a replayed echo) upgrades
+   *  its pending line by request id; everything else is an incoming whisper. */
+  appendWhisperMessage(message: WhisperEnvelope) {
+    if (!this.systemLog) return;
+    const own = this.hooks.selfId?.() === message.fromId;
+    if (message.requestId) {
+      // A replayed echo re-delivers the same request id; rendering it twice
+      // would show one whisper as two.
+      if (this.whisperEchoes.has(message.requestId)) return;
+      const entry = this.pending.get(message.requestId);
+      if (entry) {
+        this.pending.delete(message.requestId);
+        this.rememberWhisperEcho(message.requestId);
+        this.renderWhisperLine(entry.line, message, own);
+        return;
+      }
+      this.rememberWhisperEcho(message.requestId);
+    }
+    const line = document.createElement('div');
+    line.className = this.chat273 ? 'chat273-player-line chat273-whisper-line' : 'chat-player-line';
+    this.renderWhisperLine(line, message, own);
+    appendChatLogLine(this.systemLog, line);
+  }
+
+  private rememberWhisperEcho(requestId: string) {
+    this.whisperEchoes.add(requestId);
+    this.whisperEchoOrder.push(requestId);
+    while (this.whisperEchoOrder.length > 32) {
+      const oldest = this.whisperEchoOrder.shift();
+      if (oldest !== undefined) this.whisperEchoes.delete(oldest);
+    }
+  }
+
+  /** Start a whisper from UI (the 273 input bar's whisper button) or from a
+   *  `/w <name> …` command: collect the target, then the body. */
+  beginWhisper(target = '') {
+    const name = target.trim();
+    this.setOpen(true);
+    if (name) {
+      this.whisperTarget = name;
+      this.mode = 'whisper-body';
+    } else {
+      this.whisperTarget = '';
+      this.mode = 'whisper-target';
+    }
+    if (this.input) this.input.value = '';
+    this.updateMode();
+    this.input?.focus({ preventScroll: true });
+  }
+
+  /** Leave whisper input and return to the map channel. */
+  cancelWhisper() {
+    this.mode = 'map';
+    this.whisperTarget = '';
+    if (this.input) this.input.value = '';
+    this.updateMode();
   }
 
   /** A rejected chat send: restore the draft and surface the server reason. */
@@ -165,6 +263,11 @@ export class ChatView {
     }
     if (event.code === 'Escape' && document.activeElement === this.input) {
       event.preventDefault();
+      // Esc leaves whisper input first; only the second Esc closes the box.
+      if (this.mode !== 'map') {
+        this.cancelWhisper();
+        return;
+      }
       this.input?.blur();
       this.hooks.focusGame?.();
     }
@@ -182,11 +285,32 @@ export class ChatView {
     line.append(name, body);
   }
 
-  private addPending(requestId: string, text: string) {
+  private renderWhisperLine(line: HTMLDivElement, message: WhisperEnvelope, own: boolean) {
+    line.classList.toggle('self', own);
+    line.removeAttribute('data-pending');
+    line.replaceChildren();
+    const tag = document.createElement('span');
+    tag.className = 'chat273-whisper-tag';
+    // The source's own word for it: the whisper button in the 273 input bar
+    // carries `ToolTip = 悄悄話` (UI/StatusBar3.img/chat/ingame/input/button:chat).
+    tag.textContent = '悄悄話';
+    // Outgoing: "致 名字"; incoming: "名字".  The label follows the source's
+    // own distinction between a whisper you sent and one you received.
+    const name = document.createElement('span');
+    name.className = own ? 'chat273-name chat273-name-self' : 'chat273-name chat273-name-other';
+    name.textContent = own ? `致 ${message.toName}` : message.fromName;
+    const body = document.createElement('span');
+    body.className = 'chat273-body';
+    body.textContent = `：${message.text}`;
+    line.append(tag, name, body);
+  }
+
+  private addPending(requestId: string, text: string, label?: string) {
     if (!this.systemLog) return;
     const line = document.createElement('div');
     line.className = this.chat273 ? 'chat273-player-line chat273-pending-line' : 'chat-player-line';
-    line.textContent = `发送中：${text}`;
+    line.setAttribute('data-pending', 'true');
+    line.textContent = `发送中：${label ?? text}`;
     appendChatLogLine(this.systemLog, line);
     this.pending.set(requestId, { line, text });
     while (this.pending.size > 32) {
@@ -198,11 +322,39 @@ export class ChatView {
     }
   }
 
+  /** Route the typed line.  A whisper is collected in two steps (target, then
+   *  body) because the 273 input bar only has one line, and `/w <name> <text>`
+   *  is accepted in map mode as the same intent in one shot. */
   private submit() {
     if (this.composing || !this.input || !this.available) return;
     const message = this.input.value.trim();
     if (!message) {
+      // An empty line leaves whisper input instead of sending a blank message.
+      if (this.mode !== 'map') {
+        this.cancelWhisper();
+        this.status('已取消悄悄話。');
+        return;
+      }
       this.status('请输入聊天内容。');
+      return;
+    }
+    const command = message.match(/^\/(w|whisper)\s+(\S+)\s+([\s\S]+)$/i);
+    if (this.mode === 'map' && command) {
+      const [, , target, body] = command;
+      this.input.value = body.trim();
+      this.sendWhisper(target, body.trim());
+      return;
+    }
+    if (this.mode === 'whisper-target') {
+      this.whisperTarget = message;
+      this.mode = 'whisper-body';
+      this.input.value = '';
+      this.updateMode();
+      this.input.focus({ preventScroll: true });
+      return;
+    }
+    if (this.mode === 'whisper-body') {
+      this.sendWhisper(this.whisperTarget, message);
       return;
     }
     this.input.value = '';
@@ -214,6 +366,50 @@ export class ChatView {
       return;
     }
     this.addPending(requestId, message);
+  }
+
+  /** One whisper intent.  The target stays sticky so a rejected body is
+   *  restored into the same conversation and can simply be re-sent. */
+  private sendWhisper(target: string, body: string) {
+    if (!this.input) return;
+    const requestId = `whisper-${Date.now()}-${++this.sendSequence}`;
+    if (!this.hooks.sendWhisper?.(requestId, target, body)) {
+      this.status('连接不可用，密语未发送，请重连后再试。', true);
+      return;
+    }
+    this.whisperTarget = target;
+    this.mode = 'whisper-body';
+    this.input.value = '';
+    this.updateMode();
+    this.addPending(requestId, body, `致 ${target}：${body}`);
+    this.input.focus({ preventScroll: true });
+  }
+
+  /** Keep placeholder, aria-label and the availability note in step with the
+   *  current input routing. */
+  private updateMode() {
+    const input = this.input;
+    if (!input) return;
+    if (this.mode === 'whisper-target') {
+      input.placeholder = '悄悄話对象名字';
+      input.setAttribute('aria-label', '悄悄話对象名字');
+      input.dataset.mode = 'whisper-target';
+    } else if (this.mode === 'whisper-body') {
+      input.placeholder = `悄悄話 → ${this.whisperTarget}`;
+      input.setAttribute('aria-label', `悄悄話内容，对象 ${this.whisperTarget}`);
+      input.dataset.mode = 'whisper-body';
+    } else {
+      input.placeholder = '地图聊天';
+      input.setAttribute('aria-label', '聊天内容');
+      input.dataset.mode = 'map';
+    }
+    if (this.statusLine && this.available) {
+      this.statusLine.textContent = this.mode === 'map'
+        ? '地图聊天：Enter 发言'
+        : this.mode === 'whisper-target'
+          ? '悄悄話：输入对方角色名（Esc 取消）'
+          : `悄悄話 → ${this.whisperTarget}：Enter 发送（Esc 取消）`;
+    }
   }
 
   private init273(chatUi: ChatUi) {
@@ -291,15 +487,17 @@ export class ChatView {
       const whisperButton = document.createElement('button');
       whisperButton.type = 'button';
       whisperButton.className = 'chat273-whisper';
-      whisperButton.setAttribute('aria-label', '私聊入口');
-      whisperButton.title = '私聊入口';
+      // The source's tooltip for this very button is 悄悄話
+      // (UI/StatusBar3.img/chat/ingame/input/button:chat, id 2).
+      whisperButton.setAttribute('aria-label', '悄悄話');
+      whisperButton.title = '悄悄話';
       const image = this.createImage(whisperFrame, 'chat273-whisper-image');
       whisperButton.append(image);
       this.bindSourceFrames(whisperButton, image, inputUi.whisper);
       whisperButton.addEventListener('click', () => {
-        this.setOpen(true);
-        this.input?.focus({ preventScroll: true });
-        this.status('私聊暂未开放。');
+        // The 273 whisper button now really opens a whisper: the target is
+        // collected first, the body second, and only the name travels up.
+        this.beginWhisper();
       });
       toolbar.append(whisperButton);
     }
@@ -325,13 +523,14 @@ export class ChatView {
     surface.append(toolbar);
     const note = document.createElement('span');
     note.className = 'chat273-availability';
-    note.textContent = '地图聊天：Enter 发言';
     note.setAttribute('aria-live', 'polite');
     surface.append(note);
     this.statusLine = note;
     panel.append(surface);
     this.panel = panel;
     this.root.append(panel);
+    // `updateMode` writes the note, so it has to run after `statusLine` exists.
+    this.updateMode();
     this.setOpen(true);
     this.host.hidden = false;
     this.root.hidden = false;
