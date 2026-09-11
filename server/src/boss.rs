@@ -63,9 +63,7 @@ impl BossAction {
     fn duration_ticks(self) -> u64 {
         match self {
             Self::Attack1 | Self::Attack2 => BOSS_ATTACK_DURATION_TICKS.max(1),
-            Self::PhysicalGuard | Self::MagicGuard | Self::Heal => {
-                BOSS_SKILL_DURATION_TICKS.max(1)
-            }
+            Self::PhysicalGuard | Self::MagicGuard | Self::Heal => BOSS_SKILL_DURATION_TICKS.max(1),
         }
     }
 
@@ -330,10 +328,7 @@ impl World {
         Ok(())
     }
 
-    fn retry_boss_practice(
-        &mut self,
-        id: &str,
-    ) -> Result<(), (&'static str, &'static str)> {
+    fn retry_boss_practice(&mut self, id: &str) -> Result<(), (&'static str, &'static str)> {
         let Some(practice) = self.boss_practices.get(id) else {
             return Err(("boss_practice_retry", "当前没有失败的练习。"));
         };
@@ -397,9 +392,12 @@ impl World {
         }
         // A stale sidecar without a DropState must never survive instance
         // teardown and later become visible on an authored map.
-        self.drop_instances.retain(|drop_id, _| self.drops.contains_key(drop_id));
-        self.drop_owners.retain(|drop_id, _| self.drops.contains_key(drop_id));
-        self.drop_maps.retain(|drop_id, _| self.drops.contains_key(drop_id));
+        self.drop_instances
+            .retain(|drop_id, _| self.drops.contains_key(drop_id));
+        self.drop_owners
+            .retain(|drop_id, _| self.drops.contains_key(drop_id));
+        self.drop_maps
+            .retain(|drop_id, _| self.drops.contains_key(drop_id));
         self.maps.remove(instance_map_id);
     }
 
@@ -495,11 +493,17 @@ impl World {
         true
     }
 
-    fn practice_return_candidate(&self, player: &Player, practice: &BossPractice) -> Option<Player> {
+    fn practice_return_candidate(
+        &self,
+        player: &Player,
+        practice: &BossPractice,
+    ) -> Option<Player> {
         let Some(source_map) = self.maps.get(&practice.source_map_id).cloned() else {
             return None;
         };
-        let mut x = practice.return_x.clamp(source_map.bounds.x_min, source_map.bounds.x_max);
+        let mut x = practice
+            .return_x
+            .clamp(source_map.bounds.x_min, source_map.bounds.x_max);
         let foothold_id;
         let mut y = practice.return_y;
         if let Some((near_id, ground)) = source_map.ground_near(x, y) {
@@ -508,10 +512,7 @@ impl World {
         } else {
             x = source_map.spawn.x;
             y = source_map.spawn.y;
-            foothold_id = source_map
-                .ground_near(x, y)
-                .map(|(id, _)| id)
-                .unwrap_or(0);
+            foothold_id = source_map.ground_near(x, y).map(|(id, _)| id).unwrap_or(0);
         }
         let mut candidate = player.clone();
         clear_practice_player_effects(&mut candidate);
@@ -525,7 +526,11 @@ impl World {
         candidate.state.ladder_id = None;
         candidate.foothold_id = foothold_id;
         candidate.last_foothold_id = foothold_id;
-        candidate.state.action = if candidate.state.hp <= 0 { "dead" } else { "stand" };
+        candidate.state.action = if candidate.state.hp <= 0 {
+            "dead"
+        } else {
+            "stand"
+        };
         candidate.state.action_started_tick = self.tick;
         refresh_player_derived(&self.gameplay, &self.mage_skills, &mut candidate);
         Some(candidate)
@@ -639,7 +644,9 @@ impl World {
                                     "remainingMs": remaining,
                                 });
                             }
-                            BossAction::PhysicalGuard | BossAction::MagicGuard | BossAction::Heal => {}
+                            BossAction::PhysicalGuard
+                            | BossAction::MagicGuard
+                            | BossAction::Heal => {}
                         }
                     }
                 }
@@ -686,7 +693,11 @@ impl World {
         } else {
             practice.physical_guard_until > self.tick
         };
-        if guarded { 85 } else { 100 }
+        if guarded {
+            85
+        } else {
+            100
+        }
     }
 
     pub(super) fn step_boss_practice(&mut self) {
@@ -825,7 +836,10 @@ impl World {
         let action = if monster.mp >= 10
             && self.tick >= practice.heal_ready_at
             && monster.state.hp.saturating_mul(100)
-                <= monster.state.max_hp.saturating_mul(BOSS_HEAL_THRESHOLD_PERCENT)
+                <= monster
+                    .state
+                    .max_hp
+                    .saturating_mul(BOSS_HEAL_THRESHOLD_PERCENT)
             && sequence % 5 == 4
         {
             BossAction::Heal
@@ -834,9 +848,7 @@ impl World {
             && sequence % 5 == 2
         {
             BossAction::PhysicalGuard
-        } else if monster.mp >= 5
-            && self.tick >= practice.magic_guard_ready_at
-            && sequence % 5 == 3
+        } else if monster.mp >= 5 && self.tick >= practice.magic_guard_ready_at && sequence % 5 == 3
         {
             BossAction::MagicGuard
         } else if sequence % 2 == 0 {
@@ -857,9 +869,7 @@ impl World {
         practice.action = Some(action);
         practice.action_started_tick = self.tick;
         practice.action_until = self.tick.saturating_add(action.duration_ticks().max(1));
-        practice.action_effect_at = self
-            .tick
-            .saturating_add(action.effect_after_ticks());
+        practice.action_effect_at = self.tick.saturating_add(action.effect_after_ticks());
         practice.action_applied = false;
         practice.action_sequence = practice.action_sequence.saturating_add(1);
         monster.state.action = action.wire_action();
@@ -904,9 +914,21 @@ impl World {
                 let player_x = player.state.x;
                 let player_y = player.state.y;
                 let hit = if action == BossAction::Attack1 {
-                    boss_attack1_contains_at(monster_x, monster_y, monster_facing, player_x, player_y)
+                    boss_attack1_contains_at(
+                        monster_x,
+                        monster_y,
+                        monster_facing,
+                        player_x,
+                        player_y,
+                    )
                 } else {
-                    boss_attack2_contains_at(monster_x, monster_y, monster_facing, player_x, player_y)
+                    boss_attack2_contains_at(
+                        monster_x,
+                        monster_y,
+                        monster_facing,
+                        player_x,
+                        player_y,
+                    )
                 };
                 if hit {
                     let magic = action == BossAction::Attack2;
@@ -960,7 +982,10 @@ impl World {
                     // absent, so the trigger is deliberately documented.
                     if monster.mp >= 10
                         && monster.state.hp.saturating_mul(100)
-                            <= monster.state.max_hp.saturating_mul(BOSS_HEAL_THRESHOLD_PERCENT)
+                            <= monster
+                                .state
+                                .max_hp
+                                .saturating_mul(BOSS_HEAL_THRESHOLD_PERCENT)
                     {
                         monster.mp -= 10;
                         monster.state.hp =
@@ -1011,9 +1036,7 @@ impl World {
         } else {
             raw_damage.saturating_sub(defense).max(1)
         };
-        let Some((hp_damage, mp_damage, killed)) =
-            self.commit_incoming_damage(id, damage)
-        else {
+        let Some((hp_damage, mp_damage, killed)) = self.commit_incoming_damage(id, damage) else {
             return false;
         };
         let (x, y) = self
@@ -1075,9 +1098,7 @@ fn clear_practice_player_effects(player: &mut Player) {
 /// segments at the same height are grouped before checking the 150px safety
 /// gap.  This keeps the player and Boss from spawning inside one another while
 /// still using a source-backed legal foothold near the map spawn.
-fn practice_start_positions(
-    map: &Map,
-) -> Option<(u64, f64, f64, u64, f64, f64)> {
+fn practice_start_positions(map: &Map) -> Option<(u64, f64, f64, u64, f64, f64)> {
     let mut segments: Vec<(u64, f64, f64, f64)> = map
         .footholds
         .iter()
@@ -1117,20 +1138,14 @@ fn practice_start_positions(
             if player_x - boss_x < 150.0 {
                 return None;
             }
-            let boss_fh = map
-                .footholds
-                .iter()
-                .find(|foothold| {
-                    foothold.at(boss_x).is_some()
-                        && ((foothold.y1 + foothold.y2) / 2.0 - y).abs() <= 1.0
-                })?;
-            let player_fh = map
-                .footholds
-                .iter()
-                .find(|foothold| {
-                    foothold.at(player_x).is_some()
-                        && ((foothold.y1 + foothold.y2) / 2.0 - y).abs() <= 1.0
-                })?;
+            let boss_fh = map.footholds.iter().find(|foothold| {
+                foothold.at(boss_x).is_some()
+                    && ((foothold.y1 + foothold.y2) / 2.0 - y).abs() <= 1.0
+            })?;
+            let player_fh = map.footholds.iter().find(|foothold| {
+                foothold.at(player_x).is_some()
+                    && ((foothold.y1 + foothold.y2) / 2.0 - y).abs() <= 1.0
+            })?;
             let boss_y = boss_fh.at(boss_x)?;
             Some((
                 boss_fh.id,
@@ -1177,5 +1192,9 @@ fn boss_attack2_contains_at(
 /// Mob source canvases face left.  MonsterView mirrors when the authoritative
 /// facing is `1`, so WZ attack offsets use the opposite sign at runtime.
 fn source_facing_multiplier(monster_facing: i8) -> f64 {
-    if monster_facing < 0 { 1.0 } else { -1.0 }
+    if monster_facing < 0 {
+        1.0
+    } else {
+        -1.0
+    }
 }

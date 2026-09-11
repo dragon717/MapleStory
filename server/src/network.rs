@@ -121,7 +121,10 @@ pub async fn lobby(
     match rx.await {
         Ok(Ok(response)) => Json(response.into_json()).into_response(),
         Ok(Err(message)) => error(lobby_error_status(&message), &message),
-        Err(_) => error(StatusCode::SERVICE_UNAVAILABLE, "Authentication unavailable"),
+        Err(_) => error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Authentication unavailable",
+        ),
     }
 }
 
@@ -129,9 +132,7 @@ fn lobby_error_status(message: &str) -> StatusCode {
     match message {
         "invalid session" => StatusCode::UNAUTHORIZED,
         "character not found" => StatusCode::NOT_FOUND,
-        "name already exists" | "request conflict" | "character slots full" => {
-            StatusCode::CONFLICT
-        }
+        "name already exists" | "request conflict" | "character slots full" => StatusCode::CONFLICT,
         _ if message.contains("persistence") || message == "invalid saved appearance" => {
             StatusCode::INTERNAL_SERVER_ERROR
         }
@@ -291,10 +292,7 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
     // The command cannot be dropped when the input queue is full: only this
     // task owns this connection token, and the character must never be left
     // with a dangling binding.
-    let _ = app
-        .world
-        .send(departure.command(id, connection))
-        .await;
+    let _ = app.world.send(departure.command(id, connection)).await;
 }
 
 /// How this socket ended, and what that means for the authoritative character.
@@ -310,8 +308,15 @@ enum Departure {
 impl Departure {
     fn command(self, id: String, connection: String) -> world::Command {
         match self {
-            Departure::Detached(reason) => world::Command::Detach { id, connection, reason },
-            Departure::Gone => world::Command::Exit { id, connection: Some(connection) },
+            Departure::Detached(reason) => world::Command::Detach {
+                id,
+                connection,
+                reason,
+            },
+            Departure::Gone => world::Command::Exit {
+                id,
+                connection: Some(connection),
+            },
         }
     }
 }

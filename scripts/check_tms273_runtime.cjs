@@ -131,7 +131,10 @@ for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.st
 for(const shop of gameplay.shops)for(const entry of shop.items)assert(manifest.items[entry.itemId],entry.itemId);
 for(const id of ['36301','36302','36303','36304','36306','36307'])assert(gameplay.quests.some(q=>q.questId===id));
 const sourceQuests=read('references/tms273-data/quests.json').quests;
-assert.equal(sourceQuests.length,64);
+// 70 since the adventurer prerequisite set was widened to the full
+// 1401/1403/1404/1405/2570/2684 group; the count is the source import's own
+// contract and must be bumped with it, or the launcher's precheck stops here.
+assert.equal(sourceQuests.length,70);
 assert(sourceQuests.some(q=>q.id==='1402' && !q.executable));
 assert.equal(gameplay.quests.filter(q=>q.executable).length,15);
 for(const id of ['1402','36308','36309','36310','36311','36312','36313','36314']) {
@@ -179,6 +182,84 @@ for(const state of ['enabled','disabled']) {
   const limit=Number(worldSrc.match(/pub const STORAGE_SLOT_LIMIT: u16 = (\d+);/)?.[1]);
   assert(limit>0,'STORAGE_SLOT_LIMIT not found in the server source');
   assert.equal(manifest.storageUi.slotLimit,limit,'storage slot limit drifted between client and server');
+}
+
+// Friend & blacklist: the window shares the authored UserList shell with the
+// party window, and the buttons it drives must exist in the TMS273 export or
+// the window silently falls back to text buttons.
+assert(manifest.friendUi,'friend window export is missing');
+assert(manifest.friendUi.contentVersion==='tms273-friend',manifest.friendUi.contentVersion);
+for(const key of ['backgrnd','Tab/enabled/0','Tab/enabled/1','BtAddFriend/normal','BtDelete/normal','BtBlock/normal','BlackList/BtAdd/normal','BlackList/BtDelete/normal']) {
+  assert(manifest.friendUi.ui[key],`friend art missing: ${key}`);
+}
+for(const state of ['normal','pressed','disabled','mouseOver']) {
+  for(const button of ['BtAddFriend','BtDelete','BtBlock','BlackList/BtAdd','BlackList/BtDelete']) {
+    assert(manifest.friendUi.ui[`${button}/${state}`],`friend state missing: ${button}/${state}`);
+  }
+}
+assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.friendUi.tabCount}`);
+{
+  // The friend caps live in auth.rs and are enforced server-side; the client
+  // only ever renders what the server pushes, so a drift here would show up as
+  // a window that cannot explain a refusal.
+  const authSrc=fs.readFileSync(path.join(root,'server/src/auth.rs'),'utf8');
+  assert(/const FRIEND_LIMIT: i64 = \d+;/.test(authSrc),'FRIEND_LIMIT not found in the server source');
+  assert(/const BLACKLIST_LIMIT: i64 = \d+;/.test(authSrc),'BLACKLIST_LIMIT not found in the server source');
+}
+
+// World map (大地图): the window is drawn from the Map.wz/WorldMap page art plus
+// the UIWindow2.img shell, and it is only worth opening if every assembled map
+// can be located on a page — the location plate is the whole point.
+//
+// The archive stores `MapList/*/mapNo` as a bare integer, so the export has to
+// pad it to the 9-digit form that `shared/maps.json` and the server snapshot
+// speak.  When it did not, the 16 Maple Island spots never matched, the whole
+// WorldMap000 page was skipped, and the root page's 楓之島 plate became a dead
+// link — the assertions below pin exactly that.
+{
+  const world=manifest.worldMap;
+  assert(world,'world map export is missing');
+  assert.equal(world.contentVersion,'tms273-worldmap',world.contentVersion);
+  assert(world.pages[world.root],`world map root page missing: ${world.root}`);
+  // Every page in the archive, so a plate into a region this catalog cannot
+  // reach is recognisable as intentional rather than a typo.
+  const archivePages=new Set(read('resources/tms273-export/worldmap.json').allPages);
+  for(const [page,entry] of Object.entries(world.pages)) {
+    assert.equal(entry.page,page);
+    assert(entry.baseImg.url&&entry.baseImg.width>0&&entry.baseImg.height>0,`world map page art missing: ${page}`);
+    // Every exported page must be navigable out of, and reachable in: a page
+    // no plate points at would ship art the player can never open.
+    if(entry.parent!==null) {
+      assert(world.pages[entry.parent],`world map page ${page} cannot be navigated out of`);
+      const parent=world.pages[entry.parent];
+      assert(parent.mapLinks.some(link=>link.page===page),`world map page ${page} has no plate pointing at it`);
+    }
+    for(const link of entry.mapLinks) {
+      assert(link.page===null||world.pages[link.page]||archivePages.has(link.page),
+        `world map plate points at a page the archive does not have: ${page} -> ${link.page}`);
+    }
+    for(const spot of entry.mapList) for(const id of spot.mapIds) {
+      assert.match(id,/^\d{9}$/,`world map spot id must be the 9-digit form: ${page} -> ${id}`);
+    }
+  }
+  // The archive authors no spot at all for this map, so it is the one assembled
+  // map the window legitimately cannot mark.  Anything else missing is a bug.
+  const WORLD_MAP_ABSENT=new Set(['002010000']);
+  const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
+  const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));
+  assert.deepEqual(absent,[],`assembled maps missing from the world map: ${absent.join(', ')}`);
+  // Maple Island is the region that regressed, so name it: 選擇岔道 is where a
+  // new character starts, and 楓之港/碼頭 are the first ferries off the island.
+  for(const id of ['001020000','002000000','002000100','000010000','001000000']) {
+    assert(located.has(id),`Maple Island spot missing from the world map: ${id}`);
+  }
+  for(const key of ['border','plate']) assert(world.ui[key]?.url,`world map shell art missing: ${key}`);
+  for(const state of ['normal','mouseOver','pressed','disabled']) {
+    for(const control of ['close','before','next','all']) {
+      const frames=control==='close'?world.ui.close:world.ui.nav[control];
+      assert(frames[state]?.url,`world map control state missing: ${control}/${state}`);
+    }
+  }
 }
 
 assert(!manifest.skillCatalog['2220014']);

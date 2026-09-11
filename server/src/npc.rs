@@ -423,9 +423,7 @@ fn resolve(
                         return Err("npc dialogue has multiple one-shot actions".to_owned());
                     }
                     let (Some(from_job), Some(job)) = (act.from_job, act.job) else {
-                        return Err(
-                            "npc dialogue jobAdvance requires fromJob and job".to_owned()
-                        );
+                        return Err("npc dialogue jobAdvance requires fromJob and job".to_owned());
                     };
                     effect = Some(QuestEffect::JobAdvance { from_job, job });
                     if let Some(next) = act.next.clone() {
@@ -728,8 +726,7 @@ mod tests {
         )
         .unwrap();
         let context = context(1, 0);
-        let (node, view, _effect) =
-            advance(&script, None, Some("start"), None, &context).unwrap();
+        let (node, view, _effect) = advance(&script, None, Some("start"), None, &context).unwrap();
         assert_eq!(node, "menu");
         assert!(matches!(view, DialogueView::Say { kind, .. } if kind == "simple"));
         let (node, view, effect) =

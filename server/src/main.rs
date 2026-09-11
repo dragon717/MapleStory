@@ -1,10 +1,10 @@
 mod auth;
 mod combat;
 mod inventory;
-pub(crate) mod lobby;
-mod mage;
 #[cfg(test)]
 mod inventory_acceptance;
+pub(crate) mod lobby;
+mod mage;
 mod network;
 mod npc;
 mod protocol;
@@ -76,22 +76,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "NPC_NAMES_ZH_FILE",
         root.join("shared/npc-names.json").to_str().unwrap(),
     ));
-    let npc_names_zh: BTreeMap<String, String> =
-        serde_json::from_str::<NpcNamesFile>(&std::fs::read_to_string(&npc_names_zh_path).map_err(
-            |error| {
-                format!(
-                    "Cannot read npc names zh {}: {error}",
-                    npc_names_zh_path.display()
-                )
-            },
-        )?)
-        .map_err(|error| {
+    let npc_names_zh: BTreeMap<String, String> = serde_json::from_str::<NpcNamesFile>(
+        &std::fs::read_to_string(&npc_names_zh_path).map_err(|error| {
             format!(
-                "Cannot parse npc names zh {}: {error}",
+                "Cannot read npc names zh {}: {error}",
                 npc_names_zh_path.display()
             )
-        })?
-        .npcs;
+        })?,
+    )
+    .map_err(|error| {
+        format!(
+            "Cannot parse npc names zh {}: {error}",
+            npc_names_zh_path.display()
+        )
+    })?
+    .npcs;
     let duration_ms: u64 = setting("ATTACK_DURATION_MS", "800").parse()?;
     if !(50..=5000).contains(&duration_ms) {
         return Err("ATTACK_DURATION_MS must be 50..5000".into());

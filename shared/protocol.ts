@@ -115,6 +115,16 @@ export interface PartyMember {
 export interface PartyState {
   partyId: string; leaderId: string; members: PartyMember[];
 }
+/** One row of the friend or blacklist window. The persisted half (id, name,
+ *  level, job) comes from the account rows; `online` and `mapId` are derived
+ *  from the live world on every push, so an offline friend has no location
+ *  and a stale snapshot can never be presented as a live one. */
+export interface FriendEntry {
+  id: string; name: string; level: number; job: number;
+  online: boolean;
+  /** Empty while the character is offline. */
+  mapId: string;
+}
 export interface BossPracticeState {
   status: 'available' | 'active' | 'cleared' | 'failed';
   sourceMapId: string; bossId: string; minimumLevel: number; encounterId?: string;
@@ -174,6 +184,22 @@ export type ClientMessage =
   | { type: 'partyKick'; requestId: string; playerId: string }
   /** Hand leadership to another member (source `BtChangeBoss`). */
   | { type: 'partyLeader'; requestId: string; playerId: string }
+  /** Open (or refresh) the friend & blacklist window. The client names
+   *  nothing: friends are account facts, and the online flag is a live world
+   *  fact the server derives on every push. */
+  | { type: 'friendOpen'; requestId: string }
+  /** Add one character as a friend. The client types a name — the source
+   *  context menu carries no id — and the server resolves it, owns the cap,
+   *  and writes the pair in both directions. */
+  | { type: 'friendAdd'; requestId: string; playerName: string }
+  /** Drop one friend. The client names the row it selected; the server
+   *  re-checks that the friendship exists before deleting both directions. */
+  | { type: 'friendRemove'; requestId: string; playerId: string }
+  /** Put one character on the blacklist. Blocking also dissolves an existing
+   *  friendship and stops that character's map chat from reaching us. */
+  | { type: 'friendBlock'; requestId: string; playerName: string }
+  /** Take one character off the blacklist. */
+  | { type: 'friendUnblock'; requestId: string; playerId: string }
   | { type: 'chatSend'; requestId: string; text: string }
   /** Page lifecycle hint. Server keeps its own away clock; this never grants
    *  assets, invulnerability, or control of the away window. */
@@ -238,7 +264,15 @@ export type ServerMessage =
   | { type: 'partyResult'; requestId: string; success: boolean; code: string }
   /** Display-only notice for a party event the character did not cause itself
    *  — a declined invitation, or being kicked. Never authoritative state. */
-  | { type: 'partyNotice'; code: string; playerId: string; playerName: string };
+  | { type: 'partyNotice'; code: string; playerId: string; playerName: string }
+  /** Full friend & blacklist window for one account. Unlike a party this is a
+   *  persisted account fact, so the rows survive a restart; `online` and
+   *  `mapId` are the only live halves and are derived on every push, which is
+   *  why an offline friend always carries an empty `mapId`. */
+  | { type: 'friendState'; friends: FriendEntry[]; blocked: FriendEntry[] }
+  /** Result of one friend / blacklist intent. A replayed `requestId` replays
+   *  this same outcome instead of writing a second time. */
+  | { type: 'friendResult'; requestId: string; success: boolean; code: string };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

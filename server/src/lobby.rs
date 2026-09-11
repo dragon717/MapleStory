@@ -6,7 +6,11 @@ use crate::{
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::{BTreeMap, BTreeSet}, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 
 pub const CHANNEL_ID: u32 = 1;
 pub const CHARACTER_SLOT_LIMIT: u32 = 12;
@@ -134,14 +138,21 @@ impl Appearance {
         let path = std::env::var_os("CHARACTER_CREATION_FILE")
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../shared/character-creation.json"))
+                PathBuf::from(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../shared/character-creation.json"
+                ))
             });
         match fs::read_to_string(path) {
             Ok(contents) => {
                 let catalog: CreationCatalog = serde_json::from_str(&contents)
                     .map_err(|_| "appearance catalog invalid".to_owned())?;
                 let _ = (&catalog.source, &catalog.names);
-                let Some(options) = catalog.genders.iter().find(|group| group.gender == self.gender) else {
+                let Some(options) = catalog
+                    .genders
+                    .iter()
+                    .find(|group| group.gender == self.gender)
+                else {
                     return Err("appearance option unavailable".to_owned());
                 };
                 let hair_allowed = options.hair.contains(&self.hair)
@@ -323,8 +334,8 @@ pub(crate) fn init(db: &Connection) -> rusqlite::Result<()> {
 }
 
 fn migrate_legacy(db: &Connection) -> rusqlite::Result<()> {
-    let appearance = serde_json::to_string(&Appearance::default())
-        .map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let appearance =
+        serde_json::to_string(&Appearance::default()).map_err(|_| rusqlite::Error::InvalidQuery)?;
     let now = crate::auth::now_ms();
     let candidates: Vec<(String, String, String)> = {
         let mut stmt = db.prepare(
@@ -381,13 +392,13 @@ fn migrate_legacy(db: &Connection) -> rusqlite::Result<()> {
 
 pub(crate) fn handle(store: &Store, account_id: &str, action: Action) -> Result<Response, String> {
     store.with_db(|db| {
-        let tx = db.transaction().map_err(|_| "account persistence failed".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
         let account_exists: Option<i64> = tx
-            .query_row(
-                "SELECT 1 FROM accounts WHERE id=?1",
-                [account_id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT 1 FROM accounts WHERE id=?1", [account_id], |row| {
+                row.get(0)
+            })
             .optional()
             .map_err(|_| "account persistence failed".to_owned())?;
         if account_exists.is_none() {
@@ -445,7 +456,8 @@ pub(crate) fn handle(store: &Store, account_id: &str, action: Action) -> Result<
                 }
             }
         };
-        tx.commit().map_err(|_| "account persistence failed".to_owned())?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
         Ok(response)
     })
 }
@@ -486,7 +498,9 @@ fn validate_name(name: &str) -> Result<(), String> {
 }
 
 fn normalize_name(name: &str) -> String {
-    name.chars().map(|character| character.to_ascii_lowercase()).collect()
+    name.chars()
+        .map(|character| character.to_ascii_lowercase())
+        .collect()
 }
 
 fn is_cjk_ideograph(character: char) -> bool {
@@ -603,14 +617,22 @@ fn create_character(
         return Err("name already exists".to_owned());
     }
     let id = crate::auth::random_id();
-    let appearance_json = serde_json::to_string(&appearance)
-        .map_err(|_| "account persistence failed".to_owned())?;
+    let appearance_json =
+        serde_json::to_string(&appearance).map_err(|_| "account persistence failed".to_owned())?;
     let now = crate::auth::now_ms();
     tx.execute(
         "INSERT INTO characters(
            id,account_id,name,name_key,appearance_json,request_id,created_at,updated_at
          ) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)",
-        params![id, account_id, name, normalize_name(name), appearance_json, request_id, now],
+        params![
+            id,
+            account_id,
+            name,
+            normalize_name(name),
+            appearance_json,
+            request_id,
+            now
+        ],
     )
     .map_err(|_| "account persistence failed".to_owned())?;
     seed_character_equipment(tx, &id, &appearance)?;
@@ -664,7 +686,10 @@ fn seed_character_equipment(
     Ok(())
 }
 
-fn list_characters(tx: &Transaction<'_>, account_id: &str) -> Result<Vec<CharacterSummary>, String> {
+fn list_characters(
+    tx: &Transaction<'_>,
+    account_id: &str,
+) -> Result<Vec<CharacterSummary>, String> {
     let mut stmt = tx
         .prepare(
             "SELECT c.id,c.name,c.appearance_json,
@@ -739,8 +764,8 @@ pub(crate) fn legacy_identity(
 
 fn character_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CharacterSummary> {
     let appearance_json: String = row.get(2)?;
-    let appearance: Appearance = serde_json::from_str(&appearance_json)
-        .map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let appearance: Appearance =
+        serde_json::from_str(&appearance_json).map_err(|_| rusqlite::Error::InvalidQuery)?;
     Ok(CharacterSummary {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -753,7 +778,10 @@ fn character_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CharacterSumm
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{auth::{self, Credentials, Profile}, protocol::AbilityStats};
+    use crate::{
+        auth::{self, Credentials, Profile},
+        protocol::AbilityStats,
+    };
     use serde_json::json;
     use std::{collections::BTreeMap, fs};
     use tokio::sync::oneshot;
@@ -803,7 +831,10 @@ mod tests {
     fn appearance_validation_rejects_ids_outside_the_source_catalog() {
         let mut appearance = creation_default();
         appearance.face = 20_000;
-        assert_eq!(appearance.validate(), Err("appearance option unavailable".to_owned()));
+        assert_eq!(
+            appearance.validate(),
+            Err("appearance option unavailable".to_owned())
+        );
     }
 
     #[tokio::test]
@@ -811,26 +842,56 @@ mod tests {
         let path = std::env::temp_dir().join(format!("maple-lobby-{}.sqlite3", auth::random_id()));
         let service = auth::start(&path).unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Register(Credentials {
-            username: "lobby-user".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Register(
+                Credentials {
+                    username: "lobby-user".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         rx.await.unwrap().unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Login(Credentials {
-            username: "lobby-user".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Login(
+                Credentials {
+                    username: "lobby-user".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         let (identity, account_token) = rx.await.unwrap().unwrap();
-        let first = match handle(&service.store, &identity.id, Action::Create {
-            request_id: "create-1".into(), name: "MageOne".into(), appearance: creation_default(),
-        }).unwrap() {
+        let first = match handle(
+            &service.store,
+            &identity.id,
+            Action::Create {
+                request_id: "create-1".into(),
+                name: "MageOne".into(),
+                appearance: creation_default(),
+            },
+        )
+        .unwrap()
+        {
             Response::Created { character } => character,
             _ => panic!("unexpected response"),
         };
-        let replay = match handle(&service.store, &identity.id, Action::Create {
-            request_id: "create-1".into(), name: "MageOne".into(), appearance: creation_default(),
-        }).unwrap() {
+        let replay = match handle(
+            &service.store,
+            &identity.id,
+            Action::Create {
+                request_id: "create-1".into(),
+                name: "MageOne".into(),
+                appearance: creation_default(),
+            },
+        )
+        .unwrap()
+        {
             Response::Created { character } => character,
             _ => panic!("unexpected response"),
         };
@@ -838,74 +899,174 @@ mod tests {
         let seeded = service.store.load_equipped(&first.id).unwrap();
         assert_eq!(seeded.len(), 3);
         assert_eq!(
-            seeded.iter().map(|item| (item.slot, item.item_id.as_str())).collect::<Vec<_>>(),
+            seeded
+                .iter()
+                .map(|item| (item.slot, item.item_id.as_str()))
+                .collect::<Vec<_>>(),
             vec![(11, "1302000"), (7, "1072833"), (5, "1050286")]
         );
-        assert!(matches!(handle(&service.store, &identity.id, Action::Create {
+        assert!(
+            matches!(handle(&service.store, &identity.id, Action::Create {
             request_id: "create-1".into(), name: "mageone".into(), appearance: creation_default(),
-        }), Err(error) if error == "request conflict"));
-        assert!(matches!(handle(&service.store, &identity.id, Action::CheckName {
-            name: "mageone".into(),
-        }).unwrap(), Response::NameCheck { available: false }));
+        }), Err(error) if error == "request conflict")
+        );
+        assert!(matches!(
+            handle(
+                &service.store,
+                &identity.id,
+                Action::CheckName {
+                    name: "mageone".into(),
+                }
+            )
+            .unwrap(),
+            Response::NameCheck { available: false }
+        ));
 
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Lobby {
-            token: account_token.clone(),
-            action: Action::Select { character_id: first.id.clone(), channel_id: Some(CHANNEL_ID) },
-            reply,
-        }).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Lobby {
+                token: account_token.clone(),
+                action: Action::Select {
+                    character_id: first.id.clone(),
+                    channel_id: Some(CHANNEL_ID),
+                },
+                reply,
+            })
+            .await
+            .unwrap();
         let role_token = match rx.await.unwrap().unwrap() {
-            Response::Selected { token: Some(token), character, .. } => {
+            Response::Selected {
+                token: Some(token),
+                character,
+                ..
+            } => {
                 assert_eq!(character.id, first.id);
                 token
             }
             _ => panic!("unexpected response"),
         };
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::VerifyCharacter(role_token, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::VerifyCharacter(role_token, reply))
+            .await
+            .unwrap();
         assert_eq!(rx.await.unwrap().unwrap().id, first.id);
-        let second = match handle(&service.store, &identity.id, Action::Create {
-            request_id: "create-2".into(), name: "MageTwo".into(), appearance: creation_default(),
-        }).unwrap() {
+        let second = match handle(
+            &service.store,
+            &identity.id,
+            Action::Create {
+                request_id: "create-2".into(),
+                name: "MageTwo".into(),
+                appearance: creation_default(),
+            },
+        )
+        .unwrap()
+        {
             Response::Created { character } => character,
             _ => panic!("unexpected response"),
         };
-        let chinese = match handle(&service.store, &identity.id, Action::Create {
-            request_id: "create-3".into(), name: "冒险者一".into(), appearance: creation_default(),
-        }).unwrap() {
+        let chinese = match handle(
+            &service.store,
+            &identity.id,
+            Action::Create {
+                request_id: "create-3".into(),
+                name: "冒险者一".into(),
+                appearance: creation_default(),
+            },
+        )
+        .unwrap()
+        {
             Response::Created { character } => character,
             _ => panic!("unexpected response"),
         };
         assert_eq!(chinese.name, "冒险者一");
-        assert!(matches!(handle(&service.store, &identity.id, Action::CheckName {
-            name: "冒险者一".into(),
-        }).unwrap(), Response::NameCheck { available: false }));
+        assert!(matches!(
+            handle(
+                &service.store,
+                &identity.id,
+                Action::CheckName {
+                    name: "冒险者一".into(),
+                }
+            )
+            .unwrap(),
+            Response::NameCheck { available: false }
+        ));
         let mut first_profile = service.store.load_profile(&first.id, &defaults()).unwrap();
         first_profile.level = 7;
-        service.store.save_profile(&first.id, &first_profile).unwrap();
-        let listed = match handle(&service.store, &identity.id, Action::List { channel_id: None }).unwrap() {
+        service
+            .store
+            .save_profile(&first.id, &first_profile)
+            .unwrap();
+        let listed = match handle(
+            &service.store,
+            &identity.id,
+            Action::List { channel_id: None },
+        )
+        .unwrap()
+        {
             Response::List { characters, .. } => characters,
             _ => panic!("unexpected response"),
         };
-        assert_eq!(listed.iter().find(|character| character.id == first.id).unwrap().level, 7);
-        assert_eq!(listed.iter().find(|character| character.id == second.id).unwrap().level, 1);
-        assert_eq!(listed.iter().find(|character| character.id == chinese.id).unwrap().name, "冒险者一");
+        assert_eq!(
+            listed
+                .iter()
+                .find(|character| character.id == first.id)
+                .unwrap()
+                .level,
+            7
+        );
+        assert_eq!(
+            listed
+                .iter()
+                .find(|character| character.id == second.id)
+                .unwrap()
+                .level,
+            1
+        );
+        assert_eq!(
+            listed
+                .iter()
+                .find(|character| character.id == chinese.id)
+                .unwrap()
+                .name,
+            "冒险者一"
+        );
         assert_eq!(first.appearance, creation_default());
 
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Register(Credentials {
-            username: "lobby-other".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Register(
+                Credentials {
+                    username: "lobby-other".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         rx.await.unwrap().unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Login(Credentials {
-            username: "lobby-other".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Login(
+                Credentials {
+                    username: "lobby-other".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         let (other, other_token) = rx.await.unwrap().unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::VerifyCharacter(other_token.clone(), reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::VerifyCharacter(other_token.clone(), reply))
+            .await
+            .unwrap();
         assert!(rx.await.unwrap().is_none());
         assert!(matches!(handle(&service.store, &other.id, Action::Select {
             character_id: first.id.clone(), channel_id: None,
@@ -915,16 +1076,30 @@ mod tests {
         // so all pre-lobby player state remains addressable after materialization.
         let mut legacy_profile = service.store.load_profile(&other.id, &defaults()).unwrap();
         legacy_profile.level = 9;
-        service.store.save_profile(&other.id, &legacy_profile).unwrap();
-        let legacy = match handle(&service.store, &other.id, Action::List { channel_id: None }).unwrap() {
-            Response::List { characters, .. } => characters.into_iter().find(|character| character.id == other.id).unwrap(),
-            _ => panic!("unexpected response"),
-        };
+        service
+            .store
+            .save_profile(&other.id, &legacy_profile)
+            .unwrap();
+        let legacy =
+            match handle(&service.store, &other.id, Action::List { channel_id: None }).unwrap() {
+                Response::List { characters, .. } => characters
+                    .into_iter()
+                    .find(|character| character.id == other.id)
+                    .unwrap(),
+                _ => panic!("unexpected response"),
+            };
         assert_eq!(legacy.name, "lobby-other");
         assert_eq!(legacy.level, 9);
-        assert_eq!(service.store.character_appearance(&legacy.id).unwrap(), Some(legacy.appearance));
+        assert_eq!(
+            service.store.character_appearance(&legacy.id).unwrap(),
+            Some(legacy.appearance)
+        );
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::VerifyCharacter(other_token, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::VerifyCharacter(other_token, reply))
+            .await
+            .unwrap();
         assert_eq!(rx.await.unwrap().unwrap().id, other.id);
         drop(service);
         let _ = fs::remove_file(&path);
@@ -934,27 +1109,53 @@ mod tests {
 
     #[tokio::test]
     async fn startup_materializes_legacy_player_state_without_changing_its_key() {
-        let path = std::env::temp_dir().join(format!("maple-lobby-migration-{}.sqlite3", auth::random_id()));
+        let path = std::env::temp_dir().join(format!(
+            "maple-lobby-migration-{}.sqlite3",
+            auth::random_id()
+        ));
         let service = auth::start(&path).unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Register(Credentials {
-            username: "legacy-user".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Register(
+                Credentials {
+                    username: "legacy-user".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         rx.await.unwrap().unwrap();
         let (reply, rx) = oneshot::channel();
-        service.sender.send(auth::Request::Login(Credentials {
-            username: "legacy-user".into(),
-            password: "correct-password".into(),
-        }, reply)).await.unwrap();
+        service
+            .sender
+            .send(auth::Request::Login(
+                Credentials {
+                    username: "legacy-user".into(),
+                    password: "correct-password".into(),
+                },
+                reply,
+            ))
+            .await
+            .unwrap();
         let (identity, _) = rx.await.unwrap().unwrap();
-        let mut profile = service.store.load_profile(&identity.id, &defaults()).unwrap();
+        let mut profile = service
+            .store
+            .load_profile(&identity.id, &defaults())
+            .unwrap();
         profile.level = 12;
         service.store.save_profile(&identity.id, &profile).unwrap();
         drop(service);
 
         let reopened = auth::start(&path).unwrap();
-        let listed = match handle(&reopened.store, &identity.id, Action::List { channel_id: None }).unwrap() {
+        let listed = match handle(
+            &reopened.store,
+            &identity.id,
+            Action::List { channel_id: None },
+        )
+        .unwrap()
+        {
             Response::List { characters, .. } => characters,
             _ => panic!("unexpected response"),
         };
@@ -962,7 +1163,10 @@ mod tests {
         assert_eq!(listed[0].id, identity.id);
         assert_eq!(listed[0].name, "legacy-user");
         assert_eq!(listed[0].level, 12);
-        assert_eq!(reopened.store.character_appearance(&identity.id).unwrap(), Some(Appearance::default()));
+        assert_eq!(
+            reopened.store.character_appearance(&identity.id).unwrap(),
+            Some(Appearance::default())
+        );
         drop(reopened);
         let _ = fs::remove_file(&path);
         let _ = fs::remove_file(format!("{}-wal", path.display()));

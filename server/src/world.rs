@@ -40,6 +40,11 @@ const PARTY_MAX_MEMBERS: usize = 6;
 /// Per-character bounded request-id idempotency window for party intents, so
 /// a network retry cannot send a second invitation or kick twice.
 const PARTY_REQUEST_WINDOW: usize = 32;
+/// Per-character bounded request-id idempotency window for friend intents.
+/// The authoritative record for a friend edit lives in SQLite
+/// (`friend_actions`), so this map only spares the common in-session retry a
+/// second read; it is not what makes a replay safe.
+const FRIEND_REQUEST_WINDOW: usize = 32;
 
 /// Continuous-away policy: how long the authoritative character is kept with
 /// its normal world rules before it drops to basic residency, and the hard
@@ -530,7 +535,12 @@ impl ReactorPlacement {
         let (lt, rb) = (self.hitbox_lt.as_ref()?, self.hitbox_rb.as_ref()?);
         let (x_min, x_max) = (lt.x.min(rb.x), lt.x.max(rb.x));
         let (y_min, y_max) = (lt.y.min(rb.y), lt.y.max(rb.y));
-        Some((self.x + x_min, self.x + x_max, self.y + y_min, self.y + y_max))
+        Some((
+            self.x + x_min,
+            self.x + x_max,
+            self.y + y_min,
+            self.y + y_max,
+        ))
     }
 }
 
@@ -572,16 +582,20 @@ impl WaterRect {
             && self.x_max <= bounds.x_max
             && self.y_min >= bounds.y_min
             && self.y_max <= bounds.y_max
-            && (self.floor.is_empty() || (self.floor.len() >= 2
-                && self.floor.first().is_some_and(|p| p.x == self.x_min)
-                && self.floor.last().is_some_and(|p| p.x == self.x_max)
-                && self.floor.iter().all(|p| p.x.is_finite() && p.y.is_finite()
-                    && p.y >= self.y_min && p.y <= self.y_max)
-                && self.floor.windows(2).all(|p| p[0].x < p[1].x)))
+            && (self.floor.is_empty()
+                || (self.floor.len() >= 2
+                    && self.floor.first().is_some_and(|p| p.x == self.x_min)
+                    && self.floor.last().is_some_and(|p| p.x == self.x_max)
+                    && self.floor.iter().all(|p| {
+                        p.x.is_finite() && p.y.is_finite() && p.y >= self.y_min && p.y <= self.y_max
+                    })
+                    && self.floor.windows(2).all(|p| p[0].x < p[1].x)))
     }
 
     fn floor_at(&self, x: f64) -> f64 {
-        self.floor.windows(2).find(|p| x >= p[0].x && x <= p[1].x)
+        self.floor
+            .windows(2)
+            .find(|p| x >= p[0].x && x <= p[1].x)
             .map(|p| p[0].y + (p[1].y - p[0].y) * (x - p[0].x) / (p[1].x - p[0].x))
             .unwrap_or(self.y_max)
     }
@@ -1004,13 +1018,7 @@ impl Map {
         self.water.iter().find(|water| water.contains(x, y))
     }
 
-    fn water_entry(
-        &self,
-        from_x: f64,
-        to_x: f64,
-        from_y: f64,
-        to_y: f64,
-    ) -> Option<(f64, f64)> {
+    fn water_entry(&self, from_x: f64, to_x: f64, from_y: f64, to_y: f64) -> Option<(f64, f64)> {
         const EPSILON: f64 = 0.001;
         if to_y < from_y - EPSILON {
             return None;
@@ -1024,7 +1032,9 @@ impl Map {
                     ((water.y_min - from_y) / denominator).clamp(0.0, 1.0)
                 };
                 let x = from_x + (to_x - from_x) * t;
-                return water.contains_x(x).then_some((x.clamp(water.x_min, water.x_max), water.y_min));
+                return water
+                    .contains_x(x)
+                    .then_some((x.clamp(water.x_min, water.x_max), water.y_min));
             }
             if from_y >= water.y_min - EPSILON
                 && from_y <= water.y_max + EPSILON
@@ -1043,9 +1053,11 @@ impl Map {
     }
 
     fn water_below(&self, current_id: u64, x: f64) -> bool {
-        let Some(current_ground) = self.get(current_id)
+        let Some(current_ground) = self
+            .get(current_id)
             .filter(|foothold| foothold.forbid_fall_down == 0)
-            .and_then(|foothold| foothold.at(x)) else {
+            .and_then(|foothold| foothold.at(x))
+        else {
             return false;
         };
         self.water.iter().any(|water| {
@@ -1433,6 +1445,11 @@ struct QuestConditions {
     level_at_least: u32,
     #[serde(default, alias = "prereq", alias = "prerequisites")]
     quests: Vec<QuestPrerequisite>,
+    /// Source Check.QuestOrOption == 1 makes the quest list an OR: any one
+    /// satisfied prerequisite unlocks the phase, not every one.  Branch quests
+    /// like 36337 list mutually exclusive route checkpoints this way.
+    #[serde(default)]
+    quest_or_option: bool,
     #[serde(default)]
     items: Vec<QuestItemRequirement>,
     #[serde(default)]
@@ -1573,9 +1590,10 @@ impl QuestSpec {
                 .start_items
                 .iter()
                 .all(|item| !item.item_id.is_empty() && item.quantity > 0)
-            && self.objectives.iter().all(|objective| {
-                !objective.item_id.is_empty() && objective.required > 0
-            })
+            && self
+                .objectives
+                .iter()
+                .all(|objective| !objective.item_id.is_empty() && objective.required > 0)
             && self.interaction.as_ref().is_none_or(|interaction| {
                 !interaction.map_id.is_empty()
                     && !interaction.item_id.is_empty()
@@ -1837,7 +1855,8 @@ impl Gameplay {
             }
         }
         for quest in &self.quests {
-            if quest.quest_id.trim().is_empty() || !quest.valid_reward() || !quest.valid_execution() {
+            if quest.quest_id.trim().is_empty() || !quest.valid_reward() || !quest.valid_execution()
+            {
                 return Err("invalid gameplay quest".into());
             }
         }
@@ -2407,6 +2426,11 @@ struct Player {
     /// id with a different body is a conflict.  Oldest entries fall out once
     /// the window is full (ephemeral chat tolerates the small gap).
     chat_recent: VecDeque<(String, String)>,
+    /// Characters this account has on its blacklist, cached at join and after
+    /// every block/unblock so the chat fan-out never has to reach for SQLite.
+    /// Enforced on the server: a blocked sender's map chat is dropped here,
+    /// which a modified client cannot opt back into.
+    blocked: BTreeSet<String>,
     /// Track which area-type reactors are currently overlapped so automatic
     /// stepping only triggers a hit on entry, not every tick while standing.
     area_reactor_overlaps: BTreeSet<String>,
@@ -2668,6 +2692,19 @@ pub struct World {
     /// Bounded request-id idempotency for party intents (player, request).
     party_requests: BTreeMap<(String, String), PartyOutcome>,
     party_sequence: u64,
+    /// Cached outcome of the last friend/blacklist intent per (player,
+    /// request).  Mirrors the persisted `friend_actions` row so a retry inside
+    /// one session does not pay for a second transaction.
+    friend_requests: BTreeMap<(String, String), auth::FriendOutcome>,
+    /// Reverse index of the friend graph: who lists `key` as a friend.  Built
+    /// from the persisted rows (a friend row is written in both directions) so
+    /// that a login/logout can push a refreshed window to exactly the
+    /// characters that are watching, instead of to the whole world.
+    friend_links: BTreeMap<String, BTreeSet<String>>,
+    /// Roster snapshot used to notice that somebody's online flag changed.
+    /// Compared once per tick; the friend pass is skipped whenever the set of
+    /// characters in the world is unchanged.
+    friend_roster: Vec<String>,
     skill_requests: BTreeMap<(String, String), auth::SkillActionOutcome>,
     ability_requests: BTreeMap<(String, String), (AbilityStat, auth::AbilityActionOutcome)>,
     pending_attacks: BTreeMap<String, PendingAttack>,
@@ -2760,6 +2797,9 @@ impl World {
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
             party_sequence: 0,
+            friend_requests: BTreeMap::new(),
+            friend_links: BTreeMap::new(),
+            friend_roster: Vec::new(),
             skill_requests: BTreeMap::new(),
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
@@ -2780,7 +2820,6 @@ impl World {
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
-
                 let drop_id = drop.id.clone();
                 let owner_id = drop.owner_id.clone();
                 // P: user-authorized drop floating — re-pin any stored drop
@@ -2865,21 +2904,21 @@ impl World {
         for map in catalog.maps {
             let map_id = map.id.clone();
             self.maps.insert(map_id.clone(), map);
-                if let Some(store) = self.store.as_ref() {
-                    for drop in store.load_drops(&map_id)? {
-                        let drop_id = drop.id.clone();
-                        // P: user-authorized drop floating.
-                        let (load_x, load_y) = (drop.x, self.map.water_float_y(drop.x, drop.y));
-                        self.drops.insert(
-                            drop_id.clone(),
-                            DropState {
-                                id: drop.id.clone(),
-                                item_id: drop.item_id.clone(),
-                                quantity: drop.quantity,
-                                x: load_x,
-                                y: load_y,
-                            },
-                        );
+            if let Some(store) = self.store.as_ref() {
+                for drop in store.load_drops(&map_id)? {
+                    let drop_id = drop.id.clone();
+                    // P: user-authorized drop floating.
+                    let (load_x, load_y) = (drop.x, self.map.water_float_y(drop.x, drop.y));
+                    self.drops.insert(
+                        drop_id.clone(),
+                        DropState {
+                            id: drop.id.clone(),
+                            item_id: drop.item_id.clone(),
+                            quantity: drop.quantity,
+                            x: load_x,
+                            y: load_y,
+                        },
+                    );
                     self.drop_instances
                         .insert(drop_id.clone(), DropInstance::from_record(&drop));
                     self.drop_owners
@@ -2913,16 +2952,13 @@ impl World {
             .collect::<Vec<_>>();
         for (map_id, placement) in placements {
             let id = placement.id.clone();
-            let entry = self
-                .reactors
-                .entry(id)
-                .or_insert_with(|| ReactorInstance {
-                    map_id: map_id.clone(),
-                    placement: placement.clone(),
-                    state: 0,
-                    hit_until: 0,
-                    respawn_at: None,
-                });
+            let entry = self.reactors.entry(id).or_insert_with(|| ReactorInstance {
+                map_id: map_id.clone(),
+                placement: placement.clone(),
+                state: 0,
+                hit_until: 0,
+                respawn_at: None,
+            });
             // Keep the authored geometry current if the map data was reloaded,
             // but never roll back state a player already advanced.
             entry.map_id = map_id;
@@ -3214,9 +3250,11 @@ impl World {
             })
             .collect::<Vec<_>>();
         for (player_id, player) in &self.players {
-            if let Some(vortex) = player.hyper_vortex.as_ref().filter(|vortex| {
-                vortex.map_id == map_id && vortex.expires_at > self.tick
-            }) {
+            if let Some(vortex) = player
+                .hyper_vortex
+                .as_ref()
+                .filter(|vortex| vortex.map_id == map_id && vortex.expires_at > self.tick)
+            {
                 summons.push(serde_json::json!({
                     "id": format!("hyper-vortex-{player_id}-{}", vortex.request_id),
                     "playerId": player_id,
@@ -3535,7 +3573,11 @@ impl World {
         let reach = self.gameplay.player.attack_reach.unwrap_or(88.0).max(1.0);
         let height = self.gameplay.player.attack_height.unwrap_or(62.0).max(1.0);
         let facing = if facing == 0 { 1 } else { facing };
-        let dx = if facing < 0 { x - placement.x } else { placement.x - x };
+        let dx = if facing < 0 {
+            x - placement.x
+        } else {
+            placement.x - x
+        };
         dx >= -REACTOR_REACH_BACK_PX && dx <= reach && (placement.y - y).abs() <= height
     }
 
@@ -3643,9 +3685,8 @@ impl World {
                         // time spent away would be paid out as recovery on
                         // return, handing the character free HP/MP for doing
                         // nothing.
-                        existing.natural_recovery_next_tick = self
-                            .tick
-                            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+                        existing.natural_recovery_next_tick =
+                            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
                         existing.beginner_heal_next_tick = 0;
                         existing.beginner_heal_remaining_ticks = 0;
                         let _ = output.try_send(self.snapshot(&identity.id));
@@ -3769,14 +3810,16 @@ impl World {
                     None => BTreeMap::new(),
                 };
                 let adaptation_cooldown_ms = match self.store.as_ref() {
-                    Some(store) => match store.skill_cooldown_remaining_ms(&id, SKILL_ELEMENTAL_ADAPTING) {
-                        Ok(remaining) => remaining,
-                        Err(error) => {
-                            let _ = output.try_send(reject("persistence", &error, None));
-                            let _ = reply.send(false);
-                            return;
+                    Some(store) => {
+                        match store.skill_cooldown_remaining_ms(&id, SKILL_ELEMENTAL_ADAPTING) {
+                            Ok(remaining) => remaining,
+                            Err(error) => {
+                                let _ = output.try_send(reject("persistence", &error, None));
+                                let _ = reply.send(false);
+                                return;
+                            }
                         }
-                    },
+                    }
                     None => 0,
                 };
                 let mut skill_cooldowns = BTreeMap::new();
@@ -3842,6 +3885,17 @@ impl World {
                     &BTreeMap::new(),
                 );
                 let derived_move_speed = derived_stats.move_speed;
+                // The blacklist is read once here instead of inside the chat
+                // fan-out: it only ever changes through a friend intent, and
+                // every such intent refreshes this cached set.
+                let blocked: BTreeSet<String> = self
+                    .store
+                    .as_ref()
+                    .and_then(|store| store.load_blacklist(&id).ok())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|row| row.id)
+                    .collect();
                 self.players.insert(
                     id.clone(),
                     Player {
@@ -3956,6 +4010,7 @@ impl World {
                         chat_tokens: CHAT_TOKEN_BURST,
                         chat_bucket_tick: self.tick,
                         chat_recent: VecDeque::new(),
+                        blocked,
                         potion_cooldowns: BTreeMap::new(),
                         area_reactor_overlaps: BTreeSet::new(),
                     },
@@ -3965,6 +4020,12 @@ impl World {
                 // fresh client window always reflects the persisted rows and
                 // the client never needs a client-side translation table.
                 self.send_quest_list(&id);
+                // A login is the one friend-window fact that is not persisted.
+                // Rebuild this character's slice of the friend graph and
+                // refresh the windows watching it, so an online flag flips at
+                // once instead of on the next tick.
+                self.refresh_friend_links(&id);
+                self.push_friend_state_to_watchers(&id);
                 let _ = reply.send(true);
             }
             Command::Detach {
@@ -3993,11 +4054,7 @@ impl World {
                     .players
                     .get(&id)
                     .is_some_and(|player| player.away.is_none());
-                let away_id = if needs_window {
-                    self.next_away_id()
-                } else {
-                    0
-                };
+                let away_id = if needs_window { self.next_away_id() } else { 0 };
                 let Some(player) = self.players.get_mut(&id) else {
                     return;
                 };
@@ -4110,8 +4167,7 @@ impl World {
                                 .players
                                 .get(&id)
                                 .is_some_and(|player| player.away.is_none());
-                            let away_id =
-                                if needs_window { self.next_away_id() } else { 0 };
+                            let away_id = if needs_window { self.next_away_id() } else { 0 };
                             let Some(player) = self.players.get_mut(&id) else {
                                 return;
                             };
@@ -4181,9 +4237,7 @@ impl World {
                         request_id,
                         action,
                         encounter_id,
-                    } => {
-                        self.handle_boss_practice(id, request_id, action, encounter_id)
-                    }
+                    } => self.handle_boss_practice(id, request_id, action, encounter_id),
                     ClientMessage::ReleaseSkill { request_id } => {
                         self.handle_release_skill(id, request_id)
                     }
@@ -4284,10 +4338,9 @@ impl World {
                         source_slot,
                         quantity,
                     ),
-                    ClientMessage::StorageOpen {
-                        request_id,
-                        npc_id,
-                    } => self.handle_storage_open(id, request_id, npc_id),
+                    ClientMessage::StorageOpen { request_id, npc_id } => {
+                        self.handle_storage_open(id, request_id, npc_id)
+                    }
                     ClientMessage::StorageTransfer {
                         request_id,
                         operation,
@@ -4328,6 +4381,45 @@ impl World {
                         request_id,
                         player_id,
                     } => self.handle_party_leader(id, request_id, player_id),
+                    ClientMessage::FriendOpen { request_id } => {
+                        self.handle_friend_open(id, request_id)
+                    }
+                    ClientMessage::FriendAdd {
+                        request_id,
+                        player_name,
+                    } => self.handle_friend_by_name(
+                        id,
+                        request_id,
+                        auth::FriendOperation::Add,
+                        player_name,
+                    ),
+                    ClientMessage::FriendRemove {
+                        request_id,
+                        player_id,
+                    } => self.apply_friend_edit(
+                        id,
+                        request_id,
+                        auth::FriendOperation::Remove,
+                        player_id,
+                    ),
+                    ClientMessage::FriendBlock {
+                        request_id,
+                        player_name,
+                    } => self.handle_friend_by_name(
+                        id,
+                        request_id,
+                        auth::FriendOperation::Block,
+                        player_name,
+                    ),
+                    ClientMessage::FriendUnblock {
+                        request_id,
+                        player_id,
+                    } => self.apply_friend_edit(
+                        id,
+                        request_id,
+                        auth::FriendOperation::Unblock,
+                        player_id,
+                    ),
                     ClientMessage::Hello { .. } => {}
                 }
             }
@@ -4440,7 +4532,14 @@ impl World {
         let recipients: Vec<(String, mpsc::Sender<String>)> = self
             .players
             .iter()
-            .filter(|(_, player)| player.map_id == map_id)
+            .filter(|(player_id, player)| {
+                player.map_id == map_id
+                    // A blocked sender's map chat never reaches the blocker.
+                    // The filter sits at fan-out rather than in the client, so
+                    // a modified build cannot opt back into hearing somebody
+                    // it blacklisted.  The sender always gets its own echo.
+                    && (**player_id == id || !player.blocked.contains(&id))
+            })
             .map(|(player_id, player)| (player_id.clone(), player.output.clone()))
             .collect();
         for (player_id, output) in recipients {
@@ -4568,9 +4667,8 @@ impl World {
             return;
         };
         player.map_id = target_map_id.clone();
-        player.natural_recovery_next_tick = self
-            .tick
-            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        player.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.state.x = target_x;
         player.state.y = target_y;
         player.state.vx = 0.0;
@@ -4845,9 +4943,9 @@ impl World {
         };
         if self.store.is_none() {
             if let Some(prior) = self
-            .skill_requests
-            .get(&(id.clone(), request_id.clone()))
-            .cloned()
+                .skill_requests
+                .get(&(id.clone(), request_id.clone()))
+                .cloned()
             {
                 let quoted = self
                     .hyper_reset_quotes
@@ -4872,7 +4970,12 @@ impl World {
                 .get(&id)
                 .is_none_or(|player| player.state.hp <= 0)
         {
-            self.send_reject(&id, "invalid_state", "当前状态不能重置Hyper技能。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "invalid_state",
+                "当前状态不能重置Hyper技能。",
+                Some(&request_id),
+            );
             return;
         }
         let outcome = match self.store.as_ref() {
@@ -4880,7 +4983,12 @@ impl World {
             None => Ok(self.local_reset_hyper(&id, &request_id, expected_cost)),
         };
         let Ok(outcome) = outcome else {
-            self.send_reject(&id, "persistence", "Hyper重置保存失败，请重试。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "persistence",
+                "Hyper重置保存失败，请重试。",
+                Some(&request_id),
+            );
             return;
         };
         if outcome.already_resolved {
@@ -4896,13 +5004,17 @@ impl World {
             .as_ref()
             .and_then(|store| store.hyper_reset_count(&id).ok());
         if let Some(player) = self.players.get_mut(&id) {
-            player.state.skills.retain(|skill_id, _| !is_hyper_skill(*skill_id));
+            player
+                .state
+                .skills
+                .retain(|skill_id, _| !is_hyper_skill(*skill_id));
             player.state.mesos = player.state.mesos.saturating_sub(expected_cost);
             player.hyper_reset_count = next_reset_count
                 .unwrap_or_else(|| player.hyper_reset_count.saturating_add(1).min(4));
             player.state.hyper_reset_count = player.hyper_reset_count;
             player.state.hyper_reset_cost = auth::hyper_reset_cost(player.hyper_reset_count);
-            player.state.hyper_points = hyper_points_for_state(player.state.level, &player.state.skills);
+            player.state.hyper_points =
+                hyper_points_for_state(player.state.level, &player.state.skills);
             clear_hyper_runtime(player);
             refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         }
@@ -4937,14 +5049,17 @@ impl World {
             };
         };
         let current = auth::hyper_reset_cost(player.hyper_reset_count);
-        let success = player.state.hp > 0
-            && expected_cost == current
-            && player.state.mesos >= expected_cost;
+        let success =
+            player.state.hp > 0 && expected_cost == current && player.state.mesos >= expected_cost;
         let outcome = auth::SkillActionOutcome {
             operation: "hyper_reset".into(),
             skill_id: 0,
             success,
-            code: if success { String::new() } else { "invalid_state".into() },
+            code: if success {
+                String::new()
+            } else {
+                "invalid_state".into()
+            },
             level: 0,
             remaining_sp: auth::hyper_points(player.state.level, &player.state.skills, 1),
             mp: player.state.mp,
@@ -5160,7 +5275,8 @@ impl World {
                     .skill_points
                     .insert(book_id, outcome.remaining_sp);
             }
-            player.state.hyper_points = hyper_points_for_state(player.state.level, &player.state.skills);
+            player.state.hyper_points =
+                hyper_points_for_state(player.state.level, &player.state.skills);
         }
         self.skill_requests
             .insert((id.to_owned(), request_id.to_owned()), outcome.clone());
@@ -5256,12 +5372,7 @@ impl World {
             return;
         }
         if player.channel_until > self.tick {
-            self.send_reject(
-                &id,
-                "skill_busy",
-                "冰龙吐息进行中。",
-                Some(&request_id),
-            );
+            self.send_reject(&id, "skill_busy", "冰龙吐息进行中。", Some(&request_id));
             return;
         }
         let skill_level = player.state.skills.get(&skill_id).copied().unwrap_or(0);
@@ -5339,12 +5450,7 @@ impl World {
             .copied()
             .is_some_and(|remaining| remaining > 0)
         {
-            self.send_reject(
-                &id,
-                "skill_cooldown",
-                "技能尚在冷却中。",
-                Some(&request_id),
-            );
+            self.send_reject(&id, "skill_cooldown", "技能尚在冷却中。", Some(&request_id));
             return;
         }
         if skill_id == SKILL_HYPER_VORTEX
@@ -5396,7 +5502,7 @@ impl World {
                 || (skill_id == SKILL_MAGIC_WAVE_HIDDEN
                     && (vertical <= 0 || player.state.grounded))
                 || (skill_id == SKILL_MAGIC_WAVE && player.magic_wave_used)
-            || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.magic_wave_float_used))
+                || (skill_id == SKILL_MAGIC_WAVE_HIDDEN && player.magic_wave_float_used))
         {
             self.send_reject(
                 &id,
@@ -5426,16 +5532,8 @@ impl World {
             self.send_reject(&id, "skill_busy", "技能动作尚未结束。", Some(&request_id));
             return;
         }
-        let mut mp_cost = self.skill_mp_cost(
-            &id,
-            skill_id,
-            &level,
-            vertical,
-        );
-        if skill_id == SKILL_HYPER_VORTEX
-            && player.hyper_barrier_enabled
-            && vertical <= 0
-        {
+        let mut mp_cost = self.skill_mp_cost(&id, skill_id, &level, vertical);
+        if skill_id == SKILL_HYPER_VORTEX && player.hyper_barrier_enabled && vertical <= 0 {
             // Turning the barrier off does not charge the next second.
             mp_cost = 0;
         }
@@ -5460,20 +5558,17 @@ impl World {
             cooldown_ms
         };
         let outcome = match self.store.as_ref() {
-            Some(store) if skill_id == SKILL_HYPER_VORTEX && vertical > 0 => store.cast_hyper_vortex(
-                &id,
-                &request_id,
-                mp_cost,
-                if vertical > 0 {
-                    level
-                        .cooltime
-                        .unwrap_or(60)
-                        .max(0)
-                        .saturating_mul(1_000)
-                } else {
-                    0
-                },
-            ),
+            Some(store) if skill_id == SKILL_HYPER_VORTEX && vertical > 0 => store
+                .cast_hyper_vortex(
+                    &id,
+                    &request_id,
+                    mp_cost,
+                    if vertical > 0 {
+                        level.cooltime.unwrap_or(60).max(0).saturating_mul(1_000)
+                    } else {
+                        0
+                    },
+                ),
             Some(store) if durable_cooldown_ms > 0 => store.cast_skill_with_cooldown(
                 &id,
                 &request_id,
@@ -5515,10 +5610,9 @@ impl World {
         if let Some(player) = self.players.get_mut(&id) {
             player.state.mp = outcome.mp;
             if cooldown_ms > 0 {
-                player.skill_cooldowns.insert(
-                    skill_id,
-                    u64::try_from(cooldown_ms).unwrap_or(u64::MAX),
-                );
+                player
+                    .skill_cooldowns
+                    .insert(skill_id, u64::try_from(cooldown_ms).unwrap_or(u64::MAX));
             }
             if skill_id == SKILL_HYPER_VORTEX && vertical > 0 {
                 let vortex_cooldown = u64::try_from(level.cooltime.unwrap_or(60).max(0))
@@ -5624,9 +5718,7 @@ impl World {
                             .cloned()
                     });
                     if let Some(mastery) = mastery {
-                        if let Err(error) =
-                            self.cast_teleport_mastery(&id, &request_id, &mastery)
-                        {
+                        if let Err(error) = self.cast_teleport_mastery(&id, &request_id, &mastery) {
                             self.handle_accepted_effect_error(&id, &request_id, &error);
                             return;
                         }
@@ -5708,8 +5800,11 @@ impl World {
                 }
             }
             SKILL_MAPLE_WARRIOR => {
-                let duration_ms = self
-                    .buff_duration_ms(&id, &level, level.time.unwrap_or(0).max(0) as u64 * 1_000);
+                let duration_ms = self.buff_duration_ms(
+                    &id,
+                    &level,
+                    level.time.unwrap_or(0).max(0) as u64 * 1_000,
+                );
                 if let Some(player) = self.players.get_mut(&id) {
                     player.skill_buffs.insert(SKILL_MAPLE_WARRIOR, duration_ms);
                 }
@@ -5790,8 +5885,7 @@ impl World {
                 }
             }
             SKILL_THREE_SNAILS => {
-                if let Err(error) =
-                    self.cast_beginner_throw(&id, &request_id, &level, skill_level)
+                if let Err(error) = self.cast_beginner_throw(&id, &request_id, &level, skill_level)
                 {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
@@ -5855,10 +5949,8 @@ impl World {
     }
 
     fn handle_release_skill(&mut self, id: String, request_id: String) {
-        let Some((channel_skill, channel_request, channel_until, hp, action)) = self
-            .players
-            .get(&id)
-            .map(|player| {
+        let Some((channel_skill, channel_request, channel_until, hp, action)) =
+            self.players.get(&id).map(|player| {
                 (
                     player.channel_skill_id,
                     player.channel_request_id.clone(),
@@ -5873,8 +5965,9 @@ impl World {
         let valid = matches!(
             channel_skill,
             Some(SKILL_ICE_DRAGON_BREATH) | Some(SKILL_HYPER_THUNDER)
-        )
-            && channel_request.as_deref().is_some_and(|value| value == request_id)
+        ) && channel_request
+            .as_deref()
+            .is_some_and(|value| value == request_id)
             && channel_until > self.tick
             && action != "dead"
             && hp > 0;
@@ -5947,9 +6040,7 @@ impl World {
                 .copied()
                 .and_then(|level| self.mage_skills.level(SKILL_ELEMENT_AMP, level));
             if let Some(amp) = amp_level {
-                cost = cost
-                    .saturating_mul(100 + amp.costmp_r.unwrap_or(0).max(0))
-                    / 100;
+                cost = cost.saturating_mul(100 + amp.costmp_r.unwrap_or(0).max(0)) / 100;
             }
         }
         if skill_id == SKILL_TELEPORT {
@@ -5979,15 +6070,12 @@ impl World {
         } else if skill_id == SKILL_THUNDER_SPHERE
             && vertical > 0
             && self.players.get(id).is_some_and(|player| {
-                player
-                    .summon
-                    .as_ref()
-                    .is_some_and(|summon| {
-                        matches!(
-                            summon.skill_id,
-                            SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
-                        )
-                    })
+                player.summon.as_ref().is_some_and(|summon| {
+                    matches!(
+                        summon.skill_id,
+                        SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+                    )
+                })
             })
         {
             // Re-anchoring the existing sphere is a control action; only the
@@ -6140,8 +6228,7 @@ impl World {
                 } else {
                     level.range.unwrap_or(0).max(0) as f64
                 };
-                value["targetX"] = (x + f64::from(if facing < 0 { -1 } else { 1 }) * range)
-                    .into();
+                value["targetX"] = (x + f64::from(if facing < 0 { -1 } else { 1 }) * range).into();
                 value["targetY"] = y.into();
             }
         }
@@ -6239,10 +6326,7 @@ impl World {
         if state.hp <= 0 || next_tick > self.tick || remaining_ticks == 0 || per_tick <= 0 {
             return;
         }
-        let healed_hp = state
-            .hp
-            .saturating_add(per_tick)
-            .min(state.max_hp.max(1));
+        let healed_hp = state.hp.saturating_add(per_tick).min(state.max_hp.max(1));
         let next_remaining_ticks = remaining_ticks.saturating_sub(1);
         let next_tick = if next_remaining_ticks > 0 {
             self.tick
@@ -6277,9 +6361,7 @@ impl World {
     /// write schedules only the next one-second retry and never replays the
     /// failed interval on every 50 ms tick.
     fn step_natural_recovery(&mut self, id: &str) {
-        let retry_tick = self
-            .tick
-            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        let retry_tick = self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         let (state, map_id, death_id, base_max_mp, hp_per_second, mp_per_second) = {
             let Some(player) = self.players.get_mut(id) else {
                 return;
@@ -6336,7 +6418,10 @@ impl World {
         candidate.mp = candidate_mp;
         if let Some(store) = self.store.as_ref() {
             if store
-                .save_profile(id, &profile_from_state(&candidate, &map_id, &death_id, base_max_mp))
+                .save_profile(
+                    id,
+                    &profile_from_state(&candidate, &map_id, &death_id, base_max_mp),
+                )
                 .is_err()
             {
                 if let Some(player) = self.players.get_mut(id) {
@@ -6374,9 +6459,7 @@ impl World {
         if duration_ms == 0 {
             return Err("infinity_duration_invalid".to_owned());
         }
-        let next_tick = self
-            .tick
-            .saturating_add((5_000_u64 / TICK_MS).max(1));
+        let next_tick = self.tick.saturating_add((5_000_u64 / TICK_MS).max(1));
         let initial_bonus = level.q.unwrap_or(0).max(0);
         let Some(player) = self.players.get_mut(id) else {
             return Err("player_unknown".to_owned());
@@ -6433,7 +6516,10 @@ impl World {
         candidate.mp = candidate_mp;
         if let Some(store) = self.store.as_ref() {
             if store
-                .save_profile(&id, &profile_from_state(&candidate, &map_id, &death_id, base_max_mp))
+                .save_profile(
+                    &id,
+                    &profile_from_state(&candidate, &map_id, &death_id, base_max_mp),
+                )
                 .is_err()
             {
                 return;
@@ -6448,9 +6534,7 @@ impl World {
                 .infinity_damage_bonus
                 .saturating_add(increment)
                 .min(cap.max(player.infinity_damage_bonus));
-            player.infinity_next_tick = self
-                .tick
-                .saturating_add((5_000_u64 / TICK_MS).max(1));
+            player.infinity_next_tick = self.tick.saturating_add((5_000_u64 / TICK_MS).max(1));
         }
     }
 
@@ -6462,9 +6546,7 @@ impl World {
         // so there is no status instance to clear here.  Keep the source's
         // separate three-second immunity window authoritative; a future
         // abnormal-status entry point must consume this deadline.
-        player.status_immune_until = self
-            .tick
-            .saturating_add((3_000_u64 / TICK_MS).max(1));
+        player.status_immune_until = self.tick.saturating_add((3_000_u64 / TICK_MS).max(1));
         player.skill_buffs.insert(SKILL_MAPLE_CURE, 3_000);
     }
 
@@ -6480,7 +6562,12 @@ impl World {
                 player.state.x,
                 player.state.y,
                 player.state.facing,
-                player.state.skills.get(&SKILL_ICE_DEMON).copied().unwrap_or(1),
+                player
+                    .state
+                    .skills
+                    .get(&SKILL_ICE_DEMON)
+                    .copied()
+                    .unwrap_or(1),
             )
         }) else {
             return Err("player_unknown".to_owned());
@@ -6526,7 +6613,12 @@ impl World {
                 player.state.x,
                 player.state.y,
                 player.state.facing,
-                player.state.skills.get(&SKILL_FROZEN_ORB).copied().unwrap_or(1),
+                player
+                    .state
+                    .skills
+                    .get(&SKILL_FROZEN_ORB)
+                    .copied()
+                    .unwrap_or(1),
             )
         }) else {
             return Err("player_unknown".to_owned());
@@ -6547,7 +6639,9 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return Err("player_unknown".to_owned());
         };
-        player.summons.retain(|old| old.skill_id != SKILL_FROZEN_ORB);
+        player
+            .summons
+            .retain(|old| old.skill_id != SKILL_FROZEN_ORB);
         if player.summons.len() >= 2 {
             return Err("summon_limit".to_owned());
         }
@@ -6609,14 +6703,9 @@ impl World {
             } else {
                 0
             };
-            let bind_ticks = base_ticks
-                .saturating_mul(100 + ratio)
-                .div_ceil(100)
-                .max(1);
+            let bind_ticks = base_ticks.saturating_mul(100 + ratio).div_ceil(100).max(1);
             monster.bind_until = self.tick.saturating_add(bind_ticks);
-            monster.bind_immune_until = self
-                .tick
-                .saturating_add((90_000_u64 / TICK_MS).max(1));
+            monster.bind_immune_until = self.tick.saturating_add((90_000_u64 / TICK_MS).max(1));
             // String.h calls this action armor melting: v lowers PDRate and
             // w lowers MDRate for the bind window.  Keep both reductions
             // independent from the ninety-second bind immunity timer.
@@ -6633,7 +6722,9 @@ impl World {
         };
         player.channel_request_id = Some(request_id.to_owned());
         player.channel_skill_id = Some(SKILL_ICE_DRAGON_BREATH);
-        player.channel_until = self.tick.saturating_add(duration_ms.div_ceil(TICK_MS).max(1));
+        player.channel_until = self
+            .tick
+            .saturating_add(duration_ms.div_ceil(TICK_MS).max(1));
         player.channel_level = player
             .state
             .skills
@@ -6763,23 +6854,26 @@ impl World {
                 };
                 if !outcome.success {
                     self.stop_hyper_thunder(&id, base_request);
-                    self.send_reject(&id, "hyper_pulse_stopped", "MP不足，Hyper持续攻击已结束。", None);
+                    self.send_reject(
+                        &id,
+                        "hyper_pulse_stopped",
+                        "MP不足，Hyper持续攻击已结束。",
+                        None,
+                    );
                     continue;
                 }
                 pulse_mp = outcome.mp;
             }
             if let Some(player) = self.players.get_mut(&id) {
                 player.state.mp = pulse_mp;
-                player.hyper_channel_pulse_index = player.hyper_channel_pulse_index.saturating_add(1);
-                player.hyper_channel_next_pulse = self.tick.saturating_add(200_u64.div_ceil(TICK_MS));
+                player.hyper_channel_pulse_index =
+                    player.hyper_channel_pulse_index.saturating_add(1);
+                player.hyper_channel_next_pulse =
+                    self.tick.saturating_add(200_u64.div_ceil(TICK_MS));
             }
-            if let Err(error) = self.cast_elemental_area(
-                &id,
-                &pulse_request,
-                SKILL_HYPER_THUNDER,
-                &level,
-                false,
-            ) {
+            if let Err(error) =
+                self.cast_elemental_area(&id, &pulse_request, SKILL_HYPER_THUNDER, &level, false)
+            {
                 self.stop_hyper_thunder(&id, base_request);
                 self.handle_accepted_effect_error(&id, &pulse_request, &error);
                 continue;
@@ -6894,7 +6988,9 @@ impl World {
         }
         for target in self.party_members_on_map(id) {
             if let Some(player) = self.players.get_mut(&target) {
-                player.skill_buffs.insert(SKILL_HYPER_ADVENTURER, duration_ms);
+                player
+                    .skill_buffs
+                    .insert(SKILL_HYPER_ADVENTURER, duration_ms);
             }
         }
     }
@@ -6926,8 +7022,8 @@ impl World {
             let duration_ms = u64::try_from(hidden_level.u2.unwrap_or(30).max(0))
                 .unwrap_or(30)
                 .saturating_mul(1_000);
-            let pulse_ms = u64::try_from(hidden_level.sub_time.unwrap_or(1_200).max(1))
-                .unwrap_or(1_200);
+            let pulse_ms =
+                u64::try_from(hidden_level.sub_time.unwrap_or(1_200).max(1)).unwrap_or(1_200);
             if duration_ms == 0 || pulse_ms == 0 {
                 return Err("invalid_hyper_vortex".to_owned());
             }
@@ -6966,7 +7062,8 @@ impl World {
             };
             player.hyper_barrier_enabled = !barrier_enabled;
             if player.hyper_barrier_enabled {
-                player.hyper_barrier_next_mp = self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
+                player.hyper_barrier_next_mp =
+                    self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
                 player.hyper_barrier_next_pulse = self.tick;
             } else {
                 player.hyper_barrier_next_mp = 0;
@@ -7032,9 +7129,8 @@ impl World {
                     Ok(outcome) if outcome.success => {
                         if let Some(player) = self.players.get_mut(&id) {
                             player.state.mp = outcome.mp;
-                            player.hyper_barrier_next_mp = self
-                                .tick
-                                .saturating_add(1_000_u64.div_ceil(TICK_MS));
+                            player.hyper_barrier_next_mp =
+                                self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
                         }
                     }
                     Ok(_) | Err(_) => {
@@ -7044,7 +7140,12 @@ impl World {
                             player.hyper_barrier_next_pulse = 0;
                             refresh_player_derived(&self.gameplay, &self.mage_skills, player);
                         }
-                        self.send_reject(&id, "hyper_barrier_stopped", "MP不足，冰雪結界已结束。", None);
+                        self.send_reject(
+                            &id,
+                            "hyper_barrier_stopped",
+                            "MP不足，冰雪結界已结束。",
+                            None,
+                        );
                         self.send_snapshot(&id);
                     }
                 }
@@ -7067,9 +7168,8 @@ impl World {
                     self.freeze_target(&target_id, 1);
                 }
                 if let Some(player) = self.players.get_mut(&id) {
-                    player.hyper_barrier_next_pulse = self
-                        .tick
-                        .saturating_add(2_400_u64.div_ceil(TICK_MS));
+                    player.hyper_barrier_next_pulse =
+                        self.tick.saturating_add(2_400_u64.div_ceil(TICK_MS));
                 }
             }
 
@@ -7098,23 +7198,21 @@ impl World {
                 continue;
             }
             if vortex.next_pulse_at <= self.tick {
-                let Some(level) = self.mage_skills.level(SKILL_HYPER_VORTEX_HIDDEN, 1).cloned() else {
+                let Some(level) = self
+                    .mage_skills
+                    .level(SKILL_HYPER_VORTEX_HIDDEN, 1)
+                    .cloned()
+                else {
                     continue;
                 };
-                let targets = self.area_targets_at(
-                    &id,
-                    &level,
-                    vortex.x,
-                    vortex.y,
-                    vortex.facing,
-                );
+                let targets = self.area_targets_at(&id, &level, vortex.x, vortex.y, vortex.facing);
                 for target_id in targets {
                     self.freeze_target(&target_id, 1);
                 }
                 if let Some(player) = self.players.get_mut(&id) {
                     if let Some(active) = player.hyper_vortex.as_mut() {
-                        let pulse_ms = u64::try_from(level.sub_time.unwrap_or(1_200).max(1))
-                            .unwrap_or(1_200);
+                        let pulse_ms =
+                            u64::try_from(level.sub_time.unwrap_or(1_200).max(1)).unwrap_or(1_200);
                         active.next_pulse_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
                     }
                 }
@@ -7146,24 +7244,33 @@ impl World {
             return Ok(());
         };
         let Some((target_x, target_y, map_id)) = self.monsters.get(target_id).and_then(|monster| {
-            (monster.state.hp > 0).then_some((monster.state.x, monster.state.y, monster.map_id.clone()))
+            (monster.state.hp > 0).then_some((
+                monster.state.x,
+                monster.state.y,
+                monster.map_id.clone(),
+            ))
         }) else {
             return Ok(());
         };
-        if self.players.get(id).is_none_or(|player| player.map_id != map_id) {
+        if self
+            .players
+            .get(id)
+            .is_none_or(|player| player.map_id != map_id)
+        {
             return Ok(());
         }
         let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
-        if deterministic_percent(&[id, request_id, target_id, "blizzard-follow-up"])
-            >= prop
-        {
+        if deterministic_percent(&[id, request_id, target_id, "blizzard-follow-up"]) >= prop {
             return Ok(());
         }
         let mut follow = level.clone();
         follow.damage = level.x;
         follow.mob_count = Some(1);
         follow.attack_count = Some(1);
-        follow.lt = Some(crate::mage::MagePoint { x: -500.0, y: -500.0 });
+        follow.lt = Some(crate::mage::MagePoint {
+            x: -500.0,
+            y: -500.0,
+        });
         follow.rb = Some(crate::mage::MagePoint { x: 500.0, y: 500.0 });
         // Anchor the hidden hit at the target that actually survived the
         // triggering cast, then exclude every other mob.  A second scan from
@@ -7180,7 +7287,11 @@ impl World {
             SKILL_BLIZZARD_HIDDEN,
             &follow,
             false,
-            Some((target_x, target_y, self.players.get(id).map(|p| p.state.facing).unwrap_or(1))),
+            Some((
+                target_x,
+                target_y,
+                self.players.get(id).map(|p| p.state.facing).unwrap_or(1),
+            )),
             Some(&excluded),
         )
     }
@@ -7193,9 +7304,7 @@ impl World {
             .div_ceil(TICK_MS)
             .max(1);
         for target_id in self.skill_area_targets(id, SKILL_CHAIN_LIGHTNING, level) {
-            if deterministic_percent(&[id, request_id, target_id.as_str(), "chain-stun"])
-                >= prop
-            {
+            if deterministic_percent(&[id, request_id, target_id.as_str(), "chain-stun"]) >= prop {
                 continue;
             }
             if let Some(monster) = self.monsters.get_mut(&target_id) {
@@ -7309,7 +7418,11 @@ impl World {
                 target_id: Some(target_id.clone()),
                 damage: applied_damage,
                 killed,
-                exp_gain: if killed && !practice { target_template.exp } else { 0 },
+                exp_gain: if killed && !practice {
+                    target_template.exp
+                } else {
+                    0
+                },
                 drop: drops.first().cloned(),
                 drops,
                 profile: None,
@@ -7338,7 +7451,11 @@ impl World {
                     .div_ceil(TICK_MS)
                     .max(1);
                 monster.death_until = Some(self.tick + die_ticks);
-                monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
+                monster.respawn_at = respawn_deadline(
+                    self.tick,
+                    self.gameplay.monster_respawn_ms,
+                    monster.spawn.mob_time,
+                );
             }
         }
         if resolution.damage > 0 {
@@ -7372,7 +7489,11 @@ impl World {
             }
         } else if resolution.exp_gain > 0 && self.store.is_none() {
             if let Some(player) = self.players.get_mut(id) {
-                Self::add_exp(&mut player.state, resolution.exp_gain, &self.gameplay.exp_table);
+                Self::add_exp(
+                    &mut player.state,
+                    resolution.exp_gain,
+                    &self.gameplay.exp_table,
+                );
                 refresh_player_derived(&self.gameplay, &self.mage_skills, player);
             }
         }
@@ -7465,9 +7586,8 @@ impl World {
         } else {
             0
         };
-        let horizontal_distance = level.x.unwrap_or(0).max(0) as f64
-            + boost_x as f64
-            + hyper_distance as f64;
+        let horizontal_distance =
+            level.x.unwrap_or(0).max(0) as f64 + boost_x as f64 + hyper_distance as f64;
         let vertical_distance_abs = level.y.unwrap_or(0).max(0) as f64 + boost_y as f64;
         let horizontal = horizontal_distance * f64::from(direction);
         let vertical_distance = vertical_distance_abs * f64::from(vertical);
@@ -7559,12 +7679,9 @@ impl World {
         player.state.grounded = false;
         player.state.action = "jump";
         player.state.action_started_tick = tick;
-        let seconds = level
-            .time
-            .unwrap_or(MAGIC_WAVE_SLOW_FALL_SECONDS)
-            .max(0) as u64;
-        player.slow_fall_until = tick
-            .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
+        let seconds = level.time.unwrap_or(MAGIC_WAVE_SLOW_FALL_SECONDS).max(0) as u64;
+        player.slow_fall_until =
+            tick.saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
         if hidden {
             player.magic_wave_float_used = true;
         } else {
@@ -7688,13 +7805,8 @@ impl World {
                     .level(passive_id, learned)
                     .and_then(|value| value.target_plus)
                     .unwrap_or(0);
-                adjusted.mob_count = Some(
-                    adjusted
-                        .mob_count
-                        .unwrap_or(1)
-                        .saturating_add(plus)
-                        .min(15),
-                );
+                adjusted.mob_count =
+                    Some(adjusted.mob_count.unwrap_or(1).saturating_add(plus).min(15));
             }
         }
         adjusted
@@ -7744,11 +7856,8 @@ impl World {
     }
 
     fn apply_meditation(&mut self, id: &str, level: &MageLevel) {
-        let duration_ms = self.buff_duration_ms(
-            id,
-            level,
-            level.time.unwrap_or(40).max(0) as u64 * 1_000,
-        );
+        let duration_ms =
+            self.buff_duration_ms(id, level, level.time.unwrap_or(40).max(0) as u64 * 1_000);
         let mad = level.indie_mad.unwrap_or(10).max(0);
         // With a party model the buff finally has someone to reach: it now
         // applies to the party members actually standing on the caster's map.
@@ -7986,8 +8095,7 @@ impl World {
             .clamp(0, 100) as f64;
         if let Some(md_rate) = target.template.md_rate {
             let md_rate = (md_rate - bind_md_rate).max(0.0);
-            let effective_md_rate = (md_rate
-                * (100.0 - ignored_md_rate.clamp(0, 100) as f64)
+            let effective_md_rate = (md_rate * (100.0 - ignored_md_rate.clamp(0, 100) as f64)
                 / 100.0)
                 .clamp(0.0, 100.0);
             damage = (damage as f64 * (100.0 - effective_md_rate) / 100.0)
@@ -8071,8 +8179,8 @@ impl World {
             .and_then(|level| level.z)
             .unwrap_or(0)
             .max(0);
-        let has_status = target.state.freeze_stacks.unwrap_or(0) > 0
-            || target.stun_until > self.tick;
+        let has_status =
+            target.state.freeze_stacks.unwrap_or(0) > 0 || target.stun_until > self.tick;
         if extreme > 0 && has_status {
             damage = (damage as f64 * (100 + extreme) as f64 / 100.0)
                 .floor()
@@ -8102,10 +8210,13 @@ impl World {
                 .floor()
                 .max(1.0) as i64;
         }
-        if let Some(map_id) = self.monsters.get(target_id).map(|monster| monster.map_id.clone()) {
+        if let Some(map_id) = self
+            .monsters
+            .get(target_id)
+            .map(|monster| monster.map_id.clone())
+        {
             let guard_percent = self.boss_damage_multiplier(&map_id, true);
-            damage = (damage as i128 * i128::from(guard_percent) / 100)
-                .max(1) as i64;
+            damage = (damage as i128 * i128::from(guard_percent) / 100).max(1) as i64;
         }
         damage
     }
@@ -8121,12 +8232,13 @@ impl World {
             return;
         };
         let prop = level.prop.unwrap_or(0).clamp(0, 100) as u64;
-        if prop == 0
-            || deterministic_percent(&[id, request_id, target_id, "mystic-strike"]) >= prop
+        if prop == 0 || deterministic_percent(&[id, request_id, target_id, "mystic-strike"]) >= prop
         {
             return;
         }
-        let cap = u32::try_from(level.y.unwrap_or(5).max(0)).unwrap_or(5).min(5);
+        let cap = u32::try_from(level.y.unwrap_or(5).max(0))
+            .unwrap_or(5)
+            .min(5);
         let duration_ticks = u64::try_from(level.time.unwrap_or(5).max(0))
             .unwrap_or(5)
             .saturating_mul(1_000)
@@ -8159,13 +8271,7 @@ impl World {
         origin: Option<(f64, f64, i8)>,
     ) -> Result<(), String> {
         self.cast_elemental_area_at_filtered(
-            id,
-            request_id,
-            skill_id,
-            level,
-            lightning,
-            origin,
-            None,
+            id, request_id, skill_id, level, lightning, origin, None,
         )
     }
 
@@ -8186,10 +8292,14 @@ impl World {
             .into_iter()
             .filter(|target_id| excluded.is_none_or(|excluded| !excluded.contains(target_id)))
             .collect::<Vec<_>>();
-        let mut attack_count = level
-            .attack_count
-            .unwrap_or(1)
-            .clamp(1, if skill_id == SKILL_HYPER_THUNDER { 15 } else { 12 });
+        let mut attack_count = level.attack_count.unwrap_or(1).clamp(
+            1,
+            if skill_id == SKILL_HYPER_THUNDER {
+                15
+            } else {
+                12
+            },
+        );
         if skill_id == SKILL_CHAIN_LIGHTNING {
             let learned = self
                 .players
@@ -8321,10 +8431,17 @@ impl World {
                         None => continue,
                     };
                 let normal_bonus = if !target_template.boss
-                    && matches!(skill_id, SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN) {
+                    && matches!(skill_id, SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN)
+                {
                     level.u2.unwrap_or(0).max(0)
-                } else { 0 };
-                let multiplier = level.damage.unwrap_or(1).max(1).saturating_add(normal_bonus);
+                } else {
+                    0
+                };
+                let multiplier = level
+                    .damage
+                    .unwrap_or(1)
+                    .max(1)
+                    .saturating_add(normal_bonus);
                 let mut damage = (magic_attack as f64 * multiplier as f64 / 100.0)
                     .floor()
                     .max(1.0) as i64;
@@ -8368,13 +8485,7 @@ impl World {
                         .max(1.0) as i64;
                 }
                 damage = self.magic_damage_with_passives(
-                    id,
-                    skill_id,
-                    target_id,
-                    damage,
-                    critical,
-                    request_id,
-                    segment,
+                    id, skill_id, target_id, damage, critical, request_id, segment,
                 );
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
@@ -8387,7 +8498,8 @@ impl World {
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
-                    let claim = store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
+                    let claim =
+                        store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
                     if claim.resolved {
                         continue;
                     }
@@ -8411,7 +8523,11 @@ impl World {
                         target_id: Some(target_id.clone()),
                         damage: applied_damage,
                         killed,
-                        exp_gain: if killed && !practice { target_template.exp } else { 0 },
+                        exp_gain: if killed && !practice {
+                            target_template.exp
+                        } else {
+                            0
+                        },
                         drop: drops.first().cloned(),
                         drops,
                         profile: None,
@@ -8442,7 +8558,11 @@ impl World {
                                     .div_ceil(TICK_MS)
                                     .max(1),
                         );
-                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
+                        monster.respawn_at = respawn_deadline(
+                            self.tick,
+                            self.gameplay.monster_respawn_ms,
+                            monster.spawn.mob_time,
+                        );
                     }
                 }
                 if resolution.damage > 0 {
@@ -8542,8 +8662,7 @@ impl World {
         }
         if is_nonsummon_direct_skill(skill_id) && skill_id != SKILL_BLIZZARD_HIDDEN {
             if !successful_direct_targets.is_empty() {
-                let index = deterministic_percent(&[id, request_id, "blizzard-target"])
-                    as usize
+                let index = deterministic_percent(&[id, request_id, "blizzard-target"]) as usize
                     % successful_direct_targets.len();
                 if let Some(target_id) = successful_direct_targets.iter().nth(index).cloned() {
                     self.maybe_cast_blizzard_follow_up(id, request_id, &target_id)?;
@@ -8728,7 +8847,11 @@ impl World {
                 .mage_skills
                 .level(summon.skill_id, summon.level)
                 .cloned()
-                .or_else(|| self.mage_skills.level(SKILL_THUNDER_SPHERE, summon.level).cloned())
+                .or_else(|| {
+                    self.mage_skills
+                        .level(SKILL_THUNDER_SPHERE, summon.level)
+                        .cloned()
+                })
             else {
                 continue;
             };
@@ -8766,17 +8889,18 @@ impl World {
     }
 
     fn apply_glacial_push(&mut self, caster_id: &str, target_id: &str) {
-        let Some(caster_facing) = self.players.get(caster_id).map(|player| player.state.facing)
+        let Some(caster_facing) = self
+            .players
+            .get(caster_id)
+            .map(|player| player.state.facing)
         else {
             return;
         };
-        let Some((map_id, x, y)) = self.monsters.get(target_id).map(|monster| {
-            (
-                monster.map_id.clone(),
-                monster.state.x,
-                monster.state.y,
-            )
-        }) else {
+        let Some((map_id, x, y)) = self
+            .monsters
+            .get(target_id)
+            .map(|monster| (monster.map_id.clone(), monster.state.x, monster.state.y))
+        else {
             return;
         };
         let map = self.map_for(&map_id).clone();
@@ -8816,12 +8940,8 @@ impl World {
             .saturating_mul(1_000)
             .div_ceil(TICK_MS);
         for target_id in targets {
-            let roll = deterministic_percent(&[
-                id,
-                request_id,
-                target_id.as_str(),
-                "teleport-mastery",
-            ]);
+            let roll =
+                deterministic_percent(&[id, request_id, target_id.as_str(), "teleport-mastery"]);
             if roll >= chance {
                 continue;
             }
@@ -9088,7 +9208,11 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1),
                 );
-                monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
+                monster.respawn_at = respawn_deadline(
+                    self.tick,
+                    self.gameplay.monster_respawn_ms,
+                    monster.spawn.mob_time,
+                );
             }
         }
         if resolution.damage > 0 {
@@ -9124,7 +9248,11 @@ impl World {
             }
         } else if resolution.exp_gain > 0 && self.store.is_none() {
             if let Some(player) = self.players.get_mut(id) {
-                Self::add_exp(&mut player.state, resolution.exp_gain, &self.gameplay.exp_table);
+                Self::add_exp(
+                    &mut player.state,
+                    resolution.exp_gain,
+                    &self.gameplay.exp_table,
+                );
                 refresh_player_derived(&self.gameplay, &self.mage_skills, player);
             }
         }
@@ -9241,13 +9369,7 @@ impl World {
                     critical = true;
                 }
                 damage = self.magic_damage_with_passives(
-                    id,
-                    skill_id,
-                    target_id,
-                    damage,
-                    critical,
-                    request_id,
-                    segment,
+                    id, skill_id, target_id, damage, critical, request_id, segment,
                 );
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
@@ -9260,7 +9382,8 @@ impl World {
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
-                    let claim = store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
+                    let claim =
+                        store.claim_attack(id, &map_id, &action_request, &action_id, "skill")?;
                     if claim.resolved {
                         continue;
                     }
@@ -9284,7 +9407,11 @@ impl World {
                         target_id: Some(target_id.clone()),
                         damage: applied_damage,
                         killed,
-                        exp_gain: if killed && !practice { target_template.exp } else { 0 },
+                        exp_gain: if killed && !practice {
+                            target_template.exp
+                        } else {
+                            0
+                        },
                         drop: drops.first().cloned(),
                         drops,
                         profile: None,
@@ -9318,7 +9445,11 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1);
                         monster.death_until = Some(self.tick + die_ticks);
-                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
+                        monster.respawn_at = respawn_deadline(
+                            self.tick,
+                            self.gameplay.monster_respawn_ms,
+                            monster.spawn.mob_time,
+                        );
                     }
                 }
                 if resolution.damage > 0 {
@@ -10264,8 +10395,7 @@ impl World {
                         }
                     }
                     self.send_inventory_outcome(&id, &outcome);
-                    if outcome.success
-                        && matches!(outcome.operation.as_str(), "equip" | "unequip")
+                    if outcome.success && matches!(outcome.operation.as_str(), "equip" | "unequip")
                     {
                         self.send_quest_list(&id);
                         self.send_snapshot(&id);
@@ -10396,11 +10526,7 @@ impl World {
         let (success, code) = match result {
             Ok(()) => {
                 if operation == "use" {
-                    self.arm_potion_cooldown(
-                        &id,
-                        &item_id,
-                        inventory::use_effect(&item_id).ok(),
-                    );
+                    self.arm_potion_cooldown(&id, &item_id, inventory::use_effect(&item_id).ok());
                 }
                 if let Some(player) = self.players.get_mut(&id) {
                     player.state.inventory = inventory_items;
@@ -10660,12 +10786,7 @@ impl World {
             // Resolve the private encounter before applying the normal revive
             // transaction, so a revived player cannot remain in a deleted
             // practice map or revive a Boss state that was already failed.
-            if !self.finish_boss_practice(
-                &id,
-                Some(boss::BossPracticeStatus::Failed),
-                true,
-                true,
-            ) {
+            if !self.finish_boss_practice(&id, Some(boss::BossPracticeStatus::Failed), true, true) {
                 self.send_reject(
                     &id,
                     "persistence",
@@ -10827,9 +10948,8 @@ impl World {
         player.state.action_started_tick = self.tick;
         player.swimming = false;
         player.death_id.clear();
-        player.natural_recovery_next_tick = self
-            .tick
-            .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        player.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.attack_until = 0;
         player.magic_wave_used = false;
         player.magic_wave_float_used = false;
@@ -10954,7 +11074,10 @@ impl World {
             if !self.quest_npc_visible(&id, npc) {
                 self.end_conversation(&id);
                 let (code, message) = if lang == crate::quest_text::LANG_EN {
-                    ("npc_unavailable", "That NPC cannot help you at this quest stage.")
+                    (
+                        "npc_unavailable",
+                        "That NPC cannot help you at this quest stage.",
+                    )
                 } else {
                     ("npc_unavailable", "该 NPC 当前无法与你对话。")
                 };
@@ -11013,12 +11136,8 @@ impl World {
                 self.send_reject(&id, "dead", "死亡角色不能使用仓库。", Some(&request_id));
                 return;
             }
-            let mut value = npc::DialogueView::End.to_json(
-                &request_id,
-                &npc_id,
-                &name,
-                name_zh.as_deref(),
-            );
+            let mut value =
+                npc::DialogueView::End.to_json(&request_id, &npc_id, &name, name_zh.as_deref());
             value["openStorage"] = serde_json::Value::Bool(true);
             self.send_npc_dialogue(&id, value);
             return;
@@ -11327,7 +11446,10 @@ impl World {
                 _ => {
                     self.end_conversation(&id);
                     let (code, message) = if lang == crate::quest_text::LANG_EN {
-                        ("npc_step_invalid", "This conversation option is no longer available.")
+                        (
+                            "npc_step_invalid",
+                            "This conversation option is no longer available.",
+                        )
                     } else {
                         ("npc_step_invalid", "该对话选项已失效，请重新与 NPC 交谈。")
                     };
@@ -11358,7 +11480,10 @@ impl World {
             } else {
                 self.end_conversation(&id);
                 let (code, message) = if lang == crate::quest_text::LANG_EN {
-                    ("npc_step_invalid", "This conversation option is no longer available.")
+                    (
+                        "npc_step_invalid",
+                        "This conversation option is no longer available.",
+                    )
                 } else {
                     ("npc_step_invalid", "该对话选项已失效，请重新与 NPC 交谈。")
                 };
@@ -11494,8 +11619,7 @@ impl World {
             || player.state.action == "dead"
             || (second_transfer && player.state.level < 30)
             || (third_transfer
-                && (player.state.level < 60
-                    || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
+                && (player.state.level < 60 || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
         {
             return Ok(false);
         }
@@ -11614,23 +11738,45 @@ impl World {
         equipped
             .iter()
             .filter(|item| item.item_id == item_id)
-            .fold(0_u32, |total, item| total.saturating_add(item.quantity.max(1)))
+            .fold(0_u32, |total, item| {
+                total.saturating_add(item.quantity.max(1))
+            })
     }
 
     fn quest_jobs_match(conditions: &QuestConditions, job: u32) -> bool {
         conditions.job.is_empty() || conditions.job.contains(&job)
     }
 
+    fn quest_prerequisites_match(
+        player: &Player,
+        prerequisites: &[QuestPrerequisite],
+        or_option: bool,
+    ) -> bool {
+        // Source Check.QuestOrOption == 1 makes the quest list an OR: the phase
+        // requires any one satisfied prerequisite (route checkpoints are
+        // mutually exclusive), not every one.
+        let mut satisfied = prerequisites.iter().map(|requirement| {
+            let expected = requirement.status.as_deref().unwrap_or("completed");
+            player
+                .quests
+                .get(&requirement.quest_id)
+                .is_some_and(|status| status == expected)
+        });
+        if or_option {
+            satisfied.any(|matched| matched)
+        } else {
+            satisfied.all(|matched| matched)
+        }
+    }
+
     fn quest_conditions_match(player: &Player, conditions: &QuestConditions) -> bool {
         (conditions.level_at_least == 0 || player.state.level >= conditions.level_at_least)
             && Self::quest_jobs_match(conditions, player.state.job)
-            && conditions.quests.iter().all(|requirement| {
-                let expected = requirement.status.as_deref().unwrap_or("completed");
-                player
-                    .quests
-                    .get(&requirement.quest_id)
-                    .is_some_and(|status| status == expected)
-            })
+            && Self::quest_prerequisites_match(
+                player,
+                &conditions.quests,
+                conditions.quest_or_option,
+            )
             && conditions.items.iter().all(|requirement| {
                 !requirement.item_id.is_empty()
                     && requirement.quantity > 0
@@ -11656,14 +11802,20 @@ impl World {
 
     fn quest_consume_items(spec: &QuestSpec) -> Vec<QuestItemRequirement> {
         match &spec.complete.consume_items {
-            serde_json::Value::Array(items) => serde_json::from_value(serde_json::Value::Array(items.clone()))
-                .unwrap_or_else(|_| Self::quest_complete_items(spec)),
+            serde_json::Value::Array(items) => {
+                serde_json::from_value(serde_json::Value::Array(items.clone()))
+                    .unwrap_or_else(|_| Self::quest_complete_items(spec))
+            }
             serde_json::Value::Bool(false) => Vec::new(),
             _ => Self::quest_complete_items(spec),
         }
     }
 
-    fn quest_objective_text(&self, value: &serde_json::Value, lang: &'static str) -> Option<String> {
+    fn quest_objective_text(
+        &self,
+        value: &serde_json::Value,
+        lang: &'static str,
+    ) -> Option<String> {
         if let Some(text) = value.as_str().filter(|text| !text.is_empty()) {
             return Some(text.to_owned());
         }
@@ -11691,10 +11843,8 @@ impl World {
             return Self::quest_complete_items(spec)
                 .into_iter()
                 .map(|requirement| {
-                    let current = Self::quest_item_count(
-                        &player.state.inventory,
-                        &requirement.item_id,
-                    );
+                    let current =
+                        Self::quest_item_count(&player.state.inventory, &requirement.item_id);
                     serde_json::json!({
                         "text": fallback,
                         "current": current,
@@ -11895,7 +12045,11 @@ impl World {
         action: &str,
     ) -> Option<(String, Option<String>)> {
         let player = self.players.get(id)?;
-        let spec = self.gameplay.quests.iter().find(|spec| spec.quest_id == quest_id)?;
+        let spec = self
+            .gameplay
+            .quests
+            .iter()
+            .find(|spec| spec.quest_id == quest_id)?;
         let status = Self::quest_status_for(player, quest_id);
         let phase = match action {
             "route_start" if matches!(status, Some("active") | Some("completed")) => &spec.start,
@@ -11929,7 +12083,9 @@ impl World {
             );
         };
         match npc.template_id.as_str() {
-            QUEST_HIDDEN_NPC_1 => !matches!(Self::quest_status_for(player, "36301"), Some("completed")),
+            QUEST_HIDDEN_NPC_1 => {
+                !matches!(Self::quest_status_for(player, "36301"), Some("completed"))
+            }
             QUEST_HIDDEN_NPC_2 => {
                 Self::quest_status_for(player, "36301") == Some("completed")
                     && !matches!(Self::quest_status_for(player, "36304"), Some("completed"))
@@ -11986,7 +12142,12 @@ impl World {
             .collect()
     }
 
-    fn quest_entry(&self, id: &str, spec: &QuestSpec, persisted: Option<&str>) -> Option<serde_json::Value> {
+    fn quest_entry(
+        &self,
+        id: &str,
+        spec: &QuestSpec,
+        persisted: Option<&str>,
+    ) -> Option<serde_json::Value> {
         let player = self.players.get(id)?;
         let status = match persisted {
             Some("completed") => "completed",
@@ -11994,7 +12155,10 @@ impl World {
             Some("active") => "active",
             Some(_) => return None,
             None if spec.executable()
-                && Self::quest_conditions_match(player, &spec.start.conditions) => "available",
+                && Self::quest_conditions_match(player, &spec.start.conditions) =>
+            {
+                "available"
+            }
             None => return None,
         };
         let objective_rows = self.quest_objective_rows(spec, player, player.lang);
@@ -12004,7 +12168,11 @@ impl World {
                 spec.start.npc_id.clone(),
                 spec.start.npc_id.as_deref().and_then(|npc_id| {
                     self.quest_npc_map(Some(npc_id)).map(|map_id| {
-                        format!("前往{}，與{}交談接取任務", self.quest_map_label(&map_id), self.quest_npc_label(Some(npc_id)))
+                        format!(
+                            "前往{}，與{}交談接取任務",
+                            self.quest_map_label(&map_id),
+                            self.quest_npc_label(Some(npc_id))
+                        )
                     })
                 }),
             ),
@@ -12035,8 +12203,10 @@ impl World {
                                 self.quest_map_label(&map_id),
                                 self.quest_npc_label(Some(npc_id))
                             );
-                            let has_equipment_goal =
-                                spec.objectives.iter().any(|objective| objective._kind == "equip");
+                            let has_equipment_goal = spec
+                                .objectives
+                                .iter()
+                                .any(|objective| objective._kind == "equip");
                             let has_collect_goal = !Self::quest_complete_items(spec).is_empty()
                                 || spec
                                     .objectives
@@ -12053,22 +12223,26 @@ impl World {
                     })
                 };
                 (target_map_id, target_npc_id, next_action)
-            },
+            }
             "objectivesComplete" => (
                 self.quest_npc_map(spec.complete.npc_id.as_deref()),
                 spec.complete.npc_id.clone(),
                 spec.complete.npc_id.as_deref().and_then(|npc_id| {
                     self.quest_npc_map(Some(npc_id)).map(|map_id| {
-                        format!("前往{}，與{}交談交付任務", self.quest_map_label(&map_id), self.quest_npc_label(Some(npc_id)))
+                        format!(
+                            "前往{}，與{}交談交付任務",
+                            self.quest_map_label(&map_id),
+                            self.quest_npc_label(Some(npc_id))
+                        )
                     })
                 }),
             ),
             "completed" => (
                 spec.return_map_id.clone(),
                 None,
-                spec.return_map_id.as_deref().map(|map_id| {
-                    format!("返回{}", self.quest_map_label(map_id))
-                }),
+                spec.return_map_id
+                    .as_deref()
+                    .map(|map_id| format!("返回{}", self.quest_map_label(map_id))),
             ),
             _ => (None, None, None),
         };
@@ -12105,7 +12279,11 @@ impl World {
             .map(|spec| spec.quest_id.as_str())
             .collect();
         for spec in &self.gameplay.quests {
-            if let Some(entry) = self.quest_entry(id, spec, player.quests.get(&spec.quest_id).map(String::as_str)) {
+            if let Some(entry) = self.quest_entry(
+                id,
+                spec,
+                player.quests.get(&spec.quest_id).map(String::as_str),
+            ) {
                 entries.push(entry);
             }
         }
@@ -12165,7 +12343,9 @@ impl World {
                         .map(|map_id| self.quest_map_label(map_id));
                     let text = match action.as_str() {
                         "start" if lang == crate::quest_text::LANG_EN => format!("Accept: {name}"),
-                        "complete" if lang == crate::quest_text::LANG_EN => format!("Turn in: {name}"),
+                        "complete" if lang == crate::quest_text::LANG_EN => {
+                            format!("Turn in: {name}")
+                        }
                         "pending" if lang == crate::quest_text::LANG_EN => format!("View: {name}"),
                         "route_start" if lang == crate::quest_text::LANG_EN => format!(
                             "Go to {}: {name}",
@@ -12190,16 +12370,10 @@ impl World {
                             "前往{}：{name}",
                             route_map.as_deref().unwrap_or("任務目的地")
                         ),
-                        "return" => format!(
-                            "返回{}",
-                            route_map.as_deref().unwrap_or("選擇岔道")
-                        ),
+                        "return" => format!("返回{}", route_map.as_deref().unwrap_or("選擇岔道")),
                         _ => format!("返回選擇岔道：{name}"),
                     };
-                    (
-                        u32::try_from(index).unwrap_or(u32::MAX),
-                        text,
-                    )
+                    (u32::try_from(index).unwrap_or(u32::MAX), text)
                 })
                 .collect();
             if let Some(npc) = self.npcs.get_mut(npc_id) {
@@ -12229,7 +12403,12 @@ impl World {
             (Some("select"), Some(index)) => {
                 let Some((quest_id, action)) = cached_choices.get(index as usize).cloned() else {
                     self.end_conversation(id);
-                    self.send_reject(id, "quest_step_invalid", "quest option is not offered", Some(request_id));
+                    self.send_reject(
+                        id,
+                        "quest_step_invalid",
+                        "quest option is not offered",
+                        Some(request_id),
+                    );
                     return true;
                 };
                 let still_offered = self
@@ -12316,7 +12495,12 @@ impl World {
             }
             _ => {
                 self.end_conversation(id);
-                self.send_reject(id, "quest_step_invalid", "quest conversation step is not offered", Some(request_id));
+                self.send_reject(
+                    id,
+                    "quest_step_invalid",
+                    "quest conversation step is not offered",
+                    Some(request_id),
+                );
                 true
             }
         }
@@ -12399,7 +12583,12 @@ impl World {
             .find(|quest| quest.quest_id == quest_id)
             .cloned()
         else {
-            self.send_reject(id, "quest_unknown", "此任務不在目前的任務目錄中。", request_id);
+            self.send_reject(
+                id,
+                "quest_unknown",
+                "此任務不在目前的任務目錄中。",
+                request_id,
+            );
             return false;
         };
         if !spec.executable() {
@@ -12424,13 +12613,23 @@ impl World {
             return false;
         }
         if npc_template.is_some_and(|template| !Self::quest_phase_matches_npc(phase, template)) {
-            self.send_reject(id, "quest_npc_unavailable", "此任務NPC目前無法處理任務。", request_id);
+            self.send_reject(
+                id,
+                "quest_npc_unavailable",
+                "此任務NPC目前無法處理任務。",
+                request_id,
+            );
             return false;
         }
         if quest_id == "1402"
             && (npc_template != Some("1032001") || player_snapshot.map_id != "101000003")
         {
-            self.send_reject(id, "quest_npc_unavailable", "請前往魔法森林圖書館與漢斯交談。", request_id);
+            self.send_reject(
+                id,
+                "quest_npc_unavailable",
+                "請前往魔法森林圖書館與漢斯交談。",
+                request_id,
+            );
             return false;
         }
         let transition_ok = match player_snapshot.quests.get(&quest_id).map(String::as_str) {
@@ -12440,13 +12639,23 @@ impl World {
             Some(_) => false,
         };
         if !transition_ok {
-            self.send_reject(id, "quest_transition_invalid", "任務狀態已更新。", request_id);
+            self.send_reject(
+                id,
+                "quest_transition_invalid",
+                "任務狀態已更新。",
+                request_id,
+            );
             return false;
         }
         if !Self::quest_conditions_match(&player_snapshot, &phase.conditions)
             || (wanted == "completed" && !self.quest_objectives_complete(&spec, &player_snapshot))
         {
-            self.send_reject(id, "quest_requirements_missing", "任務條件尚未完成。", request_id);
+            self.send_reject(
+                id,
+                "quest_requirements_missing",
+                "任務條件尚未完成。",
+                request_id,
+            );
             return false;
         }
 
@@ -12472,11 +12681,9 @@ impl World {
                 if missing == 0 {
                     continue;
                 }
-                if let Err(error) = inventory::add_items(
-                    &mut next_state.inventory,
-                    item.item_id.clone(),
-                    missing,
-                ) {
+                if let Err(error) =
+                    inventory::add_items(&mut next_state.inventory, item.item_id.clone(), missing)
+                {
                     let code = match error {
                         inventory::InventoryError::InventoryFull => "quest_start_inventory_full",
                         inventory::InventoryError::UnknownItem => "quest_start_unknown_item",
@@ -12511,28 +12718,51 @@ impl World {
                     let available = next_state
                         .inventory
                         .iter()
-                        .find(|item| item.slot == u16::try_from(slot).unwrap_or(0) && item.item_id == requirement.item_id)
+                        .find(|item| {
+                            item.slot == u16::try_from(slot).unwrap_or(0)
+                                && item.item_id == requirement.item_id
+                        })
                         .map(|item| item.quantity)
                         .unwrap_or(0);
                     let removed = remaining.min(available);
                     if removed > 0 {
                         let Some(kind) = inventory::inventory_type(&requirement.item_id) else {
-                            self.send_reject(id, "quest_requirements_missing", "任務物品無效。", request_id);
+                            self.send_reject(
+                                id,
+                                "quest_requirements_missing",
+                                "任務物品無效。",
+                                request_id,
+                            );
                             return false;
                         };
-                        match inventory::remove_items(&mut next_state.inventory, kind, slot, removed) {
+                        match inventory::remove_items(
+                            &mut next_state.inventory,
+                            kind,
+                            slot,
+                            removed,
+                        ) {
                             Ok((removed_item, actual)) if removed_item == requirement.item_id => {
                                 remaining = remaining.saturating_sub(actual);
                             }
                             Ok(_) | Err(_) => {
-                                self.send_reject(id, "quest_requirements_missing", "任務物品無法扣除。", request_id);
+                                self.send_reject(
+                                    id,
+                                    "quest_requirements_missing",
+                                    "任務物品無法扣除。",
+                                    request_id,
+                                );
                                 return false;
                             }
                         }
                     }
                 }
                 if remaining > 0 {
-                    self.send_reject(id, "quest_requirements_missing", "任務物品數量不足。", request_id);
+                    self.send_reject(
+                        id,
+                        "quest_requirements_missing",
+                        "任務物品數量不足。",
+                        request_id,
+                    );
                     return false;
                 }
             }
@@ -12566,7 +12796,12 @@ impl World {
         let mut warp = None;
         if let Some(target_map_id) = phase.warp_map_id.clone() {
             let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
-                self.send_reject(id, "map_unavailable", "任務目的地目前無法使用。", request_id);
+                self.send_reject(
+                    id,
+                    "map_unavailable",
+                    "任務目的地目前無法使用。",
+                    request_id,
+                );
                 return false;
             };
             let spawn = (target_map.spawn.x, target_map.spawn.y);
@@ -12598,7 +12833,12 @@ impl World {
             let Some((x, y, foothold_id, grounded)) =
                 resolve_spawn(preferred).or_else(|| resolve_spawn(spawn))
             else {
-                self.send_reject(id, "map_unavailable", "任務目的地沒有可用出生點。", request_id);
+                self.send_reject(
+                    id,
+                    "map_unavailable",
+                    "任務目的地沒有可用出生點。",
+                    request_id,
+                );
                 return false;
             };
             next_map_id = target_map_id;
@@ -12625,8 +12865,15 @@ impl World {
         // Existing mage jobs recover only the story; they receive no grant.
         let first_mage_transfer = quest_id == "1402" && wanted == "completed" && profile.job == 0;
         if first_mage_transfer {
-            if profile.level < 10 || player_snapshot.quests.get("36307").map(String::as_str) != Some("completed") {
-                self.send_reject(id, "quest_requirements_missing", "請先完成前置劇情並達到10級。", request_id);
+            if profile.level < 10
+                || player_snapshot.quests.get("36307").map(String::as_str) != Some("completed")
+            {
+                self.send_reject(
+                    id,
+                    "quest_requirements_missing",
+                    "請先完成前置劇情並達到10級。",
+                    request_id,
+                );
                 return false;
             }
             auth::grant_first_mage(&mut profile);
@@ -12642,7 +12889,12 @@ impl World {
                     match restored {
                         Ok((profile, quests)) => {
                             if let Some(player) = self.players.get_mut(id) {
-                                apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+                                apply_profile_to_player(
+                                    &self.gameplay,
+                                    &self.mage_skills,
+                                    player,
+                                    profile,
+                                );
                                 player.quests = quests;
                             }
                             self.send_quest_list(id);
@@ -12665,7 +12917,8 @@ impl World {
                 player.base_max_mp = profile.max_mp;
             }
             if did_warp {
-                player.natural_recovery_next_tick = self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+                player.natural_recovery_next_tick =
+                    self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
                 player.state.facing = 1;
                 player.state.climbing = false;
                 player.state.ladder_id = None;
@@ -12706,7 +12959,12 @@ impl World {
             .find(|spec| spec.quest_id == quest_id)
             .cloned()
         else {
-            self.send_reject(&id, "quest_unknown", "此任務不在目前的任務目錄中。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "quest_unknown",
+                "此任務不在目前的任務目錄中。",
+                Some(&request_id),
+            );
             return;
         };
         if !spec.executable() {
@@ -12719,36 +12977,73 @@ impl World {
             return;
         }
         let Some(interaction) = spec.interaction.clone() else {
-            self.send_reject(&id, "quest_interaction_unavailable", "此任務目前沒有可互動目標。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "quest_interaction_unavailable",
+                "此任務目前沒有可互動目標。",
+                Some(&request_id),
+            );
             return;
         };
         let Some(player_snapshot) = self.players.get(&id).cloned() else {
             return;
         };
         if Self::quest_status_for(&player_snapshot, &quest_id) != Some("active") {
-            self.send_reject(&id, "quest_interaction_unavailable", "此任務尚未進入互動階段。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "quest_interaction_unavailable",
+                "此任務尚未進入互動階段。",
+                Some(&request_id),
+            );
             return;
         }
         if player_snapshot.state.hp <= 0 || player_snapshot.state.action == "dead" {
-            self.send_reject(&id, "invalid_state", "死亡角色不能進行任務互動。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "invalid_state",
+                "死亡角色不能進行任務互動。",
+                Some(&request_id),
+            );
             return;
         }
-        let range = if interaction.range > 0.0 { interaction.range } else { 64.0 };
+        let range = if interaction.range > 0.0 {
+            interaction.range
+        } else {
+            64.0
+        };
         if player_snapshot.map_id != interaction.map_id
-            || (player_snapshot.state.x - interaction.x).hypot(player_snapshot.state.y - interaction.y) > range
+            || (player_snapshot.state.x - interaction.x)
+                .hypot(player_snapshot.state.y - interaction.y)
+                > range
         {
-            self.send_reject(&id, "quest_interaction_too_far", "請靠近任務互動目標。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "quest_interaction_too_far",
+                "請靠近任務互動目標。",
+                Some(&request_id),
+            );
             return;
         }
         if interaction.item_id.is_empty() || interaction.quantity == 0 {
-            self.send_reject(&id, "quest_interaction_done", "任務互動已完成。", Some(&request_id));
+            self.send_reject(
+                &id,
+                "quest_interaction_done",
+                "任務互動已完成。",
+                Some(&request_id),
+            );
             return;
         }
         let mut next_state = player_snapshot.state.clone();
         if self.store.is_none() {
-            let held = Self::quest_item_count(&player_snapshot.state.inventory, &interaction.item_id);
+            let held =
+                Self::quest_item_count(&player_snapshot.state.inventory, &interaction.item_id);
             if held >= interaction.quantity {
-                self.send_reject(&id, "quest_interaction_done", "任務互動已完成。", Some(&request_id));
+                self.send_reject(
+                    &id,
+                    "quest_interaction_done",
+                    "任務互動已完成。",
+                    Some(&request_id),
+                );
                 return;
             }
             let missing = interaction.quantity.saturating_sub(held);
@@ -12762,7 +13057,12 @@ impl World {
                     inventory::InventoryError::UnknownItem => "quest_interaction_unknown_item",
                     _ => "quest_interaction_rejected",
                 };
-                self.send_reject(&id, code, "背包空間不足或互動物品無法取得。", Some(&request_id));
+                self.send_reject(
+                    &id,
+                    code,
+                    "背包空間不足或互動物品無法取得。",
+                    Some(&request_id),
+                );
                 return;
             }
         }
@@ -12782,19 +13082,17 @@ impl World {
                 interaction.quantity,
                 &profile,
             ) {
-                Ok(true) => {
-                    match store.load_profile(&id, &profile) {
-                        Ok(profile) => authoritative_profile = Some(profile),
-                        Err(error) => {
-                            self.send_reject(&id, "persistence", &error, Some(&request_id));
-                            self.players.remove(&id);
-                            self.end_conversation(&id);
-                            self.pending_attacks
-                                .retain(|_, attack| attack.player_id != id);
-                            return;
-                        }
+                Ok(true) => match store.load_profile(&id, &profile) {
+                    Ok(profile) => authoritative_profile = Some(profile),
+                    Err(error) => {
+                        self.send_reject(&id, "persistence", &error, Some(&request_id));
+                        self.players.remove(&id);
+                        self.end_conversation(&id);
+                        self.pending_attacks
+                            .retain(|_, attack| attack.player_id != id);
+                        return;
                     }
-                }
+                },
                 Ok(false) => {
                     let restored = store
                         .load_profile(&id, &profile)
@@ -12802,13 +13100,20 @@ impl World {
                     match restored {
                         Ok((profile, quests)) => {
                             if let Some(player) = self.players.get_mut(&id) {
-                                apply_profile_to_player(&self.gameplay, &self.mage_skills, player, profile);
+                                apply_profile_to_player(
+                                    &self.gameplay,
+                                    &self.mage_skills,
+                                    player,
+                                    profile,
+                                );
                                 player.quests = quests;
                             }
                             self.send_quest_list(&id);
                             self.send_snapshot(&id);
                         }
-                        Err(error) => self.send_reject(&id, "persistence", &error, Some(&request_id)),
+                        Err(error) => {
+                            self.send_reject(&id, "persistence", &error, Some(&request_id))
+                        }
                     }
                     return;
                 }
@@ -12875,7 +13180,8 @@ impl World {
             return false;
         };
         candidate.map_id = map_id.clone();
-        candidate.natural_recovery_next_tick = self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        candidate.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         candidate.state.x = x;
         candidate.state.y = y;
         candidate.state.vx = 0.0;
@@ -12992,7 +13298,12 @@ impl World {
     /// stack of 紅色藥水) stays free of any per-item bookkeeping.  A cooldown
     /// is stored as the tick at which the item becomes usable again, and the
     /// world loop never has to touch it — the gate is evaluated on use.
-    fn arm_potion_cooldown(&mut self, id: &str, item_id: &str, effect: Option<inventory::UseEffect>) {
+    fn arm_potion_cooldown(
+        &mut self,
+        id: &str,
+        item_id: &str,
+        effect: Option<inventory::UseEffect>,
+    ) {
         let Some(cooldown_ms) = effect.and_then(|effect| effect.cooldown_ms) else {
             return;
         };
@@ -13184,7 +13495,10 @@ impl World {
         };
         // A sell credits mesos, so a replayed request must not run twice.
         // Re-send the remembered result instead of touching the inventory.
-        if let Some(prior) = self.shop_sell_requests.get(&(id.clone(), request_id.clone())) {
+        if let Some(prior) = self
+            .shop_sell_requests
+            .get(&(id.clone(), request_id.clone()))
+        {
             let prior = prior.clone();
             self.send_shop_sell_outcome(&id, &request_id, &prior);
             return;
@@ -13303,9 +13617,8 @@ impl World {
         // P: shops pay a fraction of the catalog price (see
         // SHOP_SELL_PRICE_PERCENT).  Rounding is down so a shop can never pay
         // out more than the authored value allows.
-        let unit_payout = unit_price
-            .saturating_mul(SHOP_SELL_PRICE_PERCENT)
-            / SHOP_SELL_PRICE_DIVISOR;
+        let unit_payout =
+            unit_price.saturating_mul(SHOP_SELL_PRICE_PERCENT) / SHOP_SELL_PRICE_DIVISOR;
         if unit_payout == 0 {
             self.send_shop_sell_result(
                 &id,
@@ -13340,12 +13653,9 @@ impl World {
         // Atomic against a clone: the removal must fully succeed before any
         // mesos move, so a partial state can never be persisted.
         let mut next_inventory = player.state.inventory.clone();
-        if let Err(error) = inventory::remove_items(
-            &mut next_inventory,
-            inventory_type,
-            source_slot,
-            quantity,
-        ) {
+        if let Err(error) =
+            inventory::remove_items(&mut next_inventory, inventory_type, source_slot, quantity)
+        {
             self.send_shop_sell_result(
                 &id,
                 &request_id,
@@ -13474,16 +13784,7 @@ impl World {
             return;
         };
         let Some(npc) = self.npcs.get(&npc_id) else {
-            self.send_storage_result(
-                &id,
-                &request_id,
-                false,
-                "storage_unknown",
-                "0",
-                0,
-                0,
-                0,
-            );
+            self.send_storage_result(&id, &request_id, false, "storage_unknown", "0", 0, 0, 0);
             return;
         };
         // The keeper must be authored as one in Npc.wz *and* the player must
@@ -13497,32 +13798,14 @@ impl World {
             .find(|template| template.template_id == template_id)
             .is_some_and(|template| template.func.contains(STORAGE_KEEPER_FUNC));
         if !is_keeper {
-            self.send_storage_result(
-                &id,
-                &request_id,
-                false,
-                "storage_not_keeper",
-                "0",
-                0,
-                0,
-                0,
-            );
+            self.send_storage_result(&id, &request_id, false, "storage_not_keeper", "0", 0, 0, 0);
             return;
         }
         let in_range = npc.map_id == player.map_id
             && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
             && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y;
         if !in_range {
-            self.send_storage_result(
-                &id,
-                &request_id,
-                false,
-                "storage_too_far",
-                "0",
-                0,
-                0,
-                0,
-            );
+            self.send_storage_result(&id, &request_id, false, "storage_too_far", "0", 0, 0, 0);
             return;
         }
         if player.state.hp <= 0 || player.state.action == "dead" {
@@ -13581,7 +13864,9 @@ impl World {
         }
         let (operation, kind) = match operation {
             StorageTransferOperation::Deposit => (auth::StorageOperation::Deposit, inventory_type),
-            StorageTransferOperation::Withdraw => (auth::StorageOperation::Withdraw, inventory_type),
+            StorageTransferOperation::Withdraw => {
+                (auth::StorageOperation::Withdraw, inventory_type)
+            }
         };
         let Some(store) = self.store.clone() else {
             self.send_storage_result(
@@ -13611,9 +13896,10 @@ impl World {
             }
             Err(error) => {
                 if let Some(player) = self.players.get(&id) {
-                    let _ = player
-                        .output
-                        .try_send(reject("persistence", &error, Some(&request_id)));
+                    let _ =
+                        player
+                            .output
+                            .try_send(reject("persistence", &error, Some(&request_id)));
                 }
             }
         }
@@ -13628,12 +13914,30 @@ impl World {
         quantity: u32,
     ) {
         let Some(npc_id) = self.open_storage.get(&id).cloned() else {
-            self.send_storage_result(&id, &request_id, false, "storage_closed", "0", 0, 0, quantity);
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_closed",
+                "0",
+                0,
+                0,
+                quantity,
+            );
             return;
         };
         if !self.storage_keeper_in_range(&id, &npc_id) {
             self.close_storage(&id);
-            self.send_storage_result(&id, &request_id, false, "storage_too_far", &npc_id, 0, 0, quantity);
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "storage_too_far",
+                &npc_id,
+                0,
+                0,
+                quantity,
+            );
             return;
         }
         let operation = match operation {
@@ -13641,7 +13945,16 @@ impl World {
             StorageTransferOperation::Withdraw => auth::StorageOperation::Withdraw,
         };
         let Some(store) = self.store.clone() else {
-            self.send_storage_result(&id, &request_id, false, "persistence", &npc_id, 0, 0, quantity);
+            self.send_storage_result(
+                &id,
+                &request_id,
+                false,
+                "persistence",
+                &npc_id,
+                0,
+                0,
+                quantity,
+            );
             return;
         };
         match store.storage_mesos(&id, &request_id, operation, quantity) {
@@ -13669,9 +13982,10 @@ impl World {
             }
             Err(error) => {
                 if let Some(player) = self.players.get(&id) {
-                    let _ = player
-                        .output
-                        .try_send(reject("persistence", &error, Some(&request_id)));
+                    let _ =
+                        player
+                            .output
+                            .try_send(reject("persistence", &error, Some(&request_id)));
                 }
             }
         }
@@ -13841,7 +14155,8 @@ impl World {
         let _ = player.output.try_send(message);
     }
 
-    fn send_party_result(&self, id: &str, request_id: &str, success: bool, code: &str) {        let Some(player) = self.players.get(id) else {
+    fn send_party_result(&self, id: &str, request_id: &str, success: bool, code: &str) {
+        let Some(player) = self.players.get(id) else {
             return;
         };
         let message = serde_json::json!({
@@ -13888,7 +14203,10 @@ impl World {
         if self.party_invites.contains_key(&target) {
             return Err("party_busy".to_owned());
         }
-        if let Some(party) = self.party_id_of(id).and_then(|party_id| self.parties.get(&party_id)) {
+        if let Some(party) = self
+            .party_id_of(id)
+            .and_then(|party_id| self.parties.get(&party_id))
+        {
             if party.leader_id != id {
                 return Err("party_not_leader".to_owned());
             }
@@ -14024,15 +14342,11 @@ impl World {
         // Every fact is re-checked at answer time: the party may have been
         // disbanded, filled by someone else, or the inviter may have left
         // while the invitation was pending.
-        let joinable = self
-            .parties
-            .get(&invite.party_id)
-            .is_some_and(|party| {
-                party.members.len() < PARTY_MAX_MEMBERS
-                    && !party.members.contains(&id)
-                    && self.players.contains_key(&invite.inviter_id)
-            })
-            && self.party_id_of(&id).is_none();
+        let joinable = self.parties.get(&invite.party_id).is_some_and(|party| {
+            party.members.len() < PARTY_MAX_MEMBERS
+                && !party.members.contains(&id)
+                && self.players.contains_key(&invite.inviter_id)
+        }) && self.party_id_of(&id).is_none();
         if !joinable {
             let code = "party_unavailable";
             self.remember_party_request(&id, &request_id, false, code);
@@ -14151,11 +14465,17 @@ impl World {
         let mut dissolved: Vec<String> = Vec::new();
         for (party_id, party) in self.parties.iter_mut() {
             let before = party.members.len();
-            party.members.retain(|member| self.players.contains_key(member));
+            party
+                .members
+                .retain(|member| self.players.contains_key(member));
             if party.members.len() != before {
                 affected.extend(party.members.iter().cloned());
             }
-            if !party.members.iter().any(|member| *member == party.leader_id) {
+            if !party
+                .members
+                .iter()
+                .any(|member| *member == party.leader_id)
+            {
                 if let Some(next) = party.members.first().cloned() {
                     party.leader_id = next;
                     affected.extend(party.members.iter().cloned());
@@ -14202,6 +14522,298 @@ impl World {
         affected.sort();
         affected.dedup();
         self.push_party_state(&affected);
+    }
+
+    // ---------------------------------------------------------------- friends
+    //
+    // A friend row is the opposite of a party: it is an account fact, so it
+    // survives a restart and every transition is written to SQLite by
+    // `auth::friend_edit`.  What the world owns is the half that cannot be
+    // persisted — whether a listed character is in the world right now and
+    // which map it is on — plus the enforcement that turns a blacklist row
+    // into silence.  The client only ever says "add this name", "remove this
+    // row", "block this name" or "unblock this row"; the caps, the symmetry of
+    // the relation and the actual membership are all decided here and in
+    // auth.
+
+    /// Persisted friend and blacklist rows for one account.  An absent store
+    /// (test worlds) simply yields two empty lists, which is the honest answer
+    /// for a world that has no accounts.
+    fn friend_rows(&self, id: &str) -> (Vec<auth::FriendRow>, Vec<auth::FriendRow>) {
+        let Some(store) = self.store.as_ref() else {
+            return (Vec::new(), Vec::new());
+        };
+        (
+            store.load_friends(id).unwrap_or_default(),
+            store.load_blacklist(id).unwrap_or_default(),
+        )
+    }
+
+    /// Rebuild `friend_links[id]` from the persisted rows, and register `id`
+    /// on every row it points at.  Because `Add` writes the pair in both
+    /// directions, one pass gives both halves of the reverse index.
+    fn refresh_friend_links(&mut self, id: &str) {
+        let friends: Vec<String> = self
+            .friend_rows(id)
+            .0
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        for friend in &friends {
+            self.friend_links
+                .entry(friend.clone())
+                .or_default()
+                .insert(id.to_owned());
+        }
+        self.friend_links
+            .insert(id.to_owned(), friends.into_iter().collect());
+    }
+
+    /// Re-read the blacklist into the Player row that the chat fan-out uses.
+    fn reload_blocked(&mut self, id: &str) {
+        let blocked: BTreeSet<String> = self
+            .friend_rows(id)
+            .1
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        if let Some(player) = self.players.get_mut(id) {
+            player.blocked = blocked;
+        }
+    }
+
+    /// Authoritative view of one character's friend & blacklist window.  The
+    /// persisted half (id, name, level, job) comes from SQLite; `online` and
+    /// `mapId` are derived from the live world on every push, so a stale
+    /// offline snapshot can never be presented as a live location.
+    fn friend_view(&self, id: &str) -> serde_json::Value {
+        let (friends, blocked) = self.friend_rows(id);
+        let render = |rows: Vec<auth::FriendRow>| -> Vec<serde_json::Value> {
+            rows.into_iter()
+                .map(|row| {
+                    let online = self.players.get(&row.id);
+                    serde_json::json!({
+                        "id": row.id,
+                        "name": row.name,
+                        "level": row.level,
+                        "job": row.job,
+                        "online": online.is_some(),
+                        "mapId": online.map(|player| player.map_id.clone()).unwrap_or_default(),
+                    })
+                })
+                .collect()
+        };
+        serde_json::json!({
+            "type": "friendState",
+            "friends": render(friends),
+            "blocked": render(blocked),
+        })
+    }
+
+    /// Push one character's window.  A detached character has no socket to
+    /// write to, so its view is simply rebuilt on the next open.
+    fn push_friend_state(&self, id: &str) {
+        let Some(player) = self.players.get(id).filter(|player| !player.detached) else {
+            return;
+        };
+        let message = self.friend_view(id).to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Refresh this character's window and the window of everybody who lists
+    /// it.  `friend_links` holds both directions of the relation, so one hop
+    /// covers every observer.
+    fn push_friend_state_to_watchers(&self, id: &str) {
+        let mut targets: Vec<String> = vec![id.to_owned()];
+        if let Some(links) = self.friend_links.get(id) {
+            targets.extend(links.iter().cloned());
+        }
+        targets.sort();
+        targets.dedup();
+        for target in targets {
+            self.push_friend_state(&target);
+        }
+    }
+
+    fn send_friend_result(&self, id: &str, request_id: &str, success: bool, code: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"friendResult",
+            "requestId":request_id,
+            "success":success,
+            "code":code,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Bounded request-id idempotency for friend intents: a retried add or
+    /// block replays the recorded outcome instead of acting a second time.
+    fn remember_friend_request(&mut self, id: &str, outcome: &auth::FriendOutcome) {
+        if self.friend_requests.len() >= FRIEND_REQUEST_WINDOW * self.players.len().max(1) {
+            self.friend_requests
+                .retain(|(player_id, _), _| self.players.contains_key(player_id));
+        }
+        self.friend_requests
+            .insert((id.to_owned(), outcome.request_id.clone()), outcome.clone());
+    }
+
+    fn replayed_friend_request(&self, id: &str, request_id: &str) -> Option<auth::FriendOutcome> {
+        self.friend_requests
+            .get(&(id.to_owned(), request_id.to_owned()))
+            .cloned()
+    }
+
+    /// Record and report a refusal that never reached SQLite, so the same
+    /// request id cannot be retried into a different answer.
+    fn friend_reject(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        operation: auth::FriendOperation,
+        code: &str,
+    ) {
+        let outcome = auth::FriendOutcome {
+            request_id: request_id.to_owned(),
+            operation,
+            target_id: String::new(),
+            success: false,
+            code: code.to_owned(),
+        };
+        self.remember_friend_request(id, &outcome);
+        self.send_friend_result(id, request_id, false, code);
+    }
+
+    /// Open (or refresh) the window.  Nothing is mutated: the answer is
+    /// whatever the account already has, plus the live online flags.
+    fn handle_friend_open(&mut self, id: String, request_id: String) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        self.refresh_friend_links(&id);
+        self.send_friend_result(&id, &request_id, true, "");
+        self.push_friend_state(&id);
+    }
+
+    /// Resolve a typed name, then run the edit.  Names come from the source
+    /// context menu, which carries no id; the resolution happens here so a
+    /// client cannot hand the server an id it guessed.
+    fn handle_friend_by_name(
+        &mut self,
+        id: String,
+        request_id: String,
+        operation: auth::FriendOperation,
+        player_name: String,
+    ) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some(outcome) = self.replayed_friend_request(&id, &request_id) {
+            self.send_friend_result(&id, &request_id, outcome.success, &outcome.code);
+            return;
+        }
+        let target = match self.resolve_friend_name(&player_name) {
+            Some(target) => target,
+            None => {
+                self.friend_reject(&id, &request_id, operation, "friend_unknown_player");
+                return;
+            }
+        };
+        self.apply_friend_edit(id, request_id, operation, target);
+    }
+
+    /// Look a typed character name up in the account store.  Exact match
+    /// first, case-insensitive as a fallback, so a name typed with the wrong
+    /// capitalisation still reaches its owner without the client ever being
+    /// able to claim an identity.
+    fn resolve_friend_name(&self, player_name: &str) -> Option<String> {
+        let store = self.store.as_ref()?;
+        let needle = player_name.trim();
+        store
+            .find_character_by_name(needle)
+            .ok()
+            .flatten()
+            .map(|row| row.id)
+            .or_else(|| {
+                let players = self
+                    .players
+                    .iter()
+                    .find(|(_, player)| player.state.username.eq_ignore_ascii_case(needle))
+                    .map(|(id, _)| id.clone());
+                players
+            })
+    }
+
+    /// One authoritative friend / blacklist transaction.  Every guard lives in
+    /// `auth::friend_edit`, which also persists the outcome so a replayed
+    /// request id survives a restart; this layer only resolves the target and
+    /// re-publishes what changed.
+    fn apply_friend_edit(
+        &mut self,
+        id: String,
+        request_id: String,
+        operation: auth::FriendOperation,
+        target_id: String,
+    ) {
+        if !self.players.contains_key(&id) {
+            return;
+        }
+        if let Some(outcome) = self.replayed_friend_request(&id, &request_id) {
+            self.send_friend_result(&id, &request_id, outcome.success, &outcome.code);
+            return;
+        }
+        let Some(store) = self.store.clone() else {
+            self.friend_reject(&id, &request_id, operation, "persistence");
+            return;
+        };
+        match store.friend_edit(&id, &request_id, operation, &target_id) {
+            Ok(outcome) => {
+                let success = outcome.success;
+                let code = outcome.code.clone();
+                self.remember_friend_request(&id, &outcome);
+                self.send_friend_result(&id, &request_id, success, &code);
+                if !success {
+                    return;
+                }
+                // Membership or the blacklist changed, so both sides of the
+                // relation and the cached block set have to be rebuilt
+                // before the windows are re-published.
+                self.reload_blocked(&id);
+                self.refresh_friend_links(&id);
+                self.refresh_friend_links(&target_id);
+                self.push_friend_state(&id);
+                self.push_friend_state(&target_id);
+            }
+            Err(error) => {
+                if let Some(player) = self.players.get(&id) {
+                    let _ =
+                        player
+                            .output
+                            .try_send(reject("persistence", &error, Some(&request_id)));
+                }
+            }
+        }
+    }
+
+    /// Notice that a character entered or left the world and refresh the
+    /// friend windows that show it.  The roster is compared as a whole so the
+    /// pass costs one allocation on the overwhelming majority of ticks and
+    /// nothing at all when nobody joined or left.
+    fn step_friends(&mut self) {
+        let roster: Vec<String> = self.players.keys().cloned().collect();
+        if roster == self.friend_roster {
+            return;
+        }
+        let mut changed: BTreeSet<String> = roster.iter().cloned().collect();
+        for id in &self.friend_roster {
+            changed.insert(id.clone());
+        }
+        self.friend_roster = roster;
+        for id in changed {
+            self.push_friend_state_to_watchers(&id);
+        }
     }
 
     /// Reload the character-owned rows a storage transfer can change.  Only
@@ -14330,6 +14942,10 @@ impl World {
         // a logout, a transport loss or an expired away window all end a
         // membership through the same single path.
         self.step_parties();
+        // A login or a logout is the only thing that can change a friend
+        // window without a client intent, so the online flags are refreshed
+        // from the roster rather than pushed on a timer.
+        self.step_friends();
         // Derive every away stage from the current time before simulating, so
         // no branch below can act on a stage that has already expired.
         self.advance_away_windows();
@@ -14351,9 +14967,7 @@ impl World {
             let old_mp = player.state.mp;
             let old_max_hp = player.state.max_hp;
             let old_max_mp = player.state.max_mp;
-            player.adaptation_cooldown_ms = player
-                .adaptation_cooldown_ms
-                .saturating_sub(TICK_MS);
+            player.adaptation_cooldown_ms = player.adaptation_cooldown_ms.saturating_sub(TICK_MS);
             player.skill_cooldowns.retain(|_, remaining| {
                 *remaining = remaining.saturating_sub(TICK_MS);
                 *remaining > 0
@@ -14657,8 +15271,7 @@ impl World {
                 .copied()
                 .is_some_and(|remaining| remaining > 0)
             {
-                damage = (damage as f64
-                    * (100 + player.infinity_damage_bonus.max(0)) as f64
+                damage = (damage as f64 * (100 + player.infinity_damage_bonus.max(0)) as f64
                     / 100.0)
                     .floor()
                     .max(1.0) as i64;
@@ -14693,8 +15306,7 @@ impl World {
                     .get(&SKILL_HYPER_ADVENTURER)
                     .copied()
                     .and_then(|skill_level| {
-                        self.mage_skills
-                            .level(SKILL_HYPER_ADVENTURER, skill_level)
+                        self.mage_skills.level(SKILL_HYPER_ADVENTURER, skill_level)
                     })
                     .and_then(|level| level.indie_dam_r)
                     .unwrap_or(10)
@@ -14708,8 +15320,7 @@ impl World {
                     .max(1.0) as i64;
             }
             let guard_percent = self.boss_damage_multiplier(&map_id, false);
-            damage = (damage as i128 * i128::from(guard_percent) / 100)
-                .max(1) as i64;
+            damage = (damage as i128 * i128::from(guard_percent) / 100).max(1) as i64;
             let killed = target_id.is_some() && target_hp > 0 && damage >= target_hp;
             let applied_damage = target_id
                 .is_some()
@@ -14748,7 +15359,11 @@ impl World {
                     target_id: target_id.clone(),
                     damage: applied_damage,
                     killed,
-                    exp_gain: if killed && !practice { target_template.exp } else { 0 },
+                    exp_gain: if killed && !practice {
+                        target_template.exp
+                    } else {
+                        0
+                    },
                     drop: drops.first().cloned(),
                     drops,
                     profile: None,
@@ -14799,7 +15414,11 @@ impl World {
                             .div_ceil(TICK_MS)
                             .max(1);
                         monster.death_until = Some(self.tick + die_ticks);
-                        monster.respawn_at = respawn_deadline(self.tick, self.gameplay.monster_respawn_ms, monster.spawn.mob_time);
+                        monster.respawn_at = respawn_deadline(
+                            self.tick,
+                            self.gameplay.monster_respawn_ms,
+                            monster.spawn.mob_time,
+                        );
                     }
                 }
                 if resolution.damage > 0 {
@@ -15185,16 +15804,12 @@ impl World {
         // Thunder's sustained channel is damageable, unlike Ice Dragon's
         // source q-window.  It halves incoming damage and keeps the channel
         // from being interrupted by contact/boss damage.
-        let channel_damage = if snapshot.5 > self.tick
-            && snapshot.6 == Some(SKILL_HYPER_THUNDER)
-        {
+        let channel_damage = if snapshot.5 > self.tick && snapshot.6 == Some(SKILL_HYPER_THUNDER) {
             (barrier_damage as i128 * 50 / 100).max(1) as i64
         } else {
             barrier_damage
         };
-        let reduced_damage = channel_damage
-            .saturating_sub(shield_bonus)
-            .max(1);
+        let reduced_damage = channel_damage.saturating_sub(shield_bonus).max(1);
         let guard_level = snapshot
             .0
             .skills
@@ -15273,9 +15888,8 @@ impl World {
             player.state.action_started_tick = self.tick;
             player.state.action_id = None;
             player.swimming = false;
-            player.natural_recovery_next_tick = self
-                .tick
-                .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+            player.natural_recovery_next_tick =
+                self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
             player.state.climbing = false;
             player.state.ladder_id = None;
             player.attack_until = 0;
@@ -15322,41 +15936,40 @@ impl World {
                 // windows; generic body contact must not add a second hit.
                 continue;
             }
-            let hit = self
-                .monsters
-                .values()
-                .filter(|monster| {
-                    if monster.map_id != map_id
-                        || monster.state.hp <= 0
-                        || !monster.template.body_attack
-                        || monster.template.pa_damage.is_none()
-                    {
-                        return false;
-                    }
-                    let Some((mob_left, mob_right, mob_top, mob_bottom)) = monster
-                        .template
-                        .body_bounds(monster.state.x, monster.state.y)
-                    else {
-                        return false;
-                    };
-                    // Mapleweb's collision probe uses the player's current
-                    // movement span and a -50..0 body rectangle.
-                    player.state.x >= mob_left
-                        && player.state.x <= mob_right
-                        && player.state.y - 50.0 <= mob_bottom
-                        && player.state.y >= mob_top
-                })
-                .min_by(|a, b| {
-                    (a.state.x - player.state.x)
-                        .abs()
-                        .total_cmp(&(b.state.x - player.state.x).abs())
-                })
-                .and_then(|monster| {
-                    monster
-                        .template
-                        .pa_damage
-                        .map(|damage| (monster.state.id.clone(), monster.state.x, damage.max(1)))
-                });
+            let hit =
+                self.monsters
+                    .values()
+                    .filter(|monster| {
+                        if monster.map_id != map_id
+                            || monster.state.hp <= 0
+                            || !monster.template.body_attack
+                            || monster.template.pa_damage.is_none()
+                        {
+                            return false;
+                        }
+                        let Some((mob_left, mob_right, mob_top, mob_bottom)) = monster
+                            .template
+                            .body_bounds(monster.state.x, monster.state.y)
+                        else {
+                            return false;
+                        };
+                        // Mapleweb's collision probe uses the player's current
+                        // movement span and a -50..0 body rectangle.
+                        player.state.x >= mob_left
+                            && player.state.x <= mob_right
+                            && player.state.y - 50.0 <= mob_bottom
+                            && player.state.y >= mob_top
+                    })
+                    .min_by(|a, b| {
+                        (a.state.x - player.state.x)
+                            .abs()
+                            .total_cmp(&(b.state.x - player.state.x).abs())
+                    })
+                    .and_then(|monster| {
+                        monster.template.pa_damage.map(|damage| {
+                            (monster.state.id.clone(), monster.state.x, damage.max(1))
+                        })
+                    });
             let Some((monster_id, monster_x, raw_damage)) = hit else {
                 continue;
             };
@@ -15380,8 +15993,8 @@ impl World {
                 .weapon_defense
                 .unwrap_or(0)
                 .max(0);
-            let Some((hp_damage, mp_damage, killed)) = self
-                .commit_incoming_damage(&id, raw_damage.saturating_sub(defense).max(1))
+            let Some((hp_damage, mp_damage, killed)) =
+                self.commit_incoming_damage(&id, raw_damage.saturating_sub(defense).max(1))
             else {
                 continue;
             };
@@ -15396,55 +16009,55 @@ impl World {
                     // the damage transaction above already applied its 50%
                     // reduction and the hit must not add a knockback hop.
                 } else {
-                // Body hit: interrupt the current attack and start the
-                // knockback hop.  The body leaves its foothold with a small
-                // upward launch plus a short horizontal push away from the
-                // monster centre, both scaled by tenacity.  step_player owns
-                // the ballistic arc and stands the player again on landing;
-                // clients render the white flash from the damage event below
-                // and follow the authoritative position from snapshots.
-                player.attack_until = 0;
-                player.state.action_id = None;
-                if player.state.climbing {
-                    player.state.climbing = false;
-                    player.state.ladder_id = None;
-                }
-                let resists_knockback = stance_prop > 0
-                    && deterministic_percent(&[
-                        &id,
-                        &monster_id,
-                        &self.tick.to_string(),
-                        "teleport-mastery-stance",
-                    ]) < stance_prop;
-                if resists_knockback {
-                    player.state.action = if player.state.grounded {
-                        "stand"
+                    // Body hit: interrupt the current attack and start the
+                    // knockback hop.  The body leaves its foothold with a small
+                    // upward launch plus a short horizontal push away from the
+                    // monster centre, both scaled by tenacity.  step_player owns
+                    // the ballistic arc and stands the player again on landing;
+                    // clients render the white flash from the damage event below
+                    // and follow the authoritative position from snapshots.
+                    player.attack_until = 0;
+                    player.state.action_id = None;
+                    if player.state.climbing {
+                        player.state.climbing = false;
+                        player.state.ladder_id = None;
+                    }
+                    let resists_knockback = stance_prop > 0
+                        && deterministic_percent(&[
+                            &id,
+                            &monster_id,
+                            &self.tick.to_string(),
+                            "teleport-mastery-stance",
+                        ]) < stance_prop;
+                    if resists_knockback {
+                        player.state.action = if player.state.grounded {
+                            "stand"
+                        } else {
+                            "jump"
+                        };
+                        player.state.action_started_tick = self.tick;
                     } else {
-                        "jump"
-                    };
-                    player.state.action_started_tick = self.tick;
-                } else {
-                    player.state.grounded = false;
-                    player.foothold_id = 0;
-                    player.drop_fh = 0;
-                    let away = if player.state.x >= monster_x {
-                        1.0
-                    } else {
-                        -1.0
-                    };
-                    let tenacity = self
-                        .gameplay
-                        .player
-                        .tenacity
-                        .unwrap_or(0.0)
-                        .clamp(0.0, TENACITY_CAP);
-                    let factor = 1.0 - tenacity;
-                    player.knockback_vx = away * KNOCKBACK_SPEED * factor;
-                    player.knockback_until = self.tick + KNOCKBACK_TICKS;
-                    player.state.vy = -KNOCKBACK_JUMP * factor;
-                    player.state.action = "jump";
-                    player.state.action_started_tick = self.tick;
-                }
+                        player.state.grounded = false;
+                        player.foothold_id = 0;
+                        player.drop_fh = 0;
+                        let away = if player.state.x >= monster_x {
+                            1.0
+                        } else {
+                            -1.0
+                        };
+                        let tenacity = self
+                            .gameplay
+                            .player
+                            .tenacity
+                            .unwrap_or(0.0)
+                            .clamp(0.0, TENACITY_CAP);
+                        let factor = 1.0 - tenacity;
+                        player.knockback_vx = away * KNOCKBACK_SPEED * factor;
+                        player.knockback_until = self.tick + KNOCKBACK_TICKS;
+                        player.state.vy = -KNOCKBACK_JUMP * factor;
+                        player.state.action = "jump";
+                        player.state.action_started_tick = self.tick;
+                    }
                 }
             }
             // Broadcast an authoritative damage event so every client can show
@@ -15546,7 +16159,10 @@ fn regeneration_passives_for_job(job: u32) -> Vec<RegenerationPassive> {
             hp_per_second: 0,
             mp_per_second: 1,
         });
-    } else if matches!(job, 100 | 110 | 111 | 112 | 120 | 121 | 122 | 130 | 131 | 132) {
+    } else if matches!(
+        job,
+        100 | 110 | 111 | 112 | 120 | 121 | 122 | 130 | 131 | 132
+    ) {
         passives.push(RegenerationPassive {
             id: "warrior-recovery",
             book_id: 100,
@@ -15556,7 +16172,6 @@ fn regeneration_passives_for_job(job: u32) -> Vec<RegenerationPassive> {
     }
     passives
 }
-
 
 fn is_magic_attack_skill(skill_id: u32) -> bool {
     matches!(
@@ -15628,9 +16243,7 @@ fn is_hyper_skill(skill_id: u32) -> bool {
 }
 
 fn hyper_vortex_contains(player: &Player, vortex: &HyperVortex) -> bool {
-    if player.map_id != vortex.map_id
-        || !player.state.x.is_finite()
-        || !player.state.y.is_finite()
+    if player.map_id != vortex.map_id || !player.state.x.is_finite() || !player.state.y.is_finite()
     {
         return false;
     }
@@ -16192,8 +16805,7 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
                 player.foothold_id = 0;
                 player.drop_fh = 0;
                 player.vertical = 0;
-                player.state.y = (player.state.y
-                    + player.state.vy * (TICK_MS as f64 / 1000.0))
+                player.state.y = (player.state.y + player.state.vy * (TICK_MS as f64 / 1000.0))
                     .clamp(water.y_min, water.floor_at(player.state.x));
                 if player.state.y <= water.y_min {
                     player.state.vy = 0.0;
@@ -16214,16 +16826,15 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
                 if player.direction != 0 {
                     player.state.facing = player.direction;
                 }
-                player.state.x = (player.state.x
-                    + player.state.vx * (TICK_MS as f64 / 1000.0))
+                player.state.x = (player.state.x + player.state.vx * (TICK_MS as f64 / 1000.0))
                     .clamp(water.x_min, water.x_max);
-                player.state.y = (player.state.y
-                    + player.state.vy * (TICK_MS as f64 / 1000.0))
+                player.state.y = (player.state.y + player.state.vy * (TICK_MS as f64 / 1000.0))
                     .clamp(water.y_min, water.floor_at(player.state.x));
                 if player.state.x <= water.x_min || player.state.x >= water.x_max {
                     player.state.vx = 0.0;
                 }
-                if player.state.y <= water.y_min || player.state.y >= water.floor_at(player.state.x) {
+                if player.state.y <= water.y_min || player.state.y >= water.floor_at(player.state.x)
+                {
                     player.state.vy = 0.0;
                 }
                 player.state.grounded = false;
@@ -16401,16 +17012,17 @@ fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     // past the wall top inside a single tick, which the point-only test
     // tunnels straight through.
     let swept_y = player.state.y + projected_vy * (TICK_MS as f64 / 1000.0);
-    let chain_wall = (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0).then(|| {
-        map.chain_wall_on_sweep(
-            chain_anchor,
-            player.state.vx < 0.0,
-            player.state.x,
-            intended_x,
-            player.state.y,
-            swept_y,
-        )
-    });
+    let chain_wall =
+        (!water_entry_ahead && player.state.vx != 0.0 && chain_anchor != 0).then(|| {
+            map.chain_wall_on_sweep(
+                chain_anchor,
+                player.state.vx < 0.0,
+                player.state.x,
+                intended_x,
+                player.state.y,
+                swept_y,
+            )
+        });
     if let Some(Some(wall)) = chain_wall {
         let crossed = if player.state.vx < 0.0 {
             player.state.x >= wall && intended_x <= wall
@@ -16910,7 +17522,10 @@ mod tests {
             ]
         );
         for job in [112, 132] {
-            assert_eq!(regeneration_passives_for_job(job), warrior.regeneration_passives);
+            assert_eq!(
+                regeneration_passives_for_job(job),
+                warrior.regeneration_passives
+            );
         }
         for job in [222, 232] {
             assert_eq!(
@@ -16945,13 +17560,31 @@ mod tests {
         for _ in 0..19 {
             world.step();
         }
-        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (1, 1));
+        assert_eq!(
+            (
+                world.players["natural"].state.hp,
+                world.players["natural"].state.mp
+            ),
+            (1, 1)
+        );
         world.step();
-        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (2, 2));
+        assert_eq!(
+            (
+                world.players["natural"].state.hp,
+                world.players["natural"].state.mp
+            ),
+            (2, 2)
+        );
         for _ in 0..40 {
             world.step();
         }
-        assert_eq!((world.players["natural"].state.hp, world.players["natural"].state.mp), (3, 4));
+        assert_eq!(
+            (
+                world.players["natural"].state.hp,
+                world.players["natural"].state.mp
+            ),
+            (3, 4)
+        );
         let full_tick = world.tick;
         world.players.get_mut("natural").unwrap().state.hp = 1;
         for _ in 0..19 {
@@ -16985,7 +17618,10 @@ mod tests {
 
     #[test]
     fn natural_recovery_does_not_restore_offline_time_or_update_on_failed_save() {
-        let path = std::env::temp_dir().join(format!("maple-natural-recovery-{}.sqlite3", auth::random_id()));
+        let path = std::env::temp_dir().join(format!(
+            "maple-natural-recovery-{}.sqlite3",
+            auth::random_id()
+        ));
         let service = auth::start(&path).unwrap();
         let store = service.store.clone();
         let gameplay = Gameplay {
@@ -16996,7 +17632,8 @@ mod tests {
             },
             ..Gameplay::default()
         };
-        let mut world = World::new_with_store(life_map("test"), 600, gameplay, store.clone()).unwrap();
+        let mut world =
+            World::new_with_store(life_map("test"), 600, gameplay, store.clone()).unwrap();
         let mut rx = join_test_player(&mut world, "natural-store");
         while rx.try_recv().is_ok() {}
         {
@@ -17006,14 +17643,25 @@ mod tests {
             store
                 .save_profile(
                     "natural-store",
-                    &profile_from_state(&player.state, &player.map_id, &player.death_id, player.base_max_mp),
+                    &profile_from_state(
+                        &player.state,
+                        &player.map_id,
+                        &player.death_id,
+                        player.base_max_mp,
+                    ),
                 )
                 .unwrap();
         }
         world.tick = 200;
         let mut reconnect_rx = join_test_player(&mut world, "natural-store");
         while reconnect_rx.try_recv().is_ok() {}
-        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        assert_eq!(
+            (
+                world.players["natural-store"].state.hp,
+                world.players["natural-store"].state.mp
+            ),
+            (1, 1)
+        );
         assert_eq!(
             world.players["natural-store"].natural_recovery_next_tick,
             world.tick + NATURAL_RECOVERY_INTERVAL_TICKS
@@ -17021,7 +17669,10 @@ mod tests {
         world.tick = world.players["natural-store"].natural_recovery_next_tick;
         world.step_natural_recovery("natural-store");
         assert_eq!(
-            (world.players["natural-store"].state.hp, world.players["natural-store"].state.mp),
+            (
+                world.players["natural-store"].state.hp,
+                world.players["natural-store"].state.mp
+            ),
             (2, 2)
         );
         let saved = store
@@ -17042,12 +17693,24 @@ mod tests {
             })
             .unwrap();
         world.step_natural_recovery("natural-store");
-        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        assert_eq!(
+            (
+                world.players["natural-store"].state.hp,
+                world.players["natural-store"].state.mp
+            ),
+            (1, 1)
+        );
         let retry_tick = world.players["natural-store"].natural_recovery_next_tick;
         assert_eq!(retry_tick, world.tick + NATURAL_RECOVERY_INTERVAL_TICKS);
         world.tick += 1;
         world.step_natural_recovery("natural-store");
-        assert_eq!((world.players["natural-store"].state.hp, world.players["natural-store"].state.mp), (1, 1));
+        assert_eq!(
+            (
+                world.players["natural-store"].state.hp,
+                world.players["natural-store"].state.mp
+            ),
+            (1, 1)
+        );
         drop(world);
         drop(service);
         let _ = std::fs::remove_file(&path);
@@ -17149,9 +17812,9 @@ mod tests {
             Some(0),
         );
         let busy = drain(&mut rx);
-        assert!(busy.iter().any(|value| {
-            value["type"] == "rejected" && value["code"] == "skill_busy"
-        }));
+        assert!(busy
+            .iter()
+            .any(|value| { value["type"] == "rejected" && value["code"] == "skill_busy" }));
         assert_eq!(world.players["beginner-runtime"].state.mp, 47);
         world.handle_cast_skill(
             "beginner-runtime".into(),
@@ -17174,9 +17837,9 @@ mod tests {
             Some(0),
         );
         let recovery = drain(&mut rx);
-        assert!(recovery.iter().any(|value| {
-            value["type"] == "skillResult" && value["success"] == true
-        }));
+        assert!(recovery
+            .iter()
+            .any(|value| { value["type"] == "skillResult" && value["success"] == true }));
         assert_eq!(world.players["beginner-runtime"].state.mp, 42);
         assert_eq!(
             world.players["beginner-runtime"]
@@ -17204,22 +17867,36 @@ mod tests {
             Some(0),
         );
         let cooldown = drain(&mut rx);
-        assert!(cooldown.iter().any(|value| {
-            value["type"] == "rejected" && value["code"] == "skill_cooldown"
-        }));
+        assert!(cooldown
+            .iter()
+            .any(|value| { value["type"] == "rejected" && value["code"] == "skill_cooldown" }));
         assert_eq!(world.players["beginner-runtime"].state.mp, 42);
         assert_eq!(world.tick, 0);
         assert_eq!(world.players["beginner-runtime"].state.max_hp, 35);
-        assert_eq!(world.players["beginner-runtime"].beginner_heal_next_tick, 100);
-        assert_eq!(world.players["beginner-runtime"].beginner_heal_remaining_ticks, 6);
+        assert_eq!(
+            world.players["beginner-runtime"].beginner_heal_next_tick,
+            100
+        );
+        assert_eq!(
+            world.players["beginner-runtime"].beginner_heal_remaining_ticks,
+            6
+        );
         assert_eq!(world.players["beginner-runtime"].beginner_heal_per_tick, 4);
         for _ in 0..99 {
             world.step();
         }
         assert_eq!(world.tick, 99);
-        assert_eq!(world.players["beginner-runtime"].beginner_heal_next_tick, 100);
-        assert_eq!(world.players["beginner-runtime"].beginner_heal_remaining_ticks, 6);
-        assert!(world.players["beginner-runtime"].skill_buffs.contains_key(&SKILL_RECOVERY));
+        assert_eq!(
+            world.players["beginner-runtime"].beginner_heal_next_tick,
+            100
+        );
+        assert_eq!(
+            world.players["beginner-runtime"].beginner_heal_remaining_ticks,
+            6
+        );
+        assert!(world.players["beginner-runtime"]
+            .skill_buffs
+            .contains_key(&SKILL_RECOVERY));
         assert_eq!(world.players["beginner-runtime"].state.hp, 16);
         world.step();
         // Tick 100 applies the active 4 HP heal and the permanent +1 HP/s
@@ -17229,7 +17906,11 @@ mod tests {
             world.step();
         }
         assert_eq!(world.players["beginner-runtime"].state.hp, 35);
-        assert!(world.players["beginner-runtime"].state.derived_stats.skill_buffs.is_none());
+        assert!(world.players["beginner-runtime"]
+            .state
+            .derived_stats
+            .skill_buffs
+            .is_none());
         assert_eq!(
             world.players["beginner-runtime"]
                 .skill_cooldowns
@@ -17254,22 +17935,42 @@ mod tests {
             Some(0),
         );
         let nimble = drain(&mut rx);
-        assert!(nimble.iter().any(|value| {
-            value["type"] == "skillResult" && value["success"] == true
-        }));
+        assert!(nimble
+            .iter()
+            .any(|value| { value["type"] == "skillResult" && value["success"] == true }));
         // Natural MP recovery reaches the 50 MP cap during the long buff
         // window, so Nimble Feet's 4 MP cost leaves 46.
         assert_eq!(world.players["beginner-runtime"].state.mp, 46);
-        assert_eq!(world.players["beginner-runtime"].state.derived_stats.move_speed, 137.5);
+        assert_eq!(
+            world.players["beginner-runtime"]
+                .state
+                .derived_stats
+                .move_speed,
+            137.5
+        );
         world.players.get_mut("beginner-runtime").unwrap().state.hp = 1;
         world.players.get_mut("beginner-runtime").unwrap().state.x = 300.0;
-        world.monsters.get_mut(&monster_id).unwrap().template.body_attack = true;
-        world.monsters.get_mut(&monster_id).unwrap().template.pa_damage = Some(2);
+        world
+            .monsters
+            .get_mut(&monster_id)
+            .unwrap()
+            .template
+            .body_attack = true;
+        world
+            .monsters
+            .get_mut(&monster_id)
+            .unwrap()
+            .template
+            .pa_damage = Some(2);
         world.apply_contact_damage();
         assert_eq!(world.players["beginner-runtime"].state.hp, 0);
         assert!(world.players["beginner-runtime"].skill_buffs.is_empty());
         assert_eq!(world.players["beginner-runtime"].beginner_speed_percent, 0);
-        assert!(world.players["beginner-runtime"].state.derived_stats.skill_buffs.is_none());
+        assert!(world.players["beginner-runtime"]
+            .state
+            .derived_stats
+            .skill_buffs
+            .is_none());
     }
 
     #[test]
@@ -18134,7 +18835,10 @@ mod tests {
             ("104000000", "in01", "104000002", "out01"),
             ("104000000", "in02", "104000003", "out00"),
         ] {
-            assert!(ids.contains(shop), "{shop} must be part of the assembled catalog");
+            assert!(
+                ids.contains(shop),
+                "{shop} must be part of the assembled catalog"
+            );
             let enter = gate(town, name);
             assert_eq!(enter.target_map_id.as_deref(), Some(shop));
             assert_eq!(enter.target_portal_name.as_deref(), Some(exit_name));
@@ -18353,8 +19057,16 @@ mod tests {
             Some(10_010),
             "explicit map cycle is preferred over the default"
         );
-        assert_eq!(respawn_deadline(0, Some(500), 0), Some(10), "500 ms -> 10 ticks");
-        assert_eq!(respawn_deadline(0, None, -1), None, "mobTime -1 never respawns");
+        assert_eq!(
+            respawn_deadline(0, Some(500), 0),
+            Some(10),
+            "500 ms -> 10 ticks"
+        );
+        assert_eq!(
+            respawn_deadline(0, None, -1),
+            None,
+            "mobTime -1 never respawns"
+        );
         assert_eq!(
             respawn_deadline(1_000, None, 5),
             Some(1_000 + 5_000 / TICK_MS),
@@ -19820,7 +20532,8 @@ mod tests {
     fn quest_consume_items_accepts_array_and_boolean_forms() {
         let mut spec = QuestSpec::default();
         spec.complete.conditions.items = vec![QuestItemRequirement {
-            item_id: "4000000".into(), quantity: 2,
+            item_id: "4000000".into(),
+            quantity: 2,
         }];
         spec.complete.consume_items = serde_json::json!([{"itemId":"4000001","quantity":3}]);
         let items = World::quest_consume_items(&spec);
@@ -19957,6 +20670,7 @@ mod tests {
     include!("consume_acceptance.rs");
     include!("storage_acceptance.rs");
     include!("party_acceptance.rs");
+    include!("friend_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
@@ -21265,7 +21979,11 @@ mod tests {
         world.step();
         assert_eq!(world.players["fourth-runtime"].channel_until, 0);
         assert_eq!(world.players["fourth-runtime"].state.action, "attack");
-        world.players.get_mut("fourth-runtime").unwrap().attack_until = world.tick;
+        world
+            .players
+            .get_mut("fourth-runtime")
+            .unwrap()
+            .attack_until = world.tick;
 
         world.handle_cast_skill(
             "fourth-runtime".into(),
@@ -21277,7 +21995,9 @@ mod tests {
         let dragon_messages = drain(&mut rx);
         let dragon_event = dragon_messages
             .iter()
-            .find(|value| value["type"] == "skillCast" && value["skillId"] == SKILL_ICE_DRAGON_BREATH)
+            .find(|value| {
+                value["type"] == "skillCast" && value["skillId"] == SKILL_ICE_DRAGON_BREATH
+            })
             .expect("dragon cast event");
         assert_eq!(dragon_event["durationMs"], 7_000);
         let dragon_until = world.players["fourth-runtime"].channel_until;
@@ -21302,9 +22022,9 @@ mod tests {
         world.step();
         assert!(world.players["fourth-runtime"].channel_request_id.is_none());
         world.handle_release_skill("fourth-runtime".into(), "dragon-1".into());
-        assert!(drain(&mut rx).iter().all(|value| {
-            value["type"] != "skillCast" || value["requestId"] != "dragon-1"
-        }));
+        assert!(drain(&mut rx)
+            .iter()
+            .all(|value| { value["type"] != "skillCast" || value["requestId"] != "dragon-1" }));
 
         // The ninety-second immunity is independent from bind duration and
         // rejects a second Dragon cast without changing either mob's HP.
@@ -21373,12 +22093,10 @@ mod tests {
             player.state.mp = 0;
             refresh_player_derived(&world.gameplay, &world.mage_skills, player);
         }
-        let infinity = world
-            .mage_skills
-            .level(SKILL_INFINITY, 1)
-            .cloned()
+        let infinity = world.mage_skills.level(SKILL_INFINITY, 1).cloned().unwrap();
+        world
+            .activate_infinity("fourth-runtime", &infinity)
             .unwrap();
-        world.activate_infinity("fourth-runtime", &infinity).unwrap();
         {
             let player = world.players.get_mut("fourth-runtime").unwrap();
             player.state.mp = 0;
@@ -21391,10 +22109,12 @@ mod tests {
             player.skill_buffs.insert(SKILL_INFINITY, 1_000);
             refresh_player_derived(&world.gameplay, &world.mage_skills, player);
         }
-        assert!(world.players["fourth-runtime"]
-            .state
-            .derived_stats
-            .infinity_enhanced);
+        assert!(
+            world.players["fourth-runtime"]
+                .state
+                .derived_stats
+                .infinity_enhanced
+        );
 
         // Blizzard's hidden proc is selected from the actual successful
         // direct targets and is excluded from its own direct-skill chain.
@@ -21406,23 +22126,22 @@ mod tests {
         let mut found_follow_up = false;
         for index in 0..300 {
             let request_id = format!("cold-follow-{index}");
-            world.cast_elemental_area(
-                "fourth-runtime",
-                &request_id,
-                SKILL_COLD_BEAM,
-                &cold,
-                false,
-            )
-            .unwrap();
+            world
+                .cast_elemental_area("fourth-runtime", &request_id, SKILL_COLD_BEAM, &cold, false)
+                .unwrap();
             let messages = drain(&mut rx);
             let main_targets = messages
                 .iter()
-                .filter(|value| value["type"] == "damageEvent" && value["skillId"] == SKILL_COLD_BEAM)
+                .filter(|value| {
+                    value["type"] == "damageEvent" && value["skillId"] == SKILL_COLD_BEAM
+                })
                 .filter_map(|value| value["targetId"].as_str())
                 .collect::<BTreeSet<_>>();
             let follow_ups = messages
                 .iter()
-                .filter(|value| value["type"] == "damageEvent" && value["skillId"] == SKILL_BLIZZARD_HIDDEN)
+                .filter(|value| {
+                    value["type"] == "damageEvent" && value["skillId"] == SKILL_BLIZZARD_HIDDEN
+                })
                 .collect::<Vec<_>>();
             if !follow_ups.is_empty() {
                 assert_eq!(follow_ups.len(), 1);

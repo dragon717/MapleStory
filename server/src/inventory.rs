@@ -21,10 +21,9 @@ struct ItemDefinition {
 fn catalog() -> &'static BTreeMap<String, ItemDefinition> {
     static CATALOG: OnceLock<BTreeMap<String, ItemDefinition>> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../shared/items.json"
-        )))
+        let catalog: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../shared/items.json")
+        ))
         .expect("shared/items.json must be valid");
         // These entries exercise the inventory engine against source data that
         // is intentionally outside the small runtime catalog.  They are
@@ -32,12 +31,10 @@ fn catalog() -> &'static BTreeMap<String, ItemDefinition> {
         #[cfg(test)]
         let catalog = {
             let mut catalog = catalog;
-            let fixture: BTreeMap<String, ItemDefinition> =
-                serde_json::from_str(include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/test-fixtures/items.json"
-                )))
-                .expect("test item fixture must be valid");
+            let fixture: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/test-fixtures/items.json")
+            ))
+            .expect("test item fixture must be valid");
             catalog.extend(fixture);
             catalog
         };
@@ -1019,18 +1016,17 @@ mod tests {
             job: 500,
             ..EquipmentStats::default()
         };
-        let instance = |slot: u16,
-                        item_id: &str,
-                        pdd: i64,
-                        remaining_slots: u32,
-                        upgrade_count: u32| InventoryItem {
-            slot,
-            item_id: item_id.into(),
-            quantity: 1,
-            stats: Some(BTreeMap::from([(String::from("incPDD"), pdd)])),
-            remaining_slots: Some(remaining_slots),
-            upgrade_count: Some(upgrade_count),
-        };
+        let instance =
+            |slot: u16, item_id: &str, pdd: i64, remaining_slots: u32, upgrade_count: u32| {
+                InventoryItem {
+                    slot,
+                    item_id: item_id.into(),
+                    quantity: 1,
+                    stats: Some(BTreeMap::from([(String::from("incPDD"), pdd)])),
+                    remaining_slots: Some(remaining_slots),
+                    upgrade_count: Some(upgrade_count),
+                }
+            };
 
         let longcoat = instance(1, "1052095", 31, 2, 4);
         let coat = instance(5, "1040002", 7, 4, 1);
@@ -1039,14 +1035,26 @@ mod tests {
         let mut equipped = vec![coat.clone(), pants.clone()];
         equip_items(&mut inventory, &mut equipped, stats, 1, -5).unwrap();
 
-        assert_eq!(equipped.iter().map(|item| item.item_id.as_str()).collect::<Vec<_>>(), vec!["1052095"]);
+        assert_eq!(
+            equipped
+                .iter()
+                .map(|item| item.item_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["1052095"]
+        );
         assert_eq!(
             inventory.iter().find(|item| item.item_id == "1040002"),
-            Some(&InventoryItem { slot: 1, ..coat.clone() })
+            Some(&InventoryItem {
+                slot: 1,
+                ..coat.clone()
+            })
         );
         assert_eq!(
             inventory.iter().find(|item| item.item_id == "1060002"),
-            Some(&InventoryItem { slot: 2, ..pants.clone() })
+            Some(&InventoryItem {
+                slot: 2,
+                ..pants.clone()
+            })
         );
         assert_eq!(equipped[0].stats, longcoat.stats);
 
@@ -1055,17 +1063,13 @@ mod tests {
             .find(|item| item.item_id == "1060002")
             .unwrap()
             .slot;
-        equip_items(
-            &mut inventory,
-            &mut equipped,
-            stats,
-            pants_slot as i16,
-            -6,
-        )
-        .unwrap();
+        equip_items(&mut inventory, &mut equipped, stats, pants_slot as i16, -6).unwrap();
         assert_eq!(
             inventory.iter().find(|item| item.item_id == "1052095"),
-            Some(&InventoryItem { slot: pants_slot, ..longcoat.clone() })
+            Some(&InventoryItem {
+                slot: pants_slot,
+                ..longcoat.clone()
+            })
         );
         assert_eq!(equipped[0].item_id, "1060002");
         assert_eq!(equipped[0].stats, pants.stats);

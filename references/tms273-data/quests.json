@@ -11,10 +11,16 @@
     "area": 77,
     "idPattern": "36300-36399",
     "prerequisiteQuestIds": [
-      "1402"
+      "1401",
+      "1402",
+      "1403",
+      "1404",
+      "1405",
+      "2570",
+      "2684"
     ],
-    "requestedCount": 101,
-    "count": 64,
+    "requestedCount": 107,
+    "count": 70,
     "missingIds": [
       "36300",
       "36305",
@@ -57,6 +63,382 @@
     "executable": false
   },
   "quests": [
+    {
+      "id": "1401",
+      "questId": 1401,
+      "source": "Quest.wz/QuestData/1401.img",
+      "sourceJson": "Quest/QuestData/1401.json",
+      "name": "[楓之谷世界的冒險家] 劍士之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 劍士之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 劍士之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和勇士之村的劍士轉職教官武術教練交談，轉職為劍士吧。",
+          "QuestInfo/1": "決定和勇士之村的劍士轉職教官武術教練交談，並且轉職為劍士。",
+          "QuestInfo/2": "已轉職為劍士。",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q1401s",
+          "Check/1/endscript": "q1401e",
+          "Check/1/infoex/0/value": "1"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 劍士之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和勇士之村的劍士轉職教官武術教練交談，轉職為劍士吧。",
+          "QuestInfo/1": "決定和勇士之村的劍士轉職教官武術教練交談，並且轉職為劍士。",
+          "QuestInfo/2": "已轉職為劍士。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {},
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 劍士之路"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "和勇士之村的劍士轉職教官武術教練交談，轉職為劍士吧。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "決定和勇士之村的劍士轉職教官武術教練交談，並且轉職為劍士。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "已轉職為劍士。"
+        },
+        "disableAtStartTab": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "autoStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1022000"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q1401s"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "fieldEnter": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "102000003"
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "36307"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q1401e"
+          },
+          "npc": {
+            "_dirType": "int",
+            "_value": "1022000"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "infoNumber": {
+            "_dirType": "int",
+            "_value": "1406"
+          },
+          "infoex": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              },
+              "value": {
+                "_dirType": "string",
+                "_value": "1"
+              }
+            }
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q1401s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        },
+        {
+          "name": "q1401e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 劍士之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和勇士之村的劍士轉職教官武術教練交談，轉職為劍士吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定和勇士之村的劍士轉職教官武術教練交談，並且轉職為劍士。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "已轉職為劍士。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1022000"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1401s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "102000003"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1401e"
+            },
+            "npc": {
+              "_dirType": "int",
+              "_value": "1022000"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "1"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
     {
       "id": "1402",
       "questId": 1402,
@@ -429,6 +811,1852 @@
           },
           "1": {
             "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "id": "1403",
+      "questId": 1403,
+      "source": "Quest.wz/QuestData/1403.img",
+      "sourceJson": "Quest/QuestData/1403.json",
+      "name": "[楓之谷世界的冒險家] 弓箭手之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 弓箭手之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 弓箭手之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和弓箭手村的弓箭手轉職官赫麗娜交談，轉職為弓箭手吧。",
+          "QuestInfo/1": "決定獲得弓箭手村的弓箭手轉職官赫麗娜的引導，並且轉職為弓箭手。",
+          "QuestInfo/2": "轉職為弓箭手了。",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q1403s",
+          "Check/1/endscript": "q1403e",
+          "Check/1/infoex/0/value": "3"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 弓箭手之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和弓箭手村的弓箭手轉職官赫麗娜交談，轉職為弓箭手吧。",
+          "QuestInfo/1": "決定獲得弓箭手村的弓箭手轉職官赫麗娜的引導，並且轉職為弓箭手。",
+          "QuestInfo/2": "轉職為弓箭手了。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {},
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 弓箭手之路"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "autoStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "和弓箭手村的弓箭手轉職官赫麗娜交談，轉職為弓箭手吧。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "決定獲得弓箭手村的弓箭手轉職官赫麗娜的引導，並且轉職為弓箭手。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "轉職為弓箭手了。"
+        },
+        "disableAtStartTab": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1012100"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q1403s"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "fieldEnter": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "100000201"
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "36307"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1012100"
+          },
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q1403e"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "infoNumber": {
+            "_dirType": "int",
+            "_value": "1406"
+          },
+          "infoex": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              },
+              "value": {
+                "_dirType": "string",
+                "_value": "3"
+              }
+            }
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q1403s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        },
+        {
+          "name": "q1403e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 弓箭手之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和弓箭手村的弓箭手轉職官赫麗娜交談，轉職為弓箭手吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定獲得弓箭手村的弓箭手轉職官赫麗娜的引導，並且轉職為弓箭手。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "轉職為弓箭手了。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1403s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "100000201"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1012100"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1403e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "3"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "id": "1404",
+      "questId": 1404,
+      "source": "Quest.wz/QuestData/1404.img",
+      "sourceJson": "Quest/QuestData/1404.json",
+      "name": "[楓之谷世界的冒險家] 盜賊之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 盜賊之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 盜賊之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和墮落城市的盜賊轉職官達克魯交談，並且轉職為盜賊吧。",
+          "QuestInfo/1": "決定獲得墮落城市的盜賊轉職官達克魯的引導，並且轉職為盜賊。",
+          "QuestInfo/2": "轉職為盜賊了。",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q1404s",
+          "Check/1/endscript": "q1404e",
+          "Check/1/infoex/0/value": "4"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 盜賊之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和墮落城市的盜賊轉職官達克魯交談，並且轉職為盜賊吧。",
+          "QuestInfo/1": "決定獲得墮落城市的盜賊轉職官達克魯的引導，並且轉職為盜賊。",
+          "QuestInfo/2": "轉職為盜賊了。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {},
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 盜賊之路"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "autoStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "和墮落城市的盜賊轉職官達克魯交談，並且轉職為盜賊吧。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "決定獲得墮落城市的盜賊轉職官達克魯的引導，並且轉職為盜賊。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "轉職為盜賊了。"
+        },
+        "disableAtStartTab": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1052001"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q1404s"
+          },
+          "fieldEnter": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "103000003"
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "36307"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1052001"
+          },
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q1404e"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "infoNumber": {
+            "_dirType": "int",
+            "_value": "1406"
+          },
+          "infoex": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              },
+              "value": {
+                "_dirType": "string",
+                "_value": "4"
+              }
+            }
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q1404s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        },
+        {
+          "name": "q1404e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 盜賊之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和墮落城市的盜賊轉職官達克魯交談，並且轉職為盜賊吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定獲得墮落城市的盜賊轉職官達克魯的引導，並且轉職為盜賊。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "轉職為盜賊了。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1052001"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1404s"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "103000003"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1052001"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1404e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "4"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "id": "1405",
+      "questId": 1405,
+      "source": "Quest.wz/QuestData/1405.img",
+      "sourceJson": "Quest/QuestData/1405.json",
+      "name": "[楓之谷世界的冒險家] 海盜之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 海盜之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 海盜之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和鯨魚號的海盜轉職官卡伊琳交談，並且轉職為海盜吧。",
+          "QuestInfo/1": "決定獲得鯨魚號的海盜轉職官卡伊琳的引導，並且轉職為海盜。",
+          "QuestInfo/2": "轉職為海盜了。",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q1405s",
+          "Check/1/endscript": "q1405e",
+          "Check/1/infoex/0/value": "5"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 海盜之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "和鯨魚號的海盜轉職官卡伊琳交談，並且轉職為海盜吧。",
+          "QuestInfo/1": "決定獲得鯨魚號的海盜轉職官卡伊琳的引導，並且轉職為海盜。",
+          "QuestInfo/2": "轉職為海盜了。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {},
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 海盜之路"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "和鯨魚號的海盜轉職官卡伊琳交談，並且轉職為海盜吧。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "決定獲得鯨魚號的海盜轉職官卡伊琳的引導，並且轉職為海盜。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "轉職為海盜了。"
+        },
+        "disableAtStartTab": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "autoStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1090000"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q1405s"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "fieldEnter": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "120000101"
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "36307"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1090000"
+          },
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q1405e"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "infoNumber": {
+            "_dirType": "int",
+            "_value": "1406"
+          },
+          "infoex": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              },
+              "value": {
+                "_dirType": "string",
+                "_value": "5"
+              }
+            }
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q1405s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        },
+        {
+          "name": "q1405e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 海盜之路"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "和鯨魚號的海盜轉職官卡伊琳交談，並且轉職為海盜吧。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "決定獲得鯨魚號的海盜轉職官卡伊琳的引導，並且轉職為海盜。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "轉職為海盜了。"
+          },
+          "disableAtStartTab": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "autoStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1090000"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q1405s"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "fieldEnter": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "120000101"
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "36307"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1090000"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q1405e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "infoNumber": {
+              "_dirType": "int",
+              "_value": "1406"
+            },
+            "infoex": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                },
+                "value": {
+                  "_dirType": "string",
+                  "_value": "5"
+                }
+              }
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "id": "2570",
+      "questId": 2570,
+      "source": "Quest.wz/QuestData/2570.img",
+      "sourceJson": "Quest/QuestData/2570.json",
+      "name": "[楓之谷世界的冒險家] 重砲指揮官之路",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 重砲指揮官之路",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 重砲指揮官之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "猴子已經解決了，現在該怎麼辦呢？就和在船上想的一樣，我希望能成為一名海盜。不過斯托納似乎有話要說？",
+          "QuestInfo/1": "斯托納說像你這樣的人才有資格使用海盜的新武器，拜託你一定要成為#b重砲指揮官#k。他說成為使用巨大重砲瀟灑掃蕩敵人的重砲指揮官，絕對不會後悔的。怎、怎麼辦呢？去找海盜轉職官卡伊琳吧。",
+          "QuestInfo/2": "被卡伊琳說服，決定要成為重砲指揮官了。",
+          "QuestInfo/category": "0|2",
+          "Check/1/endscript": "q2570e",
+          "Say/0/0": "猴子和人類的友情…真的是太帥了！你才是完全符合我所想像的海盜！既會游泳力量又大… 如何呢？在我的鯨魚號成為海盜吧？不是一般的海盜喔！而是使用我所製作的新武器的海盜，#b砲手#k!",
+          "Say/0/1": "砲手的聽起來很生疏？他是兩手拿著巨大的大炮加農炮痛快地掃盪敵人的職業！具有無論和哪個職業相比也不落後的強烈感！如果是你一定能成為帥氣的砲手的！",
+          "Say/0/2": "反正你的目標不是冒險家嗎？既然如此就使用新武器在新楓之谷享受新生活，沒有比這個還更酷的事吧！來來，別推辭了！如果是你卡伊琳也會二話不說地接受的！\\r\\n\\r\\n#b(經由大門自動移動至卡伊琳面前。)",
+          "Say/0/yes/0": "出了這門去找卡伊琳的話，會把你轉成砲手的！",
+          "Say/0/no/0": "討厭砲手嗎？呃啊啊~也無法搶了這好人才！我要叫其他轉職官們別接受你！"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 重砲指揮官之路",
+          "QuestInfo/type": "[轉職]",
+          "QuestInfo/0": "猴子已經解決了，現在該怎麼辦呢？就和在船上想的一樣，我希望能成為一名海盜。不過斯托納似乎有話要說？",
+          "QuestInfo/1": "斯托納說像你這樣的人才有資格使用海盜的新武器，拜託你一定要成為#b重砲指揮官#k。他說成為使用巨大重砲瀟灑掃蕩敵人的重砲指揮官，絕對不會後悔的。怎、怎麼辦呢？去找海盜轉職官卡伊琳吧。",
+          "QuestInfo/2": "被卡伊琳說服，決定要成為重砲指揮官了。",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {
+          "Say/0/0": "猴子和人類的友情…真的是太帥了！你才是完全符合我所想像的海盜！既會游泳力量又大… 如何呢？在我的鯨魚號成為海盜吧？不是一般的海盜喔！而是使用我所製作的新武器的海盜，#b砲手#k!",
+          "Say/0/1": "砲手的聽起來很生疏？他是兩手拿著巨大的大炮加農炮痛快地掃盪敵人的職業！具有無論和哪個職業相比也不落後的強烈感！如果是你一定能成為帥氣的砲手的！",
+          "Say/0/2": "反正你的目標不是冒險家嗎？既然如此就使用新武器在新楓之谷享受新生活，沒有比這個還更酷的事吧！來來，別推辭了！如果是你卡伊琳也會二話不說地接受的！\\r\\n\\r\\n#b(經由大門自動移動至卡伊琳面前。)",
+          "Say/0/yes/0": "出了這門去找卡伊琳的話，會把你轉成砲手的！",
+          "Say/0/no/0": "討厭砲手嗎？呃啊啊~也無法搶了這好人才！我要叫其他轉職官們別接受你！"
+        },
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 重砲指揮官之路"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[轉職]"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "猴子已經解決了，現在該怎麼辦呢？就和在船上想的一樣，我希望能成為一名海盜。不過斯托納似乎有話要說？"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "斯托納說像你這樣的人才有資格使用海盜的新武器，拜託你一定要成為#b重砲指揮官#k。他說成為使用巨大重砲瀟灑掃蕩敵人的重砲指揮官，絕對不會後悔的。怎、怎麼辦呢？去找海盜轉職官卡伊琳吧。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "被卡伊琳說服，決定要成為重砲指揮官了。"
+        },
+        "resignBlocked": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1096006"
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "4"
+          },
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "10"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "2569"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "0"
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "npc": {
+            "_dirType": "int",
+            "_value": "1090000"
+          },
+          "endscript": {
+            "_dirType": "string",
+            "_value": "q2570e"
+          },
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "string",
+            "_value": "猴子和人類的友情…真的是太帥了！你才是完全符合我所想像的海盜！既會游泳力量又大… 如何呢？在我的鯨魚號成為海盜吧？不是一般的海盜喔！而是使用我所製作的新武器的海盜，#b砲手#k!"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "砲手的聽起來很生疏？他是兩手拿著巨大的大炮加農炮痛快地掃盪敵人的職業！具有無論和哪個職業相比也不落後的強烈感！如果是你一定能成為帥氣的砲手的！"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "反正你的目標不是冒險家嗎？既然如此就使用新武器在新楓之谷享受新生活，沒有比這個還更酷的事吧！來來，別推辭了！如果是你卡伊琳也會二話不說地接受的！\\r\\n\\r\\n#b(經由大門自動移動至卡伊琳面前。)"
+          },
+          "stop": {
+            "_dirType": "sub"
+          },
+          "yes": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "string",
+              "_value": "出了這門去找卡伊琳的話，會把你轉成砲手的！"
+            }
+          },
+          "no": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "string",
+              "_value": "討厭砲手嗎？呃啊啊~也無法搶了這好人才！我要叫其他轉職官們別接受你！"
+            }
+          }
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q2570e",
+          "kind": "endscript",
+          "source": null,
+          "available": false,
+          "path": "Check/1"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 重砲指揮官之路"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[轉職]"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "猴子已經解決了，現在該怎麼辦呢？就和在船上想的一樣，我希望能成為一名海盜。不過斯托納似乎有話要說？"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "斯托納說像你這樣的人才有資格使用海盜的新武器，拜託你一定要成為#b重砲指揮官#k。他說成為使用巨大重砲瀟灑掃蕩敵人的重砲指揮官，絕對不會後悔的。怎、怎麼辦呢？去找海盜轉職官卡伊琳吧。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "被卡伊琳說服，決定要成為重砲指揮官了。"
+          },
+          "resignBlocked": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1096006"
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "4"
+            },
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "10"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "2569"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "0"
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "npc": {
+              "_dirType": "int",
+              "_value": "1090000"
+            },
+            "endscript": {
+              "_dirType": "string",
+              "_value": "q2570e"
+            },
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "string",
+              "_value": "猴子和人類的友情…真的是太帥了！你才是完全符合我所想像的海盜！既會游泳力量又大… 如何呢？在我的鯨魚號成為海盜吧？不是一般的海盜喔！而是使用我所製作的新武器的海盜，#b砲手#k!"
+            },
+            "1": {
+              "_dirType": "string",
+              "_value": "砲手的聽起來很生疏？他是兩手拿著巨大的大炮加農炮痛快地掃盪敵人的職業！具有無論和哪個職業相比也不落後的強烈感！如果是你一定能成為帥氣的砲手的！"
+            },
+            "2": {
+              "_dirType": "string",
+              "_value": "反正你的目標不是冒險家嗎？既然如此就使用新武器在新楓之谷享受新生活，沒有比這個還更酷的事吧！來來，別推辭了！如果是你卡伊琳也會二話不說地接受的！\\r\\n\\r\\n#b(經由大門自動移動至卡伊琳面前。)"
+            },
+            "stop": {
+              "_dirType": "sub"
+            },
+            "yes": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "string",
+                "_value": "出了這門去找卡伊琳的話，會把你轉成砲手的！"
+              }
+            },
+            "no": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "string",
+                "_value": "討厭砲手嗎？呃啊啊~也無法搶了這好人才！我要叫其他轉職官們別接受你！"
+              }
+            }
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        }
+      }
+    },
+    {
+      "id": "2684",
+      "questId": 2684,
+      "source": "Quest.wz/QuestData/2684.img",
+      "sourceJson": "Quest/QuestData/2684.json",
+      "name": "[楓之谷世界的冒險家] 像黑暗一樣",
+      "display": {
+        "name": "[楓之谷世界的冒險家] 像黑暗一樣",
+        "strings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 像黑暗一樣",
+          "QuestInfo/0": "鴻亞說時機已到，並且叫我去一趟。",
+          "QuestInfo/1": "鴻亞說時機已到，並且叫我去一趟。",
+          "QuestInfo/2": "短時間內我決定待在弓箭手村，嘗試適應楓之谷世界。要不要先融入冒險家呢？",
+          "QuestInfo/type": "[必須]",
+          "QuestInfo/category": "0|2",
+          "Check/0/startscript": "q2684s",
+          "Say/1/yes/0": "終於來到弓箭手村，為了融入到冒險者的群體中應該要先做什麼呢？"
+        },
+        "questInfoStrings": {
+          "QuestInfo/name": "[楓之谷世界的冒險家] 像黑暗一樣",
+          "QuestInfo/0": "鴻亞說時機已到，並且叫我去一趟。",
+          "QuestInfo/1": "鴻亞說時機已到，並且叫我去一趟。",
+          "QuestInfo/2": "短時間內我決定待在弓箭手村，嘗試適應楓之谷世界。要不要先融入冒險家呢？",
+          "QuestInfo/type": "[必須]",
+          "QuestInfo/category": "0|2"
+        },
+        "dialogueStrings": {
+          "Say/1/yes/0": "終於來到弓箭手村，為了融入到冒險者的群體中應該要先做什麼呢？"
+        },
+        "encoding": "UTF-8"
+      },
+      "area": 77,
+      "executable": false,
+      "unsupportedMechanisms": [
+        "raw WZ Check/Act/Say/QuestInfo retained; no quest VM or script execution"
+      ],
+      "QuestInfo": {
+        "_dirType": "sub",
+        "name": {
+          "_dirType": "string",
+          "_value": "[楓之谷世界的冒險家] 像黑暗一樣"
+        },
+        "0": {
+          "_dirType": "string",
+          "_value": "鴻亞說時機已到，並且叫我去一趟。"
+        },
+        "1": {
+          "_dirType": "string",
+          "_value": "鴻亞說時機已到，並且叫我去一趟。"
+        },
+        "2": {
+          "_dirType": "string",
+          "_value": "短時間內我決定待在弓箭手村，嘗試適應楓之谷世界。要不要先融入冒險家呢？"
+        },
+        "area": {
+          "_dirType": "int",
+          "_value": "77"
+        },
+        "type": {
+          "_dirType": "string",
+          "_value": "[必須]"
+        },
+        "selfStart": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "selfComplete": {
+          "_dirType": "int",
+          "_value": "1"
+        },
+        "category": {
+          "_dirType": "string",
+          "_value": "0|2"
+        },
+        "reqType": {
+          "_dirType": "int",
+          "_value": "2"
+        },
+        "recommend": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "20"
+          },
+          "except": {
+            "_dirType": "sub"
+          }
+        }
+      },
+      "Check": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub",
+          "lvmin": {
+            "_dirType": "int",
+            "_value": "20"
+          },
+          "subJobFlags": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "quest": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "2613"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            },
+            "1": {
+              "_dirType": "sub",
+              "id": {
+                "_dirType": "int",
+                "_value": "2623"
+              },
+              "state": {
+                "_dirType": "int",
+                "_value": "2"
+              },
+              "order": {
+                "_dirType": "int",
+                "_value": "1"
+              }
+            }
+          },
+          "job": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "int",
+              "_value": "430"
+            }
+          },
+          "job_TW": {
+            "_dirType": "sub"
+          },
+          "startscript": {
+            "_dirType": "string",
+            "_value": "q2684s"
+          }
+        },
+        "1": {
+          "_dirType": "sub",
+          "order": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "fieldID": {
+            "_dirType": "int",
+            "_value": "100000000"
+          }
+        }
+      },
+      "Act": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub"
+        }
+      },
+      "Say": {
+        "_dirType": "sub",
+        "0": {
+          "_dirType": "sub"
+        },
+        "1": {
+          "_dirType": "sub",
+          "yes": {
+            "_dirType": "sub",
+            "0": {
+              "_dirType": "string",
+              "_value": "終於來到弓箭手村，為了融入到冒險者的群體中應該要先做什麼呢？"
+            }
+          }
+        }
+      },
+      "scriptRefs": [
+        {
+          "name": "q2684s",
+          "kind": "startscript",
+          "source": null,
+          "available": false,
+          "path": "Check/0"
+        }
+      ],
+      "raw": {
+        "QuestInfo": {
+          "_dirType": "sub",
+          "name": {
+            "_dirType": "string",
+            "_value": "[楓之谷世界的冒險家] 像黑暗一樣"
+          },
+          "0": {
+            "_dirType": "string",
+            "_value": "鴻亞說時機已到，並且叫我去一趟。"
+          },
+          "1": {
+            "_dirType": "string",
+            "_value": "鴻亞說時機已到，並且叫我去一趟。"
+          },
+          "2": {
+            "_dirType": "string",
+            "_value": "短時間內我決定待在弓箭手村，嘗試適應楓之谷世界。要不要先融入冒險家呢？"
+          },
+          "area": {
+            "_dirType": "int",
+            "_value": "77"
+          },
+          "type": {
+            "_dirType": "string",
+            "_value": "[必須]"
+          },
+          "selfStart": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "selfComplete": {
+            "_dirType": "int",
+            "_value": "1"
+          },
+          "category": {
+            "_dirType": "string",
+            "_value": "0|2"
+          },
+          "reqType": {
+            "_dirType": "int",
+            "_value": "2"
+          },
+          "recommend": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "20"
+            },
+            "except": {
+              "_dirType": "sub"
+            }
+          }
+        },
+        "Check": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub",
+            "lvmin": {
+              "_dirType": "int",
+              "_value": "20"
+            },
+            "subJobFlags": {
+              "_dirType": "int",
+              "_value": "2"
+            },
+            "quest": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "2613"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              },
+              "1": {
+                "_dirType": "sub",
+                "id": {
+                  "_dirType": "int",
+                  "_value": "2623"
+                },
+                "state": {
+                  "_dirType": "int",
+                  "_value": "2"
+                },
+                "order": {
+                  "_dirType": "int",
+                  "_value": "1"
+                }
+              }
+            },
+            "job": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "int",
+                "_value": "430"
+              }
+            },
+            "job_TW": {
+              "_dirType": "sub"
+            },
+            "startscript": {
+              "_dirType": "string",
+              "_value": "q2684s"
+            }
+          },
+          "1": {
+            "_dirType": "sub",
+            "order": {
+              "_dirType": "int",
+              "_value": "1"
+            },
+            "fieldID": {
+              "_dirType": "int",
+              "_value": "100000000"
+            }
+          }
+        },
+        "Act": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub"
+          }
+        },
+        "Say": {
+          "_dirType": "sub",
+          "0": {
+            "_dirType": "sub"
+          },
+          "1": {
+            "_dirType": "sub",
+            "yes": {
+              "_dirType": "sub",
+              "0": {
+                "_dirType": "string",
+                "_value": "終於來到弓箭手村，為了融入到冒險者的群體中應該要先做什麼呢？"
+              }
+            }
           }
         }
       }

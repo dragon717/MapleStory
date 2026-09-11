@@ -6,6 +6,9 @@ import { StorageView } from '../features/world/storage-view';
 import { PartyView } from '../features/world/party-view';
 import { MiniMapView } from '../features/world/minimap-view';
 import '../features/world/minimap.css';
+import { WorldMapView } from '../features/world/worldmap-view';
+import '../features/world/worldmap.css';
+import { FriendView } from '../features/world/friend-view';
 import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
@@ -61,7 +64,9 @@ let menus: MenuView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
 let storage: StorageView | undefined;
 let party: PartyView | undefined;
+let friends: FriendView | undefined;
 let miniMap: MiniMapView | undefined;
+let worldMap: WorldMapView | undefined;
 let questLog: QuestLogView | undefined;
 let skills: SkillView | undefined;
 let characterInfo: CharacterInfoView | undefined;
@@ -194,7 +199,7 @@ async function enterGame(session: LoginResponse) {
     chat?.destroy();
     chat = new ChatView(el('chat'), manifest, message => status(message), {
       send: (requestId, text) => connection?.send({ type: 'chatSend', requestId, text }) ?? false,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -218,12 +223,20 @@ async function enterGame(session: LoginResponse) {
     storage = new StorageView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     party?.destroy();
     party = new PartyView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => selfState?.id);
+    friends?.destroy();
+    // The friend window is account-backed, so it asks the server for its rows
+    // on open instead of waiting for a push the way the session-scoped party
+    // window does.
+    friends = new FriendView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => selfState?.id);
     miniMap?.destroy();
     miniMap = new MiniMapView(el('minimap'), manifest);
     miniMap.mount();
-    // The WORLD button opens a separate window that is not part of this round;
-    // the view reports it through the app's status line instead of faking one.
-    miniMap.onWorldMap = () => status(uiText('minimapWorldUnavailable'), true);
+    // The WORLD button opens the authored world map: the root page overview
+    // first, with the region the character stands in marked on it.
+    worldMap?.destroy();
+    worldMap = new WorldMapView(el('ui-windows'), manifest);
+    worldMap.onStatus = message => status(message, true);
+    miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
     skills?.destroy();
@@ -249,31 +262,33 @@ async function enterGame(session: LoginResponse) {
       showNews,
       showNews,
       () => party?.toggle() ?? false,
+      // Source UITotalMenu type 24 is the 好友&黑名單 shortcut.
+      () => friends?.toggle() ?? false,
     );
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
       castSkill: skillId => {
-        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen()) return;
+        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
         return castSkill(skillId);
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
     });
     world = new World(manifest, (message, error) => {
       status(message, error);
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); deathNotice?.clear(); awayNotice?.clear(); el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
         status(english ? `Portal request: ${request.sourceMapId}/${request.portalName} → ${request.targetMapId}` : `传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
     }, talkToNpc, questId => {
-      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen()) return;
+      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
       input?.reset();
       connection?.send({ type: 'questInteract', requestId: `quest-${Date.now()}-${++skillRequestSequence}`, questId });
     }, reactorId => {
-      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen()) return;
+      if (news.open || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()) return;
       input?.reset();
       connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId });
     });
@@ -367,6 +382,18 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'partyNotice') {
         party?.receiveNotice(message.code, message.playerName);
         status(protocolText(message.code, message.code), message.code !== 'party_declined');
+      }
+      if (message.type === 'friendState') {
+        // Friends are an account fact, so both lists always arrive together:
+        // a block also dissolves the friendship, and a half-window would let
+        // the client show a row the account no longer has.
+        friends?.receiveState(message);
+      }
+      if (message.type === 'friendResult') {
+        friends?.receiveResult(message.code, message.success);
+        if (!message.success) {
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Friend action failed' : '好友操作失败'}（${message.code}）`), true);
+        }
       }
       if (message.type === 'shopResult') {
         if (message.success) {
@@ -477,7 +504,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); questLog?.clear(); party?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
@@ -494,7 +521,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen()),
+      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -512,7 +539,7 @@ function leaveGame(logout = false) {
   if (logout) connection?.send({ type: 'logout' });
   layoutObserver?.disconnect(); layoutObserver = undefined;
   setPlayLayout(false);
-  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; miniMap?.destroy(); miniMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';
   el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }

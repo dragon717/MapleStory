@@ -132,6 +132,13 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   party_not_member: { zh: '对方不是这支队伍的成员', en: 'That character is not in this party' },
   party_unavailable: { zh: '这支队伍已经无法加入', en: 'That party can no longer be joined' },
   party_kicked: { zh: '你已被移出队伍', en: 'You were removed from the party' },
+  friend_unknown_player: { zh: '找不到这个名字的角色', en: 'No character with that name exists' },
+  friend_self: { zh: '不能把自己加入好友或黑名单', en: 'You cannot befriend or block yourself' },
+  friend_already: { zh: '对方已经在名单中', en: 'That character is already in the list' },
+  friend_full: { zh: '名单已满', en: 'The list is full' },
+  friend_declined: { zh: '对方已把你加入黑名单', en: 'That character has blocked you' },
+  friend_not_friend: { zh: '对方不是你的好友', en: 'That character is not your friend' },
+  friend_not_blocked: { zh: '对方不在黑名单中', en: 'That character is not on the blacklist' },
 });
 
 /** Minimap window copy (UI/UIMap.img/MiniMap).  The controls themselves are
@@ -148,12 +155,25 @@ const MINIMAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>>
   minimapPortal: { zh: '传送门标记', en: 'Portal markers' },
   minimapParty: { zh: '队伍成员标记', en: 'Party markers' },
   minimapWorld: { zh: '世界地图', en: 'World map' },
-  minimapWorldUnavailable: { zh: '世界地图尚未接入，请先通过传送点移动。', en: 'The world map is not wired yet; travel through portals for now.' },
   minimapNoSource: { zh: '这张地图在原版没有小地图素材。', en: 'The original ships no minimap art for this map.' },
   minimapSelf: { zh: '你的位置', en: 'Your position' },
 });
 
+/** World-map window copy (Map.wz WorldMap + UI/UIWindow2.img/WorldMap).  The
+ *  window title and every region plate are baked into the source art, so these
+ *  are only the control tooltips and the two lines the art cannot carry. */
+const WORLD_MAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  worldMapClose: { zh: '关闭世界地图', en: 'Close the world map' },
+  worldMapAll: { zh: '返回世界总览', en: 'Back to the world overview' },
+  worldMapBefore: { zh: '上一张地图', en: 'Previous map' },
+  worldMapNext: { zh: '下一张地图', en: 'Next map' },
+  worldMapYou: { zh: '你的位置', en: 'Your position' },
+  worldMapMissing: { zh: '这个区域还没有可浏览的地图素材。', en: 'No browsable map art is assembled for this region yet.' },
+  worldMapNoSource: { zh: '这张地图在原版没有世界地图素材。', en: 'The original ships no world-map art for this map.' },
+  worldMapUnreachable: { zh: '这个区域没有可进入的地图，未收录。', en: 'This region holds no reachable map, so it is not assembled.' },
+});
+
 export function uiLocale(): UiLocale { return locale; }
-export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? fallback; }
+export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? fallback; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
 export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }

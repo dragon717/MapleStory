@@ -163,17 +163,16 @@ impl MageSkills {
             2_201_009,
         ];
         const THIRD_JOB_IDS: [u32; 12] = [
-            2_210_000, 2_210_001, 2_210_009, 2_210_013, 2_210_016, 2_211_002, 2_211_007,
-            2_211_011, 2_211_012, 2_211_014, 2_211_015, 2_211_017,
+            2_210_000, 2_210_001, 2_210_009, 2_210_013, 2_210_016, 2_211_002, 2_211_007, 2_211_011,
+            2_211_012, 2_211_014, 2_211_015, 2_211_017,
         ];
         const FOURTH_JOB_IDS: [u32; 11] = [
-            2_220_010, 2_220_013, 2_220_015, 2_221_000, 2_221_004, 2_221_005,
-            2_221_006, 2_221_007, 2_221_008, 2_221_011, 2_221_012,
+            2_220_010, 2_220_013, 2_220_015, 2_221_000, 2_221_004, 2_221_005, 2_221_006, 2_221_007,
+            2_221_008, 2_221_011, 2_221_012,
         ];
         const HYPER_IDS: [u32; 13] = [
-            2_220_043, 2_220_044, 2_221_045, 2_220_046, 2_220_047, 2_220_048,
-            2_220_049, 2_220_050, 2_220_051, 2_221_052, 2_221_053, 2_221_054,
-            2_221_055,
+            2_220_043, 2_220_044, 2_221_045, 2_220_046, 2_220_047, 2_220_048, 2_220_049, 2_220_050,
+            2_220_051, 2_221_052, 2_221_053, 2_221_054, 2_221_055,
         ];
         if self.source_version != "TMS273.7"
             || !matches!(self.skills.len(), 8 | 17 | 29 | 32 | 43 | 56)
@@ -208,7 +207,10 @@ impl MageSkills {
                 || (skill.hyper == 0 && skill.required_level != 0)
                 || (skill.hyper > 0 && (skill.book_id != 222 || skill.max_level != 1))
                 || (skill.hyper > 0 && skill.required_level < 140)
-                || skill.elem_attr.as_deref().is_some_and(|value| !matches!(value, "i" | "l"))
+                || skill
+                    .elem_attr
+                    .as_deref()
+                    .is_some_and(|value| !matches!(value, "i" | "l"))
                 || skill.levels.iter().any(|level| {
                     level.mp_con.is_some_and(|value| value < 0)
                         || level.damage.is_some_and(|value| value < 0)
@@ -223,7 +225,9 @@ impl MageSkills {
                         || level.costmp_r.is_some_and(|value| value < 0)
                         || level.dam_r.is_some_and(|value| value < 0)
                         || level.critical_damage.is_some_and(|value| value < 0)
-                        || level.sub_prop.is_some_and(|value| !(0..=100).contains(&value))
+                        || level
+                            .sub_prop
+                            .is_some_and(|value| !(0..=100).contains(&value))
                         || level.md_r.is_some_and(|value| value < 0)
                         || level.cooltime.is_some_and(|value| value < 0)
                         || level.cooldown_ms.is_some_and(|value| value < 0)
@@ -234,7 +238,9 @@ impl MageSkills {
                         || level.buff_time_r.is_some_and(|value| value < 0)
                         || level.basic_stat_up.is_some_and(|value| value < 0)
                         || level.attack_delay.is_some_and(|value| value < 0)
-                        || level.ignore_mob_pdp_r.is_some_and(|value| !(0..=100).contains(&value))
+                        || level
+                            .ignore_mob_pdp_r
+                            .is_some_and(|value| !(0..=100).contains(&value))
                         || level.hc_hp.is_some_and(|value| value < 0)
                         || level.speed.is_some_and(|value| value < 0)
                         || level.fixdamage.is_some_and(|value| value < 0)
@@ -246,18 +252,20 @@ impl MageSkills {
                         || level.attack_count.is_some_and(|value| value == 0)
                         || level.range.is_some_and(|value| value < 0)
                         || level.mob_count.is_some_and(|value| {
-                            value > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
-                                15
-                            } else {
-                                8
-                            }
+                            value
+                                > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
+                                    15
+                                } else {
+                                    8
+                                }
                         })
                         || level.attack_count.is_some_and(|value| {
-                            value > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
-                                15
-                            } else {
-                                4
-                            }
+                            value
+                                > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
+                                    15
+                                } else {
+                                    4
+                                }
                         })
                         || level
                             .lt
@@ -645,7 +653,10 @@ mod tests {
         assert_eq!(throw.mp_con, Some(7));
         assert_eq!(throw.fixdamage, Some(40));
         assert_eq!(catalog.level(1_001, 3).and_then(|level| level.x), Some(12));
-        assert_eq!(catalog.level(1_002, 3).and_then(|level| level.speed), Some(20));
+        assert_eq!(
+            catalog.level(1_002, 3).and_then(|level| level.speed),
+            Some(20)
+        );
         assert!(catalog.get(2_211_015).is_some_and(|skill| skill.hidden));
     }
 }

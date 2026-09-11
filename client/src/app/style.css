@@ -193,6 +193,52 @@
 .party-prompt-decline{background:linear-gradient(#f7e7e7,#e6c9c9);border:1px solid #b98c8c;color:#5c2222}
 @media(max-width:520px){.party-shell{width:min(var(--party-width,312px),calc(100vw - 16px))}.party-row{grid-template-columns:18px 1fr 60px 34px}}
 
+/* Friend & blacklist window, built from the same TMS273
+   UI/UIWindow.img/UserList shell as the party window (the original shares one
+   312x389 `backgrnd` across the Friend / Party / Guild / Expedition tabs), plus
+   the authored Friend-tab and BlackList-tab buttons.  Sharing the shell is why
+   the geometry here mirrors the party block: the two windows must not drift. */
+.friend-window{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:3;image-rendering:pixelated}
+.friend-window[hidden]{display:none!important}
+.friend-shell{position:relative;width:var(--friend-width,312px);min-height:var(--friend-height,389px);padding:6px;box-sizing:border-box;background:#e9eef7f2;border:1px solid #9aa8c2;border-radius:5px;box-shadow:0 9px 0 #112821,0 12px 25px #0006;display:flex;flex-direction:column;gap:5px}
+.friend-backgrnd{position:absolute;left:0;top:0;display:block;max-width:none;image-rendering:pixelated;pointer-events:none;z-index:0}
+.friend-heading{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 7px;background:#cfd8ea;border-bottom:1px solid #a4b0c8;color:#2f3a52;font:700 13px/1.4 Georgia,"Songti SC",serif;letter-spacing:1px}
+.friend-close{width:20px;height:20px;line-height:16px;padding:0;cursor:pointer;background:#f2f5fb;border:1px solid #a4b0c8;border-radius:3px;color:#2f3a52;font:bold 13px/16px Verdana,sans-serif}
+.friend-close:hover{background:#fff}
+/* The authored tab plates are only 27x15 of pure art with no label, so each
+   tab is the plate plus the string the original draws over it. */
+.friend-tabs{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:4px;align-items:flex-end;border-bottom:1px solid #a4b0c8;padding-bottom:3px}
+.friend-tab{display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 5px 0 2px;cursor:pointer;background:none;border:1px solid transparent;border-radius:3px 3px 0 0;color:#5b6480;font:bold 11px/18px Verdana,"Microsoft YaHei",sans-serif}
+.friend-tab-image{display:block;image-rendering:pixelated}
+.friend-tab.is-active{background:#f6f9ff;border-color:#a4b0c8;color:#25304a}
+.friend-roster{position:relative;z-index:1;flex:1 1 auto;min-height:150px;max-height:210px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding-right:3px;scrollbar-width:thin;scrollbar-color:#9aa8c2 #e9eef7}
+.friend-row{display:grid;grid-template-columns:38px 1fr 68px 34px 84px;align-items:center;gap:5px;height:26px;flex:0 0 26px;padding:0 5px;background:linear-gradient(#fdfefe,#e8eef8);border:1px solid #b9c4d8;border-radius:2px;cursor:pointer;font:11px/16px Verdana,"Microsoft YaHei",sans-serif;color:#26304a;text-align:left}
+.friend-row:nth-of-type(even){background:linear-gradient(#f4f8fe,#dee6f4)}
+.friend-row.is-selected{outline:2px solid #1f5fa8;outline-offset:-2px}
+.friend-row.is-self .friend-row-name{font-weight:700}
+.friend-row.is-offline{opacity:.66}
+.friend-row-flag{font:700 9px/1 Verdana,"Microsoft YaHei",sans-serif;text-align:center;padding:2px 0;border-radius:6px}
+.friend-row.is-online .friend-row-flag{color:#1d5a2a;background:#d6efd3;border:1px solid #86ac7c}
+.friend-row.is-offline .friend-row-flag{color:#5a6076;background:#e4e8f0;border:1px solid #aab2c4}
+.friend-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-row-job{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#41506e;font-size:10px}
+.friend-row-level{text-align:right;color:#41506e;font-size:10px}
+/* Only a character that is in the world has a location, so an offline row
+   leaves this cell empty instead of showing a stale map name. */
+.friend-row-place{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#41506e;font-size:10px}
+.friend-empty{color:#4a5670;font:11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin:26px 8px}
+.friend-input{position:relative;z-index:1;display:flex;gap:5px;align-items:center}
+.friend-input[hidden]{display:none}
+.friend-name{flex:1 1 auto;min-width:0;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid #a4b0c8;border-radius:3px;background:#fffdf8;color:#26304a;font:11px/20px Verdana,sans-serif}
+.friend-actions{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.friend-button{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:52px;height:22px;padding:0 8px;box-sizing:border-box;cursor:pointer;background:linear-gradient(#eef3fb,#d7e0f0);border:1px solid #a4b0c8;border-radius:3px;color:#25304a;font:bold 11px/20px Verdana,"Microsoft YaHei",sans-serif}
+.friend-button.is-sprite{padding:0 6px;border-color:transparent;background:none;min-width:0}
+.friend-button.is-sprite img{display:block;image-rendering:pixelated}
+.friend-button-caption{white-space:nowrap;font:9px/12px Verdana,"Microsoft YaHei",sans-serif;color:#2f3a52}
+.friend-status{position:relative;z-index:1;min-height:16px;color:#2f6b3f;font:11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.friend-status.is-error{color:#9a3c13}
+@media(max-width:520px){.friend-shell{width:min(var(--friend-width,312px),calc(100vw - 16px))}.friend-row{grid-template-columns:34px 1fr 52px 30px 0}.friend-row-place{display:none}}
+
 /* Quest log panel (server-driven entries, parchment styling like the other
    source windows; the v83 UIWindow.img/Quest artwork export is tracked as a
    future visual pass). */

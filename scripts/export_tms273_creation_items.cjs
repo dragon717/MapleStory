@@ -45,6 +45,30 @@ async function main() {
     const file = path.join(root,target); fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,JSON.stringify(creation,null,2)+'\n','utf8');
   }
   for (const [name,value] of [['items',items],['item-images',images]]) fs.writeFileSync(path.join(output, name+'.json'), JSON.stringify(value)+'\n','utf8');
+  // Mirror the items list into the two consumers that are not the export
+  // pipeline itself.  The server binary compiles `shared/items.json` via
+  // `include_str!`, and the browser bundle copies
+  // `client/public-tms273/assets/items.json` to `/assets/items.json` at
+  // build time.  Without these mirrors `inventory::equipment_slot()` cannot
+  // resolve the explorer creation outfit IDs and every login fails with
+  // `equipment slot mismatch for 1051353`, leaving the player sprite
+  // invisible.  Follow the backfill scripts' "only fill missing keys" rule
+  // so a downstream price/slotMax/spec backfill on the same file still wins
+  // over us.
+  for (const target of ['shared/items.json', 'client/public-tms273/assets/items.json']) {
+    const file = path.join(root, target);
+    let existing;
+    try {
+      existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (error) {
+      throw new Error(`Failed to read ${file}: ${error.message}`);
+    }
+    for (const [id, entry] of Object.entries(items)) {
+      if (!existing[id]) existing[id] = entry;
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(existing) + '\n', 'utf8');
+  }
   console.log(`Verified and exported ${ids.length} Explorer creation items from TMS273 WZ.`);
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>reader.close());

@@ -1,5 +1,146 @@
 # 当前工作计划
 
+## 大地图（World Map）：地图 ID 补零缺陷修复 + 打开落在所在区域页，待实玩（2026-09-11）
+
+- 选题：接续小地图窗口，把大地图做成可用的第二半。小地图 `BtMap`（源 `UIMap.img/MiniMap` 右侧第二个按钮）
+  此前只弹「未接入」提示；本轮起它打开源背书的世界地图窗口（`Map.wz/WorldMap` 页 + `UIWindow2.img/WorldMap` 外壳）。
+- 发现的真实缺陷（本轮修掉，非新功能）：导出器把 `MapList/*/mapNo` 原样写成**未补零数字串**（`"10000"`），
+  而 `references/tms273-data/maps.json`、`shared/maps.json` 与服务端快照一律是 **9 位补零**（`"000010000"`），
+  字符串比对必然失配。后果有两层，且互相叠加：
+  ① **枫之岛整片 16 张图在大地图上查不到位置**（000010000/000020000/000030000/000030001/000040000/000050000/
+     001000000–003/001010000/001020000/002000000/002000001/002000100/002010000），"你的位置"标记永不出现；
+  ② `selectPages()` 用同一份失配的 id 判定「这一页有没有已装配的地图」，于是 **`WorldMap000`（枫之岛页）整页被跳过**，
+     根页那条作者写好的**「楓之島」板块变成死链接**——`001020000`（选择岔道，新角色出生图）与 `002000100`（碼頭）都在这一页上。
+- 取证（T，本地 TMS273.7 `Map/WorldMap/WorldMap_000.wz`，逐页读 `info/parentMap` + `MapList/mapNo` + `MapLink/link/linkMap`，未猜）：
+  归档共 108 页；根页 `WorldMap` 有 15 条 `MapLink`，其中第 1 条 `toolTip=楓之島 → linkMap=WorldMap000`。
+  `WorldMap000` 的 `parentMap=WorldMap`，`MapList` 7 组共 14 个 id，全部是短数字（`10000`、`2000000`…）。
+- 改动：
+  - `scripts/export_tms273_worldmap.cjs`：新增 `mapId()` 归一化（`String(Math.trunc(n)).padStart(9,'0')`，
+    与 `export_gameplay.cjs` 同一写法），`exportPage` 与 `selectPages` 两处统一走它。
+  - `client/src/features/world/worldmap-view.ts`：`open()` 改为**落在当前地图所在的最深页**（新增 `pageForMap()`，
+    按父链深度取最深命中，未命中回退根页）。原来永远开在根页时，`上一頁/下一頁` 在根页恒为禁用（根页没有兄弟），
+    而"你的位置"标记因为 ① 也不会出现——这套控件（`BtBefore`/`BtNext` 走兄弟区域、`BtAll` 回总览）
+    只有"开在所在区域页"才讲得通。每次 `open()` 重新定位；`setMap()` 仍只移动标记、不把玩家从正在浏览的页拽走。
+  - `scripts/check_tms273_runtime.cjs`：新增世界地图断言块（页图/外壳素材齐备、每个导出页都能出能进、
+    板块目标要么已导出要么确为归档页、**每个 spot id 必须是 9 位**、除原版确实未收录的 `002010000` 外
+    所有已装配地图都能定位、并点名枫之岛 5 个关键图）。
+  - 新增 `client/src/features/world/worldmap.check.mjs`（8 项）：开窗落在区域页并显示标记 / 原版未收录的图回退总览 /
+    重开跟随当前地图 / 未导出区域的板块惰性不可点而可达板块可钻入 / 上一頁·下一頁兄弟切换与两端夹紧、全部回总览 /
+    Esc 关闭并摘除按键监听 / 快照只移动标记不改页 / 无导出数据时报告而不开空窗。
+- 顺带修一处**过期的连带契约**（非本模块引入）：`references/tms273-data/quests.json` 已在并行在途工作中由 64 条扩到 70 条
+  （新增 1401/1403/1404/1405/2570/2684 前置任务源），而 `check_tms273_runtime.cjs` 仍断言 64，
+  该断言位于 `启动3010.command` 的**启动前置检查**里，会直接挡住启动。已把断言更新为 70 并注明来源；
+  若该并行工作回退 quests.json，此处需同步回退。
+- 验证：
+  - `export_tms273_worldmap.cjs`：4 页/175 点/41 PNG → **5 页/182 点/47 PNG**；`WorldMap000` 的 7 组 id 全部为 9 位形式。
+  - `assemble_tms273.cjs` 产出 `{"version":"tms273-9","maps":44,"assets":6461,...}`；
+    `client/public-tms273/assets/manifest.json` 与 `client/dist-tms273/assets/manifest.json` 均含 5 页 `worldMap`，
+    44 张已装配地图定位 43 张，唯一缺的 `002010000` 经**全 108 页遍历确认原版世界地图确实没有它的 spot**。
+  - **反向验证**（按仓库惯例）：把 `mapId()` 临时改回未补零重跑导出+装配，或直接把 manifest 的 spot id 去掉补零，
+    `check_tms273_runtime.cjs` 立刻报 `world map spot id must be the 9-digit form: WorldMap -> 0`；还原后通过。
+  - `check_tms273_runtime.cjs` 通过（44 图 / **46096** 引用）；`worldmap.check.mjs` 8 项全过；`tsc --noEmit` 通过。
+  - `vite build --outDir dist-tms273-wm`（沙箱批量删除保护仍不准 `emptyOutDir` 清空 dist-tms273，与既有记录一致）→
+    产物核对 5 页/182 点/47 引用零缺失 → **原子替换** `client/dist-tms273`（旧产物移入
+    `~/.Trash/MapleStory-dist-tms273-20260911-034239`，可恢复）。已上线，刷新浏览器即可见，无需重启服务。
+- 待验（用户）：刷新浏览器实玩——点小地图右侧的「地圖」按钮应弹出世界地图窗口；
+  在**选择岔道**按应直接落在「楓之島」页并看到「你的位置」标记；在**維多利亞港/弓箭手村**按应落在「維多利亞島」页；
+  `下一頁` 可在楓之島↔維多利亞島等兄弟区域间切换，`全部` 回到世界总览；根页「楓之島」板块应可点击进入
+  （修前是灰的死链接）；`冰原雪域山脈` 等未装配区域的板块保持不可点并提示原因。
+- 已知边界：**只导出"能显示已装配地图的页 + 其祖先页"**，根页 15 个区域板块里 10 个（冰原/路德斯湖/水世界/米納爾森林/
+  武陵桃園/納希沙漠/時間神殿/瑞恩/日本區/江湖 等）因此是**作者原图上的惰性板块**——画出来但不导航，点了给中文说明，
+  不假装能进；`WorldMapSearch`/`combo:worldSearch`/`HyperTeleport`/`BtbookMark` 属本轮不实现的搜索·传送·书签功能，
+  只接线 `BtAll`/`BtBefore`/`BtNext`/`btClose`；`#mapImage` 源只有一帧，标记的缓慢闪烁是显示层效果（原版即闪），
+  不是第二帧素材；`002010000` 在原版世界地图无 spot，窗口对它只显示所在页而不打标记。
+- 并发说明：本轮执行期间检测到**另一条在途工作线**在写 `resources/tms273-export/items.json` 与
+  `references/tms273-data/*`（其 `items.json` 已更新而 `item-images.json` 未跟上，`assemble_tms273.cjs` 因此报
+  `Item image export is stale: 1003134`）。为不与其互相覆盖，本轮**未重跑装配到最终态**（现网 manifest 已是修复后的正确态），
+  该断言待其补齐中间产物后自然恢复；本轮只改 `export_tms273_worldmap.cjs`、`worldmap-view.ts`、`worldmap.check.mjs`
+  与 `check_tms273_runtime.cjs`（后两者与本模块同源）。
+
+## 好友与黑名单（Friend & Blacklist）：已完成，待统一加载实玩（2026-09-11）
+
+- 选题：静态盘点发现 `friend` 在客户端 0 处匹配，而服务端/协议/导出三层已经就位——
+  `auth.rs` 有 `friends`/`blacklist`/`friend_actions` 三张表与 `friend_edit` 事务，
+  `protocol.rs` 有五个意图，`world.rs` 有 `handle_friend_open`/`apply_friend_edit`/`step_friends`，
+  `resources/tms273-export/friend.json`（89 张 PNG）与 `assemble_tms273.cjs::friendUi` 也已装配，
+  `shared/protocol.ts` 只有 `FriendEntry` 与五个 ClientMessage 的半成品。**这是上一轮被中断的那一半**：
+  菜单 `type 24`（好友&黑名單）条目早已存在但没有回调，点了没反应；黑名单对地图聊天的拦截也从未有界面可操作。
+- 来源 T：本地 TMS273.7 客户端 `UI/UIWindow.img/UserList` 的 **Friend + BlackList 分页**
+  （`backgrnd` 312×389 与队伍窗共用、6 张 `Tab/enabled|disabled/N` 板、`BtAddFriend` 65×18、
+  `BtDelete` 47×19、`BtBlock` 60×18、`BlackList/BtAdd|BtDelete` 68×17），非自绘、非 v83。
+  分页板只有 27×15 的纯美术、不带文字，故标签由客户端叠加（与原版一致）。
+- 与队伍模块的分工（本轮设计要点）：**队伍是会话事实，好友是账号事实**。所以
+  ① 队伍窗等服务端推名册，好友窗必须 `friendOpen` 主动索取（账号行只有服务端能读）；
+  ② 好友行写 SQLite 且**双向成对写入**，被删被封也双向清除；
+  ③ `online`/`mapId` 是每次推送时由活世界重新推导的，离线行 `mapId` 恒为空——不显示陈旧位置；
+  ④ 服务端推送 `friendState` 时**不会**自动弹窗（好友上线也会推），只有菜单/快捷键能开窗。
+- 权威边界：客户端只发「名字」或「选中行的 id」——`friendAdd`/`friendBlock` 只带 `playerName`，
+  `friendRemove`/`friendUnblock` 只带 `playerId`；**id 解析、上限、关系对称性、封禁后禁止加回、在线标记全部服务端推导**。
+  名册只随 `friendState` 整体替换，客户端不做乐观更新。
+- 拒绝码：`friend_unknown_player / friend_self / friend_already / friend_full / friend_declined /
+  friend_not_friend / friend_not_blocked / persistence`，失败一律 `success=false` 且带码。
+- 幂等：写操作按 `requestId` 落 `friend_actions`（成功与拒绝都记），重放同 ID **重发原结果、不二次写入**；
+  内存 `friend_requests` 仅按 `FRIEND_REQUEST_WINDOW=32×玩家数` 有界回收，不替代持久化。
+- 黑名单真接上了既有机制：`player.blocked` 由 `reload_blocked` 回填，地图聊天扇出在
+  `world.rs` 跳过被封者——**这是本轮把黑名单接到既有聊天上的那处改动**。
+- P 临时规则（已注明单点）：`FRIEND_LIMIT=50` / `BLACKLIST_LIMIT=20`（`auth.rs`），
+  TMS273 无本地 `maxFriendList`/`maxBlackList` 字段，取早期 273 常见档位作 P。
+- 实装：① `client/src/features/world/friend-view.ts`（新增，纯视图）；② `client/src/app/style.css`
+  好友窗样式段（复用队伍窗同一 `UserList` 外壳参数，两者不允许漂移）；③ `client/src/app/main.ts`
+  实例/消息分发/输入阻塞/断线与登出清理；④ `client/src/features/menu/view.ts` 的 `type 24` 接 `onFriend`；
+  ⑤ `client/src/scenes/world.ts` 预载 `friendUi` 与 `worldMap` 素材；⑥ `shared/protocol.ts`
+  补 `friendState`/`friendResult` 两个下行（协议 12 未升版，同版扩展）；
+  ⑦ `client/src/app/i18n.ts` 8 个好友错误码中英文案。
+- 验证：
+  - `cargo build` 通过，警告仍是**基线 6 条零新增**。
+  - 新增 `server/src/friend_acceptance.rs` **12 项全过**（开窗返回两张空表 / 加好友双向写入 /
+    拒绝自己·陌生人·重复 / 删除双向清除且非好友被拒 / 封禁双向解散好友且单向生效 /
+    解封与未封被拒 / 被对方拉黑后无法加回 / 重放同 ID 不二次写入 / 在线标记与地图随活世界变化、
+    离线不显示位置 / 黑名单拦地图聊天且解封后恢复 / 上限 50 由服务端拒绝 / 拒绝也被记住不可重试改答案）。
+  - **反向验证**：临时移除 `auth.rs` 里 `Add` 的反向 INSERT → f02 立刻失败，证明「双向成对写入」
+    这条规则确实被用例守护（已还原）。
+  - 全量 `cargo test` **226 过 / 9 失败**；临时摘掉 `include!("friend_acceptance.rs")` 后真基线为
+    **214 过 / 9 失败且失败集逐条一致**，即 **+12 项新通过、零回归**。
+  - `client/tsc --noEmit` 通过；`vite build`（→/tmp/dist-friend-check）通过，仅既有 chunk 体积警告；
+    `node src/features/world/friend.check.mjs` **12 项全过**，并用「临时移除空名本地拦截 → 该用例失败」
+    反向验证后还原。
+  - 好友资源断言：装配产物 `friendUi` 89 件、`tabCount 6`，且 89 个 PNG 全部落盘（单独脚本核对）。
+- 待验（用户）：`启动3010.command` 重启后实玩——菜单点「好友&黑名單」（type 24）应弹窗；
+  输入角色名新增好友，双方名册同步出现；选中行可删除/封锁；黑名单页可解封；
+  好友上线/下线时名册在线标记与地图名实时变化；被拉黑的玩家发言不再出现在自己聊天框。
+- 已知边界：**未做私聊/密语**（`BtWhisper`/`BtChat`/`BtMessage` 未接线）、**未做好友分组**
+  （`BtAddGroup`/`BtMod`/`BtGroupWhisper`）、**未做情侣系统**（`BtMate`）、
+  **未做「显示在线/显示全部」过滤**（`BtShowOnline`/`BtShowAll`）、**未做查找好友位置**
+  （`BtWhere`，原版为消耗道具查询）。这些按钮素材已导出但无服务端语义，不做假入口。
+- 顺带补齐：① `scenes/world.ts` 补世界地图（`worldMap`）页面与控件素材预载——该模块上一轮已完整
+  （导出/装配/manifest/视图/样式/main 接线齐全，只差这一步缓存预热）；
+  ② `scripts/check_tms273_runtime.cjs` 补 `friendUi` 素材与 `FRIEND_LIMIT`/`BLACKLIST_LIMIT` 断言。
+- 阻塞提示：`scripts/check_tms273_runtime.cjs` 当前在 **第 134 行 `sourceQuests.length` 64→70** 处失败，
+  由并行在途任务工作（`references/tms273-data/quests.json` 于 03:30 由另一会话改动，新增 6 条任务）导致，
+  **非本模块引入**，也未擅自修改该断言；好友断言已用单独脚本核对通过。
+
+## 修复小地图 MaxMap 切片几何：源像素实测重排，待重启 3010 实玩（2026-09-11）
+
+- 选题：用户截图反馈 full 小地图头部错乱——黑底「MINI MAP」面板悬顶、白色地图标记板跑到左上、按钮排压字、白框括号错位、地形偏小偏高。
+- 取证（T 类，本地 TMS273.7 WZ + 导出 PNG 逐像素；未猜）：
+  - `UI/UIMap.img/MiniMap/MaxMap` 节点只有 nw/n/ne/w/e/sw/s/se/c/nw2，无遗漏切片；全部 origin=(0,0)，位置由客户端写死。
+  - 实测：nw 44×76（含白色标记板 x7..43/y29..64 与白框勾片）；nw2 64×67 为半透明黑卡（黑 alpha 187/255），
+    金色 MINI MAP 在其 (8,8)，底部 y59..60 是白框上沿、y61..66 为指向框内的尾巴；n 1×70 可横拉，末两行 y68..69 即白框上沿；
+    ne 15×76；w/e 9×1；s 1×10；sw/se 15×16。MinMap 对应：角 15×36、n 1×30（白框 y28..29），Min 条 w/e 为 10×30。
+  - 正确拼接：n 从 (44,0) 拉到 ne（CSS 背景首列在最上层，原代码漏画 n 且层序反了，黑卡被 n 整块盖住）；
+    nw2 位于 **(44,9)**——其白条恰好落在窗口 y68..69 与白框贯通；缩略图内框 = (9,70)…(W-10,H-11)，
+    窗高 = 缩略图高 + 81（旧代码按 76+16 多 11px）；MinMap 内框顶 y30、窗高 +41。
+  - 按钮：6 张 21×21 图宾语义核对（min「−」/max「+」/small 双方块缩小/big 单方块放大/BtNpc/BtMap），
+    按原版两排锚到顶行 y4：左 [min, small|big] x4，右 [BtNpc, BtMap] 贴右 4px，条模式 [max] x10。
+    旧代码把 button:big 当成「放大两倍」缩放是无源美术的发明，本轮移除 zoomed 状态。
+- 改动：`client/src/features/world/minimap-view.ts`（applyChrome 几何变量、双按钮组、去 zoom）、
+  `client/src/features/world/minimap.css`（9 层背景重排、frame-top/bottom 变量、双按钮组、Min 条 10px 边）。
+- 验证：Playwright 无头 1:1 渲染三模式 × 多图（001010000 92×68、100000000 364×91 缩到 230×58、101010100 81×112 竖图），
+  窗口/黑卡/白框/缩略图/按钮全部对齐，无 console 错误；`client/tsc --noEmit` 通过；
+  `vite build --outDir dist-tms273-new` 后原子替换 `dist-tms273`（旧产物在 `~/.Trash/MapleStory-dist-tms273-20260911-022858`）。未重启服务、未碰数据库。
+- 待验（用户）：`启动3010.command` 重启后实玩——full 头部黑卡/标记板/双行地名/两排按钮位置，compact 与条模式切换（−/□/+），
+  长地名（如「森林的起始点」）超出黑卡后在深灰底上可读。
+
 ## 維多利亞港三家商店传送修复：装配目录 41→44 图，待统一加载实玩（2026-09-10）
 
 - 选题：用户报告「维多利亚港很多传送阵进不去」。定向核查确认 104000000 的 in00/in01/in02 三个门源数据**正确**

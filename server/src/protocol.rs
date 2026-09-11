@@ -7,23 +7,39 @@ pub const CONTENT_VERSION: &str = "tms273-9";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum BossPracticeAction { Enter, Leave, Retry }
+pub enum BossPracticeAction {
+    Enter,
+    Leave,
+    Retry,
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum AbilityStat { Strength, Dexterity, Intelligence, Luck }
+pub enum AbilityStat {
+    Strength,
+    Dexterity,
+    Intelligence,
+    Luck,
+}
 
 /// Direction of one warehouse move.  Kept as its own wire enum so an unknown
 /// or misspelled direction is a deserialization error rather than a silently
 /// ignored field.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum StorageTransferOperation { Deposit, Withdraw }
+pub enum StorageTransferOperation {
+    Deposit,
+    Withdraw,
+}
 
 impl AbilityStat {
     pub fn as_str(self) -> &'static str {
-        match self { Self::Strength => "strength", Self::Dexterity => "dexterity",
-            Self::Intelligence => "intelligence", Self::Luck => "luck" }
+        match self {
+            Self::Strength => "strength",
+            Self::Dexterity => "dexterity",
+            Self::Intelligence => "intelligence",
+            Self::Luck => "luck",
+        }
     }
 }
 
@@ -39,17 +55,28 @@ pub struct AbilityStats {
 
 impl Default for AbilityStats {
     fn default() -> Self {
-        Self { strength: 12, dexterity: 5, intelligence: 4, luck: 4, available_ap: 0 }
+        Self {
+            strength: 12,
+            dexterity: 5,
+            intelligence: 4,
+            luck: 4,
+            available_ap: 0,
+        }
     }
 }
 
 impl AbilityStats {
     pub fn add_point(&mut self, stat: AbilityStat) -> bool {
-        let value = match stat { AbilityStat::Strength => &mut self.strength,
+        let value = match stat {
+            AbilityStat::Strength => &mut self.strength,
             AbilityStat::Dexterity => &mut self.dexterity,
-            AbilityStat::Intelligence => &mut self.intelligence, AbilityStat::Luck => &mut self.luck };
+            AbilityStat::Intelligence => &mut self.intelligence,
+            AbilityStat::Luck => &mut self.luck,
+        };
         // P: one AP per request, with a 9999 base-stat ceiling until source rules replace it.
-        if self.available_ap == 0 || *value >= 9999 || *value < 0 { return false; }
+        if self.available_ap == 0 || *value >= 9999 || *value < 0 {
+            return false;
+        }
         *value += 1;
         self.available_ap -= 1;
         true
@@ -297,6 +324,48 @@ pub enum ClientMessage {
         #[serde(rename = "playerId")]
         player_id: String,
     },
+    /// Open (or refresh) the friend & blacklist window (`UserList` tab 0/1).
+    /// The client names nothing: friends and blocked characters are account
+    /// facts the server already owns, and the online flag is derived from the
+    /// live world, so there is nothing here a client could claim.
+    FriendOpen {
+        #[serde(rename = "requestId")]
+        request_id: String,
+    },
+    /// Add one character as a friend.  The client types a name — the source
+    /// context menu only ever carries a name, never an id — and the server
+    /// resolves it, owns the cap, and writes the pair in both directions.
+    FriendAdd {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerName")]
+        player_name: String,
+    },
+    /// Drop one friend.  The client names the row it selected; the server
+    /// re-checks that the friendship actually exists before deleting both
+    /// directions of it.
+    FriendRemove {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerId")]
+        player_id: String,
+    },
+    /// Put one character on the blacklist.  Blocking also dissolves an
+    /// existing friendship both ways and stops that character's map chat from
+    /// reaching the blocker.
+    FriendBlock {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerName")]
+        player_name: String,
+    },
+    /// Take one character off the blacklist.
+    FriendUnblock {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "playerId")]
+        player_id: String,
+    },
     /// Intent to strike one authored map reactor.  The client identifies the
     /// prop; the server decides range, whether it is still interactable, and
     /// which state comes next.  No damage, position or state is accepted.
@@ -373,14 +442,29 @@ impl ClientMessage {
                 request_id,
                 reactor_id,
             } => valid_id(request_id) && valid_id(reactor_id),
-            Self::BossPractice { request_id, encounter_id, .. } => {
-                valid_id(request_id) && encounter_id.as_deref().is_none_or(|id| {
-                    id.len() <= 96 && crate::auth::is_practice_map(id)
-                        && id.bytes().all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
-                })
+            Self::BossPractice {
+                request_id,
+                encounter_id,
+                ..
+            } => {
+                valid_id(request_id)
+                    && encounter_id.as_deref().is_none_or(|id| {
+                        id.len() <= 96
+                            && crate::auth::is_practice_map(id)
+                            && id
+                                .bytes()
+                                .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
+                    })
             }
-            Self::ResetHyper { request_id, expected_cost } => {
-                valid_id(request_id) && matches!(*expected_cost, 100_000 | 1_000_000 | 2_000_000 | 5_000_000 | 10_000_000)
+            Self::ResetHyper {
+                request_id,
+                expected_cost,
+            } => {
+                valid_id(request_id)
+                    && matches!(
+                        *expected_cost,
+                        100_000 | 1_000_000 | 2_000_000 | 5_000_000 | 10_000_000
+                    )
             }
             Self::CastSkill {
                 request_id,
@@ -454,7 +538,10 @@ impl ClientMessage {
                 request_id,
                 quantity,
             } => valid_id(request_id) && (10..=50_000).contains(quantity),
-            Self::QuestInteract { request_id, quest_id } => valid_id(request_id) && valid_id(quest_id),
+            Self::QuestInteract {
+                request_id,
+                quest_id,
+            } => valid_id(request_id) && valid_id(quest_id),
             Self::NpcTalk {
                 request_id,
                 npc_id,
@@ -492,10 +579,7 @@ impl ClientMessage {
                     && inventory::valid_slot(*source_slot)
                     && (1..=100).contains(quantity)
             }
-            Self::StorageOpen {
-                request_id,
-                npc_id,
-            } => valid_id(request_id) && valid_id(npc_id),
+            Self::StorageOpen { request_id, npc_id } => valid_id(request_id) && valid_id(npc_id),
             Self::StorageTransfer {
                 request_id,
                 inventory_type,
@@ -528,9 +612,24 @@ impl ClientMessage {
                 request_id,
                 player_id,
             } => valid_id(request_id) && valid_id(player_id),
-            Self::ChatSend { request_id, text } => {
-                valid_id(request_id) && valid_chat_text(text)
+            Self::FriendOpen { request_id } => valid_id(request_id),
+            Self::FriendAdd {
+                request_id,
+                player_name,
             }
+            | Self::FriendBlock {
+                request_id,
+                player_name,
+            } => valid_id(request_id) && valid_player_name(player_name),
+            Self::FriendRemove {
+                request_id,
+                player_id,
+            }
+            | Self::FriendUnblock {
+                request_id,
+                player_id,
+            } => valid_id(request_id) && valid_id(player_id),
+            Self::ChatSend { request_id, text } => valid_id(request_id) && valid_chat_text(text),
             // A lifecycle report is only ever a hint; there is nothing to
             // validate beyond the shape, and nothing it can unlock.
             Self::Lifecycle { .. } => true,
@@ -810,17 +909,28 @@ mod tests {
 
     #[test]
     fn ability_allocation_accepts_only_one_known_stat_intent() {
-        let valid: ClientMessage = serde_json::from_str(r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence"}"#).unwrap();
+        let valid: ClientMessage = serde_json::from_str(
+            r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence"}"#,
+        )
+        .unwrap();
         assert!(valid.valid());
         for bad in [
             r#"{"type":"allocateAp","requestId":"ap-1","stat":"hp"}"#,
             r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","amount":999}"#,
             r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","playerId":"other"}"#,
             r#"{"type":"allocateAp","requestId":"ap-1","stat":"intelligence","abilityStats":{"availableAp":999}}"#,
-        ] { assert!(serde_json::from_str::<ClientMessage>(bad).is_err()); }
-        let empty: ClientMessage = serde_json::from_str(r#"{"type":"allocateAp","requestId":"","stat":"strength"}"#).unwrap();
+        ] {
+            assert!(serde_json::from_str::<ClientMessage>(bad).is_err());
+        }
+        let empty: ClientMessage =
+            serde_json::from_str(r#"{"type":"allocateAp","requestId":"","stat":"strength"}"#)
+                .unwrap();
         assert!(!empty.valid());
-        let mut capped = AbilityStats { strength: 9999, available_ap: 1, ..AbilityStats::default() };
+        let mut capped = AbilityStats {
+            strength: 9999,
+            available_ap: 1,
+            ..AbilityStats::default()
+        };
         assert!(!capped.add_point(AbilityStat::Strength));
         assert_eq!(capped.available_ap, 1);
     }

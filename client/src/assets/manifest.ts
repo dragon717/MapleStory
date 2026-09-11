@@ -208,6 +208,18 @@ export interface PartyUiData {
    *  `party0`..`party5` and `BtInvite/normal`-style button states. */
   ui: Record<string, AssetFrame>;
 }
+/** Source-backed UIWindow.img/UserList (Friend + BlackList tabs) used by the
+ *  friend window.  `tabCount` mirrors the authored tab-strip length so the
+ *  client can index `Tab/enabled/0` and `Tab/enabled/1` (好友, 黑名單) without
+ *  hard-coding plate numbers.  Flat keys match the WZ layout: `backgrnd`,
+ *  `Tab/enabled/0`, `Tab/disabled/0`, `BtAddFriend/normal`,
+ *  `BlackList/BtAdd/normal` etc. */
+export interface FriendUiData {
+  contentVersion: string;
+  source: string;
+  tabCount: number;
+  ui: Record<string, AssetFrame>;
+}
 export interface ChatUiNineSlice {
   nw?: AssetFrame; n?: AssetFrame; ne?: AssetFrame;
   w?: AssetFrame; c?: AssetFrame; e?: AssetFrame;
@@ -334,6 +346,63 @@ export interface MiniMapUiData {
   };
   layout: MiniMapLayout;
 }
+/** One `MapList` entry: a group of maps plus the page point its marker is drawn
+ *  at.  `spot` is authored relative to `BaseImg`'s origin, so a spot at (x, y)
+ *  lands at `(origin.x + x, origin.y + y)` inside the page canvas. */
+export interface WorldMapSpot {
+  spot: Point;
+  /** `MapList/<n>/type` — the authored group kind, kept for tracing. */
+  type: number;
+  /** `MapList/<n>/mapNo/*` — every map id this group covers. */
+  mapIds: string[];
+}
+/** One `MapLink` entry: the clickable region plate and the page it opens. */
+export interface WorldMapLink {
+  toolTip: string;
+  /** `link/linkMap` — the page this plate navigates to, or null when the source
+   *  authors no target (the plate is then drawn but inert). */
+  page: string | null;
+  /** `link/linkImg` — placed so its own `origin` lands on `BaseImg`'s origin. */
+  image: AssetFrame;
+}
+/** One authored page of the world-map tree. */
+export interface WorldMapPage {
+  page: string;
+  /** `info/parentMap` — the page this one is opened from; null on the root. */
+  parent: string | null;
+  /** `info/WorldMap` — the page's own authored name. */
+  name: string;
+  baseImg: AssetFrame;
+  mapList: WorldMapSpot[];
+  mapLinks: WorldMapLink[];
+}
+/** Source-backed Map.wz WorldMap pages plus the `UI/UIWindow2.img/WorldMap`
+ *  window shell used by the world-map window.  Only the pages that can show an
+ *  assembled map (and their ancestors) are exported. */
+export interface WorldMapUiData {
+  contentVersion: string;
+  source: string;
+  /** The authored root page name (`WorldMap`). */
+  root: string;
+  pages: Record<string, WorldMapPage>;
+  ui: {
+    /** `UIWindow2.img/WorldMap/Border/0` — the 654x537 window plate. */
+    border: AssetFrame;
+    /** `UIMExplorer.img/worldMap/#mapImage` — the current-location plate. */
+    plate: AssetFrame;
+    /** `UIMExplorer.img/worldMap/btClose` — four states. */
+    close: Record<string, AssetFrame>;
+    /** `UIWindow2.img/WorldMap/BtBefore|BtNext|BtAll` — four states each. */
+    nav: {
+      before: Record<string, AssetFrame>;
+      next: Record<string, AssetFrame>;
+      all: Record<string, AssetFrame>;
+    };
+  };
+  /** Every page in the archive, so "not exported" is distinguishable from
+   *  "does not exist" without opening the WZ again. */
+  allPages: string[];
+}
 export interface Manifest {
   appearanceCatalog?: AppearanceCatalog;
   contentVersion: string;
@@ -387,6 +456,10 @@ export interface Manifest {
   /** Source-backed UIWindow.img/UserList (Party tab) entries used by the party
    *  window.  Flat keys mirror the WZ layout (`backgrnd`, `BtKick/normal`). */
   partyUi?: PartyUiData;
+  /** Source-backed UIWindow.img/UserList (Friend + BlackList tabs) entries
+   *  used by the friend window.  Flat keys mirror the WZ layout
+   *  (`backgrnd`, `Tab/enabled/0`, `BlackList/BtAdd/normal`). */
+  friendUi?: FriendUiData;
   /** Source-backed UtilDlgEx dialog pieces used by npc conversation boxes. */
   dialogUi?: Record<string, AssetFrame>;
   /** Source-backed Map.wz/MapHelper.img/portal/editor sprites per portal entry. */
@@ -396,6 +469,9 @@ export interface Manifest {
   /** Source-backed UI/UIMap.img/MiniMap window plus one Map.wz miniMap canvas
    *  per assembled map.  PNGs are exported by export_tms273_minimap.cjs. */
   miniMap?: MiniMapUiData;
+  /** Source-backed Map.wz WorldMap pages plus the UIWindow2 window shell used
+   *  by the world-map window.  PNGs are exported by export_tms273_worldmap.cjs. */
+  worldMap?: WorldMapUiData;
 }
 export function mapFrameAt(frames: readonly Pick<AssetFrame, 'delay'>[], elapsed: number): number {
   const delays = frames.map(frame => frame.delay);

@@ -188,6 +188,54 @@ fn continuation_story_1402_through_36314_uses_real_menus() {
 }
 
 #[test]
+fn continuation_branch_36337_accepts_any_route_checkpoint() {
+    let path = std::env::temp_dir().join(format!("maple-continuation-branch-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).unwrap();
+    let account = "continuation-branch";
+    // Source Check.QuestOrOption == 1: any one of the seven route checkpoints
+    // unlocks 36337.  A non-mage checkpoint (1401) must open the quest without
+    // requiring the mage checkpoint 1402.
+    service.store.load_profile(account, &continuation_profile(10, 200)).unwrap();
+    service.store.save_quest(account, "36307", "completed").unwrap();
+    service.store.save_quest(account, "1401", "completed").unwrap();
+    let mut world = chapter_actual_world(service.store.clone());
+    let mut rx = chapter_join(&mut world, account);
+    chapter_drain(&mut rx);
+
+    continuation_talk(&mut world, &mut rx, account, "1541009", "36337", "start");
+    continuation_talk(&mut world, &mut rx, account, "1541009", "36337", "complete");
+    assert_eq!(world.players[account].quests["36337"], "completed");
+
+    // A character with no route checkpoint must still be blocked: fixing the OR
+    // semantics must not drop the branch prerequisite entirely.
+    let blocked = "continuation-branch-blocked";
+    service.store.load_profile(blocked, &continuation_profile(10, 200)).unwrap();
+    service.store.save_quest(blocked, "36307", "completed").unwrap();
+    let mut blocked_rx = chapter_join(&mut world, blocked);
+    chapter_drain(&mut blocked_rx);
+    let (npc_id, map_id, x, y) = world
+        .npcs
+        .values()
+        .find(|npc| npc.template_id == "1541009")
+        .map(|npc| (npc.state.id.clone(), npc.map_id.clone(), npc.state.x, npc.state.y))
+        .expect("Dew spawn");
+    chapter_place(&mut world, blocked, &map_id, x, y);
+    world.handle_npc_talk(blocked.into(), "branch-blocked-open".into(), npc_id.clone(), None, None);
+    let messages = chapter_drain(&mut blocked_rx);
+    let offered = messages.iter().any(|message| {
+        message["type"] == "npcResult"
+            && message["dialog"]["options"]
+                .as_array()
+                .is_some_and(|options| {
+                    options.iter().any(|option| {
+                        option["text"].as_str().is_some_and(|text| text.starts_with("接取："))
+                    })
+                })
+    });
+    assert!(!offered);
+}
+
+#[test]
 fn continuation_start_items_full_rolls_back_and_stale_menu_is_rejected() {
     let path = std::env::temp_dir().join(format!("maple-continuation-full-{}.sqlite3", auth::random_id()));
     let service = auth::start(&path).unwrap();

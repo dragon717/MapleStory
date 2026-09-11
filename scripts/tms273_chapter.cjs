@@ -121,11 +121,20 @@ function applyContinuation(gameplay, items, manifest, source, questText) {
     const raw = source.quests.find(q => String(q.id) === id);
     assert(raw && quest(id), `Missing continuation source ${id}`);
     const check = decode(raw.Check), text = decode(raw.QuestInfo);
+    // Source Check.QuestOrOption == 1 lists mutually exclusive route
+    // checkpoints (36337: 1401..2570): any one completed unlocks the quest.
+    const check0 = check['0'];
+    const routeQuests = Object.values(check0.quest || {}).map(node => String(node.id));
+    const orOption = Number(check0.QuestOrOption || 0) === 1;
     const conditions = {
-      levelAtLeast: Number(check['0'].lvmin || 10),
+      levelAtLeast: Number(check0.lvmin || 10),
       job: id === '1402' ? [0, 200, 220, 221, 222] : [200, 220, 221, 222],
-      quests: [{ questId: predecessor, status: 'completed' }], items: [],
+      quests: routeQuests.length > 0 && orOption
+        ? routeQuests.map(questId => ({ questId, status: 'completed' }))
+        : [{ questId: predecessor, status: 'completed' }],
+      items: [],
     };
+    if (routeQuests.length > 0 && orOption) conditions.questOrOption = true;
     Object.assign(quest(id), {
       executable: true, name: raw.name, summary: display(text['0']),
       summaries: { available: display(text['0']), active: display(text['1'] || text['0']), completed: display(text['2']) },

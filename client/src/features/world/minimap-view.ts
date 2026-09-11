@@ -87,10 +87,26 @@ export function miniMapBox(map: Pick<MiniMapMapAsset, 'width' | 'height'>, minWi
 /** Side chrome beside the thumbnail: one 9 px edge slice (`w` / `e`) per side,
  *  measured off the exported MaxMap/MinMap slices. */
 export const MINIMAP_EDGE_X = 9;
-/** Bottom chrome under the thumbnail: one 16 px corner row (`sw` / `se`). */
-export const MINIMAP_BOTTOM_Y = 16;
-/** Every authored button sprite is 21 x 21. */
-const BUTTON_SIZE = 21;
+/** The bare `Min` strip uses 10 px `w` / `e` ends. */
+export const MINIMAP_STRIP_EDGE_X = 10;
+/** White body frame -> window edges, measured off the slices: the frame's top
+ *  line is the `n` slice's last two rows (MaxMap y68-69, MinMap y28-29) and
+ *  its bottom line is `s` rows 0-1 placed 10 px above the window bottom. */
+const MAXMAP_FRAME_TOP = 70;
+const MINMAP_FRAME_TOP = 30;
+const FRAME_BOTTOM = 11;
+/** MaxMap corner slices are 76 px tall; MinMap corners are 36 px.  The stretch
+ *  edge slices (`w` / `e`) fill the side from that height to the bottom row. */
+const MAXMAP_CORNER_Y = 76;
+const MINMAP_CORNER_Y = 36;
+/** The black `nw2` name card hangs 9 px below the window top (its own top
+ *  bevel rows land on y9-16) so its white bar rows meet the frame line on
+ *  y68-69 and its tail points into the body. */
+const NAMECARD_OFFSET_Y = 9;
+/** Both authored button groups sit on the top row, 4 px in from the edge. */
+const BUTTON_TOP = 4;
+const BUTTON_EDGE = 4;
+const STRIP_BUTTON_EDGE = 10;
 /** Narrow viewports drop to the authored compact / strip windows. */
 const BREAKPOINTS: { query: string; mode: MiniMapMode }[] = [
   { query: '(max-width: 620px)', mode: 'strip' },
@@ -119,10 +135,14 @@ const BREAKPOINTS: { query: string; mode: MiniMapMode }[] = [
  * * Only `iconNpc/0` and `iconPortal/0` are drawn.  The other three sibling
  *   sprites are the source's per-type variants, but which type is which is not
  *   established by the local client (U), so no mapping is guessed here.
- * * The button row sits inside the top strip.  The collapsed strip places its
- *   buttons left of the street name, which is authored; the plate windows
- *   author no button vector, so the row is right-aligned inside the same strip
- *   (P — derived from the strip's authored layout, not proven).
+ * * The window controls use the four authored window sprites — `button:min`
+ *   (the "−" that collapses to the strip), `button:max` (the "+" on the
+ *   strip), and `button:small` / `button:big` (the shrink / grow pair that
+ *   swap the full and compact plates).  The source authors no zoom sprite, so
+ *   the plate windows carry only the two size toggles plus `BtNpc` /
+ *   `BtMap`: the size pair anchors the top-left row like the authored strip
+ *   button, and the feature pair anchors the top-right row (P — the plate
+ *   windows author no button vector).
  */
 export class MiniMapView {
   private root?: HTMLDivElement;
@@ -134,11 +154,10 @@ export class MiniMapView {
   private nameLine?: HTMLSpanElement;
   private emptyLine?: HTMLParagraphElement;
   private buttons?: HTMLDivElement;
+  private buttonsLeft?: HTMLDivElement;
+  private buttonsRight?: HTMLDivElement;
   private mode: MiniMapMode = 'full';
   private dock: MiniMapDock = 'left';
-  /** `false` fits the thumbnail to the window; `true` zooms one step in and
-   *  keeps the player centred, like the original's magnified view. */
-  private zoomed = false;
   private showNpc = true;
   private showPortal = true;
   private showParty = true;
@@ -150,7 +169,6 @@ export class MiniMapView {
     const next = MiniMapView.preferredMode();
     if (next === this.mode) return;
     this.mode = next;
-    this.zoomed = false;
     this.render();
   };
   /** Set by the app.  The WORLD button is a separate feature this round. */
@@ -234,7 +252,6 @@ export class MiniMapView {
 
   private setMode(mode: MiniMapMode) {
     this.mode = mode;
-    if (mode !== 'full') this.zoomed = false;
     this.render();
   }
 
@@ -276,6 +293,11 @@ export class MiniMapView {
 
     this.buttons = document.createElement('div');
     this.buttons.className = 'tms-minimap-buttons';
+    this.buttonsLeft = document.createElement('div');
+    this.buttonsLeft.className = 'tms-minimap-buttons-left';
+    this.buttonsRight = document.createElement('div');
+    this.buttonsRight.className = 'tms-minimap-buttons-right';
+    this.buttons.append(this.buttonsLeft, this.buttonsRight);
 
     windowBox.append(this.body, this.streetLine, this.nameLine, this.emptyLine, this.buttons);
     root.append(windowBox);
@@ -288,11 +310,13 @@ export class MiniMapView {
    * CSS variables.
    *
    * The three modes use the three shells the source authors: `Min` (the bare
-   * 30 px bar), `MinMap` (36 px strip over the same plate) and `MaxMap` (76 px
-   * header with the MINI MAP label, the mark plate and both names).  Header
-   * heights are the measured corner-slice heights; the plate edges are the
-   * 9 px `w`/`e` slices and the bottom corners are 16 px, all measured off the
-   * exported art.
+   * 30 px bar), `MinMap` (a 28 px header over the white-framed plate) and
+   * `MaxMap` (a 76 px corner with the mark plate, the hanging black MINI MAP
+   * name card and both names).  The `n` slice stretches between the two top
+   * corners and carries the white frame's top line on its last two rows, so
+   * the thumbnail top is 70 (MaxMap) / 30 (MinMap); the `w` / `e` slices
+   * stretch from the 76 / 36 px corner rows to the 16 px bottom corners.
+   * Every number here is measured off the exported art.
    */
   private applyChrome(map: MiniMapMapAsset | undefined) {
     const root = this.root;
@@ -309,21 +333,19 @@ export class MiniMapView {
     for (const part of ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'c']) {
       set(`--minimap-${part}`, shellUrl(part, strip ? undefined : 'MaxMap'));
     }
-    if (full) {
-      set('--minimap-nw2', shellUrl('nw2'));
-      set('--minimap-nw2-x', `${this.frame('MaxMap/nw')?.width ?? 44}px`);
-    }
-    const corner = (part: string) => this.frame(`${shell}/${part}`) ?? this.frame(`MinMap/${part}`);
-    const header = full
-      ? Math.max(this.frame('MaxMap/nw')?.height ?? 0, this.frame('MaxMap/nw2')?.height ?? 0, this.frame('MaxMap/ne')?.height ?? 0)
-      : this.mode === 'compact' ? Math.max(corner('nw')?.height ?? 0, corner('ne')?.height ?? 0) : 0;
     const barHeight = this.frame('Min/w')?.height ?? 30;
-    set('--minimap-header', `${header}px`);
+    const cornerY = full ? MAXMAP_CORNER_Y : MINMAP_CORNER_Y;
+    const frameTop = full ? MAXMAP_FRAME_TOP : MINMAP_FRAME_TOP;
+    set('--minimap-header', `${strip ? 0 : cornerY}px`);
+    set('--minimap-frame-top', `${strip ? 0 : frameTop}px`);
+    set('--minimap-frame-bottom', `${FRAME_BOTTOM}px`);
     set('--minimap-bar-height', `${barHeight}px`);
     set('--minimap-min-width', `${layout.minWidth}px`);
     set('--minimap-edge-x', `${MINIMAP_EDGE_X}px`);
-    set('--minimap-bottom-y', `${MINIMAP_BOTTOM_Y}px`);
+    set('--minimap-strip-edge-x', `${MINIMAP_STRIP_EDGE_X}px`);
     set('--minimap-button-interval', `${layout.buttonInterval}px`);
+    set('--minimap-buttons-top', `${BUTTON_TOP}px`);
+    set('--minimap-buttons-edge', `${strip ? STRIP_BUTTON_EDGE : BUTTON_EDGE}px`);
     set('--minimap-mark-x', `${layout.mapMark.x}px`);
     set('--minimap-mark-y', `${layout.mapMark.y}px`);
     set('--minimap-font-size', `${layout.fonts.mapName.size}px`);
@@ -333,31 +355,41 @@ export class MiniMapView {
     set('--minimap-dock-left-y', `${layout.docks.left.y}px`);
     set('--minimap-dock-right-x', `${-layout.docks.right.x}px`);
     set('--minimap-dock-right-y', `${layout.docks.right.y}px`);
+    if (full) {
+      // The `n` fill starts right after the 44 px nw corner and runs to ne;
+      // nw2 is painted after it at (44, 9) as the hanging black name card.
+      set('--minimap-nw2', shellUrl('nw2'));
+      set('--minimap-nw2-x', `${this.frame('MaxMap/nw')?.width ?? 44}px`);
+      set('--minimap-nw2-y', `${NAMECARD_OFFSET_Y}px`);
+      set('--minimap-n-x', `${this.frame('MaxMap/nw')?.width ?? 44}px`);
+      set('--minimap-n-width', `calc(100% - ${(this.frame('MaxMap/nw')?.width ?? 44) + (this.frame('MaxMap/ne')?.width ?? 15)}px)`);
+      set('--minimap-n-height', `${this.frame('MaxMap/n')?.height ?? 70}px`);
+    } else if (strip) {
+      set('--minimap-nw2', 'none');
+      set('--minimap-n-x', '0px');
+      set('--minimap-n-width', '100%');
+      set('--minimap-n-height', '100%');
+    } else {
+      set('--minimap-nw2', 'none');
+      set('--minimap-n-x', `${this.frame('MinMap/nw')?.width ?? 15}px`);
+      set('--minimap-n-width', `calc(100% - ${(this.frame('MinMap/nw')?.width ?? 15) + (this.frame('MinMap/ne')?.width ?? 15)}px)`);
+      set('--minimap-n-height', `${this.frame('MinMap/n')?.height ?? 30}px`);
+    }
     if (!map) return;
     const box = miniMapBox(map, layout.minWidth);
     // Strip mode is the authored `Min` bar: no plate, street name at the
     // authored `Min/vector:streetName`.  Full mode shows both names at the
-    // authored `MaxMap` vectors; compact borrows the Min position because
-    // MinMap authors no name vector of its own.
+    // authored `MaxMap` vectors, inside the black card; compact borrows the
+    // Min position because MinMap authors no name vector of its own.
     const streetPos = full ? layout.streetName : layout.minStreetName;
     set('--minimap-street-x', `${streetPos.x}px`);
     set('--minimap-street-y', `${streetPos.y}px`);
     set('--minimap-name-x', `${layout.mapName.x}px`);
     set('--minimap-name-y', `${layout.mapName.y}px`);
-    // P: the source authors button sprites and `buttonInterval` but no button
-    // vector for the plate windows.  The collapsed strip does place its
-    // buttons left of the street name; the plate windows follow the same
-    // reading with the row right-aligned inside the strip so it never covers
-    // the names.
-    const buttonTop = strip || this.mode === 'compact'
-      ? Math.max(0, Math.round(((strip ? barHeight : header) - BUTTON_SIZE) / 2))
-      : Math.max(0, header - BUTTON_SIZE - 4);
-    set('--minimap-buttons-x', `${strip ? MINIMAP_EDGE_X : 0}px`);
-    set('--minimap-buttons-y', `${buttonTop}px`);
     set('--minimap-window-width', `${strip ? layout.minWidth : box.width}px`);
     set('--minimap-body-left', `${strip ? 0 : box.interiorLeft}px`);
-    set('--minimap-body-top', `${strip ? 0 : header}px`);
-    set('--minimap-body-width', `${strip ? layout.minWidth - MINIMAP_EDGE_X * 2 : box.interior.width}px`);
+    set('--minimap-body-top', `${strip ? 0 : frameTop}px`);
+    set('--minimap-body-width', `${strip ? layout.minWidth - MINIMAP_STRIP_EDGE_X * 2 : box.interior.width}px`);
     set('--minimap-body-height', `${strip ? barHeight : box.interior.height}px`);
     set('--minimap-fit', String(box.fit));
   }
@@ -365,39 +397,28 @@ export class MiniMapView {
   /**
    * Place the thumbnail and the marker layer.
    *
-   * Both layers share one transform so a dot can never drift off the terrain it
-   * is plotted on.  In the fitted view that is a plain scale about the top-left
-   * corner of the authored rectangle; the magnified view scales one step
-   * further and translates the player's own pixel to the centre of the window,
-   * which is how the original follows the player when zoomed in.
+   * Both layers share one transform so a dot can never drift off the terrain
+   * pixel it is plotted on: it is a plain scale about the top-left corner of
+   * the authored rectangle, using the fit factor the box was sized with.
    */
   private applyTransform(map: MiniMapMapAsset) {
     const root = this.root;
     if (!root) return;
-    const self = this.input?.self;
-    const magnified = this.zoomed && this.mode === 'full';
     const fit = Number(root.style.getPropertyValue('--minimap-fit')) || 1;
-    const scale = fit * (magnified ? 2 : 1);
-    if (!magnified || !self) {
-      root.style.setProperty('--minimap-map-transform', `scale(${scale})`);
-      return;
-    }
-    const bodyWidth = Number.parseFloat(root.style.getPropertyValue('--minimap-body-width')) || 0;
-    const bodyHeight = Number.parseFloat(root.style.getPropertyValue('--minimap-body-height')) || 0;
-    const pixel = miniMapPixel(map, self.x, self.y);
-    const offsetX = Math.round(bodyWidth / 2 - pixel.x * scale);
-    const offsetY = Math.round(bodyHeight / 2 - pixel.y * scale);
-    root.style.setProperty('--minimap-map-transform', `translate(${offsetX}px, ${offsetY}px) scale(${scale})`);
+    root.style.setProperty('--minimap-map-transform', `scale(${fit})`);
   }
 
   private buildButtons() {
-    const root = this.buttons;
-    if (!root) return;
-    root.replaceChildren();
-    // One authored sprite set per control, in the order the window uses them.
-    const add = (key: string, label: string, onClick: () => void, pressed?: boolean) => {
+    if (!this.buttons) return;
+    this.buttonsLeft?.replaceChildren();
+    this.buttonsRight?.replaceChildren();
+    // One authored sprite set per control.  The strip carries the "+" restore
+    // button on the left; the plate windows carry the "−" collapse plus the
+    // shrink/grow toggle on the left, and the NPC / world-map features on the
+    // right — the two rows the source art provides sprites for.
+    const add = (group: HTMLDivElement | undefined, key: string, label: string, onClick: () => void, pressed?: boolean) => {
       const normal = this.frame(`${key}/normal`);
-      if (!normal) return;
+      if (!group || !normal) return;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'tms-minimap-button';
@@ -417,19 +438,21 @@ export class MiniMapView {
       button.addEventListener('pointerdown', () => show('pressed'));
       button.addEventListener('pointerup', () => show('mouseOver'));
       button.addEventListener('click', onClick);
-      root.append(button);
+      group.append(button);
     };
+    const left = this.buttonsLeft;
+    const right = this.buttonsRight;
     if (this.mode === 'strip') {
-      add('button:max', uiText('minimapShow'), () => this.setMode('full'));
+      add(left, 'button:max', uiText('minimapShow'), () => this.setMode('full'));
     } else {
-      add('button:min', uiText('minimapHide'), () => this.setMode('strip'));
-      add(this.mode === 'compact' ? 'button:max' : 'button:small',
-        this.mode === 'compact' ? uiText('minimapFull') : uiText('minimapCompact'),
-        () => this.setMode(this.mode === 'compact' ? 'full' : 'compact'));
-      add('button:big', this.zoomed ? uiText('minimapZoomOut') : uiText('minimapZoomIn'),
-        () => { this.zoomed = !this.zoomed; this.render(); }, this.zoomed);
-      add('BtNpc', uiText('minimapNpc'), () => { this.showNpc = !this.showNpc; this.render(); }, this.showNpc);
-      add('BtMap', uiText('minimapWorld'), () => this.onWorldMap?.());
+      add(left, 'button:min', uiText('minimapHide'), () => this.setMode('strip'));
+      if (this.mode === 'compact') {
+        add(left, 'button:big', uiText('minimapFull'), () => this.setMode('full'));
+      } else {
+        add(left, 'button:small', uiText('minimapCompact'), () => this.setMode('compact'));
+      }
+      add(right, 'BtNpc', uiText('minimapNpc'), () => { this.showNpc = !this.showNpc; this.render(); }, this.showNpc);
+      add(right, 'BtMap', uiText('minimapWorld'), () => this.onWorldMap?.());
     }
   }
 
@@ -441,7 +464,6 @@ export class MiniMapView {
     this.applyChrome(map);
     this.buildButtons();
     root.dataset.mode = this.mode;
-    root.dataset.zoomed = String(this.zoomed && this.mode === 'full');
 
     if (!this.input || !map || !data) {
       root.dataset.unavailable = 'true';

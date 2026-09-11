@@ -56,8 +56,12 @@ ADDITIONAL_REGION_MAP_IDS = (
     "102020300", "102020400", "102020500",
 )
 STORY_QUEST_PREFIX = "363"
-# Original Magician advancement is a real prerequisite of 36337, outside the prefix.
-STORY_PREREQUISITE_QUEST_IDS = ("1402",)
+# Original adventurer route checkpoints are real prerequisites of 36337
+# (Check.0.QuestOrOption == 1: any one of them unlocks the quest).  All seven
+# branch quests exist in the TMS273 WZ QuestData tree; keeping them in the
+# reference catalog lets 36337's OR conditions resolve to known quests instead
+# of flattening the branch into a single "all must be done" list.
+STORY_PREREQUISITE_QUEST_IDS = ("1401", "1402", "1403", "1404", "1405", "2570", "2684")
 
 
 def read_json(path: Path) -> Any:

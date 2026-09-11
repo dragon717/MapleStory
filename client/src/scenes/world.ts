@@ -149,6 +149,19 @@ export class World extends Phaser.Scene {
     for (const frame of Object.values(this.manifest.storageUi?.ui ?? {})) images.set(frame.url, frame.url);
     // The party window's shell, row markers and buttons are DOM-rendered too.
     for (const frame of Object.values(this.manifest.partyUi?.ui ?? {})) images.set(frame.url, frame.url);
+    // Same for the friend & blacklist window, which shares the UserList shell.
+    for (const frame of Object.values(this.manifest.friendUi?.ui ?? {})) images.set(frame.url, frame.url);
+    // And the world map: its pages are large authored canvases, so warming them
+    // here is what keeps the WORLD button from flashing empty art.
+    for (const page of Object.values(this.manifest.worldMap?.pages ?? {})) {
+      images.set(page.baseImg.url, page.baseImg.url);
+      for (const link of page.mapLinks) images.set(link.image.url, link.image.url);
+    }
+    for (const frame of Object.values(this.manifest.worldMap?.ui.plate ? { plate: this.manifest.worldMap.ui.plate, border: this.manifest.worldMap.ui.border } : {})) images.set(frame.url, frame.url);
+    for (const states of Object.values(this.manifest.worldMap?.ui.nav ?? {})) {
+      for (const frame of Object.values(states)) images.set(frame.url, frame.url);
+    }
+    for (const frame of Object.values(this.manifest.worldMap?.ui.close ?? {})) images.set(frame.url, frame.url);
     const afterimage = this.manifest.combat?.attack?.afterimage;
     for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
     for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {

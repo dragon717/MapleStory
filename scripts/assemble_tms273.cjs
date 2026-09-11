@@ -94,11 +94,20 @@ const manifest = {
   // window.  PNGs are exported by export_tms273_party.cjs and copied into
   // client/public-tms273/assets alongside the other UI art.
   partyUi: read('party'),
+  // Source-backed UI/UIWindow.img/UserList (Friend + BlackList tabs) used by
+  // the friend window.  PNGs are exported by export_tms273_friend.cjs and
+  // copied into client/public-tms273/assets alongside the other UI art.
+  friendUi: read('friend'),
   // Source-backed UI/UIMap.img/MiniMap window plus one Map.wz miniMap canvas
   // per assembled map, used by the minimap window.  PNGs are exported by
   // export_tms273_minimap.cjs and copied into client/public-tms273/assets
   // alongside the other UI art.
   miniMap: read('minimap'),
+  // Source-backed Map.wz WorldMap page art + UI/UIWindow2.img/WorldMap window
+  // shell used by the world-map window.  PNGs are exported by
+  // export_tms273_worldmap.cjs and copied into client/public-tms273/assets
+  // alongside the other UI art.
+  worldMap: read('worldmap'),
 };
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {

@@ -1,9 +1,9 @@
+use crate::lobby;
 use crate::protocol::{AbilityStat, AbilityStats};
 use crate::{
     inventory::{self, EquipmentStats, SLOT_LIMIT},
     protocol::InventoryItem,
 };
-use crate::lobby;
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -288,16 +288,8 @@ const FOURTH_FIXED_SKILL: u32 = 2_220_015;
 const FOURTH_PASSIVE_SKILLS: [u32; 2] = [2_220_010, 2_220_013];
 const FOURTH_HIDDEN_SKILLS: [u32; 3] = [2_220_014, 2_221_055, 2_221_056];
 const FOURTH_PAID_SKILLS: [u32; 10] = [
-    2_220_010,
-    2_220_013,
-    2_221_000,
-    2_221_004,
-    2_221_005,
-    2_221_006,
-    2_221_007,
-    2_221_008,
-    2_221_011,
-    2_221_012,
+    2_220_010, 2_220_013, 2_221_000, 2_221_004, 2_221_005, 2_221_006, 2_221_007, 2_221_008,
+    2_221_011, 2_221_012,
 ];
 const HYPER_HIDDEN_SKILL: u32 = 2_221_055;
 const HYPER_VORTEX_SKILL: u32 = 2_221_054;
@@ -355,20 +347,21 @@ fn hyper_skill_prerequisites(skill_id: u32) -> &'static [(u32, u32)] {
 /// Return the remaining points in one independent Hyper pool.  The pool is
 /// derived from the durable level and learned Hyper levels, so reconnects
 /// cannot duplicate a level-up grant and ordinary SP remains untouched.
-pub(crate) fn hyper_points(
-    level: u32,
-    skills: &BTreeMap<u32, u32>,
-    kind: u32,
-) -> u32 {
+pub(crate) fn hyper_points(level: u32, skills: &BTreeMap<u32, u32>, kind: u32) -> u32 {
     let thresholds: &[u32] = match kind {
         1 => &[140, 150, 165, 180, 190],
         2 => &[140, 160, 190],
         _ => return 0,
     };
-    let earned = thresholds.iter().filter(|required| level >= **required).count() as u32;
+    let earned = thresholds
+        .iter()
+        .filter(|required| level >= **required)
+        .count() as u32;
     let spent = HYPER_VISIBLE_SKILLS
         .iter()
-        .filter(|skill_id| hyper_skill_info(**skill_id).is_some_and(|(skill_kind, _)| skill_kind == kind))
+        .filter(|skill_id| {
+            hyper_skill_info(**skill_id).is_some_and(|(skill_kind, _)| skill_kind == kind)
+        })
         .fold(0_u32, |total, skill_id| {
             total.saturating_add(skills.get(skill_id).copied().unwrap_or(0).min(1))
         });
@@ -455,7 +448,10 @@ fn fourth_missing_sp(
 }
 
 fn mage_job_allowed(job: u32) -> bool {
-    matches!(job, 200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232)
+    matches!(
+        job,
+        200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232
+    )
 }
 
 pub(crate) fn now_ms() -> i64 {
@@ -471,17 +467,16 @@ pub(crate) fn now_ms() -> i64 {
 /// this map id; World creates it when entering a practice encounter.
 pub(crate) fn is_practice_map(map_id: &str) -> bool {
     let mut fields = map_id.split(':');
-    let (Some(prefix), Some(source_map), Some(encounter), None) = (
-        fields.next(),
-        fields.next(),
-        fields.next(),
-        fields.next(),
-    ) else {
+    let (Some(prefix), Some(source_map), Some(encounter), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
         return false;
     };
     prefix == "practice"
         && source_map.len() == 9
-        && source_map.chars().all(|character| character.is_ascii_digit())
+        && source_map
+            .chars()
+            .all(|character| character.is_ascii_digit())
         && !encounter.is_empty()
 }
 
@@ -672,6 +667,29 @@ impl Store {
                quest_id TEXT NOT NULL,
                status TEXT NOT NULL,
                PRIMARY KEY(account_id,quest_id)
+             );
+             -- Account-scoped social graph (friend + blacklist).  Membership is
+             -- symmetric: a friend row is inserted in both directions, so a
+             -- friend is a fact about two characters at once and a single
+             -- INSERT OR IGNORE on either side keeps the pair in sync.
+             CREATE TABLE IF NOT EXISTS friends(
+               account_id TEXT NOT NULL,
+               friend_id TEXT NOT NULL,
+               PRIMARY KEY(account_id,friend_id)
+             );
+             CREATE TABLE IF NOT EXISTS blacklist(
+               account_id TEXT NOT NULL,
+               blocked_id TEXT NOT NULL,
+               PRIMARY KEY(account_id,blocked_id)
+             );
+             CREATE TABLE IF NOT EXISTS friend_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               operation TEXT NOT NULL,
+               target_id TEXT NOT NULL,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
              );",
         )?;
         // Existing development databases predate the mesos column. Keep their
@@ -777,13 +795,15 @@ impl Store {
             }
         }
         // P: seed existing characters once with five AP per already-earned level.
-        db.execute_batch("UPDATE player_stats SET ability_stats_json=json_object(
+        db.execute_batch(
+            "UPDATE player_stats SET ability_stats_json=json_object(
             'strength',12,'dexterity',5,'intelligence',4,'luck',4,
             'availableAp',MIN(4294967295,MAX(0,level-1)*5)) WHERE ability_stats_json='';
             CREATE TABLE IF NOT EXISTS ability_actions(
                 account_id TEXT NOT NULL,request_id TEXT NOT NULL,stat TEXT NOT NULL,
                 success INTEGER NOT NULL,code TEXT NOT NULL,stats_json TEXT NOT NULL,
-                PRIMARY KEY(account_id,request_id));")?;
+                PRIMARY KEY(account_id,request_id));",
+        )?;
         let has_mage_support: Option<String> = db
             .query_row(
                 "SELECT name FROM pragma_table_info('player_stats') WHERE name='mage_support_granted'",
@@ -1009,7 +1029,10 @@ impl Store {
         &self,
         operation: impl FnOnce(&mut Connection) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut db = self.db.lock().map_err(|_| "account store unavailable".to_owned())?;
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
         operation(&mut db)
     }
 
@@ -1051,8 +1074,9 @@ impl Store {
         // P: repair only the missing beginner entitlement, including spent SP.
         // The balance itself makes retries idempotent; no reset or grant marker.
         if profile.job == 0 {
-            let spent = [1000, 1001, 1002].iter().fold(0u32, |sum, id|
-                sum.saturating_add(profile.skills.get(id).copied().unwrap_or(0)));
+            let spent = [1000, 1001, 1002].iter().fold(0u32, |sum, id| {
+                sum.saturating_add(profile.skills.get(id).copied().unwrap_or(0))
+            });
             let due = profile.level.saturating_sub(1).min(6).saturating_sub(spent);
             if profile.skill_points.get(&0).copied().unwrap_or(0) < due {
                 profile.skill_points.insert(0, due);
@@ -1063,7 +1087,13 @@ impl Store {
             // Legacy job-222 rows may predate the fourth-job transfer grant.
             // Reconcile only the authored balance through the current level;
             // learned ordinary levels and an existing balance are preserved.
-            if profile.skills.get(&FOURTH_FIXED_SKILL).copied().unwrap_or(0) == 0 {
+            if profile
+                .skills
+                .get(&FOURTH_FIXED_SKILL)
+                .copied()
+                .unwrap_or(0)
+                == 0
+            {
                 profile.skills.insert(FOURTH_FIXED_SKILL, 1);
                 repair_needed = true;
             }
@@ -1138,12 +1168,7 @@ impl Store {
     /// Atomically advance a character from the expected job to the authored
     /// destination.  The temporary first-job support grant is part of this
     /// transaction, so a reconnect cannot observe job 200 without its SP/MP.
-    pub fn advance_job(
-        &self,
-        account_id: &str,
-        from_job: u32,
-        job: u32,
-    ) -> Result<bool, String> {
+    pub fn advance_job(&self, account_id: &str, from_job: u32, job: u32) -> Result<bool, String> {
         if from_job == job {
             return Ok(false);
         }
@@ -1187,25 +1212,46 @@ impl Store {
             grant_first_mage_fields(&mut max_mp, &mut mp, &mut skills, &mut skill_points);
         }
         if from_job == 200 && job == 220 {
-            let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
+            let level: u32 = tx
+                .query_row(
+                    "SELECT level FROM player_stats WHERE account_id=?1",
+                    [account_id],
+                    |row| row.get(0),
+                )
                 .map_err(|_| "account persistence failed")?;
-            if level < 30 { return Ok(false); }
+            if level < 30 {
+                return Ok(false);
+            }
             skill_points.entry(220).or_insert(5); // P: starter second-job SP, not a max-skill grant.
             skills.entry(2200011).or_insert(1); // Source fixLevel=1.
         }
         if from_job == 220 && job == THIRD_JOB {
-            let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
+            let level: u32 = tx
+                .query_row(
+                    "SELECT level FROM player_stats WHERE account_id=?1",
+                    [account_id],
+                    |row| row.get(0),
+                )
                 .map_err(|_| "account persistence failed")?;
-            if level < 60 { return Ok(false); }
+            if level < 60 {
+                return Ok(false);
+            }
             // The first third-job transfer owns the authored five starter SP.
             // The CAS on player_stats.job above makes this grant one-shot;
             // no old job-221 row is re-seeded on reconnect.
             skill_points.entry(THIRD_MAGE_BOOK).or_insert(5);
         }
         if from_job == THIRD_JOB && job == FOURTH_JOB {
-            let level: u32 = tx.query_row("SELECT level FROM player_stats WHERE account_id=?1", [account_id], |row| row.get(0))
+            let level: u32 = tx
+                .query_row(
+                    "SELECT level FROM player_stats WHERE account_id=?1",
+                    [account_id],
+                    |row| row.get(0),
+                )
                 .map_err(|_| "account persistence failed")?;
-            if level < 100 { return Ok(false); }
+            if level < 100 {
+                return Ok(false);
+            }
             // The fourth transfer owns the initial three points and the
             // level-101..140 P schedule.  The job CAS below makes this grant
             // one-shot; existing book-222 balances are preserved and only a
@@ -1222,11 +1268,7 @@ impl Store {
         let is_mage = job == 200;
         let new_max_mp = if is_mage { max_mp.max(100) } else { max_mp };
         let new_mp = if is_mage { new_max_mp } else { mp };
-        let next_support = if is_mage {
-            1
-        } else {
-            mage_support_granted
-        };
+        let next_support = if is_mage { 1 } else { mage_support_granted };
         let changed = tx
             .execute(
                 "UPDATE player_stats SET job=?3,max_mp=?4,mp=?5,skills_json=?6,skill_points_json=?7,mage_support_granted=?8
@@ -1271,12 +1313,7 @@ impl Store {
         let mut skill_points = parse_skill_map(&skill_points_json)?;
         let mut new_max_mp = max_mp;
         let mut new_mp = max_mp;
-        grant_first_mage_fields(
-            &mut new_max_mp,
-            &mut new_mp,
-            &mut skills,
-            &mut skill_points,
-        );
+        grant_first_mage_fields(&mut new_max_mp, &mut new_mp, &mut skills, &mut skill_points);
         tx.execute(
             "UPDATE player_stats SET max_mp=?2,mp=?3,skills_json=?4,skill_points_json=?5,mage_support_granted=1 WHERE account_id=?1 AND job=200 AND mage_support_granted=0",
             params![
@@ -1292,9 +1329,12 @@ impl Store {
         Ok(true)
     }
 
-    pub fn allocate_ap(&self, account_id: &str, request_id: &str, stat: AbilityStat)
-        -> Result<AbilityActionOutcome, String>
-    {
+    pub fn allocate_ap(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        stat: AbilityStat,
+    ) -> Result<AbilityActionOutcome, String> {
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
         let prior: Option<(String, bool, String, String)> = tx.query_row(
@@ -1304,26 +1344,43 @@ impl Store {
         if let Some((prior_stat, success, code, json)) = prior {
             return Ok(AbilityActionOutcome {
                 success: success && prior_stat == stat.as_str(),
-                code: if prior_stat == stat.as_str() { code } else { "request_conflict".into() },
+                code: if prior_stat == stat.as_str() {
+                    code
+                } else {
+                    "request_conflict".into()
+                },
                 stats: serde_json::from_str(&json).map_err(|_| "invalid saved ability stats")?,
                 already_resolved: true,
             });
         }
         let profile = read_profile(&tx, account_id)?;
         let mut stats = profile.ability_stats;
-        let (success, code) = if profile.hp <= 0 { (false, "invalid_state") }
-            else if stats.available_ap == 0 { (false, "not_enough_ap") }
-            else if stats.add_point(stat) { (true, "") }
-            else { (false, "stat_limit") };
+        let (success, code) = if profile.hp <= 0 {
+            (false, "invalid_state")
+        } else if stats.available_ap == 0 {
+            (false, "not_enough_ap")
+        } else if stats.add_point(stat) {
+            (true, "")
+        } else {
+            (false, "stat_limit")
+        };
         let json = serde_json::to_string(&stats).map_err(|_| "account persistence failed")?;
         if success {
-            tx.execute("UPDATE player_stats SET ability_stats_json=?2 WHERE account_id=?1",
-                params![account_id, json]).map_err(|_| "account persistence failed")?;
+            tx.execute(
+                "UPDATE player_stats SET ability_stats_json=?2 WHERE account_id=?1",
+                params![account_id, json],
+            )
+            .map_err(|_| "account persistence failed")?;
         }
         tx.execute("INSERT INTO ability_actions(account_id,request_id,stat,success,code,stats_json) VALUES(?1,?2,?3,?4,?5,?6)",
             params![account_id, request_id, stat.as_str(), success, code, json]).map_err(|_| "account persistence failed")?;
         tx.commit().map_err(|_| "account persistence failed")?;
-        Ok(AbilityActionOutcome { success, code: code.into(), stats, already_resolved: false })
+        Ok(AbilityActionOutcome {
+            success,
+            code: code.into(),
+            stats,
+            already_resolved: false,
+        })
     }
 
     pub fn learn_skill(
@@ -1514,8 +1571,8 @@ impl Store {
             }
         }
         let remaining_sp = 0_i64;
-        let ledger_cost = i64::try_from(if success { cost } else { expected_cost })
-            .unwrap_or(i64::MAX);
+        let ledger_cost =
+            i64::try_from(if success { cost } else { expected_cost }).unwrap_or(i64::MAX);
         tx.execute(
             "INSERT INTO skill_actions(account_id,request_id,operation,skill_id,success,code,skill_level,remaining_sp,mp,quoted_cost) VALUES(?1,?2,'hyper_reset',0,?3,?4,0,?5,?6,?7)",
             params![
@@ -1691,9 +1748,7 @@ impl Store {
         let mut next_mp = current_mp.max(0);
         let mut success = true;
         let mut code = String::new();
-        if job != i64::from(FOURTH_JOB)
-            || expected_job != FOURTH_JOB
-            || book_id != FOURTH_MAGE_BOOK
+        if job != i64::from(FOURTH_JOB) || expected_job != FOURTH_JOB || book_id != FOURTH_MAGE_BOOK
         {
             success = false;
             code = "wrong_job".to_owned();
@@ -1886,7 +1941,10 @@ impl Store {
         let job_allowed = if expected_job == 0 {
             job == 0 || u32::try_from(job).ok().is_some_and(mage_job_allowed)
         } else if expected_job == 200 {
-            matches!(job, 200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232)
+            matches!(
+                job,
+                200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232
+            )
         } else if expected_job == 220 {
             matches!(job, 220 | 221 | 222)
         } else if expected_job == THIRD_JOB {
@@ -1906,7 +1964,9 @@ impl Store {
         {
             success = false;
             code = "wrong_job".to_owned();
-        } else if book_id == 0 && (!(1000..=1002).contains(&skill_id) || !(1..=3).contains(&max_level) || hidden) {
+        } else if book_id == 0
+            && (!(1000..=1002).contains(&skill_id) || !(1..=3).contains(&max_level) || hidden)
+        {
             success = false;
             code = "skill_unknown".to_owned();
         } else if skill_id == THIRD_HIDDEN_SKILL || FOURTH_HIDDEN_SKILLS.contains(&skill_id) {
@@ -1926,9 +1986,11 @@ impl Store {
             if current_level >= max_level {
                 success = false;
                 code = "max_level".to_owned();
-            } else if !hidden && prerequisites.iter().any(|(id, required)| {
-                skills.get(id).copied().unwrap_or(0) < *required
-            }) {
+            } else if !hidden
+                && prerequisites
+                    .iter()
+                    .any(|(id, required)| skills.get(id).copied().unwrap_or(0) < *required)
+            {
                 success = false;
                 code = "prerequisite".to_owned();
             } else if !hidden && skill_points.get(&book_id).copied().unwrap_or(0) == 0 {
@@ -2218,12 +2280,13 @@ impl Store {
 
         let missing = quantity - held;
         let mut next_inventory = durable.inventory;
-        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing)
-            .map_err(|error| match error {
+        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing).map_err(
+            |error| match error {
                 inventory::InventoryError::InventoryFull => "quest interaction inventory full",
                 inventory::InventoryError::UnknownItem => "quest interaction unknown item",
                 _ => "quest interaction rejected",
-            })?;
+            },
+        )?;
 
         // Keep the world-supplied profile fields (notably its current
         // position), but never trust its inventory snapshot: the DB fact is
@@ -2449,7 +2512,8 @@ impl Store {
                         if !eligible_accounts.iter().any(|id| id == &participant) {
                             continue;
                         }
-                        let share = ((persisted_exp_gain.max(0) as f64) * (contribution.max(0) as f64)
+                        let share = ((persisted_exp_gain.max(0) as f64)
+                            * (contribution.max(0) as f64)
                             / total_damage)
                             .round()
                             .max(0.0) as u64;
@@ -2472,8 +2536,7 @@ impl Store {
                     // to form a party at all.  It sits inside the kill
                     // transaction so a retried request cannot pay it twice.
                     if party_members.len() > 1 && persisted_exp_gain > 0 {
-                        let rate = (PARTY_EXP_BONUS_PER_MEMBER
-                            * (party_members.len() - 1) as f64)
+                        let rate = (PARTY_EXP_BONUS_PER_MEMBER * (party_members.len() - 1) as f64)
                             .min(PARTY_EXP_BONUS_CAP);
                         let pool = ((persisted_exp_gain as f64) * rate).round() as u64;
                         if pool > 0 {
@@ -2490,17 +2553,13 @@ impl Store {
                                 weights.push((member.clone(), profile.level.max(1) as u64));
                                 rows.insert(member.clone(), profile);
                             }
-                            let total_weight: u64 = weights
-                                .iter()
-                                .map(|(_, level)| *level)
-                                .sum::<u64>()
-                                .max(1);
+                            let total_weight: u64 =
+                                weights.iter().map(|(_, level)| *level).sum::<u64>().max(1);
                             for (member, level) in weights {
                                 let Some(mut profile) = rows.remove(&member) else {
                                     continue;
                                 };
-                                let share = ((pool as f64) * (level as f64)
-                                    / total_weight as f64)
+                                let share = ((pool as f64) * (level as f64) / total_weight as f64)
                                     .floor() as u64;
                                 if share > 0 {
                                     add_exp(&mut profile, share, exp_table);
@@ -3551,26 +3610,22 @@ impl Store {
         // transaction keeps a replay idempotent for failures as well as
         // successes.
         let (success, code, item_id, moved) = match operation {
-            StorageOperation::Deposit => match peek_inventory_stack(
-                &tx,
-                account_id,
-                inventory_type,
-                slot,
-                quantity,
-            )? {
-                Err(reason) => (false, reason, String::new(), 0),
-                Ok(stack) => {
-                    if let Err(reason) =
-                        reserve_storage_slot(&tx, account_id, &stack.item_id, stack.quantity)
-                    {
-                        (false, reason, stack.item_id, 0)
-                    } else {
-                        take_inventory_stack(&tx, account_id, inventory_type, slot, quantity)?;
-                        insert_storage_stack(&tx, account_id, &stack)?;
-                        (true, String::new(), stack.item_id, stack.quantity)
+            StorageOperation::Deposit => {
+                match peek_inventory_stack(&tx, account_id, inventory_type, slot, quantity)? {
+                    Err(reason) => (false, reason, String::new(), 0),
+                    Ok(stack) => {
+                        if let Err(reason) =
+                            reserve_storage_slot(&tx, account_id, &stack.item_id, stack.quantity)
+                        {
+                            (false, reason, stack.item_id, 0)
+                        } else {
+                            take_inventory_stack(&tx, account_id, inventory_type, slot, quantity)?;
+                            insert_storage_stack(&tx, account_id, &stack)?;
+                            (true, String::new(), stack.item_id, stack.quantity)
+                        }
                     }
                 }
-            },
+            }
             StorageOperation::Withdraw => {
                 match peek_storage_stack(&tx, account_id, slot, quantity)? {
                     Err(reason) => (false, reason, String::new(), 0),
@@ -3681,8 +3736,7 @@ impl Store {
         if success {
             tx.commit().map_err(|_| "account persistence failed")?;
         } else {
-            tx.rollback()
-                .map_err(|_| "account persistence failed")?;
+            tx.rollback().map_err(|_| "account persistence failed")?;
         }
         Ok(outcome)
     }
@@ -3691,6 +3745,380 @@ impl Store {
     pub fn storage_mesos_balance(&self, account_id: &str) -> Result<u64, String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         read_storage_mesos_db(&db, account_id)
+    }
+
+    /// Account-scoped friend list, joined against `accounts` and
+    /// `player_stats` so an offline friend's display name, level and job come
+    /// straight from the persisted profile.  The online flag is a session
+    /// fact the world layer derives, not a persisted column.
+    pub fn load_friends(&self, account_id: &str) -> Result<Vec<FriendRow>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        read_friend_rows(&db, "friends", account_id)
+    }
+
+    /// Account-scoped blacklist.  Same join as `load_friends`; the caller
+    /// tells the two apart because the result feeds a different window tab.
+    pub fn load_blacklist(&self, account_id: &str) -> Result<Vec<FriendRow>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        read_friend_rows(&db, "blacklist", account_id)
+    }
+
+    /// Resolve a typed character name to a persisted character.  Used by
+    /// `FriendAdd` and `FriendBlock`, which accept a typed name (the source
+    /// context-menu only carries the name, never the id).
+    pub fn find_character_by_name(&self, name: &str) -> Result<Option<FriendRow>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let mut stmt = db
+            .prepare(
+                "SELECT a.id, a.username, COALESCE(p.level, 1), COALESCE(p.job, 0)
+                 FROM accounts a LEFT JOIN player_stats p ON p.account_id = a.id
+                 WHERE a.username = ?1 LIMIT 1",
+            )
+            .map_err(|_| "account persistence failed")?;
+        let mut rows = stmt
+            .query([name])
+            .map_err(|_| "account persistence failed")?;
+        Ok(
+            match rows.next().map_err(|_| "account persistence failed")? {
+                Some(row) => Some(FriendRow {
+                    id: row.get(0).map_err(|_| "account persistence failed")?,
+                    name: row.get(1).map_err(|_| "account persistence failed")?,
+                    level: row.get(2).map_err(|_| "account persistence failed")?,
+                    job: row.get(3).map_err(|_| "account persistence failed")?,
+                }),
+                None => None,
+            },
+        )
+    }
+
+    /// One authoritative friend / blacklist transaction.  All four
+    /// `FriendOperation` cases share the same shape: re-check every guard
+    /// *before* writing, record the outcome in `friend_actions` so a replayed
+    /// `requestId` never re-acts, and commit only the rows that are actually
+    /// valid.  The world layer is responsible for `requestId` validation and
+    /// for turning the returned `code` into a wire message.
+    ///
+    /// `Add` writes the pair in both directions (the friend row is symmetric
+    /// in the original) and refuses when the target has put us on their
+    /// blacklist, so a relationship cannot be forced across an explicit
+    /// refusal.  `Block` also dissolves any existing friendship both ways,
+    /// matching the source context-menu behaviour.
+    pub fn friend_edit(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        operation: FriendOperation,
+        target_id: &str,
+    ) -> Result<FriendOutcome, String> {
+        if account_id == target_id {
+            return Ok(FriendOutcome::reject(operation, target_id, "friend_self"));
+        }
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        if let Some(prior) = read_friend_action(&tx, account_id, request_id)? {
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(prior);
+        }
+        let (table, column, limit) = match operation {
+            FriendOperation::Add | FriendOperation::Remove => {
+                ("friends", "friend_id", FRIEND_LIMIT)
+            }
+            FriendOperation::Block | FriendOperation::Unblock => {
+                ("blacklist", "blocked_id", BLACKLIST_LIMIT)
+            }
+        };
+        let count: i64 = tx
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE account_id=?1"),
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        let already: bool = tx
+            .query_row(
+                &format!(
+                    "SELECT EXISTS(SELECT 1 FROM {table} WHERE account_id=?1 AND {column}=?2)"
+                ),
+                rusqlite::params![account_id, target_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        let mut success = true;
+        let mut code = String::new();
+        match operation {
+            FriendOperation::Add => {
+                if already {
+                    success = false;
+                    code = "friend_already".into();
+                } else if count >= limit {
+                    success = false;
+                    code = "friend_full".into();
+                } else {
+                    let target_blocked: bool = tx
+                        .query_row(
+                            "SELECT EXISTS(SELECT 1 FROM blacklist WHERE account_id=?1 AND blocked_id=?2)",
+                            rusqlite::params![target_id, account_id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|_| "account persistence failed")?;
+                    if target_blocked {
+                        success = false;
+                        code = "friend_declined".into();
+                    } else {
+                        tx.execute(
+                            "INSERT OR IGNORE INTO friends(account_id,friend_id) VALUES(?1,?2)",
+                            rusqlite::params![account_id, target_id],
+                        )
+                        .map_err(|_| "account persistence failed")?;
+                        tx.execute(
+                            "INSERT OR IGNORE INTO friends(account_id,friend_id) VALUES(?1,?2)",
+                            rusqlite::params![target_id, account_id],
+                        )
+                        .map_err(|_| "account persistence failed")?;
+                    }
+                }
+            }
+            FriendOperation::Remove => {
+                if !already {
+                    success = false;
+                    code = "friend_not_friend".into();
+                } else {
+                    tx.execute(
+                        "DELETE FROM friends WHERE account_id=?1 AND friend_id=?2",
+                        rusqlite::params![account_id, target_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                    tx.execute(
+                        "DELETE FROM friends WHERE account_id=?1 AND friend_id=?2",
+                        rusqlite::params![target_id, account_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                }
+            }
+            FriendOperation::Block => {
+                if already {
+                    success = false;
+                    code = "friend_already".into();
+                } else if count >= limit {
+                    success = false;
+                    code = "friend_full".into();
+                } else {
+                    tx.execute(
+                        "INSERT OR IGNORE INTO blacklist(account_id,blocked_id) VALUES(?1,?2)",
+                        rusqlite::params![account_id, target_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                    tx.execute(
+                        "DELETE FROM friends WHERE account_id=?1 AND friend_id=?2",
+                        rusqlite::params![account_id, target_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                    tx.execute(
+                        "DELETE FROM friends WHERE account_id=?1 AND friend_id=?2",
+                        rusqlite::params![target_id, account_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                }
+            }
+            FriendOperation::Unblock => {
+                if !already {
+                    success = false;
+                    code = "friend_not_blocked".into();
+                } else {
+                    tx.execute(
+                        "DELETE FROM blacklist WHERE account_id=?1 AND blocked_id=?2",
+                        rusqlite::params![account_id, target_id],
+                    )
+                    .map_err(|_| "account persistence failed")?;
+                }
+            }
+        }
+        let outcome = FriendOutcome {
+            request_id: request_id.to_owned(),
+            operation,
+            target_id: target_id.to_owned(),
+            success,
+            code,
+        };
+        insert_friend_action(&tx, account_id, &outcome)?;
+        if success {
+            tx.commit().map_err(|_| "account persistence failed")?;
+        } else {
+            tx.rollback().map_err(|_| "account persistence failed")?;
+        }
+        Ok(outcome)
+    }
+}
+
+// ----------------------------------------------------------------------- friends
+
+/// Authoritative friend-list and blacklist upper bounds.  The original client
+/// window scrolls on overflow, so a real cap exists, but the source file
+/// carried no `maxFriendList` / `maxBlackList` field for the slice we
+/// verified; the numbers here are P values copied from the documented
+/// 50 / 20 caps common to early-273 servers.
+const FRIEND_LIMIT: i64 = 50;
+const BLACKLIST_LIMIT: i64 = 20;
+
+/// One row of a friend or blacklist view: the persisted identity (id + name)
+/// and the most recent profile snapshot (level + job).  `online` and `mapId`
+/// are *not* persisted here — they are session facts the world layer
+/// derives on every push, so an offline snapshot is allowed to lag behind
+/// the live character.
+#[derive(Clone, Debug)]
+pub struct FriendRow {
+    pub id: String,
+    pub name: String,
+    pub level: i64,
+    pub job: i64,
+}
+
+/// What the client asked for, in the storage-side enum form.  The wire
+/// `type` discriminator lives in `protocol::ClientMessage`; the world layer
+/// is the only place that maps one to the other.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FriendOperation {
+    Add,
+    Remove,
+    Block,
+    Unblock,
+}
+
+/// Result of one friend / blacklist intent, persisted so a retried
+/// `requestId` re-sends the original outcome instead of re-acting.
+#[derive(Clone, Debug)]
+pub struct FriendOutcome {
+    pub request_id: String,
+    pub operation: FriendOperation,
+    pub target_id: String,
+    pub success: bool,
+    pub code: String,
+}
+
+impl FriendOutcome {
+    /// Construct a refused outcome that was rejected before any transaction
+    /// was opened.  `friend_self` is the only code that reaches this path —
+    /// every other check is a real DB read.
+    fn reject(operation: FriendOperation, target_id: &str, code: &str) -> Self {
+        Self {
+            request_id: String::new(),
+            operation,
+            target_id: target_id.to_owned(),
+            success: false,
+            code: code.to_owned(),
+        }
+    }
+}
+
+/// Read every row of `table` (`friends` or `blacklist`) for `account_id`,
+/// joined against `accounts` and `player_stats` so the world layer can
+/// render an offline friend without a second round-trip.  The two tables
+/// share an identical column shape, so a single helper handles both.
+fn read_friend_rows(
+    db: &Connection,
+    table: &str,
+    account_id: &str,
+) -> Result<Vec<FriendRow>, String> {
+    let column = if table == "friends" {
+        "friend_id"
+    } else {
+        "blocked_id"
+    };
+    let mut stmt = db
+        .prepare(&format!(
+            "SELECT a.id, a.username, COALESCE(p.level, 1), COALESCE(p.job, 0)
+                 FROM {table} f
+                 JOIN accounts a ON a.id = f.{column}
+                 LEFT JOIN player_stats p ON p.account_id = f.{column}
+                 WHERE f.account_id = ?1
+                 ORDER BY a.username COLLATE NOCASE"
+        ))
+        .map_err(|_| "account persistence failed")?;
+    let rows = stmt
+        .query_map([account_id], |row| {
+            Ok(FriendRow {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                level: row.get(2)?,
+                job: row.get(3)?,
+            })
+        })
+        .map_err(|_| "account persistence failed")?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(|_| "account persistence failed")?);
+    }
+    Ok(out)
+}
+
+/// Replay guard for friend / blacklist intents.  Returns the recorded
+/// outcome if the `(account, request_id)` pair was already processed, so a
+/// retried client packet never writes twice.
+fn read_friend_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    request_id: &str,
+) -> Result<Option<FriendOutcome>, String> {
+    let row: Option<(String, String, i64, String)> = tx
+        .query_row(
+            "SELECT operation, target_id, success, code FROM friend_actions
+             WHERE account_id=?1 AND request_id=?2",
+            rusqlite::params![account_id, request_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed")?;
+    let Some((operation, target_id, success, code)) = row else {
+        return Ok(None);
+    };
+    Ok(Some(FriendOutcome {
+        request_id: request_id.to_owned(),
+        operation: parse_friend_operation(&operation),
+        target_id,
+        success: success != 0,
+        code,
+    }))
+}
+
+/// Persist a friend / blacklist outcome.  Both the success and the refused
+/// rows go in the same table, so a replayed intent returns the exact code
+/// the original request produced.
+fn insert_friend_action(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    outcome: &FriendOutcome,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO friend_actions(account_id,request_id,operation,target_id,success,code)
+         VALUES(?1,?2,?3,?4,?5,?6)",
+        rusqlite::params![
+            account_id,
+            outcome.request_id,
+            friend_operation_str(outcome.operation),
+            outcome.target_id,
+            if outcome.success { 1 } else { 0 },
+            outcome.code,
+        ],
+    )
+    .map_err(|_| "account persistence failed")?;
+    Ok(())
+}
+
+fn friend_operation_str(operation: FriendOperation) -> &'static str {
+    match operation {
+        FriendOperation::Add => "add",
+        FriendOperation::Remove => "remove",
+        FriendOperation::Block => "block",
+        FriendOperation::Unblock => "unblock",
+    }
+}
+
+fn parse_friend_operation(value: &str) -> FriendOperation {
+    match value {
+        "remove" => FriendOperation::Remove,
+        "block" => FriendOperation::Block,
+        "unblock" => FriendOperation::Unblock,
+        _ => FriendOperation::Add,
     }
 }
 
@@ -3981,7 +4409,9 @@ fn insert_storage_stack(
                 )
                 .optional()
                 .map_err(|_| "account persistence failed")?;
-            let Some((slot, existing)) = target else { break };
+            let Some((slot, existing)) = target else {
+                break;
+            };
             let added = left.min((slot_max - existing).max(0));
             if added <= 0 {
                 break;
@@ -5211,9 +5641,15 @@ fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Prof
         .map_err(|_| "account persistence failed")?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "account persistence failed")?;
-    let ability_json: String = tx.query_row("SELECT ability_stats_json FROM player_stats WHERE account_id=?1",
-        [account_id], |row| row.get(0)).map_err(|_| "account persistence failed")?;
-    let ability_stats = serde_json::from_str(&ability_json).map_err(|_| "invalid saved ability stats")?;
+    let ability_json: String = tx
+        .query_row(
+            "SELECT ability_stats_json FROM player_stats WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "account persistence failed")?;
+    let ability_stats =
+        serde_json::from_str(&ability_json).map_err(|_| "invalid saved ability stats")?;
     Ok(Profile {
         hp: hp.max(0),
         max_hp: max_hp.max(1),
@@ -5319,7 +5755,10 @@ pub(crate) fn add_exp(profile: &mut Profile, amount: u64, exp_table: &[u64]) {
             break;
         }
     }
-    profile.exp_to_next = exp_table.get(profile.level.saturating_sub(1) as usize).copied().unwrap_or(0);
+    profile.exp_to_next = exp_table
+        .get(profile.level.saturating_sub(1) as usize)
+        .copied()
+        .unwrap_or(0);
 }
 
 #[derive(Clone, Debug)]
@@ -5536,13 +5975,12 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                         // The original WS protocol sent the account token
                         // directly. Preserve that path only for a pre-lobby
                         // account whose one legacy role still owns account.id.
-                        Some(session) if session.kind == SessionKind::Account => lobby::legacy_identity(
-                            &lobby_store,
-                            &session.account_id,
-                        )
-                        .ok()
-                        .flatten()
-                        .map(|(id, username)| Identity { id, username }),
+                        Some(session) if session.kind == SessionKind::Account => {
+                            lobby::legacy_identity(&lobby_store, &session.account_id)
+                                .ok()
+                                .flatten()
+                                .map(|(id, username)| Identity { id, username })
+                        }
                         _ => None,
                     };
                     let _ = reply.send(identity);
@@ -5670,7 +6108,8 @@ mod tests {
 
     #[test]
     fn character_job_migrates_isolates_and_survives_reward_and_config_changes() {
-        let path = std::env::temp_dir().join(format!("maple-ability-migration-{}.sqlite3", random_id()));
+        let path =
+            std::env::temp_dir().join(format!("maple-ability-migration-{}.sqlite3", random_id()));
         let db = Connection::open(&path).unwrap();
         // The pre-job schema represents an existing 273 character.  Store::init
         // must add job with the beginner default without replacing this row.
@@ -5715,8 +6154,20 @@ mod tests {
         };
 
         assert_eq!(store.load_profile("legacy", &defaults(200)).unwrap().job, 0);
-        assert_eq!(store.load_profile("legacy", &defaults(200)).unwrap().ability_stats.available_ap, 10);
-        assert!(store.allocate_ap("legacy", "legacy-ap", AbilityStat::Intelligence).unwrap().success);
+        assert_eq!(
+            store
+                .load_profile("legacy", &defaults(200))
+                .unwrap()
+                .ability_stats
+                .available_ap,
+            10
+        );
+        assert!(
+            store
+                .allocate_ap("legacy", "legacy-ap", AbilityStat::Intelligence)
+                .unwrap()
+                .success
+        );
 
         assert_eq!(store.load_profile("new", &defaults(200)).unwrap().job, 200);
         let mut new_profile = store.load_profile("new", &defaults(300)).unwrap();
@@ -5779,10 +6230,7 @@ mod tests {
             transferred.skills,
             BTreeMap::from([(2000007, 1), (2001008, 1), (2001012, 1)])
         );
-        assert_eq!(
-            transferred.skill_points,
-            BTreeMap::from([(2, 7), (200, 5)])
-        );
+        assert_eq!(transferred.skill_points, BTreeMap::from([(2, 7), (200, 5)]));
         assert!(!store.advance_job("transfer", 0, 220).unwrap());
         assert!(!store.advance_job("transfer", 200, 220).unwrap());
         let mut eligible = transferred.clone();
@@ -5795,17 +6243,42 @@ mod tests {
         assert_eq!(ice.skill_points.get(&220), Some(&5));
         assert_eq!(ice.skills.get(&2200011), Some(&1));
         assert!(!store.advance_job("transfer", 200, 220).unwrap());
-        assert_eq!(store.load_profile("transfer", &defaults(0)).unwrap().skill_points, ice.skill_points);
+        assert_eq!(
+            store
+                .load_profile("transfer", &defaults(0))
+                .unwrap()
+                .skill_points,
+            ice.skill_points
+        );
 
         drop(store);
         let db = Connection::open(&path).unwrap();
         Store::init(&db).unwrap();
-        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let store = Store {
+            db: Arc::new(Mutex::new(db)),
+        };
         let restored = store.load_profile("legacy", &defaults(300)).unwrap();
         assert_eq!((restored.level, restored.exp), (3, 4));
-        assert_eq!((restored.ability_stats.intelligence, restored.ability_stats.available_ap), (5, 9));
-        assert!(store.allocate_ap("legacy", "legacy-ap", AbilityStat::Intelligence).unwrap().already_resolved);
-        assert_eq!(store.load_profile("legacy", &defaults(0)).unwrap().ability_stats, restored.ability_stats);
+        assert_eq!(
+            (
+                restored.ability_stats.intelligence,
+                restored.ability_stats.available_ap
+            ),
+            (5, 9)
+        );
+        assert!(
+            store
+                .allocate_ap("legacy", "legacy-ap", AbilityStat::Intelligence)
+                .unwrap()
+                .already_resolved
+        );
+        assert_eq!(
+            store
+                .load_profile("legacy", &defaults(0))
+                .unwrap()
+                .ability_stats,
+            restored.ability_stats
+        );
 
         // A corrupt persisted value is rejected and the failed read cannot
         // silently normalize it or overwrite it with the startup default.
@@ -5884,7 +6357,11 @@ mod tests {
             ability_stats: AbilityStats::default(),
         };
 
-        assert!(store.load_profile("legacy", &defaults).unwrap().skills.is_empty());
+        assert!(store
+            .load_profile("legacy", &defaults)
+            .unwrap()
+            .skills
+            .is_empty());
         assert!(store
             .load_profile("legacy", &defaults)
             .unwrap()
@@ -5892,14 +6369,26 @@ mod tests {
             .is_empty());
         store.load_profile("a", &defaults).unwrap();
         store.load_profile("b", &defaults).unwrap();
-        assert!(store.load_profile("a", &defaults).unwrap().skills.is_empty());
-        assert!(store.load_profile("a", &defaults).unwrap().skill_points.is_empty());
+        assert!(store
+            .load_profile("a", &defaults)
+            .unwrap()
+            .skills
+            .is_empty());
+        assert!(store
+            .load_profile("a", &defaults)
+            .unwrap()
+            .skill_points
+            .is_empty());
 
         let mut a = store.load_profile("a", &defaults).unwrap();
         a.skills = BTreeMap::from([(2001008, 1), (2201008, 3)]);
         a.skill_points = BTreeMap::from([(1, 7), (2, 2)]);
         store.save_profile("a", &a).unwrap();
-        assert!(store.load_profile("b", &defaults).unwrap().skills.is_empty());
+        assert!(store
+            .load_profile("b", &defaults)
+            .unwrap()
+            .skills
+            .is_empty());
         assert!(store
             .load_profile("b", &defaults)
             .unwrap()
@@ -5927,7 +6416,10 @@ mod tests {
             )
             .unwrap();
         assert_eq!(resolved.profile.as_ref().unwrap().skills, a.skills);
-        assert_eq!(resolved.profile.as_ref().unwrap().skill_points, a.skill_points);
+        assert_eq!(
+            resolved.profile.as_ref().unwrap().skill_points,
+            a.skill_points
+        );
 
         drop(store);
         drop(auth);
@@ -5935,7 +6427,12 @@ mod tests {
         let restored = reopened.store.load_profile("a", &defaults).unwrap();
         assert_eq!(restored.skills, a.skills);
         assert_eq!(restored.skill_points, a.skill_points);
-        assert!(reopened.store.load_profile("b", &defaults).unwrap().skills.is_empty());
+        assert!(reopened
+            .store
+            .load_profile("b", &defaults)
+            .unwrap()
+            .skills
+            .is_empty());
 
         // Invalid JSON, negative values, and values beyond u32 are rejected
         // instead of being replaced by an empty/default map.
@@ -6046,14 +6543,70 @@ mod tests {
         assert!(conflict.already_resolved);
         assert!(!conflict.success);
         assert_eq!(conflict.code, "request_conflict");
-        assert!(!store.learn_skill("mage", "early-ice", 2201008, 220, 220, 20, &BTreeMap::new(), false).unwrap().success);
+        assert!(
+            !store
+                .learn_skill(
+                    "mage",
+                    "early-ice",
+                    2201008,
+                    220,
+                    220,
+                    20,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .success
+        );
         let mut eligible = store.load_profile("mage", &defaults).unwrap();
         eligible.level = 30;
         store.save_profile("mage", &eligible).unwrap();
         assert!(store.advance_job("mage", 200, 220).unwrap());
-        assert!(store.learn_skill("mage", "learn-ice", 2201008, 220, 220, 20, &BTreeMap::new(), false).unwrap().success);
-        assert!(store.learn_skill("mage", "learn-ice", 2201008, 220, 220, 20, &BTreeMap::new(), false).unwrap().already_resolved);
-        assert!(!store.learn_skill("mage", "wrong-book", 2201008, 200, 200, 20, &BTreeMap::new(), false).unwrap().success);
+        assert!(
+            store
+                .learn_skill(
+                    "mage",
+                    "learn-ice",
+                    2201008,
+                    220,
+                    220,
+                    20,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .success
+        );
+        assert!(
+            store
+                .learn_skill(
+                    "mage",
+                    "learn-ice",
+                    2201008,
+                    220,
+                    220,
+                    20,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .already_resolved
+        );
+        assert!(
+            !store
+                .learn_skill(
+                    "mage",
+                    "wrong-book",
+                    2201008,
+                    200,
+                    200,
+                    20,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .success
+        );
         let ice = store.load_profile("mage", &defaults).unwrap();
         assert_eq!(ice.skill_points.get(&200), Some(&4));
         assert_eq!(ice.skill_points.get(&220), Some(&4));
@@ -6064,16 +6617,34 @@ mod tests {
         let path = std::env::temp_dir().join(format!("beginner-skills-{}.sqlite3", random_id()));
         let db = Connection::open(&path).unwrap();
         Store::init(&db).unwrap();
-        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let store = Store {
+            db: Arc::new(Mutex::new(db)),
+        };
         let base = Profile {
-            hp: 30, max_hp: 50, mp: 30, max_mp: 30, level: 3, job: 0,
-            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
-            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
-            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            hp: 30,
+            max_hp: 50,
+            mp: 30,
+            max_mp: 30,
+            level: 3,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
             ability_stats: AbilityStats::default(),
         };
         store.load_profile("beginner", &base).unwrap(); // Legacy repair grants 2 SP.
-        let learn = |request: &str, skill| store.learn_skill("beginner", request, skill, 0, 0, 3, &BTreeMap::new(), false).unwrap();
+        let learn = |request: &str, skill| {
+            store
+                .learn_skill("beginner", request, skill, 0, 0, 3, &BTreeMap::new(), false)
+                .unwrap()
+        };
         let first = learn("learn-1", 1001);
         assert!(first.success);
         assert_eq!((first.level, first.remaining_sp), (1, 1));
@@ -6081,28 +6652,99 @@ mod tests {
         assert_eq!(learn("learn-1", 1002).code, "request_conflict");
         assert!(learn("learn-2", 1002).success);
         assert_eq!(learn("learn-3", 1000).code, "not_enough_sp");
-        assert_eq!(store.load_profile("beginner", &base).unwrap().skill_points[&0], 0);
-        assert!(!store.learn_skill("beginner", "fake-book", 1000, 200, 200, 3, &BTreeMap::new(), false).unwrap().success);
-        assert!(!store.learn_skill("beginner", "fake-id", 1003, 0, 0, 3, &BTreeMap::new(), false).unwrap().success);
-        assert!(!store.learn_skill("beginner", "fake-free", 1000, 0, 0, 3, &BTreeMap::new(), true).unwrap().success);
-        let cast = store.cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000).unwrap();
+        assert_eq!(
+            store.load_profile("beginner", &base).unwrap().skill_points[&0],
+            0
+        );
+        assert!(
+            !store
+                .learn_skill(
+                    "beginner",
+                    "fake-book",
+                    1000,
+                    200,
+                    200,
+                    3,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .success
+        );
+        assert!(
+            !store
+                .learn_skill(
+                    "beginner",
+                    "fake-id",
+                    1003,
+                    0,
+                    0,
+                    3,
+                    &BTreeMap::new(),
+                    false
+                )
+                .unwrap()
+                .success
+        );
+        assert!(
+            !store
+                .learn_skill(
+                    "beginner",
+                    "fake-free",
+                    1000,
+                    0,
+                    0,
+                    3,
+                    &BTreeMap::new(),
+                    true
+                )
+                .unwrap()
+                .success
+        );
+        let cast = store
+            .cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000)
+            .unwrap();
         assert!(cast.success);
         assert_eq!(cast.mp, 25);
-        assert!(store.cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000).unwrap().already_resolved);
-        assert_eq!(store.cast_skill_with_cooldown("beginner", "heal-again", 1001, 0, 0, 3, 5, 120_000).unwrap().code, "skill_cooldown");
+        assert!(
+            store
+                .cast_skill_with_cooldown("beginner", "heal", 1001, 0, 0, 3, 5, 120_000)
+                .unwrap()
+                .already_resolved
+        );
+        assert_eq!(
+            store
+                .cast_skill_with_cooldown("beginner", "heal-again", 1001, 0, 0, 3, 5, 120_000)
+                .unwrap()
+                .code,
+            "skill_cooldown"
+        );
         assert_eq!(store.load_profile("beginner", &base).unwrap().mp, 25);
         assert!(store.advance_job("beginner", 0, 200).unwrap());
-        assert!(store.cast_skill_with_cooldown("beginner", "speed", 1002, 0, 0, 3, 4, 60_000).unwrap().success);
+        assert!(
+            store
+                .cast_skill_with_cooldown("beginner", "speed", 1002, 0, 0, 3, 4, 60_000)
+                .unwrap()
+                .success
+        );
         drop(store);
         let db = Connection::open(&path).unwrap();
         Store::init(&db).unwrap();
-        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let store = Store {
+            db: Arc::new(Mutex::new(db)),
+        };
         let saved = store.load_profile("beginner", &base).unwrap();
         assert_eq!(saved.skills[&1001], 1);
         assert_eq!(saved.skill_points[&0], 0);
         assert_eq!(saved.skill_points[&200], 5);
         assert!(store.skill_cooldown_remaining_ms("beginner", 1001).unwrap() > 0);
-        assert_eq!(store.cast_skill_with_cooldown("beginner", "heal-reconnect", 1001, 0, 0, 3, 5, 120_000).unwrap().code, "skill_cooldown");
+        assert_eq!(
+            store
+                .cast_skill_with_cooldown("beginner", "heal-reconnect", 1001, 0, 0, 3, 5, 120_000)
+                .unwrap()
+                .code,
+            "skill_cooldown"
+        );
         drop(store);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));
@@ -6114,12 +6756,26 @@ mod tests {
         let path = std::env::temp_dir().join(format!("maple-beginner-sp-{}.sqlite3", random_id()));
         let db = Connection::open(&path).unwrap();
         Store::init(&db).unwrap();
-        let store = Store { db: Arc::new(Mutex::new(db)) };
+        let store = Store {
+            db: Arc::new(Mutex::new(db)),
+        };
         let defaults = Profile {
-            hp: 50, max_hp: 50, mp: 5, max_mp: 5, level: 1, job: 0,
-            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
-            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
-            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
             ability_stats: AbilityStats::default(),
         };
         let mut profile = store.load_profile("old", &defaults).unwrap();
@@ -6129,7 +6785,10 @@ mod tests {
         store.save_profile("old", &profile).unwrap();
         let repaired = store.load_profile("old", &defaults).unwrap();
         assert_eq!(repaired.skill_points, BTreeMap::from([(0, 1), (200, 9)]));
-        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points, repaired.skill_points);
+        assert_eq!(
+            store.load_profile("old", &defaults).unwrap().skill_points,
+            repaired.skill_points
+        );
         profile = repaired;
         profile.level = 7;
         profile.skills = BTreeMap::from([(1000, 3), (1001, 1)]);
@@ -6139,12 +6798,20 @@ mod tests {
         assert_eq!(profile.skills[&1000], 3);
         profile.skill_points.insert(0, 20); // Never reclaim an existing surplus.
         store.save_profile("old", &profile).unwrap();
-        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points[&0], 20);
+        assert_eq!(
+            store.load_profile("old", &defaults).unwrap().skill_points[&0],
+            20
+        );
         drop(store);
         let db = Connection::open(&path).unwrap();
         Store::init(&db).unwrap();
-        let store = Store { db: Arc::new(Mutex::new(db)) };
-        assert_eq!(store.load_profile("old", &defaults).unwrap().skill_points[&0], 20);
+        let store = Store {
+            db: Arc::new(Mutex::new(db)),
+        };
+        assert_eq!(
+            store.load_profile("old", &defaults).unwrap().skill_points[&0],
+            20
+        );
         let mut fresh = defaults.clone();
         add_exp(&mut fresh, 7, &[1; 8]); // Cross levels 2..8: only six beginner SP.
         assert_eq!((fresh.level, fresh.skill_points[&0]), (8, 6));
@@ -6168,7 +6835,8 @@ mod tests {
 
     #[test]
     fn mage_level_up_grants_three_book_points_once_across_reward_replay() {
-        let runtime: serde_json::Value = serde_json::from_str(include_str!("../../shared/gameplay.json")).unwrap();
+        let runtime: serde_json::Value =
+            serde_json::from_str(include_str!("../../shared/gameplay.json")).unwrap();
         let exp_table: Vec<u64> = serde_json::from_value(runtime["expTable"].clone()).unwrap();
         assert_eq!(exp_table.first(), Some(&15));
         let db = Connection::open_in_memory().unwrap();
@@ -6242,25 +6910,53 @@ mod tests {
         assert_eq!(after_replay.level, 3);
         assert_eq!(after_replay.ability_stats.available_ap, 10);
         assert_eq!(after_replay.skill_points.get(&MAGE_BOOK), Some(&11));
-        let first = store.allocate_ap("mage", "ap-int", AbilityStat::Intelligence).unwrap();
+        let first = store
+            .allocate_ap("mage", "ap-int", AbilityStat::Intelligence)
+            .unwrap();
         assert!(first.success);
         assert_eq!((first.stats.intelligence, first.stats.available_ap), (5, 9));
-        let second = store.allocate_ap("mage", "ap-luk", AbilityStat::Luck).unwrap();
+        let second = store
+            .allocate_ap("mage", "ap-luk", AbilityStat::Luck)
+            .unwrap();
         assert!(second.success);
-        let repeated = store.allocate_ap("mage", "ap-int", AbilityStat::Intelligence).unwrap();
+        let repeated = store
+            .allocate_ap("mage", "ap-int", AbilityStat::Intelligence)
+            .unwrap();
         assert!(repeated.success && repeated.already_resolved);
-        let conflict = store.allocate_ap("mage", "ap-int", AbilityStat::Strength).unwrap();
+        let conflict = store
+            .allocate_ap("mage", "ap-int", AbilityStat::Strength)
+            .unwrap();
         assert!(!conflict.success);
         assert_eq!(conflict.code, "request_conflict");
         let current = store.load_profile("mage", &defaults).unwrap();
-        assert_eq!((current.ability_stats.intelligence, current.ability_stats.luck, current.ability_stats.available_ap), (5, 5, 8));
+        assert_eq!(
+            (
+                current.ability_stats.intelligence,
+                current.ability_stats.luck,
+                current.ability_stats.available_ap
+            ),
+            (5, 5, 8)
+        );
         store.load_profile("other", &defaults).unwrap();
-        assert!(!store.allocate_ap("other", "ap-int", AbilityStat::Intelligence).unwrap().success);
+        assert!(
+            !store
+                .allocate_ap("other", "ap-int", AbilityStat::Intelligence)
+                .unwrap()
+                .success
+        );
         let mut empty = current.clone();
         empty.ability_stats.available_ap = 0;
         store.save_profile("mage", &empty).unwrap();
-        assert!(!store.allocate_ap("mage", "ap-empty", AbilityStat::Strength).unwrap().success);
-        assert_eq!(store.load_profile("mage", &defaults).unwrap().ability_stats, empty.ability_stats);
+        assert!(
+            !store
+                .allocate_ap("mage", "ap-empty", AbilityStat::Strength)
+                .unwrap()
+                .success
+        );
+        assert_eq!(
+            store.load_profile("mage", &defaults).unwrap().ability_stats,
+            empty.ability_stats
+        );
     }
 
     #[test]
@@ -7205,16 +7901,32 @@ mod tests {
         let auth = start(&path).unwrap();
         let store = auth.store.clone();
         let defaults = Profile {
-            hp: 50, max_hp: 50, mp: 5, max_mp: 5, level: 10, job: 500,
-            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
-            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
-            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 10,
+            job: 500,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
             ability_stats: AbilityStats::default(),
         };
         store.load_profile("a", &defaults).unwrap();
         let item = |slot, id: &str| {
-            let mut item = InventoryItem { slot, item_id: id.into(), quantity: 1,
-                ..InventoryItem::default() };
+            let mut item = InventoryItem {
+                slot,
+                item_id: id.into(),
+                quantity: 1,
+                ..InventoryItem::default()
+            };
             inventory::ensure_equipment_instance(&mut item);
             item
         };
@@ -7232,8 +7944,14 @@ mod tests {
             tx.commit().unwrap();
         }
         let original_equipped = store.load_equipped("a").unwrap();
-        let stats = EquipmentStats { level: 10, job: 500, ..EquipmentStats::default() };
-        let blocked = store.use_item("a", "full", 1, 1, "1052095", None, None, stats).unwrap();
+        let stats = EquipmentStats {
+            level: 10,
+            job: 500,
+            ..EquipmentStats::default()
+        };
+        let blocked = store
+            .use_item("a", "full", 1, 1, "1052095", None, None, stats)
+            .unwrap();
         assert!(!blocked.success);
         assert_eq!(blocked.code, "inventory_full");
         assert_eq!(store.load_profile("a", &defaults).unwrap().inventory, full);
@@ -7245,7 +7963,9 @@ mod tests {
             write_inventory_tx(&tx, "a", &full[..full.len() - 1]).unwrap();
             tx.commit().unwrap();
         }
-        let applied = store.use_item("a", "equip", 1, 1, "1052095", None, None, stats).unwrap();
+        let applied = store
+            .use_item("a", "equip", 1, 1, "1052095", None, None, stats)
+            .unwrap();
         assert!(applied.success);
         let saved_inventory = store.load_profile("a", &defaults).unwrap().inventory;
         let saved_equipped = store.load_equipped("a").unwrap();
@@ -7257,20 +7977,45 @@ mod tests {
         drop(auth);
         let auth = start(&path).unwrap();
         let store = &auth.store;
-        assert!(store.use_item("a", "equip", 1, 1, "1052095", None, None, stats).unwrap().success);
-        assert_eq!(store.load_profile("a", &defaults).unwrap().inventory, saved_inventory);
+        assert!(
+            store
+                .use_item("a", "equip", 1, 1, "1052095", None, None, stats)
+                .unwrap()
+                .success
+        );
+        assert_eq!(
+            store.load_profile("a", &defaults).unwrap().inventory,
+            saved_inventory
+        );
         assert_eq!(store.load_equipped("a").unwrap(), saved_equipped);
-        let pants_slot = saved_inventory.iter().find(|i| i.item_id == "1060002").unwrap().slot as i16;
+        let pants_slot = saved_inventory
+            .iter()
+            .find(|i| i.item_id == "1060002")
+            .unwrap()
+            .slot as i16;
         // Dragging trousers onto the equipment slot shares the same atomic conflict handling.
-        assert!(store.move_inventory("a", "pants", 1, pants_slot, -6, 1, stats).unwrap().success);
+        assert!(
+            store
+                .move_inventory("a", "pants", 1, pants_slot, -6, 1, stats)
+                .unwrap()
+                .success
+        );
         let swapped_inventory = store.load_profile("a", &defaults).unwrap().inventory;
         let swapped_equipped = store.load_equipped("a").unwrap();
         assert_eq!(swapped_equipped, vec![item(6, "1060002")]);
         let mut returned_overall = full[0].clone();
         returned_overall.slot = pants_slot as u16;
         assert!(swapped_inventory.contains(&returned_overall));
-        assert!(store.move_inventory("a", "pants", 1, pants_slot, -6, 1, stats).unwrap().success);
-        assert_eq!(store.load_profile("a", &defaults).unwrap().inventory, swapped_inventory);
+        assert!(
+            store
+                .move_inventory("a", "pants", 1, pants_slot, -6, 1, stats)
+                .unwrap()
+                .success
+        );
+        assert_eq!(
+            store.load_profile("a", &defaults).unwrap().inventory,
+            swapped_inventory
+        );
         assert_eq!(store.load_equipped("a").unwrap(), swapped_equipped);
         drop(auth);
         let _ = std::fs::remove_file(&path);

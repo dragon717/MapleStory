@@ -1,0 +1,155 @@
+/* The world-map window, assembled from the exported Map.wz/WorldMap page art
+   and the UI/UIWindow2.img/WorldMap plate.  The plate is a single 654x537
+   source image, so the shell carries it as its own background and every other
+   position below is a measured source coordinate (see worldmap-view.ts). */
+
+.worldmap-window {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  z-index: 6;
+  filter: drop-shadow(0 10px 14px #000b);
+  user-select: none;
+  image-rendering: pixelated;
+  /* The plate is authored at a fixed pixel size, so on a viewport too small to
+     hold it the whole window is scaled down uniformly — the view keeps this in
+     sync with the viewport and the window box shrinks with it, which is what
+     keeps the plate from overflowing. */
+  --worldmap-scale: 1;
+  width: calc(654px * var(--worldmap-scale));
+  height: calc(537px * var(--worldmap-scale));
+}
+
+.worldmap-window[hidden] {
+  display: none !important;
+}
+
+.worldmap-shell {
+  position: relative;
+  width: 654px;
+  height: 537px;
+  background-repeat: no-repeat;
+  background-size: 654px 537px;
+  outline: none;
+  /* Scale from the top-left so the shrunk plate occupies exactly the window
+     box above, and the centring transform stays a plain -50%. */
+  transform: scale(var(--worldmap-scale));
+  transform-origin: 0 0;
+}
+
+/* The authored page canvas (640x470) sits at (7, 40) inside the plate: the
+   white interior is x9..646 / y21..529, and centring the canvas in it lands
+   on 7 / 40.  Anything the page art draws outside the canvas is clipped, the
+   way the original clips it to the window. */
+.worldmap-page {
+  position: absolute;
+  left: 7px;
+  top: 40px;
+  width: 640px;
+  height: 470px;
+  overflow: hidden;
+}
+
+.worldmap-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* One authored MapLink plate.  Its size and position come from the source
+   canvas origin, so the plate lands exactly where the client draws it. */
+.worldmap-link {
+  position: absolute;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+
+.worldmap-link:hover:not(:disabled) {
+  filter: brightness(1.14) drop-shadow(0 0 2px #fff8);
+}
+
+/* Plates whose authored target page is not part of this catalog stay visible
+   (they are part of the page art) but cannot be clicked. */
+.worldmap-link:disabled {
+  cursor: default;
+}
+
+.worldmap-link:focus-visible {
+  outline: 2px solid #ffd35c;
+  outline-offset: 1px;
+}
+
+/* The authored `#mapImage` plate marks the map the caller is standing in.
+   The source ships a single frame; the gentle blink is a display affordance
+   so a 15 px plate is findable on a 640x470 page, not a second source frame. */
+.worldmap-plate {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px #000a);
+  animation: worldmap-plate-blink 1.6s steps(1, end) infinite;
+}
+
+.worldmap-plate[hidden] {
+  display: none;
+}
+
+@keyframes worldmap-plate-blink {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: 0.45; }
+}
+
+/* Every authored control is positioned by its own canvas origin, which the
+   view writes inline; the size changes with the state (the close button grows
+   from 13x13 to 17x17 on hover), so the element itself is the sprite. */
+.worldmap-control {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+
+.worldmap-control:disabled {
+  cursor: default;
+}
+
+.worldmap-control:focus-visible {
+  outline: 2px solid #ffd35c;
+  outline-offset: 1px;
+}
+
+.worldmap-empty {
+  position: absolute;
+  left: 7px;
+  top: 40px;
+  width: 640px;
+  margin: 0;
+  padding: 24px 28px;
+  color: #3b3b3b;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.worldmap-empty[hidden] {
+  display: none;
+}

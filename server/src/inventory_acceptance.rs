@@ -158,7 +158,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         .unwrap();
     assert_eq!(
         store
-        .load_equipped("a")
+            .load_equipped("a")
             .unwrap()
             .into_iter()
             .find(|i| i.slot == 9)
@@ -200,7 +200,13 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         .into_iter()
         .find(|i| i.item_id == "1102173")
         .unwrap();
-    assert_eq!(recovered, crate::protocol::InventoryItem { slot: 1, ..upgraded.clone() });
+    assert_eq!(
+        recovered,
+        crate::protocol::InventoryItem {
+            slot: 1,
+            ..upgraded.clone()
+        }
+    );
     let mesos = store
         .drop_mesos("a", "map", "mesos", 100, 0.0, 0.0)
         .unwrap();

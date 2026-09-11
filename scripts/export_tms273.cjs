@@ -439,7 +439,16 @@ async function exportItems() {
   const data=JSON.parse(fs.readFileSync(path.join(output,'items.json'),'utf8')),items={};
   for(const [id,item] of Object.entries(data)) {
     assert(item.spriteSource&&!item.spriteSource.includes('*'),`Missing item image source: ${id}`);
-    items[id]=await frame(item.spriteSource);
+    // Split client packs sometimes carry only the base image (0204.img) while
+    // the unpacked JSON tree kept an updated `0204 2` sibling; those items
+    // link to the base image's canvas, so fall back to it before failing.
+    try {
+      items[id]=await frame(item.spriteSource);
+    } catch (error) {
+      const fallback=item.spriteSource.replace(/(\d+) 2\.img\//,'$1.img/');
+      if(fallback===item.spriteSource) throw error;
+      items[id]=await frame(fallback);
+    }
   }
   items['0']=await frame('Item/Special/0900.img/09000000/iconRaw/0');
   save('item-images.json',items);
