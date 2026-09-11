@@ -1,7 +1,7 @@
 use crate::lobby;
 use crate::protocol::{AbilityStat, AbilityStats};
 use crate::{
-    inventory::{self, EquipmentStats, SLOT_LIMIT},
+    inventory::{self, EquipmentStats, MAX_SLOT_LIMIT, SLOT_LIMIT},
     protocol::InventoryItem,
 };
 use argon2::{
@@ -503,6 +503,7 @@ impl Store {
                mesos INTEGER NOT NULL DEFAULT 0,
                death_id TEXT NOT NULL DEFAULT '',
                starter_equipment_seeded INTEGER NOT NULL DEFAULT 0,
+               starter_backpack_seeded INTEGER NOT NULL DEFAULT 0,
                map_id TEXT NOT NULL DEFAULT '',
                x REAL NOT NULL DEFAULT 0,
                y REAL NOT NULL DEFAULT 0,
@@ -731,6 +732,19 @@ impl Store {
         if has_starter_equipment_seeded.is_none() {
             db.execute(
                 "ALTER TABLE player_stats ADD COLUMN starter_equipment_seeded INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+        let has_starter_backpack_seeded: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='starter_backpack_seeded'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_starter_backpack_seeded.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN starter_backpack_seeded INTEGER NOT NULL DEFAULT 0",
                 [],
             )?;
         }
@@ -1149,6 +1163,68 @@ impl Store {
             )
             .map_err(|_| "account persistence failed")?;
         Ok(u8::try_from(count.clamp(0, 4)).unwrap_or(0))
+    }
+
+    /// Seed the starter backpack coupon on the first join after a beginner
+    /// account is created.  Idempotent through `starter_backpack_seeded`.
+    /// Returns the freshly granted items so callers can merge them into the
+    /// in-memory `profile.inventory` without round-tripping the database.
+    pub fn seed_starter_backpack(&self, account_id: &str) -> Result<Vec<InventoryItem>, String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        let seeded: i64 = tx
+            .query_row(
+                "SELECT starter_backpack_seeded FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        if seeded != 0 {
+            return Ok(Vec::new());
+        }
+        let inventory_count: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM inventory WHERE account_id=?1 AND quantity>0",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
+        if inventory_count != 0 {
+            // A non-empty inventory means the starter backpack grant would
+            // collide; mark the marker so the check stays idempotent.
+            tx.execute(
+                "UPDATE player_stats SET starter_backpack_seeded=1 WHERE account_id=?1",
+                [account_id],
+            )
+            .map_err(|_| "account persistence failed")?;
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(Vec::new());
+        }
+        let mut granted = Vec::new();
+        for item in inventory::starter_items() {
+            let kind = inventory::inventory_type(&item.item_id)
+                .ok_or_else(|| format!("unknown starter item {}", item.item_id))?;
+            tx.execute(
+                "INSERT INTO inventory(account_id,inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots)
+                 VALUES (?1,?2,?3,?4,?5,'{}',0,0)",
+                params![
+                    account_id,
+                    i64::from(kind),
+                    i64::from(item.slot),
+                    item.item_id,
+                    i64::from(item.quantity),
+                ],
+            )
+            .map_err(|_| "account persistence failed")?;
+            granted.push(item);
+        }
+        tx.execute(
+            "UPDATE player_stats SET starter_backpack_seeded=1 WHERE account_id=?1",
+            [account_id],
+        )
+        .map_err(|_| "account persistence failed")?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(granted)
     }
 
     /// Read the durable per-tab inventory slot capacities.  An empty or absent
@@ -4601,10 +4677,15 @@ fn inventory_has_room(
     if need <= 0 {
         return Ok(true);
     }
+    let capacity = read_inventory_slots_tx(tx, account_id)
+        .map_err(|_| "account persistence failed")?
+        .get(&kind)
+        .copied()
+        .unwrap_or(inventory::SLOT_LIMIT);
     let free: i64 = tx
         .query_row(
             "SELECT ?3 - COUNT(*) FROM inventory WHERE account_id=?1 AND inventory_type=?2",
-            params![account_id, kind, i64::from(inventory::SLOT_LIMIT)],
+            params![account_id, kind, i64::from(capacity)],
             |row| row.get(0),
         )
         .map_err(|_| "account persistence failed")?;
@@ -4888,7 +4969,7 @@ fn migrate_inventory_schema(
                 let slot = preferred
                     .take()
                     .filter(|slot| inventory::valid_slot(*slot as i16) && !slots.contains(slot))
-                    .or_else(|| (1..=SLOT_LIMIT).find(|slot| !slots.contains(slot)))
+                    .or_else(|| (1..=MAX_SLOT_LIMIT).find(|slot| !slots.contains(slot)))
                     .ok_or_else(|| {
                         rusqlite::Error::InvalidParameterName(format!(
                             "inventory migration: no free slot for {item_id}"
@@ -5072,7 +5153,7 @@ fn normalize_inventory_tx(tx: &rusqlite::Transaction<'_>) -> Result<(), String> 
                         && !allocated_slots.contains(slot)
                 })
                 .or_else(|| {
-                    (1..=SLOT_LIMIT)
+                    (1..=MAX_SLOT_LIMIT)
                         .find(|slot| !occupied.contains(slot) && !allocated_slots.contains(slot))
                 })
                 .ok_or_else(|| format!("no free inventory slot for {item_id}"))?;
@@ -5124,12 +5205,12 @@ fn read_inventory_tx(
     let mut stmt = tx
         .prepare(
             "SELECT inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM inventory
-             WHERE account_id=?1 AND inventory_type BETWEEN 1 AND 5 AND slot BETWEEN 1 AND 24 AND quantity>0
+             WHERE account_id=?1 AND inventory_type BETWEEN 1 AND 5 AND slot BETWEEN 1 AND ?2 AND quantity>0
              ORDER BY inventory_type,slot",
         )
         .map_err(|_| "account persistence failed")?;
     let rows = stmt
-        .query_map([account_id], |row| {
+        .query_map(params![account_id, i64::from(MAX_SLOT_LIMIT)], |row| {
             let item_id: String = row.get(2)?;
             let is_equipment = inventory::is_equipment(&item_id);
             Ok(InventoryItem {
@@ -8220,6 +8301,106 @@ mod tests {
         assert_eq!(store.load_equipped("a").unwrap().len(), 1);
         store.load_profile("a", &defaults).unwrap();
         assert_eq!(store.load_equipped("a").unwrap().len(), 1);
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn starter_backpack_grants_one_slot_expansion_coupon_once() {
+        let path =
+            std::env::temp_dir().join(format!("maple-starter-coupon-{}.sqlite3", random_id()));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+        // First init seeds exactly one equip-tab coupon in the use tab.
+        let granted = store.seed_starter_backpack("a").unwrap();
+        assert_eq!(granted.len(), 1, "fresh beginner holds one equip-tab coupon");
+        assert_eq!(granted[0].item_id, "2430768");
+        assert_eq!(granted[0].slot, SLOT_LIMIT, "the coupon sits at the end of the use tab");
+        assert_eq!(granted[0].quantity, 1);
+        // Re-seeding must be a no-op (idempotent).
+        let granted = store.seed_starter_backpack("a").unwrap();
+        assert!(
+            granted.is_empty(),
+            "re-seeding must not duplicate the starter coupon",
+        );
+        // The seeded row is visible through the normal profile read path.
+        let profile = store.load_profile("a", &defaults).unwrap();
+        assert_eq!(
+            profile.inventory.iter().filter(|item| item.item_id == "2430768").count(),
+            1,
+            "profile inventory must include the freshly seeded coupon",
+        );
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn inventory_slots_above_24_round_trip_after_expansion() {
+        let path =
+            std::env::temp_dir().join(format!("maple-expanded-slots-{}.sqlite3", random_id()));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+        // A slot beyond the 24-slot default must survive a write/read round
+        // trip: it is the exact regression that made expanded tabs appear to
+        // lose items placed past slot 24.
+        let expanded = InventoryItem {
+            slot: 25,
+            item_id: "2000000".into(),
+            quantity: 3,
+            ..InventoryItem::default()
+        };
+        {
+            let mut db = store.db.lock().unwrap();
+            let tx = db.transaction().unwrap();
+            write_inventory_tx(&tx, "a", &[expanded.clone()]).unwrap();
+            tx.commit().unwrap();
+        }
+        let read = store.load_profile("a", &defaults).unwrap().inventory;
+        assert_eq!(read, vec![expanded], "slot 25 item must round-trip after expansion");
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));

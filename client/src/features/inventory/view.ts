@@ -7,7 +7,22 @@ import './style.css';
 const MIN_DROP_MESOS = 10;
 const MAX_DROP_MESOS = 50_000;
 const TAB_COUNT = 5;
-const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventorySetup', 'inventoryEtc', 'inventoryCash'] as const;
+// Order mirrors the source-authored tab:category/<n> frame sequence
+// (裝備 / 消耗 / 其他 / 裝飾 / 現金).  Any reshuffle here must match
+// `inventoryLayout.small.tabs.count` and the `tab:category/<state>/<n>`
+// frames in manifest.inventoryUi.
+const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventoryEtc', 'inventorySetup', 'inventoryCash'] as const;
+// Server-side inventory type per visible tab index.  Mirrors the
+// authoritative five-bucket catalog: 1=equip, 2=use, 3=setup, 4=etc, 5=cash.
+// The tab order above is *not* a straight +1 because the source frames put
+// 4 (Etc) before 3 (Setup).
+const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = {
+  0: 1,
+  1: 2,
+  2: 4,
+  3: 3,
+  4: 5,
+};
 
 /** Consumable cooldowns are server-owned; the window only renders them. */
 type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & {
@@ -580,7 +595,7 @@ export class InventoryView {
       this.draggedSlot = slotNumber;
       this.draggedTab = this.selectedTab;
       slot.classList.add('inventory-slot-dragging');
-      const payload = JSON.stringify({ inventoryType: this.selectedTab + 1, sourceSlot: slotNumber, itemId: item.itemId });
+      const payload = JSON.stringify({ inventoryType: TAB_INVENTORY_TYPE[this.selectedTab] ?? this.selectedTab + 1, sourceSlot: slotNumber, itemId: item.itemId });
       event.dataTransfer?.setData('application/x-maple-inventory', payload);
       event.dataTransfer?.setData('text/plain', payload);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -803,9 +818,10 @@ export class InventoryView {
     return this.inventory.find(item => item.slot === slot && itemCategoryTab(item.itemId) === tab);
   }
 
-  /** The current server-owned slot capacity for one tab (1-based tab index). */
+  /** The current server-owned slot capacity for the visible tab. */
   private slotLimit(tab: number) {
-    return this.inventorySlots[tab + 1] ?? this.inventoryLayout.backendSlotLimit;
+    const inventoryType = TAB_INVENTORY_TYPE[tab] ?? tab + 1;
+    return this.inventorySlots[inventoryType] ?? this.inventoryLayout.backendSlotLimit;
   }
 
   private visibleItemAt(slot: number) {
@@ -834,7 +850,7 @@ export class InventoryView {
     if (!this.send({
       type: 'inventoryMove',
       requestId: this.requestId('move'),
-      inventoryType: sourceTab + 1,
+      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
       sourceSlot,
       targetSlot,
       quantity: item.quantity,
@@ -865,7 +881,7 @@ export class InventoryView {
     if (!this.send({
       type: 'dropItem',
       requestId: this.requestId('drop'),
-      inventoryType: sourceTab + 1,
+      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
       sourceSlot,
       quantity,
     })) {
@@ -883,7 +899,7 @@ export class InventoryView {
     const message: ClientMessage = {
       type: operation === 'gather' ? 'inventoryGather' : 'inventorySort',
       requestId: this.requestId(operation),
-      inventoryType: this.selectedTab + 1,
+      inventoryType: TAB_INVENTORY_TYPE[this.selectedTab] ?? this.selectedTab + 1,
     };
     if (!this.send(message)) {
       this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
@@ -904,7 +920,7 @@ export class InventoryView {
     const base = {
       type: 'useItem' as const,
       requestId,
-      inventoryType: sourceTab + 1,
+      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
       sourceSlot,
       itemId: item.itemId,
     };

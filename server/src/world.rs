@@ -4153,6 +4153,23 @@ impl World {
                     },
                     None => (inventory::starter_equipment(), BTreeMap::new()),
                 };
+                // Grant the starter backpack coupon (one per account).  Lives
+                // on join — not on load_profile — so unit tests that load a
+                // profile directly are not surprised by an extra inventory row.
+                if let Some(store) = self.store.as_ref() {
+                    match store.seed_starter_backpack(&identity.id) {
+                        Ok(granted) => {
+                            for item in granted {
+                                profile.inventory.push(item);
+                            }
+                        }
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    }
+                }
                 let inventory_slots = match self.store.as_ref() {
                     Some(store) => match store.load_inventory_slots(&identity.id) {
                         Ok(slots) => slots,

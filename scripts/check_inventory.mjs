@@ -42,10 +42,15 @@ const finalValues = names.itemDetails('1302000', {
 assert.doesNotMatch(finalValues, /攻击力: 15/);
 assert.match(finalValues, /魔法攻击力: 13/);
 assert.match(finalValues, /智力: 7/);
-assert.equal(names.itemCategoryTab('4000019'), 3);
-assert.equal(names.itemCategoryTab('01302000'), 0);
-assert.equal(names.itemCategoryTab('10000001'), 3);
-assert.equal(names.itemCategoryTab('1bad'), 3);
+// The tab sequence mirrors the source tab:category/<n> frame order:
+// 0 裝備 / 1 消耗 / 2 其他 / 3 裝飾 / 4 現金 — *not* a straight inventoryType-1.
+assert.equal(names.itemCategoryTab('4000019'), 2); // 4xxxx = Etc → tab 2 "其他"
+assert.equal(names.itemCategoryTab('01302000'), 0); // 1xxxx = 裝備 → tab 0
+assert.equal(names.itemCategoryTab('2000000'), 1); // 2xxxx = 消耗 → tab 1
+assert.equal(names.itemCategoryTab('3000000'), 3); // 3xxxx = 裝飾 → tab 3
+assert.equal(names.itemCategoryTab('5000000'), 4); // 5xxxx = 現金 → tab 4
+assert.equal(names.itemCategoryTab('10000001'), 2); // unknown numeric id falls through to 其他
+assert.equal(names.itemCategoryTab('1bad'), 2);
 assert.equal(names.itemName('unknown'), 'unknown');
 globalThis.testLocale = 'en';
 assert.equal(names.itemName('2000000'), '紅色藥水');

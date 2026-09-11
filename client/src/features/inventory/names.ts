@@ -93,12 +93,22 @@ export function itemName(itemId: string): string {
 
 /**
  * Item id / 1_000_000 identifies the five ordinary inventory categories.
- * Unknown ids are left for the
- * Etc tab so an unrecognised item remains visible.
+ * The tab index must match the source-authored `tab:category/<n>` frame
+ * order in UI/UIInventory.img/Inventory: tab 2's frame reads "其他"
+ * (Etc) and tab 3's frame reads "裝飾" (Setup), so the inventoryType → tab
+ * map is *not* a straight `- 1`.  Unknown ids fall through to the Etc tab.
  */
+const CATEGORY_TAB: Readonly<Record<number, number>> = {
+  1: 0, // 裝備
+  2: 1, // 消耗
+  4: 2, // 其他
+  3: 3, // 裝飾
+  5: 4, // 現金
+};
+
 export function itemCategoryTab(itemId: string): number {
   const type = /^\d+$/.test(itemId) ? Math.floor(Number(itemId) / 1_000_000) : 0;
-  return type >= 1 && type <= 5 ? type - 1 : 3;
+  return CATEGORY_TAB[type] ?? 2;
 }
 
 

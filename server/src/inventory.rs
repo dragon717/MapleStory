@@ -201,6 +201,27 @@ pub fn starter_equipment() -> Vec<InventoryItem> {
         .collect()
 }
 
+/// The starter *backpack* items granted once on first account initialization,
+/// alongside `starter_equipment`.  These land in the ordinary inventory (not
+/// the equipped rows).  A single equip-tab slot-expansion coupon gives a fresh
+/// beginner a concrete way to exercise the slot-expansion path and keeps the
+/// "use" tab non-empty from the very first login.
+pub fn starter_items() -> Vec<InventoryItem> {
+    // 2430768 = 裝備欄 8格擴充券 (inventoryType 2, slotExpand 1).  Placed at
+    // the *end* of the default 24-slot use tab so it does not collide with
+    // unit-test fixtures that fill slot 1 of the use tab.  Quantity 1; not
+    // equipment, so no instance metadata.
+    [("2430768", SLOT_LIMIT)]
+        .into_iter()
+        .map(|(item_id, slot)| InventoryItem {
+            slot,
+            item_id: item_id.to_owned(),
+            quantity: 1,
+            ..InventoryItem::default()
+        })
+        .collect()
+}
+
 pub fn item_success_rate(item_id: &str) -> Option<u32> {
     info_i64(item_id, "success").and_then(|value| u32::try_from(value.max(0)).ok())
 }
