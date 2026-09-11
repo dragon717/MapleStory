@@ -16697,14 +16697,6 @@ impl World {
             let next = self.tick.saturating_add((interval_ms / TICK_MS).max(1));
             if let Some(monster) = self.monsters.get_mut(id) {
                 monster.next_skill_tick = next;
-                // Enter the authored cast pose so the client plays the mob's
-                // skill/attack action for the same window the effect applies.
-                monster.state.action = if skill.action == 2 {
-                    "attack2"
-                } else {
-                    "skill1"
-                };
-                monster.state.action_started_tick = self.tick;
             }
             // Broadcast the cast so clients can play the source action and any
             // effect anchors.
@@ -18696,9 +18688,6 @@ mod tests {
             stand_delay_ms: None,
             move_duration_ms: None,
             drop: None,
-            skills: Vec::new(),
-            body_disease: None,
-            body_disease_level: None,
         }
     }
 
@@ -21183,9 +21172,6 @@ mod tests {
                     stand_delay_ms: None,
                     move_duration_ms: None,
                     drop: None,
-                    skills: Vec::new(),
-                    body_disease: None,
-                    body_disease_level: None,
                 }],
                 spawns: vec![MonsterSpawn {
                     id: "s1".into(),
@@ -21373,9 +21359,6 @@ mod tests {
                     stand_delay_ms: None,
                     move_duration_ms: None,
                     drop: None,
-                    skills: Vec::new(),
-                    body_disease: None,
-                    body_disease_level: None,
                 }],
                 spawns: vec![MonsterSpawn {
                     id: "s1".into(),
@@ -21433,9 +21416,6 @@ mod tests {
                     stand_delay_ms: Some(100),
                     move_duration_ms: Some(900),
                     drop: None,
-                    skills: Vec::new(),
-                    body_disease: None,
-                    body_disease_level: None,
                 }],
                 spawns: vec![MonsterSpawn {
                     id: "s1".into(),
@@ -21510,9 +21490,6 @@ mod tests {
                     stand_delay_ms: Some(100),
                     move_duration_ms: Some(900),
                     drop: None,
-                    skills: Vec::new(),
-                    body_disease: None,
-                    body_disease_level: None,
                 }],
                 spawns: vec![MonsterSpawn {
                     id: "s1".into(),
@@ -21580,9 +21557,6 @@ mod tests {
                 stand_delay_ms: None,
                 move_duration_ms: None,
                 drop: None,
-                skills: Vec::new(),
-                body_disease: None,
-                body_disease_level: None,
             }],
             spawns: vec![MonsterSpawn {
                 id: "sa".into(),
@@ -22247,7 +22221,6 @@ mod tests {
     include!("friend_acceptance.rs");
     include!("whisper_acceptance.rs");
     include!("emoticon_acceptance.rs");
-    include!("monster_status_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

@@ -23,6 +23,8 @@ export class PlayerView {
   private flashStartedAt = 0;
   private flashUntil = 0;
   private flashWhite = false;
+  /** Current abnormal-status body tint, or undefined when none is active. */
+  private abnormalTint?: number;
   private skillAction?: SkillAction | 'attack';
   private skillActionStartedAt = 0;
   private skillActionUntil = 0;
@@ -147,7 +149,31 @@ export class PlayerView {
     this.updateBubble(player);
     this.updateEmoticon(player);
     this.updateFlash();
+    this.updateAbnormalStatus(player);
     this.updateLevelFeedback(player);
+  }
+
+  /** Abnormal-status tint (server-authored remaining ms).  Stun and seal lock
+   *  the body so the strongest visual wins; poison/curse/slow colour the body
+   *  without masking the hurt flash, which still takes priority while active. */
+  private updateAbnormalStatus(player: PlayerState) {
+    const status = player.abnormalStatus;
+    let tint: number | undefined;
+    if (status?.stunMs) tint = 0xffc000;         // 眩晕：无法移动（金色警示）
+    else if (status?.sealMs) tint = 0xb0b0b0;    // 封印：禁用技能（灰暗）
+    else if (status?.curseMs) tint = 0x7030c0;   // 诅咒：降低收益（暗紫）
+    else if (status?.poisonMs) tint = 0x40d040;  // 中毒：持续掉血（绿色）
+    else if (status?.slowMs) tint = 0x40a0ff;    // 缓速：降低移动（蓝色）
+    // The hurt flash (white) still wins while it is running so a poison tick
+    // and a contact hit read distinctly.
+    if (this.flashWhite) tint = undefined;
+    if (tint === this.abnormalTint) return;
+    this.abnormalTint = tint;
+    for (const child of this.body.list) {
+      const image = child as Phaser.GameObjects.Image;
+      if (tint === undefined) image.clearTint();
+      else image.setTint(tint);
+    }
   }
 
   /** Present one incoming same-map chat message above the character head.
@@ -382,6 +408,9 @@ export class PlayerView {
     for (const child of this.body.list) {
       const image = child as Phaser.GameObjects.Image;
       if (white) image.setTintFill(0xffffff);
+      // Restore the abnormal-status tint (if any) once the white phase ends,
+      // instead of clearing to the base colour and hiding an active disease.
+      else if (this.abnormalTint !== undefined) image.setTint(this.abnormalTint);
       else image.clearTint();
     }
   }

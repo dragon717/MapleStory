@@ -46,6 +46,19 @@ export interface PlayerState {
   monsterBook?: Record<string, number>;
   /** Server-owned away marker; display only, grants no protection or assets. */
   away?: AwayMarker;
+  /** Monster-inflicted abnormal statuses, present only while at least one is
+   *  active. Remaining milliseconds are display-only; the server owns the
+   *  authoritative deadlines and decides when each status actually ends. */
+  abnormalStatus?: AbnormalStatus;
+}
+/** Player-side abnormal-status presentation state. Emitted in snapshots; each
+ *  entry is the remaining milliseconds for the named status. */
+export interface AbnormalStatus {
+  sealMs?: number;
+  stunMs?: number;
+  curseMs?: number;
+  poisonMs?: number;
+  slowMs?: number;
 }
 /** Away presentation state. Durations are display-only; the server re-derives
  *  the stage from its own clock and decides when residency actually ends. */
@@ -237,6 +250,11 @@ export type ServerMessage =
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
   | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean; skillId?: number; skillLevel?: number; segment?: number; targetCount?: number }
+  /** A mob's authored abnormal-status skill cast, broadcast to its map so every
+   *  observer can play the source action. `targetId` is the player the cast
+   *  resolved against; the authoritative disease application rides the next
+   *  snapshot as `abnormalStatus` on that player's row. */
+  | { type: 'monsterSkill'; eventId: string; serverTick: number; monsterId: string; skillId: number; action: number; effectAfterMs: number; targetId: string }
   | { type: 'dropPickedUp'; mapId: string; dropId: string; playerId: string; x: number; y: number }
   /** Authoritative result of one reactor hit, broadcast to the whole map so
    *  every observer plays the same one-shot animation and sees the same state. */

@@ -61,9 +61,6 @@ fn party_template() -> MonsterTemplate {
         stand_delay_ms: None,
         move_duration_ms: None,
         drop: None,
-        skills: Vec::new(),
-        body_disease: None,
-        body_disease_level: None,
     }
 }
 

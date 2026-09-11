@@ -328,6 +328,13 @@ export class World extends Phaser.Scene {
         }
       }
     }
+    if (message.type === 'monsterSkill' && this.loaded) {
+      // A mob cast an abnormal-status skill against a player. The disease
+      // itself rides the next snapshot as `abnormalStatus`; here we only
+      // flash the target so the hit reads immediately, and the mob's cast
+      // pose arrives through its own action in the snapshot.
+      this.players.get(message.targetId)?.hitFeedback(300);
+    }
     if (message.type === 'reactorState' && message.mapId === this.mapId) {
       // The authoritative result: play the one-shot impact animation for the
       // exact window the server locked, so the prop becomes interactive again

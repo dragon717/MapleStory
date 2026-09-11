@@ -138,6 +138,39 @@ def records(value):
     return []
 
 
+def mob_skill_effects(wz_root, skill_id):
+    """Resolve one MobSkill id to its per-level effect numbers.
+
+    ``Skill/MobSkill/<id>.json`` authors the authoritative duration, chance,
+    cast interval, MP cost and area for each level.  The id -> effect mapping
+    (120=Seal, 123=Stun, 124=Curse, 125=Poison, 126=Slow, 128=Seduce, ...) is
+    the standard MapleDisease.getBySkill table carried by every open MapleStory
+    server; it is retained as an R (cross-region structure) reference here, not
+    as TMS273-authored text.
+    """
+    path = wz_root / "Skill" / "MobSkill" / (str(skill_id) + ".json")
+    if not path.exists():
+        return None
+    doc = read_json(path)
+    levels = unwrap(doc.get("level", {}))
+    if not isinstance(levels, dict):
+        return None
+    resolved = {}
+    for level_key, level in levels.items():
+        if not isinstance(level, dict):
+            continue
+        entry = {}
+        for field in ("x", "y", "time", "prop", "interval", "mpCon", "hp", "z"):
+            if field in level and level[field] is not None:
+                entry[field] = number(level[field], integer=True)
+        for field in ("lt", "rb"):
+            if isinstance(level.get(field), dict):
+                entry[field] = level[field]
+        if entry:
+            resolved[str(level_key)] = entry
+    return resolved or None
+
+
 def find_records(value, wanted, found=None):
     """Collect named records from String.wz's nested category trees."""
     if found is None:
@@ -537,6 +570,34 @@ def convert(args):
             value = number(info.get(source_key), integer=integer)
             if value is not None:
                 template[output_key] = value
+        # Monster-to-player abnormal status.  `bodyDisease` is the contact-hit
+        # disease (MapleDisease.getBySkill id: 126=Slow, 125=Poison, 134=Potion, ...)
+        # and `skill` is the authored active skill list (id/action/level/effectAfter).
+        body_disease = number(info.get("bodyDisease"), integer=True)
+        if body_disease is not None:
+            template["bodyDisease"] = body_disease
+            body_disease_level = number(info.get("bodyDiseaseLevel"), integer=True)
+            if body_disease_level is not None:
+                template["bodyDiseaseLevel"] = body_disease_level
+        skill_rows = records(info.get("skill"))
+        if skill_rows:
+            authored_skills = []
+            for row in skill_rows:
+                mob_skill_id = number(row.get("skill"), integer=True)
+                if mob_skill_id is None:
+                    continue
+                effects = mob_skill_effects(wz_root, mob_skill_id)
+                entry = {
+                    "skillId": mob_skill_id,
+                    "action": number(row.get("action"), 1, integer=True),
+                    "level": number(row.get("level"), 1, integer=True),
+                    "effectAfterMs": number(row.get("effectAfter"), 0, integer=True),
+                }
+                if effects:
+                    entry["effects"] = effects
+                authored_skills.append(entry)
+            if authored_skills:
+                template["skills"] = authored_skills
         entity = entity_mobs.get(runtime, {}) if not args.metadata_only else {}
         stand = action_frames(entity, "stand")
         rectangle = frame_rect(stand[0]) if stand else None
@@ -591,6 +652,9 @@ def convert(args):
             "PDRate": info.get("PDRate"),
             "MDRate": info.get("MDRate"),
             "dropSource": path_text(reward_path, tms_root) if reward_path.exists() else None,
+            "bodyDisease": info.get("bodyDisease"),
+            "bodyDiseaseLevel": info.get("bodyDiseaseLevel"),
+            "skillSource": path_text(wz_root / "Skill" / "MobSkill", tms_root),
         }
 
     monster_spawns = []
