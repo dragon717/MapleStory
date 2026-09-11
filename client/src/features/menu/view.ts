@@ -2,6 +2,7 @@ import './style.css';
 
 import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { displayText, uiText } from '../../app/i18n';
+import { installWindowDrag } from '../ui/window-shell.ts';
 
 export type MenuKind = 'game' | 'shortcut';
 type MenuAssets = Record<string, AssetFrame>;
@@ -10,6 +11,9 @@ type MenuEntry = NonNullable<Manifest['totalMenuEntries']>[number];
 const SOURCE_MENU_WIDTH = 1022;
 const SOURCE_MENU_CENTER = SOURCE_MENU_WIDTH / 2;
 const WIDE_MENU_HEIGHT = 569;
+/** Authored title strip: the heading row holds the channel chip (y13) and the
+ *  close sprite (y12); the narrow layout pads its own 36 px header. */
+const MENU_TITLE_HEIGHT = 36;
 const WIDE_MENU_HEIGHT_MIN = 560;
 const CATEGORY_X = [23, 163, 303, 443, 583, 723, 863] as const;
 const CATEGORY_LABELS = ['角色', '道具', '戰鬥', '冒險', '社群', '活動・里程', '其他'] as const;
@@ -43,6 +47,7 @@ export class MenuView {
   private readonly root: HTMLDivElement;
   private active?: MenuKind;
   private anchor?: HTMLElement;
+  private menuDragDispose?: () => void;
   private readonly onWindowChange = () => {
     if (!this.active) return;
     const menu = this.root.querySelector<HTMLElement>('.maple-menu');
@@ -111,6 +116,13 @@ export class MenuView {
     this.active = kind;
     this.anchor = anchor;
     this.positionMenu(menu);
+    // The menu is rebuilt on every open, so the drag handle is re-attached
+    // here and released again in close() (spec R2.5).
+    this.menuDragDispose?.();
+    this.menuDragDispose = installWindowDrag(this.root, menu, {
+      titleHeight: MENU_TITLE_HEIGHT,
+      isOpen: () => this.active === kind,
+    });
     menu.querySelector<HTMLButtonElement>('.maple-menu-item')?.focus({ preventScroll: true });
     return true;
   }
@@ -119,6 +131,8 @@ export class MenuView {
     const returnFocus = this.anchor;
     this.active = undefined;
     this.anchor = undefined;
+    this.menuDragDispose?.();
+    this.menuDragDispose = undefined;
     this.root.hidden = true;
     this.root.replaceChildren();
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
@@ -129,6 +143,8 @@ export class MenuView {
     document.removeEventListener('keydown', this.onDocumentKeyDown, true);
     window.removeEventListener('resize', this.onWindowChange);
     window.removeEventListener('scroll', this.onWindowChange, true);
+    this.menuDragDispose?.();
+    this.menuDragDispose = undefined;
     this.root.remove();
     this.host.replaceChildren();
     this.host.hidden = true;
@@ -292,8 +308,12 @@ export class MenuView {
     menu.style.width = `${width}px`;
     menu.style.height = `${height}px`;
     menu.classList.toggle('maple-menu-narrow', narrow);
-    menu.style.left = `${Math.max(0, Math.round((hostWidth - width) / 2))}px`;
-    menu.style.top = '0';
+    // Once the player has moved the menu, a resize keeps its width/height but
+    // must not snap it back to the centre.
+    if (menu.dataset.windowPositioned !== 'true') {
+      menu.style.left = `${Math.max(0, Math.round((hostWidth - width) / 2))}px`;
+      menu.style.top = '0';
+    }
   }
 
   private handleMenuKeyDown(event: KeyboardEvent, menu: HTMLElement) {

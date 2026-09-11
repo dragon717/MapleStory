@@ -354,6 +354,20 @@ export interface SkillCatalogEntry {
   levelDescriptions?: string[];
   levelValues?: { level: number; mpCon: number; damage: number; mobCount: number; attackCount: number }[];
 }
+/**
+ * Source-backed buff plate and the quick-slot fold keys.
+ *
+ * `ui` is flat and keyed exactly like the WZ tree (`favoriteBuff/nw`,
+ * `quickSlot/button:Fold/pressed/0`).  `layout.spaceX` / `layout.spaceY` are the
+ * authored icon spacings from `BuffSetting/favoriteBuff` (5 px in TMS273.7) —
+ * they are read from the source rather than chosen by the client.
+ */
+export interface BuffUiData {
+  contentVersion?: string;
+  source?: string;
+  ui: Record<string, AssetFrame>;
+  layout: { spaceX: number; spaceY: number };
+}
 export interface SkillWindowData {
   width: number; height: number;
   backgrounds: Record<string, SkillArt>;
@@ -518,6 +532,11 @@ export interface Manifest {
   totalMenuEntries?: { key: string; label: string; type: number; x: number; y: number }[];
   questUi?: Record<string, AssetFrame>;
   questLayout?: { listLT: Point; listRB: Point };
+  /** Source-backed UI/StatusBar3.img/BuffSetting/favoriteBuff plate (behind the
+   *  on-screen buff icons) plus the authored quick-slot fold keys.  Flat keys
+   *  mirror the WZ layout: `favoriteBuff/{nw,n,ne,w,c,e,sw,s,se}` and
+   *  `quickSlot/button:{Extend,Fold}/{normal,mouseOver,pressed,disabled}/0`. */
+  buffUi?: BuffUiData;
   /** Source-backed Npc.wz stand frames, keyed by template id. */
   npcs?: Record<string, NpcAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */

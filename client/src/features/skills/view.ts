@@ -2,6 +2,7 @@ import type { ClientMessage, PlayerState, RegenerationPassive } from '../../../.
 import type { SkillArt, SkillCatalogEntry, SkillWindowData, Manifest } from '../../assets/manifest';
 import { displayText } from '../../app/i18n';
 import { SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS } from '../player/input';
+import { installWindowDrag } from '../ui/window-shell.ts';
 import './style.css';
 
 type SkillBook = { name: string; tabIndex: number };
@@ -20,6 +21,18 @@ const BOTTOM_BUTTONS: ReadonlyArray<readonly [string, string]> = [
   ['BtSequence', '技能顺序'],
   ['BtMacro', '技能指令'],
 ];
+
+/**
+ * Authored title bar.  The window body frame (`backgrnd2`) starts at y22 and
+ * the two mode buttons sit at y335, so the source reserves the top 21 px for
+ * the title strip — the same height the inventory window drags by.
+ */
+const SKILL_TITLE_HEIGHT = 21;
+
+/** Bottom-row buttons that are deliberately not wired this round.  They keep
+ *  their authored four-state art and answer with a status line instead of
+ *  doing nothing (spec R4: no silent buttons). */
+const UNWIRED_BOTTOM_BUTTONS = new Set(['BtGuildSkill', 'BtRide', 'BtSequence', 'BtMacro']);
 
 const METRICS: ReadonlyArray<readonly [SkillMetric, string, string]> = [
   ['mpCon', '消耗 MP', ''],
@@ -63,6 +76,7 @@ export class SkillView {
   private openState = false;
   private destroyed = false;
   private requestSequence = 0;
+  private dragDispose?: () => void;
   private channelRequestId?: string;
   releaseChannel = () => {
     if (this.channelRequestId) this.send({ type: 'releaseSkill', requestId: this.channelRequestId });
@@ -142,6 +156,13 @@ export class SkillView {
     this.window.append(this.bottom);
 
     this.selectedBookId = this.books()[0]?.[0];
+    // The window starts CSS-centred; the first drag converts it to absolute
+    // coordinates at its current spot (spec R2).  Dragging is limited to the
+    // authored 21 px title strip and never starts on a button.
+    this.dragDispose = installWindowDrag(this.root, this.window, {
+      titleHeight: SKILL_TITLE_HEIGHT,
+      isOpen: () => this.openState,
+    });
     document.addEventListener('keydown', this.handleKeyDown, true);
     window.addEventListener('pointerup', this.releaseChannel);
     window.addEventListener('pointercancel', this.releaseChannel);
@@ -228,7 +249,35 @@ export class SkillView {
     window.removeEventListener('blur', this.releaseChannel);
     document.removeEventListener('visibilitychange', this.releaseHiddenChannel);
     document.removeEventListener('focusin', this.releaseOutsideChannel);
+    this.dragDispose?.();
+    this.dragDispose = undefined;
     this.root.remove();
+  }
+
+  /**
+   * Attach the authored hover / pressed / disabled frames to a button.
+   *
+   * The bottom row and the close button ship four states each in the source
+   * (`normal` / `mouseOver` / `pressed` / `disabled`); this keeps the same
+   * listener semantics as the inventory window so every panel in the game
+   * answers the pointer identically (spec R4).
+   */
+  private bindButtonStates(button: HTMLButtonElement, image: HTMLImageElement, states: Record<string, SkillArt> | undefined, enabled: () => boolean) {
+    if (!states) return;
+    const show = (state: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
+      const art = states[state] ?? states.normal;
+      if (!art) return;
+      image.src = art.url;
+      image.width = art.width;
+      image.height = art.height;
+      button.dataset.state = state;
+    };
+    const rest = () => show(enabled() ? 'normal' : 'disabled');
+    button.addEventListener('pointerenter', () => { if (enabled()) show('mouseOver'); });
+    button.addEventListener('pointerleave', rest);
+    button.addEventListener('pointerdown', () => { if (enabled()) show('pressed'); });
+    button.addEventListener('pointerup', rest);
+    button.addEventListener('pointercancel', rest);
   }
 
   private appendBackgrounds() {
@@ -272,19 +321,28 @@ export class SkillView {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `skill-bottom-button skill-bottom-button-${key}`;
-      button.disabled = key !== 'BtHyper' || this.player?.job !== 222 || this.player.level < 140;
+      // Only the hyper button has a real unlock rule (140+ ice/lightning).  The
+      // other four open windows this round does not implement, so they stay
+      // clickable and answer with a status line rather than sitting dead.
+      const unlocked = key !== 'BtHyper'
+        || (this.player !== undefined && this.player.job === 222 && this.player.level >= 140);
+      button.disabled = key === 'BtHyper' && !unlocked;
+      button.setAttribute('aria-label', label);
       if (key === 'BtHyper') {
+        button.title = unlocked ? label : '140级冰雷魔导师可学习超级技能';
         button.addEventListener('click', () => {
           this.hyperMode = true; this.selectedBookId = '222'; this.selectedSkillId = undefined; this.render();
         });
+      } else if (UNWIRED_BOTTOM_BUTTONS.has(key)) {
+        button.title = `${label}尚未接入。`;
+        button.addEventListener('click', () => this.status(`${label}尚未接入。`));
       }
-      button.setAttribute('aria-label', label);
-      button.title = key === 'BtHyper' && button.disabled ? '140级冰雷魔导师可学习超级技能' : label;
       button.style.left = `${art.x}px`;
       button.style.top = `${art.y}px`;
       button.style.width = `${art.width}px`;
       button.style.height = `${art.height}px`;
-      this.appendArt(button, button.disabled ? states?.disabled ?? art : art, 'skill-bottom-button-art', true);
+      const image = this.appendArt(button, button.disabled ? states?.disabled ?? art : art, 'skill-bottom-button-art', true);
+      this.bindButtonStates(button, image, states, () => !button.disabled);
       button.dataset.button = key;
       this.bottom.append(button);
     }
@@ -297,9 +355,20 @@ export class SkillView {
     button.setAttribute('aria-label', '关闭技能窗口');
     button.title = '关闭';
     button.addEventListener('click', () => this.close());
-    const art = this.manifest.closeButton?.['normal/0'];
-    if (art) this.appendArt(button, art, 'skill-window-close-art', true);
-    else button.textContent = '×';
+    const frames = this.manifest.closeButton;
+    const art = frames?.['normal/0'];
+    if (art) {
+      // The close sprite ships four authored states; before this it only ever
+      // showed `normal`, so the button never reacted to the pointer (spec R4).
+      const states: Record<string, SkillArt> = {
+        normal: art,
+        mouseOver: frames?.['mouseOver/0'] ?? art,
+        pressed: frames?.['pressed/0'] ?? art,
+        disabled: frames?.['disabled/0'] ?? art,
+      };
+      const image = this.appendArt(button, art, 'skill-window-close-art', true);
+      this.bindButtonStates(button, image, states, () => true);
+    } else button.textContent = '×';
     return button;
   }
 

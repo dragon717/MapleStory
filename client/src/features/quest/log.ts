@@ -1,6 +1,18 @@
 import type { QuestLogEntry } from '../../../../shared/protocol';
 import { uiLocale, displayText } from '../../app/i18n';
-import type { Manifest } from '../../assets/manifest';
+import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { installWindowDrag } from '../ui/window-shell.ts';
+
+/**
+ * Authored title strip of the Quest.img window.  The list frame is placed at
+ * `questLayout.listLT` (y70) and the close sprite sits in the top row, so the
+ * source reserves the first 21 px — the same height every other TMS273 window
+ * uses.  The CSS-only fallback panel is titlebar-styled instead and drags by
+ * its own 32 px header.
+ */
+const SOURCE_TITLE_HEIGHT = 21;
+const FALLBACK_TITLE_HEIGHT = 32;
+const CLOSE_STATES = ['normal', 'mouseOver', 'pressed', 'disabled'] as const;
 
 /**
  * Quest log window.  The server owns the authoritative entries (status /
@@ -10,6 +22,11 @@ import type { Manifest } from '../../assets/manifest';
  * panel only renders what the server sent; it carries no translation table.
  * The window uses the TMS273 Quest.img list frame and authored content bounds;
  * opening is a hotkey (Q) so the log never needs its own world-space layout.
+ *
+ * Window chrome follows `UI_WINDOW_SYSTEM.md`: the frame drags by its title
+ * strip, the close sprite carries all four authored states, and Escape closes
+ * the log — the tracker moves the same way and answers a plain click by
+ * opening the log.
  */
 export class QuestLogView {
   private readonly root: HTMLDivElement;
@@ -18,11 +35,26 @@ export class QuestLogView {
   private readonly tracker: HTMLButtonElement;
   private readonly entries = new Map<string, QuestLogEntry>();
   private openState = false;
+  private hasSourceFrame = false;
+  private dragDispose?: () => void;
+  private trackerDispose?: () => void;
+  private closeStates?: Partial<Record<(typeof CLOSE_STATES)[number], AssetFrame>>;
+
+  private readonly handleKeyDown = (event: KeyboardEvent) => {
+    if (!this.openState || event.defaultPrevented || event.repeat) return;
+    if (event.key !== 'Escape' && event.code !== 'Escape') return;
+    const target = event.target;
+    if (target instanceof Element && target.matches('input,textarea,select,[contenteditable="true"]')) return;
+    event.preventDefault();
+    this.close();
+  };
 
   constructor(private host: HTMLElement, manifest: Manifest) {
     this.root = document.createElement('div');
     this.root.className = 'quest-log';
     this.root.hidden = true;
+    this.root.setAttribute('role', 'dialog');
+    this.root.setAttribute('aria-modal', 'false');
 
     const title = document.createElement('div');
     title.className = 'quest-log-title';
@@ -41,18 +73,25 @@ export class QuestLogView {
     close.className = 'quest-log-close';
     close.textContent = '✕';
     close.setAttribute('aria-label', uiLocale() === 'en' ? 'Close quest log' : '关闭任务日志');
+    close.title = uiLocale() === 'en' ? 'Close' : '关闭';
     close.addEventListener('click', () => this.close());
 
     this.root.append(title, this.body, close);
     const source = manifest.questUi?.backgrnd, layout = manifest.questLayout;
     if (source && layout) {
+      this.hasSourceFrame = true;
       this.root.classList.add('tms-quest-log');
       Object.assign(this.root.style, { width: `${source.width}px`, height: `${source.height}px`, backgroundImage: `url("${source.url}")` });
       Object.assign(this.body.style, { left: `${layout.listLT.x}px`, top: `${layout.listLT.y}px`, width: `${layout.listRB.x-layout.listLT.x}px`, height: `${layout.listRB.y-layout.listLT.y}px` });
-      const closeFrame = manifest.questUi?.['button:close/normal/0'];
-      if (closeFrame) {
+      this.closeStates = Object.fromEntries(CLOSE_STATES.map(state => [
+        state,
+        manifest.questUi?.[`button:close/${state}/0`],
+      ])) as typeof this.closeStates;
+      const normal = this.closeStates?.normal;
+      if (normal) {
         close.textContent = '';
-        Object.assign(close.style, { left: `${closeFrame.x}px`, top: `${closeFrame.y}px`, width: `${closeFrame.width}px`, height: `${closeFrame.height}px`, backgroundImage: `url("${closeFrame.url}")` });
+        Object.assign(close.style, { left: `${normal.x}px`, top: `${normal.y}px`, width: `${normal.width}px`, height: `${normal.height}px`, backgroundImage: `url("${normal.url}")` });
+        this.bindCloseStates(close, normal);
       }
     }
     this.tracker = document.createElement('button');
@@ -61,7 +100,36 @@ export class QuestLogView {
     this.tracker.title = '打开任务日志（Q）';
     this.tracker.addEventListener('click', () => this.open());
     this.host.append(this.root, this.tracker);
+
+    this.dragDispose = installWindowDrag(this.host, this.root, {
+      titleHeight: () => this.hasSourceFrame ? SOURCE_TITLE_HEIGHT : FALLBACK_TITLE_HEIGHT,
+      isOpen: () => this.openState,
+    });
+    // The tracker *is* a button, so it opts out of the "never drag on a
+    // button" gate; the built-in activation distance keeps a plain click on it
+    // opening the log instead of nudging the strip by a pixel.
+    this.trackerDispose = installWindowDrag(this.host, this.tracker, {
+      titleHeight: () => this.tracker.getBoundingClientRect().height,
+      isOpen: () => !this.tracker.hidden,
+      allowOnButtons: true,
+      onActivate: () => { this.tracker.style.right = 'auto'; },
+    });
+    document.addEventListener('keydown', this.handleKeyDown, true);
     this.render();
+  }
+
+  /** Four authored close states; the source ships normal/mouseOver/pressed/disabled. */
+  private bindCloseStates(button: HTMLButtonElement, normal: AssetFrame) {
+    const show = (state: (typeof CLOSE_STATES)[number]) => {
+      const frame = this.closeStates?.[state] ?? normal;
+      button.style.backgroundImage = `url("${frame.url}")`;
+      button.dataset.state = state;
+    };
+    button.addEventListener('pointerenter', () => show('mouseOver'));
+    button.addEventListener('pointerleave', () => show('normal'));
+    button.addEventListener('pointerdown', () => show('pressed'));
+    button.addEventListener('pointerup', () => show('normal'));
+    button.addEventListener('pointercancel', () => show('normal'));
   }
 
   setList(quests: QuestLogEntry[]) {
@@ -109,6 +177,11 @@ export class QuestLogView {
   }
 
   destroy() {
+    document.removeEventListener('keydown', this.handleKeyDown, true);
+    this.dragDispose?.();
+    this.dragDispose = undefined;
+    this.trackerDispose?.();
+    this.trackerDispose = undefined;
     this.root.remove();
     this.tracker.remove();
   }

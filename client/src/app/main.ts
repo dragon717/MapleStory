@@ -26,8 +26,13 @@ import { CharacterInfoView } from '../features/character/view';
 import { World } from '../scenes/world';
 import './style.css';
 import '../features/hud/style.css';
+// The buff row's plate ships with the HUD line, so its sheet loads with it.
+// It is imported here (not from `buff-bar.ts`) because the offline node checks
+// transpile feature modules without a CSS loader.
+import '../features/hud/buff.css';
 import { EntryView } from '../features/entry/view';
 import { LoadingOverlay } from '../features/loading/view';
+import { installEscapeRouter } from './ui-router.ts';
 
 document.addEventListener('contextmenu', event => event.preventDefault(), { capture: true });
 
@@ -75,6 +80,7 @@ let skills: SkillView | undefined;
 let characterInfo: CharacterInfoView | undefined;
 let game: Phaser.Game | undefined;
 let layoutObserver: ResizeObserver | undefined;
+let escapeRouterDispose: (() => void) | undefined;
 let alertTimer: ReturnType<typeof setTimeout> | undefined;
 let loadingOverlay: LoadingOverlay | undefined;
 const news = el<HTMLDialogElement>('maple-news');
@@ -135,6 +141,28 @@ function status(message: string, error = false) {
 function focusGame() { requestAnimationFrame(() => el('game').focus({ preventScroll: true })); }
 function characterInfoIsOpen() {
   return Boolean((characterInfo as unknown as { isOpen?: () => boolean } | undefined)?.isOpen?.());
+}
+/**
+ * Panels that own their own Escape handling.  While any of them is showing the
+ * router leaves the key alone so that panel closes itself; when none is open,
+ * Escape raises the menu bar (`UI_WINDOW_SYSTEM.md` R5).
+ */
+function escapeBlocked() {
+  return Boolean(
+    news.open
+    || menus?.isOpen()
+    || npcDialogue?.isOpen()
+    || storage?.isOpen()
+    || deathNotice?.isOpen()
+    || skills?.isOpen()
+    || characterInfoIsOpen()
+    || party?.isOpen()
+    || friends?.isOpen()
+    || emoticons?.isOpen()
+    || inventory?.isOpen()
+    || questLog?.isOpen()
+    || worldMap?.isOpen(),
+  );
 }
 function talkToNpc(npc: NpcState) {
   skills?.close();
@@ -304,6 +332,15 @@ async function enterGame(session: LoginResponse) {
       // Source UITotalMenu type 29 is the 表情 / chat emoticon shortcut.
       () => emoticons?.toggle() ?? false,
     );
+    // The menu bar is the escape hatch: with nothing else open, Escape raises
+    // it (and a second Escape lowers it).  The menu keeps its own close
+    // listener, so the router only ever handles the "nothing is open" case.
+    escapeRouterDispose?.();
+    escapeRouterDispose = installEscapeRouter({
+      blocked: escapeBlocked,
+      menuOpen: () => Boolean(menus?.isOpen()),
+      toggleMenu: () => { menus?.toggle('game'); },
+    });
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();
@@ -616,6 +653,7 @@ function leaveGame(logout = false) {
   // character does not leave the previous one standing in the world.
   if (logout) connection?.send({ type: 'logout' });
   layoutObserver?.disconnect(); layoutObserver = undefined;
+  escapeRouterDispose?.(); escapeRouterDispose = undefined;
   // Hide the loading overlay before the game view collapses so a partially
   // bootstrapped session doesn't leave an orphaned progress card behind.
   loadingOverlay?.hide(); loadingOverlay = undefined;

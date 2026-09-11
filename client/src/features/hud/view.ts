@@ -1,6 +1,7 @@
 import type { PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, SkillCatalogEntry } from '../../assets/manifest';
 import { shortcutSkill } from '../player/input.ts';
+import { BuffBar } from './buff-bar.ts';
 
 export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing'>;
 export function gaugeRatio(value: number, maximum: number): number {
@@ -66,12 +67,18 @@ export class HudView {
   private quickSlot?: HTMLDivElement;
   private quickGrid?: HTMLDivElement;
   private quickToggle?: HTMLButtonElement;
+  private quickToggleImage?: HTMLImageElement;
+  private quickToggleState: 'normal' | 'mouseOver' | 'pressed' | 'disabled' = 'normal';
+  private buffBar?: BuffBar;
   private shortcutCells: ShortcutCell[] = [];
   private channelRequestId?: string;
   private quickSlotsExpanded = true;
 
   constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onMenu?: (trigger: HTMLElement) => void, private onShortcut?: (trigger: HTMLElement) => void, private options: HudViewOptions = {}) {
-    this.assets = manifest.hud ?? {};
+    // The buff plate and the quick-slot fold keys live in `buffUi` (they come
+    // from the BuffSetting / quickSlot subtrees); merge them so every HUD
+    // control resolves its frames through one map.
+    this.assets = { ...(manifest.hud ?? {}), ...(manifest.buffUi?.ui ?? {}) };
     this.skillCatalog = manifest.skillCatalog ?? {};
     this.root.className = 'tms-hud';
     this.root.hidden = true;
@@ -125,6 +132,9 @@ export class HudView {
     }
     row.append(actions);
     this.createQuickSlots(row);
+    // The buff row closes the HUD line: source plate + one icon per active
+    // server-owned buff.  It renders nothing until the server sends durations.
+    this.buffBar = new BuffBar(row, manifest);
     const expTrack = document.createElement('div');
     expTrack.className = 'tms-exp'; expTrack.setAttribute('role', 'progressbar'); expTrack.setAttribute('aria-label', '经验');
     this.exp.className = 'tms-exp-fill';
@@ -172,10 +182,14 @@ export class HudView {
       ? `${player.exp} / MAX [${percent.toFixed(2)}% · 封顶]`
       : `${player.exp} / ${player.expToNext} [${percent.toFixed(2)}%]`;
     this.updateShortcuts(player);
+    // Buffs are server-owned: the snapshot only carries the remaining ms, so the
+    // row is a pure render of `skillBuffs` (empty ⇒ the whole bar hides).
+    this.buffBar?.update(player.derivedStats?.skillBuffs);
   }
 
   clear() {
     this.releaseChannel();
+    this.buffBar?.clear();
     this.host.hidden = true;
     this.root.hidden = true;
   }
@@ -196,6 +210,8 @@ export class HudView {
     window.removeEventListener('keyup', this.releaseChannelKey);
     document.removeEventListener('visibilitychange', this.releaseHiddenChannel);
     document.removeEventListener('focusin', this.releaseOutsideChannel);
+    this.buffBar?.destroy();
+    this.buffBar = undefined;
     this.host.replaceChildren(); this.host.hidden = true;
   }
 
@@ -227,9 +243,19 @@ export class HudView {
     toggle.type = 'button';
     toggle.className = 'tms-quick-slot-toggle';
     toggle.setAttribute('aria-controls', 'tms-quick-slot-grid');
-    toggle.addEventListener('pointerdown', event => event.preventDefault());
+    const toggleImage = document.createElement('img');
+    toggleImage.className = 'tms-quick-slot-toggle-image';
+    toggleImage.alt = '';
+    toggleImage.draggable = false;
+    toggle.append(toggleImage);
     toggle.addEventListener('click', () => this.toggleQuickSlots());
+    toggle.addEventListener('pointerenter', () => this.applyQuickToggleState('mouseOver'));
+    toggle.addEventListener('pointerleave', () => this.applyQuickToggleState('normal'));
+    toggle.addEventListener('pointerdown', event => { event.preventDefault(); this.applyQuickToggleState('pressed'); });
+    toggle.addEventListener('pointerup', () => this.applyQuickToggleState('normal'));
+    toggle.addEventListener('pointercancel', () => this.applyQuickToggleState('normal'));
     this.quickToggle = toggle;
+    this.quickToggleImage = toggleImage;
     panel.append(toggle);
 
     const grid = document.createElement('div');
@@ -308,10 +334,39 @@ export class HudView {
   private updateQuickSlotToggle() {
     this.quickSlot?.classList.toggle('is-collapsed', !this.quickSlotsExpanded);
     if (!this.quickToggle) return;
-    this.quickToggle.textContent = this.quickSlotsExpanded ? '−' : '+';
     this.quickToggle.title = this.quickSlotsExpanded ? '收起快捷栏' : '展开快捷栏';
     this.quickToggle.setAttribute('aria-label', this.quickToggle.title);
     this.quickToggle.setAttribute('aria-expanded', String(this.quickSlotsExpanded));
+    this.applyQuickToggleState('normal');
+  }
+
+  /**
+   * Show the authored fold / extend keys.
+   *
+   * `mainBar/quickSlot/button:Extend` (collapsed → offers to expand) and
+   * `button:Fold` (open → offers to collapse) each ship four states.  If the
+   * export is missing the control falls back to the old text glyph so the
+   * quick bar never becomes a dead surface.
+   */
+  private applyQuickToggleState(state: 'normal' | 'mouseOver' | 'pressed' | 'disabled') {
+    const toggle = this.quickToggle;
+    const image = this.quickToggleImage;
+    if (!toggle) return;
+    const key = this.quickSlotsExpanded ? 'Fold' : 'Extend';
+    const frame = this.assets[`mainBar/quickSlot/button:${key}/${state}/0`]
+      ?? this.assets[`mainBar/quickSlot/button:${key}/normal/0`];
+    this.quickToggleState = state;
+    toggle.dataset.state = state;
+    if (!frame) {
+      toggle.textContent = this.quickSlotsExpanded ? '−' : '+';
+      return;
+    }
+    if (toggle.textContent) toggle.textContent = '';
+    if (image) {
+      image.src = frame.url;
+      image.width = frame.width;
+      image.height = frame.height;
+    }
   }
 
   private updateShortcuts(player: HudPlayer) {

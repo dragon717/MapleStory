@@ -1,8 +1,16 @@
 import type { AssetFrame, ChatUi, ChatUiFrameStates, ChatUiNineSlice, Manifest } from '../../assets/manifest';
+import { installWindowDrag } from '../ui/window-shell.ts';
 import { appendChatLogLine } from './scroll';
 import './style.css';
 
 type ChatButtonState = 'normal' | 'pressed' | 'disabled' | 'mouseOver' | 'checked';
+
+/**
+ * The chat surface pads its panel by 27 px before the log starts
+ * (`chat273-surface`); that authored strip is the drag handle — the log itself
+ * stays scrollable because it sits below the handle.
+ */
+const CHAT_TITLE_HEIGHT = 27;
 
 export interface ChatMessageEnvelope {
   requestId?: string;
@@ -81,6 +89,8 @@ export class ChatView {
    *  whisper could appear twice.  Bounded like `pending`. */
   private readonly whisperEchoes = new Set<string>();
   private readonly whisperEchoOrder: string[] = [];
+  /** Drag handle on the `#chat` host, installed per session (spec R2). */
+  private dragDispose?: () => void;
 
   constructor(
     private host: HTMLElement,
@@ -99,6 +109,17 @@ export class ChatView {
     else throw new Error('273 聊天面板资源不完整');
     window.addEventListener('keydown', this.onGlobalKeyDown);
     this.root.addEventListener('pointerdown', this.onRootPointerDown);
+    // The chat panel drags by its 27 px top strip.  `#chat` is the absolutely
+    // positioned host, so it is the element that moves; `bottom` is released
+    // on the first drag so the window is not pinned to the HUD.
+    const shell = host.parentElement;
+    if (shell) {
+      this.dragDispose = installWindowDrag(shell, host, {
+        titleHeight: CHAT_TITLE_HEIGHT,
+        isOpen: () => !this.root.hidden,
+        onActivate: () => { host.style.bottom = 'auto'; },
+      });
+    }
   }
 
   setAvailable(available: boolean) {
@@ -228,6 +249,8 @@ export class ChatView {
   destroy() {
     window.removeEventListener('keydown', this.onGlobalKeyDown);
     this.root.removeEventListener('pointerdown', this.onRootPointerDown);
+    this.dragDispose?.();
+    this.dragDispose = undefined;
     this.root.remove();
     this.host.replaceChildren();
     this.host.hidden = true;
@@ -241,6 +264,9 @@ export class ChatView {
     const target = event.target as Element | null;
     if (!(target instanceof Element)) return;
     if (target.closest?.('input, textarea, select, button, [contenteditable], .chat273-log, .chat-log')) return;
+    // The top strip is the window's drag handle, not a "focus the input" area:
+    // clicking it must start a move without stealing the keyboard focus.
+    if (event.clientY - this.host.getBoundingClientRect().top < CHAT_TITLE_HEIGHT) return;
     if (!this.available) return;
     event.preventDefault();
     this.setOpen(true);

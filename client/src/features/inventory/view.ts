@@ -404,6 +404,11 @@ export class InventoryView {
     else this.open();
   }
 
+  /** True while the inventory or the source-backed equip window is showing. */
+  isOpen() {
+    return this.openState || this.equipmentOpenState;
+  }
+
   clear() {
     this.inventory = [];
     this.equipped = [];

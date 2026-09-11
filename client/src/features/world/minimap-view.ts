@@ -1,6 +1,7 @@
 import type { NpcState, PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, MapPortal, MiniMapMapAsset, MiniMapUiData } from '../../assets/manifest';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
+import { installWindowDrag } from '../ui/window-shell.ts';
 
 /** The three states the original window has: the collapsed strip, the compact
  *  window and the full window (which also carries the street and map name). */
@@ -165,6 +166,7 @@ export class MiniMapView {
   /** Live marker elements, keyed `<kind>:<id>`. */
   private markers = new Map<string, HTMLElement>();
   private media: MediaQueryList[] = [];
+  private dragDispose?: () => void;
   private onMediaChange = () => {
     const next = MiniMapView.preferredMode();
     if (next === this.mode) return;
@@ -182,6 +184,26 @@ export class MiniMapView {
       list.addEventListener('change', this.onMediaChange);
       this.media.push(list);
     }
+    // The window drags by its authored header (76 px in MaxMap, 36 px in
+    // MinMap; the bare Min strip has no header and stays docked).  Dragging
+    // writes plain left/top on the `#minimap` host, which overrides the dock
+    // variables; `right` is cleared on the first drag so a right-docked window
+    // is not squeezed between both edges.
+    const shell = this.host.parentElement;
+    if (shell) {
+      this.dragDispose = installWindowDrag(shell, this.host, {
+        titleHeight: () => this.titleBarHeight(),
+        isOpen: () => Boolean(this.root) && this.mode !== 'strip',
+        onActivate: () => { this.host.style.right = 'auto'; },
+      });
+    }
+  }
+
+  /** Header height of the current authored shell (see `applyChrome`). */
+  private titleBarHeight(): number {
+    if (this.mode === 'full') return MAXMAP_CORNER_Y;
+    if (this.mode === 'compact') return MINMAP_CORNER_Y;
+    return 0;
   }
 
   private static preferredMode(): MiniMapMode {
@@ -220,6 +242,8 @@ export class MiniMapView {
   destroy() {
     for (const list of this.media) list.removeEventListener('change', this.onMediaChange);
     this.media = [];
+    this.dragDispose?.();
+    this.dragDispose = undefined;
     this.root?.remove();
     this.root = undefined;
     this.markers.clear();
@@ -436,7 +460,8 @@ export class MiniMapView {
       button.addEventListener('pointerenter', () => show('mouseOver'));
       button.addEventListener('pointerleave', () => show('normal'));
       button.addEventListener('pointerdown', () => show('pressed'));
-      button.addEventListener('pointerup', () => show('mouseOver'));
+      button.addEventListener('pointerup', () => show('normal'));
+      button.addEventListener('pointercancel', () => show('normal'));
       button.addEventListener('click', onClick);
       group.append(button);
     };

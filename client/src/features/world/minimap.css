@@ -20,6 +20,9 @@
 .tms-minimap {
   position: relative;
   pointer-events: auto;
+  /* The authored header is the drag handle; without this the browser eats the
+     first pixels of the gesture as a pan/scroll on touch devices. */
+  touch-action: none;
   filter: drop-shadow(0 2px 3px #0006);
 }
 

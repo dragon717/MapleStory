@@ -1,0 +1,88 @@
+/* Buff bar: the source-backed plate from UI/StatusBar3.img/BuffSetting/
+   favoriteBuff with the author-spaced icon row on top of it.  The nine slices
+   are the exported WZ canvases (5 px bevel); their sizes come from the export,
+   the gaps from the authored `spaceX` / `spaceY`. */
+
+.tms-buff-bar {
+  position: relative;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  pointer-events: none;
+}
+
+.tms-buff-bar[hidden] {
+  display: none;
+}
+
+.tms-buff-panel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tms-buff-slice {
+  position: absolute;
+  display: block;
+  max-width: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tms-buff-slice-nw { left: 0; top: 0; width: 5px; height: 5px; }
+.tms-buff-slice-n { left: 5px; top: 0; width: calc(100% - 10px); height: 5px; }
+.tms-buff-slice-ne { right: 0; top: 0; width: 5px; height: 5px; }
+.tms-buff-slice-w { left: 0; top: 5px; width: 5px; height: calc(100% - 10px); }
+.tms-buff-slice-c { left: 5px; top: 5px; width: calc(100% - 10px); height: calc(100% - 10px); }
+.tms-buff-slice-e { right: 0; top: 5px; width: 5px; height: calc(100% - 10px); }
+.tms-buff-slice-sw { left: 0; bottom: 0; width: 5px; height: 5px; }
+.tms-buff-slice-s { left: 5px; bottom: 0; width: calc(100% - 10px); height: 5px; }
+.tms-buff-slice-se { right: 0; bottom: 0; width: 5px; height: 5px; }
+
+.tms-buff-list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--tms-buff-space-x, 5px);
+  margin: 0;
+  padding: 4px 7px;
+  list-style: none;
+}
+
+.tms-buff-entry {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.tms-buff-icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  max-width: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* P: the source draws the remaining seconds with the status bar's glyph font;
+   this keeps the same 9 px white-on-black look with plain text so the bar does
+   not depend on glyph layout for a number that changes every second. */
+.tms-buff-time {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0 1px;
+  color: #fff;
+  font: 9px/11px Verdana, "Microsoft YaHei", sans-serif;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  pointer-events: none;
+}
+
+@media (max-width: 540px) {
+  .tms-buff-list { padding: 3px 5px; }
+  .tms-buff-entry { width: 26px; height: 26px; }
+  .tms-buff-icon { width: 26px; height: 26px; }
+}

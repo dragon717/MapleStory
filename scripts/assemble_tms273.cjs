@@ -117,6 +117,12 @@ const manifest = {
   // export_tms273_minimap.cjs and copied into client/public-tms273/assets
   // alongside the other UI art.
   miniMap: read('minimap'),
+  // Source-backed UI/StatusBar3.img/BuffSetting/favoriteBuff panel (the plate
+  // behind the on-screen buff icons, with its authored 5 px icon spacing) plus
+  // the authored quick-slot fold keys.  PNGs are exported by
+  // export_tms273_buff.cjs and copied into client/public-tms273/assets
+  // alongside the other UI art.
+  buffUi: read('buff'),
   // Source-backed Map.wz WorldMap page art + UI/UIWindow2.img/WorldMap window
   // shell used by the world-map window.  PNGs are exported by
   // export_tms273_worldmap.cjs and copied into client/public-tms273/assets

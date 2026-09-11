@@ -290,7 +290,7 @@
 @media(max-width:750px){header{gap:10px}.header-tools{gap:8px}.locale-picker{font-size:10px}.locale-picker select{padding:3px 5px}}
 @media(max-width:420px){.locale-picker>span{display:none}.locale-picker select{max-width:90px}.header-tools{gap:6px}}
 
-.quest-tracker{position:absolute;right:12px;top:12px;max-width:min(280px,calc(100% - 24px));padding:8px 10px;border:1px solid #728087;border-radius:4px;background:#293238e8;color:#fff;text-align:left;font:12px/1.5 sans-serif;white-space:pre-line;cursor:pointer;pointer-events:auto}
+.quest-tracker{position:absolute;right:12px;top:12px;max-width:min(280px,calc(100% - 24px));padding:8px 10px;border:1px solid #728087;border-radius:4px;background:#293238e8;color:#fff;text-align:left;font:12px/1.5 sans-serif;white-space:pre-line;cursor:pointer;pointer-events:auto;touch-action:none;user-select:none}
 .quest-tracker[hidden]{display:none}
 .quest-tracker:focus-visible{outline:2px solid #f5d653}
 .quest-next{font-weight:600!important}
