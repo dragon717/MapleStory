@@ -196,23 +196,29 @@ function renderMapRoute(manifest: Manifest) {
 }
 async function enterGame(session: LoginResponse) {
   const current = ++generation;
-  // Mount the loading overlay first so the very first status line ("正在读取
-  // 资源清单…" / "Loading resources…") advances the progress bar instead of
-  // drifting off-screen as plain text.  The overlay attaches to `#game-shell`
-  // and stays hidden behind `#play`'s `hidden` attribute until the manifest
-  // has been fetched; once the play section is revealed it paints over the
-  // Phaser canvas.
+  // Switch away from the character-select screen *before* fetching the
+  // manifest.  The user picks a character and the very next frame should be
+  // the full-bleed loading backdrop — not the character select still lingering
+  // while `loadManifest()` runs.  The overlay mounts onto `#game-shell` and,
+  // once `#play` is revealed, covers the whole viewport with the authored
+  // high-resolution art plus the progress card for the entire boot pipeline.
   loadingOverlay?.hide();
   loadingOverlay = new LoadingOverlay(el('game-shell'));
+  el('welcome').hidden = true;
+  el('play').hidden = false;
+  // Switch to game-mode *before* mounting the overlay, so `#game-shell`
+  // already has its full 100dvh height when the overlay's `inset:0` is
+  // measured — the backdrop then fills the viewport on its first paint instead
+  // of starting at zero height.  `entry-active` is deliberately left for
+  // `startGame` to remove after `enter` resolves; it only hides the header/
+  // footer/status line, all of which the overlay covers anyway.
+  setPlayLayout(true);
   loadingOverlay.show();
   loadingOverlay.update('manifest', null);
   status(english ? 'Loading resources…' : '正在读取资源清单…');
   try {
     const manifest = await loadManifest();
     if (current !== generation) return;
-    el('welcome').hidden = true;
-    el('play').hidden = false;
-    setPlayLayout(true);
     el('map-name').textContent = mapText(manifest.map.id, manifest.map.name);
     renderMapRoute(manifest);
     // The manifest has arrived; advance the overlay into the asset-loading
