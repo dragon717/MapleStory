@@ -1,8 +1,9 @@
 /* The minimap window, assembled from the exported UI/UIMap.img/MiniMap
-   slices.  The chrome pieces (nw/n/ne/w/e/sw/s/se plus MaxMap's nw2 name
-   card) arrive as CSS variables set by MiniMapView; every position variable
-   is either authored in the source or measured off a slice, so the window
-   keeps the source geometry at any map size. */
+   slices.  The chrome pieces (nw/n/ne/w/e/sw/s/se) arrive as CSS variables set
+   by MiniMapView; every position variable is either authored in the source or
+   measured off a slice, so the window keeps the source geometry at any map
+   size.  `MaxMap/nw2` — the source's black "MINI MAP" title card — is exported
+   but deliberately not painted; see `MiniMapView.applyChrome`. */
 
 #game-shell>#minimap {
   position: absolute;
@@ -40,17 +41,16 @@
   background-origin: padding-box;
   background-repeat: no-repeat;
   background-image:
-    var(--minimap-nw), var(--minimap-ne), var(--minimap-nw2, none), var(--minimap-n),
+    var(--minimap-nw), var(--minimap-ne), var(--minimap-n),
     var(--minimap-w), var(--minimap-e),
     var(--minimap-sw), var(--minimap-s), var(--minimap-se);
   background-position:
     left top, right top,
-    var(--minimap-nw2-x, 44px) var(--minimap-nw2-y, 9px),
     var(--minimap-n-x, 44px) top,
     left var(--minimap-header, 76px), right var(--minimap-header, 76px),
     left bottom, center bottom, right bottom;
   background-size:
-    auto auto, auto auto, auto auto,
+    auto auto, auto auto,
     var(--minimap-n-width, calc(100% - 59px)) var(--minimap-n-height, 70px),
     var(--minimap-edge-x, 9px) calc(100% - var(--minimap-header, 76px) - 16px),
     var(--minimap-edge-x, 9px) calc(100% - var(--minimap-header, 76px) - 16px),
@@ -179,6 +179,117 @@
 /* The strip keeps its street name at the authored Min/vector (52, 7). */
 .tms-minimap[data-mode='strip'] .tms-minimap-street {
   max-width: calc(var(--minimap-window-width, 185px) - var(--minimap-street-x, 52px) - 8px);
+}
+
+/* The MaxMap corner plate badge (`MapHelper.img/mark/<info/mapMark>`), drawn
+   at the authored vector:mapMark on the white plate the nw slice ships.  The
+   sprite URL arrives as an inline style from MiniMapView. */
+.tms-minimap-mark {
+  position: absolute;
+  display: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tms-minimap[data-unavailable] .tms-minimap-mark {
+  display: none !important;
+}
+
+/* The authored NPC 目录 window (MiniMap/npcList), parked in flow right below
+   the minimap window so it follows the drag.  The panel art and its size are
+   inline styles from MiniMapView; the row strip sits at the authored
+   listLT..listRB rectangle with the authored 18 px row pitch. */
+.tms-minimap-list {
+  position: relative;
+  margin-top: 4px;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px #0006);
+}
+
+.tms-minimap-list-close {
+  position: absolute;
+  /* P: the source authors the close button but no position for it; the
+     panel's top-right corner is where the original window draws it. */
+  top: 5px;
+  right: 5px;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.tms-minimap-list-close img {
+  image-rendering: pixelated;
+}
+
+.tms-minimap-list-rows {
+  position: absolute;
+  overflow: hidden;
+}
+
+.tms-minimap-list-row {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--minimap-list-row-height, 18px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tms-minimap-list-row:hover,
+.tms-minimap-list-row.is-selected {
+  background: #ffffff1f;
+}
+
+.tms-minimap-list-icon {
+  position: absolute;
+  /* The row gutter is the authored namePos.x; the icon is centred in it. */
+  left: calc(var(--minimap-list-name-x, 30px) / 2);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.tms-minimap-list-name {
+  position: absolute;
+  left: var(--minimap-list-name-x, 30px);
+  top: var(--minimap-list-name-y, 4px);
+  max-width: calc(100% - var(--minimap-list-name-x, 30px) - 4px);
+  overflow: hidden;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #ffffff;
+  text-shadow: 0 1px 0 #000a;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tms-minimap-list-empty {
+  margin: 8px 10px;
+  padding: 0;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #d4e1e5;
+  text-shadow: 0 1px 0 #000a;
+}
+
+/* The navi chevron over the NPC picked in the 目录: it hangs above its marker
+   point (marginTop is set per frame by MiniMapView), so no opacity fade. */
+.tms-minimap-marker.is-navi {
+  pointer-events: none;
 }
 
 .tms-minimap-empty {

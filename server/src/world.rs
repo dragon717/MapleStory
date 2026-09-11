@@ -326,6 +326,14 @@ const MOB_DEFAULT_STAND_DELAY_MS: u64 = 100;
 const MOB_DEFAULT_MOVE_DURATION_MS: u64 = 900;
 const MOB_STAND_DECISION_MS: u64 = 1_700;
 const MOB_MOVE_DECISION_MS: u64 = 1_800;
+// `Mob.wz/info/speed` is an optional offset on the mob's own walk speed, not a
+// walk/no-walk switch: 3111 of the 11614 TMS273 mobs ship no `speed` node at
+// all and 731 of those still author a `move` animation (the 菇菇/木妖 families),
+// while 541 mobs write the same default out as an explicit `0`.  An absent
+// node therefore reads as this offset; the authored "stands still" form is the
+// `-100` sentinel (城門/寶箱/訓練用木頭人/稻草人), which is the lowest value
+// `Gameplay::validate` still accepts.
+const MOB_DEFAULT_SPEED_OFFSET: f64 = 0.0;
 // HeavenClient Mob.cpp sets counter=170 when a controlled mob is knocked
 // into HIT, then advances it every 8 ms and calls next_move only after
 // counter>200.  That is 31 reference updates = 248 ms.  The Snail hit1
@@ -1355,7 +1363,8 @@ pub struct MonsterTemplate {
     #[serde(default)]
     pub move_speed: Option<f64>,
     /// Raw Mob.wz speed. Mapleweb applies `(speed + 100) * 0.001`
-    /// before feeding the movement loop (Mob.cpp:197-199).
+    /// before feeding the movement loop (Mob.cpp:197-199).  Optional in the
+    /// source; `movement_force` owns the absent-node default.
     #[serde(default, rename = "speed")]
     pub source_speed: Option<f64>,
     #[serde(default)]
@@ -1447,8 +1456,26 @@ impl MonsterTemplate {
         self.move_speed.map(|speed| speed * TICK_MS as f64 / 1000.0)
     }
 
+    /// Raw Mob.wz `info/speed` -> the Mapleweb per-reference-tick horizontal
+    /// force `(speed + 100) * 0.001` (Mob.cpp:197-199).
+    ///
+    /// The source node is optional and `None` here must not be read as "cannot
+    /// move": `move_duration_ms` is the exported proof that this mob authored a
+    /// `move` animation, so a mob without `speed` walks at the default offset
+    /// exactly like the 541 mobs that write `0` explicitly.  Reading only
+    /// `source_speed` froze 菇菇寶貝 (1210102, and its `info/link` twin 100004)
+    /// in `stand` forever, because both own a three-frame `move` yet omit
+    /// `speed`.  A non-positive force is the authored immobile form (`-100`),
+    /// which must resolve to no `move` action at all rather than a mob that
+    /// animates walking in place (or, below `-100`, creeps backwards).
     fn movement_force(&self) -> Option<f64> {
-        self.source_speed.map(|speed| (speed + 100.0) * 0.001)
+        let speed = match (self.source_speed, self.move_duration_ms) {
+            (Some(speed), _) => speed,
+            (None, Some(_)) => MOB_DEFAULT_SPEED_OFFSET,
+            (None, None) => return None,
+        };
+        let force = (speed + 100.0) * 0.001;
+        (force > 0.0).then_some(force)
     }
 
     fn can_move(&self) -> bool {
@@ -22431,6 +22458,7 @@ mod tests {
     include!("emoticon_acceptance.rs");
     include!("monster_status_acceptance.rs");
     include!("slot_expand_acceptance.rs");
+    include!("mob_move_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

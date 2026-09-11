@@ -100,10 +100,6 @@ const FRAME_BOTTOM = 11;
  *  edge slices (`w` / `e`) fill the side from that height to the bottom row. */
 const MAXMAP_CORNER_Y = 76;
 const MINMAP_CORNER_Y = 36;
-/** The black `nw2` name card hangs 9 px below the window top (its own top
- *  bevel rows land on y9-16) so its white bar rows meet the frame line on
- *  y68-69 and its tail points into the body. */
-const NAMECARD_OFFSET_Y = 9;
 /** Both authored button groups sit on the top row, 4 px in from the edge. */
 const BUTTON_TOP = 4;
 const BUTTON_EDGE = 4;
@@ -139,11 +135,17 @@ const BREAKPOINTS: { query: string; mode: MiniMapMode }[] = [
  * * The window controls use the four authored window sprites — `button:min`
  *   (the "−" that collapses to the strip), `button:max` (the "+" on the
  *   strip), and `button:small` / `button:big` (the shrink / grow pair that
- *   swap the full and compact plates).  The source authors no zoom sprite, so
- *   the plate windows carry only the two size toggles plus `BtNpc` /
- *   `BtMap`: the size pair anchors the top-left row like the authored strip
- *   button, and the feature pair anchors the top-right row (P — the plate
- *   windows author no button vector).
+ *   swap the full and compact plates).  `BtMap` opens the world map;
+ *   `BtNpc` opens the authored NPC 目录 window (`MiniMap/npcList`) exactly
+ *   like the source tooltip says — picking a row marks that NPC with the
+ *   authored `iconNavi` chevron.  The source authors no zoom sprite, so the
+ *   plate windows carry only the two size toggles plus `BtNpc` / `BtMap`:
+ *   the size pair anchors the top-left row like the authored strip button,
+ *   and the feature pair anchors the top-right row (P — the plate windows
+ *   author no button vector).  The npcList popup anchors below the window
+ *   and its close button sits in the panel's top-right corner (P — neither
+ *   position is authored); the `BtFilter` / `BtTown` / `BtNavigation` /
+ *   `BtDungeonMap` siblings belong to features that are not implemented.
  */
 export class MiniMapView {
   private root?: HTMLDivElement;
@@ -157,9 +159,23 @@ export class MiniMapView {
   private buttons?: HTMLDivElement;
   private buttonsLeft?: HTMLDivElement;
   private buttonsRight?: HTMLDivElement;
+  /** The control set currently drawn (`mode|npcListOpen|locale`).  A snapshot
+   *  only rebuilds the strip when this changes — see `buildButtons`. */
+  private buttonsSignature = '';
+  /** The MaxMap corner plate badge (`MapHelper.img/mark/<info/mapMark>`). */
+  private markIcon?: HTMLImageElement;
+  /** The authored NPC 目录 window, opened by `BtNpc`. */
+  private npcListWindow?: HTMLDivElement;
+  private npcListRows?: HTMLDivElement;
+  private npcListOpen = false;
+  private npcListSignature = '';
+  /** The NPC the player picked in the 目录; the window draws `iconNavi`
+   *  over that NPC's marker until the pick is toggled off. */
+  private selectedNpcId?: string;
   private mode: MiniMapMode = 'full';
+  /** The plate mode to restore to from the strip (`button:max`). */
+  private modeBeforeStrip: MiniMapMode = 'full';
   private dock: MiniMapDock = 'left';
-  private showNpc = true;
   private showPortal = true;
   private showParty = true;
   private input?: MiniMapInput;
@@ -167,6 +183,7 @@ export class MiniMapView {
   private markers = new Map<string, HTMLElement>();
   private media: MediaQueryList[] = [];
   private dragDispose?: () => void;
+  private escapeDispose?: () => void;
   private onMediaChange = () => {
     const next = MiniMapView.preferredMode();
     if (next === this.mode) return;
@@ -197,6 +214,28 @@ export class MiniMapView {
         onActivate: () => { this.host.style.right = 'auto'; },
       });
     }
+    // The NPC 目录 closes itself on Escape, before the menu router can claim
+    // the key (main.ts keeps `npcListShown()` in its blocked chain).
+    this.escapeDispose = this.installEscapeClose();
+  }
+
+  /** Escape closes the NPC 目录 while it is open.  Installed on the document
+   *  capture phase like every other panel listener; disposed with the view. */
+  private installEscapeClose(): () => void {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (event.key !== 'Escape' && event.code !== 'Escape') return;
+      if (!this.npcListOpen) return;
+      event.preventDefault();
+      this.toggleNpcList();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }
+
+  /** True while the authored NPC 目录 window is open (the Escape router asks). */
+  npcListShown(): boolean {
+    return this.npcListOpen;
   }
 
   /** Header height of the current authored shell (see `applyChrome`). */
@@ -244,8 +283,16 @@ export class MiniMapView {
     this.media = [];
     this.dragDispose?.();
     this.dragDispose = undefined;
+    this.escapeDispose?.();
+    this.escapeDispose = undefined;
     this.root?.remove();
     this.root = undefined;
+    this.buttonsSignature = '';
+    this.npcListWindow = undefined;
+    this.npcListRows = undefined;
+    this.npcListOpen = false;
+    this.npcListSignature = '';
+    this.selectedNpcId = undefined;
     this.markers.clear();
   }
 
@@ -260,6 +307,12 @@ export class MiniMapView {
     this.input = undefined;
     this.root?.remove();
     this.root = undefined;
+    this.buttonsSignature = '';
+    this.npcListWindow = undefined;
+    this.npcListRows = undefined;
+    this.npcListOpen = false;
+    this.npcListSignature = '';
+    this.selectedNpcId = undefined;
     this.markers.clear();
   }
 
@@ -276,6 +329,9 @@ export class MiniMapView {
 
   private setMode(mode: MiniMapMode) {
     this.mode = mode;
+    // The plate windows author no BtNpc of their own, so the 目录 follows the
+    // full window: leaving it closes the popup (and drops the navi pick).
+    if (mode !== 'full' && this.npcListOpen) this.toggleNpcList();
     this.render();
   }
 
@@ -322,11 +378,98 @@ export class MiniMapView {
     this.buttonsRight = document.createElement('div');
     this.buttonsRight.className = 'tms-minimap-buttons-right';
     this.buttons.append(this.buttonsLeft, this.buttonsRight);
+    // A fresh strip must redraw even when the mode is unchanged (a rebuilt root
+    // after `clear()` starts with empty button groups).
+    this.buttonsSignature = '';
 
-    windowBox.append(this.body, this.streetLine, this.nameLine, this.emptyLine, this.buttons);
-    root.append(windowBox);
+    // The MaxMap corner plate badge.  Hidden unless the full window is showing
+    // a map whose source declares a `mapMark` badge.
+    this.markIcon = document.createElement('img');
+    this.markIcon.className = 'tms-minimap-mark';
+    this.markIcon.alt = '';
+    this.markIcon.draggable = false;
+    this.markIcon.style.display = 'none';
+
+    // The authored NPC 目录 window, parked closed under the plate window.
+    this.npcListWindow = this.buildNpcList();
+
+    windowBox.append(this.body, this.streetLine, this.nameLine, this.emptyLine, this.buttons, this.markIcon);
+    root.append(windowBox, this.npcListWindow);
     this.host.append(root);
     return root;
+  }
+
+  /**
+   * The authored `MiniMap/npcList` window: the 184x286 panel art with the
+   * close button in its top-right corner (P — the source authors the button
+   * but no position), the row strip at the authored listLT..listRB rectangle
+   * and an empty line for maps without NPCs.  Rows are (re)filled by
+   * `paintNpcList` from the authoritative snapshot.
+   */
+  private buildNpcList(): HTMLDivElement {
+    const list = document.createElement('div');
+    list.className = 'tms-minimap-list';
+    list.setAttribute('role', 'dialog');
+    list.setAttribute('aria-label', uiText('minimapNpc'));
+    const panel = this.data()?.ui['npcList/backgrnd'];
+    if (panel) {
+      // Asset URLs live in inline styles, never in CSS (the offline app
+      // checks cannot resolve `url('/assets/…')` from a stylesheet).
+      list.style.backgroundImage = `url("${panel.url}")`;
+      list.style.width = `${panel.width}px`;
+      list.style.height = `${panel.height}px`;
+    }
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'tms-minimap-list-close';
+    close.setAttribute('aria-label', uiText('minimapNpcListClose'));
+    const closeNormal = this.data()?.ui[`npcList/button:close/normal`];
+    const closeImage = document.createElement('img');
+    const showClose = (state: string) => {
+      const frame = this.data()?.ui[`npcList/button:close/${state}`] ?? closeNormal;
+      if (frame) closeImage.src = frame.url;
+    };
+    if (closeNormal) {
+      closeImage.src = closeNormal.url;
+      closeImage.width = closeNormal.width;
+      closeImage.height = closeNormal.height;
+    }
+    closeImage.alt = '';
+    closeImage.draggable = false;
+    close.append(closeImage);
+    close.addEventListener('pointerenter', () => showClose('mouseOver'));
+    close.addEventListener('pointerleave', () => showClose('normal'));
+    close.addEventListener('pointerdown', () => showClose('pressed'));
+    close.addEventListener('pointerup', () => showClose('normal'));
+    close.addEventListener('click', () => this.toggleNpcList());
+    list.append(close);
+
+    this.npcListRows = document.createElement('div');
+    this.npcListRows.className = 'tms-minimap-list-rows';
+    const rows = this.data()?.layout.npcList;
+    if (rows) {
+      this.npcListRows.style.left = `${rows.listLT.x}px`;
+      this.npcListRows.style.top = `${rows.listLT.y}px`;
+      this.npcListRows.style.width = `${rows.listRB.x - rows.listLT.x}px`;
+      this.npcListRows.style.height = `${rows.listRB.y - rows.listLT.y}px`;
+    }
+    const empty = document.createElement('p');
+    empty.className = 'tms-minimap-list-empty';
+    empty.textContent = uiText('minimapNpcListEmpty');
+    this.npcListRows.append(empty);
+    list.append(this.npcListRows);
+    list.style.display = 'none';
+    return list;
+  }
+
+  /** Open/close the authored NPC 目录 window (the `BtNpc` button). */
+  private toggleNpcList() {
+    this.npcListOpen = !this.npcListOpen;
+    if (this.npcListOpen && !this.npcListWindow) this.npcListWindow = this.buildNpcList();
+    if (this.npcListWindow) this.npcListWindow.style.display = this.npcListOpen ? 'block' : 'none';
+    if (!this.npcListOpen) this.selectedNpcId = undefined;
+    this.buildButtons();
+    this.paint();
   }
 
   /**
@@ -335,8 +478,8 @@ export class MiniMapView {
    *
    * The three modes use the three shells the source authors: `Min` (the bare
    * 30 px bar), `MinMap` (a 28 px header over the white-framed plate) and
-   * `MaxMap` (a 76 px corner with the mark plate, the hanging black MINI MAP
-   * name card and both names).  The `n` slice stretches between the two top
+   * `MaxMap` (a 76 px corner carrying the mark plate and both names).  The `n`
+   * slice stretches between the two top
    * corners and carries the white frame's top line on its last two rows, so
    * the thumbnail top is 70 (MaxMap) / 30 (MinMap); the `w` / `e` slices
    * stretch from the 76 / 36 px corner rows to the 16 px bottom corners.
@@ -372,6 +515,9 @@ export class MiniMapView {
     set('--minimap-buttons-edge', `${strip ? STRIP_BUTTON_EDGE : BUTTON_EDGE}px`);
     set('--minimap-mark-x', `${layout.mapMark.x}px`);
     set('--minimap-mark-y', `${layout.mapMark.y}px`);
+    set('--minimap-list-name-x', `${layout.npcList.namePos.x}px`);
+    set('--minimap-list-name-y', `${layout.npcList.namePos.y}px`);
+    set('--minimap-list-row-height', `${layout.npcList.rowHeight}px`);
     set('--minimap-font-size', `${layout.fonts.mapName.size}px`);
     set('--minimap-street-color', layout.fonts.streetName.color);
     set('--minimap-name-color', layout.fonts.mapName.color);
@@ -380,21 +526,22 @@ export class MiniMapView {
     set('--minimap-dock-right-x', `${-layout.docks.right.x}px`);
     set('--minimap-dock-right-y', `${layout.docks.right.y}px`);
     if (full) {
-      // The `n` fill starts right after the 44 px nw corner and runs to ne;
-      // nw2 is painted after it at (44, 9) as the hanging black name card.
-      set('--minimap-nw2', shellUrl('nw2'));
-      set('--minimap-nw2-x', `${this.frame('MaxMap/nw')?.width ?? 44}px`);
-      set('--minimap-nw2-y', `${NAMECARD_OFFSET_Y}px`);
+      // The `n` fill starts right after the 44 px nw corner and runs to ne.
+      // `MaxMap/nw2` — the source's 64x67 black "MINI MAP" title card — is
+      // deliberately NOT painted: the card would sit across the whole header
+      // and the two authored names, and the delivered window reads as the
+      // corner's own white mark plate plus the names over the shell (the same
+      // arrangement the official cross-region reference screenshot shows).
+      // `layout.mapName` / `layout.streetName` are the source's own vectors and
+      // are unchanged, so the names keep their authored anchor.
       set('--minimap-n-x', `${this.frame('MaxMap/nw')?.width ?? 44}px`);
       set('--minimap-n-width', `calc(100% - ${(this.frame('MaxMap/nw')?.width ?? 44) + (this.frame('MaxMap/ne')?.width ?? 15)}px)`);
       set('--minimap-n-height', `${this.frame('MaxMap/n')?.height ?? 70}px`);
     } else if (strip) {
-      set('--minimap-nw2', 'none');
       set('--minimap-n-x', '0px');
       set('--minimap-n-width', '100%');
       set('--minimap-n-height', '100%');
     } else {
-      set('--minimap-nw2', 'none');
       set('--minimap-n-x', `${this.frame('MinMap/nw')?.width ?? 15}px`);
       set('--minimap-n-width', `calc(100% - ${(this.frame('MinMap/nw')?.width ?? 15) + (this.frame('MinMap/ne')?.width ?? 15)}px)`);
       set('--minimap-n-height', `${this.frame('MinMap/n')?.height ?? 30}px`);
@@ -432,22 +579,54 @@ export class MiniMapView {
     root.style.setProperty('--minimap-map-transform', `scale(${fit})`);
   }
 
+  /**
+   * Build the authored window controls.
+   *
+   * The strip is NOT rebuilt per snapshot, and that is the whole point of the
+   * signature below.  `paint()` runs for every authoritative snapshot — the
+   * server ticks at 50 ms — so rebuilding these `<button>` elements on each one
+   * detaches the element a press started on, and a real click (mousedown …
+   * mouseup, well over 50 ms) then has no common ancestor to land on: the
+   * button silently never fires.  Measured before the fix at 20 rebuilds per
+   * second, with every one of the four controls swallowing a human-speed click
+   * (`qa/minimap-buttons-probe.mjs`).  Only a change in the control set — the
+   * window mode, or the NPC 目录 opening/closing — redraws the strip; the
+   * pressed flag is refreshed in place.
+   */
   private buildButtons() {
     if (!this.buttons) return;
+    const signature = `${this.mode}|${this.npcListOpen}|${uiLocale()}`;
+    if (signature === this.buttonsSignature) {
+      for (const button of this.controls()) {
+        if (button.dataset.control === 'BtNpc') button.setAttribute('aria-pressed', String(this.npcListOpen));
+      }
+      return;
+    }
+    this.buttonsSignature = signature;
     this.buttonsLeft?.replaceChildren();
     this.buttonsRight?.replaceChildren();
     // One authored sprite set per control.  The strip carries the "+" restore
     // button on the left; the plate windows carry the "−" collapse plus the
     // shrink/grow toggle on the left, and the NPC / world-map features on the
-    // right — the two rows the source art provides sprites for.
-    const add = (group: HTMLDivElement | undefined, key: string, label: string, onClick: () => void, pressed?: boolean) => {
+    // right — the two rows the source art provides sprites for.  The zh
+    // tooltips are the source's own `toolTip` strings; en falls back to the
+    // local copy.
+    const label = (key: string, textKey: string) => {
+      if (uiLocale() !== 'en') {
+        const tip = this.data()?.tooltips?.[key];
+        if (tip) return tip;
+      }
+      return uiText(textKey);
+    };
+    const add = (group: HTMLDivElement | undefined, key: string, textKey: string, onClick: () => void, pressed?: boolean) => {
       const normal = this.frame(`${key}/normal`);
       if (!group || !normal) return;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'tms-minimap-button';
-      button.title = label;
-      button.setAttribute('aria-label', label);
+      button.dataset.control = key;
+      button.title = label(key, textKey);
+      button.setAttribute('aria-label', label(key, textKey));
       if (pressed !== undefined) button.setAttribute('aria-pressed', String(pressed));
       const image = document.createElement('img');
       const show = (state: string) => { image.src = (this.frame(`${key}/${state}`) ?? normal).url; };
@@ -468,17 +647,30 @@ export class MiniMapView {
     const left = this.buttonsLeft;
     const right = this.buttonsRight;
     if (this.mode === 'strip') {
-      add(left, 'button:max', uiText('minimapShow'), () => this.setMode('full'));
+      // `button:max` restores the plate mode the strip was collapsed from,
+      // like the source's own `type += 1` step.
+      add(left, 'button:max', 'minimapShow', () => this.setMode(this.modeBeforeStrip));
     } else {
-      add(left, 'button:min', uiText('minimapHide'), () => this.setMode('strip'));
+      add(left, 'button:min', 'minimapHide', () => {
+        this.modeBeforeStrip = this.mode;
+        this.setMode('strip');
+      });
       if (this.mode === 'compact') {
-        add(left, 'button:big', uiText('minimapFull'), () => this.setMode('full'));
+        add(left, 'button:big', 'minimapFull', () => this.setMode('full'));
       } else {
-        add(left, 'button:small', uiText('minimapCompact'), () => this.setMode('compact'));
+        add(left, 'button:small', 'minimapCompact', () => this.setMode('compact'));
       }
-      add(right, 'BtNpc', uiText('minimapNpc'), () => { this.showNpc = !this.showNpc; this.render(); }, this.showNpc);
-      add(right, 'BtMap', uiText('minimapWorld'), () => this.onWorldMap?.());
+      add(right, 'BtNpc', 'minimapNpc', () => this.toggleNpcList(), this.npcListOpen);
+      add(right, 'BtMap', 'minimapWorld', () => this.onWorldMap?.());
     }
+  }
+
+  /** The controls currently in the strip, in authored order. */
+  private controls(): HTMLButtonElement[] {
+    return [
+      ...Array.from(this.buttonsLeft?.children ?? []) as HTMLButtonElement[],
+      ...Array.from(this.buttonsRight?.children ?? []) as HTMLButtonElement[],
+    ];
   }
 
   private paint() {
@@ -489,12 +681,14 @@ export class MiniMapView {
     this.applyChrome(map);
     this.buildButtons();
     root.dataset.mode = this.mode;
+    this.paintMark(map);
 
     if (!this.input || !map || !data) {
       root.dataset.unavailable = 'true';
       if (this.canvas) this.canvas.removeAttribute('src');
       this.markerLayer?.replaceChildren();
       this.markers.clear();
+      this.paintNpcList();
       return;
     }
     delete root.dataset.unavailable;
@@ -507,6 +701,87 @@ export class MiniMapView {
     }
     this.applyTransform(map);
     this.paintMarkers(map, this.input);
+    this.paintNpcList();
+  }
+
+  /**
+   * The MaxMap corner plate badge: the 38x38 `MapHelper.img/mark/<mark>`
+   * shield drawn at the authored `vector:mapMark (6,28)`, square on the white
+   * plate the `nw` slice ships.  Only the full window authors the plate (and
+   * the vector), and maps declaring `None` draw nothing — like the source.
+   */
+  private paintMark(map: MiniMapMapAsset | undefined) {
+    const icon = this.markIcon;
+    const layout = this.data()?.layout;
+    if (!icon || !layout) return;
+    const badge = this.mode === 'full' && map && map.mark !== 'None'
+      ? this.data()?.icons.marks?.[map.mark]
+      : undefined;
+    if (!badge) {
+      icon.style.display = 'none';
+      icon.removeAttribute('src');
+      return;
+    }
+    icon.style.display = 'block';
+    if (icon.getAttribute('src') !== badge.url) {
+      icon.src = badge.url;
+      icon.width = badge.width;
+      icon.height = badge.height;
+    }
+    icon.style.left = `${layout.mapMark.x}px`;
+    icon.style.top = `${layout.mapMark.y}px`;
+  }
+
+  /**
+   * Fill the NPC 目录 rows from the authoritative snapshot.  Rows are rebuilt
+   * only when the roster actually changes (snapshots arrive far more often
+   * than NPC rosters do); a click toggles the `iconNavi` pick on that NPC.
+   */
+  private paintNpcList() {
+    const rows = this.npcListRows;
+    const data = this.data();
+    if (!rows || !data) return;
+    const npcs = this.npcListOpen ? (this.input?.npcs ?? []) : [];
+    const signature = npcs.map(npc => `${npc.id}:${npc.nameZh || npc.name}`).join('|');
+    if (signature === this.npcListSignature) return;
+    this.npcListSignature = signature;
+    rows.replaceChildren();
+    if (npcs.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'tms-minimap-list-empty';
+      empty.textContent = uiText('minimapNpcListEmpty');
+      rows.append(empty);
+      return;
+    }
+    const icon = data.icons.npcList?.npc ?? data.icons.npc;
+    for (const npc of npcs) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'tms-minimap-list-row';
+      row.dataset.npcId = npc.id;
+      row.setAttribute('aria-pressed', String(this.selectedNpcId === npc.id));
+      if (this.selectedNpcId === npc.id) row.classList.add('is-selected');
+      const badge = document.createElement('span');
+      badge.className = 'tms-minimap-list-icon';
+      badge.style.backgroundImage = `url("${icon.url}")`;
+      badge.style.width = `${icon.width}px`;
+      badge.style.height = `${icon.height}px`;
+      const name = document.createElement('span');
+      name.className = 'tms-minimap-list-name';
+      name.textContent = npc.nameZh || npc.name;
+      row.append(badge, name);
+      row.addEventListener('click', () => {
+        this.selectedNpcId = this.selectedNpcId === npc.id ? undefined : npc.id;
+        // Repaint the rows' pressed state and the navi chevron; the roster
+        // itself has not changed, so skip the rebuild.
+        this.npcListSignature = '';
+        this.paintNpcList();
+        const map = this.input ? this.mapAsset(this.input.mapId) : undefined;
+        if (map && this.input) this.paintMarkers(map, this.input);
+      });
+      row.title = npc.nameZh || npc.name;
+      rows.append(row);
+    }
   }
 
   /**
@@ -556,12 +831,19 @@ export class MiniMapView {
         place(element, portal.x, portal.y);
       }
     }
-    if (this.showNpc) {
-      for (const npc of input.npcs ?? []) {
-        const element = ensure(`npc:${npc.id}`, 'tms-minimap-marker is-npc');
-        decorate(element, data.icons.npc);
-        element.title = npc.nameZh || npc.name;
-        place(element, npc.x, npc.y);
+    for (const npc of input.npcs ?? []) {
+      const element = ensure(`npc:${npc.id}`, 'tms-minimap-marker is-npc');
+      decorate(element, data.icons.npc);
+      element.title = npc.nameZh || npc.name;
+      place(element, npc.x, npc.y);
+      // The NPC 目录 pick: the authored `iconNavi` chevron hangs over the
+      // chosen NPC, its tail on the marker point.
+      if (this.npcListOpen && this.selectedNpcId === npc.id && data.icons.navi) {
+        const navi = ensure(`navi:${npc.id}`, 'tms-minimap-marker is-navi');
+        decorate(navi, data.icons.navi);
+        navi.style.marginTop = `${-data.icons.navi.height}px`;
+        navi.title = npc.nameZh || npc.name;
+        place(navi, npc.x, npc.y);
       }
     }
     const party = new Set(input.partyIds ?? []);

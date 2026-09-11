@@ -161,7 +161,8 @@ function escapeBlocked() {
     || emoticons?.isOpen()
     || inventory?.isOpen()
     || questLog?.isOpen()
-    || worldMap?.isOpen(),
+    || worldMap?.isOpen()
+    || Boolean(miniMap?.npcListShown()),
   );
 }
 function talkToNpc(npc: NpcState) {

@@ -391,6 +391,9 @@ export interface MiniMapMapAsset {
   centerY: number;
   /** Source magnification hint, kept for tracing: 4 on every assembled map. */
   mag: number | null;
+  /** `info/mapMark` — the town badge name (`MapHelper.img/mark/<mark>`) drawn
+   *  on the MaxMap corner plate, or `'None'` when the source authors none. */
+  mark: string;
   source?: string;
   resolvedSource?: string;
 }
@@ -409,6 +412,9 @@ export interface MiniMapLayout {
   minStreetName: Point;
   minInterval: number;
   fonts: { mapName: MiniMapFont; streetName: MiniMapFont };
+  /** The NPC 目录 window: name text offset inside a row, the 18 px row pitch
+   *  and the authored list rectangle (listLT..listRB inside the 184x286 panel). */
+  npcList: { namePos: Point; rowHeight: number; listLT: Point; listRB: Point };
 }
 /** Source-backed UI/UIMap.img/MiniMap window used by the minimap.
  *  `maps` is keyed by map id and only holds maps whose source authors a
@@ -430,7 +436,19 @@ export interface MiniMapUiData {
      *  facing.  The source authors four frames per facing and all four
      *  `_outlink` to the same PNG, so the arrow does not animate. */
     direction: Record<string, AssetFrame>;
+    /** `iconNavi/0` — the chevron the original draws over the NPC a player
+     *  picked in the NPC 目录 window. */
+    navi?: AssetFrame;
+    /** `MapHelper.img/mark/<name>` town badges, keyed by `info/mapMark`. */
+    marks?: Record<string, AssetFrame>;
+    /** `npcList/icon/<flavour>` — the NPC 目录 row icons.  The local snapshot
+     *  does not classify NPCs into the authored flavours (U), so the window
+     *  draws every row with `npc`. */
+    npcList?: Record<string, AssetFrame>;
   };
+  /** The authored button tooltips (`BtMap/toolTip`, `BtNpc/toolTip`), used
+   *  verbatim for zh like the source map names. */
+  tooltips?: Record<string, string>;
   layout: MiniMapLayout;
 }
 /** One `MapList` entry: a group of maps plus the page point its marker is drawn

@@ -14,6 +14,60 @@ for(const mob of gameplay.monsters) {
   assert.equal(mob.mdRate,Number(raw.MDRate?._value ?? 0));
   assert.equal(mob.boss,Number(raw.boss?._value ?? 0)===1);
 }
+// 地面怪移动能力 (ground-monster movement): `Mob.wz/info/speed` is an optional
+// offset on a mob's own walk speed, never the switch that turns walking on —
+// 3111 of the 11614 TMS273 mobs ship no `speed` node, 731 of those still author
+// a `move`, and 541 write the default out as an explicit `0`.  The authored
+// "stands still" form is the `-100` sentinel (城門/寶箱/訓練用木頭人/稻草人,
+// and the server rejects anything below it).  The runtime half of the rule
+// (an absent node reads as the default 0 offset) is
+// `MonsterTemplate::movement_force`, driven from real data by
+// `server/src/mob_move_acceptance.rs`; this block pins the source side.
+//
+// The dump only materialises a mob's *own* nodes, so a mob with `info/link`
+// (嫩寶 0100000 -> 0100100, 菇菇寶貝 0100004 -> 1210102) carries no animations of
+// its own and takes them — plus any info field it omits — from the linked
+// image.  The exporter follows that rule when it picks the sprite, so this
+// audit must resolve the link too; reading only the mob's own nodes would call
+// 嫩寶 animation-less and invent a bug that does not exist.
+{
+  const mobJson=id=>read(`参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Mob/${String(id).padStart(7,'0')}.json`);
+  const ownSpeed=node=>node.info?.speed===undefined?null:Number(node.info.speed._value ?? node.info.speed);
+  const linkOf=node=>{const link=node.info?.link;if(link===undefined||link===null)return null;return String(Number(link._value ?? link));};
+  // The image the client actually walks: own nodes first, linked image for the
+  // animation tree and any field the mob itself omits.
+  const resolved=id=>{
+    const seen=new Set([String(id)]),nodes=[];let node=mobJson(id);nodes.push(node);
+    for(;;){const link=linkOf(node);if(!link||seen.has(link))break;seen.add(link);node=mobJson(link);nodes.push(node);}
+    return nodes;
+  };
+  const walks=id=>{
+    const nodes=resolved(id);
+    const authored=nodes.map(ownSpeed).find(speed=>speed!==null)??null;
+    return nodes.some(node=>Boolean(node.move))&&(authored??0)>-100;
+  };
+  const deployed=new Set(gameplay.spawns.map(spawn=>spawn.templateId));
+  assert.equal(deployed.size,17,'the deployed monster surface changed');
+  for(const mob of gameplay.monsters) {
+    const own=mobJson(mob.templateId);
+    // The export writes exactly the mob's own authored value (and omits it
+    // otherwise), so a regenerated source cannot drift without failing here.
+    assert.equal(mob.speed ?? null,ownSpeed(own),`speed export drifted from the source: ${mob.templateId}`);
+  }
+  assert.equal(linkOf(mobJson('100004')),'1210102','菇菇寶貝 must keep its source link');
+  const broken=[...deployed].filter(id=>!walks(id));
+  assert.deepEqual(broken,[],'deployed monsters without an authored walk');
+  // Teeth: the same predicate must still call the authored static props static
+  // and the other no-`speed` walkers walkers, so neither "everything moves" nor
+  // "a missing `speed` node is broken" can pass this audit.
+  for(const id of ['3300112','9602083','9601337']) assert.equal(walks(id),false,`authored static prop counted as a walker: ${id}`);
+  for(const id of ['2400100','1210100']) assert.equal(walks(id),true,`no-speed walker lost its walk: ${id}`);
+  for(const id of ['1210102','100004']) {
+    assert(resolved(id).some(node=>Boolean(node.move)),`菇菇寶貝 must keep its move animation: ${id}`);
+    assert.equal(resolved(id).map(ownSpeed).find(speed=>speed!==null)??null,null,`菇菇寶貝 is the documented no-speed case: ${id}`);
+    assert(!(gameplay.monsters.find(mob=>mob.templateId===id)??{}).speed,`no speed may be invented for ${id}`);
+  }
+}
 assert.equal(catalog.maps.length,44);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through

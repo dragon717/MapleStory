@@ -166,12 +166,17 @@ const MINIMAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>>
   minimapFull: { zh: '切换为完整小地图', en: 'Switch to full minimap' },
   minimapZoomOut: { zh: '缩小地图', en: 'Zoom out' },
   minimapZoomIn: { zh: '放大地图', en: 'Zoom in' },
-  minimapNpc: { zh: 'NPC 标记', en: 'NPC markers' },
+  // The BtNpc button opens the authored NPC 目录 window (its zh tooltip is the
+  // source's own `BtNpc/toolTip`; this is the en line and the window's aria
+  // label).
+  minimapNpc: { zh: 'NPC 目录', en: 'NPC list' },
   minimapPortal: { zh: '传送门标记', en: 'Portal markers' },
   minimapParty: { zh: '队伍成员标记', en: 'Party markers' },
   minimapWorld: { zh: '世界地图', en: 'World map' },
   minimapNoSource: { zh: '这张地图在原版没有小地图素材。', en: 'The original ships no minimap art for this map.' },
   minimapSelf: { zh: '你的位置', en: 'Your position' },
+  minimapNpcListEmpty: { zh: '这张地图上没有 NPC。', en: 'No NPC is placed on this map.' },
+  minimapNpcListClose: { zh: '关闭 NPC 目录', en: 'Close the NPC list' },
 });
 
 /** World-map window copy (Map.wz WorldMap + UI/UIWindow2.img/WorldMap).  The

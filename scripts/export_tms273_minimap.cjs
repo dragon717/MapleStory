@@ -22,11 +22,11 @@
 //     centerY  int  world y of the rectangle's TOP edge, negated
 //     mag      int  source magnification hint (4 on every assembled map)
 //   UI/UIMap.img/MiniMap            <- the complete definition
-//     MinMap  nw,n,ne,w,e,sw,s,se,c   compact window (27 px header, no text)
-//     MaxMap  … plus nw2             full window (67 px header, street + map)
-//     Min     w,c,e                  collapsed strip (20 px)
+//     MinMap  nw,n,ne,w,e,sw,s,se,c   compact window (36 px header, no text)
+//     MaxMap  same nine slices        full window (76 px header, street + map)
+//     Min     w,c,e                  collapsed strip (30 px)
 //     BtMap / BtNpc                  WORLD / NPC buttons
-//     button:small|big|min|max       zoom out / zoom in / collapse / expand
+//     button:small|big|min|max       shrink / grow / collapse / expand
 //     iconNpc/0..3  iconPortal/0..3  marker sprites
 //     iconDirection/<8 compass>      the self arrow, four-frame pulse
 //     MaxMap/vector:streetName {50,30}   MaxMap/vector:mapName {50,48}
@@ -38,6 +38,12 @@
 //   `UI/UIWindow2.img/MiniMap` is a thinner duplicate that `_outlink`s into
 //   this one; it is not used here.  It additionally ships a legacy `*Mirror`
 //   chrome set for a left-docked window, which this round does not render.
+//   `MapHelper.img/mark/<info/mapMark>` is the 38x38 town badge the original
+//   draws on the MaxMap corner's white plate at `vector:mapMark` (`None`
+//   authors no badge); `MiniMap/npcList` is the NPC 目录 window the `BtNpc`
+//   button opens (backgrnd 184x286, rows at listLT..listRB, 18 px pitch,
+//   `vector:namePos`, `button:close`, `icon/<flavour>`); `iconNavi` is the
+//   chevron drawn over the NPC a player picked in that list.
 //
 // Coordinate model (the one fact this module must get right)
 // ----------------------------------------------------------
@@ -71,10 +77,18 @@ const MINIMAP = 'UI/UIMap.img/MiniMap';
 
 const reader = createReader(DATA);
 const exported = new Map();
+/** `MapHelper.img/mark/<name>` badges collected while exporting the UI, keyed
+ *  by the source `info/mapMark` name. */
+const marksIcons = {};
 
 const SHELLS = {
   MinMap: { parts: ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'c'] },
-  MaxMap: { parts: ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'c', 'nw2'] },
+  // `MaxMap/nw2` (the 64x67 black "MINI MAP" title card) is authored but NOT
+  // exported: the delivered window does not paint it, so shipping the slice
+  // would only invite someone to wire a card the presentation deliberately
+  // drops.  Re-adding it means adding it back here and to the window's
+  // background layer list.
+  MaxMap: { parts: ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'c'] },
   Min: { parts: ['w', 'c', 'e'] },
 };
 /** Only the buttons this round wires are exported; the newer 導航 / 村莊過濾 /
@@ -87,6 +101,12 @@ const BUTTON_STATES = ['normal', 'pressed', 'disabled', 'mouseOver'];
  *  window does not guess a per-NPC-type mapping. */
 const ICON_INDICES = ['0'];
 const DIRECTIONS = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
+/** The NPC 目录 window rows: one icon per authored NPC flavour
+ *  (`npcList/icon/*`).  The local snapshot does not classify NPCs into those
+ *  flavours (U), so the client currently draws every row with `npc`. */
+const NPC_LIST_ICONS = ['npc', 'eventnpc', 'shop', 'trunk', 'transport'];
+const NPC_LIST_BUTTON = 'button:close';
+const NPC_LIST_STATES = ['normal', 'pressed', 'mouseOver'];
 
 function resolved(node) {
   const seen = new Set();
@@ -182,6 +202,7 @@ async function exportMaps() {
   const sources = JSON.parse(fs.readFileSync(MAPS, 'utf8')).maps;
   const maps = {};
   const missing = [];
+  const marks = new Set();
   for (const map of sources) {
     const raw = map.raw?.miniMap;
     const logical = map.sourceJson.replace(/\.json$/, '.img');
@@ -199,6 +220,11 @@ async function exportMaps() {
     assert(Number.isInteger(width) && width > 0, `${map.id} miniMap.width 无效`);
     assert(Number.isInteger(height) && height > 0, `${map.id} miniMap.height 无效`);
     assert(Number.isFinite(centerX) && Number.isFinite(centerY), `${map.id} miniMap 中心无效`);
+    // `info/mapMark` names the town badge drawn on the MaxMap corner plate
+    // (`vector:mapMark`); `None` authors no badge.  Collected here so the UI
+    // pass exports exactly the badges the assembled maps use.
+    const markName = String(map.raw?.info?.mapMark?._value ?? 'None');
+    if (markName !== 'None') marks.add(markName);
     const canvas = await frame(`${logical}/miniMap/canvas`);
     maps[map.id] = {
       mapId: map.id,
@@ -211,14 +237,15 @@ async function exportMaps() {
       centerX,
       centerY,
       mag: scalar(raw, 'mag'),
+      mark: markName,
       source: `Map.wz/${logical}/miniMap`,
       resolvedSource: canvas.resolvedSource,
     };
   }
-  return { maps, missing };
+  return { maps, missing, marks };
 }
 
-async function exportUi() {
+async function exportUi(marks) {
   const root = await get(MINIMAP);
   const ui = {};
   for (const [shell, { parts }] of Object.entries(SHELLS)) {
@@ -236,6 +263,56 @@ async function exportUi() {
   const portal = (await framesOf(`${MINIMAP}/iconPortal/${ICON_INDICES[0]}`))[0];
   const direction = {};
   for (const key of DIRECTIONS) direction[key] = (await framesOf(`${MINIMAP}/iconDirection/${key}`))[0];
+  // The navigation chevron (`iconNavi/0..3`): the marker the original draws
+  // over the NPC a player picked in the NPC 目录.  The four frames are a pulse;
+  // the window keeps the first frame (measured static like `iconDirection`).
+  const navi = (await framesOf(`${MINIMAP}/iconNavi`))[0];
+
+  // The map mark badges: one `MapHelper.img/mark/<name>` shield per town the
+  // assembled maps declare in `info/mapMark`.  Measured: every used badge is a
+  // 38x38 square, and the MaxMap corner authors the white plate for it at
+  // (7,29) 36x36 — `vector:mapMark (6,28)` puts the badge square on the plate.
+  // A source revamp that changes any of these breaks here instead of drawing
+  // a misaligned badge.
+  const helperMarks = await get('Map/MapHelper.img/mark');
+  const known = new Set([...(helperMarks.wzProperties ?? [])].map(child => child.name));
+  for (const name of marks) {
+    assert(known.has(name), `MapHelper.img/mark 缺少地图徽章: ${name}`);
+    const badge = await frame(`Map/MapHelper.img/mark/${name}`);
+    assert(badge.width === badge.height, `地图徽章不是方形: ${name} ${badge.width}x${badge.height}`);
+    assert(badge.width === 38, `地图徽章尺寸偏离实测 38x38: ${name} ${badge.width}x${badge.height}`);
+    marksIcons[name] = badge;
+  }
+  // The NPC 目录 window (`npcList`): panel art, close button and one row icon
+  // per authored NPC flavour.
+  const npcListBackgrnd = await frame(`${MINIMAP}/npcList/backgrnd`);
+  // Measured off the panel: 184x286 with the row strip at listLT..listRB and
+  // an 18 px row pitch — asserted so a revamp of the window breaks the export
+  // instead of silently misaligning the rows.
+  assert(npcListBackgrnd.width === 184 && npcListBackgrnd.height === 286, `npcList/backgrnd 尺寸偏离实测 184x286: ${npcListBackgrnd.width}x${npcListBackgrnd.height}`);
+  ui['npcList/backgrnd'] = npcListBackgrnd;
+  for (const state of NPC_LIST_STATES) {
+    ui[`npcList/${NPC_LIST_BUTTON}/${state}`] = (await framesOf(`${MINIMAP}/npcList/${NPC_LIST_BUTTON}/${state}`))[0];
+  }
+  const npcListIcons = {};
+  for (const flavour of NPC_LIST_ICONS) npcListIcons[flavour] = await frame(`${MINIMAP}/npcList/icon/${flavour}`);
+  const npcListLayout = {
+    namePos: vector(root, 'npcList/vector:namePos'),
+    rowHeight: Number(root.at('npcList/rowHeight')?.wzValue ?? 18),
+    listLT: vector(root, 'npcList/listLT'),
+    listRB: vector(root, 'npcList/listRB'),
+  };
+  assert(npcListLayout.rowHeight > 0, 'npcList/rowHeight 无效');
+  assert(npcListLayout.listRB.x > npcListLayout.listLT.x && npcListLayout.listRB.y > npcListLayout.listLT.y, 'npcList 列表矩形无效');
+
+  // The authored tooltips: the window uses them verbatim for zh, the same way
+  // it uses the source map names.  (`at()` only resolves one level; the nested
+  // lookups go through `atPath`.)
+  const tooltip = name => {
+    const value = atPath(root, `${name}/toolTip`)?.wzValue;
+    return value === undefined ? undefined : String(value);
+  };
+  const tooltips = { BtMap: tooltip('BtMap'), BtNpc: tooltip('BtNpc') };
 
   const layout = {
     // `minWidth` is the authored minimum window width shared by all three
@@ -251,23 +328,30 @@ async function exportUi() {
     minStreetName: vector(root, 'Min/vector:streetName'),
     minInterval: Number(root.at('Min/interval')?.wzValue ?? 5),
     fonts: { mapName: font(root, 'font:mapName'), streetName: font(root, 'font:streetName') },
+    npcList: npcListLayout,
   };
-  return { ui, icons: { npc, portal, direction }, layout };
+  return {
+    ui,
+    icons: { npc, portal, direction, navi, marks: marksIcons, npcList: npcListIcons },
+    layout,
+    tooltips,
+  };
 }
 
 async function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
   try {
-    const { maps, missing } = await exportMaps();
-    const { ui, icons, layout } = await exportUi();
+    const { maps, missing, marks } = await exportMaps();
+    const { ui, icons, layout, tooltips } = await exportUi(marks);
     const output = {
       contentVersion: 'tms273-minimap',
-      source: 'TMS273.7 client WZ / Map.wz miniMap + UI/UIMap.img/MiniMap',
+      source: 'TMS273.7 client WZ / Map.wz miniMap + UI/UIMap.img/MiniMap + MapHelper.img/mark',
       maps,
       missing,
       ui,
       icons,
       layout,
+      tooltips,
     };
     const outputPath = path.join(OUTPUT, 'minimap.json');
     fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
@@ -275,8 +359,10 @@ async function main() {
       output: outputPath,
       maps: Object.keys(maps).length,
       missing: missing.map(entry => entry.mapId),
+      marks: [...marks],
       ui: Object.keys(ui).length,
-      icons: { npc: icons.npc.length, portal: icons.portal.length, direction: Object.keys(icons.direction).length },
+      icons: { npc: icons.npc.length, portal: icons.portal.length, direction: Object.keys(icons.direction).length, marks: Object.keys(icons.marks).length, npcList: Object.keys(icons.npcList).length },
+      tooltips,
       layout,
       pngs: exported.size,
     }, null, 2));
