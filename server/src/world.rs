@@ -85,6 +85,15 @@ const SKILL_MAGIC_BOOST: u32 = 2000006;
 const SKILL_ELEMENTAL_WEAKEN: u32 = 2000007;
 const SKILL_MAGIC_SHIELD: u32 = 2000010;
 const SKILL_MAGIC_GUARD: u32 = 2001002;
+/// 用户指定规则（2026-09-12）：魔心防禦从受伤中「接下」、转由 MP 承受的比例（%）。
+/// 结算分两步：护罩先接下 floor(受伤 × 本值 / 100)，再按该级抵偿率把接下的部分
+/// 化去 floor(接下 × 抵偿率 / 100) == floor(受伤 × 本值 × 抵偿率 / 10000)，抵偿率来自
+/// `shared/mage-skills.json` 的 `mpSubstitutePercent`（100→80，见 mage.rs）；抵偿率化不去的
+/// 差额由护盾消解，**不落到 HP、也不消耗 MP**（1 级 0、10 级为接下部分的 20%）。
+/// 未被接下的那 1% 才由 HP 承担：floor(受伤 × (100 - 本值) / 100)。
+/// 技能窗文案里的 99% 由 `scripts/tms273_skill_manifest.cjs` 的 USER_SPECIFIED_SKILL_RULES
+/// 生成，两处必须一致。
+const MAGIC_GUARD_COVERED_PERCENT: i64 = 99;
 const SKILL_ENERGY_BOLT: u32 = 2001008;
 const SKILL_TELEPORT: u32 = 2001009;
 const SKILL_MAGIC_WAVE: u32 = 2001011;
@@ -17254,18 +17263,35 @@ impl World {
             .get(&SKILL_MAGIC_GUARD)
             .copied()
             .unwrap_or(0);
-        let guard_ratio = if snapshot.3 {
-            self.mage_skills
+        // 用户指定规则（2026-09-12）：受伤的 99% 由护罩接下、转由 MP 承受，逐级的
+        // 「MP 抵偿率」决定接下部分里多少真能被魔力化去；化不去的差额由护盾消解，
+        // 既不扣 HP 也不扣 MP。未被接下的那 1% 始终落回 HP。
+        // 未启用魔心防禦时整段不生效：伤害全由 HP 承担。
+        // 整数一律向下取整，乘法走 i128 避免溢出。
+        let (mp_damage, hp_damage) = if snapshot.3 {
+            let guard_price = self
+                .mage_skills
                 .level(SKILL_MAGIC_GUARD, guard_level)
-                .and_then(|level| level.x)
+                .and_then(|level| level.mp_substitute_percent)
                 .unwrap_or(0)
-                .clamp(0, 100)
+                .clamp(0, 100);
+            let covered_damage =
+                reduced_damage as i128 * i128::from(MAGIC_GUARD_COVERED_PERCENT) / 100;
+            let intended_mp = (covered_damage * i128::from(guard_price) / 100)
+                .clamp(0, i128::from(reduced_damage));
+            // 魔力不足时，欠缺的部分回落 HP（技能窗文案的承诺）。
+            let mp = intended_mp.min(snapshot.0.mp.max(0) as i128) as i64;
+            let mp_shortfall = (intended_mp - i128::from(mp)).max(0);
+            // 未被接下的那 1% 始终由 HP 承担。
+            let hp = (reduced_damage as i128
+                * i128::from(100 - MAGIC_GUARD_COVERED_PERCENT)
+                / 100
+                + mp_shortfall)
+                .clamp(0, i128::from(reduced_damage)) as i64;
+            (mp, hp)
         } else {
-            0
+            (0, reduced_damage)
         };
-        let mp_damage = ((reduced_damage as i128 * guard_ratio as i128 + 99) / 100)
-            .clamp(0, snapshot.0.mp.max(0) as i128) as i64;
-        let hp_damage = reduced_damage.saturating_sub(mp_damage).max(0);
         let mut candidate = snapshot.0.clone();
         candidate.mp = candidate.mp.saturating_sub(mp_damage).max(0);
         candidate.hp = candidate.hp.saturating_sub(hp_damage).max(0);
@@ -23186,18 +23212,39 @@ mod tests {
             player.contact_invulnerable_until = 0;
         }
         let hp_before_contact = world.players["mage-runtime"].state.hp;
-        // Source shield gives 10 PDD; guard absorbs ceil((20 - 10) * 22%).
-        let expected_mp_damage = 3.min(mp_before_contact);
+        // 源护盾 1 级给 10 PDD（pddX = 10*x），所以减伤后是 20 - 10 = 10。
+        // 用户指定规则（2026-09-12）：1 级抵偿率 100%。护罩先接下受伤的 99%：
+        // floor(10 * 99%) = 9 点接给 MP，floor(9 * 100%) = 9 点真由魔力化去（护盾无差额）；
+        // 未被接下的那 1%（floor(10 * 1%) = 0）才落回 HP——所以 HP 一点不掉。
+        let expected_mp_damage = 9.min(mp_before_contact);
         world.apply_contact_damage();
-        assert_eq!(
-            world.players["mage-runtime"].state.hp,
-            hp_before_contact - (10 - expected_mp_damage)
-        );
+        assert_eq!(world.players["mage-runtime"].state.hp, hp_before_contact);
         assert_eq!(
             world.players["mage-runtime"].state.mp,
             mp_before_contact - expected_mp_damage
         );
         while rx.try_recv().is_ok() {}
+
+        // 满级（10 级）抵偿率 80%：同一击接下 9 点，只化去 floor(9 * 80%) = 7 点，
+        // 差额 2 点由护盾消解——既不扣 HP 也不扣 MP。HP 仍只承担那 1%（此处为 0）。
+        {
+            let player = world.players.get_mut("mage-runtime").unwrap();
+            player.state.skills.insert(SKILL_MAGIC_GUARD, 10);
+            player.contact_invulnerable_until = 0;
+        }
+        let hp_before_max_guard = world.players["mage-runtime"].state.hp;
+        let mp_before_max_guard = world.players["mage-runtime"].state.mp;
+        world.apply_contact_damage();
+        assert_eq!(world.players["mage-runtime"].state.hp, hp_before_max_guard);
+        assert_eq!(
+            world.players["mage-runtime"].state.mp,
+            mp_before_max_guard - 7
+        );
+        while rx.try_recv().is_ok() {}
+        {
+            let player = world.players.get_mut("mage-runtime").unwrap();
+            player.state.skills.insert(SKILL_MAGIC_GUARD, 1);
+        }
 
         world.handle_cast_skill(
             "mage-runtime".into(),

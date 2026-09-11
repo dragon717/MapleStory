@@ -14,28 +14,65 @@ const BEGINNER_LEVEL_FIELDS = new Set(['mpCon', 'fixdamage', 'x', 'time', 'speed
 // maplestorywiki 与台服 V271/V280 攻略一致（满级 20 MP、无冷却）。
 // 因此 mpCon 与 cooldownMs 只覆盖运行时数值与技能窗文案，rawCommon/sourceMetadata 仍写源记录。
 // cooldownMs 是用户指定下的 P 值（1.2s→0.6s，随等级递减），校准后只改这一处。
+//
+// 用户指定规则（2026-09-12）——**不是 TMS273 原版数值**，替换为核定来源前请保留这条记录。
+// 「魔心防禦」2001002：受伤的 99%（服务端 world.rs 的 MAGIC_GUARD_COVERED_PERCENT）
+// 转由 MP 承受，逐级的「MP 抵偿率」是下面的阶梯；抵偿率化不去的部分**由护盾消解**，
+// 未被转走的那 1% 才落回 HP。原版对照：本地 Skill/200.json#2001002 的 common 为
+// x "15+7*x"（22→85，含义是「以 MP 代替的伤害百分比」）、mpCon "8+u(x/2)"，
+// info/switchDamtoMP=1。用户指定的 99% + 抵偿率阶梯与原版无关，故 rawCommon 继续写源记录，
+// 投影值另起字段 mpSubstitutePercent（服务端结算读它，技能窗文案由同表驱动）。
 const USER_SPECIFIED_SKILL_RULES = {
   '2001009': { mpCon: 10, cooldownMs: [1200, 1050, 900, 750, 600] },
+  '2001002': {
+    // 1 级 100%、每级 -2，10 级正好 80（用户指定）。
+    fields: { mpSubstitutePercent: [100, 98, 96, 94, 92, 90, 88, 86, 84, 80] },
+    effect: '消耗MP #mpCon。启用期间受到伤害的99%转由魔力承受，'
+      + '魔力以#mpSubstitutePercent%的抵偿率将其化去，化不去的部分由护盾消解；'
+      + '未被转走的那1%仍由生命承担。',
+    description: '魔力在身外结成护罩，替你接下伤害。启用期间受到伤害的99%转由魔力承受：'
+      + '其中按当前等级的抵偿率由魔力化去，化不去的部分由护盾代为消解，'
+      + '只有未被转走的那1%会落到你身上。\n'
+      + '等级越高，抵偿率越低，化去同样的伤害所需的魔力越少。当魔力不足以化去时，'
+      + '欠缺的部分仍由生命承担；对依最大HP一定比例造成伤害的攻击无效。'
+      + '可在启用与关闭之间切换的开关技能。',
+  },
 };
 
 // 只覆盖投影出去的数值（levels / 技能窗文案），不动 entry.common 这份源记录。
+// rule.fields 的键必须与源字段区分开（如 mpSubstitutePercent），避免把用户指定的
+// 数值伪装成源公式；值可以是逐级数组（长度必须等于 maxLevel）。
 function runtimeCommon(entry) {
   const rule = USER_SPECIFIED_SKILL_RULES[entry.id];
-  if (!rule || rule.mpCon === undefined) return entry.common;
-  return { ...entry.common, mpCon: rule.mpCon };
+  if (!rule) return entry.common;
+  const common = { ...entry.common };
+  if (rule.mpCon !== undefined) common.mpCon = rule.mpCon;
+  for (const [field, value] of Object.entries(rule.fields ?? {})) {
+    assert(IDENTIFIER.test(field), `invalid user-specified field name: ${entry.id}/${field}`);
+    if (Array.isArray(value)) {
+      const maxLevel = Number(entry.maxLevel);
+      assert(value.length === maxLevel && value.every(item => Number.isSafeInteger(item)),
+        `invalid user-specified per-level field: ${entry.id}/${field}`);
+    }
+    common[field] = value;
+  }
+  return common;
 }
 
 function scalarFields(common) {
   return Object.keys(common ?? {})
     .filter(field => IDENTIFIER.test(field))
     .filter(field => typeof common[field] === 'string'
-      || typeof common[field] === 'number')
+      || typeof common[field] === 'number'
+      || Array.isArray(common[field]))
     .sort((left, right) => right.length - left.length || left.localeCompare(right));
 }
 
 function levelFieldValue(common, field, level) {
   const source = common[field];
-  const value = typeof source === 'string' ? evaluate(source, level) : source;
+  const value = Array.isArray(source)
+    ? source[level - 1]
+    : typeof source === 'string' ? evaluate(source, level) : source;
   assert(Number.isFinite(value), `non-finite description value: ${field} at level ${level}`);
   return value;
 }
@@ -51,7 +88,9 @@ function renderLevelDescription(template, common, level) {
 }
 
 function levelDescriptions(entry, maxLevel) {
-  const template = entry.string?.h;
+  // 用户指定规则可以整体替换技能窗文案；模板仍由同一张表驱动，
+  // 所以源记录、投影数值与技能窗文案之间不会各自漂移。
+  const template = USER_SPECIFIED_SKILL_RULES[entry.id]?.effect ?? entry.string?.h;
   if (template !== undefined && template !== null) {
     assert(typeof template === 'string', `invalid description template: ${entry.id}`);
     const common = runtimeCommon(entry);
@@ -98,8 +137,10 @@ function skillManifest(windowExport, skillExport) {
     const invisible = entry.displayFlags.source.invisible;
     assert(invisible === null || ['0', '1'].includes(String(invisible)), `unknown invisible flag: ${id}`);
     const descriptions = levelDescriptions(entry, maxLevel);
+    const rule = USER_SPECIFIED_SKILL_RULES[id];
     skillCatalog[id] = {
-      id, bookId: entry.book, name: entry.name, description: entry.description ?? '',
+      id, bookId: entry.book, name: entry.name,
+      description: rule?.description ?? entry.description ?? '',
       maxLevel, prerequisites, hidden: Number(invisible) === 1,
       hyper, requiredLevel,
       icons: Object.fromEntries(Object.entries(entry.icons).filter(([, frame]) => frame !== null)),
@@ -132,6 +173,12 @@ function mageRules(skillExport) {
       })
       : Array.from({ length: maxLevel }, (_, i) => Object.fromEntries(
         Object.entries(common).filter(([key]) => key !== 'maxLevel').map(([key, value]) => {
+          // 用户指定的逐级数组直接按级取用；源公式仍走 evaluate。
+          if (Array.isArray(value)) {
+            const result = value[i];
+            assert(Number.isFinite(result), `invalid mage field ${entry.id}/${key}`);
+            return [key, result];
+          }
           if (typeof value === 'object') return [key, value];
           const result = typeof value === 'number' ? value : evaluate(value, i + 1);
           assert(Number.isFinite(result), `invalid mage field ${entry.id}/${key}`);

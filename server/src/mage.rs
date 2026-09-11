@@ -66,6 +66,13 @@ pub struct MageLevel {
     /// 目前只有 2001009 瞬移使用；由 `scripts/tms273_skill_manifest.cjs` 的
     /// USER_SPECIFIED_SKILL_RULES 写入（原版瞬移没有 cooltime，数值为 P）。
     pub cooldown_ms: Option<i64>,
+    /// 用户指定规则字段（2026-09-12，**非 TMS273 源字段**）：魔心防禦 2001002 的
+    /// 逐级「MP 抵偿率」(%)，1 级 100、每级 -2、10 级正好 80。受伤的
+    /// `world::MAGIC_GUARD_COVERED_PERCENT`% 由护罩接下、转由 MP 承受，其中本值 % 能被化去，
+    /// 化不去的差额由护盾消解（不扣 HP、不扣 MP）；未被接下的那 1% 才落回 HP。
+    /// 由 `scripts/tms273_skill_manifest.cjs` 的 USER_SPECIFIED_SKILL_RULES 写入；
+    /// 原版 `x`（15+7*x = 22→85，「以 MP 代替的伤害百分比」）继续留在 `x`/`rawCommon`。
+    pub mp_substitute_percent: Option<i64>,
     #[serde(rename = "asrR")]
     pub asr_r: Option<i64>,
     #[serde(rename = "terR")]
@@ -231,6 +238,7 @@ impl MageSkills {
                         || level.md_r.is_some_and(|value| value < 0)
                         || level.cooltime.is_some_and(|value| value < 0)
                         || level.cooldown_ms.is_some_and(|value| value < 0)
+                        || level.mp_substitute_percent.is_some_and(|value| !(0..=100).contains(&value))
                         || level.asr_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.ter_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.stance_prop.is_some_and(|value| value < 0)
@@ -328,6 +336,8 @@ impl MageSkills {
                     2_001_002 => {
                         required(level.mp_con.is_some(), "mpCon")?;
                         required(level.x.is_some(), "x")?;
+                        // 用户指定规则：结算不再用源 x，改用抵偿率阶梯。
+                        required(level.mp_substitute_percent.is_some(), "mpSubstitutePercent")?;
                     }
                     2_001_008 => {
                         required(level.mp_con.is_some(), "mpCon")?;

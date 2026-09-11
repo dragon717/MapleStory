@@ -18,6 +18,11 @@ assert.equal(rules.skills['2200006'].levels[8].cr, 5);
 
 assert.equal(rules.skills['2001002'].levels[0].mpCon, 9);
 assert.equal(rules.skills['2001002'].levels[9].x, 85);
+// 用户指定规则（2026-09-12）：魔心防禦的结算改用逐级「MP 抵偿率」阶梯，
+// 源 x（15+7*x = 22→85，含义是「以 MP 代替的伤害百分比」）继续原样留在投影与源记录里。
+assert.deepEqual(rules.skills['2001002'].levels.map(level => level.mpSubstitutePercent),
+  [100, 98, 96, 94, 92, 90, 88, 86, 84, 80]);
+assert.equal(rules.skills['2001002'].rawCommon.x, '15+7*x');
 assert.equal(rules.skills['2001009'].levels[4].y, 295);
 // 用户指定规则（2026-09-10）：瞬移全等级 10 MP + 等级冷却；原版记录保留在 rawCommon。
 assert.deepEqual(rules.skills['2001009'].levels.map(level => level.mpCon), [10, 10, 10, 10, 10]);
@@ -39,7 +44,18 @@ assert.deepEqual(projected.skillCatalog['2000010'].prerequisites, { '2001002': 3
 assert.deepEqual(projected.skillCatalog['2200000'].prerequisites, { '2200006': 5 });
 assert.deepEqual(projected.skillCatalog['2201001'].prerequisites, { '2200000': 3 });
 assert.equal(projected.skillCatalog['2001008'].levelDescriptions[19], '消耗MP24，最多對4名的敵人以78%的傷害值進行攻擊4次');
-assert.equal(projected.skillCatalog['2001002'].levelDescriptions[9], '消耗MP 13，啟用期間受到的傷害的85%以MP代替。');
+// 用户指定规则（2026-09-12）：技能窗文案同表驱动，99% 为固定比例、抵偿率逐级 100→80，
+// 抵偿率化不去的差额由护盾消解（不是回落 HP），HP 只承担未被接下的那 1%。
+assert.equal(projected.skillCatalog['2001002'].levelDescriptions[9],
+  '消耗MP 13。启用期间受到伤害的99%转由魔力承受，魔力以80%的抵偿率将其化去，化不去的部分由护盾消解；未被转走的那1%仍由生命承担。');
+assert.equal(projected.skillCatalog['2001002'].levelDescriptions[0],
+  '消耗MP 9。启用期间受到伤害的99%转由魔力承受，魔力以100%的抵偿率将其化去，化不去的部分由护盾消解；未被转走的那1%仍由生命承担。');
+assert.match(projected.skillCatalog['2001002'].description, /99%转由魔力承受/);
+assert.match(projected.skillCatalog['2001002'].description, /由护盾代为消解/);
+assert.match(projected.skillCatalog['2001002'].description, /那1%会落到你身上/);
+assert.doesNotMatch(projected.skillCatalog['2001002'].description, /守恒/);
+// 源文案本身不得被改写（同 2200011 的源记录断言）。
+assert.equal(skills.catalog.skills['2001002'].string.h, '消耗MP #mpCon，啟用期間受到的傷害的#x%以MP代替。');
 assert.match(projected.skillCatalog['2001009'].levelDescriptions[4], /消耗10MP，朝左右瞬移190並朝上下瞬移295/);
 assert.match(projected.skillCatalog['2001009'].levelDescriptions[0], /消耗10MP，朝左右瞬移130並朝上下瞬移275/);
 assert.match(projected.skillCatalog['2201008'].levelDescriptions[0], /冰凍8秒。$/);
