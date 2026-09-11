@@ -314,8 +314,26 @@ async function enterGame(session: LoginResponse) {
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
     });
+    // The loading overlay covers the whole boot window and may only come
+    // down when BOTH sides are ready: the first authoritative snapshot has
+    // been announced AND the world scene finished preloading.  The server
+    // starts pushing snapshots the moment the WebSocket handshake lands —
+    // typically while Phaser is still fetching hundreds of textures — so
+    // hiding on the snapshot alone exposed the raw canvas with the top
+    // "正在装载地图与角色 · NN%" line climbing for the rest of the boot.
+    // Whichever side finishes last reveals the game; the gate on
+    // `loadingOverlay` keeps later status lines from re-running the reveal.
+    const revealGame = () => {
+      if (!loadingOverlay || !world?.isLoaded) return;
+      loadingOverlay.hide();
+      loadingOverlay = undefined;
+    };
     world = new World(manifest, (message, error) => {
       status(message, error);
+      // World.create reports readiness through the status channel after
+      // `isLoaded` flipped true; when the snapshot beat the textures, this
+      // is the side that finishes last and performs the reveal.
+      if (!error) revealGame();
       if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
@@ -522,12 +540,13 @@ async function enterGame(session: LoginResponse) {
           input?.reset();
           announcedMapId = message.mapId;
           // First authoritative snapshot for this session: the server has
-          // accepted our identity, the player is on a real map, and the
-          // overlay has done its job.  Tear it down so the Phaser canvas
-          // can receive input without stealing focus or blocking clicks.
-          loadingOverlay?.hide();
-          loadingOverlay = undefined;
+          // accepted our identity and the player is on a real map.  The
+          // snapshot itself usually lands while Phaser is still preloading
+          // (the WebSocket handshake takes milliseconds, the texture fetch
+          // seconds), so the overlay must NOT come down here — `revealGame`
+          // retires it once the world scene reports ready as well.
           status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
+          revealGame();
         }
       }
       else       if (message.type === 'rejected') {

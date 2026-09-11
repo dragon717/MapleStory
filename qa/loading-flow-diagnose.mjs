@@ -36,22 +36,25 @@ await build({
       // entry/view.ts imports the lobby api as './api', so match the raw
       // specifier (esbuild filters run before path resolution).
       b.onResolve({ filter: /^\.\/api$/ }, args => args.resolveDir.endsWith('features/entry') ? ({ path: 'entry-api', namespace: 'offline' }) : undefined);
-      // The loading css references the backdrop with an absolute /assets URL;
-      // esbuild would try to resolve it on disk.  Rewrite to a page-relative
-      // URL and mark it external so the browser fetches it from the routed
-      // /assets tree.
-      b.onLoad({ filter: /features\/loading\/style\.css$/ }, async ({ path: p }) => ({
-        loader: 'css',
-        contents: (await fs.readFile(p, 'utf8')).replace(/url\((['"])\/assets\//g, "url($1assets/"),
-      }));
-      b.onResolve({ filter: /UI__Canvas_customLoginTheme/ }, () => ({ path: 'assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png', external: true }));
       b.onLoad({ filter: /.*/, namespace: 'offline' }, ({ path: p }) => ({ loader: 'js', contents: p === 'session' ? `
 export async function authenticate(username, password, register) {
   return { token: 'offline-token', username, playerId: 'c1', protocolVersion: 13, contentVersion: 'tms273-9' };
 }
 export class Connection {
   constructor(session, message, state) { this.message = message; this.state = state; window.__connection = this; }
-  connect() { this.state('connecting'); }
+  connect() {
+    this.state('connecting');
+    // Reproduce the real server: the WebSocket handshake lands in tens of
+    // milliseconds and snapshots start flowing while Phaser is still
+    // preloading.  300ms is well inside the multi-second preload.
+    setTimeout(() => {
+      const w = window.check?.getWorld?.();
+      const bounds = w?.manifest?.map?.bounds ?? { xMin: 0, xMax: 100, yMin: 0, yMax: 100 };
+      window.player = { id: 'c1', username: '诊断冒险者', x: (bounds.xMin + bounds.xMax) / 2, y: (bounds.yMin + bounds.yMax) / 2, vx: 0, vy: 0, facing: 1, grounded: true, action: 'stand', actionId: null, actionStartedTick: 0, lastInputSeq: 0, climbing: false, ladderId: null, hp: 50, maxHp: 100, mp: 40, maxMp: 80, level: 10, exp: 25, expToNext: 100, mesos: 100, inventory: [], equipped: [] };
+      this.message({ type: 'snapshot', mapId: w ? w.mapId : '000010000', selfId: 'c1', players: [window.player], monsters: [], npcs: [], drops: [], serverTick: 0, tickMs: 50 });
+      this.state('online');
+    }, 300);
+  }
   close() {}
   send() { return true; }
 }` : `

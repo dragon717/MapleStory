@@ -72,10 +72,13 @@ export class LoadingOverlay {
 
     // Backdrop is the source-backed CustomizeChar canvas (1366x768); the
     // responsive stylesheet scales it to the viewport while keeping the
-    // village / tree centered.
+    // village / tree centered.  The URL lives here (inline style) rather
+    // than in the stylesheet so offline esbuild bundles never try to
+    // resolve the absolute /assets path on disk.
     const backdrop = document.createElement('div');
     backdrop.className = 'loading-overlay-backdrop';
     backdrop.setAttribute('aria-hidden', 'true');
+    backdrop.style.backgroundImage = "url('/assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png')";
     root.appendChild(backdrop);
 
     // The card carries the live progress UI.  It is a flat DOM tree of named

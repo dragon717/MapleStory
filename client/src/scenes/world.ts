@@ -51,6 +51,11 @@ export class World extends Phaser.Scene {
     private onReactorHit?: (reactorId: string) => void,
   ) { super('world'); }
   get mapId() { return this.manifest.map.id; }
+  /** True once `create()` finished for the current map; `switchMap` flips it
+   *  back to false while a map switch rebuilds the scene.  The boot overlay
+   *  in `main.ts` waits for this alongside the first snapshot, because the
+   *  server starts pushing snapshots while Phaser is still preloading. */
+  get isLoaded() { return this.loaded; }
   getMap(mapId = this.mapId, sourceMapId?: string): MapDefinition | MapCatalogEntry | undefined {
     if (mapId === this.mapId) return this.manifest.map;
     const source = this.manifest.mapCatalog?.maps.find(map => map.id === (sourceMapId ?? mapId));

@@ -30,12 +30,15 @@
 }
 
 .loading-overlay-backdrop {
-  /* The source-backed CustomizeChar backdrop (1366x768).  `object-position`
-     keeps the village / tree centered when cropped by an extreme aspect. */
+  /* The source-backed CustomizeChar backdrop (1366x768).  The image URL is
+     assigned from `view.ts` as an inline style: a CSS url('/assets/…') is
+     fine for vite (public dir) but esbuild-based offline checks try to
+     resolve it on disk and fail the whole bundle.  `object-position`
+     concerns are moot — background-size keeps the village / tree centered
+     when cropped by an extreme aspect. */
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: url('/assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png');
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;

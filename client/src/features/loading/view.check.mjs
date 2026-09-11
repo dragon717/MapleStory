@@ -117,10 +117,12 @@ class FakeDocument extends FakeElement {
 
 const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
 const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
-// The CSS must reference the TMS273 customize-char backdrop (the actual
-// high-resolution art reused by the overlay) and must keep responsive rules
-// so the layout survives desktop / landscape / narrow-portrait breakpoints.
-assert.match(style, /UI__Canvas_customLoginTheme\.img_0_image_back_0_0-88919c5ab2\.png/, 'overlay uses the high-resolution CustomizeChar art');
+// The TMS273 customize-char backdrop (the actual high-resolution art reused
+// by the overlay) is assigned from `view.ts` as an inline style — a CSS
+// url('/assets/…') would break the esbuild-based offline app checks, which
+// try to resolve it on disk.  The CSS keeps the responsive cover rules so
+// the layout survives desktop / landscape / narrow-portrait breakpoints.
+assert.match(source, /UI__Canvas_customLoginTheme\.img_0_image_back_0_0-88919c5ab2\.png/, 'overlay uses the high-resolution CustomizeChar art');
 assert.match(style, /background-size:\s*cover/, 'overlay background covers the viewport');
 assert.match(style, /@media \(max-width: 700px\)/, 'overlay adapts to narrow viewports');
 assert.match(style, /@media \(prefers-reduced-motion: reduce\)/, 'overlay honours reduced motion');
