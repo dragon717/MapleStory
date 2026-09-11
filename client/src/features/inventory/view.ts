@@ -518,17 +518,26 @@ export class InventoryView {
     button.dataset.state = state;
     button.replaceChildren();
     const mode = this.inventoryMode();
+    // `.inventory-tabs` lives inside `.inventory-tabs-viewport`, which
+    // `updateTabMetrics()` already positions at `(tabs.left, tabs.top)` in
+    // window-local coordinates.  The exported source frames still carry
+    // their window-absolute `(x, y)`, so each tab has to be offset back to
+    // viewport-relative space — otherwise the source-authored tab rail
+    // double-applies the viewport origin and drops below the row reserved
+    // for the tab strip (where the sort button sits on top of it).
+    const offsetX = mode.tabs.left;
+    const offsetY = mode.tabs.top;
     const frame = this.inventoryFrame(`tab:category/${state}/${index}`);
     if (frame) {
-      button.style.left = `${frame.x}px`;
-      button.style.top = `${frame.y}px`;
+      button.style.left = `${frame.x - offsetX}px`;
+      button.style.top = `${frame.y - offsetY}px`;
       button.style.width = `${frame.width}px`;
       button.style.height = `${frame.height}px`;
       button.append(this.assetImage(frame, 'inventory-tab-frame'));
       return;
     }
-    button.style.left = `${mode.tabs.left + index * mode.tabs.stepX}px`;
-    button.style.top = `${mode.tabs.top}px`;
+    button.style.left = `${index * mode.tabs.stepX}px`;
+    button.style.top = '0px';
     button.style.width = `${mode.tabs.width}px`;
     button.style.height = `${mode.tabs.height}px`;
     // Legacy manifests may still carry Basic.Tab2 pieces. Keep that fallback
