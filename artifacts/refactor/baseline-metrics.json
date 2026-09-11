@@ -1,0 +1,132 @@
+{
+  "generated_by": "人工记录真实命令输出（MapleStory_Large_File_Refactoring_Plan.md §3.3 / §11.4）",
+  "recorded_at": "2026-09-12",
+  "note": "本文件只记录**实际执行过**的命令与观察到的输出；未执行的项一律标 unmeasured，不用 0 或估算值代替。",
+  "server": {
+    "toolchain": {
+      "cargo": "~/.cargo/bin/cargo，一律 --offline",
+      "manifest": "server/Cargo.toml",
+      "note": "沿用仓库既有工具链，本轮未升级任何依赖"
+    },
+    "commands": [
+      {
+        "command": "~/.cargo/bin/cargo test --offline --manifest-path server/Cargo.toml",
+        "measured_at": "2026-09-12",
+        "result": "FAILED. 292 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out",
+        "wall_clock_seconds": 3.86,
+        "wall_clock_note": "增量编译后（target/ 已预热），不是冷构建耗时",
+        "failures": [
+          {
+            "test": "auth::tests::third_store_book_split_and_222_compatibility",
+            "location": "src/third_store_acceptance.rs:95",
+            "observation": "assertion left: Some(4) right: Some(7)",
+            "classification": "既有长期失败（陈旧断言），非本轮回归"
+          },
+          {
+            "test": "mage::tests::bundled_catalog_is_strict_and_has_energy_bolt_geometry",
+            "location": "src/mage.rs:641",
+            "observation": "assertion left: 56 right: 43",
+            "classification": "既有长期失败：技能数断言陈旧（实际 56 ≠ 断言的 43），不是 validate 报错"
+          },
+          {
+            "test": "world::tests::config_drop_and_exp_are_authoritative_without_client_values",
+            "location": "src/world.rs:21034",
+            "observation": "called Result::unwrap() on an Err value: \"incompatible gameplay content version\"",
+            "classification": "既有长期失败"
+          },
+          {
+            "test": "world::tests::portal_command_changes_map_and_snapshot_scope",
+            "location": "src/world.rs:20294",
+            "observation": "assertion failed: snapshot.contains(\"\\\"mapId\\\":\\\"target\\\"\")",
+            "classification": "既有长期失败"
+          },
+          {
+            "test": "world::tests::reactor_area_herb_auto_triggers_once_per_entry_and_can_trigger_again_after_exit",
+            "location": "src/reactor_acceptance.rs:249",
+            "observation": "assertion left: Some(2) right: Some(1)",
+            "classification": "既有长期失败"
+          },
+          {
+            "test": "world::tests::third_sphere_and_adaptation_are_idempotent_and_bounded",
+            "location": "src/third_acceptance.rs:166",
+            "observation": "assertion left: 204 right: 612 (boss does not receive normal-mob bonus)",
+            "classification": "既有长期失败"
+          }
+        ]
+      }
+    ],
+    "cold_build_seconds": "unmeasured",
+    "tick_performance": "unmeasured（未做 p50/p95/p99 采样）"
+  },
+  "client": {
+    "toolchain": {
+      "bundler": "vite ^7.3.1",
+      "typescript": "~5.9.3",
+      "runtime": "phaser 3.90.0（本项目实际渲染库，不是 Three.js）"
+    },
+    "commands": [
+      {
+        "command": "cd client && npx tsc --noEmit",
+        "measured_at": "2026-09-12",
+        "result": "exit 0，无输出"
+      },
+      {
+        "command": "cd client && npm run check（逐步执行 17 个子检查）",
+        "measured_at": "2026-09-12",
+        "result": "16 passed; 1 failed",
+        "failures": [
+          {
+            "step": 9,
+            "command": "node src/features/npc/dialogue.check.mjs",
+            "observation": "TypeError [ERR_UNSUPPORTED_RESOLVE_REQUEST]: Failed to resolve module specifier \"../inventory/names\" from a data:text/javascript;base64,... URL",
+            "classification": "既有长期失败：该 check 用 data: URL 承载被测模块，相对导入无法解析（harness 限制，不是被测代码本身错）。新 check 必须排在这一步之前，否则被它拦住。"
+          }
+        ],
+        "passing_steps": [
+          "features/player/animation.check.ts",
+          "scenes/layer-animation.check.ts",
+          "features/hud/gauge.check.ts",
+          "app/i18n.check.ts",
+          "features/ui/window-shell.check.mjs",
+          "features/hud/buff.check.mjs",
+          "features/player/input.check.mjs",
+          "features/world/minimap.check.mjs",
+          "features/skills/view.check.mjs",
+          "features/npc/view.check.mjs",
+          "features/combat/skill.check.mjs",
+          "features/character/view.check.mjs",
+          "features/loading/view.check.mjs",
+          "features/player/levelup.check.mjs",
+          "features/world/water.check.mjs",
+          "features/world/reactor.check.mjs"
+        ]
+      },
+      {
+        "command": "cd client && npx vite build（由 npm run build 触发）",
+        "measured_at": "unmeasured",
+        "note": "本轮未执行构建：不修改源码时无需构建，且启动脚本只在启动时构建。"
+      }
+    ]
+  },
+  "frontend_dependency_graph": {
+    "source": "artifacts/refactor/frontend-deps.json",
+    "node_count": 81,
+    "edge_count": 154,
+    "unresolved": 0,
+    "cycles": [
+      "client/src/assets/manifest.ts -> client/src/features/entry/appearance.ts -> client/src/assets/manifest.ts"
+    ],
+    "violations": [
+      {
+        "rule": "network-session-not-imported-by-features",
+        "edge": "client/src/features/entry/view.ts -> client/src/network/session.ts"
+      }
+    ]
+  },
+  "runtime_identity": {
+    "note": "计划 §5.4 要求开发/构建模式都能回答“当前运行的是什么”。当前实现分两处：",
+    "server": "GET /api/health 返回 {ok, protocolVersion, contentVersion}；启动3010.command 用三者做就绪判定",
+    "client": "vite define 注入 __RELEASE_VERSION__ / __RELEASE_TIME__（构建时刻，不是产物 build id）",
+    "gap": "没有 build ID、没有运行模式（DEV_SOURCE / BUILT_PREVIEW）标识、没有实例/epoch 标识、没有最近一次热更新序号"
+  }
+}

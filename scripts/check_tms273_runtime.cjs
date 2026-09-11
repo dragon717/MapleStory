@@ -3,6 +3,28 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const read=file=>JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
+// 服务端生产源码（递归 server/src/**/*.rs，排除 *_acceptance.rs）。
+//
+// 为什么不按单个文件读：这些断言问的是"服务端是否实现/定义了某条规则"，
+// 而"某段代码当前落在哪个文件"不是契约。`world.rs` 拆分模块时（通讯职责搬去
+// `messaging.rs`）按文件名读取的断言会假失败——真出问题的是断言的作用域，不是实现。
+// 排除 `*_acceptance.rs` 是必要的：测试文件提到一个拒绝码，不能算作
+// "服务端会发这个码"。子目录也递归，便于后续按目录拆分。
+let serverSourceCache=null;
+const serverSource=()=>{
+  if(serverSourceCache!==null) return serverSourceCache;
+  const files=[];
+  const walk=dir=>{
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})) {
+      const abs=path.join(dir,entry.name);
+      if(entry.isDirectory()) walk(abs);
+      else if(entry.name.endsWith('.rs') && !entry.name.endsWith('_acceptance.rs')) files.push(abs);
+    }
+  };
+  walk(path.join(root,'server/src'));
+  serverSourceCache=files.sort().map(file=>fs.readFileSync(file,'utf8')).join('\n');
+  return serverSourceCache;
+};
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
 assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-9');
@@ -256,7 +278,7 @@ for(const state of ['enabled','disabled']) {
   for(let i=0;i<5;i+=1) assert(manifest.storageUi.ui[`Tab/${state}/${i}`],`storage tab missing: ${state}/${i}`);
 }
 {
-  const worldSrc=fs.readFileSync(path.join(root,'server/src/auth.rs'),'utf8');
+  const worldSrc=serverSource();
   const limit=Number(worldSrc.match(/pub const STORAGE_SLOT_LIMIT: u16 = (\d+);/)?.[1]);
   assert(limit>0,'STORAGE_SLOT_LIMIT not found in the server source');
   assert.equal(manifest.storageUi.slotLimit,limit,'storage slot limit drifted between client and server');
@@ -280,7 +302,7 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
   // The friend caps live in auth.rs and are enforced server-side; the client
   // only ever renders what the server pushes, so a drift here would show up as
   // a window that cannot explain a refusal.
-  const authSrc=fs.readFileSync(path.join(root,'server/src/auth.rs'),'utf8');
+  const authSrc=serverSource();
   assert(/const FRIEND_LIMIT: i64 = \d+;/.test(authSrc),'FRIEND_LIMIT not found in the server source');
   assert(/const BLACKLIST_LIMIT: i64 = \d+;/.test(authSrc),'BLACKLIST_LIMIT not found in the server source');
 }
@@ -441,7 +463,7 @@ assert(manifest.skillSounds['2221011'].loop.url && manifest.skillSounds['2221011
   assert.equal(gameplay.emoticons.limit.timeMs,emoticon.limit.timeMs);
   // Both refusal codes the server can send must be explainable in the UI,
   // otherwise the window would show a bare code.
-  const serverSrc=fs.readFileSync(path.join(root,'server/src/world.rs'),'utf8');
+  const serverSrc=serverSource();
   const i18nSrc=fs.readFileSync(path.join(root,'client/src/app/i18n.ts'),'utf8');
   for(const code of ['emoticon_unknown','emoticon_rate_limited']) {
     assert(serverSrc.includes(`"${code}"`),`server never sends ${code}`);

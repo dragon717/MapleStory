@@ -1,0 +1,3681 @@
+{
+  "generated_by": "scripts/refactor_audit.cjs",
+  "generated_for": "MapleStory_Large_File_Refactoring_Plan.md §3 (P0)",
+  "scope": "tracked-and-unignored-untracked-working-tree",
+  "excluded_directory_names": [
+    ".cache",
+    ".git",
+    ".vite",
+    "coverage",
+    "evidence",
+    "node_modules",
+    "output",
+    "public-tms273",
+    "resources",
+    "target",
+    "third_party",
+    "vendor",
+    "参考"
+  ],
+  "excluded_directory_prefixes": [
+    "dist"
+  ],
+  "limitations": [
+    "physical_lines/nonblank_lines 不是 SLOC，未剔除注释。",
+    "不含复杂度、依赖、缺陷密度或业务风险推断。",
+    "churn_last_100_commits 以提交为单位，机械变更与业务变更未分离。",
+    "子模块仓库（参考/）需单独扫描；本脚本按设计排除。"
+  ],
+  "thresholds": {
+    "ts": {
+      "warn": 600,
+      "justify": 1000,
+      "block": 1500
+    },
+    "rust": {
+      "warn": 800,
+      "justify": 1200,
+      "block": 1500
+    },
+    "md": {
+      "warn": 600,
+      "justify": 1000,
+      "block": 1500
+    },
+    "other": {
+      "warn": 600,
+      "justify": 1000,
+      "block": 1500
+    }
+  },
+  "files": [
+    {
+      "path": "references/tms273-data/maps.json",
+      "physical_lines": 1748707,
+      "nonblank_lines": 1748706,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "references/gameplay-assets/maps/catalog.json",
+      "physical_lines": 145842,
+      "nonblank_lines": 145841,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "references/gameplay-assets/avatar/manifest.json",
+      "physical_lines": 75097,
+      "nonblank_lines": 75096,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "references/gameplay-assets/manifest.json",
+      "physical_lines": 35745,
+      "nonblank_lines": 35744,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "references/tms273-data/ice-fourth-job-source.json",
+      "physical_lines": 29308,
+      "nonblank_lines": 29307,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/quests.json",
+      "physical_lines": 24739,
+      "nonblank_lines": 24738,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "server/src/world.rs",
+      "physical_lines": 21994,
+      "nonblank_lines": 21417,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 36
+    },
+    {
+      "path": "shared/quest-zh-official.json",
+      "physical_lines": 20889,
+      "nonblank_lines": 20888,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/browser-probe/manifest.json",
+      "physical_lines": 12948,
+      "nonblank_lines": 12947,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/quest-zh-official-candidates.json",
+      "physical_lines": 8658,
+      "nonblank_lines": 8657,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/auth.rs",
+      "physical_lines": 8410,
+      "nonblank_lines": 8196,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 17
+    },
+    {
+      "path": "references/browser-probe/map.json",
+      "physical_lines": 8246,
+      "nonblank_lines": 8245,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/gameplay-assets/avatar/map.json",
+      "physical_lines": 8246,
+      "nonblank_lines": 8245,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "references/tms273-data/victoria-first-boss-source.json",
+      "physical_lines": 7705,
+      "nonblank_lines": 7704,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/ice-third-job-source.json",
+      "physical_lines": 4127,
+      "nonblank_lines": 4126,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "artifacts/refactor/large-files.json",
+      "physical_lines": 3061,
+      "nonblank_lines": 3060,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "shared/quest-glossary.json",
+      "physical_lines": 2553,
+      "nonblank_lines": 2552,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/inventory/view.ts",
+      "physical_lines": 1640,
+      "nonblank_lines": 1539,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 13
+    },
+    {
+      "path": "references/tms273-data/adventurer-continuation-source.json",
+      "physical_lines": 1607,
+      "nonblank_lines": 1606,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/inventory_ops.rs",
+      "physical_lines": 1484,
+      "nonblank_lines": 1464,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "MapleStory_Rust_Chat_Ops_Development_Plan.md",
+      "physical_lines": 1379,
+      "nonblank_lines": 1003,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/ice-hyper-source.json",
+      "physical_lines": 1302,
+      "nonblank_lines": 1301,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/inventory.rs",
+      "physical_lines": 1217,
+      "nonblank_lines": 1137,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "server/src/boss.rs",
+      "physical_lines": 1201,
+      "nonblank_lines": 1167,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/lobby.rs",
+      "physical_lines": 1176,
+      "nonblank_lines": 1134,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/package-lock.json",
+      "physical_lines": 1163,
+      "nonblank_lines": 1162,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "scripts/package-lock.json",
+      "physical_lines": 1122,
+      "nonblank_lines": 1121,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "世界意识/MapleStory_Destiny_World_Recognizes_You_Design_v0.1.md",
+      "physical_lines": 1095,
+      "nonblank_lines": 716,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/skills/view.ts",
+      "physical_lines": 1034,
+      "nonblank_lines": 956,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "server/src/protocol.rs",
+      "physical_lines": 1032,
+      "nonblank_lines": 1001,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 21
+    },
+    {
+      "path": "bugfix/MapleStory_Web后台保活与暂离驻留_开发方案.md",
+      "physical_lines": 963,
+      "nonblank_lines": 686,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "世界意识/MapleStory_First_Minute_Emergent_World_Design.md",
+      "physical_lines": 958,
+      "nonblank_lines": 598,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "世界意识/世界节点机制_风铃桥最小闭环开发计划.md",
+      "physical_lines": 891,
+      "nonblank_lines": 595,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/world/minimap-view.ts",
+      "physical_lines": 876,
+      "nonblank_lines": 825,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "scripts/export_tms273_skills.cjs",
+      "physical_lines": 867,
+      "nonblank_lines": 832,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "MapleStory_TMS273_Web_Realtime_HMR_Development_Plan.md",
+      "physical_lines": 838,
+      "nonblank_lines": 575,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/npc.rs",
+      "physical_lines": 837,
+      "nonblank_lines": 792,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "Web_TS_2D_Water_Development_Plan.md",
+      "physical_lines": 800,
+      "nonblank_lines": 572,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/gameplay-assets/avatar/export-summary.json",
+      "physical_lines": 791,
+      "nonblank_lines": 790,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "MapleStory_Large_File_Refactoring_Plan.md",
+      "physical_lines": 781,
+      "nonblank_lines": 528,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/scenes/world.ts",
+      "physical_lines": 781,
+      "nonblank_lines": 765,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 22
+    },
+    {
+      "path": "server/src/party_acceptance.rs",
+      "physical_lines": 767,
+      "nonblank_lines": 681,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "IMPLEMENTATION_STATUS.md",
+      "physical_lines": 738,
+      "nonblank_lines": 461,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 16
+    },
+    {
+      "path": "server/src/scroll_acceptance.rs",
+      "physical_lines": 722,
+      "nonblank_lines": 656,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/combat/view.ts",
+      "physical_lines": 697,
+      "nonblank_lines": 661,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 7
+    },
+    {
+      "path": "client/src/app/main.ts",
+      "physical_lines": 686,
+      "nonblank_lines": 681,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 24
+    },
+    {
+      "path": "scripts/export_tms273_avatar.cjs",
+      "physical_lines": 686,
+      "nonblank_lines": 630,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "bugfix/MapleStory_TMS273_Lith_Harbor_Main_Quest_Fix_Plan.md",
+      "physical_lines": 683,
+      "nonblank_lines": 488,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/mage.rs",
+      "physical_lines": 673,
+      "nonblank_lines": 660,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "client/src/features/npc/dialogue.ts",
+      "physical_lines": 664,
+      "nonblank_lines": 604,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "artifacts/refactor/frontend-deps.json",
+      "physical_lines": 660,
+      "nonblank_lines": 659,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/assets/manifest.ts",
+      "physical_lines": 637,
+      "nonblank_lines": 636,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 18
+    },
+    {
+      "path": "client/src/features/chat/view.ts",
+      "physical_lines": 629,
+      "nonblank_lines": 586,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 7
+    },
+    {
+      "path": "server/src/messaging.rs",
+      "physical_lines": 610,
+      "nonblank_lines": 597,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/world/water.ts",
+      "physical_lines": 609,
+      "nonblank_lines": 555,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/storage_acceptance.rs",
+      "physical_lines": 602,
+      "nonblank_lines": 546,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_mage_effects.cjs",
+      "physical_lines": 580,
+      "nonblank_lines": 548,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "bugfix/MapleStory_V273_Quest_36306_NPC_Fix_Plan.md",
+      "physical_lines": 556,
+      "nonblank_lines": 392,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/chat/emoticon-view.ts",
+      "physical_lines": 553,
+      "nonblank_lines": 505,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/party-view.ts",
+      "physical_lines": 549,
+      "nonblank_lines": 491,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "scripts/export_tms273_chapter.cjs",
+      "physical_lines": 542,
+      "nonblank_lines": 503,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/02_BACKLOG.json",
+      "physical_lines": 541,
+      "nonblank_lines": 540,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/tms273_wz.cjs",
+      "physical_lines": 527,
+      "nonblank_lines": 476,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/friend_acceptance.rs",
+      "physical_lines": 519,
+      "nonblank_lines": 442,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/away_acceptance.rs",
+      "physical_lines": 518,
+      "nonblank_lines": 492,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/hud/view.ts",
+      "physical_lines": 502,
+      "nonblank_lines": 463,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "scripts/export_tms273.cjs",
+      "physical_lines": 497,
+      "nonblank_lines": 490,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "client/src/features/world/friend-view.ts",
+      "physical_lines": 489,
+      "nonblank_lines": 440,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "世界意识/MapleStory_World_Awareness_Engagement_Model_v0.1.md",
+      "physical_lines": 485,
+      "nonblank_lines": 309,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/character/view.ts",
+      "physical_lines": 482,
+      "nonblank_lines": 432,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "references/tms273-data/ice-fourth-job-transfer-source.json",
+      "physical_lines": 481,
+      "nonblank_lines": 480,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/reactor_acceptance.rs",
+      "physical_lines": 476,
+      "nonblank_lines": 437,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "client/src/features/character/style.css",
+      "physical_lines": 475,
+      "nonblank_lines": 420,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/storage-view.ts",
+      "physical_lines": 474,
+      "nonblank_lines": 424,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_runtime.cjs",
+      "physical_lines": 473,
+      "nonblank_lines": 466,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "server/src/water_acceptance.rs",
+      "physical_lines": 443,
+      "nonblank_lines": 423,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/player/view.ts",
+      "physical_lines": 442,
+      "nonblank_lines": 432,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "references/browser-probe/export-assets.cjs",
+      "physical_lines": 429,
+      "nonblank_lines": 408,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/world/worldmap-view.ts",
+      "physical_lines": 428,
+      "nonblank_lines": 398,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/unpack_tms273_ms/src/main.rs",
+      "physical_lines": 403,
+      "nonblank_lines": 380,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/quest-zh-b.json",
+      "physical_lines": 402,
+      "nonblank_lines": 401,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "00_RESEARCH_AND_REMAKE_PLAN.md",
+      "physical_lines": 400,
+      "nonblank_lines": 244,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_gameplay.cjs",
+      "physical_lines": 400,
+      "nonblank_lines": 393,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "tms273_research_pack/00_RESEARCH_AND_REMAKE_PLAN.md",
+      "physical_lines": 400,
+      "nonblank_lines": 244,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/friend.check.mjs",
+      "physical_lines": 399,
+      "nonblank_lines": 361,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/network_probe.mjs",
+      "physical_lines": 399,
+      "nonblank_lines": 372,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/menu/view.ts",
+      "physical_lines": 394,
+      "nonblank_lines": 361,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 11
+    },
+    {
+      "path": "client/src/features/world/minimap.check.mjs",
+      "physical_lines": 391,
+      "nonblank_lines": 366,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_minimap.cjs",
+      "physical_lines": 379,
+      "nonblank_lines": 358,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "scripts/export_tms273_emoticon.cjs",
+      "physical_lines": 378,
+      "nonblank_lines": 353,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/refactor_audit.cjs",
+      "physical_lines": 377,
+      "nonblank_lines": 340,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "server/src/whisper_acceptance.rs",
+      "physical_lines": 371,
+      "nonblank_lines": 337,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/ui/window-shell.check.mjs",
+      "physical_lines": 367,
+      "nonblank_lines": 336,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/minimap.css",
+      "physical_lines": 364,
+      "nonblank_lines": 319,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "client/src/app/style.css",
+      "physical_lines": 349,
+      "nonblank_lines": 330,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 15
+    },
+    {
+      "path": "scripts/export_tms273_avatar_parts.cjs",
+      "physical_lines": 346,
+      "nonblank_lines": 318,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/shop_sell_acceptance.rs",
+      "physical_lines": 340,
+      "nonblank_lines": 308,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/party.check.mjs",
+      "physical_lines": 335,
+      "nonblank_lines": 305,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/monster_status_acceptance.rs",
+      "physical_lines": 332,
+      "nonblank_lines": 315,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/01_SOURCE_REGISTER.json",
+      "physical_lines": 332,
+      "nonblank_lines": 331,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/protocol.ts",
+      "physical_lines": 331,
+      "nonblank_lines": 330,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 22
+    },
+    {
+      "path": "server/src/sidewall_acceptance.rs",
+      "physical_lines": 326,
+      "nonblank_lines": 303,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/continuation_acceptance.rs",
+      "physical_lines": 325,
+      "nonblank_lines": 312,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/network.rs",
+      "physical_lines": 323,
+      "nonblank_lines": 317,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "client/src/features/chat/emoticon.check.mjs",
+      "physical_lines": 320,
+      "nonblank_lines": 296,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/maple-island-calamity-source.json",
+      "physical_lines": 318,
+      "nonblank_lines": 317,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/chat/whisper.check.mjs",
+      "physical_lines": 316,
+      "nonblank_lines": 296,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_combat.cjs",
+      "physical_lines": 314,
+      "nonblank_lines": 283,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "bugfix/MapleStory_Platform_Sidewall_Collision_Plan.md",
+      "physical_lines": 312,
+      "nonblank_lines": 194,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/MapleStory273_Online_Gallery.html",
+      "physical_lines": 306,
+      "nonblank_lines": 306,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/npc-dialogue-zh.json",
+      "physical_lines": 301,
+      "nonblank_lines": 300,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_reactor.cjs",
+      "physical_lines": 298,
+      "nonblank_lines": 278,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/loading/view.check 2.mjs",
+      "physical_lines": 293,
+      "nonblank_lines": 271,
+      "category": "icloud-conflict-copy",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/ice-third-job-transfer-source.json",
+      "physical_lines": 291,
+      "nonblank_lines": 290,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/app/chat-focus.check.mjs",
+      "physical_lines": 286,
+      "nonblank_lines": 274,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/consume_acceptance.rs",
+      "physical_lines": 277,
+      "nonblank_lines": 247,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_skill_sounds.cjs",
+      "physical_lines": 272,
+      "nonblank_lines": 247,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/quest/log.ts",
+      "physical_lines": 271,
+      "nonblank_lines": 246,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "scripts/assemble_tms273.cjs",
+      "physical_lines": 269,
+      "nonblank_lines": 268,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 14
+    },
+    {
+      "path": "server/src/boss_acceptance.rs",
+      "physical_lines": 269,
+      "nonblank_lines": 252,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/world/worldmap.check.mjs",
+      "physical_lines": 266,
+      "nonblank_lines": 247,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_skills.cjs",
+      "physical_lines": 263,
+      "nonblank_lines": 246,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/revive_e2e_probe.mjs",
+      "physical_lines": 260,
+      "nonblank_lines": 237,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/entry/view.ts",
+      "physical_lines": 259,
+      "nonblank_lines": 256,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "scripts/export_tms273_hyper_ui.cjs",
+      "physical_lines": 259,
+      "nonblank_lines": 240,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_skill_ui.cjs",
+      "physical_lines": 259,
+      "nonblank_lines": 234,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/emoticon_acceptance.rs",
+      "physical_lines": 255,
+      "nonblank_lines": 229,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/ui/window-shell.ts",
+      "physical_lines": 253,
+      "nonblank_lines": 231,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_chat.cjs",
+      "physical_lines": 252,
+      "nonblank_lines": 229,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/wave_acceptance.rs",
+      "physical_lines": 252,
+      "nonblank_lines": 237,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/third_acceptance.rs",
+      "physical_lines": 248,
+      "nonblank_lines": 236,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/inventory_acceptance.rs",
+      "physical_lines": 245,
+      "nonblank_lines": 239,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "scripts/check_tms273_worldmap_ui.mjs",
+      "physical_lines": 243,
+      "nonblank_lines": 226,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/chat_acceptance.rs",
+      "physical_lines": 238,
+      "nonblank_lines": 212,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_inventory.cjs",
+      "physical_lines": 236,
+      "nonblank_lines": 219,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/loading/view.ts",
+      "physical_lines": 234,
+      "nonblank_lines": 214,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "qa/contact_respawn_probe.mjs",
+      "physical_lines": 232,
+      "nonblank_lines": 210,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/loading/view 2.ts",
+      "physical_lines": 231,
+      "nonblank_lines": 211,
+      "category": "icloud-conflict-copy",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/browser_probe.mjs",
+      "physical_lines": 230,
+      "nonblank_lines": 217,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/inventory/style.css",
+      "physical_lines": 229,
+      "nonblank_lines": 197,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "scripts/export_tms273_worldmap.cjs",
+      "physical_lines": 229,
+      "nonblank_lines": 210,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/loading/style.css",
+      "physical_lines": 226,
+      "nonblank_lines": 204,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "shared/character-creation.json",
+      "physical_lines": 226,
+      "nonblank_lines": 225,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/loading/style 2.css",
+      "physical_lines": 223,
+      "nonblank_lines": 201,
+      "category": "icloud-conflict-copy",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_friend.cjs",
+      "physical_lines": 222,
+      "nonblank_lines": 202,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/tms273_skill_manifest.cjs",
+      "physical_lines": 221,
+      "nonblank_lines": 210,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "server/src/mob_move_acceptance.rs",
+      "physical_lines": 221,
+      "nonblank_lines": 207,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/loading/view.check.mjs",
+      "physical_lines": 217,
+      "nonblank_lines": 195,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/world/storage.check.mjs",
+      "physical_lines": 217,
+      "nonblank_lines": 199,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/tms273_chapter.cjs",
+      "physical_lines": 217,
+      "nonblank_lines": 213,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "scripts/tms273_skill_formulas.cjs",
+      "physical_lines": 216,
+      "nonblank_lines": 186,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/chapter_acceptance.rs",
+      "physical_lines": 215,
+      "nonblank_lines": 199,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "scripts/export_tms273_levelup.cjs",
+      "physical_lines": 214,
+      "nonblank_lines": 192,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/player/input.ts",
+      "physical_lines": 210,
+      "nonblank_lines": 205,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "client/src/features/player/input.check.mjs",
+      "physical_lines": 204,
+      "nonblank_lines": 202,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "client/src/features/character/view.check.mjs",
+      "physical_lines": 203,
+      "nonblank_lines": 192,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/minimap-buttons-probe.mjs",
+      "physical_lines": 202,
+      "nonblank_lines": 192,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/app/i18n.ts",
+      "physical_lines": 200,
+      "nonblank_lines": 192,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 20
+    },
+    {
+      "path": "client/src/features/hud/buff.check.mjs",
+      "physical_lines": 200,
+      "nonblank_lines": 180,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/skills/view.check.mjs",
+      "physical_lines": 199,
+      "nonblank_lines": 187,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "client/src/features/mob/view.ts",
+      "physical_lines": 192,
+      "nonblank_lines": 173,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 7
+    },
+    {
+      "path": "client/src/features/hud/style.css",
+      "physical_lines": 191,
+      "nonblank_lines": 168,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "QUEST_I18N_ROADMAP.md",
+      "physical_lines": 188,
+      "nonblank_lines": 141,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "references/tms273-data/natural-recovery-source.json",
+      "physical_lines": 186,
+      "nonblank_lines": 185,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "UI_WINDOW_SYSTEM.md",
+      "physical_lines": 184,
+      "nonblank_lines": 147,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/tms273-data/manifest.json",
+      "physical_lines": 183,
+      "nonblank_lines": 182,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "qa/minimap-header-shot.mjs",
+      "physical_lines": 180,
+      "nonblank_lines": 171,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_party.cjs",
+      "physical_lines": 180,
+      "nonblank_lines": 162,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/hyper_acceptance.rs",
+      "physical_lines": 176,
+      "nonblank_lines": 164,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/architecture/large-file-audit.md",
+      "physical_lines": 172,
+      "nonblank_lines": 132,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "scripts/export_tms273_npc_marker.cjs",
+      "physical_lines": 171,
+      "nonblank_lines": 151,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_npcs.cjs",
+      "physical_lines": 158,
+      "nonblank_lines": 150,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_storage.cjs",
+      "physical_lines": 157,
+      "nonblank_lines": 143,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/reactor-view.ts",
+      "physical_lines": 156,
+      "nonblank_lines": 143,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/worldmap.css",
+      "physical_lines": 156,
+      "nonblank_lines": 138,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_portals.cjs",
+      "physical_lines": 155,
+      "nonblank_lines": 150,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/quest_text.rs",
+      "physical_lines": 155,
+      "nonblank_lines": 139,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "client/src/features/inventory/names.ts",
+      "physical_lines": 151,
+      "nonblank_lines": 134,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 7
+    },
+    {
+      "path": "bots/run.mjs",
+      "physical_lines": 149,
+      "nonblank_lines": 147,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/hud/buff-bar.ts",
+      "physical_lines": 148,
+      "nonblank_lines": 135,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/main.rs",
+      "physical_lines": 148,
+      "nonblank_lines": 147,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 9
+    },
+    {
+      "path": "client/src/app/viewport.check.mjs",
+      "physical_lines": 147,
+      "nonblank_lines": 146,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/npc_smoke_probe.mjs",
+      "physical_lines": 146,
+      "nonblank_lines": 133,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/quest_smoke_probe.mjs",
+      "physical_lines": 146,
+      "nonblank_lines": 134,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "client/src/features/notice/death.ts",
+      "physical_lines": 144,
+      "nonblank_lines": 127,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/hyper_store_acceptance.rs",
+      "physical_lines": 143,
+      "nonblank_lines": 140,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/quest_i18n_probe.mjs",
+      "physical_lines": 142,
+      "nonblank_lines": 134,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/quest-zh-c.json",
+      "physical_lines": 141,
+      "nonblank_lines": 140,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/combat/skill.check.mjs",
+      "physical_lines": 140,
+      "nonblank_lines": 133,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/third_store_acceptance.rs",
+      "physical_lines": 138,
+      "nonblank_lines": 126,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_windows_resources.cjs",
+      "physical_lines": 136,
+      "nonblank_lines": 123,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/slot_expand_acceptance.rs",
+      "physical_lines": 136,
+      "nonblank_lines": 120,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/loading-flow-diagnose.mjs",
+      "physical_lines": 135,
+      "nonblank_lines": 130,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "artifacts/refactor/baseline-metrics.json",
+      "physical_lines": 133,
+      "nonblank_lines": 132,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "SHARED_ARCHITECTURE.md",
+      "physical_lines": 133,
+      "nonblank_lines": 94,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_trade.cjs",
+      "physical_lines": 133,
+      "nonblank_lines": 119,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_inventory.mjs",
+      "physical_lines": 132,
+      "nonblank_lines": 130,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "server/src/fourth_store_acceptance.rs",
+      "physical_lines": 132,
+      "nonblank_lines": 119,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/dialogue_i18n_probe.mjs",
+      "physical_lines": 126,
+      "nonblank_lines": 117,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/npc_nameplate_probe.mjs",
+      "physical_lines": 126,
+      "nonblank_lines": 114,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/quest_store_acceptance.rs",
+      "physical_lines": 126,
+      "nonblank_lines": 110,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/browser-probe/index.html",
+      "physical_lines": 124,
+      "nonblank_lines": 123,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/reactor.check.mjs",
+      "physical_lines": 122,
+      "nonblank_lines": 110,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_hyper_visuals.mjs",
+      "physical_lines": 122,
+      "nonblank_lines": 114,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/attack_store_acceptance.rs",
+      "physical_lines": 122,
+      "nonblank_lines": 115,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/notice/away.ts",
+      "physical_lines": 120,
+      "nonblank_lines": 107,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "FRONTEND_ARCHITECTURE.md",
+      "physical_lines": 118,
+      "nonblank_lines": 86,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "BACKEND_ARCHITECTURE.md",
+      "physical_lines": 117,
+      "nonblank_lines": 76,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "scripts/export_tms273_buff.cjs",
+      "physical_lines": 117,
+      "nonblank_lines": 104,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "README.md",
+      "physical_lines": 114,
+      "nonblank_lines": 79,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "docs/dev/current-entry-audit.md",
+      "physical_lines": 113,
+      "nonblank_lines": 85,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "server/src/continuation_store_acceptance.rs",
+      "physical_lines": 112,
+      "nonblank_lines": 102,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_hud_skill_ui.mjs",
+      "physical_lines": 110,
+      "nonblank_lines": 109,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/npc/view.ts",
+      "physical_lines": 107,
+      "nonblank_lines": 98,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "scripts/check_tms273_skill_sounds.cjs",
+      "physical_lines": 106,
+      "nonblank_lines": 94,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_npc_marker.cjs",
+      "physical_lines": 105,
+      "nonblank_lines": 97,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/combat.rs",
+      "physical_lines": 105,
+      "nonblank_lines": 100,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "client/src/scenes/portal.check.mjs",
+      "physical_lines": 104,
+      "nonblank_lines": 98,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "BUSINESS_DEVELOPMENT.md",
+      "physical_lines": 102,
+      "nonblank_lines": 58,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "client/src/features/entry/view.check.mjs",
+      "physical_lines": 102,
+      "nonblank_lines": 101,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_skill_ui.cjs",
+      "physical_lines": 99,
+      "nonblank_lines": 88,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/network/session.ts",
+      "physical_lines": 98,
+      "nonblank_lines": 96,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "scripts/check_tms273_skill_manifest.cjs",
+      "physical_lines": 98,
+      "nonblank_lines": 92,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "scripts/export_tms273_balloon.cjs",
+      "physical_lines": 98,
+      "nonblank_lines": 88,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "ARCHITECTURE_ACCEPTANCE.md",
+      "physical_lines": 97,
+      "nonblank_lines": 68,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_mage_effects.cjs",
+      "physical_lines": 96,
+      "nonblank_lines": 86,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/water.check.mjs",
+      "physical_lines": 93,
+      "nonblank_lines": 83,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_oneshot_split_plan.cjs",
+      "physical_lines": 90,
+      "nonblank_lines": 73,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "bugfix/MapleStory_Web后台保活与暂离驻留_P0仓库核查.md",
+      "physical_lines": 90,
+      "nonblank_lines": 66,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "tms273_research_pack/MANIFEST.json",
+      "physical_lines": 90,
+      "nonblank_lines": 89,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/architecture/module-boundaries.md",
+      "physical_lines": 89,
+      "nonblank_lines": 67,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/hud/buff.css",
+      "physical_lines": 89,
+      "nonblank_lines": 78,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/quest-zh-a.json",
+      "physical_lines": 87,
+      "nonblank_lines": 86,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_avatar.cjs",
+      "physical_lines": 85,
+      "nonblank_lines": 76,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_combat.cjs",
+      "physical_lines": 85,
+      "nonblank_lines": 75,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/dump_tms273_wz_json.cjs",
+      "physical_lines": 85,
+      "nonblank_lines": 78,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_hyper_ui.mjs",
+      "physical_lines": 83,
+      "nonblank_lines": 82,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/15-2026-09-10-组队-已完成-待统一加载实玩.md",
+      "physical_lines": 77,
+      "nonblank_lines": 73,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "qa/minimap-header-probe.mjs",
+      "physical_lines": 76,
+      "nonblank_lines": 68,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/INDEX.md",
+      "physical_lines": 75,
+      "nonblank_lines": 72,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "qa/inventory-tabs-probe.mjs",
+      "physical_lines": 75,
+      "nonblank_lines": 73,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_creation_items.cjs",
+      "physical_lines": 75,
+      "nonblank_lines": 74,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/player/view.check.mjs",
+      "physical_lines": 74,
+      "nonblank_lines": 70,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/browser-probe/check-results.json",
+      "physical_lines": 74,
+      "nonblank_lines": 73,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_character_ui.cjs",
+      "physical_lines": 74,
+      "nonblank_lines": 73,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/world/portal-view.ts",
+      "physical_lines": 71,
+      "nonblank_lines": 69,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "scripts/export_rogers_apple.cjs",
+      "physical_lines": 70,
+      "nonblank_lines": 66,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "REFERENCE_PROJECTS.md",
+      "physical_lines": 68,
+      "nonblank_lines": 52,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/11-2026-09-11-好友与黑名单-已完成-待统一加载实玩.md",
+      "physical_lines": 67,
+      "nonblank_lines": 63,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "qa/inventory_ui.ts",
+      "physical_lines": 63,
+      "nonblank_lines": 61,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/10-2026-09-11-大地图-地图-ID-补零缺陷修复-打开落在所在区域页-待实玩.md",
+      "physical_lines": 61,
+      "nonblank_lines": 57,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/02-2026-09-12-魔心防禦-改为-99-转-MP-逐级抵偿率-差额由护盾消解-用户指定规则-待统一加载.md",
+      "physical_lines": 56,
+      "nonblank_lines": 52,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/08-2026-09-11-悄悄話-私聊-已完成-待统一加载实玩.md",
+      "physical_lines": 56,
+      "nonblank_lines": 52,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/architecture/state-ownership.md",
+      "physical_lines": 55,
+      "nonblank_lines": 41,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/06-2026-09-11-传送类消耗品-已完成-待统一加载实玩.md",
+      "physical_lines": 55,
+      "nonblank_lines": 51,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/16-2026-09-10-账号仓库-已完成-待统一加载实玩.md",
+      "physical_lines": 55,
+      "nonblank_lines": 51,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/mob/boss.check.mjs",
+      "physical_lines": 55,
+      "nonblank_lines": 54,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/probe_trade.cjs",
+      "physical_lines": 54,
+      "nonblank_lines": 48,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/portal_pos_probe.mjs",
+      "physical_lines": 53,
+      "nonblank_lines": 51,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/npc/view.check.mjs",
+      "physical_lines": 52,
+      "nonblank_lines": 50,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/04_DATA_CONTRACTS.md",
+      "physical_lines": 52,
+      "nonblank_lines": 30,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/test-fixtures/items.json",
+      "physical_lines": 51,
+      "nonblank_lines": 50,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/skills/points.check.mjs",
+      "physical_lines": 50,
+      "nonblank_lines": 47,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_wz.cjs",
+      "physical_lines": 50,
+      "nonblank_lines": 46,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/01-2026-09-12-超大文件治理-P0-审计-P1-基线-P2-首个机械拆分-已完成-未实玩.md",
+      "physical_lines": 49,
+      "nonblank_lines": 45,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/combat/sound.check.mjs",
+      "physical_lines": 49,
+      "nonblank_lines": 46,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/03-2026-09-12-花蘑菇-无法移动-已修复-待统一加载实玩.md",
+      "physical_lines": 48,
+      "nonblank_lines": 44,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "qa/inventory-screenshot.mjs",
+      "physical_lines": 48,
+      "nonblank_lines": 42,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/01_VERSION_AND_JOURNEY.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/02_QUESTS_AND_GUIDANCE.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/03_COMBAT_AND_SKILL_FEEL.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/04_EFFECTS_AND_STATS.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/05_LOOT_INVENTORY_ECONOMY.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/06_GEAR_AND_ACCOUNT_PROGRESSION.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/07_MAPS_AND_BOSSES.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/workstreams/08_UI_UX_AND_ACCEPTANCE.md",
+      "physical_lines": 48,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/npc/dialogue.check.mjs",
+      "physical_lines": 46,
+      "nonblank_lines": 44,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "references/browser-probe/export-summary.json",
+      "physical_lines": 46,
+      "nonblank_lines": 45,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/entry/appearance.ts",
+      "physical_lines": 45,
+      "nonblank_lines": 43,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/export_tms273_entry.cjs",
+      "physical_lines": 45,
+      "nonblank_lines": 44,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/tms273_split_road.cjs",
+      "physical_lines": 44,
+      "nonblank_lines": 43,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/app/ui-router.ts",
+      "physical_lines": 42,
+      "nonblank_lines": 40,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_node.cjs",
+      "physical_lines": 42,
+      "nonblank_lines": 38,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/07-2026-09-11-聊天表情-Chat-Emoticon-已完成-待统一加载实玩.md",
+      "physical_lines": 41,
+      "nonblank_lines": 37,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/17-2026-09-10-消耗品恢复闭环-已完成-待统一加载实玩.md",
+      "physical_lines": 41,
+      "nonblank_lines": 37,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "tms273_research_pack/03_FACTS_AND_GAPS.md",
+      "physical_lines": 41,
+      "nonblank_lines": 33,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/05-2026-09-11-道具背包五页签复刻-背包扩展券-已完成-待统一加载实玩.md",
+      "physical_lines": 40,
+      "nonblank_lines": 36,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "references/browser-probe/check.cjs",
+      "physical_lines": 40,
+      "nonblank_lines": 38,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_emo5.cjs",
+      "physical_lines": 40,
+      "nonblank_lines": 36,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/06_OBSERVATION_TEMPLATE.json",
+      "physical_lines": 40,
+      "nonblank_lines": 39,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/13-2026-09-10-維多利亞港三家商店传送修复-装配目录-41-44-图-待统一加载实玩.md",
+      "physical_lines": 39,
+      "nonblank_lines": 35,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "PLAN.md",
+      "physical_lines": 39,
+      "nonblank_lines": 33,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 29
+    },
+    {
+      "path": "client/src/features/chat/emoticon.css",
+      "physical_lines": 39,
+      "nonblank_lines": 38,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_emo6.cjs",
+      "physical_lines": 39,
+      "nonblank_lines": 37,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/chat/style.css",
+      "physical_lines": 37,
+      "nonblank_lines": 36,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "scripts/_probe_emo.cjs",
+      "physical_lines": 36,
+      "nonblank_lines": 33,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_launcher.mjs",
+      "physical_lines": 36,
+      "nonblank_lines": 34,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_emo3.cjs",
+      "physical_lines": 35,
+      "nonblank_lines": 33,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/player/levelup.check.mjs",
+      "physical_lines": 33,
+      "nonblank_lines": 32,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "qa/inventory-tabs-interactive.mjs",
+      "physical_lines": 33,
+      "nonblank_lines": 29,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/09-2026-09-11-怪物追击-仇恨系统-已完成-待统一加载实玩.md",
+      "physical_lines": 32,
+      "nonblank_lines": 28,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "tms273_research_pack/05_ACCEPTANCE_TESTS.md",
+      "physical_lines": 32,
+      "nonblank_lines": 29,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/14-2026-09-10-瞬移改为-全等级-10MP-等级冷却-用户指定规则-待统一加载实玩.md",
+      "physical_lines": 31,
+      "nonblank_lines": 27,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "scripts/_probe_emo2.cjs",
+      "physical_lines": 31,
+      "nonblank_lines": 28,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_mage_avatar.cjs",
+      "physical_lines": 31,
+      "nonblank_lines": 30,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/realmaps.rs",
+      "physical_lines": 31,
+      "nonblank_lines": 30,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/chat/scroll.check.ts",
+      "physical_lines": 30,
+      "nonblank_lines": 25,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/20-2026-09-10-楓之港-碼頭-传送落点不对-已修复-待重启服务生效.md",
+      "physical_lines": 28,
+      "nonblank_lines": 24,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "scripts/_probe_face.cjs",
+      "physical_lines": 28,
+      "nonblank_lines": 25,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/04-2026-09-12-魔力波動二段简化-下-跳-跳.md",
+      "physical_lines": 27,
+      "nonblank_lines": 23,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/skills/style.css",
+      "physical_lines": 27,
+      "nonblank_lines": 21,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "client/src/scenes/layer-animation.check.ts",
+      "physical_lines": 27,
+      "nonblank_lines": 21,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/vite.config.ts",
+      "physical_lines": 27,
+      "nonblank_lines": 24,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 5
+    },
+    {
+      "path": "scripts/_probe_emo4.cjs",
+      "physical_lines": 27,
+      "nonblank_lines": 25,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_ui.cjs",
+      "physical_lines": 27,
+      "nonblank_lines": 25,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/build_tms273.cjs",
+      "physical_lines": 27,
+      "nonblank_lines": 26,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "docs/history/plan/12-2026-09-11-修复小地图-MaxMap-切片几何-源像素实测重排-待重启-3010-实玩.md",
+      "physical_lines": 26,
+      "nonblank_lines": 22,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "scripts/_probe3.cjs",
+      "physical_lines": 26,
+      "nonblank_lines": 25,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/check_tms273_export.cjs",
+      "physical_lines": 26,
+      "nonblank_lines": 25,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/_probe_emo7.cjs",
+      "physical_lines": 25,
+      "nonblank_lines": 23,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/GAMEPLAY_CONTRACT.md",
+      "physical_lines": 25,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/22-2026-09-10-Web-后台保活与暂离驻留-P0-核查-P1-内核已完成-待统一加载实玩.md",
+      "physical_lines": 23,
+      "nonblank_lines": 19,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/entry/appearance.check.mjs",
+      "physical_lines": 23,
+      "nonblank_lines": 22,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/18-2026-09-10-NPC-商店卖出闭环-已完成-待统一加载实玩.md",
+      "physical_lines": 22,
+      "nonblank_lines": 18,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/21-2026-09-10-Web-后台保活与暂离驻留-切角色残留-回归后无法移动-已修复-待统一加载实玩.md",
+      "physical_lines": 22,
+      "nonblank_lines": 18,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/package.json",
+      "physical_lines": 22,
+      "nonblank_lines": 21,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 12
+    },
+    {
+      "path": "qa/skills_ui.ts",
+      "physical_lines": 22,
+      "nonblank_lines": 20,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/README.md",
+      "physical_lines": 22,
+      "nonblank_lines": 11,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "tms273_research_pack/07_AGENT_DISPATCH.md",
+      "physical_lines": 22,
+      "nonblank_lines": 11,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/23-2026-09-10-法师在水中跳不起来-已修复.md",
+      "physical_lines": 20,
+      "nonblank_lines": 16,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/27-2026-09-10-枫之港看不到前往码头的传送阵-已修复并上线.md",
+      "physical_lines": 20,
+      "nonblank_lines": 16,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/29-2026-09-10-头顶聊天气泡-替换为原版-273-ChatBalloon-素材.md",
+      "physical_lines": 20,
+      "nonblank_lines": 16,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/entry/style.css",
+      "physical_lines": 20,
+      "nonblank_lines": 18,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/26-2026-09-10-平台侧壁碰撞-定位-修复完成-已并入主工作区.md",
+      "physical_lines": 19,
+      "nonblank_lines": 15,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/28-2026-09-10-选择岔道法师NPC距离限制移除-拒绝提示中文化-初心者隐藏法师技能页.md",
+      "physical_lines": 19,
+      "nonblank_lines": 15,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "physical_lines": 19,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/36-2026-10-19-Windows-构建环境已疏通.md",
+      "physical_lines": 17,
+      "nonblank_lines": 13,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/53-undated-后续里程碑-按研究包补齐现有实现.md",
+      "physical_lines": 17,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/combat/damage-number.ts",
+      "physical_lines": 17,
+      "nonblank_lines": 15,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/player/animation.check.ts",
+      "physical_lines": 17,
+      "nonblank_lines": 16,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/48-2026-09-08-历史-技能学习条件与运行时接入边界.md",
+      "physical_lines": 16,
+      "nonblank_lines": 9,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/app/i18n.check.ts",
+      "physical_lines": 16,
+      "nonblank_lines": 15,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/player/pickup.check.ts",
+      "physical_lines": 16,
+      "nonblank_lines": 14,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "shared/IMPLEMENTATION_CONTRACT.md",
+      "physical_lines": 15,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/19-2026-09-10-地图反应器-已完成-待统一加载实玩.md",
+      "physical_lines": 14,
+      "nonblank_lines": 10,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/32-2026-09-09-地图聊天-P1-C04-已完成开发与定向验证-待统一启动加载-用户实玩.md",
+      "physical_lines": 14,
+      "nonblank_lines": 10,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/52-undated-运行与完整剧情边界.md",
+      "physical_lines": 14,
+      "nonblank_lines": 10,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/59-undated-Hyper-编译与有限核心验证完成.md",
+      "physical_lines": 14,
+      "nonblank_lines": 10,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/62-undated-原剧情接续-已验证-待用户实玩.md",
+      "physical_lines": 14,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/entry/api.ts",
+      "physical_lines": 14,
+      "nonblank_lines": 13,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/mob/pickup-motion.check.ts",
+      "physical_lines": 14,
+      "nonblank_lines": 12,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "tms273_research_pack/README.md",
+      "physical_lines": 14,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/menu/style.css",
+      "physical_lines": 13,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/mob/pickup-motion.ts",
+      "physical_lines": 13,
+      "nonblank_lines": 12,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/25-2026-09-10-下落时从两平台中间掉下去-已核查-非碰撞缺陷.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/33-2026-09-09-地图怪物刷新修复-怪死后不重生.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/34-2026-09-09-36315-36324-楓之島災禍篇-来源已核-装配回退待基线.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/35-undated-最新目标-编译收尾完成.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/41-2026-09-08-经验-升级-AP加点-已发布-待用户实玩.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/43-2026-09-08-冰雷二转-已发布-待用户实玩.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/51-undated-历史-法师-冰雷技能接入依据.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/64-2026-09-09-当前用户地图调整-水域与木架踏板已完成-待用户实玩.md",
+      "physical_lines": 12,
+      "nonblank_lines": 8,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/24-2026-09-10-水中无法起跳-已修复.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/30-2026-09-10-聊天输入焦点根因修复-Enter-后光标被-snapshot-抢走.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/37-2026-09-08-当前目标执行-大模块优先.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/39-2026-09-08-冰雷后续与原版行为差距.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/46-2026-09-08-法师一转已发布-v0-5-0.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/66-2026-09-10-小地图窗口-已交付-待用户实玩.md",
+      "physical_lines": 11,
+      "nonblank_lines": 7,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "client/src/features/chat/scroll.ts",
+      "physical_lines": 11,
+      "nonblank_lines": 9,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/combat/damage-number.check.ts",
+      "physical_lines": 11,
+      "nonblank_lines": 8,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/history/plan/31-2026-09-10-地图聊天输入焦点修复-完成开发与定向验证-待统一加载后实玩.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/42-2026-09-08-登录与菜单-已发布-用户待实玩.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/44-2026-09-08-装备闭环-套服换装待实玩.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/45-2026-09-08-碰撞与受击修复-待运行验收.md",
+      "physical_lines": 10,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/47-undated-历史-v0-4-5法师入口发布.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/49-2026-09-08-本轮源规则核验.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/50-undated-历史-技能接入边界.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/57-undated-四转后续缺口.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/58-undated-区域-Boss练习-已验证-待用户实玩.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/65-2026-09-10-魔力波動缺陷修复-已改完并重启服务-待用户实玩.md",
+      "physical_lines": 10,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/38-2026-09-08-升级原版反馈-已更新前端-待实玩.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/40-2026-09-08-R012技能音效-已发布-待用户实玩.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/54-2026-09-08-浏览器铺满游戏与枫之谷消息-已发布-待用户实玩.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/55-2026-09-08-初心者SP修复-已验证-待统一发布.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/56-2026-09-08-初心者三技能-已完成验证-待启动加载.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/60-2026-09-08-技能详情与快捷栏-已验证-待启动加载.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/61-2026-09-08-自然恢复永久被动-已验证-待启动加载.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/63-undated-Windows-启停与资源交付-待-Windows-实机验收.md",
+      "physical_lines": 9,
+      "nonblank_lines": 5,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "AGENTS.md",
+      "physical_lines": 8,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/package.json",
+      "physical_lines": 8,
+      "nonblank_lines": 7,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/hud/gauge.check.ts",
+      "physical_lines": 7,
+      "nonblank_lines": 6,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 2
+    },
+    {
+      "path": "client/src/features/player/action-events.ts",
+      "physical_lines": 7,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/player/animation.ts",
+      "physical_lines": 7,
+      "nonblank_lines": 6,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/player/pickup.ts",
+      "physical_lines": 5,
+      "nonblank_lines": 4,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/index.html",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/tsconfig.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "shared/gameplay.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 21
+    },
+    {
+      "path": "shared/items.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 15
+    },
+    {
+      "path": "shared/mage-skills.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "shared/map.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 3
+    },
+    {
+      "path": "shared/maps.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 10
+    },
+    {
+      "path": "shared/npc-names.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 6
+    },
+    {
+      "path": "shared/quest-text.json",
+      "physical_lines": 2,
+      "nonblank_lines": 1,
+      "category": "data-or-config-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 5
+    }
+  ],
+  "warnings": []
+}
