@@ -6,12 +6,12 @@
 
 已确认 Web TS/JS + Rust、单主机局域网联机、组合式组件与清晰业务模块。首版是一张地图、两个及多个不同账号、移动与普攻；开发双机器人自测和用户登录后同机器人验收分开记录。实现采用Phaser/TS/Vite + Rust axum/SQLite、GMS83蘑菇村000010000；性能阈值未设，先运行后优化。
 
-- [计划与确认范围](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>)
-- [前后端共同契约](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/SHARED_ARCHITECTURE.md>)
-- [前端方案与修改导航](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/FRONTEND_ARCHITECTURE.md>)
-- [后端职责与模拟流程](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/BACKEND_ARCHITECTURE.md>)
-- [架构与资源验收标准](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/ARCHITECTURE_ACCEPTANCE.md>)
-- [14库优先级与去重](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/REFERENCE_PROJECTS.md>)
+- [计划与确认范围](PLAN.md)
+- [前后端共同契约](SHARED_ARCHITECTURE.md)
+- [前端方案与修改导航](FRONTEND_ARCHITECTURE.md)
+- [后端职责与模拟流程](BACKEND_ARCHITECTURE.md)
+- [架构与资源验收标准](ARCHITECTURE_ACCEPTANCE.md)
+- [14库优先级与去重](REFERENCE_PROJECTS.md)
 
 实现启动见 README.md；后续业务流程与模型阶段政策见 BUSINESS_DEVELOPMENT.md；实际协议字段以 shared/protocol.ts 为准。Rust单一权威逻辑拥有者顺序处理输入与模拟，分片/并行模拟/分布式未来先讨论。
 

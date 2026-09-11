@@ -1,6 +1,6 @@
 # 后端技术方案（审查草案）
 
-更新：2026-09-05。**已确认 Rust 后端、一台主机服务、多台局域网设备不同账号联机，先运行后优化。** 首版已实施 axum、rusqlite/SQLite、Argon2id，实际模块见 server/src 与 server/README.md。下列技能/任务目录仍为后续边界。跨端协议与内容版本以《前后端通用技术方案》为准，本文件不另造一份消息规范。
+更新：2026-09-05（正文）／2026-09-12（§2 复核：模块清单与拆分规范改为实测口径）。**已确认 Rust 后端、一台主机服务、多台局域网设备不同账号联机，先运行后优化。** 首版已实施 axum、rusqlite/SQLite、Argon2id，实际模块见 §2.1 与 `server/README.md`。跨端协议与内容版本以《前后端通用技术方案》为准，本文件不另造一份消息规范。
 
 ## 1. 一个服务进程起步
 
@@ -8,9 +8,69 @@
 
 [axum WebSocket](https://docs.rs/axum/latest/axum/extract/ws/) 是网络候选。玩法逻辑用普通 Rust 模块及明确的数据结构起步；[bevy_ecs](https://docs.rs/bevy_ecs/latest/bevy_ecs/) 可以独立用于组件与系统，若选用 [Bevy App 插件注册](https://docs.rs/bevy_app/latest/bevy_app/struct.App.html) 才需要 bevy_app。不为“模块化”引入完整 Bevy 图形引擎、动态库加载或微服务。
 
-## 2. 职责草案与实现导航
+## 2. 职责划分与实现导航
 
-下列目录树保留早期职责划分，不是当前文件清单。已实现模块以 `server/src/` 和 `BUSINESS_DEVELOPMENT.md` 的状态拥有者表为准；不要仅为匹配草案创建空目录或重组现有模块。当前版本范围以 `PLAN.md` 为准。
+早期草案按职责画了 `world/`、`combat/`、`inventory/`、`content/`、`persistence/` 等**目录**。实际实现没有照搬，而是选了**扁平单层 + 世界模块的兄弟子模块**（理由见 2.2 第 1 条）。草案的原始划分保留在 2.3，作为"当初想要什么边界"的意图记录；**已实现的模块一律以 `server/src/` 为准**，不要仅为匹配草案创建空目录或重组现有模块。当前版本范围以 `PLAN.md` 为准。
+
+### 2.1 真实模块清单（2026-09-12 实测）
+
+| 模块 | 拥有什么 |
+| --- | --- |
+| `main.rs` | 进程入口：读配置、组装模块、启动服务 |
+| `network.rs` | HTTP / WebSocket 入口、认证、输入校验；把**已验证**的请求投递进世界，自己不模拟 |
+| `protocol.rs` | 前后端消息类型与版本号（`PROTOCOL_VERSION` / `CONTENT_VERSION`）；两侧共用的契约面 |
+| `auth.rs` | 账号、会话、角色归属、SQLite 持久化（`Store`） |
+| `lobby.rs` | 登录前后的大厅：角色列表、创建 / 删除、外观目录 |
+| `world.rs` | 权威模拟本体：地图实例、实体状态、模拟时序、移动与碰撞 |
+| `world::combat`（`combat.rs`） | 动作阶段、目标判定、冷却与死亡 |
+| `world::messaging`（`messaging.rs`） | 地图聊天 / 密语 / 聊天表情：入站校验、速率预算、幂等窗口、黑名单扇出 |
+| `world::inventory_ops`（`inventory_ops.rs`） | 物品意图的完整事务外观：拾取 / 拖动 / 丢弃 / 整理 / 使用 / 丢金币 |
+| `world::social`（`social.rs`） | 组队与好友 / 黑名单：关系生命周期、在线状态派生、requestId 幂等重放 |
+| `world::boss`（`boss.rs`） | Boss 练习场的源规则常量与阶段；`#[path]` 子模块的**最早先例** |
+| `inventory.rs` | 物品目录、堆叠与容量规则、装备属性计算（与 `inventory_ops` 分工见 2.2 第 10 条） |
+| `npc.rs` | NPC 摆放、数据驱动对话状态机、商店 |
+| `mage.rs` | 法师技能等级数据与校验（`MageSkills` / `MageLevel`） |
+| `quest_text.rs` | 任务显示文案的多语言目录 |
+| `*_acceptance.rs` | 行为测试，由 `include!` 挂进 `world::tests`；**不是生产模块，不计入模块依赖** |
+
+`world::messaging` / `world::inventory_ops` / `world::social` 三者是**同一份世界状态拆出的不同职责**，不是独立业务模块：它们共享 `world` 的全部私有项与状态，只是代码位置分开。
+
+先一个 crate，不因目录数量就拆多个 crate。业务状态由 world / 对应业务模块拥有；网络处理器只把经过验证的请求投递进模拟流程，不从多个连接任务直接并发修改同一角色、怪物或掉落。
+
+### 2.2 模块拆分与边界规范（2026-09-12 定）
+
+下列每条都是**已经执行过并被测试验证过**的规则，不是设想。每条附判据，便于下一个人照着做而不是重新试错。
+
+1. **一个 crate，平铺文件 + `#[path]` 兄弟子模块；不为职责新建目录。**
+   `world.rs` 中过大的职责用 `#[path = "x.rs"] mod x;` 挂成它的私有子模块；子模块内部是 `use super::*;` + 自己的 `impl World { … }` 外壳（片段本来就长在 `impl World` 里，搬出来必须补这个壳）。
+   *判据*：兄弟子模块是父模块的后代，**天然可见父模块的全部私有项**，因此搬移零状态改动；改成目录就必须重新组织可见性，纯属自找风险。
+2. **`pub(super) fn` 在子模块里不等于"放宽可见性"。**
+   子模块中 `pub(super)` 的可达范围，与它搬走前作为 `world` 内私有 `fn` 时**完全相同**。
+   *判据*：所以"入口改 `pub(super)`"是纯搬移的必要噪声，不需要为它找理由；`pub(crate)` 才需要理由。
+3. **搬移前先"自动推导"外部引用，不要手列清单。**
+   做法：把待搬区段从 `world.rs` 扣除后，用区段内每个函数名在**全部 `server/src/**/*.rs`**（含 `*_acceptance.rs` 与其他子模块）里做词边界匹配；命中的才是必须 `pub(super)` 的入口。
+   *判据*：只扫 `world.rs` 会漏掉两类真实调用——`party_acceptance.rs` 直调 `world.party_id_of(...)`，`messaging.rs` 调用 `resolve_friend_name`。手列 14 个、实际需要 16 个，就是这么漏的。写成推导脚本就不会漏（配合第 8 条）。
+4. **不搬公开字段的类型（E0446）。**
+   若某类型是公开字段的类型（例如 `Gameplay.emoticons` 的 `EmoticonCatalogue`），把它搬进私有子模块会让公开接口引用更窄可见的类型。
+   *判据*：绕开 E0446 只能把模块改公开、或把字段改私有，两者都是净损失，所以留在原处。
+5. **搬移只改位置，不改状态布局。**
+   协议变体、存档字段、`Player` / `World` 的字段一律原地不动。
+   *判据*：布局一动，存档兼容与两侧协议同步都要重做，风险与收益完全不成比例。
+6. **纯搬移必须能被证明是纯搬移。**
+   与移除区段逐行 diff，或对归一化后的每一行断言"目标文件中存在"；唯一允许的差异是第 2 条那处 `pub(super)` 前缀。
+7. **基线纪律：先跑出基线再动手，动完失败集必须逐条一致。**
+   服务端既有失败集是已知且稳定的（见 `artifacts/refactor/baseline-metrics.json`）；警告数用**同一条命令**前后对比，只看绝对数没有意义（`cargo build` 与 `cargo test` 的警告数不同）。
+   *判据*：测试通过数变化、或警告数变化，都要能解释到具体行；解释不了就按回归处理。
+8. **源码字面量断言型的校验脚本，不得硬编码文件名。**
+   这类脚本要递归扫描**全部生产 `.rs`** 并缓存结果，且**显式排除 `*_acceptance.rs`**——测试文件含同样的字面量，纳入会让断言假通过。
+   *判据*：`scripts/check_tms273_runtime.cjs` 曾硬编码只读 `world.rs`，拆分把字面量搬走后，双击启动在 `cargo build` **之前**就终止；而该脚本必须排除测试文件，是反向验证过的承重设计，不是顺手优化。
+9. **热路径与契约面排在后面。**
+   Tick 内的伤害结算与移动、`protocol.rs`（契约面）、前端 `app/main.ts` 与 `scenes/world.ts`（装配点）**不先拆**。
+   *判据*：拆它们的收益只是行数，代价是每帧行为与两侧同步；性价比最低。
+10. **每个新模块自带一段模块文档。**
+    写明"负责 / 不负责 / 与谁分工"，并点出容易混淆的邻居（`inventory.rs` ↔ `inventory_ops`、`messaging.rs` 的扇出 ↔ `social.rs` 的 `reload_blocked`）。
+
+### 2.3 早期职责草案（仅作意图记录，不是文件清单）
 
 ```text
 server/src/
@@ -25,7 +85,7 @@ server/src/
   persistence/         存档、事务、必要的迁移
 ```
 
-先一个 crate，不因目录数量就拆多个 crate。业务状态由 world / 对应业务模块拥有；网络处理器只把经过验证的请求投递进模拟流程，不从多个连接任务直接并发修改同一角色、怪物或掉落。
+这份草案的意图仍成立（职责要分开、状态要有唯一拥有者），**落点不同**：`content/` 与 `persistence/` 实际落在 `lobby.rs` / `auth.rs` / `inventory.rs` / `mage.rs` / `quest_text.rs`，`quests/` 落在 `world.rs` + `npc.rs`。要迁就草案改结构，先给出比 2.2 更好的判据。
 
 ## 3. 权威模拟与组件组合
 
@@ -104,13 +164,19 @@ WZ 并不包含所有服务端业务：掉落规则、部分公式和任务脚�
 
 第 5、6 节的技能、任务、背包与奖励事务是后续模块设计，不作为首版通过条件；相关行为实现时再按验收标准验证。账号认证所需的数据仍按首版实现，尚未定案的其它存档策略不能冒充已承诺行为。
 
-文档导航：[计划](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>) · [共同契约](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/SHARED_ARCHITECTURE.md>) · [前端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/FRONTEND_ARCHITECTURE.md>) · [验收标准](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/ARCHITECTURE_ACCEPTANCE.md>) · [参考项目分级](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/REFERENCE_PROJECTS.md>)
+文档导航：[计划](PLAN.md) · [共同契约](SHARED_ARCHITECTURE.md) · [前端](FRONTEND_ARCHITECTURE.md) · [验收标准](ARCHITECTURE_ACCEPTANCE.md) · [参考项目分级](REFERENCE_PROJECTS.md)
 
 ## 本地审核证据
 
-- [任务入口](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/QuestActionHandler.java>)
-- [任务定义与条件/奖励](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/P0nk__Cosmic/src/main/java/server/quest/Quest.java>)
-- [技能加载](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/P0nk__Cosmic/src/main/java/client/SkillFactory.java>)
-- [旧攻击解析](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java>)
-- [foothold参考](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/Sheilem__maplewright/crates/physics/src/foothold.rs>)
-- [旧TCP代理](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/Sheilem__maplewright/crates/wsproxy/src/main.rs>)
+下表是 §8 取证的位置。这些文件属于**参考仓库**，不随本仓库分发：`参考/` 下目前只有 WZ 素材（`273/`、`TMS273.7/`），**`参考/repos/` 需要按 [参考项目分级](REFERENCE_PROJECTS.md) 自行浅克隆后才会出现**。下面的路径是克隆后的规范位置——在此之前链接打不开属于预期，不是文档错误。
+
+| 证据 | 克隆后的相对位置 | 上游 |
+| --- | --- | --- |
+| 任务入口 | `参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/QuestActionHandler.java` | [P0nk/Cosmic](https://github.com/P0nk/Cosmic) |
+| 任务定义与条件 / 奖励 | `参考/repos/P0nk__Cosmic/src/main/java/server/quest/Quest.java` | 同上 |
+| 技能加载 | `参考/repos/P0nk__Cosmic/src/main/java/client/SkillFactory.java` | 同上 |
+| 旧攻击解析 | `参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java` | 同上 |
+| foothold 参考 | `参考/repos/Sheilem__maplewright/crates/physics/src/foothold.rs` | [Sheilem/maplewright](https://github.com/Sheilem/maplewright) |
+| 旧 TCP 代理 | `参考/repos/Sheilem__maplewright/crates/wsproxy/src/main.rs` | 同上 |
+
+> 引文只用于核对规则；采用其中代码前须先核查许可链（见 `REFERENCE_PROJECTS.md`）。

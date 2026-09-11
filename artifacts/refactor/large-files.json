@@ -105,12 +105,12 @@
     },
     {
       "path": "server/src/world.rs",
-      "physical_lines": 21994,
-      "nonblank_lines": 21417,
+      "physical_lines": 21183,
+      "nonblank_lines": 20644,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "block",
-      "churn_last_100_commits": 36
+      "churn_last_100_commits": 37
     },
     {
       "path": "shared/quest-zh-official.json",
@@ -186,12 +186,12 @@
     },
     {
       "path": "artifacts/refactor/large-files.json",
-      "physical_lines": 3061,
-      "nonblank_lines": 3060,
+      "physical_lines": 3682,
+      "nonblank_lines": 3681,
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "shared/quest-glossary.json",
@@ -227,7 +227,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "needs-justification",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "MapleStory_Rust_Chat_Ops_Development_Plan.md",
@@ -363,6 +363,15 @@
       "budget_exempt": false,
       "verdict": "warn",
       "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/social.rs",
+      "physical_lines": 843,
+      "nonblank_lines": 803,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
     },
     {
       "path": "MapleStory_TMS273_Web_Realtime_HMR_Development_Plan.md",
@@ -506,7 +515,7 @@
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "client/src/assets/manifest.ts",
@@ -533,7 +542,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "client/src/features/world/water.ts",
@@ -722,7 +731,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 10
+      "churn_last_100_commits": 11
     },
     {
       "path": "server/src/water_acceptance.rs",
@@ -866,7 +875,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "server/src/whisper_acceptance.rs",
@@ -1508,6 +1517,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "docs/architecture/large-file-audit.md",
+      "physical_lines": 189,
+      "nonblank_lines": 145,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "QUEST_I18N_ROADMAP.md",
       "physical_lines": 188,
       "nonblank_lines": 141,
@@ -1533,6 +1551,15 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
+    },
+    {
+      "path": "BACKEND_ARCHITECTURE.md",
+      "physical_lines": 183,
+      "nonblank_lines": 132,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
     },
     {
       "path": "references/tms273-data/manifest.json",
@@ -1569,15 +1596,6 @@
       "budget_exempt": true,
       "verdict": "exempt-by-category",
       "churn_last_100_commits": 1
-    },
-    {
-      "path": "docs/architecture/large-file-audit.md",
-      "physical_lines": 172,
-      "nonblank_lines": 132,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
     },
     {
       "path": "scripts/export_tms273_npc_marker.cjs",
@@ -1751,6 +1769,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "SHARED_ARCHITECTURE.md",
+      "physical_lines": 138,
+      "nonblank_lines": 97,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "server/src/third_store_acceptance.rs",
       "physical_lines": 138,
       "nonblank_lines": 126,
@@ -1793,15 +1820,6 @@
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 0
-    },
-    {
-      "path": "SHARED_ARCHITECTURE.md",
-      "physical_lines": 133,
-      "nonblank_lines": 94,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
       "churn_last_100_commits": 1
     },
     {
@@ -1868,6 +1886,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "FRONTEND_ARCHITECTURE.md",
+      "physical_lines": 122,
+      "nonblank_lines": 89,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "client/src/features/world/reactor.check.mjs",
       "physical_lines": 122,
       "nonblank_lines": 110,
@@ -1904,24 +1931,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "FRONTEND_ARCHITECTURE.md",
-      "physical_lines": 118,
-      "nonblank_lines": 86,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 1
-    },
-    {
-      "path": "BACKEND_ARCHITECTURE.md",
-      "physical_lines": 117,
-      "nonblank_lines": 76,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 2
-    },
-    {
       "path": "scripts/export_tms273_buff.cjs",
       "physical_lines": 117,
       "nonblank_lines": 104,
@@ -1946,7 +1955,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "server/src/continuation_store_acceptance.rs",
@@ -2093,15 +2102,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "scripts/_oneshot_split_plan.cjs",
-      "physical_lines": 90,
-      "nonblank_lines": 73,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
       "path": "bugfix/MapleStory_Web后台保活与暂离驻留_P0仓库核查.md",
       "physical_lines": 90,
       "nonblank_lines": 66,
@@ -2120,18 +2120,18 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "docs/architecture/module-boundaries.md",
-      "physical_lines": 89,
-      "nonblank_lines": 67,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
       "path": "client/src/features/hud/buff.css",
       "physical_lines": 89,
       "nonblank_lines": 78,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "docs/architecture/module-boundaries.md",
+      "physical_lines": 89,
+      "nonblank_lines": 67,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -2207,7 +2207,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "qa/inventory-tabs-probe.mjs",
@@ -2327,13 +2327,22 @@
       "churn_last_100_commits": 0
     },
     {
+      "path": "client/src/features/mob/boss.check.mjs",
+      "physical_lines": 55,
+      "nonblank_lines": 54,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "docs/architecture/state-ownership.md",
       "physical_lines": 55,
       "nonblank_lines": 41,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "docs/history/plan/06-2026-09-11-传送类消耗品-已完成-待统一加载实玩.md",
@@ -2352,15 +2361,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 0
-    },
-    {
-      "path": "client/src/features/mob/boss.check.mjs",
-      "physical_lines": 55,
-      "nonblank_lines": 54,
-      "category": "test-or-fixture-candidate",
-      "budget_exempt": true,
-      "verdict": "exempt-by-category",
-      "churn_last_100_commits": 1
     },
     {
       "path": "scripts/probe_trade.cjs",
@@ -2426,15 +2426,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "docs/history/plan/01-2026-09-12-超大文件治理-P0-审计-P1-基线-P2-首个机械拆分-已完成-未实玩.md",
-      "physical_lines": 49,
-      "nonblank_lines": 45,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
       "path": "client/src/features/combat/sound.check.mjs",
       "physical_lines": 49,
       "nonblank_lines": 46,
@@ -2442,6 +2433,15 @@
       "budget_exempt": true,
       "verdict": "exempt-by-category",
       "churn_last_100_commits": 2
+    },
+    {
+      "path": "docs/history/plan/01-2026-09-12-超大文件治理-P0-审计-P1-基线-P2-首个机械拆分-已完成-未实玩.md",
+      "physical_lines": 49,
+      "nonblank_lines": 45,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
     },
     {
       "path": "docs/history/plan/03-2026-09-12-花蘑菇-无法移动-已修复-待统一加载实玩.md",
@@ -2660,24 +2660,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "docs/history/plan/13-2026-09-10-維多利亞港三家商店传送修复-装配目录-41-44-图-待统一加载实玩.md",
-      "physical_lines": 39,
-      "nonblank_lines": 35,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
-      "path": "PLAN.md",
-      "physical_lines": 39,
-      "nonblank_lines": 33,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 29
-    },
-    {
       "path": "client/src/features/chat/emoticon.css",
       "physical_lines": 39,
       "nonblank_lines": 38,
@@ -2687,6 +2669,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "docs/history/plan/13-2026-09-10-維多利亞港三家商店传送修复-装配目录-41-44-图-待统一加载实玩.md",
+      "physical_lines": 39,
+      "nonblank_lines": 35,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
       "path": "scripts/_probe_emo6.cjs",
       "physical_lines": 39,
       "nonblank_lines": 37,
@@ -2694,6 +2685,15 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
+    },
+    {
+      "path": "PLAN.md",
+      "physical_lines": 37,
+      "nonblank_lines": 31,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 30
     },
     {
       "path": "client/src/features/chat/style.css",
@@ -2831,15 +2831,6 @@
       "churn_last_100_commits": 2
     },
     {
-      "path": "docs/history/plan/04-2026-09-12-魔力波動二段简化-下-跳-跳.md",
-      "physical_lines": 27,
-      "nonblank_lines": 23,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
       "path": "client/src/features/skills/style.css",
       "physical_lines": 27,
       "nonblank_lines": 21,
@@ -2865,6 +2856,15 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 5
+    },
+    {
+      "path": "docs/history/plan/04-2026-09-12-魔力波動二段简化-下-跳-跳.md",
+      "physical_lines": 27,
+      "nonblank_lines": 23,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
     },
     {
       "path": "scripts/_probe_emo4.cjs",
@@ -2939,6 +2939,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "client/src/features/entry/appearance.check.mjs",
+      "physical_lines": 23,
+      "nonblank_lines": 22,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "docs/history/plan/22-2026-09-10-Web-后台保活与暂离驻留-P0-核查-P1-内核已完成-待统一加载实玩.md",
       "physical_lines": 23,
       "nonblank_lines": 19,
@@ -2948,13 +2957,13 @@
       "churn_last_100_commits": 0
     },
     {
-      "path": "client/src/features/entry/appearance.check.mjs",
-      "physical_lines": 23,
-      "nonblank_lines": 22,
-      "category": "test-or-fixture-candidate",
+      "path": "client/package.json",
+      "physical_lines": 22,
+      "nonblank_lines": 21,
+      "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 12
     },
     {
       "path": "docs/history/plan/18-2026-09-10-NPC-商店卖出闭环-已完成-待统一加载实玩.md",
@@ -2973,15 +2982,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 0
-    },
-    {
-      "path": "client/package.json",
-      "physical_lines": 22,
-      "nonblank_lines": 21,
-      "category": "data-or-config-candidate",
-      "budget_exempt": true,
-      "verdict": "exempt-by-category",
-      "churn_last_100_commits": 12
     },
     {
       "path": "qa/skills_ui.ts",
@@ -3005,6 +3005,15 @@
       "path": "tms273_research_pack/07_AGENT_DISPATCH.md",
       "physical_lines": 22,
       "nonblank_lines": 11,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/entry/style.css",
+      "physical_lines": 20,
+      "nonblank_lines": 18,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -3038,13 +3047,13 @@
       "churn_last_100_commits": 0
     },
     {
-      "path": "client/src/features/entry/style.css",
-      "physical_lines": 20,
-      "nonblank_lines": 18,
+      "path": "ARCHITECTURE.md",
+      "physical_lines": 19,
+      "nonblank_lines": 12,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "docs/history/plan/26-2026-09-10-平台侧壁碰撞-定位-修复完成-已并入主工作区.md",
@@ -3059,33 +3068,6 @@
       "path": "docs/history/plan/28-2026-09-10-选择岔道法师NPC距离限制移除-拒绝提示中文化-初心者隐藏法师技能页.md",
       "physical_lines": 19,
       "nonblank_lines": 15,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
-      "path": "ARCHITECTURE.md",
-      "physical_lines": 19,
-      "nonblank_lines": 12,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 2
-    },
-    {
-      "path": "docs/history/plan/36-2026-10-19-Windows-构建环境已疏通.md",
-      "physical_lines": 17,
-      "nonblank_lines": 13,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 0
-    },
-    {
-      "path": "docs/history/plan/53-undated-后续里程碑-按研究包补齐现有实现.md",
-      "physical_lines": 17,
-      "nonblank_lines": 12,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -3110,9 +3092,18 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "docs/history/plan/48-2026-09-08-历史-技能学习条件与运行时接入边界.md",
-      "physical_lines": 16,
-      "nonblank_lines": 9,
+      "path": "docs/history/plan/36-2026-10-19-Windows-构建环境已疏通.md",
+      "physical_lines": 17,
+      "nonblank_lines": 13,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "docs/history/plan/53-undated-后续里程碑-按研究包补齐现有实现.md",
+      "physical_lines": 17,
+      "nonblank_lines": 12,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -3137,12 +3128,39 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "docs/history/plan/48-2026-09-08-历史-技能学习条件与运行时接入边界.md",
+      "physical_lines": 16,
+      "nonblank_lines": 9,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 0
+    },
+    {
       "path": "shared/IMPLEMENTATION_CONTRACT.md",
       "physical_lines": 15,
       "nonblank_lines": 12,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/entry/api.ts",
+      "physical_lines": 14,
+      "nonblank_lines": 13,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/mob/pickup-motion.check.ts",
+      "physical_lines": 14,
+      "nonblank_lines": 12,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
       "churn_last_100_commits": 1
     },
     {
@@ -3189,24 +3207,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 0
-    },
-    {
-      "path": "client/src/features/entry/api.ts",
-      "physical_lines": 14,
-      "nonblank_lines": 13,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 1
-    },
-    {
-      "path": "client/src/features/mob/pickup-motion.check.ts",
-      "physical_lines": 14,
-      "nonblank_lines": 12,
-      "category": "test-or-fixture-candidate",
-      "budget_exempt": true,
-      "verdict": "exempt-by-category",
-      "churn_last_100_commits": 1
     },
     {
       "path": "tms273_research_pack/README.md",
@@ -3308,6 +3308,24 @@
       "churn_last_100_commits": 0
     },
     {
+      "path": "client/src/features/chat/scroll.ts",
+      "physical_lines": 11,
+      "nonblank_lines": 9,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "client/src/features/combat/damage-number.check.ts",
+      "physical_lines": 11,
+      "nonblank_lines": 8,
+      "category": "test-or-fixture-candidate",
+      "budget_exempt": true,
+      "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "docs/history/plan/24-2026-09-10-水中无法起跳-已修复.md",
       "physical_lines": 11,
       "nonblank_lines": 7,
@@ -3360,24 +3378,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 0
-    },
-    {
-      "path": "client/src/features/chat/scroll.ts",
-      "physical_lines": 11,
-      "nonblank_lines": 9,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 1
-    },
-    {
-      "path": "client/src/features/combat/damage-number.check.ts",
-      "physical_lines": 11,
-      "nonblank_lines": 8,
-      "category": "test-or-fixture-candidate",
-      "budget_exempt": true,
-      "verdict": "exempt-by-category",
-      "churn_last_100_commits": 1
     },
     {
       "path": "docs/history/plan/31-2026-09-10-地图聊天输入焦点修复-完成开发与定向验证-待统一加载后实玩.md",

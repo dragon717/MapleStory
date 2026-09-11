@@ -64,4 +64,4 @@ GitHub API 标记：Cosmic / Maplewright / Mapleweb 为 AGPL-3.0，RustMS / Mapl
 | roshanlodha/mapleweb | `bc0234fe7c7f53322453e7bdd79564d9aca4cd8b` |
 | toyobayashi/libwz | `98e69cd50504a55feecc4277cc041c52c1cc538d` |
 
-文档导航：[计划](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>) · [共同契约](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/SHARED_ARCHITECTURE.md>) · [前端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/FRONTEND_ARCHITECTURE.md>) · [后端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/BACKEND_ARCHITECTURE.md>) · [验收标准](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/ARCHITECTURE_ACCEPTANCE.md>)
+文档导航：[计划](PLAN.md) · [共同契约](SHARED_ARCHITECTURE.md) · [前端](FRONTEND_ARCHITECTURE.md) · [后端](BACKEND_ARCHITECTURE.md) · [验收标准](ARCHITECTURE_ACCEPTANCE.md)

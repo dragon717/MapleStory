@@ -255,7 +255,19 @@ let checked=0;
 function visit(value) {
   if(typeof value==='string'&&value.startsWith('/assets/')) {
     assert(value.startsWith('/assets/tms273/'),value);
-    assert(fs.statSync(path.join(root,'client/public-tms273',value)).size>0,value);checked++;
+    // client/public-tms273/ 是生成物且不被 git 跟踪，单个文件丢失时给出自助修复路径，
+    // 而不是一屏裸 ENOENT（2026-09-12 双击启动被一个小地图 PNG 挡住的真实案例）。
+    const asset=path.join(root,'client/public-tms273',value);
+    let size;
+    try { size=fs.statSync(asset).size; }
+    catch {
+      const twin=path.join(root,'client/dist-tms273',value);
+      const hint=fs.existsSync(twin)
+        ? `dist-tms273 里有同名拷贝（构建时的 public 快照），可先对比再复制回 public-tms273`
+        : `public-tms273 与 dist-tms273 都没有，需要重跑装配脚本而不是改 check`;
+      throw new Error(`装配资源缺失: ${value}\n  修复提示: ${hint}`);
+    }
+    assert(size>0,value);checked++;
   } else if(value&&typeof value==='object')for(const child of Object.values(value))visit(child);
 }
 visit(manifest);

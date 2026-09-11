@@ -105,13 +105,17 @@ client/src/
 
 前端检查身份不混淆、同图互见、位置 / 朝向 / 普攻同步、加载失败明报、断线时停止输入与重入取权威状态。新技能、任务、掉落及 PVP 留在后续，不作为首版门槛。具体地图与机器人节奏待选，无预设性能指标。
 
-文档导航：[计划](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>) · [共同契约](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/SHARED_ARCHITECTURE.md>) · [后端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/BACKEND_ARCHITECTURE.md>) · [验收标准](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/ARCHITECTURE_ACCEPTANCE.md>) · [参考项目分级](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/REFERENCE_PROJECTS.md>)
+文档导航：[计划](PLAN.md) · [共同契约](SHARED_ARCHITECTURE.md) · [后端](BACKEND_ARCHITECTURE.md) · [验收标准](ARCHITECTURE_ACCEPTANCE.md) · [参考项目分级](REFERENCE_PROJECTS.md)
 
 ## 本地审核证据
 
-- [Phaser默认入口](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/DevenWen__maplestory_web_phaser_ts/src/main.ts>)
-- [DemoTileMap](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/DevenWen__maplestory_web_phaser_ts/src/scenes/DemoTileMap.ts>)
-- [资源加载 RPCWzStorge](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/DevenWen__maplestory_web_phaser_ts/src/wzStorage/RPCWzStorge.ts>)
-- [AnimationLoader](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/DevenWen__maplestory_web_phaser_ts/src/wzStorage/AnimationLoader.ts>)
-- [Avatar纸娃娃](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/DevenWen__maplestory_web_phaser_ts/src/player/v2/Avatar.ts>)
-- [Rust纸娃娃交叉参考](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/Sheilem__maplewright/crates/wz/src/paperdoll.rs>)
+以下位置属于**参考仓库，不随本仓库分发**：`参考/` 下目前只有 WZ 素材，`参考/repos/` 需按 [参考项目分级](REFERENCE_PROJECTS.md) 自行浅克隆后才会出现。路径写的是克隆后的规范位置，在此之前打不开属于预期。
+
+| 证据 | 克隆后的相对位置 | 上游 |
+| --- | --- | --- |
+| Phaser 默认入口 | `参考/repos/DevenWen__maplestory_web_phaser_ts/src/main.ts` | [DevenWen/maplestory_web_phaser_ts](https://github.com/DevenWen/maplestory_web_phaser_ts) |
+| DemoTileMap | `参考/repos/DevenWen__maplestory_web_phaser_ts/src/scenes/DemoTileMap.ts` | 同上 |
+| 资源加载 RPCWzStorge | `参考/repos/DevenWen__maplestory_web_phaser_ts/src/wzStorage/RPCWzStorge.ts` | 同上 |
+| AnimationLoader | `参考/repos/DevenWen__maplestory_web_phaser_ts/src/wzStorage/AnimationLoader.ts` | 同上 |
+| Avatar 纸娃娃 | `参考/repos/DevenWen__maplestory_web_phaser_ts/src/player/v2/Avatar.ts` | 同上 |
+| Rust 纸娃娃交叉参考 | `参考/repos/Sheilem__maplewright/crates/wz/src/paperdoll.rs` | [Sheilem/maplewright](https://github.com/Sheilem/maplewright) |

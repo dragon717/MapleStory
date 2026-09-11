@@ -118,14 +118,19 @@ ID 表达形式在实现前一次选定并写入契约；涉及超过 JS 安全�
 
 当前已创建 Web/Rust 实现，构建通过，网络与代表性浏览器开发验收已通过，用户验收待执行。可操作条件、证据要求和未验收状态以验收标准为准。
 
-文档导航：[计划](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>) · [前端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/FRONTEND_ARCHITECTURE.md>) · [后端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/BACKEND_ARCHITECTURE.md>) · [验收标准](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/ARCHITECTURE_ACCEPTANCE.md>) · [参考项目分级](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/REFERENCE_PROJECTS.md>)
+文档导航：[计划](PLAN.md) · [前端](FRONTEND_ARCHITECTURE.md) · [后端](BACKEND_ARCHITECTURE.md) · [验收标准](ARCHITECTURE_ACCEPTANCE.md) · [参考项目分级](REFERENCE_PROJECTS.md)
 
 ## 本地审核证据
 
-- [固定提交与资源统计](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/references/evidence/repository-inventory.json>)
-- [纸娃娃锚点和zmap](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/Sheilem__maplewright/crates/wz/src/paperdoll.rs>)
-- [地图烘焙及foothold](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/Sheilem__maplewright/crates/wz/src/bin/wzmap.rs>)
-- [任务条件与动作](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/参考/repos/P0nk__Cosmic/src/main/java/server/quest/Quest.java>)
+本仓库内的证据：[固定提交与资源统计](references/evidence/repository-inventory.json)（可直接打开）。
+
+以下三处属于**参考仓库，不随本仓库分发**：`参考/repos/` 需按 [参考项目分级](REFERENCE_PROJECTS.md) 自行浅克隆后才会出现，路径为克隆后的规范位置。
+
+| 证据 | 克隆后的相对位置 | 上游 |
+| --- | --- | --- |
+| 纸娃娃锚点和 zmap | `参考/repos/Sheilem__maplewright/crates/wz/src/paperdoll.rs` | [Sheilem/maplewright](https://github.com/Sheilem/maplewright) |
+| 地图烘焙及 foothold | `参考/repos/Sheilem__maplewright/crates/wz/src/bin/wzmap.rs` | 同上 |
+| 任务条件与动作 | `参考/repos/P0nk__Cosmic/src/main/java/server/quest/Quest.java` | [P0nk/Cosmic](https://github.com/P0nk/Cosmic) |
 
 ## 当前实现决定
 

@@ -84,7 +84,7 @@
 
 不得填写尚未实施的“通过”。技术方案可迭代，但修改已确认的权威边界、首版范围和验收阶段必须明确记录用户决定；新增库或内部文件重排不自动改变验收标准。
 
-文档导航：[计划](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/PLAN.md>) · [共同契约](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/SHARED_ARCHITECTURE.md>) · [前端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/FRONTEND_ARCHITECTURE.md>) · [后端](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/BACKEND_ARCHITECTURE.md>) · [参考项目分级](</Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/REFERENCE_PROJECTS.md>)
+文档导航：[计划](PLAN.md) · [共同契约](SHARED_ARCHITECTURE.md) · [前端](FRONTEND_ARCHITECTURE.md) · [后端](BACKEND_ARCHITECTURE.md) · [参考项目分级](REFERENCE_PROJECTS.md)
 
 ## 本轮实测位置
 

@@ -47,7 +47,7 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 
 | 真实路径 | 类别 / 行数 | 修改热点证据 | 混合职责 | 写状态范围 | 首个提取点 | 验证方式 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `server/src/world.rs` | 手写 / **23,992**（block） | **churn 36/100**，全仓第 1 | 权威状态持有 + Tick 调度 + 全部玩法规则（技能 4,400 行、背包 1,350 行、通讯 540 行、怪/掉落/任务/组队…），`impl World` 单块 ≈ 20,900 行 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯职责（聊天/密语/表情，§4） | 3 个既有 `*_acceptance.rs`（22 项） | **P1（首个试点）** |
+| `server/src/world.rs` | 手写 / 23,992（block）→ 治理后 **21,183** | **churn 36/100**，全仓第 1 | 拆出 4 块后仍剩：权威状态持有 + Tick 调度 + 技能施法（≈4,400）、任务（≈1,450）、商店与仓库（≈1,000）、怪物与掉落（≈2,000），`impl World` 仍单块 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯职责（§4.1）→ 背包物品（§4.2）→ 社交（§4.3）已完成 | 24 个既有 `*_acceptance.rs` | **P1（进行中）** |
 | `server/src/auth.rs` | 手写 / **8,410**（block） | churn 17/100，第 3 | 持久化（SQLite `Store`）+ 会话/身份 + **领域规则**（四转/超技 SP 计算、技能书、组队经验加成、仓库）+ 30 余个 DTO | `Store` 连接与事务，以及各 `*Outcome` | 四转/超技 SP 规则（纯计算） | `third_store_acceptance.rs` 等（当前有既有失败） | P2 |
 | `client/src/features/inventory/view.ts` | 手写 / **1,640**（block） | churn 13/100，客户端第 1 | 单个 `InventoryView` 类同时管页签、网格、拖拽、提示、金币、渲染与出站消息 | DOM 树 + 拖拽 payload + 请求序号 | 页签/分类映射与网格渲染 | `scripts/check_inventory.mjs` | P2 |
 | `server/src/protocol.rs` | 手写 / 1,032（warn） | churn **21/100**，第 2 | Wire DTO + 解析/校验 + `valid()` 形状校验 | 无状态（纯类型与校验） | 不建议拆：它是协议契约面，拆开反而增加同步成本 | — | P3（保持单文件） |
@@ -133,8 +133,33 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 会让断言假通过），三处断言点统一走该来源。反向验证：若把 `*_acceptance.rs` 纳入，则 `"emoticon_unknown"`
 在测试文件中也能命中、断言失去意义——排除是**承重**的，不是顺手优化。
 
-**下一步（P4/P5 的候选，尚未开始）**：`world.rs` 里下一个完整职责（技能施法 ≈4,400 行但属热路径，需先确认边界）；
-`auth.rs` 的纯规则（四转/超技 SP）与持久化解耦；客户端 `features/inventory/view.ts` 单类拆分；
+### 4.3 第三个机械拆分（社交职责，已完成）
+
+选它的理由：§4 判据逐条成立，且组队与好友/黑名单共用"关系事实 + requestId 幂等重放"这一套模式，
+边界完整（13209–14010 行的连续区段），且既有 `party_acceptance.rs`（party）与 `friend_acceptance.rs`（friend）两套行为测试。
+
+| 项 | 结果 |
+| --- | --- |
+| 新模块 | `server/src/social.rs`，挂载 `#[path = "social.rs"] mod social;`（紧随 inventory_ops 之后） |
+| 搬移内容 | **36 个方法 + 2 段职责横幅注释**（组队 14 + 好友/黑名单 22），共 **812 行**，外补 `impl World { … }` 外壳后 842 行 |
+| 搬移保真度 | 归一化逐行断言：**775 个有效行零丢失**；唯一允许差异是入口的 `pub(super)` 前缀 |
+| 可见性 | 入口集合由**脚本自动推导**（区段内函数名在全部 `server/src/**/*.rs` 的词边界匹配），不是手列——最终 **16 个** `pub(super) fn`，20 个保持私有 |
+| 为什么必须自动推导 | 手列清单只扫 `world.rs` 会漏两类真实调用：`party_acceptance.rs` 直调 `world.party_id_of(...)`（8 处）、`messaging.rs` 调 `resolve_friend_name`（密语按好友名找人）。手列 14 个、实际需要 **16 个**，差的 2 个就是这么漏的 |
+| 状态与协议 | `World.parties` / `friend_links` / `friend_roster` 与 `Player.blocked` 等全部原地不动；零协议变体、零存档字段变化、零客户端改动 |
+| `world.rs` 行数 | 21,993 → **21,182**（三次拆分合计 23,993 → 21,182，**-2,811 行**） |
+| 全量回归 | `cargo test --offline` **292 过 / 6 失败**，失败集与基线逐条一致，零回归 |
+| 编译警告 | 同一命令前后对比：`cargo build` **10 → 10**、`cargo test` **44 → 44**，零新增 |
+| 模块文档 | 8 行头部注明负责 / 不负责，并点明 `messaging` 的扇出过滤 ↔ 本模块 `reload_blocked` 的分工 |
+
+**教训（已写进 `BACKEND_ARCHITECTURE.md` §2.2 第 3、8 条）**：
+"外部引用探测"的范围必须覆盖**全部** `server/src/**/*.rs`——`*_acceptance.rs` 是 `include!` 进
+`world::tests` 的，它们对 `world.` 方法名的直调同样是外部调用点。这与 `check_tms273_runtime.cjs`
+硬编码文件名是**同一类错误**：只看主文件、不看测试文件与其他子模块。
+
+**下一步（候选，尚未开始）**：`world.rs` 里剩余的大块完整职责——商店+仓库（交易职责，约 1,000 行，
+有 `shop_sell_acceptance.rs` / `storage_acceptance.rs` 兜底）、任务（约 1,450 行，但与击杀/拾取进度有耦合，
+需先确认热路径边界）、技能施法（约 4,400 行，热路径，最后拆）；
+`auth.rs` 8,410 行是下一个超大文件；客户端 `features/inventory/view.ts` 单类拆分；
 客户端既有的 1 处循环与 1 处越界依赖（见 `module-boundaries.md`）。
 
 ## 5. 已知缺陷与既有失败（与重构分开记录）
@@ -160,7 +185,8 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 | `bugfix/*.md` | 311–963 | 0–1/100 | 已修复问题的方案与记录 | 修完后归档到 `docs/history/` |
 
 **本轮已按同一口径产出**：`docs/architecture/`（3 篇，每篇只讲一件事）、`docs/dev/current-entry-audit.md`、
-`server/src/messaging.rs` / `server/src/inventory_ops.rs` 的模块文档（即计划 §16 要求的「迁移模块短 README」）。
+`server/src/messaging.rs` / `server/src/inventory_ops.rs` / `server/src/social.rs` 的模块文档
+（即计划 §16 要求的「迁移模块短 README」）、`BACKEND_ARCHITECTURE.md` §2（真实模块清单 + 拆分规范）。
 
 ### 6.1 PLAN.md 拆分结果（已完成）
 
