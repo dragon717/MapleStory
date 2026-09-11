@@ -104,15 +104,6 @@
       "churn_last_100_commits": 3
     },
     {
-      "path": "server/src/world.rs",
-      "physical_lines": 21183,
-      "nonblank_lines": 20644,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "block",
-      "churn_last_100_commits": 37
-    },
-    {
       "path": "shared/quest-zh-official.json",
       "physical_lines": 20889,
       "nonblank_lines": 20888,
@@ -120,6 +111,15 @@
       "budget_exempt": true,
       "verdict": "exempt-by-category",
       "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/world.rs",
+      "physical_lines": 20408,
+      "nonblank_lines": 19882,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 38
     },
     {
       "path": "references/browser-probe/manifest.json",
@@ -191,7 +191,7 @@
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "shared/quest-glossary.json",
@@ -371,7 +371,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "MapleStory_TMS273_Web_Realtime_HMR_Development_Plan.md",
@@ -390,6 +390,15 @@
       "budget_exempt": false,
       "verdict": "warn",
       "churn_last_100_commits": 6
+    },
+    {
+      "path": "server/src/trade.rs",
+      "physical_lines": 801,
+      "nonblank_lines": 786,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
     },
     {
       "path": "Web_TS_2D_Water_Development_Plan.md",
@@ -671,6 +680,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "scripts/check_tms273_runtime.cjs",
+      "physical_lines": 485,
+      "nonblank_lines": 478,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 12
+    },
+    {
       "path": "世界意识/MapleStory_World_Awareness_Engagement_Model_v0.1.md",
       "physical_lines": 485,
       "nonblank_lines": 309,
@@ -723,15 +741,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
-    },
-    {
-      "path": "scripts/check_tms273_runtime.cjs",
-      "physical_lines": 473,
-      "nonblank_lines": 466,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 11
     },
     {
       "path": "server/src/water_acceptance.rs",
@@ -1418,6 +1427,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "docs/architecture/large-file-audit.md",
+      "physical_lines": 215,
+      "nonblank_lines": 167,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
+    },
+    {
       "path": "server/src/chapter_acceptance.rs",
       "physical_lines": 215,
       "nonblank_lines": 199,
@@ -1517,15 +1535,6 @@
       "churn_last_100_commits": 2
     },
     {
-      "path": "docs/architecture/large-file-audit.md",
-      "physical_lines": 189,
-      "nonblank_lines": 145,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 1
-    },
-    {
       "path": "QUEST_I18N_ROADMAP.md",
       "physical_lines": 188,
       "nonblank_lines": 141,
@@ -1559,7 +1568,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 2
+      "churn_last_100_commits": 3
     },
     {
       "path": "references/tms273-data/manifest.json",
@@ -1775,7 +1784,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "server/src/third_store_acceptance.rs",
@@ -1892,7 +1901,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "client/src/features/world/reactor.check.mjs",
@@ -2081,7 +2090,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "scripts/check_tms273_mage_effects.cjs",
@@ -2279,7 +2288,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
       "path": "docs/history/plan/11-2026-09-11-好友与黑名单-已完成-待统一加载实玩.md",
@@ -3053,7 +3062,7 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 2
+      "churn_last_100_commits": 3
     },
     {
       "path": "docs/history/plan/26-2026-09-10-平台侧壁碰撞-定位-修复完成-已并入主工作区.md",

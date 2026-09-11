@@ -47,7 +47,7 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 
 | 真实路径 | 类别 / 行数 | 修改热点证据 | 混合职责 | 写状态范围 | 首个提取点 | 验证方式 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `server/src/world.rs` | 手写 / 23,992（block）→ 治理后 **21,183** | **churn 36/100**，全仓第 1 | 拆出 4 块后仍剩：权威状态持有 + Tick 调度 + 技能施法（≈4,400）、任务（≈1,450）、商店与仓库（≈1,000）、怪物与掉落（≈2,000），`impl World` 仍单块 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯职责（§4.1）→ 背包物品（§4.2）→ 社交（§4.3）已完成 | 24 个既有 `*_acceptance.rs` | **P1（进行中）** |
+| `server/src/world.rs` | 手写 / 23,992（block）→ 治理后 **20,407** | **churn 36/100**，全仓第 1 | 拆出 4 块后仍剩：权威状态持有 + Tick 调度 + 技能施法（≈4,400）、任务（≈1,450）、怪物与掉落（≈2,000），`impl World` 仍单块 | 整个世界：`players`、`monsters`、`drops*`、`parties`、`reactors`、`boss_practices`… 共 40+ 个 `BTreeMap` | 通讯（§4.1）→ 背包物品（§4.2）→ 社交（§4.3）→ 交易（§4.4）已完成 | 24 个既有 `*_acceptance.rs` | **P1（进行中）** |
 | `server/src/auth.rs` | 手写 / **8,410**（block） | churn 17/100，第 3 | 持久化（SQLite `Store`）+ 会话/身份 + **领域规则**（四转/超技 SP 计算、技能书、组队经验加成、仓库）+ 30 余个 DTO | `Store` 连接与事务，以及各 `*Outcome` | 四转/超技 SP 规则（纯计算） | `third_store_acceptance.rs` 等（当前有既有失败） | P2 |
 | `client/src/features/inventory/view.ts` | 手写 / **1,640**（block） | churn 13/100，客户端第 1 | 单个 `InventoryView` 类同时管页签、网格、拖拽、提示、金币、渲染与出站消息 | DOM 树 + 拖拽 payload + 请求序号 | 页签/分类映射与网格渲染 | `scripts/check_inventory.mjs` | P2 |
 | `server/src/protocol.rs` | 手写 / 1,032（warn） | churn **21/100**，第 2 | Wire DTO + 解析/校验 + `valid()` 形状校验 | 无状态（纯类型与校验） | 不建议拆：它是协议契约面，拆开反而增加同步成本 | — | P3（保持单文件） |
@@ -156,9 +156,26 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 `world::tests` 的，它们对 `world.` 方法名的直调同样是外部调用点。这与 `check_tms273_runtime.cjs`
 硬编码文件名是**同一类错误**：只看主文件、不看测试文件与其他子模块。
 
-**下一步（候选，尚未开始）**：`world.rs` 里剩余的大块完整职责——商店+仓库（交易职责，约 1,000 行，
-有 `shop_sell_acceptance.rs` / `storage_acceptance.rs` 兜底）、任务（约 1,450 行，但与击杀/拾取进度有耦合，
-需先确认热路径边界）、技能施法（约 4,400 行，热路径，最后拆）；
+### 4.4 第四个机械拆分（交易职责，已完成）
+
+选它的理由：§4 判据成立，商店与账号仓库共用"与 NPC 的钱物交换 + 事务先行 + requestId 幂等"这一套模式，
+且既有 `shop_sell_acceptance.rs` 与 `storage_acceptance.rs` 两套行为测试兜底。
+社交拆走后，商店/仓库区段与仓库收尾 helper 在文件里**恰好相邻**，因此仍是一个连续区段。
+
+| 项 | 结果 |
+| --- | --- |
+| 新模块 | `server/src/trade.rs`，挂载 `#[path = "trade.rs"] mod trade;`（紧随 social 之后） |
+| 搬移内容 | **13 个方法**：商店买入 / 卖出（含 4 个卖出回执 helper）、仓库开仓 / 转账 / 金币（含 4 个回执 helper、keeper 距离复核、转账副作用重读），共 **776 行**，外补 `impl World { … }` 外壳后 800 行 |
+| 搬移保真度 | 归一化逐行断言：**764 个有效行零丢失**；唯一允许差异是入口的 `pub(super)` 前缀 |
+| 可见性 | 自动推导出 **6 个** `pub(super) fn`（全部是命令分派入口：`handle_shop_buy` / `handle_shop_sell` / `close_storage` / `handle_storage_open` / `handle_storage_transfer` / `handle_storage_mesos`），其余 7 个保持私有 |
+| 独立复核 | 编译前用第二次全仓 grep 复核：7 个 send/reload helper 确实**只在模块内部**被调用，6 个入口的推导没有漏 |
+| 状态与协议 | `Player` / `World` 字段原地不动；零协议变体、零存档字段变化、零客户端改动 |
+| `world.rs` 行数 | 21,182 → **20,407**（四次拆分合计 23,993 → 20,407，**-3,586 行**） |
+| 全量回归 | `cargo test --offline` **292 过 / 6 失败**，失败集与基线逐条一致，零回归 |
+| 编译警告 | 同命令前后对比：`cargo build` **10 → 10**、`cargo test` **44 → 44**，零新增 |
+
+**下一步（候选，尚未开始）**：任务（≈1,450 行，与击杀/拾取进度有耦合，需先确认热路径边界）；
+技能施法（≈4,400 行，热路径，最后拆）；怪物与掉落（≈2,000 行）；
 `auth.rs` 8,410 行是下一个超大文件；客户端 `features/inventory/view.ts` 单类拆分；
 客户端既有的 1 处循环与 1 处越界依赖（见 `module-boundaries.md`）。
 
@@ -185,7 +202,7 @@ client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更�
 | `bugfix/*.md` | 311–963 | 0–1/100 | 已修复问题的方案与记录 | 修完后归档到 `docs/history/` |
 
 **本轮已按同一口径产出**：`docs/architecture/`（3 篇，每篇只讲一件事）、`docs/dev/current-entry-audit.md`、
-`server/src/messaging.rs` / `server/src/inventory_ops.rs` / `server/src/social.rs` 的模块文档
+`server/src/messaging.rs` / `server/src/inventory_ops.rs` / `server/src/social.rs` / `server/src/trade.rs` 的模块文档
 （即计划 §16 要求的「迁移模块短 README」）、`BACKEND_ARCHITECTURE.md` §2（真实模块清单 + 拆分规范）。
 
 ### 6.1 PLAN.md 拆分结果（已完成）
