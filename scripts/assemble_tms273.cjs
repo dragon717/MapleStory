@@ -223,6 +223,10 @@ gameplay.compatibility.minimapUi = 'T: the corner badge, the npcList panel/rows 
 }
 const questText = read('quest-text'), npcNames = read('npc-names');
 require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('chapter'), questText, npcNames);
+// 36314 之后的后续章节：按 TMS273.7 Quest.wz 源补齐运行时规格，并逐条登记
+// 不可执行边界（脚本体缺失）。放在章节适配之后，避免与开场/续章路线冲突。
+const remaster = require('./tms273_remaster.cjs').applyRemaster(gameplay, items, manifest, questText);
+assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致');
 // P: portal beams are exported from `maps-rendered.json` before the chapter
 // adapter assigns routes, and scripted gates (WZ `tm: 999999999`) carry no
 // target at that point.  Every gate that now leads to *another* map reuses the

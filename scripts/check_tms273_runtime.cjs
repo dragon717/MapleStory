@@ -237,7 +237,16 @@ const sourceQuests=read('references/tms273-data/quests.json').quests;
 // contract and must be bumped with it, or the launcher's precheck stops here.
 assert.equal(sourceQuests.length,70);
 assert(sourceQuests.some(q=>q.id==='1402' && !q.executable));
-assert.equal(gameplay.quests.filter(q=>q.executable).length,15);
+// 15 是开场六项 + 续章九项；后续章节适配器再补 36316 / 36332 两条源可判定
+// 任务。数量变化必须来自源适配器的显式改动，不能靠手改 JSON。
+assert.equal(gameplay.quests.filter(q=>q.executable).length,17);
+{
+  const remaster = gameplay.quests.filter(q=>q.ruleVersion==='tms273-remaster-p1');
+  assert.equal(remaster.length,55);
+  assert.deepEqual(remaster.filter(q=>q.executable).map(q=>q.questId),['36316','36332']);
+  for(const quest of remaster) if(!quest.executable) assert(quest.blockedBy.length>0,`${quest.questId} must record a block reason`);
+  assert(gameplay.compatibility.adventurerRemaster.unknown.startsWith('q36315'));
+}
 for(const id of ['1402','36308','36309','36310','36311','36312','36313','36314']) {
   const raw=sourceQuests.find(q=>q.id===id), runtime=gameplay.quests.find(q=>q.questId===id);
   const sourceIds=Object.values(raw.Check['0'].quest).filter(q=>q?.id).map(q=>String(q.id._value));

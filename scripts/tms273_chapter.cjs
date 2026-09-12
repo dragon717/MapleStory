@@ -213,4 +213,6 @@ function applyContinuation(gameplay, items, manifest, source, questText) {
     unknown: 'Original q1402/q363 execution, info1406 choice script, exact rewards, encounter/cutscene timing and original remote transport remain unavailable. Original text/Check retained; no auto-skip or synthetic quest completion on login.',
   };
 }
-module.exports = { applyChapter };
+// `display` 与 `decode` 同时被后续章节适配器复用（scripts/tms273_remaster.cjs），
+// 避免两处各自实现导致源文本清洗规则分叉。
+module.exports = { applyChapter, display, decode };
