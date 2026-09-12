@@ -20,6 +20,7 @@ const checks = [
   ['features/hud/gauge.check.ts', ['--experimental-transform-types']],
   ['app/i18n.check.ts', ['--experimental-strip-types']],
   ['assets/preload-plan.check.mjs', []],
+  ['features/windbell/runtime.check.mjs', []],
   ['app/page-shell.check.mjs', []],
   ['features/ui/window-shell.check.mjs', []],
   ['features/hud/buff.check.mjs', []],

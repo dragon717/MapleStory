@@ -1,0 +1,12 @@
+{
+  "status": "blocked",
+  "reason": "Browser policy rejected file: URL for offline activity panel; no workaround attempted",
+  "liveServiceTouched": false,
+  "runtimeSizesVerified": false,
+  "pending": [
+    "desktop",
+    "landscape",
+    "narrow portrait",
+    "runtime resize"
+  ]
+}

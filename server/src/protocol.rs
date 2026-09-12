@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 13;
-pub const CONTENT_VERSION: &str = "tms273-9";
+pub const PROTOCOL_VERSION: u32 = 14;
+pub const CONTENT_VERSION: &str = "tms273-10";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -11,6 +11,24 @@ pub enum BossPracticeAction {
     Enter,
     Leave,
     Retry,
+}
+
+/// Windbell activity intents.  The client names only an operation; map
+/// identity, coordinates, state transitions, and the resulting path are
+/// owned by the authoritative world loop.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum WindbellAction {
+    EnterIsland,
+    EnterBridge,
+    Leave,
+    CutSupport,
+    Ignite,
+    DeployLeafwing,
+    Talk,
+    BraceCart,
+    DeliverPlank,
+    DeliverRope,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -140,6 +158,13 @@ pub enum ClientMessage {
         action: BossPracticeAction,
         #[serde(rename = "encounterId", default)]
         encounter_id: Option<String>,
+    },
+    Windbell {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        action: WindbellAction,
+        #[serde(rename = "instanceId", default)]
+        instance_id: Option<String>,
     },
     ReleaseSkill {
         #[serde(rename = "requestId")]
@@ -480,6 +505,20 @@ impl ClientMessage {
                     && encounter_id.as_deref().is_none_or(|id| {
                         id.len() <= 96
                             && crate::auth::is_practice_map(id)
+                        && id
+                                .bytes()
+                                .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
+                    })
+            }
+            Self::Windbell {
+                request_id,
+                instance_id,
+                ..
+            } => {
+                valid_id(request_id)
+                    && instance_id.as_deref().is_none_or(|id| {
+                        !id.is_empty()
+                            && id.len() <= 96
                             && id
                                 .bytes()
                                 .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))

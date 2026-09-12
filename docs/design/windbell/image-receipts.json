@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "sourceClass": "P",
+  "route": "built-in image_gen",
+  "model": "not_exposed",
+  "boardId": "2088b043-b946-4db9-b792-9e2104d1424b",
+  "status": "generated_and_copied; runtime_not_integrated",
+  "notes": "本批是原创立绘与独立素材；NPC 单张图只用于对话窗口，不是已接入的走路、施工或战斗精灵。透明字段由 Pillow 读取原始 PNG 后记录；保留生成原件，不做抠图编辑。",
+  "assets": [
+    {
+      "id": "npc-awei",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-awei.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-a9cd4c4b-209f-4176-9695-283db00a7940.png",
+      "boardRevision": 12,
+      "pixelSize": [1024, 1536],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.60852178, "bboxAtAlphaGte240": [168, 94, 890, 1482]},
+      "prompt": "Create one original game NPC character cutout for the Windbell setting: 阿苇, a gender-neutral young traveler and small delivery-cart owner. Friendly MapleStory-inspired chibi proportions, about 3 heads tall with a large readable head and compact body, full body from hood to boots, feet visible with extra transparent padding. Reed-gray short cape with narrow hood, teal short top, ochre sash, dark brown short boots, cream cargo satchel, one tiny travel-worn scratch. Warm clean linework, bright readable colors, gentle adventurous expression, coherent original character design. True transparent alpha background, no background, no ground shadow, no scenery, no props except the satchel, no text, no logo, no checkerboard pattern, no other characters."
+    },
+    {
+      "id": "npc-mucen",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-mucen.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-73f95408-c51e-4a35-9f27-fc6a06d8830e.png",
+      "boardRevision": 14,
+      "pixelSize": [1024, 1536],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.56963221, "bboxAtAlphaGte240": [144, 10, 885, 1524]},
+      "prompt": "Create one original game NPC character cutout for the Windbell setting: 木岑, a middle-aged bridge craftsperson. Friendly MapleStory-inspired chibi proportions, about 3 heads tall with a large readable head and compact body, full body from head to boots, feet visible with extra transparent padding. Broad sturdy shoulders, deep teal sleeveless work vest, ochre thick apron, rolled deep-brown work trousers, canvas work gloves, wood ruler tucked at the belt, red rope spool at the hip. Calm practical expression, warm clean linework, bright readable colors, coherent original character design. True transparent alpha background, no background, no ground shadow, no scenery, no extra characters, no text, no logo, no checkerboard pattern."
+    },
+    {
+      "id": "npc-lanzhi",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-lanzhi.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-a62bb1e5-c4d8-4a82-b34e-3cc3275e70dd.png",
+      "boardRevision": 17,
+      "pixelSize": [1024, 1536],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.56297239, "bboxAtAlphaGte240": [174, 8, 931, 1518]},
+      "prompt": "Create one original game NPC character cutout for the Windbell setting: 岚织, an island bell repairer. Friendly MapleStory-inspired chibi proportions, about 3 heads tall with a large readable head and compact body, full body from head to boots, feet visible with extra transparent padding. Mist-blue short jacket, cream high-neck inner shirt, pale cyan narrow scarf, copper tool pouch, ink-teal low ponytail, a small copper bell at the ear. Calm attentive expression, warm clean linework, bright readable colors, coherent original character design. True transparent alpha background, no background, no ground shadow, no scenery, no extra characters, no text, no logo, no checkerboard pattern."
+    },
+    {
+      "id": "prop-waystation",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-waystation.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-7de77a92-366d-4093-b674-6b98c7d25db9.png",
+      "boardRevision": 19,
+      "pixelSize": [1536, 1024],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.57491938, "bboxAtAlphaGte240": [143, 32, 1395, 994]},
+      "prompt": "Create one original 2D game prop cutout for the Windbell setting: a small forest tree-top waystation building for a side-scrolling game. Charming friendly chibi-scale game art, chunky rounded cedar structure, moss-edged blue-green shingle roof, a little warm amber window and open door, crooked chimney, small workbench with tiny bell-repair tools outside, short viewing balcony, modest route sign with no writing. Consistent front-side orthographic view, complete building with a clean foot baseline and generous padding. True transparent alpha background, no island base, no trees, no people, no ground plane, no scenery, no text, no logo, no UI, no watermark, no checkerboard pattern, one single object only."
+    },
+    {
+      "id": "prop-leafwing",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-leafwing.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-d2db94fd-1bf5-4931-b919-a572ffecfa14.png",
+      "boardRevision": 20,
+      "pixelSize": [1536, 1024],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.62593269, "bboxAtAlphaGte240": [27, 101, 1510, 893]},
+      "prompt": "Create one original 2D game prop cutout for the Windbell setting: a single unfolded traveling leaf-wing equipment for a tiny chibi adventurer. Charming friendly MapleStory-inspired game art, two generous sage-green leaf sails joined by a small warm wood and leather back harness, clearly visible branching leaf veins and lightly curved wooden rib supports, symmetrical broad aerodynamic front-view silhouette, hand-crafted worn edges. Absolutely no wearer, no body, no hands, no scenery. Whole object centered with generous transparent margins. True transparent alpha background, no ground shadow, no text, no logo, no UI, no watermark, no checkerboard pattern, one single object only."
+    },
+    {
+      "id": "prop-dragon",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-dragon.png",
+      "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-defcec8c-2768-43f0-9bc7-4bfd6ee40210.png",
+      "boardRevision": 23,
+      "pixelSize": [1536, 1024],
+      "alpha": {"hasAlpha": true, "alphaExtrema": [0, 254], "transparentFraction": 0.73746999, "bboxAtAlphaGte240": [85, 94, 1512, 769]},
+      "prompt": "Create one original 2D game creature cutout for the Windbell setting: a gentle wind-patrolling dragon in a gliding side-profile pose. Charming friendly MapleStory-inspired game art, teal back, pale cream underside, muted copper small hornlets, broad soft leaf-shaped wings, long curved tail and round curious face. Whimsical tiny distant creature with a clear readable sprite-like silhouette and fine clean edge definition, original design. Whole body, wings and tail uncropped with generous transparent margins. No humans, no scene, no ground shadow, no text, no logo, no UI, no watermark, no checkerboard pattern. True transparent alpha background. Non-combat distant creature, not a monstrous boss, one single object only."
+    }
+  ]
+}

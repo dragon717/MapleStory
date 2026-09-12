@@ -426,6 +426,12 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
             // downward-speed cap for its time window.  魔力波动 itself now
             // uses the same cap so the float is visible on the casted skill.
             player.state.vy = next_vy.min(MAGIC_WAVE_SLOW_FALL_SPEED);
+        } else if tick < player.windbell_glide_until {
+            // Windbell's leafwing is a bounded fall-speed modifier authored
+            // by the activity.  The heat lift is applied by World immediately
+            // before this step; once outside the heat zone, only this cap
+            // remains and ordinary foothold landing still decides arrival.
+            player.state.vy = next_vy.min(player.windbell_glide_fall_speed.max(0.0));
         } else {
             player.slow_fall_until = 0;
             player.state.vy = next_vy;

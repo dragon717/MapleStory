@@ -91,6 +91,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     })?
     .npcs;
+    let windbell_path = PathBuf::from(setting(
+        "WINDBELL_FILE",
+        root.join("shared/windbell.json").to_str().unwrap(),
+    ));
+    let windbell = world::windbell::WindbellConfig::load(&windbell_path).map_err(|error| {
+        format!(
+            "Cannot load Windbell activity {}: {error}",
+            windbell_path.display()
+        )
+    })?;
     let duration_ms: u64 = setting("ATTACK_DURATION_MS", "800").parse()?;
     if !(50..=5000).contains(&duration_ms) {
         return Err("ATTACK_DURATION_MS must be 50..5000".into());
@@ -114,7 +124,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     .with_quest_text(quest_text)
     .with_npc_names_zh(npc_names_zh)
-    .with_mage_skills(mage_skills);
+    .with_mage_skills(mage_skills)
+    .with_windbell(windbell)?;
     tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,

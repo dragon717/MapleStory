@@ -1,5 +1,6 @@
 import type { AppearanceCatalog } from '../features/entry/appearance';
 import { CONTENT_VERSION } from '../../../shared/protocol.ts';
+import { installWindbellMaps } from '../features/windbell/maps';
 import { frameAt } from '../features/player/animation.ts';
 // 纸娃娃类型叶（计划 §9.1）：帧/部件/动作集迁到 avatar-types.ts，
 // 这里 re-export 保持既有 `from '../../assets/manifest'` 导入者不变。
@@ -610,6 +611,7 @@ export async function loadManifest(): Promise<Manifest> {
   const response = await fetch('/assets/manifest.json');
   if (!response.ok) throw new Error(`资源清单加载失败 /assets/manifest.json (${response.status})`);
   const manifest = await response.json() as Manifest;
+  installWindbellMaps(manifest);
   if (manifest.contentVersion !== CONTENT_VERSION) throw new Error(`资源版本不一致，需要 ${CONTENT_VERSION}`);
   for (const action of ['stand', 'walk', 'jump', 'attack'] as const) {
     if (!manifest.avatar.actions[action]?.length || manifest.avatar.actions[action].some(frame => !(frame.delay > 0) || !frame.parts.length)) throw new Error(`动作资源缺失或时长无效：${action}`);

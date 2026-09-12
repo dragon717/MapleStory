@@ -1264,6 +1264,157 @@ impl Store {
         read_storage_mesos_db(&db, account_id)
     }
 
+    /// Read the durable public Windbell bridge state.  This is deliberately
+    /// separate from `player_stats`: the bridge is one shared world fact, not
+    /// an account attribute.
+    pub fn load_windbell_bridge_state(
+        &self,
+        world_id: &str,
+    ) -> Result<Option<(String, u64)>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT state_json,revision FROM windbell_bridge_state WHERE world_id=?1",
+            [world_id],
+            |row| {
+                let revision = row
+                    .get::<_, i64>(1)
+                    .ok()
+                    .and_then(|value| u64::try_from(value.max(0)).ok())
+                    .unwrap_or(0);
+                Ok((row.get::<_, String>(0)?, revision))
+            },
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())
+    }
+
+    /// Persist one public Windbell bridge snapshot.  The world loop is the
+    /// sole caller, so a single upsert is sufficient here; request-level
+    /// replay records are kept in `windbell_action_log` below.
+    pub fn save_windbell_bridge_state(
+        &self,
+        world_id: &str,
+        state_json: &str,
+        revision: u64,
+    ) -> Result<(), String> {
+        let revision = i64::try_from(revision).map_err(|_| "account persistence failed")?;
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "INSERT INTO windbell_bridge_state(world_id,state_json,revision) VALUES (?1,?2,?3)
+             ON CONFLICT(world_id) DO UPDATE SET state_json=excluded.state_json,revision=excluded.revision",
+            params![world_id, state_json, revision],
+        )
+        .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(())
+    }
+
+    /// Read the character-owned Windbell contribution/arrival memory.
+    pub fn load_windbell_player_state(
+        &self,
+        account_id: &str,
+    ) -> Result<Option<String>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT state_json FROM windbell_player_state WHERE account_id=?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())
+    }
+
+    /// Persist character-owned Windbell memory without touching the legacy
+    /// profile row.
+    pub fn save_windbell_player_state(
+        &self,
+        account_id: &str,
+        state_json: &str,
+    ) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "INSERT INTO windbell_player_state(account_id,state_json) VALUES (?1,?2)
+             ON CONFLICT(account_id) DO UPDATE SET state_json=excluded.state_json",
+            params![account_id, state_json],
+        )
+        .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(())
+    }
+
+    /// Return a previously committed Windbell request, if one exists.  The
+    /// result is stored as JSON so the protocol can grow without another
+    /// schema migration; the world still validates the action and instance
+    /// token before accepting a new request.
+    pub fn load_windbell_action(
+        &self,
+        account_id: &str,
+        request_id: &str,
+    ) -> Result<Option<(String, String)>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT action,result_json FROM windbell_action_log WHERE account_id=?1 AND request_id=?2",
+            params![account_id, request_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())
+    }
+
+    /// Commit a Windbell action receipt together with every durable fact that
+    /// the action changes.  Public bridge material and the character's
+    /// contribution memory must cross the same SQLite commit boundary as the
+    /// request id: a failed write must never consume material while leaving a
+    /// replay receipt behind (or the reverse).
+    pub fn commit_windbell_action(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        action: &str,
+        result_json: &str,
+        bridge: Option<(&str, u64)>,
+        player_state_json: Option<&str>,
+    ) -> Result<bool, String> {
+        let revision = bridge
+            .map(|(_, revision)| {
+                i64::try_from(revision).map_err(|_| "account persistence failed".to_owned())
+            })
+            .transpose()?;
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        let inserted = tx
+            .execute(
+                "INSERT OR IGNORE INTO windbell_action_log(account_id,request_id,action,result_json)
+                 VALUES (?1,?2,?3,?4)",
+                params![account_id, request_id, action, result_json],
+            )
+            .map_err(|_| "account persistence failed".to_owned())?;
+        if inserted != 1 {
+            // Keep the transaction boundary explicit even for a duplicate so
+            // SQLite releases its write lock before the caller replays the
+            // already committed snapshot.
+            tx.commit().map_err(|_| "account persistence failed".to_owned())?;
+            return Ok(false);
+        }
+        if let Some((state_json, _)) = bridge {
+            let revision = revision.ok_or_else(|| "account persistence failed".to_owned())?;
+            tx.execute(
+                "INSERT INTO windbell_bridge_state(world_id,state_json,revision) VALUES (?1,?2,?3)
+                 ON CONFLICT(world_id) DO UPDATE SET state_json=excluded.state_json,revision=excluded.revision",
+                params!["windbell", state_json, revision],
+            )
+            .map_err(|_| "account persistence failed".to_owned())?;
+        }
+        if let Some(state_json) = player_state_json {
+            tx.execute(
+                "INSERT INTO windbell_player_state(account_id,state_json) VALUES (?1,?2)
+                 ON CONFLICT(account_id) DO UPDATE SET state_json=excluded.state_json",
+                params![account_id, state_json],
+            )
+            .map_err(|_| "account persistence failed".to_owned())?;
+        }
+        tx.commit().map_err(|_| "account persistence failed".to_owned())?;
+        Ok(true)
+    }
+
 }
 
 pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
@@ -1440,6 +1591,7 @@ mod tests {
     include!("fourth_store_acceptance.rs");
     include!("hyper_store_acceptance.rs");
     include!("continuation_store_acceptance.rs");
+    include!("windbell_store_acceptance.rs");
 
     #[tokio::test]
     async fn accounts_persist_and_sessions_require_valid_credentials() {

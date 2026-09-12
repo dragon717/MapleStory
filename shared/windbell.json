@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "windbell-runtime-0.1",
+  "sourceClass": "P",
+  "maps": {
+    "island": {
+      "id": "windbell-island",
+      "mapId": "windbell-island",
+      "name": "风铃岛",
+      "bounds": {
+        "xMin": 0,
+        "xMax": 2600,
+        "yMin": 100,
+        "yMax": 1450
+      },
+      "spawn": {
+        "x": 200,
+        "y": 1200
+      },
+      "footholds": [
+        {
+          "id": 1,
+          "x1": 0,
+          "y1": 1200,
+          "x2": 850,
+          "y2": 1200,
+          "prev": 0,
+          "next": 2,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 2,
+          "x1": 850,
+          "y1": 1200,
+          "x2": 1850,
+          "y2": 700,
+          "prev": 1,
+          "next": 3,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 3,
+          "x1": 1850,
+          "y1": 700,
+          "x2": 2150,
+          "y2": 550,
+          "prev": 2,
+          "next": 4,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 4,
+          "x1": 2150,
+          "y1": 550,
+          "x2": 2520,
+          "y2": 550,
+          "prev": 3,
+          "next": 0,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 5,
+          "x1": 320,
+          "y1": 650,
+          "x2": 650,
+          "y2": 650,
+          "prev": 0,
+          "next": 0,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 6,
+          "x1": 1550,
+          "y1": 550,
+          "x2": 2150,
+          "y2": 550,
+          "prev": 0,
+          "next": 4,
+          "forbidFallDown": 0
+        }
+      ],
+      "ladders": [
+        {
+          "id": 1,
+          "l": 0,
+          "uf": 1,
+          "x": 480,
+          "y1": 650,
+          "y2": 1200,
+          "page": 0
+        }
+      ],
+      "portals": [],
+      "water": []
+    },
+    "bridge": {
+      "id": "windbell-bridge",
+      "mapId": "windbell-bridge",
+      "name": "风铃桥渡口",
+      "bounds": {
+        "xMin": 0,
+        "xMax": 2600,
+        "yMin": 100,
+        "yMax": 1450
+      },
+      "spawn": {
+        "x": 200,
+        "y": 700
+      },
+      "footholds": [
+        {
+          "id": 1,
+          "x1": 0,
+          "y1": 700,
+          "x2": 800,
+          "y2": 700,
+          "prev": 0,
+          "next": 2,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 2,
+          "x1": 800,
+          "y1": 700,
+          "x2": 1100,
+          "y2": 950,
+          "prev": 1,
+          "next": 3,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 3,
+          "x1": 1100,
+          "y1": 950,
+          "x2": 1300,
+          "y2": 950,
+          "prev": 2,
+          "next": 4,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 4,
+          "x1": 1300,
+          "y1": 950,
+          "x2": 1600,
+          "y2": 700,
+          "prev": 3,
+          "next": 5,
+          "forbidFallDown": 0
+        },
+        {
+          "id": 5,
+          "x1": 1600,
+          "y1": 700,
+          "x2": 2600,
+          "y2": 700,
+          "prev": 4,
+          "next": 0,
+          "forbidFallDown": 0
+        }
+      ],
+      "ladders": [],
+      "portals": [],
+      "water": []
+    }
+  },
+  "island": {
+    "rootPath": {
+      "startFootholdId": 1,
+      "arrivalFootholdId": 4,
+      "arrivalXMin": 2180,
+      "arrivalXMax": 2500
+    },
+    "treeBridge": {
+      "support": {
+        "x": 560,
+        "y": 650,
+        "rangeX": 100,
+        "rangeY": 100
+      },
+      "dynamicFoothold": {
+        "id": 7,
+        "x1": 650,
+        "y1": 650,
+        "x2": 1550,
+        "y2": 550,
+        "prev": 5,
+        "next": 6,
+        "forbidFallDown": 0
+      },
+      "landing": {
+        "x": 1550,
+        "y": 550,
+        "footholdId": 6
+      },
+      "fallingTicks": 40
+    },
+    "heat": {
+      "branch": {
+        "x": 1060,
+        "y": 1095,
+        "rangeX": 100,
+        "rangeY": 100
+      },
+      "zone": {
+        "xMin": 980,
+        "xMax": 1280,
+        "yMin": 300,
+        "yMax": 1200
+      },
+      "arrival": {
+        "xMin": 2180,
+        "xMax": 2500,
+        "yMin": 510,
+        "yMax": 590,
+        "footholdId": 4
+      },
+      "activeTicks": 2250,
+      "launchVy": -620,
+      "fuel": 1,
+      "glideTicks": 600,
+      "glideFallSpeed": 75
+    },
+    "npcSpawns": [
+      {
+        "id": "windbell-lanzhi",
+        "templateId": "windbell-lanzhi",
+        "x": 2300,
+        "y": 550,
+        "footholdId": 4,
+        "facing": -1
+      }
+    ]
+  },
+  "bridge": {
+    "cart": {
+      "x": 450,
+      "y": 700,
+      "rangeX": 120,
+      "rangeY": 100
+    },
+    "material": {
+      "x": 650,
+      "y": 700,
+      "sourcePlanks": 6,
+      "sourceRopes": 3,
+      "handoffRangeX": 120,
+      "handoffRangeY": 100
+    },
+    "segmentIds": [
+      101,
+      102,
+      103
+    ],
+    "segments": [
+      {
+        "id": 101,
+        "x1": 800,
+        "y1": 700,
+        "x2": 1066,
+        "y2": 700,
+        "prev": 1,
+        "next": 102,
+        "forbidFallDown": 0
+      },
+      {
+        "id": 102,
+        "x1": 1066,
+        "y1": 700,
+        "x2": 1333,
+        "y2": 700,
+        "prev": 101,
+        "next": 103,
+        "forbidFallDown": 0
+      },
+      {
+        "id": 103,
+        "x1": 1333,
+        "y1": 700,
+        "x2": 1600,
+        "y2": 700,
+        "prev": 102,
+        "next": 5,
+        "forbidFallDown": 0
+      }
+    ],
+    "npcSpawns": [
+      {
+        "id": "windbell-awei",
+        "templateId": "windbell-awei",
+        "x": 480,
+        "y": 700,
+        "footholdId": 1,
+        "facing": -1
+      },
+      {
+        "id": "windbell-mucen",
+        "templateId": "windbell-mucen",
+        "x": 690,
+        "y": 700,
+        "footholdId": 1,
+        "facing": -1
+      }
+    ]
+  }
+}

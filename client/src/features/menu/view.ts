@@ -82,6 +82,7 @@ export class MenuView {
     private onFriend?: () => void,
     /** Source UITotalMenu type 29 (表情) opens the chat emoticon window. */
     private onEmoticon?: () => void,
+    private onActivities?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -278,6 +279,7 @@ export class MenuView {
   }
 
   private activateEntry(entry: MenuEntry) {
+    if (entry.type === 30 && this.onActivities) { this.close(); this.onActivities(); return; }
     const action = entry.type === 6 ? this.onInventory
       : entry.type === 4 ? this.onEquipment
         : entry.type === 17 ? this.onQuest

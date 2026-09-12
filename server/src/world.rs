@@ -21,6 +21,8 @@ use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
 #[path = "boss.rs"]
 mod boss;
+#[path = "windbell.rs"]
+pub(crate) mod windbell;
 #[path = "messaging.rs"]
 mod messaging;
 #[path = "inventory_ops.rs"]
@@ -1306,6 +1308,13 @@ struct Player {
     base_max_mp: i64,
     map_id: String,
     death_id: String,
+    /// Character-scoped Windbell contribution and arrival memory.  The
+    /// activity instance itself is transient; this small record survives it
+    /// and is persisted by the Windbell module.
+    windbell_progress: windbell::WindbellPlayerProgress,
+    /// Last server-authored Windbell lines for this observer.  They are
+    /// presentation state and are intentionally not treated as facts.
+    windbell_dialogue: Vec<String>,
     connection: String,
     output: mpsc::Sender<String>,
     /// The authoritative character survives its transport.  `None` means the
@@ -1324,6 +1333,18 @@ struct Player {
     vertical: i8,
     jump: bool,
     swimming: bool,
+    /// Temporary leafwing glide window.  The movement loop applies the
+    /// server-authored fall-speed cap while this deadline is active.
+    windbell_glide_until: u64,
+    windbell_glide_fall_speed: f64,
+    /// Foothold observed before the current authoritative movement step.
+    /// Windbell arrival paths use this server-side transition, never a client
+    /// supplied target or an arbitrary coordinate.
+    windbell_previous_foothold: u64,
+    /// When the destination foothold begins before its arrival x-range, keep
+    /// the predecessor across the few movement ticks needed to enter that
+    /// range (especially the bridge's foothold 6 -> 4 transition).
+    windbell_arrival_origin_foothold: u64,
     foothold_id: u64,
     // HeavenClient keeps the current foothold available to its lower-border
     // recovery even while a jump has temporarily cleared the active fhid.
@@ -1774,6 +1795,10 @@ pub struct World {
     /// world fact: a used-up prop returns on the source timer, and a restart
     /// legitimately resets it.
     reactors: BTreeMap<String, ReactorInstance>,
+    /// Windbell's public bridge state and private island instances.  The
+    /// module owns the state transitions; this option keeps worlds created by
+    /// unit tests without the optional activity data fully compatible.
+    windbell: Option<windbell::WindbellRuntime>,
     /// Bounded request idempotency for BossPractice lifecycle commands.  The
     /// encounter id is part of the key's semantic value so a stale Leave or
     /// Retry cannot mutate a newer private instance.
@@ -1881,6 +1906,7 @@ impl World {
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
             reactors: BTreeMap::new(),
+            windbell: None,
             boss_practices: BTreeMap::new(),
             boss_requests: BTreeMap::new(),
             boss_request_sequence: 0,
@@ -2323,6 +2349,10 @@ impl World {
             snapshot["sourceMapId"] = source_map_id.into();
             snapshot["bossPractice"] = boss_practice;
         }
+        if let Some((source_map_id, windbell)) = self.windbell_snapshot_fields(id, map_id) {
+            snapshot["sourceMapId"] = source_map_id.into();
+            snapshot["windbell"] = windbell;
+        }
         snapshot.to_string()
     }
 
@@ -2399,6 +2429,9 @@ impl World {
             }
         }
         for id in must_exit {
+            if !self.disconnect_windbell_player(&id) {
+                continue;
+            }
             self.disconnect_boss_player(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
@@ -2431,6 +2464,9 @@ impl World {
             )
             .collect();
         for id in failed {
+            if !self.disconnect_windbell_player(&id) {
+                continue;
+            }
             self.disconnect_boss_player(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
@@ -2859,6 +2895,7 @@ impl World {
 
     pub fn step(&mut self) {
         self.tick += 1;
+        self.step_windbell_before_players();
         // Drop consumable cooldowns that have expired so the per-player map
         // cannot grow without bound over a long session, and mirror what is
         // left onto the wire state for the client to render.
@@ -2885,6 +2922,8 @@ impl World {
                 .map(|player| player.map_id.clone())
                 .unwrap_or_else(|| self.map.id.clone());
             let map = self.map_for(&map_id).clone();
+            self.prepare_windbell_player(&id);
+            let windbell_speed_factor = self.windbell_leafwing_speed_factor(&id);
             let Some(player) = self.players.get_mut(&id) else {
                 continue;
             };
@@ -3053,6 +3092,9 @@ impl World {
             player.state.max_mp = derived_max_mp;
             player.state.derived_stats = derived_stats.clone();
             player.move_speed = derived_stats.move_speed;
+            if windbell_speed_factor > 1.0 {
+                player.move_speed *= windbell_speed_factor;
+            }
             player.state.hp = player.state.hp.min(player.state.max_hp);
             player.state.mp = player.state.mp.min(player.state.max_mp);
             let old_x = player.state.x;
@@ -3075,14 +3117,17 @@ impl World {
                 player.magic_wave_float_used = false;
                 player.slow_fall_until = 0;
             }
-            if (player.state.hp != old_hp
+            let should_persist = (player.state.hp != old_hp
                 || player.state.mp != old_mp
                 || player.state.max_hp != old_max_hp
                 || player.state.max_mp != old_max_mp
                 || (player.state.x - old_x).abs() > 0.001
                 || (player.state.y - old_y).abs() > 0.001)
                 && self.store.is_some()
-            {
+                && !windbell::is_runtime_instance_map(&player.map_id);
+            let _ = player;
+            self.step_windbell_player(&id);
+            if should_persist {
                 let _ = self.persist_player(&id);
             }
             self.step_area_reactor_interactions(&id);
@@ -3111,6 +3156,9 @@ impl World {
             })
             .collect();
         for id in failed {
+            if !self.disconnect_windbell_player(&id) {
+                continue;
+            }
             self.disconnect_boss_player(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
@@ -3126,6 +3174,13 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Ok(());
         };
+        // A Windbell island map exists only for the current visit.  Its
+        // coordinates must never leak into the normal profile row; the
+        // activity's explicit leave/disconnect path first returns the player
+        // to the saved canonical map.
+        if windbell::is_runtime_instance_map(&player.map_id) {
+            return Ok(());
+        }
         store.save_profile(
             id,
             &profile_from_state(
@@ -3298,6 +3353,8 @@ fn profile_from_state(
             .nth(1)
             .filter(|source| *source == BOSS_PRACTICE_FALLBACK_MAP_ID)
             .unwrap_or(BOSS_PRACTICE_FALLBACK_MAP_ID)
+    } else if let Some(canonical) = windbell::canonical_map_id(map_id) {
+        canonical
     } else {
         map_id
     };

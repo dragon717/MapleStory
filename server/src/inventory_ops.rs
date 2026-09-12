@@ -843,6 +843,14 @@ impl World {
         if auth::is_practice_map(&player.map_id) {
             return Err("scroll_blocked");
         }
+        // A private Windbell island has a runtime-only map and a return
+        // record that must be consumed by the activity's own leave path.
+        // Refuse a scroll here rather than moving the profile behind the
+        // instance and leaking its map/NPCs; the explicit Windbell `leave`
+        // intent performs the canonical return and teardown transaction.
+        if windbell::is_runtime_instance_map(&player.map_id) {
+            return Err("scroll_blocked");
+        }
         let current_map_id = player.map_id.as_str();
         let destination = match target {
             inventory::MapMoveTarget::ReturnMap => match self.return_maps.get(current_map_id) {
@@ -853,6 +861,11 @@ impl World {
         };
         if !self.maps.contains_key(&destination) {
             return Err("scroll_unavailable");
+        }
+        if destination == windbell::WIND_BELL_ISLAND_MAP_ID
+            || destination == windbell::WIND_BELL_BRIDGE_MAP_ID
+        {
+            return Err("scroll_blocked");
         }
         Ok(Some(destination))
     }

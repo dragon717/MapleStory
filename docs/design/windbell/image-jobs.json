@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "route": "built-in image_gen",
+  "model": "not_exposed",
+  "userApproved": true,
+  "jobs": [
+    {
+      "id": "bridge-restored",
+      "type": "scene",
+      "mode": "edit",
+      "reference": "bridge-dormant.png",
+      "prompt": "Edit this exact Windbell Crossing scene to its lived-in restored state. Preserve camera, framing, trees, rocks, background, color palette, scale and all geography. Repair every missing central bridge plank into one continuous clearly walkable wood deck with a few lighter new boards; keep the lower stone bypass fully usable. Move the SAME small wooden handcart from the left bank to beside the right shelter, upright and unloaded with canvas tool parcels placed beside it. Left material pile is diminished consistently with construction. Repair the shelter tarp, sweep bench, hang the same bronze bell and add a small mug by bench to show a place ready for travelers. Do not add people, crowds, reward effects or extra buildings. The same place after real repair and delivery, polished handpainted 2D game scene."
+    },
+    {
+      "id": "island-keyart",
+      "type": "scene",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. One wide complete side-scrolling 2D game map key art for original Windbell Island at dawn. A magnificent giant tree fills left and upper edges. Start at ground level lower left, warm-window cedar waystation and bronze windbells on a root-tethered floating rock island upper right. Show THREE geographically connected routes clearly: reliable gently rising root-and-rock stepped path along the lower/right perimeter; pivoting raised wooden treebridge at middle height on a visible hinge and taut dry rope connecting two ledges; a central dry twig stone fire trough below a vertical shaft of lightly swirling ascending leaves with clear landing on the island. A contrasting damp mossy log beside trough. The lower route is usable without any skill. Hanging ropes and hinge mechanically readable. One small original teal-and-cream long-tailed wind dragon rests on a HIGH distant branch separate from playable paths. No NPCs or humans baked in, no dragon rescue. Tiny crafted station with warm window, real workbench, bell tools, leaf pennants, distant cloud route marker; the same welcoming destination for every route. Crisp clear grass platform edges, layered distant forest and milk-blue sky, softly rounded sprites/background shapes, a beautiful richly detailed yet readable horizontal game environment, avoid arrows/routes labels or colored puzzle lanes."
+    },
+    {
+      "id": "prop-cart",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single isolated small TWO-wheeled cedar delivery handcart for a 2D side-scrolling forest game, full object in strict side three-quarter view very close to orthographic, rough warm planks, two large wooden spoke wheels on same axle, short shafts, cream canvas-wrapped tool bundles tied with faded teal cord, a little pale wood wedge visibly tucked at one wheel. Charming compact game prop at high detail, no ground plane or scenery, centered with generous transparent margin. True transparent PNG background, no baked checkerboard, no people."
+    },
+    {
+      "id": "prop-materials",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single isolated coherent worksite repair-supply prop: a small stack of six pale sawn wooden planks bundled with a loose natural-fiber rope coil resting beside them, a little wooden peg box. Orthographic almost straight-on side view, common foot baseline, neatly separated visible silhouettes, full objects uncropped. No scene or ground plane, true transparent PNG alpha background; not a contact sheet, no labels."
+    },
+    {
+      "id": "prop-bell",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single isolated handcrafted bronze windbell hanging from a curved cedar wall bracket and one frayed teal ribbon windcatcher. Clearly visible bell lip, clapper and small carved leaf detail, gently weathered copper-gold patina, front side view. The whole wooden bracket, suspension rope and ribbon fit in frame with margin. True transparent background, no scenery or fake checkerboard."
+    },
+    {
+      "id": "prop-waystation",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single isolated small forest tree-top waystation building for a side-scrolling game. Chunky rounded cedar structure, moss-edged blue-green shingle roof, a little warm amber window and open door, crooked chimney, workbench with tiny bell-repair tools outside, short viewing balcony and modest route sign with no writing. Consistent orthographic front side view, small warm believable lived-in structure, clean foot baseline. No island base, no trees, no people, no background; true transparent alpha PNG, full building with margins."
+    },
+    {
+      "id": "prop-leafwing",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single isolated unfolded traveling leaf-wing equipment for a tiny chibi adventurer, two generous sage-green leaf sails joined by a small warm wood and leather back harness, clearly visible branching leaf veins and lightly curved wooden rib supports. Front view showing symmetrical broad aerodynamic silhouette, hand-crafted worn edges, absolutely no wearer or body, no scenery. True transparent background, full object with margin, crisp attractive 2D game prop."
+    },
+    {
+      "id": "prop-dragon",
+      "type": "prop",
+      "mode": "generate",
+      "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single original gentle wind-patrolling dragon in a gliding side profile pose, teal back, pale cream underside, muted copper small hornlets, broad soft leaf-shaped wings, long curved tail and round curious face. Whimsical MapleStory-scale fantasy creature with friendly readable silhouette and fine sprite-like edge definition, not a copy of any named character. Whole body wings and tail uncropped, no humans, no scene, true transparent background with generous margins. This is a non-combat distant creature, not a monstrous boss."
+    }
+  ]
+}

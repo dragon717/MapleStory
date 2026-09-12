@@ -1,4 +1,5 @@
-    use super::*;
+use super::*;
+include!("windbell_acceptance.rs");
     // 通讯职责已搬到 `messaging`（超大文件治理 P2）：其策略常量是 `pub(super)`，
     // 在这里显式 glob 进来，使既有 `*_acceptance.rs` 里的裸名引用继续成立。
     use super::messaging::*;

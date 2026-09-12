@@ -1,0 +1,11 @@
+{
+  "checked": 9517,
+  "repaired": [
+    {
+      "url": "/assets/tms273/Map_Map_Map0__Canvas_000030000.img_miniMap_canvas-cdb1053e76.png",
+      "source": "build/current/client/assets/tms273/Map_Map_Map0__Canvas_000030000.img_miniMap_canvas-cdb1053e76.png"
+    }
+  ],
+  "missing": [],
+  "publicSourcesRestored": true
+}

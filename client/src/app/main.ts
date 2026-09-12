@@ -19,6 +19,7 @@ import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
 import { AwayNoticeView } from '../features/notice/away';
 import { MenuView } from '../features/menu/view';
+import { ActivitiesView } from '../features/windbell/activities';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
 import { SkillView } from '../features/skills/view';
@@ -52,6 +53,7 @@ let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
 let awayNotice: AwayNoticeView | undefined;
 let menus: MenuView | undefined;
+let activities: ActivitiesView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
 let storage: StorageView | undefined;
 let party: PartyView | undefined;
@@ -114,6 +116,7 @@ function characterInfoIsOpen() {
  */
 function escapeBlocked() {
   return Boolean(
+    activities?.isOpen() ||
     news.open
     || menus?.isOpen()
     || npcDialogue?.isOpen()
@@ -131,6 +134,7 @@ function escapeBlocked() {
   );
 }
 function talkToNpc(npc: NpcState) {
+  if (npc.templateId.startsWith('windbell-')) { input?.reset(); activities?.talk(); return; }
   skills?.close();
   characterInfo?.close();
   return npcDialogue?.startTalk(npc);
@@ -225,7 +229,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -278,6 +282,11 @@ async function enterGame(session: LoginResponse) {
     characterInfo?.destroy();
     characterInfo = new CharacterInfoView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     menus?.destroy();
+    activities?.destroy();
+    activities = new ActivitiesView(el('ui-windows'), (action, instanceId) => {
+      input?.reset();
+      if (!connection?.send({ type: 'windbell', action, instanceId, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
+    }, focusGame);
     menus = new MenuView(
       el('menus'),
       manifest,
@@ -297,6 +306,7 @@ async function enterGame(session: LoginResponse) {
       () => friends?.toggle() ?? false,
       // Source UITotalMenu type 29 is the 表情 / chat emoticon shortcut.
       () => emoticons?.toggle() ?? false,
+      () => { input?.reset(); activities?.show(); },
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -311,6 +321,7 @@ async function enterGame(session: LoginResponse) {
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
+      openActivities: () => { input?.reset(); activities?.show(); },
       castSkill: skillId => {
         if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
         return castSkill(skillId);
@@ -513,6 +524,7 @@ async function enterGame(session: LoginResponse) {
         }
         const self = message.players.find(player => player.id === message.selfId);
         selfState = self;
+        activities?.update(message.windbell, self, message.npcs);
         renderBossPractice(message.bossPractice, self, message.monsters);
         // The minimap is a pure view: the server's map id, its own player list
         // and the map's authored portal list are everything it is allowed to
@@ -602,7 +614,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      isBlocked: () => Boolean(news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -624,6 +636,7 @@ function leaveGame(logout = false) {
   // bootstrapped session doesn't leave an orphaned progress card behind.
   loadingOverlay?.hide(); loadingOverlay = undefined;
   setPlayLayout(false);
+  activities?.destroy(); activities = undefined;
   generation++; selfState = undefined; characterInfo?.update(undefined); input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }

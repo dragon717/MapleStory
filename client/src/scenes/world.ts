@@ -12,6 +12,7 @@ import { ReactorView, reactorStateAsset } from '../features/world/reactor-view';
 import { WaterView } from '../features/world/water';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
+import { WindbellScene } from '../features/windbell/scene';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
@@ -41,6 +42,7 @@ export class World extends Phaser.Scene {
   private failed = false;
   private bgm?: Phaser.Sound.BaseSound;
   private bossWarning?: Phaser.GameObjects.Graphics;
+  private windbellScene?: WindbellScene;
   private combat?: CombatView;
   private portalCooldownUntil = 0;
   constructor(
@@ -60,6 +62,7 @@ export class World extends Phaser.Scene {
   getMap(mapId = this.mapId, sourceMapId?: string): MapDefinition | MapCatalogEntry | undefined {
     if (mapId === this.mapId) return this.manifest.map;
     const source = this.manifest.mapCatalog?.maps.find(map => map.id === (sourceMapId ?? mapId));
+    if (source && sourceMapId?.startsWith('windbell-') && mapId.startsWith('windbell:')) return { ...source, id: mapId };
     if (source && sourceMapId && mapId.startsWith(`practice:${sourceMapId}:`)) {
       return { ...source, id: mapId, name: `${source.name} · P练习`, portals: [] };
     }
@@ -132,6 +135,9 @@ export class World extends Phaser.Scene {
       if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
       this.load.audio(entry.key, entry.url);
     }
+    if(this.manifest.map.source?.includes('windbell.json'))for(const name of WindbellScene.sounds){
+      const url=`/assets/windbell/sfx/${name}.ogg`;if(!this.cache.audio.exists(url))this.load.audio(url,url);
+    }
     this.load.on('progress', (progress: number) => { if (!this.failed) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
     this.load.on('loaderror', (file: Phaser.Loader.File) => { this.failed = true; this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true); });
   }
@@ -161,6 +167,8 @@ export class World extends Phaser.Scene {
       }
     }
     this.createWater();
+    const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
+    if (windbellKind) this.windbellScene = new WindbellScene(this, windbellKind);
     this.cameras.main.setBounds(b.xMin, b.yMin, b.xMax - b.xMin, b.yMax - b.yMin);
     this.updateBackgrounds(0);
     // Place portal effects above regular map layers while keeping foreground
@@ -287,6 +295,7 @@ export class World extends Phaser.Scene {
     }
   }
   clear() {
+    this.windbellScene?.destroy(); this.windbellScene = undefined;
     this.bossWarning?.destroy(); this.bossWarning = undefined;
     this.snapshot = undefined;
     for (const player of this.players.values()) player.destroy();
@@ -423,6 +432,7 @@ export class World extends Phaser.Scene {
     }
   }
   update(_time?: number, delta = 8) {
+    this.windbellScene?.update(this.snapshot?.windbell, this.snapshot?.players.find(p => p.id === this.snapshot?.selfId), delta, this.snapshot?.tickMs);
     if (!this.loaded) return;
     this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);

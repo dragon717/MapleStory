@@ -40,6 +40,7 @@ const SOURCE_SLOT_SIZE = 32;
 const SOURCE_SLOT_STEP = 35;
 
 export interface HudViewOptions {
+  openActivities?: () => void;
   castSkill?: (skillId: number) => string | void;
   releaseSkill?: (requestId: string) => void;
 }
@@ -126,6 +127,7 @@ export class HudView {
         if (key === 'Character') this.onInventory?.();
         else if (key === 'Menu' || key === 'Setting') this.onMenu?.(button);
         else if (key === 'Community') document.querySelector<HTMLInputElement>('.chat-input')?.focus();
+        else if (key === 'Event') this.options.openActivities?.();
         else this.status(`${label}业务尚未接入。`);
       });
       actions.append(button);

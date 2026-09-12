@@ -39,6 +39,15 @@ impl World {
                         let _ = reply.send(false);
                         return;
                     }
+                    if !self.prepare_windbell_replacement(&identity.id) {
+                        let _ = output.try_send(reject(
+                            "persistence",
+                            "旧连接的风铃岛位置尚未保存，请稍后重连。",
+                            None,
+                        ));
+                        let _ = reply.send(false);
+                        return;
+                    }
                     self.end_conversation(&identity.id);
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != identity.id);
@@ -203,6 +212,14 @@ impl World {
                     .ground_near(resolved_x, resolved_y)
                     .map(|(id, _)| id)
                     .unwrap_or(0);
+                let windbell_progress = match self.load_windbell_player_progress(&identity.id) {
+                    Ok(progress) => progress,
+                    Err(error) => {
+                        let _ = output.try_send(reject("persistence", &error, None));
+                        let _ = reply.send(false);
+                        return;
+                    }
+                };
                 let quests = match self.store.as_ref() {
                     Some(store) => match store.load_quests(&identity.id) {
                         Ok(quests) => quests,
@@ -351,6 +368,8 @@ impl World {
                         base_max_mp: profile.max_mp.max(0),
                         map_id: resolved_map_id,
                         death_id: profile.death_id,
+                        windbell_progress,
+                        windbell_dialogue: Vec::new(),
                         connection,
                         output: output.clone(),
                         away: None,
@@ -360,6 +379,10 @@ impl World {
                         vertical: 0,
                         jump: false,
                         swimming: false,
+                        windbell_glide_until: 0,
+                        windbell_glide_fall_speed: 0.0,
+                        windbell_previous_foothold: foothold_id,
+                        windbell_arrival_origin_foothold: 0,
                         foothold_id,
                         last_foothold_id: foothold_id,
                         fall_boundary_hold: false,
@@ -460,6 +483,10 @@ impl World {
                 {
                     return;
                 }
+                if !self.disconnect_windbell_player(&id) {
+                    self.send_reject(&id, "persistence", "旧连接的风铃岛记忆尚未保存，请稍后重试。", None);
+                    return;
+                }
                 self.disconnect_boss_player(&id);
                 self.end_conversation(&id);
                 self.pending_attacks
@@ -500,6 +527,9 @@ impl World {
                         return;
                     }
                 }
+                if !self.disconnect_windbell_player(&id) {
+                    return;
+                }
                 self.disconnect_boss_player(&id);
                 self.players.remove(&id);
                 self.end_conversation(&id);
@@ -522,6 +552,9 @@ impl World {
                     .get(&id)
                     .is_some_and(|p| p.connection == connection)
                 {
+                    if !self.disconnect_windbell_player(&id) {
+                        return;
+                    }
                     self.disconnect_boss_player(&id);
                     self.players.remove(&id);
                     self.end_conversation(&id);
@@ -554,6 +587,9 @@ impl World {
                     // merely closes is a tab switch or a reload, not a
                     // departure, and must keep the character resident.
                     ClientMessage::Logout => {
+                        if !self.disconnect_windbell_player(&id) {
+                            return;
+                        }
                         self.disconnect_boss_player(&id);
                         self.players.remove(&id);
                         self.end_conversation(&id);
@@ -655,6 +691,11 @@ impl World {
                         action,
                         encounter_id,
                     } => self.handle_boss_practice(id, request_id, action, encounter_id),
+                    ClientMessage::Windbell {
+                        request_id,
+                        action,
+                        instance_id,
+                    } => self.handle_windbell(id, request_id, action, instance_id),
                     ClientMessage::ReleaseSkill { request_id } => {
                         self.handle_release_skill(id, request_id)
                     }

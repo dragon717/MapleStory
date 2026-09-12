@@ -1,0 +1,2 @@
+TMS273 runtime: 44 maps; 50662 source references; client/server geometry and quest generation agree.
+注意: 1 个装配资源在 public-tms273 里缺失，已从 dist 快照自动补回（本仓库在 iCloud 盘，资源会无故消失；若反复出现请把仓库移出同步盘或排除 client/public-tms273）。
