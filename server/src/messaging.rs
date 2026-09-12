@@ -64,6 +64,11 @@ pub(super) const WHISPER_RECENT_WINDOW: usize = 32;
 pub(super) const EMOTICON_RECENT_WINDOW: usize = 32;
 
 impl World {
+    /// Map public chat (P1-C04).  The client submits only a ChatSend intent;
+    /// the authoritative room (current map), author identity and display name
+    /// are all resolved here.  Control flow stays inside the world tick and
+    /// every outbound write is a bounded try_send, so a slow reader or a
+    /// spammer cannot stall gameplay on another map or another player.
     pub(super) fn handle_chat(&mut self, id: String, request_id: String, text: String) {
         // 1. Room: the sender's current authoritative map.  The client cannot
         //    widen the audience — protocol parsing denies unknown fields, so a

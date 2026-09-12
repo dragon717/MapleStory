@@ -1,0 +1,259 @@
+//! 传送命令与地图跳转。
+//!
+//! 负责：传送门口令的处理（`handle_portal`，门存在性/可达坐标校验）、回执下发
+//! （`send_portal_result`）与程序性跳转入口（`warp_player` / `warp_player_at`，供脚本传送与复活落点复用）。
+//! 不负责：门的摆放数据（`Map` 的 portal 定义）、切图后的快照广播节奏（`world.rs` 的 switchMap 流程）。
+
+use super::*;
+
+impl World {
+    pub(super) fn handle_portal(&mut self, id: String, request_id: String, portal_name: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let source_map_id = player.map_id.clone();
+        let source_x = player.state.x;
+        let source_y = player.state.y;
+        let source_map = self.map_for(&source_map_id).clone();
+        let Some(portal) = source_map
+            .portals
+            .iter()
+            .find(|portal| portal.name == portal_name && portal.target_map_id.is_some())
+            .cloned()
+        else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "portal_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        if (source_x - portal.x).abs() > 48.0 || (source_y - portal.y).abs() > 64.0 {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "out_of_range",
+                &source_map_id,
+                None,
+            );
+            return;
+        }
+        let Some(target_map_id) = portal.target_map_id.clone() else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "portal_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
+            self.send_portal_result(
+                &id,
+                &request_id,
+                false,
+                "map_unavailable",
+                &source_map_id,
+                None,
+            );
+            return;
+        };
+        let destination = portal
+            .target_portal_name
+            .as_deref()
+            .and_then(|name| {
+                target_map
+                    .portals
+                    .iter()
+                    .find(|candidate| candidate.name == name)
+            })
+            .map(|portal| (portal.x, portal.y))
+            .unwrap_or((target_map.spawn.x, target_map.spawn.y));
+        let grounded = target_map
+            .ground_near(destination.0, destination.1)
+            .filter(|(_, ground)| (ground - destination.1).abs() <= 24.0);
+        let (target_x, target_y, foothold_id, grounded) = grounded.map_or(
+            (destination.0, destination.1, 0, false),
+            |(foothold_id, ground)| (destination.0, ground, foothold_id, true),
+        );
+        self.end_conversation(&id);
+        let Some(player) = self.players.get_mut(&id) else {
+            return;
+        };
+        player.map_id = target_map_id.clone();
+        player.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        player.state.x = target_x;
+        player.state.y = target_y;
+        player.state.vx = 0.0;
+        player.state.vy = 0.0;
+        player.state.facing = 1;
+        player.state.grounded = grounded;
+        player.state.climbing = false;
+        player.state.ladder_id = None;
+        player.state.action_id = None;
+        player.state.action = if grounded { "stand" } else { "jump" };
+        player.state.action_started_tick = self.tick;
+        player.swimming = false;
+        player.direction = 0;
+        player.vertical = 0;
+        player.jump = false;
+        player.foothold_id = foothold_id;
+        player.last_foothold_id = foothold_id;
+        player.fall_boundary_hold = false;
+        player.drop_fh = 0;
+        player.attack_until = 0;
+        player.meditation_until = 0;
+        player.meditation_mad = 0;
+        clear_beginner_buffs(player);
+        player.ice_teleport_enabled = false;
+        player.ice_fields.clear();
+        player.teleport_mastery_enabled = false;
+        player.teleport_boost_enabled = false;
+        player.adaptation_active = false;
+        player.adaptation_charges = 0;
+        player.summon = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        self.send_portal_result(
+            &id,
+            &request_id,
+            true,
+            "",
+            &source_map_id,
+            Some(&target_map_id),
+        );
+    }
+
+    pub(super) fn send_portal_result(
+        &self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        source_map_id: &str,
+        target_map_id: Option<&str>,
+    ) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let mut message = serde_json::json!({
+            "type": "portalResult",
+            "requestId": request_id,
+            "success": success,
+            "code": code,
+            "sourceMapId": source_map_id,
+        });
+        if let Some(target_map_id) = target_map_id {
+            message["targetMapId"] = target_map_id.into();
+        }
+        let _ = player.output.try_send(message.to_string());
+    }
+
+    pub(super) fn warp_player(&mut self, player_id: &str, map_id: String) -> bool {
+        self.warp_player_at(player_id, map_id, None)
+    }
+
+    pub(super) fn warp_player_at(
+        &mut self,
+        player_id: &str,
+        map_id: String,
+        portal_name: Option<&str>,
+    ) -> bool {
+        let Some(map) = self.maps.get(&map_id).cloned() else {
+            return false;
+        };
+        let spawn = (map.spawn.x, map.spawn.y);
+        let preferred = map
+            .portals
+            .iter()
+            .find(|portal| portal_name.is_some_and(|name| portal.name == name))
+            .or_else(|| map.portals.first())
+            .map(|portal| (portal.x, portal.y))
+            .unwrap_or(spawn);
+        let resolve_spawn = |(x, y): (f64, f64)| {
+            if !x.is_finite()
+                || !y.is_finite()
+                || !(map.bounds.x_min..=map.bounds.x_max).contains(&x)
+                || !(map.bounds.y_min..=map.bounds.y_max).contains(&y)
+            {
+                return None;
+            }
+            let (foothold_id, ground) = map.ground_below(x, y)?;
+            if (ground - y).abs() <= 24.0 {
+                Some((x, ground, foothold_id, true))
+            } else {
+                Some((x, y, 0, false))
+            }
+        };
+        let Some((x, y, foothold_id, grounded)) =
+            resolve_spawn(preferred).or_else(|| resolve_spawn(spawn))
+        else {
+            return false;
+        };
+        let Some(mut candidate) = self.players.get(player_id).cloned() else {
+            return false;
+        };
+        candidate.map_id = map_id.clone();
+        candidate.natural_recovery_next_tick =
+            self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
+        candidate.state.x = x;
+        candidate.state.y = y;
+        candidate.state.vx = 0.0;
+        candidate.state.vy = 0.0;
+        candidate.state.facing = 1;
+        candidate.state.grounded = grounded;
+        candidate.state.climbing = false;
+        candidate.state.ladder_id = None;
+        candidate.state.action = if grounded { "stand" } else { "jump" };
+        candidate.state.action_id = None;
+        candidate.state.action_started_tick = self.tick;
+        candidate.direction = 0;
+        candidate.vertical = 0;
+        candidate.jump = false;
+        candidate.foothold_id = foothold_id;
+        candidate.last_foothold_id = foothold_id;
+        candidate.drop_fh = 0;
+        candidate.fall_boundary_hold = false;
+        candidate.attack_until = 0;
+        candidate.contact_invulnerable_until = 0;
+        candidate.knockback_vx = 0.0;
+        candidate.knockback_until = 0;
+        candidate.meditation_until = 0;
+        candidate.meditation_mad = 0;
+        clear_beginner_buffs(&mut candidate);
+        candidate.ice_teleport_enabled = false;
+        candidate.ice_fields.clear();
+        candidate.teleport_mastery_enabled = false;
+        candidate.teleport_boost_enabled = false;
+        candidate.adaptation_active = false;
+        candidate.adaptation_charges = 0;
+        candidate.summon = None;
+        refresh_player_derived(&self.gameplay, &self.mage_skills, &mut candidate);
+
+        let profile = profile_from_state(
+            &candidate.state,
+            &candidate.map_id,
+            &candidate.death_id,
+            candidate.base_max_mp,
+        );
+        if let Some(store) = self.store.as_ref() {
+            if store.save_profile(player_id, &profile).is_err() {
+                return false;
+            }
+        }
+        self.end_conversation(player_id);
+        let Some(player) = self.players.get_mut(player_id) else {
+            return false;
+        };
+        *player = candidate;
+        // Drops for the destination map arrive via the next snapshot.
+        self.send_snapshot(player_id);
+        true
+    }
+}
