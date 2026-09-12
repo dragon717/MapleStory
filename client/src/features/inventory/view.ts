@@ -4,11 +4,11 @@ import { protocolText, uiLocale, uiText } from '../../app/i18n';
 import { itemCategoryTab, itemDetails, itemName } from './names';
 import { TooltipController, tooltipSkin } from './tooltip-view';
 import { DragController } from './drag-controller';
+import { InventoryIntents, type SendClientMessage } from './intents';
 import { EquipmentView } from './equipment-view';
 import {
   TAB_COUNT,
   TAB_LABEL_KEYS,
-  TAB_INVENTORY_TYPE,
   comparisonTarget as comparisonTargetFor,
   equippedAtSlot,
   itemAtSlot,
@@ -19,17 +19,7 @@ import {
 } from './view-model';
 import './style.css';
 
-const MIN_DROP_MESOS = 10;
-const MAX_DROP_MESOS = 50_000;
 type AssetSet = Record<string, AssetFrame>;
-type SendClientMessage = (message: ClientMessage) => boolean;
-type UseItemMessage = Extract<ClientMessage, { type: 'useItem' }>;
-
-interface PendingScroll {
-  sourceTab: number;
-  sourceSlot: number;
-  item: InventoryItem;
-}
 
 /**
  * Source-backed TMS273 UIInventory/UIEquip windows.
@@ -76,13 +66,10 @@ export class InventoryView {
   private windowPositioned = false;
   private equipmentWindowPositioned = false;
   private draggingWindow?: { pointerId: number; offsetX: number; offsetY: number; window: HTMLDivElement };
-  private pendingScroll?: PendingScroll;
-  private pendingUseRequestId?: string;
-  private pendingInventoryOperation?: 'gather' | 'sort';
   private keepGatherResultMode = false;
   private sortMode = false;
-  private requestSequence = 0;
   private destroyed = false;
+  private readonly intents: InventoryIntents;
 
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event);
   private readonly handleWindowPointerDown = (event: PointerEvent) => this.onWindowPointerDown(event);
@@ -108,9 +95,21 @@ export class InventoryView {
       detailsFor: (item, comparison) => itemDetails(item.itemId, item, comparison),
     });
 
+    this.intents = new InventoryIntents(this.send, {
+      status: message => this.status(message),
+      t: (zh, en) => this.t(zh, en),
+      itemAt: (slot, tab) => this.itemAt(slot, tab),
+      slotLimit: tab => this.slotLimit(tab),
+      itemLabel: item => this.itemLabel(item),
+      practice: () => this.practice,
+      selectedTab: () => this.selectedTab,
+      mesos: () => this.mesos,
+      onTargetModeChange: selecting => this.applyTargetMode(selecting),
+    });
+
     this.drag = new DragController({
       selectedTab: () => this.selectedTab,
-      scrollPending: () => Boolean(this.pendingScroll),
+      scrollPending: () => this.intents.hasScrollTarget(),
       windowOpen: () => this.openState || Boolean(this.equipment?.isOpen()),
       containsTarget: node => Boolean(this.window?.contains(node) || this.equipment?.window?.contains(node)),
       inventoryItemAt: (slot, tab) => this.itemAt(slot, tab),
@@ -197,7 +196,7 @@ export class InventoryView {
 
     const equipment = new EquipmentView(this.root, manifest, this.equipmentLayout, {
       equippedItemAt: slot => this.equippedAt(slot),
-      selectingTarget: () => Boolean(this.pendingScroll),
+      selectingTarget: () => this.intents.hasScrollTarget(),
       itemFrame: itemId => this.manifest.items?.[itemId],
       assetImage: (frame, className) => this.assetImage(frame, className),
       translate: (zh, en) => this.t(zh, en),
@@ -211,7 +210,7 @@ export class InventoryView {
         }
       },
       chooseScrollTarget: (slotNumber, item) => {
-        const pending = this.pendingScroll;
+        const pending = this.intents.scrollTarget();
         if (pending && item) this.submitUseItem(pending.sourceTab, pending.sourceSlot, pending.item, -slotNumber, item);
       },
       announceSelection: item => this.status(this.t('已选择装备 ' + this.itemLabel(item), 'Selected equipment ' + this.itemLabel(item))),
@@ -302,7 +301,8 @@ export class InventoryView {
       this.refreshGatherButton();
       this.refreshTooltip();
     }
-    if (this.pendingScroll && !this.itemAt(this.pendingScroll.sourceSlot, this.pendingScroll.sourceTab)) {
+    const pending = this.intents.scrollTarget();
+    if (pending && !this.itemAt(pending.sourceSlot, pending.sourceTab)) {
       this.cancelScrollTarget(false);
     }
   }
@@ -328,7 +328,7 @@ export class InventoryView {
     const wasOpen = this.openState;
     this.openState = false;
     this.cancelScrollTarget(false);
-    this.pendingUseRequestId = undefined;
+    this.intents.resetPending();
     this.drag.clear();
     if (this.window) this.window.hidden = true;
     if (!this.equipment?.isOpen()) {
@@ -341,9 +341,8 @@ export class InventoryView {
 
   private closeEquipment(restoreFocus = true) {
     const wasOpen = this.equipment?.isOpen();
-    const hadPendingScroll = Boolean(this.pendingScroll);
-    this.pendingScroll = undefined;
-    this.pendingUseRequestId = undefined;
+    const hadPendingScroll = this.intents.hasScrollTarget();
+    this.intents.resetPending();
     this.equipment?.close();
     this.updateTargetMode();
     if (hadPendingScroll && restoreFocus) this.status(this.t('已取消卷轴使用。', 'Scroll use cancelled.'));
@@ -413,7 +412,7 @@ export class InventoryView {
       this.selectedTab = index;
       this.sortMode = false;
       this.keepGatherResultMode = false;
-      this.pendingInventoryOperation = undefined;
+      this.intents.resetPendingOperation();
       this.hideTooltip();
       this.refreshGatherButton();
       this.root.dataset.tab = String(index);
@@ -531,7 +530,7 @@ export class InventoryView {
     slot.addEventListener('dblclick', () => this.handleDoubleClick(slotNumber));
     slot.addEventListener('contextmenu', event => {
       event.preventDefault();
-      if (this.pendingScroll) {
+      if (this.intents.hasScrollTarget()) {
         this.status(this.t('请在装备栏中选择目标装备。', 'Choose the target equipment in the Equip window.'));
         return;
       }
@@ -553,7 +552,7 @@ export class InventoryView {
   }
 
   private handleSlotClick(slotNumber: number) {
-    if (this.pendingScroll) {
+    if (this.intents.hasScrollTarget()) {
       this.status(this.t('请在装备栏中选择目标装备。', 'Choose the target equipment in the Equip window.'));
       return;
     }
@@ -562,7 +561,7 @@ export class InventoryView {
   }
 
   private handleDoubleClick(slotNumber: number) {
-    if (this.pendingScroll) {
+    if (this.intents.hasScrollTarget()) {
       this.status(this.t('请在装备栏中选择目标装备。', 'Choose the target equipment in the Equip window.'));
       return;
     }
@@ -653,19 +652,17 @@ export class InventoryView {
 
   private receiveInventoryResult(message: Extract<ServerMessage, { type: 'inventoryResult' | 'inventoryDropResult' }>) {
     if (!message.success) {
-      if (this.pendingUseRequestId === message.requestId) {
-        this.pendingUseRequestId = undefined;
+      if (this.intents.completeUseRequest(message.requestId)) {
         this.cancelScrollTarget(false);
       }
       this.status(this.localizedError(message.code));
       return;
     }
-    if (this.pendingUseRequestId === message.requestId) {
-      this.pendingUseRequestId = undefined;
+    if (this.intents.completeUseRequest(message.requestId)) {
       this.cancelScrollTarget(false);
     }
     if (message.operation === 'gather' || message.operation === 'sort') {
-      this.pendingInventoryOperation = undefined;
+      this.intents.resetPendingOperation();
       this.sortMode = message.operation === 'gather';
       this.keepGatherResultMode = message.operation === 'gather';
       this.refreshGatherButton();
@@ -740,121 +737,34 @@ export class InventoryView {
   }
 
   private moveSlot(sourceTab: number, sourceSlot: number, targetSlot: number) {
-    const item = this.itemAt(sourceSlot, sourceTab);
-    const maxSlot = this.slotLimit(sourceTab);
-    if (!item || sourceSlot < 1 || sourceSlot > maxSlot || targetSlot < 1 || targetSlot > maxSlot) return;
-    if (!this.send({
-      type: 'inventoryMove',
-      requestId: this.requestId('move'),
-      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
-      sourceSlot,
-      targetSlot,
-      quantity: item.quantity,
-    })) {
-      this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
-      return;
-    }
-    this.status(this.t('正在移动 ' + this.itemLabel(item) + '…', 'Moving ' + this.itemLabel(item) + '…'));
+    this.intents.moveSlot(sourceTab, sourceSlot, targetSlot);
   }
 
   private dropSlot(sourceTab: number, sourceSlot: number) {
-    if (this.practice) { this.status(this.t('请退出练习后再丢弃物品。', 'Leave practice before dropping items.')); return; }
-    const item = this.itemAt(sourceSlot, sourceTab);
-    if (!item || sourceSlot < 1 || sourceSlot > this.slotLimit(sourceTab)) return;
-    let quantity = Math.max(0, Math.floor(item.quantity));
-    if (quantity > 1) {
-      const answer = window.prompt(
-        this.t('丢弃 ' + itemName(item.itemId) + ' 的数量（1-' + quantity + '）', 'How many ' + itemName(item.itemId) + ' should be dropped? (1-' + quantity + ')'),
-        String(quantity),
-      );
-      if (answer === null) return;
-      quantity = Number(answer);
-      if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > item.quantity) {
-        this.status(this.t('丢弃数量无效。', 'Invalid drop quantity.'));
-        return;
-      }
-    }
-    if (!this.send({
-      type: 'dropItem',
-      requestId: this.requestId('drop'),
-      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
-      sourceSlot,
-      quantity,
-    })) {
-      this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
-      return;
-    }
-    this.status(this.t('正在丢弃 ' + itemName(item.itemId) + ' × ' + quantity + '…', 'Dropping ' + itemName(item.itemId) + ' × ' + quantity + '…'));
+    this.intents.dropSlot(sourceTab, sourceSlot);
   }
 
   private inventoryAction(operation: 'gather' | 'sort') {
-    if (this.pendingInventoryOperation) {
-      this.status(this.t('正在整理物品栏，请稍候。', 'Inventory action is already in progress.'));
-      return;
-    }
-    const message: ClientMessage = {
-      type: operation === 'gather' ? 'inventoryGather' : 'inventorySort',
-      requestId: this.requestId(operation),
-      inventoryType: TAB_INVENTORY_TYPE[this.selectedTab] ?? this.selectedTab + 1,
-    };
-    if (!this.send(message)) {
-      this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
-      return;
-    }
-    this.pendingInventoryOperation = operation;
-    this.status(operation === 'gather'
-      ? this.t('正在合并相同道具…', 'Merging matching item stacks…')
-      : this.t('正在整理物品栏…', 'Sorting inventory…'));
+    this.intents.inventoryAction(operation);
   }
 
   private submitUseItem(sourceTab: number, sourceSlot: number, item: InventoryItem, targetSlot?: number, targetItem?: InventoryItem) {
-    if (this.pendingUseRequestId) {
-      this.status(this.t('正在等待上一次卷轴操作。', 'Waiting for the previous scroll action.'));
-      return;
-    }
-    const requestId = this.requestId('use');
-    const base = {
-      type: 'useItem' as const,
-      requestId,
-      inventoryType: TAB_INVENTORY_TYPE[sourceTab] ?? sourceTab + 1,
-      sourceSlot,
-      itemId: item.itemId,
-    };
-    const message: UseItemMessage = targetSlot === undefined
-      ? base
-      : { ...base, targetSlot, targetItemId: targetItem?.itemId ?? '' };
-    if (!this.send(message)) {
-      this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
-      return;
-    }
-    if (targetSlot !== undefined && this.pendingScroll) {
-      this.pendingUseRequestId = requestId;
-    } else {
-      this.pendingScroll = undefined;
-      this.updateTargetMode();
-    }
-    if (targetSlot === undefined) {
-      this.status(this.t('正在使用 ' + itemName(item.itemId) + '…', 'Using ' + itemName(item.itemId) + '…'));
-    } else {
-      this.status(this.t('正在对 ' + itemName(targetItem?.itemId ?? '') + ' 使用 ' + itemName(item.itemId) + '…', 'Using ' + itemName(item.itemId) + ' on ' + itemName(targetItem?.itemId ?? '') + '…'));
-    }
+    this.intents.submitUseItem(sourceTab, sourceSlot, item, targetSlot, targetItem);
   }
 
   private beginScrollTarget(sourceTab: number, sourceSlot: number, item: InventoryItem) {
-    this.pendingScroll = { sourceTab, sourceSlot, item };
-    this.updateTargetMode();
-    this.status(this.t('请选择要使用卷轴的装备。', 'Choose the equipment to use this scroll on.'));
+    this.intents.beginScrollTarget(sourceTab, sourceSlot, item);
   }
 
   private cancelScrollTarget(notify: boolean) {
-    if (!this.pendingScroll) return;
-    this.pendingScroll = undefined;
-    this.updateTargetMode();
-    if (notify) this.status(this.t('已取消卷轴使用。', 'Scroll use cancelled.'));
+    this.intents.cancelScrollTarget(notify);
   }
 
   private updateTargetMode() {
-    const selecting = Boolean(this.pendingScroll);
+    this.applyTargetMode(this.intents.hasScrollTarget());
+  }
+
+  private applyTargetMode(selecting: boolean) {
     this.window?.classList.toggle('inventory-selecting-target', selecting);
     if (this.targetPrompt) this.targetPrompt.hidden = !selecting;
     if (selecting) this.openEquipment();
@@ -862,30 +772,7 @@ export class InventoryView {
   }
 
   private dropMesos() {
-    if (this.practice) { this.status(this.t('请退出练习后再丢弃金币。', 'Leave practice before dropping mesos.')); return; }
-    if (this.mesos < MIN_DROP_MESOS) {
-      this.status(this.t('至少需要 10 金币才能丢弃。', 'At least 10 mesos are required to drop mesos.'));
-      return;
-    }
-    const answer = window.prompt(
-      this.t('丢弃金币数量（10-' + Math.min(this.mesos, MAX_DROP_MESOS).toLocaleString('zh-CN') + '）', 'How many mesos should be dropped? (10-' + Math.min(this.mesos, MAX_DROP_MESOS).toLocaleString('en-US') + ')'),
-      String(Math.min(this.mesos, MAX_DROP_MESOS)),
-    );
-    if (answer === null) return;
-    const quantity = Number(answer);
-    if (!Number.isSafeInteger(quantity) || quantity < MIN_DROP_MESOS || quantity > MAX_DROP_MESOS || quantity > this.mesos) {
-      this.status(this.t('金币数量无效。', 'Invalid mesos quantity.'));
-      return;
-    }
-    if (!this.send({
-      type: 'dropMesos',
-      requestId: this.requestId('mesos'),
-      quantity,
-    })) {
-      this.status(this.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
-      return;
-    }
-    this.status(this.t('正在丢弃金币 × ' + quantity + '…', 'Dropping ' + quantity + ' mesos…'));
+    this.intents.dropMesos();
   }
 
   private renderMesos() {
@@ -947,13 +834,6 @@ export class InventoryView {
 
   private hideTooltip() {
     this.tooltips.hide();
-  }
-
-  private requestId(prefix: string) {
-    const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : Date.now().toString(36) + '-' + (++this.requestSequence);
-    return (prefix + '-' + random).slice(0, 64);
   }
 
   private onWindowPointerDown(event: PointerEvent) {

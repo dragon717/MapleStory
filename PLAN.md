@@ -13,9 +13,8 @@
   双击启动会从"构建+服务"变成"Vite 源码开发 + 内部 Rust"。取证结论：dev 链路技术上已通
   （`npm run dev` + 已配置的 `/api`、`/ws` 代理），缺统一入口、`strictPort`、模式/实例标识与 HMR 边界。
   改变默认行为 + 验收必须真跑一次（即重启 3010）⇒ 按既有约定不擅自重启，等你说时机。
-- [ ] **删除 3 个 iCloud 冲突副本**（已被 git 跟踪，非本轮产生）：
-  `client/src/features/loading/` 下的 `style 2.css` / `view 2.ts` / `view.check 2.mjs`。
-  判据：原文件时间戳更新 ⇒ 副本是陈旧重复物。**属于删除已跟踪文件，等你确认后再删**。
+- [x] **删除 5 个 iCloud 冲突副本（2026-09-12 用户确认）**。server 的 `quest 2.rs`/`world 2.rs`
+  （工作树已删）与 client 的 `style 2.css`/`view 2.ts`/`view.check 2.mjs` 已随本轮提交入库。
 - [x] **防回潮门禁接线（R10 完成，2026-09-12）**。`scripts/refactor_audit.cjs --deps --check` 已挂进
   `client/scripts/run-checks.mjs`（仓库级末项），`npm run check` 25/25 全绿 = 门禁通过；
   例外登记在 `artifacts/refactor/debt-register.json`（当前 0 项债务）。
@@ -122,8 +121,23 @@
   audit `--deps --check` OK。**world.rs 8,821 → 3,437 行（-61%）**；测试组织与原 mod 语义完全一致。
 - 刷新后剩余超预算候选（下一批按需立项，不自动扩张）：
   `auth.rs` 3,569（≈2,100 行 tests，继续拆收益低）、`skills.rs` 2,977（churn=1 纯静态）、
-  `inventory_ops.rs` 1,456、`quest.rs` 1,397、`elemental.rs` 1,377、
-  `features/inventory/view.ts` 1,245（churn=14，intents.ts"需要时"候选）。
+  `inventory_ops.rs` 1,456、`quest.rs` 1,397、`elemental.rs` 1,377。
+
+### R11 第二批（2026-09-12 完成）
+
+- [x] **view.ts 意图层拆分（intents.ts）**：重跑 `--sizes` 后 churn 最高的
+  `features/inventory/view.ts`（1,245 行、churn=15）按 R7 同款回调注入纪律拆出
+  `features/inventory/intents.ts`（225 行）——`InventoryIntents` 拥有意图构造+发送+请求生命周期
+  （`pendingScroll`/`pendingUseRequestId`/`pendingInventoryOperation`/`requestSequence` 与
+  `requestId` 生成、move/drop/gather-sort/use/mesos 五类消息），经 `InventoryIntentHost` 10 个
+  窄回调读真值（status/t/itemAt/slotLimit/itemLabel/practice/selectedTab/mesos/onTargetModeChange），
+  不拥有槽位/金币真值；`MIN/MAX_DROP_MESOS` 常量与 `PendingScroll`/`SendClientMessage`/`UseItemMessage`
+  类型随迁，view 侧 7 个方法改一行委托、目标模式拆 `updateTargetMode`/`applyTargetMode`。
+  消息形状与文案逐字保留（零行为改动）。新增 `intents.check.mjs`（消息形状、inventoryType 映射
+  1/2/4/3/5 钉扎、practice 门控、prompt 流、pending 互斥、use 结果一次性消费、resetPending 语义），
+  runner 增至 **26/26 全过**；tsc --noEmit 通过；audit `--deps --check` OK。
+  **view.ts 1,244 → 1,124 行**。执行坑：iCloud 两次静默回滚 Edit（view.ts 与 check 各一次），
+  均以幂等 python 脚本（逐替换断言命中 + banned-string 终检）补齐。
 
 ### R5 遗留登记
 

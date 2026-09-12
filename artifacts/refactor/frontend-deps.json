@@ -9,12 +9,12 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 96,
-  "edge_count": 183,
+  "edge_count": 185,
   "edge_kind_counts": {
     "dynamic": 1,
-    "type": 65,
-    "value": 103,
-    "side-effect": 14
+    "type": 66,
+    "value": 105,
+    "side-effect": 13
   },
   "external_specifiers": [
     "esbuild",
@@ -469,6 +469,21 @@
       "kind": "type"
     },
     {
+      "from": "client/src/features/inventory/intents.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/intents.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/intents.ts",
+      "to": "client/src/features/inventory/view-model.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/inventory/names.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -535,6 +550,11 @@
     },
     {
       "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/features/inventory/intents.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
       "to": "client/src/features/inventory/equipment-view.ts",
       "kind": "value"
     },
@@ -546,16 +566,6 @@
     {
       "from": "client/src/features/inventory/view.ts",
       "to": "client/src/features/inventory/style.css",
-      "kind": "side-effect"
-    },
-    {
-      "from": "client/src/features/loading/view 2.ts",
-      "to": "client/src/app/i18n.ts",
-      "kind": "value"
-    },
-    {
-      "from": "client/src/features/loading/view 2.ts",
-      "to": "client/src/features/loading/style.css",
       "kind": "side-effect"
     },
     {
@@ -959,8 +969,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "c6941f16c8635c2dd722be8ae52b605d17b32b25",
+  "source_commit": "63772cfb6d0e5e220bd6ce9b5d7781ca624030a3",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-12T08:48:18.703Z"
+  "generated_at": "2026-09-12T11:03:21.353Z"
 }

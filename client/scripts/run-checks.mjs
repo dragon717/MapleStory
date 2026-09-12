@@ -26,6 +26,7 @@ const checks = [
   ['features/player/input.check.mjs', []],
   ['features/world/minimap.check.mjs', []],
   ['features/inventory/view-model.check.mjs', []],
+  ['features/inventory/intents.check.mjs', []],
   ['features/inventory/tooltip-view.check.mjs', []],
   ['features/inventory/drag-controller.check.mjs', []],
   ['features/inventory/equipment-view.check.mjs', []],
