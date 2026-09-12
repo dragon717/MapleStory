@@ -2,7 +2,7 @@
 /**
  * 在 macOS 上打出 Windows 端可用的资源包。
  *
- * 产物：artifacts/win-bundle/MapleStory-win-<content版本>.zip
+ * 产物：build/current/packages/windows/MapleStory-win-<content版本>.zip
  * 解压后目录结构与仓库一致，Windows 端双击 start.bat 即可
  * （scripts/windows-control.ps1 会自动 npm ci → cargo build → vite build）。
  *
@@ -14,7 +14,9 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const STAGE = path.join(ROOT, 'artifacts', 'win-bundle');
+fs.mkdirSync(path.join(ROOT, 'build', 'tmp'), { recursive: true });
+const STAGE = fs.mkdtempSync(path.join(ROOT, 'build', 'tmp', 'windows-package-'));
+const { publish } = require('./publish-package.cjs');
 const PKG_ROOT = path.join(STAGE, 'MapleStory');
 
 // ---------------------------------------------------------------------------
@@ -30,6 +32,7 @@ const FILES = [
   'client/index.html',
   'scripts/windows-control.ps1',
   'scripts/check_windows_resources.cjs',
+  'scripts/build-release.cjs',
   'start.bat',
   'stop.bat',
 ];
@@ -42,7 +45,7 @@ const DIRS = [
 ];
 
 // 明确不打包：node_modules、dist-*（Windows 端现场构建）、evidence、.DS_Store 等
-const README_NAME = 'README-WIN.md';
+const README_NAME = 'README.md';
 
 function contentVersion() {
   const proto = fs.readFileSync(path.join(ROOT, 'shared', 'protocol.ts'), 'utf8');
@@ -104,7 +107,7 @@ function writeReadme(version) {
    建议：纯英文路径，且不要放在 OneDrive / iCloud 等云同步盘里（同步盘会与构建产物抢写文件）。
 2. 双击 \`start.bat\`：
    - 首次运行会自动：资源完整性校验 → \`npm ci\` → \`cargo build\` → \`vite build\`，
-     大约需要几分钟。构建日志在 \`evidence/runtime/windows-3010/build.log\`。
+     大约需要几分钟。构建日志在 \`runtime/windows-3010/build.log\`。
    - 构建完成后服务监听 \`0.0.0.0:3010\`。
 3. 浏览器打开 http://127.0.0.1:3010/ （局域网其他设备用 http://<本机IP>:3010/）。
 4. 停止：双击 \`stop.bat\`（账号数据库会保留）。
@@ -112,7 +115,7 @@ function writeReadme(version) {
 ## 数据与常见问题
 
 - 账号 / 角色数据在 \`server/data/tms273.sqlite3\`，首次启动自动创建。
-  备份这一个文件即等于备份全部存档。
+  停止服务后备份整个 server/data 目录，保留 SQLite 相关文件。
 - 端口 3010 被占用时 start.bat 会报错退出，且不会强杀其他进程；
   请先手动结束占用者（或改系统里该进程）再启动。
 - 更新代码后：先 \`stop.bat\` 再 \`start.bat\`，会自动重新构建并加载。
@@ -153,6 +156,7 @@ function main() {
 
   console.log('[win-bundle] 压缩 zip...');
   execFileSync('zip', ['-rq', zipPath, 'MapleStory'], { cwd: STAGE, stdio: 'inherit' });
+  execFileSync('unzip', ['-tq', zipPath], { stdio: 'inherit' });
 
   const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
   console.log(`[win-bundle] 目录: ${PKG_ROOT} (${mb(dirSize(PKG_ROOT))})`);
@@ -160,7 +164,8 @@ function main() {
 
   // zip 已生成，暂存目录（zip 内容本体）用完即删，只留产物
   fs.rmSync(PKG_ROOT, { recursive: true, force: true });
-  console.log('[win-bundle] 暂存目录已清理，artifacts/win-bundle/ 只保留 zip');
+  const published = publish(ROOT, 'windows', STAGE);
+  console.log(`[win-bundle] 已发布：${published}；上一包保留在 build/previous/packages/windows/`);
 }
 
-main();
+try { main(); } finally { fs.rmSync(STAGE, { recursive: true, force: true }); }

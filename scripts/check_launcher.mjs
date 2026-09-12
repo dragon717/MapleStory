@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const control = join(root, 'evidence/runtime/3010-control');
+const control = join(root, 'runtime/3010-control');
 function launch(env = process.env) {
   return new Promise((resolve, reject) => {
     const child = spawn('/bin/zsh', [join(root, '启动3010.command')], {

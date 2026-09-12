@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 // Scratch diagnostic: composite map 000010000 layers in DOM space and overlay
 // the portal coordinates (red = out00, blue = glBmsg1, green = glBmsg0) to
 // see where the WZ anchor falls relative to the terrain art.
@@ -47,6 +48,8 @@ await page.addScriptTag({
 });
 await page.waitForFunction('window.__ready === true');
 await page.waitForTimeout(1200);
-await page.screenshot({ path: 'evidence/qa/portal-map-composite.png' });
+const evidenceDir = evidencePath('portal-map');
+await (await import('node:fs/promises')).mkdir(evidenceDir, { recursive: true });
+await page.screenshot({ path: `${evidenceDir}/portal-map-composite.png` });
 console.log('screenshot saved');
 await browser.close();

@@ -1,7 +1,9 @@
 # MapleStory 工作入口
 
-- 开始工作先读 `BUSINESS_DEVELOPMENT.md`（长期规范）和 `PLAN.md`（当前目标）；仅相关追溯时读 `IMPLEMENTATION_STATUS.md`，不复制第四份台账。
+- 开始工作先读 `docs/technical/BUSINESS_DEVELOPMENT.md`（长期规范）和 `docs/plan/PLAN.md`（当前目标）；仅相关追溯时读 `docs/plan/INDEX.md`，不复制第四份台账。
 - 当前复刻版本、模型分工与验收政策以这两份文件的最新条目及当前用户指令为准；README和旧架构文档中的83记录是历史，不是273迁移完成证据。
 - 按 UTF-8 处理文件、日志与中文路径。限定当前工作区，不套用 Pink_House/ItemManager 的技能、路径或 memory。
 - 保留已有修改、在线服务、用户数据库和陪测机器人。只执行实际改动必要的定向验证；未验证项明确交待，不重复启动已取消的独立QA。
 - 进入 `参考/` 内嵌套仓库修改时，先读取该子树自己的规则；其局部规则不适用于本仓库其余文件。
+
+- 文件归属遵循 README「项目目录与文件职责」；新增文档不得散落根目录，历史计划按日期/任务单文件归档，索引与 history/ 同级。代码历史用 Git，运行数据与构建缓存分开。

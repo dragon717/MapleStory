@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 // Minimal npc/shop smoke probe against the 3010 QA server.
 // Connects with WS, requests npcTalk and shopBuy against placed ids.
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const base = new URL(process.env.SERVER_URL || 'http://127.0.0.1:3010');
 if (base.port !== '3010') throw new Error(`Refusing non-QA target ${base.origin}`);
 const runId = process.env.QA_RUN_ID || new Date().toISOString().replace(/[:.]/g, '-');
-const evidenceDir = `evidence/qa/npc-${runId}`;
+const evidenceDir = evidencePath(`npc-${runId}`);
 await mkdir(evidenceDir, { recursive: true });
 const checks = [];
 

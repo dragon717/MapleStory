@@ -4,7 +4,7 @@ import type { Point } from '../../assets/manifest';
 /**
  * Planar (side-view) interactive water for the Phaser client.
  *
- * Scope follows `Web_TS_2D_Water_Development_Plan.md` sections 5-9 while
+ * Scope follows `docs/plan/topics/Web_TS_2D_Water_Development_Plan.md` sections 5-9 while
  * staying inside this project's own stack: the plan's demo targets
  * Three.js + Rapier, but this game already renders with Phaser and keeps
  * every gameplay position on the authoritative Rust server. So only the

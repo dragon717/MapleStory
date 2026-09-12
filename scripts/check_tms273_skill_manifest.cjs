@@ -1,3 +1,4 @@
+const { evidencePath } = require('./evidence-path.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -81,7 +82,7 @@ assert.throws(() => skillManifest(windowExport, changed));
 console.log('PASS: 56 source skills, level descriptions, prerequisites, level values, explicit invisible flag values, and the user-specified teleport rule.');
 
 if (process.argv.includes('--browser-fixture')) {
-  const output = path.join(root, 'output/skills-check');
+  const output = evidencePath('skills-check');
   fs.mkdirSync(path.join(output, 'assets'), { recursive: true });
   const assets = path.join(output, 'assets/tms273');
   if (!fs.existsSync(assets)) fs.symlinkSync(path.join(input, 'assets/tms273'), assets, 'dir');
@@ -92,6 +93,6 @@ if (process.argv.includes('--browser-fixture')) {
     target: 'es2022', outfile: path.join(output, 'skills-check.js'),
   }).then(() => {
     fs.writeFileSync(path.join(output, 'skills-check.html'), '<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Skills UI check</title><link rel="stylesheet" href="/skills-check.css"><script type="module" src="/skills-check.js"></script></html>', 'utf8');
-    console.log('Fixture ready: output/skills-check/skills-check.html');
+    console.log('Fixture ready in the dated evidence directory');
   }).catch(error => { console.error(error); process.exitCode = 1; });
 }

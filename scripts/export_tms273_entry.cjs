@@ -18,7 +18,7 @@ async function frame(source) {
 }
 async function main() {
   fs.mkdirSync(output,{recursive:true});
-  const manifest = { sourceVersion:'TMS273.7', scenes:{}, reference:{ gallery:'tms273_research_pack/MapleStory273_Online_Gallery.html', cards:['B01','B02','B03','B05'], note:'B01/B03/B05 structures match local 273 art. B02 blue-dragon event background differs; use the verified local WorldSelect/default instead.' }, effects:{} };
+  const manifest = { sourceVersion:'TMS273.7', scenes:{}, reference:{ gallery:'references/tms273_research_pack/MapleStory273_Online_Gallery.html', cards:['B01','B02','B03','B05'], note:'B01/B03/B05 structures match local 273 art. B02 blue-dragon event background differs; use the verified local WorldSelect/default instead.' }, effects:{} };
   for(const [stage,source] of Object.entries(sourceScenes)) {
     const layer = await frame(source);
     assert(layer.width===1366 && layer.height===768);

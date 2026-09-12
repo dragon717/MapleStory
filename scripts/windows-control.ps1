@@ -4,14 +4,27 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-$Control = Join-Path $Root 'evidence/runtime/windows-3010'
+$Control = Join-Path $Root 'runtime/windows-3010'
 $StateFile = Join-Path $Control 'server.json'
-$Executable = Join-Path $Root 'server/target/debug/maplestory-server.exe'
+$Executable = Join-Path $Root 'build/current/server/maplestory-server.exe'
+$LegacyExecutable = Join-Path $Root 'server/target/debug/maplestory-server.exe'
+$ReleaseTool = Join-Path $Root 'scripts/build-release.cjs'
 $Url = 'http://127.0.0.1:3010'
+$started = $null
+$node = $null
+$releaseId = $null
+$activated = $false
+$healthReady = $false
+$stopped = $true
+
+function Known-Executable($Path) {
+    return ($Path -eq $Executable -or $Path -eq $LegacyExecutable)
+}
 
 function Same-Identity($Record, $ProcessId, $ProcessPath, $StartTicks) {
-    return ($Record.pid -eq $ProcessId -and $Record.path -eq $Executable -and
-        $ProcessPath -eq $Executable -and [string]$Record.startTicks -eq [string]$StartTicks)
+    return ($Record.pid -eq $ProcessId -and (Known-Executable $Record.path) -and
+        $Record.path -eq $ProcessPath -and (Known-Executable $ProcessPath) -and
+        [string]$Record.startTicks -eq [string]$StartTicks)
 }
 
 function Recorded-Process {
@@ -51,6 +64,8 @@ function Run-Build([string]$Command, [string[]]$Arguments) {
 if ($SelfTest) {
     $record = [pscustomobject]@{ pid = 42; path = $Executable; startTicks = '1234' }
     if (!(Same-Identity $record 42 $Executable 1234)) { throw 'Expected own process to match' }
+    $legacyRecord = [pscustomobject]@{ pid = 42; path = $LegacyExecutable; startTicks = '1234' }
+    if (!(Same-Identity $legacyRecord 42 $LegacyExecutable 1234)) { throw 'Expected legacy process to match' }
     if (Same-Identity $record 43 $Executable 1234) { throw 'Foreign PID matched' }
     if (Same-Identity $record 42 'C:\other\maplestory-server.exe' 1234) { throw 'Foreign executable matched' }
     if (Same-Identity $record 42 $Executable 5678) { throw 'Reused PID matched' }
@@ -84,7 +99,6 @@ try {
         Assert-FreePort
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
-        $cargo = (Get-Command cargo.exe -ErrorAction Stop).Source
         $version = & $node -p 'process.versions.node'
         if ($LASTEXITCODE -ne 0 -or [version]$version -lt [version]'22.12.0') { throw 'Node.js 22.12 or newer is required (24 LTS recommended).' }
         Run-Build $node @((Join-Path $PSScriptRoot 'check_windows_resources.cjs'))
@@ -93,14 +107,14 @@ try {
         $content = [regex]::Match($protocolText, 'CONTENT_VERSION\s*=\s*[''"]([^''"]+)').Groups[1].Value
         Write-Host 'Installing dependencies and building. First run needs internet access and MSVC C++ Build Tools.'
         Run-Build $npm @('ci', '--prefix', (Join-Path $Root 'client'))
-        Run-Build $cargo @('build', '--locked', '--manifest-path', (Join-Path $Root 'server/Cargo.toml'), '--target-dir', (Join-Path $Root 'server/target'))
-        $stage = Join-Path $Control 'dist-next'
-        Run-Build $npm @('run', 'build', '--prefix', (Join-Path $Root 'client'), '--', '--outDir', $stage)
-        if (!(Test-Path -LiteralPath (Join-Path $stage 'index.html'))) { throw 'Build did not produce index.html.' }
+        Run-Build $node @($ReleaseTool, 'prepare')
+        $candidateMetadata = Get-Content -LiteralPath (Join-Path $Root 'build/tmp/metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $releaseId = [string]$candidateMetadata.releaseId
+        if ([string]::IsNullOrWhiteSpace($releaseId)) { throw 'Candidate releaseId is empty.' }
         Assert-FreePort
-        $dist = Join-Path $Root 'client/dist-tms273'
-        if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
-        Move-Item -LiteralPath $stage -Destination $dist
+        Run-Build $node @($ReleaseTool, 'activate', '--release-id', $releaseId)
+        $activated = $true
+        $dist = Join-Path $Root 'build/current/client'
         New-Item -ItemType Directory -Force -Path (Join-Path $Root 'server/data') | Out-Null
         $settings = @{
             # 0.0.0.0 so the LAN can reach http://<LAN-IP>:3010/ ; health check still uses 127.0.0.1
@@ -134,6 +148,15 @@ try {
             Start-Sleep -Milliseconds 250
         }
         if (!$ready -or $started.HasExited) { throw "Server health/version check failed. See $Control/server-error.log" }
+        $healthReady = $true
+        try {
+            Run-Build $node @($ReleaseTool, 'commit', '--release-id', $releaseId)
+            $activated = $false
+        } catch {
+            # Keep a healthy current version live; a later run can finish cleanup.
+            Write-Host "WARNING: health passed but old release cleanup is pending: $($_.Exception.Message)" -ForegroundColor Yellow
+            $activated = $false
+        }
         Write-Host "Ready: $Url (PID $($started.Id))"
         $lanAddresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
             Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
@@ -145,8 +168,14 @@ try {
     }
 } catch {
     if ($started) {
-        if (!$started.HasExited) { Stop-Process -InputObject $started -Force -ErrorAction SilentlyContinue }
-        Remove-Item -LiteralPath $StateFile -ErrorAction SilentlyContinue
+        if (!$started.HasExited) {
+            Stop-Process -InputObject $started -Force -ErrorAction SilentlyContinue
+            $stopped = $started.WaitForExit(10000)
+        }
+        if ($stopped) { Remove-Item -LiteralPath $StateFile -ErrorAction SilentlyContinue }
+    }
+    if ($activated -and !$healthReady -and $stopped -and $node) {
+        try { & $node $ReleaseTool 'rollback' '--release-id' $releaseId 2>&1 | Out-Null } catch { }
     }
     Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host 'Check Node/npm/Cargo PATH, MSVC C++ Build Tools, resource extraction, and the build/server logs.'

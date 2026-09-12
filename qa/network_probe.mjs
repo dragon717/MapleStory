@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ if (base.port !== '3010') {
   throw new Error(`Refusing non-QA target ${base.origin}; this probe only allows port 3010`);
 }
 const runId = process.env.QA_RUN_ID || new Date().toISOString().replace(/[:.]/g, '-');
-const evidenceDir = `evidence/qa/${runId}`;
+const evidenceDir = evidencePath(`qa-${runId}`);
 const checks = [];
 const bots = [];
 

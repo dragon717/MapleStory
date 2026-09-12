@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 // Capture the repaired minimap header from the REAL game shell.
 //
 // `minimap-buttons-probe.mjs` presses the four controls; this one is the
@@ -16,8 +17,8 @@ const requireClient = createRequire(path.join(root, 'client', 'package.json'));
 const { build } = requireClient('esbuild');
 const { chromium } = requireClient('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const client = path.join(root, 'client');
-const output = path.join(root, 'output/playwright/minimap-header');
-const deliver = path.join(root, 'output/minimap-fix');
+const output = evidencePath('playwright-minimap-header');
+const deliver = evidencePath('minimap-fix');
 await fs.mkdir(output, { recursive: true });
 await fs.mkdir(deliver, { recursive: true });
 

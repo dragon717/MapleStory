@@ -1,0 +1,14 @@
+{
+  "root_layout": "passed standalone gate",
+  "history_records": 166,
+  "mapping_targets": 3300,
+  "broken_local_document_links": 0,
+  "checks": "29/29",
+  "real_candidate_build": "Rust and Vite passed; verified candidate removed without activation",
+  "packages": "Both ZIP workflows passed; bundled runtime scripts match worktree; resource SHA256 matches",
+  "temporary_build_directory": "empty",
+  "removed_old_builds": 9,
+  "removed_old_build_bytes": 674156547,
+  "service_start_stop_executed": false,
+  "windows_native_runtime": "not run; existing user verification remains"
+}

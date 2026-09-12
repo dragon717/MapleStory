@@ -7,7 +7,6 @@ __pycache__/
 参考/
 
 # Local runtime state and credentials.
-evidence/runtime/3010-control/
 server/data/
 *.sqlite3
 *.sqlite3-shm
@@ -17,9 +16,6 @@ server/data/
 client/node_modules/
 scripts/node_modules/
 scripts/unpack_tms273_ms/target/
-client/dist/
-client/dist-next/
-client/dist-tms273/
 server/target/
 
 # Generated/runtime resource trees stay in the root resource archive.
@@ -30,7 +26,6 @@ references/browser-probe/assets/
 references/gameplay-assets/assets/
 references/gameplay-assets/avatar/assets/
 resources/
-output/
 
 # Evidence media and other binary art/audio are not source commits.
 *.png
@@ -43,12 +38,14 @@ output/
 *.wav
 *.wz
 *.zip
-MapleStory-TMS273-resources.zip.tmp
 MapleStory-运行资源-*.tar.gz
 .workbuddy/*
 .workbuddy-ai/memory/*
 
-evidence/quest-i18n/cache/*
+evidence/*/quest-i18n/cache/*
 
-evidence/runtime/*
-artifacts/win-bundle/*
+
+# Directory policy: release candidates, retained builds and live control are local.
+/build/
+/runtime/
+/client/dist*/

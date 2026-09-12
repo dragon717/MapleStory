@@ -2,14 +2,14 @@
 """M1: 从本地 v83 Quest.wz/QuestInfo.img.xml 提取全量任务英文 scaffold。
 
 产出 shared/quest-text.json（schemaVersion 1）与
-evidence/quest-i18n/m1-english-scaffold-report.md（统计 + 抽查样本）。
+evidence/2026-09-06/quest-i18n/m1-english-scaffold-report.md（统计 + 抽查样本）。
 
 幂等/合并语义：
   - en/raw/meta 永远以本地 WZ 为权威，重跑即刷新；
   - 若语料已存在，会保留每条的 zh 富化（name.zh/lines.zh/log/sources.zh）
     以及非 wz-v83 的内部条目（如 maple-road-training），不会被重跑冲掉。
 
-设计要点（与 QUEST_I18N_ROADMAP.md 一致）:
+设计要点（与 docs/plan/topics/QUEST_I18N_ROADMAP.md 一致）:
   - 权威英文来自本地 WZ，不做联网。
   - lines(clean) 只去掉颜色标记(#b/#r/#g/#d/#k，整对删除)，保留 #p/#t/#c/#o/#s/#v
     等内容标记；raw 保留原文以便回溯。名词替换是 M2 术语表职责。
@@ -74,7 +74,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[2]
     ap.add_argument("--wz", default=str(root / "参考/repos/P0nk__Cosmic/wz/Quest.wz/QuestInfo.img.xml"))
     ap.add_argument("--out", default=str(root / "shared/quest-text.json"))
-    ap.add_argument("--report", default=str(root / "evidence/quest-i18n/m1-english-scaffold-report.md"))
+    ap.add_argument("--report", default=str(root / "evidence/2026-09-06/quest-i18n/m1-english-scaffold-report.md"))
     args = ap.parse_args()
 
     wz = Path(args.wz)

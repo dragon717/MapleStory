@@ -23,7 +23,7 @@ const CLOSE_STATES = ['normal', 'mouseOver', 'pressed', 'disabled'] as const;
  * The window uses the TMS273 Quest.img list frame and authored content bounds;
  * opening is a hotkey (Q) so the log never needs its own world-space layout.
  *
- * Window chrome follows `UI_WINDOW_SYSTEM.md`: the frame drags by its title
+ * Window chrome follows `docs/technical/UI_WINDOW_SYSTEM.md`: the frame drags by its title
  * strip, the close sprite carries all four authored states, and Escape closes
  * the log — the tracker moves the same way and answers a plain click by
  * opening the log.

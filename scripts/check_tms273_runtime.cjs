@@ -265,7 +265,7 @@ function visit(value) {
     let size;
     try { size=fs.statSync(asset).size; }
     catch {
-      const twin=path.join(root,'client/dist-tms273',value);
+      const twin=path.join(root,'build/current/client',value);
       if(fs.existsSync(twin)&&fs.statSync(twin).size>0) {
         fs.mkdirSync(path.dirname(asset),{recursive:true});
         fs.copyFileSync(twin,asset);

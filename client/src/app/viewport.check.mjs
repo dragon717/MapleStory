@@ -1,3 +1,4 @@
+import { evidencePath } from '../../../scripts/evidence-path.cjs';
 // Offline: actual app, Phaser and local 273 art; connection and entry are in-memory.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(import.meta.dirname, '../..');
-const output = path.join(root, '../output/playwright/viewport');
+const output = evidencePath('playwright-viewport');
 await fs.mkdir(output, { recursive: true });
 const source = await fs.readFile(path.join(root, 'src/app/main.ts'), 'utf8');
 await build({ stdin: { contents: source + '\nObject.assign(window, {check: { enterGame, leaveGame, status, showNews, getGame:()=>game, getWorld:()=>world, getHud:()=>hud }});', resolveDir: path.join(root,'src/app'), loader:'ts' }, bundle:true, format:'esm', outfile:path.join(output,'check.js'), define:{__RELEASE_VERSION__:'"offline-check"',__RELEASE_TIME__:'"2026-09-08"'}, logLevel:'silent', plugins:[{name:'offline-boundaries',setup(b){

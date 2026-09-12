@@ -5,7 +5,7 @@
  * only ever closed itself — which is correct for closing, but left no way to
  * *open* anything with Escape.  The user asked for the menu bar to come up on
  * Escape, so the key now has a single owner that arbitrates in this order
- * (spec R5 in `UI_WINDOW_SYSTEM.md`):
+ * (spec R5 in `docs/technical/UI_WINDOW_SYSTEM.md`):
  *
  *   1. a panel is open        → that panel's own listener closes it; the router
  *                               stays out of the way (`blocked()` is true)

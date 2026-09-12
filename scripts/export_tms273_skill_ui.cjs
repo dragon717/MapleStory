@@ -204,8 +204,8 @@ async function main() {
       status: 'complete',
       sourceNode: SOURCE,
       researchReference: {
-        pdf: 'tms273_research_pack/MapleStory273_Source_Index.pdf#page=6 (C06)',
-        html: 'tms273_research_pack/MapleStory273_Online_Gallery.html#C06',
+        pdf: 'references/tms273_research_pack/MapleStory273_Source_Index.pdf#page=6 (C06)',
+        html: 'references/tms273_research_pack/MapleStory273_Online_Gallery.html#C06',
         image: 'https://grandislibrary.com/images/info/skill-expanded-ui.png',
         role: 'structure-only; GMS reference, not TMS273 geometry or values',
       },

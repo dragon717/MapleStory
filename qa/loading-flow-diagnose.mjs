@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 // Diagnose the 开始游戏 → loading flow with the REAL EntryView UI.
 // Offline: real app + Phaser + real 273 art; only network/session and entry/api
 // are stubbed so the Connection never delivers a snapshot — the loading overlay
@@ -14,7 +15,7 @@ const requireClient = createRequire(path.join(root, 'client', 'package.json'));
 const { build } = requireClient('esbuild');
 const { chromium } = requireClient('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const client = path.join(root, 'client');
-const output = path.join(root, 'output/playwright/loading-flow');
+const output = evidencePath('playwright-loading-flow');
 await fs.mkdir(output, { recursive: true });
 
 const source = await fs.readFile(path.join(client, 'src/app/main.ts'), 'utf8');

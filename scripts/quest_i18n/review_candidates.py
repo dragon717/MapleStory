@@ -7,7 +7,7 @@
 但必须人工确认后才允许合入，防 id 错配。
 
 子命令:
-  review            → 生成 evidence/quest-i18n/candidates-review.tsv
+  review            → 生成 evidence/2026-09-06/quest-i18n/candidates-review.tsv
                       启发式标签: count-drift(数字漂移,疑似同一任务) / likely-same(高相似)
                       / needs-review(差异大)
   promote           → 把确认无误的候选条目并入正式批次 shared/quest-zh-official.json
@@ -64,7 +64,7 @@ def main() -> int:
     ap.add_argument("--candidates", default=str(root / "shared/quest-zh-official-candidates.json"))
     ap.add_argument("--official", default=str(root / "shared/quest-zh-official.json"))
     ap.add_argument("--corpus", default=str(root / "shared/quest-text.json"))
-    ap.add_argument("--out", default=str(root / "evidence/quest-i18n/candidates-review.tsv"))
+    ap.add_argument("--out", default=str(root / "evidence/2026-09-06/quest-i18n/candidates-review.tsv"))
     args = ap.parse_args()
 
     cand = json.loads(Path(args.candidates).read_text(encoding="utf-8"))

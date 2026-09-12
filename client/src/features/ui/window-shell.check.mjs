@@ -6,7 +6,7 @@
  * `window-shell.ts` is the shared implementation behind every draggable panel,
  * so a regression here silently breaks the minimap, skills, quest, chat and
  * menu windows at once.  This check drives it with the project-wide DOM stub
- * (no jsdom) and asserts the rules written down in `UI_WINDOW_SYSTEM.md` §2:
+ * (no jsdom) and asserts the rules written down in `docs/technical/UI_WINDOW_SYSTEM.md` §2:
  * the four drag gates, the activation distance, the lazy de-centring, host
  * clamping, pointer capture, the disposer and the four button states.
  */

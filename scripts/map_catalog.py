@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCOPE = ROOT / 'evidence/reference/mushroom-village-scope-2026-09-05.json'
+SCOPE = ROOT / 'evidence/2026-09-05/mushroom-village-reference/mushroom-village-scope-2026-09-05.json'
 BIRTH_MAP_ID = '000010000'
 CORE_MAP_IDS = (
     '000010000', '000020000', '000020001', '000030000', '000030001',

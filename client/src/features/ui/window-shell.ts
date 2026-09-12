@@ -11,7 +11,7 @@ import type { AssetFrame } from '../../assets/manifest';
  * (minimap, skills, quest, chat, menu) can share one implementation instead of
  * each re-inventing a slightly different drag.
  *
- * The spec these helpers implement is `UI_WINDOW_SYSTEM.md` §2 (R2/R3/R4).
+ * The spec these helpers implement is `docs/technical/UI_WINDOW_SYSTEM.md` §2 (R2/R3/R4).
  * Nothing here knows about a specific panel: geometry, open state and frame
  * keys are all supplied by the caller.
  */

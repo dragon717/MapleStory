@@ -1,3 +1,4 @@
+import { evidencePath } from './evidence-path.cjs';
 // Offline component check: real 273 assets, no account, server or gameplay mutation.
 //
 // The world-map window is the second half of the minimap feature (the `BtMap`
@@ -15,7 +16,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const require = createRequire(path.join(root, 'client/package.json'));
 const { build } = require('esbuild');
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const output = path.join(root, 'output/playwright/worldmap');
+const output = evidencePath('playwright-worldmap');
 await fs.mkdir(output, { recursive: true });
 
 // Every frame the window can draw must exist on disk: the browser check below

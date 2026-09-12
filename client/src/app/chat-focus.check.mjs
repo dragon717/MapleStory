@@ -1,3 +1,4 @@
+import { evidencePath } from '../../../scripts/evidence-path.cjs';
 // Offline repro: chat input focus & game-keyword isolation in the real app.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(import.meta.dirname, '../..');
-const output = path.join(root, '../output/playwright/chat-focus');
+const output = evidencePath('playwright-chat-focus');
 await fs.mkdir(output, { recursive: true });
 const source = await fs.readFile(path.join(root, 'src/app/main.ts'), 'utf8');
 await build({

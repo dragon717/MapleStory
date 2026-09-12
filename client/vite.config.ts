@@ -1,5 +1,9 @@
 import packageJson from './package.json';
 import { defineConfig } from 'vite';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const buildParts = Object.fromEntries(new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Asia/Shanghai',
@@ -21,6 +25,6 @@ export default defineConfig({
   // TMS273 exports are the only active content source.
   publicDir: 'public-tms273',
   // Phaser's full runtime is bundled locally; retain a 1.6 MB warning budget.
-  build: { outDir: 'dist-tms273', emptyOutDir: true, chunkSizeWarningLimit: 1600 },
+  build: { outDir: resolve(projectRoot, 'build/tmp/client'), emptyOutDir: true, chunkSizeWarningLimit: 1600 },
   server: { host: '0.0.0.0', proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } } },
 });

@@ -1,0 +1,137 @@
+
+> maplestory-client@0.11.0 check
+> node scripts/run-checks.mjs
+
+
+=== node --experimental-strip-types src/features/player/animation.check.ts ===
+(node:48355) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Animation delay boundaries and non-looping attacks passed.
+Repeated and stale action acknowledgements do not replay sound.
+
+=== node --experimental-strip-types src/scenes/layer-animation.check.ts ===
+(node:48356) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: map frame timing, looping, origin anchoring, flip and delay validation.
+
+=== node --experimental-transform-types src/features/hud/gauge.check.ts ===
+(node:48357) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+TMS273 gauge checks passed
+
+=== node --experimental-strip-types src/app/i18n.check.ts ===
+(node:48361) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Default Simplified Chinese, saved language and source text conversion passed.
+
+=== node src/assets/preload-plan.check.mjs ===
+assets preload-plan: order-preserving dedup images, ordered audio with bgm cache-flag passed.
+
+=== node src/app/page-shell.check.mjs ===
+app page-shell: template ids, language switch, news dialog, play layout toggling passed.
+
+=== node src/features/ui/window-shell.check.mjs ===
+PASS: window drag gates, activation distance, de-centring, clamping, capture, dispose and button states.
+
+=== node src/features/hud/buff.check.mjs ===
+PASS: buff plate 9-slice, durable rows by skill id, second readout, expiry, clear and destroy.
+
+=== node src/features/player/input.check.mjs ===
+PASS: immediate pickup, 200 ms repeats, fresh targets, and all stop conditions.
+
+=== node src/features/world/minimap.check.mjs ===
+minimap.check.mjs: 6 scenarios passed
+
+=== node src/features/inventory/view-model.check.mjs ===
+inventory view-model: tab mapping, slot lookups, signature stability passed.
+
+=== node src/features/inventory/intents.check.mjs ===
+inventory intents: message shapes, inventoryType pinning, practice gates, prompt flow, pending lifecycle passed.
+
+=== node src/features/inventory/tooltip-view.check.mjs ===
+inventory tooltip-view: show/hide, hover keep-alive, timer hygiene, refresh裁决 passed.
+
+=== node src/features/inventory/drag-controller.check.mjs ===
+inventory drag-controller: intent routing, scroll-target gates, document drop-out, destroy cleanup passed.
+
+=== node src/features/inventory/equipment-view.check.mjs ===
+inventory equipment-view: window build, open/close sync, render states, slot click branches, close request passed.
+
+=== node src/network/session.check.mjs ===
+network session: reconnect scheduling, terminal codes and active-close semantics passed.
+
+=== node src/features/npc/dialogue.check.mjs ===
+NPC modal lifecycle: Escape, repeat close, shop, disconnect and teardown passed.
+
+=== node src/features/skills/view.check.mjs ===
+PASS: source text plus book-200 SP, learning gates, unique intents, live-mage casting, and wave direction.
+PASS: third-job book/SP gates, hidden node, cooldown feedback, toggles and shortcut direction.
+PASS: fourth book gates, fixed/passive skills, hold and cooldown feedback, matching release.
+PASS: beginner skill window hides every magician book; magician keeps them.
+
+=== node src/features/npc/view.check.mjs ===
+PASS: NPC marker eligibility, source timing/origin, sprite reuse and cleanup.
+
+=== node src/features/combat/skill.check.mjs ===
+PASS: zero-duration skill VFX, event deduplication, source timing, and clear.
+PASS: ice field source tiles, deduplication, loop and server lifetime.
+PASS: summon late join, conversion reuse, map removal, expiry and disconnect.
+PASS: beginner projectile/hit use the authoritative skill level and clear safely.
+PASS: fourth hold layers, stale/current release, observer recovery, Infinity cleanup and tile variants.
+
+=== node src/features/character/view.check.mjs ===
+PASS: character info fields, C/Escape lifecycle, disconnect clear, focus-safe input, and teardown.
+
+=== node src/features/loading/view.check.mjs ===
+PASS: loading overlay mounts, parses status stages, honours hide(), and preserves sibling DOM.
+
+=== node src/features/player/levelup.check.mjs ===
+Level-up source timing, following, replay protection, initial/rejoin baseline and cleanup passed.
+
+=== node src/features/world/water.check.mjs ===
+PASS: planar water surface propagates, decays and stays bounded; drops float at the authored draft.
+
+=== node src/features/world/reactor.check.mjs ===
+reactor.check.mjs: 8 scenarios passed
+
+=== node scripts/refactor_audit.cjs --deps --check (repo root) ===
+[deps] 96 节点 / 187 边 ({"value":107,"dynamic":1,"type":66,"side-effect":13}) -> artifacts/refactor/frontend-deps.json (commit=fd62ac2ae127 dirty=true)
+[deps] unresolved=0 runtime_cycles=0 type_cycles=0 violations=0
+
+[check] OK：无未登记违规（known-debt 0 项，见 artifacts/refactor/debt-register.json）。
+PASS repository layout: root ownership, current entry points, indexes, no duplicate client builds
+PASS: offline release rotation checks (/var/folders/d7/m504jf_92m1bbyxhlq7ssgr00000gn/T/maple-release-check-4k3ZaF)
+PASS package rotation: newest two, invalid candidate preserves both
+
+=== check summary: 29/29 passed ===
+  PASS  node --experimental-strip-types src/features/player/animation.check.ts
+  PASS  node --experimental-strip-types src/scenes/layer-animation.check.ts
+  PASS  node --experimental-transform-types src/features/hud/gauge.check.ts
+  PASS  node --experimental-strip-types src/app/i18n.check.ts
+  PASS  node src/assets/preload-plan.check.mjs
+  PASS  node src/app/page-shell.check.mjs
+  PASS  node src/features/ui/window-shell.check.mjs
+  PASS  node src/features/hud/buff.check.mjs
+  PASS  node src/features/player/input.check.mjs
+  PASS  node src/features/world/minimap.check.mjs
+  PASS  node src/features/inventory/view-model.check.mjs
+  PASS  node src/features/inventory/intents.check.mjs
+  PASS  node src/features/inventory/tooltip-view.check.mjs
+  PASS  node src/features/inventory/drag-controller.check.mjs
+  PASS  node src/features/inventory/equipment-view.check.mjs
+  PASS  node src/network/session.check.mjs
+  PASS  node src/features/npc/dialogue.check.mjs
+  PASS  node src/features/skills/view.check.mjs
+  PASS  node src/features/npc/view.check.mjs
+  PASS  node src/features/combat/skill.check.mjs
+  PASS  node src/features/character/view.check.mjs
+  PASS  node src/features/loading/view.check.mjs
+  PASS  node src/features/player/levelup.check.mjs
+  PASS  node src/features/world/water.check.mjs
+  PASS  node src/features/world/reactor.check.mjs
+  PASS  node scripts/refactor_audit.cjs --deps --check (repo root)
+  PASS  check_repository_layout.cjs
+  PASS  build-release.check.cjs
+  PASS  publish-package.check.cjs
+
+All checks passed.

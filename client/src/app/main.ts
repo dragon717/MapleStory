@@ -110,7 +110,7 @@ function characterInfoIsOpen() {
 /**
  * Panels that own their own Escape handling.  While any of them is showing the
  * router leaves the key alone so that panel closes itself; when none is open,
- * Escape raises the menu bar (`UI_WINDOW_SYSTEM.md` R5).
+ * Escape raises the menu bar (`docs/technical/UI_WINDOW_SYSTEM.md` R5).
  */
 function escapeBlocked() {
   return Boolean(

@@ -215,15 +215,15 @@ async function main() {
       skillIcons: reusedSkillIcons(),
       researchEvidence: {
         pdf: [
-          'tms273_research_pack/MapleStory273_Source_Index.pdf#page=2 (coverage)',
-          'tms273_research_pack/MapleStory273_Source_Index.pdf#page=6 (C06)',
-          'tms273_research_pack/MapleStory273_Source_Index.pdf#page=8 (sources)',
+          'references/tms273_research_pack/MapleStory273_Source_Index.pdf#page=2 (coverage)',
+          'references/tms273_research_pack/MapleStory273_Source_Index.pdf#page=6 (C06)',
+          'references/tms273_research_pack/MapleStory273_Source_Index.pdf#page=8 (sources)',
         ],
         gallery: [
-          'tms273_research_pack/MapleStory273_Online_Gallery.html#coverage',
-          'tms273_research_pack/MapleStory273_Online_Gallery.html#C06',
-          'tms273_research_pack/MapleStory273_Online_Gallery.html#S03',
-          'tms273_research_pack/MapleStory273_Online_Gallery.html#S04',
+          'references/tms273_research_pack/MapleStory273_Online_Gallery.html#coverage',
+          'references/tms273_research_pack/MapleStory273_Online_Gallery.html#C06',
+          'references/tms273_research_pack/MapleStory273_Online_Gallery.html#S03',
+          'references/tms273_research_pack/MapleStory273_Online_Gallery.html#S04',
         ],
         conclusion: 'The research pack has no TMS273 Hyper window screenshot or verified frame sequence. C06 is a GMS/general skill-list reference; S03/S04 are unextracted videos. It does not override the WZ geometry above.',
       },

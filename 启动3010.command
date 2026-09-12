@@ -4,20 +4,45 @@ set -u
 
 ROOT="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 cd -- "$ROOT" || exit 1
-CONTROL_DIR="$ROOT/evidence/runtime/3010-control"
+CONTROL_DIR="$ROOT/runtime/3010-control"
 SERVER_PID_FILE="$CONTROL_DIR/server.pid"
 BOT_PID_FILE="$CONTROL_DIR/bot.pid"
 SERVER_LOG="$CONTROL_DIR/server.log"
 BOT_LOG="$CONTROL_DIR/bot.log"
 BOT_CREDENTIALS="$CONTROL_DIR/bot-credentials.json"
-SERVER_BIN="$ROOT/server/target/debug/maplestory-server"
+START_LOCK_DIR="$CONTROL_DIR/start.lock"
+SERVER_BIN="$ROOT/build/current/server/maplestory-server"
+LEGACY_SERVER_BIN="$ROOT/server/target/debug/maplestory-server"
+RELEASE_TOOL="$ROOT/scripts/build-release.cjs"
 DB="$ROOT/server/data/tms273.sqlite3"
-DIST="$ROOT/client/dist-tms273"
+DIST="$ROOT/build/current/client"
 ASSETS="$ROOT/client/public-tms273/assets"
 GAMEPLAY="$ROOT/shared/gameplay.json"
 MAP="$ROOT/shared/map.json"
 MAP_CATALOG="$ROOT/shared/maps.json"
 HEALTH_URL="http://127.0.0.1:3010/api/health"
+
+release_start_lock() {
+  [[ "${START_LOCK_OWNED:-0}" == 1 ]] || return 0
+  rm -f "$START_LOCK_DIR/pid"
+  rmdir "$START_LOCK_DIR" 2>/dev/null || true
+}
+acquire_start_lock() {
+  if mkdir "$START_LOCK_DIR" 2>/dev/null; then
+    START_LOCK_OWNED=1
+    print -r -- "$$" >| "$START_LOCK_DIR/pid"
+    trap 'release_start_lock' EXIT
+    trap 'release_start_lock; exit 130' INT
+    trap 'release_start_lock; exit 143' TERM
+    return 0
+  fi
+  local owner
+  owner="$(read_pid_file "$START_LOCK_DIR/pid")"
+  if [[ "$owner" =~ '^[0-9]+$' ]] && kill -0 "$owner" 2>/dev/null; then
+    die "已有启动流程正在进行（PID $owner），未重复构建"
+  fi
+  die "发现未清理的启动锁：$START_LOCK_DIR；确认上次启动已退出后手动删除该目录"
+}
 
 die() { print -u2 -- "启动失败：$*"; exit 1; }
 read_pid_file() { [[ -r "$1" ]] || return 0; sed -n '1{s/[[:space:]]//g;p;}' "$1"; }
@@ -30,7 +55,7 @@ is_server_pid() {
   cmd="$(process_command "$pid")"
   cwd="$(process_cwd "$pid")"
   [[ "$cmd" == *maplestory-server* ]] || return 1
-  [[ "$cwd" == "$ROOT" || "$cmd" == *"$SERVER_BIN"* ]] || return 1
+  [[ "$cwd" == "$ROOT" || "$cmd" == *"$SERVER_BIN"* || "$cmd" == *"$LEGACY_SERVER_BIN"* ]] || return 1
   lsof -nP -a -p "$pid" -iTCP:3010 -sTCP:LISTEN >/dev/null 2>&1
 }
 is_bot_pid() {
@@ -62,8 +87,16 @@ wait_health() {
   return 1
 }
 
+release_failure() {
+  print -u2 -- "启动失败：$1"
+  zsh "$ROOT/关闭3010.command" >/dev/null 2>&1 || true
+  "$NODE_BIN" "$RELEASE_TOOL" rollback --release-id "$RELEASE_ID" >/dev/null 2>&1 || print -u2 -- "旧成功版本恢复失败；请检查 build/.activation.json 后手动 rollback"
+  exit 1
+}
+
 mkdir -p "$CONTROL_DIR" || die "无法创建运行目录：$CONTROL_DIR"
 chmod 700 "$CONTROL_DIR"
+acquire_start_lock
 mkdir -p "${DB:h}" || die "无法创建数据库目录"
 [[ -d "$ASSETS" && -f "$GAMEPLAY" && -f "$MAP" && -f "$MAP_CATALOG" ]] || die "3010 固定配置或资源不完整"
 NODE_BIN="$(command -v node || true)"
@@ -76,18 +109,23 @@ CONTENT_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimenta
 CARGO_BIN="$(command -v cargo || true)"
 [[ -n "$CARGO_BIN" ]] || CARGO_BIN="$HOME/.cargo/bin/cargo"
 [[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
+export CARGO_BIN
 "$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" || die "运行资源未装配或不兼容，未停止正在运行的服务"
-print -- "正在构建客户端与服务器；构建成功后重启 3010…"
-"$CARGO_BIN" build --manifest-path "$ROOT/server/Cargo.toml" || die "服务端构建失败，未停止正在运行的服务"
-(cd -- "$ROOT/client" && npm run build) || die "客户端构建失败，未停止正在运行的服务"
+print -- "正在生成客户端与服务器候选；成功后重启 3010…"
+"$NODE_BIN" "$RELEASE_TOOL" prepare || die "候选构建失败，未停止正在运行的服务"
+RELEASE_ID="$($NODE_BIN -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(m.releaseId)' "$ROOT/build/tmp/metadata.json")" || die "无法读取候选 releaseId，未停止正在运行的服务"
+[[ -n "$RELEASE_ID" ]] || die "候选 releaseId 为空，未停止正在运行的服务"
 zsh "$ROOT/关闭3010.command" || die "旧服务未能停止，未启动新实例"
+OCCUPANT="$(listen_pid)"
+[[ -z "$OCCUPANT" ]] || die "127.0.0.1:3010 仍被其他进程占用（PID $OCCUPANT），未切换版本"
+"$NODE_BIN" "$RELEASE_TOOL" activate --release-id "$RELEASE_ID" || die "候选切换失败，旧版本仍保留"
 
 SERVER_PID="$(read_pid_file "$SERVER_PID_FILE")"
 if ! is_server_pid "$SERVER_PID"; then
   [[ -n "$SERVER_PID" ]] && rm -f "$SERVER_PID_FILE"
   OCCUPANT="$(listen_pid)"
   if [[ -n "$OCCUPANT" ]]; then
-    is_server_pid "$OCCUPANT" || die "127.0.0.1:3010 已被其他进程占用（PID $OCCUPANT），未停止它"
+    is_server_pid "$OCCUPANT" || release_failure "127.0.0.1:3010 已被其他进程占用（PID $OCCUPANT），未停止它"
     SERVER_PID="$OCCUPANT"
   else
     nohup env \
@@ -104,7 +142,8 @@ if ! is_server_pid "$SERVER_PID"; then
   fi
   print -r -- "$SERVER_PID" >| "$SERVER_PID_FILE"
 fi
-wait_health || die "3010 health 未就绪；日志：$SERVER_LOG"
+wait_health || release_failure "3010 health 未就绪；日志：$SERVER_LOG"
+"$NODE_BIN" "$RELEASE_TOOL" commit --release-id "$RELEASE_ID" || die "health 已通过但旧版本清理未完成；服务保持当前版本，请稍后执行 commit"
 
 if [[ ! -f "$BOT_CREDENTIALS" ]]; then
   print -- "3010 游戏服务已运行（PID $SERVER_PID）"

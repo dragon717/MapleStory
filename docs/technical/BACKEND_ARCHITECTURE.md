@@ -1,0 +1,218 @@
+# 后端技术方案（审查草案）
+
+更新：2026-09-05（正文）／2026-09-12（§2 复核：模块清单与拆分规范改为实测口径）。**已确认 Rust 后端、一台主机服务、多台局域网设备不同账号联机，先运行后优化。** 首版已实施 axum、rusqlite/SQLite、Argon2id，实际模块见 §2.1 与 `server/README.md`。跨端协议与内容版本以《前后端通用技术方案》为准，本文件不另造一份消息规范。
+
+## 1. 一个服务进程起步
+
+建议使用一个 Rust 程序提供静态网页、资源、认证 API 和 WebSocket；主机显式监听局域网可访问地址，设备通过同一主机 URL 访问。开发环境可使用前端开发服务器代理 API / WS；正式使用时无需每台设备安装游戏服务端。
+
+[axum WebSocket](https://docs.rs/axum/latest/axum/extract/ws/) 是网络候选。玩法逻辑用普通 Rust 模块及明确的数据结构起步；[bevy_ecs](https://docs.rs/bevy_ecs/latest/bevy_ecs/) 可以独立用于组件与系统，若选用 [Bevy App 插件注册](https://docs.rs/bevy_app/latest/bevy_app/struct.App.html) 才需要 bevy_app。不为“模块化”引入完整 Bevy 图形引擎、动态库加载或微服务。
+
+## 2. 职责划分与实现导航
+
+早期草案按职责画了 `world/`、`combat/`、`inventory/`、`content/`、`persistence/` 等**目录**。实际实现没有照搬，而是选了**扁平单层 + 世界模块的兄弟子模块**（理由见 2.2 第 1 条）。草案的原始划分保留在 2.3，作为"当初想要什么边界"的意图记录；**已实现的模块一律以 `server/src/` 为准**，不要仅为匹配草案创建空目录或重组现有模块。当前版本范围以 `docs/plan/PLAN.md` 为准。
+
+### 2.1 真实模块清单（2026-09-12 实测）
+
+| 模块 | 拥有什么 |
+| --- | --- |
+| `main.rs` | 进程入口：读配置、组装模块、启动服务 |
+| `network.rs` | HTTP / WebSocket 入口、认证、输入校验；把**已验证**的请求投递进世界，自己不模拟 |
+| `protocol.rs` | 前后端消息类型与版本号（`PROTOCOL_VERSION` / `CONTENT_VERSION`）；两侧共用的契约面 |
+| `auth.rs` | 账号、会话、角色归属、SQLite 持久化（`Store`） |
+| `lobby.rs` | 登录前后的大厅：角色列表、创建 / 删除、外观目录 |
+| `world.rs` | 权威模拟本体：地图实例、实体状态、模拟时序、移动与碰撞 |
+| `world::combat`（`combat.rs`） | 动作阶段、目标判定、冷却与死亡 |
+| `world::messaging`（`messaging.rs`） | 地图聊天 / 密语 / 聊天表情：入站校验、速率预算、幂等窗口、黑名单扇出 |
+| `world::inventory_ops`（`inventory_ops.rs`） | 物品意图的完整事务外观：拾取 / 拖动 / 丢弃 / 整理 / 使用 / 丢金币 |
+| `world::social`（`social.rs`） | 组队与好友 / 黑名单：关系生命周期、在线状态派生、requestId 幂等重放 |
+| `world::trade`（`trade.rs`） | NPC 商店买 / 卖与账号仓库：事务外观、keeper 距离复核、转账副作用重读、回执下发 |
+| `world::quest`（`quest.rs`） | 任务列表 / NPC 菜单 / 交互与效果结算、经验入账 `add_exp`；纯判定已下沉到 `quest_rules` |
+| `world::quest_rules`（`quest_rules.rs`） | 任务纯规则（计划 §6 试点）：前置 / 条件 / 职业 / 消耗清单归一化。**不用 `use super::*` 的 world 子模块**（与 R6 的 `pickup_rules` 同款纪律）——依赖显式列出，函数只收窄输入（`QuestFacts`），不接 `World` / `Store`；事务与回执仍留在 `world::quest` |
+| `world::pickup_rules`（`pickup_rules.rs`） | 拾取纯规则（计划 R6 试点）：掉落可得性判定（地图/归属/距离/内存容量预检）与图鉴饱和入账。与 `quest_rules` 同款纪律——不用 `use super::*`、窄输入（`PickupFacts`/`PickupVerdict`），不接 `World` / `Store`；事务时序见 §6.1 |
+| `world::geometry`（`geometry.rs`） | 纯几何层（计划 R9 核对项）：Foothold 插值/墙阻挡与接触时刻判定（`blocks_at_crossing` 防隧穿）、Ladder/Rope 列窗口与 `uf` 顶端语义、WaterRect 水底插值与形状校验、ReactorPlacement hitbox 归一化。方法全部 `pub(super)`，不接 `World` / `Store`；5 个内嵌纯函数测试钉扎语义 |
+| `world::tests`（`world_tests.rs`） | world 的测试模块（R11 从 `world.rs` 内嵌 `mod tests` 机械搬出）：`#[cfg(test)] #[path = "world_tests.rs"] mod tests;`。文件体首行 `use super::*;` + messaging/monsters/skills/elemental 显式 glob，中段 20+ 个 `include!("*_acceptance.rs")`（相对路径按本文件解析，故必须平铺在 `src/` 根）。**`check_tms273_runtime.cjs` 生产源码扫描排除本文件**（与 `*_acceptance.rs` 同理：测试文本不是生产实现） |
+| `world::boss`（`boss.rs`） | Boss 练习场的源规则常量与阶段；`#[path]` 子模块的**最早先例** |
+| `inventory.rs` | 物品目录、堆叠与容量规则、装备属性计算（与 `inventory_ops` 分工见 2.2 第 10 条） |
+| `npc.rs` | NPC 摆放、数据驱动对话状态机、商店 |
+| `mage.rs` | 法师技能等级数据与校验（`MageSkills` / `MageLevel`） |
+| `quest_text.rs` | 任务显示文案的多语言目录 |
+| `*_acceptance.rs` | 行为测试，由 `include!` 挂进 `world::tests`；**不是生产模块，不计入模块依赖** |
+
+`world::messaging` / `world::inventory_ops` / `world::social` / `world::trade` / `world::quest` 五者是**同一份世界状态拆出的不同职责**，不是独立业务模块：它们共享 `world` 的全部私有项与状态，只是代码位置分开。
+
+先一个 crate，不因目录数量就拆多个 crate。业务状态由 world / 对应业务模块拥有；网络处理器只把经过验证的请求投递进模拟流程，不从多个连接任务直接并发修改同一角色、怪物或掉落。
+
+### 2.2 模块拆分与边界规范（2026-09-12 定）
+
+下列每条都是**已经执行过并被测试验证过**的规则，不是设想。每条附判据，便于下一个人照着做而不是重新试错。
+
+1. **一个 crate，平铺文件 + `#[path]` 兄弟子模块；不为职责新建目录。**
+   `world.rs` 中过大的职责用 `#[path = "x.rs"] mod x;` 挂成它的私有子模块；子模块内部是 `use super::*;` + 自己的 `impl World { … }` 外壳（片段本来就长在 `impl World` 里，搬出来必须补这个壳）。
+   *判据*：兄弟子模块是父模块的后代，**天然可见父模块的全部私有项**，因此搬移零状态改动；改成目录就必须重新组织可见性，纯属自找风险。
+2. **`pub(super) fn` 在子模块里不等于"放宽可见性"。**
+   子模块中 `pub(super)` 的可达范围，与它搬走前作为 `world` 内私有 `fn` 时**完全相同**。
+   *判据*：所以"入口改 `pub(super)`"是纯搬移的必要噪声，不需要为它找理由；`pub(crate)` 才需要理由。
+3. **搬移前先"自动推导"外部引用，不要手列清单。**
+   做法：把待搬区段从 `world.rs` 扣除后，用区段内每个函数名在**全部 `server/src/**/*.rs`**（含 `*_acceptance.rs` 与其他子模块）里做词边界匹配；命中的才是必须 `pub(super)` 的入口。
+   *判据*：只扫 `world.rs` 会漏掉两类真实调用——`party_acceptance.rs` 直调 `world.party_id_of(...)`，`messaging.rs` 调用 `resolve_friend_name`。手列 14 个、实际需要 16 个，就是这么漏的。写成推导脚本就不会漏（配合第 8 条）。
+4. **不搬公开字段的类型（E0446）。**
+   若某类型是公开字段的类型（例如 `Gameplay.emoticons` 的 `EmoticonCatalogue`），把它搬进私有子模块会让公开接口引用更窄可见的类型。
+   *判据*：绕开 E0446 只能把模块改公开、或把字段改私有，两者都是净损失，所以留在原处。
+5. **搬移只改位置，不改状态布局。**
+   协议变体、存档字段、`Player` / `World` 的字段一律原地不动。
+   *判据*：布局一动，存档兼容与两侧协议同步都要重做，风险与收益完全不成比例。
+6. **纯搬移必须能被证明是纯搬移。**
+   与移除区段逐行 diff，或对归一化后的每一行断言"目标文件中存在"；唯一允许的差异是第 2 条那处 `pub(super)` 前缀。
+7. **基线纪律：先跑出基线再动手，动完失败集必须逐条一致。**
+   服务端既有失败集是已知且稳定的（见 `artifacts/refactor/baseline-metrics.json`）；警告数用**同一条命令**前后对比，只看绝对数没有意义（`cargo build` 与 `cargo test` 的警告数不同）。
+   *判据*：测试通过数变化、或警告数变化，都要能解释到具体行；解释不了就按回归处理。
+8. **源码字面量断言型的校验脚本，不得硬编码文件名。**
+   这类脚本要递归扫描**全部生产 `.rs`** 并缓存结果，且**显式排除 `*_acceptance.rs`**——测试文件含同样的字面量，纳入会让断言假通过。
+   *判据*：`scripts/check_tms273_runtime.cjs` 曾硬编码只读 `world.rs`，拆分把字面量搬走后，双击启动在 `cargo build` **之前**就终止；而该脚本必须排除测试文件，是反向验证过的承重设计，不是顺手优化。
+9. **热路径与契约面排在后面。**
+   Tick 内的伤害结算与移动、`protocol.rs`（契约面）、前端 `app/main.ts` 与 `scenes/world.ts`（装配点）**不先拆**。
+   *判据*：拆它们的收益只是行数，代价是每帧行为与两侧同步；性价比最低。
+10. **每个新模块自带一段模块文档。**
+    写明"负责 / 不负责 / 与谁分工"，并点出容易混淆的邻居（`inventory.rs` ↔ `inventory_ops`、`messaging.rs` 的扇出 ↔ `social.rs` 的 `reload_blocked`）。
+
+### 2.3 早期职责草案（仅作意图记录，不是文件清单）
+
+```text
+server/src/
+  main.rs              读取配置、组装模块、启动服务
+  auth/                账号、会话、角色归属
+  network/             HTTP/WS入口、输入校验、消息队列
+  world/               地图实例、实体状态、模拟时序、移动/碰撞
+  combat/              动作阶段、目标判定、效果、冷却与死亡
+  quests/              条件、目标进度、奖励、对话请求验证
+  inventory/           物品归属、容量、拾取与消耗
+  content/             载入并校验静态定义、版本和交叉引用
+  persistence/         存档、事务、必要的迁移
+```
+
+这份草案的意图仍成立（职责要分开、状态要有唯一拥有者），**落点不同**：`content/` 与 `persistence/` 实际落在 `lobby.rs` / `auth.rs` / `inventory.rs` / `mage.rs` / `quest_text.rs`，`quests/` 落在 `world.rs` + `npc.rs`。要迁就草案改结构，先给出比 2.2 更好的判据。
+
+## 3. 权威模拟与组件组合
+
+用户已确认单一模拟循环拥有当前世界，可用有界通道接收连接输入；系统按明确顺序处理输入、移动、动作、效果、死亡 / 掉落、任务进度并发布结果。固定步长与网络发送频率以后实测再选，文档不设臆造指标。
+
+实体是运行时 ID 加已有数据组件，例如位置 / 运动、生命、外观模板引用、当前动作、冷却、持续效果；角色、怪物、投射物组合所需字段，不铺设深层继承树。普通结构体和集合已足够时先用它们；查询和系统依赖真的复杂后再用 ECS。
+
+临时效果作为有 owner、开始/结束时刻和取消原因的实例。到期、死亡、切图或断线如何处理要由效果规则明确；不能依赖浏览器动画回调告诉后端效果结束。地图更换只能通过服务端验证的 portal / 规则变更。
+
+单循环只负责轻量模拟。数据库写入和文件加载不在每 tick 阻塞整个世界：内容启动时加载；持久化可以排队，但需要保证事务成功后再向客户端确认关键奖励与物品变更。MVP 队列须有界，失败显式返回，不默默丢存档。
+
+## 4. 认证、网络与断线
+
+| 边界 | 要做的最小处理 |
+| --- | --- |
+| 认证 | 使用经维护的密码哈希实现，不存明文；服务端签发并验证会话，失败有明确响应 |
+| 角色归属 | 每次角色选择核验 accountId ↔ characterId；不能仅相信消息里的 ID |
+| WebSocket | 限制包体、字段大小、允许消息类型、请求频率和队列容量，拒绝 NaN / 无效枚举 / 非法内容 ID |
+| 会话隔离 | 玩家只能提交自己角色的意图；跨地图实体、过期 actionInstanceId、无权限对象不能操作 |
+| 慢连接 | 积压超过界限时停止接受或断开并重连取快照；不能无界缓存每帧消息 |
+| 重复请求 | 关键离散动作按 requestId 去重，结算也核验当前业务状态；输入序号与奖励去重不能混用 |
+| 断线 | 清掉持续输入，释放连接拥有的资源；重连重新认证并给权威快照；角色保留策略待选 |
+
+当前实现拒绝同一角色的新连接，旧连接保持。LAN 场景仍不信任客户端字段。局域网是否按可信网络部署、是否需要 HTTPS/WSS 是部署决定；账号与敏感信息不放 URL 或普通日志。若提供 Cookie 会话，WebSocket 升级与跨站请求按允许的来源验证。
+
+## 5. 技能与动作的结算流程
+
+`useSkill 意图 → 身份/状态/技能条件检查 → 建立动作实例 → 到时执行目标判定与效果 → 广播结果 → 清理实例`。
+
+- 条件检查包括技能已学会、等级、资源消耗、冷却、动作是否允许、地图限制等；具体字段从选定版本确认。
+- 伤害、命中、目标数量、投射物生灭、MP 消耗与冷却由 Rust 计算。客户端位置或目标只可作经过验证的提示，最终结算不接受客户端报出的 damage。
+- 技能数据引用通用目标选择、动作步骤与效果：直接伤害、投射物、位移、持续状态等。现有机制的新技能主要改配置；新机制才新增一个行为处理函数并显式注册。
+- 发布动作开始 / 投射物生成事件支持前端及时表现，命中事件包含权威结果；关键实例有服务端 ID 和时序，取消与结束均可对应。
+- 随机结果由服务端生成；同一命中或怪物死亡只结算一次。掉落实体有独立运行时 ID、归属与拾取状态。
+
+组合式组件与数据驱动不表示任意代码执行：配置只允许已注册类型和校验过的参数。没有需求时不引入脚本 VM、可视化节点编辑器或动态插件系统。
+
+## 6. 任务与背包事务
+
+任务定义分为接取条件、进行目标、提交条件和奖励动作。玩家进度来自服务端击杀、拾取、到达地图等已确认事件，不接受“我已完成”作为事实。
+
+通用流程：验证任务当前状态 / NPC / 距离 / 条件 → 校验容量与消耗 → 在同一事务里更新任务状态、扣除材料、发放奖励 → 成功后发布新状态。任务重复提交、两次拾取同一掉落、同时消耗同一物品都必须只成功一次。
+
+账号持久化已采用 rusqlite / SQLite。账号、角色归属、背包、技能学习、任务进度是候选持久化对象；HP、坐标及未完成动作如何跨重启恢复，需要在内容与体验确定后明确。内存快照不能替代成功事务，不先保存“已完成”再异步尝试发奖。
+
+Cosmic 的 JS 任务 / NPC 脚本用于读懂流程，不原封不动加载到 Rust 执行。每迁移一条任务记下原始文件、内容版本、条件、奖励和未覆盖分支。特殊任务只扩展已需要的服务端动作，不先设计通用脚本语言。
+
+### 6.1 拾取事务时序（R6 收窄成文，2026-09-12）
+
+`handle_pickup`（`inventory_ops.rs`）是拾取用例的唯一事务协调者，顺序固定：
+
+```text
+1. prior_pickup 幂等查询   同 requestId 已有记录 → 直接重放原结果，不重执行
+2. 世界侧纯判定            pickup_rules::evaluate_pickup（地图/归属保护/距离/内存容量预检）
+                           拒绝码: drop_unavailable / drop_owned / out_of_range / inventory_full
+3. Store::pickup 事务      权威重验（掉落行存在、活跃、归属、容量），claim 行 + 发奖 +
+                           写 pickup_actions 幂等记录，同一事务提交
+4. 世界回填                移除世界掉落 → 重读 profile/equipped/monster_book 三件套写回内存
+5. 回执                    dropPickedUp 广播 + pickupResult 私发 + 任务列表刷新
+```
+
+各窗口的既有定义（均有测试保护，见 `world.rs` tests 与 `auth.rs` tests）：
+
+- **重放**：重连同 requestId 回放原 `pickupResult`，不二次发奖、不再广播 dropPickedUp
+  （`pickup_store_windows_replay_prior_failure_and_side_effect_free_reject`；Store 层并发/重启重放见
+  `reward_pickup_and_mesos_survive_replay_concurrency_and_restart`）。
+- **失败**：业务拒绝（容量/归属/距离/掉落不可用）不消耗世界掉落；Store 层失败由事务回滚保证
+  掉落行恢复 active。`prior_pickup` 持久化故障 → `persistence` 拒绝且世界无副作用（同上测试）。
+- **事务成功但回填失败**：三件套重读失败 → 已移除的世界掉落保持移除（与已提交事务一致），
+  内存背包不回填，客户端只收 `persistence` 拒绝；**资产以持久化为准**，重读/重连恢复
+  （`pickup_backfill_failure_after_commit_keeps_persisted_truth`）。
+- **事务成功但发送失败**：输出缓冲 try_send 失败不影响已提交资产；同 requestId 重放可再取回执。
+
+容量预检只存在于**无 Store 的内存权威路径**（试探式复制背包再入包）；Store 路径的容量由
+事务内权威重验，规则侧 `memory_capacity: None`。掉落可得性判定已收窄为纯规则
+`world::pickup_rules`（`PickupFacts` 窄输入 / `PickupVerdict` 结果），不依赖 World/Store/网络。
+
+## 7. 内容加载与版本
+
+content 从离线导出的同版数据读取 map、mob、item、skill、quest 等定义，启动时校验 ID 引用、单位、范围及资源版本。后端主要使用地图碰撞、出生点、技能规则等数据，不需要在 tick 内解码 PNG / MP3。
+
+WZ 并不包含所有服务端业务：掉落规则、部分公式和任务脚本需从所选参考版本核对。Cosmic 是修改过的 v83 数据，不能把其配置和原版 83.zip 无说明混在一起；差异作为有来源的显式覆盖记录，或保持原版，不静默替换。
+
+修改内容包时前后端共享 contentVersion；客户端版本不匹配就明确要求刷新 / 重新加载。MVP 无热更新承诺，启动时载入一套已校验定义即可。
+
+## 8. 从源码学什么
+
+| 调用链 / 文件 | 参考价值 | 新工程取舍 |
+| --- | --- | --- |
+| Cosmic `QuestActionHandler` → `Quest` → requirements / actions | NPC 接近性、任务状态、条件和奖励分层 | Rust 采用清晰配置和处理函数，不照搬 Java 的大继承树 |
+| Cosmic `Quest.java` 读取 QuestInfo / Act / Check | 文本、条件、动作三类数据的关系 | 以选定底包与脚本核对后的定义为准，不能假定一套 WZ 已含全部业务 |
+| Cosmic `SkillFactory.loadAllSkills` → `loadFromData` → `StatEffect.loadSkillEffectFromData` | 技能等级数据、效果和特殊例外 | 整理成可组合规则，避免每技能一个类或巨大 ID 分支表 |
+| Cosmic `AbstractDealDamageHandler.parseDamage` | 可查旧技能公式和限制 | 旧流程读取客户端伤害再检查；新服务端自行算伤害 |
+| Maplewright `crates/physics/src/foothold.rs` | 坡道与落地几何参考 | 验证真实地图规则；不把矩形碰撞 demo 当成原版运动 |
+| Maplewright `crates/wsproxy/src/main.rs` | 原浏览器客户端如何桥接旧 TCP | 自建 Rust + TS 两端省去旧协议加密、端口迁移及代理 |
+
+这是有范围的源码审核，不是对所有仓库全部功能或安全性的全面认证。
+
+## 9. 已确认首版后端验收
+
+首版为一张地图、两个及多个独立账号、局域网联机、移动和普攻。身份、移动和动作状态由同一 Rust 规则处理，不硬编码两个账号为特例。
+
+开发自测接入两个程序化机器人客户端，走实际认证 / 输入 / 普攻消息链路；交付用户验收时提供可登录进入的服务和一个自动运行的机器人。机器人不直接改世界，也不依赖 AI 动态发动作。
+
+核验角色归属、同图互见、移动与普攻同步、伪造字段不影响权威状态、断线清理输入与重入快照。普攻如包含命中与扣血，仍由服务端判定；具体受击对象尚未选定，不自行追加 PVP 或怪物掉落需求。
+
+第 5、6 节的技能、任务、背包与奖励事务是后续模块设计，不作为首版通过条件；相关行为实现时再按验收标准验证。账号认证所需的数据仍按首版实现，尚未定案的其它存档策略不能冒充已承诺行为。
+
+文档导航：[计划](../plan/PLAN.md) · [共同契约](SHARED_ARCHITECTURE.md) · [前端](FRONTEND_ARCHITECTURE.md) · [验收标准](ARCHITECTURE_ACCEPTANCE.md) · [参考项目分级](REFERENCE_PROJECTS.md)
+
+## 本地审核证据
+
+下表是 §8 取证的位置。这些文件属于**参考仓库**，不随本仓库分发：`参考/` 下目前只有 WZ 素材（`273/`、`TMS273.7/`），**`参考/repos/` 需要按 [参考项目分级](REFERENCE_PROJECTS.md) 自行浅克隆后才会出现**。下面的路径是克隆后的规范位置——在此之前链接打不开属于预期，不是文档错误。
+
+| 证据 | 克隆后的相对位置 | 上游 |
+| --- | --- | --- |
+| 任务入口 | `参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/QuestActionHandler.java` | [P0nk/Cosmic](https://github.com/P0nk/Cosmic) |
+| 任务定义与条件 / 奖励 | `参考/repos/P0nk__Cosmic/src/main/java/server/quest/Quest.java` | 同上 |
+| 技能加载 | `参考/repos/P0nk__Cosmic/src/main/java/client/SkillFactory.java` | 同上 |
+| 旧攻击解析 | `参考/repos/P0nk__Cosmic/src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java` | 同上 |
+| foothold 参考 | `参考/repos/Sheilem__maplewright/crates/physics/src/foothold.rs` | [Sheilem/maplewright](https://github.com/Sheilem/maplewright) |
+| 旧 TCP 代理 | `参考/repos/Sheilem__maplewright/crates/wsproxy/src/main.rs` | 同上 |
+
+> 引文只用于核对规则；采用其中代码前须先核查许可链（见 `REFERENCE_PROJECTS.md`）。

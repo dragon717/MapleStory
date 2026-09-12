@@ -14,7 +14,7 @@ questId 列表）但语料缺 zh 时，本工具列出待翻译清单与原文�
   # 全库盘点（仅统计，不用于翻译决策）
   python3 scripts/quest_i18n/zh_todo.py --survey
   # 输出 markdown
-  python3 scripts/quest_i18n/zh_todo.py --out evidence/quest-i18n/zh-todo.md
+  python3 scripts/quest_i18n/zh_todo.py --out evidence/2026-09-06/quest-i18n/zh-todo.md
 """
 from __future__ import annotations
 

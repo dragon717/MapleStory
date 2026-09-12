@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { build } = require('esbuild');
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(import.meta.dirname, '../../../..');
-const output = path.join(root, 'evidence/entry-ui');
+const output = path.join(root, 'evidence/2026-09-08/entry-ui');
 await fs.mkdir(output, { recursive: true });
 await build({ stdin: { contents: `import './src/app/style.css'; import { EntryView } from './src/features/entry/view'; import { MenuView } from './src/features/menu/view'; const entry = new EntryView(document.getElementById('welcome'), async session => { document.getElementById('entered').textContent=session.username; }); document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
 const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');

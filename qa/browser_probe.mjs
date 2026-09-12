@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 import { chromium } from '/Users/muniao/.npm/_npx/31e32ef8478fbf80/node_modules/playwright/index.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -5,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 const base = new URL(process.env.SERVER_URL || 'http://127.0.0.1:3010');
 if (base.port !== '3010') throw new Error(`Refusing non-QA target ${base.origin}; browser probe only allows port 3010`);
 const runId = process.env.QA_RUN_ID || new Date().toISOString().replace(/[:.]/g, '-');
-const evidenceDir = `evidence/qa/${runId}`;
+const evidenceDir = evidencePath(`qa-${runId}`);
 const layoutConfig = {
   buttons: process.env.QA_HUD_BUTTONS || null,
   columns: process.env.QA_HUD_COLUMNS || null,

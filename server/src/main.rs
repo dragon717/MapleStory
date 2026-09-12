@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let dist = PathBuf::from(setting(
         "CLIENT_DIST",
-        root.join("client/dist-tms273").to_str().unwrap(),
+        root.join("build/current/client").to_str().unwrap(),
     ));
     let assets = PathBuf::from(setting(
         "ASSETS_DIR",

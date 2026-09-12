@@ -29,8 +29,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     root = Path(__file__).resolve().parents[2]
     ap.add_argument("--corpus", default=str(root / "shared/quest-text.json"))
-    ap.add_argument("--out-json", default=str(root / "evidence/quest-i18n/token-report.json"))
-    ap.add_argument("--out-md", default=str(root / "evidence/quest-i18n/token-report.md"))
+    ap.add_argument("--out-json", default=str(root / "evidence/2026-09-06/quest-i18n/token-report.json"))
+    ap.add_argument("--out-md", default=str(root / "evidence/2026-09-06/quest-i18n/token-report.md"))
     args = ap.parse_args()
 
     corpus = json.loads(Path(args.corpus).read_text(encoding="utf-8"))

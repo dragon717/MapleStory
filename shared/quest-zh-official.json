@@ -4,7 +4,7 @@
   "site": "mxd.dvg.cn 冒险岛小册子",
   "urlTemplate": "https://mxd.dvg.cn/questsinfo.php?id={}",
   "fetchedAt": "2026-09-06 09:26:04",
-  "note": "只保留任务文本/名词结构化字段；原始 HTML 存 evidence/quest-i18n/cache/dvg/"
+  "note": "只保留任务文本/名词结构化字段；原始 HTML 存 evidence/2026-09-06/quest-i18n/cache/dvg/"
  },
  "note": "官方中文(CMS/国服)译名与原版阶段文本；仅收录英文名与本地 v83 一致的条目。",
  "quests": {

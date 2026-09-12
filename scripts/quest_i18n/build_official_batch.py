@@ -14,8 +14,8 @@
 
 产出:
   - shared/quest-zh-official.json      可 apply_zh 的批次（仅 high 置信）
-  - evidence/quest-i18n/official-zh-report.md   覆盖/冲突/差异报告
-  - evidence/quest-i18n/npc-zh-catalog.json     NPC 中文名目录（回填术语表用）
+  - evidence/2026-09-06/quest-i18n/official-zh-report.md   覆盖/冲突/差异报告
+  - evidence/2026-09-06/quest-i18n/npc-zh-catalog.json     NPC 中文名目录（回填术语表用）
 
 用法:
   python3 scripts/quest_i18n/build_official_batch.py
@@ -64,11 +64,11 @@ def load_glossary() -> dict[str, dict[str, str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--raw", default=str(ROOT / "evidence/quest-i18n/dvg-raw.json"))
+    ap.add_argument("--raw", default=str(ROOT / "evidence/2026-09-06/quest-i18n/dvg-raw.json"))
     ap.add_argument("--corpus", default=str(ROOT / "shared/quest-text.json"))
     ap.add_argument("--out", default=str(ROOT / "shared/quest-zh-official.json"))
-    ap.add_argument("--report", default=str(ROOT / "evidence/quest-i18n/official-zh-report.md"))
-    ap.add_argument("--npc-out", default=str(ROOT / "evidence/quest-i18n/npc-zh-catalog.json"))
+    ap.add_argument("--report", default=str(ROOT / "evidence/2026-09-06/quest-i18n/official-zh-report.md"))
+    ap.add_argument("--npc-out", default=str(ROOT / "evidence/2026-09-06/quest-i18n/npc-zh-catalog.json"))
     ap.add_argument("--include-conflict", action="store_true", help="英文名不一致也入批次（默认只进报告）")
     ap.add_argument("--update-glossary", action="store_true", help="用抓取到的 NPC 中文名回填 shared/quest-glossary.json")
     args = ap.parse_args()
@@ -253,7 +253,7 @@ def main() -> int:
             if cur and cur.get("src") == "official-cn":
                 continue
             terms[nid] = {
-                "en": json.loads((ROOT / "evidence/quest-i18n/name-catalog.json").read_text(encoding="utf-8"))
+                "en": json.loads((ROOT / "evidence/2026-09-06/quest-i18n/name-catalog.json").read_text(encoding="utf-8"))
                 .get("p", {})
                 .get(nid, ""),
                 "zh": zh,

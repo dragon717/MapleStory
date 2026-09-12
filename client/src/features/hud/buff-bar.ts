@@ -10,7 +10,7 @@ import type { Manifest, SkillArt } from '../../assets/manifest';
  * icons are its own `spaceX` / `spaceY` — 5 px in TMS273.7 — so the row keeps
  * the source rhythm instead of a client-chosen spacing.
  *
- * P boundaries (recorded in `UI_WINDOW_SYSTEM.md` §5):
+ * P boundaries (recorded in `docs/technical/UI_WINDOW_SYSTEM.md` §5):
  *  * the source hides this plate behind a settings window that can move it, and
  *    the setting window itself is out of scope; the row simply sits at the end
  *    of the HUD line here;

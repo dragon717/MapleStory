@@ -66,6 +66,13 @@ const audit = spawnSync(
 );
 results.push({ label: auditLabel, ok: audit.status === 0, status: audit.status });
 
+for (const file of ['check_repository_layout.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
+  const result = spawnSync(process.execPath, [path.join(clientRoot, '..', 'scripts', file)], {
+    cwd: path.join(clientRoot, '..'), stdio: 'inherit',
+  });
+  results.push({ label: file, ok: result.status === 0, status: result.status });
+}
+
 const failed = results.filter(item => !item.ok);
 console.log(`\n=== check summary: ${results.length - failed.length}/${results.length} passed ===`);
 for (const item of results) {

@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 // Reproduce the four minimap header buttons inside the REAL game shell.
 //
 // The isolated view harness proves MiniMapView's handlers work, so the failure
@@ -17,7 +18,7 @@ const requireClient = createRequire(path.join(root, 'client', 'package.json'));
 const { build } = requireClient('esbuild');
 const { chromium } = requireClient('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const client = path.join(root, 'client');
-const output = path.join(root, 'output/playwright/minimap-buttons');
+const output = evidencePath('playwright-minimap-buttons');
 await fs.mkdir(output, { recursive: true });
 
 // The server broadcasts a snapshot every `world::TICK_MS` (50 ms); the stub

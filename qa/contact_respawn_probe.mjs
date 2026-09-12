@@ -1,3 +1,4 @@
+import { evidencePath } from '../scripts/evidence-path.cjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const base = new URL(process.env.SERVER_URL || 'http://127.0.0.1:3010');
 if (base.port !== '3010') throw new Error(`Refusing non-QA target ${base.origin}`);
 const runId = process.env.QA_RUN_ID || new Date().toISOString().replace(/[:.]/g, '-');
-const evidenceDir = `evidence/qa/${runId}`;
+const evidenceDir = evidencePath(`qa-${runId}`);
 const checks = [];
 const bots = [];
 

@@ -3,6 +3,7 @@
 
 Usage: python3 qa/portal_pos_probe.py [mapId]   (default 000010000)
 """
+from datetime import datetime, timezone, timedelta
 import json
 import sys
 from pathlib import Path
@@ -60,6 +61,8 @@ for p in entry['portals']:
             beam = (p['x'] - ox, anchor_y - oy, f0['width'], f0['height'])
         mark(p['x'], p['y'], COLORS.get(p['name'], (200, 0, 255, 255)), p['name'], beam)
 
-out = ROOT / f'evidence/qa/portal-map-composite-{MAP_ID}.png'
+day = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
+out = ROOT / f'evidence/{day}/portal-map/portal-map-composite-{MAP_ID}.png'
+out.parent.mkdir(parents=True, exist_ok=True)
 canvas.convert('RGB').save(out)
 print('saved', out)

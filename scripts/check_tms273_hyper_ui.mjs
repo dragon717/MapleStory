@@ -1,3 +1,4 @@
+import { evidencePath } from './evidence-path.cjs';
 // Offline component check: real 273 assets, no account, server or gameplay mutation.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -8,7 +9,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const require = createRequire(path.join(root, 'client/package.json'));
 const { build } = require('esbuild');
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const output = path.join(root, 'output/playwright/hyper-ui');
+const output = evidencePath('playwright-hyper-ui');
 await fs.mkdir(output, {recursive:true});
 await build({stdin:{contents:`
 import { HudView } from './src/features/hud/view';

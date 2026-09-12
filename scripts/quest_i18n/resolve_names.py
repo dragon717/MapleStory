@@ -2,9 +2,9 @@
 """从本地 String.wz 解析语料中出现的内容标记(#p/#t/#o)对应的英文名目录。
 
 产物:
-  - evidence/quest-i18n/name-catalog.json
+  - evidence/2026-09-06/quest-i18n/name-catalog.json
     { "p": {"<npcId>": "<name>", ...}, "o": {...}, "t": { "<intId>": {"cat":"Consume","name":...} } }
-  - evidence/quest-i18n/token-name-report.md （area=20 用到的 id → 名称，供翻译/校对）
+  - evidence/2026-09-06/quest-i18n/token-name-report.md （area=20 用到的 id → 名称，供翻译/校对）
 
 说明:
   - 源文件: String.wz/{Npc,Mob,Consume,Etc,Cash,Ins,Pet,Eqp}.img.xml
@@ -50,8 +50,8 @@ def main() -> int:
     root = Path(__file__).resolve().parents[2]
     wz = root / "参考/repos/P0nk__Cosmic/wz/String.wz"
     ap.add_argument("--string-wz", default=str(wz))
-    ap.add_argument("--out-json", default=str(root / "evidence/quest-i18n/name-catalog.json"))
-    ap.add_argument("--out-md", default=str(root / "evidence/quest-i18n/token-name-report.md"))
+    ap.add_argument("--out-json", default=str(root / "evidence/2026-09-06/quest-i18n/name-catalog.json"))
+    ap.add_argument("--out-md", default=str(root / "evidence/2026-09-06/quest-i18n/token-name-report.md"))
     args = ap.parse_args()
     wz = Path(args.string_wz)
 

@@ -12,7 +12,7 @@
 纪律（沿用项目 source 留痕约定）：
   - 只抓"任务文本/名词"这类结构化字段，不搬运整站、不落图片/HTML 站点资源；
   - 每条落 `source` = {kind, url, fetchedAt}，供后续 reviewed 翻转与回溯；
-  - 本地 HTML 原始页进 `evidence/quest-i18n/cache/dvg/`，可离线复算（断点续传）。
+  - 本地 HTML 原始页进 `evidence/2026-09-06/quest-i18n/cache/dvg/`，可离线复算（断点续传）。
 
 用法:
   # 样本（默认抓 area=20 的 61 条 + 已上线内部任务）
@@ -39,8 +39,8 @@ from pathlib import Path
 
 BASE = "https://mxd.dvg.cn/questsinfo.php?id={}"
 ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "evidence/quest-i18n/cache/dvg"
-DEFAULT_OUT = ROOT / "evidence/quest-i18n/dvg-raw.json"
+CACHE = ROOT / "evidence/2026-09-06/quest-i18n/cache/dvg"
+DEFAULT_OUT = ROOT / "evidence/2026-09-06/quest-i18n/dvg-raw.json"
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -179,7 +179,7 @@ def main() -> int:
             "site": "mxd.dvg.cn 冒险岛小册子",
             "urlTemplate": BASE,
             "fetchedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "note": "只保留任务文本/名词结构化字段；原始 HTML 存 evidence/quest-i18n/cache/dvg/",
+            "note": "只保留任务文本/名词结构化字段；原始 HTML 存 evidence/2026-09-06/quest-i18n/cache/dvg/",
         },
         "quests": dict(sorted(results.items(), key=lambda kv: int(kv[0]))),
     }

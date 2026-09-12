@@ -1,3 +1,4 @@
+import { evidencePath } from './evidence-path.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from '../client/node_modules/typescript/lib/typescript.js';
@@ -124,11 +125,11 @@ for (const couponId of ['2430768', '2430769', '2430770', '2430771']) {
 console.log('Inventory tab frame order (4 before 3) and slot-expansion coupon assets verified.');
 if (process.argv.includes('--browser-fixture')) {
   const { build } = await import('../client/node_modules/esbuild/lib/main.js');
-  const output = `${root}/output/inventory-check`;
+  const output = evidencePath('inventory-check');
   fs.mkdirSync(output, { recursive: true });
   await build({ entryPoints: [`${root}/qa/inventory_ui.ts`], bundle: true, format: 'esm', target: 'es2022', outfile: `${output}/inventory-check.js` });
   const assets = `${output}/assets`;
   if (!fs.existsSync(assets)) fs.symlinkSync(`${root}/client/public-tms273/assets`, assets, 'dir');
   fs.writeFileSync(`${output}/inventory-check.html`, '<!doctype html><html lang="zh"><meta charset="utf-8"><title>Inventory UI verification</title><link rel="stylesheet" href="/inventory-check.css"><script type="module" src="/inventory-check.js"></script></html>', 'utf8');
-  console.log('Browser fixture ready at output/inventory-check/inventory-check.html (no account or game mutations).');
+  console.log('Browser fixture ready in the dated evidence directory (no account or game mutations).');
 }

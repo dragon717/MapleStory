@@ -1,6 +1,6 @@
 #!/bin/zsh
 # 一键打出 Windows 端资源包（双击运行）
-# 产物：artifacts/win-bundle/MapleStory-win-<版本>.zip
+# 产物：build/current/packages/windows/MapleStory-win-<版本>.zip
 
 set -e
 # 以本文件所在目录为仓库根，双击/终端都能定位
@@ -24,7 +24,7 @@ fi
 cd "$ROOT"
 "$NODE" scripts/package_win_bundle.cjs
 
-ZIP="$ROOT/artifacts/win-bundle/$(ls -t "$ROOT/artifacts/win-bundle" | grep '^MapleStory-win-.*\.zip$' | head -1)"
+ZIP="$ROOT/build/current/packages/windows/$(ls -t "$ROOT/build/current/packages/windows" | grep '^MapleStory-win-.*\.zip$' | head -1)"
 echo ""
 echo "✅ 打包完成：$ZIP"
 open -R "$ZIP"

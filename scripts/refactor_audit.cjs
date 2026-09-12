@@ -2,7 +2,7 @@
 /**
  * P0 只读审计：超大文件清单 + 前端依赖图。
  *
- * 依据 MapleStory_Large_File_Refactoring_Plan.md 第 3 节（P0）、第 2.2 节与第 14.1/14.2 节。
+ * 依据 docs/plan/topics/MapleStory_Large_File_Refactoring_Plan.md 第 3 节（P0）、第 2.2 节与第 14.1/14.2 节。
  * 本脚本不修改任何业务文件，只读 Git 工作树并写出 artifacts/refactor/*.json。
  *
  * 用法：
@@ -198,7 +198,7 @@ function scanSizes() {
   files.sort((a, b) => b.physical_lines - a.physical_lines);
   return {
     generated_by: 'scripts/refactor_audit.cjs',
-    generated_for: 'MapleStory_Large_File_Refactoring_Plan.md §3 (P0)',
+    generated_for: 'docs/plan/topics/MapleStory_Large_File_Refactoring_Plan.md §3 (P0)',
     scope: 'tracked-and-unignored-untracked-working-tree',
     excluded_directory_names: [...EXCLUDED_SEGMENTS].sort(),
     excluded_directory_prefixes: EXCLUDED_PREFIXES,
@@ -459,7 +459,7 @@ function scanFrontendDeps() {
 
   return {
     generated_by: 'scripts/refactor_audit.cjs',
-    generated_for: 'MapleStory_Large_File_Refactoring_Plan.md §2.2 / §14.2',
+    generated_for: 'docs/plan/topics/MapleStory_Large_File_Refactoring_Plan.md §2.2 / §14.2',
     scope: 'client/src 全部 .ts/.tsx/.js/.mjs/.cjs',
     extractor: tsModule ? `typescript-ast ${tsModule.version}` : 'regex-degraded',
     limitations: [

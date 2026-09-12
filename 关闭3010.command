@@ -3,21 +3,25 @@
 set -u
 
 ROOT="$(cd -- "$(dirname -- "$0")" && pwd -P)"
-CONTROL_DIR="$ROOT/evidence/runtime/3010-control"
+CONTROL_DIR="$ROOT/runtime/3010-control"
 SERVER_PID_FILE="$CONTROL_DIR/server.pid"
 BOT_PID_FILE="$CONTROL_DIR/bot.pid"
 
 print_pid() { [[ -r "$1" ]] || return 0; sed -n '1{s/[[:space:]]//g;p;}' "$1"; }
 process_command() { ps -p "$1" -o command= 2>/dev/null | sed 's/^[[:space:]]*//'; }
 process_cwd() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -n 1; }
-is_server_pid() {
+is_server_process() {
   local pid="$1" cmd cwd
   [[ "$pid" =~ '^[0-9]+$' ]] || return 1
   kill -0 "$pid" 2>/dev/null || return 1
   cmd="$(process_command "$pid")"
   cwd="$(process_cwd "$pid")"
   [[ "$cmd" == *maplestory-server* ]] || return 1
-  [[ "$cwd" == "$ROOT" || "$cmd" == *"$ROOT/server/target/debug/maplestory-server"* ]] || return 1
+  [[ "$cwd" == "$ROOT" || "$cmd" == *"$ROOT/build/current/server/maplestory-server"* || "$cmd" == *"$ROOT/server/target/debug/maplestory-server"* ]] || return 1
+}
+is_server_pid() {
+  local pid="$1"
+  is_server_process "$pid" || return 1
   lsof -nP -a -p "$pid" -iTCP:3010 -sTCP:LISTEN >/dev/null 2>&1
 }
 is_bot_pid() {
@@ -65,18 +69,22 @@ fi
 rm -f "$BOT_PID_FILE"
 
 SERVER_PID="$(print_pid "$SERVER_PID_FILE")"
-if ! is_server_pid "$SERVER_PID"; then
+if ! is_server_process "$SERVER_PID"; then
   [[ -n "$SERVER_PID" ]] && rm -f "$SERVER_PID_FILE"
   SERVER_PID="$(listen_pid)"
 fi
-if [[ -n "$SERVER_PID" ]] && is_server_pid "$SERVER_PID"; then
-  stop_pid "$SERVER_PID" "3010 游戏服务" || result=1
+if [[ -n "$SERVER_PID" ]] && is_server_process "$SERVER_PID"; then
+  if stop_pid "$SERVER_PID" "3010 游戏服务"; then
+    rm -f "$SERVER_PID_FILE"
+  else
+    result=1
+  fi
 else
   if [[ -n "$SERVER_PID" ]]; then
     print -u2 -- "3010 端口上的进程不是本项目实例，未停止。"
     result=1
   fi
 fi
-rm -f "$SERVER_PID_FILE"
+[[ -z "$SERVER_PID" ]] && rm -f "$SERVER_PID_FILE"
 (( result == 0 )) || exit "$result"
 print -- "3010 游戏服务与陪测 bot 已停止；数据库、账号和日志保留。"
