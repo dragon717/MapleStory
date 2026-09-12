@@ -48,10 +48,14 @@ fn boss_practice_actual_map_qualification_isolated_and_idempotent() {
     service.store.load_profile("low", &boss_profile(24)).unwrap();
     service.store.load_profile("boss", &boss_profile(25)).unwrap();
     let mut world = chapter_actual_world(service.store.clone());
-    assert_eq!(world.maps.len(), 44);
+    assert_eq!(world.maps.len(), 50);
     assert!(world.maps.contains_key("102020500"));
     // 維多利亞港三家商店必须随目录一起加载，否则原版店门会回 map_unavailable。
     for id in ["104000001", "104000002", "104000003"] {
+        assert!(world.maps.contains_key(id), "missing shop map {id}");
+    }
+    // 魔法森林 101000000 的 in00/in01 同理指向目录内的 101000001/101000002。
+    for id in ["101000001", "101000002"] {
         assert!(world.maps.contains_key(id), "missing shop map {id}");
     }
 

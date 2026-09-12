@@ -26,6 +26,13 @@ run(path.join(require('node:os').homedir(),'.cargo/bin/cargo'),['run','--quiet',
 run(path.join(root,'scripts/unpack_tms273_ms/target/debug/unpack_tms273_ms'),['--out','/tmp/tms273-inspect-boss','--image','Mob/3220000.img']);
 for(const mode of ['maps','entities','ui','windows','portals','effects'])run(process.execPath,['scripts/export_tms273.cjs',mode]);
 run('python3',['scripts/generate_tms273_gameplay.py']);
+// The four slot-expansion coupons are sourced through an NPC script in TMS273,
+// so `generate_tms273_gameplay.py` only authors their shop rows; the item
+// definitions come from this backfill.  It must run *after* the gameplay
+// rebuild (which rewrites `items.json` without them) and *before* the item
+// image export (which derives one PNG per item definition) — otherwise the
+// coupons stay in the shops with no icon and `check_tms273_runtime` fails.
+run('python3',['scripts/backfill_tms273_slot_expand.py']);
 run(process.execPath,['scripts/export_tms273.cjs','items']);
 run(process.execPath,['scripts/export_tms273_avatar.cjs','--mage-actions']);
 for(const script of ['export_tms273_avatar','export_tms273_inventory','export_tms273_combat','export_tms273_chat','export_tms273_balloon','export_tms273_skills','export_tms273_skill_ui','export_tms273_npc_marker','export_tms273_mage_effects','export_tms273_character_ui','export_tms273_creation_items','export_tms273_entry','export_tms273_avatar_parts','export_tms273_skill_sounds','export_tms273_levelup','export_tms273_reactor','export_tms273_chapter','export_tms273_storage','export_tms273_party','export_tms273_friend','export_tms273_minimap','export_tms273_worldmap','assemble_tms273'])run(process.execPath,[`scripts/${script}.cjs`]);

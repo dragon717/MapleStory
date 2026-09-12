@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-12');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-13');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -97,8 +97,9 @@ for(const mob of gameplay.monsters) {
   }
 }
 // 44 base maps + the four 砲台路 flight-station rooms reachable from
-// 六條岔道's tree-top gates (104020000 `top00`/`top01` -> 104020100).
-assert.equal(catalog.maps.length,48);
+// 六條岔道's tree-top gates (104020000 `top00`/`top01` -> 104020100) + the two
+// 魔法森林 interiors behind 101000000's `in00`/`in01` (101000001/101000002).
+assert.equal(catalog.maps.length,50);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -112,12 +113,15 @@ assert.equal(catalog.maps.length,48);
     assert.match(catalog.returnMaps[map.id],/^\d{9}$/,`returnMap must be the 9-digit form: ${map.id}`);
     assert.equal(catalog.returnMaps[map.id],String(Math.trunc(Number(source))).padStart(9,'0'),`returnMap drifted from the source: ${map.id}`);
   }
-  // The two authored map-move consumables and nothing else.  2030000 uses the
-  // 999999999 sentinel ("this map's returnMap"), 2030001 names 維多利亞港.
+  // The three authored map-move consumables and nothing else.  2030000 uses the
+  // 999999999 sentinel ("this map's returnMap"), 2030001 names 維多利亞港, and
+  // 2030002 (魔法森林卷軸, sold by 1031100 妖精 蓮 in 魔法森林雜貨店) names
+  // 魔法森林 101000000.
   const movable=Object.entries(read('shared/items.json')).filter(([,item])=>item.spec&&'moveTo' in item.spec);
-  assert.deepEqual(movable.map(([id])=>id).sort(),['2030000','2030001'],'the map-move consumable set changed');
+  assert.deepEqual(movable.map(([id])=>id).sort(),['2030000','2030001','2030002'],'the map-move consumable set changed');
   assert.equal(movable.find(([id])=>id==='2030000')[1].spec.moveTo,999999999);
   assert.equal(movable.find(([id])=>id==='2030001')[1].spec.moveTo,104000000);
+  assert.equal(movable.find(([id])=>id==='2030002')[1].spec.moveTo,101000000);
   // A town the catalog does not ship stays legal data: the scroll is refused at
   // use time.  Pinning it keeps the refusal honest rather than a silent wrong map.
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
@@ -167,21 +171,40 @@ for(const map of catalog.maps) {
   assert(rendered?.layers.length,`Map lacks source layers: ${map.id}`);
   for(const field of ['bounds','footholds','portals','ladders','spawn'])assert.deepEqual(rendered[field],map[field]);
 }
-// Every gate leading to another assembled map must expose a beam.  Scripted
-// doorways (WZ `tm: 999999999`, e.g. 楓之港 `east00` → 碼頭 via `pt_southperry`)
-// get their route from the chapter adapter, so the beam is added after it runs.
+// Beams follow the client's own sprite rule, not "any cross-map gate": only the
+// types the client draws with `pv` art may carry the shared beam, everything
+// else must stay beam-free.  Two failure modes are pinned here —
+//   * a `pv` gate (type 2 Visible, type 7 Script) into an assembled map that
+//     lost its beam, so a doorway players need is invisible again; scripted
+//     doorways (WZ `tm: 999999999`, e.g. 楓之港 `east00` → 碼頭 via
+//     `pt_southperry`) get their route from the chapter adapter, so their beam
+//     is added after it runs;
+//   * a beam on a type the client never draws, which is the 2026-09-13 report
+//     「傳送陣多一個」: 六條岔道's rope-top pair `top00`/`top01` are both
+//     `pt: 3` (collision → editor-only `pc` art) and glowed as two stacked
+//     beams on the tree trunk.
 {
+  const { beamSpriteForType, portalTypeCode }=require('./tms273_portal_sprite.cjs');
   const assembled=new Set(catalog.maps.map(map=>map.id));
-  const missing=[];
+  const missing=[], phantom=[];
   for(const map of catalog.maps)for(const portal of map.portals) {
     if(!portal.targetMapId || portal.targetMapId===map.id)continue;
     if(!assembled.has(portal.targetMapId))continue;
     const beam=manifest.portals[`${map.id}/${portal.name}`];
-    if(!beam?.frames?.length)missing.push(`${map.id}/${portal.name}`);
+    if(beamSpriteForType(portal.type)==='pv') {
+      if(!beam?.frames?.length)missing.push(`${map.id}/${portal.name}`);
+    } else if(beam) {
+      phantom.push(`${map.id}/${portal.name} (pt=${portal.type} ${portalTypeCode(portal.type)})`);
+    }
   }
-  assert.deepEqual(missing,[],`Scripted cross-map portal lacks a beam: ${missing.join(', ')}`);
+  assert.deepEqual(missing,[],`Visible cross-map portal lacks a beam: ${missing.join(', ')}`);
+  assert.deepEqual(phantom,[],`Beam invented for a portal type the client never draws: ${phantom.join(', ')}`);
   assert(manifest.portals['002000000/east00']?.frames.length>0,'楓之港 → 碼頭 gate must be visible');
   assert(manifest.portals['002000100/west00']?.frames.length>0,'碼頭 → 楓之港 gate must be visible');
+  // The reported pair, named so a regression names the map the user saw.
+  assert.equal(manifest.portals['104020000/top00'],undefined,'六條岔道 rope-top collision gates must not glow');
+  assert.equal(manifest.portals['104020000/top01'],undefined,'六條岔道 rope-top collision gates must not glow');
+  assert.equal(manifest.portals['104020100/under00'],undefined,'樹木站台 under-platform collision gates must not glow');
 }
 // A warp must land on the floor, not in mid-air.  Mirrors `world.rs`'s arrival
 // resolution (`ground_near` + the 24 px snap window): when the resolved ground
@@ -229,6 +252,21 @@ for(const map of catalog.maps) {
     assert.equal(town.targetPortalName,gate);
     const shop=byId.get(target),exit=shop.portals.find(p=>p.name===gate);
     assert.equal(exit.targetMapId,mapId,`${target}/${gate} must return to 維多利亞港`);
+    assert.equal(exit.targetPortalName,name);
+    assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
+    assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);
+  }
+  // 魔法森林两家店：101000000 的 `in00`/`in01` 是原版 type-2 店门（无脚本体），
+  // 目标图 101000001/101000002 必须装配，否则玩家只会看到「此路线尚未开放」。
+  for(const [mapId,name,target,gate] of [
+    ['101000000','in00','101000001','out00'],
+    ['101000000','in01','101000002','out01'],
+  ]) {
+    const town=byId.get(mapId).portals.find(p=>p.name===name);
+    assert.equal(town.targetMapId,target,`${mapId}/${name} must enter the source shop map`);
+    assert.equal(town.targetPortalName,gate);
+    const shop=byId.get(target),exit=shop.portals.find(p=>p.name===gate);
+    assert.equal(exit.targetMapId,mapId,`${target}/${gate} must return to 魔法森林`);
     assert.equal(exit.targetPortalName,name);
     assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
     assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);

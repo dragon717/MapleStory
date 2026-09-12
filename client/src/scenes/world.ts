@@ -225,6 +225,12 @@ export class World extends Phaser.Scene {
       // `portal` slot — spawn anchors (type 0 `sp`) and same-map links (type
       // 10 `bottom0`/`top0`) — and rendering a non-gate slot duplicates the
       // glow at neighbouring positions.
+      // Which types may carry the beam at all is decided upstream, in
+      // `scripts/tms273_portal_sprite.cjs` (client sprite rule: type 2 Visible
+      // and type 7 Script draw `pv`; type 3 Collision only has editor art, so
+      // it must never glow), and materialised by `assemble_tms273.cjs`.  A
+      // missing asset here means "this portal draws nothing" — do not add a
+      // fallback beam.
       // A `script` payload no longer disqualifies a gate: TMS273 ships several
       // story doorways (楓之港 `east00` → 碼頭 with `pt_southperry`, 弓箭手村
       // `Achter00` → 培訓中心 with `enterAchter`, …) whose WZ `tm` is

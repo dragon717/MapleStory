@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-12';
+const version = 'tms273-13';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 require('./tms273_creation_catalog.cjs')(
@@ -204,7 +204,7 @@ gameplay.compatibility.minimapUi = 'T: the corner badge, the npcList panel/rows 
     const value = item.spec.moveTo;
     assert(Number.isInteger(value) && value > 0, `moveTo must be a positive integer: ${itemId}`);
   }
-  gameplay.compatibility.returnScroll = 'T: `Item/Consume` spec.moveTo selects the map-move consumables (2030000 回家卷軸 sentinel 999999999, 2030001 維多利亞港卷軸 104000000) and Map.wz info/returnMap is the town 2030000 targets. The runtime consumes one unit and lands the body on the destination map\'s authored `sp` spawn. P: the landing is a scroll\'s own arrival (no landing gate exists in the source item), and a town outside the assembled catalog is refused instead of being entered; field-limit rules that would forbid a scroll are not implemented.';
+  gameplay.compatibility.returnScroll = 'T: `Item/Consume` spec.moveTo selects the map-move consumables (2030000 回家卷軸 sentinel 999999999, 2030001 維多利亞港卷軸 104000000, 2030002 魔法森林卷軸 101000000) and Map.wz info/returnMap is the town 2030000 targets. The runtime consumes one unit and lands the body on the destination map\'s authored `sp` spawn. P: the landing is a scroll\'s own arrival (no landing gate exists in the source item), and a town outside the assembled catalog is refused instead of being entered; field-limit rules that would forbid a scroll are not implemented.';
 }
 // Chat emoticons (表情貼圖).  The server only needs what it must *own*: the set
 // of sendable sticker ids and the source's own send budget
@@ -241,7 +241,12 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
 // shared `pv/default` beam so scripted doorways (楓之港 `east00` → 碼頭,
 // 弓箭手村 `Achter00` → 培訓中心, …) are visible like any type-2 gate.
 // Same-map links (type 10 `bottom0`/`top0`) stay invisible on purpose.
+// Only types the client actually draws with `pv` art may carry that beam —
+// see `scripts/tms273_portal_sprite.cjs` for the WZ evidence.  Collision gates
+// (type 3) are invisible in game, so beaming them invented the two stacked
+// beams on 六條岔道's tree (`top00`/`top01`) that the user reported.
 {
+  const { beamSpriteForType, portalTypeCode } = require('./tms273_portal_sprite.cjs');
   const beam = Object.values(manifest.portals)[0];
   assert(beam?.frames?.length, 'Missing shared portal beam');
   const assembled = new Set(maps.map(map => map.id));
@@ -250,8 +255,17 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
     // Gates into maps that are not part of the assembled catalog stay
     // invisible; a beam there would advertise a route the player cannot take.
     if (!assembled.has(portal.targetMapId)) continue;
+    // `pt: 3` is the collision family (`pc`): the client only has editor art
+    // for it, so it draws nothing.  The gate still works on touch.
+    if (beamSpriteForType(portal.type) !== 'pv') continue;
     const key = `${map.id}/${portal.name}`;
-    if (manifest.portals[key]) continue;
+    const exported = manifest.portals[key];
+    if (exported) {
+      // `export_tms273.cjs portals` already wrote this one straight from the WZ
+      // `tm` route; keep it, but never let a stale entry change the type.
+      assert.equal(exported.type, portal.type, `Stale beam type for ${key}: export ${portalTypeCode(exported.type)} vs catalog ${portalTypeCode(portal.type)}`);
+      continue;
+    }
     manifest.portals[key] = { ...beam, mapId: map.id, portalName: portal.name, type: portal.type, frames: beam.frames, frameDelay: beam.frameDelay };
   }
 }

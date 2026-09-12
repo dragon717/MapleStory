@@ -4554,12 +4554,19 @@ include!("windbell_acceptance.rs");
             player.state.equipped = vec![equipped_wand];
             refresh_player_derived(&world.gameplay, &world.mage_skills, player);
         }
+        // 1372000 现在有 TMS273 源定义（魔法森林武器店 1031000 售卖），派生魔力攻击
+        // 由两部分构成：装备实例上的卷轴 inline 加成（incINT 5 → INT*4 = +20）和该
+        // 武器自身的源 `incMAD`（公式见 `derived.rs` 的 `bonus("incMAD")`）。
+        let wand_mad = inventory::equipment_attributes("1372000")
+            .get("incMAD")
+            .copied()
+            .unwrap_or(0);
         assert_eq!(
             world.players["mage-runtime"]
                 .state
                 .derived_stats
                 .magic_attack,
-            initial_magic_attack + 20
+            initial_magic_attack + 20 + wand_mad
         );
         assert_eq!(
             world.players["mage-runtime"].state.max_mp,

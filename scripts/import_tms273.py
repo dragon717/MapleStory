@@ -41,10 +41,13 @@ _STRING_TYPES = {"string", "wstring", "stringPool"}
 # 22000 is on the South Perry dock, 002010000 is the ship/travel staging map
 # (its source info has onUserEnter=goLith and returnMap=104000000), and 1541002
 # is on Victoria Harbor.  002010000 has no direct portal target in the source;
-# keeping its metadata does not synthesize one.
+# keeping its metadata does not synthesize one.  101000001/101000002 are the two
+# 魔法森林 interiors authored behind 101000000's `in00`/`in01` (武器/防具商店、
+# 雜貨店); they are the only maps those type-2 gates name.
 ADDITIONAL_STORY_MAP_IDS = (
     "002000100", "002010000", "104000000",
-    "101010100", "101010000", "101000000", "101000003",
+    "101010100", "101010000", "101000000", "101000001", "101000002",
+    "101000003",
     "100010100", "100010000", "100000000", "100000201",
     "130000000", "310040200", "310050000",
 )
