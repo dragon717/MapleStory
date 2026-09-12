@@ -1,17 +1,6 @@
 import { CONTENT_VERSION, PROTOCOL_VERSION, type ClientMessage, type LoginResponse, type ServerMessage } from '../../../shared/protocol';
 import { uiLocale } from '../app/i18n';
-export async function authenticate(username: string, password: string, register: boolean): Promise<LoginResponse> {
-  async function post(path: string) {
-    const response = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error || `请求失败 (${response.status})`);
-    return body;
-  }
-  if (register) await post('register');
-  const session: LoginResponse = await post('login');
-  if (session.protocolVersion !== PROTOCOL_VERSION || session.contentVersion !== CONTENT_VERSION) throw new Error('客户端与服务器版本不一致，请刷新页面。');
-  return session;
-}
+// authenticate（认证 HTTP）已迁到 ./auth-api（计划 §9.2）；本文件只保留实时连接。
 /** Terminal results must stop the retry loop, otherwise two pages or a banned
  *  session would fight forever over the same character. */
 const TERMINAL_CODES = new Set([
@@ -42,7 +31,7 @@ export class Connection {
   }
   connect() {
     this.stopped = false;
-    this.close();
+    this.closeSocket();
     this.report('connecting');
     let handshakeFailure = '';
     let acknowledged = false;
@@ -93,5 +82,12 @@ export class Connection {
       return false;
     }
   }
-  close() { clearTimeout(this.timeout); clearTimeout(this.retry); this.stopped = true; const socket = this.socket; this.socket = undefined; socket?.close(); }
+  /** Tears down the live socket and pending timers **without** touching the
+   *  retry gate.  `connect()` reuses this to swap sockets; the public
+   *  `close()` is the explicit teardown that additionally stops reconnecting.
+   *  (§9.3: the previous shape called `close()` from `connect()`, which left
+   *  `stopped = true` after every connect and silently disabled the
+   *  reconnect loop — pinned by session.check.mjs scenario 1.) */
+  private closeSocket() { clearTimeout(this.timeout); clearTimeout(this.retry); const socket = this.socket; this.socket = undefined; socket?.close(); }
+  close() { this.stopped = true; this.closeSocket(); }
 }

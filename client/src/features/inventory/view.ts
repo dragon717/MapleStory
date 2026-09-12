@@ -1,35 +1,24 @@
-import type { ClientMessage, InventoryItem, PlayerState, ServerMessage } from '../../../../shared/protocol';
+import type { ClientMessage, InventoryItem, ServerMessage } from '../../../../shared/protocol';
 import type { AssetFrame, EquipmentLayout, InventoryLayout, Manifest } from '../../assets/manifest';
 import { protocolText, uiLocale, uiText } from '../../app/i18n';
-import { equipmentSlot, itemCategoryTab, itemDetails, itemName } from './names';
+import { itemCategoryTab, itemDetails, itemName } from './names';
+import { TooltipController, tooltipSkin } from './tooltip-view';
+import {
+  TAB_COUNT,
+  TAB_LABEL_KEYS,
+  TAB_INVENTORY_TYPE,
+  comparisonTarget as comparisonTargetFor,
+  equippedAtSlot,
+  itemAtSlot,
+  slotLimit as slotLimitFor,
+  slotsDataset,
+  slotsSignature,
+  type InventoryPlayer,
+} from './view-model';
 import './style.css';
 
 const MIN_DROP_MESOS = 10;
 const MAX_DROP_MESOS = 50_000;
-const TAB_COUNT = 5;
-// Order mirrors the source-authored tab:category/<n> frame sequence
-// (裝備 / 消耗 / 其他 / 裝飾 / 現金).  Any reshuffle here must match
-// `inventoryLayout.small.tabs.count` and the `tab:category/<state>/<n>`
-// frames in manifest.inventoryUi.
-const TAB_LABEL_KEYS = ['inventoryEquip', 'inventoryUse', 'inventoryEtc', 'inventorySetup', 'inventoryCash'] as const;
-// Server-side inventory type per visible tab index.  Mirrors the
-// authoritative five-bucket catalog: 1=equip, 2=use, 3=setup, 4=etc, 5=cash.
-// The tab order above is *not* a straight +1 because the source frames put
-// 4 (Etc) before 3 (Setup).
-const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = {
-  0: 1,
-  1: 2,
-  2: 4,
-  3: 3,
-  4: 5,
-};
-
-/** Consumable cooldowns are server-owned; the window only renders them. */
-type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & {
-  equipped?: InventoryItem[];
-  potionCooldowns?: Record<string, number>;
-  inventorySlots?: Record<number, number>;
-};
 type AssetSet = Record<string, AssetFrame>;
 type SendClientMessage = (message: ClientMessage) => boolean;
 type UseItemMessage = Extract<ClientMessage, { type: 'useItem' }>;
@@ -63,13 +52,7 @@ export class InventoryView {
   private readonly tabPrev?: HTMLButtonElement;
   private readonly tabNext?: HTMLButtonElement;
   private readonly mesosLine?: HTMLDivElement;
-  private readonly tooltip?: HTMLDivElement;
-  private readonly tooltipContent?: HTMLDivElement;
-  private tooltipAnchor?: HTMLElement;
-  private tooltipAnchorHovered = false;
-  private tooltipAnchorFocused = false;
-  private tooltipHovered = false;
-  private tooltipHideTimer?: number;
+  private readonly tooltips: TooltipController;
   private readonly targetPrompt?: HTMLDivElement;
   private readonly equipmentWindow?: HTMLDivElement;
   private readonly equipmentCloseButton?: HTMLButtonElement;
@@ -130,6 +113,11 @@ export class InventoryView {
     // those siblings mounted when inventory is recreated after login.
     this.host.append(this.root);
 
+    this.tooltips = new TooltipController(this.root, tooltipSkin(this.ui), {
+      assetImage: (frame, className) => this.assetImage(frame, className),
+      detailsFor: (item, comparison) => itemDetails(item.itemId, item, comparison),
+    });
+
     document.addEventListener('keydown', this.handleKeyDown, true);
     document.addEventListener('dragover', this.handleDocumentDragOver, true);
     document.addEventListener('drop', this.handleDocumentDrop, true);
@@ -187,48 +175,6 @@ export class InventoryView {
     mesosLine.setAttribute('aria-label', this.t('金币', 'Mesos'));
     inventoryWindow.append(mesosLine);
     this.mesosLine = mesosLine;
-
-    const tooltip = document.createElement('div');
-    tooltip.className = 'inventory-tooltip';
-    tooltip.id = 'inventory-tooltip';
-    tooltip.hidden = true;
-    tooltip.setAttribute('role', 'tooltip');
-    tooltip.tabIndex = 0;
-    const tooltipTop = this.ui?.['tooltip:top'];
-    const tooltipMiddle = this.ui?.['tooltip:mid'];
-    const tooltipBottom = this.ui?.['tooltip:btm'];
-    if (tooltipTop && tooltipMiddle && tooltipBottom) {
-      tooltip.dataset.skin = 'source';
-      tooltip.style.setProperty('--inventory-tooltip-width', `${tooltipTop.width}px`);
-      tooltip.style.setProperty('--inventory-tooltip-top-height', `${tooltipTop.height}px`);
-      tooltip.style.setProperty('--inventory-tooltip-bottom-height', `${tooltipBottom.height}px`);
-      const top = this.assetImage(tooltipTop, 'inventory-tooltip-top');
-      const middle = document.createElement('div');
-      middle.className = 'inventory-tooltip-middle';
-      middle.style.backgroundImage = `url("${tooltipMiddle.url}")`;
-      const bottom = this.assetImage(tooltipBottom, 'inventory-tooltip-bottom');
-      tooltip.append(top, middle, bottom);
-    }
-    const content = document.createElement('div');
-    content.className = 'inventory-tooltip-content';
-    tooltip.append(content);
-    this.tooltipContent = content;
-    tooltip.addEventListener('pointerenter', () => {
-      this.tooltipHovered = true;
-      if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
-      this.tooltipHideTimer = undefined;
-    });
-    tooltip.addEventListener('pointerleave', () => {
-      this.tooltipHovered = false;
-      this.scheduleTooltipHide();
-    });
-    tooltip.addEventListener('focus', () => { this.tooltipHovered = true; });
-    tooltip.addEventListener('blur', () => {
-      this.tooltipHovered = false;
-      this.scheduleTooltipHide();
-    });
-    this.root.append(tooltip);
-    this.tooltip = tooltip;
 
     const targetPrompt = document.createElement('div');
     targetPrompt.className = 'inventory-target-prompt';
@@ -305,27 +251,16 @@ export class InventoryView {
     this.mesos = Math.max(0, Math.floor(player.mesos));
     this.potionCooldowns = { ...(player.potionCooldowns ?? {}) };
     this.inventorySlots = { ...(player.inventorySlots ?? {}) };
-    this.root.dataset.inventory = this.inventory
-      .map(item => String(itemCategoryTab(item.itemId) + 1) + ':' + item.slot + ':' + item.itemId + ':' + item.quantity)
-      .join(',');
+    this.root.dataset.inventory = slotsDataset(this.inventory);
     this.root.dataset.mesos = String(this.mesos);
     this.root.dataset.tab = String(this.selectedTab);
     this.renderMesos();
-    const signature = this.inventory
-      .slice()
-      .sort((left, right) => itemCategoryTab(left.itemId) - itemCategoryTab(right.itemId) || left.slot - right.slot)
-      .map(item => String(itemCategoryTab(item.itemId)) + ':' + item.slot + ':' + JSON.stringify(item))
-      .concat(this.equipped.map(item => 'equipped:' + item.slot + ':' + JSON.stringify(item)))
-      // Cooldown seconds tick down, so they belong to the render signature:
-      // without this the badge would freeze at the value it had when the
-      // inventory last changed.
-      .concat(Object.entries(this.potionCooldowns)
-        .map(([itemId, ms]) => `cd:${itemId}:${Math.ceil(ms / 1000)}`))
-      // Slot capacities change which cells are enabled, so they belong to the
-      // signature: expanding a tab must re-render its grid immediately.
-      .concat(Object.entries(this.inventorySlots)
-        .map(([type, slots]) => `cap:${type}:${slots}`))
-      .join('|');
+    const signature = slotsSignature({
+      inventory: this.inventory,
+      equipped: this.equipped,
+      potionCooldowns: this.potionCooldowns,
+      inventorySlots: this.inventorySlots,
+    });
     if (signature !== this.slotsSignature) {
       if (!this.keepGatherResultMode) this.sortMode = false;
       this.keepGatherResultMode = false;
@@ -429,8 +364,7 @@ export class InventoryView {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
-    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
-    this.tooltipHideTimer = undefined;
+    this.tooltips.destroy();
     this.observer?.disconnect();
     document.removeEventListener('keydown', this.handleKeyDown, true);
     document.removeEventListener('dragover', this.handleDocumentDragOver, true);
@@ -583,22 +517,16 @@ export class InventoryView {
       if (this.itemAt(slotNumber)) this.dropSlot(this.selectedTab, slotNumber);
     });
     slot.addEventListener('pointerenter', () => {
-      this.tooltipAnchorHovered = true;
+      this.tooltips.noteAnchorEnter();
       this.showSlotTooltip(slotNumber);
     });
-    slot.addEventListener('pointermove', () => this.positionTooltip(slot));
-    slot.addEventListener('pointerleave', () => {
-      this.tooltipAnchorHovered = false;
-      this.scheduleTooltipHide();
-    });
+    slot.addEventListener('pointermove', () => this.tooltips.position(slot));
+    slot.addEventListener('pointerleave', () => this.tooltips.noteAnchorLeave());
     slot.addEventListener('focus', () => {
-      this.tooltipAnchorFocused = true;
+      this.tooltips.noteAnchorFocus();
       this.showSlotTooltip(slotNumber);
     });
-    slot.addEventListener('blur', () => {
-      this.tooltipAnchorFocused = false;
-      this.scheduleTooltipHide();
-    });
+    slot.addEventListener('blur', () => this.tooltips.noteAnchorBlur());
     slot.addEventListener('dragstart', event => {
       const item = this.itemAt(slotNumber);
       if (!item || slot.disabled || this.pendingScroll) {
@@ -829,13 +757,12 @@ export class InventoryView {
   }
 
   private itemAt(slot: number, tab = this.selectedTab) {
-    return this.inventory.find(item => item.slot === slot && itemCategoryTab(item.itemId) === tab);
+    return itemAtSlot(this.inventory, slot, tab);
   }
 
   /** The current server-owned slot capacity for the visible tab. */
   private slotLimit(tab: number) {
-    const inventoryType = TAB_INVENTORY_TYPE[tab] ?? tab + 1;
-    return this.inventorySlots[inventoryType] ?? this.inventoryLayout.backendSlotLimit;
+    return slotLimitFor(this.inventorySlots, tab, this.inventoryLayout.backendSlotLimit);
   }
 
   private visibleItemAt(slot: number) {
@@ -1147,24 +1074,18 @@ export class InventoryView {
       }
     });
     button.addEventListener('pointerenter', () => {
-      this.tooltipAnchorHovered = true;
+      this.tooltips.noteAnchorEnter();
       const item = this.equippedAt(slotNumber);
-      if (item) this.showTooltipForItem(item, button);
+      if (item) this.tooltips.showForItem(item, button);
     });
-    button.addEventListener('pointermove', () => this.positionTooltip(button));
-    button.addEventListener('pointerleave', () => {
-      this.tooltipAnchorHovered = false;
-      this.scheduleTooltipHide();
-    });
+    button.addEventListener('pointermove', () => this.tooltips.position(button));
+    button.addEventListener('pointerleave', () => this.tooltips.noteAnchorLeave());
     button.addEventListener('focus', () => {
-      this.tooltipAnchorFocused = true;
+      this.tooltips.noteAnchorFocus();
       const item = this.equippedAt(slotNumber);
-      if (item) this.showTooltipForItem(item, button);
+      if (item) this.tooltips.showForItem(item, button);
     });
-    button.addEventListener('blur', () => {
-      this.tooltipAnchorFocused = false;
-      this.scheduleTooltipHide();
-    });
+    button.addEventListener('blur', () => this.tooltips.noteAnchorBlur());
     button.addEventListener('dragstart', event => {
       const item = this.equippedAt(slotNumber);
       if (!item || this.pendingScroll) {
@@ -1213,7 +1134,7 @@ export class InventoryView {
   }
 
   private equippedAt(slotNumber: number) {
-    return this.equipped.find(item => Math.abs(item.slot) === slotNumber);
+    return equippedAtSlot(this.equipped, slotNumber);
   }
 
   private canDropOnEquipment(source: DragSource, target: InventoryItem | undefined) {
@@ -1230,86 +1151,38 @@ export class InventoryView {
     const item = this.visibleItemAt(slotNumber);
     if (item) {
       const slot = this.grid?.querySelector<HTMLButtonElement>('[data-slot="' + slotNumber + '"]');
-      if (slot) this.showTooltipForItem(item, slot, this.comparisonTarget(item));
+      if (slot) this.tooltips.showForItem(item, slot, this.comparisonTarget(item));
     }
   }
 
   private comparisonTarget(item: InventoryItem): InventoryItem | null | undefined {
-    const slot = equipmentSlot(item.itemId);
-    if (slot === undefined) return undefined;
-    return this.equipped.find(current => Math.abs(current.slot) === slot) ?? null;
-  }
-
-  private showTooltipForItem(item: InventoryItem, anchor: HTMLElement, comparison?: InventoryItem | null) {
-    if (!this.tooltip) return;
-    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
-    this.tooltipHideTimer = undefined;
-    this.tooltipAnchor = anchor;
-    if (this.tooltipContent) this.tooltipContent.textContent = itemDetails(item.itemId, item, comparison);
-    else this.tooltip.textContent = itemDetails(item.itemId, item, comparison);
-    this.tooltip.hidden = false;
-    this.tooltip.dataset.itemId = item.itemId;
-    this.positionTooltip(anchor);
+    return comparisonTargetFor(item, this.equipped);
   }
 
   private refreshTooltip() {
-    const anchor = this.tooltipAnchor;
-    if (!anchor || !this.tooltip || this.tooltip.hidden) return;
-    if (anchor.classList.contains('inventory-slot')) {
-      const slot = anchor as HTMLButtonElement;
-      const item = this.itemAt(Number(anchor.dataset.slot));
-      if (item && !slot.hidden && !slot.disabled) {
-        this.showTooltipForItem(item, anchor, this.comparisonTarget(item));
-        return;
+    this.tooltips.refresh(anchor => {
+      if (anchor.classList.contains('inventory-slot')) {
+        const slot = anchor as HTMLButtonElement;
+        const item = this.itemAt(Number(anchor.dataset.slot));
+        if (item && !slot.hidden && !slot.disabled) {
+          this.tooltips.showForItem(item, anchor, this.comparisonTarget(item));
+          return true;
+        }
+        return false;
       }
-    } else if (anchor.classList.contains('equipment-slot')) {
-      const item = this.equippedAt(Number(anchor.dataset.slot));
-      if (item) {
-        this.showTooltipForItem(item, anchor);
-        return;
+      if (anchor.classList.contains('equipment-slot')) {
+        const item = this.equippedAt(Number(anchor.dataset.slot));
+        if (item) {
+          this.tooltips.showForItem(item, anchor);
+          return true;
+        }
       }
-    }
-    this.hideTooltip();
-  }
-
-  private positionTooltip(anchor: HTMLElement) {
-    if (!this.tooltip || this.tooltip.hidden) return;
-    const rect = anchor.getBoundingClientRect();
-    const viewportWidth = Math.max(1, window.innerWidth);
-    const width = Math.min(this.tooltip.offsetWidth || 220, Math.max(1, viewportWidth - 12));
-    const viewportHeight = Math.max(1, window.innerHeight);
-    const height = Math.min(this.tooltip.offsetHeight || 60, Math.max(1, viewportHeight - 12));
-    const gap = 6;
-    let left = rect.right + gap;
-    if (left + width > viewportWidth - 6) left = rect.left - width - gap;
-    const leftGutter = Math.min(6, Math.max(0, (viewportWidth - width) / 2));
-    left = Math.min(viewportWidth - width - leftGutter, Math.max(leftGutter, left));
-    let top = rect.top;
-    if (top + height > viewportHeight - 6) top = viewportHeight - height - 6;
-    const topGutter = Math.min(6, Math.max(0, (viewportHeight - height) / 2));
-    top = Math.min(viewportHeight - height - topGutter, Math.max(topGutter, top));
-    this.tooltip.style.left = Math.round(left) + 'px';
-    this.tooltip.style.top = Math.round(top) + 'px';
-  }
-
-  private scheduleTooltipHide() {
-    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
-    this.tooltipHideTimer = window.setTimeout(() => {
-      this.tooltipHideTimer = undefined;
-      if (!this.tooltipAnchorHovered && !this.tooltipAnchorFocused && !this.tooltipHovered) this.hideTooltip();
-    }, 160);
+      return false;
+    });
   }
 
   private hideTooltip() {
-    if (!this.tooltip) return;
-    if (this.tooltipHideTimer !== undefined) window.clearTimeout(this.tooltipHideTimer);
-    this.tooltipHideTimer = undefined;
-    this.tooltip.hidden = true;
-    this.tooltipAnchor = undefined;
-    this.tooltipAnchorHovered = false;
-    this.tooltipAnchorFocused = false;
-    this.tooltipHovered = false;
-    delete this.tooltip.dataset.itemId;
+    this.tooltips.hide();
   }
 
   private requestId(prefix: string) {
@@ -1585,7 +1458,7 @@ export class InventoryView {
       this.equipmentWindow.style.left = Math.min(maxLeft, Math.max(0, currentLeft)) + 'px';
       this.equipmentWindow.style.top = Math.min(maxTop, Math.max(0, currentTop)) + 'px';
     }
-    if (this.tooltip && !this.tooltip.hidden && this.tooltipAnchor) this.positionTooltip(this.tooltipAnchor);
+    this.tooltips.reposition();
   }
 
   private appendDisabled(slot: HTMLButtonElement) {

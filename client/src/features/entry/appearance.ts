@@ -1,4 +1,4 @@
-import type { Frame, Part, AvatarActionSet } from '../../assets/manifest';
+import type { Frame, Part, AvatarActionSet } from '../../assets/avatar-types';
 import type { Appearance } from './api';
 
 type AppearancePart = Part & { part: string; zName: string; itemId?: string };

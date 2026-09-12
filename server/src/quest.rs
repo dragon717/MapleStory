@@ -4,108 +4,42 @@
 //! 不是数据布局：`Player` / `World` 的字段仍在原处，协议、存档与 Tick 次序均未改变。
 //!
 //! ## 负责
-//! - 任务规则的**纯判定函数**（`quest_*` 静态函数）：前置、条件、职业、阶段、
-//!   消耗与奖励物品的形状归一化。不依赖 `self`，测试可以直接 `World::quest_*(...)` 调用。
-//! - NPC 侧的**任务表现**：菜单选项、目标文案与行、条目与日志。玩家语言的多语言文案
-//!   来自 `crate::quest_text`，这里只负责取用与兜底（未知 id 退化为 id 本身，不出空白行）。
 //! - **交互与结算的完整事务外观**：`handle_quest_interact` / `handle_quest_npc_menu`，
 //!   以及 `apply_quest_effect_at`——在同一事务里推进状态、扣材料、发奖励，成功后才回执。
+//! - NPC 侧的**任务表现**：菜单选项、目标文案与行、条目与日志。玩家语言的多语言文案
+//!   来自 `crate::quest_text`，这里只负责取用与兜底（未知 id 退化为 id 本身，不出空白行）。
 //! - 经验入账 `add_exp`：升级判定与进度归一化（`normalize_profile_progress`）都走这里。
+//! - 任务**纯判定**（前置、条件、职业、阶段、消耗与奖励物品的形状归一化）已按
+//!   计划 §6 抽到 `super::quest_rules`：那里不依赖整个 `World`，本模块通过
+//!   `quest_facts` 把玩家收窄成最小事实集再调用。
 //!
 //! ## 不负责
 //! - 任务**进度的事件来源**（击杀 / 拾取 / 到图）：那些 handler 留在 `world.rs` 与
-//!   `super::inventory_ops`，它们调用这里的判定函数；"我已完成"永远不是事实来源
+//!   `super::inventory_ops`，它们调用这里的判定；"我已完成"永远不是事实来源
 //! - 传送落点（`warp_player*` 留在 `world.rs`；路线目标只算出地图 id）
 //! - 任务文本目录本身：`crate::quest_text`
 
 use super::*;
+use super::quest_rules;
+
+/// 把完整 `Player` 收窄成任务判定所需的最小事实集（计划 §6.2）。
+/// 判定函数不接收 `World`，只接收这份只读视图。
+fn quest_facts(player: &Player) -> super::quest_rules::QuestFacts<'_> {
+    super::quest_rules::QuestFacts {
+        level: player.state.level,
+        job: player.state.job,
+        quests: &player.quests,
+        inventory: &player.state.inventory,
+        equipped: &player.state.equipped,
+    }
+}
 
 impl World {
-    fn quest_item_count(inventory: &[crate::protocol::InventoryItem], item_id: &str) -> u32 {
-        inventory
-            .iter()
-            .filter(|item| item.item_id == item_id)
-            .fold(0_u32, |total, item| total.saturating_add(item.quantity))
-    }
-
-    fn quest_equipped_item_count(
-        equipped: &[crate::protocol::InventoryItem],
-        item_id: &str,
-    ) -> u32 {
-        equipped
-            .iter()
-            .filter(|item| item.item_id == item_id)
-            .fold(0_u32, |total, item| {
-                total.saturating_add(item.quantity.max(1))
-            })
-    }
-
-    fn quest_jobs_match(conditions: &QuestConditions, job: u32) -> bool {
-        conditions.job.is_empty() || conditions.job.contains(&job)
-    }
-
-    fn quest_prerequisites_match(
-        player: &Player,
-        prerequisites: &[QuestPrerequisite],
-        or_option: bool,
-    ) -> bool {
-        // Source Check.QuestOrOption == 1 makes the quest list an OR: the phase
-        // requires any one satisfied prerequisite (route checkpoints are
-        // mutually exclusive), not every one.
-        let mut satisfied = prerequisites.iter().map(|requirement| {
-            let expected = requirement.status.as_deref().unwrap_or("completed");
-            player
-                .quests
-                .get(&requirement.quest_id)
-                .is_some_and(|status| status == expected)
-        });
-        if or_option {
-            satisfied.any(|matched| matched)
-        } else {
-            satisfied.all(|matched| matched)
-        }
-    }
-
-    fn quest_conditions_match(player: &Player, conditions: &QuestConditions) -> bool {
-        (conditions.level_at_least == 0 || player.state.level >= conditions.level_at_least)
-            && Self::quest_jobs_match(conditions, player.state.job)
-            && Self::quest_prerequisites_match(
-                player,
-                &conditions.quests,
-                conditions.quest_or_option,
-            )
-            && conditions.items.iter().all(|requirement| {
-                !requirement.item_id.is_empty()
-                    && requirement.quantity > 0
-                    && Self::quest_item_count(&player.state.inventory, &requirement.item_id)
-                        >= requirement.quantity
-            })
-            && conditions.equipped_items.iter().all(|item_id| {
-                !item_id.is_empty()
-                    && Self::quest_equipped_item_count(&player.state.equipped, item_id) > 0
-            })
-    }
-
     fn quest_phase_matches_npc(phase: &QuestPhase, template_id: &str) -> bool {
         phase
             .npc_id
             .as_deref()
             .is_some_and(|npc_id| npc_id == template_id)
-    }
-
-    fn quest_complete_items(spec: &QuestSpec) -> Vec<QuestItemRequirement> {
-        spec.complete.conditions.items.clone()
-    }
-
-    pub(super) fn quest_consume_items(spec: &QuestSpec) -> Vec<QuestItemRequirement> {
-        match &spec.complete.consume_items {
-            serde_json::Value::Array(items) => {
-                serde_json::from_value(serde_json::Value::Array(items.clone()))
-                    .unwrap_or_else(|_| Self::quest_complete_items(spec))
-            }
-            serde_json::Value::Bool(false) => Vec::new(),
-            _ => Self::quest_complete_items(spec),
-        }
     }
 
     fn quest_objective_text(
@@ -137,11 +71,11 @@ impl World {
     ) -> Vec<serde_json::Value> {
         let fallback = self.quest_summary(spec, "active", lang);
         if spec.objectives.is_empty() {
-            return Self::quest_complete_items(spec)
+            return quest_rules::complete_items(spec)
                 .into_iter()
                 .map(|requirement| {
                     let current =
-                        Self::quest_item_count(&player.state.inventory, &requirement.item_id);
+                        quest_rules::item_count(&player.state.inventory, &requirement.item_id);
                     serde_json::json!({
                         "text": fallback,
                         "current": current,
@@ -171,9 +105,9 @@ impl World {
             return 0;
         }
         if objective._kind == "equip" {
-            Self::quest_equipped_item_count(&player.state.equipped, &objective.item_id)
+            quest_rules::equipped_item_count(&player.state.equipped, &objective.item_id)
         } else {
-            Self::quest_item_count(&player.state.inventory, &objective.item_id)
+            quest_rules::item_count(&player.state.inventory, &objective.item_id)
         }
     }
 
@@ -183,10 +117,10 @@ impl World {
                 && !objective.item_id.is_empty()
                 && self.quest_objective_count(objective, player) >= objective.required
         });
-        let complete_items_ok = Self::quest_complete_items(spec).iter().all(|requirement| {
+        let complete_items_ok = quest_rules::complete_items(spec).iter().all(|requirement| {
             requirement.quantity > 0
                 && !requirement.item_id.is_empty()
-                && Self::quest_item_count(&player.state.inventory, &requirement.item_id)
+                && quest_rules::item_count(&player.state.inventory, &requirement.item_id)
                     >= requirement.quantity
         });
         objectives_ok && complete_items_ok
@@ -263,7 +197,10 @@ impl World {
             match status {
                 None => {
                     if Self::quest_phase_matches_npc(&spec.start, template_id)
-                        && Self::quest_conditions_match(player, &spec.start.conditions)
+                        && quest_rules::conditions_match(
+                            &quest_facts(player),
+                            &spec.start.conditions,
+                        )
                     {
                         choices.push((spec.quest_id.clone(), "start".to_owned()));
                     }
@@ -282,8 +219,10 @@ impl World {
                         choices.push((spec.quest_id.clone(), "route_start".to_owned()));
                     }
                     if Self::quest_phase_matches_npc(&spec.complete, template_id) {
-                        if Self::quest_conditions_match(player, &spec.complete.conditions)
-                            && self.quest_objectives_complete(spec, player)
+                        if quest_rules::conditions_match(
+                            &quest_facts(player),
+                            &spec.complete.conditions,
+                        ) && self.quest_objectives_complete(spec, player)
                         {
                             choices.push((spec.quest_id.clone(), "complete".to_owned()));
                         } else {
@@ -355,7 +294,8 @@ impl World {
         };
         let recheck_active_start = action == "route_start" && status == Some("active");
         if !Self::quest_phase_matches_npc(phase, template_id)
-            || (recheck_active_start && !Self::quest_conditions_match(player, &phase.conditions))
+            || (recheck_active_start
+                && !quest_rules::conditions_match(&quest_facts(player), &phase.conditions))
         {
             return None;
         }
@@ -413,8 +353,10 @@ impl World {
                     || interaction.map_id != map_id
                     || interaction.item_id.is_empty()
                     || interaction.quantity == 0
-                    || Self::quest_item_count(&player.state.inventory, &interaction.item_id)
-                        >= interaction.quantity
+                    || quest_rules::item_count(
+                        &player.state.inventory,
+                        &interaction.item_id,
+                    ) >= interaction.quantity
                 {
                     return None;
                 }
@@ -452,7 +394,7 @@ impl World {
             Some("active") => "active",
             Some(_) => return None,
             None if spec.executable()
-                && Self::quest_conditions_match(player, &spec.start.conditions) =>
+                && quest_rules::conditions_match(&quest_facts(player), &spec.start.conditions) =>
             {
                 "available"
             }
@@ -504,7 +446,7 @@ impl World {
                                 .objectives
                                 .iter()
                                 .any(|objective| objective._kind == "equip");
-                            let has_collect_goal = !Self::quest_complete_items(spec).is_empty()
+                            let has_collect_goal = !quest_rules::complete_items(spec).is_empty()
                                 || spec
                                     .objectives
                                     .iter()
@@ -944,7 +886,7 @@ impl World {
             );
             return false;
         }
-        if !Self::quest_conditions_match(&player_snapshot, &phase.conditions)
+        if !quest_rules::conditions_match(&quest_facts(&player_snapshot), &phase.conditions)
             || (wanted == "completed" && !self.quest_objectives_complete(&spec, &player_snapshot))
         {
             self.send_reject(
@@ -969,8 +911,8 @@ impl World {
             // reconnect or an already-worn quest hat cannot mint a second
             // copy; only the missing quantity is provisioned.
             for item in &spec.start_items {
-                let held = Self::quest_item_count(&next_state.inventory, &item.item_id)
-                    .saturating_add(Self::quest_equipped_item_count(
+                let held = quest_rules::item_count(&next_state.inventory, &item.item_id)
+                    .saturating_add(quest_rules::equipped_item_count(
                         &player_snapshot.state.equipped,
                         &item.item_id,
                     ));
@@ -1003,7 +945,7 @@ impl World {
             }
         }
         if wanted == "completed" {
-            for requirement in Self::quest_consume_items(&spec) {
+            for requirement in quest_rules::consume_items(&spec) {
                 if requirement.item_id.is_empty() || requirement.quantity == 0 {
                     continue;
                 }
@@ -1346,7 +1288,7 @@ impl World {
         let mut next_state = player_snapshot.state.clone();
         if self.store.is_none() {
             let held =
-                Self::quest_item_count(&player_snapshot.state.inventory, &interaction.item_id);
+                quest_rules::item_count(&player_snapshot.state.inventory, &interaction.item_id);
             if held >= interaction.quantity {
                 self.send_reject(
                     &id,

@@ -31,6 +31,9 @@ mod social;
 mod trade;
 #[path = "quest.rs"]
 mod quest;
+/// 任务纯规则（计划 §6 试点）：只做判定与归一化，不依赖整个 World。
+#[path = "quest_rules.rs"]
+mod quest_rules;
 #[path = "monsters.rs"]
 mod monsters;
 #[path = "skills.rs"]
@@ -6906,16 +6909,16 @@ mod tests {
             quantity: 2,
         }];
         spec.complete.consume_items = serde_json::json!([{"itemId":"4000001","quantity":3}]);
-        let items = World::quest_consume_items(&spec);
+        let items = quest_rules::consume_items(&spec);
         assert_eq!(items.len(), 1);
         assert_eq!((&*items[0].item_id, items[0].quantity), ("4000001", 3));
         for empty in [serde_json::json!([]), serde_json::json!(false)] {
             spec.complete.consume_items = empty;
-            assert!(World::quest_consume_items(&spec).is_empty());
+            assert!(quest_rules::consume_items(&spec).is_empty());
         }
         for fallback in [serde_json::json!(true), serde_json::Value::Null] {
             spec.complete.consume_items = fallback;
-            let items = World::quest_consume_items(&spec);
+            let items = quest_rules::consume_items(&spec);
             assert_eq!((&*items[0].item_id, items[0].quantity), ("4000000", 2));
         }
     }

@@ -1,6 +1,6 @@
 import type { LoginResponse } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
-import { authenticate } from '../../network/session';
+import { authenticate } from '../../network/auth-api';
 import { uiLocale, displayText } from '../../app/i18n';
 import { lobbyRequest, type Appearance, type CharacterList, type CharacterSummary } from './api';
 import { composeAppearance, initialEquipment, type AppearanceCatalog } from './appearance';

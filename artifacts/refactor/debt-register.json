@@ -1,0 +1,11 @@
+{
+  "_readme": [
+    "refactor_audit.cjs --check 的债务登记（MapleStory_Repository_Based_Refactoring_Plan.md §15.3）。",
+    "id 必须与审计报告逐字一致：violation 用 \"<rule>: <from> -> <to>\"，运行期环用环字符串。",
+    "每项必须有 reason 与 exit_plan；修复后应删除对应条目，而不是靠更新 id 掩盖新失败。"
+  ],
+  "_history": [
+    "2026-09-12 R5 清账：删除两笔登记——entry→session 违规（authenticate 迁至 network/auth-api.ts）与 manifest↔appearance 类型环（新增 assets/avatar-types.ts 类型叶）。"
+  ],
+  "items": []
+}

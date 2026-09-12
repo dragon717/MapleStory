@@ -1,22 +1,10 @@
 import type { AppearanceCatalog } from '../features/entry/appearance';
 import { CONTENT_VERSION } from '../../../shared/protocol.ts';
 import { frameAt } from '../features/player/animation.ts';
-export interface Point { x: number; y: number }
-export interface Part {
-  key: string;
-  url: string;
-  x: number;
-  y: number;
-  origin: Point;
-  z: number;
-  width?: number;
-  height?: number;
-  map?: Record<string, Point>;
-  source?: string;
-  resolvedSource?: string;
-  anchor?: string;
-}
-export interface Frame { delay: number; parts: Part[] }
+// 纸娃娃类型叶（计划 §9.1）：帧/部件/动作集迁到 avatar-types.ts，
+// 这里 re-export 保持既有 `from '../../assets/manifest'` 导入者不变。
+import type { AvatarActionSet, Frame, Part, Point } from './avatar-types';
+export type { AvatarActionSet, Frame, Part, Point } from './avatar-types';
 export interface Background { x: number; y: number; rx: number; ry: number; cx: number; cy: number; type: number; front: number; ani: number; f: number }
 export interface MapBounds { xMin: number; xMax: number; yMin: number; yMax: number }
 export interface MapLayer {
@@ -339,7 +327,7 @@ export interface CombatAssets {
   hit?: { sound?: string; soundSource?: string };
   damageNumbers?: { normal: DamageNumberSet; critical?: DamageNumberSet };
 }
-export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;
+// AvatarActionSet 定义在 ./avatar-types（见文件头 re-export）。
 export interface AvatarEquipmentLoadout {
   itemIds: string[];
   actions: AvatarActionSet;

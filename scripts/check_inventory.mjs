@@ -75,17 +75,20 @@ console.log('Default Chinese and explicit language selection passed.');
 // precedes frame 3.  These assertions pin the view constants to that source
 // order so a future reshuffle cannot silently reintroduce the straight ±1
 // mapping that once put 其他 items under 現金 and 裝飾 items under 其他.
-const viewSource = fs.readFileSync(`${root}/client/src/features/inventory/view.ts`, 'utf8');
-const labelsMatch = viewSource.match(/const TAB_LABEL_KEYS = \[([^\]]+)\] as const/);
-assert.ok(labelsMatch, 'view.ts must keep an explicit TAB_LABEL_KEYS order');
+// The tab constants moved to features/inventory/view-model.ts in the R4 split
+// (plan §8.2); the pin follows the declaration, the source order it protects
+// is unchanged.
+const viewModelSource = fs.readFileSync(`${root}/client/src/features/inventory/view-model.ts`, 'utf8');
+const labelsMatch = viewModelSource.match(/const TAB_LABEL_KEYS = \[([^\]]+)\] as const/);
+assert.ok(labelsMatch, 'view-model.ts must keep an explicit TAB_LABEL_KEYS order');
 const labels = labelsMatch[1].split(',').map(part => part.trim().replace(/^'|'$/g, ''));
 assert.deepEqual(
   labels,
   ['inventoryEquip', 'inventoryUse', 'inventoryEtc', 'inventorySetup', 'inventoryCash'],
   'tab order must mirror the source frame sequence 裝備/消耗/其他/裝飾/現金',
 );
-const typeMatch = viewSource.match(/const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = \{([\s\S]*?)\};/);
-assert.ok(typeMatch, 'view.ts must keep an explicit TAB_INVENTORY_TYPE map');
+const typeMatch = viewModelSource.match(/const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = \{([\s\S]*?)\};/);
+assert.ok(typeMatch, 'view-model.ts must keep an explicit TAB_INVENTORY_TYPE map');
 const tabTypeEntries = Object.fromEntries(
   typeMatch[1].split('\n')
     .map(line => line.match(/(\d+):\s*(\d+)/))

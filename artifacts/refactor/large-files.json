@@ -113,15 +113,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "server/src/world.rs",
-      "physical_lines": 18979,
-      "nonblank_lines": 18488,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "block",
-      "churn_last_100_commits": 39
-    },
-    {
       "path": "references/browser-probe/manifest.json",
       "physical_lines": 12948,
       "nonblank_lines": 12947,
@@ -140,13 +131,13 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "server/src/auth.rs",
-      "physical_lines": 8410,
-      "nonblank_lines": 8196,
+      "path": "server/src/world.rs",
+      "physical_lines": 8554,
+      "nonblank_lines": 8247,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "block",
-      "churn_last_100_commits": 17
+      "churn_last_100_commits": 45
     },
     {
       "path": "references/browser-probe/map.json",
@@ -186,12 +177,30 @@
     },
     {
       "path": "artifacts/refactor/large-files.json",
-      "physical_lines": 3691,
-      "nonblank_lines": 3690,
+      "physical_lines": 3700,
+      "nonblank_lines": 3699,
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
-      "churn_last_100_commits": 3
+      "churn_last_100_commits": 4
+    },
+    {
+      "path": "server/src/auth.rs",
+      "physical_lines": 3570,
+      "nonblank_lines": 3455,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 20
+    },
+    {
+      "path": "server/src/skills.rs",
+      "physical_lines": 2978,
+      "nonblank_lines": 2937,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
+      "churn_last_100_commits": 1
     },
     {
       "path": "shared/quest-glossary.json",
@@ -200,6 +209,15 @@
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/auth/db.rs",
+      "physical_lines": 1697,
+      "nonblank_lines": 1656,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "block",
       "churn_last_100_commits": 1
     },
     {
@@ -236,12 +254,21 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "needs-justification",
-      "churn_last_100_commits": 0
+      "churn_last_100_commits": 1
     },
     {
       "path": "MapleStory_Rust_Chat_Ops_Development_Plan.md",
       "physical_lines": 1379,
       "nonblank_lines": 1003,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/elemental.rs",
+      "physical_lines": 1377,
+      "nonblank_lines": 1348,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "needs-justification",
@@ -264,6 +291,15 @@
       "budget_exempt": false,
       "verdict": "needs-justification",
       "churn_last_100_commits": 10
+    },
+    {
+      "path": "server/src/monsters.rs",
+      "physical_lines": 1213,
+      "nonblank_lines": 1181,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 1
     },
     {
       "path": "server/src/boss.rs",
@@ -302,6 +338,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "世界意识/MapleStory_Destiny_Repository_Implementation_Plan_v0.2.md",
+      "physical_lines": 1107,
+      "nonblank_lines": 764,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 0
+    },
+    {
       "path": "世界意识/MapleStory_Destiny_World_Recognizes_You_Design_v0.1.md",
       "physical_lines": 1095,
       "nonblank_lines": 716,
@@ -309,6 +354,24 @@
       "budget_exempt": false,
       "verdict": "needs-justification",
       "churn_last_100_commits": 0
+    },
+    {
+      "path": "MapleStory_Rust_Chat_Ops_Repo_Based_Plan_v2.md",
+      "physical_lines": 1081,
+      "nonblank_lines": 744,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "needs-justification",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/protocol.rs",
+      "physical_lines": 1035,
+      "nonblank_lines": 1004,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 22
     },
     {
       "path": "client/src/features/skills/view.ts",
@@ -320,13 +383,13 @@
       "churn_last_100_commits": 4
     },
     {
-      "path": "server/src/protocol.rs",
-      "physical_lines": 1032,
-      "nonblank_lines": 1001,
+      "path": "世界意识/MapleStory_世界节点机制_仓库适配开发计划_v0.2.md",
+      "physical_lines": 974,
+      "nonblank_lines": 667,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
-      "churn_last_100_commits": 21
+      "churn_last_100_commits": 0
     },
     {
       "path": "bugfix/MapleStory_Web后台保活与暂离驻留_开发方案.md",
@@ -374,18 +437,18 @@
       "churn_last_100_commits": 2
     },
     {
-      "path": "server/src/social.rs",
-      "physical_lines": 843,
-      "nonblank_lines": 803,
+      "path": "server/src/commands.rs",
+      "physical_lines": 855,
+      "nonblank_lines": 852,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
-      "churn_last_100_commits": 1
+      "churn_last_100_commits": 2
     },
     {
-      "path": "MapleStory_TMS273_Web_Realtime_HMR_Development_Plan.md",
-      "physical_lines": 838,
-      "nonblank_lines": 575,
+      "path": "server/src/social.rs",
+      "physical_lines": 843,
+      "nonblank_lines": 803,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
@@ -428,6 +491,15 @@
       "churn_last_100_commits": 4
     },
     {
+      "path": "MapleStory_Repository_Based_Refactoring_Plan.md",
+      "physical_lines": 785,
+      "nonblank_lines": 544,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "MapleStory_Large_File_Refactoring_Plan.md",
       "physical_lines": 781,
       "nonblank_lines": 528,
@@ -446,6 +518,15 @@
       "churn_last_100_commits": 22
     },
     {
+      "path": "MapleStory_TMS273_Web_Realtime_HMR_Repo_Reviewed_v2.md",
+      "physical_lines": 772,
+      "nonblank_lines": 541,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "server/src/party_acceptance.rs",
       "physical_lines": 767,
       "nonblank_lines": 681,
@@ -455,6 +536,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "server/src/dialogue.rs",
+      "physical_lines": 747,
+      "nonblank_lines": 739,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "IMPLEMENTATION_STATUS.md",
       "physical_lines": 738,
       "nonblank_lines": 461,
@@ -462,6 +552,33 @@
       "budget_exempt": false,
       "verdict": "warn",
       "churn_last_100_commits": 16
+    },
+    {
+      "path": "MapleStory_TMS273_Main_Quest_Repair_Plan_Repo_1fefe97.md",
+      "physical_lines": 737,
+      "nonblank_lines": 562,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "世界意识/MapleStory_TMS273_Main_Quest_Repair_Plan_Repo_1fefe97.md",
+      "physical_lines": 737,
+      "nonblank_lines": 562,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 0
+    },
+    {
+      "path": "bugfix/MapleStory_Platform_Sidewall_Collision_Plan_Repo_Revision.md",
+      "physical_lines": 734,
+      "nonblank_lines": 515,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "warn",
+      "churn_last_100_commits": 1
     },
     {
       "path": "server/src/scroll_acceptance.rs",
@@ -480,6 +597,15 @@
       "budget_exempt": false,
       "verdict": "warn",
       "churn_last_100_commits": 7
+    },
+    {
+      "path": "server/src/auth/loot.rs",
+      "physical_lines": 696,
+      "nonblank_lines": 681,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
     },
     {
       "path": "client/src/app/main.ts",
@@ -506,6 +632,15 @@
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "warn",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/auth/skills.rs",
+      "physical_lines": 681,
+      "nonblank_lines": 671,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
       "churn_last_100_commits": 1
     },
     {
@@ -536,6 +671,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "server/src/auth/bag.rs",
+      "physical_lines": 643,
+      "nonblank_lines": 629,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "client/src/assets/manifest.ts",
       "physical_lines": 637,
       "nonblank_lines": 636,
@@ -554,13 +698,22 @@
       "churn_last_100_commits": 7
     },
     {
-      "path": "server/src/messaging.rs",
-      "physical_lines": 610,
-      "nonblank_lines": 597,
+      "path": "server/src/geometry.rs",
+      "physical_lines": 623,
+      "nonblank_lines": 579,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/messaging.rs",
+      "physical_lines": 615,
+      "nonblank_lines": 602,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
     },
     {
       "path": "client/src/features/world/water.ts",
@@ -578,6 +731,24 @@
       "category": "test-or-fixture-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/movement.rs",
+      "physical_lines": 599,
+      "nonblank_lines": 586,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/auth/schema.rs",
+      "physical_lines": 585,
+      "nonblank_lines": 582,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
       "churn_last_100_commits": 1
     },
     {
@@ -662,6 +833,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "server/src/growth.rs",
+      "physical_lines": 507,
+      "nonblank_lines": 496,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "client/src/features/hud/view.ts",
       "physical_lines": 502,
       "nonblank_lines": 463,
@@ -680,6 +860,15 @@
       "churn_last_100_commits": 4
     },
     {
+      "path": "scripts/check_tms273_runtime.cjs",
+      "physical_lines": 493,
+      "nonblank_lines": 486,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 13
+    },
+    {
       "path": "client/src/features/world/friend-view.ts",
       "physical_lines": 489,
       "nonblank_lines": 440,
@@ -687,15 +876,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 1
-    },
-    {
-      "path": "scripts/check_tms273_runtime.cjs",
-      "physical_lines": 485,
-      "nonblank_lines": 478,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 12
     },
     {
       "path": "世界意识/MapleStory_World_Awareness_Engagement_Model_v0.1.md",
@@ -746,6 +926,15 @@
       "path": "client/src/features/world/storage-view.ts",
       "physical_lines": 474,
       "nonblank_lines": 424,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/gameplay.rs",
+      "physical_lines": 468,
+      "nonblank_lines": 455,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -869,6 +1058,15 @@
       "churn_last_100_commits": 1
     },
     {
+      "path": "server/src/auth/friends.rs",
+      "physical_lines": 385,
+      "nonblank_lines": 369,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "scripts/export_tms273_minimap.cjs",
       "physical_lines": 379,
       "nonblank_lines": 358,
@@ -911,6 +1109,15 @@
       "category": "test-or-fixture-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/attacks.rs",
+      "physical_lines": 367,
+      "nonblank_lines": 363,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
       "churn_last_100_commits": 1
     },
     {
@@ -1049,15 +1256,6 @@
       "churn_last_100_commits": 1
     },
     {
-      "path": "bugfix/MapleStory_Platform_Sidewall_Collision_Plan.md",
-      "physical_lines": 312,
-      "nonblank_lines": 194,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 1
-    },
-    {
       "path": "tms273_research_pack/MapleStory273_Online_Gallery.html",
       "physical_lines": 306,
       "nonblank_lines": 306,
@@ -1157,6 +1355,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "server/src/derived.rs",
+      "physical_lines": 267,
+      "nonblank_lines": 264,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "client/src/features/world/worldmap.check.mjs",
       "physical_lines": 266,
       "nonblank_lines": 247,
@@ -1182,6 +1389,15 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 2
+    },
+    {
+      "path": "server/src/portals.rs",
+      "physical_lines": 260,
+      "nonblank_lines": 253,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
     },
     {
       "path": "client/src/features/entry/view.ts",
@@ -1247,6 +1463,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "docs/architecture/large-file-audit.md",
+      "physical_lines": 249,
+      "nonblank_lines": 195,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 4
+    },
+    {
       "path": "server/src/third_acceptance.rs",
       "physical_lines": 248,
       "nonblank_lines": 236,
@@ -1292,6 +1517,15 @@
       "churn_last_100_commits": 2
     },
     {
+      "path": "server/src/auth/quests.rs",
+      "physical_lines": 236,
+      "nonblank_lines": 220,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
       "path": "client/src/features/loading/view.ts",
       "physical_lines": 234,
       "nonblank_lines": 214,
@@ -1299,15 +1533,6 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 2
-    },
-    {
-      "path": "docs/architecture/large-file-audit.md",
-      "physical_lines": 232,
-      "nonblank_lines": 181,
-      "category": "handwritten-or-unclassified",
-      "budget_exempt": false,
-      "verdict": "ok",
-      "churn_last_100_commits": 3
     },
     {
       "path": "qa/contact_respawn_probe.mjs",
@@ -1370,6 +1595,15 @@
       "category": "data-or-config-candidate",
       "budget_exempt": true,
       "verdict": "exempt-by-category",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "server/src/revive.rs",
+      "physical_lines": 225,
+      "nonblank_lines": 216,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
       "churn_last_100_commits": 1
     },
     {
@@ -1563,12 +1797,12 @@
     },
     {
       "path": "BACKEND_ARCHITECTURE.md",
-      "physical_lines": 184,
-      "nonblank_lines": 133,
+      "physical_lines": 185,
+      "nonblank_lines": 134,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
-      "churn_last_100_commits": 4
+      "churn_last_100_commits": 5
     },
     {
       "path": "UI_WINDOW_SYSTEM.md",
@@ -1587,6 +1821,15 @@
       "budget_exempt": true,
       "verdict": "exempt-by-category",
       "churn_last_100_commits": 3
+    },
+    {
+      "path": "server/src/combat_rules.rs",
+      "physical_lines": 182,
+      "nonblank_lines": 172,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 2
     },
     {
       "path": "qa/minimap-header-shot.mjs",
@@ -1619,6 +1862,15 @@
       "path": "scripts/export_tms273_npc_marker.cjs",
       "physical_lines": 171,
       "nonblank_lines": 151,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
+    },
+    {
+      "path": "scripts/package_win_bundle.cjs",
+      "physical_lines": 167,
+      "nonblank_lines": 140,
       "category": "handwritten-or-unclassified",
       "budget_exempt": false,
       "verdict": "ok",
@@ -1794,6 +2046,15 @@
       "budget_exempt": false,
       "verdict": "ok",
       "churn_last_100_commits": 2
+    },
+    {
+      "path": "artifacts/refactor/world_rules_split.cjs",
+      "physical_lines": 138,
+      "nonblank_lines": 125,
+      "category": "handwritten-or-unclassified",
+      "budget_exempt": false,
+      "verdict": "ok",
+      "churn_last_100_commits": 1
     },
     {
       "path": "server/src/third_store_acceptance.rs",

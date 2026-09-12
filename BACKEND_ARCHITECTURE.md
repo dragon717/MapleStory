@@ -27,7 +27,8 @@
 | `world::inventory_ops`（`inventory_ops.rs`） | 物品意图的完整事务外观：拾取 / 拖动 / 丢弃 / 整理 / 使用 / 丢金币 |
 | `world::social`（`social.rs`） | 组队与好友 / 黑名单：关系生命周期、在线状态派生、requestId 幂等重放 |
 | `world::trade`（`trade.rs`） | NPC 商店买 / 卖与账号仓库：事务外观、keeper 距离复核、转账副作用重读、回执下发 |
-| `world::quest`（`quest.rs`） | 任务列表 / NPC 菜单 / 交互与效果结算、任务规则纯判定、经验入账 `add_exp` |
+| `world::quest`（`quest.rs`） | 任务列表 / NPC 菜单 / 交互与效果结算、经验入账 `add_exp`；纯判定已下沉到 `quest_rules` |
+| `world::quest_rules`（`quest_rules.rs`） | 任务纯规则（计划 §6 试点）：前置 / 条件 / 职业 / 消耗清单归一化。**唯一不用 `use super::*` 的 world 子模块**——依赖显式列出，函数只收窄输入（`QuestFacts`），不接 `World` / `Store`；事务与回执仍留在 `world::quest` |
 | `world::boss`（`boss.rs`） | Boss 练习场的源规则常量与阶段；`#[path]` 子模块的**最早先例** |
 | `inventory.rs` | 物品目录、堆叠与容量规则、装备属性计算（与 `inventory_ops` 分工见 2.2 第 10 条） |
 | `npc.rs` | NPC 摆放、数据驱动对话状态机、商店 |

@@ -1,14 +1,21 @@
 {
   "generated_by": "scripts/refactor_audit.cjs",
-  "generated_for": "MapleStory_Large_File_Refactoring_Plan.md §14.2",
+  "generated_for": "MapleStory_Large_File_Refactoring_Plan.md §2.2 / §14.2",
   "scope": "client/src 全部 .ts/.tsx/.js/.mjs/.cjs",
+  "extractor": "typescript-ast 5.9.3",
   "limitations": [
-    "静态正则抽取 import/export-from；动态 import() 与字符串拼接路径未覆盖。",
-    "仅类型导入与运行期导入未区分（计划 §14.2 要求分别报告，此处合并，见 limitations）。",
+    "字符串拼接的动态 import 无法静态解析，单列在 dynamic_unresolved，不当作不存在。",
+    "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 81,
-  "edge_count": 154,
+  "node_count": 88,
+  "edge_count": 169,
+  "edge_kind_counts": {
+    "dynamic": 1,
+    "type": 59,
+    "value": 95,
+    "side-effect": 14
+  },
   "external_specifiers": [
     "esbuild",
     "node:assert/strict",
@@ -22,638 +29,868 @@
     "typescript"
   ],
   "unresolved": [],
-  "cycles": [
-    "client/src/assets/manifest.ts -> client/src/features/entry/appearance.ts -> client/src/assets/manifest.ts"
-  ],
+  "dynamic_unresolved": [],
+  "runtime_cycles": [],
+  "type_cycles": [],
   "rules": [
     "entry-app-not-imported-by-features",
     "network-session-not-imported-by-features",
     "asset-manifest-not-imported-by-network",
     "scene-layer-not-imported-by-features"
   ],
-  "violations": [
-    {
-      "rule": "network-session-not-imported-by-features",
-      "from": "client/src/features/entry/view.ts",
-      "to": "client/src/network/session.ts"
-    }
-  ],
+  "violations": [],
+  "known_debt": [],
+  "fresh_violations": [],
+  "debt_register": "artifacts/refactor/debt-register.json",
   "edges": [
     {
-      "from": "client/src/app/main.ts",
-      "to": "shared/protocol.ts"
+      "from": "client/src/app/i18n.check.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "dynamic"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/network/session.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/player/input.ts"
+      "to": "client/src/network/session.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/storage-view.ts"
+      "to": "client/src/features/player/input.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/party-view.ts"
+      "to": "client/src/features/world/storage-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/minimap-view.ts"
+      "to": "client/src/features/world/party-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/worldmap-view.ts"
+      "to": "client/src/features/world/minimap-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/friend-view.ts"
+      "to": "client/src/features/world/minimap.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/chat/emoticon-view.ts"
+      "to": "client/src/features/world/worldmap-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/features/world/worldmap.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/features/world/friend-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/hud/view.ts"
+      "to": "client/src/features/chat/emoticon-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/inventory/view.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/inventory/names.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/chat/view.ts"
+      "to": "client/src/features/hud/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/notice/death.ts"
+      "to": "client/src/features/inventory/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/notice/away.ts"
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/menu/view.ts"
+      "to": "client/src/features/chat/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/npc/dialogue.ts"
+      "to": "client/src/features/notice/death.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/quest/log.ts"
+      "to": "client/src/features/notice/away.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/skills/view.ts"
+      "to": "client/src/features/menu/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/character/view.ts"
+      "to": "client/src/features/npc/dialogue.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/scenes/world.ts"
+      "to": "client/src/features/quest/log.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/entry/view.ts"
+      "to": "client/src/features/skills/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/loading/view.ts"
+      "to": "client/src/features/character/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/app/ui-router.ts"
+      "to": "client/src/scenes/world.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/minimap.css"
+      "to": "client/src/app/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/world/worldmap.css"
+      "to": "client/src/features/hud/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/app/style.css"
+      "to": "client/src/features/hud/buff.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/hud/style.css"
+      "to": "client/src/features/entry/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
-      "to": "client/src/features/hud/buff.css"
+      "to": "client/src/features/loading/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/app/ui-router.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/assets/manifest.ts",
-      "to": "client/src/features/entry/appearance.ts"
+      "to": "client/src/features/entry/appearance.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/assets/manifest.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/assets/manifest.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/assets/manifest.ts",
+      "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/assets/manifest.ts",
+      "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/character/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/character/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/character/view.ts",
-      "to": "client/src/features/character/style.css"
+      "to": "client/src/features/character/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/chat/emoticon-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/chat/emoticon-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/chat/emoticon-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/chat/emoticon-view.ts",
-      "to": "client/src/features/chat/emoticon.css"
+      "to": "client/src/features/chat/emoticon.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/chat/scroll.check.ts",
-      "to": "client/src/features/chat/scroll.ts"
+      "to": "client/src/features/chat/scroll.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/chat/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/chat/view.ts",
-      "to": "client/src/features/ui/window-shell.ts"
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/chat/view.ts",
-      "to": "client/src/features/chat/scroll.ts"
+      "to": "client/src/features/chat/scroll.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/chat/view.ts",
-      "to": "client/src/features/chat/style.css"
+      "to": "client/src/features/chat/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/combat/damage-number.check.ts",
-      "to": "client/src/features/combat/damage-number.ts"
+      "to": "client/src/features/combat/damage-number.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/combat/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/combat/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/combat/view.ts",
-      "to": "client/src/features/combat/damage-number.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/combat/view.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/features/combat/damage-number.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/combat/view.ts",
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/api.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/api.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/entry/api.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/entry/api.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/entry/appearance.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/entry/appearance.ts",
-      "to": "client/src/features/entry/api.ts"
+      "to": "client/src/features/entry/api.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/network/session.ts"
+      "to": "client/src/network/auth-api.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/features/entry/api.ts"
+      "to": "client/src/features/entry/api.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/features/entry/appearance.ts"
+      "to": "client/src/features/entry/appearance.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/view.ts",
-      "to": "client/src/features/entry/style.css"
+      "to": "client/src/features/entry/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/hud/buff-bar.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/hud/gauge.check.ts",
-      "to": "client/src/features/hud/view.ts"
+      "to": "client/src/features/hud/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/hud/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/hud/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/hud/view.ts",
-      "to": "client/src/features/player/input.ts"
+      "to": "client/src/features/player/input.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/hud/view.ts",
-      "to": "client/src/features/hud/buff-bar.ts"
+      "to": "client/src/features/hud/buff-bar.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/names.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/names.ts",
-      "to": "shared/items.json"
+      "to": "shared/items.json",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/names.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/tooltip-view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/tooltip-view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/view-model.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/view-model.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/inventory/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/inventory/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/view.ts",
-      "to": "client/src/features/inventory/names.ts"
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/inventory/view.ts",
-      "to": "client/src/features/inventory/style.css"
+      "to": "client/src/features/inventory/tooltip-view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/features/inventory/view-model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/features/inventory/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/loading/view 2.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/loading/view 2.ts",
-      "to": "client/src/features/loading/style.css"
+      "to": "client/src/features/loading/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/loading/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/loading/view.ts",
-      "to": "client/src/features/loading/style.css"
+      "to": "client/src/features/loading/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/menu/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/features/menu/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/menu/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/menu/view.ts",
-      "to": "client/src/features/ui/window-shell.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/menu/view.ts",
-      "to": "client/src/features/menu/style.css"
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/mob/pickup-motion.check.ts",
-      "to": "client/src/features/mob/pickup-motion.ts"
+      "to": "client/src/features/mob/pickup-motion.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/mob/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/mob/view.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/mob/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/mob/view.ts",
-      "to": "client/src/features/mob/pickup-motion.ts"
+      "to": "client/src/features/mob/pickup-motion.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/notice/away.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/notice/death.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/notice/death.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/npc/dialogue.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/npc/dialogue.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/npc/dialogue.ts",
-      "to": "client/src/features/inventory/names.ts"
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/npc/dialogue.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/npc/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/npc/view.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/npc/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/player/animation.check.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/player/animation.check.ts",
-      "to": "client/src/features/player/action-events.ts"
+      "to": "client/src/features/player/action-events.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/player/input.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/player/pickup.check.ts",
-      "to": "client/src/features/player/pickup.ts"
+      "to": "client/src/features/player/pickup.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/player/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/player/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/player/view.ts",
-      "to": "client/src/features/player/animation.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/player/view.ts",
-      "to": "client/src/features/entry/appearance.ts"
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/player/view.ts",
+      "to": "client/src/features/entry/appearance.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/quest/log.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/quest/log.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/quest/log.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/quest/log.ts",
-      "to": "client/src/features/ui/window-shell.ts"
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "client/src/features/player/input.ts"
+      "to": "client/src/features/player/input.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "client/src/features/ui/window-shell.ts"
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/skills/view.ts",
-      "to": "client/src/features/skills/style.css"
+      "to": "client/src/features/skills/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/features/ui/window-shell.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/friend-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/friend-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/friend-view.ts",
-      "to": "client/src/features/character/view.ts"
+      "to": "client/src/features/character/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/friend-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/minimap-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/minimap-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/minimap-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/minimap-view.ts",
-      "to": "client/src/features/ui/window-shell.ts"
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/party-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/party-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/party-view.ts",
-      "to": "client/src/features/character/view.ts"
+      "to": "client/src/features/character/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/party-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/portal-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/reactor-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/reactor-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/storage-view.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/storage-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/storage-view.ts",
-      "to": "client/src/features/inventory/names.ts"
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/storage-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/world/water.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/worldmap-view.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/world/worldmap-view.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/network/auth-api.ts",
+      "to": "shared/protocol.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/network/session.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/network/session.ts",
-      "to": "client/src/app/i18n.ts"
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/layer-animation.check.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/player/pickup.ts"
+      "to": "client/src/features/player/pickup.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "shared/protocol.ts"
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/assets/manifest.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/player/view.ts"
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/mob/view.ts"
+      "to": "client/src/features/player/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/npc/view.ts"
+      "to": "client/src/features/mob/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/world/portal-view.ts"
+      "to": "client/src/features/npc/view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/world/reactor-view.ts"
+      "to": "client/src/features/world/portal-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/world/water.ts"
+      "to": "client/src/features/world/reactor-view.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/combat/view.ts"
+      "to": "client/src/features/world/water.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/scenes/world.ts",
-      "to": "client/src/features/player/action-events.ts"
+      "to": "client/src/features/combat/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/player/action-events.ts",
+      "kind": "value"
     }
-  ]
+  ],
+  "source_commit": "99b7cbf24c710f436f829736b6203c82a349fab7",
+  "working_tree_dirty": true,
+  "node_version": "v22.22.2",
+  "generated_at": "2026-09-12T07:13:01.220Z"
 }
