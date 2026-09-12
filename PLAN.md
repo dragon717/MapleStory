@@ -16,16 +16,17 @@
 - [ ] **删除 3 个 iCloud 冲突副本**（已被 git 跟踪，非本轮产生）：
   `client/src/features/loading/` 下的 `style 2.css` / `view 2.ts` / `view.check 2.mjs`。
   判据：原文件时间戳更新 ⇒ 副本是陈旧重复物。**属于删除已跟踪文件，等你确认后再删**。
-- [ ] **防回潮门禁是否接线**。CI 拦截"新增巨型文件 / 跨域深层导入 / 依赖环"的检查脚本已可运行
-  （`scripts/refactor_audit.cjs`），但**尚未挂到 CI**，本轮只提供工具。
-  2026-09-12 更新：脚本已支持 `--check` 增量门禁（未登记违规 exit 1）与 `--self-test` 自测，
-  债务登记在 `artifacts/refactor/debt-register.json`；接线仍是待办。
+- [x] **防回潮门禁接线（R10 完成，2026-09-12）**。`scripts/refactor_audit.cjs --deps --check` 已挂进
+  `client/scripts/run-checks.mjs`（仓库级末项），`npm run check` 25/25 全绿 = 门禁通过；
+  例外登记在 `artifacts/refactor/debt-register.json`（当前 0 项债务）。
+  本仓库无远程 CI——将来接入 CI 时执行同一条命令即可：`node scripts/refactor_audit.cjs --deps --check`。
+  新增越界（新巨型文件/跨域深层导入/依赖环）会令 `npm run check` 失败；历史债务不自动扩张。
 
 ## 仓库重构计划（MapleStory_Repository_Based_Refactoring_Plan.md）进度
 
 > 2026-09-12 按 R0→R11 阶段表推进；本节记录已完成与未完成。改动**未提交**，回滚点 = 当前工作树 `git diff`。
 
-### 已完成（R0–R5）
+### 已完成（R0–R8）
 
 - [x] **R0 基准固化**：HEAD `99b7cbf`；cargo test 292过/6失败（失败集与计划 §2.1 逐名一致）；
   尺寸报告刷新（world.rs 8,554 / auth.rs 3,570）；依赖审计复现 §9 两个已知问题。
@@ -59,16 +60,77 @@
   `refactor_audit.cjs --deps --check` → runtime_cycles=0 / type_cycles=0 / violations=0 / known-debt=0；
   `--self-test` 通过；cargo 基线未受本轮影响（297过/6失败、警告 40）。
 
+- [x] **R6 拾取用例规则输入收窄 + 事务时序成文**：新增 `server/src/pickup_rules.rs`（quest_rules 同款纪律：
+  不用 `use super::*`、窄输入 `PickupFacts`/`PickupVerdict`、不接 World/Store/网络）——掉落可得性判定
+  （地图/归属保护/距离/内存容量预检）与图鉴饱和入账从 `handle_pickup` 纯搬出，拒绝码与文案逐字保留；
+  `handle_pickup` 保留幂等查询、Store 提交、世界回填与回执顺序（未动事务）。先补齐四个窗口的保护测试
+  再搬移：新增 `pickup_store_windows_replay_prior_failure_and_side_effect_free_reject`（成功/重放/持久化失败）
+  与 `pickup_backfill_failure_after_commit_keeps_persisted_truth`（事务成功+回填失败：资产以持久化为准）
+  两个 world 层测试 + pickup_rules 5 个纯规则单测。事务时序与失败窗口说明成文于
+  `BACKEND_ARCHITECTURE.md` §6.1，模块表加 `world::pickup_rules` 条目。
+  验证：cargo test **304过/6失败**（失败集与基线逐名一致，+7 新测试）；新代码零警告；
+  audit `--deps --check` OK（0 环 0 违规 0 债务）；`check_tms273_runtime` OK。
+
+- [x] **R7 背包交互职责拆完**：新增 `features/inventory/drag-controller.ts`（DragController：拖拽来源状态、
+  背包/装备槽拖拽绑定、document 级拖出丢弃；只**输出意图回调** moveItem/dropItem/unequip/
+  useScrollOnEquipment/useItem，不拥有槽位/金币真值与 requestId）与 `equipment-view.ts`
+  （EquipmentView：装备窗口 DOM、开合状态、槽位渲染与点击/双击/右键交互；数据经 `equippedItemAt`/
+  `itemFrame` 窄回调只读）；`view.ts` 1512→1244 行，保留门面 API、组装、requestId 生成、窗口拖动、
+  键盘与布局（intents.ts 未建——意图构造+发送留在门面，符合 §8.2"需要时"措辞，未复制状态）。
+  每个子模块只收窄回调（DragHost 12 个 / EquipmentHost 14 个），无共享巨型 Context。
+  新增 `drag-controller.check.mjs`（意图路由、卷轴闸门、document drop-out、destroy 清理监听）与
+  `equipment-view.check.mjs`（缺资源提前返回、开合同步、渲染状态、槽位点击分支、close 请求），
+  runner 增至 **22/22 全过**；tsc 通过；`check:inventory` 通过；audit `--deps --check` OK
+  （0 环 0 违规 0 债）。页签顺序 1,2,4,3,5 与全部交互语义未动。
+
+- [x] **R8 App/Session/Scene 作用域与资源计划**：新增 `assets/preload-plan.ts`
+  （`buildPreloadPlan` 纯函数：world.ts preload 收集段逐行搬出，全量策略/顺序/去重语义不变，
+  BGM 的 cache 短路以 `skipIfCached` 标记留在 Scene 执行）与 `app/page-shell.ts`
+  （PageShell：页面模板/语言切换/新闻弹窗/game-mode 布局搬移，DOM ID 与可访问性逐行保留，
+  status() 的提示定时器仍归 main）；`scenes/world.ts` 780→705、`app/main.ts` 685→650。
+  新增 `preload-plan.check.mjs` + `page-shell.check.mjs`，runner 增至 **24/24 全过**；
+  生命周期确认（§10.2 对照表，含 game-session.ts 暂不拆的理由）成文于
+  `FRONTEND_ARCHITECTURE.md` §6.1。切图/重连/重建的静态回归由 tsc + 24 项 check 覆盖；
+  实玩复验仍按既有流程待重启 3010 后进行。
+
+- [x] **R9 几何与内容校验核对 + 内嵌测试钉扎**：核对 `server/src/geometry.rs`（622 行，R0 前已抽离）
+  已覆盖计划 §11.1 全部候选——Foothold 插值/墙阻挡/接触时刻判定、Ladder 列窗口/uf 顶端语义、
+  WaterRect 水底插值/形状校验、ReactorPlacement hitbox 归一化与 `TYPE_AREA` 触发——
+  **确认不重复立项 `world_geometry.rs`**。补齐原缺失的内嵌纯函数测试 5 个
+  （foothold 插值内外、wall blocks/防隧穿接触时刻、ladder 容差与探测窗口、water 插值与校验、
+  reactor hitbox 归一化），把 `blocks_at_crossing` "接触时刻判定而非端点判定"这一防隧穿语义首次钉进测试。
+  验证：cargo test **309过/6失败**（失败集与基线逐名一致，+5 新测试）；警告 39 与基线一致。
+
+- [x] **R10 门禁接线 + 例外登记 + 架构导航与模块契约更新**：
+  `refactor_audit.cjs --deps --check`（R2 就绪）挂进 `client/scripts/run-checks.mjs` 仓库级末项，
+  `npm run check` **25/25 全过** = 门禁通过；例外登记 `artifacts/refactor/debt-register.json`（当前 0 项）。
+  **拦截实证**：临时制造 `features/player → app/main.ts` 运行时导入 → 门禁报
+  `entry-app-not-imported-by-features` 且 exit 1，删除后复位 exit 0——"新增越界失败、历史债务不自动扩张"
+  的退出条件验证闭环。架构导航：`FRONTEND_ARCHITECTURE.md` 新增 §5.1 检查与防回潮门禁
+  （含 CI 接入命令）；`BACKEND_ARCHITECTURE.md` 模块表补 `world::geometry` 契约条目（R9）。
+  本仓库无远程 CI；接入时执行 `node scripts/refactor_audit.cjs --deps --check` 即可。
+
+### R11 第一批（2026-09-12 完成）
+
+- [x] **R11 排名刷新 + 第一批热点治理（world.rs 测试搬出）**：按计划"不用旧行数、每次重新排序"
+  重跑 `refactor_audit.cjs --sizes`，识别出 churn 最高的 `world.rs`（8,821 行 = 生产 3,436 + 内嵌测试 5,385）
+  的最大零风险削减项——把内嵌 `#[cfg(test)] mod tests` **机械搬出**为 `#[path = "world_tests.rs"]`
+  外置测试模块（含 20+ 个 `include!("*_acceptance.rs")`，相对路径要求平铺 `src/` 根）；
+  一次性脚本按内容边界切除 + 重组逐字节自校验。`check_tms273_runtime.cjs` 生产源码扫描同步排除
+  `world_tests.rs`（与 `*_acceptance.rs` 同理：测试文本不是生产实现）。
+  验证：cargo test **309过/6失败**（失败集逐名一致）、警告 39、`check_tms273_runtime` OK、
+  audit `--deps --check` OK。**world.rs 8,821 → 3,437 行（-61%）**；测试组织与原 mod 语义完全一致。
+- 刷新后剩余超预算候选（下一批按需立项，不自动扩张）：
+  `auth.rs` 3,569（≈2,100 行 tests，继续拆收益低）、`skills.rs` 2,977（churn=1 纯静态）、
+  `inventory_ops.rs` 1,456、`quest.rs` 1,397、`elemental.rs` 1,377、
+  `features/inventory/view.ts` 1,245（churn=14，intents.ts"需要时"候选）。
+
 ### R5 遗留登记
 
 - [ ] `frameAt` 从 `assets/manifest.ts` 搬出到独立纯函数模块：搬移会破坏多个经 data URL 装载
   `animation.ts` 的既有 check，本轮判断不做；后续做 R7/R8 时机再评估。
 
-### 未完成（R6–R11，按计划顺序）
-- [ ] **R6** 收窄一条物品/任务用例的规则输入（inventory_ops/inventory + auth 模块），事务时序说明成文。
-- [ ] **R7** 背包交互职责拆完（drag-controller / equipment-view 等，一个对外门面）。
-- [ ] **R8** App/Session/Scene 作用域与资源计划（`app/main.ts`、`scenes/world.ts`）。
-- [ ] **R9** 纯几何与内容校验抽离（拟新增 `world_geometry.rs`；注意 geometry.rs 已存在——实施前先核对 §11.1 与现状差异，不重复立项）。
+### 未完成（R11 后续批次，开放登记）
 - [ ] **R10** 门禁挂 CI + 例外登记 + 架构导航更新（对齐上面"防回潮门禁接线"待办）。
 - [ ] **R11** 按新基准的业务热点继续治理（不用本表旧行数，每次重新排序）。
 

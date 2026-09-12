@@ -621,3 +621,130 @@ impl Map {
         y
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ramp() -> Foothold {
+        Foothold {
+            id: 1,
+            x1: 0.0,
+            y1: 100.0,
+            x2: 100.0,
+            y2: 0.0,
+            prev: 0,
+            next: 0,
+            forbid_fall_down: 0,
+        }
+    }
+
+    fn wall(x: f64) -> Foothold {
+        Foothold { id: 2, x1: x, y1: -50.0, x2: x, y2: 40.0, prev: 0, next: 0, forbid_fall_down: 0 }
+    }
+
+    #[test]
+    fn foothold_interpolates_inside_and_rejects_outside() {
+        let fh = ramp();
+        assert_eq!(fh.left(), 0.0);
+        assert_eq!(fh.right(), 100.0);
+        assert_eq!(fh.top(), 0.0);
+        assert_eq!(fh.bottom(), 100.0);
+        // 线性插值：中点地面高度 = 50。
+        assert!((fh.at(50.0).unwrap() - 50.0).abs() < 1e-9);
+        assert!((fh.at(25.0).unwrap() - 75.0).abs() < 1e-9);
+        assert_eq!(fh.at(-0.5), None, "左边界外不落点");
+        assert_eq!(fh.at(100.5), None, "右边界外不落点");
+        // 墙（x1==x2）没有可站立插值。
+        assert_eq!(wall(20.0).at(20.0), None);
+        assert!(wall(20.0).is_wall());
+    }
+
+    #[test]
+    fn wall_blocks_at_contact_time_not_endpoints() {
+        let wall = wall(10.0);
+        // 身体高度 50：脚 y=30 时头顶 y=-20，身体与墙（-50..40）相交 → 阻挡。
+        assert!(wall.blocks(30.0 - BODY_HEIGHT_PX, 30.0 - 1.0));
+        // 跳过墙顶：脚 y=-60 时身体整体 (-110,-61) 高于墙顶 -50 → 放行；
+        // 脚 y=-20 时身体 (-70,-21) 仍与墙重叠 → 阻挡。
+        assert!(!wall.blocks(-60.0 - BODY_HEIGHT_PX, -60.0 - 1.0));
+        assert!(wall.blocks(-20.0 - BODY_HEIGHT_PX, -20.0 - 1.0));
+        // 穿越时刻判定：t=0.5 处脚 y=30（从 10 落到 50）→ 在接触时刻阻挡；
+        // 两端点都高于墙顶也不能让穿越中的身体穿过（防隧穿）。
+        assert!(wall.blocks_at_crossing(10.0, 50.0, 0.5));
+        // 上升途中在接触时刻身体已整体越过墙顶（脚 -30→-70 中点 -50，
+        // 身体 -101..-51 高于墙顶）→ 合法跳越，不阻挡。
+        assert!(!wall.blocks_at_crossing(-30.0, -70.0, 0.5));
+    }
+
+    #[test]
+    fn ladder_accepts_only_within_column_and_probe_window() {
+        let ladder = Ladder { id: 3, x: 100.0, y1: 0.0, y2: 200.0, l: 1, uf: 1 };
+        assert_eq!(ladder.action(), "ladder");
+        let rope = Ladder { l: 0, ..ladder.clone() };
+        assert_eq!(rope.action(), "rope");
+        // 顶端离开受 uf 控制。
+        assert!(ladder.allows_top_exit());
+        assert!(!Ladder { uf: 0, ..ladder.clone() }.allows_top_exit());
+        // 上爬探测点在脚下 5px：y=10 向上 → 探测 y=5，在 0..200 窗口内。
+        assert!(ladder.accepts(100.0, 10.0, true));
+        // 探测点越过顶端 → 不接受。
+        assert!(!ladder.accepts(100.0, 4.0, true));
+        // x 容差 10：±10 内接受，±11 拒绝。
+        assert!(ladder.accepts(110.0, 100.0, false));
+        assert!(!ladder.accepts(111.0, 100.0, false));
+        // 下爬探测点在脚下 5px 之外同理。
+        assert!(ladder.accepts(100.0, 195.0, false));
+        assert!(!ladder.accepts(100.0, 200.0, false));
+    }
+
+    #[test]
+    fn water_floor_interpolates_and_validates() {
+        let bounds = Bounds { x_min: 0.0, y_min: 0.0, x_max: 500.0, y_max: 500.0 };
+        let water = WaterRect {
+            x_min: 100.0,
+            x_max: 200.0,
+            y_min: 300.0,
+            y_max: 400.0,
+            floor: vec![Point { x: 100.0, y: 380.0 }, Point { x: 200.0, y: 340.0 }],
+        };
+        assert!(water.valid(&bounds));
+        // 分段线性插值：中点 360。
+        assert!((water.floor_at(150.0) - 360.0).abs() < 1e-9);
+        // floor 未覆盖的 x（理论上不会发生）回退水面下界。
+        assert_eq!(water.floor_at(250.0), 400.0);
+        assert!(water.contains(150.0, 350.0));
+        assert!(!water.contains(250.0, 350.0));
+        // floor 端点必须贴齐矩形左右边缘。
+        let detached = WaterRect { floor: vec![Point { x: 110.0, y: 380.0 }, Point { x: 200.0, y: 340.0 }], ..water.clone() };
+        assert!(!detached.valid(&bounds));
+        // 水域必须完全落在地图边界内。
+        let outside = WaterRect { x_max: 600.0, ..water };
+        assert!(!outside.valid(&bounds));
+    }
+
+    #[test]
+    fn reactor_hit_bounds_normalize_lt_rb_and_translate() {
+        let placement = ReactorPlacement {
+            id: "r".into(),
+            template_id: "t".into(),
+            x: 100.0,
+            y: 50.0,
+            flip: false,
+            reactor_time: 0,
+            state_count: 3,
+            hit_type: 9,
+            hitbox_lt: Some(Point { x: -30.0, y: -40.0 }),
+            hitbox_rb: Some(Point { x: 20.0, y: 10.0 }),
+            drop_table: None,
+        };
+        assert!(placement.area_triggered());
+        assert!(placement.interactable_at(0));
+        assert!(placement.interactable_at(1));
+        assert!(!placement.interactable_at(2), "最后一个状态是耗尽形态");
+        assert_eq!(placement.hit_bounds(), Some((70.0, 120.0, 10.0, 60.0)));
+        // 未书写 hitbox 的反应物回退攻击判定。
+        let plain = ReactorPlacement { hitbox_lt: None, hitbox_rb: None, ..placement };
+        assert_eq!(plain.hit_bounds(), None);
+    }
+}

@@ -19,12 +19,16 @@ const checks = [
   ['scenes/layer-animation.check.ts', ['--experimental-strip-types']],
   ['features/hud/gauge.check.ts', ['--experimental-transform-types']],
   ['app/i18n.check.ts', ['--experimental-strip-types']],
+  ['assets/preload-plan.check.mjs', []],
+  ['app/page-shell.check.mjs', []],
   ['features/ui/window-shell.check.mjs', []],
   ['features/hud/buff.check.mjs', []],
   ['features/player/input.check.mjs', []],
   ['features/world/minimap.check.mjs', []],
   ['features/inventory/view-model.check.mjs', []],
   ['features/inventory/tooltip-view.check.mjs', []],
+  ['features/inventory/drag-controller.check.mjs', []],
+  ['features/inventory/equipment-view.check.mjs', []],
   ['network/session.check.mjs', []],
   ['features/npc/dialogue.check.mjs', []],
   ['features/skills/view.check.mjs', []],
@@ -47,6 +51,19 @@ for (const [file, flags] of checks) {
   });
   results.push({ label, ok: result.status === 0, status: result.status });
 }
+
+// Repo-level gate (R10): cross-domain import / dependency-cycle audit.
+// Runs from the repository root because the audit scans the whole repo
+// (client/src + shared + server) and writes artifacts/refactor/*.json.
+// A non-zero exit here blocks `npm run check` just like any other item.
+const auditLabel = 'node scripts/refactor_audit.cjs --deps --check (repo root)';
+process.stdout.write(`\n=== ${auditLabel} ===\n`);
+const audit = spawnSync(
+  process.execPath,
+  [path.join(clientRoot, '..', 'scripts', 'refactor_audit.cjs'), '--deps', '--check'],
+  { cwd: path.join(clientRoot, '..'), stdio: 'inherit' },
+);
+results.push({ label: auditLabel, ok: audit.status === 0, status: audit.status });
 
 const failed = results.filter(item => !item.ok);
 console.log(`\n=== check summary: ${results.length - failed.length}/${results.length} passed ===`);

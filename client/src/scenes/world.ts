@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { randomDropId } from '../features/player/pickup';
 import type { NpcState, ServerMessage } from '../../../shared/protocol';
 import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/manifest';
+import { buildPreloadPlan } from '../assets/preload-plan';
 import type { AssetFrame, Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
@@ -122,90 +123,14 @@ export class World extends Phaser.Scene {
     this.portalCooldownUntil = performance.now() + 1000;
   }
   preload() {
-    const images = new Map<string, string>();
-    const maps = [this.manifest.map, ...(this.manifest.mapCatalog?.maps ?? [])];
-    for (const map of maps) for (const layer of map.layers ?? []) {
-      images.set(layer.url, layer.url);
-      for (const frame of layer.frames ?? []) images.set(frame.url, frame.url);
-    }
-    const avatarActions = [this.manifest.avatar.actions, ...Object.values(this.manifest.avatar.equipmentLoadouts ?? {}).map(loadout => loadout.actions)];
-    for (const actions of avatarActions) for (const frames of Object.values(actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
-    const appearances = this.manifest.appearanceCatalog;
-    const appearanceActions = appearances ? [
-      ...Object.values(appearances.base).map(layer => layer.actions),
-      ...Object.values(appearances.layers).flatMap(layer => [layer.actions, ...Object.values(layer.actionsByGender ?? {})]),
-    ] : [];
-    for (const actions of appearanceActions) for (const frames of Object.values(actions)) for (const frame of frames) for (const part of frame.parts) images.set(part.url, part.url);
-    for (const monster of Object.values(this.manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
-    for (const frame of Object.values(this.manifest.items ?? {})) images.set(frame.url, frame.url);
-    for (const npc of Object.values(this.manifest.npcs ?? {})) for (const frame of npc.stand) images.set(frame.url, frame.url);
-    for (const frame of this.manifest.npcQuestAvailable?.frames ?? []) images.set(frame.url, frame.url);
-    for (const portal of Object.values(this.manifest.portals ?? {})) {
-      for (const frame of portal.frames ?? []) images.set(frame.url, frame.url);
-    }
-    for (const template of Object.values(this.manifest.reactors?.templates ?? {})) {
-      for (const state of Object.values(template.states)) {
-        for (const frame of [...state.frames, ...state.hitFrames]) images.set(frame.url, frame.url);
-      }
-    }
-    // The account-warehouse shell and buttons are DOM-rendered, but preloading
-    // them here keeps them on the same cache as the rest of the UI art and
-    // lets the window open without a flash of missing sprites.
-    for (const frame of Object.values(this.manifest.storageUi?.ui ?? {})) images.set(frame.url, frame.url);
-    // The party window's shell, row markers and buttons are DOM-rendered too.
-    for (const frame of Object.values(this.manifest.partyUi?.ui ?? {})) images.set(frame.url, frame.url);
-    // Same for the friend & blacklist window, which shares the UserList shell.
-    for (const frame of Object.values(this.manifest.friendUi?.ui ?? {})) images.set(frame.url, frame.url);
-    // And the world map: its pages are large authored canvases, so warming them
-    // here is what keeps the WORLD button from flashing empty art.
-    for (const page of Object.values(this.manifest.worldMap?.pages ?? {})) {
-      images.set(page.baseImg.url, page.baseImg.url);
-      for (const link of page.mapLinks) images.set(link.image.url, link.image.url);
-    }
-    for (const frame of Object.values(this.manifest.worldMap?.ui.plate ? { plate: this.manifest.worldMap.ui.plate, border: this.manifest.worldMap.ui.border } : {})) images.set(frame.url, frame.url);
-    for (const states of Object.values(this.manifest.worldMap?.ui.nav ?? {})) {
-      for (const frame of Object.values(states)) images.set(frame.url, frame.url);
-    }
-    for (const frame of Object.values(this.manifest.worldMap?.ui.close ?? {})) images.set(frame.url, frame.url);
-    const afterimage = this.manifest.combat?.attack?.afterimage;
-    for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
-    for (const set of [this.manifest.combat?.damageNumbers?.normal, this.manifest.combat?.damageNumbers?.critical]) {
-      for (const frame of [...Object.values(set?.first ?? {}), ...Object.values(set?.rest ?? {})]) images.set(frame.url, frame.url);
-    }
-    for (const set of Object.values(this.manifest.skillEffects ?? {})) {
-      for (const frames of Object.values(set)) for (const frame of frames ?? []) images.set(frame.url, frame.url);
-    }
-    for (const groups of Object.values(this.manifest.bossEffects ?? {})) {
-      for (const frames of Object.values(groups)) for (const frame of frames) images.set(frame.url, frame.url);
-    }
-    for (const frames of this.manifest.levelUp?.layers ?? []) for (const frame of frames) images.set(frame.url, frame.url);
-    // Source-backed nine-slice + arrow for the map-chat bubble.  Each slice
-    // is registered under its own URL key (matching the texture used by
-    // PlayerView.showBubble), so loading is shared across all characters.
-    if (this.manifest.chatBalloon) {
-      for (const slice of Object.values(this.manifest.chatBalloon.slices)) images.set(slice.url, slice.url);
-    }
-    // Chat emoticons: the window shell is DOM-rendered, but the *head*
-    // animation plays inside the scene, so every sticker's frames have to be on
-    // the Phaser texture cache before the first `emoticonMessage` arrives —
-    // otherwise the first sticker anybody shows would render with no texture.
-    for (const frame of Object.values(this.manifest.emoticon?.ui ?? {})) images.set(frame.url, frame.url);
-    for (const group of this.manifest.emoticon?.groups ?? []) images.set(group.icon.url, group.icon.url);
-    for (const sticker of this.manifest.emoticon?.stickers ?? []) {
-      images.set(sticker.icon.url, sticker.icon.url);
-      for (const frame of sticker.frames) images.set(frame.url, frame.url);
-    }
-    if (this.manifest.levelUp?.sound) this.load.audio(this.manifest.levelUp.sound.url, this.manifest.levelUp.sound.url);
-    for (const [key, url] of images) this.load.image(key, url);
-    const skillAudio = new Set(Object.values(this.manifest.skillSounds ?? {}).flatMap(set => [set.use?.url, set.hit?.url, set.loop?.url, set.end?.url, set.special?.url, set.summonAttack?.url]).filter((url): url is string => Boolean(url)));
-    for (const url of skillAudio) this.load.audio(url, url);
-    for (const url of new Set(maps.map(map => map.bgm).filter((url): url is string => Boolean(url)))) {
-      if (!this.cache.audio.exists(url)) this.load.audio(url, url);
-    }
-    if (this.manifest.avatar.attackSound) this.load.audio('attack', this.manifest.avatar.attackSound);
-    if (this.manifest.combat?.hit?.sound) this.load.audio('combat-hit', this.manifest.combat.hit.sound);
-    for (const monster of Object.values(this.manifest.monsters ?? {})) {
-      if (monster.damageSound) this.load.audio(`mob-hit-${monster.templateId}`, monster.damageSound.url);
+    // R8：收集逻辑纯函数化到 assets/preload-plan.ts；Scene 只执行 loader。
+    // 顺序与去重语义逐行保留：图片先全部入队，音频按 原顺序（升级→技能→
+    // BGM→普攻→受击→怪物受击）；BGM 的 cache.audio.exists 短路留在 Scene。
+    const plan = buildPreloadPlan(this.manifest);
+    for (const { key, url } of plan.images) this.load.image(key, url);
+    for (const entry of plan.audio) {
+      if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
+      this.load.audio(entry.key, entry.url);
     }
     this.load.on('progress', (progress: number) => { if (!this.failed) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
     this.load.on('loaderror', (file: Phaser.Loader.File) => { this.failed = true; this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true); });

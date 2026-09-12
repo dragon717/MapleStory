@@ -28,7 +28,10 @@
 | `world::social`（`social.rs`） | 组队与好友 / 黑名单：关系生命周期、在线状态派生、requestId 幂等重放 |
 | `world::trade`（`trade.rs`） | NPC 商店买 / 卖与账号仓库：事务外观、keeper 距离复核、转账副作用重读、回执下发 |
 | `world::quest`（`quest.rs`） | 任务列表 / NPC 菜单 / 交互与效果结算、经验入账 `add_exp`；纯判定已下沉到 `quest_rules` |
-| `world::quest_rules`（`quest_rules.rs`） | 任务纯规则（计划 §6 试点）：前置 / 条件 / 职业 / 消耗清单归一化。**唯一不用 `use super::*` 的 world 子模块**——依赖显式列出，函数只收窄输入（`QuestFacts`），不接 `World` / `Store`；事务与回执仍留在 `world::quest` |
+| `world::quest_rules`（`quest_rules.rs`） | 任务纯规则（计划 §6 试点）：前置 / 条件 / 职业 / 消耗清单归一化。**不用 `use super::*` 的 world 子模块**（与 R6 的 `pickup_rules` 同款纪律）——依赖显式列出，函数只收窄输入（`QuestFacts`），不接 `World` / `Store`；事务与回执仍留在 `world::quest` |
+| `world::pickup_rules`（`pickup_rules.rs`） | 拾取纯规则（计划 R6 试点）：掉落可得性判定（地图/归属/距离/内存容量预检）与图鉴饱和入账。与 `quest_rules` 同款纪律——不用 `use super::*`、窄输入（`PickupFacts`/`PickupVerdict`），不接 `World` / `Store`；事务时序见 §6.1 |
+| `world::geometry`（`geometry.rs`） | 纯几何层（计划 R9 核对项）：Foothold 插值/墙阻挡与接触时刻判定（`blocks_at_crossing` 防隧穿）、Ladder/Rope 列窗口与 `uf` 顶端语义、WaterRect 水底插值与形状校验、ReactorPlacement hitbox 归一化。方法全部 `pub(super)`，不接 `World` / `Store`；5 个内嵌纯函数测试钉扎语义 |
+| `world::tests`（`world_tests.rs`） | world 的测试模块（R11 从 `world.rs` 内嵌 `mod tests` 机械搬出）：`#[cfg(test)] #[path = "world_tests.rs"] mod tests;`。文件体首行 `use super::*;` + messaging/monsters/skills/elemental 显式 glob，中段 20+ 个 `include!("*_acceptance.rs")`（相对路径按本文件解析，故必须平铺在 `src/` 根）。**`check_tms273_runtime.cjs` 生产源码扫描排除本文件**（与 `*_acceptance.rs` 同理：测试文本不是生产实现） |
 | `world::boss`（`boss.rs`） | Boss 练习场的源规则常量与阶段；`#[path]` 子模块的**最早先例** |
 | `inventory.rs` | 物品目录、堆叠与容量规则、装备属性计算（与 `inventory_ops` 分工见 2.2 第 10 条） |
 | `npc.rs` | NPC 摆放、数据驱动对话状态机、商店 |
@@ -135,6 +138,36 @@ server/src/
 账号持久化已采用 rusqlite / SQLite。账号、角色归属、背包、技能学习、任务进度是候选持久化对象；HP、坐标及未完成动作如何跨重启恢复，需要在内容与体验确定后明确。内存快照不能替代成功事务，不先保存“已完成”再异步尝试发奖。
 
 Cosmic 的 JS 任务 / NPC 脚本用于读懂流程，不原封不动加载到 Rust 执行。每迁移一条任务记下原始文件、内容版本、条件、奖励和未覆盖分支。特殊任务只扩展已需要的服务端动作，不先设计通用脚本语言。
+
+### 6.1 拾取事务时序（R6 收窄成文，2026-09-12）
+
+`handle_pickup`（`inventory_ops.rs`）是拾取用例的唯一事务协调者，顺序固定：
+
+```text
+1. prior_pickup 幂等查询   同 requestId 已有记录 → 直接重放原结果，不重执行
+2. 世界侧纯判定            pickup_rules::evaluate_pickup（地图/归属保护/距离/内存容量预检）
+                           拒绝码: drop_unavailable / drop_owned / out_of_range / inventory_full
+3. Store::pickup 事务      权威重验（掉落行存在、活跃、归属、容量），claim 行 + 发奖 +
+                           写 pickup_actions 幂等记录，同一事务提交
+4. 世界回填                移除世界掉落 → 重读 profile/equipped/monster_book 三件套写回内存
+5. 回执                    dropPickedUp 广播 + pickupResult 私发 + 任务列表刷新
+```
+
+各窗口的既有定义（均有测试保护，见 `world.rs` tests 与 `auth.rs` tests）：
+
+- **重放**：重连同 requestId 回放原 `pickupResult`，不二次发奖、不再广播 dropPickedUp
+  （`pickup_store_windows_replay_prior_failure_and_side_effect_free_reject`；Store 层并发/重启重放见
+  `reward_pickup_and_mesos_survive_replay_concurrency_and_restart`）。
+- **失败**：业务拒绝（容量/归属/距离/掉落不可用）不消耗世界掉落；Store 层失败由事务回滚保证
+  掉落行恢复 active。`prior_pickup` 持久化故障 → `persistence` 拒绝且世界无副作用（同上测试）。
+- **事务成功但回填失败**：三件套重读失败 → 已移除的世界掉落保持移除（与已提交事务一致），
+  内存背包不回填，客户端只收 `persistence` 拒绝；**资产以持久化为准**，重读/重连恢复
+  （`pickup_backfill_failure_after_commit_keeps_persisted_truth`）。
+- **事务成功但发送失败**：输出缓冲 try_send 失败不影响已提交资产；同 requestId 重放可再取回执。
+
+容量预检只存在于**无 Store 的内存权威路径**（试探式复制背包再入包）；Store 路径的容量由
+事务内权威重验，规则侧 `memory_capacity: None`。掉落可得性判定已收窄为纯规则
+`world::pickup_rules`（`PickupFacts` 窄输入 / `PickupVerdict` 结果），不依赖 World/Store/网络。
 
 ## 7. 内容加载与版本
 

@@ -3,13 +3,14 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const read=file=>JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
-// 服务端生产源码（递归 server/src/**/*.rs，排除 *_acceptance.rs）。
+// 服务端生产源码（递归 server/src/**/*.rs，排除 *_acceptance.rs 与 world_tests.rs）。
 //
 // 为什么不按单个文件读：这些断言问的是"服务端是否实现/定义了某条规则"，
 // 而"某段代码当前落在哪个文件"不是契约。`world.rs` 拆分模块时（通讯职责搬去
 // `messaging.rs`）按文件名读取的断言会假失败——真出问题的是断言的作用域，不是实现。
 // 排除 `*_acceptance.rs` 是必要的：测试文件提到一个拒绝码，不能算作
-// "服务端会发这个码"。子目录也递归，便于后续按目录拆分。
+// "服务端会发这个码"。`world_tests.rs`（R11 从 world.rs 内嵌 mod tests 搬出的
+// 外置测试模块）同理排除——理由完全相同。子目录也递归，便于后续按目录拆分。
 let serverSourceCache=null;
 const serverSource=()=>{
   if(serverSourceCache!==null) return serverSourceCache;
@@ -18,7 +19,7 @@ const serverSource=()=>{
     for(const entry of fs.readdirSync(dir,{withFileTypes:true})) {
       const abs=path.join(dir,entry.name);
       if(entry.isDirectory()) walk(abs);
-      else if(entry.name.endsWith('.rs') && !entry.name.endsWith('_acceptance.rs')) files.push(abs);
+      else if(entry.name.endsWith('.rs') && !entry.name.endsWith('_acceptance.rs') && entry.name !== 'world_tests.rs') files.push(abs);
     }
   };
   walk(path.join(root,'server/src'));

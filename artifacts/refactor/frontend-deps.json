@@ -8,12 +8,12 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 88,
-  "edge_count": 169,
+  "node_count": 96,
+  "edge_count": 183,
   "edge_kind_counts": {
     "dynamic": 1,
-    "type": 59,
-    "value": 95,
+    "type": 65,
+    "value": 103,
     "side-effect": 14
   },
   "external_specifiers": [
@@ -204,6 +204,16 @@
       "kind": "value"
     },
     {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/app/page-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/page-shell.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/assets/manifest.ts",
       "to": "client/src/features/entry/appearance.ts",
       "kind": "type"
@@ -226,6 +236,11 @@
     {
       "from": "client/src/assets/manifest.ts",
       "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/assets/preload-plan.ts",
+      "to": "client/src/assets/manifest.ts",
       "kind": "type"
     },
     {
@@ -414,6 +429,46 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/inventory/drag-controller.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/drag-controller.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/drag-controller.ts",
+      "to": "client/src/features/inventory/view-model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "client/src/features/inventory/tooltip-view.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "client/src/features/inventory/drag-controller.ts",
+      "kind": "type"
+    },
+    {
       "from": "client/src/features/inventory/names.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -471,6 +526,16 @@
     {
       "from": "client/src/features/inventory/view.ts",
       "to": "client/src/features/inventory/tooltip-view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/features/inventory/drag-controller.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/features/inventory/equipment-view.ts",
       "kind": "value"
     },
     {
@@ -845,6 +910,11 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/assets/preload-plan.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
     },
@@ -889,8 +959,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "99b7cbf24c710f436f829736b6203c82a349fab7",
+  "source_commit": "c6941f16c8635c2dd722be8ae52b605d17b32b25",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-12T07:13:01.220Z"
+  "generated_at": "2026-09-12T08:48:18.703Z"
 }

@@ -78,6 +78,16 @@ client/src/
 | 改资源导出格式 | assets 加载与 manifest 版本，必要的拼接适配 | 后端战斗规则 |
 | 改渲染库 | view、scenes、纹理 / 动画 / 相机调用 | 可保留经过隔离的普通 TS 数据，但仍须重验输入和时序 |
 
+### 5.1 检查与防回潮门禁（R10 接线，2026-09-12）
+
+- `npm run check`（`client/scripts/run-checks.mjs`）：逐项执行 24 个 check 文件 + 1 个仓库级门禁
+  （`node scripts/refactor_audit.cjs --deps --check`，从仓库根扫描 client/src + shared + server），
+  25 项全过、任一失败非零。新增跨域深层导入 / 依赖环 / 未登记越界会让 `npm run check` 失败。
+- 例外登记：`artifacts/refactor/debt-register.json`（已知债务显式登记，不自动扩张；当前 0 项）。
+- 依赖报告：`node scripts/refactor_audit.cjs --deps`（runtime/type 环分开报告，写入
+  `artifacts/refactor/frontend-deps.json`）；脚本自测 `--self-test`。
+- 接入 CI 时执行同一条门禁命令即可：`node scripts/refactor_audit.cjs --deps --check`。
+
 ## 6. 数据与临时作用的生命周期
 
 | 生命周期 | 示例 | 结束责任 |
@@ -89,6 +99,21 @@ client/src/
 | 原型临时实现 | 本地 mock、调试快捷键 | 留在开发入口，不混进正式协议或存档 |
 
 原始 metadata 中的时间、原点和层级不能被 sprite 默认值悄悄替代。纸娃娃动作读完整时序，保留 UOL、action/frame 重定向和帽子/头发遮挡数据。调试面板建议仅在开发时显示当前动作、帧索引、锚点和资源路径，便于定位错位。
+
+### 6.1 App/Session/Scene 作用域确认（R8 成文，2026-09-12）
+
+对照计划 §10.2 生命周期表，确认 `app/main.ts` + `scenes/world.ts` 现状：
+
+| 作用域 | 现状归属 | 结论 |
+| --- | --- | --- |
+| 页面/App | `app/page-shell.ts`（R8 拆出：模板、语言切换、新闻弹窗、game-mode 布局）；语言切换整页跳转，无需运行时重建 | ✅ 已拆出；不因切图重建页面 |
+| 登录会话 | `Connection`（`network/session.ts`）+ `generation` 计数 + 各窗口实例（`enterGame` 建、`leaveGame` 拆） | ✅ 生命周期清楚但与 20+ 视图回调交织；**`game-session.ts` 按计划"仅在生命周期清楚后"暂不拆**，登记为后续候选 |
+| 地图激活周期 | `World`（Phaser Scene）：切图走 `scene.restart()`，`create()` 重挂输入、重建 CombatView/图层；`SHUTDOWN` ≠ `DESTROY`，重进语义由 restart 保持 | ✅ 已由 feature views 承担实体，无需平行管理器 |
+| 窗口实例 | 各 feature view 自持 DOM 监听与 destroy（R4/R7 已拆 inventory 为门面+四子模块） | ✅ 销毁清单在 `leaveGame`/`destroy()` 逐一调用 |
+| 短时表现 | 浮字/投射物/气泡由 CombatView/PlayerView 自管 | ✅ 不触碰服务端资产 |
+
+资源预加载：收集逻辑已纯函数化为 `assets/preload-plan.ts`（`buildPreloadPlan`，全量策略、
+顺序与去重语义不变；BGM 的 `cache.audio.exists` 短路留在 Scene 执行）。
 
 ## 7. 源码审核依据与不照搬的部分
 

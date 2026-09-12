@@ -3,6 +3,8 @@ import type { AssetFrame, EquipmentLayout, InventoryLayout, Manifest } from '../
 import { protocolText, uiLocale, uiText } from '../../app/i18n';
 import { itemCategoryTab, itemDetails, itemName } from './names';
 import { TooltipController, tooltipSkin } from './tooltip-view';
+import { DragController } from './drag-controller';
+import { EquipmentView } from './equipment-view';
 import {
   TAB_COUNT,
   TAB_LABEL_KEYS,
@@ -22,12 +24,6 @@ const MAX_DROP_MESOS = 50_000;
 type AssetSet = Record<string, AssetFrame>;
 type SendClientMessage = (message: ClientMessage) => boolean;
 type UseItemMessage = Extract<ClientMessage, { type: 'useItem' }>;
-
-interface DragSource {
-  tab: number;
-  slot: number;
-  item: InventoryItem;
-}
 
 interface PendingScroll {
   sourceTab: number;
@@ -53,9 +49,9 @@ export class InventoryView {
   private readonly tabNext?: HTMLButtonElement;
   private readonly mesosLine?: HTMLDivElement;
   private readonly tooltips: TooltipController;
+  private readonly drag: DragController;
+  private readonly equipment?: EquipmentView;
   private readonly targetPrompt?: HTMLDivElement;
-  private readonly equipmentWindow?: HTMLDivElement;
-  private readonly equipmentCloseButton?: HTMLButtonElement;
   private readonly closeButton?: HTMLButtonElement;
   private readonly gatherButton?: HTMLButtonElement;
   private readonly sizeButton?: HTMLButtonElement;
@@ -77,9 +73,6 @@ export class InventoryView {
   private inventorySlots: Record<number, number> = {};
   private practice = false;
   private slotsSignature = '';
-  private draggedSlot?: number;
-  private draggedTab?: number;
-  private draggedEquippedSlot?: number;
   private windowPositioned = false;
   private equipmentWindowPositioned = false;
   private draggingWindow?: { pointerId: number; offsetX: number; offsetY: number; window: HTMLDivElement };
@@ -90,11 +83,8 @@ export class InventoryView {
   private sortMode = false;
   private requestSequence = 0;
   private destroyed = false;
-  private equipmentOpenState = false;
 
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event);
-  private readonly handleDocumentDragOver = (event: DragEvent) => this.onDocumentDragOver(event);
-  private readonly handleDocumentDrop = (event: DragEvent) => this.onDocumentDrop(event);
   private readonly handleWindowPointerDown = (event: PointerEvent) => this.onWindowPointerDown(event);
   private readonly handleWindowPointerMove = (event: PointerEvent) => this.onWindowPointerMove(event);
   private readonly handleWindowPointerUp = (event: PointerEvent) => this.onWindowPointerUp(event);
@@ -118,9 +108,30 @@ export class InventoryView {
       detailsFor: (item, comparison) => itemDetails(item.itemId, item, comparison),
     });
 
+    this.drag = new DragController({
+      selectedTab: () => this.selectedTab,
+      scrollPending: () => Boolean(this.pendingScroll),
+      windowOpen: () => this.openState || Boolean(this.equipment?.isOpen()),
+      containsTarget: node => Boolean(this.window?.contains(node) || this.equipment?.window?.contains(node)),
+      inventoryItemAt: (slot, tab) => this.itemAt(slot, tab),
+      equippedItemAt: slot => this.equippedAt(slot),
+      isScroll: item => this.isScroll(item),
+      moveItem: (sourceTab, sourceSlot, targetSlot) => this.moveSlot(sourceTab, sourceSlot, targetSlot),
+      dropItem: (sourceTab, sourceSlot) => this.dropSlot(sourceTab, sourceSlot),
+      unequip: item => this.unequip(item),
+      useScrollOnEquipment: (sourceTab, sourceSlot, item, targetSlot, target) => this.submitUseItem(sourceTab, sourceSlot, item, targetSlot, target),
+      useItem: (sourceTab, sourceSlot, item) => this.submitUseItem(sourceTab, sourceSlot, item),
+      clearDragMarks: () => {
+        this.grid?.querySelectorAll('.inventory-slot-dragging,.inventory-slot-drag-target').forEach(slot => {
+          slot.classList.remove('inventory-slot-dragging', 'inventory-slot-drag-target');
+        });
+        this.equipment?.window?.querySelectorAll('.equipment-slot-dragging,.equipment-slot-drag-target').forEach(slot => {
+          slot.classList.remove('equipment-slot-dragging', 'equipment-slot-drag-target');
+        });
+      },
+    });
+
     document.addEventListener('keydown', this.handleKeyDown, true);
-    document.addEventListener('dragover', this.handleDocumentDragOver, true);
-    document.addEventListener('drop', this.handleDocumentDrop, true);
     if (!this.ui?.backgrnd || !manifest.inventoryLayout || !manifest.equipmentLayout || !this.inventoryButtonFrame('close', false)) {
       this.status(this.t('物品栏资源缺失，窗口不可用。', 'Inventory source assets are missing; the window is unavailable.'));
       return;
@@ -184,11 +195,33 @@ export class InventoryView {
     inventoryWindow.append(targetPrompt);
     this.targetPrompt = targetPrompt;
 
-    const equipment = this.createEquipmentWindow();
-    if (equipment) {
-      this.equipmentWindow = equipment.window;
-      this.equipmentCloseButton = equipment.close;
-      this.root.append(equipment.window);
+    const equipment = new EquipmentView(this.root, manifest, this.equipmentLayout, {
+      equippedItemAt: slot => this.equippedAt(slot),
+      selectingTarget: () => Boolean(this.pendingScroll),
+      itemFrame: itemId => this.manifest.items?.[itemId],
+      assetImage: (frame, className) => this.assetImage(frame, className),
+      translate: (zh, en) => this.t(zh, en),
+      status: message => this.status(message),
+      createWindowButton: (parent, kind, assets, normalKey, action) => this.createWindowButton(parent, kind, assets, normalKey, action),
+      positionWindowButton: (button, position) => this.positionWindowButton(button, position),
+      syncRootVisibility: () => {
+        if (!this.openState) {
+          this.root.hidden = true;
+          this.root.dataset.open = 'false';
+        }
+      },
+      chooseScrollTarget: (slotNumber, item) => {
+        const pending = this.pendingScroll;
+        if (pending && item) this.submitUseItem(pending.sourceTab, pending.sourceSlot, pending.item, -slotNumber, item);
+      },
+      announceSelection: item => this.status(this.t('已选择装备 ' + this.itemLabel(item), 'Selected equipment ' + this.itemLabel(item))),
+      unequip: item => this.unequip(item),
+      onCloseRequest: () => this.closeEquipment(),
+      drag: this.drag,
+      tooltips: this.tooltips,
+    });
+    this.equipment = equipment;
+    if (equipment.window) {
       equipment.window.addEventListener('pointerdown', this.handleWindowPointerDown);
       equipment.window.addEventListener('pointermove', this.handleWindowPointerMove);
       equipment.window.addEventListener('pointerup', this.handleWindowPointerUp);
@@ -213,7 +246,7 @@ export class InventoryView {
     this.updateTabOverflow();
     this.renderSlots();
     this.renderMesos();
-    this.renderEquipment();
+    this.equipment?.render();
   }
 
   private inventoryMode(full = this.full) {
@@ -286,14 +319,9 @@ export class InventoryView {
   }
 
   private openEquipment() {
-    if (!this.equipmentWindow || this.destroyed) return;
-    this.equipmentOpenState = true;
-    this.root.hidden = false;
-    this.root.dataset.open = 'true';
-    this.equipmentWindow.hidden = false;
-    this.renderEquipment();
+    if (this.destroyed) return;
+    this.equipment?.open();
     this.layout();
-    requestAnimationFrame(() => this.equipmentCloseButton?.focus({ preventScroll: true }));
   }
 
   close() {
@@ -301,9 +329,9 @@ export class InventoryView {
     this.openState = false;
     this.cancelScrollTarget(false);
     this.pendingUseRequestId = undefined;
-    this.clearDragState();
+    this.drag.clear();
     if (this.window) this.window.hidden = true;
-    if (!this.equipmentOpenState) {
+    if (!this.equipment?.isOpen()) {
       this.root.hidden = true;
       this.root.dataset.open = 'false';
     }
@@ -312,25 +340,19 @@ export class InventoryView {
   }
 
   private closeEquipment(restoreFocus = true) {
-    const wasOpen = this.equipmentOpenState;
-    this.equipmentOpenState = false;
+    const wasOpen = this.equipment?.isOpen();
     const hadPendingScroll = Boolean(this.pendingScroll);
     this.pendingScroll = undefined;
     this.pendingUseRequestId = undefined;
-    if (this.equipmentWindow) this.equipmentWindow.hidden = true;
+    this.equipment?.close();
     this.updateTargetMode();
-    if (!this.openState) {
-      this.root.hidden = true;
-      this.root.dataset.open = 'false';
-    }
-    this.hideTooltip();
     if (hadPendingScroll && restoreFocus) this.status(this.t('已取消卷轴使用。', 'Scroll use cancelled.'));
     if (wasOpen && restoreFocus) this.focusGame();
   }
 
   /** Toggles the source-backed Equip window (the original E shortcut). */
   toggleEquipment() {
-    if (this.equipmentOpenState) this.closeEquipment();
+    if (this.equipment?.isOpen()) this.closeEquipment();
     else this.openEquipment();
   }
 
@@ -341,7 +363,7 @@ export class InventoryView {
 
   /** True while the inventory or the source-backed equip window is showing. */
   isOpen() {
-    return this.openState || this.equipmentOpenState;
+    return this.openState || this.equipment?.isOpen();
   }
 
   clear() {
@@ -355,7 +377,7 @@ export class InventoryView {
     this.root.dataset.mesos = '0';
     this.hideTooltip();
     this.renderMesos();
-    this.renderEquipment();
+    this.equipment?.render();
     this.renderSlots();
     this.close();
     this.closeEquipment(false);
@@ -365,18 +387,17 @@ export class InventoryView {
     if (this.destroyed) return;
     this.destroyed = true;
     this.tooltips.destroy();
+    this.drag.destroy();
     this.observer?.disconnect();
     document.removeEventListener('keydown', this.handleKeyDown, true);
-    document.removeEventListener('dragover', this.handleDocumentDragOver, true);
-    document.removeEventListener('drop', this.handleDocumentDrop, true);
     this.window?.removeEventListener('pointerdown', this.handleWindowPointerDown);
     this.window?.removeEventListener('pointermove', this.handleWindowPointerMove);
     this.window?.removeEventListener('pointerup', this.handleWindowPointerUp);
     this.window?.removeEventListener('pointercancel', this.handleWindowPointerUp);
-    this.equipmentWindow?.removeEventListener('pointerdown', this.handleWindowPointerDown);
-    this.equipmentWindow?.removeEventListener('pointermove', this.handleWindowPointerMove);
-    this.equipmentWindow?.removeEventListener('pointerup', this.handleWindowPointerUp);
-    this.equipmentWindow?.removeEventListener('pointercancel', this.handleWindowPointerUp);
+    this.equipment?.window?.removeEventListener('pointerdown', this.handleWindowPointerDown);
+    this.equipment?.window?.removeEventListener('pointermove', this.handleWindowPointerMove);
+    this.equipment?.window?.removeEventListener('pointerup', this.handleWindowPointerUp);
+    this.equipment?.window?.removeEventListener('pointercancel', this.handleWindowPointerUp);
     this.root.remove();
   }
 
@@ -398,7 +419,7 @@ export class InventoryView {
       this.root.dataset.tab = String(index);
       this.updateTabs();
       this.renderSlots();
-      this.renderEquipment();
+      this.equipment?.render();
       this.status(label);
     });
     parent.append(button);
@@ -527,58 +548,7 @@ export class InventoryView {
       this.showSlotTooltip(slotNumber);
     });
     slot.addEventListener('blur', () => this.tooltips.noteAnchorBlur());
-    slot.addEventListener('dragstart', event => {
-      const item = this.itemAt(slotNumber);
-      if (!item || slot.disabled || this.pendingScroll) {
-        event.preventDefault();
-        return;
-      }
-      this.draggedEquippedSlot = undefined;
-      this.draggedSlot = slotNumber;
-      this.draggedTab = this.selectedTab;
-      slot.classList.add('inventory-slot-dragging');
-      const payload = JSON.stringify({ inventoryType: TAB_INVENTORY_TYPE[this.selectedTab] ?? this.selectedTab + 1, sourceSlot: slotNumber, itemId: item.itemId });
-      event.dataTransfer?.setData('application/x-maple-inventory', payload);
-      event.dataTransfer?.setData('text/plain', payload);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    });
-    slot.addEventListener('dragend', () => {
-      slot.classList.remove('inventory-slot-dragging');
-      this.clearDragState();
-    });
-    slot.addEventListener('dragover', event => {
-      const equippedSource = this.draggedEquippedItem();
-      if (equippedSource) {
-        if (this.selectedTab !== 0) return;
-        event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-        slot.classList.add('inventory-slot-drag-target');
-        return;
-      }
-      const source = this.dragSource();
-      const target = this.itemAt(slotNumber);
-      if (!source || !this.canDropOn(source, target)) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      slot.classList.add('inventory-slot-drag-target');
-    });
-    slot.addEventListener('dragleave', () => slot.classList.remove('inventory-slot-drag-target'));
-    slot.addEventListener('drop', event => {
-      event.preventDefault();
-      slot.classList.remove('inventory-slot-drag-target');
-      const equippedSource = this.draggedEquippedItem();
-      if (equippedSource && this.selectedTab === 0) {
-        this.unequip(equippedSource);
-        this.clearDragState();
-        return;
-      }
-      const source = this.dragSource();
-      const target = this.itemAt(slotNumber);
-      if (source && this.canDropOn(source, target)) {
-        this.moveSlot(source.tab, source.slot, slotNumber);
-      }
-      this.clearDragState();
-    });
+    this.drag.bindInventorySlot(slot, slotNumber);
     parent.append(slot);
   }
 
@@ -678,7 +648,7 @@ export class InventoryView {
         ));
       }
     }
-    this.renderEquipment();
+    this.equipment?.render();
   }
 
   private receiveInventoryResult(message: Extract<ServerMessage, { type: 'inventoryResult' | 'inventoryDropResult' }>) {
@@ -767,21 +737,6 @@ export class InventoryView {
 
   private visibleItemAt(slot: number) {
     return this.itemAt(slot, this.selectedTab);
-  }
-
-  private dragSource(): DragSource | undefined {
-    if (this.draggedSlot === undefined || this.draggedTab === undefined) return undefined;
-    const item = this.itemAt(this.draggedSlot, this.draggedTab);
-    return item ? { tab: this.draggedTab, slot: this.draggedSlot, item } : undefined;
-  }
-
-  private draggedEquippedItem() {
-    return this.draggedEquippedSlot === undefined ? undefined : this.equippedAt(this.draggedEquippedSlot);
-  }
-
-  private canDropOn(source: DragSource, target: InventoryItem | undefined) {
-    if (source.tab === this.selectedTab) return true;
-    return false;
   }
 
   private moveSlot(sourceTab: number, sourceSlot: number, targetSlot: number) {
@@ -903,7 +858,7 @@ export class InventoryView {
     this.window?.classList.toggle('inventory-selecting-target', selecting);
     if (this.targetPrompt) this.targetPrompt.hidden = !selecting;
     if (selecting) this.openEquipment();
-    this.renderEquipment();
+    this.equipment?.render();
   }
 
   private dropMesos() {
@@ -947,199 +902,8 @@ export class InventoryView {
     this.mesosLine.append(value);
   }
 
-  private renderEquipment() {
-    const equipmentWindow = this.equipmentWindow;
-    if (!equipmentWindow) return;
-    const selecting = Boolean(this.pendingScroll);
-    equipmentWindow.classList.toggle('equipment-selecting-target', selecting);
-    equipmentWindow.querySelectorAll<HTMLButtonElement>('.equipment-slot').forEach(button => {
-      const slotNumber = Number(button.dataset.slot);
-      const item = this.equippedAt(slotNumber);
-      button.replaceChildren();
-      button.disabled = false;
-      button.draggable = Boolean(item);
-      button.classList.toggle('equipment-slot-occupied', Boolean(item));
-      button.classList.toggle('equipment-slot-targetable', selecting && Boolean(item));
-      if (item) {
-        button.dataset.itemId = item.itemId;
-        button.title = itemDetails(item.itemId, item);
-        button.setAttribute('aria-label', selecting
-          ? this.t('对 ' + itemName(item.itemId) + ' 使用卷轴', 'Use the scroll on ' + itemName(item.itemId))
-          : this.t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
-        const frame = this.manifest.items?.[item.itemId];
-        if (frame) {
-          const icon = this.assetImage(frame, 'inventory-item-icon');
-          icon.alt = itemName(item.itemId);
-          icon.setAttribute('aria-hidden', 'true');
-          if (this.equipmentLayout.itemOffset) {
-            icon.style.left = `${this.equipmentLayout.itemOffset.x}px`;
-            icon.style.top = `${this.equipmentLayout.itemOffset.y}px`;
-            icon.style.transform = 'none';
-          }
-          button.append(icon);
-        }
-      } else {
-        delete button.dataset.itemId;
-        button.title = selecting
-          ? this.t('将装备拖到此槽位', 'Drop equipment here')
-          : this.t('空装备槽', 'Empty equipment slot');
-        button.setAttribute('aria-label', button.title);
-      }
-    });
-  }
-
-  private createEquipmentWindow(): { window: HTMLDivElement; close: HTMLButtonElement } | undefined {
-    const ui = this.manifest.equipmentUi;
-    const backgroundFrame = ui?.backgrnd;
-    const closeFrame = ui?.['main/button:close/normal/0'];
-    if (!backgroundFrame || !closeFrame) return undefined;
-    const equipmentWindow = document.createElement('div');
-    equipmentWindow.className = 'equipment-window';
-    equipmentWindow.style.width = `${this.equipmentLayout.width}px`;
-    equipmentWindow.style.height = `${this.equipmentLayout.height}px`;
-    equipmentWindow.setAttribute('role', 'dialog');
-    equipmentWindow.setAttribute('aria-modal', 'false');
-    equipmentWindow.setAttribute('aria-label', this.t('装备栏', 'Equip Inventory'));
-    equipmentWindow.tabIndex = -1;
-    equipmentWindow.hidden = true;
-
-    const background = this.assetImage(backgroundFrame, 'equipment-window-background');
-    background.alt = '';
-    background.setAttribute('aria-hidden', 'true');
-    equipmentWindow.append(background);
-    const equipCanvasFrame = ui?.['EquipTab/canvas:equip'];
-    if (equipCanvasFrame) {
-      const equipCanvas = this.assetImage(equipCanvasFrame, 'equipment-tab-canvas');
-      equipCanvas.style.left = `${equipCanvasFrame.x}px`;
-      equipCanvas.style.top = `${equipCanvasFrame.y}px`;
-      equipCanvas.style.zIndex = '1';
-      equipCanvas.setAttribute('aria-hidden', 'true');
-      equipmentWindow.append(equipCanvas);
-    }
-    const title = document.createElement('span');
-    title.className = 'equipment-window-title';
-    title.textContent = this.t('装备栏', 'Equip Inventory');
-    title.setAttribute('aria-hidden', 'true');
-    equipmentWindow.append(title);
-    for (const slotNumber of Object.keys(this.equipmentLayout.slots).map(Number)) {
-      this.createEquipmentSlot(equipmentWindow, slotNumber);
-    }
-    const close = this.createWindowButton(equipmentWindow, 'close', ui, 'main/button:close/normal/0', () => this.closeEquipment());
-    close?.setAttribute('aria-label', this.t('关闭装备栏', 'Close equip inventory'));
-    if (close) close.title = this.t('关闭装备栏', 'Close equip inventory');
-    if (close) {
-      close.title = this.t('关闭装备栏', 'Close equipment inventory');
-      close.setAttribute('aria-label', close.title);
-    }
-    this.positionWindowButton(close, this.equipmentLayout.close);
-    return close ? { window: equipmentWindow, close } : undefined;
-  }
-
-  private createEquipmentSlot(parent: HTMLDivElement, slotNumber: number) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'equipment-slot';
-    button.dataset.slot = String(slotNumber);
-    const position = this.equipmentLayout.slots[String(slotNumber)];
-    if (position) {
-      button.style.left = position.x + 'px';
-      button.style.top = position.y + 'px';
-      button.style.width = position.width + 'px';
-      button.style.height = position.height + 'px';
-    }
-    button.addEventListener('click', () => {
-      const item = this.equippedAt(slotNumber);
-      const pending = this.pendingScroll;
-      if (pending) {
-        if (item) this.submitUseItem(pending.sourceTab, pending.sourceSlot, pending.item, -slotNumber, item);
-        else this.status(this.t('请选择一个已装备的目标。', 'Choose an occupied equipment slot.'));
-      } else if (item) {
-        this.status(this.t('已选择装备 ' + this.itemLabel(item), 'Selected equipment ' + this.itemLabel(item)));
-      }
-    });
-    button.addEventListener('dblclick', () => {
-      if (!this.pendingScroll) {
-        const item = this.equippedAt(slotNumber);
-        if (item) this.unequip(item);
-      }
-    });
-    button.addEventListener('contextmenu', event => {
-      event.preventDefault();
-      const item = this.equippedAt(slotNumber);
-      const pending = this.pendingScroll;
-      if (pending) {
-        if (item) this.submitUseItem(pending.sourceTab, pending.sourceSlot, pending.item, -slotNumber, item);
-      } else if (item) {
-        this.unequip(item);
-      }
-    });
-    button.addEventListener('pointerenter', () => {
-      this.tooltips.noteAnchorEnter();
-      const item = this.equippedAt(slotNumber);
-      if (item) this.tooltips.showForItem(item, button);
-    });
-    button.addEventListener('pointermove', () => this.tooltips.position(button));
-    button.addEventListener('pointerleave', () => this.tooltips.noteAnchorLeave());
-    button.addEventListener('focus', () => {
-      this.tooltips.noteAnchorFocus();
-      const item = this.equippedAt(slotNumber);
-      if (item) this.tooltips.showForItem(item, button);
-    });
-    button.addEventListener('blur', () => this.tooltips.noteAnchorBlur());
-    button.addEventListener('dragstart', event => {
-      const item = this.equippedAt(slotNumber);
-      if (!item || this.pendingScroll) {
-        event.preventDefault();
-        return;
-      }
-      this.draggedSlot = undefined;
-      this.draggedTab = undefined;
-      this.draggedEquippedSlot = slotNumber;
-      button.classList.add('equipment-slot-dragging');
-      const payload = JSON.stringify({ inventoryType: 1, sourceSlot: -Math.abs(item.slot), itemId: item.itemId });
-      event.dataTransfer?.setData('application/x-maple-inventory', payload);
-      event.dataTransfer?.setData('text/plain', payload);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    });
-    button.addEventListener('dragend', () => {
-      button.classList.remove('equipment-slot-dragging', 'equipment-slot-drag-target');
-      this.clearDragState();
-    });
-    button.addEventListener('dragover', event => {
-      const source = this.dragSource();
-      const target = this.equippedAt(slotNumber);
-      if (!source || !this.canDropOnEquipment(source, target)) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      button.classList.add('equipment-slot-drag-target');
-    });
-    button.addEventListener('dragleave', () => button.classList.remove('equipment-slot-drag-target'));
-    button.addEventListener('drop', event => {
-      event.preventDefault();
-      button.classList.remove('equipment-slot-drag-target');
-      const source = this.dragSource();
-      const target = this.equippedAt(slotNumber);
-      if (source && this.canDropOnEquipment(source, target)) {
-        if (this.isScroll(source.item)) {
-          this.submitUseItem(source.tab, source.slot, source.item, -slotNumber, target);
-        } else {
-          // Equipment use resolves its authoritative body slot from the item
-          // definition; the visual target is only the original drag affordance.
-          this.submitUseItem(source.tab, source.slot, source.item);
-        }
-      }
-      this.clearDragState();
-    });
-    parent.append(button);
-  }
-
   private equippedAt(slotNumber: number) {
     return equippedAtSlot(this.equipped, slotNumber);
-  }
-
-  private canDropOnEquipment(source: DragSource, target: InventoryItem | undefined) {
-    if (this.isScroll(source.item)) return Boolean(target);
-    return itemCategoryTab(source.item.itemId) === 0;
   }
 
   private unequip(item: InventoryItem) {
@@ -1192,42 +956,9 @@ export class InventoryView {
     return (prefix + '-' + random).slice(0, 64);
   }
 
-  private clearDragState() {
-    this.draggedSlot = undefined;
-    this.draggedTab = undefined;
-    this.draggedEquippedSlot = undefined;
-    this.grid?.querySelectorAll('.inventory-slot-dragging,.inventory-slot-drag-target').forEach(slot => {
-      slot.classList.remove('inventory-slot-dragging', 'inventory-slot-drag-target');
-    });
-    this.equipmentWindow?.querySelectorAll('.equipment-slot-dragging,.equipment-slot-drag-target').forEach(slot => {
-      slot.classList.remove('equipment-slot-dragging', 'equipment-slot-drag-target');
-    });
-  }
-
-  private onDocumentDragOver(event: DragEvent) {
-    if ((!this.openState && !this.equipmentOpenState) || (!this.dragSource() && !this.draggedEquippedItem())) return;
-    const target = event.target;
-    if (target instanceof Node && (this.window?.contains(target) || this.equipmentWindow?.contains(target))) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  }
-
-  private onDocumentDrop(event: DragEvent) {
-    if (!this.openState && !this.equipmentOpenState) return;
-    const source = this.dragSource();
-    const equippedSource = this.draggedEquippedItem();
-    if (!source && !equippedSource) return;
-    const target = event.target;
-    if (target instanceof Node && (this.window?.contains(target) || this.equipmentWindow?.contains(target))) return;
-    event.preventDefault();
-    if (equippedSource) this.unequip(equippedSource);
-    else if (source) this.dropSlot(source.tab, source.slot);
-    this.clearDragState();
-  }
-
   private onWindowPointerDown(event: PointerEvent) {
     const window = event.currentTarget instanceof HTMLDivElement ? event.currentTarget : undefined;
-    if (!window || event.button !== 0 || (window === this.window ? !this.openState : !this.equipmentOpenState)) return;
+    if (!window || event.button !== 0 || (window === this.window ? !this.openState : !this.equipment?.isOpen())) return;
     const target = event.target;
     if (target instanceof Element && target.closest('button')) return;
     const rect = window.getBoundingClientRect();
@@ -1287,10 +1018,10 @@ export class InventoryView {
       return;
     }
     if (event.code === 'Escape' || event.key === 'Escape') {
-      if (!this.openState && !this.equipmentOpenState) return;
+      if (!this.openState && !this.equipment?.isOpen()) return;
       event.preventDefault();
       if (this.openState) this.close();
-      if (this.equipmentOpenState) this.closeEquipment();
+      if (this.equipment?.isOpen()) this.closeEquipment();
     }
   }
 
@@ -1449,14 +1180,15 @@ export class InventoryView {
       this.window.style.left = Math.min(maxLeft, Math.max(0, currentLeft)) + 'px';
       this.window.style.top = Math.min(maxTop, Math.max(0, currentTop)) + 'px';
     }
-    if (this.equipmentWindow && this.equipmentWindowPositioned) {
-      const rect = this.equipmentWindow.getBoundingClientRect();
+    const equipmentWindow = this.equipment?.window;
+    if (equipmentWindow && this.equipmentWindowPositioned) {
+      const rect = equipmentWindow.getBoundingClientRect();
       const maxLeft = Math.max(0, hostRect.width - rect.width);
       const maxTop = Math.max(0, hostRect.height - rect.height);
-      const currentLeft = Number.parseFloat(this.equipmentWindow.style.left) || 0;
-      const currentTop = Number.parseFloat(this.equipmentWindow.style.top) || 0;
-      this.equipmentWindow.style.left = Math.min(maxLeft, Math.max(0, currentLeft)) + 'px';
-      this.equipmentWindow.style.top = Math.min(maxTop, Math.max(0, currentTop)) + 'px';
+      const currentLeft = Number.parseFloat(equipmentWindow.style.left) || 0;
+      const currentTop = Number.parseFloat(equipmentWindow.style.top) || 0;
+      equipmentWindow.style.left = Math.min(maxLeft, Math.max(0, currentLeft)) + 'px';
+      equipmentWindow.style.top = Math.min(maxTop, Math.max(0, currentTop)) + 'px';
     }
     this.tooltips.reposition();
   }

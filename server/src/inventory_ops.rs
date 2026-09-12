@@ -26,6 +26,9 @@
 //!
 //! ## 依赖方向
 //! 只依赖祖先模块 `world`（`use super::*`）、`crate::auth`、`crate::inventory` 与 `serde_json`。
+//! 拾取的世界侧可得性判定（地图/归属/距离/内存容量预检）自 R6 起委托给
+//! 纯规则子模块 `super::pickup_rules`（窄输入 `PickupFacts` / 结果
+//! `PickupVerdict`）；本模块保留幂等查询、Store 提交、世界回填与回执顺序。
 //! 不直接执行 SQL，也不读文件。
 //!
 //! ## 测试入口
@@ -67,75 +70,51 @@ impl World {
             ));
             return;
         };
-        if self
-            .drop_maps
-            .get(&drop_id)
-            .is_some_and(|drop_map| drop_map != &map_id)
-        {
-            let _ = player.output.try_send(reject(
-                "drop_unavailable",
-                "Drop is unavailable",
-                Some(&request_id),
-            ));
+        // R6 收窄：世界侧可得性判定（地图/归属/距离/内存容量预检）整体
+        // 委托给 pickup_rules 纯规则；拒绝码与文案由此处原样下发。
+        let verdict = {
+            let kind = inventory::inventory_type(&drop.item_id).unwrap_or(4);
+            let facts = pickup_rules::PickupFacts {
+                player_id: id.as_str(),
+                player_x: player.state.x,
+                player_y: player.state.y,
+                now_ms: auth::now_ms(),
+                map_id: map_id.as_str(),
+                drop: pickup_rules::PickupDropView {
+                    item_id: drop.item_id.as_str(),
+                    quantity: drop.quantity,
+                    x: drop.x,
+                    y: drop.y,
+                },
+                drop_map: self.drop_maps.get(&drop_id).map(String::as_str),
+                drop_owner: self.drop_owners.get(&drop_id),
+                memory_capacity: if self.store.is_none() && drop.item_id != "0" {
+                    Some(pickup_rules::CapacityProbe {
+                        inventory: &player.state.inventory,
+                        slot_limit: player
+                            .inventory_slots
+                            .get(&kind)
+                            .copied()
+                            .unwrap_or(inventory::SLOT_LIMIT),
+                        stats: self.drop_instances.get(&drop_id).and_then(|v| v.stats.as_ref()),
+                        remaining_slots: self
+                            .drop_instances
+                            .get(&drop_id)
+                            .and_then(|v| v.remaining_slots),
+                        upgrade_count: self
+                            .drop_instances
+                            .get(&drop_id)
+                            .and_then(|v| v.upgrade_count),
+                    })
+                } else {
+                    None
+                },
+            };
+            pickup_rules::evaluate_pickup(&facts)
+        };
+        if let pickup_rules::PickupVerdict::Reject { code, message } = verdict {
+            let _ = player.output.try_send(reject(code, message, Some(&request_id)));
             return;
-        }
-        if self
-            .drop_owners
-            .get(&drop_id)
-            .is_some_and(|(owner, until)| {
-                owner.as_deref().is_some_and(|owner| owner != id) && auth::now_ms() < *until
-            })
-        {
-            let _ = player.output.try_send(reject(
-                "drop_owned",
-                "该物品暂时不可拾取",
-                Some(&request_id),
-            ));
-            return;
-        }
-        let pickup_range = 32.0;
-        if (player.state.x - drop.x).abs() > pickup_range
-            || (player.state.y - drop.y).abs() > pickup_range
-        {
-            let _ = player.output.try_send(reject(
-                "out_of_range",
-                "Drop is out of range",
-                Some(&request_id),
-            ));
-            return;
-        }
-        if self.store.is_none() && drop.item_id != "0" {
-            if inventory::consume_on_pickup(&drop.item_id) {
-                // ConsumeOnPickup cards are always collected.  The
-                // MonsterBook count saturates at five, matching Cosmic's
-                // Character.applyConsumeOnPickup behavior.
-            } else {
-                let mut inventory = player.state.inventory.clone();
-                let instance = self.drop_instances.get(&drop_id);
-                let kind = inventory::inventory_type(&drop.item_id).unwrap_or(4);
-                let slot_limit = player
-                    .inventory_slots
-                    .get(&kind)
-                    .copied()
-                    .unwrap_or(inventory::SLOT_LIMIT);
-                let can_add = inventory::add_item_instance(
-                    &mut inventory,
-                    drop.item_id.clone(),
-                    drop.quantity,
-                    slot_limit,
-                    instance.and_then(|value| value.stats.as_ref()),
-                    instance.and_then(|value| value.remaining_slots),
-                    instance.and_then(|value| value.upgrade_count),
-                );
-                if can_add.is_err() {
-                    let _ = player.output.try_send(reject(
-                        "inventory_full",
-                        "Inventory is full",
-                        Some(&request_id),
-                    ));
-                    return;
-                }
-            }
         }
         let outcome = match self.store.as_ref() {
             Some(store) => store.pickup(&id, &map_id, &request_id, &drop_id),
@@ -194,18 +173,11 @@ impl World {
                         player.state.mesos =
                             player.state.mesos.saturating_add(outcome.quantity as u64);
                     } else if inventory::consume_on_pickup(&outcome.item_id) {
-                        let entry = player
-                            .state
-                            .monster_book
-                            .entry(outcome.item_id.clone())
-                            .or_insert(0);
-                        let current = *entry;
-                        let amount = outcome
-                            .quantity
-                            .min(u32::from(5_u8.saturating_sub(current)));
-                        *entry = current
-                            .saturating_add(u8::try_from(amount).unwrap_or(0))
-                            .min(5);
+                        pickup_rules::saturate_monster_book(
+                            &mut player.state.monster_book,
+                            &outcome.item_id,
+                            outcome.quantity,
+                        );
                     } else {
                         let kind = inventory::inventory_type(&outcome.item_id).unwrap_or(4);
                         let slot_limit = player
