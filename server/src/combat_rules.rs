@@ -162,6 +162,10 @@ impl PlayerConfig {
     /// P adapter: source Mob.PADamage minus equipment PDD, minimum one.
     /// ponytail: flat defense only; replace when verified TMS273 received-damage
     /// rules are available. Do not restore the pre-BB standard-PDD table.
+    ///
+    /// Reference formula pinned for the acceptance suite; the live contact
+    /// path (`monsters.rs::apply_contact_damage`) keeps its own inline rule.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn contact_damage(&self, monster: &MonsterTemplate) -> Option<i64> {
         if !monster.body_attack {
             return None;

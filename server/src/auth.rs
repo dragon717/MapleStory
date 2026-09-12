@@ -1,9 +1,13 @@
 use crate::lobby;
 use crate::protocol::{AbilityStat, AbilityStats};
 use crate::{
-    inventory::{self, EquipmentStats, MAX_SLOT_LIMIT, SLOT_LIMIT},
+    inventory::{self, EquipmentStats, MAX_SLOT_LIMIT},
     protocol::InventoryItem,
 };
+// Bare `SLOT_LIMIT` is only referenced by this file's tests; keeping it out of
+// the unconditional import keeps the non-test build warning-free.
+#[cfg(test)]
+use crate::inventory::SLOT_LIMIT;
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -697,22 +701,6 @@ impl Store {
             }
         }
         Ok(slots)
-    }
-
-    /// Persist the durable per-tab inventory slot capacities.
-    pub fn save_inventory_slots(
-        &self,
-        account_id: &str,
-        slots: &BTreeMap<u8, u16>,
-    ) -> Result<(), String> {
-        let db = self.db.lock().map_err(|_| "account store unavailable")?;
-        let json = serde_json::to_string(slots).map_err(|_| "account persistence failed")?;
-        db.execute(
-            "UPDATE player_stats SET inventory_slots_json=?2 WHERE account_id=?1",
-            params![account_id, json],
-        )
-        .map_err(|_| "account persistence failed")?;
-        Ok(())
     }
 
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {

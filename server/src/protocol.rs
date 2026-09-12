@@ -424,8 +424,11 @@ pub enum ClientMessage {
         #[serde(default)]
         away: Option<bool>,
         /// Client wall clock for diagnostics only; never used for decisions.
+        /// Kept so the Rust contract stays in sync with `shared/protocol.ts`
+        /// and the field keeps its documented meaning on the wire.
         #[serde(default)]
         #[serde(rename = "clientNowMs")]
+        #[allow(dead_code)]
         client_now_ms: Option<i64>,
     },
 }

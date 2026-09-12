@@ -1096,8 +1096,10 @@ pub struct EmoticonCatalogue {
     pub ids: Vec<String>,
     /// `UI/ChatEmoticon.img/ChatLimit`.
     pub limit: EmoticonLimit,
-    /// Export provenance stamp (`tms273-emoticon`); informational only.
+    /// Export provenance stamp (`tms273-emoticon`); informational only.  Kept
+    /// as pinned source data, never read by runtime logic.
     #[serde(default)]
+    #[allow(dead_code)]
     pub source: Option<String>,
 }
 
@@ -1179,6 +1181,9 @@ pub enum Command {
         id: String,
         connection: Option<String>,
     },
+    /// Same as `Exit` with a mandatory connection tag; only acceptance tests
+    /// construct it directly, production always goes through `Exit`.
+    #[cfg_attr(not(test), allow(dead_code))]
     Leave {
         id: String,
         connection: String,
@@ -1216,11 +1221,20 @@ pub enum AwayPhase {
 /// from `started` at every decision point, so a stage can never be stale.
 #[derive(Debug, Clone)]
 struct AwayWindow {
+    /// Window identifier; kept as a fact for future diagnostics/logging.
+    #[allow(dead_code)]
     id: u64,
     started: Instant,
+    /// Wall-clock start of the window (display/logs only; decisions use
+    /// `started`).
+    #[allow(dead_code)]
     started_unix_ms: i64,
     full_retention: Duration,
     max_total: Duration,
+    /// Why the window opened.  Kept as a fact next to the window start so
+    /// diagnostics can tell a re-hide from a reconnect; policy itself is
+    /// derived from elapsed time only.
+    #[allow(dead_code)]
     reason: AwayReason,
     /// Last stage already broadcast, used only for notification de-duplication.
     /// It never replaces re-deriving the stage from the current time.
@@ -1275,8 +1289,9 @@ struct Player {
     state: PlayerState,
     /// Durable per-tab inventory slot capacities (inventory type -> slot
     /// count).  Loaded from auth at join; the world reads it to bound
-    /// `add_items`/`move_items` and the slot-expansion coupon writes a new
-    /// value back through `Store::save_inventory_slots`.
+    /// `add_items`/`move_items`, and the slot-expansion coupon grows it in
+    /// memory mirroring the auth store's transactional write branch
+    /// (`write_inventory_slots_tx`).
     inventory_slots: BTreeMap<u8, u16>,
     /// Persisted MP baseline before equipment/skill-derived bonuses.  The
     /// wire state's maxMp is a snapshot and must never become the next
@@ -2392,14 +2407,6 @@ impl World {
             self.ability_requests
                 .retain(|(player_id, _), _| player_id != &id);
         }
-    }
-
-    /// True when the character is a resident without a controlling socket, or
-    /// is controlling but has an away window past the grace threshold.
-    fn away_visible_phase(&self, id: &str) -> Option<AwayPhase> {
-        let player = self.players.get(id)?;
-        let away = player.away.as_ref()?;
-        Some(away.phase(Instant::now()))
     }
 
     fn broadcast_to_map(&mut self, map_id: &str, message: &str) {

@@ -24,7 +24,7 @@ impl World {
                 // absent from the world (fresh login or after a completed
                 // exit), so reconnecting never produces a second entity and
                 // never restarts the away window that is already running.
-                let mut carried_away_sequence = 0;
+                let carried_away_sequence = 0;
                 if self.players.contains_key(&identity.id) {
                     // A reconnect replaces the stale session.  Resolve its
                     // private Boss instance before rebinding the Player row;
@@ -44,7 +44,6 @@ impl World {
                         .retain(|_, attack| attack.player_id != identity.id);
                     if let Some(existing) = self.players.get_mut(&identity.id) {
                         existing.away_sequence += 1;
-                        carried_away_sequence = existing.away_sequence;
                         existing.connection = connection.clone();
                         existing.output = output.clone();
                         existing.detached = false;
