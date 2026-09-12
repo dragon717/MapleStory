@@ -40,6 +40,7 @@
 | buff 栏 | 不拖 | — | **新建** `features/hud/buff-bar.ts` + `buff.css` + `export_tms273_buff.cjs` |
 | 聊天 | ✅ 新增 | 3 态 | 标题条 27px 不抢输入框焦点；拖拽时解除 `bottom` 定位 |
 | ESC 菜单 | ✅ 新增 | close 3 态 | 新增 `app/ui-router.ts`：**无面板打开时 ESC 开关菜单** |
+| 角色信息 | ✅ 新增（2026-09-13） | close 4 态（沿用） | 错位修复：删除四个源 Font 文字层（与 HTML 标签重影）、attackBack `clip-path` 裁掉自带的戰鬥力头条（33px）、详情三组面板改对齐源灰板（mainStatBack y38..119 / attackBack 灰板 y123..300 / utilityBack y314..406）、主卡 HP/MP/EXP/AP 移入白区 y62 两列网格（底源灰槽 y124 起不再被压）；拖拽走 `installWindowDrag`（标题条 26px = 源框带），`--ui-window-z` 置顶，`destroy()` 对称注销 |
 
 **R3（z 序置顶）状态：helper 就位、CSS 未接线。** `bringToFront()` 已实现并有断言覆盖，
 但各面板现存一批静态 `z-index`（装备 6 / 任务 4 / 仓库 3 / 队伍 3 / 好友 3 / NPC 2 / HUD 3 …），
@@ -141,6 +142,7 @@ registerEscapeLayer(layer) -> dispose
 | 任务日志 | 新增 | 源顶部条 | X / Q / ESC | ✅ | 关自己 |
 | 快捷任务追踪 | 新增 | 自绘条（P） | 追踪按钮 | ✅ | 不参与 |
 | 聊天 | 新增 | 面板顶条 | 折叠键 | ✅ | 输入框优先 |
+| 角色信息 | 新增（2026-09-13） | 26（源框带） | X / C / ESC | ✅ | 关自己 |
 | 菜单栏 | 新增 | 菜单头 | X / ESC / 点外部 | ✅ | **无面板时 ESC 开关** |
 | buff 栏 | 不拖（HUD 常驻） | — | 随状态栏显隐 | — | 不参与 |
 
@@ -157,6 +159,7 @@ registerEscapeLayer(layer) -> dispose
 | 快捷技能栏折叠键 | `UI/StatusBar3.img/mainBar/quickSlot/button:Extend | button:Fold` | 本轮从纯文本改为源素材 |
 | buff 栏 | `UI/StatusBar3.img/BuffSetting/favoriteBuff`（九宫格）+ `spaceX=spaceY=5`（源间距）+ `minimizedIcon/{mySkill,othersSkill,commonSkill,itemSkill}` + `mainBar/status/gauge/number/*`（剩余秒数字体） | **T**：面板九宫格与间距是源值；**P**：栏位摆放位置与"不分组、单行"的呈现为项目适配；分组切换（minimizedIcon 四类）本轮只导出不接 |
 | buff 数据 | 服务端快照 `derivedStats.skillBuffs`（skillId → 剩余 ms） | 权威数据，客户端只渲染 |
+| 角色信息窗 | `UI/UICharacterInfo.img`（backgrnd / layer:stat / 三个 back 灰板 / close 与 lvUp 按钮四态） | **P**：四个源 Font 文字层（mainStatFont/attackFont/utilityFont/defenseFont）不渲染——它们是繁体标签，与 HTML 行重复且坐标不同会造成重影错位；attackBack 自带戰鬥力头条前 33px 被裁；所有数据行的排版为项目适配，仅外壳与按钮走源素材。源主卡底图自带的公会/联盟/人气度灰槽保留原样（未建模即留空） |
 
 ---
 

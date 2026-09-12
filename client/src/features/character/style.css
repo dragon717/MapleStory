@@ -20,10 +20,25 @@
   transform: translate(-50%, -50%);
   overflow: hidden;
   pointer-events: auto;
+  z-index: var(--ui-window-z, 1);
   color: #eef3f5;
   font: 11px/1.3 Verdana, "Microsoft YaHei", sans-serif;
   filter: drop-shadow(0 5px 5px #000b);
   image-rendering: pixelated;
+}
+
+/* Drag hit strip (spec R2): the source frame band above the white card.
+   The close button (z-index 8) stays above it and clickable. */
+.character-titlebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 26px;
+  z-index: 7;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
 }
 
 .character-scroll {
@@ -59,11 +74,7 @@
 .character-detail-stat-layer,
 .character-detail-attack-back,
 .character-detail-utility-back,
-.character-detail-main-stat-back,
-.character-detail-main-stat-font,
-.character-detail-attack-font,
-.character-detail-utility-font,
-.character-detail-defense-font {
+.character-detail-main-stat-back {
   position: absolute;
   display: block;
   max-width: none;
@@ -75,13 +86,11 @@
 .character-main-background { inset: 0; width: 472px; height: 230px; }
 .character-detail-background { inset: 0; width: 472px; height: 479px; }
 .character-detail-stat-layer { left: 11px; top: 11px; }
-.character-detail-attack-back { left: 0; top: 0; }
+/* attackBack bakes a 戰鬥力 header strip into its top 33 px; clip it so the
+   strip neither overlaps the window title nor doubles the header row. */
+.character-detail-attack-back { left: 0; top: 0; clip-path: inset(33px 0 0 0); }
 .character-detail-utility-back { left: 0; top: 314px; }
 .character-detail-main-stat-back { left: 0; top: 38px; }
-.character-detail-main-stat-font { left: 12px; top: 52px; }
-.character-detail-attack-font { left: 11px; top: 133px; }
-.character-detail-utility-font,
-.character-detail-defense-font { left: 12px; top: 326px; }
 
 .character-field {
   position: absolute;
@@ -105,21 +114,24 @@
 .character-job { width: 140px; height: 18px; font-size: 11px; }
 .character-name { width: 105px; height: 17px; font-size: 11px; }
 
+/* HP/MP/EXP/AP live in the free white card zone (source art y32..122);
+   the baked gray slots (公会/联盟/人气度…) start at y124 and must stay clear. */
 .character-main-vitals {
   position: absolute;
   z-index: 5;
-  left: 27px;
-  top: 74px;
-  width: 210px;
+  left: 24px;
+  top: 62px;
+  width: 424px;
   display: grid;
-  gap: 3px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
 }
 
 .character-main-vitals .character-field {
   position: relative;
   left: auto !important;
   top: auto !important;
-  width: 196px;
+  width: auto;
   height: 18px;
   padding: 1px 6px;
   color: #29404d;
@@ -134,12 +146,13 @@
 .character-main-vitals .character-field-value { display: inline; }
 .character-main-vitals .character-field-value { margin-left: 3px; }
 .character-growth-note {
+  grid-column: 1 / -1;
   display: block;
   min-width: 0;
   overflow: hidden;
   color: #52646e;
   font-size: 9px;
-  line-height: 14px;
+  line-height: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -147,8 +160,8 @@
 .character-window-close {
   position: absolute;
   z-index: 8;
-  top: 11px;
-  right: 4px;
+  top: 9px;
+  right: 9px;
   width: 18px;
   height: 18px;
   padding: 3px;
@@ -182,61 +195,27 @@
   text-shadow: 1px 1px #1d2a31;
 }
 
-.character-detail-summary {
-  position: absolute;
-  z-index: 6;
-  left: 27px;
-  top: 48px;
-  width: 418px;
-  height: 71px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: 25px;
-  column-gap: 16px;
-  padding: 3px 9px;
-  box-sizing: border-box;
-  background: rgb(53 66 78 / 73%);
-  border: 1px solid rgb(143 155 167 / 68%);
-  box-shadow: inset 0 1px rgb(195 204 211 / 20%);
-}
-
-.character-detail-summary .character-field {
-  position: relative;
-  left: auto !important;
-  top: auto !important;
-  width: auto;
-  height: 22px;
-  color: #f2f5f6;
-  font: 11px/22px "Microsoft YaHei", sans-serif;
-  text-shadow: 1px 1px #26313a;
-}
-
-.character-detail-summary .character-field-label,
-.character-detail-summary .character-field-value { display: inline; }
-.character-detail-summary .character-field-value { margin-left: 4px; font-weight: 700; }
-
+/* Stat rows sit on the source gray canvases (spec R6):
+   - mainStatBack  y38..119  → 可用AP/金币 + 力量/敏捷/智力/运气（AP 分配）
+   - attackBack 灰板 y123..300 → 魔法攻击/防御/移动速度/魔心防御
+   - utilityBack   y314..406 → 精神强化/寒冰迅移 */
 .character-live-stats {
   position: absolute;
   z-index: 6;
-  left: 27px;
-  width: 418px;
+  left: 24px;
+  width: 424px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: 32px;
-  gap: 4px 10px;
+  gap: 4px 8px;
   margin: 0;
-  padding: 8px 10px;
   box-sizing: border-box;
   color: #f4f7f8;
-  background: rgb(27 35 43 / 79%);
-  border: 1px solid rgb(143 155 167 / 68%);
-  box-shadow: inset 0 1px rgb(195 204 211 / 13%);
-  font: 11px/30px "Microsoft YaHei", sans-serif;
+  font: 11px/22px "Microsoft YaHei", sans-serif;
 }
 
-.character-attack-stats { top: 139px; height: 165px; }
-.character-utility-stats { top: 329px; height: 78px; }
-.character-status-stats { top: 413px; height: 58px; grid-auto-rows: 34px; padding: 5px 10px; }
+.character-ability-stats { top: 42px; grid-auto-rows: 22px; }
+.character-combat-stats { top: 130px; grid-auto-rows: 26px; }
+.character-status-stats { top: 322px; grid-auto-rows: 26px; }
 
 .character-live-stat {
   display: flex;
@@ -245,8 +224,9 @@
   gap: 8px;
   min-width: 0;
   padding: 0 8px;
-  background: rgb(96 112 126 / 64%);
-  border: 1px solid rgb(187 198 206 / 23%);
+  background: rgb(27 35 43 / 79%);
+  border: 1px solid rgb(143 155 167 / 68%);
+  box-shadow: inset 0 1px rgb(195 204 211 / 13%);
   border-radius: 2px;
 }
 
@@ -283,6 +263,8 @@
   .character-scroll-content {
     min-height: 0;
   }
+
+  .character-titlebar { height: 34px; }
 
   .character-main-card,
   .character-detail-card {
@@ -324,11 +306,7 @@
   .character-detail-card > .character-detail-stat-layer,
   .character-detail-card > .character-detail-attack-back,
   .character-detail-card > .character-detail-utility-back,
-  .character-detail-card > .character-detail-main-stat-back,
-  .character-detail-card > .character-detail-main-stat-font,
-  .character-detail-card > .character-detail-attack-font,
-  .character-detail-card > .character-detail-utility-font,
-  .character-detail-card > .character-detail-defense-font {
+  .character-detail-card > .character-detail-main-stat-back {
     display: none;
   }
 
@@ -403,40 +381,18 @@
     color: transparent;
   }
 
-  .character-detail-summary,
   .character-live-stats {
     position: relative;
     left: auto;
     top: auto;
     width: 100%;
-    height: auto;
     min-width: 0;
     margin-top: 8px;
-  }
-
-  .character-detail-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: minmax(28px, auto);
-    column-gap: 8px;
-    row-gap: 4px;
-    padding: 6px 8px;
-  }
-
-  .character-detail-summary .character-field {
-    min-width: 0;
-    height: auto;
-    min-height: 26px;
-    font-size: 11px;
-    line-height: 26px;
-  }
-
-  .character-live-stats {
     grid-auto-rows: minmax(34px, auto);
     gap: 6px;
-    padding: 7px 8px;
   }
 
-  .character-status-stats { top: auto; height: auto; padding: 7px 8px; }
+  .character-status-stats { top: auto; }
 
   .character-live-stat {
     min-height: 34px;
@@ -461,13 +417,11 @@
   .character-main-card > .character-level { text-align: left; }
 
   .character-main-vitals,
-  .character-detail-summary,
   .character-live-stats {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .character-main-vitals .character-field,
-  .character-detail-summary .character-field,
   .character-live-stat {
     width: 100%;
   }

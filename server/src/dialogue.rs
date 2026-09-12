@@ -547,10 +547,19 @@ impl World {
                                 Ok(true) => job_advanced = true,
                                 Ok(false) => {
                                     self.end_conversation(&id);
+                                    // A beginner reaching this branch cleared
+                                    // the "is a beginner" gate and failed the
+                                    // level one — the original first transfer
+                                    // is a level-10 step (1402 lvmin).
+                                    let message = if job == BEGINNER_JOB {
+                                        "轉職需要達到10級。"
+                                    } else {
+                                        "只有新手可以在汉斯处转职为法师。"
+                                    };
                                     self.send_reject(
                                         &id,
                                         "job_advance_unavailable",
-                                        "只有新手可以在汉斯处转职为法师。",
+                                        message,
                                         Some(&request_id),
                                     );
                                     return;

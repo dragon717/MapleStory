@@ -15,6 +15,7 @@ export class Connection {
   private socket?: WebSocket;
   private timeout?: ReturnType<typeof setTimeout>;
   private lastState?: 'connecting' | 'online' | 'offline';
+  private lastReason?: string;
   private retry?: ReturnType<typeof setTimeout>;
   private attempt = 0;
   private stopped = false;
@@ -23,10 +24,17 @@ export class Connection {
    *  sees one constantly. Only report a status change when the connection
    *  state actually changes; otherwise every snapshot re-runs the app's
    *  "online" handler, which returns focus to the game viewport and yanks the
-   *  caret out of the chat input right after Enter. */
+   *  caret out of the chat input right after Enter.
+   *
+   *  The reason participates in the dedupe: a rejected handshake reports
+   *  `offline` a second time with the actionable text, and dropping that would
+   *  leave the player staring at "无法连接服务器，请检查网络。" when the real
+   *  answer is "登录状态已失效，请重新登录。" — exactly what a server restart
+   *  (in-memory session table) produces. */
   private report(status: 'connecting' | 'online' | 'offline', reason?: string) {
-    if (this.lastState === status) return;
+    if (this.lastState === status && this.lastReason === reason) return;
     this.lastState = status;
+    this.lastReason = reason;
     this.state(status, reason);
   }
   connect() {

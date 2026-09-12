@@ -145,18 +145,47 @@ impl World {
         self.quest_text.summary(&spec.quest_id, lang)
     }
 
+    /// Localized name of a map id for player-facing quest routing text.  The
+    /// authored names live in `shared/maps.json`; the runtime `Map` struct does
+    /// not carry them, so the ids a quest can actually route through are spelled
+    /// out here.  A miss falls back to the raw id, which is why every map a
+    /// reachable quest can mention must be listed — "前往101000003" tells the
+    /// player nothing.
     fn quest_map_label(&self, map_id: &str) -> String {
         match map_id {
             "000010000" => "楓葉山丘".to_owned(),
+            "000020000" => "嫩寶村".to_owned(),
+            "001010000" => "冒險者修練場入口".to_owned(),
             "001020000" => "選擇岔道".to_owned(),
             "002000000" => "楓之港".to_owned(),
             "002000100" => "碼頭".to_owned(),
+            "101000003" => "魔法森林圖書館".to_owned(),
+            "101010100" => "森林的起始點".to_owned(),
             "104000000" => "維多利亞港".to_owned(),
             "100000201" => "弓箭手培訓中心".to_owned(),
             "130000000" => "耶雷弗".to_owned(),
+            "310040200" => "礦山入口".to_owned(),
             "310050000" => "發電廠大廳".to_owned(),
             _ => map_id.to_owned(),
         }
+    }
+
+    /// Transfer-office key of an NPC ("法師轉職官" …), compared
+    /// whitespace-insensitively so the short `弓箭手 轉職官` spelling still
+    /// pairs with its twin.  The same office is staffed in several maps; only
+    /// one of those NPCs authors each job-route quest, so the key is what lets
+    /// the others point the player at the right colleague instead of silently
+    /// offering nothing.
+    fn npc_office(&self, template_id: &str) -> Option<String> {
+        let func = self
+            .gameplay
+            .npcs
+            .iter()
+            .find(|npc| npc.template_id == template_id)?
+            .func
+            .clone();
+        let normalized: String = func.chars().filter(|c| !c.is_whitespace()).collect();
+        normalized.contains("轉職官").then_some(normalized)
     }
 
     fn quest_npc_map(&self, template_id: Option<&str>) -> Option<String> {
@@ -191,18 +220,40 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Vec::new();
         };
+        let office = self.npc_office(template_id);
         let mut choices = Vec::new();
         for spec in self.gameplay.quests.iter().filter(|spec| spec.executable()) {
             let status = Self::quest_status_for(player, &spec.quest_id);
             match status {
                 None => {
-                    if Self::quest_phase_matches_npc(&spec.start, template_id)
-                        && quest_rules::conditions_match(
+                    if Self::quest_phase_matches_npc(&spec.start, template_id) {
+                        if quest_rules::conditions_match(
                             &quest_facts(player),
                             &spec.start.conditions,
-                        )
-                    {
-                        choices.push((spec.quest_id.clone(), "start".to_owned()));
+                        ) {
+                            choices.push((spec.quest_id.clone(), "start".to_owned()));
+                        }
+                    } else if let Some(office) = office.as_deref() {
+                        // Same office, another map.  Only one of the twin NPCs
+                        // authors each job-route quest; the other would
+                        // otherwise offer nothing while the quest log still
+                        // reports the quest as acceptable, which reads as
+                        // "cannot accept".  Point the player at the colleague
+                        // instead — the quest itself is still accepted there.
+                        let start_npc = spec.start.npc_id.as_deref().unwrap_or_default();
+                        let same_office = self.npc_office(start_npc).as_deref() == Some(office);
+                        let authored_elsewhere = self
+                            .quest_npc_map(spec.start.npc_id.as_deref())
+                            .is_some_and(|map_id| map_id != player.map_id);
+                        if same_office
+                            && authored_elsewhere
+                            && quest_rules::conditions_match(
+                                &quest_facts(player),
+                                &spec.start.conditions,
+                            )
+                        {
+                            choices.push((spec.quest_id.clone(), "route_guide".to_owned()));
+                        }
                     }
                 }
                 Some("active") => {
@@ -287,6 +338,26 @@ impl World {
             .iter()
             .find(|spec| spec.quest_id == quest_id)?;
         let status = Self::quest_status_for(player, quest_id);
+        // A guide walks the player to the colleague who authors a job-route
+        // quest they can already accept.  It is re-derived on selection, so a
+        // quest accepted in the meantime can no longer move anyone.
+        if action == "route_guide" {
+            if status.is_some()
+                || !quest_rules::conditions_match(&quest_facts(player), &spec.start.conditions)
+            {
+                return None;
+            }
+            let office = self.npc_office(template_id)?;
+            let start_npc = spec.start.npc_id.as_deref()?;
+            if self.npc_office(start_npc).as_deref() != Some(office.as_str()) {
+                return None;
+            }
+            let map_id = self.quest_npc_map(Some(start_npc))?;
+            if map_id == player.map_id {
+                return None;
+            }
+            return self.maps.contains_key(&map_id).then_some((map_id, None));
+        }
         let phase = match action {
             "route_start" if matches!(status, Some("active") | Some("completed")) => &spec.start,
             "route_complete" | "return" if status == Some("completed") => &spec.complete,
@@ -578,8 +649,17 @@ impl World {
                         .quests
                         .iter()
                         .find(|spec| spec.quest_id == quest_id.as_str())
-                        .and_then(|spec| Self::quest_route_map_id(spec, action))
-                        .map(|map_id| self.quest_map_label(map_id));
+                        .and_then(|spec| {
+                            if action == "route_guide" {
+                                // A guide points at the colleague who authors
+                                // the quest, which is runtime placement rather
+                                // than an authored warp field.
+                                self.quest_npc_map(spec.start.npc_id.as_deref())
+                            } else {
+                                Self::quest_route_map_id(spec, action).map(str::to_owned)
+                            }
+                        })
+                        .map(|map_id| self.quest_map_label(&map_id));
                     let text = match action.as_str() {
                         "start" if lang == crate::quest_text::LANG_EN => format!("Accept: {name}"),
                         "complete" if lang == crate::quest_text::LANG_EN => {
@@ -598,6 +678,10 @@ impl World {
                             "Return: {}",
                             route_map.as_deref().unwrap_or("the return route")
                         ),
+                        "route_guide" if lang == crate::quest_text::LANG_EN => format!(
+                            "Accept at {}: {name}",
+                            route_map.as_deref().unwrap_or("the quest NPC")
+                        ),
                         "start" => format!("接取：{name}"),
                         "complete" => format!("交付：{name}"),
                         "pending" => format!("查看：{name}"),
@@ -610,6 +694,10 @@ impl World {
                             route_map.as_deref().unwrap_or("任務目的地")
                         ),
                         "return" => format!("返回{}", route_map.as_deref().unwrap_or("選擇岔道")),
+                        "route_guide" => format!(
+                            "前往{}接取：{name}",
+                            route_map.as_deref().unwrap_or("任務NPC所在地")
+                        ),
                         _ => format!("返回選擇岔道：{name}"),
                     };
                     (u32::try_from(index).unwrap_or(u32::MAX), text)
@@ -665,7 +753,10 @@ impl World {
                     return true;
                 }
                 self.end_conversation(id);
-                if matches!(action.as_str(), "route_start" | "route_complete" | "return") {
+                if matches!(
+                    action.as_str(),
+                    "route_start" | "route_complete" | "return" | "route_guide"
+                ) {
                     let Some((route_map_id, route_portal_name)) =
                         self.quest_route_target(id, &quest_id, template_id, &action)
                     else {

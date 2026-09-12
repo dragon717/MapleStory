@@ -4114,7 +4114,8 @@ include!("windbell_acceptance.rs");
         let mut beginner = quest_profile();
         beginner.hp = 37;
         beginner.mp = 4;
-        beginner.level = 9;
+        // T: the first job advancement is a level-10 step (1402 lvmin=10).
+        beginner.level = 10;
         service.store.load_profile("beginner", &beginner).unwrap();
         let mut magician = quest_profile();
         magician.job = MAGICIAN_JOB;
@@ -4271,7 +4272,7 @@ include!("windbell_acceptance.rs");
         assert_eq!(persisted.job, MAGICIAN_JOB);
         assert_eq!(persisted.hp, 37);
         assert_eq!(persisted.mp, 100);
-        assert_eq!(persisted.level, 9);
+        assert_eq!(persisted.level, 10);
 
         // A transferred magician receives a separate, idempotent training
         // menu.  The restore option only refills MP and never grants another

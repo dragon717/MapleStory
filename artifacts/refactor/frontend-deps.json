@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 100,
-  "edge_count": 199,
+  "edge_count": 200,
   "edge_kind_counts": {
-    "value": 115,
+    "value": 116,
     "dynamic": 1,
     "type": 69,
     "side-effect": 14
@@ -272,6 +272,11 @@
       "from": "client/src/features/character/view.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/character/view.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/character/view.ts",
@@ -1039,8 +1044,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "c4ea26f3811f699433c0db0fc9fe72973ff31466",
+  "source_commit": "ae92335a76b260ab1ca5382c305ad50632108aa5",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-12T19:49:11.735Z"
+  "generated_at": "2026-09-12T20:58:57.546Z"
 }

@@ -3,6 +3,11 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const read=file=>JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
+const creation = read('shared/character-creation.json');
+assert.deepEqual(read('client/public-tms273/assets/entry/creation.json'), creation, 'Creation choices differ between client and server');
+for (const file of ['shared/items.json', 'client/public-tms273/assets/items.json']) {
+  require('./tms273_creation_catalog.cjs')(creation, read(file), file);
+}
 // 服务端生产源码（递归 server/src/**/*.rs，排除 *_acceptance.rs 与 world_tests.rs）。
 //
 // 为什么不按单个文件读：这些断言问的是"服务端是否实现/定义了某条规则"，
@@ -91,7 +96,9 @@ for(const mob of gameplay.monsters) {
     assert(!(gameplay.monsters.find(mob=>mob.templateId===id)??{}).speed,`no speed may be invented for ${id}`);
   }
 }
-assert.equal(catalog.maps.length,44);
+// 44 base maps + the four 砲台路 flight-station rooms reachable from
+// 六條岔道's tree-top gates (104020000 `top00`/`top01` -> 104020100).
+assert.equal(catalog.maps.length,48);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -372,9 +379,12 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
       assert.match(id,/^\d{9}$/,`world map spot id must be the 9-digit form: ${page} -> ${id}`);
     }
   }
-  // The archive authors no spot at all for this map, so it is the one assembled
-  // map the window legitimately cannot mark.  Anything else missing is a bug.
-  const WORLD_MAP_ABSENT=new Set(['002010000']);
+  // The archive authors no spot at all for these maps, so they are the only
+  // assembled maps the window legitimately cannot mark.  Anything else missing
+  // is a bug.  002010000 is the ship/travel staging map; 104020130 (前往埃德爾
+  // 斯坦站台) is the one flight-station room `Map.wz WorldMap010.json` omits —
+  // it authors spots for 104020100/110/120 only.
+  const WORLD_MAP_ABSENT=new Set(['002010000','104020130']);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));
   assert.deepEqual(absent,[],`assembled maps missing from the world map: ${absent.join(', ')}`);

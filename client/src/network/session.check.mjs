@@ -81,4 +81,25 @@ const countAfterClose = FakeWebSocket.instances.length;
 for (const timer of timers) if (!timer.cleared) timer.fn();
 assert.equal(FakeWebSocket.instances.length, countAfterClose, '主动关闭后挂起的重试回调不得再连接');
 
+// 场景 4：终端码的可操作文案不得被先前的离线文案吞掉。
+// 服务端会话表是进程内的（`auth.rs` 的 `sessions: HashMap`），所以每次重启
+// 3010 都会让在线页面握手失败于 `unauthenticated`。此时 `onerror` 先报一次
+// 「无法连接服务器，请检查网络。」，紧接着终端分支要报「登录状态已失效，请
+// 重新登录。」——`report` 若只按 status 去重，后一句永远显示不出来（2026-09-13
+// 重启后玩家实测看到的就是网络错误，不知道该重新登录）。
+timers.length = 0;
+statuses.length = 0;
+connection.connect();
+const third = lastSocket();
+third.onerror();
+third.onmessage({ data: JSON.stringify({ type: 'rejected', message: 'Invalid or expired session', code: 'unauthenticated' }) });
+third.onclose({ reason: '' });
+assert.equal(statuses.at(-1)[0], 'offline');
+assert.equal(
+  statuses.at(-1)[1],
+  '登录状态已失效，请重新登录。',
+  '终端码的可操作提示必须覆盖先前的 offline 文案（report 去重要把 reason 算进去）',
+);
+assert.equal(timers.filter(timer => !timer.cleared).length, 0, 'unauthenticated 必须停止自动重试');
+
 console.log('network session: reconnect scheduling, terminal codes and active-close semantics passed.');

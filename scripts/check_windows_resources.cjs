@@ -93,6 +93,9 @@ function validate(root = path.resolve(__dirname, '..')) {
   const publicGameplay = documents['client/public-tms273/assets/gameplay.json'];
   const sharedItems = documents['shared/items.json'];
   const publicItems = documents['client/public-tms273/assets/items.json'];
+  const creation = documents['shared/character-creation.json'];
+  assert.deepEqual(documents['client/public-tms273/assets/entry/creation.json'], creation);
+  require('./tms273_creation_catalog.cjs')(creation, sharedItems, 'shared/items.json');
   const mapCatalog = documents['shared/maps.json'];
 
   assert.equal(manifest.contentVersion, protocol.contentVersion,

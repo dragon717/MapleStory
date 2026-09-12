@@ -36,6 +36,11 @@ function typedProperty(property) {
     assert(value && Number.isFinite(value.x) && Number.isFinite(value.y), `invalid vector: ${property.fullPath}`);
     return { _dirType: 'vector', _x: value.x, _y: value.y };
   }
+  // `miniMap/canvas` holds a rendered minimap bitmap.  The unpacked tree that
+  // `import_tms273.py` consumes carries no canvas payloads at all — every
+  // existing `WZ_JSON_TW/Map/Map/**` map stores this node as `{_dirType:"null"}`
+  // — so mirror that shape instead of refusing the whole image.
+  if (property instanceof wz.WzCanvasProperty) return { _dirType: 'null' };
   if (property instanceof wz.WzUOLProperty) return { _dirType: 'uol', _value: String(property.value ?? '') };
   if (property instanceof wz.WzNullProperty) return { _dirType: 'null' };
   if (property instanceof wz.WzStringProperty) return { _dirType: 'string', _value: String(property.value ?? '') };
@@ -44,8 +49,9 @@ function typedProperty(property) {
   if (property instanceof wz.WzLongProperty) return { _dirType: 'long', _value: numericString(property.value) };
   if (property instanceof wz.WzFloatProperty) return { _dirType: 'float', _value: numericString(property.value) };
   if (property instanceof wz.WzDoubleProperty) return { _dirType: 'double', _value: numericString(property.value) };
-  // Map images carry no canvas/lua/binary nodes.  Refuse to invent a shape for
-  // them rather than silently dropping source data.
+  // Maps carry no lua/binary/sound nodes beyond the canvas handled above.
+  // Refuse to invent a shape for anything else rather than silently dropping
+  // source data.
   throw new Error(`unsupported WZ property for typed JSON: ${property.propertyType} ${property.fullPath}`);
 }
 

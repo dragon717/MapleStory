@@ -539,6 +539,15 @@ def convert(args):
 
     mob_rewards_root = tms_root / "data" / "MobReward"
     item_ids = set(SUPPORTED_EQUIPMENT)
+    # Creation choices are durable equipment references too, even when no shop
+    # or monster uses them. Rebuilding gameplay must not erase their definitions.
+    creation_ids = {
+        str(item_id)
+        for gender in read_json(ROOT / "shared/character-creation.json")["genders"]
+        for part in ("coat", "pants", "shoes", "weapon")
+        for item_id in gender[part] if item_id
+    }
+    item_ids.update(creation_ids)
     monster_templates = []
     deferred_quest_drops = []
     source_monsters = {}
@@ -776,6 +785,8 @@ def convert(args):
             continue
         source = item_source(item_id, item_index, character_index)
         definition = item_definition(item_id, source, string_records, wz_root)
+        if item_id in creation_ids and (source is None or not definition["info"].get("islot")):
+            raise ValueError("missing TMS273 creation equipment source/islot: %s" % item_id)
         if source is not None:
             items[item_id] = definition
         item_sources[item_id] = {

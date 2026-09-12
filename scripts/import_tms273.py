@@ -50,10 +50,16 @@ ADDITIONAL_STORY_MAP_IDS = (
 )
 # TMS273 portal-linked route from Lith Harbor to the Perion field Boss area.
 # Selection adds source geometry only; it does not unlock blocked quest records.
+# 104020100..104020130 are the 砲台路 tree-top flight station (維多利亞樹木站台)
+# and its three boarding gates: 104020000 `top00`/`top01` are type-3 gates to
+# 104020100, whose `under00..under10` gates return to 104020000 `st00`.  The
+# station's own `in01` airship gate stays a type-7 script gate (script body not
+# assembled), so only the station rooms themselves become walkable.
 ADDITIONAL_REGION_MAP_IDS = (
     "104010000", "104010100", "104010200", "104020000", "102010100",
     "102010000", "102000000", "102020000", "102020100", "102020200",
     "102020300", "102020400", "102020500",
+    "104020100", "104020110", "104020120", "104020130",
 )
 STORY_QUEST_PREFIX = "363"
 # Original adventurer route checkpoints are real prerequisites of 36337

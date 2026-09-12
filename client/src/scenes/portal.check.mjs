@@ -100,4 +100,38 @@ assert.equal(requests.at(-1).portalName, 'east00');
   assert.equal(requests.at(-1).targetMapId, '002000000');
 }
 
-console.log('PASS: manual regular portals, touch portals, cooldown, player guards, range ceiling, nearest-gate selection, and scripted gate entry.');
+// Gates into maps this build does not assemble must never be requested.  The
+// source archive carries routes the catalog does not ship (六條岔道's tree-top
+// `top00`/`top01` → 104020100 維多利亞樹木站台, 礦山入口 `side00` → 310040210,
+// 弓箭手村 `in00` → 100000100 …), and `pt: 3` slots fire on touch, so climbing
+// 六條岔道's rope spammed `传送失败：map_unavailable` on every snapshot tick.
+// A closed gate now explains itself once per visit; real gates keep working.
+{
+  const closedTouch = { name: 'top00', type: 3, x: 100, y: 100, targetMapId: '104020100', targetPortalName: 'st00' };
+  const closedUp = { name: 'side01', type: 2, x: 500, y: 100, targetMapId: '310040210', targetPortalName: 'out00' };
+  const openUp = { name: 'eli00', type: 2, x: 300, y: 100, targetMapId: '101010100', targetPortalName: 'south00' };
+  const catalog = { maps: [{ id: '104020000', portals: [closedTouch, closedUp, openUp] }, { id: '101010100', portals: [] }] };
+  const notices = [];
+  const hill = new World({ map: catalog.maps[0], mapCatalog: catalog }, (message, error) => notices.push({ message, error }), request => requests.push(request));
+  hill.loaded = true;
+  const stand = (x) => {
+    hill.portalCooldownUntil = 0;
+    hill.snapshot = { selfId: 'self', players: [{ id: 'self', hp: 50, action: 'stand', x, y: 100 }] };
+    return hill.snapshot.players[0];
+  };
+  hill.tryPortal(stand(100), true);
+  assert.equal(requests.length, 8, 'A touch gate into an unassembled map is not requested');
+  assert.equal(notices.length, 1, 'It explains itself instead of failing silently');
+  assert.match(notices[0].message, /104020100/, 'The notice names the missing destination');
+  assert.equal(notices[0].error, undefined, 'A route this build does not ship is not an error');
+  hill.tryPortal(stand(100), true);
+  assert.equal(notices.length, 1, 'The same gate does not re-notice on the next snapshot tick');
+  hill.tryPortal(stand(500), false);
+  assert.equal(requests.length, 8, 'The Up key is refused by the same rule');
+  assert.match(notices.at(-1).message, /310040210/);
+  hill.tryPortal(stand(300), false);
+  assert.equal(requests.length, 9, 'A gate whose destination this build ships still works');
+  assert.equal(requests.at(-1).portalName, 'eli00');
+}
+
+console.log('PASS: manual regular portals, touch portals, cooldown, player guards, range ceiling, nearest-gate selection, scripted gate entry, and unassembled destinations.');

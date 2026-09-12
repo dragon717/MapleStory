@@ -11,6 +11,8 @@ const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:tru
 const version = 'tms273-12';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
+require('./tms273_creation_catalog.cjs')(
+  JSON.parse(fs.readFileSync(path.join(root, 'shared/character-creation.json'), 'utf8')), items, 'export/items.json');
 const mageAvatar = read('mage-avatar');
 Object.assign(avatar.actions, mageAvatar.actions);
 for (const [key, actions] of Object.entries(mageAvatar.equipmentLoadouts)) Object.assign(avatar.equipmentLoadouts[key].actions, actions);
@@ -166,8 +168,14 @@ gameplay.compatibility.bossPractice = 'P: private level25 practice at source map
 const mage = gameplay.npcs.find(npc => npc.templateId === '10201');
 assert(mage && gameplay.npcSpawns.some(npc => npc.id === '001020000-life-1' && npc.templateId === '10201' && npc.mapId === '001020000'), 'Mage transfer NPC is missing');
 mage.script = {
-  start: 'choose',
+  // T: 1402「法師之路」(Quest.wz/QuestData/1402.img) gates the original first
+  // transfer at `Check.0.lvmin = 10`.  The shortcut sits on the same floor, so
+  // a level-4 beginner never reaches the profession menu — it used to be
+  // offered at level 0 and the server granted the job.
+  start: 'gate',
   nodes: {
+    gate: { branch: { cond: { levelAtLeast: 10 }, then: 'choose', else: 'junior' } },
+    junior: { say: { text: { zh: '转职需要达到10级。先去提升等级吧。', en: 'Job advancement requires level 10.' }, kind: 'ok' } },
     choose: { menu: { text: { zh: '请选择你想成为的职业。', en: 'Choose your profession.' }, options: [
       { index: 0, text: { zh: '法师', en: 'Magician' }, next: 'advance' },
     ] } },
@@ -175,7 +183,7 @@ mage.script = {
     advanced: { say: { text: { zh: '转职成功！你现在是一名法师了。', en: 'Job advancement complete! You are now a Magician.' }, kind: 'ok' } },
   },
 };
-gameplay.compatibility.mageTransfer = 'User-requested Magician selection at 001020000 / Hans; not the original q1402 quest script.';
+gameplay.compatibility.mageTransfer = 'User-requested Magician selection at 001020000 / Hans; not the original q1402 quest script. T: the level-10 floor matches 1402 Check.0.lvmin, so the shortcut is not looser than the quest path.';
 gameplay.compatibility.iceRuntime = 'P: Hans level30 shortcut 200->220, 5 initial book220 SP and 3 SP per later level; immediate multi-hit timing, five freeze layers with one layer change per cast/target, self-only Meditation and temporary teleport field execution. Source Skill values/art are TMS273.7; original transfer scripts and execution timing remain unverified.';
 gameplay.compatibility.iceThirdRuntime = 'P: Hans level60 shortcut 220->221, 5 initial book221 SP, then 3 SP per level; existing points/story/saves preserved. Immediate ice hits and one movable or stationary sphere per player at 1080ms pulses; eight adaptation charges and persistent source cooldown. Original third-job scripts and execution timing are unavailable; skills, art and source values remain TMS273.7.';
 gameplay.compatibility.beginnerRuntime = 'T: Skill/000.img and String/Skill.img define three beginner skills, max3, per-level MP/fixed damage/heal/speed/duration/cooldown. P: 5-second healing ticks inferred from source total and x; projectile reach/hit timing use the existing combat adapter. Buffs end on death/map exit/disconnect; skill levels, SP and cooldowns persist. Beginner SP follows the existing P 2..7 +1 rule. No shell item cost exists in the local skill source.';
@@ -239,7 +247,7 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
   const assembled = new Set(maps.map(map => map.id));
   for (const map of maps) for (const portal of map.portals) {
     if (!portal.targetMapId || portal.targetMapId === map.id) continue;
-    // Gates into maps that are not part of the current 41-map catalog stay
+    // Gates into maps that are not part of the assembled catalog stay
     // invisible; a beam there would advertise a route the player cannot take.
     if (!assembled.has(portal.targetMapId)) continue;
     const key = `${map.id}/${portal.name}`;

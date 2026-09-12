@@ -19,6 +19,11 @@ for(const id of mobIds) {
   if(link)mobIds.add(String(link).padStart(7,'0'));
 }
 run(path.join(require('node:os').homedir(),'.cargo/bin/cargo'),['run','--quiet','--manifest-path','scripts/unpack_tms273_ms/Cargo.toml','--',...[...mobIds].flatMap(id=>['--image',`Mob/${id}.img`])]);
+// The first Victoria Boss (3220000 菇菇王) is not placed in any map life record,
+// so it never enters `mobIds`.  `export_tms273.cjs` reads it through a second
+// reader rooted at `/tmp/tms273-inspect-boss`; rebuild that image here so a
+// wiped scratch dir cannot silently abort the entities export.
+run(path.join(root,'scripts/unpack_tms273_ms/target/debug/unpack_tms273_ms'),['--out','/tmp/tms273-inspect-boss','--image','Mob/3220000.img']);
 for(const mode of ['maps','entities','ui','windows','portals','effects'])run(process.execPath,['scripts/export_tms273.cjs',mode]);
 run('python3',['scripts/generate_tms273_gameplay.py']);
 run(process.execPath,['scripts/export_tms273.cjs','items']);

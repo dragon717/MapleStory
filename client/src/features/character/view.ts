@@ -1,5 +1,6 @@
 import type { AbilityStat, ClientMessage, PlayerState, ServerMessage } from '../../../../shared/protocol';
 import type { Manifest, SkillArt } from '../../assets/manifest';
+import { installWindowDrag, bringToFront } from '../ui/window-shell.ts';
 import './style.css';
 
 type CharacterField =
@@ -26,6 +27,11 @@ type AllocateApRequest = Extract<ClientMessage, { type: 'allocateAp' }>;
 type AbilityResult = Extract<ServerMessage, { type: 'abilityResult' }>;
 const ABILITY_STATS: readonly AbilityStat[] = ['strength', 'dexterity', 'intelligence', 'luck'];
 const ABILITY_BUTTON_NAMES: Record<AbilityStat, string> = { strength: 'Str', dexterity: 'Dex', intelligence: 'Int', luck: 'Luk' };
+/** Draggable strip: the dark frame band above the white card.  The source
+ *  `common/main/backgrnd` paints its green CHARACTER INFO header inside the
+ *  top 26 px (white card starts at y32, close button sits at y12..23), so the
+ *  whole band is the title bar (spec R1: title height recorded as a constant). */
+const CHARACTER_TITLE_HEIGHT = 26;
 
 type CharacterDerivedStats = NonNullable<PlayerState['derivedStats']> &
   Partial<Record<'strength' | 'dexterity' | 'intelligence' | 'luck', number>>;
@@ -61,6 +67,7 @@ export class CharacterInfoView {
   private openState = false;
   private destroyed = false;
   private requestSequence = 0;
+  private readonly dragDispose: () => void;
 
   private readonly handleKeyDown = (event: KeyboardEvent) => {
     if (this.destroyed || event.defaultPrevented || event.repeat || event.isComposing) return;
@@ -95,6 +102,13 @@ export class CharacterInfoView {
     this.window.setAttribute('aria-label', '角色信息');
     this.window.tabIndex = -1;
 
+    // Overlay hit strip for the window drag (spec R2): sits on the source
+    // frame band, leaves the close button (higher z-index) clickable.
+    const titlebar = document.createElement('div');
+    titlebar.className = 'character-titlebar';
+    titlebar.setAttribute('aria-hidden', 'true');
+    this.window.append(titlebar);
+
     const scroll = document.createElement('div');
     scroll.className = 'character-scroll';
     scroll.tabIndex = 0;
@@ -106,6 +120,12 @@ export class CharacterInfoView {
     this.root.append(this.window);
     root.append(this.root);
 
+    // R2/R3: drag by the title strip, raise on activation, clamp to the host.
+    this.dragDispose = installWindowDrag(this.root, this.window, {
+      titleHeight: CHARACTER_TITLE_HEIGHT,
+      isOpen: () => this.openState,
+      onActivate: () => bringToFront(this.root, this.window),
+    });
     document.addEventListener('keydown', this.handleKeyDown, true);
     if (!manifest.characterUi?.['common/main/backgrnd'] || !manifest.characterUi?.['local/detail/backgrnd']) {
       this.status('角色信息底图未加载，窗口将保留可用数据。');
@@ -179,6 +199,7 @@ export class CharacterInfoView {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.dragDispose();
     document.removeEventListener('keydown', this.handleKeyDown, true);
     this.root.remove();
   }
@@ -223,44 +244,42 @@ export class CharacterInfoView {
   private createDetailCard() {
     const detail = document.createElement('section');
     detail.className = 'character-detail-card';
+    // Chrome only: back canvases stay, the four source *Font label layers are
+    // dropped because the HTML rows below replace their (traditional-Chinese)
+    // labels — keeping both printed every stat twice, misaligned (P note).
     this.appendArt(detail, this.manifest.characterUi?.['local/detail/backgrnd'], 'character-detail-background');
     this.appendArt(detail, this.manifest.characterUi?.['local/detail/layer:stat'], 'character-detail-stat-layer');
+    // attackBack bakes its own 戰鬥力 header strip into the top 33 px, which
+    // overlaps the window title strip; clipped so only the gray stat panel shows.
     this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:attackBack'], 'character-detail-attack-back');
     this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:utilityBack'], 'character-detail-utility-back');
     this.appendArt(detail, this.manifest.characterUi?.['local/detailStat/canvas:mainStatBack'], 'character-detail-main-stat-back');
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:mainStatFont'], 'character-detail-main-stat-font');
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:attackFont'], 'character-detail-attack-font');
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:utilityFont'], 'character-detail-utility-font');
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:defenseFont'], 'character-detail-defense-font');
 
     const title = document.createElement('h2');
     title.className = 'character-detail-title';
     title.textContent = '角色属性';
     detail.append(title);
 
-    const summary = document.createElement('div');
-    summary.className = 'character-detail-summary';
-    this.appendField(summary, 'hp', 'character-field character-detail-value', 'HP');
-    this.appendField(summary, 'mp', 'character-field character-detail-value', 'MP');
-    this.appendField(summary, 'exp', 'character-field character-detail-value', 'EXP');
-    this.appendField(summary, 'mesos', 'character-field character-detail-value', '金币');
-    detail.append(summary);
+    // Rows sit on the source gray canvases: mainStatBack (y38..119) for the
+    // ability rows, attackBack's panel (y123..300) for combat stats,
+    // utilityBack (y314..406) for buff status — spec R6 alignment.
+    const abilityStats = document.createElement('dl');
+    abilityStats.className = 'character-live-stats character-ability-stats';
+    this.appendStat(abilityStats, 'availableAp', '可用AP');
+    this.appendStat(abilityStats, 'mesos', '金币');
+    this.appendAbilityStat(abilityStats, 'strength', '力量');
+    this.appendAbilityStat(abilityStats, 'dexterity', '敏捷');
+    this.appendAbilityStat(abilityStats, 'intelligence', '智力');
+    this.appendAbilityStat(abilityStats, 'luck', '运气');
+    detail.append(abilityStats);
 
-    const attackStats = document.createElement('dl');
-    attackStats.className = 'character-live-stats character-attack-stats';
-    this.appendStat(attackStats, 'magicAttack', '魔法攻击');
-    this.appendStat(attackStats, 'defense', '防御');
-    this.appendAbilityStat(attackStats, 'strength', '力量');
-    this.appendAbilityStat(attackStats, 'dexterity', '敏捷');
-    this.appendAbilityStat(attackStats, 'intelligence', '智力');
-    this.appendAbilityStat(attackStats, 'luck', '运气');
-    detail.append(attackStats);
-
-    const utilityStats = document.createElement('dl');
-    utilityStats.className = 'character-live-stats character-utility-stats';
-    this.appendStat(utilityStats, 'moveSpeed', '移动速度');
-    this.appendStat(utilityStats, 'magicGuard', '魔心防御');
-    detail.append(utilityStats);
+    const combatStats = document.createElement('dl');
+    combatStats.className = 'character-live-stats character-combat-stats';
+    this.appendStat(combatStats, 'magicAttack', '魔法攻击');
+    this.appendStat(combatStats, 'defense', '防御');
+    this.appendStat(combatStats, 'moveSpeed', '移动速度');
+    this.appendStat(combatStats, 'magicGuard', '魔心防御');
+    detail.append(combatStats);
 
     const statusStats = document.createElement('dl');
     statusStats.className = 'character-live-stats character-status-stats';

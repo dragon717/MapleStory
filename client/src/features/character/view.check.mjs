@@ -79,10 +79,16 @@ const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 assert.match(style, /overflow-x:\s*hidden/);
 assert.match(style, /@media \(max-width: 483px\)/);
 assert.match(style, /grid-template-columns: minmax\(0, 1fr\)/);
+assert.match(source, /CHARACTER_TITLE_HEIGHT = 26/, 'Title strip height is recorded as a constant (spec R1)');
+assert.match(style, /touch-action:\s*none/, 'The drag strip opts out of touch scrolling (spec R2)');
+assert.match(style, /z-index:\s*var\(--ui-window-z, 1\)/, 'Window stacking goes through the host counter (spec R3)');
 const outputText = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replace(/^import .*;\r?\n/gm, '');
-const { CharacterInfoView } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+// The real window-shell is bundled by esbuild; the transpiled check gets a
+// no-op stub (drag geometry itself is covered by window-shell.check.mjs).
+const runnable = `const installWindowDrag = () => () => {};\nconst bringToFront = () => {};\n${outputText}`;
+const { CharacterInfoView } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
 
 const original = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame };
 const document = new FakeDocument();
@@ -126,10 +132,11 @@ const player = {
 view.update(player);
 const root = host.querySelector('.tms273-character-host');
 assert(root, 'Character root is mounted');
+assert(root.querySelector('.character-titlebar'), 'A dedicated title strip is mounted for window drag');
 assert.equal(root.hidden, true, 'The window starts closed');
 assert.equal(root.querySelector('[data-field="username"]').children.at(-1).textContent, '冰法');
 assert.equal(root.querySelector('[data-field="magicAttack"]').textContent, '55');
-assert.equal(root.querySelector('[data-field="mesos"]').children.at(-1).textContent, '678');
+assert.equal(root.querySelector('[data-field="mesos"]').textContent, '678', 'Mesos renders in the ability panel');
 assert.equal(root.querySelector('[data-field="moveSpeed"]').textContent, '120 px/s');
 assert.equal(root.querySelector('[data-field="strength"]').textContent, '9');
 assert.equal(root.querySelector('[data-field="dexterity"]').textContent, '11');

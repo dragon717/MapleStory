@@ -765,7 +765,14 @@ impl Store {
         }
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
-        let required_level: i64 = if from_job == 200 && job == 220 {
+        let required_level: i64 = if from_job == 0 && job == 200 {
+            // T: 1402「法師之路」(Quest.wz/QuestData/1402.img) carries
+            // Check.0.lvmin=10, and `commit_quest` already enforces the same
+            // floor on the quest path.  This shortcut used to sit at level 0,
+            // so a level-4 beginner could transfer — the original first job
+            // advancement is a level-10 step.
+            10
+        } else if from_job == 200 && job == 220 {
             30
         } else if from_job == 220 && job == THIRD_JOB {
             60
@@ -1759,6 +1766,12 @@ mod tests {
         transfer.skills = BTreeMap::from([(2001008, 1)]);
         transfer.skill_points = BTreeMap::from([(2, 7)]);
         store.save_profile("transfer", &transfer).unwrap();
+        // T: 1402 gated the original first transfer at level 10, so the
+        // authorized shortcut must not be looser than the quest path.
+        assert!(!store.advance_job("transfer", 0, 200).unwrap());
+        assert_eq!(store.load_profile("transfer", &defaults(0)).unwrap().job, 0);
+        transfer.level = 10;
+        store.save_profile("transfer", &transfer).unwrap();
         assert!(store.advance_job("transfer", 0, 200).unwrap());
         let transferred = store.load_profile("transfer", &defaults(300)).unwrap();
         assert_eq!(transferred.job, 200);
@@ -1766,7 +1779,7 @@ mod tests {
         assert_eq!(transferred.max_hp, 61);
         assert_eq!(transferred.mp, 100);
         assert_eq!(transferred.max_mp, 100);
-        assert_eq!(transferred.level, 9);
+        assert_eq!(transferred.level, 10);
         assert_eq!(transferred.exp, 4);
         assert_eq!(transferred.exp_to_next, 19);
         assert_eq!(transferred.mesos, 123);
@@ -2267,6 +2280,12 @@ mod tests {
             "skill_cooldown"
         );
         assert_eq!(store.load_profile("beginner", &base).unwrap().mp, 25);
+        // T: the first transfer is a level-10 step (1402 lvmin), so raise the
+        // character before exercising it — without dropping the skills learned
+        // above, which the SP assertions at the top depend on.
+        let mut eligible = store.load_profile("beginner", &base).unwrap();
+        eligible.level = 10;
+        store.save_profile("beginner", &eligible).unwrap();
         assert!(store.advance_job("beginner", 0, 200).unwrap());
         assert!(
             store
@@ -3065,6 +3084,90 @@ mod tests {
         assert_eq!(store.load_profile("a", &defaults).unwrap().exp, 1);
         assert_eq!(store.load_profile("b", &defaults).unwrap().exp, 2);
         assert_eq!(resolved.drops[0].owner_id.as_deref(), Some("b"));
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn creation_longcoat_1051353_round_trips_through_login_normalization() {
+        let path = std::env::temp_dir().join(format!(
+            "maple-creation-equip-{}.sqlite3",
+            random_id()
+        ));
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        let auth = start(&path).unwrap();
+        auth.store.load_profile("creation", &defaults).unwrap();
+        let stats = BTreeMap::from([
+            (String::from("incPDD"), 17_i64),
+            (String::from("incINT"), 4),
+        ]);
+        let expected = InventoryItem {
+            slot: 5,
+            item_id: "1051353".into(),
+            quantity: 1,
+            stats: Some(stats),
+            remaining_slots: Some(3),
+            upgrade_count: Some(5),
+        };
+        {
+            let mut db = auth.store.db.lock().unwrap();
+            let tx = db.transaction().unwrap();
+            write_equipped_tx(&tx, "creation", &[expected.clone()]).unwrap();
+            tx.commit().unwrap();
+        }
+        // TMS273 `Character/Longcoat/01051353.json` authors `islot=MaPn`;
+        // login normalization must resolve that to the persisted -5 slot.
+        assert_eq!(
+            auth.store.load_profile("creation", &defaults).unwrap().job,
+            0
+        );
+        assert_eq!(
+            auth.store.load_equipped("creation").unwrap(),
+            vec![expected.clone()]
+        );
+        {
+            let mut db = auth.store.db.lock().unwrap();
+            let tx = db.transaction().unwrap();
+            tx.execute(
+                "UPDATE equipped SET slot=-6 WHERE account_id='creation' AND item_id='1051353'",
+                [],
+            )
+            .unwrap();
+            let error = normalize_equipped_tx(&tx).unwrap_err();
+            assert!(error.contains("equipment slot mismatch"));
+            tx.rollback().unwrap();
+        }
+        assert_eq!(
+            auth.store.load_equipped("creation").unwrap(),
+            vec![expected.clone()]
+        );
+        drop(auth);
+        let auth = start(&path).unwrap();
+        assert_eq!(
+            auth.store.load_profile("creation", &defaults).unwrap().job,
+            0
+        );
+        assert_eq!(auth.store.load_equipped("creation").unwrap(), vec![expected]);
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));

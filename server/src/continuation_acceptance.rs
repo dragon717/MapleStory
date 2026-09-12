@@ -322,3 +322,82 @@ fn continuation_legacy_job_and_warp_save_failure_keep_authoritative_state() {
     assert!(world.warp_player(warper, "100000201".into()));
     assert_eq!(world.players[warper].map_id, "100000201");
 }
+
+/// 選擇岔道 (001020000) 的漢斯 `10201` 與魔法森林圖書館 (101000003) 的漢斯
+/// `1032001` 同名同職（都是「法師轉職官」），但 1402 的作者只有圖書館那位。
+/// 舊行為下站在岔道漢斯面前只會拿到法師訓練選單：任務日誌說「可接取」，
+/// 玩家在他面前卻拿不到，讀起來就是「無法接取」。同一職能的另一位轉職官
+/// 現在給一條路線選項，把人送到真正發放任務的同事面前；任務本身仍在圖書
+/// 館接取，不偽造第二個入口。
+#[test]
+fn continuation_route_guide_points_at_the_quest_author() {
+    let path = std::env::temp_dir().join(format!("maple-guide-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).unwrap();
+    let account = "continuation-guide";
+    service
+        .store
+        .load_profile(account, &continuation_profile(10, 0))
+        .unwrap();
+    service.store.save_quest(account, "36307", "completed").unwrap();
+    let mut world = chapter_actual_world(service.store.clone());
+    let mut rx = chapter_join(&mut world, account);
+    chapter_drain(&mut rx);
+
+    let (npc_id, map_id, x, y) = world
+        .npcs
+        .values()
+        .find(|npc| npc.template_id == "10201")
+        .map(|npc| {
+            (
+                npc.state.id.clone(),
+                npc.map_id.clone(),
+                npc.state.x,
+                npc.state.y,
+            )
+        })
+        .expect("岔道漢斯");
+    assert_eq!(map_id, "001020000");
+    chapter_place(&mut world, account, &map_id, x, y);
+    world.handle_npc_talk(
+        account.into(),
+        "guide-options".into(),
+        npc_id.clone(),
+        None,
+        None,
+    );
+    let menu = chapter_drain(&mut rx)
+        .into_iter()
+        .find(|message| message["type"] == "npcResult" && message["dialog"].is_object())
+        .expect("岔道漢斯對話");
+    assert!(world.quest_text.name("1402", "zh").contains("法師之路"));
+    let selection = menu["dialog"]["options"]
+        .as_array()
+        .and_then(|options| {
+            options.iter().find_map(|option| {
+                option["text"].as_str().and_then(|text| {
+                    text.starts_with("前往魔法森林圖書館接取：")
+                        .then(|| option["index"].as_u64())
+                        .flatten()
+                        .and_then(|index| u32::try_from(index).ok())
+                })
+            })
+        })
+        .expect("同職能轉職官的路線選項");
+
+    world.handle_npc_talk(
+        account.into(),
+        "guide-select".into(),
+        npc_id,
+        Some("select"),
+        Some(selection),
+    );
+    chapter_drain(&mut rx);
+    assert_eq!(world.players[account].map_id, "101000003");
+    // 路線只負責帶路：1402 依然在圖書館的作者面前接取。
+    assert_eq!(world.players[account].quests.get("1402"), None);
+    continuation_talk(&mut world, &mut rx, account, "1032001", "1402", "start");
+    assert_eq!(
+        world.players[account].quests.get("1402").map(String::as_str),
+        Some("active")
+    );
+}

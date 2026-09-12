@@ -45,6 +45,9 @@ export class World extends Phaser.Scene {
   private windbellScene?: WindbellScene;
   private combat?: CombatView;
   private portalCooldownUntil = 0;
+  // Gates whose target map this build does not assemble announce themselves
+  // once per map visit (see `tryPortal`), not once per snapshot tick.
+  private closedPortalNotices = new Set<string>();
   constructor(
     private manifest: Manifest,
     private status: (message: string, error?: boolean) => void,
@@ -106,6 +109,26 @@ export class World extends Phaser.Scene {
   // and the client silently dropped the request, so ↑ produced no feedback.
   private static readonly PORTAL_RANGE_X = 48;
   private static readonly PORTAL_RANGE_Y = 64;
+  /**
+   * Whether the current build assembles the given map id at all.
+   *
+   * TMS273.7 ships far more maps than this 44-map catalog — 六條岔道's tree-top
+   * `top00`/`top01` (→ 104020100 維多利亞樹木站台), interior doors such as
+   * 弓箭手村 `in00` (→ 100000100) and 楓之島's houses.  Those gates carry a real
+   * source `tm`, so they look enterable, but the server can only answer
+   * `map_unavailable`.  Worse, `pt: 3` slots auto-fire on touch, so climbing
+   * 六條岔道's tree rope used to spam a red failure every snapshot tick with no
+   * way to opt out.  A gate into an unassembled map is therefore skipped here
+   * and explained once instead of being requested.
+   *
+   * A manifest without a catalog (unit checks, windbell scenes) keeps the old
+   * behaviour: when we cannot know which maps exist, the server stays the only
+   * authority on whether a route exists.
+   */
+  private catalogHasMap(mapId: string): boolean {
+    const catalog = this.manifest.mapCatalog?.maps;
+    return !catalog?.length || catalog.some(map => map.id === mapId);
+  }
   private tryPortal(player: Snapshot['players'][number], touchOnly: boolean) {
     if (player.hp <= 0 || player.action === 'attack' || performance.now() < this.portalCooldownUntil) return;
     const rangeX = World.PORTAL_RANGE_X;
@@ -122,7 +145,18 @@ export class World extends Phaser.Scene {
       .map(candidate => ({ portal: candidate, dx: candidate.x - player.x, dy: candidate.y - player.y }))
       .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
     const nearest = candidates[0]?.portal;
-    if (!nearest || !this.requestPortal(nearest.name)) return;
+    if (!nearest) return;
+    if (!this.catalogHasMap(nearest.targetMapId!)) {
+      // Same cooldown as a real entry so a gate sitting under the player cannot
+      // retry (and re-notice) on every tick of a standing character.
+      this.portalCooldownUntil = performance.now() + 1000;
+      const key = `${this.mapId}/${nearest.name}`;
+      if (this.closedPortalNotices.has(key)) return;
+      this.closedPortalNotices.add(key);
+      this.status(`此路线尚未开放：目标地图 ${nearest.targetMapId} 尚未收录`);
+      return;
+    }
+    if (!this.requestPortal(nearest.name)) return;
     this.portalCooldownUntil = performance.now() + 1000;
   }
   preload() {
@@ -321,6 +355,9 @@ export class World extends Phaser.Scene {
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     for (const water of this.waters) water.destroy();
     this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
+    // A closed gate explains itself once per visit; re-entering the map is a
+    // new visit.
+    this.closedPortalNotices.clear();
     this.animatedLayers = []; this.backgrounds = []; this.waters = [];
     this.combat?.clear();
   }
