@@ -16,8 +16,11 @@ from PIL import Image
 
 
 PROJECT = Path(__file__).resolve().parents[3]
-ROOT = PROJECT / "resources" / "creative" / "windbell" / "blender"
-IMAGE_ROOT = PROJECT / "resources" / "creative" / "windbell" / "images" / "clean"
+ROOT = PROJECT / "resources" / "blender" / "windbell" / "legacy"
+IMAGE_ROOTS = (
+    PROJECT / "resources" / "scenes" / "windbell" / "images" / "clean",
+    PROJECT / "resources" / "characters" / "windbell" / "images" / "clean",
+)
 REPORT = ROOT / "logs" / "texture_export_validation.json"
 
 
@@ -114,9 +117,9 @@ def main() -> None:
         })
 
     clean_reports = []
-    if not IMAGE_ROOT.is_dir():
-        raise SystemExit(f"Missing validated clean image directory: {IMAGE_ROOT}")
-    for path in sorted(IMAGE_ROOT.glob("*.png")):
+    if any(not root.is_dir() for root in IMAGE_ROOTS):
+        raise SystemExit("Missing validated clean image directory: " + ", ".join(str(root) for root in IMAGE_ROOTS))
+    for path in sorted(path for root in IMAGE_ROOTS for path in root.glob("*.png")):
         with Image.open(path) as image:
             image.load()
             if "A" not in image.getbands():

@@ -135,6 +135,10 @@ export class World extends Phaser.Scene {
       if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
       this.load.audio(entry.key, entry.url);
     }
+    if (this.manifest.map.source?.includes('windbell.json')) {
+      const kind = this.manifest.map.id.includes('island') ? 'island' : 'bridge';
+      WindbellScene.preload(this, kind);
+    }
     if(this.manifest.map.source?.includes('windbell.json'))for(const name of WindbellScene.sounds){
       const url=`/assets/windbell/sfx/${name}.ogg`;if(!this.cache.audio.exists(url))this.load.audio(url,url);
     }
@@ -156,7 +160,9 @@ export class World extends Phaser.Scene {
     this.input.on('pointerdown', this.handlePointerDown);
     this.combat = new CombatView(this, this.manifest.combat, Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 3, undefined, 'combat-hit', this.manifest.skillEffects, this.manifest.skillSounds);
     const b = this.manifest.map.bounds;
-    for (const layer of this.manifest.map.layers) {
+    const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
+    this.cameras.main.setBackgroundColor(windbellKind ? '#d4e6eb' : '#b4dfe0');
+    for (const layer of windbellKind ? [] : this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
       else if (layer.frames?.length) this.createAnimatedLayer(layer);
       else {
@@ -167,8 +173,13 @@ export class World extends Phaser.Scene {
       }
     }
     this.createWater();
-    const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
-    if (windbellKind) this.windbellScene = new WindbellScene(this, windbellKind);
+    if (windbellKind) {
+      this.loaded = false;
+      try { this.windbellScene = new WindbellScene(this, windbellKind, () => {
+        this.loaded = true; this.status('风铃 2D 地图已就绪');
+      }, message => { this.failed = true; this.status(message, true); }); }
+      catch (error) { this.failed = true; this.status(`风铃 2D 素材初始化失败：${String(error)}`, true); }
+    }
     this.cameras.main.setBounds(b.xMin, b.yMin, b.xMax - b.xMin, b.yMax - b.yMin);
     this.updateBackgrounds(0);
     // Place portal effects above regular map layers while keeping foreground

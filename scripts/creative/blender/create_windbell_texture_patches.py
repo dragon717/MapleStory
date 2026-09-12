@@ -15,23 +15,23 @@ from PIL import Image, ImageOps
 
 
 PROJECT = Path(__file__).resolve().parents[3]
-IMAGE_ROOT = PROJECT / "resources" / "creative" / "windbell" / "images"
-OUTPUT_ROOT = PROJECT / "resources" / "creative" / "windbell" / "blender" / "textures"
+IMAGE_ROOT = PROJECT / "resources" / "scenes" / "windbell" / "images"
+OUTPUT_ROOT = PROJECT / "resources" / "blender" / "windbell" / "textures"
 TARGET_SIZE = 512
 
 PATCHES = {
     # The small runtime swatches contain no scenic subject, so UVs cannot
     # reveal a dragon, NPC or building when a primitive is enlarged.
     "bridge_wood": {"source": "client/public-tms273/assets/windbell/wood.png", "crop": [0, 2, 256, 22], "surface": "bridge deck wood swatch"},
-    "bridge_grass": {"source": "resources/creative/windbell/images/island-keyart.png", "crop": [320, 790, 448, 820], "surface": "bridge grass detail"},
-    "bridge_bark": {"source": "resources/creative/windbell/images/bridge-restored.png", "crop": [270, 170, 320, 230], "surface": "giant tree bark detail"},
-    "bridge_stone": {"source": "resources/creative/windbell/images/island-keyart.png", "crop": [1240, 330, 1300, 370], "surface": "floating island stone detail"},
-    "bridge_water": {"source": "resources/creative/windbell/images/bridge-restored.png", "crop": [1060, 820, 1180, 880], "surface": "river water detail"},
+    "bridge_grass": {"source": "resources/scenes/windbell/images/island-keyart.png", "crop": [320, 790, 448, 820], "surface": "bridge grass detail"},
+    "bridge_bark": {"source": "resources/scenes/windbell/images/bridge-restored.png", "crop": [270, 170, 320, 230], "surface": "giant tree bark detail"},
+    "bridge_stone": {"source": "resources/scenes/windbell/images/island-keyart.png", "crop": [1240, 330, 1300, 370], "surface": "floating island stone detail"},
+    "bridge_water": {"source": "resources/scenes/windbell/images/bridge-restored.png", "crop": [1060, 820, 1180, 880], "surface": "river water detail"},
     "island_wood": {"source": "client/public-tms273/assets/windbell/wood.png", "crop": [0, 2, 256, 22], "surface": "island root wood swatch"},
-    "island_grass": {"source": "resources/creative/windbell/images/island-keyart.png", "crop": [320, 790, 448, 820], "surface": "island grass detail"},
-    "island_bark": {"source": "resources/creative/windbell/images/bridge-restored.png", "crop": [270, 170, 320, 230], "surface": "island trunk bark detail"},
-    "island_stone": {"source": "resources/creative/windbell/images/island-keyart.png", "crop": [1240, 330, 1300, 370], "surface": "island stone detail"},
-    "island_water": {"source": "resources/creative/windbell/images/bridge-restored.png", "crop": [1060, 820, 1180, 880], "surface": "island water detail"},
+    "island_grass": {"source": "resources/scenes/windbell/images/island-keyart.png", "crop": [320, 790, 448, 820], "surface": "island grass detail"},
+    "island_bark": {"source": "resources/scenes/windbell/images/bridge-restored.png", "crop": [270, 170, 320, 230], "surface": "island trunk bark detail"},
+    "island_stone": {"source": "resources/scenes/windbell/images/island-keyart.png", "crop": [1240, 330, 1300, 370], "surface": "island stone detail"},
+    "island_water": {"source": "resources/scenes/windbell/images/bridge-restored.png", "crop": [1060, 820, 1180, 880], "surface": "island water detail"},
 }
 
 

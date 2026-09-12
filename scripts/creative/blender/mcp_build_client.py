@@ -17,7 +17,7 @@ from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[3]
 SCRIPT = PROJECT / "scripts" / "creative" / "blender" / "build_windbell_assets.py"
-EVIDENCE = PROJECT / "resources" / "creative" / "windbell" / "blender" / "logs" / "mcp_evidence.json"
+EVIDENCE = PROJECT / "resources" / "blender" / "windbell" / "legacy" / "logs" / "mcp_evidence.json"
 UVX = "/Users/muniao/.local/bin/uvx"
 HOST = "localhost"
 PORT = "9987"

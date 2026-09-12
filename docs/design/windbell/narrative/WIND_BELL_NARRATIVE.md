@@ -32,7 +32,7 @@
 | `npc.archive_keeper.huaisheng` | 槐生，守藏者 | 玩家真实保留、转述或找回公共历史后再设计 |
 | `npc.firebearer.jinhe` | 烬禾，传火者 | 不同场景的火与承担规则通过验证后再设计 |
 
-更完整的颜色、道具、表情、姿态和内置图像工具提示词在 [`characters.json`](../../../../resources/creative/windbell/narrative/characters.json)；图像生成不能把“冒险岛风格”变成现有角色复制。
+更完整的颜色、道具、表情、姿态和内置图像工具提示词在 [`characters.json`](../../../../resources/scenes/windbell/narrative/characters.json)；图像生成不能把“冒险岛风格”变成现有角色复制。
 
 ## 3. 场景一：风铃桥渡口
 
@@ -68,7 +68,7 @@
 
 ## 5. 分支与行为树预览
 
-对白完整树在 [`dialogue.json`](../../../../resources/creative/windbell/narrative/dialogue.json)，包括扶车、交接、当场成功／失败／重放、部分帮助、离开、迟到、重逢、NPC 自救、桥通到货生活和三条岛上路径。
+对白完整树在 [`dialogue.json`](../../../../resources/scenes/windbell/narrative/dialogue.json)，包括扶车、交接、当场成功／失败／重放、部分帮助、离开、迟到、重逢、NPC 自救、桥通到货生活和三条岛上路径。
 
 ```mermaid
 flowchart TD
@@ -90,7 +90,7 @@ flowchart TD
   L -->|没参与或迟到| N[普通礼貌, 可直接通行]
 ```
 
-行为树只表达事实条件、有限动作和重放边界，见 [`behavior_trees.json`](../../../../resources/creative/windbell/narrative/behavior_trees.json)。每个 `condition.fact` 必须在 [`facts.json`](../../../../resources/creative/windbell/narrative/facts.json) 存在；每个动作引用一个稳定 `actionId` 和 `effectId`，事件来源、作用对象、范围与重放规则不能藏在对白里。木岑的桥行为树读取 `shared` 桥事实；岚织和巡风龙只读取 `instance` 岛屿事实。
+行为树只表达事实条件、有限动作和重放边界，见 [`behavior_trees.json`](../../../../resources/scenes/windbell/narrative/behavior_trees.json)。每个 `condition.fact` 必须在 [`facts.json`](../../../../resources/scenes/windbell/narrative/facts.json) 存在；每个动作引用一个稳定 `actionId` 和 `effectId`，事件来源、作用对象、范围与重放规则不能藏在对白里。木岑的桥行为树读取 `shared` 桥事实；岚织和巡风龙只读取 `instance` 岛屿事实。
 
 ## 6. 事实、记忆与对白规则
 

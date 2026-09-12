@@ -1,0 +1,23 @@
+{
+  "release": {
+    "schemaVersion": 1,
+    "releaseId": "20260912190159-835d260e",
+    "platform": "darwin-arm64",
+    "protocolVersion": 14,
+    "contentVersion": "tms273-12",
+    "createdAt": "2026-09-12T19:01:59.719Z",
+    "clientPath": "client",
+    "serverPath": "server/maplestory-server"
+  },
+  "verifiedImageCount": 27,
+  "categories": {
+    "fire": 6,
+    "branch": 2,
+    "cloud": 5,
+    "bridge": 1,
+    "ground": 1,
+    "rock": 1,
+    "rope": 1
+  },
+  "sameBytes": true
+}

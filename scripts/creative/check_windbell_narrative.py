@@ -14,7 +14,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = ROOT / "resources" / "creative" / "windbell" / "narrative"
+DATA_DIR = ROOT / "resources" / "scenes" / "windbell" / "narrative"
 REQUIRED_CHARACTER_IDS = {
     "npc.traveler.wei",
     "npc.craftsman.mu_cen",

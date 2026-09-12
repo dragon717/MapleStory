@@ -2,13 +2,16 @@
 """Prepare the local Windbell creative sources for the TMS273 web runtime.
 
 This is intentionally a small, deterministic Pillow/copy step.  The source
-art remains in ``resources/creative/windbell``; this script only writes the
-runtime bundle below ``client/public-tms273/assets/windbell`` and a report
-describing every resize and crop.  It does not edit the TypeScript manifest.
+art is split across the classified ``resources/{scenes,characters,music,sfx}``
+Windbell directories; this script only writes the runtime bundle below
+``client/public-tms273/assets/windbell`` and a report describing every resize
+and crop.  It does not edit the TypeScript manifest.
 """
 
 from __future__ import print_function
 
+import argparse
+import struct
 import hashlib
 import json
 import shutil
@@ -18,16 +21,19 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CREATIVE = ROOT / "resources" / "creative" / "windbell"
-IMAGES = CREATIVE / "images"
-CLEAN = IMAGES / "clean"
-AUDIO = CREATIVE / "audio"
+SCENES = ROOT / "resources" / "scenes" / "windbell"
+CHARACTERS = ROOT / "resources" / "characters" / "windbell"
+IMAGES = SCENES / "images"
+CLEAN = SCENES / "images" / "clean"
+CLEAN_CHARACTERS = CHARACTERS / "images" / "clean"
+MUSIC = ROOT / "resources" / "music" / "windbell"
+SFX = ROOT / "resources" / "sfx" / "windbell"
 OUT = ROOT / "client" / "public-tms273" / "assets" / "windbell"
 REPORT_PATH = OUT / "runtime_asset_report.json"
 
 NPC_NAMES = ("awei", "mucen", "lanzhi")
 PROP_NAMES = ("cart", "materials", "bell", "waystation", "leafwing", "dragon")
-SFX_DIR = AUDIO / "sfx"
+SFX_DIR = SFX
 
 # These crops are deliberately recorded in the report.  The wood area is a
 # clean horizontal plank face in the already-cleaned materials cutout.  The
@@ -120,7 +126,7 @@ def trim_visible(source):
 
 
 def prepare_npc(name):
-    source = CLEAN / "npc-{}.png".format(name)
+    source = CLEAN_CHARACTERS / "npc-{}.png".format(name)
     destination = OUT / "npc-{}.png".format(name)
     trimmed, bbox, original_size = trim_visible(source)
     scale = min(80.0 / trimmed.width, 120.0 / trimmed.height)
@@ -215,7 +221,7 @@ def prepare_audio():
     if not records:
         raise AssertionError("no SFX OGG files found in {}".format(SFX_DIR))
     for name, scene in (("island_mix.ogg", "island"), ("bridge_mix.ogg", "bridge")):
-        source = AUDIO / scene / name
+        source = MUSIC / scene / name
         destination = OUT / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(source), str(destination))
@@ -298,6 +304,25 @@ def prepare_backdrop(filename, spec):
     return record
 
 
+def prepare_optional_scene_asset(filename):
+    """Copy an authored scene sprite/reference without inventing a fallback."""
+    source = IMAGES / filename
+    if not source.is_file():
+        return None
+    destination = OUT / filename
+    shutil.copy2(str(source), str(destination))
+    verify_png(destination)
+    return {
+        "kind": "scene_reference",
+        "name": filename,
+        "source": rel(source),
+        "path": rel(destination),
+        "bytes": destination.stat().st_size,
+        "sha256": sha256(destination),
+        "operation": "copy2-authored-scene-asset",
+    }
+
+
 def write_report(records, audio_records):
     report = {
         "schema": "windbell-runtime-assets/v1",
@@ -320,6 +345,29 @@ def write_report(records, audio_records):
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
+
+
+def prepare_models():
+    """Publish self-contained Blender GLBs; fail before copying an invalid pair."""
+    sources = ROOT / "resources" / "blender" / "windbell" / "glb"
+    records = []
+    for kind in ("island", "bridge"):
+        source = sources / (kind + ".glb")
+        data = source.read_bytes()
+        magic, version, length = struct.unpack_from("<4sII", data)
+        assert magic == b"glTF" and version == 2 and length == len(data), source
+        size, chunk = struct.unpack_from("<II", data, 12)
+        assert chunk == 0x4E4F534A, source
+        document = json.loads(data[20:20 + size].decode("utf-8"))
+        assert len(document.get("scenes", [])) == 1 and document.get("meshes"), source
+        assert document.get("images") and all("bufferView" in image for image in document["images"]), source
+        assert all("uri" not in buffer for buffer in document["buffers"]), source
+        records.append({"source": rel(source), "path": rel(OUT / "models" / source.name), "sha256": sha256(source), "bytes": len(data)})
+    (OUT / "models").mkdir(parents=True, exist_ok=True)
+    for record in records:
+        shutil.copy2(ROOT / record["source"], ROOT / record["path"])
+    (OUT / "models" / "report.json").write_text(json.dumps({"models": records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return records
 
 
 def main():
@@ -351,6 +399,10 @@ def main():
     )
     for filename, spec in BACKDROP_SPECS.items():
         records.append(prepare_backdrop(filename, spec))
+    for filename in ("island-distant-background.png", "bridge-distant-background.png", "island-ancient-tree.png", "island-floating-ground.png"):
+        record = prepare_optional_scene_asset(filename)
+        if record:
+            records.append(record)
     audio_records = prepare_audio()
     report = write_report(records, audio_records)
 
@@ -381,4 +433,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models-only", action="store_true")
+    if parser.parse_args().models_only:
+        print(json.dumps(prepare_models(), ensure_ascii=False))
+    else:
+        main()

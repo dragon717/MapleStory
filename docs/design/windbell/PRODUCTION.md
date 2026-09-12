@@ -31,7 +31,7 @@
 
 ## 资产接入边界
 
-场景主视觉用于美术方向和审阅，不将整张插画冒充可交互地图。游戏接入使用单独模块、贴图、挂点与碰撞定义。Blender X向右、Z向上、Y深度；每个导出需说明相机、尺度、原点和可见范围。透明素材保留真正alpha，不能把棋盘格烘焙为背景。模型地面不自动成为Rust有效foothold。
+场景主视觉用于美术方向和审阅，不将整张插画冒充可交互地图。游戏接入使用单独模块、贴图、挂点与碰撞定义。旧结构稿采用 Blender X向右、Z向上、Y深度；新版运行资产按下文 GLB 坐标契约，每个导出需说明相机、尺度、原点和可见范围。透明素材保留真正alpha，不能把棋盘格烘焙为背景。模型地面不自动成为Rust有效foothold。
 
 NPC立绘用于对话窗口；若只有单姿立绘，不冒称已完成走路/施工等逐帧精灵。原有角色动作可复用，叶翼与新NPC动作仍需对应挂点/时长文件与后续游戏适配。
 
@@ -49,25 +49,84 @@ NPC立绘用于对话窗口；若只有单姿立绘，不冒称已完成走路/�
 
 `image-jobs.json` 保存后续精确生成提示与编辑依赖；每个文件为单一资产，不以一张拼贴替代所有素材。主视觉只制作两场景及桥恢复状态；场景材质与模块状态由 Blender 资产库提供。NPC立绘和叶翼／巡风龙单帧美术不自动意味着动作帧已接入游戏。
 
-桥初始主视觉已生成：`resources/creative/windbell/images/bridge-dormant.png`，1536×1024。已目视核对左右岸、断桥、下方踏石绕行、左侧货车材料、右侧棚架与铃。用途为场景主视觉；独立地面和碰撞仍由模块库／游戏接入定义。生成方式为内置 image_gen，保存原件不覆盖原作资源。
+桥初始主视觉已生成：`resources/scenes/windbell/images/bridge-dormant.png`，1536×1024。已目视核对左右岸、断桥、下方踏石绕行、左侧货车材料、右侧棚架与铃。用途为场景主视觉；独立地面和碰撞仍由模块库／游戏接入定义。生成方式为内置 image_gen，保存原件不覆盖原作资源。
 
 ## 交付阅读入口
 
-[素材浏览与音频播放](../../../resources/creative/windbell/index.html) · [叙事规则与人物](narrative/WIND_BELL_NARRATIVE.md) · [完整分支图册](BRANCH_ATLAS.md) · [声音说明](AUDIO.md) · [Blender MCP 与模型](../../technical/creative/BLENDER_MCP.md)。
+[素材浏览与音频播放](../../../resources/ui/windbell/index.html) · [叙事规则与人物](narrative/WIND_BELL_NARRATIVE.md) · [完整分支图册](BRANCH_ATLAS.md) · [声音说明](AUDIO.md) · [Blender MCP 与模型](../../technical/creative/BLENDER_MCP.md)。
 
-Blender 交付为可编辑低多边形结构稿，含桥前后与岛屿场景、状态模块和动画研究；精细外观以独立场景插画为方向。人物与道具原图保留，9张 images/clean/ 透明终稿已用 Pillow 清理并在白底、深底核看；运行缩图另存 /assets/windbell/。贴图版模型与运行时进展见当前计划。
+Blender 交付为可编辑低多边形结构稿，含桥前后与岛屿场景、状态模块和动画研究；精细外观以独立场景插画为方向。人物与道具原图保留，9张透明终稿已按场景与人物分类并用 Pillow 清理、在白底和深底核看；运行缩图另存 `/assets/windbell/`。贴图版模型作为源资产与必要贴图保留，运行时进展见当前计划。
 
-## 游戏接入契约（本轮追加授权）
+2026-09-13 运行时方向修正：用户核看概念还原后，当前呈现回到 Phaser 分层 2D 场景，复用已核看的 TMS/原创远景、巨树、道具与角色素材；本节 3D 资产继续作为建模源稿、贴图来源和后续可选参考，不代表 Three.js 已在线接入或已完成用户实玩验收。
+
+## 游戏接入契约
 
 入口复用原版总菜单 `UITotalMenu` 的 type 30「活動清單」，同时连接 HUD 活动按钮。原作开局不变；进入前保存原地图和落点，离开活动返回原位置。
 
-`shared/windbell.json` 是两端共用的原创地图几何与交互点。客户端 Phaser 只呈现场景；移动、跳跃、攀绳、着地继续走 Rust 的 `step_player`。每次交互发送 `windbell` 意图、requestId 和当前实例标识，客户端不提交坐标或结算结果。服务端校验距离、实例、状态顺序与重复请求，快照驱动表现。
+`shared/windbell.json` 是两端共用的原创地图几何与交互点。客户端只呈现场景；移动、跳跃、攀绳、着地继续走 Rust 的 `step_player`。每次交互发送 `windbell` 意图、requestId 和当前实例标识，客户端不提交坐标或结算结果。服务端校验距离、实例、状态顺序与重复请求，快照驱动表现。
 
 | 场景 | 范围 | 状态生命周期 |
 | --- | --- | --- |
 | 风铃岛 | 根道始终开放；攀绳到支撑点后放桥；固定干枝燃烧形成有限热流，叶翼限制下降速度；稳定落在驿站平台才记录路径 | 每人独立实例；退出清除环境临时状态；个人到达记忆单独存档 |
 | 风铃桥渡口 | 有下方绕行路；有限现场木板6、绳索3，交接后逐段消耗为3段桥面；扶车、运输和到货 | 公共建设事实持久保存；每人实际贡献分别记录，不重复发放材料 |
 
-场景主视觉仅作活动卡片；独立远景、透明道具与地面条组成游戏地图，位置使用上述几何。Blender 贴图版保留为可编辑3D资产，本轮游戏仍使用现有2D渲染器。NPC为静态立绘，巡风龙为有限巡游表现；完整施工动作精灵、通用材质燃烧、完整五棵行为树解释器、天命身份授予和地方权柄仍不属于本轮实现。
+首版使用独立远景、透明道具与地面条组成 Phaser 地图；2026-09-13 曾尝试下述 Three.js 分层模型；用户最新反馈要求还原 2D 冒险岛风格，当前已回到独立手绘素材与 TMS273 原素材分层。NPC为静态立绘，巡风龙为有限巡游表现；完整施工动作精灵、通用材质燃烧、完整五棵行为树解释器、天命身份授予和地方权柄仍不属于本轮实现。
 
 执行检查与在线加载状态统一记录于 [当前计划](../../plan/PLAN.md)，不以源码存在代替用户实玩验收。
+
+
+## 第一幕 3D 制作规范（2026-09-13，历史方案与可选建模流程）
+
+用户确认两图基本玩法可用，但旧地图规模与概念还原不足。新版以已有概念为构图依据，3D 建模负责人使用 **GPT-6 Astra / medium**；不以放大旧地面条代替地图建模。执行进度与实际检查结果只记当前计划/交付记录。
+
+1. **概念原稿**：保留桥断/桥修复/岛三张原图。桥保留两侧古树、中央跨桥、下方溪流绕路与右岸棚架；岛保留左侧巨树及高悬树桥、下方根道/火槽、右上树根驿站和深远的浮岛瀑布。
+2. **三视图**：先制作正面、俯面、侧面的美术设定，再用工程图固定尺寸、深度与脚点。生成式设定图中的未见侧面属于推定，不能代替工程尺寸；原图和三视图均作为白模输入保存。
+3. **白模**：先保存独立 `.blend`、两图白模 GLB 与渲染，核看树干/树冠剪影、悬崖厚度、桥的结构、驿站比例及远景规模；模型修正后才进入贴图。
+4. **贴图**：在可编辑白模上使用独立 2D 材质与已清理的透明素材。禁止把完整概念图贴在单张平面上冒充地图。GLB 内嵌纹理，保留 UV 与材质来源。
+5. **运行时**：只替换两张风铃原创地图。实体可走模型与 `shared/windbell.json` 对齐，服务端保持原有移动、攀绳、热流、修桥与持久化规则。
+
+### 分层、运动与遮挡
+
+| 层 | 空间与职责 | 动态范围 |
+| --- | --- | --- |
+| Far / 大背景 | 深处浮岛、山谷、云海与瀑布，覆盖可见窗口之外 | 缓慢云层漂移、远处水体运动、低速视差 |
+| Background / 后景 | 古树后侧、远岸、次级岩体，低于中景对比度 | 枝叶摇摆、巡游生物、后景视差 |
+| Middle / 中景 | 角色脚点在 Z=0；桥板、根道、岩台有厚度与前后宽度 | 服务端控制落桥、分段修桥、推车、火焰、叶翼；附着风铃/枝叶可摇，可踏表面不随装饰摇动 |
+| Foreground / 前景 | 近处枝叶、根和栏杆局部遮挡，不能长期封死行走视线 | 更快视差、枝叶摇摆 |
+
+采用 GLB 世界坐标 `(X, Y, Z) = (游戏 x, -游戏 y, 朝向镜头的深度)`；四层各有唯一父组，父组 `extras.render_layer` 为 `far/background/middle/foreground`。连接可踏面或驿站的承重树根、树干和贴崖藤蔓归 Middle，保留自身 Z 深度，避免视差导致脱接。动态子组使用 `extras.motion = sway/cloud/water/fly/fire`。绝对脚点与固体踏面由工程尺寸决定。
+
+Three.js 使用轻俯视正交相机，让桥面前后宽度可见；投影高度按倾角补偿，Z=0 的角色脚点仍落在相同屏幕像素。现有 Phaser 纸娃娃、NPC 与效果继续在透明画布绘制，每帧作为 Three 纹理放在 Z=0；该平面开启深度测试，由真实模型遮挡。DOM 菜单、聊天与 HUD 保留现有交互层。切图时释放模型、纹理、WebGL 上下文与帧监听，恢复普通地图。
+
+此方案每帧上传一张演员画布，保留现有外观与动画路径；尚无真机性能结论。只在实际性能超出预算时改用共享 GPU 目标，不提前重写纸娃娃系统。
+
+参考：[Three.js CanvasTexture](https://threejs.org/docs/pages/CanvasTexture.html)、[Three.js 画布纹理手册](https://threejs.org/manual/en/canvas-textures.html)、[Godot 2D 分层视差流程](https://docs.godotengine.org/en/stable/tutorials/2d/2d_parallax.html)。以上是上一版 Three.js 方案的历史说明；当前风铃运行呈现已改为 Phaser 2D，不再加载 GLB。
+
+### 素材位置表
+
+以下路径均相对项目根目录；`resources/` 是本地素材目录，当前被 Git 忽略，源码提交不会自动携带这些二进制资源。
+
+| 类型 | 规范位置 | 用途 |
+| --- | --- | --- |
+| 2D 概念原图 | `resources/scenes/windbell/images/{bridge-dormant,bridge-restored,island-keyart}.png` | 保留原构图 |
+| 美术三视图与工程尺寸图 | `resources/scenes/windbell/images/three-views/` | 正式白模输入；美术侧向示意结合工程深度解释 |
+| NPC 2D 透明素材 | `resources/characters/windbell/images/`、`resources/characters/windbell/images/clean/` | 3 位 NPC 原图与透明终稿 |
+| 道具 2D 透明素材 | `resources/scenes/windbell/images/`、`resources/scenes/windbell/images/clean/` | 6 类场景道具原图与透明终稿 |
+| 新版 3D 总目录 | `resources/blender/windbell/` | Blender 源文件、材质、白模、导出及证据统一归属 |
+| 白模 | `resources/blender/windbell/whitebox/` | 独立保存，便于先核结构后上色 |
+| 新增 2D 远景 / 材质原稿 | `resources/scenes/windbell/images/{island-distant-background,bridge-distant-background,material-atlas}.png` | 内置图像工具生成，独立远景去除可玩前景；材质图册再按象限裁剪 |
+| 2D 材质贴图 | `resources/blender/windbell/textures/` | 服务于 3D 的贴图，与原概念分开 |
+| 最终 GLB | `resources/blender/windbell/glb/{island,bridge}.glb` | 四层及动态状态节点，内嵌纹理 |
+| 模型渲染 / 检查 | `resources/blender/windbell/renders/`、`logs/` | 结构与贴图核看证据 |
+| 运行时 GLB 副本 | `client/public-tms273/assets/windbell/models/` | 浏览器加载；通过 `prepare_windbell_runtime.py --models-only` 从 Blender 总目录复制并记录 SHA-256 |
+| 运行时 2D / 音频副本 | `client/public-tms273/assets/windbell/` | NPC、活动卡片、BGM 与音效；不是美术源目录 |
+| 音乐源文件 | `resources/music/windbell/` | 两首主题分轨与混音 |
+| 音效源文件 | `resources/sfx/windbell/` | 24 类事件音效 |
+
+旧结构草稿已统一移至 `resources/blender/windbell/legacy/`，保留为 3D 建模历史与回退资产；没有 `creative/windbell` 兼容软链接。新版运行时是否消费 Blender 导出由当前实现和计划决定。完整五棵行为树解释器、动态施工角色动作、通用材质燃烧和世界意识扩展仍按系统清单保留规划状态，不能由 3D 换装推定已实现。
+
+## 当前 2D 接入（2026-09-13 最新反馈）
+
+原概念保留不覆盖。巨树与浮岛地形从原概念生成独立透明二维素材，远景、驿站与展翼复用已有原稿。火焰、树枝、云、桥、地面、岩石与绳索优先采用 TMS273 Canvas；火焰按原 delay 和 origin 播放，桥板与绳索沿服务端几何重复拼接。2D 图片与角色共用 Phaser 相机，不使用分面模型、每帧演员画布上传或整张概念图充当地图。原有几何保持，尤其根道斜坡仍与概念中的台阶不同，不能声称已经 1:1 还原。
+
+火焰、树枝、云、桥只有 TMS273 找不到时才联网找；确需建模必须由 GPT-6 Astra / medium 先白模后贴图，常规素材工作使用 Luna / max。运行验证与用户待验见当前计划。

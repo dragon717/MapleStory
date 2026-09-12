@@ -14,16 +14,16 @@ python3 scripts/creative/audio/generate_windbell_audio.py
 
 | 场景 | 混音预览 | 同步分层 |
 | --- | --- | --- |
-| 风铃岛 | [`island_mix.ogg`](../../../resources/creative/windbell/audio/island/island_mix.ogg) / [`island_mix.wav`](../../../resources/creative/windbell/audio/island/island_mix.wav) | [`island_m1_forest_floor`](../../../resources/creative/windbell/audio/island/island_m1_forest_floor.ogg)、[`island_m2_travel`](../../../resources/creative/windbell/audio/island/island_m2_travel.ogg)、[`island_m3_high_canopy`](../../../resources/creative/windbell/audio/island/island_m3_high_canopy.ogg)、[`island_m4_discovery`](../../../resources/creative/windbell/audio/island/island_m4_discovery.ogg)；每条同时有 `.wav` |
-| 风铃桥 | [`bridge_mix.ogg`](../../../resources/creative/windbell/audio/bridge/bridge_mix.ogg) / [`bridge_mix.wav`](../../../resources/creative/windbell/audio/bridge/bridge_mix.wav) | [`bridge_m1_base`](../../../resources/creative/windbell/audio/bridge/bridge_m1_base.ogg)、[`bridge_m2_construction`](../../../resources/creative/windbell/audio/bridge/bridge_m2_construction.ogg)、[`bridge_m3_transport`](../../../resources/creative/windbell/audio/bridge/bridge_m3_transport.ogg)、[`bridge_m4_arrival`](../../../resources/creative/windbell/audio/bridge/bridge_m4_arrival.ogg)；每条同时有 `.wav` |
+| 风铃岛 | [`island_mix.ogg`](../../../resources/music/windbell/island/island_mix.ogg) / [`island_mix.wav`](../../../resources/music/windbell/island/island_mix.wav) | [`island_m1_forest_floor`](../../../resources/music/windbell/island/island_m1_forest_floor.ogg)、[`island_m2_travel`](../../../resources/music/windbell/island/island_m2_travel.ogg)、[`island_m3_high_canopy`](../../../resources/music/windbell/island/island_m3_high_canopy.ogg)、[`island_m4_discovery`](../../../resources/music/windbell/island/island_m4_discovery.ogg)；每条同时有 `.wav` |
+| 风铃桥 | [`bridge_mix.ogg`](../../../resources/music/windbell/bridge/bridge_mix.ogg) / [`bridge_mix.wav`](../../../resources/music/windbell/bridge/bridge_mix.wav) | [`bridge_m1_base`](../../../resources/music/windbell/bridge/bridge_m1_base.ogg)、[`bridge_m2_construction`](../../../resources/music/windbell/bridge/bridge_m2_construction.ogg)、[`bridge_m3_transport`](../../../resources/music/windbell/bridge/bridge_m3_transport.ogg)、[`bridge_m4_arrival`](../../../resources/music/windbell/bridge/bridge_m4_arrival.ogg)；每条同时有 `.wav` |
 
 岛的四层严格对应设计稿：M1 林下是风床、柔和 pad 和拨弦；M2 行进是连续的木质脉动；M3 高处是带气息与轻微颤音的木管；M4 发现是稀疏钟琴回答。M4 仍然是等长 stem，客户端只在 `discovery_fact` 成立后淡入，并另播一次短发现音型。桥曲沿用时钟和四层协议：基础、施工、运输、到货；施工／运输层不按单步输入开关，而由世界状态平滑进入。
 
-完整的作曲参数、原创动机 MIDI 音高、和弦循环和来源声明在 [`composition.json`](../../../resources/creative/windbell/audio/composition.json)。这里的音色由加性部分、包络、滤波噪声和空间声像合成，包含拨弦、木质击音、钟琴／木琴、气息木管、柔和持续音与叶风纹理，避免用单纯正弦波冒充 BGM。
+完整的作曲参数、原创动机 MIDI 音高、和弦循环和来源声明在 [`composition.json`](../../../resources/music/windbell/composition.json)。这里的音色由加性部分、包络、滤波噪声和空间声像合成，包含拨弦、木质击音、钟琴／木琴、气息木管、柔和持续音与叶风纹理，避免用单纯正弦波冒充 BGM。
 
 ## 因果音效
 
-[`sfx/`](../../../resources/creative/windbell/audio/sfx/) 下每个事件都有 PCM WAV 和网页 OGG：
+[`sfx/`](../../../resources/sfx/windbell/) 下每个事件都有 PCM WAV 和网页 OGG：
 
 | 设计事件 | 资产键 |
 | --- | --- |
@@ -52,6 +52,6 @@ python3 scripts/creative/audio/generate_windbell_audio.py
 
 ## 验证
 
-[`validation.json`](../../../resources/creative/windbell/audio/validation.json) 是本次实际生成后的检查结果，记录每个 WAV 的采样率、声道、样本数、时长、峰值、RMS、非静音比例和音乐循环边界。当前结果：10 个音乐 WAV（两场景各 4 stem＋1 mix）与 24 个音效 WAV 均可读，且各自有对应 OGG；两场景 stem 和 mix 都是 80.000 秒，首尾样本跳变为 0，循环检查通过。`ffmpeg` 使用当前构建的原生 Vorbis 编码器生成 OGG；`ffprobe` 可读取其容器和音频流。
+[`validation.json`](../../../resources/music/windbell/validation.json) 是本次实际生成后的检查结果，记录每个 WAV 的采样率、声道、样本数、时长、峰值、RMS、非静音比例和音乐循环边界。当前结果：10 个音乐 WAV（两场景各 4 stem＋1 mix）与 24 个音效 WAV 均可读，且各自有对应 OGG；两场景 stem 和 mix 都是 80.000 秒，首尾样本跳变为 0，循环检查通过。`ffmpeg` 使用当前构建的原生 Vorbis 编码器生成 OGG；`ffprobe` 可读取其容器和音频流。
 
 本轮做了波形／指标验证，没有把音频播放到用户扬声器，因此音色审美、游戏内层间平衡和实际设备听感仍待接入后的用户试听。

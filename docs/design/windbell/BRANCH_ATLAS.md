@@ -1,6 +1,6 @@
 # 风铃桥／岛：文案分支与行为树图册
 
-从实际叙事 JSON 自动生成；用于内容审阅，不是游戏已经执行这些规则的证明。完整条件、效应、对白和重放边界以 [叙事数据](../../../resources/creative/windbell/narrative/) 为准。
+从实际叙事 JSON 自动生成；用于内容审阅，不是游戏已经执行这些规则的证明。完整条件、效应、对白和重放边界以 [叙事数据](../../../resources/scenes/windbell/narrative/) 为准。
 
 刷新命令：`python3 scripts/creative/build_windbell_trees.py`。
 

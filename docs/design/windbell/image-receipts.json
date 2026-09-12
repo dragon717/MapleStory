@@ -9,7 +9,7 @@
   "assets": [
     {
       "id": "npc-awei",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-awei.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/characters/windbell/images/npc-awei.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-a9cd4c4b-209f-4176-9695-283db00a7940.png",
       "boardRevision": 12,
       "pixelSize": [1024, 1536],
@@ -18,7 +18,7 @@
     },
     {
       "id": "npc-mucen",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-mucen.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/characters/windbell/images/npc-mucen.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-73f95408-c51e-4a35-9f27-fc6a06d8830e.png",
       "boardRevision": 14,
       "pixelSize": [1024, 1536],
@@ -27,7 +27,7 @@
     },
     {
       "id": "npc-lanzhi",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/npc-lanzhi.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/characters/windbell/images/npc-lanzhi.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-a62bb1e5-c4d8-4a82-b34e-3cc3275e70dd.png",
       "boardRevision": 17,
       "pixelSize": [1024, 1536],
@@ -36,7 +36,7 @@
     },
     {
       "id": "prop-waystation",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-waystation.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/scenes/windbell/images/prop-waystation.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-7de77a92-366d-4093-b674-6b98c7d25db9.png",
       "boardRevision": 19,
       "pixelSize": [1536, 1024],
@@ -45,7 +45,7 @@
     },
     {
       "id": "prop-leafwing",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-leafwing.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/scenes/windbell/images/prop-leafwing.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-d2db94fd-1bf5-4931-b919-a572ffecfa14.png",
       "boardRevision": 20,
       "pixelSize": [1536, 1024],
@@ -54,7 +54,7 @@
     },
     {
       "id": "prop-dragon",
-      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/images/prop-dragon.png",
+      "output": "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/scenes/windbell/images/prop-dragon.png",
       "generatedSource": "/Users/muniao/.codex/generated_images/01a0959b-d954-7a10-935d-309aadfee051/exec-defcec8c-2768-43f0-9bc7-4bfd6ee40210.png",
       "boardRevision": 23,
       "pixelSize": [1536, 1024],

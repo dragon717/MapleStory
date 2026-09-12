@@ -1,0 +1,4 @@
+[deps] 100 节点 / 198 边 ({"value":114,"dynamic":1,"type":69,"side-effect":14}) -> artifacts/refactor/frontend-deps.json (commit=16abcb9805f9 dirty=true)
+[deps] unresolved=0 runtime_cycles=0 type_cycles=0 violations=0
+
+[check] OK：无未登记违规（known-debt 0 项，见 artifacts/refactor/debt-register.json）。

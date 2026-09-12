@@ -21,33 +21,59 @@ for(const kind of ['island','bridge']){
   for(const layer of actual.layers)await fs.access(new URL(`../../../public-tms273${layer.url}`,import.meta.url));
   await fs.access(new URL(`../../../public-tms273${actual.bgm}`,import.meta.url));
 }
-// Exercise actual scene state handling with a finite renderer double.
-const created=[];
-function object(x=0,y=0,width=80,height=120){
- const o={x,y,width,height,children:[],setDepth(){return this},setOrigin(){return this},setRotation(v){this.rotation=v;return this},setDisplaySize(w,h){this.width=w;this.height=h;return this},setVisible(){return this},setPosition(x,y){this.x=x;this.y=y;return this},setAngle(){return this},add(v){this.children.push(v)},removeAll(){this.children=[]},destroy(){},lineStyle(){},lineBetween(){},fillStyle(){},fillEllipse(){},fillTriangle(){}};created.push(o);return o;
+const assets=JSON.parse(await fs.readFile(new URL('../../../public-tms273/assets/windbell/tms273.json',import.meta.url),'utf8'));
+for(const name of ['fire','branch','cloud','bridge','ground','rock','rope']){
+  assert.ok(assets[name]?.length,`missing ${name}`);
+  for(const frame of assets[name]){
+    assert.ok(frame.width>0 && frame.height>0 && frame.delay>0);
+    assert.ok(Number.isFinite(frame.origin.x) && Number.isFinite(frame.origin.y));
+    await fs.access(new URL(`../../../public-tms273${frame.url}`,import.meta.url));
+  }
 }
-const played=[];
-const scene={cache:{audio:{exists:()=>true}},sound:{play(key){played.push(key)}},add:{container:()=>object(),image:object,text:object,graphics:()=>object(),tileSprite:object}};
+assert.ok(assets.fire.length>1,'fire must use a real animation');
+const {frameAt}=await load('../player/animation.ts');
 const {WindbellScene}=await load('./scene.ts',{
- ...configImport,"import Phaser from 'phaser';":"const Phaser={Math:{Linear:(a,b,t)=>a+(b-a)*t}};",
+ ...configImport,
+ "import { frameAt } from '../player/animation';":`const frameAt=${frameAt.toString()};`,
  "import { WINDBELL_ASSETS as A } from './maps';":"const A='/assets/windbell/';"
 });
-for(const name of WindbellScene.sounds)await fs.access(new URL(`../../../public-tms273/assets/windbell/sfx/${name}.ogg`,import.meta.url));
-const bridge=new WindbellScene(scene,'bridge');
+// Run the actual constructor/preload/state path with a minimal Phaser drawing surface.
+const queued=new Set(), played=[];
+function object(x=0,y=0,key=''){
+ return {x,y,key,width:768,visible:true,rotation:0,children:[],
+  setDepth(){return this},setAlpha(){return this},setScrollFactor(){return this},setScale(){return this},setOrigin(){return this},setFlipX(){return this},
+  setRotation(v){this.rotation=v;return this},setVisible(v){this.visible=v;return this},setTexture(v){this.key=v;return this},setPosition(x,y){this.x=x;this.y=y;return this},setX(x){this.x=x;return this},
+  add(child){this.children.push(child);return this},destroy(){this.destroyed=true;this.children.forEach(c=>c.destroy())}};
+}
+const scene={cache:{json:{exists:()=>true,get:()=>assets},audio:{exists:()=>true}},textures:{exists:()=>false},
+ load:{image:(key)=>queued.add(key)},sound:{play:key=>played.push(key)},
+ add:{image:(x,y,key)=>object(x,y,key),container:(x,y)=>object(x,y),tileSprite:(x,y,w,h,key)=>object(x,y,key)}};
+let complete;
+WindbellScene.preload({...scene,cache:{...scene.cache,json:{exists:()=>false}},load:{...scene.load,once:(_event,fn)=>complete=fn,json:()=>{}}},'island');
+assert.equal(typeof complete,'function');complete('catalog','json',assets);
+for(const kind of ['island','bridge'])WindbellScene.preload(scene,kind);
+for(const url of queued)await fs.access(new URL(`../../../public-tms273${url}`,import.meta.url));
+for(const cue of WindbellScene.sounds)await fs.access(new URL(`../../../public-tms273/assets/windbell/sfx/${cue}.ogg`,import.meta.url));
+const island=new WindbellScene(scene,'island',()=>{},()=>{}), bridge=new WindbellScene(scene,'bridge',()=>{},()=>{});
 const state={treeBridge:'held',heat:'dry',bridgeStage:'working',cartUpright:true,bridgeSegments:1,cartX:450};
-bridge.update(state,undefined,20);
+island.update(state,undefined,20);bridge.update(state,undefined,20);
 assert.equal(played.length,0,'restored facts do not replay sounds');
-assert.equal(bridge.dynamic.children.length,2,'one actual bridge segment and cart');
-assert.equal(bridge.dynamic.children[0].width,config.bridge.segments[0].x2-config.bridge.segments[0].x1);
-bridge.update({...state,cartX:770},undefined,20);assert.equal(bridge.cart.x,770,'continuous authoritative transport');
-bridge.update({...state,bridgeSegments:3},undefined,20);assert.equal(bridge.dynamic.children.length,4);
-assert.ok(played.some(key=>key.endsWith('/craftsman_install.ogg')));
-bridge.destroy();
-const island=new WindbellScene(scene,'island');
+assert.equal(island.fire.visible,false);assert.equal(bridge.segments[0].visible,true);assert.equal(bridge.segments[1].visible,false);
+island.update({...state,heat:'burning'},undefined,20);
+assert.equal(island.fire.key,assets.fire[0].url);
+island.update({...state,heat:'burning'},undefined,assets.fire[0].delay);
+assert.equal(island.fire.key,assets.fire[1].url,'respect original frame delays');
+assert.equal(island.fire.x,config.island.heat.branch.x-50-assets.fire[1].origin.x,'respect frame origin and authored fire-pit offset');
 island.update({...state,treeBridge:'falling'},undefined,2000,50);
 const f=config.island.treeBridge.dynamicFoothold;
-assert.ok(Math.abs(island.falling.rotation-Math.atan2(f.y2-f.y1,f.x2-f.x1))<1e-10);
-island.update({...state,treeBridge:'landed'},undefined,20);
-assert.equal(island.dynamic.children[0].width,Math.hypot(f.x2-f.x1,f.y2-f.y1));
-island.destroy();
-console.log('Windbell: preserved base maps, shared geometry, runtime assets, partial bridge, cart movement and landed tree surface passed.');
+assert.ok(Math.abs(island.bridge.rotation-Math.atan2(f.y2-f.y1,f.x2-f.x1))<1e-12);
+island.update({...state,leafwing:true},{x:1080,y:900,grounded:false,facing:-1},20);
+assert.equal(island.wing.visible,true);assert.equal(island.wing.x,1080);assert.equal(island.wing.y,862);
+island.update({...state,leafwing:true},{x:1080,y:900,grounded:true,facing:1},20);
+assert.equal(island.wing.visible,false);
+bridge.update({...state,cartX:770,bridgeSegments:3},undefined,20);
+assert.equal(bridge.cart.x,770);assert.equal(bridge.segments[2].visible,true);
+assert.ok(played.some(key=>key.endsWith('/craftsman_install.ogg')));
+const objects=[...island.objects,...bridge.objects];island.destroy();bridge.destroy();island.destroy();
+assert.ok(objects.every(o=>o.destroyed),'release scene objects on exit');
+console.log('Windbell 2D: original frame timing/origins, preload files, authoritative bridge/fire/wing/cart states and cleanup passed.');

@@ -61,7 +61,16 @@ function acquireLock(paths) {
     fs.writeFileSync(fd, `${JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })}\n`, 'utf8');
   } catch (error) {
     if (fd !== undefined) fs.closeSync(fd);
-    if (error.code === 'EEXIST') throw new Error(`已有构建/轮替正在进行：${paths.lock}`);
+    if (error.code === 'EEXIST') {
+      // Only reclaim a valid lock whose owner has exited; unknown/live owners stay protected.
+      let owner;
+      try { owner = JSON.parse(fs.readFileSync(paths.lock, 'utf8')); } catch {}
+      if (Number.isSafeInteger(owner?.pid) && owner.pid > 0 && !livePid(owner.pid)) {
+        fs.unlinkSync(paths.lock);
+        return acquireLock(paths);
+      }
+      throw new Error(`已有构建/轮替正在进行：${paths.lock}`);
+    }
     throw error;
   }
   return () => {
@@ -179,9 +188,17 @@ function npmInvocation() {
   return { command: process.execPath, prefix: [cli] };
 }
 
+function recoverInterrupted(paths) {
+  const interrupted = transactionFor(paths);
+  if (!interrupted) return;
+  assertNoRunningReferences(paths.root);
+  restoreActivation(paths, interrupted);
+  process.stderr.write('已恢复上次中断的发布轮替，继续启动。\n');
+}
+
 function prepare(root) {
   return withLock(root, paths => {
-    if (exists(paths.transaction)) throw new Error('存在未完成的发布轮替，请先 commit 或 rollback');
+    recoverInterrupted(paths);
     const candidate = paths.tmp;
     remove(path.join(candidate, 'client'));
     remove(path.join(candidate, 'server'));
@@ -196,7 +213,7 @@ function prepare(root) {
       const cargoCommand = path.isAbsolute(cargo) ? cargo : executable(cargo);
       const npm = npmInvocation();
       run(cargoCommand, [
-        'build', '--locked', '--manifest-path', path.join(root, 'server', 'Cargo.toml'),
+        'build', '--quiet', '--locked', '--manifest-path', path.join(root, 'server', 'Cargo.toml'),
         '--target-dir', targetDir,
       ], root, env);
       run(npm.command, [...npm.prefix, 'run', 'build', '--prefix', path.join(root, 'client')], root, env);
@@ -308,7 +325,22 @@ function buildAbsolute(paths, relative) {
   return file;
 }
 
-function moveItem(sourceRoot, name, destinationRoot, paths, transaction, rename = fs.renameSync) {
+// iCloud can block renaming populated directories. Move files into ordinary
+// directories instead; rollback can merge a partially moved tree after interruption.
+function moveTree(source, target) {
+  if (!fs.lstatSync(source).isDirectory()) {
+    if (exists(target)) throw new Error(`恢复目标已存在：${target}`);
+    fs.renameSync(source, target);
+    return;
+  }
+  mkdir(target);
+  for (const name of fs.readdirSync(source)) {
+    moveTree(path.join(source, name), path.join(target, name));
+  }
+  fs.rmdirSync(source);
+}
+
+function moveItem(sourceRoot, name, destinationRoot, paths, transaction, rename = moveTree) {
   const source = path.join(sourceRoot, name);
   const target = path.join(destinationRoot, name);
   if (!exists(source)) return false;
@@ -359,7 +391,7 @@ function activate(root, expectedReleaseId, options = {}) {
       remove(transactionDir);
       throw error;
     }
-    const rename = options.rename || fs.renameSync;
+    const rename = options.rename || moveTree;
     try {
       for (const name of ITEM_NAMES) moveItem(paths.previous, name, oldPrevious, paths, transaction, rename);
       for (const name of ITEM_NAMES) moveItem(paths.current, name, oldCurrent, paths, transaction, rename);
@@ -385,12 +417,10 @@ function restoreActivation(paths, transaction) {
     const target = buildAbsolute(paths, entry.target);
     const sourceExists = exists(source);
     const targetExists = exists(target);
-    if (!targetExists) {
-      if (entry.done) throw new Error(`轮替记录与文件状态冲突：${entry.target}`);
-      continue;
-    }
-    if (sourceExists) throw new Error(`恢复目标已存在：${entry.source}`);
-    fs.renameSync(target, source);
+    if (targetExists) moveTree(target, source);
+    else if (!sourceExists) throw new Error(`轮替记录与文件状态冲突：${entry.target}`);
+    transaction.moves.pop();
+    atomicWrite(paths.transaction, `${JSON.stringify(transaction, null, 2)}\n`);
   }
   remove(path.resolve(paths.build, transaction.directory));
   remove(paths.transaction);
@@ -434,7 +464,7 @@ function validateCurrent(root) {
 
 function usage() {
   return [
-    '用法：node scripts/build-release.cjs <prepare|validate|activate|commit|rollback> [--root 目录] [--release-id ID]',
+    '用法：node scripts/build-release.cjs <recover|prepare|validate|activate|commit|rollback> [--root 目录] [--release-id ID]',
     'prepare 运行 Cargo/Vite 并生成 build/tmp 候选；activate 切换三件制品；commit/rollback 完成健康检查后的结果。',
   ].join('\n');
 }
@@ -455,7 +485,8 @@ function main(argv = process.argv) {
   if (!command) throw new Error(usage());
   const opts = options(argv);
   let result;
-  if (command === 'prepare') result = prepare(opts.root);
+  if (command === 'recover') result = withLock(opts.root, paths => { recoverInterrupted(paths); return null; });
+  else if (command === 'prepare') result = prepare(opts.root);
   else if (command === 'validate') result = validateCandidate(opts.root);
   else if (command === 'activate') result = activate(opts.root, opts.releaseId);
   else if (command === 'commit') result = finish(opts.root, opts.releaseId, false);

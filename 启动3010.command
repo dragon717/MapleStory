@@ -34,6 +34,7 @@ acquire_start_lock() {
     trap 'release_start_lock' EXIT
     trap 'release_start_lock; exit 130' INT
     trap 'release_start_lock; exit 143' TERM
+    trap 'release_start_lock; exit 129' HUP
     return 0
   fi
   local owner
@@ -41,7 +42,13 @@ acquire_start_lock() {
   if [[ "$owner" =~ '^[0-9]+$' ]] && kill -0 "$owner" 2>/dev/null; then
     die "已有启动流程正在进行（PID $owner），未重复构建"
   fi
-  die "发现未清理的启动锁：$START_LOCK_DIR；确认上次启动已退出后手动删除该目录"
+  if [[ "$owner" =~ '^[0-9]+$' ]]; then
+    rm -f "$START_LOCK_DIR/pid"
+    rmdir "$START_LOCK_DIR" 2>/dev/null || die "无法清理上次启动锁：$START_LOCK_DIR"
+    acquire_start_lock
+    return $?
+  fi
+  die "启动锁缺少有效 PID，无法确认所属进程：$START_LOCK_DIR"
 }
 
 die() { print -u2 -- "启动失败：$*"; exit 1; }
@@ -110,6 +117,7 @@ CARGO_BIN="$(command -v cargo || true)"
 [[ -n "$CARGO_BIN" ]] || CARGO_BIN="$HOME/.cargo/bin/cargo"
 [[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
 export CARGO_BIN
+"$NODE_BIN" "$RELEASE_TOOL" recover >/dev/null || die "上次发布恢复失败，未启动新实例"
 "$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" || die "运行资源未装配或不兼容，未停止正在运行的服务"
 print -- "正在生成客户端与服务器候选；成功后重启 3010…"
 "$NODE_BIN" "$RELEASE_TOOL" prepare || die "候选构建失败，未停止正在运行的服务"

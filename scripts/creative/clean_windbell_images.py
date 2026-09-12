@@ -17,8 +17,9 @@ from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_DIR = ROOT / "resources" / "creative" / "windbell" / "images"
-CLEAN_DIR = SOURCE_DIR / "clean"
+SCENE_IMAGES = ROOT / "resources" / "scenes" / "windbell" / "images"
+CHARACTER_IMAGES = ROOT / "resources" / "characters" / "windbell" / "images"
+CLEAN_DIR = SCENE_IMAGES / "clean"
 PREVIEW_DIR = CLEAN_DIR / "previews"
 NAMES = [
     "npc-awei", "npc-mucen", "npc-lanzhi", "prop-cart", "prop-materials",
@@ -26,6 +27,14 @@ NAMES = [
 ]
 ALPHA_CORE = 128
 HALO_DISTANCE_PX = 14.0
+
+
+def source_dir(name):
+    return CHARACTER_IMAGES if name.startswith("npc-") else SCENE_IMAGES
+
+
+def clean_dir(name):
+    return CHARACTER_IMAGES / "clean" if name.startswith("npc-") else CLEAN_DIR
 
 
 def bbox(mask):
@@ -36,7 +45,7 @@ def bbox(mask):
 
 
 def clean_one(name):
-    source_path = SOURCE_DIR / (name + ".png")
+    source_path = source_dir(name) / (name + ".png")
     source = Image.open(str(source_path)).convert("RGBA")
     rgba = np.asarray(source, dtype=np.uint8)
     rgb = rgba[:, :, :3].copy()
@@ -54,8 +63,9 @@ def clean_one(name):
     rgb[out_alpha == 0] = 0
     output = np.dstack((rgb, out_alpha))
 
-    CLEAN_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = CLEAN_DIR / (name + ".png")
+    output_dir = clean_dir(name)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / (name + ".png")
     Image.fromarray(output, mode="RGBA").save(str(output_path), format="PNG", optimize=True)
 
     report = {
@@ -121,7 +131,7 @@ def main():
     report = {
         "version": 1,
         "method": "Pillow + NumPy + installed OpenCV distance transform",
-        "source_policy": "Original PNGs are untouched; generated outputs are under images/clean.",
+        "source_policy": "Original PNGs are untouched; generated outputs stay under the classified scene or character clean directories.",
         "mask_policy": "Protect alpha>=128 core; retain low-alpha edge pixels within 14 px; remove farther low-alpha halo; clear RGB where alpha=0.",
         "no_fixed_rectangle": True,
         "no_resize_or_crop": True,

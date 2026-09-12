@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'resources/creative/windbell/narrative'
+DATA = ROOT / 'resources/scenes/windbell/narrative'
 OUT = ROOT / 'docs/design/windbell/BRANCH_ATLAS.md'
 
 
@@ -15,7 +15,7 @@ def label(value, limit=100):
 def build():
     dialogue=json.loads((DATA/'dialogue.json').read_text(encoding='utf-8'))
     behavior=json.loads((DATA/'behavior_trees.json').read_text(encoding='utf-8'))
-    text=['# 风铃桥／岛：文案分支与行为树图册', '', '从实际叙事 JSON 自动生成；用于内容审阅，不是游戏已经执行这些规则的证明。完整条件、效应、对白和重放边界以 [叙事数据](../../../resources/creative/windbell/narrative/) 为准。', '', '刷新命令：`python3 scripts/creative/build_windbell_trees.py`。', '']
+    text=['# 风铃桥／岛：文案分支与行为树图册', '', '从实际叙事 JSON 自动生成；用于内容审阅，不是游戏已经执行这些规则的证明。完整条件、效应、对白和重放边界以 [叙事数据](../../../resources/scenes/windbell/narrative/) 为准。', '', '刷新命令：`python3 scripts/creative/build_windbell_trees.py`。', '']
     for tree in dialogue['trees']:
         text += ['## '+tree['id'], '', '```mermaid','flowchart TD']
         ids={node['id']:'n'+str(i) for i,node in enumerate(tree['nodes'])}

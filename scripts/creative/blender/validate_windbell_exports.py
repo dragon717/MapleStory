@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 PROJECT = Path(__file__).resolve().parents[3]
-ROOT = PROJECT / "resources" / "creative" / "windbell" / "blender"
+ROOT = PROJECT / "resources" / "blender" / "windbell" / "legacy"
 MANIFEST = ROOT / "manifest.json"
 
 

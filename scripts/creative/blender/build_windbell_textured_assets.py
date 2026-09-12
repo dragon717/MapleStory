@@ -16,7 +16,8 @@ import math
 from mathutils import Vector
 
 
-TEXTURED_ROOT = "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/blender"
+TEXTURED_ROOT = "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/blender/windbell/legacy"
+IMAGE_ROOT = "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/scenes/windbell/images"
 TEXTURED_RENDER_ROOT = TEXTURED_ROOT + "/renders/"
 TEXTURED_GLB_ROOT = TEXTURED_ROOT + "/glb/"
 TEXTURED_BLEND_PATH = TEXTURED_ROOT + "/windbell_world_asset_library_textured.blend"
@@ -191,10 +192,9 @@ def image_card(collection, name, image, role, loc, size, scene_tag):
 
 
 def build_image_library():
-    # ``TEXTURED_ROOT`` is the blender asset directory; the source art lives in
-    # its sibling ``images`` directory.  Keep this absolute so Blender can pack
-    # the image datablocks even when the MCP process has a different cwd.
-    image_root = TEXTURED_ROOT.replace("/blender", "/images")
+    # Keep this absolute so Blender can pack the image datablocks even when the
+    # MCP process has a different cwd.
+    image_root = IMAGE_ROOT
     bridge_image = load_packed_image("bridge_keyart", image_root + "/bridge-restored.png")
     island_image = load_packed_image("island_keyart", image_root + "/island-keyart.png")
     clean_images = {role: load_packed_image("clean_" + role, path) for role, path in CLEAN_INPUTS.items()}

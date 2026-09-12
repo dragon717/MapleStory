@@ -5,8 +5,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { spawnSync } = require('node:child_process');
 const {
   activate,
+  prepare,
+  withLock,
   finish,
   rootPaths,
   validateCandidate,
@@ -97,12 +100,57 @@ function main() {
     assert.equal(idAt(root, 'previous'), 'r3', 'mid-rotation failure must restore previous');
     assert.equal(idAt(root, 'tmp'), 'rename-failure', 'mid-rotation failure must preserve candidate');
 
+    putCandidate(root, 'partial-tree');
+    write(path.join(paths.tmp, 'client', 'assets', 'one.png'), 'one');
+    write(path.join(paths.tmp, 'client', 'assets', 'two.png'), 'two');
+    assert.throws(() => activate(root, 'partial-tree', {
+      rename(source, target) {
+        if (source === path.join(paths.tmp, 'client')) {
+          fs.mkdirSync(path.join(target, 'assets'), { recursive: true });
+          fs.renameSync(path.join(source, 'assets', 'one.png'), path.join(target, 'assets', 'one.png'));
+          throw new Error('interrupted file move');
+        }
+        fs.renameSync(source, target);
+      },
+    }), /interrupted file move/);
+    assert.equal(idAt(root, 'current'), 'r4');
+    assert.equal(fs.readFileSync(path.join(paths.tmp, 'client', 'assets', 'one.png'), 'utf8'), 'one');
+    assert.equal(fs.readFileSync(path.join(paths.tmp, 'client', 'assets', 'two.png'), 'utf8'), 'two');
+
     putCandidate(root, 'r6');
     fs.mkdirSync(path.dirname(path.join(root, 'runtime', '3010-control', 'server.pid')), { recursive: true });
     write(path.join(root, 'runtime', '3010-control', 'server.pid'), `${process.pid}\n`);
     assert.throws(() => activate(root, 'r6'), /仍有运行实例引用发布目录/);
     assert.equal(idAt(root, 'current'), 'r4');
     fs.rmSync(path.join(root, 'runtime'), { recursive: true, force: true });
+
+    const exited = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' });
+    assert.equal(exited.status, 0);
+    write(paths.lock, JSON.stringify({ pid: exited.pid }));
+    withLock(root, () => assert.equal(JSON.parse(fs.readFileSync(paths.lock, 'utf8')).pid, process.pid));
+    assert(!fs.existsSync(paths.lock), 'dead owner lock is recovered and released');
+    write(paths.lock, JSON.stringify({ pid: process.pid }));
+    assert.throws(() => withLock(root, () => assert.fail('live lock acquired')), /已有构建/);
+    fs.unlinkSync(paths.lock);
+
+    // A terminated activation can leave a move persisted before its rename.
+    activate(root, 'r6');
+    const interrupted = JSON.parse(fs.readFileSync(paths.transaction, 'utf8'));
+    interrupted.state = 'activating';
+    interrupted.moves.at(-1).done = false;
+    write(paths.transaction, JSON.stringify(interrupted));
+    const cargoBefore = process.env.CARGO_BIN;
+    process.env.CARGO_BIN = path.join(root, 'missing-cargo');
+    try {
+      assert.throws(() => prepare(root), /ENOENT/);
+    } finally {
+      if (cargoBefore === undefined) delete process.env.CARGO_BIN;
+      else process.env.CARGO_BIN = cargoBefore;
+    }
+    assert.equal(idAt(root, 'current'), 'r4', 'interrupted activation restores current before building');
+    assert.equal(idAt(root, 'previous'), 'r3');
+    assert(!fs.existsSync(paths.transaction));
+    assert(!fs.existsSync(paths.lock));
 
     fs.mkdirSync(paths.lock, { recursive: true });
     assert.throws(() => activate(root, 'r6'), /已有构建\/轮替正在进行/);

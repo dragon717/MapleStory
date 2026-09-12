@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 100,
-  "edge_count": 198,
+  "edge_count": 199,
   "edge_kind_counts": {
-    "value": 114,
+    "value": 115,
     "dynamic": 1,
     "type": 69,
     "side-effect": 14
@@ -830,6 +830,11 @@
     },
     {
       "from": "client/src/features/windbell/scene.ts",
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/windbell/scene.ts",
       "to": "client/src/features/windbell/maps.ts",
       "kind": "value"
     },
@@ -1034,8 +1039,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "70afc12aaafcbc71309f6e1a2888e5ff9ec9e9a0",
+  "source_commit": "16abcb9805f955a867ab3fca926a8fd62dc69147",
   "working_tree_dirty": true,
   "node_version": "v22.17.1",
-  "generated_at": "2026-09-12T15:29:47.966Z"
+  "generated_at": "2026-09-12T18:49:15.727Z"
 }

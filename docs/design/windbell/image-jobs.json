@@ -52,6 +52,50 @@
       "type": "prop",
       "mode": "generate",
       "prompt": "Original MapleStory-inspired charming 2D game illustration, crisp rounded silhouettes, tiny crafted detail, warm honey wood, leafy green, pale cloud blue and restrained bronze highlights. Not photoreal, not isometric, no text, no logo, no UI, no watermark. Single original gentle wind-patrolling dragon in a gliding side profile pose, teal back, pale cream underside, muted copper small hornlets, broad soft leaf-shaped wings, long curved tail and round curious face. Whimsical MapleStory-scale fantasy creature with friendly readable silhouette and fine sprite-like edge definition, not a copy of any named character. Whole body wings and tail uncropped, no humans, no scene, true transparent background with generous margins. This is a non-combat distant creature, not a monstrous boss."
+    },
+    {
+      "id": "island-art-three-views",
+      "type": "model-sheet",
+      "mode": "reference",
+      "reference": "island-keyart.png",
+      "output": "resources/scenes/windbell/images/three-views/island-art-three-views.png",
+      "tool": "built-in image_gen",
+      "prompt": "Create a faithful THREE-VIEW ENVIRONMENT MODEL SHEET of this exact Windbell Island concept for a Blender artist. Preserve this concept's recognizable shapes, do not redesign into a generic village. Wide clean ivory layout, three separate unclipped panels labelled FRONT / TOP / RIGHT. FRONT largest: the enormous gnarled tree on LEFT with arching giant branches and foliage overhead, raised curved rope bridge pivot on left upper platform, lower root pathway crossing broken floating rocks and rising around right, central small fire trough, separate upper RIGHT floating island with a tall ancient tree whose ROOTS HOUSE the glowing windbell waystation, fabric awning, deck, long bell crossarms, hanging bells; distant layered floating islands and waterfalls with a vast cloud sea. TOP and RIGHT must be actual detailed orthographic drawings of these SAME identifiable structures, show thick playable rock ledges, bridge deck width, foreground branches, deep rear trees, scenery arranged in depth, not abstract color stripes. Use delicate pen engineering outlines with soft concept-matched flat colors, crisp structural shapes, no perspective in the three views, no graphical rulers covering art. Include a small separate background silhouette strip only if space allows. Draw real rich tree silhouette, rock tiers, root house, rope anchors and material boundaries for 3D whitebox reconstruction. The original concept is the source of truth: preserve its hierarchy and grandeur; don't render a finished 3D scene. Sheet may propose unseen backs/side geometry clearly consistent with the source."
+    },
+    {
+      "id": "bridge-art-three-views",
+      "type": "model-sheet",
+      "mode": "reference",
+      "reference": "bridge-restored.png",
+      "output": "resources/scenes/windbell/images/three-views/bridge-art-three-views.png",
+      "tool": "built-in image_gen",
+      "prompt": "Produce a faithful THREE-VIEW ENVIRONMENT MODEL SHEET for Blender from the attached Windbell Bridge concept. Large clean ivory landscape sheet with separate FRONT / TOP / RIGHT orthographic drawings, not perspective renders. Detailed crisp linework with soft green/wood/stone flat colors. FRONT should dominate: massive ancient trees framing BOTH sides with broad overlapping branches and rich foliage canopy, small weathered thick timber bridge in middle spanning ravine; grassy rock banks, rope rails, heavy timber crossbraces under bridge; crate/rope supply pile on left, wood cart and a canvas roofed open rest shelter beneath the right tree with bell hanging from the shelter, river flowing from deep rear valley to foreground under the bridge, lower stone bypass crossing the stream. Vast backdrop beyond bridge is layered woodland valley, sheer distant forested cliffs and waterfall, mountain ridges, tiny roofs set far away. TOP and RIGHT must be detailed geometric views of the SAME tree roots, bridge deck depth/rail layout, river bed, bank widths and shelter, not abstract diagram bars. Show a small inset broken-bridge state consistent with the identical bridge footprint. Clearly separate foreground tree/foliage depth, playable middleground solid deck and bypass, rear valley and distant backdrop. Preserve this exact concept composition and recognizable objects instead of making a generic fantasy town. Model-making sheet with explicit structural thickness, no tiny unreadable annotations, no giant textual paragraphs, nothing clipped."
+    },
+    {
+      "id": "material-atlas",
+      "type": "texture",
+      "mode": "generate",
+      "output": "resources/scenes/windbell/images/material-atlas.png",
+      "tool": "built-in image_gen",
+      "prompt": "Create a production-ready 2x2 seamless fantasy hand-painted MATERIAL TEXTURE ATLAS. Exact four equal square quadrants, edges touch with NO gutters, NO borders, NO labels, NO text, NO props, orthographic flat surface, no perspective, soft even ambient lighting, not photographic. Top LEFT: warm dark brown ancient tree BARK, irregular flowing vertical grain, smooth broad organic creases, ONLY BARK, absolutely no grass, moss, leaves, branch or scenery. Top RIGHT: honey brown aged WOOD GRAIN surface, fine long grain, a few natural knots, only continuous wood, no plank boundaries, nails, object edges or foliage. Bottom LEFT: pale warm gray ROCK STONE surface, broad irregular softly painted polygonal cracks, softly shaded worn stone, no bark-like vertical striations, no moss or vegetation. Bottom RIGHT: muted soft green MOSSY SOIL surface, tiny subtle brush dabs, understated clean earth, absolutely no big leaves or ferns. Cohesive charming high quality painted fantasy platform-game look, medium low contrast material detail, no big directional shadows, fine but readable grain. Each quadrant independently tileable in BOTH directions, material fully fills each square, no scene composition. Produce 1536x1536 or highest square resolution."
+    },
+    {
+      "id": "island-distant-background",
+      "type": "background",
+      "mode": "reference",
+      "reference": "island-keyart.png",
+      "output": "resources/scenes/windbell/images/island-distant-background.png",
+      "tool": "built-in image_gen",
+      "prompt": "Create ONLY a very vast DISTANT BACKGROUND MATTE PAINTING for the Windbell Island fantasy platform game in the reference image. WIDE landscape 2:1. Preserve the same charming lush painterly color language, delicate distant blue-green forested floating islands, long threadlike waterfalls disappearing into huge cloud seas, warm soft sunrise near the far horizon, pastel blue sky at top, immense depth with 5+ overlapping layers of increasingly pale tiny island silhouettes. ALL islands and trees are FAR AWAY and small, softly detailed atmospheric light contrast. Entire canvas is far horizon/cloud sea, no close cliffs at the edges. CRITICAL EXCLUDE EVERYTHING in the playable foreground of the reference: no giant tree trunks or branches, no foreground plants, no root walkway, no stairs, no bridge, no building/hut, no fire or heat trail, NO large floating yellow leaves, no bells, no characters, no dragon, no text, no border. Lots of airy negative space between remote island clusters. This is a separate texture for the deepest background plane of a 3D layered scene, not a new main concept and not a full level screenshot."
+    },
+    {
+      "id": "bridge-distant-background",
+      "type": "background",
+      "mode": "reference",
+      "reference": "bridge-restored.png",
+      "output": "resources/scenes/windbell/images/bridge-distant-background.png",
+      "tool": "built-in image_gen",
+      "prompt": "Create ONLY a very wide distant forest valley BACKGROUND MATTE PAINTING for this Windbell Bridge fantasy game, not the playable bridge. 2:1 landscape. Same charming lush hand-painted style and muted blue-green sunny palette as the reference. View across an immense valley: multiple overlapping forested cliff terraces in the far distance, a tall delicate waterfall near center-right cascading into the unseen valley, remote miniature cottages with pointed roofs and a tiny far stone aqueduct barely visible among treetops, mountain ridges receding in pale blue, thin white clouds in clear sky. All objects are distant with atmospheric perspective and medium low contrast, richly drawn crisp-enough painted detail rather than blurred enlarged pixels. Soft warm daylight. Exclude all close scenery: NO foreground framing tree trunks, NO large branches, NO foreground foliage, NO playable bridge, NO near river stones or stepping path, NO crates, cart, nearby shelter, bells or characters. Landscape should fill the canvas with natural horizon, deep sky above and distant forest valley below, no border or labels. This will be applied to a deepest-background plane behind actual 3D trees and bridge."
     }
   ]
 }

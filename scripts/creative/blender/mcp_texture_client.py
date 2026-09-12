@@ -22,10 +22,13 @@ from mcp_build_client import MCPClient
 
 PROJECT = Path(__file__).resolve().parents[3]
 TEXTURE_SCRIPT = PROJECT / "scripts" / "creative" / "blender" / "build_windbell_textured_assets.py"
-CLEAN_ROOT = PROJECT / "resources" / "creative" / "windbell" / "images" / "clean"
-PATCH_MANIFEST = PROJECT / "resources" / "creative" / "windbell" / "blender" / "textures" / "patch_manifest.json"
-EVIDENCE = PROJECT / "resources" / "creative" / "windbell" / "blender" / "logs" / "mcp_texture_evidence.json"
-MANIFEST = PROJECT / "resources" / "creative" / "windbell" / "blender" / "manifest.json"
+CLEAN_ROOTS = (
+    PROJECT / "resources" / "scenes" / "windbell" / "images" / "clean",
+    PROJECT / "resources" / "characters" / "windbell" / "images" / "clean",
+)
+PATCH_MANIFEST = PROJECT / "resources" / "blender" / "windbell" / "textures" / "source-patches.json"
+EVIDENCE = PROJECT / "resources" / "blender" / "windbell" / "logs" / "mcp_texture_evidence.json"
+MANIFEST = PROJECT / "resources" / "blender" / "windbell" / "manifest.json"
 
 ROLE_PATTERNS = {
     "cart": ("cart", "wagon", "cargo"),
@@ -50,9 +53,10 @@ def normalize(value: str) -> str:
 
 
 def inspect_clean_inputs() -> tuple[dict[str, Path], dict[str, dict]]:
-    if not CLEAN_ROOT.is_dir():
-        raise FileNotFoundError(f"validated clean image directory is not present: {CLEAN_ROOT}")
-    files = sorted(CLEAN_ROOT.glob("*.png"))
+    missing_roots = [root for root in CLEAN_ROOTS if not root.is_dir()]
+    if missing_roots:
+        raise FileNotFoundError("validated clean image directory is not present: " + ", ".join(str(root) for root in missing_roots))
+    files = sorted(path for root in CLEAN_ROOTS for path in root.glob("*.png"))
     if len(files) < len(ROLE_PATTERNS):
         raise RuntimeError(f"expected at least {len(ROLE_PATTERNS)} clean PNGs, found {len(files)}")
 
@@ -172,16 +176,16 @@ def update_manifest(clean_metadata: dict[str, dict], patch_metadata: dict[str, d
     """Record the concrete textured handoff after MCP has completed."""
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     relative = lambda path: str(Path(path).relative_to(PROJECT))
-    manifest.setdefault("artifacts", {})["textured_blend"] = "resources/creative/windbell/blender/windbell_world_asset_library_textured.blend"
+    manifest.setdefault("artifacts", {})["textured_blend"] = "resources/blender/windbell/legacy/windbell_world_asset_library_textured.blend"
     manifest["artifacts"]["textured_renders"] = [
-        "resources/creative/windbell/blender/renders/windbell_bridge_broken_textured.png",
-        "resources/creative/windbell/blender/renders/windbell_bridge_repaired_textured.png",
-        "resources/creative/windbell/blender/renders/windbell_island_exploration_textured.png",
+        "resources/blender/windbell/legacy/renders/windbell_bridge_broken_textured.png",
+        "resources/blender/windbell/legacy/renders/windbell_bridge_repaired_textured.png",
+        "resources/blender/windbell/legacy/renders/windbell_island_exploration_textured.png",
     ]
     manifest["artifacts"]["textured_glb"] = [
-        "resources/creative/windbell/blender/glb/windbell_bridge_broken_textured.glb",
-        "resources/creative/windbell/blender/glb/windbell_bridge_repaired_textured.glb",
-        "resources/creative/windbell/blender/glb/windbell_island_exploration_textured.glb",
+        "resources/blender/windbell/legacy/glb/windbell_bridge_broken_textured.glb",
+        "resources/blender/windbell/legacy/glb/windbell_bridge_repaired_textured.glb",
+        "resources/blender/windbell/legacy/glb/windbell_island_exploration_textured.glb",
     ]
     manifest["textured_delivery"] = {
         "status": "mcp_built_and_exported",
@@ -189,8 +193,8 @@ def update_manifest(clean_metadata: dict[str, dict], patch_metadata: dict[str, d
         "renders": manifest["artifacts"]["textured_renders"],
         "glb": manifest["artifacts"]["textured_glb"],
         "source_images": {
-            "bridge_keyart": "resources/creative/windbell/images/bridge-restored.png",
-            "island_keyart": "resources/creative/windbell/images/island-keyart.png",
+            "bridge_keyart": "resources/scenes/windbell/images/bridge-restored.png",
+            "island_keyart": "resources/scenes/windbell/images/island-keyart.png",
             "clean_roles": {role: relative(info["path"]) for role, info in clean_metadata.items()},
         },
         "material_patches": {
@@ -210,8 +214,8 @@ def update_manifest(clean_metadata: dict[str, dict], patch_metadata: dict[str, d
         "card_collections": ["WB_Textured_Cards_Broken", "WB_Textured_Cards_Repaired", "IS_Textured_Cards_Island"],
         "card_contract": "transparent clean PNG on UVMap plane with 0.06 Blender-unit Solidify thickness; X horizontal / Z up / Y depth",
         "integration_status": "asset_only; game runtime is not connected",
-        "mcp_evidence": "resources/creative/windbell/blender/logs/mcp_texture_evidence.json",
-        "validation": "resources/creative/windbell/blender/logs/texture_export_validation.json",
+        "mcp_evidence": "resources/blender/windbell/logs/mcp_texture_evidence.json",
+        "validation": "resources/blender/windbell/logs/texture_export_validation.json",
     }
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

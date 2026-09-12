@@ -15,7 +15,7 @@ import math
 from mathutils import Vector
 
 
-ROOT = "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/creative/windbell/blender"
+ROOT = "/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/resources/blender/windbell/legacy"
 RENDER_ROOT = ROOT + "/renders/"
 GLB_ROOT = ROOT + "/glb/"
 BLEND_PATH = ROOT + "/windbell_world_asset_library.blend"
