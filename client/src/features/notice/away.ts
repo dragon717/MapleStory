@@ -13,8 +13,11 @@ import type { PlayerState } from '../../../../shared/protocol';
  */
 export class AwayNoticeView {
   private readonly root: HTMLDivElement;
-  private lastAwayId?: string;
   private showing = false;
+  /** Set once the player acts on the current residency window.  Snapshots
+   *  that still carry the same residency (the server has not yet confirmed
+   *  the wake-up) must not re-pop the notice; only a fresh episode may. */
+  private dismissed = false;
 
   constructor(
     private host: HTMLElement,
@@ -29,17 +32,18 @@ export class AwayNoticeView {
   }
 
   /**
-   * Show the residency notice once per away window.  Repeating snapshots,
-   * reconnects, or duplicate state packets must not pop the same notice again;
-   * only a genuinely new window may.
+   * Show the residency notice once per residency episode.  Repeating
+   * snapshots, reconnects, or duplicate state packets must not pop the same
+   * notice again, and a player dismissal holds until the server actually
+   * clears residency; only a genuinely new episode may notify again.
    */
-  update(self: PlayerState | undefined, awayId: string | undefined) {
+  update(self: PlayerState | undefined) {
     if (!self?.away?.residency) {
       if (this.showing) this.dismiss();
+      this.dismissed = false;
       return;
     }
-    if (this.showing && this.lastAwayId === awayId) return;
-    this.lastAwayId = awayId;
+    if (this.showing || this.dismissed) return;
     this.showing = true;
     this.render(self);
   }
@@ -84,17 +88,19 @@ export class AwayNoticeView {
     resume.className = 'away-notice-continue';
     resume.textContent = '继续冒险';
     resume.onclick = () => {
+      this.dismissed = true;
       this.dismiss();
       this.onContinue();
     };
     const stay = document.createElement('button');
     stay.type = 'button';
     stay.className = 'away-notice-stay';
-    stay.textContent = '保持暂离';
+    stay.textContent = '回到选角界面';
     stay.onclick = () => {
+      this.dismissed = true;
       this.dismiss();
+      this.status('正在登出并回到选角界面…');
       this.onStayAway();
-      this.status('暂离驻留中，画面非实时；继续冒险后恢复实时交互。');
     };
     actions.append(resume, stay);
     card.append(actions);
@@ -108,7 +114,7 @@ export class AwayNoticeView {
   }
 
   clear() {
-    this.lastAwayId = undefined;
+    this.dismissed = false;
     this.dismiss();
   }
 

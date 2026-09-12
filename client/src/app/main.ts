@@ -239,9 +239,9 @@ async function enterGame(session: LoginResponse) {
       // skill, purchase, or pickup.
       connection?.send({ type: 'lifecycle', hidden: false, away: false, clientNowMs: Date.now() });
     }, () => {
-      // Staying away keeps the original window: it does not extend the
-      // residency limit and does not reopen interaction.
-      connection?.send({ type: 'lifecycle', hidden: true, away: true, clientNowMs: Date.now() });
+      // 回到选角界面: an explicit logout removes the character instead of
+      // keeping it resident, then the entry flow reopens at char select.
+      returnToEntry('characters');
     }, message => status(message));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
@@ -530,7 +530,7 @@ async function enterGame(session: LoginResponse) {
         skills?.update(self);
         characterInfo?.update(self);
         deathNotice?.update(self);
-        awayNotice?.update(self, message.selfId);
+        awayNotice?.update(self);
         if (self) npcDialogue?.syncPlayer(self);
         // The warehouse's deposit side mirrors the live bag + purse, so a
         // pickup or a sale while the window is open is reflected at once.
