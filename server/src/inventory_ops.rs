@@ -40,12 +40,40 @@ use super::*;
 
 impl World {
     pub(super) fn handle_pickup(&mut self, id: String, request_id: String, drop_id: String) {
+        self.apply_pickup(id, request_id, drop_id, None);
+    }
+
+    /// Pet auto-pickup (pets.rs): every rule is unchanged, but the pet's
+    /// position substitutes for the owner's in the range gate and the fly-to
+    /// animation coordinates.  Rule rejections are silent — the pet simply
+    /// keeps walking — while persistence failures still surface.
+    pub(super) fn handle_pet_pickup(
+        &mut self,
+        id: String,
+        request_id: String,
+        drop_id: String,
+        pet_x: f64,
+        pet_y: f64,
+    ) {
+        self.apply_pickup(id, request_id, drop_id, Some((pet_x, pet_y)));
+    }
+
+    fn apply_pickup(
+        &mut self,
+        id: String,
+        request_id: String,
+        drop_id: String,
+        pet_pos: Option<(f64, f64)>,
+    ) {
+        let silent = pet_pos.is_some();
         let Some(player) = self.players.get(&id) else {
             return;
         };
         let map_id = player.map_id.clone();
-        let pickup_x = player.state.x;
-        let pickup_y = player.state.y;
+        let (pickup_x, pickup_y) = match pet_pos {
+            Some((x, y)) => (x, y),
+            None => (player.state.x, player.state.y),
+        };
         if let Some(store) = self.store.as_ref() {
             match store.prior_pickup(&id, &request_id) {
                 Ok(Some(prior)) => {
@@ -63,6 +91,9 @@ impl World {
             }
         }
         let Some(drop) = self.drops.get(&drop_id) else {
+            if silent {
+                return;
+            }
             let _ = player.output.try_send(reject(
                 "drop_unavailable",
                 "Drop is unavailable",
@@ -113,6 +144,9 @@ impl World {
             pickup_rules::evaluate_pickup(&facts)
         };
         if let pickup_rules::PickupVerdict::Reject { code, message } = verdict {
+            if silent {
+                return;
+            }
             let _ = player.output.try_send(reject(code, message, Some(&request_id)));
             return;
         }

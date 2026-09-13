@@ -3199,6 +3199,9 @@ impl World {
         for id in pet_ids {
             self.step_pet(&id);
         }
+        // Pet auto-pickup runs after the follow step, so a claim uses this
+        // tick's settled pet position.
+        self.step_pet_pickups();
         self.apply_contact_damage();
         self.respawn_monsters();
         // Full retention for residents: they keep being simulated and stay in

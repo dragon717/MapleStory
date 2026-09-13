@@ -176,6 +176,55 @@ fn pet_use_rejects_a_forged_cell_and_unknown_pet_ids() {
 }
 
 #[test]
+fn pet_auto_picks_up_drops_within_reach_for_its_owner() {
+    let mut world = chat_world();
+    let mut alice = join_test_player(&mut world, "alice");
+    chat_drain(&mut alice);
+    pet_give(&mut world, "alice", "5000000");
+    gm_take_kind(&mut alice, "gmResult");
+    pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");
+    gm_take_kind(&mut alice, "inventoryResult");
+
+    // A drop lands right under the pet (the pet trails 18px behind spawn).
+    let (pet_x, pet_y) = {
+        let pet = world.players.get("alice").unwrap().pet.as_ref().unwrap();
+        (pet.x, pet.y)
+    };
+    world.drops.insert(
+        "drop-near".into(),
+        DropState {
+            id: "drop-near".into(),
+            item_id: "2000000".into(),
+            quantity: 3,
+            x: pet_x,
+            y: pet_y,
+        },
+    );
+    world.drops.insert(
+        "drop-far".into(),
+        DropState {
+            id: "drop-far".into(),
+            item_id: "2000001".into(),
+            quantity: 1,
+            x: pet_x + 500.0,
+            y: pet_y,
+        },
+    );
+    world.step();
+
+    let alice_state = &world.players.get("alice").unwrap().state;
+    assert!(
+        alice_state
+            .inventory
+            .iter()
+            .any(|item| item.item_id == "2000000" && item.quantity >= 3),
+        "宠物必须把近处掉落代拾入包"
+    );
+    assert!(!world.drops.contains_key("drop-near"), "被拾取的掉落必须移除");
+    assert!(world.drops.contains_key("drop-far"), "远处掉落宠物不碰");
+}
+
+#[test]
 fn pet_is_recalled_when_the_owner_transfers_maps() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");

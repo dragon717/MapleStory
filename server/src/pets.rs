@@ -44,6 +44,11 @@ pub(super) const PET_FOLLOW_GAP: f64 = 8.0;
 /// source's "pet trots behind" feel without ever losing the owner).
 pub(super) const PET_SPEED_PX_PER_MS: f64 = 0.18;
 
+/// The pet's pickup reach.  `apply_pickup` re-applies the world's standard
+/// 32 px gate against the pet's position, so the pet physically reaches a
+/// drop before claiming it.
+pub(super) const PET_PICKUP_RANGE: f64 = 32.0;
+
 impl World {
     /// Toggle the pet named by a `useItem` intent.  The client names tab and
     /// slot only; the pet identity is re-resolved from the authoritative
@@ -152,5 +157,57 @@ impl World {
             pet.action = "stand";
         }
         pet.y = player.state.y;
+    }
+
+    /// Pet auto-pickup (user-specified 2026-09-13: every pet carries the
+    /// source's `pickupItem` behaviour).  Per tick, each pet claims the
+    /// nearest drop on its own map within the world's standard pickup reach
+    /// of the *pet's* position; the claim then runs the exact player pickup
+    /// chain (`apply_pickup`), so ownership windows, mesos, consume-on-pickup
+    /// cards, persistence and capacity all stay single-sourced.  Rule
+    /// rejections are silent: an out-of-range or still-protected drop simply
+    /// waits for a later tick.
+    pub(super) fn step_pet_pickups(&mut self) {
+        // Claims are collected before mutating: `apply_pickup` removes drops
+        // and rewrites profiles, so the scan must not hold borrows across it.
+        let mut claims: Vec<(String, String, f64, f64)> = Vec::new();
+        for (id, player) in &self.players {
+            let Some(pet) = player.pet.as_ref() else {
+                continue;
+            };
+            let map_id = player.map_id.as_str();
+            let mut best: Option<(&String, f64)> = None;
+            for (drop_id, drop) in &self.drops {
+                // Same semantics as the verdict: an unregistered drop is
+                // treatable; only a drop registered to another map is not.
+                if self
+                    .drop_maps
+                    .get(drop_id)
+                    .map(String::as_str)
+                    .is_some_and(|registered| registered != map_id)
+                {
+                    continue;
+                }
+                let dx = drop.x - pet.x;
+                let dy = drop.y - pet.y;
+                if dx.abs() > PET_PICKUP_RANGE || dy.abs() > PET_PICKUP_RANGE {
+                    continue;
+                }
+                let distance = dx * dx + dy * dy;
+                if best.is_none_or(|(_, best_distance)| distance < best_distance) {
+                    best = Some((drop_id, distance));
+                }
+            }
+            if let Some((drop_id, _)) = best {
+                claims.push((id.clone(), drop_id.clone(), pet.x, pet.y));
+            }
+        }
+        for (index, (id, drop_id, pet_x, pet_y)) in claims.into_iter().enumerate() {
+            // Unique per attempt: a rejected claim retries next tick under a
+            // fresh id, and a successful claim removes the drop, so neither a
+            // replay nor a double claim can pass through the store window.
+            let request_id = format!("petpickup-{}-{}-{}", id, self.tick, index);
+            self.handle_pet_pickup(id, request_id, drop_id, pet_x, pet_y);
+        }
     }
 }

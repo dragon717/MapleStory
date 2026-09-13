@@ -52,3 +52,10 @@
 - 修法：三个换图点统一收回宠物（`player.pet = None`）——`portals.rs`（门）、`inventory_ops.rs::land_player_on_return_map`（卷轴落点）、`quest.rs`（任务传送）。复活不换图，不受影响。
 - 回归测试：`pet_acceptance.rs::pet_is_recalled_when_the_owner_transfers_maps`（真实 Portal 命令 + 目标图装配）。cargo test 345 过 / 6 失败，失败集不变。
 - 纯服务端修复：重新跑 `zsh 启动3010.command` 即生效。
+
+## 需求变更：所有宠物自带自动拾取（同日）
+
+- 用户指定：全部宠物自带源 `pickupItem` 行为（不看逐只源旗标）。
+- 实现：`pets.rs::step_pet_pickups`（step() 里在跟随步之后跑）——每 tick 每只宠物在自己地图上找**距宠物 32px 内**最近的掉落，走与玩家完全相同的拾取链：`handle_pickup` 重构为 `apply_pickup(…, pet_pos: Option<(f64,f64)>)`，宠物代拾只是「把宠物坐标代入距离门 + 拒绝静默」，归属保护窗口/枫币/consumeOnPickup 卡片/容量预检/存档事务/掉落移除广播/任务列表刷新全部单源复用。`store.pickup` 不复检距离，在线模式同样成立。
+- 回执：拾取成功照常广播 `dropPickedUp`（飞向宠物位置）与 `pickupResult`（聊天窗「获得 …」）。被拒（太远/他人保护期/背包满）对宠物静默，下一 tick 换新 requestId 再试，不会重放。
+- 回归测试：`pet_auto_picks_up_drops_within_reach_for_its_owner`（近处掉落入包并移除，500px 外不动）。cargo test 346 过 / 6 失败，失败集不变。纯服务端，重启 3010 生效。
