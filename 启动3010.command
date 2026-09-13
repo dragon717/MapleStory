@@ -26,6 +26,9 @@ ART_GENERATOR="$ROOT/scripts/gen_launcher_ascii_art.py"
 
 release_start_lock() {
   [[ "${START_LOCK_OWNED:-0}" == 1 ]] || return 0
+  # 退出时收掉后台任务：字符画播放 / 并发资源校验
+  [[ -n "${ART_PID:-}" ]] && kill "$ART_PID" 2>/dev/null
+  [[ -n "${CHECK_PID:-}" ]] && kill "$CHECK_PID" 2>/dev/null
   rm -f "$START_LOCK_DIR/pid"
   rmdir "$START_LOCK_DIR" 2>/dev/null || true
 }
@@ -113,22 +116,24 @@ NODE_BIN="$(command -v node || true)"
 NODE_MAJOR="$($NODE_BIN -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
 [[ "$NODE_MAJOR" =~ '^[0-9]+$' ]] && (( NODE_MAJOR >= 22 )) || die "需要 Node 22 或更高版本"
 
-# ---- 启动进度字符画：源图变化后由生成器自动重建；失败则降级为纯文本进度 ----
+# ---- 启动进度字符画：后台逐行播放（约 0.15s/行），与主流程并发；状态行先等播放完成，绝不插进画中间 ----
+ART_PID="" CHECK_PID=""
 NO_ART=0
 MAP_COUNT="?" SOURCE_REFS="?" CLIENT_MODULES="?"
 ART_PY="$HOME/.workbuddy/binaries/python/envs/default/bin/python"
 [[ -x "$ART_PY" ]] || ART_PY="$(command -v python3 2>/dev/null || true)"
 ART_SRC_NEWEST="$(ls -t "$ROOT/client/public-tms273/assets/tms273/"Map_Obj__Canvas_acc1.img_mapleIsland_maple_0_0-*.png 2>/dev/null | head -n 1 || true)"
-if [[ -n "$ART_PY" && -n "$ART_SRC_NEWEST" ]] && { [[ ! -f "$ART_ZSH" ]] || [[ "$ART_ZSH" -ot "$ART_SRC_NEWEST" ]]; }; then
+if [[ -n "$ART_PY" && -n "$ART_SRC_NEWEST" ]] && { [[ ! -f "$ART_ZSH" ]] || [[ "$ART_ZSH" -ot "$ART_SRC_NEWEST" ]] || [[ "$ART_ZSH" -ot "$ART_GENERATOR" ]]; }; then
   "$ART_PY" "$ART_GENERATOR" "$ART_SRC_NEWEST" "$ART_ZSH" >/dev/null 2>&1 || NO_ART=1
 fi
-if (( ! NO_ART )) && [[ -f "$ART_ZSH" ]]; then
-  source "$ART_ZSH" && launcher_art_init || NO_ART=1
+if (( ! NO_ART )) && [[ -f "$ART_ZSH" ]] && source "$ART_ZSH" 2>/dev/null && typeset -f launcher_art_play >/dev/null 2>&1; then
+  launcher_art_play
+  ART_PID="$LAUNCHER_ART_PID"
+else
+  NO_ART=1
 fi
-art_step() { (( NO_ART )) || launcher_art_step "$1" "$2"; }
-art_finish() { (( NO_ART )) || launcher_art_finish; }
+art_wait() { (( NO_ART )) || launcher_art_wait; }
 print_summary() {
-  art_finish
   print ""
   print -- "━━━━━━━━ 3010 启动结果 ━━━━━━━━"
   print -- "① 模块加载：运行时 $MAP_COUNT 图 / $SOURCE_REFS 源引用 · 客户端 $CLIENT_MODULES 模块"
@@ -137,34 +142,45 @@ print_summary() {
   print -- "数据库与账号未重置；控制文件：$CONTROL_DIR"
 }
 
-PROTOCOL_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimental-strip-types --input-type=module -e 'import { PROTOCOL_VERSION } from "./shared/protocol.ts"; console.log(PROTOCOL_VERSION)')" || die "无法读取协议版本"
-CONTENT_VERSION="$($NODE_BIN --disable-warning=ExperimentalWarning --experimental-strip-types --input-type=module -e 'import { CONTENT_VERSION } from "./shared/protocol.ts"; console.log(CONTENT_VERSION)')" || die "无法读取资源版本"
+# 根因修复：zsh `read -r A B` 只消费一行输入，node 必须把两个版本号打印在
+# 同一行（此前分两行输出，第二行被丢弃，CONTENT_VERSION 恒为空）。
+VERSIONS="$($NODE_BIN --disable-warning=ExperimentalWarning --experimental-strip-types --input-type=module -e 'import { PROTOCOL_VERSION, CONTENT_VERSION } from "./shared/protocol.ts"; console.log(`${PROTOCOL_VERSION} ${CONTENT_VERSION}`)')" || die "无法读取协议版本"
+read -r PROTOCOL_VERSION CONTENT_VERSION <<< "$VERSIONS"
+[[ -n "$PROTOCOL_VERSION" && -n "$CONTENT_VERSION" ]] || die "无法读取协议/资源版本"
 CARGO_BIN="$(command -v cargo || true)"
 [[ -n "$CARGO_BIN" ]] || CARGO_BIN="$HOME/.cargo/bin/cargo"
 [[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
 export CARGO_BIN
 "$NODE_BIN" "$RELEASE_TOOL" recover >/dev/null || die "上次发布恢复失败，未启动新实例"
-RUNTIME_CHECK="$("$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" 2>&1)" || {
-  print -r -- "$RUNTIME_CHECK" >&2
-  die "运行资源未装配或不兼容，未停止正在运行的服务"
-}
-[[ "$RUNTIME_CHECK" =~ '([0-9]+) maps; ([0-9]+) source references' ]] && MAP_COUNT="$match[1]" && SOURCE_REFS="$match[2]"
-art_step 1 4
-print -- "✔ [1/4] 资源校验：$MAP_COUNT 图 / $SOURCE_REFS 源引用"
-print -- "   正在构建客户端与服务器候选…"
+# 资源校验与构建并发：校验后台跑、构建前台跑，两者都完成后再报状态
+CHECK_OUT="$CONTROL_DIR/check.out"
+rm -f "$CHECK_OUT" "$CHECK_OUT.rc"
+( "$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" >"$CHECK_OUT" 2>&1; echo $? >| "$CHECK_OUT.rc" ) &
+CHECK_PID=$!
 if ! "$NODE_BIN" "$RELEASE_TOOL" prepare >|"$CONTROL_DIR/prepare.log" 2>&1; then
+  kill "$CHECK_PID" 2>/dev/null
   tail -n 30 "$CONTROL_DIR/prepare.log" >&2
   die "候选构建失败，未停止正在运行的服务"
 fi
 CLIENT_MODULES="$(grep -oE '[0-9]+ modules transformed' "$CONTROL_DIR/prepare.log" 2>/dev/null | head -n 1 | grep -oE '[0-9]+' || true)"
-art_step 2 4
+wait "$CHECK_PID" 2>/dev/null || true
+CHECK_PID=""
+CHECK_RC="$(cat "$CHECK_OUT.rc" 2>/dev/null || print 1)"
+RUNTIME_CHECK="$(cat "$CHECK_OUT" 2>/dev/null || true)"
+if [[ "$CHECK_RC" != "0" ]]; then
+  print -r -- "$RUNTIME_CHECK" >&2
+  die "运行资源未装配或不兼容，未停止正在运行的服务"
+fi
+[[ "$RUNTIME_CHECK" =~ '([0-9]+) maps; ([0-9]+) source references' ]] && MAP_COUNT="$match[1]" && SOURCE_REFS="$match[2]"
+art_wait
+print -- "✔ [1/4] 资源校验：$MAP_COUNT 图 / $SOURCE_REFS 源引用（与构建并发完成）"
 print -- "✔ [2/4] 构建打包：客户端 $CLIENT_MODULES 模块 + 服务器同批构建（日志：$CONTROL_DIR/prepare.log）"
 RELEASE_ID="$($NODE_BIN -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(m.releaseId)' "$ROOT/build/tmp/metadata.json")" || die "无法读取候选 releaseId，未停止正在运行的服务"
 [[ -n "$RELEASE_ID" ]] || die "候选 releaseId 为空，未停止正在运行的服务"
-zsh "$ROOT/关闭3010.command" || die "旧服务未能停止，未启动新实例"
+zsh "$ROOT/关闭3010.command" >/dev/null || die "旧服务未能停止，未启动新实例"
 OCCUPANT="$(listen_pid)"
 [[ -z "$OCCUPANT" ]] || die "127.0.0.1:3010 仍被其他进程占用（PID $OCCUPANT），未切换版本"
-"$NODE_BIN" "$RELEASE_TOOL" activate --release-id "$RELEASE_ID" || die "候选切换失败，旧版本仍保留"
+"$NODE_BIN" "$RELEASE_TOOL" activate --release-id "$RELEASE_ID" >/dev/null || die "候选切换失败，旧版本仍保留"
 
 SERVER_PID="$(read_pid_file "$SERVER_PID_FILE")"
 if ! is_server_pid "$SERVER_PID"; then
@@ -189,13 +205,11 @@ if ! is_server_pid "$SERVER_PID"; then
   print -r -- "$SERVER_PID" >| "$SERVER_PID_FILE"
 fi
 wait_health || release_failure "3010 health 未就绪；日志：$SERVER_LOG"
-"$NODE_BIN" "$RELEASE_TOOL" commit --release-id "$RELEASE_ID" || die "health 已通过但旧版本清理未完成；服务保持当前版本，请稍后执行 commit"
-art_step 3 4
+"$NODE_BIN" "$RELEASE_TOOL" commit --release-id "$RELEASE_ID" >/dev/null || die "health 已通过但旧版本清理未完成；服务保持当前版本，请稍后执行 commit"
 print -- "✔ [3/4] 正式服务器：已运行（PID $SERVER_PID，端口 3010）"
 
 if [[ ! -f "$BOT_CREDENTIALS" ]]; then
   BOT_SUMMARY="✗ 未启动（凭据缺失）"
-  art_step 4 4
   print -- "✘ [4/4] 陪测 bot：未启动——恢复 $BOT_CREDENTIALS 后再次启动即可连接"
   print_summary
   exit 0
@@ -220,7 +234,6 @@ for _ in {1..40}; do
 done
 is_bot_pid "$BOT_PID" || die "3010 陪测 bot 未保持运行；日志：$BOT_LOG"
 lsof -nP -a -p "$BOT_PID" -iTCP:3010 -sTCP:ESTABLISHED >/dev/null 2>&1 || die "3010 陪测 bot 未连接；日志：$BOT_LOG"
-art_step 4 4
 print -- "✔ [4/4] 陪测 bot：已连接（PID $BOT_PID）"
 BOT_SUMMARY="✓ 已连接（PID $BOT_PID）"
 print_summary

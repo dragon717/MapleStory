@@ -2,10 +2,9 @@
 """从高清素材生成 3010 启动脚本的终端字符画（zsh 源文件）。
 
 默认源图：枫叶岛红枫树 client/public-tms273/assets/tms273/Map_Obj__Canvas_acc1.img_mapleIsland_maple_0_0-*.png
-输出：scripts/launcher-art.zsh —— 提供 LAUNCHER_ART 数组与进度函数：
-  launcher_art_init            重置已打印行数
-  launcher_art_step DONE TOTAL 按 (DONE/TOTAL) 比例打印字符画到对应行
-  launcher_art_finish          打印剩余全部行（完整字符画）
+输出：scripts/launcher-art.zsh —— 提供 LAUNCHER_ART 数组与播放函数：
+  launcher_art_play            后台子壳逐行播放字符画（每行间隔固定，"哆哆哆"效果）
+  launcher_art_wait            等待播放完成（主流程出状态行前调用，保证不插进画里）
 
 用法：gen_launcher_ascii_art.py [源图路径] [输出zsh路径] [宽度列数]
 源图缺失时以非 0 退出，启动脚本会自动降级为纯文本进度。
@@ -110,19 +109,23 @@ LAUNCHER_ART=(
 {body}
 )
 LAUNCHER_ART_COUNT=${{#LAUNCHER_ART[@]}}
-typeset -gi LAUNCHER_ART_SHOWN=0
-launcher_art_init() {{ LAUNCHER_ART_SHOWN=0 }}
-# 用法：launcher_art_step 已完成阶段数 总阶段数
-launcher_art_step() {{
-  local target=$(( (LAUNCHER_ART_COUNT * ${{1:-0}} + ${{2:-1}} - 1) / ${{2:-1}} ))
-  local i
-  while (( LAUNCHER_ART_SHOWN < target )); do
-    i=$(( LAUNCHER_ART_SHOWN + 1 ))
-    printf '%b\\n' "${{LAUNCHER_ART[i]}}"
-    LAUNCHER_ART_SHOWN=$i
-  done
+typeset -g LAUNCHER_ART_PID=""
+# 后台子壳逐行播放：不阻塞主流程；主流程出状态行前先 launcher_art_wait，保证不插进画中间
+launcher_art_play() {{
+  (
+    local i
+    for (( i = 1; i <= LAUNCHER_ART_COUNT; i++ )); do
+      printf '%b\\n' "${{LAUNCHER_ART[i]}}"
+      sleep 0.15
+    done
+  ) &
+  LAUNCHER_ART_PID=$!
 }}
-launcher_art_finish() {{ launcher_art_step "$LAUNCHER_ART_COUNT" "$LAUNCHER_ART_COUNT" }}
+launcher_art_wait() {{
+  [[ -n "$LAUNCHER_ART_PID" ]] || return 0
+  wait "$LAUNCHER_ART_PID" 2>/dev/null || true
+  LAUNCHER_ART_PID=""
+}}
 """
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write(content)

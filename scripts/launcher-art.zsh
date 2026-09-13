@@ -27,16 +27,20 @@ LAUNCHER_ART=(
  '               \033[38;2;43;67;14m▄\033[0m\033[38;2;42;58;19m\033[48;2;56;61;54m▀\033[0m\033[38;2;27;72;1m\033[48;2;39;69;14m▀\033[0m\033[38;2;49;76;9m\033[48;2;61;39;8m▀\033[0m\033[38;2;65;35;11m\033[48;2;61;27;9m▀\033[0m\033[38;2;61;29;8m\033[48;2;66;34;10m▀\033[0m\033[38;2;79;44;14m\033[48;2;84;48;17m▀\033[0m\033[38;2;91;54;19m\033[48;2;70;34;11m▀\033[0m\033[38;2;92;52;19m\033[48;2;74;36;12m▀\033[0m\033[38;2;82;43;13m\033[48;2;83;44;13m▀\033[0m\033[38;2;110;72;34m\033[48;2;143;111;69m▀\033[0m\033[38;2;174;148;111m\033[48;2;178;154;123m▀\033[0m\033[38;2;180;156;125m\033[48;2;186;164;135m▀\033[0m\033[38;2;210;196;168m\033[48;2;210;198;170m▀\033[0m\033[38;2;208;193;162m\033[48;2;205;185;154m▀\033[0m\033[38;2;191;171;143m\033[48;2;148;119;78m▀\033[0m\033[38;2;127;92;65m\033[48;2;86;114;35m▀\033[0m\033[38;2;85;48;0m\033[48;2;85;114;14m▀\033[0m\033[38;2;97;100;0m\033[48;2;142;187;17m▀\033[0m\033[38;2;169;196;18m\033[48;2;192;182;6m▀\033[0m\033[38;2;170;175;19m\033[48;2;142;153;77m▀\033[0m\033[38;2;44;130;102m▄\033[0m\033[38;2;48;93;3m▄\033[0m'
 )
 LAUNCHER_ART_COUNT=${#LAUNCHER_ART[@]}
-typeset -gi LAUNCHER_ART_SHOWN=0
-launcher_art_init() { LAUNCHER_ART_SHOWN=0 }
-# 用法：launcher_art_step 已完成阶段数 总阶段数
-launcher_art_step() {
-  local target=$(( (LAUNCHER_ART_COUNT * ${1:-0} + ${2:-1} - 1) / ${2:-1} ))
-  local i
-  while (( LAUNCHER_ART_SHOWN < target )); do
-    i=$(( LAUNCHER_ART_SHOWN + 1 ))
-    printf '%b\n' "${LAUNCHER_ART[i]}"
-    LAUNCHER_ART_SHOWN=$i
-  done
+typeset -g LAUNCHER_ART_PID=""
+# 后台子壳逐行播放：不阻塞主流程；主流程出状态行前先 launcher_art_wait，保证不插进画中间
+launcher_art_play() {
+  (
+    local i
+    for (( i = 1; i <= LAUNCHER_ART_COUNT; i++ )); do
+      printf '%b\n' "${LAUNCHER_ART[i]}"
+      sleep 0.15
+    done
+  ) &
+  LAUNCHER_ART_PID=$!
 }
-launcher_art_finish() { launcher_art_step "$LAUNCHER_ART_COUNT" "$LAUNCHER_ART_COUNT" }
+launcher_art_wait() {
+  [[ -n "$LAUNCHER_ART_PID" ]] || return 0
+  wait "$LAUNCHER_ART_PID" 2>/dev/null || true
+  LAUNCHER_ART_PID=""
+}
