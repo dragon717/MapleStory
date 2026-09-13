@@ -25,6 +25,10 @@ mod boss;
 pub(crate) mod windbell;
 #[path = "messaging.rs"]
 mod messaging;
+#[path = "gm.rs"]
+mod gm;
+#[path = "pets.rs"]
+mod pets;
 #[path = "inventory_ops.rs"]
 mod inventory_ops;
 #[path = "social.rs"]
@@ -1404,6 +1408,11 @@ struct Player {
     /// orb can coexist with that sphere.
     summon: Option<ThunderSummon>,
     summons: Vec<ThunderSummon>,
+    /// Summoned pet (TMS273 `Item/Pet`).  Session state owned by the world
+    /// membership: summoned/recalled via the `useItem` pet branch, moved by
+    /// `pets::step_pet`, injected into snapshots as `players[].pet`.  Never
+    /// persisted — a map change or disconnect ends the summons.
+    pet: Option<pets::PetRuntime>,
     /// Four-segment Ice Dragon Breath is a single accepted cast.  The request
     /// id binds the self-lock so ReleaseSkill cannot cancel another cast.
     channel_request_id: Option<String>,
@@ -2339,6 +2348,24 @@ impl World {
                     object.insert("abnormalStatus".to_owned(), serde_json::to_value(&abnormal).unwrap());
                 }
             }
+            // Summoned pet rides the same per-row block.  Present only while
+            // the character actually has one out; the client resolves the
+            // sprite frames from `manifest.pets`.
+            if let Some(pet) = player.pet.as_ref() {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert(
+                        "pet".to_owned(),
+                        serde_json::json!({
+                            "itemId": pet.item_id,
+                            "name": pet.name,
+                            "x": pet.x,
+                            "y": pet.y,
+                            "facing": pet.facing,
+                            "action": pet.action,
+                        }),
+                    );
+                }
+            }
             player_rows.push(row);
         }
         let mut snapshot = serde_json::json!({
@@ -3161,6 +3188,17 @@ impl World {
         self.step_monsters();
         self.step_ice_fields();
         self.step_summons();
+        // Pet follow: after every other per-player movement has settled, walk
+        // each pet toward its owner; snapshots below carry the new pose.
+        let pet_ids: Vec<String> = self
+            .players
+            .keys()
+            .filter(|id| self.players[*id].pet.is_some())
+            .cloned()
+            .collect();
+        for id in pet_ids {
+            self.step_pet(&id);
+        }
         self.apply_contact_damage();
         self.respawn_monsters();
         // Full retention for residents: they keep being simulated and stay in

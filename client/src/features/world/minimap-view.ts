@@ -155,7 +155,6 @@ export class MiniMapView {
   private markerLayer?: HTMLDivElement;
   private streetLine?: HTMLSpanElement;
   private nameLine?: HTMLSpanElement;
-  private emptyLine?: HTMLParagraphElement;
   private buttons?: HTMLDivElement;
   private buttonsLeft?: HTMLDivElement;
   private buttonsRight?: HTMLDivElement;
@@ -367,10 +366,6 @@ export class MiniMapView {
     this.nameLine = document.createElement('span');
     this.nameLine.className = 'tms-minimap-name';
 
-    this.emptyLine = document.createElement('p');
-    this.emptyLine.className = 'tms-minimap-empty';
-    this.emptyLine.textContent = uiText('minimapNoSource');
-
     this.buttons = document.createElement('div');
     this.buttons.className = 'tms-minimap-buttons';
     this.buttonsLeft = document.createElement('div');
@@ -393,7 +388,7 @@ export class MiniMapView {
     // The authored NPC 目录 window, parked closed under the plate window.
     this.npcListWindow = this.buildNpcList();
 
-    windowBox.append(this.body, this.streetLine, this.nameLine, this.emptyLine, this.buttons, this.markIcon);
+    windowBox.append(this.body, this.streetLine, this.nameLine, this.buttons, this.markIcon);
     root.append(windowBox, this.npcListWindow);
     this.host.append(root);
     return root;
@@ -684,7 +679,22 @@ export class MiniMapView {
     this.paintMark(map);
 
     if (!this.input || !map || !data) {
+      // Maps whose source authors no `miniMap` node (the three Victoria shops,
+      // 楓葉村武器店, …) show nothing at all, like the original client: the
+      // whole window is hidden, not a placeholder shell, and returning to a
+      // map that carries a minimap restores it.  `data-unavailable` stays as
+      // the state marker the QA probes read.
       root.dataset.unavailable = 'true';
+      root.style.display = 'none';
+      // The hidden window also drops the NPC 目录 and its pick, so stepping
+      // back onto a minimap map never pops a stale roster.
+      if (this.npcListOpen) {
+        this.npcListOpen = false;
+        this.selectedNpcId = undefined;
+        this.npcListSignature = '';
+        if (this.npcListWindow) this.npcListWindow.style.display = 'none';
+        this.buildButtons();
+      }
       if (this.canvas) this.canvas.removeAttribute('src');
       this.markerLayer?.replaceChildren();
       this.markers.clear();
@@ -692,6 +702,7 @@ export class MiniMapView {
       return;
     }
     delete root.dataset.unavailable;
+    root.style.display = '';
     if (this.streetLine) this.streetLine.textContent = this.names(this.input.mapId).street;
     if (this.nameLine) this.nameLine.textContent = this.names(this.input.mapId).map;
     if (this.canvas && this.canvas.getAttribute('src') !== map.url) {

@@ -192,10 +192,6 @@
   user-select: none;
 }
 
-.tms-minimap[data-unavailable] .tms-minimap-mark {
-  display: none !important;
-}
-
 /* The authored NPC 目录 window (MiniMap/npcList), parked in flow right below
    the minimap window so it follows the drag.  The panel art and its size are
    inline styles from MiniMapView; the row strip sits at the authored
@@ -292,20 +288,6 @@
   pointer-events: none;
 }
 
-.tms-minimap-empty {
-  margin: 8px 12px;
-  padding: 0;
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #d4e1e5;
-  text-shadow: 0 1px 0 #000a;
-}
-
-.tms-minimap:not([data-unavailable]) .tms-minimap-empty {
-  display: none;
-}
-
 /* Two authored button rows on the top strip: the size controls anchor the
    left, the NPC / world-map features anchor the right.  Both use the authored
    21x21 sprites at the authored 21 px pitch. */
@@ -355,9 +337,4 @@
 .tms-minimap-button img {
   image-rendering: pixelated;
   user-select: none;
-}
-
-.tms-minimap[data-unavailable] .tms-minimap-buttons,
-.tms-minimap[data-unavailable] .tms-minimap-body {
-  display: none;
 }

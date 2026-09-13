@@ -608,7 +608,7 @@ export class InventoryView {
         if (this.backendOnlyDisabled(slotNumber)) this.appendDisabled(slot);
         continue;
       }
-      const frame = this.manifest.items?.[item.itemId];
+      const frame = this.manifest.items?.[item.itemId] ?? this.manifest.pets?.[item.itemId]?.icon;
       if (!frame) continue;
       const icon = this.assetImage(frame, 'inventory-item-icon');
       icon.alt = itemName(item.itemId);

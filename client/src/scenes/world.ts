@@ -5,6 +5,7 @@ import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/man
 import { buildPreloadPlan } from '../assets/preload-plan';
 import type { AssetFrame, Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
+import { PetView } from '../features/pet/view';
 import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '../features/mob/view';
 import { NpcView, type NpcSnapshot } from '../features/npc/view';
 import { PortalView } from '../features/world/portal-view';
@@ -24,6 +25,8 @@ export interface PortalRequest {
 type PortalHandler = (request: PortalRequest) => void;
 export class World extends Phaser.Scene {
   private players = new Map<string, PlayerView>();
+  private pets = new Map<string, PetView>();
+  private petClock = 0;
   private monsters = new Map<string, MonsterView>();
   private npcs = new Map<string, NpcView>();
   private questTargets = new Map<string, Phaser.GameObjects.Container>();
@@ -687,6 +690,23 @@ export class World extends Phaser.Scene {
 
   private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);
+    // Summoned pets: one view per character, keyed by player id.  A pet whose
+    // art was never assembled is skipped rather than crashing the scene.
+    this.petClock += delta;
+    const petOwners = new Set<string>();
+    for (const player of snapshot.players) {
+      const pet = player.pet;
+      if (!pet) continue;
+      petOwners.add(player.id);
+      const asset = this.manifest.pets?.[pet.itemId];
+      if (!asset) continue;
+      let view = this.pets.get(player.id);
+      if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(player.id, view); }
+      view.update(pet, this.petClock);
+    }
+    for (const [id, view] of this.pets) {
+      if (!petOwners.has(id)) { view.destroy(); this.pets.delete(id); }
+    }
     const monsters = snapshot.monsters ?? [];
     const monsterIds = new Set(monsters.map(monster => monster.id));
     for (const [id, view] of this.monsters) {

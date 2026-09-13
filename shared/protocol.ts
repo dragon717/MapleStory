@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 15;
-export const CONTENT_VERSION = 'tms273-13';
+export const PROTOCOL_VERSION = 16;
+export const CONTENT_VERSION = 'tms273-14';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -51,10 +51,21 @@ export interface PlayerState {
   inventorySlots?: Record<number, number>;
   /** Server-owned away marker; display only, grants no protection or assets. */
   away?: AwayMarker;
+  /** Summoned pet (TMS273). Session state; absent while no pet is out. */
+  pet?: PetState;
   /** Monster-inflicted abnormal statuses, present only while at least one is
    *  active. Remaining milliseconds are display-only; the server owns the
    *  authoritative deadlines and decides when each status actually ends. */
   abnormalStatus?: AbnormalStatus;
+}
+/** Summoned pet riding one player's snapshot row.  Present only while the
+ *  character has a pet out; the server owns summon/recall (the pet item's
+ *  `useItem` branch) and the follow movement, so every field here is
+ *  display-only.  The sprite frames are resolved client-side from
+ *  `manifest.pets[itemId]`. */
+export interface PetState {
+  itemId: string; name: string; x: number; y: number; facing: Facing;
+  action: 'stand' | 'move';
 }
 /** Player-side abnormal-status presentation state. Emitted in snapshots; each
  *  entry is the remaining milliseconds for the named status. */
@@ -313,6 +324,11 @@ export type ServerMessage =
   | { type: 'questList'; quests: QuestLogEntry[] }
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }
+  /** Authoritative result of one GM chat command (`/add ...`).  The server
+   *  intercepts `/`-prefixed chat text before it can broadcast, so commands
+   *  never appear as map chat; this reply goes to the sender only and every
+   *  field is server-authored. */
+  | { type: 'gmResult'; requestId: string; success: boolean; code: string; message: string }
   | { type: 'chatMessage'; messageId: string; requestId?: string; mapId: string; authorId: string; authorName: string; text: string; occurredAtTick: number }
   /** One emoticon shown by one character, broadcast to the sender's map room
    *  exactly like map chat (and filtered by the same blacklist). Every field is

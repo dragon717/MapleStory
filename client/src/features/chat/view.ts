@@ -30,6 +30,14 @@ export interface WhisperEnvelope {
   toName: string;
   text: string;
 }
+/** One GM command feedback line (`/add ...` and friends).  The server sends
+ *  it only to the command sender; the client just renders it. */
+export interface GmResultEnvelope {
+  requestId: string;
+  success: boolean;
+  code: string;
+  message: string;
+}
 export interface ChatViewHooks {
   /** Send one map-chat intent; resolves false when the socket is not open. */
   send?: (requestId: string, text: string) => boolean;
@@ -153,6 +161,18 @@ export class ChatView {
     line.textContent = `系统：${message}`;
     appendChatLogLine(this.systemLog, line);
     return true;
+  }
+
+  /** Render one server gmResult: a GM-prefixed system line, success in the
+   *  normal colour and refusals flagged inline. */
+  appendGmResult(message: GmResultEnvelope) {
+    if (!this.systemLog) return;
+    if (this.systemEventIds.has(`gm:${message.requestId}`)) return;
+    this.systemEventIds.add(`gm:${message.requestId}`);
+    const line = document.createElement('div');
+    line.className = this.chat273 ? 'chat273-system-line' : 'chat-system-line';
+    line.textContent = message.success ? `GM：${message.message}` : `GM：${message.message}（${message.code}）`;
+    appendChatLogLine(this.systemLog, line);
   }
 
   /** Merge one server chatMessage: an own echo upgrades its pending line by
@@ -391,6 +411,9 @@ export class ChatView {
       this.status('连接不可用，消息未发送，请重连后再试。', true);
       return;
     }
+    // GM commands (`/add ...`) answer with a gmResult line, never a
+    // chatMessage echo, so a pending "发送中" row would never resolve.
+    if (message.startsWith('/')) return;
     this.addPending(requestId, message);
   }
 

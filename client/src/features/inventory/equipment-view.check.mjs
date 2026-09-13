@@ -18,9 +18,11 @@ const i18nCode = compile(await readFile(new URL('../../app/i18n.ts', import.meta
   .replace("import OpenCC from 'opencc-js/t2cn';", 'const OpenCC = { Converter: () => text => text };');
 const i18nUrl = b64(i18nCode);
 const itemsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8')).toString('base64')}`;
+const petsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8')).toString('base64')}`;
 const namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
   .replaceAll("from '../../app/i18n'", `from '${i18nUrl}'`)
-  .replaceAll("from '../../../../shared/items.json'", `from '${itemsUrl}' with { type: 'json' }`);
+  .replaceAll("from '../../../../shared/items.json'", `from '${itemsUrl}' with { type: 'json' }`)
+  .replaceAll("from '../../../../shared/pets.json'", `from '${petsUrl}' with { type: 'json' }`);
 const namesUrl = b64(namesCode);
 const equipCode = compile(await readFile(new URL('./equipment-view.ts', import.meta.url), 'utf8'))
   .replaceAll("from './names'", `from '${namesUrl}'`);

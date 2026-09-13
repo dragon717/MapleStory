@@ -3881,6 +3881,8 @@ include!("windbell_acceptance.rs");
     include!("monster_status_acceptance.rs");
     include!("slot_expand_acceptance.rs");
     include!("mob_move_acceptance.rs");
+    include!("gm_acceptance.rs");
+    include!("pet_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

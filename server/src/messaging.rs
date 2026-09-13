@@ -88,6 +88,14 @@ impl World {
             return;
         }
         let text = text.trim().to_owned();
+        // 2.5 GM commands: any `/`-prefixed text is intercepted here, before
+        //     the chat policy/idempotency/rate-limit machinery, so a command
+        //     is never broadcast as map chat and never spends a chat token.
+        //     Only the sender receives the `gmResult` feedback.
+        if text.starts_with('/') {
+            self.handle_gm_command(id, request_id, text);
+            return;
+        }
         // 3. Bounded per-session idempotency (§9.1/§9.2): a retry with the
         //    same request id and body never re-broadcasts; the same id with a
         //    different body is rejected as a conflict.

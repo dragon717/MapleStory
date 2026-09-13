@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 15;
-pub const CONTENT_VERSION: &str = "tms273-13";
+pub const PROTOCOL_VERSION: u32 = 16;
+pub const CONTENT_VERSION: &str = "tms273-14";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -660,7 +660,11 @@ impl ClientMessage {
                     && valid_id(shop_id)
                     && inventory::valid_inventory_type(*inventory_type)
                     && inventory::valid_slot(*source_slot)
-                    && (1..=100).contains(quantity)
+                    // One slot holds at most 9999 of a stackable (the arrow
+                    // catalog cap), so a sell intent can name that many; the
+                    // handler still clamps against the stack that is really
+                    // there.
+                    && (1..=9_999).contains(quantity)
             }
             Self::ShopRebuy {
                 request_id,
@@ -1053,6 +1057,34 @@ pub fn reject(code: &str, message: &str, request_id: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shop_sell_accepts_a_full_drop_stack() {
+        // 113 幼魔精靈的角 is a real stack a player sells at once; the old
+        // 1..=100 shape bound rejected it as invalid_message before the
+        // handler ever saw it.  9999 is the arrow catalog's slotMax ceiling,
+        // and the handler still clamps against the real stack.
+        let stack: ClientMessage = serde_json::from_str(
+            r#"{"type":"shopSell","requestId":"sell-1","shopId":"shop-1","inventoryType":4,"sourceSlot":7,"quantity":113}"#,
+        )
+        .unwrap();
+        assert!(stack.valid());
+        let ceiling: ClientMessage = serde_json::from_str(
+            r#"{"type":"shopSell","requestId":"sell-2","shopId":"shop-1","inventoryType":2,"sourceSlot":1,"quantity":9999}"#,
+        )
+        .unwrap();
+        assert!(ceiling.valid());
+        let over: ClientMessage = serde_json::from_str(
+            r#"{"type":"shopSell","requestId":"sell-3","shopId":"shop-1","inventoryType":2,"sourceSlot":1,"quantity":10000}"#,
+        )
+        .unwrap();
+        assert!(!over.valid());
+        let zero: ClientMessage = serde_json::from_str(
+            r#"{"type":"shopSell","requestId":"sell-4","shopId":"shop-1","inventoryType":2,"sourceSlot":1,"quantity":0}"#,
+        )
+        .unwrap();
+        assert!(!zero.valid());
+    }
 
     #[test]
     fn ability_allocation_accepts_only_one_known_stat_intent() {

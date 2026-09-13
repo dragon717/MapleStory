@@ -253,13 +253,18 @@ impl World {
             return;
         }
         // Resolve the stack server-side; the client's idea of what is in the
-        // slot is never trusted.
+        // slot is never trusted.  Slot numbers are local per tab, so the tab
+        // has to be part of the match itself: filtering the slot match first
+        // would let an equip-tab item with the same local slot number shadow
+        // the consumable the client is actually selling.
         let Some(stack) = player
             .state
             .inventory
             .iter()
-            .find(|item| item.slot == source_slot as u16)
-            .filter(|item| inventory::inventory_type(&item.item_id) == Some(inventory_type))
+            .find(|item| {
+                inventory::inventory_type(&item.item_id) == Some(inventory_type)
+                    && item.slot == source_slot as u16
+            })
         else {
             self.send_shop_sell_result(
                 &id,
@@ -307,7 +312,20 @@ impl World {
             );
             return;
         }
-        let Some(unit_price) = inventory::item_price(&item_id) else {
+        // The arrow family (206xxxx) authors `price: 0` yet stays sellable at
+        // a flat 1 meso apiece; everything else pays a fraction of the
+        // catalog price (see SHOP_SELL_PRICE_PERCENT), floored at one meso —
+        // a shop never pays zero for something the source gave a price tag,
+        // which is what kept price-1 equipment (木棒/劍) unsellable.  Rounding
+        // is down so a shop can never pay out more than the authored value
+        // allows.
+        let unit_payout = inventory::flat_sell_payout(&item_id).or_else(|| {
+            inventory::item_price(&item_id).map(|unit_price| {
+                (unit_price.saturating_mul(SHOP_SELL_PRICE_PERCENT) / SHOP_SELL_PRICE_DIVISOR)
+                    .max(1)
+            })
+        });
+        let Some(unit_payout) = unit_payout else {
             self.send_shop_sell_result(
                 &id,
                 &request_id,
@@ -321,11 +339,6 @@ impl World {
             );
             return;
         };
-        // P: shops pay a fraction of the catalog price (see
-        // SHOP_SELL_PRICE_PERCENT).  Rounding is down so a shop can never pay
-        // out more than the authored value allows.
-        let unit_payout =
-            unit_price.saturating_mul(SHOP_SELL_PRICE_PERCENT) / SHOP_SELL_PRICE_DIVISOR;
         if unit_payout == 0 {
             self.send_shop_sell_result(
                 &id,

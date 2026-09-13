@@ -383,6 +383,10 @@ async function enterGame(session: LoginResponse) {
         chat?.appendWhisperMessage(message);
         return;
       }
+      if (message.type === 'gmResult') {
+        chat?.appendGmResult(message);
+        return;
+      }
       if (message.type === 'npcResult') {
         npcDialogue?.receive(message);
         if (message.openSkills) {

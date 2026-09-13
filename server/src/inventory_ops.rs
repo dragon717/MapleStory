@@ -888,6 +888,9 @@ impl World {
             return;
         };
         player.map_id = target_map_id.to_owned();
+        // Same residue rule as the portal path: a summoned pet is map-local
+        // session state and is recalled instead of crossing maps.
+        player.pet = None;
         player.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         reset_player_to_spawn(&target_map, player, self.tick);
@@ -936,6 +939,13 @@ impl World {
                 );
                 return;
             }
+        }
+        // Pet branch: a TMS273 pet item toggles the summoned pet instead of
+        // being consumed.  Handled before the persistence transaction so a
+        // summon/replay never spends or rewinds an inventory row.
+        if inventory_type == 5 && crate::inventory::is_pet(&item_id) {
+            self.pet_toggle(&id, &request_id, inventory_type, source_slot, &item_id);
+            return;
         }
         if let Some(store) = self.store.clone() {
             let derived_max_mp = player.state.max_mp;

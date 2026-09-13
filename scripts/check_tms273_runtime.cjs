@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-13');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-14');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -335,6 +335,19 @@ function visit(value) {
 visit(manifest);
 console.log(`TMS273 runtime: ${catalog.maps.length} maps; ${checked} source references; client/server geometry and quest generation agree.`);
 if(healed>0)console.log(`注意: ${healed} 个装配资源在 public-tms273 里缺失，已从 dist 快照自动补回（本仓库在 iCloud 盘，资源会无故消失；若反复出现请把仓库移出同步盘或排除 client/public-tms273）。`);
+
+// 宠物（TMS273 Item/Pet）：装配清单必须携带与导出一致的宠物目录与精灵。
+// 目录规模在这里钉住：pets.json（名字/属性）与 pet-images.json（帧）都来自
+// export_tms273_pet.cjs，一旦某次导出意外缩水，装配与运行时能在启动前发现。
+{
+  const pets=read('shared/pets.json');
+  const petImages=manifest.pets ?? {};
+  assert.equal(Object.keys(pets).length,990,'shared/pets.json 宠物目录规模变化：确认导出后同步更新本断言');
+  assert.equal(Object.keys(petImages).length,Object.keys(pets).length,'manifest.pets 与 shared/pets.json 不一致');
+  const first=petImages['5000000'];
+  assert(first&&first.name==='褐色小貓'&&first.stand.length>0&&first.move.length>0,'宠物 5000000 装配不完整');
+  assert(first.icon.url.startsWith('/assets/tms273/'));
+}
 
 // Account warehouse: the client window is drawn entirely from the TMS273
 // UIWindow.img/Trunk export, and its row cap must agree with the server's

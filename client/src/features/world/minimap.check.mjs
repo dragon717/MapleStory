@@ -113,7 +113,6 @@ globalThis.document = documentStub;
 globalThis.window = windowStub;
 globalThis.uiLocale = () => 'zh';
 globalThis.uiText = key => ({
-  minimapNoSource: '这张地图在原版没有小地图素材。',
   minimapNpc: 'NPC 目录',
   minimapNpcListClose: '关闭 NPC 目录',
   minimapNpcListEmpty: '这张地图上没有 NPC。',
@@ -376,11 +375,20 @@ assert.equal(findIn(root, 'tms-minimap-name').textContent, '弓箭手村射箭�
   assert.equal(root.dataset.mode, 'full');
 }
 
-// 6. A map without a source minimap keeps the empty line and hides the plate.
+// 6. A map without a source minimap shows nothing at all — like the original:
+// the whole window is hidden, the NPC 目录 and its pick are dropped, and
+// stepping back onto a minimap map restores the window.
 {
+  // Opening the 目录 first proves the unavailable path closes it.
+  buttonsOf(view).find(button => button.title === '點擊可察看目前所在地區的NPC目錄。').dispatch('click', {});
+  assert.equal(view.npcListShown(), true);
   view.update({ ...input, mapId: '999999999' });
   assert.equal(root.dataset.unavailable, 'true');
-  assert.equal(findIn(root, 'tms-minimap-mark').style.display, 'none');
+  assert.equal(root.style.display, 'none', 'no authored minimap -> the whole window is hidden');
+  assert.ok(!view.npcListShown(), 'the hidden window drops the NPC 目录');
+  view.update(input);
+  assert.equal(root.dataset.unavailable, undefined);
+  assert.equal(root.style.display, '', 'a map with a minimap shows the window again');
 }
 
 view.destroy();

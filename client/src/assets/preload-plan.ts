@@ -41,6 +41,9 @@ export function buildPreloadPlan(manifest: Manifest): PreloadPlan {
   for (const monster of Object.values(manifest.monsters ?? {})) for (const frames of Object.values(monster.actions)) for (const frame of frames) images.set(frame.url, frame.url);
   for (const frame of Object.values(manifest.items ?? {})) images.set(frame.url, frame.url);
   for (const npc of Object.values(manifest.npcs ?? {})) for (const frame of npc.stand) images.set(frame.url, frame.url);
+  for (const pet of Object.values(manifest.pets ?? {})) {
+    for (const frame of [pet.icon, ...pet.stand, ...pet.move, ...pet.jump]) images.set(frame.url, frame.url);
+  }
   for (const frame of manifest.npcQuestAvailable?.frames ?? []) images.set(frame.url, frame.url);
   for (const portal of Object.values(manifest.portals ?? {})) {
     for (const frame of portal.frames ?? []) images.set(frame.url, frame.url);

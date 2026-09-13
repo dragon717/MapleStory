@@ -417,6 +417,7 @@ impl World {
                         beginner_speed_percent: 0,
                         summon: None,
                         summons: Vec::new(),
+                        pet: None,
                         channel_request_id: None,
                         channel_skill_id: None,
                         channel_until: 0,

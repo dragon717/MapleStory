@@ -8,12 +8,12 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 100,
-  "edge_count": 201,
+  "node_count": 101,
+  "edge_count": 206,
   "edge_kind_counts": {
-    "value": 117,
+    "value": 120,
     "dynamic": 1,
-    "type": 69,
+    "type": 71,
     "side-effect": 14
   },
   "external_specifiers": [
@@ -520,6 +520,11 @@
     },
     {
       "from": "client/src/features/inventory/names.ts",
+      "to": "shared/pets.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/names.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
     },
@@ -702,6 +707,21 @@
       "from": "client/src/features/npc/view.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
+    },
+    {
+      "from": "client/src/features/pet/view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/pet/view.ts",
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/pet/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
     },
     {
       "from": "client/src/features/player/animation.check.ts",
@@ -1010,6 +1030,11 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/pet/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/features/mob/view.ts",
       "kind": "value"
     },
@@ -1049,8 +1074,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "91c9349c08ea3c140baa9e539aa5f8e709d7807a",
+  "source_commit": "02aa08177ae3bb75a5560fa780c7d6c117c6a661",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-13T05:10:32.622Z"
+  "generated_at": "2026-09-13T07:16:15.349Z"
 }

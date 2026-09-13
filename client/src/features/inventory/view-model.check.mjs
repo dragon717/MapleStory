@@ -12,9 +12,12 @@ const compile = source => ts.transpileModule(source, { compilerOptions: { target
 // 按 dialogue.check 的方式装进同一模块图：i18n 打桩、items.json 保真。
 const itemsJson = await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8');
 const itemsUrl = `data:application/json;base64,${Buffer.from(itemsJson).toString('base64')}`;
+const petsJson = await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8');
+const petsUrl = `data:application/json;base64,${Buffer.from(petsJson).toString('base64')}`;
 const namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
   .replace(/import .* from '..\/..\/app\/i18n';/, "const uiLocale = () => 'zh', uiText = x => x, displayText = x => x;")
-  .replace(/^import catalog from '.*items\.json';$/m, `import catalog from ${JSON.stringify(itemsUrl)} with { type: 'json' };`);
+  .replace(/^import catalog from '.*items\.json';$/m, `import catalog from ${JSON.stringify(itemsUrl)} with { type: 'json' };`)
+  .replace(/^import petCatalog from '.*pets\.json';$/m, `import petCatalog from ${JSON.stringify(petsUrl)} with { type: 'json' };`);
 const namesUrl = `data:text/javascript;base64,${Buffer.from(namesCode).toString('base64')}`;
 
 const code = compile(await readFile(new URL('./view-model.ts', import.meta.url), 'utf8'))

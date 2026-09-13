@@ -1,9 +1,14 @@
 import { uiLocale, displayText } from '../../app/i18n';
 import catalog from '../../../../shared/items.json';
+import petCatalog from '../../../../shared/pets.json';
 import type { InventoryItem } from '../../../../shared/protocol';
 
 // Source info also retains nested metadata such as equipment growth levels.
 type CatalogInfo = Record<string, unknown>;
+
+/** TMS273 pet rows (`shared/pets.json`): pets are not in items.json but still
+ *  need authoritative display names in the cash tab and tooltips. */
+const PETS = petCatalog as Record<string, { name?: string }>;
 
 /**
  * `islot` is the TMS273 source field used by server/src/inventory.rs.  Keep
@@ -84,11 +89,14 @@ export function itemComparisonDetails(candidate: InventoryItem, current: Invento
   return lines.join('\n');
 }
 
-/** The active TMS273 String catalog is authoritative for item names. */
+/** The active TMS273 String catalog is authoritative for item names; pets
+ *  fall back to the pet catalog generated from String/Pet.json. */
 export function itemName(itemId: string): string {
   if (itemId === '0') return uiLocale() === 'en' ? 'Mesos' : '枫币';
   const item = catalog[itemId as keyof typeof catalog];
-  return item && "name" in item ? displayText(item.name) : itemId;
+  if (item && "name" in item) return displayText(item.name);
+  const petName = PETS[itemId]?.name;
+  return petName ? displayText(petName) : itemId;
 }
 
 /**

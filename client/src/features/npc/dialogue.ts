@@ -45,6 +45,22 @@ type ShopTab = 'buy' | 'rebuy';
  *  used to preview the payout before the player confirms. */
 const SHOP_SELL_PERCENT = 50;
 
+/** Flat per-unit payout for the arrow family (206xxxx 箭矢/弩箭矢).  The
+ *  catalog authors `price: 0` for arrows, but the shop still pays a flat
+ *  1 meso apiece — mirrors the server's `flat_sell_payout` override. */
+const ARROW_SELL_PAYOUT = 1;
+
+/** Per-unit sell payout preview for one inventory row.  The arrow family is
+ *  paid flat; every other priced item earns the catalog price's sell share
+ *  floored at one meso (a shop never pays zero for a priced item — mirrors
+ *  the server).  An item with no price at all means the server will refuse
+ *  the sale. */
+function unitSellPayout(itemId: string, price?: number): number {
+  const group = Number.isFinite(Number(itemId)) ? Math.floor(Number(itemId) / 10000) : NaN;
+  if (group === 206) return ARROW_SELL_PAYOUT;
+  return price ? Math.max(1, Math.floor((price * SHOP_SELL_PERCENT) / 100)) : 0;
+}
+
 /** Pick the zh/en name the server ships (zh is the product default). */
 function displayName(zh?: string, en?: string): string {
   return displayText(uiLocale() === 'en' ? (en ?? zh ?? '') : (zh ?? en ?? ''));
@@ -101,6 +117,9 @@ export class NpcDialogueView {
   private shopSellRoot?: HTMLDivElement;
   /** Row signature already rendered in the sell panel; skips no-op rebuilds. */
   private sellSignature = '';
+  /** Second-step quantity dialog for selling part of a stack. */
+  private sellConfirmRoot?: HTMLDivElement;
+  private sellConfirmEntry?: SellEntry;
   private shopMesos?: HTMLSpanElement;
   private shopCurrent?: ShopOpenState;
   private shopTab: ShopTab = 'buy';
@@ -154,9 +173,12 @@ export class NpcDialogueView {
       this.itemSources = Object.fromEntries(Object.entries(map).map(([id, entry]) => [id, entry.source ?? '']));
       // Catalog price drives the sell preview.  It is the same field the shop
       // sale prices are authored in, so an item with no recorded price simply
-      // has no preview and the server will refuse it.
+      // has no preview and the server will refuse it.  Quest-flagged items are
+      // never sellable server-side (even a data-refreshed price tag does not
+      // buy them a slot), so they are left out of the lookup entirely.
       const prices: Record<string, number> = {};
-      for (const [id, entry] of Object.entries(map as Record<string, { info?: { price?: number } }>)) {
+      for (const [id, entry] of Object.entries(map as Record<string, { info?: { price?: number; quest?: number } }>)) {
+        if (entry.info?.quest) continue;
         const price = entry.info?.price ?? 0;
         if (price > 0) prices[id] = price;
       }
@@ -251,12 +273,21 @@ export class NpcDialogueView {
 
   clear() {
     this.currentRequestId = '';
+    this.closeSellConfirm();
     this.closeDialogue();
     this.closeShop();
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape' || !this.isOpen()) return;
+    // Escape over the quantity dialog dismisses only the dialog; the shop
+    // itself stays open so a mistyped count does not cost the whole window.
+    if (this.sellConfirmRoot) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.closeSellConfirm();
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     if (event.repeat) return;
@@ -707,6 +738,15 @@ export class NpcDialogueView {
     if (!force && signature === this.sellSignature) return;
     this.sellSignature = signature;
     root.replaceChildren();
+    // The quantity dialog names a specific stack; if that stack changed or
+    // left the bag while the dialog was open, the server would only refuse
+    // the count anyway, so close the dialog instead of inviting the refusal.
+    if (this.sellConfirmEntry
+      && !entries.some(entry => entry.itemId === this.sellConfirmEntry!.itemId
+        && entry.slot === this.sellConfirmEntry!.slot
+        && entry.quantity === this.sellConfirmEntry!.quantity)) {
+      this.closeSellConfirm();
+    }
     if (!entries.length) {
       const empty = document.createElement('div');
       empty.className = 'npc-shop-empty';
@@ -732,19 +772,18 @@ export class NpcDialogueView {
    * Inventory rows the shop would accept, with the payout preview filled in.
    *
    * Only rows the server can actually pay for are listed: the payout is the
-   * catalog price times the sell percentage rounded down, and a price so low
-   * that the rounded payout hits zero is refused server-side, so offering a
-   * button for it would only invite a failed sale.
+   * arrow family's flat 1 meso or the catalog price times the sell percentage
+   * floored at one meso, and an item with no price at all (or a quest-flagged
+   * one) is refused server-side, so offering a button for it would only
+   * invite a failed sale.
    */
   private sellEntries(): SellEntry[] {
     const entries: SellEntry[] = [];
     for (const item of this.playerInventory) {
-      const price = this.itemPrices[item.itemId];
-      if (!price) continue;
+      const unitPayout = unitSellPayout(item.itemId, this.itemPrices[item.itemId]);
+      if (unitPayout <= 0) continue;
       const quantity = item.quantity ?? 0;
       if (quantity <= 0) continue;
-      const unitPayout = Math.floor((price * SHOP_SELL_PERCENT) / 100);
-      if (unitPayout <= 0) continue;
       // The inventory window's tab order is not the WZ category order (Etc
       // sits before Setup), so the tab goes through the shared tab → category
       // table; a plain `+ 1` sends the wrong category for Etc and Setup.
@@ -762,7 +801,18 @@ export class NpcDialogueView {
     return entries.sort((left, right) => left.slot - right.slot);
   }
 
+  /** Selling a single item goes straight out; a stack of more than one first
+   *  opens the second-step dialog so the player names how many to sell. */
   private sell(entry: SellEntry) {
+    if (!this.shopCurrent) return;
+    if (entry.quantity > 1) {
+      this.openSellConfirm(entry);
+      return;
+    }
+    this.sendSell(entry, 1);
+  }
+
+  private sendSell(entry: SellEntry, quantity: number) {
     if (!this.shopCurrent) return;
     const requestId = `shop-${++this.requestSequence}-${Date.now().toString(36)}`;
     this.send({
@@ -771,8 +821,83 @@ export class NpcDialogueView {
       shopId: this.shopCurrent.shopId,
       inventoryType: entry.inventoryType,
       sourceSlot: entry.slot,
-      quantity: entry.quantity,
+      quantity,
     });
+  }
+
+  /**
+   * The second-step sell dialog: how many of this stack to sell.
+   *
+   * The input defaults to the whole stack and clamps to 1..=stack size, and
+   * the payout preview updates as the count changes.  The server remains the
+   * authority — it re-reads the stack, so a stale or forged count can only be
+   * refused, never overpaid.
+   */
+  private openSellConfirm(entry: SellEntry) {
+    this.closeSellConfirm();
+    const overlay = document.createElement('div');
+    overlay.className = 'npc-sell-confirm';
+    const unitPayout = entry.quantity > 0 ? Math.floor(entry.preview / entry.quantity) : 0;
+
+    const title = document.createElement('div');
+    title.className = 'npc-sell-confirm-title';
+    title.textContent = uiLocale() === 'en' ? 'Sell items' : '售卖道具';
+
+    const name = document.createElement('div');
+    name.className = 'npc-sell-confirm-name';
+    name.textContent = displayText(entry.name);
+
+    const row = document.createElement('div');
+    row.className = 'npc-sell-confirm-row';
+    const input = document.createElement('input');
+    input.className = 'npc-sell-confirm-input';
+    input.type = 'number';
+    input.min = '1';
+    input.max = String(entry.quantity);
+    input.value = String(entry.quantity);
+    const total = document.createElement('span');
+    total.className = 'npc-sell-confirm-total';
+    const updateTotal = () => {
+      total.textContent = `${(unitPayout * this.sellConfirmCount(entry, input)).toLocaleString()} ${uiText('meso')}`;
+    };
+    input.addEventListener('input', updateTotal);
+    row.append(input, total);
+
+    const buttons = document.createElement('div');
+    buttons.className = 'npc-sell-confirm-buttons';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'npc-shop-tab npc-sell-confirm-cancel';
+    cancel.textContent = uiLocale() === 'en' ? 'Cancel' : '取消';
+    cancel.addEventListener('click', () => this.closeSellConfirm());
+    buttons.append(
+      this.spriteButton('shopUi', 'BtSell', () => {
+        const count = this.sellConfirmCount(entry, input);
+        this.closeSellConfirm();
+        this.sendSell(entry, count);
+      }),
+      cancel,
+    );
+
+    overlay.append(title, name, row, buttons);
+    this.shopRoot?.appendChild(overlay);
+    this.sellConfirmRoot = overlay;
+    this.sellConfirmEntry = entry;
+    input.focus();
+    input.select();
+  }
+
+  /** Clamp the typed count into 1..=stack size; 0 means "nothing to sell". */
+  private sellConfirmCount(entry: SellEntry, input: HTMLInputElement): number {
+    const parsed = Math.floor(Number(input.value));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.min(entry.quantity, Math.max(1, parsed));
+  }
+
+  private closeSellConfirm() {
+    this.sellConfirmRoot?.remove();
+    this.sellConfirmRoot = undefined;
+    this.sellConfirmEntry = undefined;
   }
 
   private buy(itemId: string, quantity: number) {

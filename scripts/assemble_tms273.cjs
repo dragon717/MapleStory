@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-13';
+const version = 'tms273-14';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 require('./tms273_creation_catalog.cjs')(
@@ -96,6 +96,10 @@ const manifest = {
   source:{gameVersion:'TMS273.7', parser:'scripts/tms273_wz.cjs'},
   avatar, map:birth, mapCatalog:{...catalog,maps},
   monsters:entities.monsters,npcs:entities.npcs,items:read('item-images'),
+  // Source-backed TMS273 pets (Item/Pet + String/Pet.json): icon plus the
+  // stand0/move/jump loops, keyed by pet item id.  PNGs are exported by
+  // export_tms273_pet.cjs and copied into client/public-tms273/assets.
+  pets: read('pet-images'),
   hud:read('hud'),portals:read('portals'),combat:effects.combat,...windows,...inventory,chatUi:read('chat').chatUi,
   // Source-backed UI/ChatBalloon.img/0 used by PlayerView for map-chat bubbles
   // above speaking characters. PNGs are exported by export_tms273_balloon.cjs

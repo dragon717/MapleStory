@@ -58,6 +58,11 @@ export interface MonsterAsset {
 export interface NpcAsset {
   name: string; source: string; stand: AssetFrame[];
 }
+/** One TMS273 pet (`Item/Pet` + `String/Pet.json`), keyed by item id. */
+export interface PetAsset {
+  name: string; icon: AssetFrame;
+  stand: AssetFrame[]; move: AssetFrame[]; jump: AssetFrame[];
+}
 export interface InventorySlotLayout {
   columns: number; rows: number; slotWidth: number; slotHeight: number;
   spacingX: number; spacingY: number; origin: Point; itemOffset: Point;
@@ -546,6 +551,8 @@ export interface Manifest {
   buffUi?: BuffUiData;
   /** Source-backed Npc.wz stand frames, keyed by template id. */
   npcs?: Record<string, NpcAsset>;
+  /** Source-backed TMS273 pets, keyed by pet item id (5000000+). */
+  pets?: Record<string, PetAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
   shopUi?: Record<string, AssetFrame>;
   /** Source-backed UIWindow.img/Trunk entries used by the account-warehouse

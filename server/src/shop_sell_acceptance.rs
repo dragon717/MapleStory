@@ -94,14 +94,19 @@ fn give(world: &mut World, item_id: &str, quantity: u32) {
 }
 
 fn sell(world: &mut World, slot: i16, quantity: u32, request: &str) {
+    sell_from(world, 2, slot, quantity, request);
+}
+
+/// Sell from an explicit tab: 2 is the Consume tab, matching the 1-based
+/// protocol category.
+fn sell_from(world: &mut World, inventory_type: u8, slot: i16, quantity: u32, request: &str) {
     world.command(Command::Input {
         id: "seller".into(),
         connection: "seller-connection".into(),
         message: ClientMessage::ShopSell {
             request_id: request.into(),
             shop_id: SELL_SHOP_ID.into(),
-            // 2 is the Consume tab, matching the 1-based protocol category.
-            inventory_type: 2,
+            inventory_type,
             source_slot: slot,
             quantity,
         },
@@ -194,6 +199,31 @@ fn shop_sell_uses_the_source_auto_price_for_etc_drops() {
 }
 
 #[test]
+fn shop_sell_pays_a_flat_meso_apiece_for_arrows() {
+    let (mut world, mut output) = shop_world();
+    // 箭矢 authors `price: 0` in the catalog, but the arrow family stays
+    // sellable at a flat 1 meso per arrow.
+    assert!(inventory::item_price("2060000").is_none());
+    give(&mut world, "2060000", 120);
+    let before = world.players.get("seller").unwrap().state.mesos;
+
+    sell(&mut world, 1, 120, "sell-arrow");
+
+    let sale = last_sale(&mut output).expect("shopSold result");
+    assert_eq!(
+        sale.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "arrow sale was refused with code {:?}",
+        sale.get("code").and_then(|v| v.as_str())
+    );
+    assert_eq!(sale.get("itemId").and_then(|v| v.as_str()), Some("2060000"));
+    let gained = sale.get("mesosGained").and_then(|v| v.as_u64()).expect("payout");
+    assert_eq!(gained, 120, "one meso per arrow, not a fraction of price 0");
+    assert_eq!(inventory_quantity(&world, "2060000"), 0);
+    assert_eq!(world.players.get("seller").unwrap().state.mesos, before + 120);
+}
+
+#[test]
 fn shop_sell_refuses_more_than_the_slot_holds() {
     let (mut world, mut output) = shop_world();
     give(&mut world, SELLABLE_ITEM, 2);
@@ -207,6 +237,79 @@ fn shop_sell_refuses_more_than_the_slot_holds() {
     // Nothing moved: no mesos, no item.
     assert_eq!(sale.get("mesosGained").and_then(|v| v.as_u64()), Some(0));
     assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 2);
+    assert_eq!(world.players.get("seller").unwrap().state.mesos, before);
+}
+
+#[test]
+fn shop_sell_resolves_the_tab_before_the_local_slot() {
+    let (mut world, mut output) = shop_world();
+    // Slot numbers are local per tab: an equip at slot 1 and a consumable at
+    // slot 1 coexist.  The snapshot lists equip rows first, so a lookup that
+    // matches the slot before the tab would shadow the consumable with the
+    // equip and refuse the sale with shop_slot_empty.
+    world.players.get_mut("seller").expect("seller joined").state.inventory.push(InventoryItem {
+        slot: 1,
+        item_id: "1040002".into(),
+        quantity: 1,
+        ..InventoryItem::default()
+    });
+    give(&mut world, SELLABLE_ITEM, 10);
+    let before = world.players.get("seller").unwrap().state.mesos;
+
+    sell(&mut world, 1, 10, "sell-shadowed");
+
+    let sale = last_sale(&mut output).expect("shopSold result");
+    assert_eq!(
+        sale.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "a same-numbered equip slot must not shadow the consumable: {:?}",
+        sale.get("code").and_then(|v| v.as_str())
+    );
+    assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 0);
+    assert_eq!(inventory_quantity(&world, "1040002"), 1);
+    assert!(world.players.get("seller").unwrap().state.mesos > before);
+}
+
+#[test]
+fn shop_sell_pays_at_least_one_meso_for_priced_equipment() {
+    let (mut world, mut output) = shop_world();
+    // 劍 authors `price: 1`; half of that rounds down to zero, but a shop
+    // never pays zero for something the source gave a price tag.
+    assert_eq!(inventory::item_price("1302000"), Some(1));
+    give(&mut world, "1302000", 1);
+    let before = world.players.get("seller").unwrap().state.mesos;
+
+    sell_from(&mut world, 1, 1, 1, "sell-cheap-equip");
+
+    let sale = last_sale(&mut output).expect("shopSold result");
+    assert_eq!(
+        sale.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "price-1 equipment was refused with code {:?}",
+        sale.get("code").and_then(|v| v.as_str())
+    );
+    let gained = sale.get("mesosGained").and_then(|v| v.as_u64()).expect("payout");
+    assert_eq!(gained, 1, "the payout floors at one meso, not zero");
+    assert_eq!(inventory_quantity(&world, "1302000"), 0);
+    assert_eq!(world.players.get("seller").unwrap().state.mesos, before + 1);
+}
+
+#[test]
+fn shop_sell_refuses_quest_items_even_when_priced() {
+    let (mut world, mut output) = shop_world();
+    // 乾枯的樹枝 is a quest prop that carries a nominal price 1; the WZ
+    // `quest` flag keeps it out of the shop's hands regardless.
+    assert!(inventory::item_price("4031773").is_some());
+    assert!(inventory::is_unsellable("4031773"));
+    give(&mut world, "4031773", 2);
+    let before = world.players.get("seller").unwrap().state.mesos;
+
+    sell_from(&mut world, 4, 1, 2, "sell-quest");
+
+    let sale = last_sale(&mut output).expect("shopSold result");
+    assert_eq!(sale.get("success").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(sale.get("code").and_then(|v| v.as_str()), Some("shop_item_unsellable"));
+    assert_eq!(inventory_quantity(&world, "4031773"), 2);
     assert_eq!(world.players.get("seller").unwrap().state.mesos, before);
 }
 
