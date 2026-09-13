@@ -179,15 +179,186 @@ fn ship_snapshot_field_rides_only_route_maps() {
     assert_eq!(route_index_for_map("200090011"), Some(0));
     assert_eq!(route_index_for_map("200000100"), Some(1));
     assert_eq!(route_index_for_map("200090000"), Some(1));
+    assert_eq!(route_index_for_map("104020120"), Some(2));
+    assert_eq!(route_index_for_map("130000210"), Some(3));
+    assert_eq!(route_index_for_map("104020130"), Some(4));
+    assert_eq!(route_index_for_map("200000170"), Some(4));
+    assert_eq!(route_index_for_map("200090601"), Some(4));
+    assert_eq!(route_index_for_map("310000010"), Some(5));
+    assert_eq!(route_index_for_map("200090611"), Some(5));
     assert_eq!(route_index_for_map("100000000"), None);
-    // 检票员/播报员与航线的绑定关系随断言钉死。
+    // 检票员/播报员与航线的绑定关系随断言钉死（含二期四名检票员）。
     assert_eq!(route_index_for_inspector("1032008"), Some(0));
     assert_eq!(route_index_for_inspector("2012000"), Some(1));
+    assert_eq!(route_index_for_inspector("1100007"), Some(2));
+    assert_eq!(route_index_for_inspector("1100003"), Some(3));
+    assert_eq!(route_index_for_inspector("2150010"), Some(4));
+    assert_eq!(route_index_for_inspector("2150008"), Some(5));
     assert_eq!(route_index_for_announcer("1032007"), Some(0));
+    assert_eq!(route_index_for_announcer("1100004"), Some(3));
     assert_eq!(route_index_for_announcer("2012000"), None);
     // 快照字段只含三个展示键。
     let field = ship_snapshot_field(0);
     assert_eq!(field["route"], "victoria-orbis");
     assert!(field["phase"].as_str().is_some());
     assert!(field["secondsLeft"].as_i64().is_some());
+    assert_eq!(ship_snapshot_field(2)["route"], "victoria-erev");
+    assert_eq!(ship_snapshot_field(3)["route"], "erev-victoria");
+    assert_eq!(ship_snapshot_field(4)["route"], "victoria-edelstein");
+    assert_eq!(ship_snapshot_field(5)["route"], "edelstein-victoria");
+}
+
+/// 二期世界：内存分支地图覆盖耶雷弗/埃德爾斯坦两线的站台/码头/甲板/船舱。
+fn ship_world2() -> World {
+    let mut world = World::new_with_gameplay(map(), 600, ship_gameplay());
+    for id in [
+        "104020110", "200090010", "200090011", "200000100",
+        "200090000", "200090001",
+        "104020120", "104020130",
+        "130000200", "130000210", "130090000",
+        "130000000", "130000101", "130030006",
+        "200000170",
+        "200090600", "200090601", "200090610", "200090611",
+        "310000000", "310000010",
+    ] {
+        world.maps.insert(id.to_owned(), ship_room(id, -469.0));
+    }
+    world
+}
+
+#[test]
+fn phase2_erev_line_boards_and_arrives_on_the_shared_deck() {
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    let _rx2 = join_test_player(&mut world, "p2");
+    let boarding = SLOT_BASE + 10 * 60;
+
+    // 去程：树顶耶雷弗站台检票 → 共用甲板 130090000。
+    place(&mut world, "p1", "104020120");
+    assert_eq!(world.ship_board_at("p1", 2, boarding), Ok(()));
+    assert_eq!(world.players["p1"].map_id, "130090000");
+    // 耶雷弗船无船舱：cabin 为空串，到站 aboard 判定只认甲板。
+    assert_eq!(super::ship::SHIP_ROUTES[2].cabin, "");
+
+    // 返程：天空渡口检票 → 同一张甲板，双向乘客共存（P 级：源唯一耶雷弗船图）。
+    place(&mut world, "p2", "130000210");
+    assert_eq!(world.ship_board_at("p2", 3, boarding + 30), Ok(()));
+    assert_eq!(world.players["p2"].map_id, "130090000");
+    assert_eq!(world.ship_passengers[2], vec!["p1".to_owned()]);
+    assert_eq!(world.ship_passengers[3], vec!["p2".to_owned()]);
+
+    // 到站：去程落天空渡口、返程落树顶站台，名单各自清空。
+    world.step_ship_at(SLOT_BASE + 15 * 60);
+    assert_eq!(world.players["p1"].map_id, "130000210");
+    assert_eq!(world.players["p2"].map_id, "104020120");
+    assert!(world.ship_passengers[2].is_empty());
+    assert!(world.ship_passengers[3].is_empty());
+}
+
+#[test]
+fn phase2_shared_deck_snapshot_route_follows_the_manifest() {
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    let _rx2 = join_test_player(&mut world, "p2");
+    let boarding = SLOT_BASE + 10 * 60;
+    place(&mut world, "p1", "104020120");
+    place(&mut world, "p2", "130000210");
+    assert_eq!(world.ship_board_at("p1", 2, boarding), Ok(()));
+    assert_eq!(world.ship_board_at("p2", 3, boarding), Ok(()));
+    // 同一张共用甲板：去程乘客看去程航线，返程乘客看返程航线。
+    assert_eq!(world.ship_snapshot_route_index("130090000", "p1"), Some(2));
+    assert_eq!(world.ship_snapshot_route_index("130090000", "p2"), Some(3));
+    // 未登记的旁观者看去程航线；到站清空名单后回落同一条。
+    let _rx3 = join_test_player(&mut world, "p3");
+    place(&mut world, "p3", "130090000");
+    assert_eq!(world.ship_snapshot_route_index("130090000", "p3"), Some(2));
+    // 非共用图照旧走静态表。
+    assert_eq!(world.ship_snapshot_route_index("104020120", "p3"), Some(2));
+}
+
+#[test]
+fn phase2_edelstein_line_boards_arrives_and_counts_the_cabin() {
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    let _rx2 = join_test_player(&mut world, "p2");
+    let boarding = SLOT_BASE + 10 * 60;
+
+    // 去程：树顶埃德爾斯坦站台 → 甲板 200090600；乘客挪进船舱 200090601。
+    place(&mut world, "p1", "104020130");
+    assert_eq!(world.ship_board_at("p1", 4, boarding), Ok(()));
+    assert_eq!(world.players["p1"].map_id, "200090600");
+    place(&mut world, "p1", "200090601");
+    // 返程：埃德爾斯坦码头 → 甲板 200090610（p2 留在甲板）。
+    place(&mut world, "p2", "310000010");
+    assert_eq!(world.ship_board_at("p2", 5, boarding), Ok(()));
+    assert_eq!(world.players["p2"].map_id, "200090610");
+
+    // 到站：船舱里的乘客同样必须被送到对端站台（aboard 判定含船舱）。
+    world.step_ship_at(SLOT_BASE + 15 * 60);
+    assert_eq!(world.players["p1"].map_id, "310000010");
+    assert_eq!(world.players["p2"].map_id, "104020130");
+    assert!(world.ship_passengers[4].is_empty());
+    assert!(world.ship_passengers[5].is_empty());
+}
+
+#[test]
+fn phase2_portal_gate_moves_hatches_and_blocks_sailing_exits() {
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    // 甲板 → 船舱的 move 脚本门（pt:9）：固定互切，落点在对图 sp。
+    place(&mut world, "p1", "200090600");
+    assert!(world.ship_portal_gate("p1", "req-move", "200090600", "move00"));
+    assert_eq!(world.players["p1"].map_id, "200090601");
+    // 船舱 → 甲板同理。
+    assert!(world.ship_portal_gate("p1", "req-move-back", "200090601", "move01"));
+    assert_eq!(world.players["p1"].map_id, "200090600");
+    // 航行中舱门（out00..09）不开门：钩子处置并拒绝，正常门流程不放行。
+    let sailing = SLOT_BASE; // 槽首 = 航行相位
+    assert_eq!(
+        super::ship::ship_phase_of(sailing),
+        super::ship::ShipPhase::Sailing { left: 10 * 60 }
+    );
+    assert!(world.ship_portal_gate_at("p1", "req-hatch", "200090600", "out00", sailing));
+    assert_eq!(world.players["p1"].map_id, "200090600", "航行中舱门不放行");
+    // 检票相位走舱门 = 靠港下船：落回本端检票站台 sp（D3 修复的落点契约）。
+    let boarding = SLOT_BASE + 10 * 60;
+    assert!(world.ship_portal_gate_at("p1", "req-hatch-dock", "200090600", "out05", boarding));
+    assert_eq!(world.players["p1"].map_id, "104020130");
+    assert!(world.ship_portal_gate_at("p1", "req-hatch-back", "200090610", "out00", boarding));
+    assert_eq!(world.players["p1"].map_id, "310000010");
+    // 耶雷弗船的舷侧门保持关闭：任何相位都由钩子处置。
+    place(&mut world, "p1", "130090000");
+    assert!(world.ship_portal_gate("p1", "req-west", "130090000", "west00"));
+    // 非船务门不接管（返回 false，走正常门流程）。
+    place(&mut world, "p1", "104020110");
+    assert!(!world.ship_portal_gate("p1", "req-other", "104020110", "out00"));
+}
+
+#[test]
+fn aboard_players_cannot_escape_via_world_map_or_scroll_target_rules() {
+    // D1/D2 拒绝面：甲板/船舱期间大地图跳转与回家卷軸同被拒绝。
+    assert!(super::ship::ship_is_on_board_map("130090000"));
+    assert!(super::ship::ship_is_on_board_map("200090601"));
+    assert!(super::ship::ship_is_on_board_map("200090010"));
+    assert!(!super::ship::ship_is_on_board_map("104020130"));
+    assert!(!super::ship::ship_is_on_board_map("200000170"));
+    // 站台不拒卷軸（玩家可自行回城），船图拒。
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    place(&mut world, "p1", "130090000");
+    assert!(super::ship::ship_is_on_board_map(&world.players["p1"].map_id));
+}
+
+#[test]
+fn phase2_in01_and_dock_out00_route_per_source_adjacency() {
+    let mut world = ship_world2();
+    let _rx = join_test_player(&mut world, "p1");
+    // 大厅 in01 的 inERShip 脚本门 → 耶雷弗站台 come00。
+    place(&mut world, "p1", "104020100");
+    assert!(world.ship_portal_gate("p1", "req-in01", "104020100", "in01"));
+    assert_eq!(world.players["p1"].map_id, "104020120");
+    // 天空渡口 out00（pt_00_130000210 脚本门）→ 耶雷弗前庭 in00。
+    place(&mut world, "p1", "130000210");
+    assert!(world.ship_portal_gate("p1", "req-out00", "130000210", "out00"));
+    assert_eq!(world.players["p1"].map_id, "130000200");
 }

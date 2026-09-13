@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 20;
-export const CONTENT_VERSION = 'tms273-22';
+export const PROTOCOL_VERSION = 21;
+export const CONTENT_VERSION = 'tms273-23';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -309,7 +309,7 @@ export interface QuestRewardInfo {
  *  the client renders it and never decides anything with it — the server owns
  *  the authoritative phase clock and boarding gate. */
 export interface ShipSnapshotState {
-  route: 'victoria-orbis' | 'orbis-victoria';
+  route: 'victoria-orbis' | 'orbis-victoria' | 'victoria-erev' | 'erev-victoria' | 'victoria-edelstein' | 'edelstein-victoria';
   phase: 'sailing' | 'boarding';
   secondsLeft: number;
 }

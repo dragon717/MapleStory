@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-22');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-23');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -101,7 +101,8 @@ for(const mob of gameplay.monsters) {
 // 50 maps before 2026-09-13; then +21 portal-closure maps — every map an
 // assembled map's portal names that the TMS273 WZ JSON actually ships
 // (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, 幸福村 platform, …).
-assert.equal(catalog.maps.length,77);
+// 2026-09-14 飞行船一期 +6 船图，二期 +10 船图/码头（耶雷弗簇 3 + 埃德爾斯坦簇 7）。
+assert.equal(catalog.maps.length,87);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -129,17 +130,15 @@ assert.equal(catalog.maps.length,77);
   // use time.  Pinning it keeps the refusal honest rather than a silent wrong map.
   // Towns the catalog does not ship stay legal data: the scroll is refused at
   // use time.  Pinning them keeps the refusal honest rather than a silent
-  // wrong map.  Five of the eight arrived with the 2026-09-13 portal-closure
-  // maps (100030400 農場入口, 103010100 廢棄的工地, 120010100 通往海岸的路 and
-  // the 3100401xx/3100403xx 礦山 route rooms around already-shipped 310040200).
+  // wrong map.  The 3100401xx/3100403xx entries left this list when
+  // 310000000 埃德爾斯坦城 arrived with the 2026-09-14 phase-2 flight line.
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
   assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),[
     '100030400->100030102','103010100->103000000','120010100->120000000',
-    // 200000100 天空站台随 2026-09-14 飞行船一期入库，但它的 returnMap
-    // 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
+    // 200000100 天空站台与 200000170 天空之城码头（二期）随 2026-09-14 飞行船
+    // 入库，但它们的 returnMap 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
     '200000100->200000000',
-    '310040100->310000000','310040200->310000000','310040210->310000000',
-    '310040300->310000000','310050000->310000000',
+    '200000170->200000000',
   ].sort(),'unshipped returnMap targets changed');
 }
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
@@ -243,6 +242,10 @@ for(const map of catalog.maps) {
   };
   const floating=[];
   for(const map of catalog.maps)for(const portal of map.portals) {
+    // 埃德爾斯坦船的舱门（out00..09）由服务端 `ship.rs` 接管：检票相位
+    // warp 回本端检票站台 `sp`，航行中不开门——静态 tn 落点（源 st00 悬空
+    // 170px）不参与贴地审计。
+    if(['200090600','200090601','200090610','200090611'].includes(map.id)&&/^out\d+$/.test(portal.name))continue;
     const targetId=portal.targetMapId;
     if(!targetId || targetId===map.id || !byId.has(targetId))continue;
     const target=byId.get(targetId);
@@ -315,6 +318,31 @@ for(const map of catalog.maps) {
   for(const [map,template] of [
     ['104020110','1032007'],['104020110','1032008'],['200000100','2012000'],
   ]) assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
+  // 飞行船航线二期（2026-09-14）：耶雷弗线与埃德爾斯坦线的十张船图/码头随
+  // 目录装配；returnMap 决定死亡复活落点，随源钉死；各侧检票员/播报员必须
+  // 站在检票地图上（服务端 ship.rs 二期航线以对话检票）。
+  for(const id of [
+    '130000200','130000210','130090000',
+    '200000170','200090600','200090601','200090610','200090611',
+    '310000000','310000010',
+  ]) assert(byId.has(id),`phase-2 ship map must be assembled: ${id}`);
+  for(const [map,returnMap] of [
+    ['130000200','130000000'],['130000210','130000000'],['130090000','130090000'],
+    ['200000170','200000000'],
+    ['200090600','200000170'],['200090601','200000170'],
+    ['200090610','310000010'],['200090611','310000010'],
+    ['310000000','310000000'],['310000010','310000000'],
+  ]) assert.equal(catalog.returnMaps[map],returnMap,`${map} returnMap drifted`);
+  for(const [map,template] of [
+    ['104020120','1100007'],
+    ['130000210','1100003'],['130000210','1100004'],
+    ['104020130','2150010'],
+    ['310000010','2150008'],['310000010','9072000'],
+  ]) assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
+  // 耶雷弗城/埃德爾斯坦城入口衔接：渡口 out00 由服务端 P 级路由回前庭，
+  // 前庭 in00 的源门必须指向渡口；码头 out00 必须通向城内（源 type-2 门）。
+  assert.equal(byId.get('130000200').portals.find(p=>p.name==='in00').targetMapId,'130000210','耶雷弗前庭 in00 must face the dock');
+  assert.equal(byId.get('310000010').portals.find(p=>p.name==='out00').targetMapId,'310000000','埃德爾斯坦码头 out00 must enter the town');
 }
 for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
@@ -504,6 +532,10 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
   const WORLD_MAP_ABSENT=new Set([
     '002010000','104020130','100030400','310040210',
     '200090000','200090001','200090010','200090011',
+    // 飞行船二期（2026-09-14）：耶雷弗船图 130090000、埃德爾斯坦船图
+    // 2000906xx 与天空之城码头 200000170 同样没有源 spot（船图随 200090xxx
+    // 一期先例整组缺席）。
+    '130090000','200000170','200090600','200090601','200090610','200090611',
   ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));

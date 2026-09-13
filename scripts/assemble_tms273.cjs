@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-22';
+const version = 'tms273-23';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -340,9 +340,10 @@ collect(manifest);
 const appearance = read('appearance');
 // A valid inventory definition alone is not a renderable paper-doll item.
 // Fail assembly before deployment if a playable ordinary layer was omitted.
+// Po（口袋）与 Tm（图腾，源在 Character/Mechanic）按设计没有纸娃娃层。
 for (const [id, definition] of Object.entries(items)) {
   const info = definition.info;
-  if (!info?.islot || info.cash === 1 || info.islot === 'Po') continue;
+  if (!info?.islot || info.cash === 1 || info.islot === 'Po' || info.islot === 'Tm') continue;
   const layer = appearance.layers[String(Number(id))];
   const entry = appearance.cashAppearance?.items[String(id).padStart(8, '0')];
   assert(layer || entry, `Missing ordinary equipment appearance: ${id}`);

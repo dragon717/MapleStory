@@ -1855,7 +1855,7 @@ pub struct World {
     party_requests: BTreeMap<(String, String), PartyOutcome>,
     /// 飞行船乘客名单，按航线索引（`ship::SHIP_ROUTES`）。检票时登记，
     /// 相位进入航行时整单到站传送并清空；进程内状态，重启即清。
-    ship_passengers: [Vec<String>; 2],
+    ship_passengers: [Vec<String>; 6],
     /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
     cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
     /// Per-(player, SN) cash purchase counters backing `Commodity.img`
@@ -1991,7 +1991,7 @@ impl World {
             parties: BTreeMap::new(),
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
-            ship_passengers: [Vec::new(), Vec::new()],
+            ship_passengers: std::array::from_fn(|_| Vec::new()),
             cash_requests: BTreeMap::new(),
             cash_purchases: BTreeMap::new(),
             party_sequence: 0,
@@ -2453,9 +2453,10 @@ impl World {
             snapshot["sourceMapId"] = source_map_id.into();
             snapshot["windbell"] = windbell;
         }
-        // 飞行船班次状态只随船图/站台图出去（`ship::route_index_for_map`），
-        // 其余地图的快照不带该字段，避免全量广播膨胀。
-        if let Some(route_index) = ship::route_index_for_map(map_id) {
+        // 飞行船班次状态只随船图/站台图出去（`ship::ship_snapshot_route_index`，
+        // 共用船图 `130090000` 按乘客名单归属），其余地图的快照不带该字段，
+        // 避免全量广播膨胀。
+        if let Some(route_index) = self.ship_snapshot_route_index(map_id, id) {
             snapshot["ship"] = ship::ship_snapshot_field(route_index);
         }
         snapshot.to_string()

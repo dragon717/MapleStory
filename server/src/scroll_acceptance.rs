@@ -553,11 +553,16 @@ fn the_generated_catalog_carries_a_return_town_for_every_loaded_map() {
         Some(TOWN_VICTORIA),
         "the harbour returns to itself"
     );
-    // The two source maps whose town this build does not ship keep their
-    // authored value; the refusal belongs to use time.
-    for orphan in ["310040200", "310050000"] {
-        assert_eq!(town(orphan), Some("310000000"));
-        assert!(!loaded.contains("310000000"));
+    // 埃德爾斯坦城 310000000 arrived with the 2026-09-14 phase-2 flight line,
+    // so the former 310040200/310050000 orphans now have their town loaded.
+    assert!(loaded.contains("310000000"), "埃德爾斯坦城 must be assembled with the phase-2 line");
+    assert_eq!(town("310040200"), Some("310000000"));
+    assert_eq!(town("310050000"), Some("310000000"));
+    // The two Orbis-side maps whose town this build still does not ship keep
+    // their authored value; the refusal belongs to use time.
+    for orphan in ["200000100", "200000170"] {
+        assert_eq!(town(orphan), Some("200000000"));
+        assert!(!loaded.contains("200000000"));
     }
     // 維多利亞港卷軸 names 104000000 outright, so that town has to exist or the
     // fixed-destination scroll is dead on arrival.

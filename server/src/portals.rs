@@ -15,6 +15,11 @@ impl World {
         let source_map_id = player.map_id.clone();
         let source_x = player.state.x;
         let source_y = player.state.y;
+        // 飞行船脚本门（`ship.rs`）：`inERShip`/`move_OrbEde` 等源脚本体缺失
+        // 的门与舱门相位闸，由 ship 模块按 P 级规则处置；已处置即返回。
+        if self.ship_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
+            return;
+        }
         let source_map = self.map_for(&source_map_id).clone();
         let Some(portal) = source_map
             .portals
@@ -144,6 +149,12 @@ impl World {
         let source_map_id = player.map_id.clone();
         if map_id == source_map_id {
             self.send_world_map_move_result(&id, &request_id, true, "", &map_id);
+            return;
+        }
+        // 飞行船航行中不从大地图跳走：登船/到站是服务端权威流程，甲板与
+        // 船舱期间的一切自选传送（大地图、卷軸）都拒绝。
+        if ship::ship_is_on_board_map(&source_map_id) {
+            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
             return;
         }
         if self.maps.get(&map_id).is_none() {

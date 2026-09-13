@@ -1771,6 +1771,14 @@ include!("windbell_acceptance.rs");
                 if target_id == source.id || !ids.contains(target_id) {
                     continue;
                 }
+                // 埃德爾斯坦船的舱门（out00..09）由 `ship.rs` 接管：检票相位
+                // warp 回本端检票站台 `sp`，航行中不开门——静态 tn 落点（源
+                // st00 悬空 170px）不参与贴地审计。
+                if matches!(source.id.as_str(), "200090600" | "200090601" | "200090610" | "200090611")
+                    && portal.name.starts_with("out")
+                {
+                    continue;
+                }
                 let target = map(target_id);
                 let landing = portal
                     .target_portal_name

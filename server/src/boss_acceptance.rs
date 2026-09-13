@@ -48,13 +48,21 @@ fn boss_practice_actual_map_qualification_isolated_and_idempotent() {
     service.store.load_profile("low", &boss_profile(24)).unwrap();
     service.store.load_profile("boss", &boss_profile(25)).unwrap();
     let mut world = chapter_actual_world(service.store.clone());
-    // 50 base maps + 21 portal-closure maps + 6 ship maps (2026-09-14): the
-    // flying-ship route chain (站台/候船室/甲板/船舱/天空站台).
-    assert_eq!(world.maps.len(), 77);
+    // 50 base maps + 21 portal-closure maps + 6 ship maps (2026-09-14) + 10
+    // phase-2 ship/dock maps (2026-09-14): 耶雷弗线与埃德爾斯坦线的船图/码头.
+    assert_eq!(world.maps.len(), 87);
     assert!(world.maps.contains_key("102020500"));
     // 飞行船一期六图必须随目录一起加载。
     for id in ["200000100", "200000112", "200090000", "200090001", "200090010", "200090011"] {
         assert!(world.maps.contains_key(id), "missing ship map {id}");
+    }
+    // 飞行船二期十图（码头/船图/两城簇缺口）必须随目录一起加载。
+    for id in [
+        "130000200", "130000210", "130090000",
+        "200000170", "200090600", "200090601", "200090610", "200090611",
+        "310000000", "310000010",
+    ] {
+        assert!(world.maps.contains_key(id), "missing phase-2 ship map {id}");
     }
     // 維多利亞港三家商店必须随目录一起加载，否则原版店门会回 map_unavailable。
     for id in ["104000001", "104000002", "104000003"] {

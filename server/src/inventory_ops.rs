@@ -885,6 +885,11 @@ impl World {
         if windbell::is_runtime_instance_map(&player.map_id) {
             return Err("scroll_blocked");
         }
+        // 飞行船航行中不用卷軸：到站由 ship.rs 权威传送，甲板/船舱期间
+        // 一切自选传送都拒绝（与 handle_world_map_move 同一拒绝面）。
+        if ship::ship_is_on_board_map(&player.map_id) {
+            return Err("scroll_blocked");
+        }
         let current_map_id = player.map_id.as_str();
         let destination = match target {
             inventory::MapMoveTarget::ReturnMap => match self.return_maps.get(current_map_id) {

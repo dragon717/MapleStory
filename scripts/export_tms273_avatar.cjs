@@ -295,8 +295,12 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
     const authoredZName = layerZName(leaf.node, part === 'cape' ? 'cape' : name);
     // 01412004 retains the legacy below-body weapon spelling; Base/zmap
     // names the same depth weaponBelowBody in this client.
+    // 01582001（埃德爾斯坦商店武器）authors the post-BB `weaponBelowHead`
+    // spelling; TMS273's zmap keeps only the same-depth legacy name
+    // `weaponOverArmBelowHead`, so alias it the same narrow way.
     const zName = authoredZName === 'capBelowBody' ? 'capAccessoryBelowBody'
-      : authoredZName === 'weaponBodyBelow' ? 'weaponBelowBody' : authoredZName;
+      : authoredZName === 'weaponBodyBelow' ? 'weaponBelowBody'
+      : authoredZName === 'weaponBelowHead' ? 'weaponOverArmBelowHead' : authoredZName;
     assert(zmap.has(zName), `273 zmap missing layer ${zName} from ${leaf.source}`);
     result.push({ node: leaf.node, source: leaf.source, frame, part, layerName: name, owner, zName });
   }

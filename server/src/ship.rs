@@ -1,4 +1,5 @@
-//! 飞行船航线系统（一期：維多利亞樹木站台 ⇄ 天空之城）。
+//! 飞行船航线系统（一期：維多利亞樹木站台 ⇄ 天空之城；二期 2026-09-14：
+//! 耶雷弗线与埃德爾斯坦线）。
 //!
 //! 源事实（TMS273.7 WZ，2026-09-14 实测）：站台与候船室都没有静态登船门——
 //! 登船由检票员 NPC 在检票窗口内执行，到站为系统强制传送。TMS273 不带
@@ -11,6 +12,20 @@
 //!   不承载机制（`east00` 的 `station_in` 脚本门保持关闭提示旧行为）。
 //! - 票务道具 ID 未核实，一期免费登船（P 级）。
 //! - 航行中甲板刷蝙蝠魔属二期 Balrog 事件，不建模。
+//!
+//! 二期边界（2026-09-14）：
+//! - 耶雷弗线：树顶 `104020120`（`1100007` 检票）⇄ 天空渡口 `130000210`
+//!   （奇里盧 `1100003` 检票、奇盧 `1100004` 播报）。源只有一张耶雷弗船图
+//!   `130090000`（无船舱、无静态开门），双向共用；大厅 `in01` 的 `inERShip`
+//!   与渡口 `out00`（`pt_00_130000210`）脚本体缺失，按源邻接 P 级路由
+//!   （`ship_portal_gate`）；渡口经前庭 `130000200` 连耶雷弗城 `130000000`。
+//! - 埃德爾斯坦线：树顶 `104020130`（`2150010` 检票）⇄ 埃德爾斯坦码头
+//!   `310000010`（`2150008` 检票），出 `out00` 进埃德爾斯坦城 `310000000`。
+//!   甲板↔船舱经 `move_OrbEde`/`move_EdeOrb` 脚本门 P 级互切；埃德爾斯坦
+//!   船的舱门（`out00..09`，源 tm 直指对端码头 `200000170`/`310000010`）
+//!   仅检票相位放行，航行中保持关闭提示。`200000170` 天空之城码头随目录
+//!   装配（west00 回 `200000100`），检票不在该侧。
+//! - 蝙蝠魔事件、候船室机制、票务道具仍属后续。
 
 use super::*;
 
@@ -73,16 +88,115 @@ pub(crate) static ROUTE_ORBIS_VICTORIA: ShipRoute = ShipRoute {
     announcers: &[],
 };
 
-pub(crate) static SHIP_ROUTES: [&ShipRoute; 2] =
-    [&ROUTE_VICTORIA_ORBIS, &ROUTE_ORBIS_VICTORIA];
+/// 二期（2026-09-14）：耶雷弗线。维多利亚树顶 `104020120` 前往耶雷弗的站台
+/// 由 `1100007` 检票；耶雷弗侧在天空渡口 `130000210` 由奇里盧 `1100003`
+/// 检票、奇盧 `1100004` 播报。源里耶雷弗只有一张船图 `130090000`（无船舱，
+/// `in00` 是任务脚本门不开放），双向共用：大厅 `in01` 的 `inERShip` 脚本门
+/// P 级放行进站台（原脚本体缺失）。
+pub(crate) static ROUTE_VICTORIA_EREV: ShipRoute = ShipRoute {
+    id: "victoria-erev",
+    board_map: "104020120",
+    deck: "130090000",
+    cabin: "",
+    dest_station: "130000210",
+    inspector: "1100007",
+    announcers: &[],
+};
+
+pub(crate) static ROUTE_EREV_VICTORIA: ShipRoute = ShipRoute {
+    id: "erev-victoria",
+    board_map: "130000210",
+    deck: "130090000",
+    cabin: "",
+    dest_station: "104020120",
+    inspector: "1100003",
+    announcers: &["1100004"],
+};
+
+/// 二期：埃德爾斯坦线。树顶 `104020130` 前往埃德爾斯坦站台由 `2150010`
+/// 检票，到站埃德爾斯坦码头 `310000010`；返程由码头 `2150008` 检票。
+/// 船图四张按源 returnMap 分侧：`200090600/601` 属维多利亚出发侧，
+/// `200090610/611` 属埃德爾斯坦出发侧；甲板↔船舱经 `move_OrbEde` /
+/// `move_EdeOrb` 脚本门（pt:9，P 级固定互切）。`200000170` 天空之城码头
+/// 随目录装配（源 west00 回 `200000100`），检票不在该侧。
+pub(crate) static ROUTE_VICTORIA_EDELSTEIN: ShipRoute = ShipRoute {
+    id: "victoria-edelstein",
+    board_map: "104020130",
+    deck: "200090600",
+    cabin: "200090601",
+    dest_station: "310000010",
+    inspector: "2150010",
+    announcers: &[],
+};
+
+pub(crate) static ROUTE_EDELSTEIN_VICTORIA: ShipRoute = ShipRoute {
+    id: "edelstein-victoria",
+    board_map: "310000010",
+    deck: "200090610",
+    cabin: "200090611",
+    dest_station: "104020130",
+    inspector: "2150008",
+    announcers: &[],
+};
+
+pub(crate) static SHIP_ROUTES: [&ShipRoute; 6] = [
+    &ROUTE_VICTORIA_ORBIS,
+    &ROUTE_ORBIS_VICTORIA,
+    &ROUTE_VICTORIA_EREV,
+    &ROUTE_EREV_VICTORIA,
+    &ROUTE_VICTORIA_EDELSTEIN,
+    &ROUTE_EDELSTEIN_VICTORIA,
+];
 
 /// 哪条航线与这张地图相关（快照 `ship` 字段只在船图/站台图携带）。
+/// 共用船图 `130090000` 挂在去程航线上，快照归属按乘客名单二次判定
+/// （`World::ship_snapshot_route_index`）。
 pub(crate) fn route_index_for_map(map_id: &str) -> Option<usize> {
     match map_id {
         "104020110" | "200090010" | "200090011" => Some(0),
         "200000100" | "200000112" | "200090000" | "200090001" => Some(1),
+        "104020120" | "130090000" => Some(2),
+        "130000210" => Some(3),
+        "104020130" | "200000170" | "200090600" | "200090601" => Some(4),
+        "310000010" | "200090610" | "200090611" => Some(5),
         _ => None,
     }
+}
+
+/// 甲板↔船舱的 `move` 脚本门（pt:9）固定互切：源里甲板与船舱各有一组
+/// `move00..03`（`move_OrbEde`/`move_EdeOrb`），脚本体缺失，按同船互切建模。
+pub(crate) fn ship_move_door_target(source_map: &str) -> Option<&'static str> {
+    match source_map {
+        "200090600" => Some("200090601"),
+        "200090601" => Some("200090600"),
+        "200090610" => Some("200090611"),
+        "200090611" => Some("200090610"),
+        _ => None,
+    }
+}
+
+/// 埃德爾斯坦船的舱门（`out00..out09`，pt:3）：源 tm 直接指向对端码头，
+/// 返回目标码头（`200000170`/`310000010`）。原脚本只在靠港时开门——
+/// 航行中保持关闭提示旧行为，检票相位由服务端接管传送。
+/// 埃德爾斯坦船的舱门（`out00..out09`，pt:3）：返回本端检票站台。
+/// 源 tm（`200000170`/`310000010`）反映原版船的物理停靠位；本实现登船在
+/// 树顶站台/埃德爾斯坦码头，舱门在检票相位即「靠港下船」，落回登船端。
+/// 原脚本只在靠港时开门——航行中保持关闭提示旧行为，检票相位由服务端
+/// 接管传送。
+pub(crate) fn ship_hatch_exit(source_map: &str) -> Option<&'static str> {
+    match source_map {
+        "200090600" | "200090601" => Some("104020130"),
+        "200090610" | "200090611" => Some("310000010"),
+        _ => None,
+    }
+}
+
+/// 角色是否在任一航线的甲板/船舱上。在船期间大地图跳转与回家卷軸都被
+/// 拒绝：登船/到站是服务端权威流程，不走玩家自选传送。
+pub(crate) fn ship_is_on_board_map(map_id: &str) -> bool {
+    SHIP_ROUTES
+        .iter()
+        .any(|route| route.deck == map_id || (!route.cabin.is_empty() && route.cabin == map_id))
 }
 
 /// 检票员 → 航线索引（对话分发用）。
@@ -282,12 +396,100 @@ impl World {
                 let aboard = self
                     .players
                     .get(&player_id)
-                    .map(|player| player.map_id == route.deck || player.map_id == route.cabin)
+                    .map(|player| {
+                        player.map_id == route.deck
+                            || (!route.cabin.is_empty() && player.map_id == route.cabin)
+                    })
                     .unwrap_or(false);
                 if aboard {
                     self.warp_player_at(&player_id, route.dest_station.to_owned(), Some("sp"));
                 }
             }
         }
+    }
+
+    /// 快照 `ship` 字段的航线索引：`130090000` 由耶雷弗双向航线共用，按
+    /// 乘客名单归属；未登记的旁观者看去程航线。其余地图与
+    /// `route_index_for_map` 一致。
+    pub(crate) fn ship_snapshot_route_index(&self, map_id: &str, player_id: &str) -> Option<usize> {
+        let index = route_index_for_map(map_id)?;
+        if map_id != "130090000" {
+            return Some(index);
+        }
+        if self.ship_passengers[3].iter().any(|id| id == player_id) {
+            return Some(3);
+        }
+        Some(2)
+    }
+
+    /// 二期脚本门钩子（`portals.rs::handle_portal` 在查表前调用）。返回
+    /// `true` 表示本请求已处置（已回复或已传送），调用方直接返回。
+    pub(crate) fn ship_portal_gate(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        source_map: &str,
+        portal_name: &str,
+    ) -> bool {
+        self.ship_portal_gate_at(id, request_id, source_map, portal_name, unix_now_ms() / 1000)
+    }
+
+    /// 脚本门钩子（验收入口）：时间可注入，断言才有决定性。
+    pub(crate) fn ship_portal_gate_at(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        source_map: &str,
+        portal_name: &str,
+        now_unix: i64,
+    ) -> bool {
+        // 大厅 `in01` 的 `inERShip` 脚本门（pt:7）：原脚本体缺失，P 级放行
+        // 进耶雷弗站台（源门数据只指向脚本，无静态目标）。
+        if source_map == "104020100" && portal_name == "in01" {
+            let moved = self.warp_player_at(id, "104020120".to_owned(), Some("come00"));
+            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            self.send_portal_result(id, request_id, success, code, source_map, None);
+            return true;
+        }
+        // 天空渡口 `out00`（pt:7 脚本门 `pt_00_130000210`）：原脚本缺失，
+        // P 级按源邻接关系路由回耶雷弗前庭 `130000200`（其 `in00` 正对本渡口）。
+        if source_map == "130000210" && portal_name == "out00" {
+            let moved = self.warp_player_at(id, "130000200".to_owned(), Some("in00"));
+            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            self.send_portal_result(id, request_id, success, code, source_map, None);
+            return true;
+        }
+        // 耶雷弗船的舷侧门（west00/east00，pt:2）：源里只在停靠时开门；
+        // 本实现到站/检票均为服务端 warp，门保持关闭提示旧行为。
+        if source_map == "130090000" && (portal_name == "west00" || portal_name == "east00") {
+            self.send_portal_result(id, request_id, false, "portal_unavailable", source_map, None);
+            return true;
+        }
+        // 甲板↔船舱 move 脚本门（pt:9）：固定互切，落点用对图的 `sp`。
+        if let Some(target) = ship_move_door_target(source_map) {
+            if portal_name.starts_with("move") {
+                let moved = self.warp_player_at(id, target.to_owned(), Some("sp"));
+                let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+                self.send_portal_result(id, request_id, success, code, source_map, None);
+                return true;
+            }
+        }
+        // 舱门（pt:3 `out00..09`）：航行中不开门；检票相位由服务端接管，
+        // 落回本端检票站台 `sp`（源 tm 200000170/310000010 反映原版船物理
+        // 停靠位；本实现登船在树顶站台/埃德爾斯坦码头，舱门即「靠港下船」，
+        // 落地交给 `warp_player_at` 的 ground_below 解析）。
+        if portal_name.starts_with("out") {
+            if let Some(target) = ship_hatch_exit(source_map) {
+                if matches!(ship_phase_of(now_unix), ShipPhase::Sailing { .. }) {
+                    self.send_portal_result(id, request_id, false, "portal_unavailable", source_map, None);
+                    return true;
+                }
+                let moved = self.warp_player_at(id, target.to_owned(), Some("sp"));
+                let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+                self.send_portal_result(id, request_id, success, code, source_map, Some(target));
+                return true;
+            }
+        }
+        false
     }
 }

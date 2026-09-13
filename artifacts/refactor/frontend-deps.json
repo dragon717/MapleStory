@@ -8,7 +8,7 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 104,
+  "node_count": 105,
   "edge_count": 219,
   "edge_kind_counts": {
     "value": 127,
@@ -1140,8 +1140,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "186ca2dbf15770fd92f5913415c9dc21728a3913",
+  "source_commit": "55fce6cf80639a94adaa59dced0ee746ed5d64b2",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-13T18:29:01.832Z"
+  "generated_at": "2026-09-13T20:25:36.091Z"
 }
