@@ -173,10 +173,17 @@ function executable(name) {
   throw new Error(`找不到可执行文件：${name}`);
 }
 
-function run(command, args, root, env) {
-  const result = spawnSync(command, args, { cwd: root, env, stdio: 'inherit', windowsHide: true });
+function run(command, args, root, env, capture = false) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    env,
+    stdio: capture ? ['inherit', 'pipe', 'pipe'] : 'inherit',
+    windowsHide: true,
+    encoding: 'utf8',
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${path.basename(command)} 构建失败（exit ${result.status ?? 'unknown'}）`);
+  return capture ? { stdout: result.stdout || '', stderr: result.stderr || '' } : undefined;
 }
 
 function npmInvocation() {
@@ -196,17 +203,138 @@ function recoverInterrupted(paths) {
   process.stderr.write('已恢复上次中断的发布轮替，继续启动。\n');
 }
 
+const STAMP_VERSION = 1;
+const MODULE_REGEX = /(\d+) modules transformed/;
+
+function hashFile(file) {
+  const hash = crypto.createHash('sha1');
+  hash.update(fs.readFileSync(file));
+  return hash.digest('hex');
+}
+
+// Stat fingerprint for the large generated asset tree (tens of thousands of
+// PNGs): content hashing would cost seconds per startup, while size+mtime
+// catches every pipeline write at negligible cost. False positives (an edit
+// that keeps size and mtime) merely delay a rebuild by one start.
+function statFingerprint(dir, base, entries) {
+  const queue = [dir];
+  while (queue.length > 0) {
+    const current = queue.pop();
+    for (const name of fs.readdirSync(current)) {
+      if (name === '.DS_Store') continue;
+      const file = path.join(current, name);
+      const stat = fs.lstatSync(file);
+      if (stat.isDirectory()) queue.push(file);
+      else if (stat.isFile()) entries.push(`${path.relative(base, file)}:${stat.size}:${stat.mtimeMs}`);
+    }
+  }
+}
+
+function computeFingerprint(root) {
+  try {
+    const hash = crypto.createHash('sha1');
+    const contentInputs = [
+      'client/index.html', 'client/vite.config.ts', 'client/tsconfig.json',
+      'client/package.json', 'client/package-lock.json',
+      'server/Cargo.toml', 'server/Cargo.lock',
+    ];
+    for (const name of contentInputs) {
+      const file = path.join(root, name);
+      if (!exists(file)) return null;
+      hash.update(`${name}:${hashFile(file)}\n`);
+    }
+    // client/public-tms273/assets is stat-fingerprinted on purpose: the data
+    // pipeline (assemble/export scripts) rewrites manifest/items/icons there,
+    // and the server serves those files from the dist copy first. Missing a
+    // data-only change would let a reused candidate clobber it.
+    for (const dir of ['client/src', 'client/scripts', 'server/src', 'shared', 'client/public-tms273/assets']) {
+      const base = path.join(root, dir);
+      if (!exists(base)) return null;
+      const entries = [];
+      statFingerprint(base, base, entries);
+      entries.sort();
+      hash.update(`${dir}\n${entries.join('\n')}\n`);
+    }
+    return hash.digest('hex');
+  } catch (error) {
+    // Any fingerprint trouble degrades to the always-rebuild behavior.
+    return null;
+  }
+}
+
+function stampFile(paths) {
+  return path.join(paths.build, '.prepare-stamp.json');
+}
+
+function loadStamp(paths) {
+  try {
+    const stamp = readMetadata(stampFile(paths));
+    if (stamp.schemaVersion !== STAMP_VERSION || typeof stamp.fingerprint !== 'string') return null;
+    return stamp;
+  } catch (error) {
+    return null;
+  }
+}
+
+function freshReleaseId() {
+  return `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function metadataFor(root, releaseId) {
+  const versions = readProtocol(root);
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    releaseId,
+    platform: `${process.platform}-${process.arch}`,
+    protocolVersion: versions.protocolVersion,
+    contentVersion: versions.contentVersion,
+    createdAt: new Date().toISOString(),
+    clientPath: 'client',
+    serverPath: `server/${expectedServerName()}`,
+  };
+}
+
 function prepare(root) {
   return withLock(root, paths => {
     recoverInterrupted(paths);
     const candidate = paths.tmp;
+
+    // Fast path: when every build input is unchanged since the last prepare,
+    // reuse the validated candidate and only refresh its release metadata.
+    // Without this, every restart paid for tsc + vite + a 600 MB publicDir
+    // copy even on a no-op relaunch.
+    const fingerprint = computeFingerprint(root);
+    if (fingerprint) {
+      const stamp = loadStamp(paths);
+      const clientIndex = path.join(candidate, 'client', 'index.html');
+      const serverBin = path.join(candidate, 'server', expectedServerName());
+      if (stamp && stamp.fingerprint === fingerprint && exists(clientIndex) && exists(serverBin)) {
+        try {
+          validateCandidate(root, candidate);
+          const metadata = metadataFor(root, freshReleaseId());
+          atomicWrite(path.join(candidate, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+          validateCandidate(root, candidate);
+          const modules = Number.isSafeInteger(stamp.clientModules) ? stamp.clientModules : '?';
+          // The launcher greps "N modules transformed" from prepare.log; keep the phrase intact.
+          process.stdout.write(`✓ 输入未变化，复用候选构建（client ${modules} modules transformed，跳过 Cargo/Vite）\n`);
+          return metadata;
+        } catch (error) {
+          process.stderr.write(`候选复用校验失败，改为全量构建：${error.message}\n`);
+        }
+      }
+    }
+
     remove(path.join(candidate, 'client'));
     remove(path.join(candidate, 'server'));
     remove(path.join(candidate, 'metadata.json'));
-    remove(path.join(candidate, 'cargo-target'));
     mkdir(candidate);
 
-    const targetDir = path.join(candidate, 'cargo-target');
+    // Persistent cargo cache: rebuilding into a throwaway target dir forced a
+    // full non-incremental server compile on every startup (the launcher's
+    // dominant cost). Fingerprints here survive across runs, so an unchanged
+    // tree recompiles in seconds. The dot dir sits beside current/previous/tmp
+    // and is never touched by release rotation.
+    const targetDir = path.join(paths.build, '.cargo-cache');
     try {
       const cargo = process.env.CARGO_BIN || (process.platform === 'win32' ? 'cargo.exe' : 'cargo');
       const env = { ...process.env, CARGO_INCREMENTAL: '0' };
@@ -216,7 +344,9 @@ function prepare(root) {
         'build', '--quiet', '--locked', '--manifest-path', path.join(root, 'server', 'Cargo.toml'),
         '--target-dir', targetDir,
       ], root, env);
-      run(npm.command, [...npm.prefix, 'run', 'build', '--prefix', path.join(root, 'client')], root, env);
+      const npmBuild = run(npm.command, [...npm.prefix, 'run', 'build', '--prefix', path.join(root, 'client')], root, env, true);
+      process.stdout.write(npmBuild.stdout);
+      process.stderr.write(npmBuild.stderr);
 
       const builtServer = path.join(targetDir, 'debug', expectedServerName());
       if (!exists(builtServer) || !fs.statSync(builtServer).isFile()) throw new Error(`Cargo 未生成 ${builtServer}`);
@@ -225,28 +355,25 @@ function prepare(root) {
       const server = path.join(serverDir, expectedServerName());
       fs.copyFileSync(builtServer, server);
       if (process.platform !== 'win32') fs.chmodSync(server, 0o755);
-      remove(targetDir);
+      // targetDir is a persistent cache: keep it for the next prepare.
 
-      const versions = readProtocol(root);
-      const releaseId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(4).toString('hex')}`;
-      const metadata = {
-        schemaVersion: SCHEMA_VERSION,
-        releaseId,
-        platform: `${process.platform}-${process.arch}`,
-        protocolVersion: versions.protocolVersion,
-        contentVersion: versions.contentVersion,
-        createdAt: new Date().toISOString(),
-        clientPath: 'client',
-        serverPath: `server/${expectedServerName()}`,
-      };
+      const metadata = metadataFor(root, freshReleaseId());
       atomicWrite(path.join(candidate, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
       validateCandidate(root, candidate);
+      if (fingerprint) {
+        const moduleMatch = MODULE_REGEX.exec(npmBuild.stdout);
+        atomicWrite(stampFile(paths), `${JSON.stringify({
+          schemaVersion: STAMP_VERSION,
+          fingerprint,
+          clientModules: moduleMatch ? Number(moduleMatch[1]) : null,
+          releaseId: metadata.releaseId,
+        }, null, 2)}\n`);
+      }
       return metadata;
     } catch (error) {
       remove(path.join(candidate, 'client'));
       remove(path.join(candidate, 'server'));
       remove(path.join(candidate, 'metadata.json'));
-      remove(targetDir);
       throw error;
     }
   });
@@ -326,12 +453,22 @@ function buildAbsolute(paths, relative) {
 }
 
 // iCloud can block renaming populated directories. Move files into ordinary
-// directories instead; rollback can merge a partially moved tree after interruption.
+// directories instead; rollback can merge a partially moved tree after
+// interruption. A whole-directory rename is attempted first because it turns
+// the ~50k-file client tree into a single syscall; POSIX rename either
+// applies atomically or leaves both sides untouched, so falling back to the
+// per-file walk stays correct.
 function moveTree(source, target) {
   if (!fs.lstatSync(source).isDirectory()) {
     if (exists(target)) throw new Error(`恢复目标已存在：${target}`);
     fs.renameSync(source, target);
     return;
+  }
+  try {
+    fs.renameSync(source, target);
+    return;
+  } catch (error) {
+    // Fall through to the per-file move below.
   }
   mkdir(target);
   for (const name of fs.readdirSync(source)) {
