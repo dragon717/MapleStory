@@ -626,6 +626,18 @@ function layerKey(part, id) {
   return `${part}:${id}`;
 }
 
+// The starter avatar remains a valid persisted look even when MakeCharInfo
+// no longer offers its face/hair. Keep its source layers composable in shops.
+async function exportDefaultAppearanceLayers(bases, layers) {
+  for (const gender of [0, 1]) {
+    for (const part of ['face', 'hair']) {
+      const id = Number(path.basename(avatar.DEFAULT_SOURCES[part], '.img'));
+      const layer = await exportAppearanceLayer(gender, part, id, bases[gender]);
+      addLayer(layers, layerKey(part, id), layer);
+    }
+  }
+}
+
 async function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
   await loadSourceTables();
@@ -657,6 +669,8 @@ async function main() {
     // to render an item before a character's explicit appearance arrives.
     bases[gender].defaultAppearance = { face: defaultFace, hair: defaultHair };
   }
+
+  await exportDefaultAppearanceLayers(bases, layers);
 
   const equipment = new Map(EXTRA_EQUIPMENT.map(item => [String(item.id), item]));
   for (const gender of [0, 1]) {
@@ -741,5 +755,6 @@ module.exports = {
   groupSections,
   imageForPart,
   equipmentDescriptor,
+  exportDefaultAppearanceLayers,
   main,
 };

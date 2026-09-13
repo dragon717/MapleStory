@@ -19,7 +19,19 @@
   background: #303236;
   image-rendering: pixelated;
   z-index: var(--ui-window-z, 60);
+  pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+
+.cash-shop-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 120px;
+  z-index: 5;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
 }
 
 .cash-shop-layer {
@@ -810,10 +822,6 @@
    document flow.  Source sprites stay available in the wide layout where
    their 126px/1024px geometry is meaningful. */
 .cash-shop[data-layout='reflow'] {
-  left: 6px;
-  top: 6px;
-  width: calc(100% - 12px) !important;
-  height: calc(100% - 12px) !important;
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
@@ -823,7 +831,6 @@
   padding: 8px;
   overflow-x: hidden;
   overflow-y: auto;
-  transform: none;
 }
 
 .cash-shop[data-layout='reflow'] .cash-shop-layer,

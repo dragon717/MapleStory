@@ -291,6 +291,10 @@ const drag = (win, { from, to, button = 0, target, pointerId = 1 } = {}) => {
   assert.equal(win.style.getPropertyValue('--ui-window-z'), '1');
   bringToFront(host, other);
   assert.equal(other.style.getPropertyValue('--ui-window-z'), '2', 'the counter is per host and increasing');
+  document.defaultView = { getComputedStyle: node => ({ zIndex: node === other ? '60' : '1' }) };
+  bringToFront(host, win);
+  assert.equal(win.style.getPropertyValue('--ui-window-z'), '61', 'activation must exceed unmigrated static window layers');
+  document.defaultView = undefined;
 }
 
 // ── R4: source-frame buttons carry four states and fall back to normal ──

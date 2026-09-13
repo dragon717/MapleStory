@@ -2,7 +2,7 @@ import type { ClientMessage, PlayerState, ServerMessage } from '../../../../shar
 import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { displayText, uiLocale } from '../../app/i18n';
 import { appearanceLayer, appearanceWeaponType, composeAppearance, loadAppearanceLayers, type AppearanceCatalog } from '../entry/appearance';
-import { installWindowDrag } from '../ui/window-shell.ts';
+import { installWindowDrag, bringToFront, clampIntoHost } from '../ui/window-shell.ts';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
@@ -66,6 +66,8 @@ interface PendingBuy {
 interface FashionSubcategory extends CashFashionSubcategory {
   families: number[] | null;
 }
+
+const CASH_SHOP_TITLE_HEIGHT = 31; // TMS273 CashShop base top strip.
 
 const SOURCE_SIDEBAR: readonly CashCategory[] = [
   { id: 'home', label: '主頁' },
@@ -216,6 +218,7 @@ export class CashShopView {
 
   close() {
     this.previewRequest += 1;
+    this.root?.removeEventListener('pointerdown', this.activate);
     this.dragDispose?.();
     this.dragDispose = undefined;
     this.resizeObserver?.disconnect();
@@ -401,6 +404,12 @@ export class CashShopView {
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-label', textFor('cashShop', '現金商店', 'Cash Shop'));
 
+    const handle = document.createElement('div');
+    handle.className = 'cash-shop-drag-handle';
+    handle.style.height = `${CASH_SHOP_TITLE_HEIGHT}px`;
+    handle.title = textFor('drag', '拖動商店視窗', 'Drag shop window');
+    root.appendChild(handle);
+
     const base = this.sourceImage('backgrnd', 'cash-shop-layer cash-shop-layer-base', root);
     if (base) root.appendChild(base);
     const heading = document.createElement('h2');
@@ -530,7 +539,9 @@ export class CashShopView {
 
     this.host.appendChild(root);
     this.root = root;
-    this.dragDispose = installWindowDrag(this.host, root, { titleHeight: 41, isOpen: () => Boolean(this.root) });
+    root.addEventListener('pointerdown', this.activate);
+    this.activate();
+    this.dragDispose = installWindowDrag(this.host, root, { titleHeight: CASH_SHOP_TITLE_HEIGHT, isOpen: () => Boolean(this.root) && !this.detail });
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.fitRootToHost());
       this.resizeObserver.observe(this.host);
@@ -538,6 +549,10 @@ export class CashShopView {
     this.fitRootToHost();
     this.renderAll();
   }
+
+  private activate = () => {
+    if (this.root) bringToFront(this.host, this.root);
+  };
 
   private fitRootToHost() {
     if (!this.root) return;
@@ -557,9 +572,10 @@ export class CashShopView {
       this.root.style.height = '768px';
     } else {
       this.root.dataset.layout = 'reflow';
-      this.root.style.width = `${availableWidth}px`;
-      this.root.style.height = `${availableHeight}px`;
+      this.root.style.width = `${Math.min(1024, availableWidth)}px`;
+      this.root.style.height = `${Math.min(768, availableHeight)}px`;
     }
+    clampIntoHost(this.host, this.root);
   }
 
   private sidebarCategories(): CashCategory[] {
@@ -1072,7 +1088,12 @@ export class CashShopView {
         const equipment = player.equipped ?? [];
         const loadedItemIds = equipment.map(item => item.itemId);
         const weaponType = appearanceWeaponType(catalog, equipment, player.appearance.weapon);
-        return { actions: composeAppearance(catalog, player.appearance, equipment, { loadedItemIds, weaponType }), trial: false };
+        // World rendering keeps the authored starter paper-doll when an old
+        // save references a face that is not in the layered catalogue yet.
+        // Keep the shop preview on that same known-good fallback instead of
+        // turning the whole panel into "等待角色外觀資料".
+        const actions = composeAppearance(catalog, player.appearance, equipment, { loadedItemIds, weaponType });
+        return { actions: actions ?? this.manifest.avatar.actions, trial: false };
       }
       return { actions: this.manifest.avatar.actions, trial: false };
     }

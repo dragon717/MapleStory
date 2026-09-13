@@ -133,7 +133,11 @@ export function installWindowDrag(host: HTMLElement, window: HTMLElement, option
  * of fighting whichever static z-index the panel already had (spec R3).
  */
 export function bringToFront(host: HTMLElement, window: HTMLElement): void {
-  const next = (Number(host.dataset.uiWindowZ ?? '0') || 0) + 1;
+  // Include panels that still use a static z-index during the R3 migration.
+  const view = host.ownerDocument.defaultView;
+  const highest = Math.max(Number(host.dataset.uiWindowZ ?? '0') || 0,
+    ...Array.from(host.children, child => Number(view?.getComputedStyle(child).zIndex) || 0));
+  const next = highest + 1;
   host.dataset.uiWindowZ = String(next);
   window.style.setProperty('--ui-window-z', String(next));
 }

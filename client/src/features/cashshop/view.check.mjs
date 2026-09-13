@@ -9,6 +9,9 @@ const sourcePath = path.join(here, 'view.ts');
 const stylePath = path.join(here, 'style.css');
 const source = fs.readFileSync(sourcePath, 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
+const appStyle = fs.readFileSync(path.join(here, '../../app/style.css'), 'utf8');
+const mainSource = fs.readFileSync(path.join(here, '../../app/main.ts'), 'utf8');
+const hudSource = fs.readFileSync(path.join(here, '../hud/view.ts'), 'utf8');
 
 // The check intentionally stays offline: it exercises the exported catalogue
 // filter without constructing a browser window or contacting the game server.
@@ -60,12 +63,18 @@ assert.match(source, /appearanceWeaponType\(catalog, equipment, player\.appearan
 assert.doesNotMatch(source, /sourceImage\('backgrnd2'/);
 assert.match(source, /availableWidth >= 1024 && availableHeight >= 768/);
 assert.match(style, /\.cash-shop-sidebar[\s\S]*?left: 0;/);
+assert.match(style, /\.cash-shop\s*\{[^}]*pointer-events:\s*auto;/, 'cash shop must re-enable events inside the shared inert overlay');
 assert.match(style, /\.cash-shop-balance[\s\S]*?left: 704px/);
 assert.match(style, /\.cash-shop-toolbar[\s\S]*?left: 136px[\s\S]*?width: 493px/);
 assert.match(style, /data-tab='fashion'[\s\S]*?\.cash-shop-grid[\s\S]*?top: 108px/);
 assert.match(style, /\.cash-shop\[data-layout='reflow'\]/);
 assert.doesNotMatch(style, /top:\s*150px/);
 assert.doesNotMatch(style, /left:\s*96px/);
+assert.match(appStyle, /#game-shell>#ui-windows\{[^}]*pointer-events:none/);
+assert.match(mainSource, /function openCashShop\(\)[\s\S]*?cashShop\?\.syncPlayer\(selfState\)[\s\S]*?cashShop\?\.open\(\)/);
+assert.match(mainSource, /cashShop\?\.isOpen\(\)/, 'game input must be blocked while the cash shop is open');
+assert.match(hudSource, /\['CashShop',\s*'商店'\]/);
+assert.match(hudSource, /key === 'CashShop'[\s\S]*?options\.openCashShop\?\.\(\)/);
 
 console.log(JSON.stringify({
   ok: true,
@@ -75,3 +84,35 @@ console.log(JSON.stringify({
   sourceSidebar: '126x370 / 10 rows × 37px',
   narrowLayout: 'flex column reflow with scrollable grid, preview and cart',
 }, null, 2));
+
+// Exercise the actual fitting method with positioned geometry: shrinking or
+// switching layouts must keep the grabbed window inside its current host.
+const shellSource = fs.readFileSync(path.join(here, '../ui/window-shell.ts'), 'utf8');
+const shellJs = ts.transpileModule(shellSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const shell = await import(`data:text/javascript,${encodeURIComponent(shellJs)}`);
+globalThis.clampIntoHost = shell.clampIntoHost;
+globalThis.window = { innerWidth: 1440, innerHeight: 1000 };
+let hostSize = { width: 1440, height: 1000, left: 20, top: 10 };
+const root = {
+  dataset: { windowPositioned: 'true' },
+  style: { left: '400px', top: '220px', transform: 'none' },
+  getBoundingClientRect() { return { left: hostSize.left + parseFloat(this.style.left), top: hostSize.top + parseFloat(this.style.top), width: parseFloat(this.style.width), height: parseFloat(this.style.height) }; },
+};
+const shop = Object.create(module.CashShopView.prototype);
+shop.root = root;
+shop.host = { getBoundingClientRect: () => hostSize };
+for (const [width, height] of [[1440,1000], [1200,700], [844,390], [390,844], [1440,1000]]) {
+  hostSize = { ...hostSize, width, height };
+  shop.fitRootToHost();
+  const box = root.getBoundingClientRect();
+  assert(box.left >= hostSize.left && box.top >= hostSize.top);
+  assert(box.left + box.width <= hostSize.left + width && box.top + box.height <= hostSize.top + height);
+  assert.equal(root.style.transform, 'none', 'resizing never recentres a dragged window');
+}
+assert.match(source, /const CASH_SHOP_TITLE_HEIGHT = 31/);
+assert.match(source, /titleHeight: CASH_SHOP_TITLE_HEIGHT/);
+assert.match(source, /root.addEventListener\('pointerdown', this.activate\)/);
+assert.match(source, /removeEventListener\('pointerdown', this.activate\)/);
+assert.match(style, /\.cash-shop-drag-handle\s*\{[^}]*touch-action:\s*none;/);
+assert.doesNotMatch(style, /width: calc\(100% - 12px\) !important/);
+console.log('Cash shop window: title-only drag wiring, activation/disposal and five resize transitions passed.');

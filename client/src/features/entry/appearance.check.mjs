@@ -51,3 +51,17 @@ for (const part of [standPart, walkPart, skillPart]) {
 const unsupportedSkill = composeAppearance(catalog, weaponLook, weaponEquipment, { loadedItemIds, weaponType: '49' });
 assert(!unsupportedSkill?.skill2201008?.[0]?.parts.some(part => part.itemId === '01702087'), 'missing skill frame fell back to stand');
 console.log(`Lazy cash weapon composition: branch ${weaponType}, action-specific anchors, PNG paths and strict skill fallback passed.`);
+
+// Persisted starter looks predate today's MakeCharInfo choices. They must
+// remain composable, including trial cash layers, after a full resource export.
+const starterLook = { gender: 0, face: 20000, hair: 30020, skin: 0, coat: 1040002, pants: 1060003, shoes: 1070000, weapon: 1302000 };
+const starterGear = initialEquipment(starterLook);
+const starter = composeAppearance(catalog, starterLook, starterGear);
+assert(starter?.stand[0].parts.some(part => part.part === 'face'), 'persisted starter face disappeared from the appearance catalogue');
+const starterTrialGear = [...starterGear, { itemId: '01702087' }];
+const starterTrial = composeAppearance(catalog, starterLook, starterTrialGear, {
+  loadedItemIds: starterTrialGear.map(item => item.itemId),
+  weaponType: appearanceWeaponType(catalog, starterTrialGear, starterLook.weapon),
+});
+assert(starterTrial?.stand[0].parts.some(part => part.itemId === '01702087'), 'persisted starter cannot try on cash equipment');
+console.log('Persisted starter face 20000 / hair 30020 and cash trial composition passed.');

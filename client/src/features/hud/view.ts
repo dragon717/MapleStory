@@ -13,7 +13,7 @@ export function expRatio(value: number, expToNext: number): number {
   return expToNext === 0 ? 1 : gaugeRatio(value, expToNext);
 }
 const BUTTONS = [
-  ['CashShop', '商城'], ['Event', '活动'], ['Character', '角色与背包'],
+  ['CashShop', '商店'], ['Event', '活动'], ['Character', '角色与背包'],
   ['Community', '社群'], ['Setting', '设置'], ['Menu', '菜单'],
 ] as const;
 
@@ -40,6 +40,7 @@ const SOURCE_SLOT_SIZE = 32;
 const SOURCE_SLOT_STEP = 35;
 
 export interface HudViewOptions {
+  openCashShop?: () => void;
   openActivities?: () => void;
   /** Opens the source-backed TMS273 pet-management window. */
   openPets?: () => void;
@@ -132,6 +133,7 @@ export class HudView {
         else if (key === 'Menu' || key === 'Setting') this.onMenu?.(button);
         else if (key === 'Community') document.querySelector<HTMLInputElement>('.chat-input')?.focus();
         else if (key === 'Event') this.options.openActivities?.();
+        else if (key === 'CashShop') this.options.openCashShop?.();
         else this.status(`${label}业务尚未接入。`);
       });
       actions.append(button);
