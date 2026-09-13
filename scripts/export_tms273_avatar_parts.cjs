@@ -273,7 +273,7 @@ function sourceConfig(gender, overrides = {}) {
 
 async function exportBase(gender, includeSkills) {
   const sources = sourceConfig(gender, { face: undefined, hair: undefined });
-  const set = await actionSet([], false, { sources });
+  const set = await actionSet([], false, { sources, appearanceVariants: true });
   const actions = filterActions(set.actions, part => ['body', 'head', 'pants', 'shoes'].includes(part.part));
   const actionSources = { ...actionSourcesFor(set) };
   if (includeSkills) {
@@ -353,7 +353,7 @@ async function exportEquipmentLayer(gender, descriptor, includeSkills) {
     face: imageForPart('face', gender === 0 ? 20100 : 21700),
     hair: imageForPart('hair', gender === 0 ? 30000 : 31000),
   });
-  const normal = await actionSet([itemId], false, { sources });
+  const normal = await actionSet([itemId], false, { sources, appearanceVariants: true });
   const actions = filterActions(normal.actions, part => part.itemId === itemId && part.part === descriptor.part);
   const actionSources = { ...actionSourcesFor(normal) };
   if (includeSkills) {
@@ -373,7 +373,8 @@ async function exportEquipmentLayer(gender, descriptor, includeSkills) {
     gender,
     actions,
     actionSources,
-    ...(descriptor.cash ? { cash: true, lazy: true } : {}),
+    ...(descriptor.lazy ? { cash: Boolean(descriptor.cash), lazy: true } : {}),
+    ...(descriptor.standAction ? { standAction: descriptor.standAction, walkAction: descriptor.walkAction } : {}),
     ...(descriptor.weaponGroups?.length ? { weaponGroups: descriptor.weaponGroups, weaponType: descriptor.actionPrefix } : {}),
   };
 }
@@ -507,7 +508,7 @@ function layerActionTrees(layer) {
 
 function validateCashLayer(layer, itemId) {
   assert.equal(layer.itemId, itemId, `cash layer ${itemId} itemId drifted`);
-  assert(layer.cash && layer.lazy, `cash layer ${itemId} lost lazy marker`);
+  assert(layer.lazy, `appearance layer ${itemId} lost lazy marker`);
   let frameCount = 0;
   for (const actions of layerActionTrees(layer)) {
     for (const frames of Object.values(actions ?? {})) {
@@ -534,7 +535,7 @@ function cashAppearanceMetadata(layer, itemId) {
     vslot: layer.vslot,
     source: layer.source,
     url: `${CASH_APPEARANCE_URL}/${itemId}.json`,
-    cash: true,
+    cash: Boolean(layer.cash),
     lazy: true,
     ...(layer.weaponGroups?.length ? { weaponGroups: layer.weaponGroups } : {}),
     ...(layer.sourceWeaponGroups?.length ? { sourceWeaponGroups: layer.sourceWeaponGroups } : {}),
@@ -638,6 +639,54 @@ async function exportDefaultAppearanceLayers(bases, layers) {
   }
 }
 
+// All playable equipment is a consumer of the same appearance catalogue.
+// Keep the historical cashAppearance wire name; ordinary layers use cash:false.
+async function exportOrdinaryEquipment(bases, layers, index) {
+  const items = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'items.json'), 'utf8'));
+  let count = 0;
+  for (const [id, definition] of Object.entries(items)) {
+    const info = definition.info;
+    if (!info?.islot || info.cash === 1 || layers[String(Number(id))]) continue;
+    // Po is a pocket item, with no paper-doll Canvas by design.
+    if (info.islot === 'Po') continue;
+    const shape = cashPart(info.islot);
+    assert(shape, `Unsupported ordinary equipment slot ${id}: ${info.islot}`);
+    const itemId = canonicalItemId(id);
+    const image = definition.source.replace(/\.json$/, '.img');
+    assert(image.startsWith('Character/'), `Missing Character source for ${id}`);
+    const source = await sourceInfo(image, image);
+    assert.equal(source.islot, info.islot, `Ordinary equipment slot drift: ${id}`);
+    const noVisual = children(await get(image)).every(node => node.name === 'info');
+    const descriptor = { id: Number(id), itemId, image, ...shape, cash: false, lazy: true,
+      ...(shape.part === 'weapon' ? { standAction: info.stand === 2 ? 'stand2' : 'stand', walkAction: info.walk === 2 ? 'walk2' : 'walk' } : {}),
+    };
+    const combined = {};
+    for (const gender of [0, 1]) {
+      const layer = shape.static
+        ? { ...await exportStaticEquipmentLayer(gender, descriptor, bases[gender]), cash: false }
+        : await exportEquipmentLayer(gender, descriptor, true);
+      addLayer(combined, itemId, layer);
+    }
+    const layer = compactCashLayer(combined[itemId]);
+    validateCashLayer(layer, itemId);
+    if (noVisual) {
+      // Source-only secondary weapons have info/icon but no actor Canvas.
+      // They must not hide the primary weapon via their inventory vslot.
+      layer.vslot = '';
+      layer.sourceVisibility = 'info-only';
+    } else {
+      assert(layer.actions[descriptor.standAction ?? 'stand'].some(frame => frame.parts.length), `Ordinary equipment has no stand Canvas: ${image}`);
+    }
+    fs.mkdirSync(CASH_APPEARANCE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(CASH_APPEARANCE_DIR, `${itemId}.json`), JSON.stringify(layer) + '\n', 'utf8');
+    index.items[itemId] = cashAppearanceMetadata(layer, itemId);
+    if (++count % 100 === 0) console.log(`Exported ${count} ordinary equipment layers`);
+  }
+  index.source = 'TMS273.7 client WZ / Character equipment; cash and ordinary layers fetched per item';
+  fs.writeFileSync(path.join(OUTPUT, 'appearance-cashshop.json'), JSON.stringify(index, null, 2) + '\n', 'utf8');
+  return count;
+}
+
 async function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
   await loadSourceTables();
@@ -711,6 +760,8 @@ async function main() {
   // complete for one item (both genders and, for a weapon, its authored 37/38
   // branches); only the selected file is fetched by the client.
   const cashAppearance = writeCashAppearance(cashLayers, cashSkipped, cashWeaponTypes);
+
+  await exportOrdinaryEquipment(bases, layers, cashAppearance.index);
 
   const output = {
     contentVersion: 'tms273-avatar-parts',

@@ -150,18 +150,18 @@ export class PlayerView {
       if (this.appearanceRequestKey !== key) {
         this.appearanceRequestKey = key;
         const generation = ++this.appearanceLoadGeneration;
-        // A cash layer can already be present in the JSON cache because the
+        // A lazy layer can already be present in the JSON cache because the
         // cash shop preview used it, while its PNGs are still absent from the
-        // Phaser texture cache. Only mark a cash id loaded when all of its
+        // Phaser texture cache. Only mark an indexed id loaded when all of its
         // selected branch's source URLs are usable by this Scene.
-        const readyCashIds = equipped
+        const readyAppearanceIds = equipped
           .map(item => cashAppearanceEntry(catalog, item.itemId)?.itemId)
           .filter((itemId): itemId is string => Boolean(itemId))
-          .filter(itemId => this.cashAppearanceTexturesReady(catalog, player.appearance!, itemId, weaponType));
+          .filter(itemId => this.appearanceTexturesReady(catalog, player.appearance!, itemId, weaponType));
         const loadedItemIds = equipped
           .filter(item => {
             const entry = cashAppearanceEntry(catalog, item.itemId);
-            return !entry || readyCashIds.includes(entry.itemId);
+            return !entry || readyAppearanceIds.includes(entry.itemId);
           })
           .map(item => item.itemId);
         const actions = composeAppearance(catalog, player.appearance, equipped, { loadedItemIds, weaponType });
@@ -504,7 +504,7 @@ export class PlayerView {
   }
 
   /**
-   * Fetch only the indexed cash layers currently equipped by this actor.  The
+   * Fetch only the indexed appearance layers currently equipped by this actor.  The
    * first compose above intentionally renders the source-backed base and any
    * already cached layers, so a slow or unavailable cosmetic URL never emits
    * an image with a guessed path.  Once the item JSON arrives we compose the
@@ -518,16 +518,16 @@ export class PlayerView {
     weaponType: string | undefined,
     generation: number,
   ) {
-    const cashIds = [...new Set(equipped
+    const appearanceIds = [...new Set(equipped
       .map(item => cashAppearanceEntry(catalog, item.itemId)?.itemId)
       .filter((itemId): itemId is string => Boolean(itemId)))];
-    const pending = cashIds.filter(itemId => {
+    const pending = appearanceIds.filter(itemId => {
       const canonical = normalizeAppearanceItemId(itemId);
       return !catalog.cashLayers?.[canonical]
         && !catalog.cashLayers?.[itemId]
         && !this.appearanceLoadFailures.has(canonical);
     });
-    if (!pending.length && cashIds.every(itemId => this.cashAppearanceTexturesReady(catalog, look, itemId, weaponType))) return;
+    if (!pending.length && appearanceIds.every(itemId => this.appearanceTexturesReady(catalog, look, itemId, weaponType))) return;
     const requests = pending.map(itemId => {
       const canonical = normalizeAppearanceItemId(itemId);
       const current = this.appearanceLoads.get(canonical);
@@ -551,11 +551,11 @@ export class PlayerView {
       const urls = appearanceAssetUrls(catalog, look, equipped, { weaponType });
       await ensureAppearanceTextures(this.scene, urls);
       if (this.destroyed || generation !== this.appearanceLoadGeneration || this.appearanceRequestKey !== key) return;
-      const readyCashIds = cashIds.filter(itemId => this.cashAppearanceTexturesReady(catalog, look, itemId, weaponType));
+      const readyAppearanceIds = appearanceIds.filter(itemId => this.appearanceTexturesReady(catalog, look, itemId, weaponType));
       const loadedItemIds = equipped
         .filter(item => {
           const entry = cashAppearanceEntry(catalog, item.itemId);
-          return !entry || readyCashIds.includes(entry.itemId);
+          return !entry || readyAppearanceIds.includes(entry.itemId);
         })
         .map(item => item.itemId);
       const actions = composeAppearance(catalog, look, equipped, {
@@ -567,14 +567,14 @@ export class PlayerView {
     });
   }
 
-  private cashAppearanceTexturesReady(
+  private appearanceTexturesReady(
     catalog: NonNullable<Manifest['appearanceCatalog']>,
     look: NonNullable<PlayerState['appearance']>,
     itemId: string,
     weaponType: string | undefined,
   ) {
     const layer = appearanceLayer(catalog, itemId);
-    if (!layer?.cash) return false;
+    if (!layer?.lazy) return false;
     const urls = appearanceAssetUrls(catalog, look, [{ itemId }], { weaponType });
     return urls.every(url => this.scene.textures.exists(url));
   }

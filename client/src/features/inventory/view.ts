@@ -72,12 +72,19 @@ export class InventoryView {
   private keepGatherResultMode = false;
   private sortMode = false;
   private destroyed = false;
+  /** Vertical distance between two slot rows; set by `updateGridMetrics()`. */
+  private slotStepY = 46;
+  /** Wheel delta not yet consumed by whole-row scrolling. */
+  private wheelRemainder = 0;
+  private gridSnapTimer?: ReturnType<typeof setTimeout>;
   private readonly intents: InventoryIntents;
 
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event);
   private readonly handleWindowPointerDown = (event: PointerEvent) => this.onWindowPointerDown(event);
   private readonly handleWindowPointerMove = (event: PointerEvent) => this.onWindowPointerMove(event);
   private readonly handleWindowPointerUp = (event: PointerEvent) => this.onWindowPointerUp(event);
+  private readonly handleGridWheel = (event: WheelEvent) => this.onGridWheel(event);
+  private readonly handleGridScroll = () => this.scheduleGridScrollSnap();
 
   constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false) {
     this.manifest = manifest;
@@ -186,6 +193,11 @@ export class InventoryView {
     inventoryWindow.append(gridViewport);
     this.grid = grid;
     this.gridViewport = gridViewport;
+    // The source background paints the 4x8 slot cells in place; scrolling
+    // content must therefore move in whole rows or items stop between the
+    // painted cells (the reported "cells don't follow the scroll" artifact).
+    gridViewport.addEventListener('wheel', this.handleGridWheel, { passive: false });
+    gridViewport.addEventListener('scroll', this.handleGridScroll);
 
     const mesosLine = document.createElement('div');
     mesosLine.className = 'inventory-mesos';
@@ -392,6 +404,7 @@ export class InventoryView {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.gridSnapTimer) clearTimeout(this.gridSnapTimer);
     this.tooltips.destroy();
     this.drag.destroy();
     this.observer?.disconnect();
@@ -891,6 +904,41 @@ export class InventoryView {
     this.draggingWindow = undefined;
   }
 
+  /**
+   * Wheel scrolling steps whole slot rows.  The painted cell art cannot move
+   * (it is baked into the window background), so free-pixel scrolling leaves
+   * items parked between two painted rows; row quantization keeps every item
+   * aligned with a cell, matching the source `scroll:slot` widget behaviour.
+   */
+  private onGridWheel(event: WheelEvent) {
+    const viewport = this.gridViewport;
+    if (!viewport || event.defaultPrevented) return;
+    const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+    if (maxScroll <= 0) return;
+    event.preventDefault();
+    this.hideTooltip();
+    this.wheelRemainder += event.deltaY;
+    const rows = Math.trunc(this.wheelRemainder / this.slotStepY);
+    if (rows === 0) return;
+    this.wheelRemainder -= rows * this.slotStepY;
+    const snapped = Math.round(viewport.scrollTop / this.slotStepY) * this.slotStepY;
+    const target = Math.min(maxScroll, Math.max(0, snapped + rows * this.slotStepY));
+    if (target !== viewport.scrollTop) viewport.scrollTo({ top: target, behavior: 'smooth' });
+  }
+
+  /** Touch/trackpad panning scrolls freely; settle it back onto a row. */
+  private scheduleGridScrollSnap() {
+    if (!this.gridViewport) return;
+    if (this.gridSnapTimer) clearTimeout(this.gridSnapTimer);
+    this.gridSnapTimer = setTimeout(() => {
+      this.gridSnapTimer = undefined;
+      const viewport = this.gridViewport;
+      if (!viewport) return;
+      const target = Math.round(viewport.scrollTop / this.slotStepY) * this.slotStepY;
+      if (target !== viewport.scrollTop) viewport.scrollTo({ top: target, behavior: 'smooth' });
+    }, 160);
+  }
+
   private onKeyDown(event: KeyboardEvent) {
     if (event.defaultPrevented || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -1044,6 +1092,7 @@ export class InventoryView {
     const columns = layout.columns;
     const stepX = layout.slotWidth + layout.spacingX;
     const stepY = layout.slotHeight + layout.spacingY;
+    this.slotStepY = stepY;
     const visibleCount = this.visibleSlotCount();
     const contentRows = Math.max(layout.rows, Math.ceil(visibleCount / columns));
     if (this.gridViewport) {

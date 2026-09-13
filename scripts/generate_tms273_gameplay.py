@@ -28,6 +28,18 @@ DEFAULT_OUTPUT = ROOT / "resources/tms273-export"
 SUPPORTED_EQUIPMENT = ("1002067", "1040002", "1052095", "1302000")
 DROP_DENOMINATOR = 1_000_000
 
+# TMS273 String.wz has no name record for these ids.  Verified 2026-09-13
+# against the binary WZ (both client copies, @tybys/wz createReader):
+# String/Eqp.img carries no Eqp/Weapon/01212000 node while the neighbours
+# 1212001 (普通克魯) and 1212002 (金色閃耀) exist — the gap is in the source,
+# not in WZ_JSON_TW.  1212000 is nevertheless a live low-tier drop (source
+# reward tables), so without this table every tooltip falls back to the raw
+# config id.  The names are the official Chinese localization of the item
+# (CMS 中文名; KMS/GMS ships it as "Plain"/"플레인").
+ITEM_NAME_OVERRIDES = {
+    "1212000": "朴素双头杖",
+}
+
 
 def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -334,6 +346,8 @@ def item_definition(item_id, source, string_records, wz_root):
         slot_max = 1 if inventory_type == 1 else 100
         defaults.append("slotMax")
     name = record.get("name")
+    if not name:
+        name = ITEM_NAME_OVERRIDES.get(item_id)
     description = record.get("desc", "")
     if name is not None and not isinstance(name, str):
         name = str(name)

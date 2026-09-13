@@ -52,6 +52,79 @@ const unsupportedSkill = composeAppearance(catalog, weaponLook, weaponEquipment,
 assert(!unsupportedSkill?.skill2201008?.[0]?.parts.some(part => part.itemId === '01702087'), 'missing skill frame fell back to stand');
 console.log(`Lazy cash weapon composition: branch ${weaponType}, action-specific anchors, PNG paths and strict skill fallback passed.`);
 
+// Ordinary equipment uses the same lazy appearance directory as cash items.
+// These three ids were present in the persisted character but absent from the
+// old eager catalogue, so composeAppearance silently omitted those gear layers.
+const ordinaryLook = { gender: male.gender, skin: 0, face: 20000, hair: 30020, coat: male.coat[0], pants: 0, shoes: male.shoes[0], weapon: male.weapon[0] };
+const ordinaryBase = initialEquipment(ordinaryLook).map((item, index) => ({ ...item, slot: [5, 7, 11][index] }));
+const ordinarySlots = { '1212000': 11, '1040017': 5, '1002017': 1 };
+for (const rawId of Object.keys(ordinarySlots)) {
+  const key = rawId.padStart(8, '0');
+  const entry = catalog.cashAppearance?.items[key];
+  assert(entry && entry.cash === false && entry.lazy === true, `ordinary appearance index missing ${rawId}`);
+  const layer = JSON.parse(await fs.readFile(new URL(`../../../public-tms273${entry.url}`, import.meta.url), 'utf8'));
+  let requests = 0;
+  await loadAppearanceLayer(catalog, rawId, async url => {
+    requests++;
+    assert.equal(url, entry.url);
+    return { ok: true, status: 200, json: async () => layer };
+  });
+  await loadAppearanceLayer(catalog, rawId, async () => {
+    requests++;
+    throw new Error(`ordinary appearance ${rawId} was fetched twice`);
+  });
+  assert.equal(requests, 1, `ordinary appearance ${rawId} was not cached after loading`);
+}
+const wingEntry = catalog.cashAppearance?.items['01102273'];
+assert(wingEntry?.cash === true && wingEntry.lazy === true, 'cash wing missing from shared appearance index');
+const wingLayer = JSON.parse(await fs.readFile(new URL(`../../../public-tms273${wingEntry.url}`, import.meta.url), 'utf8'));
+await loadAppearanceLayer(catalog, '1102273', async () => ({ ok: true, status: 200, json: async () => wingLayer }));
+const completeEquipment = ordinaryBase
+  .filter(item => item.slot !== 5 && item.slot !== 11)
+  .concat(Object.entries(ordinarySlots).map(([itemId, slot]) => ({ itemId, slot })), { itemId: '1102273', slot: 9 });
+const completeOptions = { loadedItemIds: completeEquipment.map(item => item.itemId), weaponType: appearanceWeaponType(catalog, completeEquipment, ordinaryLook.weapon) };
+const complete = composeAppearance(catalog, ordinaryLook, completeEquipment, completeOptions);
+for (const [rawId] of Object.entries(ordinarySlots)) {
+  for (const action of ['stand', 'walk', 'skill2201008']) {
+    const parts = complete?.[action]?.[0]?.parts ?? [];
+    assert(parts.some(part => Number(part.itemId) === Number(rawId)), `${rawId} disappeared from ${action}`);
+    assert(parts.length, `${rawId} has no ${action} parts`);
+  }
+}
+assert(complete?.stand?.[0]?.parts.some(part => Number(part.itemId) === Number(wingEntry.itemId)), 'cash wing disappeared beside ordinary equipment');
+for (const [rawId] of Object.entries(ordinarySlots)) {
+  const without = completeEquipment.filter(item => Number(item.itemId) !== Number(rawId));
+  const unequipped = composeAppearance(catalog, ordinaryLook, without, {
+    loadedItemIds: without.map(item => item.itemId),
+    weaponType: appearanceWeaponType(catalog, without, ordinaryLook.weapon),
+  });
+  assert(!unequipped?.stand?.[0]?.parts.some(part => Number(part.itemId) === Number(rawId)), `${rawId} survived unequip`);
+}
+console.log('Lazy ordinary equipment composition: 1212000/1040017/1002017 stand, walk, skill, cash wing and unequip passed.');
+
+// A cash id is never used to infer the actor's ordinary weapon branch, while
+// an indexed ordinary weapon still is. This prevents a cash branch from
+// silently changing the character's authored hand pose.
+assert.equal(appearanceWeaponType(catalog, [{ itemId: '01702087', slot: 11 }], '01702087'), undefined);
+assert.equal(appearanceWeaponType(catalog, [{ itemId: '1212000', slot: -11 }], '1302000'), '21', 'ordinary 1212000 must select the source weapon branch');
+const ordinaryWeaponEntry = Object.values(catalog.cashAppearance?.items ?? {}).find(entry => !entry.cash && entry.part === 'weapon' && entry.vslot && Number(entry.id) >= 1300000 && Number(entry.id) < 1600000);
+assert(ordinaryWeaponEntry, 'ordinary weapon missing from shared lazy appearance index');
+assert.equal(appearanceWeaponType(catalog, [{ itemId: ordinaryWeaponEntry.itemId, slot: 11 }], ordinaryWeaponEntry.itemId), String(Math.floor(ordinaryWeaponEntry.id / 10000) % 100));
+console.log('Appearance weapon context: true cash excluded, ordinary indexed weapon retained.');
+
+// A source-authored two-handed weapon can use stand2/walk2; the composed
+// body must come from that same base variant instead of copying stand1/walk1.
+const alternateEntry = catalog.cashAppearance?.items['01402009'];
+assert(alternateEntry && alternateEntry.cash === false && alternateEntry.lazy === true, 'ordinary stand2 weapon missing from shared index');
+const alternateLayer = JSON.parse(await fs.readFile(new URL(`../../../public-tms273${alternateEntry.url}`, import.meta.url), 'utf8'));
+assert.equal(alternateLayer.standAction, 'stand2', '01402009 lost its source-authored stand2 marker');
+await loadAppearanceLayer(catalog, alternateEntry.itemId, async () => ({ ok: true, status: 200, json: async () => alternateLayer }));
+const alternateEquipment = [{ itemId: alternateEntry.itemId, slot: 11 }];
+const alternate = composeAppearance(catalog, ordinaryLook, alternateEquipment, { loadedItemIds: alternateEquipment.map(item => item.itemId), weaponType: appearanceWeaponType(catalog, alternateEquipment, alternateEntry.itemId) });
+assert(alternate?.stand?.[0]?.parts.some(part => Number(part.itemId) === Number(alternateEntry.itemId)));
+assert.deepEqual(alternate?.stand?.[0]?.parts.find(part => part.part === 'body'), catalog.base[String(ordinaryLook.gender)].actions.stand2[0].parts.find(part => part.part === 'body'));
+console.log(`Alternate ordinary weapon pose: ${alternateEntry.itemId} selects stand2 body.`);
+
 // Persisted starter looks predate today's MakeCharInfo choices. They must
 // remain composable, including trial cash layers, after a full resource export.
 const starterLook = { gender: 0, face: 20000, hair: 30020, skin: 0, coat: 1040002, pants: 1060003, shoes: 1070000, weapon: 1302000 };

@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const source = fs.readFileSync(`${root}/client/src/features/inventory/names.ts`, 'utf8')
   .replace("import { uiLocale, displayText } from '../../app/i18n';", "const uiLocale = () => globalThis.testLocale; const displayText = text => text;")
-  .replace("import catalog from '../../../../shared/items.json';", `const catalog = ${fs.readFileSync(`${root}/shared/items.json`, 'utf8')};`);
+  .replace("import catalog from '../../../../shared/items.json';", `const catalog = ${fs.readFileSync(`${root}/shared/items.json`, 'utf8')};`)
+  // names.ts also imports the pet catalog; shared json imports must always get
+  // a data-URL stub here or the transpiled module fails to resolve.
+  .replace("import petCatalog from '../../../../shared/pets.json';", `const petCatalog = ${fs.readFileSync(`${root}/shared/pets.json`, 'utf8')};`);
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const names = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 globalThis.testLocale = 'zh';
@@ -53,6 +56,10 @@ assert.equal(names.itemCategoryTab('5000000'), 4); // 5xxxx = 現金 → tab 4
 assert.equal(names.itemCategoryTab('10000001'), 2); // unknown numeric id falls through to 其他
 assert.equal(names.itemCategoryTab('1bad'), 2);
 assert.equal(names.itemName('unknown'), 'unknown');
+// 1212000 has no TMS273 String/Eqp record (source gap, see
+// generate_tms273_gameplay.py ITEM_NAME_OVERRIDES); it must never surface the
+// raw config id as a display name.
+assert.equal(names.itemName('1212000'), '朴素双头杖');
 globalThis.testLocale = 'en';
 assert.equal(names.itemName('2000000'), '紅色藥水');
 assert.match(names.itemDescription('2000000'), /恢復HP/);

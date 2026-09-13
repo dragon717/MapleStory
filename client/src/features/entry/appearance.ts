@@ -16,6 +16,9 @@ export interface AppearanceLayer {
   actionsByWeaponTypeByGender?: Record<string, Record<string, Record<string, AppearanceFrame[]>>>;
   weaponType?: string;
   weaponGroups?: string[];
+  /** Ordinary weapons may author non-default action variants (for example stand2). */
+  standAction?: string;
+  walkAction?: string;
   /** Cash layers are registered by the caller when their URLs are loaded. */
   lazy?: boolean;
   cash?: boolean;
@@ -28,7 +31,8 @@ export interface CashAppearanceIndexEntry {
   vslot: string;
   source: string;
   url: string;
-  cash: true;
+  /** True for cash cosmetics; false for ordinary equipment in the same lazy index. */
+  cash: boolean;
   lazy: true;
   weaponGroups?: string[];
   sourceWeaponGroups?: string[];
@@ -63,9 +67,9 @@ export function normalizeAppearanceItemId(itemId: string | number) {
  * Resolve the source weapon branch for an ordinary equipment id.  Cash ids
  * are deliberately excluded by the caller because their numeric family is a
  * catalogue id, not a WZ weapon branch (for example 01702087 is not branch
- * 20).  The 130–159 families are the weapon families present in the local
+ * 20).  The 120–159 families are the weapon families present in the local
  * TMS273 item source; the optional index narrows that to branches exported by
- * the current cash appearance catalogue.
+ * the current appearance catalogue.
  */
 export function appearanceWeaponTypeForItemId(
   itemId: string | number,
@@ -74,7 +78,7 @@ export function appearanceWeaponTypeForItemId(
   const numeric = Number(String(itemId).trim());
   if (!Number.isSafeInteger(numeric) || numeric <= 0) return undefined;
   const family = Math.floor(numeric / 10_000);
-  if (family < 130 || family > 159) return undefined;
+  if (family < 120 || family > 159) return undefined;
   const branch = String(family % 100);
   if (supportedWeaponTypes && !supportedWeaponTypes.map(String).includes(branch)) return undefined;
   return branch;
@@ -87,17 +91,17 @@ function layerCandidates(itemId: string | number) {
   return [...new Set([raw, canonical, legacy])];
 }
 
-/** Resolve an appearance layer across the padded cash and legacy keys. */
+/** Resolve an appearance layer across the padded lazy index and legacy keys. */
 export function appearanceLayer(catalog: AppearanceCatalog, itemId: string | number) {
   const keys = layerCandidates(itemId);
-  // A padded id in the cash index identifies a cosmetic item even when its
+  // A padded id in the lazy index identifies an item even when its
   // unpadded spelling happens to collide with a gameplay layer key.
   const cashKeys = keys.filter(key => catalog.cashAppearance?.items[key] || catalog.cashLayers?.[key]);
   for (const key of cashKeys) {
     const layer = catalog.cashLayers?.[key];
     if (layer) return layer;
   }
-  // An indexed cash id is intentionally absent until its JSON is loaded. Do
+  // An indexed lazy id is intentionally absent until its JSON is loaded. Do
   // not fall through to a coincidentally equal gameplay id and show the wrong
   // outfit while the request is in flight.
   if (cashKeys.length) return undefined;
@@ -110,7 +114,7 @@ export function appearanceLayer(catalog: AppearanceCatalog, itemId: string | num
   return undefined;
 }
 
-/** Resolve a lazy cash index row across padded and legacy item spellings. */
+/** Resolve a lazy appearance index row across padded and legacy item spellings. */
 export function cashAppearanceEntry(catalog: AppearanceCatalog, itemId: string | number) {
   const items = catalog.cashAppearance?.items ?? {};
   for (const key of layerCandidates(itemId)) {
@@ -138,7 +142,9 @@ export function appearanceWeaponType(
     ...(lookWeapon === undefined ? [] : [lookWeapon]),
   ];
   for (const itemId of candidates) {
-    if (cashAppearanceEntry(catalog, itemId)) continue;
+    const entry = cashAppearanceEntry(catalog, itemId);
+    const layer = appearanceLayer(catalog, itemId);
+    if (entry?.cash === true || layer?.cash === true) continue;
     const branch = appearanceWeaponTypeForItemId(itemId, supported);
     if (branch) return branch;
   }
@@ -172,10 +178,10 @@ function layerActions(layer: AppearanceLayer, gender: number, weaponType?: strin
 
 function layerIsLoaded(layer: AppearanceLayer, options: AppearanceComposeOptions) {
   if (!layer.lazy) return true;
-  // `loadAppearanceLayer` installs a complete layer in this cache.  Treating
-  // cache presence as loaded keeps callers from having to maintain a second
-  // list of ids; loadedItemIds remains available for immutable catalog users.
-  if (options.loadedItemIds === undefined && layer.cash) return true;
+  // `loadAppearanceLayer` installs a complete layer in this cache. Treating
+  // cache presence as loaded keeps callers from maintaining a second list of
+  // ids; loadedItemIds remains available for immutable catalog users.
+  if (options.loadedItemIds === undefined) return true;
   if (!options.loadedItemIds) return false;
   const ids = new Set(options.loadedItemIds.map(normalizeAppearanceItemId));
   return ids.has(normalizeAppearanceItemId(layer.itemId ?? layer.id));
@@ -196,14 +202,15 @@ export async function loadAppearanceLayer(
   itemId: string | number,
   fetcher: typeof fetch = fetch,
 ): Promise<AppearanceLayer | undefined> {
-  const existing = catalog.cashLayers && appearanceLayer(catalog, itemId);
-  if (existing?.cash) return existing;
   const entry = cashAppearanceEntry(catalog, itemId);
   if (!entry) return undefined;
+  const existing = catalog.cashLayers && appearanceLayer(catalog, itemId);
+  if (existing?.lazy && existing.cash === entry.cash) return existing;
   const response = await fetcher(entry.url);
   if (!response.ok) throw new Error(`角色外观资源加载失败 ${entry.itemId} (${response.status})`);
   const layer = await response.json() as AppearanceLayer;
-  if (!layer.cash || normalizeAppearanceItemId(layer.itemId ?? layer.id) !== normalizeAppearanceItemId(entry.itemId)) {
+  if (layer.cash !== entry.cash || layer.lazy !== entry.lazy
+    || normalizeAppearanceItemId(layer.itemId ?? layer.id) !== normalizeAppearanceItemId(entry.itemId)) {
     throw new Error(`角色外观资源校验失败 ${entry.itemId}`);
   }
   catalog.cashLayers ??= {};
@@ -268,6 +275,13 @@ export function composeAppearance(
       return { ...frame, parts: parts.sort((a, b) => b.z - a.z) };
     });
   }
+  // Info-only副武器 has an empty vslot and no body pose; only a real ordinary
+  // weapon may choose the actor's authored stand/walk variant.
+  const ordinaryWeapon = gear.find(layer => layer.part === 'weapon' && layer.cash !== true && layer.vslot);
+  const standAction = ordinaryWeapon?.standAction;
+  const walkAction = ordinaryWeapon?.walkAction;
+  if (standAction && actions[standAction]?.length) actions.stand = actions[standAction];
+  if (walkAction && actions[walkAction]?.length) actions.walk = actions[walkAction];
   actions.climb = actions.ladder;
   actions.dead = actions.stand;
   return actions as unknown as AvatarActionSet;

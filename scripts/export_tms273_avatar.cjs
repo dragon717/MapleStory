@@ -293,7 +293,10 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
     // the old `capBelowBody` spelling; TMS273's zmap names that same Cc depth
     // `capAccessoryBelowBody`. Keep both aliases narrow and source-backed.
     const authoredZName = layerZName(leaf.node, part === 'cape' ? 'cape' : name);
-    const zName = authoredZName === 'capBelowBody' ? 'capAccessoryBelowBody' : authoredZName;
+    // 01412004 retains the legacy below-body weapon spelling; Base/zmap
+    // names the same depth weaponBelowBody in this client.
+    const zName = authoredZName === 'capBelowBody' ? 'capAccessoryBelowBody'
+      : authoredZName === 'weaponBodyBelow' ? 'weaponBelowBody' : authoredZName;
     assert(zmap.has(zName), `273 zmap missing layer ${zName} from ${leaf.source}`);
     result.push({ node: leaf.node, source: leaf.source, frame, part, layerName: name, owner, zName });
   }
@@ -462,7 +465,7 @@ async function actionSet(selected, starter, options = {}) {
   const actions = {};
   const actionSources = {};
   const bodySource = options.sources?.body || BODY;
-  for (const [action, sourceAction] of ACTIONS) {
+  for (const [action, sourceAction] of [...ACTIONS, ...(options.appearanceVariants ? [['stand2', 'stand2'], ['walk2', 'walk2']] : [])]) {
     const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
     const frames = numeric(actionNode);
     const delays = frames.map(frame => Number(value(frame, 'delay', 0)));
