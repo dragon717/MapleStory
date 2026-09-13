@@ -4,6 +4,19 @@ set -u
 
 ROOT="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 cd -- "$ROOT" || exit 1
+
+# 双击打开时把窗口放大到约 120 列（默认 80x24 太挤，字符画与启动状态都放不下）。
+# 仅 Terminal.app 且有终端时执行；被其他环境调用或系统拒绝时静默跳过。
+if [[ "$TERM_PROGRAM" == "Apple_Terminal" && -t 1 ]] && (( $+commands[osascript] )); then
+  osascript >/dev/null 2>&1 <<'OSA' || true
+tell application "Terminal"
+  if (count of windows) > 0 then
+    set bounds of front window to {80, 60, 1220, 800}
+  end if
+end tell
+OSA
+fi
+
 CONTROL_DIR="$ROOT/runtime/3010-control"
 SERVER_PID_FILE="$CONTROL_DIR/server.pid"
 BOT_PID_FILE="$CONTROL_DIR/bot.pid"
@@ -102,7 +115,11 @@ wait_health() {
 release_failure() {
   print -u2 -- "启动失败：$1"
   zsh "$ROOT/关闭3010.command" >/dev/null 2>&1 || true
-  "$NODE_BIN" "$RELEASE_TOOL" rollback --release-id "$RELEASE_ID" >/dev/null 2>&1 || print -u2 -- "旧成功版本恢复失败；请检查 build/.activation.json 后手动 rollback"
+  if (( CURRENT_FRESH )); then
+    print -u2 -- "现行版本未被本次启动改动，无需回滚；请检查 $SERVER_LOG"
+  else
+    "$NODE_BIN" "$RELEASE_TOOL" rollback --release-id "$RELEASE_ID" >/dev/null 2>&1 || print -u2 -- "旧成功版本恢复失败；请检查 build/.activation.json 后手动 rollback"
+  fi
   exit 1
 }
 
@@ -122,7 +139,7 @@ NO_ART=0
 MAP_COUNT="?" SOURCE_REFS="?" CLIENT_MODULES="?"
 ART_PY="$HOME/.workbuddy/binaries/python/envs/default/bin/python"
 [[ -x "$ART_PY" ]] || ART_PY="$(command -v python3 2>/dev/null || true)"
-ART_SRC_NEWEST="$(ls -t "$ROOT/client/public-tms273/assets/tms273/"Map_Obj__Canvas_acc1.img_mapleIsland_maple_0_0-*.png 2>/dev/null | head -n 1 || true)"
+ART_SRC_NEWEST="$(ls -t "$ROOT/scripts/launcher-art/"*.png 2>/dev/null | head -n 1 || true)"
 if [[ -n "$ART_PY" && -n "$ART_SRC_NEWEST" ]] && { [[ ! -f "$ART_ZSH" ]] || [[ "$ART_ZSH" -ot "$ART_SRC_NEWEST" ]] || [[ "$ART_ZSH" -ot "$ART_GENERATOR" ]]; }; then
   "$ART_PY" "$ART_GENERATOR" "$ART_SRC_NEWEST" "$ART_ZSH" >/dev/null 2>&1 || NO_ART=1
 fi
@@ -138,7 +155,7 @@ print_summary() {
   print -- "━━━━━━━━ 3010 启动结果 ━━━━━━━━"
   print -- "① 模块加载：运行时 $MAP_COUNT 图 / $SOURCE_REFS 源引用 · 客户端 $CLIENT_MODULES 模块"
   print -- "② 服务状态：正式服务器 ✓（PID ${SERVER_PID}） · 陪测 bot ${BOT_SUMMARY:-未启动}"
-  print -- "③ 同步打包：✓ 客户端+服务器同批构建（协议 $PROTOCOL_VERSION / $CONTENT_VERSION，releaseId $RELEASE_ID）"
+  print -- "③ 同步打包：$BUILD_SUMMARY（协议 $PROTOCOL_VERSION / $CONTENT_VERSION，releaseId $RELEASE_ID）"
   print -- "数据库与账号未重置；控制文件：$CONTROL_DIR"
 }
 
@@ -152,17 +169,31 @@ CARGO_BIN="$(command -v cargo || true)"
 [[ -x "$CARGO_BIN" ]] || die "找不到 Cargo，无法构建新版服务"
 export CARGO_BIN
 "$NODE_BIN" "$RELEASE_TOOL" recover >/dev/null || die "上次发布恢复失败，未启动新实例"
+# 输入指纹未变化且现行版本即该指纹产物 → 跳过 Cargo/Vite 构建与版本轮替。
+# 此前每次启动都全量重编译服务器并重跑 vite（约 50s+），是启动变慢的根因。
+CURRENT_FRESH=0
+if "$NODE_BIN" "$RELEASE_TOOL" current-fresh >/dev/null 2>&1; then CURRENT_FRESH=1; fi
 # 资源校验与构建并发：校验后台跑、构建前台跑，两者都完成后再报状态
 CHECK_OUT="$CONTROL_DIR/check.out"
 rm -f "$CHECK_OUT" "$CHECK_OUT.rc"
 ( "$NODE_BIN" "$ROOT/scripts/check_tms273_runtime.cjs" "$CONTENT_VERSION" >"$CHECK_OUT" 2>&1; echo $? >| "$CHECK_OUT.rc" ) &
 CHECK_PID=$!
-if ! "$NODE_BIN" "$RELEASE_TOOL" prepare >|"$CONTROL_DIR/prepare.log" 2>&1; then
-  kill "$CHECK_PID" 2>/dev/null
-  tail -n 30 "$CONTROL_DIR/prepare.log" >&2
-  die "候选构建失败，未停止正在运行的服务"
+if (( CURRENT_FRESH )); then
+  CLIENT_MODULES="$("$NODE_BIN" -e 'try{const s=JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(s.clientModules??""))}catch{}' "$ROOT/build/.prepare-stamp.json" 2>/dev/null || true)"
+  RELEASE_ID="$("$NODE_BIN" -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(m.releaseId)' "$ROOT/build/current/metadata.json")" || die "无法读取现行 releaseId，请删除 build/.prepare-stamp.json 后重试"
+  [[ -n "$RELEASE_ID" ]] || die "现行 releaseId 为空，请删除 build/.prepare-stamp.json 后重试"
+  BUILD_SUMMARY="✓ 输入未变化，复用现行版本（跳过 Cargo/Vite 构建）"
+else
+  if ! "$NODE_BIN" "$RELEASE_TOOL" prepare >|"$CONTROL_DIR/prepare.log" 2>&1; then
+    kill "$CHECK_PID" 2>/dev/null
+    tail -n 30 "$CONTROL_DIR/prepare.log" >&2
+    die "候选构建失败，未停止正在运行的服务"
+  fi
+  CLIENT_MODULES="$(grep -oE '[0-9]+ modules transformed' "$CONTROL_DIR/prepare.log" 2>/dev/null | head -n 1 | grep -oE '[0-9]+' || true)"
+  RELEASE_ID="$($NODE_BIN -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(m.releaseId)' "$ROOT/build/tmp/metadata.json")" || die "无法读取候选 releaseId，未停止正在运行的服务"
+  [[ -n "$RELEASE_ID" ]] || die "候选 releaseId 为空，未停止正在运行的服务"
+  BUILD_SUMMARY="✓ 客户端+服务器同批构建"
 fi
-CLIENT_MODULES="$(grep -oE '[0-9]+ modules transformed' "$CONTROL_DIR/prepare.log" 2>/dev/null | head -n 1 | grep -oE '[0-9]+' || true)"
 wait "$CHECK_PID" 2>/dev/null || true
 CHECK_PID=""
 CHECK_RC="$(cat "$CHECK_OUT.rc" 2>/dev/null || print 1)"
@@ -174,13 +205,15 @@ fi
 [[ "$RUNTIME_CHECK" =~ '([0-9]+) maps; ([0-9]+) source references' ]] && MAP_COUNT="$match[1]" && SOURCE_REFS="$match[2]"
 art_wait
 print -- "✔ [1/4] 资源校验：$MAP_COUNT 图 / $SOURCE_REFS 源引用（与构建并发完成）"
-print -- "✔ [2/4] 构建打包：客户端 $CLIENT_MODULES 模块 + 服务器同批构建（日志：$CONTROL_DIR/prepare.log）"
-RELEASE_ID="$($NODE_BIN -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(m.releaseId)' "$ROOT/build/tmp/metadata.json")" || die "无法读取候选 releaseId，未停止正在运行的服务"
-[[ -n "$RELEASE_ID" ]] || die "候选 releaseId 为空，未停止正在运行的服务"
-zsh "$ROOT/关闭3010.command" >/dev/null || die "旧服务未能停止，未启动新实例"
-OCCUPANT="$(listen_pid)"
-[[ -z "$OCCUPANT" ]] || die "127.0.0.1:3010 仍被其他进程占用（PID $OCCUPANT），未切换版本"
-"$NODE_BIN" "$RELEASE_TOOL" activate --release-id "$RELEASE_ID" >/dev/null || die "候选切换失败，旧版本仍保留"
+if (( CURRENT_FRESH )); then
+  print -- "✔ [2/4] 构建打包：$BUILD_SUMMARY"
+else
+  print -- "✔ [2/4] 构建打包：$BUILD_SUMMARY（客户端 $CLIENT_MODULES 模块，日志：$CONTROL_DIR/prepare.log）"
+  zsh "$ROOT/关闭3010.command" >/dev/null || die "旧服务未能停止，未启动新实例"
+  OCCUPANT="$(listen_pid)"
+  [[ -z "$OCCUPANT" ]] || die "127.0.0.1:3010 仍被其他进程占用（PID $OCCUPANT），未切换版本"
+  "$NODE_BIN" "$RELEASE_TOOL" activate --release-id "$RELEASE_ID" >/dev/null || die "候选切换失败，旧版本仍保留"
+fi
 
 SERVER_PID="$(read_pid_file "$SERVER_PID_FILE")"
 if ! is_server_pid "$SERVER_PID"; then
@@ -205,7 +238,9 @@ if ! is_server_pid "$SERVER_PID"; then
   print -r -- "$SERVER_PID" >| "$SERVER_PID_FILE"
 fi
 wait_health || release_failure "3010 health 未就绪；日志：$SERVER_LOG"
-"$NODE_BIN" "$RELEASE_TOOL" commit --release-id "$RELEASE_ID" >/dev/null || die "health 已通过但旧版本清理未完成；服务保持当前版本，请稍后执行 commit"
+if (( ! CURRENT_FRESH )); then
+  "$NODE_BIN" "$RELEASE_TOOL" commit --release-id "$RELEASE_ID" >/dev/null || die "health 已通过但旧版本清理未完成；服务保持当前版本，请稍后执行 commit"
+fi
 print -- "✔ [3/4] 正式服务器：已运行（PID $SERVER_PID，端口 3010）"
 
 if [[ ! -f "$BOT_CREDENTIALS" ]]; then

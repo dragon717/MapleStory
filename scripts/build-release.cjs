@@ -601,8 +601,9 @@ function validateCurrent(root) {
 
 function usage() {
   return [
-    '用法：node scripts/build-release.cjs <recover|prepare|validate|activate|commit|rollback> [--root 目录] [--release-id ID]',
+    '用法：node scripts/build-release.cjs <recover|prepare|validate|current-fresh|activate|commit|rollback> [--root 目录] [--release-id ID]',
     'prepare 运行 Cargo/Vite 并生成 build/tmp 候选；activate 切换三件制品；commit/rollback 完成健康检查后的结果。',
+    'current-fresh 判定输入指纹未变化且现行版本即该指纹产物（启动脚本据此跳过构建与轮替）。',
   ].join('\n');
 }
 
@@ -617,6 +618,25 @@ function options(argv) {
   return result;
 }
 
+// True when no rebuild is needed: every build input matches the last prepare
+// fingerprint and build/current is exactly the release that fingerprint
+// produced. The launcher uses this to skip Cargo/Vite and the whole rotation
+// on unchanged restarts. Any doubt (missing stamp, pending transaction,
+// invalid current) returns false and the caller falls back to a full build.
+function currentFresh(root) {
+  const paths = rootPaths(root);
+  if (transactionFor(paths)) return false;
+  const fingerprint = computeFingerprint(root);
+  if (!fingerprint) return false;
+  const stamp = loadStamp(paths);
+  if (!stamp || stamp.fingerprint !== fingerprint) return false;
+  const active = validateCurrent(root);
+  if (!active || active.releaseId !== stamp.releaseId) return false;
+  if (!exists(path.join(paths.current, 'client', 'index.html'))) return false;
+  if (!exists(path.join(paths.current, 'server', expectedServerName()))) return false;
+  return true;
+}
+
 function main(argv = process.argv) {
   const command = argv[2];
   if (!command) throw new Error(usage());
@@ -625,6 +645,7 @@ function main(argv = process.argv) {
   if (command === 'recover') result = withLock(opts.root, paths => { recoverInterrupted(paths); return null; });
   else if (command === 'prepare') result = prepare(opts.root);
   else if (command === 'validate') result = validateCandidate(opts.root);
+  else if (command === 'current-fresh') result = currentFresh(opts.root);
   else if (command === 'activate') result = activate(opts.root, opts.releaseId);
   else if (command === 'commit') result = finish(opts.root, opts.releaseId, false);
   else if (command === 'rollback') result = finish(opts.root, opts.releaseId, true);
@@ -645,6 +666,8 @@ module.exports = {
   SCHEMA_VERSION,
   activate,
   assertNoRunningReferences,
+  computeFingerprint,
+  currentFresh,
   finish,
   main,
   prepare,

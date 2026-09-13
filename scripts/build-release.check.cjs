@@ -13,6 +13,8 @@ const {
   finish,
   rootPaths,
   validateCandidate,
+  computeFingerprint,
+  currentFresh,
 } = require('./build-release.cjs');
 
 function write(file, value) {
@@ -155,6 +157,48 @@ function main() {
     fs.mkdirSync(paths.lock, { recursive: true });
     assert.throws(() => activate(root, 'r6'), /已有构建\/轮替正在进行/);
     fs.rmSync(paths.lock, { recursive: true, force: true });
+
+    // current-fresh: true only when the fingerprint of the SOURCE tree
+    // (repo root, like the real checkout) matches the stamp and build/current
+    // is exactly the release that fingerprint produced.
+    write(path.join(root, 'client', 'src', 'main.ts'), 'export {};\n');
+    write(path.join(root, 'client', 'scripts', 'keep.txt'), '');
+    write(path.join(root, 'client', 'index.html'), '<html>src</html>\n');
+    write(path.join(root, 'client', 'vite.config.ts'), 'export default {};\n');
+    write(path.join(root, 'client', 'tsconfig.json'), '{}\n');
+    write(path.join(root, 'client', 'package.json'), '{"name":"check"}\n');
+    write(path.join(root, 'client', 'package-lock.json'), '{}\n');
+    write(path.join(root, 'server', 'Cargo.toml'), '[package]\n');
+    write(path.join(root, 'server', 'Cargo.lock'), 'version = 3\n');
+    write(path.join(root, 'server', 'src', 'main.rs'), 'fn main() {}\n');
+    write(path.join(root, 'shared', 'protocol.ts'), 'export const PROTOCOL_VERSION = 1;\n');
+    write(path.join(root, 'client', 'public-tms273', 'assets', 'manifest.json'), '{}\n');
+    const fingerprint = computeFingerprint(root);
+    assert.ok(fingerprint, 'fingerprint computable for check tree');
+    assert(!currentFresh(root), 'no stamp yet must not count as fresh');
+    write(path.join(paths.build, '.prepare-stamp.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      fingerprint: 'not-the-fingerprint',
+      clientModules: 84,
+      releaseId: 'r4',
+    }, null, 2)}\n`);
+    assert(!currentFresh(root), 'mismatched stamp fingerprint must not count as fresh');
+    write(path.join(paths.build, '.prepare-stamp.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      fingerprint,
+      clientModules: 84,
+      releaseId: 'r3',
+    }, null, 2)}\n`);
+    assert(!currentFresh(root), 'stamp from another release must not count as fresh');
+    write(path.join(paths.build, '.prepare-stamp.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      fingerprint,
+      clientModules: 84,
+      releaseId: 'r4',
+    }, null, 2)}\n`);
+    assert(currentFresh(root), 'matching stamp over current release must be fresh');
+    write(path.join(root, 'client', 'src', 'main.ts'), 'export const changed = 1;\n');
+    assert(!currentFresh(root), 'source edit must invalidate freshness');
 
     console.log(`PASS: offline release rotation checks (${root})`);
   } finally {
