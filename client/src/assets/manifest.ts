@@ -577,6 +577,16 @@ export interface Manifest {
   pets?: Record<string, PetAsset>;
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
   shopUi?: Record<string, AssetFrame>;
+  /** Source-backed UI/CashShop.img window art used by the 現金商店 window:
+   *  the 1024x768 shell (`backgrnd`/`backgrnd2`/`noItem`), one sidebar sprite
+   *  per category (`tab:<id>` — each bakes the whole sidebar with a different
+   *  row highlighted), `BtExit`/`BtBuy`/`Bt_magnifier` button states and the
+   *  `effect:<label>` overlays.  Exported by export_tms273_cashshop.cjs. */
+  cashshopUi?: Record<string, AssetFrame>;
+  /** Source-backed per-item info/icon frames for every shippable cash-shop
+   *  commodity, keyed by the 8-digit item id.  Kept apart from the gameplay
+   *  `items` tree so the two catalogs never fight over one id space. */
+  cashItems?: Record<string, AssetFrame>;
   /** Source-backed UIWindow.img/Trunk entries used by the account-warehouse
    *  window.  Flat keys (`backgrnd`, `select`, `BtGet/normal`,
    *  `Tab/enabled/0`) mirror the shop convention. */

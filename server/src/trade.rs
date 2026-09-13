@@ -125,7 +125,7 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let kind = inventory::inventory_type(&item_id).unwrap_or(4);
         let slot_limit = player
-            .inventory_slots
+            .state.inventory_slots
             .get(&kind)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
@@ -560,7 +560,7 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let kind = inventory::inventory_type(&item_id).unwrap_or(4);
         let slot_limit = player
-            .inventory_slots
+            .state.inventory_slots
             .get(&kind)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);

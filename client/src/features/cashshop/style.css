@@ -1,0 +1,498 @@
+/* 現金商店 window.  The source art is a fixed 1024x768 shell
+   (UI/CashShop.img/Base/backgrnd); the interactive layers (sidebar, item
+   grid, cart panel) are positioned over it and reflow on narrow screens
+   instead of clipping, per the project's responsive-UI rule. */
+
+.cash-shop {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(1024px, calc(100vw - 8px));
+  height: min(768px, calc(100vh - 8px));
+  color: #3a2c1c;
+  font-family: inherit;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.cash-shop-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.cash-img {
+  image-rendering: pixelated;
+}
+
+.cash-shop-title {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #4a3418;
+  pointer-events: none;
+}
+
+/* BalanceBadge ---------------------------------------------------------- */
+
+.cash-shop-balance {
+  position: absolute;
+  top: 12px;
+  right: 132px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 252, 244, 0.92);
+  border: 1px solid #d8b98a;
+  font-size: 13px;
+  color: #6b4a1c;
+}
+
+.cash-shop-balance b {
+  font-size: 14px;
+  color: #b3541e;
+}
+
+/* CategorySidebar -------------------------------------------------------- */
+
+.cash-shop-sidebar {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 126px;
+  display: flex;
+  flex-direction: column;
+  z-index: 3;
+}
+
+.cash-shop-sidebar-sprite {
+  position: absolute;
+  top: 150px;
+  left: 96px;
+  width: 126px;
+  height: auto;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* The sprite carries the labels; the buttons are the invisible hit rows on
+   top of it (10 rows of 37px each). */
+.cash-shop-cat {
+  height: 37px;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  text-indent: -9999px;
+}
+
+.cash-shop-cat:focus-visible {
+  outline: 2px solid #2ea7c8;
+  outline-offset: -2px;
+}
+
+/* ItemGrid ---------------------------------------------------------------- */
+
+.cash-shop-grid {
+  position: absolute;
+  top: 60px;
+  left: 250px;
+  right: 350px;
+  bottom: 30px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding: 12px 10px;
+  z-index: 3;
+}
+
+.cash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid #e3cfa8;
+  border-radius: 8px;
+  background: rgba(255, 253, 246, 0.94);
+  cursor: pointer;
+  text-align: center;
+}
+
+.cash-card:hover {
+  border-color: #2ea7c8;
+  box-shadow: 0 0 0 1px #2ea7c8;
+}
+
+.cash-card:focus-visible {
+  outline: 2px solid #2ea7c8;
+  outline-offset: 1px;
+}
+
+.cash-card-icon {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+}
+
+.cash-card-icon img {
+  image-rendering: pixelated;
+}
+
+.cash-card-count {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #2ea7c8;
+  color: #fff;
+  font-size: 11px;
+}
+
+.cash-card-name {
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cash-card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 14px;
+}
+
+.cash-card-tag {
+  padding: 0 4px;
+  border-radius: 5px;
+  background: #f3e2c2;
+  color: #8a6a2c;
+  font-size: 10px;
+}
+
+.cash-card-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b3541e;
+}
+
+.cash-grid-empty {
+  display: block;
+  margin: 60px auto 0;
+  image-rendering: pixelated;
+}
+
+.cash-grid-note {
+  text-align: center;
+  font-size: 13px;
+  color: #8a7a5c;
+}
+
+/* ItemDetail -------------------------------------------------------------- */
+
+.cash-detail {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #fffdf6;
+  border: 2px solid #d8b98a;
+  box-shadow: 0 10px 32px rgba(60, 40, 10, 0.35);
+  z-index: 8;
+}
+
+.cash-detail-name {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cash-detail-icon {
+  display: grid;
+  place-items: center;
+  min-height: 68px;
+}
+
+.cash-detail-icon img {
+  image-rendering: pixelated;
+}
+
+.cash-detail-facts {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6b5a3c;
+}
+
+.cash-detail-qty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.cash-detail-input,
+.cash-cart-qty {
+  width: 64px;
+  padding: 3px 6px;
+  border: 1px solid #d8b98a;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.cash-detail-total {
+  color: #b3541e;
+  font-weight: 700;
+}
+
+.cash-detail-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.cash-shop-tab-btn {
+  padding: 6px 14px;
+  border: 1px solid #d8b98a;
+  border-radius: 6px;
+  background: #f7efdd;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Cart --------------------------------------------------------------------- */
+
+.cash-shop-cart-panel {
+  position: absolute;
+  top: 60px;
+  right: 110px;
+  bottom: 30px;
+  width: 226px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e3cfa8;
+  border-radius: 10px;
+  background: rgba(255, 253, 246, 0.95);
+  overflow: hidden;
+  z-index: 3;
+}
+
+.cash-shop-cart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #f3e2c2;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b4a1c;
+}
+
+.cash-shop-cart-clear {
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  color: #8a6a2c;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.cash-shop-cart {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cash-cart-empty {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: #a29070;
+}
+
+.cash-cart-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #efe2c6;
+}
+
+.cash-cart-icon img {
+  image-rendering: pixelated;
+}
+
+.cash-cart-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cash-cart-name {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cash-cart-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b3541e;
+}
+
+.cash-cart-remove {
+  border: 0;
+  background: transparent;
+  color: #b3541e;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.cash-shop-cart-foot {
+  padding: 8px 10px;
+  border-top: 1px solid #efe2c6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cash-shop-status {
+  min-height: 15px;
+  font-size: 11px;
+  color: #2e7d43;
+}
+
+.cash-shop-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b4a1c;
+}
+
+.cash-shop-total b {
+  color: #b3541e;
+}
+
+.cash-shop-checkout {
+  align-self: flex-end;
+}
+
+/* Sprite buttons: three stacked state images, the topmost visible. */
+
+.cash-sprite-btn {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cash-sprite-btn .cash-sprite-img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  image-rendering: pixelated;
+}
+
+.cash-sprite-btn .is-over,
+.cash-sprite-btn .is-pressed {
+  opacity: 0;
+}
+
+.cash-sprite-btn:hover .is-over {
+  opacity: 1;
+}
+
+.cash-sprite-btn:active .is-pressed {
+  opacity: 1;
+}
+
+.cash-sprite-btn .cash-detail-cart-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: #4a3418;
+  pointer-events: none;
+}
+
+/* Exit button placement (source anchors it at the top-right of the shell). */
+
+.cash-shop-exit {
+  position: absolute !important;
+  top: 12px;
+  right: 48px;
+  z-index: 4;
+}
+
+/* Responsive: narrow portrait screens stack the three columns vertically so
+   nothing clips; the grid and cart keep full width. */
+
+@media (max-width: 1000px), (max-height: 640px) {
+  .cash-shop-sidebar,
+  .cash-shop-sidebar-sprite {
+    top: 60px;
+    left: 8px;
+  }
+
+  .cash-shop-sidebar {
+    max-height: calc(100% - 80px);
+    overflow-y: auto;
+  }
+
+  .cash-shop-grid {
+    left: 150px;
+    right: 8px;
+    bottom: 220px;
+  }
+
+  .cash-shop-cart-panel {
+    top: auto;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    height: 210px;
+    bottom: 8px;
+  }
+
+  .cash-shop-balance {
+    right: 96px;
+  }
+}

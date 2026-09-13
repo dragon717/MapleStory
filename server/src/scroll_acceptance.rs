@@ -591,6 +591,7 @@ fn scroll_store_profile(map_id: &str) -> Profile {
         exp: 0,
         exp_to_next: 15,
         mesos: 0,
+        cash: 0,
         death_id: String::new(),
         map_id: map_id.to_owned(),
         x: 0.0,

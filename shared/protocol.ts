@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 17;
-export const CONTENT_VERSION = 'tms273-15';
+export const PROTOCOL_VERSION = 18;
+export const CONTENT_VERSION = 'tms273-16';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -41,6 +41,9 @@ export interface PlayerState {
   abilityStats?: AbilityStats;
   derivedStats?: { hyperBarrierActive?: boolean; hyperTeleportEnabled?: boolean; damageReductionPercent?: number; regenerationPassives?: RegenerationPassive[]; infinityEnhanced?: boolean; skillCooldowns?: Record<string, number>; skillBuffs?: Record<string, number>; meditationRemainingMs?: number; iceTeleport?: boolean; teleportMastery?: boolean; teleportBoost?: boolean; adaptationCharges?: number; adaptationCooldownMs?: number; statusResistance?: number; elementResistance?: number; magicAttack: number; defense: number; moveSpeed: number; magicGuard: boolean; strength?: number; dexterity?: number; intelligence?: number; luck?: number };
   level: number; exp: number; expToNext: number; mesos: number;
+  /** Server-owned 現金商店 balance (P: topped up only by the GM /cash command;
+   *  no real charging exists).  Clients render it and never submit it. */
+  cash?: number;
   inventory: InventoryItem[];
   equipped?: InventoryItem[];
   monsterBook?: Record<string, number>;
@@ -213,6 +216,13 @@ export type ClientMessage =
    *  character's persisted list, so a forged request can neither invent an item
    *  nor claim a price. */
   | { type: 'shopRebuy'; requestId: string; shopId: string; itemId: string; unitPrice: number }
+  /** Open (or refresh) the 現金商店 window. The client names nothing that
+   *  matters: the balance is an account fact the server re-reads. */
+  | { type: 'cashOpen'; requestId: string }
+  /** Buy one commodity row `quantity` deals. The client may only name the SN
+   *  it accepts; the item, its price, stack count and every sale condition
+   *  (on-sale flag, level, popularity, gender) are resolved server-side. */
+  | { type: 'cashBuy'; requestId: string; sn: string; quantity: number }
   /** Open the account warehouse at a placed storage keeper. The server decides
    *  whether that npc is a keeper and whether the player is close enough. */
   | { type: 'storageOpen'; requestId: string; npcId: string }
@@ -367,7 +377,13 @@ export type ServerMessage =
   | { type: 'friendState'; friends: FriendEntry[]; blocked: FriendEntry[] }
   /** Result of one friend / blacklist intent. A replayed `requestId` replays
    *  this same outcome instead of writing a second time. */
-  | { type: 'friendResult'; requestId: string; success: boolean; code: string };
+  | { type: 'friendResult'; requestId: string; success: boolean; code: string }
+  /** Authoritative 現金商店 balance for the window opener. */
+  | { type: 'cashState'; requestId: string; cash: number }
+  /** Authoritative result of one cash purchase. `cashSpent` is 0 for every
+   *  refusal; `cash` is the fresh balance after the exchange. A replayed
+   *  `requestId` replays this same outcome instead of charging again. */
+  | { type: 'cashBuyResult'; requestId: string; success: boolean; code: string; sn: string; itemId: string; quantity: number; cashSpent: number; cash: number };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

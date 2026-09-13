@@ -60,11 +60,14 @@ fn use_coupon(world: &mut World, item_id: &str, request: &str) {
     });
 }
 
+/// Slot capacity is a single source of truth (`PlayerState.inventory_slots`,
+/// the wire copy every snapshot serializes), so reading it here is reading
+/// exactly what the client will be told.
 fn tab_capacity(world: &World, tab: u8) -> u16 {
     world
         .players
         .get("expander")
-        .and_then(|player| player.inventory_slots.get(&tab).copied())
+        .and_then(|player| player.state.inventory_slots.get(&tab).copied())
         .unwrap_or(inventory::SLOT_LIMIT)
 }
 
@@ -122,6 +125,7 @@ fn coupon_use_refuses_at_the_source_ceiling_without_spending() {
         .players
         .get_mut("expander")
         .unwrap()
+        .state
         .inventory_slots
         .insert(1, inventory::MAX_SLOT_LIMIT - inventory::SLOT_EXPAND_STEP + 1);
 

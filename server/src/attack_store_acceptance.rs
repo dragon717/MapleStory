@@ -2,6 +2,7 @@ fn attack_store_profile() -> Profile {
     Profile {
         hp: 50, max_hp: 50, mp: 5, max_mp: 5, level: 1, job: 0,
         exp: 0, exp_to_next: 1_000, mesos: 0, death_id: String::new(),
+        cash: 0,
         map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
         skills: BTreeMap::new(), skill_points: BTreeMap::new(),
         ability_stats: AbilityStats::default(),

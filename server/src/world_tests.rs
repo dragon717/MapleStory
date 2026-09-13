@@ -990,6 +990,7 @@ include!("windbell_acceptance.rs");
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -1102,6 +1103,7 @@ include!("windbell_acceptance.rs");
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -1248,6 +1250,7 @@ include!("windbell_acceptance.rs");
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2922,6 +2925,7 @@ include!("windbell_acceptance.rs");
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3769,6 +3773,7 @@ include!("windbell_acceptance.rs");
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3883,6 +3888,7 @@ include!("windbell_acceptance.rs");
     include!("mob_move_acceptance.rs");
     include!("gm_acceptance.rs");
     include!("pet_acceptance.rs");
+    include!("cashshop_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {
@@ -4718,9 +4724,9 @@ include!("windbell_acceptance.rs");
                 .skill_cooldowns
                 .get(&SKILL_TELEPORT)
                 .copied(),
-            Some(1_200)
+            Some(800)
         );
-        // 等级越高冷却越短：5 级为 600ms（P 值，见覆盖表）。
+        // 等级越高冷却越短：5 级为 50ms（P 值，见覆盖表）。
         {
             let player = world.players.get_mut("mage-runtime").unwrap();
             player.skill_cooldowns.remove(&SKILL_TELEPORT);
@@ -4748,7 +4754,7 @@ include!("windbell_acceptance.rs");
                 .skill_cooldowns
                 .get(&SKILL_TELEPORT)
                 .copied(),
-            Some(600)
+            Some(50)
         );
         {
             let player = world.players.get_mut("mage-runtime").unwrap();

@@ -8,13 +8,13 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 101,
-  "edge_count": 206,
+  "node_count": 103,
+  "edge_count": 218,
   "edge_kind_counts": {
-    "value": 120,
+    "value": 126,
     "dynamic": 1,
-    "type": 71,
-    "side-effect": 14
+    "type": 75,
+    "side-effect": 16
   },
   "external_specifiers": [
     "esbuild",
@@ -110,6 +110,16 @@
     },
     {
       "from": "client/src/app/main.ts",
+      "to": "client/src/features/cashshop/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/cashshop/style.css",
+      "kind": "side-effect"
+    },
+    {
+      "from": "client/src/app/main.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "value"
     },
@@ -176,6 +186,11 @@
     {
       "from": "client/src/app/main.ts",
       "to": "client/src/features/character/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/pet/panel.ts",
       "kind": "value"
     },
     {
@@ -262,6 +277,26 @@
       "from": "client/src/assets/preload-plan.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/character/view.ts",
@@ -709,6 +744,31 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "client/src/features/pet/style.css",
+      "kind": "side-effect"
+    },
+    {
       "from": "client/src/features/pet/view.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
@@ -1074,8 +1134,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "02aa08177ae3bb75a5560fa780c7d6c117c6a661",
+  "source_commit": "5992f6149a6a2361619a40ce16601be3e18ada2e",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-13T07:16:15.349Z"
+  "generated_at": "2026-09-13T11:27:03.333Z"
 }

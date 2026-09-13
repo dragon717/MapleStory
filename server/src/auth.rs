@@ -132,6 +132,9 @@ pub struct Profile {
     pub exp: u64,
     pub exp_to_next: u64,
     pub mesos: u64,
+    /// Character-owned 現金商店 balance.  Persisted like mesos; the only
+    /// local grant path is the GM `/cash` command (P: no real charging).
+    pub cash: u64,
     pub death_id: String,
     /// Authoritative world position the player reconnects at; restored from
     /// SQLite on login so that map switches and overworld exploration persist
@@ -531,8 +534,8 @@ impl Store {
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
         tx.execute(
-            "INSERT OR IGNORE INTO player_stats(account_id,hp,max_hp,mp,max_mp,level,job,exp,exp_to_next,mesos,death_id,map_id,x,y,skills_json,skill_points_json,ability_stats_json)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,'',?11,?12,?13,'{}','{}',?14)",
+            "INSERT OR IGNORE INTO player_stats(account_id,hp,max_hp,mp,max_mp,level,job,exp,exp_to_next,mesos,cash,death_id,map_id,x,y,skills_json,skill_points_json,ability_stats_json)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'',?12,?13,?14,'{}','{}',?15)",
             params![
                 account_id,
                 defaults.hp,
@@ -544,6 +547,7 @@ impl Store {
                 defaults.exp,
                 defaults.exp_to_next,
                 i64::try_from(defaults.mesos).map_err(|_| "account persistence failed")?,
+                i64::try_from(defaults.cash).map_err(|_| "account persistence failed")?,
                 defaults.map_id,
                 defaults.x,
                 defaults.y,
@@ -710,7 +714,7 @@ impl Store {
         let skill_points_json = serialize_skill_map(&profile.skill_points)?;
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.execute(
-            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,death_id=?11,map_id=?12,x=?13,y=?14,skills_json=?15,skill_points_json=?16,ability_stats_json=?17
+            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,cash=?11,death_id=?12,map_id=?13,x=?14,y=?15,skills_json=?16,skill_points_json=?17,ability_stats_json=?18
              WHERE account_id=?1",
             params![
                 account_id,
@@ -723,6 +727,7 @@ impl Store {
                 profile.exp,
                 profile.exp_to_next,
                 i64::try_from(profile.mesos).map_err(|_| "account persistence failed")?,
+                i64::try_from(profile.cash).map_err(|_| "account persistence failed")?,
                 profile.death_id,
                 profile.map_id,
                 profile.x,
@@ -1699,6 +1704,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -1907,6 +1913,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2049,6 +2056,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2192,6 +2200,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2337,6 +2346,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2422,6 +2432,7 @@ mod tests {
             exp: 0,
             exp_to_next: 10,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2542,6 +2553,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2703,6 +2715,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2745,6 +2758,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2852,6 +2866,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -2970,6 +2985,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3024,6 +3040,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3108,6 +3125,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3192,6 +3210,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3365,6 +3384,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3437,6 +3457,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3562,6 +3583,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3691,6 +3713,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3740,6 +3763,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3791,6 +3815,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,
@@ -3842,6 +3867,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,

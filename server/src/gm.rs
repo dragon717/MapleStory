@@ -48,6 +48,7 @@ impl World {
         let args: Vec<&str> = parts.collect();
         match command.as_str() {
             "/add" => self.gm_add(&id, &request_id, &args),
+            "/cash" => self.gm_cash(&id, &request_id, &args),
             _ => {
                 gm_result(
                     self,
@@ -55,10 +56,53 @@ impl World {
                     &request_id,
                     false,
                     "gm_unknown_command",
-                    "未知的 GM 命令。可用：/add <道具id> <数量>",
+                    "未知的 GM 命令。可用：/add <道具id> <数量>；/cash <楓點数>",
                 );
             }
         }
+    }
+
+    /// `/cash <amount>` — grant 現金商店 balance to the sender.
+    ///
+    /// P: the local wallet has no real charging path, so this command is the
+    /// only grant; it exists so the purchase flow is actually usable.  The
+    /// amount clamps to a sane 1..=1_000_000_000 window and persists through
+    /// the same save_profile path a purchase uses.
+    fn gm_cash(&mut self, id: &str, request_id: &str, args: &[&str]) {
+        let parsed = args
+            .first()
+            .and_then(|raw| raw.parse::<i64>().ok())
+            .unwrap_or(0);
+        if args.len() != 1 || parsed <= 0 || parsed > 1_000_000_000 {
+            gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "gm_usage",
+                "用法：/cash <楓點数>（1..=1000000000）",
+            );
+            return;
+        }
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        player.state.cash = player.state.cash.saturating_add(parsed as u64);
+        let balance = player.state.cash;
+        if let (Some(store), Some(player)) = (self.store.as_ref(), self.players.get(id)) {
+            let _ = store.save_profile(
+                id,
+                &profile_from_state(&player.state, &player.map_id, &player.death_id, player.base_max_mp),
+            );
+        }
+        gm_result(
+            self,
+            id,
+            request_id,
+            true,
+            "",
+            &format!("已发放 {parsed} 楓點，当前余额 {balance}。"),
+        );
     }
 
     /// `/add <itemId> <count>` — grant items to the sender's inventory.
@@ -181,7 +225,7 @@ impl World {
                 return;
             };
             player
-                .inventory_slots
+                .state.inventory_slots
                 .get(&kind)
                 .copied()
                 .unwrap_or(crate::inventory::SLOT_LIMIT)

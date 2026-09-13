@@ -123,7 +123,7 @@ impl World {
                     Some(pickup_rules::CapacityProbe {
                         inventory: &player.state.inventory,
                         slot_limit: player
-                            .inventory_slots
+                            .state.inventory_slots
                             .get(&kind)
                             .copied()
                             .unwrap_or(inventory::SLOT_LIMIT),
@@ -215,7 +215,7 @@ impl World {
                     } else {
                         let kind = inventory::inventory_type(&outcome.item_id).unwrap_or(4);
                         let slot_limit = player
-                            .inventory_slots
+                            .state.inventory_slots
                             .get(&kind)
                             .copied()
                             .unwrap_or(inventory::SLOT_LIMIT);
@@ -311,7 +311,7 @@ impl World {
                             .get_mut(&id)
                             .map(|player| {
                                 let slot_limit = player
-                                    .inventory_slots
+                                    .state.inventory_slots
                                     .get(&kind)
                                     .copied()
                                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -409,7 +409,7 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let mut next_equipped = player.state.equipped.clone();
         let slot_limit = player
-            .inventory_slots
+            .state.inventory_slots
             .get(&inventory_type)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
@@ -1050,15 +1050,17 @@ impl World {
                                 if let Ok(monster_book) = store.load_monster_book(&id) {
                                     player.state.monster_book = monster_book;
                                 }
-                                // Per-tab capacity lives outside Profile (a
-                                // separate column), so a successful use must
-                                // reload it explicitly; a slot-expand coupon
-                                // grows the tab in the same transaction that
-                                // spent it, and the in-memory capacity has to
-                                // match or the next snapshot still advertises
-                                // the old size (mirrors the non-store branch).
+                                // Slot capacity is a single source of truth
+                                // (`PlayerState.inventory_slots`, the wire
+                                // copy every snapshot serializes).  Per-tab
+                                // capacity lives outside Profile (a separate
+                                // column), so a successful use must reload it
+                                // explicitly: a slot-expand coupon grows the
+                                // tab in the same transaction that spent it,
+                                // and the resident character never rebuilds
+                                // its state until the process restarts.
                                 if let Ok(slots) = store.load_inventory_slots(&id) {
-                                    player.inventory_slots = slots;
+                                    player.state.inventory_slots = slots;
                                 }
                             }
                         }
@@ -1125,7 +1127,7 @@ impl World {
         let mut inventory_items = player.state.inventory.clone();
         let mut equipped_items = player.state.equipped.clone();
         let slot_limit = player
-            .inventory_slots
+            .state.inventory_slots
             .get(&inventory_type)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
@@ -1186,7 +1188,7 @@ impl World {
                 // In-memory slot expansion mirrors the store branch: grow the
                 // tab by one step and consume the coupon, atomically.
                 let capacity = player
-                    .inventory_slots
+                    .state.inventory_slots
                     .get(&target_tab)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -1194,12 +1196,14 @@ impl World {
                 if grown > inventory::MAX_SLOT_LIMIT {
                     Err(inventory::InventoryError::SlotExpandMax)
                 } else {
-                    let mut slots = player.inventory_slots.clone();
+                    let mut slots = player.state.inventory_slots.clone();
                     slots.insert(target_tab, grown);
                     inventory::remove_items(&mut inventory_items, 2, source_slot, 1)
                         .map(|_| {
                             if let Some(player) = self.players.get_mut(&id) {
-                                player.inventory_slots = slots;
+                                // Single wire copy: the snapshot picks the new
+                                // capacity up without any extra syncing.
+                                player.state.inventory_slots = slots;
                             }
                             result_code = "slot_expand".to_owned();
                         })

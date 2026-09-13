@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-15';
+const version = 'tms273-16';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 require('./tms273_creation_catalog.cjs')(
@@ -135,6 +135,16 @@ const manifest = {
   // alongside the other UI art.
   worldMap: read('worldmap'),
   petUi: read('pet-ui'),
+  // Source-backed UI/CashShop.img window art (shell, the 11 sidebar tab
+  // sprites whose highlight row encodes the active category, exit / buy /
+  // magnifier buttons and the effect labels) used by the cash-shop window.
+  // PNGs are exported by export_tms273_cashshop.cjs and copied into
+  // client/public-tms273/assets alongside the other UI art.
+  cashshopUi: read('cashshop').ui,
+  // Source-backed per-item info/icon frames for every shippable cash-shop
+  // commodity (a separate tree from the gameplay `items` icons so the two
+  // catalogs never fight over one id space).
+  cashItems: read('cashshop').itemIcons,
   // Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue (desc, 32x32
   // icon and the head animation frames) plus the 表情 window shell used by the
   // emoticon window.  PNGs are exported by export_tms273_emoticon.cjs and
@@ -234,6 +244,30 @@ gameplay.compatibility.minimapUi = 'T: the corner badge, the npcList panel/rows 
   };
   gameplay.compatibility.chatEmoticon = `T: sendable sticker ids, per-sticker animation frames, the send budget (${emoticonExport.limit.count} per ${emoticonExport.limit.timeMs}ms) and every window coordinate come from UI/ChatEmoticon.img. P: the window is scoped to the selected group (${emoticonExport.groups.length} groups over ${emoticonExport.pageCount} strip pages of ${emoticonExport.layout.groupCount} chips, ${emoticonExport.sheetCount} sticker sheets), the authored pageUp/pageDown buttons and the pageIcon dots drive the group strip because that is the row they are drawn on, the ${emoticonExport.layout.slotCount}-cell grid shows one group at a time, the second sheet of a group wider than that grid is reached with the up/down keys, and selecting a sticker sends it and leaves the window open. Bookmark tabs, the key-setting window, the save/edit mode and limited-time stickers are not implemented.`;
 }
+// 現金商店 (TMS273 Commodity.img)。  服务器只需要能**拥有购买**的最小事实：
+// 分类、在售商品（SN 为购买键）与金额字段；美术与名称只属于客户端。
+// 页签归属是 P 级推断（WZ 无逐商品页签字段，按 SN 组 + 物品家族映射），
+// 排除的无美术在售条目数与原因记录在 excluded。
+{
+  const cashshop = read('cashshop');
+  assert(cashshop.commodities.length > 500, 'Cash-shop export is stale');
+  assert(cashshop.categories.length === 8, 'Cash-shop category table drifted');
+  const sns = new Set(cashshop.commodities.map(entry => entry.sn));
+  assert.equal(sns.size, cashshop.commodities.length, 'Cash-shop export has duplicate SNs');
+  for (const entry of cashshop.commodities) {
+    assert(entry.count >= 1 && entry.price >= 0, `Cash-shop row is malformed: ${entry.sn}`);
+    // SN is an opaque purchase key; the source mixes 8- and 9-digit forms
+    // (92000000 vs 92001703), so only "all digits" is a contract.
+    assert(/^\d{8,9}$/.test(entry.sn), `Cash-shop SN must be numeric: ${entry.sn}`);
+    assert(/^\d{8}$/.test(entry.itemId), `Cash-shop itemId must be 8 digits: ${entry.sn}`);
+  }
+  gameplay.compatibility.cashShop = `T: commodities come from Etc/Commodity.img with OnSale=1 only (${cashshop.commodities.length} of 12617 rows; SN 900 楓點充值 / SN 910 楓幣兌換 / SN 800 兌換券 carry no local purchase path and are skipped; ${cashshop.excluded.length} on-sale rows reference items whose art left the client pack and are excluded, see cashshop.json excluded). Window art, sidebar tab sprites and per-item icons are TMS273.7. P: the WZ has no per-commodity tab field — the main tab is derived from the SN group plus an item-family fallback, so tab placement is an inference, not a source fact; 時裝 sub-tabs reuse the equip family table; no gift, wishlist, mileage, coupon, avatar-preview or locker feature exists; the balance is a local P field (no real charging), topped up only through the GM /cash command.`;
+  gameplay.cashShop = {
+    contentVersion: cashshop.contentVersion,
+    categories: cashshop.categories,
+    commodities: cashshop.commodities,
+  };
+}
 const questText = read('quest-text'), npcNames = read('npc-names');
 require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('chapter'), questText, npcNames);
 // 36314 之后的后续章节：按 TMS273.7 Quest.wz 源补齐运行时规格，并逐条登记
@@ -293,6 +327,17 @@ for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'
   const serverData=name==='map'?(({layers,...map})=>map)(data):name==='maps'?{...data,maps:data.maps.map(({layers,...map})=>map)}:data;
   write(path.join(root,'shared',name+'.json'),serverData);
   if(name==='gameplay'||name==='items')write(path.join(publicRoot,'assets',name+'.json'),data);
+}
+// Client cash-shop catalog: same commodities as gameplay.cashShop plus the zh
+// display names (the server has no use for them, so they stay client-side).
+{
+  const cashshop = read('cashshop');
+  write(path.join(publicRoot,'assets/cashshop.json'), {
+    contentVersion: cashshop.contentVersion,
+    categories: cashshop.categories,
+    commodities: cashshop.commodities,
+    itemNames: cashshop.itemNames,
+  });
 }
 write(path.join(publicRoot,'assets/manifest.json'),manifest);
 write(path.join(root,'shared/mage-skills.json'),mageRules(read('skills')));

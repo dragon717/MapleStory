@@ -227,7 +227,7 @@ impl World {
                                 memory_capacity: Some(pickup_rules::CapacityProbe {
                                     inventory: &player.state.inventory,
                                     slot_limit: player
-                                        .inventory_slots
+                                        .state.inventory_slots
                                         .get(&kind)
                                         .copied()
                                         .unwrap_or(inventory::SLOT_LIMIT),

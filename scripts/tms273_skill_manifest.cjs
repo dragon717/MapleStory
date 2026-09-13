@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { evaluate } = require('./tms273_skill_formulas.cjs');
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const ENGLISH_UNITS = new Set(['MP', 'HP']);
+const ENGLISH_UNITS = new Set(['MP', 'HP', 'ms']);
 const BEGINNER_LEVEL_FIELDS = new Set(['mpCon', 'fixdamage', 'x', 'time', 'speed', 'cooltime']);
 
 // 用户指定规则（2026-09-10）——**不是 TMS273 原版数值**，替换为核定来源前请保留这条记录。
@@ -13,7 +13,8 @@ const BEGINNER_LEVEL_FIELDS = new Set(['mpCon', 'fixdamage', 'x', 'time', 'speed
 // x "115+15*x"、y "270+5*x"、psdSpeed/speedMax，且**没有 cooltime 字段**；
 // maplestorywiki 与台服 V271/V280 攻略一致（满级 20 MP、无冷却）。
 // 因此 mpCon 与 cooldownMs 只覆盖运行时数值与技能窗文案，rawCommon/sourceMetadata 仍写源记录。
-// cooldownMs 是用户指定下的 P 值（1.2s→0.6s，随等级递减），校准后只改这一处。
+// cooldownMs 是用户指定下的 P 值（2026-09-13 校准：1级800ms→满级50ms，随等级递减），只改这一处；
+// cooldownMs 同时注入模板渲染，effect 里的 #cooldownMs 会按级展开成「800ms」等。
 //
 // 用户指定规则（2026-09-12）——**不是 TMS273 原版数值**，替换为核定来源前请保留这条记录。
 // 「魔心防禦」2001002：受伤的 99%（服务端 world.rs 的 MAGIC_GUARD_COVERED_PERCENT）
@@ -23,19 +24,23 @@ const BEGINNER_LEVEL_FIELDS = new Set(['mpCon', 'fixdamage', 'x', 'time', 'speed
 // info/switchDamtoMP=1。用户指定的 99% + 抵偿率阶梯与原版无关，故 rawCommon 继续写源记录，
 // 投影值另起字段 mpSubstitutePercent（服务端结算读它，技能窗文案由同表驱动）。
 const USER_SPECIFIED_SKILL_RULES = {
-  '2001009': { mpCon: 10, cooldownMs: [1200, 1050, 900, 750, 600] },
+  '2001009': {
+    mpCon: 10,
+    cooldownMs: [800, 650, 450, 250, 50],
+    effect: '消耗MP #mpCon，朝左右瞬移#x、上下瞬移#y，冷却 #cooldownMsms。\n'
+      + '[被动效果：移动速度 +#psdSpeed、最大移动速度 +#speedMax]',
+    description: '瞬间移动一段距离，配合方向键可朝该方向瞬移；冷却随等级缩短（800ms→50ms）。'
+      + '被动永久增加移动速度、最大移动速度。\n'
+      + '5级以上才能学习3转技能「瞬间移动精通」「瞬间移动爆发」。',
+  },
   '2001002': {
     // 1 级 100%、每级 -2，10 级正好 80（用户指定）。
     fields: { mpSubstitutePercent: [100, 98, 96, 94, 92, 90, 88, 86, 84, 80] },
-    effect: '消耗MP #mpCon。启用期间受到伤害的99%转由魔力承受，'
-      + '魔力以#mpSubstitutePercent%的抵偿率将其化去，化不去的部分由护盾消解；'
-      + '未被转走的那1%仍由生命承担。',
-    description: '魔力在身外结成护罩，替你接下伤害。启用期间受到伤害的99%转由魔力承受：'
-      + '其中按当前等级的抵偿率由魔力化去，化不去的部分由护盾代为消解，'
-      + '只有未被转走的那1%会落到你身上。\n'
-      + '等级越高，抵偿率越低，化去同样的伤害所需的魔力越少。当魔力不足以化去时，'
-      + '欠缺的部分仍由生命承担；对依最大HP一定比例造成伤害的攻击无效。'
-      + '可在启用与关闭之间切换的开关技能。',
+    effect: '消耗MP #mpCon。受伤的99%转由魔力承受，以#mpSubstitutePercent%抵偿率化去；'
+      + '化不尽的由护盾消解，1%由生命承担。',
+    description: '受伤的99%转由魔力承受：按等级抵偿率化去，化不尽的由护盾消解，仅1%落到生命；'
+      + '魔力不足时欠缺部分由生命承担。抵偿率随等级递减（100%→80%），越高越省魔。'
+      + '对按最大HP比例的攻击无效。开关技能。',
   },
 };
 
@@ -47,6 +52,8 @@ function runtimeCommon(entry) {
   if (!rule) return entry.common;
   const common = { ...entry.common };
   if (rule.mpCon !== undefined) common.mpCon = rule.mpCon;
+  // 冷却也进模板渲染上下文，供技能窗文案按级展开（mageRules 仍走专用的 cooldownMs 覆盖路径）。
+  if (rule.cooldownMs !== undefined) common.cooldownMs = rule.cooldownMs;
   for (const [field, value] of Object.entries(rule.fields ?? {})) {
     assert(IDENTIFIER.test(field), `invalid user-specified field name: ${entry.id}/${field}`);
     if (Array.isArray(value)) {

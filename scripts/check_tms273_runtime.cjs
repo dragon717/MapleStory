@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-15');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-16');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -144,11 +144,13 @@ assert.equal(Object.keys(manifest.skillCatalog).length,56);
   const teleport=manifest.skillCatalog['2001009'];
   assert.equal(teleport.maxLevel,5);
   assert.equal(teleport.levelDescriptions.length,5);
-  for(const description of teleport.levelDescriptions) assert.match(description,/^消耗10MP，/);
-  assert.match(teleport.levelDescriptions[4],/朝左右瞬移190並朝上下瞬移295/,'source distance must stay verbatim');
+  for(const description of teleport.levelDescriptions) assert.match(description,/^消耗MP 10，/);
+  assert.match(teleport.levelDescriptions[4],/朝左右瞬移190、上下瞬移295/,'source distance must stay verbatim');
+  assert.match(teleport.levelDescriptions[4],/冷却 50ms/,'per-level cooldown must render');
+  assert.match(teleport.description,/800ms→50ms/);
   const rules=read('shared/mage-skills.json').skills['2001009'];
   assert.deepEqual(rules.levels.map(level=>level.mpCon),[10,10,10,10,10]);
-  assert.deepEqual(rules.levels.map(level=>level.cooldownMs),[1200,1050,900,750,600]);
+  assert.deepEqual(rules.levels.map(level=>level.cooldownMs),[800,650,450,250,50]);
   assert.equal(rules.rawCommon.mpCon,'30-2*x');
 }
 

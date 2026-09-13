@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 17;
-pub const CONTENT_VERSION: &str = "tms273-15";
+pub const PROTOCOL_VERSION: u32 = 18;
+pub const CONTENT_VERSION: &str = "tms273-16";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -291,6 +291,21 @@ pub enum ClientMessage {
         item_id: String,
         #[serde(rename = "unitPrice")]
         unit_price: u64,
+    },
+    /// Open (or refresh) the 現金商店 window.  The catalogue itself is static
+    /// client data; the server only answers with the authoritative balance.
+    CashOpen {
+        #[serde(rename = "requestId")]
+        request_id: String,
+    },
+    /// Buy one 現金商店 commodity by its source SN.  The item, its price,
+    /// stack count and every sale condition are resolved from the assembled
+    /// catalogue here — the client may only name the deal it accepts.
+    CashBuy {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        sn: String,
+        quantity: u32,
     },
     /// Open (or refresh) the account warehouse at a placed storage keeper.
     /// The client names the npc it is standing at; the server decides whether
@@ -679,6 +694,21 @@ impl ClientMessage {
                     && *unit_price <= 1_000_000_000
             }
             Self::StorageOpen { request_id, npc_id } => valid_id(request_id) && valid_id(npc_id),
+            Self::CashOpen { request_id } => valid_id(request_id),
+            Self::CashBuy {
+                request_id,
+                sn,
+                quantity,
+            } => {
+                // SN is the opaque catalogue key (8 or 9 source digits); the
+                // real deal is resolved server-side, so only shape and a sane
+                // quantity window are checked here.
+                valid_id(request_id)
+                    && sn.len() <= 9
+                    && sn.bytes().all(|c| c.is_ascii_digit())
+                    && *quantity >= 1
+                    && *quantity <= 99
+            }
             Self::StorageTransfer {
                 request_id,
                 inventory_type,
@@ -910,6 +940,10 @@ pub struct PlayerState {
     pub exp: u64,
     pub exp_to_next: u64,
     pub mesos: u64,
+    /// Character-owned 現金商店 balance (P: a local wallet topped up only by
+    /// the GM `/cash` command — no real charging exists).  Server state like
+    /// mesos; clients render it and can never submit it.
+    pub cash: u64,
     /// Character-owned skill id -> learned level.  This is server state;
     /// clients receive it in snapshots but cannot submit it as input.
     pub skills: BTreeMap<u32, u32>,

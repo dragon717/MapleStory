@@ -37,6 +37,8 @@ mod inventory_ops;
 mod social;
 #[path = "trade.rs"]
 mod trade;
+#[path = "cashshop.rs"]
+mod cashshop;
 #[path = "quest.rs"]
 mod quest;
 /// 任务纯规则（计划 §6 试点）：只做判定与归一化，不依赖整个 World。
@@ -1159,8 +1161,60 @@ pub struct Gameplay {
     /// emoticon intent is rejected instead of quietly accepted.
     #[serde(default)]
     pub emoticons: Option<EmoticonCatalogue>,
+    /// 現金商店在售目录（Etc/Commodity.img 的 OnSale=1 子集）。  `None` for
+    /// unit-test worlds built without the export — a cash intent is rejected
+    /// instead of quietly accepted.
+    #[serde(default)]
+    pub cash_shop: Option<CashShopCatalogue>,
     #[serde(default)]
     pub sources: Sources,
+}
+
+/// One purchasable row of the 現金商店 catalogue.  `sn` is the source
+/// commodity key and the only purchase handle a client may present; item,
+/// price, stack and every sale condition live here on the server side.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashCommodity {
+    pub sn: String,
+    #[serde(rename = "itemId")]
+    pub item_id: String,
+    pub count: u32,
+    pub price: u64,
+    #[serde(default)]
+    pub bonus: u64,
+    /// Rental days; 0 = permanent.
+    #[serde(default)]
+    pub period: u32,
+    /// 0=male 1=female 2=both.
+    #[serde(default)]
+    pub gender: u8,
+    #[serde(rename = "reqLevel", default)]
+    pub req_level: u32,
+    #[serde(rename = "reqPop", default)]
+    pub req_pop: u32,
+    #[serde(default)]
+    pub priority: i64,
+    /// 0 = no per-account purchase cap recorded in the source row.
+    #[serde(default)]
+    pub limit: u32,
+    #[serde(default)]
+    pub refundable: bool,
+    pub tab: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashShopCatalogue {
+    pub categories: Vec<CashCategory>,
+    pub commodities: Vec<CashCommodity>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashCategory {
+    pub id: String,
+    pub label: String,
 }
 
 
@@ -1301,16 +1355,14 @@ fn unix_now_ms() -> i64 {
 #[derive(Clone)]
 struct Player {
     state: PlayerState,
-    /// Durable per-tab inventory slot capacities (inventory type -> slot
-    /// count).  Loaded from auth at join; the world reads it to bound
-    /// `add_items`/`move_items`, and the slot-expansion coupon grows it in
-    /// memory mirroring the auth store's transactional write branch
-    /// (`write_inventory_slots_tx`).
-    inventory_slots: BTreeMap<u8, u16>,
-    /// Persisted MP baseline before equipment/skill-derived bonuses.  The
-    /// wire state's maxMp is a snapshot and must never become the next
-    /// baseline, otherwise reconnecting after Magic Boost would compound the
-    /// percentage bonus.
+    /// Durable per-tab inventory slot capacities live in `state
+    /// .inventory_slots` (the wire copy every snapshot serializes).  Loaded
+    /// from auth at join, grown by the slot-expansion coupon in memory
+    /// mirroring the auth store's transactional write branch
+    /// (`write_inventory_slots_tx`), and read here to bound
+    /// `add_items`/`move_items`.  There is deliberately no second copy: a
+    /// resident character survives its transport, so any duplicate would
+    /// silently diverge until the next process restart.
     base_max_mp: i64,
     map_id: String,
     death_id: String,
@@ -1799,6 +1851,8 @@ pub struct World {
     party_invites: BTreeMap<String, PartyInvite>,
     /// Bounded request-id idempotency for party intents (player, request).
     party_requests: BTreeMap<(String, String), PartyOutcome>,
+    /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
+    cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
     party_sequence: u64,
     /// Cached outcome of the last friend/blacklist intent per (player,
     /// request).  Mirrors the persisted `friend_actions` row so a retry inside
@@ -1928,6 +1982,7 @@ impl World {
             parties: BTreeMap::new(),
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
+            cash_requests: BTreeMap::new(),
             party_sequence: 0,
             friend_requests: BTreeMap::new(),
             friend_links: BTreeMap::new(),
@@ -2144,6 +2199,7 @@ impl World {
             exp: 0,
             exp_to_next: self.gameplay.exp_table.first().copied().unwrap_or(0),
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             // Empty map_id + (0,0) tells the join site to fall back to the
             // birth map spawn; load_profile() writes the persisted row back
@@ -3408,6 +3464,7 @@ fn profile_from_state(
         exp: state.exp,
         exp_to_next: state.exp_to_next,
         mesos: state.mesos,
+        cash: state.cash,
         death_id: death_id.to_owned(),
         map_id: persisted_map_id.to_owned(),
         x: state.x,

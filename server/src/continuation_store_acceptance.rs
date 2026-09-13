@@ -19,6 +19,7 @@ fn continuation_profile(job: u32, level: u32, mp: i64, max_mp: i64) -> Profile {
     Profile {
         hp: 50, max_hp: 50, mp, max_mp, level, job, exp: 0, exp_to_next: 15,
         mesos: 0, death_id: String::new(), map_id: "101000003".into(), x: 4.0, y: 8.0,
+        cash: 0,
         inventory: Vec::new(), skills, skill_points: points,
         ability_stats: AbilityStats::default(),
     }

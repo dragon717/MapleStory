@@ -27,6 +27,7 @@ impl Store {
                exp INTEGER NOT NULL,
                exp_to_next INTEGER NOT NULL,
                mesos INTEGER NOT NULL DEFAULT 0,
+               cash INTEGER NOT NULL DEFAULT 0,
                death_id TEXT NOT NULL DEFAULT '',
                starter_equipment_seeded INTEGER NOT NULL DEFAULT 0,
                starter_backpack_seeded INTEGER NOT NULL DEFAULT 0,
@@ -256,6 +257,21 @@ impl Store {
         if has_mesos.is_none() {
             db.execute(
                 "ALTER TABLE player_stats ADD COLUMN mesos INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+        // Existing development databases predate the 現金商店 wallet column.
+        // Fresh rows get 0; the GM /cash command is the only local grant path.
+        let has_cash: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='cash'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_cash.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN cash INTEGER NOT NULL DEFAULT 0",
                 [],
             )?;
         }

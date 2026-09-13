@@ -1558,6 +1558,7 @@ pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> 
         y,
         skills_json,
         skill_points_json,
+        cash,
     ): (
         i64,
         i64,
@@ -1574,9 +1575,10 @@ pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> 
         f64,
         String,
         String,
+        i64,
     ) = tx
             .query_row(
-                "SELECT hp,max_hp,mp,max_mp,level,job,exp,exp_to_next,mesos,death_id,map_id,x,y,skills_json,skill_points_json FROM player_stats WHERE account_id=?1",
+                "SELECT hp,max_hp,mp,max_mp,level,job,exp,exp_to_next,mesos,death_id,map_id,x,y,skills_json,skill_points_json,cash FROM player_stats WHERE account_id=?1",
                 [account_id],
                 |row| {
                     Ok((
@@ -1595,6 +1597,7 @@ pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> 
                         row.get(12)?,
                         row.get(13)?,
                         row.get(14)?,
+                        row.get(15)?,
                     ))
                 },
             )
@@ -1621,6 +1624,7 @@ pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> 
         exp: exp.max(0) as u64,
         exp_to_next: exp_to_next.max(0) as u64,
         mesos: mesos.max(0) as u64,
+        cash: cash.max(0) as u64,
         death_id,
         map_id,
         x: if x.is_finite() { x } else { 0.0 },

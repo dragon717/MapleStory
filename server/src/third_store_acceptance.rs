@@ -15,6 +15,7 @@ fn third_profile(job: u32, level: u32, mp: i64, skills: BTreeMap<u32, u32>, poin
     Profile {
         hp: 50, max_hp: 50, mp, max_mp: mp, level, job, exp: 0, exp_to_next: 1,
         mesos: 0, death_id: String::new(), map_id: String::new(), x: 0.0, y: 0.0,
+        cash: 0,
         inventory: Vec::new(), skills, skill_points: points, ability_stats: AbilityStats::default(),
     }
 }

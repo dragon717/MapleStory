@@ -27,7 +27,7 @@ assert.equal(rules.skills['2001002'].rawCommon.x, '15+7*x');
 assert.equal(rules.skills['2001009'].levels[4].y, 295);
 // 用户指定规则（2026-09-10）：瞬移全等级 10 MP + 等级冷却；原版记录保留在 rawCommon。
 assert.deepEqual(rules.skills['2001009'].levels.map(level => level.mpCon), [10, 10, 10, 10, 10]);
-assert.deepEqual(rules.skills['2001009'].levels.map(level => level.cooldownMs), [1200, 1050, 900, 750, 600]);
+assert.deepEqual(rules.skills['2001009'].levels.map(level => level.cooldownMs), [800, 650, 450, 250, 50]);
 assert.equal(rules.skills['2001009'].rawCommon.mpCon, '30-2*x');
 assert.equal(rules.skills['2001009'].levels[4].x, 190);
 assert.equal(rules.skills['2000006'].levels[19].lv2mmp, 120);
@@ -48,17 +48,18 @@ assert.equal(projected.skillCatalog['2001008'].levelDescriptions[19], '消耗MP2
 // 用户指定规则（2026-09-12）：技能窗文案同表驱动，99% 为固定比例、抵偿率逐级 100→80，
 // 抵偿率化不去的差额由护盾消解（不是回落 HP），HP 只承担未被接下的那 1%。
 assert.equal(projected.skillCatalog['2001002'].levelDescriptions[9],
-  '消耗MP 13。启用期间受到伤害的99%转由魔力承受，魔力以80%的抵偿率将其化去，化不去的部分由护盾消解；未被转走的那1%仍由生命承担。');
+  '消耗MP 13。受伤的99%转由魔力承受，以80%抵偿率化去；化不尽的由护盾消解，1%由生命承担。');
 assert.equal(projected.skillCatalog['2001002'].levelDescriptions[0],
-  '消耗MP 9。启用期间受到伤害的99%转由魔力承受，魔力以100%的抵偿率将其化去，化不去的部分由护盾消解；未被转走的那1%仍由生命承担。');
+  '消耗MP 9。受伤的99%转由魔力承受，以100%抵偿率化去；化不尽的由护盾消解，1%由生命承担。');
 assert.match(projected.skillCatalog['2001002'].description, /99%转由魔力承受/);
-assert.match(projected.skillCatalog['2001002'].description, /由护盾代为消解/);
-assert.match(projected.skillCatalog['2001002'].description, /那1%会落到你身上/);
+assert.match(projected.skillCatalog['2001002'].description, /由护盾消解/);
+assert.match(projected.skillCatalog['2001002'].description, /仅1%落到生命/);
 assert.doesNotMatch(projected.skillCatalog['2001002'].description, /守恒/);
 // 源文案本身不得被改写（同 2200011 的源记录断言）。
 assert.equal(skills.catalog.skills['2001002'].string.h, '消耗MP #mpCon，啟用期間受到的傷害的#x%以MP代替。');
-assert.match(projected.skillCatalog['2001009'].levelDescriptions[4], /消耗10MP，朝左右瞬移190並朝上下瞬移295/);
-assert.match(projected.skillCatalog['2001009'].levelDescriptions[0], /消耗10MP，朝左右瞬移130並朝上下瞬移275/);
+assert.match(projected.skillCatalog['2001009'].levelDescriptions[4], /消耗MP 10，朝左右瞬移190、上下瞬移295，冷却 50ms/);
+assert.match(projected.skillCatalog['2001009'].levelDescriptions[0], /消耗MP 10，朝左右瞬移130、上下瞬移275，冷却 800ms/);
+assert.match(projected.skillCatalog['2001009'].description, /800ms→50ms/);
 assert.match(projected.skillCatalog['2201008'].levelDescriptions[0], /冰凍8秒。$/);
 assert.match(projected.skillCatalog['2200011'].levelDescriptions[0], /#c爆擊傷害值增加2%/);
 assert.equal(Object.hasOwn(projected.skillCatalog['2001012'], 'levelDescriptions'), false);

@@ -22,6 +22,7 @@ fn whisper_profile() -> Profile {
         exp: 0,
         exp_to_next: 1_000_000,
         mesos: 0,
+        cash: 0,
         death_id: String::new(),
         map_id: "test".into(),
         x: 10.0,

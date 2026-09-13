@@ -229,6 +229,13 @@ pub fn inventory_type(item_id: &str) -> Option<u8> {
         return Some(definition.inventory_type);
     }
     let group = item_id.parse::<u32>().ok()?.checked_div(1_000_000)? as u8;
+    // T: 910xxxx are 現金商店 consumables (Item/Special/0910.img), which live
+    // in the cash tab (5), not a ninth tab; the prefix arithmetic alone would
+    // refuse them.  Other 9xxxxxx ids stay unknown.
+    if group == 9 {
+        let value = item_id.parse::<u32>().ok()?;
+        return ((910_0000..=919_9999).contains(&value)).then_some(5);
+    }
     valid_inventory_type(group).then_some(group)
 }
 

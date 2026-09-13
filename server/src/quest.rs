@@ -1013,7 +1013,7 @@ impl World {
                 }
                 let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
                 let slot_limit = player_snapshot
-                    .inventory_slots
+                    .state.inventory_slots
                     .get(&kind)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -1109,7 +1109,7 @@ impl World {
             for item in reward.items.iter() {
                 let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
                 let slot_limit = player_snapshot
-                    .inventory_slots
+                    .state.inventory_slots
                     .get(&kind)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -1392,7 +1392,7 @@ impl World {
             let missing = interaction.quantity.saturating_sub(held);
             let kind = inventory::inventory_type(&interaction.item_id).unwrap_or(4);
             let slot_limit = player_snapshot
-                .inventory_slots
+                .state.inventory_slots
                 .get(&kind)
                 .copied()
                 .unwrap_or(inventory::SLOT_LIMIT);

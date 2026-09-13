@@ -352,6 +352,7 @@ impl World {
                             exp: profile.exp,
                             exp_to_next: profile.exp_to_next,
                             mesos: profile.mesos,
+                            cash: profile.cash,
                             skills: profile.skills,
                             skill_points: profile.skill_points,
                             hyper_points,
@@ -360,11 +361,10 @@ impl World {
                             potion_cooldowns: None,
                             inventory: profile.inventory,
                             equipped,
-                            inventory_slots: inventory_slots.clone(),
+                            inventory_slots,
                             monster_book,
                             away: None,
                         },
-                        inventory_slots,
                         base_max_mp: profile.max_mp.max(0),
                         map_id: resolved_map_id,
                         death_id: profile.death_id,
@@ -807,6 +807,14 @@ impl World {
                         item_id,
                         unit_price,
                     } => self.handle_shop_rebuy(id, request_id, shop_id, item_id, unit_price),
+                    ClientMessage::CashOpen { request_id } => {
+                        self.handle_cash_open(id, request_id)
+                    }
+                    ClientMessage::CashBuy {
+                        request_id,
+                        sn,
+                        quantity,
+                    } => self.handle_cash_buy(id, request_id, sn, quantity),
                     ClientMessage::StorageOpen { request_id, npc_id } => {
                         self.handle_storage_open(id, request_id, npc_id)
                     }

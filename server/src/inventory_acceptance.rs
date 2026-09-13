@@ -23,6 +23,7 @@ fn inventory_business_roundtrip_preserves_quantities_and_equipment_instances() {
         exp: 0,
         exp_to_next: 15,
         mesos: 1000,
+        cash: 0,
         death_id: String::new(),
         map_id: String::new(),
         x: 0.0,

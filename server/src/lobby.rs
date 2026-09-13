@@ -797,6 +797,7 @@ mod tests {
             exp: 0,
             exp_to_next: 15,
             mesos: 0,
+            cash: 0,
             death_id: String::new(),
             map_id: String::new(),
             x: 0.0,

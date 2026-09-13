@@ -85,6 +85,9 @@ export class MenuView {
     private onActivities?: () => void,
     /** Source UITotalMenu type 19 is the 世界地圖 / world map shortcut. */
     private onWorldMap?: () => void,
+    /** The 現金商店 operation (and its source menu entry) opens the cash shop
+     *  window; the window itself asks the server for the wallet on open. */
+    private onCashShop?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -270,7 +273,8 @@ export class MenuView {
     const action = key === 'channel' ? this.onChannel
       : key === 'characters' ? this.onCharacters
         : key === 'settings' ? this.onSettings
-          : key === 'quit' ? this.onQuit : undefined;
+          : key === 'quit' ? this.onQuit
+            : key === 'cashShop' ? this.onCashShop : undefined;
     if (action) {
       this.close();
       action();

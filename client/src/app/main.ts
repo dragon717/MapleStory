@@ -10,6 +10,8 @@ import { WorldMapView } from '../features/world/worldmap-view';
 import '../features/world/worldmap.css';
 import { FriendView } from '../features/world/friend-view';
 import { EmoticonView } from '../features/chat/emoticon-view';
+import { CashShopView } from '../features/cashshop/view';
+import '../features/cashshop/style.css';
 import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
@@ -60,6 +62,7 @@ let storage: StorageView | undefined;
 let party: PartyView | undefined;
 let friends: FriendView | undefined;
 let emoticons: EmoticonView | undefined;
+let cashShop: CashShopView | undefined;
 let miniMap: MiniMapView | undefined;
 let worldMap: WorldMapView | undefined;
 let questLog: QuestLogView | undefined;
@@ -269,6 +272,8 @@ async function enterGame(session: LoginResponse) {
     // whether the source send budget allows it, and who in the map room sees it.
     emoticons?.destroy();
     emoticons = new EmoticonView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
+    cashShop?.destroy();
+    cashShop = new CashShopView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     miniMap?.destroy();
     miniMap = new MiniMapView(el('minimap'), manifest);
     miniMap.mount();
@@ -317,6 +322,8 @@ async function enterGame(session: LoginResponse) {
       () => { input?.reset(); activities?.show(); },
       // Source UITotalMenu type 19 is the 世界地圖 shortcut.
       () => worldMap?.open(world?.mapId),
+      // The 現金商店 operation opens the cash-shop window (source CashShop.img).
+      () => { input?.reset(); cashShop?.open(); },
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -507,6 +514,12 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'shopRebuyState') {
         npcDialogue?.receiveRebuyState(message.entries);
       }
+      if (message.type === 'cashState' || message.type === 'cashBuyResult') {
+        cashShop?.receive(message);
+        if (message.type === 'cashBuyResult' && message.success) {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Cash purchase' : '现金商店购买'}：${itemName(message.itemId)} × ${message.quantity}（-${message.cashSpent} 楓點）`, `cash:${message.requestId}`);
+        }
+      }
       if (message.type === 'shopRebought') {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought back' : '赎回'} ${itemName(message.itemId)} × ${message.quantity}（-${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
@@ -578,12 +591,16 @@ async function enterGame(session: LoginResponse) {
         deathNotice?.update(self);
         awayNotice?.update(self);
         if (self) npcDialogue?.syncPlayer(self);
+        // The cash shop's readout mirrors the authoritative wallet between
+        // cashState pushes.
+        if (self) cashShop?.syncPlayer(self);
         // The warehouse's deposit side mirrors the live bag + purse, so a
         // pickup or a sale while the window is open is reflected at once.
         if (self) storage?.syncPlayer(self);
         if (announcedMapId !== message.mapId) {
           npcDialogue?.clear();
           storage?.close();
+          cashShop?.close();
           skills?.releaseChannel();
           hud?.releaseChannel();
           input?.reset();
