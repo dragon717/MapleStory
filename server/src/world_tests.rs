@@ -3888,6 +3888,7 @@ include!("windbell_acceptance.rs");
     include!("mob_move_acceptance.rs");
     include!("gm_acceptance.rs");
     include!("pet_acceptance.rs");
+    include!("pet_growth_acceptance.rs");
     include!("cashshop_acceptance.rs");
     include!("ship_acceptance.rs");
 

@@ -334,8 +334,12 @@ export class PetPanel {
       row.card.classList.toggle('is-selected', index === this.selectedSlot);
       row.card.setAttribute('aria-label', `宠物槽位 ${index + 1}${pet ? `：${pet.name}` : '：空'}`);
       row.name.textContent = pet?.name ?? '未召唤';
-      row.mode.textContent = pet ? `${this.modeLabel(pet.mode)} · ${this.actionLabel(pet.action)}` : '从下方现金道具召唤';
-      row.speed.textContent = pet ? `速度 ${this.number(pet.baseSpeed)} → ${this.number(pet.moveSpeed)}` : '';
+      row.mode.textContent = pet
+        ? `${this.modeLabel(pet.mode)} · ${this.actionLabel(pet.action)}${pet.weak ? ' · 肚子餓了' : ''}`
+        : '从下方现金道具召唤';
+      row.speed.textContent = pet
+        ? `Lv${pet.level ?? 1} · 饱足感 ${pet.fullness ?? '—'}`
+        : '';
     }
     this.tabs.forEach((tab, index) => {
       tab.classList.toggle('is-selected', index === this.selectedSlot);
@@ -356,7 +360,10 @@ export class PetPanel {
     this.selectedName.textContent = pet?.name ?? `槽位 ${this.selectedSlot + 1} 未召唤`;
     this.selectedState.textContent = pet ? `${this.modeLabel(pet.mode)} · ${this.actionLabel(pet.action)}` : '可从现金道具召唤';
     this.selectedSpeed.textContent = pet ? `基础速度 ${this.number(pet.baseSpeed)} · 当前速度 ${this.number(pet.moveSpeed)}` : '—';
-    this.selectedUnknown.textContent = '等级 — · 饱足感 — · 亲密度 —';
+    // Growth summary line: hunger callout plus the source lifespan countdown.
+    this.selectedUnknown.textContent = pet
+      ? `${pet.weak ? '肚子餓了 · ' : ''}壽命剩餘 ${this.lifeDays(pet)} 天`
+      : '等级 — · 饱足感 — · 亲密度 —';
     const stand = pet && this.petAsset(pet.itemId)?.stand[0];
     if (stand) {
       this.setArt(this.selectedPetArt, stand, { x: 55 + stand.x, y: 120 + stand.y });
@@ -367,9 +374,15 @@ export class PetPanel {
     }
     this.selectedPetName.textContent = pet?.name ?? '—';
     this.selectedPetType.textContent = pet ? '宠物' : '—';
-    this.selectedPetHunger.textContent = '—';
-    this.selectedPetLevel.textContent = '—';
-    this.selectedPetIntimacy.textContent = '—';
+    this.selectedPetHunger.textContent = pet && pet.fullness !== undefined
+      ? `饱足感 ${pet.fullness}`
+      : '—';
+    this.selectedPetLevel.textContent = pet && pet.level !== undefined
+      ? `等级 ${pet.level}`
+      : '—';
+    this.selectedPetIntimacy.textContent = pet && pet.closeness !== undefined
+      ? `亲密度 ${pet.closeness}${pet.closenessToNext ? `（差 ${pet.closenessToNext}）` : '（已满）'}`
+      : '—';
     const icon = pet && this.petAsset(pet.itemId)?.icon;
     if (icon) {
       this.setArt(this.selectedIcon, icon, { x: 0, y: 0 });
@@ -484,6 +497,12 @@ export class PetPanel {
   }
 
   private number(value: number) { return Number.isFinite(value) ? String(Math.round(value)) : '—'; }
+
+  /** Remaining source lifespan in whole days, minimum 0. */
+  private lifeDays(pet: PetState) {
+    if (pet.lifeRemainingMs === undefined) return '—';
+    return String(Math.max(0, Math.ceil(pet.lifeRemainingMs / 86_400_000)));
+  }
 
   private modeLabel(mode: PetState['mode']) {
     return mode === 'loot' ? '寻物' : mode === 'follow' ? '跟随' : '待机';

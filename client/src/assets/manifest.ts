@@ -62,6 +62,9 @@ export interface NpcAsset {
 export interface PetAsset {
   name: string; icon: AssetFrame;
   stand: AssetFrame[]; move: AssetFrame[]; jump: AssetFrame[];
+  /** Source `Item/Pet/<id>.img/hungry` frames.  Absent (or empty) when the
+   *  source pet has no such node; the view then keeps the stand loop. */
+  hungry?: AssetFrame[];
 }
 /** Source-backed UIWindow2.img/UserInfo/pet chrome and its two entry buttons.
  *  The selected tab is one of the server-owned three pet slots; the client

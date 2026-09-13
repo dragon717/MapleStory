@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const PROTOCOL_VERSION: u32 = 20;
-pub const CONTENT_VERSION: &str = "tms273-21";
+pub const CONTENT_VERSION: &str = "tms273-22";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

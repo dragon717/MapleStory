@@ -19,8 +19,13 @@ export class PetView {
   update(pet: PetState, elapsed: number) {
     const sprite = this.sprite;
     if (!sprite) return;
-    const frames = pet.action === 'jump' && this.asset.jump.length ? this.asset.jump
-      : pet.action === 'move' && this.asset.move.length ? this.asset.move : this.asset.stand;
+    // A weak (starving) pet shows its source `hungry` animation instead of
+    // the ordinary loop; pets whose export lacks the node keep the stand loop.
+    const hungry = pet.weak === true && this.asset.hungry?.length
+      ? this.asset.hungry
+      : null;
+    const frames = hungry ?? (pet.action === 'jump' && this.asset.jump.length ? this.asset.jump
+      : pet.action === 'move' && this.asset.move.length ? this.asset.move : this.asset.stand);
     if (!frames.length) {
       sprite.setVisible(false);
       return;

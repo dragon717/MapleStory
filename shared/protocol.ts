@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 20;
-export const CONTENT_VERSION = 'tms273-21';
+export const CONTENT_VERSION = 'tms273-22';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -67,6 +67,14 @@ export interface PetState {
   x: number; y: number; facing: Facing; action: 'stand' | 'move' | 'jump';
   /** Display speed: 100 maps to the character's unbuffed 125 world units/s. */
   baseSpeed: number; moveSpeed: number; mode: 'idle' | 'follow' | 'loot';
+  /** Growth state (protocol 21+): the server derives every value from the
+   *  persisted instance stats and the source hunger pace.  `fullness` is the
+   *  0-100 饱足感, `level` 1..=30, `closeness` the cumulative 亲密度 and
+   *  `closenessToNext` the remainder to the next level (0 at the cap).
+   *  `weak` marks the hungry display state, and `lifeRemainingMs` is the
+   *  wall-clock time left before the pet reverts to a doll. */
+  level?: number; fullness?: number; closeness?: number; closenessToNext?: number;
+  weak?: boolean; lifeRemainingMs?: number;
 }
 /** Player-side abnormal-status presentation state. Emitted in snapshots; each
  *  entry is the remaining milliseconds for the named status. */

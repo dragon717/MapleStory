@@ -6,6 +6,11 @@ use crate::protocol::InventoryItem;
 
 const SEARCH_RANGE: f64 = 1000.0;
 
+/// Tick backoff between natural-retirement attempts after a persistence
+/// failure.  Successful retirement reloads the inventory, which removes the
+/// pet from `active_items` and ends the sweep for that instance.
+const PET_GROWTH_RETRY_TICKS: u64 = 60;
+
 #[derive(Clone)]
 pub(super) struct PetRuntime {
     map_id: String,
@@ -56,6 +61,7 @@ fn new_runtime(player: &Player, id: i64) -> PetRuntime {
 /// Derive the display from current inventory even before the next simulation
 /// tick. A map transfer never exposes a previous map's pet coordinates.
 pub(super) fn snapshots(player: &Player) -> serde_json::Value {
+    let now_seconds = auth::now_ms() / 1000;
     serde_json::Value::Array(
         active_items(player)
             .map(|(item, id)| {
@@ -72,6 +78,10 @@ pub(super) fn snapshots(player: &Player) -> serde_json::Value {
                     }
                 };
                 let motion = &runtime.motion;
+                let fullness = inventory::pet_fullness(item, now_seconds);
+                let closeness = inventory::pet_closeness(item);
+                let life_remaining_ms = inventory::pet_lifespan_end(item)
+                    .map(|end| (end - now_seconds).max(0) * 1000);
                 serde_json::json!({
                     "id": id.to_string(), "itemId": item.item_id,
                     "name": inventory::pet_name(&item.item_id).unwrap_or_default(),
@@ -79,6 +89,12 @@ pub(super) fn snapshots(player: &Player) -> serde_json::Value {
                     "facing": motion.facing, "action": motion.action,
                     "baseSpeed": motion.base_speed, "moveSpeed": motion.move_speed,
                     "mode": motion.mode,
+                    "level": inventory::pet_level(closeness),
+                    "fullness": fullness,
+                    "closeness": closeness,
+                    "closenessToNext": inventory::pet_closeness_to_next(closeness),
+                    "weak": fullness <= inventory::PET_WEAK_FULLNESS,
+                    "lifeRemainingMs": life_remaining_ms,
                 })
             })
             .collect(),
@@ -86,6 +102,141 @@ pub(super) fn snapshots(player: &Player) -> serde_json::Value {
 }
 
 impl World {
+    /// Feed one pet food (`2120000`) to the lead summoned pet.  The food and
+    /// the pet's growth stats move in the same durable transaction; feeding
+    /// without a summoned pet spends nothing and answers with a rejection.
+    pub(super) fn feed_pet(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        inventory_type: u8,
+        source_slot: i16,
+        item_id: &str,
+    ) {
+        if inventory_type != 2 || !inventory::is_pet_food(item_id) {
+            return;
+        }
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        if active_items(player).next().is_none() {
+            let _ = player.output.try_send(reject(
+                "pet_not_summoned",
+                pet_feed_reject_message("pet_not_summoned", player.lang),
+                Some(request_id),
+            ));
+            return;
+        }
+        let outcome = if let Some(store) = self.store.clone() {
+            match store.feed_pet(id, request_id, source_slot, item_id) {
+                Ok(outcome) => {
+                    if outcome.success {
+                        match store.load_profile(id, &self.default_profile()) {
+                            Ok(profile) => {
+                                if let Some(player) = self.players.get_mut(id) {
+                                    player.state.inventory = profile.inventory;
+                                }
+                            }
+                            Err(error) => {
+                                self.send_reject(id, "persistence", &error, Some(request_id));
+                                return;
+                            }
+                        }
+                    }
+                    outcome
+                }
+                Err(error) => {
+                    self.send_reject(id, "persistence", &error, Some(request_id));
+                    return;
+                }
+            }
+        } else {
+            let key = (id.to_owned(), request_id.to_owned());
+            if let Some(prior) = self.inventory_requests.get(&key) {
+                if prior.operation == "use"
+                    && prior.inventory_type == Some(2)
+                    && prior.item_id == item_id
+                    && prior.from_slot == source_slot
+                {
+                    self.send_inventory_outcome(id, prior);
+                } else {
+                    self.send_inventory_conflict(id, request_id);
+                }
+                return;
+            }
+            let now_seconds = auth::now_ms() / 1000;
+            let mut items = player.state.inventory.clone();
+            let food_index = items.iter().position(|row| {
+                row.slot == u16::try_from(source_slot).unwrap_or(0)
+                    && row.item_id == item_id
+                    && inventory::inventory_type(&row.item_id) == Some(2)
+            });
+            let lead_pet_slot = items
+                .iter()
+                .filter(|row| inventory::pet_active(row))
+                .map(|row| row.slot)
+                .min();
+            let (success, code) = match (food_index, lead_pet_slot) {
+                (Some(food_index), Some(_)) => {
+                    // The pet lookup is gated on the active bit so a use-tab
+                    // row sharing the slot number can never be mistaken for
+                    // the companion (same rule as the store branch).
+                    let pet_index = items
+                        .iter()
+                        .position(|row| {
+                            row.slot == lead_pet_slot.unwrap() && inventory::pet_active(row)
+                        })
+                        .unwrap_or_default();
+                    let fullness = inventory::pet_fullness(&items[pet_index], now_seconds);
+                    let (delta_fullness, delta_closeness) =
+                        if fullness >= inventory::PET_FULLNESS_MAX {
+                            (0, -1)
+                        } else {
+                            (
+                                inventory::pet_food_fullness(item_id),
+                                inventory::pet_food_closeness(item_id),
+                            )
+                        };
+                    inventory::set_pet_fullness(
+                        &mut items[pet_index],
+                        (fullness + delta_fullness).min(inventory::PET_FULLNESS_MAX),
+                        now_seconds,
+                    );
+                    inventory::add_pet_closeness(&mut items[pet_index], delta_closeness);
+                    let row = &mut items[food_index];
+                    row.quantity = row.quantity.saturating_sub(1);
+                    if row.quantity == 0 {
+                        items.remove(food_index);
+                    }
+                    (true, "pet_fed".to_owned())
+                }
+                (Some(_), None) => (false, "pet_not_summoned".to_owned()),
+                (None, _) => (false, "source_empty".to_owned()),
+            };
+            let outcome = auth::InventoryOutcome {
+                request_id: request_id.to_owned(),
+                operation: "use".to_owned(),
+                inventory_type: Some(2),
+                from_slot: source_slot,
+                to_slot: None,
+                item_id: item_id.to_owned(),
+                quantity: if success { 1 } else { 0 },
+                drop_id: None,
+                success,
+                code,
+            };
+            if outcome.success {
+                self.players.get_mut(id).unwrap().state.inventory = items;
+            }
+            self.inventory_requests.insert(key, outcome.clone());
+            outcome
+        };
+        self.send_inventory_outcome(id, &outcome);
+        if outcome.success {
+            self.send_snapshot(id);
+        }
+    }
+
     pub(super) fn pet_toggle(
         &mut self,
         id: &str,
@@ -138,7 +289,12 @@ impl World {
                 return;
             }
             let mut items = player.state.inventory.clone();
-            let result = inventory::toggle_pet(&mut items, source_slot, item_id);
+            let result = inventory::toggle_pet(
+                &mut items,
+                source_slot,
+                item_id,
+                auth::now_ms() / 1000,
+            );
             let outcome = auth::InventoryOutcome {
                 request_id: request_id.to_owned(),
                 operation: "use".to_owned(),
@@ -290,6 +446,105 @@ impl World {
         }
     }
 
+    /// Natural growth sweep: hunger reaching zero returns the pet to the bag
+    /// with a closeness penalty (GMS: it "loses closeness and returns to the
+    /// inventory on its own"), and a lapsed source lifespan reverts it to a
+    /// dead doll.  Displayed fullness is derived per snapshot, so this only
+    /// runs when a pet actually crosses a retirement boundary; a failed
+    /// persistence backs off instead of retrying on every tick.
+    pub(super) fn step_pet_growth(&mut self, id: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        if self.tick < player.pet_growth_next_tick {
+            return;
+        }
+        let now_seconds = auth::now_ms() / 1000;
+        let retiring: Vec<(i64, u16, String, bool)> = active_items(player)
+            .filter_map(|(item, instance)| {
+                let expired = inventory::pet_lifespan_end(item)
+                    .is_some_and(|end| end <= now_seconds);
+                let starved = inventory::pet_fullness(item, now_seconds) <= 0;
+                (expired || starved)
+                    .then(|| (instance, item.slot, item.item_id.clone(), expired))
+            })
+            .collect();
+        if retiring.is_empty() {
+            return;
+        }
+        let player = self.players.get_mut(id).unwrap();
+        player.pet_growth_next_tick = self.tick.saturating_add(PET_GROWTH_RETRY_TICKS);
+        for (instance, slot, item_id, expired) in retiring {
+            let request_id = format!(
+                "pet-growth-{instance}-{}-{}",
+                if expired { "expired" } else { "starved" },
+                now_seconds / 3600
+            );
+            if let Some(store) = self.store.clone() {
+                match store.retire_pet(
+                    id,
+                    &request_id,
+                    i16::try_from(slot).unwrap_or(0),
+                    &item_id,
+                    expired,
+                ) {
+                    Ok(outcome) if outcome.success => {
+                        match store.load_profile(id, &self.default_profile()) {
+                            Ok(profile) => {
+                                if let Some(player) = self.players.get_mut(id) {
+                                    player.state.inventory = profile.inventory;
+                                }
+                            }
+                            Err(error) => {
+                                self.send_reject(id, "persistence", &error, None);
+                                return;
+                            }
+                        }
+                        self.send_snapshot(id);
+                    }
+                    Ok(_) => {} // retry after the backoff boundary
+                    Err(error) => {
+                        self.send_reject(id, "persistence", &error, None);
+                        return;
+                    }
+                }
+            } else {
+                // In-memory branch (acceptance/worlds without a store).
+                let Some(player) = self.players.get_mut(id) else {
+                    return;
+                };
+                let Some(index) = player.state.inventory.iter().position(|item| {
+                    item.slot == slot
+                        && item.item_id == item_id
+                        && inventory::pet_active(item)
+                }) else {
+                    continue;
+                };
+                let fullness =
+                    inventory::pet_fullness(&player.state.inventory[index], now_seconds);
+                inventory::set_pet_fullness(
+                    &mut player.state.inventory[index],
+                    fullness,
+                    now_seconds,
+                );
+                if expired {
+                    inventory::set_pet_stat(
+                        &mut player.state.inventory[index],
+                        inventory::PET_DEAD_KEY,
+                        1,
+                    );
+                } else {
+                    inventory::add_pet_closeness(&mut player.state.inventory[index], -1);
+                }
+                let stats = player.state.inventory[index]
+                    .stats
+                    .get_or_insert_with(BTreeMap::new);
+                stats.insert(inventory::PET_ACTIVE_KEY.to_owned(), 0);
+                self.send_snapshot(id);
+            }
+        }
+    }
+
     pub(super) fn step_pet_pickups(&mut self) {
         let mut claims = Vec::new();
         for (id, player) in &self.players {
@@ -322,5 +577,25 @@ impl World {
             let request_id = format!("petpickup-{drop_id}-{}-{index}", self.tick);
             self.handle_pet_pickup(id, request_id, drop_id, x, y);
         }
+    }
+}
+
+/// Localized rejection text for the feeding flow.  The food is never spent on
+/// a rejected use, so every message states that the pet must be out first.
+fn pet_feed_reject_message(code: &str, lang: &'static str) -> &'static str {
+    let (zh, en) = match code {
+        "pet_not_summoned" => (
+            "请先召唤一只宠物，寵物食品未被消耗。",
+            "Summon a pet first; the pet food was not consumed.",
+        ),
+        _ => (
+            "无法使用寵物食品。",
+            "The pet food could not be used.",
+        ),
+    };
+    if lang == crate::quest_text::LANG_EN {
+        en
+    } else {
+        zh
     }
 }

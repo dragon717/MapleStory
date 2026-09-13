@@ -8,7 +8,7 @@
 //
 // 输出（写入 resources/tms273-export/）：
 //   pets.json        运行时目录：id -> { itemId, name, life, hungry, actions:[...] }（同时拷贝到 shared/pets.json 供服务端 include_str）
-//   pet-images.json  装配清单节点：id -> { icon, stand[], move[], jump[] }（AssetFrame，url 已带 /assets/tms273/ 前缀）
+//   pet-images.json  装配清单节点：id -> { icon, stand[], move[], jump[], hungry[] }（AssetFrame，url 已带 /assets/tms273/ 前缀）
 //   assets/tms273/*.png   画布 PNG（由 ResourceReader.frame 落盘，装配脚本按 manifest url 拷贝进客户端 public）
 //
 // 用法：node scripts/export_tms273_pet.cjs
@@ -93,6 +93,9 @@ async function main() {
     const stand = await frames(`Item/Pet/${id}.img/stand0`);
     const move = await frames(`Item/Pet/${id}.img/move`);
     const jump = await frames(`Item/Pet/${id}.img/jump`);
+    // 源 hungry 节点是宠物饥饿状态的原版动画；饱满度过低时客户端切换到它。
+    // 个别宠物可能缺该节点，按源边界留空数组而不是伪造。
+    const hungry = await frames(`Item/Pet/${id}.img/hungry`).catch(() => []);
     if (!stand.length) continue; // 无站立帧的记录（例如纯图标宠物）不进运行时目录
     const numericInfo = (key) => {
       const value = info?.at?.(key)?.wzValue;
@@ -104,7 +107,7 @@ async function main() {
       life: numericInfo('life'),
       hungry: numericInfo('hungry'),
     };
-    petImages[id] = { name, icon, stand, move, jump };
+    petImages[id] = { name, icon, stand, move, jump, hungry };
   }
 
   fs.writeFileSync(path.join(output, 'pets.json'), JSON.stringify(pets, null, 2) + '\n', 'utf8');

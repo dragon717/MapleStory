@@ -47,7 +47,9 @@ impl Store {
             return Ok(prior);
         }
         let mut inventory = read_inventory_tx(&tx, account_id)?;
-        let (success, code) = match inventory::toggle_pet(&mut inventory, source_slot, item_id) {
+        let now_seconds = now_ms() / 1000;
+        let (success, code) =
+            match inventory::toggle_pet(&mut inventory, source_slot, item_id, now_seconds) {
             Ok(()) => {
                 write_inventory_tx(&tx, account_id, &inventory)?;
                 (true, "pet_toggled".to_owned())
@@ -64,6 +66,178 @@ impl Store {
             to_slot: None,
             item_id: item_id.to_owned(),
             quantity: if success { 1 } else { 0 },
+            drop_id: None,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(outcome)
+    }
+
+    /// Feed one pet food (`2120000` 寵物食品) to the lead summoned pet inside
+    /// a single transaction: the consumed food and the pet's growth stats are
+    /// written atomically with the idempotency record.  Rules: the source
+    /// `incRepleteness`/`incTameness` values restore fullness (+30) and
+    /// closeness (+1) while the pet is hungry; feeding a full pet is the
+    /// classic overfeed (P: closeness -1, fullness unchanged, food still
+    /// spent).  A replay returns its original outcome.
+    pub fn feed_pet(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        food_slot: i16,
+        food_item_id: &str,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        if let Some(prior) = read_inventory_action(&tx, account_id, request_id)? {
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())?;
+            return Ok(prior);
+        }
+        let mut inventory = read_inventory_tx(&tx, account_id)?;
+        let now_seconds = now_ms() / 1000;
+        let food_index = inventory.iter().position(|item| {
+            item.slot == u16::try_from(food_slot).unwrap_or(0)
+                && item.item_id == food_item_id
+                && inventory::is_pet_food(&item.item_id)
+                && inventory::inventory_type(&item.item_id) == Some(2)
+        });
+        let lead_pet_slot = inventory
+            .iter()
+            .filter(|item| inventory::pet_active(item))
+            .map(|item| item.slot)
+            .min();
+        let (success, code) = match (food_index, lead_pet_slot) {
+            (Some(food_index), Some(_)) => {
+                // Lead pet = the lowest active cash slot, i.e. the first one
+                // the player summoned into the follow order.  The slot match
+                // must stay within the pet family: the use tab can occupy the
+                // same local slot number as the cash tab.
+                let pet_index = inventory
+                    .iter()
+                    .position(|item| {
+                        item.slot == lead_pet_slot.unwrap() && inventory::pet_active(item)
+                    })
+                    .unwrap_or_default();
+                let fullness = inventory::pet_fullness(&inventory[pet_index], now_seconds);
+                let (delta_fullness, delta_closeness) = if fullness >= inventory::PET_FULLNESS_MAX {
+                    // Overfeed: the pet refuses the extra food and loses a
+                    // point of closeness instead.
+                    (0, -1)
+                } else {
+                    (
+                        inventory::pet_food_fullness(&food_item_id),
+                        inventory::pet_food_closeness(&food_item_id),
+                    )
+                };
+                inventory::set_pet_fullness(
+                    &mut inventory[pet_index],
+                    (fullness + delta_fullness).min(inventory::PET_FULLNESS_MAX),
+                    now_seconds,
+                );
+                inventory::add_pet_closeness(&mut inventory[pet_index], delta_closeness);
+                // Spend exactly one food; a depleted stack leaves the bag.
+                let row = &mut inventory[food_index];
+                row.quantity = row.quantity.saturating_sub(1);
+                if row.quantity == 0 {
+                    inventory.remove(food_index);
+                }
+                (true, "pet_fed".to_owned())
+            }
+            (Some(_), None) => (false, "pet_not_summoned".to_owned()),
+            (None, _) => (false, "source_empty".to_owned()),
+        };
+        if success {
+            write_inventory_tx(&tx, account_id, &inventory)?;
+        }
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            operation: "use".to_owned(),
+            inventory_type: Some(2),
+            from_slot: food_slot,
+            to_slot: None,
+            item_id: food_item_id.to_owned(),
+            quantity: if success { 1 } else { 0 },
+            drop_id: None,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(outcome)
+    }
+
+    /// Natural retirement of one summoned pet inside one transaction:
+    /// hunger reaching zero returns the pet to the bag with a closeness
+    /// penalty, and a lapsed lifespan reverts it to a dead doll that can no
+    /// longer be summoned.  `World`'s growth sweep calls this once per pet
+    /// with a deterministic request id, so replays stay harmless.
+    pub fn retire_pet(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        source_slot: i16,
+        item_id: &str,
+        dead: bool,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        if let Some(prior) = read_inventory_action(&tx, account_id, request_id)? {
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())?;
+            return Ok(prior);
+        }
+        let mut inventory = read_inventory_tx(&tx, account_id)?;
+        let now_seconds = now_ms() / 1000;
+        let index = inventory.iter().position(|item| {
+            item.slot == u16::try_from(source_slot).unwrap_or(0)
+                && item.item_id == item_id
+                && inventory::pet_active(item)
+        });
+        let (success, code) = match index {
+            Some(index) => {
+                let fullness = inventory::pet_fullness(&inventory[index], now_seconds);
+                // Hunger retirement happens at exactly zero; rebasing there
+                // keeps the checkpoint consistent for the next summon.
+                inventory::set_pet_fullness(&mut inventory[index], fullness, now_seconds);
+                if dead {
+                    inventory::set_pet_stat(&mut inventory[index], inventory::PET_DEAD_KEY, 1);
+                } else {
+                    // Neglect penalty: the starving pet parts with one
+                    // closeness point when it returns to the bag.
+                    inventory::add_pet_closeness(&mut inventory[index], -1);
+                }
+                let stats = inventory[index].stats.get_or_insert_with(BTreeMap::new);
+                stats.insert(inventory::PET_ACTIVE_KEY.to_owned(), 0);
+                write_inventory_tx(&tx, account_id, &inventory)?;
+                (true, if dead { "pet_expired" } else { "pet_starved" }.to_owned())
+            }
+            None => (false, "source_empty".to_owned()),
+        };
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            operation: "use".to_owned(),
+            inventory_type: Some(5),
+            from_slot: source_slot,
+            to_slot: None,
+            item_id: item_id.to_owned(),
+            quantity: 0,
             drop_id: None,
             success,
             code,

@@ -1462,6 +1462,11 @@ struct Player {
     /// Companion instance index. Inventory owns identity/summon persistence;
     /// the pet module owns each companion's simulation and map attachment.
     pets: BTreeMap<i64, pets::PetRuntime>,
+    /// Tick of the next allowed natural-retirement attempt per the growth
+    /// sweep.  A failed persistence only advances this retry boundary, so a
+    /// starving or expired pet never retries its store transaction on every
+    /// tick.
+    pet_growth_next_tick: u64,
     /// Four-segment Ice Dragon Breath is a single accepted cast.  The request
     /// id binds the self-lock so ReleaseSkill cannot cancel another cast.
     channel_request_id: Option<String>,
@@ -3250,6 +3255,7 @@ impl World {
         // sequential world tick; no per-pet tasks or independent world locks.
         let pet_ids: Vec<String> = self.players.keys().cloned().collect();
         for id in pet_ids {
+            self.step_pet_growth(&id);
             self.step_pet(&id);
         }
         self.step_pet_pickups();

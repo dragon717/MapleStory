@@ -418,6 +418,7 @@ impl World {
                         summon: None,
                         summons: Vec::new(),
                         pets: BTreeMap::new(),
+                        pet_growth_next_tick: 0,
                         channel_request_id: None,
                         channel_skill_id: None,
                         channel_until: 0,

@@ -977,6 +977,12 @@ impl World {
             self.pet_toggle(&id, &request_id, inventory_type, source_slot, &item_id);
             return;
         }
+        // Pet food targets the lead summoned pet; the consumption and the
+        // pet's growth stats share one transaction (or one in-memory pass).
+        if inventory_type == 2 && crate::inventory::is_pet_food(&item_id) {
+            self.feed_pet(&id, &request_id, inventory_type, source_slot, &item_id);
+            return;
+        }
         if let Some(store) = self.store.clone() {
             let derived_max_mp = player.state.max_mp;
             match store.prior_inventory(&id, &request_id) {
