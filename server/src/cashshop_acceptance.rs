@@ -20,22 +20,13 @@ fn cash_commodity(sn: &str, item_id: &str, count: u32, price: u64) -> CashCommod
         gender: 2,
         req_level: 0,
         req_pop: 0,
-        priority: 1,
         limit: 0,
-        refundable: true,
-        tab: "game".into(),
     }
 }
 
 fn cash_gameplay(commodities: Vec<CashCommodity>) -> Gameplay {
     Gameplay {
-        cash_shop: Some(CashShopCatalogue {
-            categories: vec![CashCategory {
-                id: "game".into(),
-                label: "遊戲".into(),
-            }],
-            commodities,
-        }),
+        cash_shop: Some(CashShopCatalogue { commodities }),
         ..Gameplay::default()
     }
 }
@@ -110,6 +101,132 @@ fn cash_open_reports_the_authoritative_balance() {
     });
     let state = newest(&mut output, "cashState");
     assert_eq!(state["cash"], 1_000);
+}
+
+#[test]
+fn cash_buy_period_row_stamps_a_rental_deadline() {
+    let mut deal = cash_commodity("120000001", "5062001", 1, 300);
+    deal.period = 7;
+    let (mut world, mut output) = cash_world(vec![deal]);
+    set_cash(&mut world, 1_000);
+    buy(&mut world, "buy-period", "120000001", 1);
+    let result = newest(&mut output, "cashBuyResult");
+    assert_eq!(result["success"], true, "{result}");
+    let item = world.players["buyer"]
+        .state
+        .inventory
+        .iter()
+        .find(|item| item.item_id == "5062001")
+        .expect("rental delivered");
+    let deadline = inventory::item_expires_at(item).expect("rental deadline stamped");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    assert!(deadline > now, "deadline {deadline} must be in the future");
+    assert!(
+        deadline <= now + 7 * inventory::RENTAL_DAY_SECONDS,
+        "deadline {deadline} must be within seven days"
+    );
+}
+
+#[test]
+fn cash_buy_permanent_row_has_no_rental_deadline() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    set_cash(&mut world, 1_000);
+    buy(&mut world, "buy-permanent", "120000001", 1);
+    let result = newest(&mut output, "cashBuyResult");
+    assert_eq!(result["success"], true, "{result}");
+    let item = world.players["buyer"]
+        .state
+        .inventory
+        .iter()
+        .find(|item| item.item_id == "5062001")
+        .expect("purchase delivered");
+    assert_eq!(inventory::item_expires_at(item), None);
+}
+
+#[test]
+fn cash_buy_delivers_the_bonus_units() {
+    let mut deal = cash_commodity("120000001", "5062001", 1, 100);
+    deal.bonus = 1;
+    let (mut world, mut output) = cash_world(vec![deal]);
+    set_cash(&mut world, 1_000);
+    buy(&mut world, "buy-bonus", "120000001", 2);
+    let result = newest(&mut output, "cashBuyResult");
+    assert_eq!(result["success"], true, "{result}");
+    // Two deals of (count 1 + bonus 1) deliver four units for 200 cash.
+    assert_eq!(cash_inventory_quantity(&world, "5062001"), 4);
+    assert_eq!(result["cashSpent"], 200);
+}
+
+#[test]
+fn cash_buy_limit_blocks_purchases_past_the_budget() {
+    let mut deal = cash_commodity("120000001", "5062001", 1, 100);
+    deal.limit = 2;
+    let (mut world, mut output) = cash_world(vec![deal]);
+    set_cash(&mut world, 1_000);
+    buy(&mut world, "limit-1", "120000001", 2);
+    let ok = newest(&mut output, "cashBuyResult");
+    assert_eq!(ok["success"], true, "{ok}");
+    assert_eq!(world.players["buyer"].state.cash, 800);
+    buy(&mut world, "limit-2", "120000001", 1);
+    let refused = newest(&mut output, "cashBuyResult");
+    assert_eq!(refused["success"], false);
+    assert_eq!(refused["code"], "cash_limit");
+    // The refused attempt charged nothing and delivered nothing.
+    assert_eq!(world.players["buyer"].state.cash, 800);
+    assert_eq!(cash_inventory_quantity(&world, "5062001"), 2);
+}
+
+#[test]
+fn cash_purchase_budget_survives_a_store_reopen() {
+    let path = std::env::temp_dir().join(format!("maple-cash-limit-{}.sqlite3", auth::random_id()));
+    {
+        let service = auth::start(&path).expect("temp store");
+        service.store.record_cash_purchase("acc", "120000001", 2).unwrap();
+        service.store.record_cash_purchase("acc", "120000001", 1).unwrap();
+    }
+    let service = auth::start(&path).expect("reopen");
+    assert_eq!(
+        service.store.cash_purchased_units("acc", "120000001").unwrap(),
+        3
+    );
+    assert_eq!(service.store.cash_purchased_units("acc", "999999999").unwrap(), 0);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn the_rental_sweep_reclaims_expired_rows_and_notifies() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    // Seed one permanent stack (3 units) and one already-expired rental
+    // stack (2 units) side by side in the same bag.
+    let mut bag = world.players["buyer"].state.inventory.clone();
+    inventory::add_items(&mut bag, "5062001".into(), 3, 24).expect("permanent stack");
+    let mut expired = InventoryItem {
+        slot: 9,
+        item_id: "5062001".into(),
+        quantity: 2,
+        ..InventoryItem::default()
+    };
+    expired.stats = Some(BTreeMap::from([(
+        inventory::EXPIRES_AT_KEY.to_owned(),
+        1,
+    )]));
+    bag.push(expired);
+    world.players.get_mut("buyer").unwrap().state.inventory = bag;
+    // Align the tick with a sweep boundary, then run the cadence gate.
+    world.tick = 10_000 / TICK_MS;
+    world.step_rental_expiries();
+    // The permanent stack survives; the expired rental row is reclaimed.
+    assert_eq!(cash_inventory_quantity(&world, "5062001"), 3);
+    assert!(world.players["buyer"]
+        .state
+        .inventory
+        .iter()
+        .all(|item| inventory::item_expires_at(item).is_none()));
+    let notice = newest(&mut output, "rentalNotice");
+    assert_eq!(notice["itemIds"][0], "5062001");
 }
 
 #[test]

@@ -326,6 +326,7 @@ export class CashShopView {
       cash_item_unknown: '道具不存在',
       cash_req_level: '等级不足',
       cash_req_pop: '人气度不足',
+      cash_limit: '已达该商品的购买上限',
       cash_gender: '该商品不适合当前角色',
       cash_quantity_invalid: '数量无效',
       cash_shop_unavailable: '商店暂不可用',

@@ -539,6 +539,13 @@ async function enterGame(session: LoginResponse) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Cash purchase' : '现金商店购买'}：${itemName(message.itemId)} × ${message.quantity}（-${message.cashSpent} 楓點）`, `cash:${message.requestId}`);
         }
       }
+      if (message.type === 'rentalNotice') {
+        const names = [...new Set(message.itemIds)].map(id => itemName(id)).join(uiLocale() === 'en' ? ', ' : '、');
+        chat?.appendSystem(
+          uiLocale() === 'en' ? `Rental expired: ${names}` : `租赁道具已到期收回：${names}`,
+          `rental:${Date.now()}`,
+        );
+      }
       if (message.type === 'shopRebought') {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought back' : '赎回'} ${itemName(message.itemId)} × ${message.quantity}（-${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);

@@ -8,14 +8,18 @@
 //!
 //! ## 负责
 //! - `CashOpen`：回执权威余额（`cashState`）。
-//! - `CashBuy`：目录校验 → 条件校验（在售/等级/人气/性别）→ 余额 → 入包 →
-//!   落库 → 回执。`requestId` 幂等重放（与 party 相同的有界窗口）。
-//! - 目录查询辅助：`cash_commodity`。
+//! - `CashBuy`：目录校验 → 条件校验（在售/等级/人气/性别/限购）→ 余额 →
+//!   入包 → 落库 → 回执。`requestId` 幂等重放（与 party 相同的有界窗口）。
+//! - 限购（`Limit`）：每角色购买预算，写入 `cash_purchases` 表跨重启累计。
+//! - 租赁（`Period`）：非零行交付时打上 `_expiresAt` 截止时间，
+//!   `step_rental_expiries` 定期收回过期堆并回执 `rentalNotice`。
+//! - 目录查询辅助：`cash_commodity`（购买流程与测试共用）。
 //!
 //! ## 不负责
 //! - 余额的授予：GM `/cash`（`gm.rs`）是当前唯一本地充值路径（P）。
 //! - 持久化表结构（`crate::auth::schema`）与背包堆叠规则（`crate::inventory`）。
-//! - 礼品赠送、愿望单、里程、优惠券：源系统存在但本阶段不实现（P）。
+//! - 礼品赠送、愿望单、里程、优惠券、退款（`refundable`）：源系统存在但本
+//!   阶段不实现（P）。
 
 use super::*;
 
@@ -23,6 +27,9 @@ use super::*;
 /// replays the recorded outcome instead of charging a second time.  Same
 /// shape as the party request window in `social.rs`.
 const CASH_REQUEST_WINDOW: usize = 64;
+
+/// How often the rental sweep runs, in world ticks (10 s at 50 ms/tick).
+const RENTAL_SWEEP_TICKS: u64 = 10_000 / TICK_MS;
 
 /// One resolved cash purchase, recorded for replay.
 #[derive(Clone, Debug)]
@@ -84,16 +91,11 @@ impl World {
         };
         // The catalogue is optional at the World level so unit-test worlds do
         // not need the export; a missing catalogue refuses every purchase.
-        let Some(catalogue) = self.gameplay.cash_shop.as_ref() else {
+        if self.gameplay.cash_shop.is_none() {
             fail(self, "cash_shop_unavailable");
             return;
-        };
-        let Some(entry) = catalogue
-            .commodities
-            .iter()
-            .find(|entry| entry.sn == sn)
-            .cloned()
-        else {
+        }
+        let Some(entry) = self.cash_commodity(&sn) else {
             fail(self, "cash_sn_unknown");
             return;
         };
@@ -104,8 +106,11 @@ impl World {
             fail(self, "cash_not_purchasable");
             return;
         }
-        let player_state = &self.players[&id].state;
-        if entry.req_level > 0 && player_state.level < entry.req_level {
+        let (level, appearance_gender) = {
+            let state = &self.players[&id].state;
+            (state.level, state.appearance.as_ref().map(|a| a.gender))
+        };
+        if entry.req_level > 0 && level < entry.req_level {
             fail(self, "cash_req_level");
             return;
         }
@@ -115,12 +120,18 @@ impl World {
             fail(self, "cash_req_pop");
             return;
         }
-        if entry.gender != 2 {
-            let appearance_gender = player_state.appearance.as_ref().map(|a| a.gender);
-            if appearance_gender != Some(entry.gender) {
-                fail(self, "cash_gender");
+        if entry.limit > 0 {
+            // Source `Limit` is a per-character purchase budget: every bought
+            // quantity consumes one unit of it, persisted across restarts.
+            let purchased = self.cash_purchased_units(&id, &sn);
+            if purchased + u64::from(quantity) > u64::from(entry.limit) {
+                fail(self, "cash_limit");
                 return;
             }
+        }
+        if entry.gender != 2 && appearance_gender != Some(entry.gender) {
+            fail(self, "cash_gender");
+            return;
         }
         let Some(player) = self.players.get_mut(&id) else {
             return;
@@ -146,18 +157,31 @@ impl World {
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
         let mut next_inventory = player.state.inventory.clone();
-        // One commodity row delivers `count` units; buying `quantity` deals
-        // multiplies through, and every unit lands in the cash tab.
-        let units = match u64::from(entry.count).checked_mul(u64::from(quantity)) {
+        // One commodity row delivers `count` units plus its `bonus` extra;
+        // buying `quantity` deals multiplies through, and every unit lands in
+        // the cash tab.
+        let units = match u64::from(entry.count)
+            .checked_add(entry.bonus)
+            .and_then(|per_deal| per_deal.checked_mul(u64::from(quantity)))
+        {
             Some(units) => u32::try_from(units).unwrap_or(u32::MAX),
             None => {
                 fail(self, "cash_quantity_invalid");
                 return;
             }
         };
-        if let Err(error) =
-            inventory::add_items(&mut next_inventory, entry.item_id.clone(), units, slot_limit)
-        {
+        // Source `Period` rows are rentals: the delivery stamps an absolute
+        // wall-clock deadline that `step_rental_expiries` enforces later.
+        let expires_at = (entry.period > 0).then(|| {
+            unix_now_ms() / 1000 + i64::from(entry.period) * inventory::RENTAL_DAY_SECONDS
+        });
+        if let Err(error) = inventory::add_items_expiring(
+            &mut next_inventory,
+            entry.item_id.clone(),
+            units,
+            slot_limit,
+            expires_at,
+        ) {
             let code = match error {
                 inventory::InventoryError::InventoryFull => "cash_inventory_full",
                 inventory::InventoryError::UnknownItem => "cash_item_unknown",
@@ -191,6 +215,7 @@ impl World {
             quantity,
             total,
         );
+        self.remember_cash_purchase(&id, &sn, quantity);
         self.send_cash_buy_result(
             &id,
             &request_id,
@@ -240,6 +265,79 @@ impl World {
                 cash_spent,
             },
         );
+    }
+
+    /// The purchase counter for one (player, SN) pair.  Store-backed worlds
+    /// read through to the persisted `cash_purchases` row on first touch;
+    /// store-less test worlds start at zero.
+    fn cash_purchased_units(&mut self, id: &str, sn: &str) -> u64 {
+        let key = (id.to_owned(), sn.to_owned());
+        if let Some(units) = self.cash_purchases.get(&key) {
+            return *units;
+        }
+        let units = self
+            .store
+            .as_ref()
+            .and_then(|store| store.cash_purchased_units(id, sn).ok())
+            .unwrap_or(0);
+        self.cash_purchases.insert(key, units);
+        units
+    }
+
+    /// Consume `quantity` of the SN's purchase budget (write-through).
+    fn remember_cash_purchase(&mut self, id: &str, sn: &str, quantity: u32) {
+        let entry = self
+            .cash_purchases
+            .entry((id.to_owned(), sn.to_owned()))
+            .or_insert(0);
+        *entry += u64::from(quantity);
+        if let Some(store) = self.store.as_ref() {
+            let _ = store.record_cash_purchase(id, sn, u64::from(quantity));
+        }
+    }
+
+    /// Remove every expired rental stack from every online character,
+    /// persist the trimmed bag and tell the owner what was reclaimed.  Called
+    /// once per world tick; the modulo gate makes the actual sweep a 10 s
+    /// cadence, so an expired item survives at most one sweep interval.
+    pub(crate) fn step_rental_expiries(&mut self) {
+        if self.tick % RENTAL_SWEEP_TICKS != 0 {
+            return;
+        }
+        let now = unix_now_ms() / 1000;
+        let ids: Vec<String> = self.players.keys().cloned().collect();
+        for id in ids {
+            let Some(player) = self.players.get_mut(&id) else {
+                continue;
+            };
+            let expired: Vec<String> = player
+                .state
+                .inventory
+                .iter()
+                .filter(|item| inventory::rental_expired(item, now))
+                .map(|item| item.item_id.clone())
+                .collect();
+            if expired.is_empty() {
+                continue;
+            }
+            player
+                .state
+                .inventory
+                .retain(|item| !inventory::rental_expired(item, now));
+            if let Some(store) = self.store.as_ref() {
+                let _ = store.write_inventory(&id, &player.state.inventory);
+            }
+            let mut item_ids = expired;
+            item_ids.sort();
+            item_ids.dedup();
+            let payload = serde_json::json!({
+                "type": "rentalNotice",
+                "itemIds": item_ids,
+            });
+            if let Some(player) = self.players.get(&id) {
+                let _ = player.output.try_send(payload.to_string());
+            }
+        }
     }
 
     fn replayed_cash_request(&self, id: &str, request_id: &str) -> Option<CashOutcome> {

@@ -388,7 +388,11 @@ export type ServerMessage =
   /** Authoritative result of one cash purchase. `cashSpent` is 0 for every
    *  refusal; `cash` is the fresh balance after the exchange. A replayed
    *  `requestId` replays this same outcome instead of charging again. */
-  | { type: 'cashBuyResult'; requestId: string; success: boolean; code: string; sn: string; itemId: string; quantity: number; cashSpent: number; cash: number };
+  | { type: 'cashBuyResult'; requestId: string; success: boolean; code: string; sn: string; itemId: string; quantity: number; cashSpent: number; cash: number }
+  /** Server-initiated: the rental sweep reclaimed expired cash-shop
+   *  `Period` items from this character.  `itemIds` lists the distinct item
+   *  ids that disappeared; the inventory snapshot already reflects it. */
+  | { type: 'rentalNotice'; itemIds: string[] };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

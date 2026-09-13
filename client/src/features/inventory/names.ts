@@ -153,6 +153,15 @@ export function itemDetails(itemId: string, instance?: InventoryItem, comparison
   if (description) lines.push(description);
   if (numberOrZero(info.tradeBlock) !== 0) lines.push(uiLocale() === 'zh' ? '不可交易' : 'Untradeable');
   if (numberOrZero(info.only) !== 0) lines.push(uiLocale() === 'zh' ? '固有道具' : 'Unique item');
+  // Rental deadline stamped by the server on cash-shop `Period` deliveries
+  // (private `_expiresAt` instance key, unix seconds).
+  const expiresAt = instance?.stats?.['_expiresAt'];
+  if (expiresAt && expiresAt > 0) {
+    const days = Math.ceil((expiresAt * 1000 - Date.now()) / 86_400_000);
+    lines.push(uiLocale() === 'zh'
+      ? (days > 0 ? `租赁期限：剩餘 ${days} 天` : '租赁期限：已到期')
+      : (days > 0 ? `Rental: ${days} day(s) left` : 'Rental: expired'));
+  }
   if (comparison !== undefined) lines.push(itemComparisonDetails(instance ?? { slot: 0, itemId, quantity: 1 }, comparison));
   return lines.join('\n');
 }

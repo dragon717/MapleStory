@@ -1008,6 +1008,32 @@ impl Store {
         Ok(())
     }
 
+    /// 現金商店限购：one SN's already-consumed purchase budget for this
+    /// character (0 when the account never bought it).
+    pub fn cash_purchased_units(&self, account_id: &str, sn: &str) -> Result<u64, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.query_row(
+            "SELECT units FROM cash_purchases WHERE account_id=?1 AND sn=?2",
+            params![account_id, sn],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map(|units| units.unwrap_or(0).max(0) as u64)
+        .map_err(|_| "account persistence failed".into())
+    }
+
+    /// 現金商店限购：add `units` to the SN's consumed budget (upsert).
+    pub fn record_cash_purchase(&self, account_id: &str, sn: &str, units: u64) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "INSERT INTO cash_purchases(account_id,sn,units) VALUES(?1,?2,?3)
+             ON CONFLICT(account_id,sn) DO UPDATE SET units=units+?3",
+            params![account_id, sn, units as i64],
+        )
+        .map(|_| ())
+        .map_err(|_| "account persistence failed".into())
+    }
+
     pub fn prior_revive(
         &self,
         account_id: &str,

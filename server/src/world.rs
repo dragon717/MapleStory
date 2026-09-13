@@ -1173,6 +1173,10 @@ pub struct Gameplay {
 /// One purchasable row of the 現金商店 catalogue.  `sn` is the source
 /// commodity key and the only purchase handle a client may present; item,
 /// price, stack and every sale condition live here on the server side.
+/// Display-only source columns (`tab`, `priority`, the sidebar `categories`
+/// and the future refund window flag `refundable`) are intentionally not
+/// deserialized: the client renders its own catalogue copy from
+/// `cashshop.json`, and refunds stay a P feature.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CashCommodity {
@@ -1181,9 +1185,11 @@ pub struct CashCommodity {
     pub item_id: String,
     pub count: u32,
     pub price: u64,
+    /// Extra units delivered alongside `count` (buy-one-get-one style).
     #[serde(default)]
     pub bonus: u64,
-    /// Rental days; 0 = permanent.
+    /// Rental days; 0 = permanent.  A non-zero row delivers its items with
+    /// an `_expiresAt` deadline that the world's rental sweep enforces.
     #[serde(default)]
     pub period: u32,
     /// 0=male 1=female 2=both.
@@ -1193,28 +1199,17 @@ pub struct CashCommodity {
     pub req_level: u32,
     #[serde(rename = "reqPop", default)]
     pub req_pop: u32,
-    #[serde(default)]
-    pub priority: i64,
-    /// 0 = no per-account purchase cap recorded in the source row.
+    /// Per-character purchase-count cap; 0 = unlimited.  Every bought
+    /// `quantity` consumes one unit of the budget, persisted in
+    /// `cash_purchases` so it survives a restart.
     #[serde(default)]
     pub limit: u32,
-    #[serde(default)]
-    pub refundable: bool,
-    pub tab: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CashShopCatalogue {
-    pub categories: Vec<CashCategory>,
     pub commodities: Vec<CashCommodity>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CashCategory {
-    pub id: String,
-    pub label: String,
 }
 
 
@@ -1853,6 +1848,10 @@ pub struct World {
     party_requests: BTreeMap<(String, String), PartyOutcome>,
     /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
     cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
+    /// Per-(player, SN) cash purchase counters backing `Commodity.img`
+    /// `Limit`.  Write-through to the persisted `cash_purchases` table when a
+    /// store is attached; the in-memory copy only serves store-less worlds.
+    cash_purchases: BTreeMap<(String, String), u64>,
     party_sequence: u64,
     /// Cached outcome of the last friend/blacklist intent per (player,
     /// request).  Mirrors the persisted `friend_actions` row so a retry inside
@@ -1983,6 +1982,7 @@ impl World {
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
             cash_requests: BTreeMap::new(),
+            cash_purchases: BTreeMap::new(),
             party_sequence: 0,
             friend_requests: BTreeMap::new(),
             friend_links: BTreeMap::new(),
@@ -2989,6 +2989,9 @@ impl World {
         // cannot grow without bound over a long session, and mirror what is
         // left onto the wire state for the client to render.
         self.expire_potion_cooldowns();
+        // Reclaim expired rental items (cash-shop `Period` rows) from every
+        // online character; internally gated to a 10 s cadence.
+        self.step_rental_expiries();
         // Left-over membership is pruned from the authoritative player map, so
         // a logout, a transport loss or an expired away window all end a
         // membership through the same single path.

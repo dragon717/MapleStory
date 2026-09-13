@@ -102,6 +102,14 @@ impl Store {
                unit_price INTEGER NOT NULL,
                PRIMARY KEY(account_id,seq)
              );
+             -- 現金商店限购预算（Commodity.img `Limit`）。units 累计的是已
+             -- 购买次数，购买结算与校验见 `cashshop.rs`。
+             CREATE TABLE IF NOT EXISTS cash_purchases(
+               account_id TEXT NOT NULL,
+               sn TEXT NOT NULL,
+               units INTEGER NOT NULL DEFAULT 0,
+               PRIMARY KEY(account_id,sn)
+             );
              CREATE TABLE IF NOT EXISTS storage_mesos_actions(
                account_id TEXT NOT NULL,
                request_id TEXT NOT NULL,
