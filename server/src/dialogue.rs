@@ -600,6 +600,12 @@ impl World {
                     }
                 }
                 self.send_npc_dialogue(&id, value);
+                // A merchant window owns a buy-back tab, so the list of what
+                // this character has sold to any shop travels with the window
+                // that shows it.
+                if matches!(&view, npc::DialogueView::OpenShop { .. }) {
+                    self.send_shop_rebuy_state(&id);
+                }
                 // Apply the one-shot quest effect after the client has been
                 // told the conversation ended.
                 if let Some(effect) = quest_effect {

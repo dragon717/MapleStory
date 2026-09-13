@@ -1,4 +1,4 @@
-//! 交易职责：NPC 商店（买 / 卖）与账号仓库（开仓、转账、金币存取）。
+//! 交易职责：NPC 商店（买 / 卖 / 赎回）与账号仓库（开仓、转账、金币存取）。
 //!
 //! 从 `world.rs` 机械搬出的第四块完整职责（超大文件治理 P2）。搬的是**代码位置**，
 //! 不是数据布局：`Player` / `World` 的字段仍在原处，协议、存档与 Tick 次序均未改变。
@@ -6,6 +6,8 @@
 //! ## 负责
 //! - 商店买入 / 卖出的**完整事务外观**：keeper 距离与在售校验、容量与金币重算、
 //!   `requestId` 幂等重放、回执下发。客户端报的槽位 / 数量 / 价格只作意图，不作事实。
+//! - 商店**赎回**（买回）：卖出时把该笔写进 `shop_rebuy`（`crate::auth`），买回时按
+//!   表里的行与单价重算，行不在表里就拒绝；同样带 `requestId` 幂等重放。
 //! - 账号仓库的开仓、物品转账（存 / 取）与金币存取：仓库行落在 `crate::auth`（SQLite），
 //!   **事务成功后才**改内存并回执；转账会连带刷新角色身上随之变化的行
 //!   （`reload_storage_side_effects`），避免"仓库扣了、身上没到账"的中间态被看见。
@@ -13,8 +15,8 @@
 //!   开着的仓库窗在 NPC 换图 / 消失后必须失效，而不是凭缓存继续操作。
 //!
 //! ## 不负责
-//! - 仓库与商店的**落库 / 读取 / DTO**：`crate::auth`（`Store` / `StorageTransferOperation` /
-//!   `ShopSellOutcome` 等）
+//! - 仓库、赎回表与商店的**落库 / 读取 / DTO**：`crate::auth`（`Store` /
+//!   `StorageTransferOperation` / `ShopSellOutcome` / `ShopRebuyRow` 等）
 //! - 商店窗口的**打开回执**（`send_shop_result`）：它长在 NPC 对话链路里，随对话一起走
 //! - 物品堆叠 / 容量规则本身：`crate::inventory`
 
@@ -410,6 +412,315 @@ impl World {
             source_slot,
             payout,
         );
+        // The shop now owes the character a buy-back row: remember the stack
+        // and the price it just paid, so the same money can take it back.  The
+        // sale itself has already been committed, so a persistence failure here
+        // only costs the buy-back entry.
+        if let Some(store) = self.store.as_ref() {
+            let _ = store.push_shop_rebuy(&id, &item_id, quantity, unit_payout);
+        }
+        self.send_shop_rebuy_state(&id);
+    }
+
+    /// Authoritative shop buy-back (`ShopRebuy`): take one stack back off the
+    /// character's own list of sold goods at exactly the price the shop paid
+    /// for it.
+    ///
+    /// The list is the shop's memory of what it bought, so it is the
+    /// authority: the request names an item and a price, and the row has to
+    /// exist in the character's persisted list before anything moves.  A
+    /// tampered request can therefore neither invent an item nor name a price
+    /// the shop never paid.
+    pub(super) fn handle_shop_rebuy(
+        &mut self,
+        id: String,
+        request_id: String,
+        shop_id: String,
+        item_id: String,
+        unit_price: u64,
+    ) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        // A buy-back spends mesos, so a replayed request must not run twice.
+        if let Some(prior) = self
+            .shop_rebuy_requests
+            .get(&(id.clone(), request_id.clone()))
+        {
+            let prior = prior.clone();
+            self.send_shop_rebuy_outcome(&id, &request_id, &prior);
+            return;
+        }
+        // Buying back is still done at a merchant: the shop must exist and the
+        // player must be standing at it, exactly as for a purchase or a sale.
+        let shop_known = self
+            .gameplay
+            .shops
+            .iter()
+            .any(|shop| shop.shop_id == shop_id);
+        if !shop_known {
+            self.send_shop_rebuy_result(
+                &id, &request_id, false, "shop_unknown", &shop_id, &item_id, 0, unit_price, 0,
+            );
+            return;
+        }
+        let npc_in_range = self.npcs.values().any(|npc| {
+            npc.map_id == player.map_id
+                && npc.state.shop_id.as_deref() == Some(shop_id.as_str())
+                && (player.state.x - npc.state.x).abs() <= npc::TALK_RANGE_X
+                && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y
+        });
+        if !npc_in_range {
+            self.send_shop_rebuy_result(
+                &id, &request_id, false, "shop_too_far", &shop_id, &item_id, 0, unit_price, 0,
+            );
+            return;
+        }
+        let Some(store) = self.store.clone() else {
+            self.send_shop_rebuy_result(
+                &id, &request_id, false, "persistence", &shop_id, &item_id, 0, unit_price, 0,
+            );
+            return;
+        };
+        // Resolve the row server-side: the quantity and the price are the ones
+        // the shop recorded when it bought the stack, never the client's.
+        let rows = match store.load_shop_rebuy(&id) {
+            Ok(rows) => rows,
+            Err(_) => {
+                self.send_shop_rebuy_result(
+                    &id, &request_id, false, "persistence", &shop_id, &item_id, 0, unit_price, 0,
+                );
+                return;
+            }
+        };
+        let Some(row) = rows
+            .iter()
+            .find(|row| row.item_id == item_id && row.unit_price == unit_price)
+            .cloned()
+        else {
+            self.send_shop_rebuy_result(
+                &id,
+                &request_id,
+                false,
+                "shop_rebuy_unknown",
+                &shop_id,
+                &item_id,
+                0,
+                unit_price,
+                0,
+            );
+            return;
+        };
+        let cost = match row.unit_price.checked_mul(u64::from(row.quantity)) {
+            Some(cost) => cost,
+            None => {
+                self.send_shop_rebuy_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_rebuy_unknown",
+                    &shop_id,
+                    &item_id,
+                    row.quantity,
+                    unit_price,
+                    0,
+                );
+                return;
+            }
+        };
+        if player.state.mesos < cost {
+            self.send_shop_rebuy_result(
+                &id,
+                &request_id,
+                false,
+                "shop_not_enough_mesos",
+                &shop_id,
+                &item_id,
+                row.quantity,
+                unit_price,
+                0,
+            );
+            return;
+        }
+        // Capacity is validated on a clone first, so a full tab refuses the
+        // deal before the row is consumed.
+        let mut next_inventory = player.state.inventory.clone();
+        let kind = inventory::inventory_type(&item_id).unwrap_or(4);
+        let slot_limit = player
+            .inventory_slots
+            .get(&kind)
+            .copied()
+            .unwrap_or(inventory::SLOT_LIMIT);
+        if let Err(error) = inventory::add_items(
+            &mut next_inventory,
+            item_id.clone(),
+            row.quantity,
+            slot_limit,
+        ) {
+            self.send_shop_rebuy_result(
+                &id,
+                &request_id,
+                false,
+                match error {
+                    inventory::InventoryError::InventoryFull => "shop_inventory_full",
+                    inventory::InventoryError::UnknownItem => "shop_item_unknown",
+                    _ => "shop_rejected",
+                },
+                &shop_id,
+                &item_id,
+                row.quantity,
+                unit_price,
+                0,
+            );
+            return;
+        }
+        // Consume the row before handing anything out: if it is already gone
+        // the deal is off, and nothing has moved yet.
+        match store.take_shop_rebuy(&id, &item_id, unit_price) {
+            Ok(true) => {}
+            Ok(false) => {
+                self.send_shop_rebuy_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "shop_rebuy_unknown",
+                    &shop_id,
+                    &item_id,
+                    row.quantity,
+                    unit_price,
+                    0,
+                );
+                return;
+            }
+            Err(_) => {
+                self.send_shop_rebuy_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "persistence",
+                    &shop_id,
+                    &item_id,
+                    row.quantity,
+                    unit_price,
+                    0,
+                );
+                return;
+            }
+        }
+        let new_mesos = player.state.mesos - cost;
+        let player = match self.players.get_mut(&id) {
+            Some(player) => player,
+            None => return,
+        };
+        player.state.inventory = next_inventory;
+        player.state.mesos = new_mesos;
+        if let Some(store) = self.store.as_ref() {
+            let _ = store.write_inventory(&id, &player.state.inventory);
+            let _ = store.save_profile(
+                &id,
+                &profile_from_state(
+                    &player.state,
+                    &player.map_id,
+                    &player.death_id,
+                    player.base_max_mp,
+                ),
+            );
+        }
+        self.send_shop_rebuy_result(
+            &id,
+            &request_id,
+            true,
+            "",
+            &shop_id,
+            &item_id,
+            row.quantity,
+            unit_price,
+            cost,
+        );
+        self.send_shop_rebuy_state(&id);
+    }
+
+    /// Record one buy-back outcome and send it.  Every path goes through here
+    /// so the idempotency window sees refusals as well: a request that was
+    /// already refused stays refused, and a request that already paid is never
+    /// charged twice.
+    fn send_shop_rebuy_result(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        shop_id: &str,
+        item_id: &str,
+        quantity: u32,
+        unit_price: u64,
+        mesos_spent: u64,
+    ) {
+        let mesos = self
+            .players
+            .get(id)
+            .map(|player| player.state.mesos)
+            .unwrap_or(0);
+        let outcome = ShopRebuyOutcome {
+            success,
+            code: code.to_owned(),
+            shop_id: shop_id.to_owned(),
+            item_id: item_id.to_owned(),
+            quantity,
+            unit_price,
+            mesos_spent,
+            mesos,
+        };
+        self.shop_rebuy_requests
+            .insert((id.to_owned(), request_id.to_owned()), outcome.clone());
+        self.send_shop_rebuy_outcome(id, request_id, &outcome);
+    }
+
+    /// Emit the `shopRebought` wire message for an already-decided outcome.
+    fn send_shop_rebuy_outcome(&self, id: &str, request_id: &str, outcome: &ShopRebuyOutcome) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type":"shopRebought",
+            "requestId":request_id,
+            "success":outcome.success,
+            "code":outcome.code,
+            "shopId":outcome.shop_id,
+            "itemId":outcome.item_id,
+            "quantity":outcome.quantity,
+            "unitPrice":outcome.unit_price,
+            "mesosSpent":outcome.mesos_spent,
+            "mesos":player.state.mesos,
+        })
+        .to_string();
+        let _ = player.output.try_send(message);
+    }
+
+    /// Push the character's buy-back list.  Sent when a merchant window opens
+    /// and again after every sale or buy-back, so the tab can never show a row
+    /// the shop would refuse.
+    pub(super) fn send_shop_rebuy_state(&self, id: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let entries = store
+            .load_shop_rebuy(id)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| {
+                serde_json::json!({
+                    "itemId": row.item_id,
+                    "quantity": row.quantity,
+                    "unitPrice": row.unit_price,
+                })
+            })
+            .collect::<Vec<_>>();
+        let message = serde_json::json!({"type":"shopRebuyState","entries":entries}).to_string();
+        let _ = player.output.try_send(message);
     }
 
     /// Record one sell-back outcome and send it.  Every path goes through here

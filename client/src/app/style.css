@@ -92,21 +92,31 @@
 .npc-dlg-btns-left{position:absolute;left:9px;top:0}.npc-dlg-btns-right{position:absolute;right:8px;top:0;display:flex;gap:6px}
 @media(max-width:799px){.npc-dlg{transform:translate(-50%,-56%) scale(.86)}.npc-dlg,.npc-dlg-img{transform-origin:center center}}
 
-/* Source UIWindow.img/Shop window: fixed 463x339 backdrop with a scrollable
-   item list, mesos footer and source BtBuy/BtExit sprites. */
+/* Source UIWindow.img/Shop window: fixed 463x339 backdrop, whose own art carries
+   the centre divider, so the merchant window is two panels — left buys (tabs:
+   goods / buy-back) and right sells — with the source BtBuy/BtSell/BtExit
+   sprites, a mesos footer under the left panel and the exit under the right. */
 .npc-shop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:463px;height:339px;pointer-events:auto;filter:drop-shadow(0 8px 10px #000c);user-select:none;z-index:2;image-rendering:pixelated}
 .npc-shop-backgrnd{position:absolute;inset:0;display:block;width:463px;height:339px;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
 .npc-shop-title{position:absolute;left:28px;top:14px;width:300px;height:18px;overflow:hidden;color:#5b4225;font:bold 11px/18px Verdana,"Microsoft YaHei",sans-serif;text-align:center;letter-spacing:.2px;pointer-events:none;text-shadow:0 1px 0 #ffe0a4}
-.npc-shop-tabs{position:absolute;left:14px;top:36px;width:435px;height:18px;display:flex;gap:4px;pointer-events:auto;z-index:1}
-.npc-shop-tab{flex:0 0 auto;min-width:70px;height:18px;padding:0 10px;box-sizing:border-box;cursor:pointer;color:#5b4225;background:linear-gradient(#efe7d0,#ddd2b2);border:1px solid #cabb8f;border-bottom:none;border-radius:3px 3px 0 0;font:bold 11px/16px Verdana,"Microsoft YaHei",sans-serif}
+.npc-shop-panel{position:absolute;top:36px;height:252px;display:flex;flex-direction:column;pointer-events:auto;z-index:1}
+.npc-shop-panel-left{left:12px;width:216px}
+.npc-shop-panel-right{left:238px;width:215px}
+.npc-shop-tabs{display:flex;gap:4px;height:18px;flex:0 0 18px}
+/* Every tab keeps the source TabBuy/TabSell sprite's own 42px box, widened to
+   48px so the longest locale label fits the same box — the left pair and the
+   right label stay one width instead of stretching to their panel. */
+.npc-shop-tab{flex:0 0 48px;width:48px;height:18px;padding:0;box-sizing:border-box;cursor:pointer;color:#5b4225;background:linear-gradient(#efe7d0,#ddd2b2);border:1px solid #cabb8f;border-bottom:none;border-radius:3px 3px 0 0;font:bold 11px/16px Verdana,"Microsoft YaHei",sans-serif;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .npc-shop-tab.is-active{color:#fff8e2;background:linear-gradient(#8a6a3a,#6d512a);border-color:#5b4225;text-shadow:0 1px 0 #3d2b12}
-.npc-shop-list{position:absolute;left:14px;top:54px;width:435px;height:234px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9;background:transparent;padding-right:4px}
-.npc-shop-row{display:flex;align-items:center;gap:8px;height:36px;flex:0 0 36px;padding:0 6px;background:linear-gradient(#fffef8,#efe7d0);border:1px solid #cabb8f;border-radius:2px}
+.npc-shop-tab.is-static{cursor:default}
+.npc-shop-list{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:#c9b98a #f3ecd9;background:transparent}
+.npc-shop-row{display:flex;align-items:center;gap:6px;height:38px;flex:0 0 38px;padding:0 4px;background:linear-gradient(#fffef8,#efe7d0);border:1px solid #cabb8f;border-radius:2px}
 .npc-shop-row:nth-child(even){background:linear-gradient(#faf5e6,#e9dfc4)}
-.npc-shop-icon{flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:#20242a;border:1px solid #8d7c55;image-rendering:pixelated}
-.npc-shop-icon img{display:block;max-width:28px;max-height:28px;image-rendering:pixelated}
-.npc-shop-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#33301f;font:11px/16px Verdana,"Microsoft YaHei",sans-serif}
-.npc-shop-price{flex:0 0 auto;color:#9a3c13;font:bold 11px/16px Verdana,sans-serif}
+.npc-shop-icon{flex:0 0 auto;width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:#20242a;border:1px solid #8d7c55;image-rendering:pixelated}
+.npc-shop-icon img{display:block;max-width:24px;max-height:24px;image-rendering:pixelated}
+.npc-shop-info{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.npc-shop-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#33301f;font:11px/14px Verdana,"Microsoft YaHei",sans-serif}
+.npc-shop-price{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9a3c13;font:bold 10px/13px Verdana,sans-serif}
 .npc-shop-buy{flex:0 0 auto}
 .npc-shop-meso{position:absolute;left:24px;bottom:13px;display:flex;align-items:center;gap:4px;pointer-events:none}
 .npc-shop-meso img{display:block;width:14px;height:14px;image-rendering:pixelated}

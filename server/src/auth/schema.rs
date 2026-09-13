@@ -93,6 +93,14 @@ impl Store {
                account_id TEXT PRIMARY KEY,
                mesos INTEGER NOT NULL DEFAULT 0
              );
+             CREATE TABLE IF NOT EXISTS shop_rebuy(
+               account_id TEXT NOT NULL,
+               seq INTEGER NOT NULL,
+               item_id TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               unit_price INTEGER NOT NULL,
+               PRIMARY KEY(account_id,seq)
+             );
              CREATE TABLE IF NOT EXISTS storage_mesos_actions(
                account_id TEXT NOT NULL,
                request_id TEXT NOT NULL,

@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 export const CONTENT_VERSION = 'tms273-13';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -118,6 +118,17 @@ export interface StorageState {
   /** The storage keeper this window belongs to. */
   npcId: string;
 }
+/** One row of the character's buy-back list: a stack sold to a merchant that
+ *  can be bought back for what the shop paid for it. Rows are owned by the
+ *  server (persisted, newest first, capped) and only ever shown, never
+ *  authored, by the client. */
+export interface ShopRebuyEntry {
+  itemId: string;
+  quantity: number;
+  /** What the shop paid per unit when the stack was sold, i.e. the price the
+   *  character pays to buy the row back. */
+  unitPrice: number;
+}
 /** One row of an authoritative party roster. The roster is rebuilt server-side
  *  from the characters actually in the world, so a departed member never
  *  lingers and a stale cached copy can never be trusted. */
@@ -188,6 +199,11 @@ export type ClientMessage =
    *  the shop, tab and slot only; the item, its sellability and the mesos paid
    *  are all resolved server-side. No itemId or price is accepted. */
   | { type: 'shopSell'; requestId: string; shopId: string; inventoryType: number; sourceSlot: number; quantity: number }
+  /** Intent to buy one row back from the shop's buy-back tab. The client names
+   *  the item and the price it was sold for; the server looks the row up in the
+   *  character's persisted list, so a forged request can neither invent an item
+   *  nor claim a price. */
+  | { type: 'shopRebuy'; requestId: string; shopId: string; itemId: string; unitPrice: number }
   /** Open the account warehouse at a placed storage keeper. The server decides
    *  whether that npc is a keeper and whether the player is close enough. */
   | { type: 'storageOpen'; requestId: string; npcId: string }
@@ -287,6 +303,13 @@ export type ServerMessage =
   /** Authoritative result of selling one stack to an NPC shop. `mesosGained`
    *  is 0 for every refusal; `mesos` is the fresh authoritative balance. */
   | { type: 'shopSold'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; slot: number; mesosGained: number; mesos: number }
+  /** The character's authoritative buy-back list, newest first. Pushed when a
+   *  merchant window opens and again after every sale or buy-back, so the tab
+   *  always shows what the server would really sell back. */
+  | { type: 'shopRebuyState'; entries: ShopRebuyEntry[] }
+  /** Authoritative result of buying one row back. `mesosSpent` is 0 for every
+   *  refusal; `mesos` is the fresh balance after the exchange. */
+  | { type: 'shopRebought'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; unitPrice: number; mesosSpent: number; mesos: number }
   | { type: 'questList'; quests: QuestLogEntry[] }
   | ({ type: 'questUpdate'; reward: QuestRewardInfo } & QuestLogEntry)
   | { type: 'rejected'; code: string; message: string; requestId?: string }

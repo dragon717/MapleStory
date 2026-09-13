@@ -18,9 +18,16 @@ const namesCode = compile(await readFile(new URL('../inventory/names.ts', import
   .replace(/^import catalog from '.*items\.json';$/m, `import catalog from ${JSON.stringify(itemsUrl)} with { type: 'json' };`);
 const namesUrl = `data:text/javascript;base64,${Buffer.from(namesCode).toString('base64')}`;
 
+// dialogue.ts also pulls the tab → WZ category table from view-model.ts, which
+// reads names.ts, so it has to travel through the same inlined module graph.
+const viewModelCode = compile(await readFile(new URL('../inventory/view-model.ts', import.meta.url), 'utf8'))
+  .replace(/from '\.\/names'/, `from ${JSON.stringify(namesUrl)}`);
+const viewModelUrl = `data:text/javascript;base64,${Buffer.from(viewModelCode).toString('base64')}`;
+
 const code = compile(source)
   .replace(/import .* from '..\/..\/app\/i18n';/, i18nStub)
-  .replace(/'..\/inventory\/names'/, JSON.stringify(namesUrl));
+  .replace(/'..\/inventory\/names'/, JSON.stringify(namesUrl))
+  .replace(/'..\/inventory\/view-model'/, JSON.stringify(viewModelUrl));
 const { NpcDialogueView } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 const original = { window: globalThis.window, fetch: globalThis.fetch };
 try {
@@ -56,6 +63,44 @@ try {
   assert.equal(escape().defaultPrevented, false);
   await new Promise(resolve => setImmediate(resolve));
   console.log('NPC modal lifecycle: Escape, repeat close, shop, disconnect and teardown passed.');
+
+  // --- Sell panel: payout filter, WZ category mapping and rebuild gating ---
+  const sellView = new NpcDialogueView({}, {}, () => {}, () => true);
+  sellView.shopCurrent = { shopId: 'shop-9' };
+  sellView.itemNames = {};
+  sellView.manifest = {};
+  sellView.itemPrices = { '1002043': 200, '4000019': 6, '3010000': 40, '2431174': 1 };
+  sellView.playerInventory = [
+    { slot: 1, itemId: '1002043', quantity: 1 },
+    { slot: 2, itemId: '4000019', quantity: 10 },
+    { slot: 3, itemId: '3010000', quantity: 2 },
+    { slot: 4, itemId: '2431174', quantity: 4 },
+  ];
+  const entries = sellView.sellEntries();
+  assert.equal(entries.length, 3, 'A price whose rounded payout is zero is refused server-side, so it is not listed');
+  const byItem = Object.fromEntries(entries.map(entry => [entry.itemId, entry]));
+  assert.equal(byItem['4000019'].inventoryType, 4, 'Etc stacks must carry WZ category 4, not tab + 1');
+  assert.equal(byItem['3010000'].inventoryType, 3, 'Setup stacks must carry WZ category 3');
+  assert.equal(byItem['1002043'].inventoryType, 1, 'Equip stacks carry WZ category 1');
+  assert.equal(byItem['4000019'].preview, 30, 'Preview is the rounded payout times the stack');
+  assert.equal(byItem['1002043'].preview, 100);
+
+  // The sell panel is refreshed by every snapshot, and rebuilding the rows
+  // between a press and its release swallows the click on the sell button, so
+  // an unchanged bag must leave the built rows alone.
+  const rebuilds = { replace: 0, rows: 0 };
+  sellView.shopSellRoot = { replaceChildren() { rebuilds.replace++; }, appendChild() { rebuilds.rows++; } };
+  sellView.shopRow = () => ({});
+  sellView.renderSellList(true);
+  assert.equal(rebuilds.replace, 1);
+  sellView.renderSellList();
+  sellView.renderSellList();
+  assert.equal(rebuilds.replace, 1, 'An unchanged snapshot must not rebuild the sell rows');
+  sellView.playerInventory = sellView.playerInventory.filter(item => item.itemId !== '4000019');
+  sellView.renderSellList();
+  assert.equal(rebuilds.replace, 2, 'A changed bag must rebuild the sell rows');
+  sellView.destroy();
+  console.log('NPC shop sell panel: zero-payout filter, WZ category mapping and snapshot gating passed.');
 } finally {
   Object.assign(globalThis, original);
 }

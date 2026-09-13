@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 14;
+pub const PROTOCOL_VERSION: u32 = 15;
 pub const CONTENT_VERSION: &str = "tms273-13";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -276,6 +276,21 @@ pub enum ClientMessage {
         #[serde(rename = "sourceSlot")]
         source_slot: i16,
         quantity: u32,
+    },
+    /// Intent to buy one row back from the shop's buy-back tab (the stacks the
+    /// character has sold to any merchant).  The client names the item and the
+    /// price it was sold for; the row itself, its quantity and the price are
+    /// resolved from the character's persisted list, so a forged request can
+    /// neither invent an item nor name its own price.
+    ShopRebuy {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "shopId")]
+        shop_id: String,
+        #[serde(rename = "itemId")]
+        item_id: String,
+        #[serde(rename = "unitPrice")]
+        unit_price: u64,
     },
     /// Open (or refresh) the account warehouse at a placed storage keeper.
     /// The client names the npc it is standing at; the server decides whether
@@ -646,6 +661,18 @@ impl ClientMessage {
                     && inventory::valid_inventory_type(*inventory_type)
                     && inventory::valid_slot(*source_slot)
                     && (1..=100).contains(quantity)
+            }
+            Self::ShopRebuy {
+                request_id,
+                shop_id,
+                item_id,
+                unit_price,
+            } => {
+                valid_id(request_id)
+                    && valid_id(shop_id)
+                    && valid_id(item_id)
+                    && *unit_price > 0
+                    && *unit_price <= 1_000_000_000
             }
             Self::StorageOpen { request_id, npc_id } => valid_id(request_id) && valid_id(npc_id),
             Self::StorageTransfer {

@@ -1,8 +1,9 @@
 import type {
-  ClientMessage, InventoryItem, NpcState, PlayerState, ServerMessage,
+  ClientMessage, InventoryItem, NpcState, PlayerState, ServerMessage, ShopRebuyEntry,
 } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { itemCategoryTab } from '../inventory/names';
+import { inventoryTypeForTab } from '../inventory/view-model';
 import { uiLocale, uiText, displayText } from '../../app/i18n';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
@@ -37,7 +38,7 @@ interface SellEntry {
   icon?: string;
 }
 
-type ShopTab = 'buy' | 'sell';
+type ShopTab = 'buy' | 'rebuy';
 
 /** Fraction of an item's catalog price an NPC shop pays. Mirrors the server's
  *  SHOP_SELL_PRICE_PERCENT; the server remains authoritative and this is only
@@ -75,11 +76,16 @@ function frame(url?: string, cls?: string, width?: number, height?: number): HTM
  * Npc conversation + shop window, using TMS273 UIWindow2 source art:
  *  - UtilDlgEx t/c/s frame with the speaker portrait + `bar` nameplate,
  *  - UtilDlgEx Bt* sprites for the answers,
- *  - Shop backgrnd + BtBuy/BtExit/meso sprites for the merchant window.
+ *  - Shop backgrnd + BtBuy/BtSell/BtExit/meso sprites for the merchant window.
  *
- * The dialogue data is produced server-side from the active script catalog, then the
- * client drives the renderer from those `npcResult` messages.  The shop item
- * list itself comes from `shared/gameplay.json`.
+ * The merchant window is the source's two-panel layout (its背景 art carries the
+ * centre divider): the left panel buys — the shop's goods and, behind the
+ * second tab, the stacks this character has sold back at their sale price — and
+ * the right panel sells the character's own inventory.  The dialogue data is
+ * produced server-side from the active script catalog, then the client drives
+ * the renderer from those `npcResult` messages.  The shop item list itself
+ * comes from `shared/gameplay.json`; the buy-back list only ever comes from the
+ * server's `shopRebuyState` and is never derived client-side.
  */
 export class NpcDialogueView {
   private readonly host: HTMLElement;
@@ -89,11 +95,19 @@ export class NpcDialogueView {
   private dialogueOptions?: HTMLDivElement;
   private dialogueCurrent?: DialogueState;
   private shopRoot?: HTMLDivElement;
+  /** Left panel list: the shop's goods, or the buy-back rows. */
   private shopItemsRoot?: HTMLDivElement;
+  /** Right panel list: the character's own sellable stacks. */
+  private shopSellRoot?: HTMLDivElement;
+  /** Row signature already rendered in the sell panel; skips no-op rebuilds. */
+  private sellSignature = '';
   private shopMesos?: HTMLSpanElement;
   private shopCurrent?: ShopOpenState;
   private shopTab: ShopTab = 'buy';
   private shopTabsRoot?: HTMLDivElement;
+  /** Authoritative buy-back list from the latest `shopRebuyState`.  Every row
+   *  is server-owned: the client only renders it and names one back. */
+  private rebuyEntries: ShopRebuyEntry[] = [];
   /** Authoritative inventory from the latest snapshot, used by the sell tab. */
   private playerInventory: InventoryItem[] = [];
   private playerMesos = 0;
@@ -153,14 +167,26 @@ export class NpcDialogueView {
     }
   }
 
-  /** Refresh the mesos display and the sell tab's inventory from a player update. */
+  /** Refresh the mesos display and the sell panel's inventory from a player update. */
   syncPlayer(player: Pick<PlayerState, 'mesos'> & Partial<Pick<PlayerState, 'inventory'>>) {
     this.playerMesos = player.mesos;
     if (player.inventory) this.playerInventory = player.inventory;
     if (this.shopMesos) this.shopMesos.textContent = this.formatMesos(player.mesos);
-    // The sell tab mirrors live inventory, so a purchase or a pickup has to
-    // refresh it while the window stays open.
-    if (this.shopCurrent && this.shopTab === 'sell') this.renderShopList();
+    // The sell panel mirrors live inventory, so a purchase, a sale or a pickup
+    // has to refresh it while the window stays open.
+    if (this.shopCurrent) this.renderSellList();
+  }
+
+  /**
+   * Replace the buy-back list with the authoritative one the server pushed.
+   *
+   * Rows are never computed here: whether a stack is still for sale, how many
+   * are left and what they cost are all the server's answer, and a window open
+   * on the buy-back tab re-renders as soon as a newer list arrives.
+   */
+  receiveRebuyState(entries?: ShopRebuyEntry[]) {
+    this.rebuyEntries = Array.isArray(entries) ? entries : [];
+    if (this.shopCurrent && this.shopTab === 'rebuy') this.renderShopList();
   }
 
   receive(message: Extract<ServerMessage, { type: 'npcResult' }>) {
@@ -483,17 +509,24 @@ export class NpcDialogueView {
       title.className = 'npc-shop-title';
       root.appendChild(title);
 
-      // Buy/sell tabs.  Both live in the same 273 merchant window; the sell
-      // tab lists the player's own inventory instead of the shop catalog.
+      // The source `Shop/backgrnd` is a two-panel window: the left panel buys
+      // (its tabs switch between the shop's goods and what this character has
+      // sold back), the right panel sells the character's own inventory.  Both
+      // panels are on screen at once, so the divider in the art is the seam
+      // between the two lists instead of a line under a full-width one.
+      const left = document.createElement('div');
+      left.className = 'npc-shop-panel npc-shop-panel-left';
+      root.appendChild(left);
+
       const tabs = document.createElement('div');
       tabs.className = 'npc-shop-tabs';
       this.shopTabsRoot = tabs;
-      root.appendChild(tabs);
+      left.appendChild(tabs);
 
       const list = document.createElement('div');
       list.className = 'npc-shop-list';
       this.shopItemsRoot = list;
-      root.appendChild(list);
+      left.appendChild(list);
 
       const meso = document.createElement('div');
       meso.className = 'npc-shop-meso';
@@ -504,6 +537,26 @@ export class NpcDialogueView {
       label.textContent = uiText('meso');
       meso.append(this.shopMesos, label);
       root.appendChild(meso);
+
+      const right = document.createElement('div');
+      right.className = 'npc-shop-panel npc-shop-panel-right';
+      root.appendChild(right);
+
+      // The sell side has no switch of its own: it is always the character's
+      // own inventory, so its heading is a tab-shaped label rather than a
+      // button, matching the two-panel art.
+      const sellHead = document.createElement('div');
+      sellHead.className = 'npc-shop-tabs';
+      const sellLabel = document.createElement('span');
+      sellLabel.className = 'npc-shop-tab is-active is-static';
+      sellLabel.textContent = uiText('shopSellTab');
+      sellHead.appendChild(sellLabel);
+      right.appendChild(sellHead);
+
+      const sellList = document.createElement('div');
+      sellList.className = 'npc-shop-list';
+      this.shopSellRoot = sellList;
+      right.appendChild(sellList);
 
       const exitWrap = document.createElement('div');
       exitWrap.className = 'npc-shop-exit';
@@ -519,17 +572,18 @@ export class NpcDialogueView {
     if (title) title.textContent = displayName(current.nameZh, current.name);
     this.renderShopTabs();
     this.renderShopList();
+    this.renderSellList(true);
   }
 
-  /** The buy/sell switch at the top of the merchant window. */
+  /** The buy / buy-back switch at the top of the left panel. */
   private renderShopTabs() {
     if (!this.shopTabsRoot) return;
     this.shopTabsRoot.replaceChildren();
-    for (const tab of ['buy', 'sell'] as ShopTab[]) {
+    for (const tab of ['buy', 'rebuy'] as ShopTab[]) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `npc-shop-tab${this.shopTab === tab ? ' is-active' : ''}`;
-      button.textContent = uiText(tab === 'buy' ? 'shopBuyTab' : 'shopSellTab');
+      button.textContent = uiText(tab === 'buy' ? 'shopBuyTab' : 'shopRebuyTab');
       button.addEventListener('click', () => {
         if (this.shopTab === tab) return;
         this.shopTab = tab;
@@ -539,12 +593,49 @@ export class NpcDialogueView {
     }
   }
 
+  /**
+   * One list row: icon, a name/price column and a source sprite button.  The
+   * row has to fit a single panel of the two-panel window, so the name and the
+   * price stack instead of sharing one line.
+   */
+  private shopRow(spec: {
+    icon?: string;
+    name: string;
+    quantity?: number;
+    price: string;
+    button: string;
+    onClick: () => void;
+  }): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = 'npc-shop-row';
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'npc-shop-icon';
+    if (spec.icon) iconWrap.appendChild(frame(spec.icon));
+    const info = document.createElement('div');
+    info.className = 'npc-shop-info';
+    const name = document.createElement('span');
+    name.className = 'npc-shop-name';
+    const label = spec.quantity && spec.quantity > 1 ? `${spec.name} × ${spec.quantity}` : spec.name;
+    name.textContent = displayText(label);
+    name.title = displayText(spec.name);
+    const price = document.createElement('span');
+    price.className = 'npc-shop-price';
+    price.textContent = spec.price;
+    info.append(name, price);
+    const action = document.createElement('div');
+    action.className = 'npc-shop-buy';
+    action.appendChild(this.spriteButton('shopUi', spec.button, spec.onClick));
+    row.append(iconWrap, info, action);
+    return row;
+  }
+
+  /** Left panel: the shop's goods, or the buy-back rows. */
   private renderShopList() {
     const current = this.shopCurrent;
     if (!current || !this.shopItemsRoot) return;
     this.shopItemsRoot.replaceChildren();
-    if (this.shopTab === 'sell') {
-      this.renderSellList();
+    if (this.shopTab === 'rebuy') {
+      this.renderRebuyList();
       return;
     }
     if (!current.items.length) {
@@ -555,67 +646,96 @@ export class NpcDialogueView {
       return;
     }
     for (const entry of current.items) {
-      const row = document.createElement('div');
-      row.className = 'npc-shop-row';
-      const iconWrap = document.createElement('div');
-      iconWrap.className = 'npc-shop-icon';
-      if (entry.icon) iconWrap.appendChild(frame(entry.icon));
-      const name = document.createElement('span');
-      name.className = 'npc-shop-name';
-      name.textContent = displayText(entry.name);
-      name.title = displayText(entry.name);
-      const price = document.createElement('span');
-      price.className = 'npc-shop-price';
-      price.textContent = `${entry.price.toLocaleString()} ${uiText('meso')}`;
-      const buyWrap = document.createElement('div');
-      buyWrap.className = 'npc-shop-buy';
-      buyWrap.appendChild(this.spriteButton('shopUi', 'BtBuy', () => this.buy(entry.itemId, 1)));
-      row.append(iconWrap, name, price, buyWrap);
-      this.shopItemsRoot.appendChild(row);
+      this.shopItemsRoot.appendChild(this.shopRow({
+        icon: entry.icon,
+        name: entry.name,
+        price: `${entry.price.toLocaleString()} ${uiText('meso')}`,
+        button: 'BtBuy',
+        onClick: () => this.buy(entry.itemId, 1),
+      }));
     }
   }
 
   /**
-   * Sell tab: the player's own inventory, one row per stack.
+   * Buy-back rows: stacks this character sold to a merchant, priced at exactly
+   * what the shop paid.  Every row is the server's, so the list is only ever
+   * rendered — buying one back is an intent the server resolves against it.
+   */
+  private renderRebuyList() {
+    const root = this.shopItemsRoot;
+    if (!root) return;
+    if (!this.rebuyEntries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'npc-shop-empty';
+      empty.textContent = uiLocale() === 'en'
+        ? 'Nothing has been sold to a shop yet.'
+        : '还没有卖给商店的物品可以赎回。';
+      root.appendChild(empty);
+      return;
+    }
+    for (const entry of this.rebuyEntries) {
+      root.appendChild(this.shopRow({
+        icon: this.manifest.items?.[entry.itemId]?.url,
+        name: this.itemNames[entry.itemId] ?? entry.itemId,
+        quantity: entry.quantity,
+        // The whole row buys back at once, so the price shown is its total.
+        price: `${(entry.unitPrice * entry.quantity).toLocaleString()} ${uiText('meso')}`,
+        button: 'BtBuy',
+        onClick: () => this.rebuy(entry),
+      }));
+    }
+  }
+
+  /**
+   * Right panel: the character's own inventory, one row per stack.
    *
    * Only items with a catalog price are listed.  The payout shown is a
    * preview of the server's own rule — the request itself carries just the
    * shop, tab, slot and count, so a tampered row cannot claim a price.
+   *
+   * Snapshots arrive far faster than anyone clicks, and rebuilding the rows
+   * between a press and its release swallows the click, so an unchanged list
+   * is left alone unless the caller forces a rebuild (open, tab switch).
    */
-  private renderSellList() {
+  private renderSellList(force = false) {
+    const root = this.shopSellRoot;
+    if (!root) return;
     const entries = this.sellEntries();
+    const signature = entries
+      .map(entry => `${entry.itemId}:${entry.slot}:${entry.quantity}:${entry.preview}`)
+      .join('|');
+    if (!force && signature === this.sellSignature) return;
+    this.sellSignature = signature;
+    root.replaceChildren();
     if (!entries.length) {
       const empty = document.createElement('div');
       empty.className = 'npc-shop-empty';
       empty.textContent = uiLocale() === 'en' ? 'You have nothing to sell.' : '背包中没有可以出售的物品。';
-      this.shopItemsRoot?.appendChild(empty);
+      root.appendChild(empty);
       return;
     }
     for (const entry of entries) {
-      const row = document.createElement('div');
-      row.className = 'npc-shop-row';
-      const iconWrap = document.createElement('div');
-      iconWrap.className = 'npc-shop-icon';
-      if (entry.icon) iconWrap.appendChild(frame(entry.icon));
-      const name = document.createElement('span');
-      name.className = 'npc-shop-name';
-      const label = entry.quantity > 1 ? `${entry.name} × ${entry.quantity}` : entry.name;
-      name.textContent = displayText(label);
-      name.title = displayText(entry.name);
-      const price = document.createElement('span');
-      price.className = 'npc-shop-price';
-      price.textContent = `${entry.preview.toLocaleString()} ${uiText('meso')}`;
-      const sellWrap = document.createElement('div');
-      sellWrap.className = 'npc-shop-buy';
-      // Reuse the source BtBuy sprite; the 273 merchant window has no
-      // separate sell button art in the exported subtree.
-      sellWrap.appendChild(this.spriteButton('shopUi', 'BtBuy', () => this.sell(entry)));
-      row.append(iconWrap, name, price, sellWrap);
-      this.shopItemsRoot?.appendChild(row);
+      root.appendChild(this.shopRow({
+        icon: entry.icon,
+        name: entry.name,
+        quantity: entry.quantity,
+        price: `${entry.preview.toLocaleString()} ${uiText('meso')}`,
+        // The 273 merchant window ships a dedicated 賣出道具 sprite, so the
+        // sell side must not borrow the buy art.
+        button: 'BtSell',
+        onClick: () => this.sell(entry),
+      }));
     }
   }
 
-  /** Inventory rows the shop would accept, with the payout preview filled in. */
+  /**
+   * Inventory rows the shop would accept, with the payout preview filled in.
+   *
+   * Only rows the server can actually pay for are listed: the payout is the
+   * catalog price times the sell percentage rounded down, and a price so low
+   * that the rounded payout hits zero is refused server-side, so offering a
+   * button for it would only invite a failed sale.
+   */
   private sellEntries(): SellEntry[] {
     const entries: SellEntry[] = [];
     for (const item of this.playerInventory) {
@@ -623,14 +743,18 @@ export class NpcDialogueView {
       if (!price) continue;
       const quantity = item.quantity ?? 0;
       if (quantity <= 0) continue;
+      const unitPayout = Math.floor((price * SHOP_SELL_PERCENT) / 100);
+      if (unitPayout <= 0) continue;
+      // The inventory window's tab order is not the WZ category order (Etc
+      // sits before Setup), so the tab goes through the shared tab → category
+      // table; a plain `+ 1` sends the wrong category for Etc and Setup.
+      const tab = itemCategoryTab(item.itemId);
       entries.push({
         itemId: item.itemId,
-        // `itemCategoryTab` is the 0-based view tab; the protocol's
-        // inventoryType is the 1-based WZ category, as used by dropItem.
-        inventoryType: itemCategoryTab(item.itemId) + 1,
+        inventoryType: inventoryTypeForTab(tab),
         slot: item.slot,
         quantity,
-        preview: Math.floor((price * SHOP_SELL_PERCENT) / 100) * quantity,
+        preview: unitPayout * quantity,
         name: this.itemNames[item.itemId] ?? item.itemId,
         icon: this.manifest.items?.[item.itemId]?.url,
       });
@@ -655,6 +779,20 @@ export class NpcDialogueView {
     if (!this.shopCurrent) return;
     const requestId = `shop-${++this.requestSequence}-${Date.now().toString(36)}`;
     this.send({ type: 'shopBuy', requestId, shopId: this.shopCurrent.shopId, itemId, quantity });
+  }
+
+  /** Name one buy-back row back to the shop.  The row's identity and price are
+   *  the server's; the request only says which one to take. */
+  private rebuy(entry: ShopRebuyEntry) {
+    if (!this.shopCurrent) return;
+    const requestId = `shop-${++this.requestSequence}-${Date.now().toString(36)}`;
+    this.send({
+      type: 'shopRebuy',
+      requestId,
+      shopId: this.shopCurrent.shopId,
+      itemId: entry.itemId,
+      unitPrice: entry.unitPrice,
+    });
   }
 
   private formatMesos(mesos: number): string {

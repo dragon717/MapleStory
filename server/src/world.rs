@@ -1609,6 +1609,22 @@ struct ShopSellOutcome {
     mesos: u64,
 }
 
+/// The remembered result of one `ShopRebuy`, replayed verbatim if the same
+/// request id arrives again.  Buying a stack back both spends mesos and takes
+/// the row off the buy-back list, so a retried packet must not do either twice.
+#[derive(Clone)]
+#[allow(dead_code)] // fields are replayed through the wire message, not read back.
+struct ShopRebuyOutcome {
+    success: bool,
+    code: String,
+    shop_id: String,
+    item_id: String,
+    quantity: u32,
+    unit_price: u64,
+    mesos_spent: u64,
+    mesos: u64,
+}
+
 struct TeleportPlan {
     map_id: String,
     x: f64,
@@ -1759,6 +1775,10 @@ pub struct World {
     /// so a replayed `ShopSell` re-sends the original result instead of paying
     /// mesos a second time for the same stack.
     shop_sell_requests: BTreeMap<(String, String), ShopSellOutcome>,
+    /// Authoritative outcome of the last shop buy-back per (player, request), so
+    /// a replayed `ShopRebuy` re-sends the original result instead of spending
+    /// mesos and taking a second row off the list.
+    shop_rebuy_requests: BTreeMap<(String, String), ShopRebuyOutcome>,
     /// Which storage keeper each character currently has open, if any.  The
     /// window is bound to the npc so walking away (or a different keeper)
     /// closes it instead of silently operating on a shop the player left.
@@ -1894,6 +1914,7 @@ impl World {
             revive_requests: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
+            shop_rebuy_requests: BTreeMap::new(),
             open_storage: BTreeMap::new(),
             parties: BTreeMap::new(),
             party_invites: BTreeMap::new(),

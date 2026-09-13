@@ -3870,6 +3870,7 @@ include!("windbell_acceptance.rs");
     include!("away_acceptance.rs");
     include!("reactor_acceptance.rs");
     include!("shop_sell_acceptance.rs");
+    include!("shop_rebuy_acceptance.rs");
     include!("consume_acceptance.rs");
     include!("scroll_acceptance.rs");
     include!("storage_acceptance.rs");

@@ -484,6 +484,16 @@ async function enterGame(session: LoginResponse) {
           status(protocolText(message.code, `${uiLocale() === 'en' ? 'Sale failed' : '出售失败'}（${message.code}）`), true);
         }
       }
+      if (message.type === 'shopRebuyState') {
+        npcDialogue?.receiveRebuyState(message.entries);
+      }
+      if (message.type === 'shopRebought') {
+        if (message.success) {
+          chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought back' : '赎回'} ${itemName(message.itemId)} × ${message.quantity}（-${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
+        } else {
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Buy-back failed' : '赎回失败'}（${message.code}）`), true);
+        }
+      }
       if (message.type === 'pickupResult') {
         chat?.appendSystem(`${uiLocale() === 'en' ? 'Obtained' : '获得'} ${itemName(message.itemId)} × ${message.quantity}`, `pickup:${message.requestId}`);
       }

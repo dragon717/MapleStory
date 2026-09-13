@@ -539,6 +539,8 @@ impl World {
                     .retain(|(player_id, _), _| player_id != &id);
                 self.shop_sell_requests
                     .retain(|(player_id, _), _| player_id != &id);
+                self.shop_rebuy_requests
+                    .retain(|(player_id, _), _| player_id != &id);
                 self.skill_requests
                     .retain(|(player_id, _), _| player_id != &id);
                 self.hyper_reset_quotes
@@ -563,6 +565,8 @@ impl World {
                     self.inventory_requests
                         .retain(|(player_id, _), _| player_id != &id);
                     self.shop_sell_requests
+                        .retain(|(player_id, _), _| player_id != &id);
+                    self.shop_rebuy_requests
                         .retain(|(player_id, _), _| player_id != &id);
                     self.skill_requests
                         .retain(|(player_id, _), _| player_id != &id);
@@ -796,6 +800,12 @@ impl World {
                         source_slot,
                         quantity,
                     ),
+                    ClientMessage::ShopRebuy {
+                        request_id,
+                        shop_id,
+                        item_id,
+                        unit_price,
+                    } => self.handle_shop_rebuy(id, request_id, shop_id, item_id, unit_price),
                     ClientMessage::StorageOpen { request_id, npc_id } => {
                         self.handle_storage_open(id, request_id, npc_id)
                     }

@@ -39,6 +39,8 @@ pub use friends::{FriendOperation, FriendOutcome, FriendRow};
 pub(crate) mod loot;
 #[path = "auth/bag.rs"]
 pub(crate) mod bag;
+#[path = "auth/shop.rs"]
+pub(crate) mod shop;
 #[path = "auth/schema.rs"]
 pub(crate) mod schema;
 #[path = "auth/db.rs"]
