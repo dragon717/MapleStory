@@ -38,6 +38,7 @@ pub(super) fn read_storage_db(db: &Connection, account_id: &str) -> Result<Vec<I
             // with, so round-tripping through the warehouse must not reset a
             // scroll's upgrades.
             inventory::ensure_equipment_instance(&mut item);
+            inventory::ensure_pet_instance(&mut item);
             Ok(item)
         });
         result
@@ -776,6 +777,7 @@ pub(super) fn normalize_inventory_tx(tx: &rusqlite::Transaction<'_>) -> Result<(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "account persistence failed")?;
     drop(stmt);
+    let mut pet_accounts = HashSet::new();
     for (
         rowid,
         account_id,
@@ -795,6 +797,10 @@ pub(super) fn normalize_inventory_tx(tx: &rusqlite::Transaction<'_>) -> Result<(
         }
         let kind = inventory::inventory_type(&item_id)
             .ok_or_else(|| format!("unknown inventory item {item_id}"))?;
+        let is_pet = inventory::is_pet(&item_id);
+        if is_pet {
+            pet_accounts.insert(account_id.clone());
+        }
         let quantity = u32::try_from(quantity)
             .map_err(|_| format!("invalid inventory quantity for {item_id}"))?;
         if inventory::is_equipment(&item_id) && quantity != 1 {
@@ -803,15 +809,28 @@ pub(super) fn normalize_inventory_tx(tx: &rusqlite::Transaction<'_>) -> Result<(
         let mut stats_json = old_stats_json;
         let upgrade_count = u32::try_from(old_upgrade_count.max(0)).unwrap_or(0);
         let mut remaining_slots = u32::try_from(old_remaining_slots.max(0)).unwrap_or(0);
-        if inventory::is_equipment(&item_id) {
+        if inventory::is_equipment(&item_id) || is_pet {
             let parsed = serde_json::from_str::<BTreeMap<String, i64>>(&stats_json).ok();
-            if parsed.as_ref().is_none_or(BTreeMap::is_empty)
+            if inventory::is_equipment(&item_id)
+                && parsed.as_ref().is_none_or(BTreeMap::is_empty)
                 && upgrade_count == 0
                 && remaining_slots == 0
             {
                 stats_json = serde_json::to_string(&inventory::equipment_attributes(&item_id))
                     .map_err(|_| "account persistence failed")?;
                 remaining_slots = inventory::equipment_upgrade_slots(&item_id);
+            }
+            if is_pet {
+                let mut pet = InventoryItem {
+                    slot: u16::try_from(old_slot).unwrap_or(0),
+                    item_id: item_id.clone(),
+                    quantity,
+                    stats: parsed,
+                    ..InventoryItem::default()
+                };
+                inventory::ensure_pet_instance(&mut pet);
+                stats_json = serde_json::to_string(&pet.stats.unwrap_or_default())
+                    .map_err(|_| "account persistence failed")?;
             }
         }
         let max = inventory::item_slot_max(&item_id);
@@ -895,6 +914,36 @@ pub(super) fn normalize_inventory_tx(tx: &rusqlite::Transaction<'_>) -> Result<(
             quantity_remaining -= amount;
         }
     }
+
+    // The old fallback allowed a same-species pet row to carry quantity > 1.
+    // `item_slot_max` now splits it into physical rows, while this second
+    // pass persists the de-duplicated ids assigned by the in-memory repair.
+    // Without writing these repaired stats back, every reconnect would assign
+    // a different id to the later rows of the migrated stack.
+    for account_id in pet_accounts {
+        let normalized = read_inventory_tx(tx, &account_id)?;
+        for item in normalized
+            .iter()
+            .filter(|item| inventory::is_pet(&item.item_id))
+        {
+            let kind = inventory::inventory_type(&item.item_id)
+                .ok_or_else(|| format!("unknown inventory item {}", item.item_id))?;
+            let stats_json = serde_json::to_string(&item.stats.clone().unwrap_or_default())
+                .map_err(|_| "account persistence failed")?;
+            tx.execute(
+                "UPDATE inventory SET stats_json=?4
+                 WHERE account_id=?1 AND inventory_type=?2 AND slot=?3
+                   AND stats_json<>?4",
+                params![
+                    &account_id,
+                    i64::from(kind),
+                    i64::from(item.slot),
+                    &stats_json,
+                ],
+            )
+            .map_err(|_| "account persistence failed")?;
+        }
+    }
     Ok(())
 }
 
@@ -913,11 +962,12 @@ pub(super) fn read_inventory_tx(
         .query_map(params![account_id, i64::from(MAX_SLOT_LIMIT)], |row| {
             let item_id: String = row.get(2)?;
             let is_equipment = inventory::is_equipment(&item_id);
+            let is_pet = inventory::is_pet(&item_id);
             Ok(InventoryItem {
                 slot: row.get::<_, i64>(1)?.try_into().unwrap_or(0),
                 item_id,
                 quantity: row.get::<_, i64>(3)?.try_into().unwrap_or(0),
-                stats: if is_equipment {
+                stats: if is_equipment || is_pet {
                     row.get::<_, String>(4)
                         .ok()
                         .and_then(|json| serde_json::from_str(&json).ok())
@@ -946,7 +996,9 @@ pub(super) fn read_inventory_tx(
     let mut rows = rows;
     for item in &mut rows {
         inventory::ensure_equipment_instance(item);
+        inventory::ensure_pet_instance(item);
     }
+    inventory::normalize_pet_instances(&mut rows);
     Ok(rows)
 }
 
@@ -1036,7 +1088,9 @@ pub(super) fn write_inventory_tx(
 ) -> Result<(), String> {
     tx.execute("DELETE FROM inventory WHERE account_id=?1", [account_id])
         .map_err(|_| "account persistence failed")?;
-    for item in inventory_items {
+    let mut inventory_items = inventory_items.to_vec();
+    inventory::normalize_pet_instances(&mut inventory_items);
+    for item in &inventory_items {
         let kind = inventory::inventory_type(&item.item_id)
             .ok_or_else(|| format!("unknown inventory item {}", item.item_id))?;
         if !inventory::valid_slot(item.slot as i16) {
@@ -1050,6 +1104,7 @@ pub(super) fn write_inventory_tx(
         }
         let mut item = item.clone();
         inventory::ensure_equipment_instance(&mut item);
+        inventory::ensure_pet_instance(&mut item);
         let stats_json = serde_json::to_string(&item.stats.clone().unwrap_or_default())
             .map_err(|_| "account persistence failed")?;
         tx.execute(
@@ -1310,18 +1365,27 @@ pub(super) fn add_inventory_tx(
     let slot_limit = slots.get(&kind).copied().unwrap_or(inventory::SLOT_LIMIT);
     match inventory::add_items(&mut inventory_items, item_id.to_owned(), quantity, slot_limit) {
         Ok(slot) => {
-            if kind == 1 {
+            if kind == 1 || inventory::is_pet(item_id) {
                 if let Some(item) = inventory_items.iter_mut().find(|item| {
-                    item.slot == slot && inventory::inventory_type(&item.item_id) == Some(kind)
+                    item.slot == slot
+                        && inventory::inventory_type(&item.item_id) == Some(kind)
+                        && item.item_id == item_id
                 }) {
                     if let Some(stats) = instance_stats {
                         item.stats = Some(stats.clone());
                     }
+                    if inventory::is_pet(item_id) {
+                        inventory::ensure_pet_instance(item);
+                    }
                     if let Some(remaining) = instance_remaining_slots {
-                        item.remaining_slots = Some(remaining);
+                        if kind == 1 {
+                            item.remaining_slots = Some(remaining);
+                        }
                     }
                     if let Some(upgrade_count) = instance_upgrade_count {
-                        item.upgrade_count = Some(upgrade_count);
+                        if kind == 1 {
+                            item.upgrade_count = Some(upgrade_count);
+                        }
                     }
                     inventory::ensure_equipment_instance(item);
                 }
@@ -1537,45 +1601,7 @@ pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> 
             .map_err(|_| "account persistence failed")?;
     let skills = parse_skill_map(&skills_json)?;
     let skill_points = parse_skill_map(&skill_points_json)?;
-    let mut stmt = tx
-        .prepare("SELECT inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM inventory WHERE account_id=?1 AND quantity>0 ORDER BY inventory_type,slot")
-        .map_err(|_| "account persistence failed")?;
-    let inventory = stmt
-        .query_map([account_id], |row| {
-            let item_id: String = row.get(2)?;
-            let is_equipment = inventory::is_equipment(&item_id);
-            let mut item = InventoryItem {
-                slot: row.get::<_, i64>(1)?.try_into().unwrap_or(0),
-                item_id,
-                quantity: row.get::<_, i64>(3)?.try_into().unwrap_or(0),
-                stats: if is_equipment {
-                    row.get::<_, String>(4)
-                        .ok()
-                        .and_then(|json| serde_json::from_str(&json).ok())
-                } else {
-                    None
-                },
-                upgrade_count: if is_equipment {
-                    row.get::<_, i64>(5)
-                        .ok()
-                        .and_then(|value| u32::try_from(value.max(0)).ok())
-                } else {
-                    None
-                },
-                remaining_slots: if is_equipment {
-                    row.get::<_, i64>(6)
-                        .ok()
-                        .and_then(|value| u32::try_from(value.max(0)).ok())
-                } else {
-                    None
-                },
-            };
-            inventory::ensure_equipment_instance(&mut item);
-            Ok(item)
-        })
-        .map_err(|_| "account persistence failed")?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "account persistence failed")?;
+    let inventory = read_inventory_tx(tx, account_id)?;
     let ability_json: String = tx
         .query_row(
             "SELECT ability_stats_json FROM player_stats WHERE account_id=?1",

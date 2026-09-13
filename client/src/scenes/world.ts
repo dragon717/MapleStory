@@ -354,6 +354,9 @@ export class World extends Phaser.Scene {
     this.snapshot = undefined;
     for (const player of this.players.values()) player.destroy();
     for (const monster of this.monsters.values()) monster.destroy();
+    for (const pet of this.pets.values()) pet.destroy();
+    this.pets.clear();
+    this.petClock = 0;
     for (const npc of this.npcs.values()) npc.destroy();
     for (const target of this.questTargets.values()) target.destroy();
     this.questTargets.clear();
@@ -690,22 +693,21 @@ export class World extends Phaser.Scene {
 
   private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);
-    // Summoned pets: one view per character, keyed by player id.  A pet whose
-    // art was never assembled is skipped rather than crashing the scene.
     this.petClock += delta;
-    const petOwners = new Set<string>();
+    const visiblePets = new Set<string>();
     for (const player of snapshot.players) {
-      const pet = player.pet;
-      if (!pet) continue;
-      petOwners.add(player.id);
-      const asset = this.manifest.pets?.[pet.itemId];
-      if (!asset) continue;
-      let view = this.pets.get(player.id);
-      if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(player.id, view); }
-      view.update(pet, this.petClock);
+      for (const pet of player.pets ?? []) {
+        const key = `${player.id}:${pet.id}`;
+        const asset = this.manifest.pets?.[pet.itemId];
+        if (!asset) continue;
+        visiblePets.add(key);
+        let view = this.pets.get(key);
+        if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(key, view); }
+        view.update(pet, this.petClock);
+      }
     }
     for (const [id, view] of this.pets) {
-      if (!petOwners.has(id)) { view.destroy(); this.pets.delete(id); }
+      if (!visiblePets.has(id)) { view.destroy(); this.pets.delete(id); }
     }
     const monsters = snapshot.monsters ?? [];
     const monsterIds = new Set(monsters.map(monster => monster.id));

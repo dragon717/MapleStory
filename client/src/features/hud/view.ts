@@ -41,6 +41,8 @@ const SOURCE_SLOT_STEP = 35;
 
 export interface HudViewOptions {
   openActivities?: () => void;
+  /** Opens the source-backed TMS273 pet-management window. */
+  openPets?: () => void;
   castSkill?: (skillId: number) => string | void;
   releaseSkill?: (requestId: string) => void;
 }
@@ -57,6 +59,7 @@ type ShortcutCell = {
 
 /** The 273 StatusBar3 panel uses source origins inside a responsive HUD row. */
 export class HudView {
+  private readonly manifest: Manifest;
   private root = document.createElement('div');
   private name = document.createElement('span');
   private level = document.createElement('span');
@@ -76,6 +79,7 @@ export class HudView {
   private quickSlotsExpanded = true;
 
   constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private onInventory?: () => void, private onMenu?: (trigger: HTMLElement) => void, private onShortcut?: (trigger: HTMLElement) => void, private options: HudViewOptions = {}) {
+    this.manifest = manifest;
     // The buff plate and the quick-slot fold keys live in `buffUi` (they come
     // from the BuffSetting / quickSlot subtrees); merge them so every HUD
     // control resolves its frames through one map.
@@ -131,6 +135,10 @@ export class HudView {
         else this.status(`${label}业务尚未接入。`);
       });
       actions.append(button);
+      if (key === 'Character') {
+        const petButton = this.createPetButton();
+        if (petButton) actions.append(petButton);
+      }
     }
     row.append(actions);
     this.createQuickSlots(row);
@@ -224,6 +232,41 @@ export class HudView {
     image.width = frame.width; image.height = frame.height;
     if (positioned) Object.assign(image.style, { position: 'absolute', left: `${-frame.origin.x}px`, top: `${-frame.origin.y}px` });
     parent.append(image); return image;
+  }
+
+  private createPetButton() {
+    const states = this.petButtonStates();
+    const normal = states?.normal;
+    if (!normal) return undefined;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tms-hud-pet-button';
+    button.title = '宠物';
+    button.setAttribute('aria-label', '宠物');
+    const image = document.createElement('img');
+    image.src = normal.url;
+    image.width = normal.width;
+    image.height = normal.height;
+    image.alt = '';
+    image.draggable = false;
+    button.append(image);
+    const state = (name: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
+      const frame = states[name] ?? normal;
+      image.src = frame.url;
+      image.width = frame.width;
+      image.height = frame.height;
+    };
+    button.addEventListener('pointerenter', () => state('mouseOver'));
+    button.addEventListener('pointerleave', () => state('normal'));
+    button.addEventListener('pointerdown', () => state('pressed'));
+    button.addEventListener('pointerup', () => state('mouseOver'));
+    button.addEventListener('pointercancel', () => state('normal'));
+    button.addEventListener('click', () => this.options.openPets?.());
+    return button;
+  }
+
+  private petButtonStates() {
+    return this.manifest.petUi?.buttons.character;
   }
 
   private releaseHiddenChannel = () => { if (document.hidden) this.releaseChannel(); };

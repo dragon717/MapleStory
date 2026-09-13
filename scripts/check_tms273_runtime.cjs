@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-14');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-15');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -347,6 +347,14 @@ if(healed>0)console.log(`注意: ${healed} 个装配资源在 public-tms273 里�
   const first=petImages['5000000'];
   assert(first&&first.name==='褐色小貓'&&first.stand.length>0&&first.move.length>0,'宠物 5000000 装配不完整');
   assert(first.icon.url.startsWith('/assets/tms273/'));
+  assert.equal(manifest.petUi?.sourceNode, 'UI/UIWindow2.img/UserInfo/pet');
+  assert.equal(manifest.petUi.window.width, 271);
+  assert.equal(manifest.petUi.window.tabs.enabled.length, 3);
+  assert.equal(manifest.petUi.window.tabs.disabled.length, 3);
+  for (const name of ['backgrnd', 'backgrnd2', 'backgrnd3']) {
+    assert(manifest.petUi.window.ui[`panel/${name}`]?.url, `pet panel missing ${name}`);
+  }
+  assert(manifest.petUi.buttons.character.normal.url, 'pet menu entry art missing');
 }
 
 // Account warehouse: the client window is drawn entirely from the TMS273

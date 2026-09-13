@@ -29,6 +29,8 @@ mod messaging;
 mod gm;
 #[path = "pets.rs"]
 mod pets;
+#[path = "pet_motion.rs"]
+mod pet_motion;
 #[path = "inventory_ops.rs"]
 mod inventory_ops;
 #[path = "social.rs"]
@@ -1408,11 +1410,9 @@ struct Player {
     /// orb can coexist with that sphere.
     summon: Option<ThunderSummon>,
     summons: Vec<ThunderSummon>,
-    /// Summoned pet (TMS273 `Item/Pet`).  Session state owned by the world
-    /// membership: summoned/recalled via the `useItem` pet branch, moved by
-    /// `pets::step_pet`, injected into snapshots as `players[].pet`.  Never
-    /// persisted — a map change or disconnect ends the summons.
-    pet: Option<pets::PetRuntime>,
+    /// Companion instance index. Inventory owns identity/summon persistence;
+    /// the pet module owns each companion's simulation and map attachment.
+    pets: BTreeMap<i64, pets::PetRuntime>,
     /// Four-segment Ice Dragon Breath is a single accepted cast.  The request
     /// id binds the self-lock so ReleaseSkill cannot cancel another cast.
     channel_request_id: Option<String>,
@@ -2348,23 +2348,8 @@ impl World {
                     object.insert("abnormalStatus".to_owned(), serde_json::to_value(&abnormal).unwrap());
                 }
             }
-            // Summoned pet rides the same per-row block.  Present only while
-            // the character actually has one out; the client resolves the
-            // sprite frames from `manifest.pets`.
-            if let Some(pet) = player.pet.as_ref() {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert(
-                        "pet".to_owned(),
-                        serde_json::json!({
-                            "itemId": pet.item_id,
-                            "name": pet.name,
-                            "x": pet.x,
-                            "y": pet.y,
-                            "facing": pet.facing,
-                            "action": pet.action,
-                        }),
-                    );
-                }
+            if let Some(object) = row.as_object_mut() {
+                object.insert("pets".to_owned(), pets::snapshots(player));
             }
             player_rows.push(row);
         }
@@ -3188,19 +3173,12 @@ impl World {
         self.step_monsters();
         self.step_ice_fields();
         self.step_summons();
-        // Pet follow: after every other per-player movement has settled, walk
-        // each pet toward its owner; snapshots below carry the new pose.
-        let pet_ids: Vec<String> = self
-            .players
-            .keys()
-            .filter(|id| self.players[*id].pet.is_some())
-            .cloned()
-            .collect();
+        // Inventory-owned companions attach, travel and pick up in the same
+        // sequential world tick; no per-pet tasks or independent world locks.
+        let pet_ids: Vec<String> = self.players.keys().cloned().collect();
         for id in pet_ids {
             self.step_pet(&id);
         }
-        // Pet auto-pickup runs after the follow step, so a claim uses this
-        // tick's settled pet position.
         self.step_pet_pickups();
         self.apply_contact_damage();
         self.respawn_monsters();

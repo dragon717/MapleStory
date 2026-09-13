@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 16;
-pub const CONTENT_VERSION: &str = "tms273-14";
+pub const PROTOCOL_VERSION: u32 = 17;
+pub const CONTENT_VERSION: &str = "tms273-15";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

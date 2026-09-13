@@ -107,8 +107,8 @@ impl World {
             let kind = inventory::inventory_type(&drop.item_id).unwrap_or(4);
             let facts = pickup_rules::PickupFacts {
                 player_id: id.as_str(),
-                player_x: player.state.x,
-                player_y: player.state.y,
+                player_x: pickup_x,
+                player_y: pickup_y,
                 now_ms: auth::now_ms(),
                 map_id: map_id.as_str(),
                 drop: pickup_rules::PickupDropView {
@@ -922,9 +922,6 @@ impl World {
             return;
         };
         player.map_id = target_map_id.to_owned();
-        // Same residue rule as the portal path: a summoned pet is map-local
-        // session state and is recalled instead of crossing maps.
-        player.pet = None;
         player.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         reset_player_to_spawn(&target_map, player, self.tick);
@@ -974,9 +971,8 @@ impl World {
                 return;
             }
         }
-        // Pet branch: a TMS273 pet item toggles the summoned pet instead of
-        // being consumed.  Handled before the persistence transaction so a
-        // summon/replay never spends or rewinds an inventory row.
+        // Companion activation has its own idempotent inventory transaction;
+        // the cash item stays in the bag instead of entering consumption.
         if inventory_type == 5 && crate::inventory::is_pet(&item_id) {
             self.pet_toggle(&id, &request_id, inventory_type, source_slot, &item_id);
             return;
@@ -1403,7 +1399,7 @@ impl World {
         self.send_inventory_outcome(&id, &outcome);
     }
 
-    fn send_inventory_conflict(&self, id: &str, request_id: &str) {
+    pub(super) fn send_inventory_conflict(&self, id: &str, request_id: &str) {
         if let Some(player) = self.players.get(id) {
             let _ = player.output.try_send(reject(
                 "request_reused",
@@ -1413,7 +1409,7 @@ impl World {
         }
     }
 
-    fn send_inventory_outcome(&self, id: &str, outcome: &auth::InventoryOutcome) {
+    pub(super) fn send_inventory_outcome(&self, id: &str, outcome: &auth::InventoryOutcome) {
         let Some(player) = self.players.get(id) else {
             return;
         };

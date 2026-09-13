@@ -116,6 +116,65 @@ impl World {
             );
             return;
         }
+        if let Some(store) = self.store.clone() {
+            let outcome = match store.grant_inventory_item(id, request_id, &item_id, quantity) {
+                Ok(outcome) => outcome,
+                Err(error) => {
+                    gm_result(self, id, request_id, false, "persistence", &error);
+                    return;
+                }
+            };
+            if !outcome.success {
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    false,
+                    &outcome.code,
+                    match outcome.code.as_str() {
+                        "inventory_full" => "背包页签已满，没有空位。",
+                        "request_reused" => "请求编号已用于其他道具操作。",
+                        _ => "道具发放失败。",
+                    },
+                );
+                return;
+            }
+            let profile = match store.load_profile(id, &self.default_profile()) {
+                Ok(profile) => profile,
+                Err(error) => {
+                    gm_result(self, id, request_id, false, "persistence", &error);
+                    return;
+                }
+            };
+            if let Some(player) = self.players.get_mut(id) {
+                player.state.inventory = profile.inventory;
+            }
+            let display = crate::inventory::pet_name(&item_id)
+                .map(str::to_owned)
+                .unwrap_or_else(|| item_id.clone());
+            gm_result(
+                self,
+                id,
+                request_id,
+                true,
+                "gm_add_ok",
+                &format!(
+                    "已获得 {}（{}）×{quantity}，放入 {} 号页签 {} 格。",
+                    display,
+                    item_id,
+                    match kind_for_item(&item_id) {
+                        1 => "装备",
+                        2 => "消耗",
+                        3 => "设置",
+                        4 => "其他",
+                        _ => "现金",
+                    },
+                    outcome.from_slot,
+                ),
+            );
+            self.send_snapshot(id);
+            return;
+        }
         let kind = crate::inventory::inventory_type(&item_id).unwrap_or(5);
         let slot_limit = {
             let Some(player) = self.players.get(id) else {
@@ -170,6 +229,10 @@ impl World {
             }
         }
     }
+}
+
+fn kind_for_item(item_id: &str) -> u8 {
+    crate::inventory::inventory_type(item_id).unwrap_or(5)
 }
 
 /// Whether the compile-time item catalog itself carries the id (as opposed to

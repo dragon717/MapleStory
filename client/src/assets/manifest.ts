@@ -63,6 +63,26 @@ export interface PetAsset {
   name: string; icon: AssetFrame;
   stand: AssetFrame[]; move: AssetFrame[]; jump: AssetFrame[];
 }
+/** Source-backed UIWindow2.img/UserInfo/pet chrome and its two entry buttons.
+ *  The selected tab is one of the server-owned three pet slots; the client
+ *  supplies only names, speeds and modes that already exist in PlayerState. */
+export interface PetUiData {
+  contentVersion: string;
+  source: string;
+  window: {
+    width: number; height: number;
+    ui: Record<string, AssetFrame>;
+    tabs: { enabled: AssetFrame[]; disabled: AssetFrame[] };
+    actions: AssetFrame[];
+    dialog: { backgrnd: AssetFrame };
+  };
+  buttons: { character: Record<string, AssetFrame>; inventory: Record<string, AssetFrame> };
+  layout: {
+    panel: Point; panelInner: Point; panelOverlay: Point; action: Point; tabCount: number;
+  };
+  researchReference?: Record<string, string>;
+  unverified?: string[];
+}
 export interface InventorySlotLayout {
   columns: number; rows: number; slotWidth: number; slotHeight: number;
   spacingX: number; spacingY: number; origin: Point; itemOffset: Point;
@@ -536,6 +556,8 @@ export interface Manifest {
   noticeUi?: Record<string, AssetFrame>;
   /** Source-backed Basic.img/BtOK states used by notices. */
   okButton?: Record<string, AssetFrame>;
+  /** Source-backed TMS273.7 pet-management window and entry buttons. */
+  petUi?: PetUiData;
   /** Source-backed UIWindow.img/GameMenu entries. */
   gameMenuUi?: Record<string, AssetFrame>;
   /** Source-backed UIWindow.img/ShortCut entries. */

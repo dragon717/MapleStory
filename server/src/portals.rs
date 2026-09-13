@@ -87,10 +87,6 @@ impl World {
             return;
         };
         player.map_id = target_map_id.clone();
-        // A summoned pet is map-local session state (pets.rs): carrying the
-        // old map's coordinates into the new snapshot would draw it at a
-        // position that belongs to nowhere, so the transfer recalls it.
-        player.pet = None;
         player.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.state.x = target_x;

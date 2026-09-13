@@ -23,6 +23,138 @@ impl Store {
         .map_err(|_| "account persistence failed".into())
     }
 
+    /// Toggle one cash-pet row inside the same transaction that records the
+    /// request. Pet identity and active state live in the row's private stats
+    /// map, so moving or compacting the inventory carries both with the row.
+    pub fn toggle_pet(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        source_slot: i16,
+        item_id: &str,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        if let Some(prior) = read_inventory_action(&tx, account_id, request_id)? {
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())?;
+            return Ok(prior);
+        }
+        let mut inventory = read_inventory_tx(&tx, account_id)?;
+        let (success, code) = match inventory::toggle_pet(&mut inventory, source_slot, item_id) {
+            Ok(()) => {
+                write_inventory_tx(&tx, account_id, &inventory)?;
+                (true, "pet_toggled".to_owned())
+            }
+            Err(code) => (false, code),
+        };
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            // Keep this in the existing use-item result family. The world
+            // handler already knows how to render and replay that operation.
+            operation: "use".to_owned(),
+            inventory_type: Some(5),
+            from_slot: source_slot,
+            to_slot: None,
+            item_id: item_id.to_owned(),
+            quantity: if success { 1 } else { 0 },
+            drop_id: None,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(outcome)
+    }
+
+    /// Atomically grant an item for a server command such as `/add`. This is
+    /// deliberately separate from `write_inventory`: it resolves capacity,
+    /// assigns pet instance metadata, and records request-id idempotency in
+    /// one transaction before the world updates its in-memory snapshot.
+    pub fn grant_inventory_item(
+        &self,
+        account_id: &str,
+        request_id: &str,
+        item_id: &str,
+        quantity: u32,
+    ) -> Result<InventoryOutcome, String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        if let Some(prior) = read_inventory_action(&tx, account_id, request_id)? {
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())?;
+            if prior.operation == "gmAdd"
+                && prior.item_id == item_id
+                && prior.quantity == quantity
+            {
+                return Ok(prior);
+            }
+            // A request id is single-use even when the caller changes the
+            // item or quantity. Return a normal failed outcome so the GM
+            // layer cannot mistake a replay with new arguments for a grant.
+            return Ok(InventoryOutcome {
+                request_id: request_id.to_owned(),
+                operation: "gmAdd".to_owned(),
+                inventory_type: inventory::inventory_type(item_id),
+                from_slot: 0,
+                to_slot: None,
+                item_id: item_id.to_owned(),
+                quantity: 0,
+                drop_id: None,
+                success: false,
+                code: "request_reused".to_owned(),
+            });
+        }
+        let kind = inventory::inventory_type(item_id);
+        let mut slot = 0_i16;
+        let (success, code) = if quantity == 0 {
+            (false, "invalid_quantity".to_owned())
+        } else if kind.is_none() {
+            (false, "unknown_item".to_owned())
+        } else {
+            match add_inventory_tx(&tx, account_id, item_id, quantity, None, None, None)? {
+                Ok(placed) => {
+                    slot = i16::try_from(placed).unwrap_or(0);
+                    (true, String::new())
+                }
+                Err(code) => (false, code.to_owned()),
+            }
+        };
+        let outcome = InventoryOutcome {
+            request_id: request_id.to_owned(),
+            operation: "gmAdd".to_owned(),
+            inventory_type: kind,
+            from_slot: slot,
+            to_slot: None,
+            item_id: item_id.to_owned(),
+            // GM request quantity is part of the idempotency fingerprint,
+            // including a refused grant. Inventory was not changed on a
+            // refusal, but replaying the exact request must return that same
+            // refusal rather than become a new request.
+            quantity,
+            drop_id: None,
+            success,
+            code,
+        };
+        insert_inventory_action(&tx, account_id, &outcome)?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(outcome)
+    }
+
     pub fn load_equipped(&self, account_id: &str) -> Result<Vec<InventoryItem>, String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         read_equipped_db(&db, account_id)

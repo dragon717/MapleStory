@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 16;
-export const CONTENT_VERSION = 'tms273-14';
+export const PROTOCOL_VERSION = 17;
+export const CONTENT_VERSION = 'tms273-15';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -51,21 +51,19 @@ export interface PlayerState {
   inventorySlots?: Record<number, number>;
   /** Server-owned away marker; display only, grants no protection or assets. */
   away?: AwayMarker;
-  /** Summoned pet (TMS273). Session state; absent while no pet is out. */
-  pet?: PetState;
+  /** Character-owned companion instances; the server simulates up to three. */
+  pets?: PetState[];
   /** Monster-inflicted abnormal statuses, present only while at least one is
    *  active. Remaining milliseconds are display-only; the server owns the
    *  authoritative deadlines and decides when each status actually ends. */
   abnormalStatus?: AbnormalStatus;
 }
-/** Summoned pet riding one player's snapshot row.  Present only while the
- *  character has a pet out; the server owns summon/recall (the pet item's
- *  `useItem` branch) and the follow movement, so every field here is
- *  display-only.  The sprite frames are resolved client-side from
- *  `manifest.pets[itemId]`. */
+/** Authoritative companion snapshot; inventorySlot is its current cash-tab cell. */
 export interface PetState {
-  itemId: string; name: string; x: number; y: number; facing: Facing;
-  action: 'stand' | 'move';
+  id: string; itemId: string; name: string; inventorySlot: number;
+  x: number; y: number; facing: Facing; action: 'stand' | 'move' | 'jump';
+  /** Display speed: 100 maps to the character's unbuffed 125 world units/s. */
+  baseSpeed: number; moveSpeed: number; mode: 'idle' | 'follow' | 'loot';
 }
 /** Player-side abnormal-status presentation state. Emitted in snapshots; each
  *  entry is the remaining milliseconds for the named status. */

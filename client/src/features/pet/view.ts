@@ -5,7 +5,7 @@ import type { PetState } from '../../../../shared/protocol';
 
 /** Renders one summoned pet (TMS273 `Item/Pet`) from `manifest.pets` frames.
  *  The server owns the follow movement; this view only animates the
- *  `stand`/`move` loops at the authoritative foot position. */
+ *  `stand`/`move`/`jump` loops at the authoritative foot position. */
 export class PetView {
   private readonly sprite?: Phaser.GameObjects.Image;
   private signature = '';
@@ -19,7 +19,8 @@ export class PetView {
   update(pet: PetState, elapsed: number) {
     const sprite = this.sprite;
     if (!sprite) return;
-    const frames = pet.action === 'move' && this.asset.move.length ? this.asset.move : this.asset.stand;
+    const frames = pet.action === 'jump' && this.asset.jump.length ? this.asset.jump
+      : pet.action === 'move' && this.asset.move.length ? this.asset.move : this.asset.stand;
     if (!frames.length) {
       sprite.setVisible(false);
       return;

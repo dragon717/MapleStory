@@ -16,7 +16,7 @@ use rand::{rngs::OsRng, Rng, RngCore};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -3818,6 +3818,314 @@ mod tests {
         }
         let read = store.load_profile("a", &defaults).unwrap().inventory;
         assert_eq!(read, vec![expanded], "slot 25 item must round-trip after expansion");
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn pet_instance_and_active_state_survive_store_round_trip() {
+        let path = std::env::temp_dir().join(format!(
+            "maple-pet-persistence-{}.sqlite3",
+            random_id()
+        ));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+
+        let pet_ids = |items: &[InventoryItem]| {
+            let mut ids: Vec<_> = items
+                .iter()
+                .filter_map(inventory::pet_instance_id)
+                .collect();
+            ids.sort_unstable();
+            ids
+        };
+
+        let granted = store
+            .grant_inventory_item("a", "pet-grant", "5000000", 1)
+            .unwrap();
+        assert!(granted.success);
+        // Replaying the grant request must return its original outcome without
+        // creating a second row.
+        let replayed_grant = store
+            .grant_inventory_item("a", "pet-grant", "5000000", 1)
+            .unwrap();
+        assert_eq!(replayed_grant.from_slot, granted.from_slot);
+        let before_toggle = store.load_profile("a", &defaults).unwrap().inventory;
+        let pet = before_toggle
+            .iter()
+            .find(|item| item.item_id == "5000000")
+            .unwrap();
+        let first_pet_id = inventory::pet_instance_id(pet).unwrap();
+        assert!(!inventory::pet_active(pet));
+
+        let toggled = store
+            .toggle_pet("a", "pet-toggle-1", pet.slot as i16, "5000000")
+            .unwrap();
+        assert!(toggled.success);
+        assert_eq!(toggled.code, "pet_toggled");
+        let replayed_toggle = store
+            .toggle_pet("a", "pet-toggle-1", pet.slot as i16, "5000000")
+            .unwrap();
+        assert_eq!(replayed_toggle.success, toggled.success);
+        assert_eq!(replayed_toggle.code, toggled.code);
+
+        // Three different rows of the same pet species can be active, while
+        // a fourth physical row remains in the bag until one is recalled.
+        for index in 2..=3 {
+            let request = format!("pet-grant-{index}");
+            assert!(store
+                .grant_inventory_item("a", &request, "5000000", 1)
+                .unwrap()
+                .success);
+            let inventory = store.load_profile("a", &defaults).unwrap().inventory;
+            let pet = inventory
+                .iter()
+                .filter(|item| item.item_id == "5000000")
+                .nth(index - 1)
+                .unwrap();
+            let toggled = store
+                .toggle_pet(
+                    "a",
+                    &format!("pet-toggle-{index}"),
+                    pet.slot as i16,
+                    "5000000",
+                )
+                .unwrap();
+            assert!(toggled.success);
+        }
+        assert_eq!(
+            store
+                .load_profile("a", &defaults)
+                .unwrap()
+                .inventory
+                .iter()
+                .filter(|item| inventory::pet_active(item))
+                .count(),
+            3
+        );
+
+        assert!(store
+            .grant_inventory_item("a", "pet-grant-4", "5000000", 1)
+            .unwrap()
+            .success);
+        let inventory = store.load_profile("a", &defaults).unwrap().inventory;
+        let fourth = inventory
+            .iter()
+            .filter(|item| item.item_id == "5000000")
+            .nth(3)
+            .unwrap();
+        let limited = store
+            .toggle_pet("a", "pet-toggle-4", fourth.slot as i16, "5000000")
+            .unwrap();
+        assert!(!limited.success);
+        assert_eq!(limited.code, "pet_limit");
+
+        // A forged or empty source row must not alter any summon bit.
+        let missing = store
+            .toggle_pet("a", "pet-missing-source", 24, "5000000")
+            .unwrap();
+        assert!(!missing.success);
+        assert_eq!(missing.code, "source_empty");
+
+        // Moving and gathering the cash tab changes slots but must carry each
+        // physical pet id with its row.
+        let before_reorder = store.load_profile("a", &defaults).unwrap().inventory;
+        let ids_before = pet_ids(&before_reorder);
+        let first_slot = before_reorder
+            .iter()
+            .find(|item| inventory::pet_instance_id(item) == Some(first_pet_id))
+            .unwrap()
+            .slot as i16;
+        assert!(store
+            .move_inventory(
+                "a",
+                "pet-move",
+                5,
+                first_slot,
+                24,
+                1,
+                EquipmentStats::default(),
+            )
+            .unwrap()
+            .success);
+        assert!(store
+            .gather_inventory("a", "pet-gather", 5)
+            .unwrap()
+            .success);
+        let after_reorder = store.load_profile("a", &defaults).unwrap().inventory;
+        assert_eq!(pet_ids(&after_reorder), ids_before);
+
+        // Ordinary GM grants use the same transaction and are also idempotent.
+        let ordinary = store
+            .grant_inventory_item("a", "ordinary-grant", "2000000", 3)
+            .unwrap();
+        assert!(ordinary.success);
+        assert!(store
+            .grant_inventory_item("a", "ordinary-grant", "2000000", 3)
+            .unwrap()
+            .success);
+        let changed_quantity = store
+            .grant_inventory_item("a", "ordinary-grant", "2000000", 4)
+            .unwrap();
+        assert!(!changed_quantity.success);
+        assert_eq!(changed_quantity.code, "request_reused");
+        let changed_item = store
+            .grant_inventory_item("a", "ordinary-grant", "2000001", 3)
+            .unwrap();
+        assert!(!changed_item.success);
+        assert_eq!(changed_item.code, "request_reused");
+        let refused = store
+            .grant_inventory_item("a", "ordinary-refused", "2000000", 0)
+            .unwrap();
+        assert!(!refused.success);
+        assert_eq!(refused.code, "invalid_quantity");
+        let refused_replay = store
+            .grant_inventory_item("a", "ordinary-refused", "2000000", 0)
+            .unwrap();
+        assert!(!refused_replay.success);
+        assert_eq!(refused_replay.code, "invalid_quantity");
+        let refused_changed = store
+            .grant_inventory_item("a", "ordinary-refused", "2000001", 0)
+            .unwrap();
+        assert!(!refused_changed.success);
+        assert_eq!(refused_changed.code, "request_reused");
+        let unknown = store
+            .grant_inventory_item("a", "ordinary-unknown", "not-an-item", 2)
+            .unwrap();
+        assert!(!unknown.success);
+        assert_eq!(unknown.code, "unknown_item");
+        let unknown_replay = store
+            .grant_inventory_item("a", "ordinary-unknown", "not-an-item", 2)
+            .unwrap();
+        assert!(!unknown_replay.success);
+        assert_eq!(unknown_replay.code, "unknown_item");
+        let unknown_changed = store
+            .grant_inventory_item("a", "ordinary-unknown", "not-an-item", 3)
+            .unwrap();
+        assert!(!unknown_changed.success);
+        assert_eq!(unknown_changed.code, "request_reused");
+        let inventory = store.load_profile("a", &defaults).unwrap().inventory;
+        assert_eq!(
+            inventory
+                .iter()
+                .find(|item| item.item_id == "2000000")
+                .unwrap()
+                .quantity,
+            3
+        );
+        assert!(inventory.iter().all(|item| item.item_id != "2000001"));
+
+        // Deposit two same-species instances separately and withdraw them
+        // again; warehouse stack logic must preserve their identities.
+        let mut storage_ids = vec![first_pet_id];
+        storage_ids.push(
+            inventory
+                .iter()
+                .filter_map(inventory::pet_instance_id)
+                .find(|id| *id != first_pet_id)
+                .unwrap(),
+        );
+        for (index, pet_id) in storage_ids.iter().enumerate() {
+            let inventory = store.load_profile("a", &defaults).unwrap().inventory;
+            let pet = inventory
+                .iter()
+                .find(|item| inventory::pet_instance_id(item) == Some(*pet_id))
+                .unwrap();
+            let outcome = store
+                .storage_transfer(
+                    "a",
+                    &format!("pet-deposit-{index}"),
+                    StorageOperation::Deposit,
+                    5,
+                    pet.slot as i16,
+                    1,
+                )
+                .unwrap();
+            assert!(outcome.success);
+        }
+        let stored = store.load_storage("a").unwrap();
+        assert_eq!(pet_ids(&stored), {
+            let mut expected = storage_ids.clone();
+            expected.sort_unstable();
+            expected
+        });
+        for (index, pet_id) in storage_ids.iter().enumerate() {
+            let stored = store.load_storage("a").unwrap();
+            let row = stored
+                .iter()
+                .find(|item| inventory::pet_instance_id(item) == Some(*pet_id))
+                .unwrap();
+            let outcome = store
+                .storage_transfer(
+                    "a",
+                    &format!("pet-withdraw-{index}"),
+                    StorageOperation::Withdraw,
+                    5,
+                    row.slot as i16,
+                    1,
+                )
+                .unwrap();
+            assert!(outcome.success);
+        }
+        let after_storage = store.load_profile("a", &defaults).unwrap().inventory;
+        assert!(storage_ids.iter().all(|id| {
+            after_storage
+                .iter()
+                .any(|item| inventory::pet_instance_id(item) == Some(*id))
+        }));
+
+        // Dropping the clone is required before reopening the same sqlite file.
+        drop(store);
+        drop(auth);
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let profile = store.load_profile("a", &defaults).unwrap();
+        let pet = profile
+            .inventory
+            .iter()
+            .find(|item| inventory::pet_instance_id(item) == Some(first_pet_id))
+            .unwrap();
+        assert!(inventory::pet_active(pet));
+        let replayed_after_restart = store
+            .toggle_pet("a", "pet-toggle-1", pet.slot as i16, "5000000")
+            .unwrap();
+        assert!(replayed_after_restart.success);
+        let after_replay = store.load_profile("a", &defaults).unwrap().inventory;
+        let pet = after_replay
+            .iter()
+            .find(|item| inventory::pet_instance_id(item) == Some(first_pet_id))
+            .unwrap();
+        assert!(inventory::pet_active(pet));
+        assert_eq!(
+            after_replay
+                .iter()
+                .filter(|item| inventory::pet_active(item))
+                .count(),
+            3
+        );
+        drop(store);
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));

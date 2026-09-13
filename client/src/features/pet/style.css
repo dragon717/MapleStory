@@ -1,0 +1,399 @@
+.ui-windows.tms273-pet-host {
+  position: absolute;
+  inset: 0;
+  bottom: var(--hud-height, 86px);
+  z-index: 9;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tms273-pet-host[hidden],
+.pet-window[hidden] { display: none !important; }
+
+.pet-window {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(594px, calc(100% - 12px));
+  max-height: calc(100% - 12px);
+  transform: translate(-50%, -50%);
+  overflow: auto;
+  pointer-events: auto;
+  z-index: var(--ui-window-z, 1);
+  filter: drop-shadow(0 5px 6px #000b);
+  color: #37454c;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font: 11px/1.3 Verdana, "Microsoft YaHei", sans-serif;
+  image-rendering: pixelated;
+  scrollbar-color: #65737d #20282f;
+  scrollbar-width: thin;
+}
+
+.pet-titlebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 271px;
+  height: 28px;
+  z-index: 6;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pet-layout {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 578px;
+  padding: 0;
+  background: transparent;
+}
+
+.pet-source-panel {
+  position: relative;
+  flex: 0 0 271px;
+  width: 271px;
+  height: 196px;
+  overflow: hidden;
+  background: #eef0ef;
+  border-radius: 3px;
+  image-rendering: pixelated;
+}
+
+.pet-source-background,
+.pet-source-action {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.pet-source-preview {
+  position: absolute;
+  z-index: 5;
+  display: block;
+  max-width: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+
+/* Values are limited to facts the current contract actually carries.  The
+   source labels remain visible underneath; unknown pet fields are explicit
+   dashes instead of guessed level/hunger data. */
+.pet-source-name,
+.pet-source-field {
+  position: absolute;
+  z-index: 6;
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pet-source-name {
+  left: 12px;
+  top: 127px;
+  width: 88px;
+  height: 14px;
+  padding: 1px 3px;
+  border: 1px solid #40718e;
+  border-radius: 1px;
+  background: #347ca6;
+  color: #fff;
+  font: 700 9px/11px "Microsoft YaHei", sans-serif;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 1px 1px #18516f;
+}
+
+.pet-source-field {
+  width: 29px;
+  height: 12px;
+  color: #344c56;
+  font: 700 9px/12px Verdana, "Microsoft YaHei", sans-serif;
+  text-align: center;
+  text-shadow: 0 1px #fff;
+}
+
+.pet-source-type { left: 45px; top: 151px; width: 54px; }
+.pet-source-hunger { left: 151px; top: 151px; width: 53px; }
+.pet-source-level { left: 45px; top: 169px; width: 54px; }
+.pet-source-intimacy { left: 151px; top: 169px; width: 53px; }
+
+.pet-tabs {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.pet-tab {
+  position: absolute;
+  width: 83px;
+  height: 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pet-tab img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 83px;
+  height: 13px;
+  max-width: none;
+  pointer-events: none;
+}
+
+.pet-tab-status {
+  position: absolute;
+  right: 4px;
+  top: 1px;
+  color: #f3d37a;
+  font: 700 8px/10px Arial, sans-serif;
+  text-shadow: 1px 1px #4b260b;
+  pointer-events: none;
+}
+
+.pet-tab:focus-visible,
+.pet-slot-card:focus-visible,
+.pet-owned-action:focus-visible,
+.pet-window-close:focus-visible {
+  outline: 2px solid #f5c967;
+  outline-offset: 1px;
+}
+
+.pet-source-live {
+  position: absolute;
+  z-index: 5;
+  left: 106px;
+  top: 73px;
+  width: 147px;
+  min-height: 57px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid rgb(27 45 56 / 72%);
+  border-radius: 2px;
+  background: rgb(19 31 39 / 77%);
+  color: #eff6f5;
+  text-shadow: 1px 1px #081117;
+  pointer-events: none;
+}
+
+.pet-source-live strong {
+  overflow: hidden;
+  color: #ffe4a2;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-source-live span {
+  overflow: hidden;
+  color: #d1e3e7;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-side-panel {
+  flex: 1 1 285px;
+  min-width: 285px;
+  max-width: 305px;
+  min-height: 196px;
+  padding: 8px 9px 7px;
+  border: 1px solid #a7b0b4;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f8f8f6, #e2e5e3);
+  box-shadow: inset 0 1px #fff, 0 1px 2px #6d787c55;
+}
+
+.pet-side-panel h2,
+.pet-side-panel h3 {
+  margin: 0;
+  color: #3c555e;
+  font: 700 12px/16px "Microsoft YaHei", sans-serif;
+  text-shadow: 0 1px #fff;
+}
+
+.pet-side-panel h3 {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #aab3b655;
+  font-size: 10px;
+}
+
+.pet-side-hint {
+  margin: 2px 0 6px;
+  color: #68777b;
+  font-size: 9px;
+}
+
+.pet-selected-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  margin-bottom: 6px;
+  padding: 3px 5px;
+  border: 1px solid #b1bdc0;
+  border-radius: 2px;
+  background: #eef2f1;
+}
+
+.pet-selected-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  max-width: none;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.pet-selected-text {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pet-selected-text strong,
+.pet-selected-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-selected-text strong { color: #34515c; font-size: 10px; }
+.pet-selected-text span { color: #66777c; font-size: 8px; }
+
+.pet-slots,
+.pet-owned-list { display: grid; gap: 4px; }
+
+.pet-slot-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 1px 5px;
+  min-height: 34px;
+  padding: 3px 5px;
+  border: 1px solid #aab4b7;
+  border-radius: 2px;
+  background: #f4f5f3;
+  color: #405057;
+  cursor: pointer;
+}
+
+.pet-slot-card.is-selected {
+  border-color: #5e9cb7;
+  background: #d7edf4;
+}
+
+.pet-slot-card strong,
+.pet-slot-card span:not(.pet-slot-number) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-slot-card strong { color: #314b55; font-size: 10px; }
+.pet-slot-card span { color: #627278; font-size: 9px; }
+.pet-slot-number { grid-row: 1 / span 3; align-self: center; color: #4b7f95; font-size: 9px; }
+
+.pet-owned-list { max-height: 170px; overflow: auto; scrollbar-width: thin; }
+.pet-owned-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 2px 3px;
+  border: 1px solid #b3bdc0;
+  border-radius: 2px;
+  background: #f8f8f6;
+}
+
+.pet-owned-icon {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  max-width: none;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.pet-owned-details {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pet-owned-details strong,
+.pet-owned-details span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-owned-details strong { color: #374f57; font-size: 10px; }
+.pet-owned-details span { color: #728084; font-size: 8px; }
+
+.pet-owned-action {
+  flex: 0 0 auto;
+  min-width: 37px;
+  height: 21px;
+  padding: 0 5px;
+  border: 1px solid #6d9caf;
+  border-radius: 2px;
+  background: #5f9bb5;
+  color: #fff;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.pet-owned-action:hover { background: #4a859f; }
+.pet-owned-empty { margin: 4px 0; color: #718085; font-size: 9px; }
+
+.pet-window-close {
+  position: absolute;
+  z-index: 8;
+  top: 4px;
+  left: 250px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid #a6b2b6;
+  border-radius: 2px;
+  background: #dce4e5;
+  color: #39515a;
+  font: 700 14px/14px Arial, sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 620px) {
+  .pet-window {
+    left: 6px;
+    top: 6px;
+    width: calc(100% - 12px);
+    max-height: calc(100% - 12px);
+    transform: none;
+  }
+  .pet-layout { flex-direction: column; min-width: 0; padding-right: 0; }
+  .pet-source-panel { flex: none; width: 271px; height: 196px; }
+  .pet-side-panel { flex: none; width: 271px; max-width: none; }
+}

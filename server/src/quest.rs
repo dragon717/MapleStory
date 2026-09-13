@@ -1254,9 +1254,6 @@ impl World {
         }
         if let Some(player) = self.players.get_mut(id) {
             player.map_id = next_map_id;
-            // Quest warps follow the same map-local rule as portals: the pet
-            // is recalled instead of carrying stale coordinates across maps.
-            player.pet = None;
             player.state = next_state;
             player.quests = next_quests;
             if first_mage_transfer {

@@ -2,7 +2,11 @@ use crate::protocol::InventoryItem;
 use rand::Rng;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::BTreeMap, iter::once, sync::OnceLock};
+use std::{
+    collections::{BTreeMap, HashSet},
+    iter::once,
+    sync::OnceLock,
+};
 
 /// Every regular MapleStory inventory tab starts with 24 local slots.
 /// This is the *default* capacity a fresh character gets before using any
@@ -103,6 +107,118 @@ pub fn is_pet(item_id: &str) -> bool {
 /// The source display name of one pet (e.g. `5000000` -> `褐色小貓`).
 pub fn pet_name(item_id: &str) -> Option<&'static str> {
     pet_catalog().get(item_id).map(|pet| pet.name.as_str())
+}
+
+/// Private instance metadata carried by a non-stackable cash-pet inventory
+/// row.  Keeping it in the existing instance map avoids widening the wire
+/// inventory shape; pets have no item-catalog stat tooltip that could expose
+/// these keys.
+const PET_INSTANCE_ID_KEY: &str = "_petInstanceId";
+const PET_ACTIVE_KEY: &str = "_petActive";
+const PET_INSTANCE_ID_MAX: i64 = 9_007_199_254_740_991; // JavaScript MAX_SAFE_INTEGER
+pub const MAX_ACTIVE_PETS: usize = 3;
+
+fn new_pet_instance_id() -> i64 {
+    rand::thread_rng().gen_range(1..=PET_INSTANCE_ID_MAX)
+}
+
+/// Return the stable identity of one pet item row.
+pub fn pet_instance_id(item: &InventoryItem) -> Option<i64> {
+    is_pet(&item.item_id)
+        .then(|| item.stats.as_ref()?.get(PET_INSTANCE_ID_KEY).copied())
+        .flatten()
+        .filter(|id| *id > 0)
+}
+
+/// Whether this persisted pet row is currently summoned.
+pub fn pet_active(item: &InventoryItem) -> bool {
+    pet_instance_id(item).is_some()
+        && item
+            .stats
+            .as_ref()
+            .and_then(|stats| stats.get(PET_ACTIVE_KEY))
+            .copied()
+            == Some(1)
+}
+
+/// Ensure a pet row has private identity metadata. Existing id and active bit
+/// always win, so this is safe to call during every auth read/write pass.
+pub fn ensure_pet_instance(item: &mut InventoryItem) {
+    if !is_pet(&item.item_id) || item.quantity != 1 {
+        return;
+    }
+    let mut stats = item.stats.take().unwrap_or_default();
+    let instance_id = stats
+        .get(PET_INSTANCE_ID_KEY)
+        .copied()
+        .filter(|id| *id > 0)
+        .unwrap_or_else(new_pet_instance_id);
+    stats.insert(PET_INSTANCE_ID_KEY.to_owned(), instance_id);
+    let active = stats.get(PET_ACTIVE_KEY).copied().unwrap_or(0);
+    stats.insert(PET_ACTIVE_KEY.to_owned(), i64::from(active == 1));
+    item.stats = Some(stats);
+}
+
+/// Repair missing/duplicated pet identities in one inventory snapshot. A
+/// duplicate can only come from a legacy or manually edited save; assigning a
+/// fresh id keeps each physical row independently addressable.
+pub fn normalize_pet_instances(items: &mut [InventoryItem]) {
+    let mut seen = HashSet::new();
+    let mut active_count = 0;
+    for item in items.iter_mut().filter(|item| is_pet(&item.item_id)) {
+        ensure_pet_instance(item);
+        let duplicate = pet_instance_id(item).is_some_and(|id| !seen.insert(id));
+        if duplicate {
+            let mut stats = item.stats.take().unwrap_or_default();
+            let mut id = new_pet_instance_id();
+            while !seen.insert(id) {
+                id = new_pet_instance_id();
+            }
+            stats.insert(PET_INSTANCE_ID_KEY.to_owned(), id);
+            item.stats = Some(stats);
+        }
+        if pet_active(item) {
+            active_count += 1;
+            if active_count > MAX_ACTIVE_PETS {
+                item.stats
+                    .get_or_insert_with(BTreeMap::new)
+                    .insert(PET_ACTIVE_KEY.to_owned(), 0);
+            }
+        }
+    }
+}
+
+/// Toggle one authoritative pet row. The caller decides how to persist the
+/// resulting inventory; this helper only mutates a matching cash-tab row.
+pub fn toggle_pet(
+    items: &mut Vec<InventoryItem>,
+    source_slot: i16,
+    item_id: &str,
+) -> Result<(), String> {
+    if !valid_slot(source_slot) {
+        return Err("invalid_slot".to_owned());
+    }
+    normalize_pet_instances(items);
+    let Some(index) = items.iter().position(|item| {
+        item.slot == u16::try_from(source_slot).unwrap_or(0)
+            && inventory_type(&item.item_id) == Some(5)
+            && item.item_id == item_id
+            && is_pet(&item.item_id)
+    }) else {
+        return Err("source_empty".to_owned());
+    };
+    if pet_active(&items[index]) {
+        let stats = items[index].stats.get_or_insert_with(BTreeMap::new);
+        stats.insert(PET_ACTIVE_KEY.to_owned(), 0);
+        return Ok(());
+    }
+    let active_count = items.iter().filter(|item| pet_active(item)).count();
+    if active_count >= MAX_ACTIVE_PETS {
+        return Err("pet_limit".to_owned());
+    }
+    let stats = items[index].stats.get_or_insert_with(BTreeMap::new);
+    stats.insert(PET_ACTIVE_KEY.to_owned(), 1);
+    Ok(())
 }
 
 /// Resolve an item tab from the WZ/catalog identifier.  Development saves can
@@ -294,6 +410,11 @@ fn spec_i64(item_id: &str, key: &str) -> Option<i64> {
 }
 
 pub fn item_slot_max(item_id: &str) -> u32 {
+    // Cash pets are physical instances.  They may share an item id, but each
+    // row carries its own persistent identity and must never be merged.
+    if is_pet(item_id) {
+        return 1;
+    }
     item_definition(item_id)
         .map(|item| item.slot_max)
         .unwrap_or_else(|| if is_equipment(item_id) { 1 } else { 100 })
@@ -620,10 +741,12 @@ pub fn add_items(
             ..InventoryItem::default()
         };
         ensure_equipment_instance(&mut added);
+        ensure_pet_instance(&mut added);
         next.push(added);
         first_slot.get_or_insert(slot);
         remaining -= amount;
     }
+    normalize_pet_instances(&mut next);
     sort_items(&mut next);
     *items = next;
     first_slot.ok_or(InventoryError::InventoryFull)
@@ -642,23 +765,32 @@ pub fn add_item_instance(
     upgrade_count: Option<u32>,
 ) -> Result<u16, InventoryError> {
     let slot = add_items(items, item_id.clone(), quantity, slot_limit)?;
-    if is_equipment(&item_id) {
+    if is_equipment(&item_id) || is_pet(&item_id) {
         if let Some(item) = items
             .iter_mut()
-            .find(|item| item.slot == slot && inventory_type(&item.item_id) == Some(1))
+            .find(|item| {
+                item.slot == slot
+                    && inventory_type(&item.item_id) == inventory_type(&item_id)
+                    && item.item_id == item_id
+            })
         {
             if let Some(stats) = stats {
                 item.stats = Some(stats.clone());
             }
-            if let Some(remaining_slots) = remaining_slots {
-                item.remaining_slots = Some(remaining_slots);
+            if is_equipment(&item_id) {
+                if let Some(remaining_slots) = remaining_slots {
+                    item.remaining_slots = Some(remaining_slots);
+                }
+                if let Some(upgrade_count) = upgrade_count {
+                    item.upgrade_count = Some(upgrade_count);
+                }
+                ensure_equipment_instance(item);
+            } else {
+                ensure_pet_instance(item);
             }
-            if let Some(upgrade_count) = upgrade_count {
-                item.upgrade_count = Some(upgrade_count);
-            }
-            ensure_equipment_instance(item);
         }
     }
+    normalize_pet_instances(items);
     Ok(slot)
 }
 
