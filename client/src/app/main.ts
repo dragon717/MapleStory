@@ -282,6 +282,16 @@ async function enterGame(session: LoginResponse) {
     worldMap?.destroy();
     worldMap = new WorldMapView(el('ui-windows'), manifest);
     worldMap.onStatus = message => status(message, true);
+    // World-map jump: the view only names the clicked spot's map id; the
+    // server decides whether that map is assembled and where the body lands.
+    worldMap.onJump = mapId => {
+      input?.reset();
+      const requestId = `worldmap-${Date.now()}-${++portalSequence}`;
+      const english = uiLocale() === 'en';
+      if (connection?.send({ type: 'worldMapMove', requestId, mapId })) {
+        status(english ? `World map jump: ${mapId}` : `世界地图跳转：${mapId}`);
+      }
+    };
     miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
@@ -557,6 +567,13 @@ async function enterGame(session: LoginResponse) {
         } else if (message.status === 'completed') {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Quest completed' : '任务完成'}：${message.name}${reward ? ` · ${uiLocale() === 'en' ? 'Reward' : '获得'} ${reward}` : ''}`, `quest:${message.questId}:completed`);
         }
+      }
+      if (message.type === 'worldMapMoveResult') {
+        // The window stays open either way: on success the next snapshot's
+        // `setMap` moves the location plate, on failure the map is unchanged.
+        const english = uiLocale() === 'en';
+        if (message.success) status(english ? `Arrived at ${message.mapId}` : `已抵达 ${message.mapId}`);
+        else status(`${english ? 'World map jump failed' : '世界地图跳转失败'}：${message.code}`, true);
       }
       if (message.type === 'snapshot') {
         el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;

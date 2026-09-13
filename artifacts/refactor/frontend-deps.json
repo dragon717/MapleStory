@@ -8,10 +8,10 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 103,
-  "edge_count": 218,
+  "node_count": 104,
+  "edge_count": 219,
   "edge_kind_counts": {
-    "value": 126,
+    "value": 127,
     "dynamic": 1,
     "type": 75,
     "side-effect": 16
@@ -19,6 +19,7 @@
   "external_specifiers": [
     "esbuild",
     "node:assert/strict",
+    "node:fs",
     "node:fs/promises",
     "node:module",
     "node:os",
@@ -291,6 +292,11 @@
     {
       "from": "client/src/features/cashshop/view.ts",
       "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
+      "to": "client/src/features/entry/appearance.ts",
       "kind": "value"
     },
     {
@@ -1134,8 +1140,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "5992f6149a6a2361619a40ce16601be3e18ada2e",
+  "source_commit": "fe5c0e877598b3faa467d013219929bc6e413a9c",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-13T11:27:03.333Z"
+  "generated_at": "2026-09-13T13:02:05.470Z"
 }

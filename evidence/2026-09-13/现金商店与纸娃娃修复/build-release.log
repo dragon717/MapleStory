@@ -1,0 +1,90 @@
+warning: fields `life` and `hungry` are never read
+  --> src/inventory.rs:84:5
+   |
+81 | struct PetDefinition {
+   |        ------------- fields in this struct
+...
+84 |     life: Option<u32>,
+   |     ^^^^
+85 |     #[serde(default)]
+86 |     hungry: Option<u32>,
+   |     ^^^^^^
+   |
+   = note: `PetDefinition` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `bonus`, `period`, `priority`, `limit`, `refundable`, and `tab` are never read
+    --> src/world.rs:1185:9
+     |
+1178 | pub struct CashCommodity {
+     |            ------------- fields in this struct
+...
+1185 |     pub bonus: u64,
+     |         ^^^^^
+...
+1188 |     pub period: u32,
+     |         ^^^^^^
+...
+1197 |     pub priority: i64,
+     |         ^^^^^^^^
+...
+1200 |     pub limit: u32,
+     |         ^^^^^
+1201 |     #[serde(default)]
+1202 |     pub refundable: bool,
+     |         ^^^^^^^^^^
+1203 |     pub tab: String,
+     |         ^^^
+     |
+     = note: `CashCommodity` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `categories` is never read
+    --> src/world.rs:1209:9
+     |
+1208 | pub struct CashShopCatalogue {
+     |            ----------------- field in this struct
+1209 |     pub categories: Vec<CashCategory>,
+     |         ^^^^^^^^^^
+     |
+     = note: `CashShopCatalogue` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `id` and `label` are never read
+    --> src/world.rs:1216:9
+     |
+1215 | pub struct CashCategory {
+     |            ------------ fields in this struct
+1216 |     pub id: String,
+     |         ^^
+1217 |     pub label: String,
+     |         ^^^^^
+     |
+     = note: `CashCategory` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `cash_commodity` is never used
+   --> src/cashshop.rs:207:19
+    |
+ 39 | impl World {
+    | ---------- method in this implementation
+...
+207 |     pub(super) fn cash_commodity(&self, sn: &str) -> Option<CashCommodity> {
+    |                   ^^^^^^^^^^^^^^
+
+
+> maplestory-client@0.11.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 84 modules transformed.
+rendering chunks...
+computing gzip size...
+../build/tmp/client/index.html                     0.40 kB │ gzip:   0.31 kB
+../build/tmp/client/assets/index-Bn4zcggG.css    142.02 kB │ gzip:  26.57 kB
+../build/tmp/client/assets/index-BKxTQjGy.js   2,968.01 kB │ gzip: 669.32 kB
+
+(!) Some chunks are larger than 1600 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 15.88s
+{"schemaVersion":1,"releaseId":"20260913124727-96fb0d1b","platform":"darwin-arm64","protocolVersion":19,"contentVersion":"tms273-18","createdAt":"2026-09-13T12:47:27.167Z","clientPath":"client","serverPath":"server/maplestory-server"}

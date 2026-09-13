@@ -197,3 +197,40 @@ fn cash_wallet_survives_a_profile_round_trip() {
     let loaded = service.store.load_profile("wallet", &wiped).unwrap();
     assert_eq!(loaded.cash, 12_345);
 }
+
+#[test]
+fn cash_equipment_and_pets_keep_source_identity_after_store_reopen() {
+    // These are real on-sale WZ items, not entries in test-fixtures/items.json.
+    let weapon = "01702087";
+    let pet = "05000000";
+    assert_eq!(inventory::equipment_slot(weapon), Some(-11));
+    assert_eq!(inventory::equipment_slot("1702087"), Some(-11));
+    assert!(inventory::is_pet(pet));
+    assert_eq!(inventory::pet_name(pet), inventory::pet_name("5000000"));
+    let path = std::env::temp_dir().join(format!("maple-cash-binding-{}.sqlite3", auth::random_id()));
+    let (world, _) = cash_world(Vec::new());
+    let defaults = world.default_profile();
+    {
+        let service = auth::start(&path).unwrap();
+        let store = &service.store;
+        store.load_profile("binding", &defaults).unwrap();
+        let mut bag = Vec::new();
+        inventory::add_items(&mut bag, weapon.into(), 1, 24).unwrap();
+        inventory::add_items(&mut bag, pet.into(), 1, 24).unwrap();
+        store.write_inventory("binding", &bag).unwrap();
+        let stats = inventory::EquipmentStats { level: 200, ..Default::default() };
+        let wrong = store.move_inventory("binding", "wrong", 1, 1, -5, 1, stats).unwrap();
+        assert!(!wrong.success, "a cash weapon cannot bind to the coat slot");
+        let equipped = store.move_inventory("binding", "equip", 1, 1, -11, 1, stats).unwrap();
+        assert!(equipped.success, "{}", equipped.code);
+        assert!(store.toggle_pet("binding", "summon", 1, pet).unwrap().success);
+    }
+    {
+        let service = auth::start(&path).unwrap();
+        let equipped = service.store.load_equipped("binding").unwrap();
+        assert!(equipped.iter().any(|item| item.item_id == weapon && item.slot == 11));
+        let profile = service.store.load_profile("binding", &defaults).unwrap();
+        assert!(profile.inventory.iter().any(|item| item.item_id == pet && inventory::pet_active(item)));
+    }
+    let _ = std::fs::remove_file(path);
+}

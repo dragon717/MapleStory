@@ -8,9 +8,17 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-16';
+const version = 'tms273-18';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
+const cashshop = read('cashshop');
+// Cash equipment is also inventory/persistence data, not just a shop icon.
+// Keep both forms readable for purchases saved by the first shop build.
+for (const [id, definition] of Object.entries(cashshop.itemDefinitions ?? {})) {
+  const canonical = String(Number(id));
+  items[canonical] ??= definition;
+  items[canonical.padStart(8, '0')] ??= items[canonical];
+}
 require('./tms273_creation_catalog.cjs')(
   JSON.parse(fs.readFileSync(path.join(root, 'shared/character-creation.json'), 'utf8')), items, 'export/items.json');
 const mageAvatar = read('mage-avatar');
@@ -140,17 +148,23 @@ const manifest = {
   // magnifier buttons and the effect labels) used by the cash-shop window.
   // PNGs are exported by export_tms273_cashshop.cjs and copied into
   // client/public-tms273/assets alongside the other UI art.
-  cashshopUi: read('cashshop').ui,
+  cashshopUi: cashshop.ui,
   // Source-backed per-item info/icon frames for every shippable cash-shop
   // commodity (a separate tree from the gameplay `items` icons so the two
   // catalogs never fight over one id space).
-  cashItems: read('cashshop').itemIcons,
+  cashItems: cashshop.itemIcons,
   // Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue (desc, 32x32
   // icon and the head animation frames) plus the 表情 window shell used by the
   // emoticon window.  PNGs are exported by export_tms273_emoticon.cjs and
   // copied into client/public-tms273/assets alongside the other UI art.
   emoticon: emoticonExport,
 };
+for (const [id, frame] of Object.entries(cashshop.itemIcons)) {
+  const canonical = String(Number(id));
+  manifest.items[canonical] ??= frame;
+  manifest.items[canonical.padStart(8, '0')] ??= frame;
+  if (manifest.pets[canonical]) manifest.pets[canonical.padStart(8, '0')] ??= manifest.pets[canonical];
+}
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {
   const extra=read('combat-extra');
@@ -252,16 +266,25 @@ gameplay.compatibility.minimapUi = 'T: the corner badge, the npcList panel/rows 
   const cashshop = read('cashshop');
   assert(cashshop.commodities.length > 500, 'Cash-shop export is stale');
   assert(cashshop.categories.length === 8, 'Cash-shop category table drifted');
+  for (const frame of [...Object.values(cashshop.ui), ...Object.values(cashshop.itemIcons)]) {
+    assert(frame.url.startsWith('/assets/tms273/'), `Cash-shop asset would not be copied: ${frame.url}`);
+  }
   const sns = new Set(cashshop.commodities.map(entry => entry.sn));
   assert.equal(sns.size, cashshop.commodities.length, 'Cash-shop export has duplicate SNs');
   for (const entry of cashshop.commodities) {
     assert(entry.count >= 1 && entry.price >= 0, `Cash-shop row is malformed: ${entry.sn}`);
+    assert(cashshop.itemIcons[entry.itemId], `Cash-shop item has no icon: ${entry.itemId}`);
+    // The islot contract binds character equipment only: pet gear (180/190/194)
+    // ships without an islot on the cash tab by design (see export_tms273_cashshop.cjs).
+    if (Number(entry.itemId) < 2_000_000 && items[entry.itemId]?.inventoryType === 1) {
+      assert(items[entry.itemId]?.info?.islot, `Cash equipment has no source slot: ${entry.itemId}`);
+    }
     // SN is an opaque purchase key; the source mixes 8- and 9-digit forms
     // (92000000 vs 92001703), so only "all digits" is a contract.
     assert(/^\d{8,9}$/.test(entry.sn), `Cash-shop SN must be numeric: ${entry.sn}`);
     assert(/^\d{8}$/.test(entry.itemId), `Cash-shop itemId must be 8 digits: ${entry.sn}`);
   }
-  gameplay.compatibility.cashShop = `T: commodities come from Etc/Commodity.img with OnSale=1 only (${cashshop.commodities.length} of 12617 rows; SN 900 楓點充值 / SN 910 楓幣兌換 / SN 800 兌換券 carry no local purchase path and are skipped; ${cashshop.excluded.length} on-sale rows reference items whose art left the client pack and are excluded, see cashshop.json excluded). Window art, sidebar tab sprites and per-item icons are TMS273.7. P: the WZ has no per-commodity tab field — the main tab is derived from the SN group plus an item-family fallback, so tab placement is an inference, not a source fact; 時裝 sub-tabs reuse the equip family table; no gift, wishlist, mileage, coupon, avatar-preview or locker feature exists; the balance is a local P field (no real charging), topped up only through the GM /cash command.`;
+  gameplay.compatibility.cashShop = `T: ${cashshop.commodities.length} sellable entries are derived from TMS273.7 Etc/Commodity.img OnSale rows; UI/CashShop.img, item names, icons and item definitions use the same client version. ${cashshop.excluded.length} exclusions and their exact reasons are recorded in cashshop.json (missing art or unsupported local service/pet-equipment mechanics, not presumed retired items). P: category placement is inferred from SN groups and item families; the four 911xxxx inventory expansion services deliver the existing 2430768–2430771 coupons with sourceItemId/deliveryRule retained. Avatar preview and world characters share source-backed appearance composition. Gift, wishlist, mileage redemption and cash locker mechanics remain unavailable. The local cash balance is granted through GM /cash, without a real charging service.`;
   gameplay.cashShop = {
     contentVersion: cashshop.contentVersion,
     categories: cashshop.categories,
@@ -316,6 +339,14 @@ function collect(value) {
 collect(manifest);
 const appearance = read('appearance');
 collect(appearance);
+// The first-screen catalogue contains only an index; copy each selected
+// item's JSON and its textures without putting them in the initial preload.
+for (const entry of Object.values(appearance.cashAppearance?.items ?? {})) {
+  assert(entry.url.startsWith('/assets/tms273/'), `Invalid cash appearance URL: ${entry.url}`);
+  const layer = JSON.parse(fs.readFileSync(path.join(input, entry.url.slice(1)), 'utf8'));
+  assert.equal(Number(layer.itemId ?? layer.id), Number(entry.itemId), `Cash appearance binding mismatch: ${entry.itemId}`);
+  collect(layer);
+}
 write(path.join(publicRoot,'assets/entry/appearance.json'),appearance);
 for(const url of urls) assert(fs.statSync(path.join(input,url.slice(1))).size>0,`Missing asset ${url}`);
 for(const url of urls) {

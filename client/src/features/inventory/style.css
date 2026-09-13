@@ -45,12 +45,36 @@
   max-width: none !important;
 }
 
+/* Scroll viewport around the slot grid.  The collapsible window only shows
+   4x8 slots of source art at once; a tab expanded past 32 scrolls inside the
+   reserved area (wheel / trackpad / touch drag).  The native scrollbar is
+   hidden so it never covers the source-authored background. */
+.tms273-inventory-host .inventory-grid-viewport {
+  position: absolute;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  touch-action: pan-y;
+  scrollbar-width: none;
+}
+
+.tms273-inventory-host .inventory-grid-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* The expanded window already shows every slot on its 8 rows; scrolling there
+   would only jiggle the grid. */
+.tms273-inventory-host .inventory-window[data-size="full"] .inventory-grid-viewport {
+  overflow: hidden;
+}
+
 .tms273-inventory-host .inventory-grid {
+  position: relative;
   display: block;
   left: 0 !important;
   top: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
   pointer-events: none;
 }
 

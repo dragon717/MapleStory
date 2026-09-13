@@ -109,7 +109,7 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        17,
+        26,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();

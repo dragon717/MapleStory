@@ -21,9 +21,24 @@ fn all_authored_maps_keep_the_walker_grounded() {
             world.step();
             while rx.try_recv().is_ok() {}
         }
+        // 100020000 芽孢山丘（2026-09-13 收录）的源 foothold 止于 x=1440，而图
+        // 右缘到 1511——持续右走会走出台缘进入坠落，属源侧真实地形。服务端
+        // `recover_at_fall_boundary` 会把越界坠落夹回最后一个 foothold，因此
+        // 审计口径是「停止输入后必须回到地面」，而不是「采样瞬间必在地面上」：
+        // 停止行走让坠落走完回收流程，任何不可回收的破图在这里都会超时失败。
+        world.command(Command::Input {
+            id: "p".into(), connection: "p-connection".into(),
+            message: ClientMessage::Input { seq: seq + 1, direction: 0, vertical: 0, jump: false },
+        });
+        let mut grounded_again = false;
+        for _ in 0..600 {
+            world.step();
+            while rx.try_recv().is_ok() {}
+            if world.players["p"].state.grounded { grounded_again = true; break; }
+        }
         let p = &world.players["p"];
         assert!(p.state.x.is_finite() && p.state.y.is_finite(), "map {} non-finite", m.id);
-        assert!(p.state.grounded, "map {}: walker ended airborne at ({:.1},{:.1})", m.id, p.state.x, p.state.y);
+        assert!(grounded_again, "map {}: walker never recovered to ground at ({:.1},{:.1})", m.id, p.state.x, p.state.y);
         total += 1;
     }
     println!("REAL MAPS OK: {}", total);

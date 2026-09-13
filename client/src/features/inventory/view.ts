@@ -33,6 +33,9 @@ export class InventoryView {
   private readonly window?: HTMLDivElement;
   private readonly background?: HTMLImageElement;
   private readonly grid?: HTMLDivElement;
+  /** Scroll viewport around the slot grid; collapsible mode scrolls when the
+   *  tab capacity exceeds the 4x8 slots the source window can show at once. */
+  private readonly gridViewport?: HTMLDivElement;
   private readonly tabs?: HTMLDivElement;
   private readonly tabsViewport?: HTMLDivElement;
   private readonly tabPrev?: HTMLButtonElement;
@@ -174,11 +177,15 @@ export class InventoryView {
     this.tabNext = this.createTabArrow(inventoryWindow, 'next', this.t('下一页签', 'Next tab'), 1);
     tabsViewport.addEventListener('scroll', () => this.updateTabOverflow());
 
+    const gridViewport = document.createElement('div');
+    gridViewport.className = 'inventory-grid-viewport';
     const grid = document.createElement('div');
     grid.className = 'inventory-grid';
     for (let index = 0; index < this.visualSlotCount; index++) this.createSlot(grid, index);
-    inventoryWindow.append(grid);
+    gridViewport.append(grid);
+    inventoryWindow.append(gridViewport);
     this.grid = grid;
+    this.gridViewport = gridViewport;
 
     const mesosLine = document.createElement('div');
     mesosLine.className = 'inventory-mesos';
@@ -582,12 +589,14 @@ export class InventoryView {
   private renderSlots() {
     if (!this.grid) return;
     this.grid.dataset.tab = String(this.selectedTab);
+    this.updateGridMetrics();
     const mode = this.inventoryMode();
+    const visibleCount = this.visibleSlotCount();
     const slots = Array.from(this.grid.querySelectorAll<HTMLButtonElement>('.inventory-slot'));
     for (const slot of slots) {
       const slotNumber = Number(slot.dataset.slot);
       const item = this.itemAt(slotNumber);
-      const visible = slotNumber <= mode.slots.itemCount;
+      const visible = slotNumber <= visibleCount;
       const available = visible && slotNumber <= this.slotLimit(this.selectedTab);
       const targetable = false;
       slot.hidden = !visible;
@@ -1019,6 +1028,15 @@ export class InventoryView {
     button.style.height = height + padding * 2 + 'px';
   }
 
+  /** Slots the current mode shows.  The collapsible window only has room for
+   *  4x8 slots at once, but a tab expanded past 32 must stay reachable, so it
+   *  grows to the tab capacity and the viewport scrolls. */
+  private visibleSlotCount() {
+    const mode = this.inventoryMode();
+    if (this.full) return mode.slots.itemCount;
+    return Math.max(mode.slots.itemCount, this.slotLimit(this.selectedTab));
+  }
+
   private updateGridMetrics() {
     if (!this.grid) return;
     const slots = Array.from(this.grid.querySelectorAll<HTMLButtonElement>('.inventory-slot'));
@@ -1026,16 +1044,28 @@ export class InventoryView {
     const columns = layout.columns;
     const stepX = layout.slotWidth + layout.spacingX;
     const stepY = layout.slotHeight + layout.spacingY;
+    const visibleCount = this.visibleSlotCount();
+    const contentRows = Math.max(layout.rows, Math.ceil(visibleCount / columns));
+    if (this.gridViewport) {
+      // The viewport clips to the rows the source background art reserves;
+      // extra rows live inside the scrollable content below it.
+      this.gridViewport.style.left = `${layout.origin.x}px`;
+      this.gridViewport.style.top = `${layout.origin.y}px`;
+      this.gridViewport.style.width = `${columns * layout.slotWidth + (columns - 1) * layout.spacingX}px`;
+      this.gridViewport.style.height = `${layout.rows * layout.slotHeight + (layout.rows - 1) * layout.spacingY}px`;
+    }
     this.grid.style.left = '0px';
     this.grid.style.top = '0px';
-    this.grid.style.width = `${layout.origin.x + columns * layout.slotWidth + (columns - 1) * layout.spacingX}px`;
-    this.grid.style.height = `${layout.origin.y + layout.rows * layout.slotHeight + (layout.rows - 1) * layout.spacingY}px`;
+    this.grid.style.width = `${columns * layout.slotWidth + (columns - 1) * layout.spacingX}px`;
+    this.grid.style.height = `${contentRows * layout.slotHeight + (contentRows - 1) * layout.spacingY}px`;
     slots.forEach(slot => {
       const slotNumber = Number(slot.dataset.slot);
       const column = (slotNumber - 1) % columns;
       const row = Math.floor((slotNumber - 1) / columns);
-      const x = layout.origin.x + column * stepX;
-      const y = layout.origin.y + row * stepY;
+      // The grid is anchored inside the viewport at the slot origin, so slot
+      // coordinates are viewport-relative (no origin offset).
+      const x = column * stepX;
+      const y = row * stepY;
       slot.style.left = x + 'px';
       slot.style.top = y + 'px';
       slot.style.width = layout.slotWidth + 'px';

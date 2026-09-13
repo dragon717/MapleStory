@@ -101,12 +101,12 @@ fn pet_catalog() -> &'static BTreeMap<String, PetDefinition> {
 /// record).  Pet items resolve their tab through the million-group fallback
 /// (cash, type 5) already; this check is the source-backed identity gate.
 pub fn is_pet(item_id: &str) -> bool {
-    pet_catalog().contains_key(item_id)
+    pet_catalog().contains_key(item_id.trim_start_matches('0'))
 }
 
 /// The source display name of one pet (e.g. `5000000` -> `褐色小貓`).
 pub fn pet_name(item_id: &str) -> Option<&'static str> {
-    pet_catalog().get(item_id).map(|pet| pet.name.as_str())
+    pet_catalog().get(item_id.trim_start_matches('0')).map(|pet| pet.name.as_str())
 }
 
 /// Private instance metadata carried by a non-stackable cash-pet inventory

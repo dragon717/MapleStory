@@ -35,10 +35,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WZ = ROOT / '参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW/Item'
 STR = WZ.parent / 'String' / 'Consume.json'
-TARGET = ROOT / 'shared/items.json'
+# The freshly generated gameplay catalog lives in the export dir; this script
+# must add the coupons *there* (the item-image export reads this file right
+# after) — never the other way round, or a stale assemble output would be
+# mirrored over the regenerated catalog and drop every new shop item.
+TARGET = ROOT / 'resources/tms273-export/items.json'
 MIRRORS = [
+    ROOT / 'shared/items.json',
     ROOT / 'client/public-tms273/assets/items.json',
-    ROOT / 'resources/tms273-export/items.json',
 ]
 
 # id -> target tab (the `info.slotExpand` value: 1=equip, 2=use, 3=setup,

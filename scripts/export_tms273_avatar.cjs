@@ -215,7 +215,8 @@ function anchorPoint(frame, anchor) {
 
 function preferredAnchors(candidate) {
   if (candidate.part === 'head') return ['neck'];
-  if (candidate.part === 'face' || candidate.part === 'hair' || candidate.part === 'cap') return ['brow'];
+  if (candidate.part === 'face' || candidate.part === 'hair' || candidate.part === 'cap'
+    || candidate.part === 'faceAccessory' || candidate.part === 'accessory') return ['brow'];
   if (candidate.part === 'weapon') return ['hand', 'navel'];
   if (candidate.part === 'body' && candidate.layerName === 'body') return ['navel', 'neck'];
   return ['navel', 'hand', 'neck', 'brow'];
@@ -259,8 +260,14 @@ function finalAnchor(part, anchor) {
     : undefined;
 }
 
-async function leavesFor(image, part, action, frameIndex, owner, include = undefined) {
-  const source = `${image}/${action}/${frameIndex}`;
+async function leavesFor(image, part, action, frameIndex, owner, include = undefined, actionPrefix = undefined) {
+  // Cash weapons keep the same action names as the ordinary weapon images,
+  // but nest them below a numeric weapon-type node (for example `/30`).
+  // `actionPrefix` is deliberately a path segment supplied by the descriptor,
+  // rather than a guessed item-family rule, so ordinary equipment keeps the
+  // direct source path.
+  const actionRoot = actionPrefix ? `${image}/${actionPrefix}` : image;
+  const source = `${actionRoot}/${action}/${frameIndex}`;
   let frameNode;
   try {
     frameNode = resolved(await get(source));
@@ -273,14 +280,20 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
   }
   const leaves = drawableLeaves(frameNode, source).filter(({ source: leafSource }) => {
     if (!include) return true;
-    const name = layerName(leafSource, image, action, frameIndex);
+    const name = layerName(leafSource, actionRoot, action, frameIndex);
     return include.includes(name);
   });
   const result = [];
   for (const leaf of leaves) {
-    const name = layerName(leaf.source, image, action, frameIndex);
+    const name = layerName(leaf.source, actionRoot, action, frameIndex);
     const frame = await sourceFrame(leaf.source);
-    const zName = layerZName(leaf.node, name);
+    // Two legacy TMS273 cash capes author `z=0` on their UOL Canvas instead
+    // of the named zmap entry.  Their authored slot is Sr, so the source
+    // layer is the regular cape depth.  A pair of cap accessory leaves uses
+    // the old `capBelowBody` spelling; TMS273's zmap names that same Cc depth
+    // `capAccessoryBelowBody`. Keep both aliases narrow and source-backed.
+    const authoredZName = layerZName(leaf.node, part === 'cape' ? 'cape' : name);
+    const zName = authoredZName === 'capBelowBody' ? 'capAccessoryBelowBody' : authoredZName;
     assert(zmap.has(zName), `273 zmap missing layer ${zName} from ${leaf.source}`);
     result.push({ node: leaf.node, source: leaf.source, frame, part, layerName: name, owner, zName });
   }
@@ -321,8 +334,8 @@ async function buildAction(action, sourceAction, frameNode, selected, starter, o
   const candidates = [];
   const rejected = [];
 
-  async function add(image, part, owner, include, itemId = undefined, base = false) {
-    const leaves = await leavesFor(image, part, sourceAction, frameIndex, owner, include);
+  async function add(image, part, owner, include, itemId = undefined, base = false, actionPrefix = undefined) {
+    const leaves = await leavesFor(image, part, sourceAction, frameIndex, owner, include, actionPrefix);
     for (const leaf of leaves) {
       if (base) {
         const hidden = hidesBaseLayer(leaf.zName, selectedInfos);
@@ -338,8 +351,13 @@ async function buildAction(action, sourceAction, frameNode, selected, starter, o
             itemId: hidden.item.itemId,
             rule: `Base/smap.img/${leaf.zName}=${smap.get(leaf.zName)}; ${hidden.item.source} vslot contains ${hidden.overlap}`,
           });
-          continue;
         }
+        // Keep a hidden head/arm/body as an anchor owner.  A cap or coat can
+        // cover that Canvas in the final list, but equipment still needs its
+        // brow/hand/navel in actor coordinates before the covered part is
+        // removed from the rendered output.
+        candidates.push({ ...leaf, itemId, hidden: Boolean(hidden) });
+        continue;
       }
       candidates.push({ ...leaf, itemId });
     }
@@ -363,7 +381,7 @@ async function buildAction(action, sourceAction, frameNode, selected, starter, o
   if (sources.shoes) await add(sources.shoes, 'shoes', 'shoes', undefined, undefined, true);
 
   for (const item of selectedInfos) {
-    await add(item.image, item.part, item.itemId, undefined, item.itemId, false);
+    await add(item.image, item.part, item.itemId, undefined, item.itemId, false, item.actionPrefix);
   }
 
   const bodyPart = candidates.find(candidate => candidate.part === 'body' && candidate.layerName === 'body');
@@ -399,7 +417,9 @@ async function buildAction(action, sourceAction, frameNode, selected, starter, o
   actorAnchors.brow = finalAnchor(headPlaced, 'brow');
   assert(actorAnchors.brow, `273 ${action}/${frameIndex} head brow placement failed`);
 
-  const parts = candidates.map(candidate => rendered.get(candidate) || compose(candidate, actorAnchors));
+  const parts = candidates
+    .filter(candidate => !candidate.hidden)
+    .map(candidate => rendered.get(candidate) || compose(candidate, actorAnchors));
   assert(parts.every(part => Number.isSafeInteger(part.z)), `273 ${action}/${frameIndex} has unknown z index`);
   parts.sort((a, b) => b.z - a.z);
   const renderedAnchors = Object.fromEntries(Object.entries(actorAnchors).filter(([, point]) => point));

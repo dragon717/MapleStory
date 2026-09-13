@@ -1,175 +1,394 @@
-/* 現金商店 window.  The source art is a fixed 1024x768 shell
-   (UI/CashShop.img/Base/backgrnd); the interactive layers (sidebar, item
-   grid, cart panel) are positioned over it and reflow on narrow screens
-   instead of clipping, per the project's responsive-UI rule. */
+/* TMS273 CashShop.img is a 1024×768 window.  The source shell stays at its
+   authored ratio on a wide viewport; controls are layered at the WZ anchors
+   and switch to a readable document flow when the host becomes narrow. */
 
 .cash-shop {
   position: absolute;
-  inset: 0;
-  margin: auto;
-  width: min(1024px, calc(100vw - 8px));
-  height: min(768px, calc(100vh - 8px));
-  color: #3a2c1c;
-  font-family: inherit;
-  z-index: 60;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1024px, calc(100vw - 12px));
+  height: min(768px, calc(100vh - 12px));
+  min-width: 280px;
+  min-height: 200px;
   overflow: hidden;
+  color: #e9edf0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  background: #303236;
+  image-rendering: pixelated;
+  z-index: var(--ui-window-z, 60);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
 }
 
 .cash-shop-layer {
   position: absolute;
+  pointer-events: none;
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+.cash-shop-layer-base {
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: fill;
-  image-rendering: pixelated;
-  pointer-events: none;
 }
 
-.cash-img {
-  image-rendering: pixelated;
-}
-
-.cash-shop-title {
-  position: absolute;
-  top: 10px;
+/* backgrnd2 is an opaque 1024×41 title strip.  Stretching it to the shell
+   height was the original regression and hid the whole source background. */
+.cash-shop-layer-top {
   left: 0;
-  right: 0;
-  margin: 0;
-  text-align: center;
-  font-size: 17px;
-  font-weight: 700;
-  color: #4a3418;
-  pointer-events: none;
+  top: 0;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
-/* BalanceBadge ---------------------------------------------------------- */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
 
+.cash-shop-title,
+.cash-shop button,
+.cash-shop input {
+  font: inherit;
+}
+
+.cash-shop button {
+  color: inherit;
+}
+
+/* The source background already carries its title and cash-point chrome. */
 .cash-shop-balance {
   position: absolute;
-  top: 12px;
-  right: 132px;
+  left: 704px;
+  top: 5px;
+  width: 76px;
+  min-height: 22px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(255, 252, 244, 0.92);
-  border: 1px solid #d8b98a;
-  font-size: 13px;
-  color: #6b4a1c;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 2px 5px;
+  color: #f2f4f5;
+  text-shadow: 1px 1px #101214;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cash-shop-balance-label {
+  display: none;
 }
 
 .cash-shop-balance b {
-  font-size: 14px;
-  color: #b3541e;
+  color: #fff;
+  font-weight: 700;
 }
 
-/* CategorySidebar -------------------------------------------------------- */
-
+/* CategorySidebar: the source sprite is 126×370 with ten 37px rows. */
 .cash-shop-sidebar {
   position: absolute;
-  top: 150px;
-  left: 96px;
+  left: 0;
+  top: 31px;
   width: 126px;
+  height: 370px;
   display: flex;
   flex-direction: column;
-  z-index: 3;
+  z-index: 4;
 }
 
 .cash-shop-sidebar-sprite {
   position: absolute;
-  top: 150px;
-  left: 96px;
+  left: 0;
+  top: 0;
   width: 126px;
-  height: auto;
-  image-rendering: pixelated;
+  height: 370px;
   pointer-events: none;
-  z-index: 2;
+  image-rendering: pixelated;
+  z-index: 0;
 }
 
-/* The sprite carries the labels; the buttons are the invisible hit rows on
-   top of it (10 rows of 37px each). */
 .cash-shop-cat {
-  height: 37px;
+  position: relative;
+  flex: 0 0 37px;
+  width: 126px;
   border: 0;
+  padding: 0;
   background: transparent;
   color: transparent;
   cursor: pointer;
   text-indent: -9999px;
+  z-index: 1;
 }
 
 .cash-shop-cat:focus-visible {
-  outline: 2px solid #2ea7c8;
+  outline: 2px solid #55c8d0;
   outline-offset: -2px;
 }
 
-/* ItemGrid ---------------------------------------------------------------- */
+/* package/search do not have an exported highlighted tab sprite. */
+.cash-shop-cat[data-tab='package'].is-active,
+.cash-shop-cat[data-tab='search'].is-active {
+  background: rgba(27, 160, 172, .88);
+}
 
+.cash-shop-cat[data-tab='package'],
+.cash-shop-cat[data-tab='search'] {
+  color: #d7e0e2;
+  padding-left: 19px;
+  text-align: left;
+  text-indent: 0;
+}
+
+/* Toolbar and browse filters occupy the source item header. */
+.cash-shop-toolbar {
+  position: absolute;
+  left: 136px;
+  top: 42px;
+  width: 493px;
+  min-height: 26px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: 25px auto;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+}
+
+.cash-shop-search-label {
+  grid-column: 1;
+  grid-row: 1;
+  color: #abb3b8;
+  white-space: nowrap;
+}
+
+.cash-shop-search-input {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 90px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid #677078;
+  border-radius: 2px;
+  padding: 2px 6px;
+  outline: 0;
+  background: rgba(17, 19, 22, .86);
+  color: #f2f4f5;
+}
+
+.cash-shop-search-input:focus {
+  border-color: #2aabb5;
+  box-shadow: 0 0 0 1px rgba(42, 171, 181, .35);
+}
+
+.cash-shop-search-button {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.cash-shop-result-count {
+  grid-column: 4;
+  grid-row: 1;
+  min-width: 44px;
+  color: #9da6aa;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cash-fashion-subcategories {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 1px;
+}
+
+.cash-fashion-subcategories[hidden] {
+  display: none;
+}
+
+.cash-fashion-sub {
+  border: 1px solid #566269;
+  border-radius: 2px;
+  padding: 2px 6px;
+  background: rgba(38, 42, 46, .9);
+  color: #c7ced1;
+  cursor: pointer;
+}
+
+.cash-fashion-sub:hover,
+.cash-fashion-sub.is-active {
+  border-color: #2aabb5;
+  background: rgba(28, 130, 141, .88);
+  color: #fff;
+}
+
+/* ItemGrid ---------------------------------------------------------------- */
 .cash-shop-grid {
   position: absolute;
-  top: 60px;
-  left: 250px;
-  right: 350px;
-  bottom: 30px;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-  align-content: start;
-  padding: 12px 10px;
+  left: 136px;
+  top: 82px;
+  width: 493px;
+  bottom: 10px;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 5px 8px 10px;
   z-index: 3;
+  scrollbar-color: #5a646a rgba(16, 18, 20, .55);
+}
+
+/* Fashion exposes the authored subcategory row beneath the search line. */
+.cash-shop[data-tab='fashion'] .cash-shop-grid {
+  top: 108px;
+}
+
+.cash-grid-list {
+  min-height: 100%;
+}
+
+.cash-grid-title,
+.cash-home-title {
+  margin: 0 0 5px;
+  color: #dfe5e7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cash-home-features,
+.cash-grid-items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  align-items: stretch;
+}
+
+.cash-home-features {
+  margin-bottom: 8px;
 }
 
 .cash-card {
+  position: relative;
+  min-width: 0;
+  min-height: 143px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 6px;
-  border: 1px solid #e3cfa8;
-  border-radius: 8px;
-  background: rgba(255, 253, 246, 0.94);
-  cursor: pointer;
+  gap: 3px;
+  padding: 6px 5px 5px;
+  border: 1px solid #535c61;
+  border-radius: 2px;
+  background: rgba(38, 41, 44, .92);
+  color: #e5e8e9;
   text-align: center;
+  cursor: pointer;
+  outline: 0;
 }
 
-.cash-card:hover {
-  border-color: #2ea7c8;
-  box-shadow: 0 0 0 1px #2ea7c8;
-}
-
+.cash-card:hover,
 .cash-card:focus-visible {
-  outline: 2px solid #2ea7c8;
-  outline-offset: 1px;
+  border-color: #38b1bb;
+  background: rgba(43, 67, 70, .96);
+}
+
+.cash-card-feature {
+  border-color: #62878c;
+  background: rgba(41, 57, 59, .95);
+}
+
+.cash-card-feature::before {
+  content: attr(data-feature-label);
+  align-self: stretch;
+  margin: -5px -4px 1px;
+  padding: 2px 3px;
+  background: rgba(37, 110, 119, .78);
+  color: #edf5f5;
+  font-size: 10px;
+}
+
+.cash-card-icon,
+.cash-detail-icon,
+.cash-cart-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(108, 120, 126, .52);
+  background: rgba(18, 20, 22, .58);
 }
 
 .cash-card-icon {
-  position: relative;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
+  width: 58px;
+  height: 55px;
 }
 
-.cash-card-icon img {
+.cash-detail-icon {
+  width: 78px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.cash-cart-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.cash-card-icon::before,
+.cash-detail-icon::before,
+.cash-cart-icon::before {
+  content: '✦';
+  color: #657176;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cash-card-icon:not(.is-missing)::before,
+.cash-detail-icon:not(.is-missing)::before,
+.cash-cart-icon:not(.is-missing)::before {
+  display: none;
+}
+
+.cash-item-image {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
   image-rendering: pixelated;
 }
 
 .cash-card-count {
   position: absolute;
-  right: -4px;
-  bottom: -2px;
-  padding: 0 4px;
-  border-radius: 6px;
-  background: #2ea7c8;
+  right: 1px;
+  bottom: 1px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: #5b8b90;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .cash-card-name {
   width: 100%;
-  font-size: 12px;
-  line-height: 1.25;
+  min-height: 29px;
+  color: #eff1f2;
+  font-size: 11px;
+  line-height: 1.3;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -178,256 +397,318 @@
 
 .cash-card-tags {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: center;
   min-height: 14px;
+  justify-content: center;
+  gap: 3px;
+  flex-wrap: wrap;
 }
 
 .cash-card-tag {
-  padding: 0 4px;
-  border-radius: 5px;
-  background: #f3e2c2;
-  color: #8a6a2c;
-  font-size: 10px;
+  padding: 0 3px;
+  border: 1px solid #58646a;
+  border-radius: 2px;
+  color: #adb9bc;
+  font-size: 9px;
 }
 
-.cash-card-price {
-  font-size: 12px;
+.cash-card-price,
+.cash-cart-price,
+.cash-detail-total {
+  color: #9bd4d8;
+  font-size: 11px;
   font-weight: 700;
-  color: #b3541e;
+}
+
+.cash-card-actions {
+  width: 100%;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.cash-card-details {
+  min-width: 18px;
 }
 
 .cash-grid-empty {
-  display: block;
-  margin: 60px auto 0;
-  image-rendering: pixelated;
-}
-
-.cash-grid-note {
-  text-align: center;
-  font-size: 13px;
-  color: #8a7a5c;
-}
-
-/* ItemDetail -------------------------------------------------------------- */
-
-.cash-detail {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(320px, calc(100% - 24px));
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 10px;
-  background: #fffdf6;
-  border: 2px solid #d8b98a;
-  box-shadow: 0 10px 32px rgba(60, 40, 10, 0.35);
-  z-index: 8;
-}
-
-.cash-detail-name {
-  font-size: 15px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.cash-detail-icon {
+  min-height: 200px;
   display: grid;
   place-items: center;
-  min-height: 68px;
+  align-content: center;
+  gap: 7px;
+  color: #aeb7ba;
+  text-align: center;
 }
 
-.cash-detail-icon img {
+.cash-grid-empty p {
+  margin: 0;
+}
+
+.cash-grid-empty-image {
+  max-width: 140px;
   image-rendering: pixelated;
 }
 
-.cash-detail-facts {
+/* Character preview ------------------------------------------------------ */
+.cash-shop-preview {
+  position: absolute;
+  left: 643px;
+  top: 62px;
+  width: 362px;
+  height: 263px;
+  box-sizing: border-box;
+  padding: 8px 8px 5px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.cash-preview-stage {
+  position: relative;
+  height: 214px;
+  overflow: hidden;
+  --cash-preview-foot: 25px;
+  background: rgba(9, 10, 12, .28);
+}
+
+.cash-preview-part {
+  position: absolute;
+  max-width: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.cash-preview-caption {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
   margin: 0;
-  padding-left: 18px;
-  font-size: 12px;
-  line-height: 1.7;
-  color: #6b5a3c;
+  overflow: hidden;
+  color: #c7d0d2;
+  font-size: 10px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.cash-detail-qty {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.cash-detail-input,
-.cash-cart-qty {
-  width: 64px;
-  padding: 3px 6px;
-  border: 1px solid #d8b98a;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.cash-detail-total {
-  color: #b3541e;
-  font-weight: 700;
-}
-
-.cash-detail-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.cash-shop-tab-btn {
-  padding: 6px 14px;
-  border: 1px solid #d8b98a;
-  border-radius: 6px;
-  background: #f7efdd;
-  font-size: 12px;
+.cash-preview-clear {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  display: none;
+  border: 0;
+  padding: 1px 4px;
+  background: rgba(31, 38, 41, .9);
+  color: #b6ced1;
   cursor: pointer;
+  font-size: 10px;
+  pointer-events: auto;
 }
 
-/* Cart --------------------------------------------------------------------- */
+.cash-preview-clear:not([hidden]) {
+  display: block;
+}
 
+.cash-preview-empty {
+  position: absolute;
+  inset: 50% 8px auto;
+  margin: 0;
+  color: #879397;
+  text-align: center;
+  transform: translateY(-50%);
+}
+
+/* Cart ------------------------------------------------------------------- */
 .cash-shop-cart-panel {
   position: absolute;
-  top: 60px;
-  right: 110px;
-  bottom: 30px;
-  width: 226px;
+  left: 643px;
+  right: 9px;
+  top: 337px;
+  bottom: 9px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  border: 1px solid #e3cfa8;
-  border-radius: 10px;
-  background: rgba(255, 253, 246, 0.95);
   overflow: hidden;
-  z-index: 3;
+  border: 1px solid #535d62;
+  background: rgba(27, 29, 32, .86);
+  z-index: 4;
 }
 
 .cash-shop-cart-head {
+  flex: 0 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  background: #f3e2c2;
-  font-size: 13px;
+  padding: 0 8px;
+  border-bottom: 1px solid #4e595e;
+  background: rgba(46, 51, 55, .9);
+  color: #e6ebec;
   font-weight: 700;
-  color: #6b4a1c;
+}
+
+.cash-shop-cart-clear,
+.cash-cart-remove,
+.cash-shop-tab-btn {
+  border: 1px solid #59666b;
+  border-radius: 2px;
+  background: #32393d;
+  color: #cad3d5;
+  cursor: pointer;
 }
 
 .cash-shop-cart-clear {
-  border: 0;
-  background: transparent;
-  font-size: 11px;
-  color: #8a6a2c;
-  cursor: pointer;
-  text-decoration: underline;
+  padding: 2px 5px;
+  font-size: 10px;
+}
+
+.cash-shop-cart-clear:hover,
+.cash-cart-remove:hover,
+.cash-shop-tab-btn:hover {
+  border-color: #37adb7;
+  color: #fff;
 }
 
 .cash-shop-cart {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 8px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  overflow-y: auto;
+  padding: 5px;
+  scrollbar-color: #5a646a rgba(16, 18, 20, .55);
 }
 
 .cash-cart-empty {
-  margin-top: 24px;
+  margin: 24px 4px;
+  color: #899498;
   text-align: center;
-  font-size: 12px;
-  color: #a29070;
 }
 
 .cash-cart-row {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 6px;
-  background: #fff;
-  border: 1px solid #efe2c6;
+  gap: 5px;
+  padding: 3px;
+  border: 1px solid #414a4e;
+  background: rgba(39, 43, 46, .92);
 }
 
-.cash-cart-icon img {
-  image-rendering: pixelated;
+.cash-cart-row.is-pending {
+  opacity: .72;
 }
 
 .cash-cart-info {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .cash-cart-name {
-  font-size: 11px;
-  white-space: nowrap;
   overflow: hidden;
+  color: #e5e9ea;
+  font-size: 10px;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.cash-cart-price {
-  font-size: 11px;
-  font-weight: 700;
-  color: #b3541e;
+.cash-cart-qty,
+.cash-detail-input {
+  width: 38px;
+  box-sizing: border-box;
+  border: 1px solid #5e6a6e;
+  border-radius: 2px;
+  padding: 2px;
+  background: #1f2326;
+  color: #edf1f2;
+  font-size: 10px;
+  text-align: center;
 }
 
 .cash-cart-remove {
-  border: 0;
-  background: transparent;
-  color: #b3541e;
+  width: 19px;
+  height: 20px;
+  padding: 0;
+  color: #c3d3d5;
   font-size: 15px;
-  cursor: pointer;
-  padding: 0 4px;
+  line-height: 1;
+}
+
+.cash-cart-remove:disabled,
+.cash-cart-qty:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.cash-cart-pending {
+  color: #9ec4c7;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .cash-shop-cart-foot {
-  padding: 8px 10px;
-  border-top: 1px solid #efe2c6;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 6px;
+  border-top: 1px solid #4e595e;
+  background: rgba(35, 39, 42, .94);
 }
 
 .cash-shop-status {
-  min-height: 15px;
-  font-size: 11px;
-  color: #2e7d43;
+  min-height: 14px;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: #9dc8ca;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cash-shop-status.is-error {
+  color: #e0a3a0;
 }
 
 .cash-shop-total {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #6b4a1c;
-}
-
-.cash-shop-total b {
-  color: #b3541e;
+  gap: 8px;
+  color: #b6c0c2;
+  font-size: 11px;
 }
 
 .cash-shop-checkout {
-  align-self: flex-end;
+  justify-self: end;
 }
 
-/* Sprite buttons: three stacked state images, the topmost visible. */
-
+/* Source button frames --------------------------------------------------- */
 .cash-sprite-btn {
   position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
+  vertical-align: middle;
 }
 
 .cash-sprite-btn .cash-sprite-img {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
   margin: auto;
   image-rendering: pixelated;
+  pointer-events: none;
 }
 
 .cash-sprite-btn .is-over,
@@ -435,7 +716,8 @@
   opacity: 0;
 }
 
-.cash-sprite-btn:hover .is-over {
+.cash-sprite-btn:hover .is-over,
+.cash-sprite-btn:focus-visible .is-over {
   opacity: 1;
 }
 
@@ -443,56 +725,239 @@
   opacity: 1;
 }
 
-.cash-sprite-btn .cash-detail-cart-label {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  color: #4a3418;
-  pointer-events: none;
+.cash-sprite-btn:focus-visible {
+  outline: 1px solid #65d5dc;
+  outline-offset: 1px;
 }
 
-/* Exit button placement (source anchors it at the top-right of the shell). */
+.cash-sprite-btn.is-fallback {
+  min-height: 24px;
+  border: 1px solid #58666b;
+  border-radius: 2px;
+  padding: 2px 7px;
+  background: #3b464a;
+  color: #e6eff0;
+  white-space: nowrap;
+}
 
 .cash-shop-exit {
   position: absolute !important;
-  top: 12px;
-  right: 48px;
-  z-index: 4;
+  right: 4px;
+  top: 3px;
+  z-index: 6;
 }
 
-/* Responsive: narrow portrait screens stack the three columns vertically so
-   nothing clips; the grid and cart keep full width. */
+/* ItemDetail ------------------------------------------------------------- */
+.cash-detail {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(360px, calc(100% - 24px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid #69777c;
+  background: #2a2f33;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .65);
+  color: #e6ebed;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
 
-@media (max-width: 1000px), (max-height: 640px) {
-  .cash-shop-sidebar,
-  .cash-shop-sidebar-sprite {
-    top: 60px;
-    left: 8px;
-  }
+.cash-detail-name {
+  color: #f1f4f5;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
 
-  .cash-shop-sidebar {
-    max-height: calc(100% - 80px);
-    overflow-y: auto;
-  }
+.cash-detail-facts {
+  margin: 0;
+  padding-left: 18px;
+  color: #bdc7ca;
+  font-size: 11px;
+  line-height: 1.65;
+}
 
-  .cash-shop-grid {
-    left: 150px;
-    right: 8px;
-    bottom: 220px;
-  }
+.cash-detail-qty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c7d0d2;
+  font-size: 11px;
+}
 
-  .cash-shop-cart-panel {
-    top: auto;
-    right: 8px;
-    left: 8px;
-    width: auto;
-    height: 210px;
-    bottom: 8px;
-  }
+.cash-detail-total {
+  margin-left: auto;
+}
 
-  .cash-shop-balance {
-    right: 96px;
-  }
+.cash-detail-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.cash-shop-tab-btn {
+  min-height: 24px;
+  padding: 2px 7px;
+}
+
+/* Narrow host: preserve all controls by using a scrollable source-colour
+   document flow.  Source sprites stay available in the wide layout where
+   their 126px/1024px geometry is meaningful. */
+.cash-shop[data-layout='reflow'] {
+  left: 6px;
+  top: 6px;
+  width: calc(100% - 12px) !important;
+  height: calc(100% - 12px) !important;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform: none;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-layer,
+.cash-shop[data-layout='reflow'] .cash-shop-title {
+  display: none;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-balance {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: auto;
+  min-height: 32px;
+  flex: 0 0 32px;
+  justify-content: flex-start;
+  order: 0;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-balance-label {
+  display: inline;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-sidebar {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  height: auto;
+  flex: 0 0 auto;
+  flex-direction: row;
+  overflow-x: auto;
+  order: 1;
+  padding-bottom: 2px;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-sidebar-sprite {
+  display: none;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-cat {
+  flex: 0 0 auto;
+  width: auto;
+  height: 30px;
+  min-width: 58px;
+  padding: 0 8px;
+  border: 1px solid #566269;
+  background: #373e42;
+  color: #cdd5d7;
+  text-indent: 0;
+  white-space: nowrap;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-cat.is-active {
+  border-color: #2aabb5;
+  background: #247e87;
+  color: #fff;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-toolbar {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  order: 2;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-search-input {
+  flex: 1 1 150px;
+}
+
+.cash-shop[data-layout='reflow'] .cash-fashion-subcategories {
+  flex-basis: 100%;
+  flex: 1 1 100%;
+  width: auto;
+  min-width: 0;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-grid {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  bottom: auto;
+  flex: 0 0 auto;
+  min-height: 220px;
+  overflow: visible;
+  padding: 4px 0;
+  order: 3;
+}
+
+.cash-shop[data-layout='reflow'] .cash-home-features,
+.cash-shop[data-layout='reflow'] .cash-grid-items {
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-preview {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  height: 230px;
+  flex: 0 0 230px;
+  padding: 8px;
+  border: 1px solid #4f5b60;
+  order: 4;
+}
+
+.cash-shop[data-layout='reflow'] .cash-preview-stage {
+  height: 190px;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-cart-panel {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  width: 100%;
+  height: 240px;
+  flex: 0 0 240px;
+  order: 5;
+}
+
+.cash-shop[data-layout='reflow'] .cash-shop-exit {
+  right: 8px;
+  top: 8px;
+}
+
+.cash-shop[data-layout='reflow'] .cash-detail {
+  position: fixed;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
 }

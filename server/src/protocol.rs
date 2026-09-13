@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 18;
-pub const CONTENT_VERSION: &str = "tms273-16";
+pub const PROTOCOL_VERSION: u32 = 19;
+pub const CONTENT_VERSION: &str = "tms273-18";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -181,6 +181,14 @@ pub enum ClientMessage {
         request_id: String,
         #[serde(rename = "portalName")]
         portal_name: String,
+    },
+    /// World map (大地图) jump: the client names only the clicked spot's map
+    /// id; the map lookup and the landing point stay server-side.
+    WorldMapMove {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "mapId")]
+        map_id: String,
     },
     InventoryMove {
         #[serde(rename = "requestId")]
@@ -578,6 +586,9 @@ impl ClientMessage {
                 request_id,
                 portal_name,
             } => valid_id(request_id) && valid_id(portal_name),
+            Self::WorldMapMove { request_id, map_id } => {
+                valid_id(request_id) && valid_id(map_id)
+            }
             Self::InventoryMove {
                 request_id,
                 inventory_type,

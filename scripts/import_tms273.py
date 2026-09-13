@@ -64,6 +64,19 @@ ADDITIONAL_REGION_MAP_IDS = (
     "102020300", "102020400", "102020500",
     "104020100", "104020110", "104020120", "104020130",
 )
+# Portal closure (2026-09-13): every map an assembled map's portal names that
+# the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
+# with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
+# destination (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, the
+# 幸福村 train platform, …).  Targets whose source JSON is absent (103010000,
+# 120010000, 310040000, …) are a source boundary and stay outside on purpose.
+ADDITIONAL_PORTAL_CLOSURE_MAP_IDS = (
+    "100000001", "100000002", "100000003", "100000100", "100000200",
+    "100010001", "100020000", "100030400", "101020000", "101080000",
+    "102000002", "102000003", "102030000", "102040000", "103010100",
+    "120010100", "130000101", "130030006", "310040100", "310040210",
+    "310040300",
+)
 STORY_QUEST_PREFIX = "363"
 # Original adventurer route checkpoints are real prerequisites of 36337
 # (Check.0.QuestOrOption == 1: any one of them unlocks the quest).  All seven
@@ -595,7 +608,10 @@ def build_maps(
 ) -> dict[str, Any]:
     server_root = server_root or wz_root.parent
     catalog_ids = requested_map_ids(maps_path)
-    requested = list(dict.fromkeys([*catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS]))
+    requested = list(dict.fromkeys([
+        *catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS,
+        *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS,
+    ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
     missing: list[str] = []
@@ -637,6 +653,7 @@ def build_maps(
         "birthMapId": "000010000",
         "storyMapIds": list(ADDITIONAL_STORY_MAP_IDS),
         "regionMapIds": list(ADDITIONAL_REGION_MAP_IDS),
+        "portalClosureMapIds": list(ADDITIONAL_PORTAL_CLOSURE_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

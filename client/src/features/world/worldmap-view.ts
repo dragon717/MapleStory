@@ -35,6 +35,15 @@ interface SpriteControl {
   setEnabled(enabled: boolean): void;
 }
 
+/** One clickable world-map spot: the page's MapList entry resolved to the
+ *  assembled map a click would jump to (undefined for the spot the character
+ *  currently stands on, which only carries the location plate). */
+interface SpotTarget {
+  spot: { x: number; y: number };
+  mapId: string;
+  label: string;
+}
+
 /**
  * The world-map window, built from the TMS273 `Map.wz/WorldMap` page art and
  * the `UI/UIWindow2.img/WorldMap` window shell.
@@ -77,10 +86,14 @@ export class WorldMapView {
   private allButton?: SpriteControl;
   private emptyLine?: HTMLParagraphElement;
   private links: HTMLButtonElement[] = [];
+  private spots: HTMLButtonElement[] = [];
   /** The authored page currently shown. */
   private page?: string;
   /** The authoritative map id the location plate is drawn for. */
   private mapId = '';
+  /** Set by the app so a spot click can ask the server for the jump; the
+   *  view never decides reachability itself. */
+  onJump?: (mapId: string) => void;
   /** Set by the app so the window can report "not browsable" without owning copy. */
   onStatus?: (message: string, error?: boolean) => void;
   private destroyed = false;
@@ -227,6 +240,7 @@ export class WorldMapView {
     this.base = undefined;
     this.plate = undefined;
     this.links = [];
+    this.spots = [];
   }
 
   // --------------------------------------------------------------- rendering
@@ -395,8 +409,7 @@ export class WorldMapView {
     // Rebuild the click targets: a page has at most a few dozen plates, and
     // rebuilding keeps the DOM exactly as long as the authored `MapLink` list.
     for (const button of this.links) button.remove();
-    this.links = [];
-    for (const link of page.mapLinks) {
+    this.links = [];    for (const link of page.mapLinks) {
       const image = link.image;
       const button = document.createElement('button');
       button.type = 'button';
@@ -423,6 +436,24 @@ export class WorldMapView {
       layer.append(button);
       this.links.push(button);
     }
+    // Jump spots: every authored MapList entry that names an assembled map
+    // the character is not standing on becomes a click target.  The view only
+    // resolves *which* map a click asks for; whether the jump happens stays
+    // with the server (`worldMapMove` → `worldMapMoveResult`).
+    for (const button of this.spots) button.remove();
+    this.spots = [];
+    for (const target of this.spotTargets(page)) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'worldmap-spot';
+      button.style.left = `${reference.x + target.spot.x - 12}px`;
+      button.style.top = `${reference.y + target.spot.y - 12}px`;
+      button.title = target.label;
+      button.setAttribute('aria-label', target.label);
+      button.addEventListener('click', () => this.onJump?.(target.mapId));
+      layer.append(button);
+      this.spots.push(button);
+    }
     const spot = page.mapList.find(entry => entry.mapIds.includes(this.mapId));
     if (spot) {
       plate.hidden = false;
@@ -432,6 +463,33 @@ export class WorldMapView {
     } else {
       plate.hidden = true;
     }
+  }
+
+  /**
+   * The jump targets of one page, in authored MapList order.
+   *
+   * A spot may list several map ids (the root page groups whole towns under
+   * one icon), so a click asks for the *first assembled* id of the spot —
+   * the authored order is the source's own priority.  The spot the character
+   * currently stands on is excluded: it already carries the location plate,
+   * and re-jumping to where you stand would only confuse the arrival point.
+   */
+  private spotTargets(page: WorldMapPage): SpotTarget[] {
+    const assembled = new Set((this.manifest.mapCatalog?.maps ?? []).map(map => map.id));
+    const targets: SpotTarget[] = [];
+    for (const entry of page.mapList) {
+      if (entry.mapIds.includes(this.mapId)) continue;
+      const mapId = entry.mapIds.find(id => assembled.has(id));
+      if (!mapId) continue;
+      const names = entry.mapIds
+        .filter(id => assembled.has(id))
+        .map(id => {
+          const map = this.manifest.mapCatalog?.maps.find(entry => entry.id === id);
+          return mapText(id, map?.name ?? id);
+        });
+      targets.push({ spot: entry.spot, mapId, label: [...new Set(names)].join(' / ') });
+    }
+    return targets;
   }
 
   private renderControls(page: WorldMapPage) {

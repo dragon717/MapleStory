@@ -90,6 +90,31 @@
   outline-offset: 1px;
 }
 
+/* One clickable jump spot.  The authored MapList icon is part of the page art,
+   so the button itself is an invisible hit area centred on the authored spot
+   coordinate (the view writes the position inline); the hover ring and the
+   tooltip are display affordances, not source art. */
+.worldmap-spot {
+  position: absolute;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.worldmap-spot:hover {
+  box-shadow: 0 0 0 2px #ffd35c, 0 0 4px 2px #0006;
+}
+
+.worldmap-spot:focus-visible {
+  outline: 2px solid #ffd35c;
+  outline-offset: 1px;
+}
+
 /* The authored `#mapImage` plate marks the map the caller is standing in.
    The source ships a single frame; the gentle blink is a display affordance
    so a 15 px plate is findable on a 640x470 page, not a second source frame. */

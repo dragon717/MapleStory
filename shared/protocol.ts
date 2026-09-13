@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 18;
-export const CONTENT_VERSION = 'tms273-16';
+export const PROTOCOL_VERSION = 19;
+export const CONTENT_VERSION = 'tms273-18';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -199,6 +199,10 @@ export type ClientMessage =
    *  the server decides range, whether it is still usable, and the next state. */
   | { type: 'reactorHit'; requestId: string; reactorId: string }
   | { type: 'portal'; requestId: string; portalName: string }
+  /** Intent to jump to one map through the world map (大地图).  The client
+   *  only names the map id of the clicked spot; the server decides whether
+   *  that map is assembled and lands the body on its authored `sp` spawn. */
+  | { type: 'worldMapMove'; requestId: string; mapId: string }
   | { type: 'inventoryMove'; requestId: string; inventoryType: number; sourceSlot: number; targetSlot: number; quantity: number }
   | { type: 'dropItem'; requestId: string; inventoryType: number; sourceSlot: number; quantity: number }
   | { type: 'inventoryGather' | 'inventorySort'; requestId: string; inventoryType: number }
@@ -294,6 +298,7 @@ export interface QuestRewardInfo {
   items: { itemId: string; quantity: number }[];
 }
 export type ServerMessage =
+  | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
   | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }

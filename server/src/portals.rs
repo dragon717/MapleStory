@@ -1,7 +1,8 @@
 //! 传送命令与地图跳转。
 //!
 //! 负责：传送门口令的处理（`handle_portal`，门存在性/可达坐标校验）、回执下发
-//! （`send_portal_result`）与程序性跳转入口（`warp_player` / `warp_player_at`，供脚本传送与复活落点复用）。
+//! （`send_portal_result`）、世界地图跳转（`handle_world_map_move`）与程序性跳转入口
+//! （`warp_player` / `warp_player_at`，供脚本传送与复活落点复用）。
 //! 不负责：门的摆放数据（`Map` 的 portal 定义）、切图后的快照广播节奏（`world.rs` 的 switchMap 流程）。
 
 use super::*;
@@ -128,6 +129,57 @@ impl World {
             &source_map_id,
             Some(&target_map_id),
         );
+    }
+
+    /// World map (大地图) jump.  The client only names the clicked spot's map
+    /// id; everything that matters is re-derived here: the map must be an
+    /// assembled catalog map, and the body lands on that map's authored `sp`
+    /// spawn — the same landing rule a portal arrival uses.  A jump to the
+    /// character's own map is a successful no-op so clicking the spot you
+    /// stand on never teleports you across the map.
+    pub(super) fn handle_world_map_move(&mut self, id: String, request_id: String, map_id: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let source_map_id = player.map_id.clone();
+        if map_id == source_map_id {
+            self.send_world_map_move_result(&id, &request_id, true, "", &map_id);
+            return;
+        }
+        if self.maps.get(&map_id).is_none() {
+            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
+            return;
+        }
+        // `warp_player_at` resolves the named portal's coordinates, or the
+        // authored spawn when the map has no `sp` slot, then re-grounds the
+        // body and persists the profile — exactly the scroll/script arrival.
+        let moved = self.warp_player_at(&id, map_id.clone(), Some("sp"));
+        if moved {
+            self.send_world_map_move_result(&id, &request_id, true, "", &map_id);
+        } else {
+            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
+        }
+    }
+
+    pub(super) fn send_world_map_move_result(
+        &self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        map_id: &str,
+    ) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type": "worldMapMoveResult",
+            "requestId": request_id,
+            "success": success,
+            "code": code,
+            "mapId": map_id,
+        });
+        let _ = player.output.try_send(message.to_string());
     }
 
     pub(super) fn send_portal_result(

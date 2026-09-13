@@ -3,9 +3,44 @@ import type { PlayerState } from '../../../../shared/protocol';
 import { actorDepthForLayers, assetFrameAlpha } from '../../assets/manifest';
 import type { AssetFrame, AvatarActionSet, Manifest } from '../../assets/manifest';
 import { frameAt } from './animation';
-import { appearanceKey, composeAppearance } from '../entry/appearance';
+import {
+  appearanceKey,
+  appearanceAssetUrls,
+  appearanceLayer,
+  appearanceWeaponType,
+  cashAppearanceEntry,
+  composeAppearance,
+  loadAppearanceLayer,
+  normalizeAppearanceItemId,
+} from '../entry/appearance';
 
 const supportedEquipment = new Set(['1002067', '1040002', '1052095', '1302000']);
+
+/** Shared per-scene requests keep several actors from queueing one PNG twice. */
+const appearanceTextureLoads = new WeakMap<Phaser.Scene, Map<string, Promise<boolean>>>();
+
+function ensureAppearanceTextures(scene: Phaser.Scene, urls: readonly string[]) {
+  const loads = appearanceTextureLoads.get(scene) ?? new Map<string, Promise<boolean>>();
+  appearanceTextureLoads.set(scene, loads);
+  const requests: Promise<boolean>[] = [];
+  for (const url of new Set(urls)) {
+    if (scene.textures.exists(url)) continue;
+    let request = loads.get(url);
+    if (!request) {
+      request = new Promise<boolean>(resolve => {
+        // The loader completes after every queued file has been added to the
+        // texture manager, so `textures.exists` is the authoritative result.
+        scene.load.once('complete', () => resolve(scene.textures.exists(url)));
+        scene.load.image(url, url);
+        if (!scene.load.isLoading()) scene.load.start();
+      }).finally(() => loads.delete(url));
+      loads.set(url, request);
+    }
+    requests.push(request);
+  }
+  return Promise.all(requests).then(results => results.every(Boolean));
+}
+
 type SkillAction = `skill${number}` | 'skill2221052prepare' | 'skill2221052final';
 type SkillFrames = AvatarActionSet['stand'];
 
@@ -18,6 +53,12 @@ export class PlayerView {
   private levelUpImages: { frames: AssetFrame[]; image: Phaser.GameObjects.Image }[] = [];
   private levelUpSound?: Phaser.Sound.BaseSound;
   private appearanceCache?: { key: string; actions: AvatarActionSet };
+  /** The latest look/loadout/weapon context handled by the async loader. */
+  private appearanceRequestKey?: string;
+  private appearanceLoadGeneration = 0;
+  private appearanceLoads = new Map<string, Promise<unknown>>();
+  private appearanceLoadFailures = new Set<string>();
+  private destroyed = false;
   private climbFrame = 0;
   /** Hurt-flash window (scene clock ms). White double-flash while active. */
   private flashStartedAt = 0;
@@ -99,12 +140,41 @@ export class PlayerView {
     if (player.hp <= 0 || player.action === 'dead') this.skillAction = undefined;
     let loadout = this.equipmentLoadout(player.equipped);
     if (player.appearance && this.manifest.appearanceCatalog) {
-      const key = appearanceKey(player.appearance, player.equipped ?? []);
-      if (this.appearanceCache?.key !== key) {
-        const actions = composeAppearance(this.manifest.appearanceCatalog, player.appearance, player.equipped ?? []);
+      const catalog = this.manifest.appearanceCatalog;
+      const equipped = player.equipped ?? [];
+      const weaponType = appearanceWeaponType(catalog, equipped, player.appearance.weapon);
+      // The weapon branch is part of the render key: a character can keep the
+      // same cosmetic ids while changing from a wand to a staff, and a cash
+      // weapon may contain separate source trees for both branches.
+      const key = `${appearanceKey(player.appearance, equipped)}|weapon:${weaponType ?? ''}`;
+      if (this.appearanceRequestKey !== key) {
+        this.appearanceRequestKey = key;
+        const generation = ++this.appearanceLoadGeneration;
+        // A cash layer can already be present in the JSON cache because the
+        // cash shop preview used it, while its PNGs are still absent from the
+        // Phaser texture cache. Only mark a cash id loaded when all of its
+        // selected branch's source URLs are usable by this Scene.
+        const readyCashIds = equipped
+          .map(item => cashAppearanceEntry(catalog, item.itemId)?.itemId)
+          .filter((itemId): itemId is string => Boolean(itemId))
+          .filter(itemId => this.cashAppearanceTexturesReady(catalog, player.appearance!, itemId, weaponType));
+        const loadedItemIds = equipped
+          .filter(item => {
+            const entry = cashAppearanceEntry(catalog, item.itemId);
+            return !entry || readyCashIds.includes(entry.itemId);
+          })
+          .map(item => item.itemId);
+        const actions = composeAppearance(catalog, player.appearance, equipped, { loadedItemIds, weaponType });
         this.appearanceCache = actions ? { key, actions } : undefined;
+        this.signature = '';
+        this.ensureAppearanceLayers(catalog, player.appearance, equipped, key, weaponType, generation);
       }
       if (this.appearanceCache) loadout = this.appearanceCache;
+    } else {
+      // A legacy snapshot may omit appearance while a view is still alive.
+      // Never keep rendering a previous character's paper-doll in that case.
+      this.appearanceRequestKey = undefined;
+      this.appearanceCache = undefined;
     }
     const actions = loadout.actions as AvatarActionSet & Partial<Record<SkillAction, SkillFrames>>;
     // The server state includes climb/dead. Keep those actions data-driven:
@@ -432,10 +502,94 @@ export class PlayerView {
     const loadout = this.manifest.avatar.equipmentLoadouts?.[key];
     return loadout ? { key, actions: loadout.actions } : { key: 'starter', actions: this.manifest.avatar.actions };
   }
+
+  /**
+   * Fetch only the indexed cash layers currently equipped by this actor.  The
+   * first compose above intentionally renders the source-backed base and any
+   * already cached layers, so a slow or unavailable cosmetic URL never emits
+   * an image with a guessed path.  Once the item JSON arrives we compose the
+   * same look again with its exact action-specific anchors.
+   */
+  private ensureAppearanceLayers(
+    catalog: NonNullable<Manifest['appearanceCatalog']>,
+    look: NonNullable<PlayerState['appearance']>,
+    equipped: NonNullable<PlayerState['equipped']>,
+    key: string,
+    weaponType: string | undefined,
+    generation: number,
+  ) {
+    const cashIds = [...new Set(equipped
+      .map(item => cashAppearanceEntry(catalog, item.itemId)?.itemId)
+      .filter((itemId): itemId is string => Boolean(itemId)))];
+    const pending = cashIds.filter(itemId => {
+      const canonical = normalizeAppearanceItemId(itemId);
+      return !catalog.cashLayers?.[canonical]
+        && !catalog.cashLayers?.[itemId]
+        && !this.appearanceLoadFailures.has(canonical);
+    });
+    if (!pending.length && cashIds.every(itemId => this.cashAppearanceTexturesReady(catalog, look, itemId, weaponType))) return;
+    const requests = pending.map(itemId => {
+      const canonical = normalizeAppearanceItemId(itemId);
+      const current = this.appearanceLoads.get(canonical);
+      if (current) return current;
+      const request = loadAppearanceLayer(catalog, itemId)
+        .catch(() => {
+          // A failed optional cosmetic is left out of the composed parts. It
+          // is cached as failed for this view so every world tick does not
+          // retry the same missing URL and flood the console/network.
+          this.appearanceLoadFailures.add(canonical);
+          return undefined;
+        })
+        .finally(() => this.appearanceLoads.delete(canonical));
+      this.appearanceLoads.set(canonical, request);
+      return request;
+    });
+    void Promise.all(requests).then(async () => {
+      if (this.destroyed || generation !== this.appearanceLoadGeneration || this.appearanceRequestKey !== key) return;
+      // JSON and PNG loading are separate on purpose: the cash shop can
+      // inspect the first without making the world preload every texture.
+      const urls = appearanceAssetUrls(catalog, look, equipped, { weaponType });
+      await ensureAppearanceTextures(this.scene, urls);
+      if (this.destroyed || generation !== this.appearanceLoadGeneration || this.appearanceRequestKey !== key) return;
+      const readyCashIds = cashIds.filter(itemId => this.cashAppearanceTexturesReady(catalog, look, itemId, weaponType));
+      const loadedItemIds = equipped
+        .filter(item => {
+          const entry = cashAppearanceEntry(catalog, item.itemId);
+          return !entry || readyCashIds.includes(entry.itemId);
+        })
+        .map(item => item.itemId);
+      const actions = composeAppearance(catalog, look, equipped, {
+        loadedItemIds,
+        weaponType,
+      });
+      this.appearanceCache = actions ? { key, actions } : undefined;
+      this.signature = '';
+    });
+  }
+
+  private cashAppearanceTexturesReady(
+    catalog: NonNullable<Manifest['appearanceCatalog']>,
+    look: NonNullable<PlayerState['appearance']>,
+    itemId: string,
+    weaponType: string | undefined,
+  ) {
+    const layer = appearanceLayer(catalog, itemId);
+    if (!layer?.cash) return false;
+    const urls = appearanceAssetUrls(catalog, look, [{ itemId }], { weaponType });
+    return urls.every(url => this.scene.textures.exists(url));
+  }
   private climbAsset(player: PlayerState, actions: AvatarActionSet): 'ladder' | 'rope' | 'climb' {
     const link = player.ladderId === null ? undefined : this.manifest.map.ladders?.find(ladder => ladder.id === player.ladderId);
     if (!link) return actions.climb?.length ? 'climb' : 'ladder';
     return link.l === 1 ? 'ladder' : 'rope';
   }
-  destroy() { this.clearLevelFeedback(); this.clearEmoticon(); this.skillAction = undefined; this.body.destroy(); this.name.destroy(); }
+  destroy() {
+    this.destroyed = true;
+    this.appearanceLoadGeneration++;
+    this.clearLevelFeedback();
+    this.clearEmoticon();
+    this.skillAction = undefined;
+    this.body.destroy();
+    this.name.destroy();
+  }
 }

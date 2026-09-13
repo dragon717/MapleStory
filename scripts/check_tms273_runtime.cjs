@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-16');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-18');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -75,7 +75,9 @@ for(const mob of gameplay.monsters) {
     return nodes.some(node=>Boolean(node.move))&&(authored??0)>-100;
   };
   const deployed=new Set(gameplay.spawns.map(spawn=>spawn.templateId));
-  assert.equal(deployed.size,17,'the deployed monster surface changed');
+  // 17 species before the 2026-09-13 portal-closure maps; the 弓箭手村东/墮落
+  // 城市西/礦山 route rooms deployed nine more field species.
+  assert.equal(deployed.size,26,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -96,10 +98,10 @@ for(const mob of gameplay.monsters) {
     assert(!(gameplay.monsters.find(mob=>mob.templateId===id)??{}).speed,`no speed may be invented for ${id}`);
   }
 }
-// 44 base maps + the four 砲台路 flight-station rooms reachable from
-// 六條岔道's tree-top gates (104020000 `top00`/`top01` -> 104020100) + the two
-// 魔法森林 interiors behind 101000000's `in00`/`in01` (101000001/101000002).
-assert.equal(catalog.maps.length,50);
+// 50 maps before 2026-09-13; then +21 portal-closure maps — every map an
+// assembled map's portal names that the TMS273 WZ JSON actually ships
+// (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, 幸福村 platform, …).
+assert.equal(catalog.maps.length,71);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -113,19 +115,29 @@ assert.equal(catalog.maps.length,50);
     assert.match(catalog.returnMaps[map.id],/^\d{9}$/,`returnMap must be the 9-digit form: ${map.id}`);
     assert.equal(catalog.returnMaps[map.id],String(Math.trunc(Number(source))).padStart(9,'0'),`returnMap drifted from the source: ${map.id}`);
   }
-  // The three authored map-move consumables and nothing else.  2030000 uses the
+  // The four authored map-move consumables and nothing else.  2030000 uses the
   // 999999999 sentinel ("this map's returnMap"), 2030001 names 維多利亞港, and
   // 2030002 (魔法森林卷軸, sold by 1031100 妖精 蓮 in 魔法森林雜貨店) names
   // 魔法森林 101000000.
   const movable=Object.entries(read('shared/items.json')).filter(([,item])=>item.spec&&'moveTo' in item.spec);
-  assert.deepEqual(movable.map(([id])=>id).sort(),['2030000','2030001','2030002'],'the map-move consumable set changed');
+  assert.deepEqual(movable.map(([id])=>id).sort(),['2030000','2030001','2030002','2030003'],'the map-move consumable set changed');
   assert.equal(movable.find(([id])=>id==='2030000')[1].spec.moveTo,999999999);
   assert.equal(movable.find(([id])=>id==='2030001')[1].spec.moveTo,104000000);
   assert.equal(movable.find(([id])=>id==='2030002')[1].spec.moveTo,101000000);
+  assert.equal(movable.find(([id])=>id==='2030003')[1].spec.moveTo,102000000);
   // A town the catalog does not ship stays legal data: the scroll is refused at
   // use time.  Pinning it keeps the refusal honest rather than a silent wrong map.
+  // Towns the catalog does not ship stay legal data: the scroll is refused at
+  // use time.  Pinning them keeps the refusal honest rather than a silent
+  // wrong map.  Five of the eight arrived with the 2026-09-13 portal-closure
+  // maps (100030400 農場入口, 103010100 廢棄的工地, 120010100 通往海岸的路 and
+  // the 3100401xx/3100403xx 礦山 route rooms around already-shipped 310040200).
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
-  assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),['310040200->310000000','310050000->310000000'],'unshipped returnMap targets changed');
+  assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),[
+    '100030400->100030102','103010100->103000000','120010100->120000000',
+    '310040100->310000000','310040200->310000000','310040210->310000000',
+    '310040300->310000000','310050000->310000000',
+  ].sort(),'unshipped returnMap targets changed');
 }
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
 assert(!gameplay.spawns.some(spawn=>spawn.templateId==='3220000'),'practice Boss must not become a formal map spawn');
@@ -345,7 +357,19 @@ if(healed>0)console.log(`注意: ${healed} 个装配资源在 public-tms273 里�
   const pets=read('shared/pets.json');
   const petImages=manifest.pets ?? {};
   assert.equal(Object.keys(pets).length,990,'shared/pets.json 宠物目录规模变化：确认导出后同步更新本断言');
-  assert.equal(Object.keys(petImages).length,Object.keys(pets).length,'manifest.pets 与 shared/pets.json 不一致');
+  // manifest.pets 允许比 pets.json 多出 8 位填充别名（05000000）：现金商店
+  // 图标循环（assemble_tms273.cjs）会对与真宠物 id 相撞的 cash itemIcons 补
+  // `padStart(8)` 别名，帧与本体完全一致。除别名外必须与 pets.json 逐条一致，
+  // 否则视为导出意外缩水/膨胀。
+  {
+    const petIds=new Set(Object.keys(pets));
+    for(const [id,frame] of Object.entries(petImages)) {
+      if(petIds.has(id))continue;
+      const canonical=String(Number(id));
+      assert(petIds.has(canonical)&&JSON.stringify(frame)===JSON.stringify(petImages[canonical]),`manifest.pets 出现非宠物别名的条目: ${id}`);
+    }
+    for(const id of petIds)assert(petImages[id],`manifest.pets 缺少宠物: ${id}`);
+  }
   const first=petImages['5000000'];
   assert(first&&first.name==='褐色小貓'&&first.stand.length>0&&first.move.length>0,'宠物 5000000 装配不完整');
   assert(first.icon.url.startsWith('/assets/tms273/'));
@@ -445,7 +469,7 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
   // is a bug.  002010000 is the ship/travel staging map; 104020130 (前往埃德爾
   // 斯坦站台) is the one flight-station room `Map.wz WorldMap010.json` omits —
   // it authors spots for 104020100/110/120 only.
-  const WORLD_MAP_ABSENT=new Set(['002010000','104020130']);
+  const WORLD_MAP_ABSENT=new Set(['002010000','104020130','100030400','310040210']);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));
   assert.deepEqual(absent,[],`assembled maps missing from the world map: ${absent.join(', ')}`);

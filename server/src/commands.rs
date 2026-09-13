@@ -716,6 +716,10 @@ impl World {
                         request_id,
                         portal_name,
                     } => self.handle_portal(id, request_id, portal_name),
+                    ClientMessage::WorldMapMove {
+                        request_id,
+                        map_id,
+                    } => self.handle_world_map_move(id, request_id, map_id),
                     ClientMessage::InventoryMove {
                         request_id,
                         inventory_type,

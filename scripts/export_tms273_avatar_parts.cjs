@@ -21,6 +21,11 @@ const {
   loadSourceTables,
   actionSet,
   mageActionSet,
+  get,
+  isCanvas,
+  layerZName,
+  zmap,
+  children,
   sourceInfo,
   staticFace,
   leavesFor,
@@ -28,6 +33,9 @@ const {
 } = avatar;
 
 const ASSETS = path.join(OUTPUT, 'assets/tms273');
+const CASHSHOP = path.join(OUTPUT, 'cashshop.json');
+const CASH_APPEARANCE_DIR = path.join(ASSETS, 'appearance-cashshop');
+const CASH_APPEARANCE_URL = '/assets/tms273/appearance-cashshop';
 const MAKE_CHAR_INFO = path.join(
   path.resolve(DATA, '../../..'),
   '手工服务端/tms273/WZ_JSON_TW/Etc/MakeCharInfo.json',
@@ -57,6 +65,12 @@ const EXTRA_EQUIPMENT = [
   { id: 1052095, part: 'coat', image: 'Character/Longcoat/01052095.img', longcoat: true },
 ];
 
+const CASH_EQUIPMENT_DIRECTORIES = {
+  100: 'Cap', 101: 'Accessory', 102: 'Accessory', 103: 'Accessory', 104: 'Coat',
+  105: 'Longcoat', 106: 'Pants', 107: 'Shoes', 108: 'Glove', 109: 'Shield',
+  110: 'Cape', 111: 'Accessory', 112: 'Accessory', 113: 'Accessory', 116: 'Accessory',
+  118: 'Accessory', 120: 'Accessory', 160: 'Cape', 170: 'Weapon',
+};
 function unpack(node) {
   if (!node || typeof node !== 'object') return node;
   if (node._dirType === 'int') return Number(node._value);
@@ -97,22 +111,141 @@ function imageForPart(part, id) {
   if (part === 'hair') return `Character/Hair/${padded}.img`;
   if (part === 'shoes') return `Character/Shoes/${padded}.img`;
   if (part === 'weapon') return `Character/Weapon/${padded}.img`;
-  if (part === 'coat') return String(id).startsWith('104')
-    ? `Character/Coat/${padded}.img`
-    : `Character/Longcoat/${padded}.img`;
+  if (part === 'coat') return Number(id) >= 1050000 && Number(id) < 1060000
+    ? `Character/Longcoat/${padded}.img`
+    : `Character/Coat/${padded}.img`;
   throw new Error(`Unknown appearance part: ${part}`);
 }
 
 function equipmentDescriptor(id) {
   const numericId = Number(id);
-  if (numericId === 1002067) return EXTRA_EQUIPMENT[0];
-  if (numericId === 1040002) return EXTRA_EQUIPMENT[1];
-  if (numericId === 1052095) return EXTRA_EQUIPMENT[2];
+  // Keep the explicit source-backed descriptors keyed by their own id.  The
+  // old implementation used the id as an array index here, which silently
+  // bound 1040002 to the cap 1003134 and 1052095 to the coat 1040002.
+  const extra = EXTRA_EQUIPMENT.find(item => item.id === numericId);
+  if (extra) return extra;
   if (numericId >= 1040000 && numericId < 1050000) return { id: numericId, part: 'coat', image: imageForPart('coat', numericId) };
   if (numericId >= 1050000 && numericId < 1060000) return { id: numericId, part: 'coat', image: imageForPart('coat', numericId), longcoat: true };
   if (numericId >= 1070000 && numericId < 1080000) return { id: numericId, part: 'shoes', image: imageForPart('shoes', numericId) };
   if (numericId >= 1200000 && numericId < 1800000) return { id: numericId, part: 'weapon', image: imageForPart('weapon', numericId) };
   throw new Error(`Unsupported MakeCharInfo equipment id: ${id}`);
+}
+
+function canonicalItemId(id) {
+  const value = String(id).trim();
+  if (!/^\d+$/.test(value)) throw new Error(`Invalid numeric item id: ${id}`);
+  return value.padStart(8, '0');
+}
+
+function weaponBranchForItemId(id) {
+  const numericId = Number(id);
+  if (!Number.isSafeInteger(numericId) || numericId <= 0) return undefined;
+  const family = Math.floor(numericId / 10000);
+  const branch = family % 100;
+  return branch > 0 ? String(branch) : undefined;
+}
+
+function supportedWeaponTypes(genderOptions) {
+  const types = new Set();
+  for (const options of Object.values(genderOptions)) {
+    for (const id of options.weapon) {
+      const branch = weaponBranchForItemId(id);
+      if (branch) types.add(branch);
+    }
+  }
+  // These are the ordinary, source-backed item definitions assembled for
+  // gameplay.  Do not derive branches from cash item ids: a cash weapon's
+  // numeric family (for example 170) does not identify its authored pose.
+  const ordinaryItems = path.join(OUTPUT, 'items.json');
+  if (fs.existsSync(ordinaryItems)) {
+    const items = JSON.parse(fs.readFileSync(ordinaryItems, 'utf8'));
+    for (const [id, definition] of Object.entries(items)) {
+      if (!definition?.info?.islot?.startsWith('Wp') || definition.info.cash === 1) continue;
+      const branch = weaponBranchForItemId(id);
+      if (branch) types.add(branch);
+    }
+  }
+  return [...types].sort((a, b) => Number(a) - Number(b));
+}
+
+function cashPart(islot, family) {
+  if (islot === 'Af') return { part: 'faceAccessory', static: true };
+  if (islot === 'Ay' || islot === 'Ae') return { part: 'accessory' };
+  if (islot === 'Cp' || islot === 'HrCp' || islot.startsWith('HrCp')) return { part: 'cap' };
+  if (islot === 'MaPn') return { part: 'coat', longcoat: true };
+  if (islot === 'Ma') return { part: 'coat' };
+  if (islot === 'Pn') return { part: 'pants' };
+  if (islot === 'So') return { part: 'shoes' };
+  if (islot === 'Gv' || islot === 'GlGw') return { part: 'glove' };
+  if (islot === 'Sr') return { part: 'cape' };
+  if (islot === 'Si') return { part: 'shield' };
+  if (islot.startsWith('Wp')) return { part: 'weapon' };
+  // A new family should be added from its authored `info.islot`, rather than
+  // guessing from the numeric prefix.  Keep the family in the error so the
+  // export report identifies the source row that needs review.
+  return undefined;
+}
+
+async function cashEquipmentDescriptors(weaponTypes) {
+  if (!fs.existsSync(CASHSHOP)) return { descriptors: [], skipped: [] };
+  const cashshop = JSON.parse(fs.readFileSync(CASHSHOP, 'utf8'));
+  const descriptors = [];
+  const skipped = [];
+  for (const rawId of Object.keys(cashshop.itemIcons ?? {})) {
+    const itemId = canonicalItemId(rawId);
+    const numericId = Number(itemId);
+    const family = Math.floor(numericId / 10000);
+    const directory = CASH_EQUIPMENT_DIRECTORIES[family];
+    if (!directory) continue;
+    const image = `Character/${directory}/${itemId}.img`;
+    let info;
+    let imageNode;
+    try {
+      imageNode = await get(image);
+      info = await sourceInfo(image, image);
+    } catch (error) {
+      skipped.push({ itemId, reason: error.message });
+      continue;
+    }
+    const shape = cashPart(info.islot, family);
+    if (!shape) {
+      skipped.push({ itemId, reason: `unsupported islot ${info.islot || '<empty>'}` });
+      continue;
+    }
+    const groups = shape.part === 'weapon'
+      ? children(imageNode).filter(node => /^\d+$/.test(node.name)).map(node => node.name)
+      : [];
+    // Cash weapon images author a separate branch for each compatible weapon
+    // type.  Retain only the source-proven mage branches used by this build;
+    // a sword/bow branch would bind the cash art to the wrong hand pose.
+    const compatibleGroups = groups.filter(group => weaponTypes.has(group));
+    if (shape.part === 'weapon' && !compatibleGroups.length) {
+      skipped.push({
+        itemId,
+        reason: `cash weapon has no supported branch (source types ${groups.join(',') || '<empty>'})`,
+        supportedWeaponTypes: [...weaponTypes],
+      });
+      continue;
+    }
+    const actionPrefix = compatibleGroups.length === 1 ? compatibleGroups[0] : undefined;
+    descriptors.push({
+      id: numericId,
+      itemId,
+      part: shape.part,
+      image,
+      longcoat: shape.longcoat,
+      static: shape.static,
+      actionPrefix,
+      weaponGroups: compatibleGroups,
+      sourceWeaponGroups: groups,
+      islot: info.islot,
+      vslot: info.vslot,
+      cash: true,
+      lazy: true,
+    });
+  }
+  if (skipped.length) console.warn(`Skipped ${skipped.length} cash appearance sources`, skipped.slice(0, 5));
+  return { descriptors, skipped };
 }
 
 function actionSourcesFor(set) {
@@ -203,27 +336,35 @@ async function exportAppearanceLayer(gender, part, id, base) {
 }
 
 async function exportEquipmentLayer(gender, descriptor, includeSkills) {
-  SUPPORT.set(String(descriptor.id), {
+  const itemId = descriptor.itemId ?? String(descriptor.id);
+  const support = {
     part: descriptor.part,
     image: descriptor.image,
     longcoat: descriptor.longcoat,
-  });
+    actionPrefix: descriptor.actionPrefix,
+    itemId,
+  };
+  // `actionSet` receives the canonical id, while old creation data still uses
+  // the unpadded form.  Register both spellings in the exporter map; the
+  // emitted cash layer itself keeps the canonical 8-digit itemId.
+  SUPPORT.set(itemId, support);
+  SUPPORT.set(String(Number(itemId)), support);
   const sources = sourceConfig(gender, {
     face: imageForPart('face', gender === 0 ? 20100 : 21700),
     hair: imageForPart('hair', gender === 0 ? 30000 : 31000),
   });
-  const normal = await actionSet([String(descriptor.id)], false, { sources });
-  const actions = filterActions(normal.actions, part => part.itemId === String(descriptor.id) && part.part === descriptor.part);
+  const normal = await actionSet([itemId], false, { sources });
+  const actions = filterActions(normal.actions, part => part.itemId === itemId && part.part === descriptor.part);
   const actionSources = { ...actionSourcesFor(normal) };
   if (includeSkills) {
-    const skills = await mageActionSet([String(descriptor.id)], false, { sources });
+    const skills = await mageActionSet([itemId], false, { sources });
     Object.assign(actionSources, actionSourcesFor(skills));
-    addActions(actions, filterActions(skills.actions, part => part.itemId === String(descriptor.id) && part.part === descriptor.part));
+    addActions(actions, filterActions(skills.actions, part => part.itemId === itemId && part.part === descriptor.part));
   }
   const info = await sourceInfo(descriptor.image, descriptor.image);
   return {
     id: Number(descriptor.id),
-    itemId: String(descriptor.id),
+    itemId,
     part: descriptor.part,
     slot: info.islot,
     islot: info.islot,
@@ -232,6 +373,94 @@ async function exportEquipmentLayer(gender, descriptor, includeSkills) {
     gender,
     actions,
     actionSources,
+    ...(descriptor.cash ? { cash: true, lazy: true } : {}),
+    ...(descriptor.weaponGroups?.length ? { weaponGroups: descriptor.weaponGroups, weaponType: descriptor.actionPrefix } : {}),
+  };
+}
+
+/**
+ * Cash weapons can contain several authored weapon-type branches in one WZ
+ * image.  Keep every branch so the client can choose from the player's actual
+ * weapon/job; exporting only the first numeric branch makes a wand render as
+ * a sword (or disappear during attack) with no diagnostic.
+ */
+async function exportCashWeaponLayer(gender, descriptor) {
+  const groups = descriptor.weaponGroups ?? [];
+  if (!groups.length) return exportEquipmentLayer(gender, descriptor, false);
+  const variants = {};
+  let actionSources;
+  for (const weaponType of groups) {
+    const variant = await exportEquipmentLayer(gender, { ...descriptor, actionPrefix: weaponType }, true);
+    variants[weaponType] = variant.actions;
+    actionSources ??= variant.actionSources;
+  }
+  // A single authored branch is safe as the default.  When several authored
+  // branches are present, leave the default unset: the runtime must provide
+  // the player's actual weapon type instead of silently choosing one.
+  const defaultType = groups.length === 1 ? groups[0] : undefined;
+  const fallback = defaultType ? variants[defaultType] : {};
+  return {
+    id: Number(descriptor.id),
+    itemId: descriptor.itemId,
+    part: descriptor.part,
+    slot: descriptor.islot,
+    islot: descriptor.islot,
+    vslot: descriptor.vslot,
+    source: descriptor.image,
+    gender,
+    actions: fallback,
+    actionSources: actionSources ?? {},
+    actionsByWeaponType: variants,
+    weaponGroups: groups,
+    sourceWeaponGroups: descriptor.sourceWeaponGroups,
+    ...(defaultType ? { weaponType: defaultType } : {}),
+    cash: true,
+    lazy: true,
+  };
+}
+
+/** Export a face accessory's authored static Canvas against every body pose. */
+async function exportStaticEquipmentLayer(gender, descriptor, base) {
+  const itemId = descriptor.itemId ?? String(descriptor.id);
+  const source = `${descriptor.image}/default/default`;
+  const node = await get(source);
+  assert(isCanvas(node), `Face accessory is not a Canvas: ${source}`);
+  const frame = await avatar.sourceFrame(source);
+  const zName = layerZName(node, 'default');
+  assert(zmap.has(zName), `273 zmap missing layer ${zName} from ${source}`);
+  const candidate = {
+    node,
+    source,
+    frame,
+    part: descriptor.part,
+    layerName: 'default',
+    owner: itemId,
+    zName,
+    itemId,
+  };
+  const actions = {};
+  for (const [action, frames] of Object.entries(base.actions)) {
+    actions[action] = frames.map(baseFrame => {
+      // Face accessories follow the face's authored visibility rule.  The
+      // character face is hidden on ladder/rope poses in this catalogue.
+      if (['ladder', 'rope'].includes(action)) return withParts(baseFrame, []);
+      return withParts(baseFrame, [compose(candidate, baseFrame.anchors)]);
+    });
+  }
+  const info = await sourceInfo(descriptor.image, descriptor.image);
+  return {
+    id: Number(descriptor.id),
+    itemId,
+    part: descriptor.part,
+    slot: info.islot,
+    islot: info.islot,
+    vslot: info.vslot,
+    source: descriptor.image,
+    gender,
+    actions,
+    actionSources: base.actionSources,
+    cash: true,
+    lazy: true,
   };
 }
 
@@ -247,12 +476,150 @@ function addLayer(layers, key, layer) {
   existing.actionSourcesByGender ??= {};
   existing.actionSourcesByGender[String(existing.gender)] = existing.actionSources;
   existing.actionSourcesByGender[String(layer.gender)] = layer.actionSources;
+  if (existing.actionsByWeaponType || layer.actionsByWeaponType) {
+    existing.actionsByWeaponTypeByGender ??= {};
+    if (existing.actionsByWeaponType) {
+      existing.actionsByWeaponTypeByGender[String(existing.gender)] = existing.actionsByWeaponType;
+      delete existing.actionsByWeaponType;
+    }
+    if (layer.actionsByWeaponType) existing.actionsByWeaponTypeByGender[String(layer.gender)] = layer.actionsByWeaponType;
+  }
   // Keep the male set at the direct `actions` key for the game path that has
   // historically rendered the starter avatar; gender-aware callers select
   // the matching entry in actionsByGender.
   existing.actions = existing.actionsByGender['0'];
   existing.actionSources = existing.actionSourcesByGender['0'];
+  if (existing.actionsByWeaponTypeByGender) {
+    existing.actionsByWeaponType = existing.actionsByWeaponTypeByGender['0'];
+  }
   delete existing.gender;
+}
+
+function layerActionTrees(layer) {
+  const trees = [layer.actions];
+  trees.push(...Object.values(layer.actionsByGender ?? {}));
+  trees.push(...Object.values(layer.actionsByWeaponType ?? {}));
+  for (const byGender of Object.values(layer.actionsByWeaponTypeByGender ?? {})) {
+    trees.push(...Object.values(byGender));
+  }
+  return trees;
+}
+
+function validateCashLayer(layer, itemId) {
+  assert.equal(layer.itemId, itemId, `cash layer ${itemId} itemId drifted`);
+  assert(layer.cash && layer.lazy, `cash layer ${itemId} lost lazy marker`);
+  let frameCount = 0;
+  for (const actions of layerActionTrees(layer)) {
+    for (const frames of Object.values(actions ?? {})) {
+      for (const frame of frames ?? []) {
+        frameCount += 1;
+        for (const part of frame.parts ?? []) {
+          assert.equal(part.itemId, itemId, `cash layer ${itemId} contains another item id`);
+          assert(typeof part.url === 'string' && part.url.startsWith('/assets/tms273/'), `cash layer ${itemId} has an invalid asset URL`);
+          const file = path.join(OUTPUT, part.url.replace(/^\//, ''));
+          assert(fs.existsSync(file), `cash layer ${itemId} references missing PNG: ${part.url}`);
+        }
+      }
+    }
+  }
+  assert(frameCount > 0, `cash layer ${itemId} has no authored frames`);
+}
+
+function cashAppearanceMetadata(layer, itemId) {
+  return {
+    itemId,
+    id: layer.id,
+    part: layer.part,
+    islot: layer.islot,
+    vslot: layer.vslot,
+    source: layer.source,
+    url: `${CASH_APPEARANCE_URL}/${itemId}.json`,
+    cash: true,
+    lazy: true,
+    ...(layer.weaponGroups?.length ? { weaponGroups: layer.weaponGroups } : {}),
+    ...(layer.sourceWeaponGroups?.length ? { sourceWeaponGroups: layer.sourceWeaponGroups } : {}),
+    ...(layer.weaponType ? { weaponType: layer.weaponType } : {}),
+  };
+}
+
+function compactAppearancePart(part) {
+  // Runtime composition only needs the already-resolved placement, zmap slot,
+  // and image dimensions.  Source maps/UOL audit fields belong to the export
+  // report and made every cash item repeat hundreds of bytes per frame.
+  return {
+    key: part.key,
+    url: part.url,
+    x: part.x,
+    y: part.y,
+    origin: part.origin,
+    z: part.z,
+    width: part.width,
+    height: part.height,
+    part: part.part,
+    zName: part.zName,
+    itemId: part.itemId,
+  };
+}
+
+function compactAppearanceActions(actions) {
+  return Object.fromEntries(Object.entries(actions ?? {}).map(([name, frames]) => [
+    name,
+    (frames ?? []).map(frame => ({ delay: frame.delay, parts: (frame.parts ?? []).map(compactAppearancePart) })),
+  ]));
+}
+
+function compactCashLayer(layer) {
+  const compact = {
+    ...layer,
+    actions: compactAppearanceActions(layer.actions),
+    actionSourcesByGender: undefined,
+  };
+  if (layer.actionsByGender) {
+    // The direct `actions` tree is the authored gender-0 tree.  Keep only the
+    // other gender in the map so loading one item does not duplicate it.
+    compact.actionsByGender = Object.fromEntries(Object.entries(layer.actionsByGender)
+      .filter(([gender]) => gender !== '0')
+      .map(([gender, actions]) => [gender, compactAppearanceActions(actions)]));
+  }
+  if (layer.actionsByWeaponType) {
+    compact.actionsByWeaponType = Object.fromEntries(Object.entries(layer.actionsByWeaponType)
+      .map(([type, actions]) => [type, compactAppearanceActions(actions)]));
+  }
+  if (layer.actionsByWeaponTypeByGender) {
+    compact.actionsByWeaponTypeByGender = Object.fromEntries(Object.entries(layer.actionsByWeaponTypeByGender)
+      .filter(([gender]) => gender !== '0')
+      .map(([gender, byType]) => [gender, Object.fromEntries(Object.entries(byType)
+        .map(([type, actions]) => [type, compactAppearanceActions(actions)]))]));
+  }
+  return compact;
+}
+
+function writeCashAppearance(cashLayers, skipped, weaponTypes) {
+  fs.rmSync(CASH_APPEARANCE_DIR, { recursive: true, force: true });
+  fs.mkdirSync(CASH_APPEARANCE_DIR, { recursive: true });
+  const items = {};
+  let bytes = 0;
+  const itemIds = Object.keys(cashLayers).sort();
+  for (const itemId of itemIds) {
+    const layer = compactCashLayer(cashLayers[itemId]);
+    validateCashLayer(layer, itemId);
+    const serialized = `${JSON.stringify(layer)}\n`;
+    fs.writeFileSync(path.join(CASH_APPEARANCE_DIR, `${itemId}.json`), serialized, 'utf8');
+    bytes += Buffer.byteLength(serialized, 'utf8');
+    items[itemId] = cashAppearanceMetadata(layer, itemId);
+  }
+  const index = {
+    contentVersion: 'tms273-cash-appearance',
+    sourceVersion: 'TMS273.7',
+    source: 'TMS273.7 client WZ / Character cash equipment; layers are fetched per item',
+    weaponTypes,
+    items,
+    skipped,
+  };
+  const serialized = `${JSON.stringify(index, null, 2)}\n`;
+  const target = path.join(OUTPUT, 'appearance-cashshop.json');
+  fs.writeFileSync(target, serialized, 'utf8');
+  return { index, target, bytes: Buffer.byteLength(serialized, 'utf8'), itemBytes: bytes };
 }
 
 function layerKey(part, id) {
@@ -266,6 +633,7 @@ async function main() {
   const group = rawCatalog['000'];
   assert(group, 'Missing TMS273 MakeCharInfo/000 source');
   const genderOptions = { 0: groupSections(group, 'male'), 1: groupSections(group, 'female') };
+  const cashWeaponTypes = supportedWeaponTypes(genderOptions);
   const bases = {
     0: await exportBase(0, true),
     1: await exportBase(1, true),
@@ -304,6 +672,32 @@ async function main() {
     }
   }
 
+  // Cash-shop equipment is deliberately kept out of `layers`: the normal
+  // appearance catalogue is part of the first-screen preload, while these
+  // layers are fetched/registered only when a player equips or previews the
+  // corresponding item.  `writeCashAppearance` emits one JSON file per item;
+  // the assembler copies those files and their authored PNGs explicitly.
+  const cashLayers = {};
+  const cashSources = await cashEquipmentDescriptors(new Set(cashWeaponTypes));
+  const cashDescriptors = cashSources.descriptors;
+  const cashPngsBefore = avatar.reader.pngOutputs.size;
+  const cashSkipped = cashSources.skipped;
+  for (const descriptor of cashDescriptors) {
+    for (const gender of [0, 1]) {
+    const layer = descriptor.static
+        ? await exportStaticEquipmentLayer(gender, descriptor, bases[gender])
+        : descriptor.part === 'weapon'
+          ? await exportCashWeaponLayer(gender, descriptor)
+        : await exportEquipmentLayer(gender, descriptor, true);
+      addLayer(cashLayers, descriptor.itemId, layer);
+      if (gender === 0) Object.assign(actionSources, layer.actionSources);
+    }
+  }
+  // Keep the first-screen appearance catalogue small.  Each file below is
+  // complete for one item (both genders and, for a weapon, its authored 37/38
+  // branches); only the selected file is fetched by the client.
+  const cashAppearance = writeCashAppearance(cashLayers, cashSkipped, cashWeaponTypes);
+
   const output = {
     contentVersion: 'tms273-avatar-parts',
     sourceVersion: 'TMS273.7',
@@ -313,6 +707,7 @@ async function main() {
     smap: Object.fromEntries(avatar.smap),
     base: Object.fromEntries(Object.entries(bases).map(([gender, base]) => [gender, base])),
     layers,
+    cashAppearance: cashAppearance.index,
     catalog: genderOptions,
   };
   const target = path.join(OUTPUT, 'appearance.json');
@@ -320,6 +715,11 @@ async function main() {
   console.log(JSON.stringify({
     output: path.relative(path.resolve(__dirname, '..'), target),
     layers: Object.keys(layers).length,
+    cashAppearanceItems: Object.keys(cashLayers).length,
+    cashAppearanceIndexBytes: cashAppearance.bytes,
+    cashAppearanceItemBytes: cashAppearance.itemBytes,
+    cashAppearancePngs: avatar.reader.pngOutputs.size - cashPngsBefore,
+    cashWeaponTypes,
     genders: Object.keys(bases),
     actionKeys: Object.keys(actionSources),
     pngs: avatar.reader.pngOutputs.size,
