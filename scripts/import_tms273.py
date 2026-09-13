@@ -64,6 +64,17 @@ ADDITIONAL_REGION_MAP_IDS = (
     "102020300", "102020400", "102020500",
     "104020100", "104020110", "104020120", "104020130",
 )
+# 飞行船航线一期（2026-09-14）：維多利亞樹木站台 ⇄ 天空之城 的船图链。
+# 200000100 是天空之城站台（town，returnMap=200000000，east00 为 pt:7 脚本门
+# station_in）；200000112 候船室<開往維多利亞>（NPC 2012002 船員 阿霖，
+# returnMap=200000100）；200090000/200090001 是天空→維多利亞的甲板/船舱
+# （returnMap=200000100，舱内 out00/out01 为 pt:3 接触门切回甲板）；
+# 200090010/200090011 是維多利亞→天空的甲板/船舱（returnMap=104020110）。
+# 登船无静态门，由检票员 NPC 在登船窗口内执行（服务端 ship.rs）。
+ADDITIONAL_SHIP_MAP_IDS = (
+    "200000100", "200000112",
+    "200090000", "200090001", "200090010", "200090011",
+)
 # Portal closure (2026-09-13): every map an assembled map's portal names that
 # the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
 # with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
@@ -610,7 +621,7 @@ def build_maps(
     catalog_ids = requested_map_ids(maps_path)
     requested = list(dict.fromkeys([
         *catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS,
-        *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS,
+        *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS, *ADDITIONAL_SHIP_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -654,6 +665,7 @@ def build_maps(
         "storyMapIds": list(ADDITIONAL_STORY_MAP_IDS),
         "regionMapIds": list(ADDITIONAL_REGION_MAP_IDS),
         "portalClosureMapIds": list(ADDITIONAL_PORTAL_CLOSURE_MAP_IDS),
+        "shipMapIds": list(ADDITIONAL_SHIP_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

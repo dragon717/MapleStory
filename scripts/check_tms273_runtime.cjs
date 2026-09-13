@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-19');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-21');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -101,7 +101,7 @@ for(const mob of gameplay.monsters) {
 // 50 maps before 2026-09-13; then +21 portal-closure maps — every map an
 // assembled map's portal names that the TMS273 WZ JSON actually ships
 // (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, 幸福村 platform, …).
-assert.equal(catalog.maps.length,71);
+assert.equal(catalog.maps.length,77);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -135,6 +135,9 @@ assert.equal(catalog.maps.length,71);
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
   assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),[
     '100030400->100030102','103010100->103000000','120010100->120000000',
+    // 200000100 天空站台随 2026-09-14 飞行船一期入库，但它的 returnMap
+    // 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
+    '200000100->200000000',
     '310040100->310000000','310040200->310000000','310040210->310000000',
     '310040300->310000000','310050000->310000000',
   ].sort(),'unshipped returnMap targets changed');
@@ -285,6 +288,33 @@ for(const map of catalog.maps) {
     assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
     assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);
   }
+}
+// 飞行船航线一期（2026-09-14）：六张船图随目录装配，甲板/船舱的 pt:3 接触门
+// 双向互切必须与源一致；returnMap 决定死亡复活落点，随源钉死；检票员/播报员
+// 必须站在检票地图上（服务端 ship.rs 以对话检票，源站台无静态登船门）。
+{
+  const byId=new Map(catalog.maps.map(map=>[map.id,map]));
+  for(const id of ['200000100','200000112','200090000','200090001','200090010','200090011'])
+    assert(byId.has(id),`ship map must be assembled: ${id}`);
+  for(const [cabin,deck] of [['200090001','200090000'],['200090011','200090010']]) {
+    for(const [from,name,to,gate] of [
+      [deck,'in00',cabin,'st01'],[deck,'under00',cabin,'st00'],
+      [cabin,'out00',deck,'in00'],[cabin,'out01',deck,'under00'],
+    ]) {
+      const portal=byId.get(from).portals.find(p=>p.name===name);
+      assert(portal,`${from}/${name} must exist`);
+      assert.equal(portal.targetMapId,to,`${from}/${name} must target ${to}`);
+      assert.equal(portal.targetPortalName,gate,`${from}/${name} must land on ${gate}`);
+    }
+  }
+  for(const [map,returnMap] of [
+    ['200000100','200000000'],['200000112','200000100'],
+    ['200090000','200000100'],['200090001','200000100'],
+    ['200090010','104020110'],['200090011','104020110'],
+  ]) assert.equal(catalog.returnMaps[map],returnMap,`${map} returnMap drifted`);
+  for(const [map,template] of [
+    ['104020110','1032007'],['104020110','1032008'],['200000100','2012000'],
+  ]) assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
 }
 for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
@@ -468,8 +498,13 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
   // assembled maps the window legitimately cannot mark.  Anything else missing
   // is a bug.  002010000 is the ship/travel staging map; 104020130 (前往埃德爾
   // 斯坦站台) is the one flight-station room `Map.wz WorldMap010.json` omits —
-  // it authors spots for 104020100/110/120 only.
-  const WORLD_MAP_ABSENT=new Set(['002010000','104020130','100030400','310040210']);
+  // it authors spots for 104020100/110/120 only.  The four airship rooms
+  // (200090xxx 甲板/船舱) arrived with the 2026-09-14 flying-ship route and
+  // sit inside the Orbis spot's own area, so the archive marks none of them.
+  const WORLD_MAP_ABSENT=new Set([
+    '002010000','104020130','100030400','310040210',
+    '200090000','200090001','200090010','200090011',
+  ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));
   assert.deepEqual(absent,[],`assembled maps missing from the world map: ${absent.join(', ')}`);

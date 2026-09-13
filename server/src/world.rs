@@ -57,6 +57,8 @@ mod elemental;
 mod dialogue;
 #[path = "portals.rs"]
 mod portals;
+#[path = "ship.rs"]
+mod ship;
 #[path = "growth.rs"]
 mod growth;
 #[path = "revive.rs"]
@@ -1846,6 +1848,9 @@ pub struct World {
     party_invites: BTreeMap<String, PartyInvite>,
     /// Bounded request-id idempotency for party intents (player, request).
     party_requests: BTreeMap<(String, String), PartyOutcome>,
+    /// 飞行船乘客名单，按航线索引（`ship::SHIP_ROUTES`）。检票时登记，
+    /// 相位进入航行时整单到站传送并清空；进程内状态，重启即清。
+    ship_passengers: [Vec<String>; 2],
     /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
     cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
     /// Per-(player, SN) cash purchase counters backing `Commodity.img`
@@ -1981,6 +1986,7 @@ impl World {
             parties: BTreeMap::new(),
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
+            ship_passengers: [Vec::new(), Vec::new()],
             cash_requests: BTreeMap::new(),
             cash_purchases: BTreeMap::new(),
             party_sequence: 0,
@@ -2441,6 +2447,11 @@ impl World {
         if let Some((source_map_id, windbell)) = self.windbell_snapshot_fields(id, map_id) {
             snapshot["sourceMapId"] = source_map_id.into();
             snapshot["windbell"] = windbell;
+        }
+        // 飞行船班次状态只随船图/站台图出去（`ship::route_index_for_map`），
+        // 其余地图的快照不带该字段，避免全量广播膨胀。
+        if let Some(route_index) = ship::route_index_for_map(map_id) {
+            snapshot["ship"] = ship::ship_snapshot_field(route_index);
         }
         snapshot.to_string()
     }
@@ -3228,6 +3239,9 @@ impl World {
         self.step_hyper_effects();
         self.resolve_pending_attacks();
         self.step_reactors();
+        // 飞行船到站传送在怪物/宠物步进之前落位，被传送角色当拍即以到站
+        // 站台身份参与后续模拟。
+        self.step_ship();
         self.step_boss_practice();
         self.step_monsters();
         self.step_ice_fields();

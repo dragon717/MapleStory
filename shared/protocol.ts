@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 19;
-export const CONTENT_VERSION = 'tms273-20';
+export const PROTOCOL_VERSION = 20;
+export const CONTENT_VERSION = 'tms273-21';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -297,10 +297,18 @@ export interface QuestRewardInfo {
   mesos: number; exp: number;
   items: { itemId: string; quantity: number }[];
 }
+/** 飞行船班次展示状态。Only maps on a ship route carry this snapshot field;
+ *  the client renders it and never decides anything with it — the server owns
+ *  the authoritative phase clock and boarding gate. */
+export interface ShipSnapshotState {
+  route: 'victoria-orbis' | 'orbis-victoria';
+  phase: 'sailing' | 'boarding';
+  secondsLeft: number;
+}
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; drops: DropState[] }
+  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }

@@ -145,6 +145,36 @@ impl World {
             self.send_reject(&id, code, message, Some(&request_id));
             return;
         };
+        // 飞行船检票/播报（2026-09-14）：源站台没有静态登船门，检票员对话
+        // 即检票动作。分发在仓库管理员之前，船务 NPC 不携带任何其他职能。
+        if let Some(route_index) = super::ship::route_index_for_inspector(&template_id) {
+            self.handle_ship_npc_talk(
+                &id,
+                &request_id,
+                &npc_id,
+                &name,
+                name_zh.as_deref(),
+                &lang,
+                route_index,
+                can_advance,
+                true,
+            );
+            return;
+        }
+        if let Some(route_index) = super::ship::route_index_for_announcer(&template_id) {
+            self.handle_ship_npc_talk(
+                &id,
+                &request_id,
+                &npc_id,
+                &name,
+                name_zh.as_deref(),
+                &lang,
+                route_index,
+                can_advance,
+                false,
+            );
+            return;
+        }
         // A warehouse keeper has no authored dialogue script: talking to one
         // *is* the "open my storage" action in the original.  Answering with
         // the shared `openStorage` marker keeps the same one-marker pattern as
