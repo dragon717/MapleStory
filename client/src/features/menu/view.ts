@@ -83,6 +83,8 @@ export class MenuView {
     /** Source UITotalMenu type 29 (表情) opens the chat emoticon window. */
     private onEmoticon?: () => void,
     private onActivities?: () => void,
+    /** Source UITotalMenu type 19 is the 世界地圖 / world map shortcut. */
+    private onWorldMap?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -291,7 +293,9 @@ export class MenuView {
                 : entry.type === 24 ? this.onFriend
                   // Type 29 is the 表情 / chat emoticon shortcut.
                   : entry.type === 29 ? this.onEmoticon
-                    : entry.type === 36 ? this.onNews : undefined;
+                    : entry.type === 36 ? this.onNews
+                      // Type 19 is the 世界地圖 / world map shortcut.
+                      : entry.type === 19 ? this.onWorldMap : undefined;
     if (action) {
       this.close();
       action();

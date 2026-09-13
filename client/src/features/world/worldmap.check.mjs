@@ -50,6 +50,9 @@ class El {
     this.title = '';
     this._text = '';
     this._listeners = new Map();
+    // The view sets inline styles both by assignment (style.left) and via
+    // setProperty (--worldmap-scale), so the stub has to answer both.
+    this.style = { setProperty: (name, value) => { this.style[name] = value; } };
   }
   set className(value) { this._className = value; }
   get className() { return this._className ?? ''; }
@@ -76,13 +79,21 @@ class Img extends El {
 class Button extends El {
   constructor() { super('button'); this.type = ''; }
 }
+const documentListeners = new Map();
 globalThis.document = {
   createElement: tag => (tag === 'img' ? new Img() : tag === 'button' ? new Button() : new El(tag)),
-  addEventListener() {},
-  removeEventListener() {},
+  addEventListener(type, handler) {
+    if (!documentListeners.has(type)) documentListeners.set(type, []);
+    documentListeners.get(type).push(handler);
+  },
+  removeEventListener(type, handler) {
+    documentListeners.set(type, (documentListeners.get(type) ?? []).filter(entry => entry !== handler));
+  },
 };
 const windowListeners = new Map();
 globalThis.window = {
+  innerWidth: 1280,
+  innerHeight: 800,
   addEventListener(type, handler) {
     if (!windowListeners.has(type)) windowListeners.set(type, []);
     windowListeners.get(type).push(handler);
@@ -98,6 +109,9 @@ function fire(element, type, event = {}) {
 }
 function fireWindow(type, event) {
   for (const handler of windowListeners.get(type) ?? []) handler(event);
+}
+function fireDocument(type, event) {
+  for (const handler of documentListeners.get(type) ?? []) handler(event);
 }
 
 const moduleText = helpers + outputText;
@@ -262,4 +276,37 @@ const plateOf = view => view.plate;
   view.destroy();
 }
 
-console.log('worldmap.check.mjs: 8 checks passed');
+// w09 — the `M` hotkey (source 世界地圖 keybind default) toggles the window,
+// skips typing targets, and dies with the view.
+{
+  const { view } = harness();
+  fireDocument('keydown', { code: 'KeyM', preventDefault() {} });
+  assert.equal(view.isOpen(), true, 'M opens the world map');
+  fireDocument('keydown', { code: 'KeyM', preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'M again closes it');
+  const typing = { matches: selector => selector.includes('input') };
+  fireDocument('keydown', { code: 'KeyM', target: typing, preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'M while typing in an input is ignored');
+  fireDocument('keydown', { code: 'KeyM', repeat: true, preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'auto-repeat does not reopen it');
+  fireDocument('keydown', { code: 'KeyM', ctrlKey: true, preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'modified M is left to browser shortcuts');
+  fireDocument('keydown', { code: 'KeyZ', preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'other keys do nothing');
+  view.destroy();
+  fireDocument('keydown', { code: 'KeyM', preventDefault() {} });
+  assert.equal(view.isOpen(), false, 'destroy detaches the hotkey');
+  assert.equal((documentListeners.get('keydown') ?? []).length, 0, 'the hotkey handler is released');
+}
+
+// w10 — the snapshot-fed map id decides which page M opens onto, so the
+// hotkey lands on the region the character stands in without an argument.
+{
+  const { view } = harness();
+  view.setMap('100000000');
+  fireDocument('keydown', { code: 'KeyM', preventDefault() {} });
+  assert.equal(view.page, 'WorldMap010', 'M opens the region holding the tracked map');
+  view.destroy();
+}
+
+console.log('worldmap.check.mjs: 10 checks passed');

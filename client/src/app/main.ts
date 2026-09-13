@@ -315,6 +315,8 @@ async function enterGame(session: LoginResponse) {
       // Source UITotalMenu type 29 is the 表情 / chat emoticon shortcut.
       () => emoticons?.toggle() ?? false,
       () => { input?.reset(); activities?.show(); },
+      // Source UITotalMenu type 19 is the 世界地圖 shortcut.
+      () => worldMap?.open(world?.mapId),
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -565,6 +567,9 @@ async function enterGame(session: LoginResponse) {
           portals: currentMap?.portals,
           partyIds: party?.memberIds(),
         });
+        // The world map's `M` hotkey and menu entry open on the region the
+        // character stands in, so the view tracks the authoritative map id.
+        worldMap?.setMap(message.mapId);
         hud?.update(self);
         inventory?.update(self, message.mapId.startsWith('practice:'));
         skills?.update(self);

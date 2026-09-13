@@ -83,6 +83,21 @@ export class WorldMapView {
   private mapId = '';
   /** Set by the app so the window can report "not browsable" without owning copy. */
   onStatus?: (message: string, error?: boolean) => void;
+  private destroyed = false;
+  /** The source keybind default for 世界地圖 is `M`, so the hotkey lives here
+   *  with the window rather than in the app shell (same convention as the
+   *  character window owning `C`).  Registered for the view's lifetime and
+   *  released in `destroy()`. */
+  private readonly handleHotKey = (event: KeyboardEvent) => {
+    if (this.destroyed || event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (event.metaKey || event.altKey || event.ctrlKey) return;
+    const target = event.target as (HTMLElement & { matches?: (selector: string) => boolean }) | null;
+    if (target?.matches?.('input,textarea,select,[contenteditable="true"]') || target?.isContentEditable) return;
+    if (event.code !== 'KeyM') return;
+    event.preventDefault();
+    if (this.isOpen()) this.close();
+    else this.open(this.mapId || undefined);
+  };
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && this.isOpen()) {
       event.preventDefault();
@@ -91,7 +106,9 @@ export class WorldMapView {
   };
   private onResize = () => this.fit();
 
-  constructor(private readonly host: HTMLElement, private readonly manifest: Manifest) {}
+  constructor(private readonly host: HTMLElement, private readonly manifest: Manifest) {
+    document.addEventListener('keydown', this.handleHotKey, true);
+  }
 
   private data(): WorldMapUiData | undefined {
     return this.manifest.worldMap;
@@ -199,6 +216,8 @@ export class WorldMapView {
   }
 
   destroy() {
+    this.destroyed = true;
+    document.removeEventListener('keydown', this.handleHotKey, true);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('resize', this.onResize);
     this.root?.remove();

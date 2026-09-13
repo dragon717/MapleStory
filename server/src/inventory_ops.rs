@@ -1050,6 +1050,16 @@ impl World {
                                 if let Ok(monster_book) = store.load_monster_book(&id) {
                                     player.state.monster_book = monster_book;
                                 }
+                                // Per-tab capacity lives outside Profile (a
+                                // separate column), so a successful use must
+                                // reload it explicitly; a slot-expand coupon
+                                // grows the tab in the same transaction that
+                                // spent it, and the in-memory capacity has to
+                                // match or the next snapshot still advertises
+                                // the old size (mirrors the non-store branch).
+                                if let Ok(slots) = store.load_inventory_slots(&id) {
+                                    player.inventory_slots = slots;
+                                }
                             }
                         }
                     }
@@ -1066,6 +1076,11 @@ impl World {
                     if outcome.success && matches!(outcome.operation.as_str(), "equip" | "unequip")
                     {
                         self.send_quest_list(&id);
+                        self.send_snapshot(&id);
+                    } else if outcome.success && outcome.code == "slot_expand" {
+                        // The grown capacity is in-memory now; push a snapshot
+                        // so the client's per-tab slot counts update without a
+                        // re-login.
                         self.send_snapshot(&id);
                     }
                 }
