@@ -1346,6 +1346,11 @@ impl World {
         } else {
             Vec::new()
         };
+        let quest_kills = if killed && !practice {
+            self.active_kill_objectives(id, &target_template.template_id)
+        } else {
+            Vec::new()
+        };
         let action_request = format!("{request_id}:t{target_id}");
         let action_id = format!("skill-{request_id}-{target_id}");
         let resolution = if let Some(store) = self.store.as_ref() {
@@ -1366,6 +1371,7 @@ impl World {
                 &self.gameplay.exp_table,
                 &self.players.keys().cloned().collect::<Vec<_>>(),
                 &self.party_exp_members(id),
+                &quest_kills,
             )?
         } else {
             auth::AttackResolution {
@@ -1473,6 +1479,9 @@ impl World {
             self.drop_owners
                 .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
             self.drop_maps.insert(drop_id, map_id.clone());
+        }
+        if resolution.killed {
+            self.apply_quest_kill_credit(id, &quest_kills);
         }
         Ok(())
     }
@@ -2454,6 +2463,11 @@ impl World {
                 } else {
                     Vec::new()
                 };
+                let quest_kills = if killed && !practice {
+                    self.active_kill_objectives(id, &target_template.template_id)
+                } else {
+                    Vec::new()
+                };
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
@@ -2475,6 +2489,7 @@ impl World {
                         &self.gameplay.exp_table,
                         &self.players.keys().cloned().collect::<Vec<_>>(),
                         &self.party_exp_members(id),
+                        &quest_kills,
                     )?
                 } else {
                     auth::AttackResolution {
@@ -2616,6 +2631,9 @@ impl World {
                     self.drop_owners
                         .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
                     self.drop_maps.insert(drop_id, map_id.clone());
+                }
+                if resolution.killed {
+                    self.apply_quest_kill_credit(id, &quest_kills);
                 }
             }
         }
@@ -2826,6 +2844,11 @@ impl World {
                 } else {
                     Vec::new()
                 };
+                let quest_kills = if killed && !practice {
+                    self.active_kill_objectives(id, &target_template.template_id)
+                } else {
+                    Vec::new()
+                };
                 let action_request = format!("{request_id}:s{segment}:t{target_id}");
                 let action_id = format!("skill-{request_id}-{segment}-{target_id}");
                 let resolution = if let Some(store) = self.store.as_ref() {
@@ -2847,6 +2870,7 @@ impl World {
                         &self.gameplay.exp_table,
                         &self.players.keys().cloned().collect::<Vec<_>>(),
                         &self.party_exp_members(id),
+                        &quest_kills,
                     )?
                 } else {
                     auth::AttackResolution {
@@ -2959,6 +2983,9 @@ impl World {
                     self.drop_owners
                         .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
                     self.drop_maps.insert(drop_id, map_id.clone());
+                }
+                if resolution.killed {
+                    self.apply_quest_kill_credit(id, &quest_kills);
                 }
             }
         }

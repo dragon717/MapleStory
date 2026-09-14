@@ -1,0 +1,36 @@
+# npm --prefix client run check  (repo root: ..)
+
+=== check summary: 30/32 passed ===
+  PASS  node --experimental-strip-types src/features/player/animation.check.ts
+  FAIL  node --experimental-strip-types src/scenes/layer-animation.check.ts
+  PASS  node --experimental-transform-types src/features/hud/gauge.check.ts
+  PASS  node --experimental-strip-types src/app/i18n.check.ts
+  PASS  node src/assets/preload-plan.check.mjs
+  PASS  node src/features/windbell/runtime.check.mjs
+  PASS  node src/app/page-shell.check.mjs
+  PASS  node src/features/ui/window-shell.check.mjs
+  PASS  node src/features/hud/buff.check.mjs
+  PASS  node src/features/player/input.check.mjs
+  PASS  node src/features/world/minimap.check.mjs
+  PASS  node src/features/world/worldmap.check.mjs
+  PASS  node src/features/inventory/view-model.check.mjs
+  PASS  node src/features/inventory/intents.check.mjs
+  PASS  node src/features/inventory/tooltip-view.check.mjs
+  PASS  node src/features/inventory/drag-controller.check.mjs
+  PASS  node src/features/inventory/equipment-view.check.mjs
+  PASS  node src/network/session.check.mjs
+  PASS  node src/features/npc/dialogue.check.mjs
+  PASS  node src/features/skills/view.check.mjs
+  PASS  node src/features/npc/view.check.mjs
+  PASS  node src/features/combat/skill.check.mjs
+  PASS  node src/features/character/view.check.mjs
+  PASS  node src/features/loading/view.check.mjs
+  PASS  node src/features/player/levelup.check.mjs
+  PASS  node src/features/world/water.check.mjs
+  PASS  node src/features/world/reactor.check.mjs
+  PASS  node scripts/refactor_audit.cjs --deps --check (repo root)
+  PASS  check_repository_layout.cjs
+  PASS  check_tms273_remaster.cjs
+  FAIL  build-release.check.cjs
+  PASS  publish-package.check.cjs
+check failed: 2 item(s) failed (see output above).

@@ -87,6 +87,7 @@ impl Store {
             exp_table,
             eligible_accounts,
             &[],
+            &[],
         )
     }
 
@@ -97,6 +98,14 @@ impl Store {
     /// accounts; an empty slice leaves the existing damage-share arithmetic
     /// untouched.  The bonus is granted inside the same transaction as the
     /// kill, so a retry of the same request settles exactly once.
+    ///
+    /// `quest_kills` are the `(quest_id, mob template id)` kill objectives the
+    /// killer has *active* and that this monster template satisfies.  They are
+    /// bumped by one inside the same transaction, and only when the kill was
+    /// the one that claimed `monster_rewards` (`reward_claimed`), so a replayed
+    /// death message or a duplicate request cannot add progress twice.  The
+    /// count belongs to the account whose attack landed the kill; party credit
+    /// is a separate decision that this path does not make on its own.
     pub fn resolve_attack_with_party(
         &self,
         account_id: &str,
@@ -111,6 +120,7 @@ impl Store {
         exp_table: &[u64],
         eligible_accounts: &[String],
         party_members: &[String],
+        quest_kills: &[(String, String)],
     ) -> Result<AttackResolution, String> {
         if map_id.is_empty() {
             return Err("attack map missing".into());
@@ -263,6 +273,26 @@ impl Store {
                                 }
                                 profiles.insert(member, profile);
                             }
+                        }
+                    }
+                    // Quest kill progress rides the kill-reward identity: only
+                    // the kill that claimed `monster_rewards` advances it, so
+                    // a replayed death message or a duplicated request can
+                    // never add the same monster twice.  Practice kills are
+                    // encounter facts, never quest progress.
+                    if !practice {
+                        for (quest_id, mob_id) in quest_kills {
+                            if quest_id.trim().is_empty() || mob_id.trim().is_empty() {
+                                continue;
+                            }
+                            tx.execute(
+                                "INSERT INTO quest_kills(account_id,quest_id,mob_id,kill_count)
+                                 VALUES(?1,?2,?3,1)
+                                 ON CONFLICT(account_id,quest_id,mob_id)
+                                 DO UPDATE SET kill_count=kill_count+1",
+                                params![account_id, quest_id, mob_id],
+                            )
+                            .map_err(|_| "account persistence failed")?;
                         }
                     }
                     let protected_until_ms = now_ms().saturating_add(DROP_PROTECTION_MS);

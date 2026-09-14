@@ -181,7 +181,7 @@ fn continuation_story_1402_through_36314_uses_real_menus() {
     assert!(!world.apply_quest_effect_at(
         account,
         npc::QuestEffect::Complete("36314".into()),
-        Some("1012100"),
+        quest::QuestOrigin::Npc("1012100"),
         None,
     ));
     assert_eq!(world.players[account].state.exp, exp);

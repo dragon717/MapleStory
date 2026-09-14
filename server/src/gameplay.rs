@@ -60,10 +60,16 @@ impl QuestSpec {
                 .start_items
                 .iter()
                 .all(|item| !item.item_id.is_empty() && item.quantity > 0)
-            && self
-                .objectives
-                .iter()
-                .all(|objective| !objective.item_id.is_empty() && objective.required > 0)
+            && self.objectives.iter().all(|objective| {
+                // A kill objective names a monster template instead of an
+                // item; both shapes must be complete before the spec runs.
+                objective.required > 0
+                    && if objective._kind == "kill" {
+                        !objective.mob_id.trim().is_empty()
+                    } else {
+                        !objective.item_id.is_empty()
+                    }
+            })
             && self.interaction.as_ref().is_none_or(|interaction| {
                 !interaction.map_id.is_empty()
                     && !interaction.item_id.is_empty()
@@ -317,16 +323,22 @@ impl Gameplay {
             .map(|quest| quest.quest_id.as_str())
             .collect();
         for quest in self.quests.iter().filter(|quest| quest.executable()) {
-            if quest
-                .start
-                .npc_id
-                .as_deref()
-                .is_some_and(|npc_id| !template_ids.contains(npc_id))
-                || quest
-                    .complete
+            // 源 `Check/0/npc` / `Check/1/npc` 缺失的相位在装配里是空模板 id，
+            // 表示"这一侧没有 NPC"（自服务任务），不是"引用了不存在的 NPC"。
+            // 服务端其余部位已经按这个口径读（`quest.rs` 的 targetNpcId 先
+            // `.filter(|id| !id.is_empty())`），这条加载校验此前漏了同一处理：
+            // 一旦某条自服务任务转为可执行（例如 36315），它会把空串当成未知
+            // NPC 直接拒绝加载整个 gameplay.json，服务端起不来。空串按"无 NPC"
+            // 处理；只有**非空**却查不到的 id 才是错误。
+            let unknown_npc = |phase: &QuestPhase| {
+                phase
                     .npc_id
                     .as_deref()
+                    .filter(|npc_id| !npc_id.is_empty())
                     .is_some_and(|npc_id| !template_ids.contains(npc_id))
+            };
+            if unknown_npc(&quest.start)
+                || unknown_npc(&quest.complete)
                 || quest
                     .start
                     .conditions

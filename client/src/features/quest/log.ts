@@ -29,6 +29,15 @@ const CLOSE_STATES = ['normal', 'mouseOver', 'pressed', 'disabled'] as const;
  * opening the log.
  */
 export class QuestLogView {
+  /**
+   * Self-service entry point.  Source `QuestInfo/selfStart` / `selfComplete`
+   * mark the stages that have no NPC at all — the quest window *is* their
+   * entrance, so the row offers 接取/完成 instead of "go talk to someone".
+   * The view only proposes the transition; the server re-checks every authored
+   * gate in `apply_quest_effect_at` and rejects with `quest_self_service_unavailable`
+   * when the flag no longer allows it.
+   */
+  onService?: (questId: string, action: 'start' | 'complete') => void;
   private readonly root: HTMLDivElement;
   private readonly body: HTMLDivElement;
   private readonly badge: HTMLSpanElement;
@@ -231,6 +240,19 @@ export class QuestLogView {
         next.textContent = displayText(entry.blockReason || entry.nextAction || '');
         row.append(next);
       }
+      // 源标了自助的阶段没有 NPC，任务视窗就是它的入口。
+      const service = entry.status === 'available' && entry.selfStart ? 'start' as const
+        : entry.status === 'objectivesComplete' && entry.selfComplete ? 'complete' as const
+        : undefined;
+      if (service) {
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'quest-log-action';
+        action.dataset.action = service;
+        action.textContent = this.serviceLabel(service);
+        action.addEventListener('click', () => this.onService?.(entry.questId, service));
+        row.append(action);
+      }
       this.body.append(row);
     }
     const tracked = list.find(entry => entry.status !== 'completed');
@@ -259,6 +281,11 @@ ${displayText(o.text)} ${o.current}/${o.required}`).join('')}
       ? { available: 'Available', active: 'In progress', objectivesComplete: 'Ready to claim', completed: 'Claimed' }
       : { available: '可接取', active: '进行中', objectivesComplete: '可交付', completed: '已领奖' };
     return labels[entry.status];
+  }
+
+  private serviceLabel(service: 'start' | 'complete'): string {
+    if (service === 'start') return uiLocale() === 'en' ? 'Accept' : '接取任務';
+    return uiLocale() === 'en' ? 'Complete' : '完成任務';
   }
 
   private localize(entry: QuestLogEntry) {

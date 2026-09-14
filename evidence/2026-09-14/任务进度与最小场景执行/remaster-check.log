@@ -1,0 +1,23 @@
+{
+  "remaster": 55,
+  "checked": 55,
+  "executable": [
+    "36315",
+    "36316",
+    "36332"
+  ],
+  "blocked": {
+    "other-job-route": 6,
+    "script-counter": 10,
+    "missing-region": 34,
+    "missing-start-npc": 30,
+    "missing-complete-npc": 35,
+    "missing-map": 2,
+    "job-route-unmapped": 30,
+    "script-scene": 22,
+    "kill-target-missing": 6,
+    "script-item-source": 6,
+    "dev-quest": 2
+  },
+  "implementedUntouched": 15
+}

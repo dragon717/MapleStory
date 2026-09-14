@@ -41,6 +41,8 @@ pub(crate) mod loot;
 pub(crate) mod bag;
 #[path = "auth/shop.rs"]
 pub(crate) mod shop;
+#[path = "auth/cash.rs"]
+pub(crate) mod cash;
 #[path = "auth/schema.rs"]
 pub(crate) mod schema;
 #[path = "auth/db.rs"]
@@ -1626,6 +1628,7 @@ mod tests {
     use super::*;
 
     include!("quest_store_acceptance.rs");
+    include!("quest_kill_store_acceptance.rs");
     include!("attack_store_acceptance.rs");
     include!("third_store_acceptance.rs");
     include!("fourth_store_acceptance.rs");

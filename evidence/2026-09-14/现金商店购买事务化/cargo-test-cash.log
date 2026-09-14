@@ -1,0 +1,23 @@
+# cargo test --offline --manifest-path server/Cargo.toml -- cash
+
+test world::tests::cash_buy_replay_returns_the_recorded_outcome_without_charging_twice ... ok
+test world::tests::cash_buy_period_row_stamps_a_rental_deadline ... ok
+test world::tests::cash_buy_reads_the_persisted_balance_not_the_volatile_mirror ... ok
+test world::tests::cash_buy_unknown_sn_is_refused_without_charging ... ok
+test world::tests::cash_buy_happy_path_spends_and_persists ... ok
+test world::tests::cash_buy_with_a_thin_wallet_is_refused ... ok
+test world::tests::cash_buy_permanent_row_has_no_rental_deadline ... ok
+test world::tests::cash_buy_delivers_the_bonus_units ... ok
+test world::tests::cash_buy_commits_the_bag_and_the_wallet_to_the_store_together ... ok
+test world::tests::cash_buy_refusal_keeps_both_authorities_aligned ... ok
+test world::tests::cash_buy_limit_blocks_purchases_past_the_budget ... ok
+test world::tests::durable_cash_purchase_refuses_a_missing_profile_instead_of_charging ... ok
+test world::tests::cash_buy_without_a_catalogue_is_refused ... ok
+test world::tests::cash_open_reports_the_authoritative_balance ... ok
+test world::tests::cash_purchase_budget_survives_a_store_reopen ... ok
+test world::tests::durable_cash_purchase_rejects_a_reused_request_id_with_new_arguments ... ok
+test world::tests::durable_cash_purchase_replays_its_receipt_without_charging_twice ... ok
+test world::tests::cash_wallet_survives_a_profile_round_trip ... ok
+test world::tests::durable_cash_receipt_and_budget_survive_a_store_reopen ... ok
+test world::tests::cash_equipment_and_pets_keep_source_identity_after_store_reopen ... ok
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.22s

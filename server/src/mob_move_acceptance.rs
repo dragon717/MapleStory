@@ -99,6 +99,10 @@ fn advance(world: &mut World, from_tick: u64, ticks: u64) {
 /// actually place must be able to move.  The deployed surface is pinned so a
 /// new map or mob forces this audit to be re-read instead of silently
 /// inheriting an unverified assumption.
+///
+/// 27 since the 楓之島災禍篇 scene execution (P) placed 8645261 藍色蘑菇王 on
+/// 001010000 so quest 36315 has a real kill target (audit C02); the previous
+/// 26 were authored `Map.life` rows only.
 #[test]
 fn every_deployed_monster_can_move() {
     let gameplay = mushroom_gameplay();
@@ -109,7 +113,7 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        26,
+        27,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();

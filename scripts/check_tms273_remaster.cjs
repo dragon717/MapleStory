@@ -5,10 +5,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { display, decode } = require('./tms273_chapter.cjs');
+const remasterModule = require('./tms273_remaster.cjs');
 
 const root = path.resolve(__dirname, '..');
 const gameplay = JSON.parse(fs.readFileSync(path.join(root, 'shared/gameplay.json'), 'utf8'));
 const source = JSON.parse(fs.readFileSync(path.join(root, 'references/tms273-data/quests.json'), 'utf8'));
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'client/public-tms273/assets/manifest.json'), 'utf8'));
+// 已核定的 infoex kill 目标表与适配器共用同一份读取逻辑。
+const verifiedKillTargets = remasterModule.verifiedKillTargets();
+// 运行时可击杀的模板 = 已被刷怪记录放在某张已装配地图上的模板。口径与适配器
+// 一致：只有真的刷得出来才算击杀目标可达，否则玩家接得到却打不到。
+const assembled = new Set(manifest.mapCatalog.maps.map(map => String(map.id)));
+const huntable = new Set(
+  gameplay.spawns
+    .filter(spawn => assembled.has(String(spawn.mapId)))
+    .map(spawn => String(spawn.templateId)),
+);
 
 const IMPLEMENTED = new Set([
   '36301', '36302', '36303', '36304', '36306', '36307',
@@ -68,21 +80,64 @@ for (const quest of remaster) {
     .map(entry => ({ mobId: String(entry.id), count: integer(entry.count, 0) }));
   assert.deepEqual(quest.sourceMobRequirements, mobs, `${quest.questId} mob requirements`);
 
-  assert.deepEqual(quest.sourceInfoex, nodes(c1.infoex).map(entry => ({
+  const sourceInfoex = nodes(c1.infoex).map(entry => ({
     value: String(entry.value ?? ''), exVariable: String(entry.exVariable ?? ''),
-  })), `${quest.questId} infoex`);
+  }));
+  assert.deepEqual(quest.sourceInfoex, sourceInfoex, `${quest.questId} infoex`);
   assert.equal(quest.sourceScripts.start, c0.startscript ? String(c0.startscript) : null, `${quest.questId} start script`);
   assert.equal(quest.sourceScripts.end, c1.endscript ? String(c1.endscript) : null, `${quest.questId} end script`);
   assert.deepEqual(quest.sourceFieldEnter, nodes(c0.fieldEnter).map(String), `${quest.questId} fieldEnter`);
 
-  // 可执行性分类必须与源机制自洽：可执行的不允许带任何边界，不可执行必须写明。
+  // 自助开关必须逐条对齐源 QuestInfo，且只在任务真有可判定目标时打开：完全
+  // 没有目标的自助阶段是纯脚本场景，本项目不执行，不能凭一个标记就放行。
+  const hasObjective = quest.objectives.length > 0;
+  assert.equal(
+    quest.selfStart ?? false,
+    integer(text.selfStart, 0) === 1 && hasObjective,
+    `${quest.questId} selfStart`,
+  );
+  assert.equal(
+    quest.selfComplete ?? false,
+    integer(text.selfComplete, 0) === 1 && hasObjective,
+    `${quest.questId} selfComplete`,
+  );
+
+  // 击杀目标逐条对齐来源：源 Check.1.mob[] 全量转成 kill 目标；infoex 只在
+  // "已核定来源记录 + 原始节点出现 kill 字样" 时才追加（判定与适配器共用同一
+  // 份实现，避免两处规则漂移）。
+  const infoexKill = remasterModule.infoexMentionsKill(sourceInfoex);
+  const verified = infoexKill ? verifiedKillTargets.get(String(quest.questId)) : undefined;
+  const expectedKills = mobs
+    .filter(mob => mob.count > 0 && mob.mobId)
+    .map(mob => ({ mobId: mob.mobId, required: mob.count }));
+  if (verified) expectedKills.push({ mobId: verified.mobId, required: verified.count });
+  assert.deepEqual(
+    quest.objectives
+      .filter(objective => objective.kind === 'kill')
+      .map(objective => ({ mobId: objective.mobId, required: objective.required })),
+    expectedKills,
+    `${quest.questId} kill objectives`,
+  );
+
+  // 可执行性分类必须与源机制自洽：可执行的不允许带任何**未执行**的边界，
+  // 不可执行必须写明原因。
   if (quest.executable) {
     assert.deepEqual(quest.blockedBy, [], `${quest.questId} must have no block reason`);
     assert.equal(quest.blockedReason, null, `${quest.questId} blockedReason`);
     assert(quest.start.conditions.job.length > 0, `${quest.questId} must restrict the job route`);
-    assert.equal(quest.sourceMobRequirements.length, 0, `${quest.questId} must not need kill progress`);
-    assert.equal(quest.sourceInfoex.length, 0, `${quest.questId} must not need a script counter`);
     assert.equal(quest.complete.conditions.items.length, 0, `${quest.questId} must not need script-granted items`);
+    // 没有 infoex 才和计数器无关；一旦带上 infoex，它必须是已核定的击杀计数，
+    // 否则这条任务的完成条件依赖一个本任务没有执行的脚本计数器。
+    assert(
+      sourceInfoex.length === 0 || Boolean(verified),
+      `${quest.questId} executable with an unexecuted script counter`,
+    );
+    // 击杀目标必须真的刷得出来（与适配器同一口径：只算已装配地图上的刷怪），
+    // 否则玩家接得到却打不到。
+    for (const objective of quest.objectives) {
+      if (objective.kind !== 'kill') continue;
+      assert(huntable.has(objective.mobId), `${quest.questId} kill target ${objective.mobId} is not placed`);
+    }
   } else {
     assert(quest.blockedBy.length > 0, `${quest.questId} must record a block reason`);
   }

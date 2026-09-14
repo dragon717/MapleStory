@@ -5,6 +5,11 @@
 /// the atomic spend.  Every case here guards one boundary a modified client
 /// could push on: an SN that is not for sale, a thin wallet, an unknown
 /// item family, and the replayed request that must not charge twice.
+///
+/// The `durable_*` cases below cover the T02 transaction: the balance and the
+/// limit budget are read from persisted state inside one transaction, a
+/// replay is answered from the durable `cash_actions` receipt, and a missing
+/// profile is refused instead of being charged as if the wallet were zero.
 
 use super::*;
 
@@ -46,7 +51,18 @@ fn cash_world(commodities: Vec<CashCommodity>) -> (World, mpsc::Receiver<String>
     (world, output)
 }
 
+/// Fund the wallet in **both** authorities.
+///
+/// The purchase transaction reads `player_stats.cash` inside its own
+/// transaction, so a test that only poked the in-memory mirror would exercise
+/// a state the live server can never reach.  Seeding the stored row is what a
+/// real `CashOpen`/`/cash` grant leaves behind.
 fn set_cash(world: &mut World, cash: u64) {
+    let store = world.store.clone().expect("cash_world always has a store");
+    let defaults = world.default_profile();
+    let mut profile = store.load_profile("buyer", &defaults).expect("profile row");
+    profile.cash = cash;
+    store.save_profile("buyer", &profile).expect("seed persisted wallet");
     world.players.get_mut("buyer").expect("buyer joined").state.cash = cash;
 }
 
@@ -350,4 +366,193 @@ fn cash_equipment_and_pets_keep_source_identity_after_store_reopen() {
         assert!(profile.inventory.iter().any(|item| item.item_id == pet && inventory::pet_active(item)));
     }
     let _ = std::fs::remove_file(path);
+}
+
+/// The number of `item_id` units in the **persisted** bag, as opposed to the
+/// World's in-memory mirror.
+fn stored_inventory_quantity(
+    store: &auth::Store,
+    account_id: &str,
+    defaults: &Profile,
+    item_id: &str,
+) -> u32 {
+    store
+        .load_profile(account_id, defaults)
+        .expect("profile row")
+        .inventory
+        .iter()
+        .filter(|item| item.item_id == item_id)
+        .map(|item| item.quantity)
+        .sum()
+}
+
+/// A bag holding exactly one unit of the test commodity, shaped like the
+/// candidate bag `handle_cash_buy` hands to the transaction.
+fn one_unit_bag() -> Vec<InventoryItem> {
+    let mut bag = Vec::new();
+    inventory::add_items(&mut bag, "5062001".into(), 1, 24).expect("candidate bag");
+    bag
+}
+
+#[test]
+fn durable_cash_purchase_replays_its_receipt_without_charging_twice() {
+    let path = std::env::temp_dir().join(format!("maple-cash-durable-{}.sqlite3", auth::random_id()));
+    let defaults = cash_world(Vec::new()).0.default_profile();
+    let service = auth::start(&path).expect("temp store");
+    let store = &service.store;
+    let mut profile = store.load_profile("acc", &defaults).expect("profile row");
+    profile.cash = 1_000;
+    store.save_profile("acc", &profile).unwrap();
+    let first = store
+        .cash_purchase("acc", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
+        .expect("transaction commits");
+    assert!(first.success, "{}", first.code);
+    assert_eq!(first.cash, 700);
+    assert_eq!(first.cash_spent, 300);
+    assert_eq!(first.purchased_units, 1);
+    // A retry with the identical fingerprint (sn + quantity) is answered from
+    // the durable receipt: same result, and nothing moves a second time.
+    let replay = store
+        .cash_purchase("acc", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
+        .expect("replay reads the receipt");
+    assert!(replay.success);
+    assert_eq!(replay.cash_spent, 300);
+    assert_eq!(replay.cash, 700);
+    assert_eq!(store.load_profile("acc", &defaults).unwrap().cash, 700);
+    assert_eq!(
+        store.cash_purchased_units("acc", "120000001").unwrap(),
+        1,
+        "the replay must not consume the budget again"
+    );
+    assert_eq!(stored_inventory_quantity(store, "acc", &defaults, "5062001"), 1);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn durable_cash_purchase_rejects_a_reused_request_id_with_new_arguments() {
+    let path = std::env::temp_dir().join(format!("maple-cash-conflict-{}.sqlite3", auth::random_id()));
+    let defaults = cash_world(Vec::new()).0.default_profile();
+    let service = auth::start(&path).expect("temp store");
+    let store = &service.store;
+    let mut profile = store.load_profile("acc", &defaults).expect("profile row");
+    profile.cash = 1_000;
+    store.save_profile("acc", &profile).unwrap();
+    let first = store
+        .cash_purchase("acc", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
+        .unwrap();
+    assert!(first.success);
+    // Same request id, different SN: a request id is single-use, so this is
+    // refused rather than silently replayed as the old purchase.
+    let conflict = store
+        .cash_purchase("acc", "r1", "999999999", "5062001", 5, 1_500, 0, &one_unit_bag())
+        .unwrap();
+    assert!(!conflict.success);
+    assert_eq!(conflict.code, "cash_request_conflict");
+    assert_eq!(store.load_profile("acc", &defaults).unwrap().cash, 700);
+    assert_eq!(store.cash_purchased_units("acc", "999999999").unwrap(), 0);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn durable_cash_receipt_and_budget_survive_a_store_reopen() {
+    let path = std::env::temp_dir().join(format!("maple-cash-reopen-{}.sqlite3", auth::random_id()));
+    let defaults = cash_world(Vec::new()).0.default_profile();
+    {
+        let service = auth::start(&path).expect("temp store");
+        let store = &service.store;
+        let mut profile = store.load_profile("acc", &defaults).expect("profile row");
+        profile.cash = 1_000;
+        store.save_profile("acc", &profile).unwrap();
+        let outcome = store
+            .cash_purchase("acc", "r1", "120000001", "5062001", 2, 600, 0, &{
+                let mut bag = Vec::new();
+                inventory::add_items(&mut bag, "5062001".into(), 2, 24).unwrap();
+                bag
+            })
+            .unwrap();
+        assert!(outcome.success, "{}", outcome.code);
+    }
+    let service = auth::start(&path).expect("reopen");
+    let store = &service.store;
+    // The receipt outlived the process, so the client's retry after a
+    // reconnect returns the original outcome instead of charging again.
+    let replay = store
+        .cash_purchase("acc", "r1", "120000001", "5062001", 2, 600, 0, &one_unit_bag())
+        .unwrap();
+    assert!(replay.success);
+    assert_eq!(replay.cash_spent, 600);
+    assert_eq!(store.load_profile("acc", &defaults).unwrap().cash, 400);
+    assert_eq!(store.cash_purchased_units("acc", "120000001").unwrap(), 2);
+    assert_eq!(stored_inventory_quantity(store, "acc", &defaults, "5062001"), 2);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn durable_cash_purchase_refuses_a_missing_profile_instead_of_charging() {
+    let path = std::env::temp_dir().join(format!("maple-cash-ghost-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).expect("temp store");
+    let store = &service.store;
+    // "ghost" never loaded a profile, so there is no wallet to read.  Treating
+    // that as a zero balance would be an invented refusal; charging it would
+    // be worse.  Either way it must not book a purchase.
+    let outcome = store
+        .cash_purchase("ghost", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
+        .unwrap();
+    assert!(!outcome.success);
+    assert_eq!(outcome.code, "profile_unavailable");
+    assert_eq!(store.cash_purchased_units("ghost", "120000001").unwrap(), 0);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn cash_buy_reads_the_persisted_balance_not_the_volatile_mirror() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    // Fund only the in-memory mirror; the persisted row still reads zero.
+    world.players.get_mut("buyer").unwrap().state.cash = 5_000;
+    buy(&mut world, "mirror-only", "120000001", 1);
+    let result = newest(&mut output, "cashBuyResult");
+    assert_eq!(result["success"], false, "{result}");
+    assert_eq!(result["code"], "cash_not_enough");
+    // The mirror is re-synced to the durable truth, so the window cannot keep
+    // showing a balance the transaction will never honour.
+    assert_eq!(result["cash"], 0);
+    assert_eq!(world.players["buyer"].state.cash, 0);
+    assert_eq!(cash_inventory_quantity(&world, "5062001"), 0);
+}
+
+#[test]
+fn cash_buy_commits_the_bag_and_the_wallet_to_the_store_together() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    set_cash(&mut world, 1_000);
+    buy(&mut world, "durable-1", "120000001", 2);
+    let result = newest(&mut output, "cashBuyResult");
+    assert_eq!(result["success"], true, "{result}");
+    // Read the durable side directly: the receipt a restart would find.
+    let store = world.store.clone().expect("store attached");
+    let defaults = world.default_profile();
+    let persisted = store.load_profile("buyer", &defaults).expect("profile row");
+    assert_eq!(persisted.cash, 400);
+    let units: u32 = persisted
+        .inventory
+        .iter()
+        .filter(|item| item.item_id == "5062001")
+        .map(|item| item.quantity)
+        .sum();
+    assert_eq!(units, 2, "the delivered bag must be durable, not just in memory");
+    assert_eq!(store.cash_purchased_units("buyer", "120000001").unwrap(), 2);
+}
+
+#[test]
+fn cash_buy_refusal_keeps_both_authorities_aligned() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    set_cash(&mut world, 299);
+    buy(&mut world, "thin-1", "120000001", 1);
+    let refused = newest(&mut output, "cashBuyResult");
+    assert_eq!(refused["code"], "cash_not_enough");
+    // The durable wallet is untouched and still matches the mirror.
+    let store = world.store.clone().expect("store attached");
+    let defaults = world.default_profile();
+    assert_eq!(store.load_profile("buyer", &defaults).unwrap().cash, 299);
+    assert_eq!(world.players["buyer"].state.cash, 299);
+    assert_eq!(store.cash_purchased_units("buyer", "120000001").unwrap(), 0);
 }

@@ -22,6 +22,31 @@
 use super::*;
 use super::quest_rules;
 
+/// 一次任务状态推进从哪个入口发起。
+///
+/// 入口本身就是授权的一部分：NPC 菜单只能结算自己那个阶段；任务视窗只能
+/// 结算源数据标为 self-service 的阶段（源 `QuestInfo/selfStart` /
+/// `selfComplete`，因为源里根本没有 NPC）；脚本对话保留历史路径。
+/// 客户端永远无法通过在请求里写"我是NPC/我是视窗"来绕过它——入口由服务端
+/// 的分发点决定，不由报文字段决定。
+#[derive(Clone, Copy)]
+pub(super) enum QuestOrigin<'a> {
+    Npc(&'a str),
+    Dialogue,
+    SelfService,
+}
+
+impl QuestOrigin<'_> {
+    /// The NPC template this origin is acting as, if any.  Only the NPC menu
+    /// carries one; the q1402 story guard keeps comparing against it.
+    fn template(&self) -> Option<&str> {
+        match self {
+            QuestOrigin::Npc(template) => Some(template),
+            QuestOrigin::Dialogue | QuestOrigin::SelfService => None,
+        }
+    }
+}
+
 /// 把完整 `Player` 收窄成任务判定所需的最小事实集（计划 §6.2）。
 /// 判定函数不接收 `World`，只接收这份只读视图。
 fn quest_facts(player: &Player) -> super::quest_rules::QuestFacts<'_> {
@@ -87,7 +112,7 @@ impl World {
         spec.objectives
             .iter()
             .map(|objective| {
-                let current = self.quest_objective_count(objective, player);
+                let current = self.quest_objective_count(&spec.quest_id, objective, player);
                 let text = self
                     .quest_objective_text(&objective.text, lang)
                     .unwrap_or_else(|| fallback.clone());
@@ -100,7 +125,24 @@ impl World {
             .collect()
     }
 
-    fn quest_objective_count(&self, objective: &QuestObjective, player: &Player) -> u32 {
+    /// Progress of one objective.  Item objectives read the inventory fact
+    /// (never a parallel copy); kill objectives read the persisted kill
+    /// counter the kill transaction wrote, so nothing here can be advanced by
+    /// a client claim.
+    fn quest_objective_count(
+        &self,
+        quest_id: &str,
+        objective: &QuestObjective,
+        player: &Player,
+    ) -> u32 {
+        if objective._kind == "kill" {
+            return player
+                .quest_kills
+                .get(quest_id)
+                .and_then(|kills| kills.get(&objective.mob_id))
+                .copied()
+                .unwrap_or(0);
+        }
         if objective.item_id.is_empty() {
             return 0;
         }
@@ -114,8 +156,12 @@ impl World {
     fn quest_objectives_complete(&self, spec: &QuestSpec, player: &Player) -> bool {
         let objectives_ok = spec.objectives.iter().all(|objective| {
             objective.required > 0
-                && !objective.item_id.is_empty()
-                && self.quest_objective_count(objective, player) >= objective.required
+                && match objective._kind.as_str() {
+                    "kill" => !objective.mob_id.trim().is_empty(),
+                    _ => !objective.item_id.is_empty(),
+                }
+                && self.quest_objective_count(&spec.quest_id, objective, player)
+                    >= objective.required
         });
         let complete_items_ok = quest_rules::complete_items(spec).iter().all(|requirement| {
             requirement.quantity > 0
@@ -124,6 +170,70 @@ impl World {
                     >= requirement.quantity
         });
         objectives_ok && complete_items_ok
+    }
+
+    /// The `(quest_id, mob template id)` kill objectives this player has
+    /// *active* that a kill of `template_id` would advance.  Empty when nothing
+    /// is active — which is exactly why killing the same monster before
+    /// accepting the quest can never pre-credit it.
+    pub(super) fn active_kill_objectives(
+        &self,
+        id: &str,
+        template_id: &str,
+    ) -> Vec<(String, String)> {
+        let Some(player) = self.players.get(id) else {
+            return Vec::new();
+        };
+        let mut targets: BTreeSet<(String, String)> = BTreeSet::new();
+        for spec in &self.gameplay.quests {
+            if player.quests.get(&spec.quest_id).map(String::as_str) != Some("active") {
+                continue;
+            }
+            for objective in &spec.objectives {
+                if objective._kind == "kill"
+                    && objective.required > 0
+                    && objective.mob_id == template_id
+                {
+                    targets.insert((spec.quest_id.clone(), objective.mob_id.clone()));
+                }
+            }
+        }
+        targets.into_iter().collect()
+    }
+
+    /// Mirror the authoritative kill counters back into the player and redraw
+    /// the quest log.  The store owns the numbers; without one (store-less
+    /// world and its tests) the counters advance by the targets the caller
+    /// already resolved.  Call only after a kill that actually claimed the
+    /// monster's reward, so a replayed death message cannot double count.
+    pub(super) fn apply_quest_kill_credit(&mut self, id: &str, quest_kills: &[(String, String)]) {
+        if quest_kills.is_empty() {
+            return;
+        }
+        match self.store.as_ref() {
+            Some(store) => match store.load_quest_kills(id) {
+                Ok(kills) => {
+                    if let Some(player) = self.players.get_mut(id) {
+                        player.quest_kills = kills;
+                    }
+                }
+                Err(error) => self.send_reject(id, "persistence", &error, None),
+            },
+            None => {
+                if let Some(player) = self.players.get_mut(id) {
+                    for (quest_id, mob_id) in quest_kills {
+                        let count = player
+                            .quest_kills
+                            .entry(quest_id.clone())
+                            .or_default()
+                            .entry(mob_id.clone())
+                            .or_insert(0);
+                        *count = count.saturating_add(1);
+                    }
+                }
+            }
+        }
+        self.send_quest_list(id);
     }
 
     fn quest_status_for<'a>(player: &'a Player, quest_id: &str) -> Option<&'a str> {
@@ -556,12 +666,33 @@ impl World {
             ),
             _ => (None, None, None),
         };
+        // A self-service phase has no NPC to route to: the quest window is the
+        // entrance, so name it instead of leaving the row with no next step
+        // (the "看到任務卻找不到入口" failure this task exists to remove).  A
+        // half-finished hunt keeps its objective rows as the instruction and
+        // invents no step that would be wrong.
+        let next_action = next_action.or_else(|| match status {
+            "available" if spec.self_start => Some("在任務視窗中接取任務".to_owned()),
+            "objectivesComplete" if spec.self_complete => {
+                Some("在任務視窗中完成任務".to_owned())
+            }
+            _ => None,
+        });
         let mut entry = serde_json::json!({
             "questId": spec.quest_id,
             "name": self.quest_text.name(&spec.quest_id, player.lang),
             "status": status,
             "summary": self.quest_summary(spec, status, player.lang),
         });
+        // The client renders an accept/hand-in control only for the half the
+        // source actually marks self-service, so the button can never offer a
+        // transition the server would refuse.
+        if spec.self_start {
+            entry["selfStart"] = serde_json::Value::Bool(true);
+        }
+        if spec.self_complete {
+            entry["selfComplete"] = serde_json::Value::Bool(true);
+        }
         if !objective_rows.is_empty() {
             entry["objectives"] = serde_json::Value::Array(objective_rows);
         }
@@ -807,7 +938,12 @@ impl World {
                 } else {
                     npc::QuestEffect::Complete(quest_id)
                 };
-                if self.apply_quest_effect_at(id, effect, Some(template_id), Some(request_id)) {
+                if self.apply_quest_effect_at(
+                    id,
+                    effect,
+                    QuestOrigin::Npc(template_id),
+                    Some(request_id),
+                ) {
                     self.send_npc_dialogue(
                         id,
                         npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
@@ -888,17 +1024,19 @@ impl World {
     }
 
     pub(super) fn apply_quest_effect(&mut self, id: &str, effect: npc::QuestEffect) {
-        let _ = self.apply_quest_effect_at(id, effect, None, None);
+        let _ = self.apply_quest_effect_at(id, effect, QuestOrigin::Dialogue, None);
     }
 
     /// Settle a quest transition after all authored gates have been checked.
-    /// `npc_template` is supplied by the dynamic chapter menu; scripted legacy
-    /// effects keep the old call path and therefore omit the NPC gate.
+    /// `origin` is part of the authorization: the NPC menu may only settle the
+    /// phase it owns, the quest window may only settle a phase the source marks
+    /// self-service, and scripted legacy dialogue keeps its historical
+    /// unrestricted path.
     pub(super) fn apply_quest_effect_at(
         &mut self,
         id: &str,
         effect: npc::QuestEffect,
-        npc_template: Option<&str>,
+        origin: QuestOrigin<'_>,
         request_id: Option<&str>,
     ) -> bool {
         let (quest_id, wanted) = match effect {
@@ -942,17 +1080,43 @@ impl World {
             self.send_reject(id, "invalid_state", "死亡角色不能處理任務。", request_id);
             return false;
         }
-        if npc_template.is_some_and(|template| !Self::quest_phase_matches_npc(phase, template)) {
-            self.send_reject(
-                id,
-                "quest_npc_unavailable",
-                "此任務NPC目前無法處理任務。",
-                request_id,
-            );
-            return false;
+        match origin {
+            QuestOrigin::Npc(template) => {
+                if !Self::quest_phase_matches_npc(phase, template) {
+                    self.send_reject(
+                        id,
+                        "quest_npc_unavailable",
+                        "此任務NPC目前無法處理任務。",
+                        request_id,
+                    );
+                    return false;
+                }
+            }
+            // P: the source ships no NPC for this phase (Check/0/npc or
+            // Check/1/npc absent) and marks it self-service in QuestInfo.  The
+            // quest window is the real entrance; the flag decides which
+            // direction each half of the quest may move.
+            QuestOrigin::SelfService => {
+                let allowed = if wanted == "active" {
+                    spec.self_start
+                } else {
+                    spec.self_complete
+                };
+                if !allowed {
+                    self.send_reject(
+                        id,
+                        "quest_self_service_unavailable",
+                        "此任務無法在任務視窗處理，請找對應的NPC。",
+                        request_id,
+                    );
+                    return false;
+                }
+            }
+            QuestOrigin::Dialogue => {}
         }
         if quest_id == "1402"
-            && (npc_template != Some("1032001") || player_snapshot.map_id != "101000003")
+            && (origin.template() != Some("1032001")
+                || player_snapshot.map_id != "101000003")
         {
             self.send_reject(
                 id,
@@ -1292,6 +1456,39 @@ impl World {
         // markers, so refresh the snapshot even when the reward did not warp.
         self.send_snapshot(id);
         true
+    }
+
+    /// Accept or hand in a quest the source marks self-service, from the quest
+    /// window.  This is the real entrance for quests whose source ships no NPC
+    /// (`Check/0/npc` / `Check/1/npc` absent); every authored gate still runs
+    /// inside `apply_quest_effect_at`, and the authored self-service flag — not
+    /// the packet — decides which direction the transition may take.
+    pub(super) fn handle_quest_service(
+        &mut self,
+        id: String,
+        request_id: String,
+        quest_id: String,
+        action: String,
+    ) {
+        let effect = match action.as_str() {
+            "start" => npc::QuestEffect::Start(quest_id.clone()),
+            "complete" => npc::QuestEffect::Complete(quest_id.clone()),
+            _ => {
+                self.send_reject(
+                    &id,
+                    "quest_service_invalid",
+                    "任務視窗操作無效。",
+                    Some(&request_id),
+                );
+                return;
+            }
+        };
+        let _ = self.apply_quest_effect_at(
+            &id,
+            effect,
+            QuestOrigin::SelfService,
+            Some(&request_id),
+        );
     }
 
     pub(super) fn handle_quest_interact(&mut self, id: String, request_id: String, quest_id: String) {

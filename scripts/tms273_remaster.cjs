@@ -16,6 +16,15 @@ const { display, decode } = require('./tms273_chapter.cjs');
 
 const root = path.resolve(__dirname, '..');
 const SOURCE = path.join(root, 'references/tms273-data/quests.json');
+// 已核定的 `infoex` kill 目标。源 QuestData 的 `Check.1.infoNumber` 只写任务 id，
+// 怪物模板在 `q*.js` 脚本体里（本地缺失），所以目标只能来自已经人工核过的来源
+// 记录：references/tms273-data/maple-island-calamity-source.json 的
+// `classification.kill`。没有记录的 infoex 一律保持 `script-counter` 边界，
+// 不从显示文本猜、不执行不受限源码。
+const CALAMITY_SOURCE = path.join(
+  root,
+  'references/tms273-data/maple-island-calamity-source.json',
+);
 
 // applyChapter / applyContinuation 已装配的 15 条。本适配器不得改动它们。
 const IMPLEMENTED = [
@@ -80,6 +89,39 @@ function fieldEntries(phase) {
   return nodes(phase.fieldEnter).map(value => String(value));
 }
 
+// 已核定的 infoex kill 目标表：任务 id -> { mobId, count, name }。
+// 只读来源记录，不在适配器里硬编码第二份。
+let killTargetCache = null;
+function verifiedKillTargets() {
+  if (killTargetCache) return killTargetCache;
+  const record = JSON.parse(fs.readFileSync(CALAMITY_SOURCE, 'utf8'));
+  const targets = new Map();
+  for (const quest of record.quests || []) {
+    const kill = quest.classification && quest.classification.kill;
+    if (!kill || !kill.mobId) continue;
+    const monster = (record.monsters || {})[String(kill.mobId)];
+    targets.set(String(quest.id), {
+      mobId: String(kill.mobId),
+      count: integer(kill.count, 1),
+      name: monster && monster.name ? String(monster.name) : '',
+    });
+  }
+  killTargetCache = targets;
+  return targets;
+}
+
+// 源 `infoex` 的两个字符串子节点在任务之间取值相反：36315/36322/36328 是
+// `exVariable:"kill"`，而 36319 是 `value:"kill"` / `exVariable:"1"`。Quest 数据只
+// 存在于 `Quest.wz`（本地 unpack_tms273_ms 只解析 .ms 归档），无法从二进制判定
+// 哪个子节点才是变量名，所以不按字段名猜它是哪一种计数器。这里只回答"原始节点
+// 里出现了 kill 字样"，是否真的按击杀执行由已核定来源记录决定（见
+// `verifiedKillTargets`）。
+function infoexMentionsKill(infoex) {
+  return infoex.some(
+    entry => entry.exVariable === 'kill' || entry.value === 'kill',
+  );
+}
+
 function applyRemaster(gameplay, items, manifest, questText) {
   const source = JSON.parse(fs.readFileSync(SOURCE, 'utf8'));
   const assembled = new Set(manifest.mapCatalog.maps.map(map => String(map.id)));
@@ -89,6 +131,14 @@ function applyRemaster(gameplay, items, manifest, questText) {
       .map(spawn => String(spawn.templateId)),
   );
   const templates = new Set(gameplay.npcs.map(npc => String(npc.templateId)));
+  // 运行时可击杀的怪物模板 = 已被刷怪记录放在某张已装配地图上的模板。击杀目标
+  // 必须落在这里，否则玩家接得到任务也打不到东西。
+  const huntable = new Set(
+    gameplay.spawns
+      .filter(spawn => assembled.has(String(spawn.mapId)))
+      .map(spawn => String(spawn.templateId)),
+  );
+  const killTargets = verifiedKillTargets();
 
   const remaining = source.quests.filter(quest => !IMPLEMENTED.includes(String(quest.id)));
   assert.equal(remaining.length, 55, '后续章节源任务数量发生变化，需重新盘点');
@@ -120,6 +170,37 @@ function applyRemaster(gameplay, items, manifest, questText) {
     }));
     const orOption = integer(check.start.QuestOrOption, 0) === 1;
     const level = integer(check.start.lvmin, 0);
+    // 源 QuestInfo/selfStart | selfComplete：这一阶段没有 NPC，入口是任务视窗。
+    const selfStart = integer(text.selfStart, 0) === 1;
+    const selfComplete = integer(text.selfComplete, 0) === 1;
+
+    // 击杀目标：源 Check.1.mob[] 本身就带模板与数量；infoex 只有"已核定来源
+    // 记录说它是击杀计数器、且原始节点确实写着 kill"时才转成运行时目标。两者
+    // 都保留来源字段（sourceMobRequirements / sourceInfoex）供追溯。
+    const killObjectiveSources = mobs
+      .filter(mob => mob.count > 0 && mob.mobId)
+      .map(mob => ({ mobId: mob.mobId, required: mob.count, name: '' }));
+    const verified = infoexMentionsKill(infoex) ? killTargets.get(id) : undefined;
+    const infoexKill = Boolean(verified);
+    if (verified) {
+      killObjectiveSources.push({
+        mobId: verified.mobId,
+        required: verified.count,
+        name: verified.name,
+      });
+    }
+    const killObjectives = killObjectiveSources.map(target => ({
+      kind: 'kill',
+      mobId: target.mobId,
+      required: target.required,
+      // 没有已核定的显示名就留空，由服务端回落到源 QuestInfo 的活动文本，
+      // 不在这里发明怪物名。
+      text: target.name,
+    }));
+    // 自助阶段只有在任务真的有事可做（至少一个可判定的目标）时才算有入口：
+    // 完全没有目标的自助阶段是纯脚本场景，本任务不执行。
+    const hasExecutableObjective = killObjectives.length > 0 || items1.length > 0;
+    const selfService = hasExecutableObjective;
 
     // 阻塞原因按源机制逐条登记；可执行要求一条都不命中。
     const blockedBy = [];
@@ -128,10 +209,24 @@ function applyRemaster(gameplay, items, manifest, questText) {
     if (!jobs.length) blockedBy.push('job-route-unmapped');
     const npcIds = [startNpc, completeNpc].filter(Boolean);
     if (npcIds.length && npcIds.every(npcId => !templates.has(npcId))) blockedBy.push('missing-region');
-    if (!startNpc || !placed.has(startNpc)) blockedBy.push('missing-start-npc');
-    if (!completeNpc || !placed.has(completeNpc)) blockedBy.push('missing-complete-npc');
-    if (infoex.length) blockedBy.push('script-counter');
-    if (mobs.length) blockedBy.push('mob-progress');
+    // 没有源 NPC 的阶段：源标了自助且任务有可判定目标时由任务视窗承接，
+    // 否则它是脚本场景，本任务不执行。
+    if (!startNpc) {
+      if (!(selfStart && selfService)) blockedBy.push('script-scene');
+    } else if (!placed.has(startNpc)) {
+      blockedBy.push('missing-start-npc');
+    }
+    if (!completeNpc) {
+      if (!(selfComplete && selfService)) blockedBy.push('script-scene');
+    } else if (!placed.has(completeNpc)) {
+      blockedBy.push('missing-complete-npc');
+    }
+    // infoex 计数器：已核定的 kill 由击杀进度执行，其余仍是边界。
+    if (infoex.length && !infoexKill) blockedBy.push('script-counter');
+    // 击杀目标必须在装配世界里真的刷得出来。
+    if (killObjectives.some(objective => !huntable.has(objective.mobId))) {
+      blockedBy.push('kill-target-missing');
+    }
     if (items1.length) blockedBy.push('script-item-source');
     if (fields.some(mapId => !assembled.has(mapId))) blockedBy.push('missing-map');
 
@@ -181,12 +276,19 @@ function applyRemaster(gameplay, items, manifest, questText) {
       // 其余沿用项目 P 分档（等级 ×30），不发金币不发物品。
       reward: { mesos: 0, exp: DEV_QUESTS.has(id) || OTHER_JOB_ROUTE.has(id) ? 0 : expFor(level), items: [] },
       startItems: [],
-      objectives: items1.map(requirement => ({
-        kind: 'collect',
-        itemId: requirement.itemId,
-        required: requirement.quantity,
-        text: items[requirement.itemId]?.name || requirement.itemId,
-      })),
+      // 自助阶段的运行时开关：只有源标了自助、且任务真有可判定目标时才打开，
+      // 否则服务端会拒绝任务视窗入口。
+      selfStart: selfStart && selfService,
+      selfComplete: selfComplete && selfService,
+      objectives: [
+        ...killObjectives,
+        ...items1.map(requirement => ({
+          kind: 'collect',
+          itemId: requirement.itemId,
+          required: requirement.quantity,
+          text: items[requirement.itemId]?.name || requirement.itemId,
+        })),
+      ],
       // T：源 Check.1.mob 的击杀要求。运行时尚无击杀进度，故只登记不判定。
       sourceMobRequirements: mobs,
       sourceJob,
@@ -212,20 +314,77 @@ function applyRemaster(gameplay, items, manifest, questText) {
     else for (const reason of blockedBy) blocked[reason] = (blocked[reason] || 0) + 1;
   }
 
+  // 可达性重算（87 图当前数据）。"可执行"只说明规格能跑；"正常可达"要求整条
+  // 前置链自己也是可执行且可达——GM 直达和"已导出素材"都不算可玩证据。前置里
+  // 标 active（进行中）的条目不是入场门槛，不参与判定；标 completed 的必须
+  // 逐级成立，OR 阶段（QuestOrOption）任一成立即可。
+  const specById = new Map(gameplay.quests.map(quest => [String(quest.questId), quest]));
+  const reachable = new Map(
+    gameplay.quests.map(quest => [String(quest.questId), Boolean(quest.executable)]),
+  );
+  const phaseReachable = (spec, phase) => {
+    const prerequisites = (phase.conditions.quests || []).filter(
+      entry => (entry.status ?? 'completed') === 'completed',
+    );
+    if (prerequisites.length === 0) return true;
+    const satisfied = entry => reachable.get(String(entry.questId)) === true;
+    return phase.conditions.questOrOption
+      ? prerequisites.some(satisfied)
+      : prerequisites.every(satisfied);
+  };
+  for (let pass = 0; pass < gameplay.quests.length + 1; pass += 1) {
+    let changed = false;
+    for (const [questId, isReachable] of reachable) {
+      if (!isReachable) continue;
+      const spec = specById.get(questId);
+      if (phaseReachable(spec, spec.start) && phaseReachable(spec, spec.complete)) continue;
+      reachable.set(questId, false);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+
+  const reachability = gameplay.quests.map(spec => {
+    const questId = String(spec.questId);
+    return {
+      questId,
+      specExecutable: Boolean(spec.executable),
+      normallyReachable: reachable.get(questId) === true,
+      blockedBy: spec.blockedBy || [],
+    };
+  });
+  for (const spec of gameplay.quests) {
+    if (spec.ruleVersion !== 'tms273-remaster-p1') continue;
+    spec.reachable = reachable.get(String(spec.questId)) === true;
+  }
+  const unreachableReasons = {};
+  for (const entry of reachability) {
+    if (entry.specExecutable && !entry.normallyReachable) {
+      const reason = entry.blockedBy.length ? entry.blockedBy.join(',') : 'prerequisite-unreachable';
+      unreachableReasons[reason] = (unreachableReasons[reason] || 0) + 1;
+    }
+  }
+
   gameplay.compatibility.adventurerRemaster = {
     ruleVersion: 'tms273-remaster-p1',
     sourceQuests: remaining.map(quest => String(quest.id)),
     sourceRecord: 'references/tms273-data/quests.json',
     executableQuests: gameplay.quests.filter(quest => quest.ruleVersion === 'tms273-remaster-p1' && quest.executable).map(quest => quest.questId),
     blockedCounts: blocked,
-    temporaryRules: 'P: 源 Act 全空，奖励按等级×30 分档且转职支线/内部任务为 0；源 job 只映射法師系到 200/220/221/222，其他职业保留数据不开放；击杀目标只登记不判定。',
-    unknown: 'q36315–q36334、q36341–q36367 与 q1401/q1403/q1404/q1405/q2570/q2684 的可执行脚本体在本地源中不存在；自动开场、场景触发、infoex 计数器与奖励均为未恢复的原作行为。艾靈森林（area 39）地图与 NPC 均未装配，相关 27 条任务只有源数据，没有可达入口。',
+    // 可达性台账：规格可执行 / 正常起点可达 / 当前阻塞逐条列出，供 87 图重算
+    // 与审计对账。questReachability 覆盖全部目录任务，不只本章节。
+    reachableQuests: reachability.filter(entry => entry.normallyReachable).map(entry => entry.questId),
+    specExecutableButBlocked: reachability.filter(entry => entry.specExecutable && !entry.normallyReachable).map(entry => entry.questId),
+    unreachableReasons,
+    questReachability: reachability,
+    temporaryRules: 'P: 源 Act 全空，奖励按等级×30 分档且转职支线/内部任务为 0；源 job 只映射法師系到 200/220/221/222，其他职业保留数据不开放；已核定的 infoex kill 目标（36315/36319/36322，见 maple-island-calamity-source.json）转成类型化击杀进度，其余 infoex 仍是边界；源标 selfStart/selfComplete 且任务有可判定目标时，任务视窗是这一阶段的入口。',
+    unknown: 'q36315–q36334 与 q36341–q36367、q1401/q1403/q1404/q1405/q2570/q2684 的可执行脚本体在本地源中不存在：开场/交付场景、dummy/talk/lord/dir3 等非击杀计数器、脚本发放道具都按边界登记，未执行。源 infoex 的两个字符串子节点在任务间取值相反（36315/36322/36328 为 exVariable="kill"，36319 为 value="kill"），Quest 数据只在 Quest.wz 里、本地解包器仅支持 .ms 归档，故无法判定哪个子节点是变量名：适配器不按字段名判定，只认已核定来源记录并校验原始节点出现 kill 字样。艾靈森林（area 39）地图与 NPC 均未装配，相关 27 条任务只有源数据，没有可达入口；36315/36319/36322 的击杀目标（8645261/8645264/8645262）尚未放进装配世界，故仍不可达。',
   };
 
   return { total: remaining.length, executable, blocked };
 }
 
-module.exports = { applyRemaster };
+module.exports = { applyRemaster, verifiedKillTargets, infoexMentionsKill };
 
 if (require.main === module) {
   const gameplay = JSON.parse(fs.readFileSync(path.join(root, 'shared/gameplay.json'), 'utf8'));

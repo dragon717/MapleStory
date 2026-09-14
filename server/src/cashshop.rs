@@ -3,21 +3,28 @@
 //! 与 `trade.rs`（NPC 商店）平行的第五块交易职责。目录是静态装配数据
 //! （`Gameplay.cash_shop`，Etc/Commodity.img 的 OnSale=1 子集）；客户端只能
 //! 报「我要买哪个 SN、买几份」，商品、单价、堆数与每一条售卖条件都在这里
-//! 解析。余额是 `Profile.cash`（SQLite），购买是先扣款再入包的原子事务，
-//! 失败任一半段都不落账。
+//! 解析。余额是 `Profile.cash`（SQLite）。
+//!
+//! 资产半边收在 `Store::cash_purchase`（`crate::auth::cash`）的一个事务里：
+//! 余额、交付的背包、限购计数与请求回执共同提交，**提交成功后**本模块才更新
+//! World 内存并发成功回执。存储层失败时内存不动、不回执成功。
 //!
 //! ## 负责
 //! - `CashOpen`：回执权威余额（`cashState`）。
-//! - `CashBuy`：目录校验 → 条件校验（在售/等级/人气/性别/限购）→ 余额 →
-//!   入包 → 落库 → 回执。`requestId` 幂等重放（与 party 相同的有界窗口）。
-//! - 限购（`Limit`）：每角色购买预算，写入 `cash_purchases` 表跨重启累计。
+//! - `CashBuy`：目录校验 → 纯请求条件（在售/等级/人气/性别）→ 建候选背包 →
+//!   交事务提交（余额/限购/请求指纹在其中裁决）→ 回执。
+//! - `requestId` 幂等：内存窗口是本进程的快速路径，权威记录是持久表
+//!   `cash_actions`（同 `requestId` 不同 SN/数量会被拒绝）。
+//! - 限购（`Limit`）：每角色购买预算，事务内读写 `cash_purchases` 跨重启累计。
 //! - 租赁（`Period`）：非零行交付时打上 `_expiresAt` 截止时间，
 //!   `step_rental_expiries` 定期收回过期堆并回执 `rentalNotice`。
 //! - 目录查询辅助：`cash_commodity`（购买流程与测试共用）。
 //!
 //! ## 不负责
+//! - 购买事务本身与 `cash_actions` / `cash_purchases` 的表结构
+//!   （`crate::auth::cash`、`crate::auth::schema`）。
 //! - 余额的授予：GM `/cash`（`gm.rs`）是当前唯一本地充值路径（P）。
-//! - 持久化表结构（`crate::auth::schema`）与背包堆叠规则（`crate::inventory`）。
+//! - 背包堆叠规则（`crate::inventory`）。
 //! - 礼品赠送、愿望单、里程、优惠券、退款（`refundable`）：源系统存在但本
 //!   阶段不实现（P）。
 
@@ -53,6 +60,12 @@ impl World {
     }
 
     /// Buy one catalogue row `quantity` times.
+    ///
+    /// The asset half runs in one `Store::cash_purchase` transaction (balance,
+    /// delivered bag, limit budget and the request receipt commit together).
+    /// World memory is updated **only after** that commit returns, so a store
+    /// failure can no longer leave a granted item behind a wallet that was
+    /// never charged — nor a success receipt without a durable record.
     pub(super) fn handle_cash_buy(
         &mut self,
         id: String,
@@ -89,6 +102,7 @@ impl World {
             );
             world.send_cash_buy_result(&id, &request_id, false, code, &sn, "", quantity, 0);
         };
+        let store = self.store.clone();
         // The catalogue is optional at the World level so unit-test worlds do
         // not need the export; a missing catalogue refuses every purchase.
         if self.gameplay.cash_shop.is_none() {
@@ -100,6 +114,8 @@ impl World {
             return;
         };
         // Source condition gates, checked in the order a player would notice.
+        // These are pure functions of the request plus the catalogue, so they
+        // need no durable receipt: replaying one yields the same refusal.
         if entry.price == 0 {
             // Price-0 rows are the source's coupon/exchange catalog; there is
             // no local redemption path, so they are never purchasable.
@@ -120,18 +136,19 @@ impl World {
             fail(self, "cash_req_pop");
             return;
         }
-        if entry.limit > 0 {
-            // Source `Limit` is a per-character purchase budget: every bought
-            // quantity consumes one unit of it, persisted across restarts.
+        if entry.gender != 2 && appearance_gender != Some(entry.gender) {
+            fail(self, "cash_gender");
+            return;
+        }
+        // A store-backed world re-checks the budget inside the purchase
+        // transaction against `cash_purchases`; only a store-less world (unit
+        // tests, no persistence) falls back to the in-memory mirror.
+        if store.is_none() && entry.limit > 0 {
             let purchased = self.cash_purchased_units(&id, &sn);
             if purchased + u64::from(quantity) > u64::from(entry.limit) {
                 fail(self, "cash_limit");
                 return;
             }
-        }
-        if entry.gender != 2 && appearance_gender != Some(entry.gender) {
-            fail(self, "cash_gender");
-            return;
         }
         let Some(player) = self.players.get_mut(&id) else {
             return;
@@ -143,12 +160,12 @@ impl World {
                 return;
             }
         };
-        if player.state.cash < total {
+        if store.is_none() && player.state.cash < total {
             fail(self, "cash_not_enough");
             return;
         }
-        // Apply: deduct the wallet, add the stack(s).  Insertion is atomic
-        // against a cloned inventory so a full-tab failure cancels the spend.
+        // Build the candidate bag.  Insertion is atomic against a clone so a
+        // full-tab failure cancels the spend before anything is persisted.
         let kind = inventory::inventory_type(&entry.item_id).unwrap_or(5);
         let slot_limit = player
             .state
@@ -190,41 +207,84 @@ impl World {
             fail(self, code);
             return;
         }
-        let player = self.players.get_mut(&id).expect("player checked above");
-        player.state.inventory = next_inventory;
-        player.state.cash -= total;
-        if let Some(store) = self.store.as_ref() {
-            let _ = store.write_inventory(&id, &player.state.inventory);
-            let _ = store.save_profile(
+        let Some(store) = store else {
+            // Store-less world: no durable half to commit, so the in-memory
+            // apply stays as the single authority (unchanged legacy path).
+            let player = self.players.get_mut(&id).expect("player checked above");
+            player.state.inventory = next_inventory;
+            player.state.cash -= total;
+            self.remember_cash_purchase(&id, &sn, quantity);
+            self.remember_cash_request(
                 &id,
-                &profile_from_state(
-                    &player.state,
-                    &player.map_id,
-                    &player.death_id,
-                    player.base_max_mp,
-                ),
+                &request_id,
+                true,
+                "",
+                &sn,
+                &entry.item_id,
+                quantity,
+                total,
             );
+            self.send_cash_buy_result(
+                &id,
+                &request_id,
+                true,
+                "",
+                &sn,
+                &entry.item_id,
+                quantity,
+                total,
+            );
+            return;
+        };
+        let outcome = match store.cash_purchase(
+            &id,
+            &request_id,
+            &sn,
+            &entry.item_id,
+            quantity,
+            total,
+            entry.limit,
+            &next_inventory,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => {
+                // The store refused the commit: nothing was charged and
+                // nothing was delivered, so World memory must stay untouched.
+                fail(self, "cash_store_unavailable");
+                return;
+            }
+        };
+        // Commit succeeded.  Adopt the persisted post-state and re-sync the
+        // wallet even on a refusal, so the mirror can never drift from the
+        // durable balance the transaction just read.
+        if let Some(player) = self.players.get_mut(&id) {
+            if outcome.success {
+                player.state.inventory = next_inventory;
+            }
+            player.state.cash = outcome.cash;
         }
+        self.cash_purchases
+            .insert((id.clone(), sn.clone()), outcome.purchased_units);
+        let delivered = if outcome.success { entry.item_id.as_str() } else { "" };
         self.remember_cash_request(
             &id,
             &request_id,
-            true,
-            "",
+            outcome.success,
+            &outcome.code,
             &sn,
-            &entry.item_id,
+            delivered,
             quantity,
-            total,
+            outcome.cash_spent,
         );
-        self.remember_cash_purchase(&id, &sn, quantity);
         self.send_cash_buy_result(
             &id,
             &request_id,
-            true,
-            "",
+            outcome.success,
+            &outcome.code,
             &sn,
-            &entry.item_id,
+            delivered,
             quantity,
-            total,
+            outcome.cash_spent,
         );
     }
 

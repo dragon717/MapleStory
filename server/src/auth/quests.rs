@@ -27,6 +27,59 @@ impl Store {
         Ok(quests)
     }
 
+    /// Load the per-quest kill counters (`quest_id -> mob template id -> kills`).
+    /// These are the only authoritative source for a kill objective's progress;
+    /// the World mirrors them and never invents a count of its own.
+    pub fn load_quest_kills(
+        &self,
+        account_id: &str,
+    ) -> Result<BTreeMap<String, BTreeMap<String, u32>>, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let mut stmt = db
+            .prepare("SELECT quest_id,mob_id,kill_count FROM quest_kills WHERE account_id=?1")
+            .map_err(|_| "account persistence failed")?;
+        let rows = stmt
+            .query_map(params![account_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(|_| "account persistence failed")?;
+        let mut kills: BTreeMap<String, BTreeMap<String, u32>> = BTreeMap::new();
+        for row in rows {
+            let (quest_id, mob_id, count) = row.map_err(|_| "account persistence failed")?;
+            if count <= 0 {
+                continue;
+            }
+            kills
+                .entry(quest_id)
+                .or_default()
+                .insert(mob_id, u32::try_from(count).unwrap_or(u32::MAX));
+        }
+        Ok(kills)
+    }
+
+    /// Seed one kill counter for existing store-level fixtures.
+    #[cfg(test)]
+    pub fn save_quest_kill(
+        &self,
+        account_id: &str,
+        quest_id: &str,
+        mob_id: &str,
+        count: u32,
+    ) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "INSERT INTO quest_kills(account_id,quest_id,mob_id,kill_count) VALUES(?1,?2,?3,?4)
+             ON CONFLICT(account_id,quest_id,mob_id) DO UPDATE SET kill_count=?4",
+            params![account_id, quest_id, mob_id, i64::from(count)],
+        )
+        .map_err(|_| "account persistence failed")?;
+        Ok(())
+    }
+
     /// Upsert one quest status row for existing store-level fixtures.
     #[cfg(test)]
     pub fn save_quest(&self, account_id: &str, quest_id: &str, status: &str) -> Result<(), String> {

@@ -85,6 +85,7 @@ function setPlayLayout(playing: boolean) {
 let muted = false;
 let generation = 0;
 let portalSequence = 0;
+let questSequence = 0;
 let skillRequestSequence = 0;
 let selfState: PlayerState | undefined;
 function status(message: string, error = false) {
@@ -303,6 +304,15 @@ async function enterGame(session: LoginResponse) {
     miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
+    // 源自助任务（QuestInfo selfStart/selfComplete）没有 NPC，入口就在任务视窗；
+    // 这里只发意图，服务端仍会重跑全部原作门控。
+    questLog.onService = (questId, action) => {
+      input?.reset();
+      const requestId = `quest-${Date.now()}-${++questSequence}`;
+      if (!connection?.send({ type: 'questService', requestId, questId, action })) {
+        status(uiLocale() === 'en' ? 'Reconnect before acting on quests.' : '请重新连接后再操作任务。', true);
+      }
+    };
     skills?.destroy();
     skills = new SkillView(el('ui-windows'), manifest, {
       send: message => connection?.send(message) ?? false,

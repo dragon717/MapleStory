@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 21;
+pub const PROTOCOL_VERSION: u32 = 22;
 pub const CONTENT_VERSION: &str = "tms273-23";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -252,6 +252,17 @@ pub enum ClientMessage {
         request_id: String,
         #[serde(rename = "questId")]
         quest_id: String,
+    },
+    /// Accept or hand in a quest from the quest window.  Only the quests whose
+    /// source marks the phase self-service (no start/complete NPC) accept this
+    /// entry point; the server decides that from its own quest catalog, never
+    /// from this message.
+    QuestService {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "questId")]
+        quest_id: String,
+        action: String,
     },
     NpcTalk {
         #[serde(rename = "requestId")]
@@ -651,6 +662,15 @@ impl ClientMessage {
                 request_id,
                 quest_id,
             } => valid_id(request_id) && valid_id(quest_id),
+            Self::QuestService {
+                request_id,
+                quest_id,
+                action,
+            } => {
+                valid_id(request_id)
+                    && valid_id(quest_id)
+                    && (action == "start" || action == "complete")
+            }
             Self::NpcTalk {
                 request_id,
                 npc_id,

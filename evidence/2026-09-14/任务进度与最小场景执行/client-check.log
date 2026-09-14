@@ -1,0 +1,197 @@
+
+> maplestory-client@0.11.0 check
+> node scripts/run-checks.mjs
+
+
+=== node --experimental-strip-types src/features/player/animation.check.ts ===
+Animation delay boundaries and non-looping attacks passed.
+Repeated and stale action acknowledgements do not replay sound.
+
+=== node --experimental-strip-types src/scenes/layer-animation.check.ts ===
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/client/src/features/windbell/maps' imported from /Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/client/src/assets/manifest.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:861:10)
+    at defaultResolve (node:internal/modules/esm/resolve:985:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:731:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:708:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:310:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///Users/muniao/Library/Mobile%20Documents/com%7Eapple%7ECloudDocs/%E6%B8%B8%E6%88%8F/github/MapleStory/client/src/features/windbell/maps'
+}
+
+Node.js v22.22.2
+
+=== node --experimental-transform-types src/features/hud/gauge.check.ts ===
+TMS273 gauge checks passed
+(node:14446) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+=== node --experimental-strip-types src/app/i18n.check.ts ===
+Default Simplified Chinese, saved language and source text conversion passed.
+
+=== node src/assets/preload-plan.check.mjs ===
+assets preload-plan: order-preserving dedup images, ordered audio with bgm cache-flag passed.
+
+=== node src/features/windbell/runtime.check.mjs ===
+Windbell 2D: original frame timing/origins, preload files, authoritative bridge/fire/wing/cart states and cleanup passed.
+
+=== node src/app/page-shell.check.mjs ===
+app page-shell: template ids, language switch, news dialog, play layout toggling passed.
+
+=== node src/features/ui/window-shell.check.mjs ===
+PASS: window drag gates, activation distance, de-centring, clamping, capture, dispose and button states.
+
+=== node src/features/hud/buff.check.mjs ===
+PASS: buff plate 9-slice, durable rows by skill id, second readout, expiry, clear and destroy.
+
+=== node src/features/player/input.check.mjs ===
+PASS: immediate pickup, 200 ms repeats, fresh targets, and all stop conditions.
+
+=== node src/features/world/minimap.check.mjs ===
+minimap.check.mjs: 6 scenarios passed
+
+=== node src/features/world/worldmap.check.mjs ===
+worldmap.check.mjs: 10 checks passed
+
+=== node src/features/inventory/view-model.check.mjs ===
+inventory view-model: tab mapping, slot lookups, signature stability passed.
+
+=== node src/features/inventory/intents.check.mjs ===
+inventory intents: message shapes, inventoryType pinning, practice gates, prompt flow, pending lifecycle passed.
+
+=== node src/features/inventory/tooltip-view.check.mjs ===
+inventory tooltip-view: show/hide, hover keep-alive, timer hygiene, refresh裁决 passed.
+
+=== node src/features/inventory/drag-controller.check.mjs ===
+inventory drag-controller: intent routing, scroll-target gates, document drop-out, destroy cleanup passed.
+
+=== node src/features/inventory/equipment-view.check.mjs ===
+inventory equipment-view: window build, open/close sync, render states, slot click branches, close request passed.
+
+=== node src/network/session.check.mjs ===
+network session: reconnect scheduling, terminal codes and active-close semantics passed.
+
+=== node src/features/npc/dialogue.check.mjs ===
+NPC modal lifecycle: Escape, repeat close, shop, disconnect and teardown passed.
+NPC shop sell panel: zero-payout filter, WZ category mapping and snapshot gating passed.
+NPC sell quantity confirm: partial-stack dialog, clamped count and Escape scoping passed.
+
+=== node src/features/skills/view.check.mjs ===
+PASS: source text plus book-200 SP, learning gates, unique intents, live-mage casting, and wave direction.
+PASS: third-job book/SP gates, hidden node, cooldown feedback, toggles and shortcut direction.
+PASS: fourth book gates, fixed/passive skills, hold and cooldown feedback, matching release.
+PASS: beginner skill window hides every magician book; magician keeps them.
+
+=== node src/features/npc/view.check.mjs ===
+PASS: NPC marker eligibility, source timing/origin, sprite reuse and cleanup.
+
+=== node src/features/combat/skill.check.mjs ===
+PASS: zero-duration skill VFX, event deduplication, source timing, and clear.
+PASS: ice field source tiles, deduplication, loop and server lifetime.
+PASS: summon late join, conversion reuse, map removal, expiry and disconnect.
+PASS: beginner projectile/hit use the authoritative skill level and clear safely.
+PASS: fourth hold layers, stale/current release, observer recovery, Infinity cleanup and tile variants.
+
+=== node src/features/character/view.check.mjs ===
+PASS: character info fields, C/Escape lifecycle, disconnect clear, focus-safe input, and teardown.
+
+=== node src/features/loading/view.check.mjs ===
+PASS: loading overlay mounts, parses status stages, honours hide(), and preserves sibling DOM.
+
+=== node src/features/player/levelup.check.mjs ===
+Level-up source timing, following, replay protection, initial/rejoin baseline and cleanup passed.
+
+=== node src/features/world/water.check.mjs ===
+PASS: planar water surface propagates, decays and stays bounded; drops float at the authored draft.
+
+=== node src/features/world/reactor.check.mjs ===
+reactor.check.mjs: 8 scenarios passed
+
+=== node scripts/refactor_audit.cjs --deps --check (repo root) ===
+[deps] 105 节点 / 219 边 ({"value":127,"dynamic":1,"type":75,"side-effect":16}) -> artifacts/refactor/frontend-deps.json (commit=fa9f6e2ef480 dirty=true)
+[deps] unresolved=0 runtime_cycles=0 type_cycles=0 violations=0
+
+[check] OK：无未登记违规（known-debt 0 项，见 artifacts/refactor/debt-register.json）。
+PASS repository layout: root ownership, current entry points, indexes, no duplicate client builds
+{
+  "remaster": 55,
+  "checked": 55,
+  "executable": [
+    "36315",
+    "36316",
+    "36332"
+  ],
+  "blocked": {
+    "other-job-route": 6,
+    "script-counter": 10,
+    "missing-region": 34,
+    "missing-start-npc": 30,
+    "missing-complete-npc": 35,
+    "missing-map": 2,
+    "job-route-unmapped": 30,
+    "script-scene": 22,
+    "kill-target-missing": 6,
+    "script-item-source": 6,
+    "dev-quest": 2
+  },
+  "implementedUntouched": 15
+}
+/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:393
+  if (result.error || result.status !== 0) throw new Error('无法检查 macOS 进程表，拒绝切换');
+                                           ^
+
+Error: 无法检查 macOS 进程表，拒绝切换
+    at processReference (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:393:50)
+    at runningReference (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:420:19)
+    at assertNoRunningReferences (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:425:21)
+    at /Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:508:5
+    at withLock (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:84:16)
+    at activate (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.cjs:506:10)
+    at main (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.check.cjs:70:7)
+    at Object.<anonymous> (/Users/muniao/Library/Mobile Documents/com~apple~CloudDocs/游戏/github/MapleStory/scripts/build-release.check.cjs:209:1)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Object..js (node:internal/modules/cjs/loader:1838:10)
+
+Node.js v22.22.2
+PASS package rotation: newest two, invalid candidate preserves both
+
+=== check summary: 30/32 passed ===
+  PASS  node --experimental-strip-types src/features/player/animation.check.ts
+  FAIL  node --experimental-strip-types src/scenes/layer-animation.check.ts
+  PASS  node --experimental-transform-types src/features/hud/gauge.check.ts
+  PASS  node --experimental-strip-types src/app/i18n.check.ts
+  PASS  node src/assets/preload-plan.check.mjs
+  PASS  node src/features/windbell/runtime.check.mjs
+  PASS  node src/app/page-shell.check.mjs
+  PASS  node src/features/ui/window-shell.check.mjs
+  PASS  node src/features/hud/buff.check.mjs
+  PASS  node src/features/player/input.check.mjs
+  PASS  node src/features/world/minimap.check.mjs
+  PASS  node src/features/world/worldmap.check.mjs
+  PASS  node src/features/inventory/view-model.check.mjs
+  PASS  node src/features/inventory/intents.check.mjs
+  PASS  node src/features/inventory/tooltip-view.check.mjs
+  PASS  node src/features/inventory/drag-controller.check.mjs
+  PASS  node src/features/inventory/equipment-view.check.mjs
+  PASS  node src/network/session.check.mjs
+  PASS  node src/features/npc/dialogue.check.mjs
+  PASS  node src/features/skills/view.check.mjs
+  PASS  node src/features/npc/view.check.mjs
+  PASS  node src/features/combat/skill.check.mjs
+  PASS  node src/features/character/view.check.mjs
+  PASS  node src/features/loading/view.check.mjs
+  PASS  node src/features/player/levelup.check.mjs
+  PASS  node src/features/world/water.check.mjs
+  PASS  node src/features/world/reactor.check.mjs
+  PASS  node scripts/refactor_audit.cjs --deps --check (repo root)
+  PASS  check_repository_layout.cjs
+  PASS  check_tms273_remaster.cjs
+  FAIL  build-release.check.cjs
+  PASS  publish-package.check.cjs
+
+check failed: 2 item(s) failed (see output above).

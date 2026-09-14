@@ -476,7 +476,26 @@ def convert(args):
     visible_npcs = [(m, e) for m, e in visible_life if e.get("type") == "n"]
     # P practice-only Boss template: never add it to authored Map.life.
     practice_boss = "3220000"
-    raw_mob_ids = sorted({str(e.get("id", "")) for _, e in visible_mobs} | {practice_boss})
+    # P 楓之島災禍篇 36315「奧莉維亞的特別修練」: the quest's kill counter is源核定
+    # 的 8645261 藍色蘑菇王 (references/tms273-data/maple-island-calamity-source.json),
+    # but the original practice map (993166xxx) is not decodable locally, so the
+    # template has no authored Map.life row either.  Generate it exactly like the
+    # practice Boss and leave placement to scripts/tms273_calamity.cjs (P).
+    # 8645262/8645264 (36319/36322) are deliberately absent: those quests have no
+    # source `selfComplete`, so placing their target would not make them playable.
+    calamity_templates = {"8645261"}
+    # P-only templates whose client Mob image ships no `info/exp` at all.  A
+    # quest-exclusive mob simply has no authored EXP, so the template keeps 0
+    # instead of inventing a curve value; every other monster must still carry a
+    # real `exp` or the stats contract below fails.  Verified for 8645261 through
+    # the same WZ reader the export uses: Mob/8645261.img has info/level, maxHP
+    # and speed, but `info/exp` does not exist.
+    exp_less_templates = {"8645261"}
+    raw_mob_ids = sorted(
+        {str(e.get("id", "")) for _, e in visible_mobs}
+        | {practice_boss}
+        | calamity_templates
+    )
     raw_npc_ids = sorted({str(e.get("id", "")) for _, e in visible_npcs})
     if not all(raw_mob_ids) or not all(raw_npc_ids):
         raise ValueError("visible TMS273 life entry is missing id")
@@ -575,6 +594,8 @@ def convert(args):
         level = number(info.get("level"), integer=True)
         max_hp = number(info.get("maxHP"), integer=True)
         exp = number(info.get("exp"), integer=True)
+        if exp is None and runtime in exp_less_templates:
+            exp = 0
         if level is None or level <= 0 or max_hp is None or max_hp <= 0 or exp is None or exp < 0:
             raise ValueError("incomplete TMS273 monster stats in %s" % mob_path)
         template = {
@@ -863,6 +884,7 @@ def convert(args):
         "TMS273 QuestData (including the 36301-36307 adventure sequence when present) has no activated server scripts; transitions/rewards remain empty and quest-text is display-only.",
         "TMS273 NPC dialogue/script references are not converted; shop NPCs use the current runtime's direct Act shop route and no Say text is invented.",
         "Player initial HP/attributes were not found in the selected TMS273 map/entity inputs; empty player config preserves current engine compatibility defaults.",
+        "P: 8645261 藍色蘑菇王 (楓之島災禍篇 36315's verified kill target) has no authored `info/exp` in the client Mob image, so its template carries exp 0 rather than an invented value. Placement is the P scene execution in scripts/tms273_calamity.cjs.",
     ])
     gameplay = {
         "sourceContentVersion": "TMS273-273",

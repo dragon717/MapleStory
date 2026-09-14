@@ -231,6 +231,19 @@ impl World {
                     },
                     None => BTreeMap::new(),
                 };
+                // Kill progress is loaded with the status map: a reconnect must
+                // never show a hunter their kills reset to zero.
+                let quest_kills = match self.store.as_ref() {
+                    Some(store) => match store.load_quest_kills(&identity.id) {
+                        Ok(kills) => kills,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
+                    None => BTreeMap::new(),
+                };
                 let adaptation_cooldown_ms = match self.store.as_ref() {
                     Some(store) => {
                         match store.skill_cooldown_remaining_ms(&id, SKILL_ELEMENTAL_ADAPTING) {
@@ -445,6 +458,7 @@ impl World {
                         mystic_strike_stacks: 0,
                         mystic_strike_until: 0,
                         quests,
+                        quest_kills,
                         lang: crate::quest_text::normalize_lang(Some(&lang)),
                         chat_tokens: messaging::CHAT_TOKEN_BURST,
                         chat_bucket_tick: self.tick,
@@ -780,6 +794,11 @@ impl World {
                         request_id,
                         quest_id,
                     } => self.handle_quest_interact(id, request_id, quest_id),
+                    ClientMessage::QuestService {
+                        request_id,
+                        quest_id,
+                        action,
+                    } => self.handle_quest_service(id, request_id, quest_id, action),
                     ClientMessage::NpcTalk {
                         request_id,
                         npc_id,

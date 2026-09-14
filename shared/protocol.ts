@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 export const CONTENT_VERSION = 'tms273-23';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -217,6 +217,10 @@ export type ClientMessage =
   | { type: 'useItem'; requestId: string; inventoryType: number; sourceSlot: number; itemId: string; targetSlot?: number; targetItemId?: string }
   | { type: 'dropMesos'; requestId: string; quantity: number }
   | { type: 'questInteract'; requestId: string; questId: string }
+  /** Accept/hand in a self-service quest from the quest window.  `action` is
+   *  the only client input; every condition and the self-service flag are
+   *  re-read from the server's own quest catalog. */
+  | { type: 'questService'; requestId: string; questId: string; action: 'start' | 'complete' }
   | { type: 'npcTalk'; requestId: string; npcId: string; step?: 'start' | 'next' | 'prev' | 'yes' | 'no' | 'select' | 'end'; selection?: number }
   | { type: 'shopBuy'; requestId: string; shopId: string; itemId: string; quantity: number }
   /** Intent to sell one inventory stack back to an NPC shop. The client names
@@ -299,6 +303,10 @@ export interface QuestLogEntry {
   status: 'available' | 'active' | 'objectivesComplete' | 'completed';
   summary: string;
   objectives?: { text: string; current: number; required: number }[];
+  /** Source `QuestInfo/selfStart` / `selfComplete`: the quest window is this
+   *  phase's real entrance because the source ships no NPC for it.  The client
+   *  only offers the matching control and never decides the transition. */
+  selfStart?: boolean; selfComplete?: boolean;
   targetMapId?: string; targetNpcId?: string; nextAction?: string; blockReason?: string;
 }
 export interface QuestRewardInfo {

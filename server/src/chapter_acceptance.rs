@@ -183,7 +183,12 @@ fn tms273_chapter_first_six_acceptance() {
     chapter_drain(&mut rx);
     assert_eq!(world.players[account].map_id, "001020000");
     let exp_before = world.players[account].state.exp;
-    assert!(!world.apply_quest_effect_at(account, npc::QuestEffect::Complete("36307".into()), Some("1541002"), None));
+    assert!(!world.apply_quest_effect_at(
+        account,
+        npc::QuestEffect::Complete("36307".into()),
+        quest::QuestOrigin::Npc("1541002"),
+        None
+    ));
     chapter_drain(&mut rx);
     assert_eq!(world.players[account].state.exp, exp_before);
     assert!(store.load_quests(account).unwrap().values().all(|status| status == "completed"));
@@ -196,7 +201,12 @@ fn tms273_chapter_first_six_acceptance() {
     chapter_place(&mut guard_world, guard, "000010000", -432.0, 646.0);
     guard_world.handle_quest_interact(guard.into(), "unaccepted".into(), "36301".into());
     assert_eq!(chapter_rejection(&mut guard_rx), "quest_interaction_unavailable");
-    assert!(guard_world.apply_quest_effect_at(guard, npc::QuestEffect::Start("36301".into()), Some("1541000"), None));
+    assert!(guard_world.apply_quest_effect_at(
+        guard,
+        npc::QuestEffect::Start("36301".into()),
+        quest::QuestOrigin::Npc("1541000"),
+        None
+    ));
     chapter_drain(&mut guard_rx);
     chapter_place(&mut guard_world, guard, "000010000", -590.0, 245.0);
     guard_world.handle_npc_talk(guard.into(), "remote-open".into(), "000010000-life-1".into(), None, None);

@@ -18,6 +18,15 @@ for(const id of mobIds) {
   const link=json.info?.link?._value;
   if(link)mobIds.add(String(link).padStart(7,'0'));
 }
+// P-only monster templates have no map life row either, so they never enter
+// `mobIds` above.  They still need a real WZ image: `export_tms273.cjs` resolves
+// every mob through the shared `resources/tms273-export/ms` dump, which is what
+// this unpacker writes.  8645261 藍色蘑菇王 is 36315's verified kill target
+// (placed by scripts/tms273_calamity.cjs); without its image the entities export
+// aborts with "找不到 273 WZ 节点: Mob/8645261.img".
+// 3220000 is unpacked separately to its own scratch root below, because the
+// practice Boss was only ever dumped through that route.
+for(const id of ['8645261']) mobIds.add(id.padStart(7,'0'));
 run(path.join(require('node:os').homedir(),'.cargo/bin/cargo'),['run','--quiet','--manifest-path','scripts/unpack_tms273_ms/Cargo.toml','--',...[...mobIds].flatMap(id=>['--image',`Mob/${id}.img`])]);
 // The first Victoria Boss (3220000 菇菇王) is not placed in any map life record,
 // so it never enters `mobIds`.  `export_tms273.cjs` reads it through a second

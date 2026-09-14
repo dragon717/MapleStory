@@ -1034,11 +1034,15 @@ struct QuestPhase {
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct QuestObjective {
-    // Current objectives all use item counts; retain the source discriminator.
+    /// Source discriminator: `collect` / `equip` count inventory facts,
+    /// `kill` counts server-confirmed kills of `mob_id`.
     #[serde(default, rename = "kind", alias = "type")]
     _kind: String,
     #[serde(default)]
     item_id: String,
+    /// `kill` objectives name the monster *template* whose kills are counted.
+    #[serde(default)]
+    mob_id: String,
     #[serde(default)]
     required: u32,
     /// The generator may provide a localized object; keep it as JSON so the
@@ -1075,6 +1079,14 @@ struct QuestSpec {
     executable: Option<bool>,
     #[serde(default)]
     quest_id: String,
+    /// Source `QuestInfo/selfStart`: the quest is accepted from the quest
+    /// window because the source ships no start NPC (`Check/0/npc` absent).
+    #[serde(default)]
+    self_start: bool,
+    /// Source `QuestInfo/selfComplete`: the quest is handed in from the quest
+    /// window because the source ships no completion NPC.
+    #[serde(default)]
+    self_complete: bool,
     #[serde(default)]
     reward: QuestReward,
     #[serde(default)]
@@ -1503,6 +1515,12 @@ struct Player {
     /// quest id -> "active" | "completed".  Authored quest dialog branches on
     /// these rows and the complete effect grants the configured reward.
     quests: BTreeMap<String, String>,
+    /// Quest kill progress: quest id -> monster template id -> confirmed kills.
+    /// Only the store's `quest_kills` rows are authoritative; this is the
+    /// in-memory mirror the world renders and checks a kill objective against.
+    /// A kill is counted only while its quest is active and only for the
+    /// account whose attack landed it (see `Store::resolve_attack_with_party`).
+    quest_kills: BTreeMap<String, BTreeMap<String, u32>>,
     /// Display language for server-pushed quest text (see quest_text::LANG_*).
     lang: &'static str,
     /// Per-item consumable cooldowns: item id -> tick at which the item may be

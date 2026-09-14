@@ -76,8 +76,10 @@ for(const mob of gameplay.monsters) {
   };
   const deployed=new Set(gameplay.spawns.map(spawn=>spawn.templateId));
   // 17 species before the 2026-09-13 portal-closure maps; the 弓箭手村东/墮落
-  // 城市西/礦山 route rooms deployed nine more field species.
-  assert.equal(deployed.size,26,'the deployed monster surface changed');
+  // 城市西/礦山 route rooms deployed nine more field species.  The 2026-09-14
+  // 楓之島災禍篇 scene execution added 8645261 藍色蘑菇王 (36315's verified kill
+  // target) on 001010000, taking the surface to 27.
+  assert.equal(deployed.size,27,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -344,6 +346,37 @@ for(const map of catalog.maps) {
   assert.equal(byId.get('130000200').portals.find(p=>p.name==='in00').targetMapId,'130000210','耶雷弗前庭 in00 must face the dock');
   assert.equal(byId.get('310000010').portals.find(p=>p.name==='out00').targetMapId,'310000000','埃德爾斯坦码头 out00 must enter the town');
 }
+// 楓之島災禍篇 36315 的最小场景执行（P，2026-09-14，适配器 scripts/tms273_calamity.cjs）。
+// 36315 的完成是一次**已核定的击杀**（源 QuestInfo「擊殺藍色蘑菇王」+ Check.1.infoex
+// kill），可它的原版修練图 993166xxx 几何本地不可解，所以目标怪 8645261 在源 Map.life
+// 里没有行；没有可击杀目标，任务规格再完整也永远完不成（审计 C02）。适配器把该模板显式
+// 放到从出生图可达的 001010000，地形复用该图已有刷怪锚点。这里校验装配后的实际面：
+// 台账→模板→刷怪→地形锚点→任务目标五者必须逐项对得上，P 内容不许悄悄长出来。
+{
+  const ledger=gameplay.compatibility.mapleIslandCalamity;
+  assert(ledger&&ledger.placements.length,'calamity placement ledger is missing');
+  const record=read('references/tms273-data/maple-island-calamity-source.json');
+  const mapById=new Map(catalog.maps.map(map=>[String(map.id),map]));
+  for(const placement of ledger.placements){
+    const template=gameplay.monsters.find(mob=>String(mob.templateId)===placement.mobId);
+    assert(template,`calamity monster template ${placement.mobId} was not assembled`);
+    const spawnId=`${placement.mapId}-calamity-${placement.mobId}`;
+    const spawn=gameplay.spawns.find(entry=>entry.id===spawnId);
+    assert(spawn&&spawn.mapId===placement.mapId,`calamity spawn ${spawnId} is missing`);
+    const map=mapById.get(String(placement.mapId));
+    assert(map,`calamity map ${placement.mapId} is not assembled`);
+    const foothold=map.footholds.find(line=>Number(line.id)===Number(spawn.footholdId));
+    assert(foothold,`calamity spawn ${spawnId} has no assembled foothold to land on`);
+    const low=Math.min(foothold.x1,foothold.x2),high=Math.max(foothold.x1,foothold.x2);
+    assert(spawn.x>=low&&spawn.x<=high,`calamity spawn ${spawnId} x=${spawn.x} is off foothold ${foothold.id} (${low}..${high})`);
+    // 只有已核定击杀目标才能被放置，且该任务必须真的可执行、真的带类型化击杀目标。
+    const quest=record.quests.find(entry=>String(entry.id)===placement.questId);
+    assert(quest&&quest.classification.kill&&String(quest.classification.kill.mobId)===placement.mobId,`calamity placement ${placement.questId} is not backed by the source record`);
+    const runtimeQuest=gameplay.quests.find(entry=>String(entry.questId)===placement.questId);
+    assert(runtimeQuest&&runtimeQuest.executable,`calamity quest ${placement.questId} must be executable`);
+    assert(runtimeQuest.objectives.some(objective=>objective.kind==='kill'&&String(objective.mobId)===placement.mobId&&Number(objective.required)>0),`calamity quest ${placement.questId} must carry a typed kill objective`);
+  }
+}
 for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
 for(const shop of gameplay.shops)for(const entry of shop.items)assert(manifest.items[entry.itemId],entry.itemId);
@@ -354,13 +387,15 @@ const sourceQuests=read('references/tms273-data/quests.json').quests;
 // contract and must be bumped with it, or the launcher's precheck stops here.
 assert.equal(sourceQuests.length,70);
 assert(sourceQuests.some(q=>q.id==='1402' && !q.executable));
-// 15 是开场六项 + 续章九项；后续章节适配器再补 36316 / 36332 两条源可判定
-// 任务。数量变化必须来自源适配器的显式改动，不能靠手改 JSON。
-assert.equal(gameplay.quests.filter(q=>q.executable).length,17);
+// 15 是开场六项 + 续章九项。后续章节适配器再补三条源可判定任务：36316 / 36332
+// （续章与重制）以及 36315（災禍篇首条——它的击杀目标 8645261 由 P 场景执行放进
+// 世界后，kill-target-missing 才解除，见上面的災禍篇断言）。数量变化必须来自源
+// 适配器的显式改动，不能靠手改 JSON。
+assert.equal(gameplay.quests.filter(q=>q.executable).length,18);
 {
   const remaster = gameplay.quests.filter(q=>q.ruleVersion==='tms273-remaster-p1');
   assert.equal(remaster.length,55);
-  assert.deepEqual(remaster.filter(q=>q.executable).map(q=>q.questId),['36316','36332']);
+  assert.deepEqual(remaster.filter(q=>q.executable).map(q=>q.questId),['36315','36316','36332']);
   for(const quest of remaster) if(!quest.executable) assert(quest.blockedBy.length>0,`${quest.questId} must record a block reason`);
   assert(gameplay.compatibility.adventurerRemaster.unknown.startsWith('q36315'));
 }

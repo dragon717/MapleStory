@@ -286,6 +286,11 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .quest-log-completed{opacity:.72}
 .quest-log-completed .quest-log-status{color:#3e6b38;background:#dceacd;border-color:#7fa564}
 .quest-log-row p{margin:3px 0 0;color:#4b4b4b;font:11px/1.6 Verdana,"Microsoft YaHei",sans-serif;white-space:pre-line}
+/* 源自助阶段（QuestInfo selfStart/selfComplete）没有 NPC，任务视窗就是入口。 */
+.quest-log-action{margin:5px 0 0;padding:3px 12px;border:1px solid #cfa13c;border-radius:3px;background:linear-gradient(#ffe9a8,#f4cd6b);color:#4a3708;font:700 11px/1.5 Verdana,"Microsoft YaHei",sans-serif;cursor:pointer}
+.quest-log-action:hover{background:linear-gradient(#fff2c4,#f7d886)}
+.quest-log-action:active{background:linear-gradient(#efd08b,#e0b955)}
+.quest-log-action:focus-visible{outline:2px solid #efc269;outline-offset:1px}
 .quest-log-empty{color:#7a7157;font:11px/1.7 Verdana,"Microsoft YaHei",sans-serif;text-align:center;margin:12px 6px}
 .quest-log-close{position:absolute;right:8px;top:6px;z-index:2;width:22px;height:20px;padding:0;border:0;background:transparent;color:#5a4a23;font:700 13px/18px Verdana,sans-serif;cursor:pointer;line-height:1}
 .quest-log-close:focus-visible{outline:2px solid #efc269;outline-offset:1px}

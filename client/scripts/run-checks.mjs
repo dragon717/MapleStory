@@ -42,6 +42,7 @@ const checks = [
   ['features/player/levelup.check.mjs', []],
   ['features/world/water.check.mjs', []],
   ['features/world/reactor.check.mjs', []],
+  ['features/quest/log.check.mjs', []],
 ];
 
 const results = [];

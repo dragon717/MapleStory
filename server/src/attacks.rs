@@ -171,6 +171,14 @@ impl World {
             } else {
                 Vec::new()
             };
+            // Quest kill objectives that this kill advances, resolved against
+            // the *active* status map before the transaction runs: a kill made
+            // before accepting, or after handing in, contributes nothing.
+            let quest_kills = if killed && !practice {
+                self.active_kill_objectives(&attack.player_id, &target_template.template_id)
+            } else {
+                Vec::new()
+            };
             let eligible_accounts: Vec<String> = self.players.keys().cloned().collect();
             let resolution = match self.store.as_ref() {
                 Some(store) => store.resolve_attack_with_party(
@@ -186,6 +194,7 @@ impl World {
                     &self.gameplay.exp_table,
                     &eligible_accounts,
                     &self.party_exp_members(&attack.player_id),
+                    &quest_kills,
                 ),
                 None => Ok(auth::AttackResolution {
                     already_resolved: false,
@@ -219,6 +228,7 @@ impl World {
             if resolution.already_resolved {
                 continue;
             }
+            let quest_credit = resolution.killed;
             if resolution.damage > 0 {
                 if let Some(target_id) = resolution.target_id.as_deref() {
                     self.advance_mystic_strike(&attack.player_id, &attack.request_id, target_id);
@@ -329,6 +339,9 @@ impl World {
                 self.drop_owners
                     .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
                 self.drop_maps.insert(drop_id.clone(), map_id.clone());
+            }
+            if quest_credit {
+                self.apply_quest_kill_credit(&attack.player_id, &quest_kills);
             }
         }
     }

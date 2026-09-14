@@ -1,0 +1,13 @@
+# cargo test --offline --manifest-path server/Cargo.toml  (full suite)
+
+running 393 tests
+failures:
+failures:
+    auth::tests::third_store_book_split_and_222_compatibility
+    mage::tests::bundled_catalog_is_strict_and_has_energy_bolt_geometry
+    world::tests::config_drop_and_exp_are_authoritative_without_client_values
+    world::tests::portal_command_changes_map_and_snapshot_scope
+    world::tests::reactor_area_herb_auto_triggers_once_per_entry_and_can_trigger_again_after_exit
+    world::tests::shop_sell_uses_the_source_auto_price_for_etc_drops
+    world::tests::third_sphere_and_adaptation_are_idempotent_and_bounded
+test result: FAILED. 386 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.71s

@@ -365,7 +365,11 @@ async function exportEntities() {
     // visibility remains in the map life record; dropping hidden templates
     // here would make legitimate server-side interactions impossible to load.
     const idsSet=new Set(maps.flatMap(m=>m.life.filter(l=>l.type===kind).map(l=>String(Number(l.id)))));
-    if(kind==='m') idsSet.add('3220000');
+    // P practice-only Boss template, plus 36315's 核定击杀目标 8645261 藍色蘑菇王:
+    // neither has an authored Map.life row (the source practice map 993166xxx is
+    // not decodable locally), so they are exported explicitly.  See
+    // scripts/tms273_calamity.cjs for the placement decision.
+    if(kind==='m') for(const extra of ['3220000','8645261']) idsSet.add(extra);
     const ids=[...idsSet].sort((a,b)=>Number(a)-Number(b));
     for(const id of ids) {
       const source=`${folder}/${id.padStart(7,'0')}.img`;

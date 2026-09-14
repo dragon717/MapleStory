@@ -173,6 +173,11 @@ for(const id of Object.keys(items))assert(manifest.items[id],`Item image export 
   Object.assign(gameplay.player,{attackAfterMs:extra.attack.hitAtMs,attackLt:extra.attack.hitbox.lt,attackRb:extra.attack.hitbox.rb});
   if(extra.expTable?.length)gameplay.expTable=extra.expTable;
 }
+// 楓之島災禍篇 36315 的最小场景执行：把已核定的击杀目标 8645261 放到一张已装配
+// 且从出生图可达的地图上（P，依据与边界见 scripts/tms273_calamity.cjs）。
+// 必须早于下面的怪物收尾循环，让新模板一并补齐 maxMp/boss/mdRate。
+const calamity = require('./tms273_calamity.cjs').applyCalamity(gameplay, manifest);
+assert.equal(calamity.placed, 1, '災禍篇场景执行数量与来源记录不一致');
 // Preserve same-version monster MP, boss flags and magic defense.
 for (const monster of gameplay.monsters) {
   const raw = JSON.parse(fs.readFileSync(path.join(root, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Mob', monster.templateId.padStart(7, '0') + '.json'), 'utf8')).info;

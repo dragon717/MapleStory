@@ -103,12 +103,29 @@ impl Store {
                PRIMARY KEY(account_id,seq)
              );
              -- 現金商店限购预算（Commodity.img `Limit`）。units 累计的是已
-             -- 购买次数，购买结算与校验见 `cashshop.rs`。
+             -- 购买次数，购买结算与校验见 `crate::auth::cash`。
              CREATE TABLE IF NOT EXISTS cash_purchases(
                account_id TEXT NOT NULL,
                sn TEXT NOT NULL,
                units INTEGER NOT NULL DEFAULT 0,
                PRIMARY KEY(account_id,sn)
+             );
+             -- 現金商店购买的持久请求回执。一行 = 一次已提交（或已裁决拒绝）
+             -- 的购买，`sn`+`quantity` 是请求指纹：同一 requestId 重放原结果，
+             -- 指纹不同则拒绝。`cash_after`/`purchased_units` 让回执在内存丢失
+             -- 或进程重启后仍能原样重放，不必重新抽取或再次扣款。
+             CREATE TABLE IF NOT EXISTS cash_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               sn TEXT NOT NULL,
+               item_id TEXT NOT NULL,
+               quantity INTEGER NOT NULL,
+               cash_spent INTEGER NOT NULL,
+               cash_after INTEGER NOT NULL,
+               purchased_units INTEGER NOT NULL,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
              );
              CREATE TABLE IF NOT EXISTS storage_mesos_actions(
                account_id TEXT NOT NULL,
@@ -212,6 +229,17 @@ impl Store {
                quest_id TEXT NOT NULL,
                status TEXT NOT NULL,
                PRIMARY KEY(account_id,quest_id)
+             );
+             -- 任务击杀进度：一条 (账号,任务,怪物模板) 一行。计数只在击杀
+             -- 结算事务里 +1，且只在 monster_rewards 判定本次击杀“首次发奖”
+             -- (practice=0) 时执行，所以重复的死亡消息不会重复计数。表与
+             -- player_quests 分开，既有存档无需列迁移。
+             CREATE TABLE IF NOT EXISTS quest_kills(
+               account_id TEXT NOT NULL,
+               quest_id TEXT NOT NULL,
+               mob_id TEXT NOT NULL,
+               kill_count INTEGER NOT NULL DEFAULT 0,
+               PRIMARY KEY(account_id,quest_id,mob_id)
              );
              CREATE TABLE IF NOT EXISTS windbell_bridge_state(
                world_id TEXT PRIMARY KEY,

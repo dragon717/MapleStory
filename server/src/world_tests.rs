@@ -3872,6 +3872,8 @@ include!("windbell_acceptance.rs");
 
     include!("chapter_acceptance.rs");
     include!("continuation_acceptance.rs");
+    include!("quest_service_acceptance.rs");
+    include!("content_boot_acceptance.rs");
     include!("third_acceptance.rs");
     include!("boss_acceptance.rs");
     include!("hyper_acceptance.rs");

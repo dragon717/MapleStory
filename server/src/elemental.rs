@@ -1251,6 +1251,13 @@ impl World {
         } else {
             Vec::new()
         };
+        // Same kill-objective rule as a normal attack: only an active quest can
+        // be advanced, and only by the kill that claims the monster's reward.
+        let quest_kills = if killed && !practice {
+            self.active_kill_objectives(id, &template.template_id)
+        } else {
+            Vec::new()
+        };
         let resolution = if let Some(store) = self.store.as_ref() {
             let action_id = request_id.clone();
             let claim = store.claim_attack(id, &field.map_id, &request_id, &action_id, "skill")?;
@@ -1270,6 +1277,7 @@ impl World {
                 &self.gameplay.exp_table,
                 &self.players.keys().cloned().collect::<Vec<_>>(),
                 &self.party_exp_members(id),
+                &quest_kills,
             )?
         } else {
             auth::AttackResolution {
@@ -1370,6 +1378,9 @@ impl World {
             self.drop_owners
                 .insert(drop_id.clone(), (drop.owner_id, drop.protected_until_ms));
             self.drop_maps.insert(drop_id, field.map_id.clone());
+        }
+        if resolution.killed {
+            self.apply_quest_kill_credit(id, &quest_kills);
         }
         Ok(())
     }
