@@ -8,7 +8,7 @@ const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-23';
+const version = 'tms273-24';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -137,6 +137,25 @@ const manifest = {
   // export_tms273_buff.cjs and copied into client/public-tms273/assets
   // alongside the other UI art.
   buffUi: read('buff'),
+  keybindingsUi: (() => {
+    const data = read('keybindings').windows;
+    const source = data.statusKeyConfig.children;
+    const custom = data.customDefaultKeyConfig.children;
+    const buttons = {};
+    for (const name of ['button:close', 'button:presetSave', 'button:presetUndo']) {
+      for (const [state, entry] of Object.entries(custom[name].children)) {
+        const frame = entry.children?.['0']?.frame;
+        if (frame) buttons[`${name}/${state}/0`] = frame;
+      }
+    }
+    return {
+      source: 'UI/StatusBar3.img/CustomDefaultKeyConfig',
+      background: custom.backgrnd.frame,
+      keyPositions: source.keyPos.values,
+      keys: Object.fromEntries(Object.entries(source.key.children).filter(([, value]) => value.frame).map(([key, value]) => [key, value.frame])),
+      buttons,
+    };
+  })(),
   // Source-backed Map.wz WorldMap page art + UI/UIWindow2.img/WorldMap window
   // shell used by the world-map window.  PNGs are exported by
   // export_tms273_worldmap.cjs and copied into client/public-tms273/assets

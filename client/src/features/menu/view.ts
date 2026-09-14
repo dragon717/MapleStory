@@ -88,6 +88,7 @@ export class MenuView {
     /** The 現金商店 operation (and its source menu entry) opens the cash shop
      *  window; the window itself asks the server for the wallet on open. */
     private onCashShop?: () => void,
+    private onKeybindings?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -274,7 +275,7 @@ export class MenuView {
       : key === 'characters' ? this.onCharacters
         : key === 'settings' ? this.onSettings
           : key === 'quit' ? this.onQuit
-            : key === 'cashShop' ? this.onCashShop : undefined;
+            : key === 'cashShop' ? this.onCashShop : key === 'keybind' ? this.onKeybindings : undefined;
     if (action) {
       this.close();
       action();

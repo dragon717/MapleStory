@@ -28,6 +28,7 @@ type AssetSet = Record<string, AssetFrame>;
  * the client only adds interaction layers above those source-authored frames.
  */
 export class InventoryView {
+  hotkeysEnabled = true;
   private readonly ui?: Manifest['inventoryUi'];
   private readonly root: HTMLDivElement;
   private readonly window?: HTMLDivElement;
@@ -944,12 +945,12 @@ export class InventoryView {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
     if (target instanceof Element && target.matches('input,textarea,select,[contenteditable="true"]')) return;
-    if (event.code === 'KeyI' || event.key.toLowerCase() === 'i') {
+    if (this.hotkeysEnabled && (event.code === 'KeyI' || event.key.toLowerCase() === 'i')) {
       event.preventDefault();
       this.toggle();
       return;
     }
-    if (event.code === 'KeyE' || event.key.toLowerCase() === 'e') {
+    if (this.hotkeysEnabled && (event.code === 'KeyE' || event.key.toLowerCase() === 'e')) {
       event.preventDefault();
       this.toggleEquipment();
       return;

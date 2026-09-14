@@ -120,15 +120,23 @@ fn continuation_story_1402_through_36314_uses_real_menus() {
     let path = std::env::temp_dir().join(format!("maple-continuation-{}.sqlite3", auth::random_id()));
     let service = auth::start(&path).unwrap();
     let account = "continuation-story";
-    service.store.load_profile(account, &continuation_profile(10, 0)).unwrap();
+    // The real q1402 menu must be available at the mage-specific level-8 boundary.
+    service.store.load_profile(account, &continuation_profile(8, 0)).unwrap();
     service.store.save_quest(account, "36307", "completed").unwrap();
     let mut world = chapter_actual_world(service.store.clone());
     let mut rx = chapter_join(&mut world, account);
     chapter_drain(&mut rx);
+    assert!(world
+        .quest_menu_choices(account, "1032001")
+        .contains(&(String::from("1402"), String::from("start"))));
 
     continuation_talk(&mut world, &mut rx, account, "1032001", "1402", "start");
     continuation_talk(&mut world, &mut rx, account, "1032001", "1402", "complete");
     assert_eq!(world.players[account].state.job, 200);
+    // The next authored continuation remains level-10 gated; model the normal
+    // level-up before continuing the story after verifying q1402 at level 8.
+    world.players.get_mut(account).unwrap().state.level = 10;
+    world.persist_player(account).unwrap();
     continuation_talk(&mut world, &mut rx, account, "1541009", "36337", "start");
     continuation_talk(&mut world, &mut rx, account, "1541009", "36337", "complete");
     continuation_talk(&mut world, &mut rx, account, "1541009", "36308", "start");

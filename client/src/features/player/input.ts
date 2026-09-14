@@ -1,4 +1,5 @@
 import type { ClientMessage, NpcState, PlayerState } from '../../../../shared/protocol';
+import type { Action, KeyBinding } from '../keybindings/model';
 
 const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
 const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
@@ -20,7 +21,7 @@ export function shortcutSkill(job: number | undefined, code: string, shift = fal
   return SHORTCUT_SKILLS[digit];
 }
 
-interface Interactable {
+export interface Interactable {
   nearestDrop: () => string | null;
   enterPortal: () => void;
   nearestNpc: () => NpcState | null;
@@ -37,16 +38,25 @@ interface Interactable {
   playerState?: () => PlayerState | undefined;
   /** UI-owned modal state; prevents gameplay input from crossing the window boundary. */
   isBlocked?: () => boolean;
+  /** Optional per-character key layout. Null means this key is explicitly unbound; absent getter keeps legacy input. */
+  resolveBinding?: (code: string, shift: boolean) => KeyBinding;
+  /** Routes UI actions owned by the app shell (inventory, world map, keybind, etc.). */
+  performAction?: (action: Action) => void;
+  /** Routes a custom consumable shortcut to the app/inventory owner. */
+  useItem?: (itemId: number) => void;
 }
 
 export class PlayerInput {
   private held = new Set<string>();
+  private heldLeft = new Set<string>();
+  private heldRight = new Set<string>();
   private channel?: { code: string; requestId: string };
   private seq = 0;
   private attackSeq = 0;
   private pickupSeq = 0;
   private ready = false;
   private pickupTimer?: ReturnType<typeof setInterval>;
+  private pickupCode?: string;
   private timer: ReturnType<typeof setInterval>;
   constructor(private send: (message: ClientMessage) => void, private targets: Interactable = {
     nearestDrop: () => null,
@@ -69,7 +79,12 @@ export class PlayerInput {
       || active?.closest?.('input, textarea, select, button, [contenteditable]:not([contenteditable="false"])');
     return Boolean(this.targets.isBlocked?.() || control || active?.isContentEditable);
   }
-  private direction(): -1 | 0 | 1 { return (Number(this.held.has('ArrowRight') || this.held.has('KeyD')) - Number(this.held.has('ArrowLeft') || this.held.has('KeyA'))) as -1 | 0 | 1; }
+  private direction(): -1 | 0 | 1 {
+    const legacy = !this.targets.resolveBinding;
+    const right = this.held.has('ArrowRight') || (legacy && this.held.has('KeyD')) || this.heldRight.size > 0;
+    const left = this.held.has('ArrowLeft') || (legacy && this.held.has('KeyA')) || this.heldLeft.size > 0;
+    return (Number(right) - Number(left)) as -1 | 0 | 1;
+  }
   private vertical(): -1 | 0 | 1 { return (Number(this.held.has('ArrowDown')) - Number(this.held.has('ArrowUp'))) as -1 | 0 | 1; }
   private emit(jump: boolean, force = false) {
     if (!this.ready) return;
@@ -84,6 +99,8 @@ export class PlayerInput {
     this.stopPickup();
     if (!this.held.size) return;
     this.held.clear();
+    this.heldLeft.clear();
+    this.heldRight.clear();
     this.emit(false, true);
   }
   private pickup = () => {
@@ -92,10 +109,13 @@ export class PlayerInput {
     const dropId = this.targets.nearestDrop();
     if (dropId) this.send({ type: 'pickup', requestId: `pickup-${Date.now()}-${++this.pickupSeq}`, dropId });
   };
-  private stopPickup() { clearInterval(this.pickupTimer); this.pickupTimer = undefined; }
+  private stopPickup() { clearInterval(this.pickupTimer); this.pickupTimer = undefined; this.pickupCode = undefined; }
   private down = (event: KeyboardEvent) => {
-    if (!this.ready || event.defaultPrevented || event.isComposing || event.metaKey || event.altKey) return;
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ', 'KeyQ', 'KeyK', ...Object.keys(SHORTCUT_SKILLS)].includes(event.code)) return;
+    const fixedArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.code);
+    const modifierKey = event.code === 'ControlLeft' || event.code === 'ControlRight' || event.code === 'AltLeft' || event.code === 'AltRight';
+    if (!this.ready || event.defaultPrevented || event.isComposing || event.metaKey || (event.ctrlKey && !modifierKey && !fixedArrow) || (event.altKey && !modifierKey && !fixedArrow)) return;
+    const custom = this.targets.resolveBinding && !fixedArrow ? this.targets.resolveBinding(event.code, event.shiftKey) : undefined;
+    if (!this.targets.resolveBinding && !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'KeyX', 'KeyZ', 'KeyQ', 'KeyK', ...Object.keys(SHORTCUT_SKILLS)].includes(event.code)) return;
     if (event.code === 'KeyK' && event.ctrlKey) return;
     if (this.blocked()) {
       // A modal window or a focused text control owns the keyboard: clear any
@@ -104,7 +124,15 @@ export class PlayerInput {
       this.releaseBlockedInput();
       return;
     }
+    // An explicit empty slot consumes neither browser controls nor movement;
+    // leave the event alone so Tab/Enter and other unbound keys remain native.
+    if (this.targets.resolveBinding && !fixedArrow && (custom === null || custom === undefined)) return;
     event.preventDefault();
+    if (this.targets.resolveBinding && !fixedArrow) {
+      if (event.repeat || !custom) return;
+      this.handleBinding(custom, event);
+      return;
+    }
     if (event.code === 'KeyQ' || event.code === 'KeyK') {
       if (event.repeat) return;
       if (event.code === 'KeyK') this.targets.toggleSkills?.();
@@ -126,6 +154,7 @@ export class PlayerInput {
     if (event.code === 'KeyZ') {
       if (this.held.has('KeyZ')) return;
       this.held.add('KeyZ');
+      this.pickupCode = event.code;
       this.pickup();
       this.pickupTimer = setInterval(this.pickup, 200);
       return;
@@ -143,6 +172,55 @@ export class PlayerInput {
     if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.sendAttack();
     else this.emit(event.code === 'Space');
   };
+  private handleBinding(binding: KeyBinding, event: KeyboardEvent) {
+    if (!binding) return;
+    if (binding.type === 'skill') {
+      if (this.canCastShortcut(binding.skillId)) {
+        const requestId = this.targets.castSkill?.(binding.skillId, this.direction(), this.vertical());
+        if ([2221011, 2221052].includes(binding.skillId) && requestId && !this.channel) this.channel = { code: event.code, requestId };
+      }
+      return;
+    }
+    if (binding.type === 'item') {
+      this.targets.useItem?.(binding.itemId);
+      return;
+    }
+    switch (binding.action) {
+      case 'attack': this.sendAttack(); return;
+      case 'jump':
+        if (!this.castJumpSkill()) {
+          this.held.add(event.code);
+          this.emit(true);
+        }
+        return;
+      case 'pickup':
+        if (this.held.has(event.code)) return;
+        this.held.add(event.code);
+        this.pickupCode = event.code;
+        this.pickup();
+        this.pickupTimer = setInterval(this.pickup, 200);
+        return;
+      case 'talk': {
+        const npc = this.targets.nearestNpc();
+        if (npc) this.targets.talkTo(npc);
+        else this.targets.enterPortal();
+        return;
+      }
+      case 'skills': this.targets.toggleSkills?.(); return;
+      case 'quests': this.targets.toggleQuestLog(); return;
+      case 'left':
+        this.held.add(event.code);
+        this.heldLeft.add(event.code);
+        this.emit(false);
+        return;
+      case 'right':
+        this.held.add(event.code);
+        this.heldRight.add(event.code);
+        this.emit(false);
+        return;
+      default: this.targets.performAction?.(binding.action); return;
+    }
+  }
   /**
    * A normal swing doubles as the map-reactor interaction, exactly like the
    * original: standing next to a flower and attacking shakes it.  Only the
@@ -192,14 +270,19 @@ export class PlayerInput {
   private up = (event: KeyboardEvent) => {
     if (this.channel?.code === event.code) this.releaseChannel();
     if (this.blocked()) { this.releaseBlockedInput(); return; }
-    if (event.code === 'KeyZ') this.stopPickup();
-    if (this.held.delete(event.code)) { event.preventDefault(); this.emit(false); }
+    if (this.pickupCode === event.code) this.stopPickup();
+    if (this.held.delete(event.code)) {
+      this.heldLeft.delete(event.code);
+      this.heldRight.delete(event.code);
+      event.preventDefault();
+      this.emit(false);
+    }
   };
   private releaseChannel() {
     if (this.channel) this.send({ type: 'releaseSkill', requestId: this.channel.requestId });
     this.channel = undefined;
   }
-  reset = () => { this.releaseChannel(); this.stopPickup(); this.held.clear(); this.emit(false, true); };
+  reset = () => { this.releaseChannel(); this.stopPickup(); this.held.clear(); this.heldLeft.clear(); this.heldRight.clear(); this.emit(false, true); };
   /** Losing input focus is not leaving the game: the window may simply be
    *  unfocused while still visible.  Only hidden pages start an away window,
    *  so a second monitor or a side-by-side window is not misread as absence. */

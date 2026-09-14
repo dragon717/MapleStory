@@ -2351,6 +2351,10 @@ impl World {
                 let mut state = npc.state.clone();
                 if observer_job == BEGINNER_JOB
                     && observer_can_advance
+                    && self
+                        .players
+                        .get(id)
+                        .is_some_and(|player| player.state.level >= auth::FIRST_MAGE_JOB_LEVEL)
                     && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);

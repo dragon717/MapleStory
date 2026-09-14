@@ -1,6 +1,7 @@
 import type { PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, SkillCatalogEntry } from '../../assets/manifest';
 import { shortcutSkill } from '../player/input.ts';
+import type { KeyBinding } from '../keybindings/model';
 import { BuffBar } from './buff-bar.ts';
 
 export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing'>;
@@ -46,9 +47,15 @@ export interface HudViewOptions {
   openPets?: () => void;
   castSkill?: (skillId: number) => string | void;
   releaseSkill?: (requestId: string) => void;
+  keySlots?: () => readonly { code: string; shift: boolean }[];
+  resolveBinding?: (code: string, shift: boolean) => KeyBinding | null;
+  bindingLabel?: (binding: KeyBinding) => string;
+  activateBinding?: (binding: KeyBinding) => void;
+  editSlot?: (slot: number) => void;
+  bindSkill?: (slot: number, skillId: number) => void;
 }
 
-type ShortcutBinding = (typeof SHORTCUT_BINDINGS)[number];
+type ShortcutBinding = { code: string; label: string; shift: boolean; sourceSlot: number };
 type ShortcutCell = {
   button: HTMLButtonElement;
   icon: HTMLImageElement;
@@ -56,6 +63,7 @@ type ShortcutCell = {
   cooldown: HTMLSpanElement;
   key: HTMLSpanElement;
   binding: ShortcutBinding;
+  action?: KeyBinding | null;
 };
 
 /** The 273 StatusBar3 panel uses source origins inside a responsive HUD row. */
@@ -312,7 +320,7 @@ export class HudView {
     grid.setAttribute('aria-label', '技能快捷键');
     this.quickGrid = grid;
     for (let sourceSlot = 0; sourceSlot < 32; sourceSlot += 1) {
-      const binding = SHORTCUT_BINDINGS.find(item => item.sourceSlot === sourceSlot);
+      const binding = this.options.keySlots ? { code: '', label: '', shift: false, sourceSlot } : SHORTCUT_BINDINGS.find(item => item.sourceSlot === sourceSlot);
       if (binding) {
         const cell = this.createShortcutCell(binding);
         this.shortcutCells.push(cell);
@@ -358,7 +366,20 @@ export class HudView {
     cooldown.hidden = true;
     button.append(cooldown);
 
-    const cell = { button, icon, level, cooldown, key, binding };
+    const cell: ShortcutCell = { button, icon, level, cooldown, key, binding };
+    if (this.options.editSlot) {
+      button.addEventListener('contextmenu', event => { event.preventDefault(); this.options.editSlot?.(binding.sourceSlot); });
+      button.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('application/x-maplestory-skill')) event.preventDefault(); });
+      button.addEventListener('drop', event => {
+        const skillId = Number(event.dataTransfer?.getData('application/x-maplestory-skill'));
+        if (!Number.isSafeInteger(skillId) || skillId <= 0) return;
+        event.preventDefault(); this.options.bindSkill?.(binding.sourceSlot, skillId);
+      });
+      button.addEventListener('dragstart', event => {
+        if (!cell.button.dataset.skillId) { event.preventDefault(); return; }
+        event.dataTransfer?.setData('application/x-maplestory-skill', cell.button.dataset.skillId);
+      });
+    }
     button.addEventListener('pointerdown', event => this.shortcutPointerDown(event, cell));
     button.addEventListener('click', event => this.shortcutClick(event, cell));
     button.addEventListener('keydown', event => this.shortcutKeyDown(event, cell));
@@ -418,7 +439,34 @@ export class HudView {
 
   private updateShortcuts(player: HudPlayer) {
     for (const cell of this.shortcutCells) {
-      const id = this.shortcutId(player.job, cell.binding);
+      const slot = this.options.keySlots?.()[cell.binding.sourceSlot];
+      if (slot) {
+        cell.binding.code = slot.code; cell.binding.shift = slot.shift;
+        cell.binding.label = `${slot.shift ? '⇧' : ''}${slot.code.replace(/^Key|^Digit/, '').replace('Numpad', 'Num').replace('Control', 'Ctrl').replace('Left', 'L').replace('Right', 'R')}`;
+        cell.key.textContent = cell.binding.label;
+        cell.button.dataset.shortcutCode = slot.code;
+        cell.button.dataset.shortcutShift = String(slot.shift);
+      }
+      cell.action = this.options.resolveBinding?.(cell.binding.code, cell.binding.shift);
+      const id = this.options.resolveBinding ? (cell.action?.type === 'skill' ? cell.action.skillId : undefined) : this.shortcutId(player.job, cell.binding);
+      if (this.options.resolveBinding && cell.action?.type !== 'skill') {
+        const action = cell.action;
+        const label = action ? this.options.bindingLabel?.(action) ?? '动作' : '尚未配置';
+        cell.button.dataset.skillId = ''; cell.button.dataset.skillName = '';
+        cell.button.dataset.available = String(Boolean(action)); cell.button.dataset.blockReason = action ? '' : '尚未配置';
+        cell.button.disabled = false; cell.button.draggable = false;
+        cell.button.setAttribute('aria-disabled', String(!action));
+        cell.button.title = `${cell.binding.label} · ${label} · 右键设置`;
+        cell.button.setAttribute('aria-label', cell.button.title);
+        const itemArt = action?.type === 'item' ? this.manifest.items?.[String(action.itemId).padStart(8, '0')] : undefined;
+        cell.icon.hidden = !itemArt; if (itemArt) cell.icon.src = itemArt.url;
+        cell.level.hidden = false; cell.level.textContent = action?.type === 'item'
+          ? String(player.inventory.filter(item => Number(item.itemId) === action.itemId).reduce((sum, item) => sum + item.quantity, 0)) : action ? label.slice(0, 4) : '';
+        cell.cooldown.hidden = true;
+        cell.button.classList.toggle('is-disabled', !action);
+        cell.button.classList.remove('is-cooldown', 'is-active');
+        continue;
+      }
       const entry = id === undefined ? undefined : this.skillCatalog[String(id)];
       const level = id === undefined ? 0 : this.skillLevel(player, id);
       const cooldownMs = id === undefined ? 0 : this.skillCooldown(player, id);
@@ -427,7 +475,8 @@ export class HudView {
       cell.button.dataset.skillId = id === undefined ? '' : String(id);
       cell.button.dataset.skillName = entry?.name ?? '';
       cell.button.dataset.available = String(!reason);
-      cell.button.disabled = Boolean(reason);
+      cell.button.disabled = !this.options.editSlot && Boolean(reason);
+      cell.button.draggable = Boolean(this.options.editSlot && id && level > 0);
       cell.button.setAttribute('aria-disabled', String(Boolean(reason)));
       cell.button.title = entry ? `${cell.binding.label} · ${entry.name}${reason ? ` · ${reason}` : ''}` : `${cell.binding.label} · 尚未配置`;
       cell.button.setAttribute('aria-label', entry ? `${cell.binding.label}：${entry.name}，等级 ${level}${reason ? `，${reason}` : ''}` : `${cell.binding.label}：尚未配置`);
@@ -506,7 +555,7 @@ export class HudView {
   }
 
   private shortcutPointerDown(event: PointerEvent, cell: ShortcutCell) {
-    if (event.button !== 0 || cell.button.disabled) return;
+    if (event.button !== 0 || cell.button.disabled || cell.button.dataset.blockReason) return;
     // Pointer use keeps gameplay focus; keyboard users can still Tab into the bar.
     event.preventDefault();
     const skillId = Number(cell.button.dataset.skillId);
@@ -520,6 +569,12 @@ export class HudView {
   }
 
   private shortcutClick(event: MouseEvent, cell: ShortcutCell) {
+    if (this.options.resolveBinding && cell.action?.type !== 'skill') {
+      if (cell.action) this.options.activateBinding?.(cell.action);
+      else this.options.editSlot?.(cell.binding.sourceSlot);
+      return;
+    }
+    if (cell.button.dataset.blockReason) return;
     const skillId = Number(cell.button.dataset.skillId);
     if (!Number.isSafeInteger(skillId) || cell.button.disabled) return;
     if ([2221011, 2221052].includes(skillId)) {
@@ -530,7 +585,7 @@ export class HudView {
   }
 
   private shortcutKeyDown(event: KeyboardEvent, cell: ShortcutCell) {
-    if (!['Space', 'Enter'].includes(event.code) || event.repeat || cell.button.disabled) return;
+    if (!['Space', 'Enter'].includes(event.code) || event.repeat || cell.button.disabled || cell.button.dataset.blockReason) return;
     const skillId = Number(cell.button.dataset.skillId);
     if (![2221011, 2221052].includes(skillId)) return;
     event.preventDefault();

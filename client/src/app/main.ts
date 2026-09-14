@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import type { LoginResponse, NpcState, PlayerState, BossPracticeState } from '../../../shared/protocol';
 import { Connection } from '../network/session';
 import { PlayerInput } from '../features/player/input';
+import { KeyBindings, type KeyBinding } from '../features/keybindings/model';
+import { KeybindingsView } from '../features/keybindings/view';
 import { StorageView } from '../features/world/storage-view';
 import { PartyView } from '../features/world/party-view';
 import { MiniMapView } from '../features/world/minimap-view';
@@ -36,7 +38,7 @@ import '../features/hud/style.css';
 import '../features/hud/buff.css';
 import { EntryView } from '../features/entry/view';
 import { LoadingOverlay } from '../features/loading/view';
-import { installEscapeRouter } from './ui-router.ts';
+import { installEscapeRouter, installKeybindingRouter } from './ui-router.ts';
 import { PageShell, pageElement } from './page-shell.ts';
 
 const english = uiLocale() === 'en';
@@ -67,6 +69,10 @@ let miniMap: MiniMapView | undefined;
 let worldMap: WorldMapView | undefined;
 let questLog: QuestLogView | undefined;
 let skills: SkillView | undefined;
+let keybindingsView: KeybindingsView | undefined;
+const keybindings = new KeyBindings({ onError: message => status(message, true) });
+let keybindingsDispose: (() => void) | undefined;
+let keyRouterDispose: (() => void) | undefined;
 let characterInfo: CharacterInfoView | undefined;
 let petPanel: PetPanel | undefined;
 let game: Phaser.Game | undefined;
@@ -129,7 +135,7 @@ function characterInfoIsOpen() {
  */
 function escapeBlocked() {
   return Boolean(
-    activities?.isOpen() ||
+    keybindingsView?.isOpen() || activities?.isOpen() ||
     news.open
     || menus?.isOpen()
     || npcDialogue?.isOpen()
@@ -147,6 +153,47 @@ function escapeBlocked() {
     || worldMap?.isOpen()
     || Boolean(miniMap?.npcListShown()),
   );
+}
+function openKeybindings(skillId?: number) {
+  input?.reset(); hud?.releaseChannel(); menus?.close();
+  keybindingsView?.open(skillId);
+}
+function activateUiAction(action: string): boolean {
+  switch (action) {
+    case 'skills': toggleSkills(); break;
+    case 'quests': input?.reset(); questLog?.toggle(); break;
+    case 'inventory': input?.reset(); inventory?.toggle(); break;
+    case 'equipment': input?.reset(); inventory?.toggleEquipment(); break;
+    case 'worldmap': input?.reset(); if (worldMap?.isOpen()) worldMap.close(); else worldMap?.open(world?.mapId); break;
+    case 'character': toggleCharacterInfo(); break;
+    case 'pets': input?.reset(); petPanel?.toggle(); break;
+    case 'keybind': openKeybindings(); break;
+    default: return false;
+  }
+  return true;
+}
+function useShortcutItem(itemId: number) {
+  if (!selfState || selfState.hp <= 0 || escapeBlocked()) return;
+  const item = selfState.inventory.find(item => Number(item.itemId) === itemId && item.quantity > 0);
+  if (!item) { status('背包中没有该消耗品。', true); return; }
+  connection?.send({ type: 'useItem', requestId: `keyitem-${crypto.randomUUID()}`, inventoryType: 2, sourceSlot: item.slot, itemId: item.itemId });
+}
+function activateBinding(binding: KeyBinding) {
+  if (!binding || !selfState || keybindingsView?.isOpen()) return;
+  if (binding.type === 'item') { useShortcutItem(binding.itemId); return; }
+  if (binding.type === 'skill') { castSkill(binding.skillId); return; }
+  if (activateUiAction(binding.action)) return;
+  if (escapeBlocked()) return;
+  if (binding.action === 'attack') {
+    const reactorId = world?.nearestReactor()?.id;
+    if (reactorId) connection?.send({ type: 'reactorHit', requestId: `keyreactor-${crypto.randomUUID()}`, reactorId });
+    else connection?.send({ type: 'attack', requestId: `keyattack-${crypto.randomUUID()}` });
+  } else if (binding.action === 'pickup') {
+    const dropId = world?.nearestDropId();
+    if (dropId) connection?.send({ type: 'pickup', requestId: `keypickup-${crypto.randomUUID()}`, dropId });
+  } else if (binding.action === 'talk') {
+    const npc = world?.nearestNpc(); if (npc) talkToNpc(npc); else world?.enterPortal();
+  } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
   if (npc.templateId.startsWith('windbell-')) { input?.reset(); activities?.talk(); return; }
@@ -247,7 +294,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -301,6 +348,7 @@ async function enterGame(session: LoginResponse) {
         status(english ? `World map jump: ${mapId}` : `世界地图跳转：${mapId}`);
       }
     };
+    worldMap.hotkeysEnabled = false;
     miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
@@ -317,9 +365,13 @@ async function enterGame(session: LoginResponse) {
     skills = new SkillView(el('ui-windows'), manifest, {
       send: message => connection?.send(message) ?? false,
       status,
+      bindSkill: skillId => { skills?.close(); openKeybindings(skillId); },
+      shortcutLabel: skillId => keybindingsView?.skillKeys(skillId) ?? '',
     });
+    skills.hotkeysEnabled = false;
     characterInfo?.destroy();
     characterInfo = new CharacterInfoView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
+    characterInfo.hotkeysEnabled = false;
     petPanel?.destroy();
     petPanel = new PetPanel(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     menus?.destroy();
@@ -352,6 +404,7 @@ async function enterGame(session: LoginResponse) {
       () => worldMap?.open(world?.mapId),
       // The 現金商店 operation opens the cash-shop window (source CashShop.img).
       openCashShop,
+      () => openKeybindings(),
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -364,9 +417,26 @@ async function enterGame(session: LoginResponse) {
     });
     inventory?.destroy();
     inventory = new InventoryView(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
+    inventory.hotkeysEnabled = false;
+    keybindingsView?.destroy();
+    keybindingsView = new KeybindingsView(el('ui-windows'), manifest, keybindings, status);
+    keybindingsDispose?.();
+    keybindingsDispose = keybindings.subscribe(() => { input?.reset(); hud?.releaseChannel(); hud?.update(selfState); });
+    keyRouterDispose?.();
+    keyRouterDispose = installKeybindingRouter({
+      resolve: (code, shift) => keybindings.resolve(code, shift),
+      blocked: () => !selfState || Boolean(keybindingsView?.isOpen() || news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
+      activate: activateUiAction,
+    });
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
       openCashShop,
+      keySlots: () => keybindings.slots,
+      resolveBinding: (code, shift) => keybindings.resolve(code, shift),
+      bindingLabel: binding => keybindingsView?.bindingLabel(binding) ?? '',
+      activateBinding,
+      editSlot: slot => { openKeybindings(); keybindingsView?.selectSlot(slot); },
+      bindSkill: (slot, skillId) => keybindingsView?.bindSkillToSlot(slot, skillId),
       openActivities: () => { input?.reset(); activities?.show(); },
       openPets: () => {
         input?.reset();
@@ -375,7 +445,7 @@ async function enterGame(session: LoginResponse) {
         petPanel?.toggle();
       },
       castSkill: skillId => {
-        if (!selfState || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+        if (!selfState || keybindingsView?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
         return castSkill(skillId);
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
@@ -610,6 +680,8 @@ async function enterGame(session: LoginResponse) {
         }
         const self = message.players.find(player => player.id === message.selfId);
         selfState = self;
+        if (self) keybindings.setCharacter(self.id, self.job ?? 0);
+        keybindingsView?.update(self);
         activities?.update(message.windbell, self, message.npcs);
         renderBossPractice(message.bossPractice, self, message.monsters);
         // The minimap is a pure view: the server's map id, its own player list
@@ -700,7 +772,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
@@ -717,7 +789,10 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      isBlocked: () => Boolean(activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      resolveBinding: (code, shift) => keybindings.resolve(code, shift),
+      performAction: action => { activateUiAction(action); },
+      useItem: useShortcutItem,
+      isBlocked: () => Boolean(keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -741,6 +816,9 @@ function leaveGame(logout = false) {
   setPlayLayout(false);
   activities?.destroy(); activities = undefined;
   cashShop?.destroy(); cashShop = undefined;
+  keyRouterDispose?.(); keyRouterDispose = undefined;
+  keybindingsDispose?.(); keybindingsDispose = undefined;
+  keybindingsView?.destroy(); keybindingsView = undefined;
   generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }

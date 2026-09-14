@@ -25,6 +25,7 @@ const checks = [
   ['features/ui/window-shell.check.mjs', []],
   ['features/hud/buff.check.mjs', []],
   ['features/player/input.check.mjs', []],
+  ['features/keybindings/model.check.mjs', []],
   ['features/world/minimap.check.mjs', []],
   ['features/world/worldmap.check.mjs', []],
   ['features/inventory/view-model.check.mjs', []],

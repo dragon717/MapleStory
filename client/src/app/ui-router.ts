@@ -39,3 +39,21 @@ export function installEscapeRouter(options: EscapeRouterOptions): () => void {
   document.addEventListener('keydown', onKeyDown, true);
   return () => document.removeEventListener('keydown', onKeyDown, true);
 }
+
+/** Configured UI actions run before gameplay input; native text editing keeps its keys. */
+export function installKeybindingRouter(options: {
+  resolve: (code: string, shift: boolean) => { type: string; action?: string } | null;
+  blocked: () => boolean;
+  activate: (action: string) => boolean;
+}): () => void {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.repeat || event.isComposing || event.metaKey || event.altKey || event.ctrlKey || options.blocked()) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input,textarea,select,[contenteditable="true"]'))) return;
+    const binding = options.resolve(event.code, event.shiftKey);
+    if (binding?.type !== 'action' || !binding.action) return;
+    if (options.activate(binding.action)) event.preventDefault();
+  };
+  document.addEventListener('keydown', onKeyDown, true);
+  return () => document.removeEventListener('keydown', onKeyDown, true);
+}

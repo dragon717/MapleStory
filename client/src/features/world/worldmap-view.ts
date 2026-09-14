@@ -75,6 +75,7 @@ interface SpotTarget {
  *   blinks it), not a second source frame.
  */
 export class WorldMapView {
+  hotkeysEnabled = true;
   private root?: HTMLDivElement;
   private shell?: HTMLDivElement;
   private pageLayer?: HTMLDivElement;
@@ -106,7 +107,7 @@ export class WorldMapView {
     if (event.metaKey || event.altKey || event.ctrlKey) return;
     const target = event.target as (HTMLElement & { matches?: (selector: string) => boolean }) | null;
     if (target?.matches?.('input,textarea,select,[contenteditable="true"]') || target?.isContentEditable) return;
-    if (event.code !== 'KeyM') return;
+    if (!this.hotkeysEnabled || event.code !== 'KeyM') return;
     event.preventDefault();
     if (this.isOpen()) this.close();
     else this.open(this.mapId || undefined);

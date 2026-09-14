@@ -12,6 +12,8 @@ type SkillRequest = Extract<ClientMessage, { type: 'learnSkill' | 'castSkill' | 
 export interface SkillViewOptions {
   send?: (message: SkillRequest) => boolean;
   status?: (message: string) => void;
+  bindSkill?: (skillId: number) => void;
+  shortcutLabel?: (skillId: number) => string;
 }
 
 const BOTTOM_BUTTONS: ReadonlyArray<readonly [string, string]> = [
@@ -41,7 +43,7 @@ const METRICS: ReadonlyArray<readonly [SkillMetric, string, string]> = [
   ['attackCount', '攻击段数', ''],
 ];
 
-const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012']);
+export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012']);
 const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2001002', '2201009', '2211007', '2211017']);
 const FIXED_SKILLS = new Set(['2200011', '2220015']);
 const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
@@ -53,6 +55,7 @@ const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
  * authoritative snapshot and sends a request after the local affordance check.
  */
 export class SkillView {
+  hotkeysEnabled = true;
   private readonly manifest: Manifest;
   private readonly data?: SkillWindowData;
   private readonly root: HTMLDivElement;
@@ -94,14 +97,14 @@ export class SkillView {
     if (!this.openState || event.defaultPrevented || event.repeat || event.isComposing || event.metaKey || event.altKey || event.ctrlKey) return;
     const target = event.target;
     if (target instanceof Element && target.matches('input,textarea,select,[contenteditable="true"]')) return;
-    const key = event.code === 'KeyK' || event.key.toLowerCase() === 'k';
+    const key = this.hotkeysEnabled && (event.code === 'KeyK' || event.key.toLowerCase() === 'k');
     if (key || event.key === 'Escape') {
       event.preventDefault();
       this.close();
     }
   };
 
-  constructor(host: HTMLElement, manifest: Manifest, options: SkillViewOptions = {}) {
+  constructor(host: HTMLElement, manifest: Manifest, private options: SkillViewOptions = {}) {
     this.manifest = manifest;
     this.data = manifest.skillWindow;
     this.send = options.send ?? (() => false);
@@ -561,6 +564,12 @@ export class SkillView {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'skill-cell';
+    button.draggable = this.isActiveSkill(entry) && (level ?? 0) > 0;
+    button.addEventListener('dragstart', event => {
+      if (!button.draggable) { event.preventDefault(); return; }
+      event.dataTransfer?.setData('application/x-maplestory-skill', entry.id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
+    });
     button.dataset.skillId = entry.id;
     button.setAttribute('aria-label', `${displayText(entry.name)}，${this.levelLabel(level, entry.maxLevel)}`);
     button.title = displayText(entry.name);
@@ -704,15 +713,22 @@ export class SkillView {
     if (this.data?.buttons?.BtSpUp) actions.append(this.createSkillActionButton('BtSpUp', '学习技能', this.canLearn(entry), () => this.learnSkill(entry), 'skill-detail-learn'));
     if (this.isActiveSkill(entry)) {
       actions.append(this.castButton(entry, 'skill-detail-cast'));
+      if (this.options.bindSkill) {
+        const bind = document.createElement('button');
+        bind.type = 'button'; bind.textContent = '设置快捷键';
+        bind.disabled = (this.learnedLevel(entry.id) ?? 0) <= 0;
+        bind.addEventListener('click', () => this.options.bindSkill?.(Number(entry.id)));
+        actions.append(bind);
+      }
     }
     if (actions.childElementCount) this.detailView.append(actions);
 
     const fourthKey = Object.entries(FOURTH_SHORTCUT_SKILLS).find(([, id]) => String(id) === entry.id)?.[0];
-    const shortcut = fourthKey ? `Shift + ${fourthKey.slice(5)}` : this.player?.job === 0 && ['1000', '1001', '1002'].includes(entry.id) ? String(Number(entry.id) - 999) : Object.entries(SHORTCUT_SKILLS).find(([key, id]) => key.startsWith('Digit') && String(id) === entry.id)?.[0].slice(5);
+    const shortcut = this.options.shortcutLabel ? this.options.shortcutLabel(Number(entry.id)) : fourthKey ? `Shift + ${fourthKey.slice(5)}` : this.player?.job === 0 && ['1000', '1001', '1002'].includes(entry.id) ? String(Number(entry.id) - 999) : Object.entries(SHORTCUT_SKILLS).find(([key, id]) => key.startsWith('Digit') && String(id) === entry.id)?.[0].slice(5);
     if (shortcut) {
       const hint = document.createElement('p');
       hint.className = 'skill-detail-description';
-      hint.textContent = `快捷键：${shortcut}${entry.id === '2211011' ? '；按住 ↓ 再按 0 固定球体' : entry.id === '2221011' ? '；按住维持，松开结束' : ''}`;
+      hint.textContent = `快捷键：${shortcut}${entry.id === '2211011' ? '；按住 ↓ 再按技能键固定球体' : entry.id === '2221011' ? '；按住维持，松开结束' : ''}`;
       this.detailView.append(hint);
     }
 

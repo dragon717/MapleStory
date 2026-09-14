@@ -127,7 +127,8 @@ function applyContinuation(gameplay, items, manifest, source, questText) {
     const routeQuests = Object.values(check0.quest || {}).map(node => String(node.id));
     const orOption = Number(check0.QuestOrOption || 0) === 1;
     const conditions = {
-      levelAtLeast: Number(check0.lvmin || 10),
+      // P: user-requested mage exception; retain lvmin=10 in sourceCheck as source evidence.
+      levelAtLeast: id === '1402' ? 8 : Number(check0.lvmin || 10),
       job: id === '1402' ? [0, 200, 220, 221, 222] : [200, 220, 221, 222],
       quests: routeQuests.length > 0 && orOption
         ? routeQuests.map(questId => ({ questId, status: 'completed' }))
@@ -142,7 +143,7 @@ function applyContinuation(gameplay, items, manifest, source, questText) {
       complete: { npcId: completeNpc, conditions: { ...conditions, items: [] }, consumeItems: true },
       startItems: [], objectives: [], reward: { mesos: 0, exp, items: [] },
       source: raw.source, sourceCheck: check,
-      ruleVersion: 'tms273-continuation-p1',
+      ruleVersion: id === '1402' ? 'tms273-mage8-p1' : 'tms273-continuation-p1',
       executionEvidence: 'T: original QuestInfo/Check and source NPC/item/map assets. P: explicit NPC interaction, selected story travel and acquisition replace missing scripts; original scenes remain unavailable.',
     });
     if (questText.quests[id]) questText.quests[id].log = { zh: quest(id).summary };

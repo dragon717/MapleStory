@@ -573,6 +573,13 @@ export interface Manifest {
    *  on-screen buff icons) plus the authored quick-slot fold keys.  Flat keys
    *  mirror the WZ layout: `favoriteBuff/{nw,n,ne,w,c,e,sw,s,se}` and
    *  `quickSlot/button:{Extend,Fold}/{normal,mouseOver,pressed,disabled}/0`. */
+  keybindingsUi?: {
+    source: string;
+    background: AssetFrame;
+    keyPositions: Record<string, Point>;
+    keys: Record<string, AssetFrame>;
+    buttons: Record<string, AssetFrame>;
+  };
   buffUi?: BuffUiData;
   /** Source-backed Npc.wz stand frames, keyed by template id. */
   npcs?: Record<string, NpcAsset>;

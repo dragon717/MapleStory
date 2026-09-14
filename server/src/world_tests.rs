@@ -4150,9 +4150,11 @@ include!("windbell_acceptance.rs");
         let mut beginner = quest_profile();
         beginner.hp = 37;
         beginner.mp = 4;
-        // T: the first job advancement is a level-10 step (1402 lvmin=10).
-        beginner.level = 10;
+        beginner.skills.insert(SKILL_RECOVERY, 1);
+        beginner.skill_points.insert(BEGINNER_BOOK, 5);
+        beginner.level = 8;
         service.store.load_profile("beginner", &beginner).unwrap();
+        service.store.save_profile("beginner", &beginner).unwrap();
         let mut magician = quest_profile();
         magician.job = MAGICIAN_JOB;
         service.store.load_profile("magician", &magician).unwrap();
@@ -4161,7 +4163,7 @@ include!("windbell_acceptance.rs");
         service.store.load_profile("other", &other).unwrap();
         service
             .store
-            .load_profile("beginner2", &quest_profile())
+            .load_profile("beginner2", &Profile { level: 7, ..quest_profile() })
             .unwrap();
 
         let mut world =
@@ -4207,7 +4209,7 @@ include!("windbell_acceptance.rs");
         );
         assert_eq!(
             marker(&world.snapshot("beginner2")),
-            Some(serde_json::Value::Bool(true))
+            None
         );
         assert_eq!(
             marker(&world.snapshot("magician")),
@@ -4308,7 +4310,8 @@ include!("windbell_acceptance.rs");
         assert_eq!(persisted.job, MAGICIAN_JOB);
         assert_eq!(persisted.hp, 37);
         assert_eq!(persisted.mp, 100);
-        assert_eq!(persisted.level, 10);
+        assert_eq!(persisted.level, 8);
+        assert_eq!(persisted.skills.get(&SKILL_RECOVERY), Some(&1));
 
         // A transferred magician receives a separate, idempotent training
         // menu.  The restore option only refills MP and never grants another

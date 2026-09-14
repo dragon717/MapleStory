@@ -42,7 +42,9 @@ fn continuation_cleanup(path: &ContinuationPath) {
 fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     let path = std::env::temp_dir().join(format!("continuation-q1402-{}.sqlite3", random_id()));
     let store = continuation_open(&path);
-    let base = continuation_profile(0, 10, 5, 5);
+    let mut base = continuation_profile(0, 8, 5, 5);
+    base.skills.insert(1001, 1);
+    base.skill_points.insert(0, 5);
     continuation_seed(&store, "bad", &base, true);
     let mut bad = store.load_profile("bad", &base).unwrap();
     grant_first_mage(&mut bad);
@@ -51,7 +53,7 @@ fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     assert_eq!(store.load_profile("bad", &base).unwrap().job, 0);
     assert_eq!(store.load_quests("bad").unwrap()["1402"], "active");
 
-    let low = continuation_profile(0, 9, 5, 5);
+    let low = continuation_profile(0, 7, 5, 5);
     continuation_seed(&store, "low", &low, true);
     let mut low_candidate = store.load_profile("low", &low).unwrap();
     grant_first_mage(&mut low_candidate);
@@ -68,7 +70,12 @@ fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     assert!(store.commit_quest("mage", "1402", "completed", &candidate).unwrap());
     let promoted = store.load_profile("mage", &base).unwrap();
     assert_eq!((promoted.job, promoted.max_mp, promoted.mp), (200, 100, 100));
+    assert_eq!(promoted.skills.get(&1001), Some(&1));
     assert_eq!(promoted.skill_points[&MAGE_BOOK], 5);
+    assert!(store
+        .cast_skill_with_cooldown("mage", "beginner-after-transfer", 1001, 0, 0, 3, 5, 0)
+        .unwrap()
+        .success);
     let marker: i64 = {
         let db = store.db.lock().unwrap();
         db.query_row("SELECT mage_support_granted FROM player_stats WHERE account_id='mage'", [], |row| row.get(0)).unwrap()

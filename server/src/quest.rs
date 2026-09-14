@@ -1512,13 +1512,13 @@ impl World {
         // Existing mage jobs recover only the story; they receive no grant.
         let first_mage_transfer = quest_id == "1402" && wanted == "completed" && profile.job == 0;
         if first_mage_transfer {
-            if profile.level < 10
+            if profile.level < auth::FIRST_MAGE_JOB_LEVEL
                 || player_snapshot.quests.get("36307").map(String::as_str) != Some("completed")
             {
                 self.send_reject(
                     id,
                     "quest_requirements_missing",
-                    "請先完成前置劇情並達到10級。",
+                    "請先完成前置劇情並達到8級。",
                     request_id,
                 );
                 return false;

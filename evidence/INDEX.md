@@ -4,6 +4,7 @@
 
 | 归档目录 | 任务 | 来源 | 文件数 |
 | --- | --- | --- | ---: |
+| [`2026-09-14/keybindings/`](2026-09-14/keybindings/) | 自定义键盘与快捷栏离线组件检查 | `scripts/check_keybindings_ui.mjs`；四尺寸、HP/MP 留空避让与配套构建日志 | 5 |
 | [`2026-09-05/bot-selftest/`](2026-09-05/bot-selftest/) | bot-selftest | `evidence/bot-selftest.json` | 1 |
 | [`2026-09-05/mvp-acceptance/`](2026-09-05/mvp-acceptance/) | mvp-acceptance | `evidence/MVP_ACCEPTANCE.md` | 1 |
 | [`2026-09-05/qa/`](2026-09-05/qa/) | qa | `evidence/qa/`（文件日期 2026-09-05—06） | 79 |

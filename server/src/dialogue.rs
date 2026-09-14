@@ -579,10 +579,9 @@ impl World {
                                     self.end_conversation(&id);
                                     // A beginner reaching this branch cleared
                                     // the "is a beginner" gate and failed the
-                                    // level one — the original first transfer
-                                    // is a level-10 step (1402 lvmin).
+                                    // level check for the first transfer.
                                     let message = if job == BEGINNER_JOB {
-                                        "轉職需要達到10級。"
+                                        "法師一轉需要達到8級。"
                                     } else {
                                         "只有新手可以在汉斯处转职为法师。"
                                     };
@@ -682,6 +681,7 @@ impl World {
         if player.state.job != from_job
             || player.state.hp <= 0
             || player.state.action == "dead"
+            || (first_transfer && player.state.level < auth::FIRST_MAGE_JOB_LEVEL)
             || (second_transfer && player.state.level < 30)
             || (third_transfer
                 && (player.state.level < 60 || self.mage_skills.get(SKILL_ICE_STORM).is_none()))

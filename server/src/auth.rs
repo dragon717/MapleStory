@@ -310,6 +310,11 @@ pub fn random_id() -> String {
 
 pub(crate) const DROP_PROTECTION_MS: i64 = 60_000;
 
+// P: user-requested TMS273 gameplay rule (2026-09-14). The local Quest.wz
+// export records 1402 lvmin=10; this explicit product rule makes the mage's
+// first transfer the level-8 exception while other first-job routes stay 10.
+pub(crate) const FIRST_MAGE_JOB_LEVEL: u32 = 8;
+
 const MAGE_BOOK: u32 = 200;
 const THIRD_MAGE_BOOK: u32 = 221;
 const THIRD_JOB: u32 = 221;
@@ -775,12 +780,7 @@ impl Store {
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
         let required_level: i64 = if from_job == 0 && job == 200 {
-            // T: 1402「法師之路」(Quest.wz/QuestData/1402.img) carries
-            // Check.0.lvmin=10, and `commit_quest` already enforces the same
-            // floor on the quest path.  This shortcut used to sit at level 0,
-            // so a level-4 beginner could transfer — the original first job
-            // advancement is a level-10 step.
-            10
+            i64::from(FIRST_MAGE_JOB_LEVEL)
         } else if from_job == 200 && job == 220 {
             30
         } else if from_job == 220 && job == THIRD_JOB {
@@ -1793,7 +1793,7 @@ mod tests {
         transfer.max_hp = 61;
         transfer.mp = 9;
         transfer.max_mp = 17;
-        transfer.level = 9;
+        transfer.level = 7;
         transfer.exp = 4;
         transfer.exp_to_next = 19;
         transfer.mesos = 123;
@@ -1803,11 +1803,10 @@ mod tests {
         transfer.skills = BTreeMap::from([(2001008, 1)]);
         transfer.skill_points = BTreeMap::from([(2, 7)]);
         store.save_profile("transfer", &transfer).unwrap();
-        // T: 1402 gated the original first transfer at level 10, so the
-        // authorized shortcut must not be looser than the quest path.
+        // The mage exception starts at level 8; level 7 remains blocked.
         assert!(!store.advance_job("transfer", 0, 200).unwrap());
         assert_eq!(store.load_profile("transfer", &defaults(0)).unwrap().job, 0);
-        transfer.level = 10;
+        transfer.level = 8;
         store.save_profile("transfer", &transfer).unwrap();
         assert!(store.advance_job("transfer", 0, 200).unwrap());
         let transferred = store.load_profile("transfer", &defaults(300)).unwrap();
@@ -1816,7 +1815,7 @@ mod tests {
         assert_eq!(transferred.max_hp, 61);
         assert_eq!(transferred.mp, 100);
         assert_eq!(transferred.max_mp, 100);
-        assert_eq!(transferred.level, 10);
+        assert_eq!(transferred.level, 8);
         assert_eq!(transferred.exp, 4);
         assert_eq!(transferred.exp_to_next, 19);
         assert_eq!(transferred.mesos, 123);
@@ -2320,13 +2319,17 @@ mod tests {
             "skill_cooldown"
         );
         assert_eq!(store.load_profile("beginner", &base).unwrap().mp, 25);
-        // T: the first transfer is a level-10 step (1402 lvmin), so raise the
-        // character before exercising it — without dropping the skills learned
-        // above, which the SP assertions at the top depend on.
+        // Raise the character to the mage exception boundary before exercising
+        // the transfer, without dropping the skills learned above.
         let mut eligible = store.load_profile("beginner", &base).unwrap();
-        eligible.level = 10;
+        eligible.level = 8;
         store.save_profile("beginner", &eligible).unwrap();
         assert!(store.advance_job("beginner", 0, 200).unwrap());
+        assert!(!store
+            .load_profile("beginner", &base)
+            .unwrap()
+            .skills
+            .contains_key(&2001008));
         assert!(
             store
                 .cast_skill_with_cooldown("beginner", "speed", 1002, 0, 0, 3, 4, 60_000)

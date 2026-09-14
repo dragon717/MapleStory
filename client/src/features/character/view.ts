@@ -53,6 +53,7 @@ export function characterJobName(job: number | undefined) {
 
 /** Source-backed UICharacterInfo window with a native-size, scrollable canvas. */
 export class CharacterInfoView {
+  hotkeysEnabled = true;
   private readonly manifest: Manifest;
   private readonly root: HTMLDivElement;
   private readonly window: HTMLDivElement;
@@ -80,7 +81,7 @@ export class CharacterInfoView {
       this.close();
       return;
     }
-    if (event.code === 'KeyC' && this.player) {
+    if (this.hotkeysEnabled && event.code === 'KeyC' && this.player) {
       event.preventDefault();
       this.toggle();
     }

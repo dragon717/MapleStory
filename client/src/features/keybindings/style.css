@@ -1,0 +1,53 @@
+.keybindings-host{position:absolute;inset:0;pointer-events:none;z-index:var(--ui-window-z,12)}
+.keybindings-host[hidden]{display:none!important}
+.keybindings-window{position:absolute;left:50%;top:50%;transform:translateX(-50%);width:660px;max-width:calc(100% - 12px);max-height:calc(100% - 88px);overflow:auto;pointer-events:auto;touch-action:none;box-sizing:border-box;background:#333 var(--keybindings-art) no-repeat left top;color:#eee;font:11px/1.3 Verdana,"Microsoft YaHei",sans-serif;border-radius:9px;box-shadow:0 5px 16px #0009;scrollbar-width:thin;image-rendering:pixelated}
+.keybindings-window button,.keybindings-window select{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.keybindings-window button:focus-visible,.keybindings-window select:focus-visible{outline:2px solid #ffdd39;outline-offset:1px}
+.keybindings-window button:disabled{cursor:default;opacity:.6}
+.keybindings-title{height:67px;position:relative;box-sizing:border-box}
+.keybindings-close{position:absolute;right:4px;top:4px;border:0;padding:0;background:transparent;line-height:0}
+.keybindings-keyboard{height:230px;position:relative}
+.keybindings-key{position:absolute;width:32px;height:32px;box-sizing:border-box;border:0;padding:0;border-radius:4px;background:transparent;color:#222!important}
+.keybindings-key img,.keybindings-slot img,.keybindings-choice img{width:28px;height:28px;object-fit:contain;pointer-events:none}
+.keybindings-label{position:absolute;left:1px;right:1px;top:1px;font-size:8px;line-height:9px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none;text-shadow:0 1px #fff}
+.keybindings-key .keybindings-label{background:#eeeeeea6;max-width:max-content}
+.keybindings-action{display:flex;align-items:center;justify-content:center;height:100%;padding-top:8px;box-sizing:border-box;font-size:9px;line-height:10px;overflow:hidden;word-break:break-all;pointer-events:none}
+.keybindings-toolbar{display:flex;gap:4px;align-items:center;justify-content:space-between;height:36px;padding:0 22px;box-sizing:border-box;background:#333}
+.keybindings-controls,.keybindings-tabs{display:flex;gap:3px;align-items:center;min-width:0}
+.keybindings-controls label{display:flex;align-items:center;white-space:nowrap;font-size:10px}
+.keybindings-controls input{margin:0 2px 0 0}
+.keybindings-controls select{max-width:85px;background:#292929;border:1px solid #777;border-radius:3px;height:22px}
+.keybindings-controls button,.keybindings-tabs button,.keybindings-footer button{white-space:nowrap;border:1px solid #737373;border-radius:3px;padding:3px 5px;background:linear-gradient(#646464,#414141);color:#fff;font-size:10px}
+.keybindings-window button:hover:not(:disabled){filter:brightness(1.15)}
+.keybindings-window button:active:not(:disabled){filter:brightness(.9)}
+.keybindings-tabs button[aria-pressed=true]{color:#ffed49;border-color:#d9c846}
+.keybindings-palette{height:188px;margin:0 23px;display:grid;grid-template-columns:repeat(17,32px);grid-auto-rows:32px;align-content:start;gap:4px;overflow:auto;box-sizing:border-box;padding-top:2px;touch-action:pan-y}
+.keybindings-choice{position:relative;width:32px;height:32px;padding:0;border:0;border-radius:3px;background:#3e3e3e;color:#fff}
+.keybindings-choice .keybindings-label{top:auto;bottom:0;font-size:8px;color:white;background:#111b;text-shadow:1px 1px #000}
+.keybindings-choice .keybindings-action{padding:0}
+.keybindings-choice:not(:has(img)) .keybindings-label{display:none}
+.keybindings-palette>p{grid-column:1/-1;color:#ddd;padding:8px}
+.keybindings-quick-label{height:43px;margin:0 20px;padding:15px 14px 0;box-sizing:border-box;color:white;background:#414141}
+.keybindings-quick{display:grid;grid-template-columns:repeat(16,32px);grid-auto-rows:32px;gap:3px;width:557px;height:80px;margin:0 auto;box-sizing:border-box;padding-top:8px}
+.keybindings-slot{position:relative;width:32px;height:32px;padding:0;border:1px solid #888;border-radius:4px;background:linear-gradient(#5e5e5e,#353535);color:#fff;box-sizing:border-box}
+.keybindings-slot .keybindings-label{color:#fff;background:#1119;text-shadow:1px 1px #000}
+.keybindings-footer{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-height:88px;padding:10px 22px;box-sizing:border-box;background:#333;border:2px solid #c0c0c0;border-top:0;border-radius:0 0 8px 8px}
+.keybindings-footer p{flex:1 1 400px;margin:0;font-size:11px;color:#ffed86}
+.keybindings-footer small{display:block;width:100%;color:#ddd;font-size:10px}
+.keybindings-window .is-selected{outline:2px solid #ffe039;outline-offset:-1px;background-color:#9b812b65}
+@media(max-width:680px){
+ .keybindings-window{max-height:calc(100% - 106px);top:6px;transform:translateX(-50%);background-image:none;border:2px solid #bcbcbc}
+ .keybindings-title{height:62px;background:var(--keybindings-art) left top/660px 735px no-repeat}
+ .keybindings-keyboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(36px,1fr));gap:4px;height:auto;padding:7px;background:#dedede;margin:0 7px;border-radius:4px}
+ .keybindings-key{position:relative!important;left:auto!important;top:auto!important;width:100%;height:36px;background:linear-gradient(#fafafa,#d3d3d3);border:1px solid #aaa}
+ .keybindings-toolbar{height:auto;min-height:36px;flex-wrap:wrap;justify-content:flex-start;padding:6px 9px;gap:6px}
+ .keybindings-controls{flex-wrap:wrap}
+ .keybindings-palette{grid-template-columns:repeat(auto-fit,minmax(36px,1fr));grid-auto-rows:36px;margin:0 9px;height:152px;background:#414141;border:1px solid #777;padding:3px;gap:4px}
+ .keybindings-choice{width:100%;height:36px}
+ .keybindings-quick-label{height:auto;margin:0;padding:12px 9px 4px;background:transparent}
+ .keybindings-quick{width:auto;margin:0 9px;height:auto;grid-template-columns:repeat(auto-fit,minmax(32px,1fr));padding:4px 0 10px}
+ .keybindings-slot{justify-self:center}
+ .keybindings-footer{padding:8px 9px;border:0;min-height:88px}
+}
+
+.keybindings-key .keybindings-label img{display:block;max-width:28px;object-fit:contain}

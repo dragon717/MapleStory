@@ -146,7 +146,7 @@ impl Store {
 
         let mut first_mage_transfer = false;
         if quest_id == "1402" && status == "completed" {
-            if durable_profile.level < 10 {
+            if durable_profile.level < FIRST_MAGE_JOB_LEVEL {
                 return Err("q1402 level requirement missing".to_owned());
             }
             let prerequisite: Option<String> = tx
