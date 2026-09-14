@@ -940,9 +940,17 @@ impl World {
             player.summons = retained;
         }
         for (id, summon) in due {
+            // The anchored form is a display variant of the same skill: its
+            // own catalog row carries no attack geometry, so the pulse has to
+            // resolve against the parent row or it would hit for a fraction.
+            let pulse_skill = if summon.skill_id == SKILL_THUNDER_SPHERE_HIDDEN {
+                SKILL_THUNDER_SPHERE
+            } else {
+                summon.skill_id
+            };
             let Some(pulse_level) = self
                 .mage_skills
-                .level(summon.skill_id, summon.level)
+                .level(pulse_skill, summon.level)
                 .cloned()
                 .or_else(|| {
                     self.mage_skills

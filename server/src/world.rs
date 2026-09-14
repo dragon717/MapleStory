@@ -2800,13 +2800,16 @@ impl World {
             if reactor.map_id != map_id || !reactor.placement.area_triggered() {
                 continue;
             }
-            if reactor.hit_until > self.tick || !reactor.placement.interactable_at(reactor.state) {
-                continue;
-            }
             if !self.reactor_in_reach(&reactor.placement, x, y, facing) {
                 continue;
             }
             if !next_overlaps.insert(reactor_id.clone()) {
+                continue;
+            }
+            // Recorded as overlapped even while locked: dropping it here would
+            // make the character a fresh entrant the moment the lock expires,
+            // so standing still would re-trigger the prop forever.
+            if reactor.hit_until > self.tick || !reactor.placement.interactable_at(reactor.state) {
                 continue;
             }
             if !prev_overlaps.contains(reactor_id) {

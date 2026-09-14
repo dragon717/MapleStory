@@ -511,6 +511,17 @@ pub fn equipment_upgrade_slots(item_id: &str) -> u32 {
     info_i64(item_id, "tuc").unwrap_or(0).max(0) as u32
 }
 
+/// T: the source `Item/ItemSellPriceStandard.json` prices Etc items by their
+/// `lv` — category 400 is a flat `lv * 2`, so a lv-1 drop is worth 2 mesos.
+/// Etc drops carry `info.autoPrice` instead of an authored `price`, and the
+/// export that rewrites `items.json` does not backfill it, so the fallback
+/// lives here where no re-export can drop it again.
+fn auto_price(item_id: &str) -> Option<u64> {
+    info_i64(item_id, "autoPrice").filter(|flag| *flag > 0)?;
+    let level = info_i64(item_id, "lv").filter(|level| *level > 0)?;
+    u64::try_from(level).ok().map(|level| level.saturating_mul(2))
+}
+
 /// The catalog `price` of one item, i.e. the same WZ field the NPC shop
 /// entries are authored in.  `None` means the item has no recorded value and
 /// therefore cannot be sold back to a shop for mesos.
@@ -518,6 +529,7 @@ pub fn item_price(item_id: &str) -> Option<u64> {
     info_i64(item_id, "price")
         .and_then(|price| u64::try_from(price.max(0)).ok())
         .filter(|price| *price > 0)
+        .or_else(|| auto_price(item_id))
 }
 
 /// The arrow family (206xxxx 箭矢/弩箭矢).  The catalog authors `price: 0`

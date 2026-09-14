@@ -1688,7 +1688,15 @@ include!("windbell_acceptance.rs");
         let result = rx.try_recv().expect("portal result");
         assert!(result.contains("\"type\":\"portalResult\""));
         world.step();
-        let snapshot = rx.try_recv().expect("target snapshot");
+        // The tick opens with unrelated pushes (friend state, ...), so pick
+        // the snapshot out of the burst instead of assuming its position.
+        let mut snapshot = None;
+        while let Ok(message) = rx.try_recv() {
+            if message.contains("\"type\":\"snapshot\"") {
+                snapshot = Some(message);
+            }
+        }
+        let snapshot = snapshot.expect("target snapshot");
         assert!(snapshot.contains("\"mapId\":\"target\""));
     }
 
@@ -2433,10 +2441,15 @@ include!("windbell_acceptance.rs");
 
     #[test]
     fn config_drop_and_exp_are_authoritative_without_client_values() {
-        let gameplay: Gameplay = serde_json::from_str(
+        // The literal version below is stale on purpose: the fixture is about
+        // drop/exp authority, so pin it to whatever the build ships instead of
+        // re-breaking on every content bump.
+        let mut raw: serde_json::Value = serde_json::from_str(
             r#"{"contentVersion":"tms273-3","player":{"baseStr":4,"baseDex":4,"baseInt":4,"baseLuk":4,"weaponType":130,"weaponWatk":10,"attackReach":80,"attackHeight":40,"attackAfterMs":300,"maxHp":30},"monsterTemplates":[{"templateId":"0100130","level":1,"maxHp":8,"PADamage":12,"exp":1,"bodyAttack":true,"moveSpeed":10,"hitboxWidth":39,"hitboxHeight":29,"drop":{"itemId":"2000000","quantity":1,"guaranteed":true}}],"monsterSpawns":[{"id":"s1","templateId":"0100130","x":100,"y":100,"footholdId":1}],"expTable":[15]}"#,
         )
         .unwrap();
+        raw["contentVersion"] = serde_json::json!(crate::protocol::CONTENT_VERSION);
+        let gameplay: Gameplay = serde_json::from_value(raw).unwrap();
         gameplay.validate().unwrap();
         assert_eq!(gameplay.monsters[0].pa_damage, Some(12));
         assert_eq!(gameplay.monsters[0].drops()[0].item_id, "2000000");

@@ -88,14 +88,27 @@ fn third_store_book_split_and_222_compatibility() {
     assert_eq!(third.skill_points.get(&221), Some(&8));
     assert_eq!(third.skill_points.get(&220), Some(&4));
     assert!(!third.skill_points.contains_key(&222));
+    // 222 is the fourth job, and its book is fed by the fourth-job SP table
+    // that only opens at level 101.  Below that a level-up must not invent a
+    // 222 book, and it must not leak points into the third book either.
     third.job = 222;
     third.level = 60;
     third.exp = 0;
     third.skill_points = BTreeMap::from([(220, 4), (221, 2)]);
     add_exp(&mut third, 1, &vec![1; 64]);
-    assert_eq!(third.skill_points.get(&220), Some(&7));
+    assert_eq!(third.level, 61);
+    assert_eq!(third.skill_points.get(&220), Some(&4));
     assert_eq!(third.skill_points.get(&221), Some(&2));
     assert!(!third.skill_points.contains_key(&222));
+
+    // From the level the fourth table opens, the points land on the 222 book.
+    third.level = 100;
+    third.exp = 0;
+    add_exp(&mut third, 1, &vec![1; 128]);
+    assert_eq!(third.level, 101);
+    assert_eq!(third.skill_points.get(&222), Some(&3));
+    assert_eq!(third.skill_points.get(&220), Some(&4));
+    assert_eq!(third.skill_points.get(&221), Some(&2));
 
     let path = std::env::temp_dir().join(format!("third-book-{}.sqlite3", random_id()));
     let store = third_open_store(&path);
