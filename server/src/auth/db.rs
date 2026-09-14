@@ -1043,7 +1043,7 @@ pub(super) fn read_equipped_tx(
     Ok(collected)
 }
 
-pub(super) fn read_equipped_db(db: &Connection, account_id: &str) -> Result<Vec<InventoryItem>, String> {
+pub(crate) fn read_equipped_db(db: &Connection, account_id: &str) -> Result<Vec<InventoryItem>, String> {
     let mut stmt = db
         .prepare(
             "SELECT slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM equipped

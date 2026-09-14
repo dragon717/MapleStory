@@ -19,9 +19,20 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', error => errors.push(String(error)));
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'client/public-tms273/assets/manifest.json'), 'utf8'));
-const accountSession = { token: 'account-token', playerId: 'account-id', username: 'entry_check', protocolVersion: 6, contentVersion: manifest.contentVersion };
+// The handshake constants must match shared/protocol.ts, or authenticate()
+// refuses the stub session exactly like it refuses an outdated server.
+const sharedProtocol = await fs.readFile(path.join(root, 'shared/protocol.ts'), 'utf8');
+const protocolVersion = Number(sharedProtocol.match(/PROTOCOL_VERSION = (\d+)/)?.[1]);
+const contentVersion = sharedProtocol.match(/CONTENT_VERSION = '([^']+)'/)?.[1];
+assert(protocolVersion > 0 && Boolean(contentVersion), 'shared protocol constants must be parseable');
+const accountSession = { token: 'account-token', playerId: 'account-id', username: 'entry_check', protocolVersion, contentVersion };
 let characters = [];
 let creations = 0;
+// A character whose current equipped rows differ from the frozen creation
+// look: the selection/quick-start paper doll must render the equipped items
+// (cap 1002067, coat 1040002), not the creation longcoat 1050286.
+const swapCharacter = { id: 'preview-swap', name: '换装自检', level: 5, job: 0, appearance: { gender: 0, face: 20100, hair: 30000, skin: 0, coat: 1050286, pants: 0, shoes: 1072833, weapon: 1302000 }, equipped: [{ slot: 1, itemId: '1002067', quantity: 1 }, { slot: 5, itemId: '1040002', quantity: 1 }, { slot: 7, itemId: '1072833', quantity: 1 }, { slot: 11, itemId: '1302000', quantity: 1 }] };
+characters.push(swapCharacter);
 await page.route('http://entry.test/**', async route => {
   const url = new URL(route.request().url());
   if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/entry-check.css"></head><body><div id="app"><main><section id="welcome"></section></main></div><div id="entered"></div><button id="show-menu" style="position:fixed;right:0;bottom:0;z-index:100">test menu</button><div id="menu-host" style="position:fixed;inset:0;pointer-events:none;z-index:99"></div><script type="module" src="/entry-check.js"></script></body></html>' });
@@ -32,7 +43,7 @@ await page.route('http://entry.test/**', async route => {
     assert.equal(request.token, accountSession.token);
     if (request.action === 'list') return route.fulfill({ json: { characters, slotLimit: 12, channelId: 1 } });
     if (request.action === 'checkName') return route.fulfill({ json: { available: !characters.some(item => item.name === request.name) } });
-    if (request.action === 'create') { creations++; const character = { id: String(creations).padStart(64, '0'), name: request.name, appearance: request.appearance, level: 1, job: 0 }; characters.push(character); return route.fulfill({ json: { character } }); }
+    if (request.action === 'create') { creations++; const look = request.appearance; const character = { id: String(creations).padStart(64, '0'), name: request.name, appearance: look, level: 1, job: 0, equipped: [[5, look.coat], [6, look.pants], [7, look.shoes], [11, look.weapon]].filter(([, itemId]) => itemId).map(([slot, itemId]) => ({ slot, itemId, quantity: 1 })) }; characters.push(character); return route.fulfill({ json: { character } }); }
     if (request.action === 'select') { const character = characters.find(item => item.id === request.characterId); assert(character); assert.equal(request.channelId, 1); return route.fulfill({ json: { ...accountSession, token: 'character-token', playerId: character.id, username: character.name } }); }
     throw new Error(`Unknown action ${request.action}`);
   }
@@ -52,9 +63,17 @@ try {
   await page.locator('.entry-channel-button').waitFor();
   assert.equal(await page.locator('.entry-channel-button').count(), 1);
   await artReady();
+  const quickAvatar = page.locator('.entry-quick .entry-avatar');
+  assert(await quickAvatar.locator('img[src*="01002067"]').count() > 0, 'quick-start preview must render the equipped cap');
+  assert(await quickAvatar.locator('img[src*="01040002"]').count() > 0, 'quick-start preview must render the equipped coat');
+  assert.equal(await quickAvatar.locator('img[src*="01050286"]').count(), 0, 'quick-start preview must not fall back to the creation longcoat');
   await page.screenshot({ path: path.join(output, 'channel-desktop.png') });
   await page.locator('[data-action="channel"]').click();
   await artReady();
+  const swapAvatar = page.locator('[data-character="preview-swap"]');
+  assert(await swapAvatar.locator('img[src*="01002067"]').count() > 0, 'selection preview must render the equipped cap');
+  assert(await swapAvatar.locator('img[src*="01040002"]').count() > 0, 'selection preview must render the equipped coat');
+  assert.equal(await swapAvatar.locator('img[src*="01050286"]').count(), 0, 'selection preview must not fall back to the creation longcoat');
   await page.screenshot({ path: path.join(output, 'characters-empty-desktop.png') });
   await page.locator('[data-action="create"]').first().click();
   await page.locator('#character-name').fill('冒险自检');
@@ -76,7 +95,7 @@ try {
   await page.screenshot({ path: path.join(output, `create-${size.width}x${size.height}.png`), fullPage: true });
   }
   await page.locator('#create-character button[type="submit"]').click();
-  await page.locator('[data-select]').waitFor();
+  await page.locator('[data-select].selected').waitFor();
   assert.equal(creations, 1);
   await artReady();
   await page.screenshot({ path: path.join(output, 'characters-desktop.png') });

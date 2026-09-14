@@ -1,8 +1,22 @@
-// shared/protocol.ts
-var PROTOCOL_VERSION = 6;
-var CONTENT_VERSION = "tms273-2";
+// ../shared/protocol.ts
+var PROTOCOL_VERSION = 23;
+var CONTENT_VERSION = "tms273-24";
 
-// client/node_modules/opencc-js/dist/esm/t2cn.js
+// src/network/auth-api.ts
+async function authenticate(username, password, register) {
+  async function post(path) {
+    const response = await fetch(`/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `\u8BF7\u6C42\u5931\u8D25 (${response.status})`);
+    return body;
+  }
+  if (register) await post("register");
+  const session = await post("login");
+  if (session.protocolVersion !== PROTOCOL_VERSION || session.contentVersion !== CONTENT_VERSION) throw new Error("\u5BA2\u6237\u7AEF\u4E0E\u670D\u52A1\u5668\u7248\u672C\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u3002");
+  return session;
+}
+
+// node_modules/opencc-js/dist/esm/t2cn.js
 var n = class {
   constructor() {
     this.map = /* @__PURE__ */ new Map();
@@ -195,7 +209,7 @@ var w = (T = N, function(t2) {
 var T;
 var b = { Trie: n, ConverterFactory: o, Converter: w, CustomConverter: c, HTMLConverter: s, Locale: N };
 
-// client/src/app/i18n.ts
+// src/app/i18n.ts
 function resolveLocale(requested, saved) {
   const parse = (value) => {
     if (/^en(?:-|$)/i.test(value ?? "")) return "en";
@@ -219,7 +233,9 @@ var TEXT = Object.freeze({
   inventoryTitle: { zh: "\u7269\u54C1\u680F", en: "Inventory" },
   inventoryEquip: { zh: "\u88C5\u5907", en: "Equip" },
   inventoryUse: { zh: "\u6D88\u8017", en: "Use" },
-  inventorySetup: { zh: "\u8BBE\u7F6E", en: "Setup" },
+  // The TMS273 source tab canvas reads 裝飾 for the third slot-order tab
+  // (frame 4 before frame 3); keep the aria label aligned with that drawing.
+  inventorySetup: { zh: "\u88C5\u9970", en: "Setup" },
   inventoryEtc: { zh: "\u5176\u4ED6", en: "Etc" },
   inventoryCash: { zh: "\u73B0\u91D1", en: "Cash" },
   menu: { zh: "\u83DC\u5355", en: "Menu" },
@@ -240,7 +256,31 @@ var TEXT = Object.freeze({
   shortcutCommunity: { zh: "\u793E\u533A", en: "Community" },
   shortcutMonsterBook: { zh: "\u602A\u7269\u56FE\u9274", en: "Monster Book" },
   shortcutRanking: { zh: "\u6392\u884C\u699C", en: "Ranking" },
-  meso: { zh: "\u91D1\u5E01", en: "mesos" }
+  meso: { zh: "\u91D1\u5E01", en: "mesos" },
+  shopBuyTab: { zh: "\u8D2D\u4E70", en: "Buy" },
+  shopSellTab: { zh: "\u51FA\u552E", en: "Sell" },
+  shopRebuyTab: { zh: "\u8D4E\u56DE", en: "Redeem" },
+  party: { zh: "\u961F\u4F0D", en: "Party" },
+  partyCreate: { zh: "\u521B\u5EFA\u961F\u4F0D", en: "Create party" },
+  partyInvite: { zh: "\u9080\u8BF7", en: "Invite" },
+  partyKick: { zh: "\u8E22\u51FA", en: "Kick" },
+  partyLeave: { zh: "\u9000\u51FA\u961F\u4F0D", en: "Leave party" },
+  partyLeader: { zh: "\u961F\u957F", en: "Leader" },
+  partyChangeLeader: { zh: "\u79FB\u4EA4\u961F\u957F", en: "Change leader" },
+  partyClose: { zh: "\u5173\u95ED", en: "Close" },
+  partyNameLabel: { zh: "\u89D2\u8272\u540D\u79F0", en: "Character name" },
+  partyMembers: { zh: "\u6210\u5458", en: "Members" },
+  partyEmpty: { zh: "\u961F\u4F0D\u91CC\u8FD8\u6CA1\u6709\u5176\u4ED6\u6210\u5458\u3002", en: "Nobody else is in the party yet." },
+  partySolo: { zh: "\u4F60\u8FD8\u6CA1\u6709\u961F\u4F0D\u3002\u8F93\u5165\u89D2\u8272\u540D\u79F0\u5373\u53EF\u521B\u5EFA\u3002", en: "You are not in a party. Enter a character name to create one." },
+  partyInvited: { zh: "\u5DF2\u9080\u8BF7", en: "Invited" },
+  partyWaiting: { zh: "\u7B49\u5F85\u5BF9\u65B9\u56DE\u5E94\u2026", en: "Waiting for an answer\u2026" },
+  partyAccept: { zh: "\u63A5\u53D7", en: "Accept" },
+  partyDecline: { zh: "\u62D2\u7EDD", en: "Decline" },
+  partyInviteFrom: { zh: "\u9080\u8BF7\u4F60\u52A0\u5165\u961F\u4F0D", en: "invites you to a party" },
+  partyPickMember: { zh: "\u8BF7\u5148\u9009\u62E9\u4E00\u540D\u6210\u5458\u3002", en: "Pick a member first." },
+  partyNeedName: { zh: "\u8BF7\u5148\u8F93\u5165\u89D2\u8272\u540D\u79F0\u3002", en: "Enter a character name first." },
+  partyDone: { zh: "\u5B8C\u6210\u3002", en: "Done." },
+  partyDisbanded: { zh: "\u961F\u4F0D\u5DF2\u89E3\u6563\u3002", en: "The party has ended." }
 });
 var PROTOCOL_ERRORS = Object.freeze({
   invalid_inventory_type: { zh: "\u7269\u54C1\u680F\u5206\u7C7B\u65E0\u6548", en: "Invalid inventory category" },
@@ -269,30 +309,131 @@ var PROTOCOL_ERRORS = Object.freeze({
   inventory_full: { zh: "\u7269\u54C1\u680F\u5DF2\u6EE1", en: "Inventory is full" },
   quantity_overflow: { zh: "\u9053\u5177\u6570\u91CF\u8FC7\u5927", en: "Item quantity is too large" },
   invalid_slot: { zh: "\u7269\u54C1\u680F\u683C\u5B50\u65E0\u6548", en: "Inventory slot is invalid" },
-  persistence: { zh: "\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5", en: "Persistence failed; try again" }
+  persistence: { zh: "\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5", en: "Persistence failed; try again" },
+  chat_rate_limited: { zh: "\u53D1\u8A00\u592A\u5FEB\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5", en: "You are chatting too fast; wait a moment" },
+  invalid_chat_text: { zh: "\u6D88\u606F\u4E3A\u7A7A\u3001\u8FC7\u957F\u6216\u5305\u542B\u4E0D\u5141\u8BB8\u7684\u5B57\u7B26", en: "Empty, overlong, or disallowed characters" },
+  idempotency_conflict: { zh: "\u91CD\u590D\u8BF7\u6C42\u4F7F\u7528\u4E86\u4E0D\u540C\u7684\u5185\u5BB9", en: "A retried request changed its content" },
+  whisper_unknown_player: { zh: "\u627E\u4E0D\u5230\u8FD9\u4E2A\u540D\u5B57\u7684\u89D2\u8272", en: "No character with that name exists" },
+  whisper_self: { zh: "\u4E0D\u80FD\u7ED9\u81EA\u5DF1\u53D1\u5BC6\u8BED", en: "You cannot whisper yourself" },
+  whisper_offline: { zh: "\u5BF9\u65B9\u5F53\u524D\u4E0D\u5728\u7EBF", en: "That character is not online" },
+  whisper_blocked: { zh: "\u5BF9\u65B9\u5DF2\u628A\u4F60\u52A0\u5165\u9ED1\u540D\u5355", en: "That character has blocked you" },
+  whisper_ignored: { zh: "\u4F60\u5DF2\u628A\u5BF9\u65B9\u52A0\u5165\u9ED1\u540D\u5355", en: "You have blocked that character" },
+  npc_too_far: { zh: "\u8DDD\u79BB\u592A\u8FDC\uFF0C\u8BF7\u9760\u8FD1 NPC \u540E\u518D\u5BF9\u8BDD", en: "Stand closer to the NPC to talk" },
+  npc_unknown: { zh: "\u627E\u4E0D\u5230\u8BE5 NPC", en: "That NPC is not available" },
+  npc_unavailable: { zh: "\u8BE5 NPC \u5F53\u524D\u65E0\u6CD5\u4E0E\u4F60\u5BF9\u8BDD", en: "That NPC cannot talk right now" },
+  npc_step_invalid: { zh: "\u8BE5\u5BF9\u8BDD\u9009\u9879\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u4E0E NPC \u4EA4\u8C08", en: "This conversation option is no longer available" },
+  job_advance_unavailable: { zh: "\u5F53\u524D\u72B6\u6001\u65E0\u6CD5\u8FDB\u884C\u8F6C\u804C", en: "Job advancement is unavailable right now" },
+  shop_unknown: { zh: "\u627E\u4E0D\u5230\u8FD9\u5BB6\u5546\u5E97", en: "That shop is not available" },
+  shop_too_far: { zh: "\u8DDD\u79BB\u592A\u8FDC\uFF0C\u8BF7\u9760\u8FD1\u5546\u4EBA", en: "Stand closer to the merchant" },
+  shop_item_unknown: { zh: "\u5546\u5E97\u4E0D\u51FA\u552E\u6B64\u9053\u5177", en: "The shop does not carry this item" },
+  shop_not_enough_mesos: { zh: "\u91D1\u5E01\u4E0D\u8DB3", en: "Not enough mesos" },
+  shop_inventory_full: { zh: "\u7269\u54C1\u680F\u5DF2\u6EE1", en: "Inventory is full" },
+  shop_quantity_invalid: { zh: "\u6570\u91CF\u65E0\u6548\u6216\u9053\u5177\u4E0D\u8DB3", en: "Invalid quantity or not enough items" },
+  shop_slot_empty: { zh: "\u8FD9\u4E2A\u683C\u5B50\u6CA1\u6709\u9053\u5177", en: "That slot is empty" },
+  shop_item_unsellable: { zh: "\u8FD9\u4E2A\u9053\u5177\u65E0\u6CD5\u51FA\u552E\u7ED9\u5546\u5E97", en: "This item cannot be sold to a shop" },
+  shop_rejected: { zh: "\u5546\u5E97\u62D2\u7EDD\u4E86\u8FD9\u6B21\u4EA4\u6613", en: "The shop rejected this trade" },
+  shop_rebuy_unknown: { zh: "\u8FD9\u4E00\u4EF6\u5DF2\u7ECF\u4E0D\u5728\u8D4E\u56DE\u5217\u8868\u91CC\u4E86", en: "That stack is no longer up for buy-back" },
+  potion_cooldown: { zh: "\u9053\u5177\u51B7\u5374\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u4F7F\u7528", en: "This item is cooling down" },
+  map_move: { zh: "\u5DF2\u4F7F\u7528\u4F20\u9001\u5377\u8F74\uFF0C\u6B63\u5728\u79FB\u52A8", en: "Teleport scroll used; moving" },
+  slot_expand_max: { zh: "\u8BE5\u7269\u54C1\u680F\u5DF2\u6269\u5145\u5230\u4E0A\u9650\uFF0C\u65E0\u6CD5\u7EE7\u7EED\u6269\u5145", en: "This inventory tab is already at its maximum capacity" },
+  slot_expand: { zh: "\u5DF2\u6269\u5145\u7269\u54C1\u680F", en: "Inventory expanded" },
+  scroll_blocked: { zh: "\u7EC3\u4E60\u4E2D\u4E0D\u80FD\u4F7F\u7528\u4F20\u9001\u5377\u8F74", en: "Teleport scrolls cannot be used during practice" },
+  scroll_no_target: { zh: "\u6B64\u5730\u56FE\u6CA1\u6709\u53EF\u8FD4\u56DE\u7684\u57CE\u9547\uFF0C\u5377\u8F74\u672A\u88AB\u6D88\u8017", en: "This map has no return town, so the scroll was not consumed" },
+  scroll_unavailable: { zh: "\u76EE\u6807\u57CE\u9547\u5C1A\u672A\u5F00\u653E\uFF0C\u5377\u8F74\u672A\u88AB\u6D88\u8017", en: "The destination town is not open yet, so the scroll was not consumed" },
+  storage_unknown: { zh: "\u627E\u4E0D\u5230\u8FD9\u4E2A\u4ED3\u5E93\u7BA1\u7406\u5458", en: "That storage keeper is not available" },
+  storage_not_keeper: { zh: "\u8FD9\u4E2A NPC \u4E0D\u662F\u4ED3\u5E93\u7BA1\u7406\u5458", en: "That NPC is not a storage keeper" },
+  storage_too_far: { zh: "\u8DDD\u79BB\u592A\u8FDC\uFF0C\u8BF7\u9760\u8FD1\u4ED3\u5E93\u7BA1\u7406\u5458", en: "Stand closer to the storage keeper" },
+  storage_closed: { zh: "\u4ED3\u5E93\u5DF2\u5173\u95ED\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00", en: "The storage window is closed; open it again" },
+  storage_slot_empty: { zh: "\u4ED3\u5E93\u8FD9\u4E2A\u683C\u5B50\u6CA1\u6709\u9053\u5177", en: "That storage slot is empty" },
+  storage_full: { zh: "\u4ED3\u5E93\u5DF2\u6EE1", en: "The storage is full" },
+  party_unknown_player: { zh: "\u627E\u4E0D\u5230\u8FD9\u4E2A\u540D\u5B57\u7684\u89D2\u8272", en: "No character with that name is in the world" },
+  party_self: { zh: "\u4E0D\u80FD\u5BF9\u81EA\u5DF1\u6267\u884C\u8FD9\u4E2A\u64CD\u4F5C", en: "You cannot do that to yourself" },
+  party_busy: { zh: "\u5BF9\u65B9\u5DF2\u6709\u4E00\u4E2A\u5F85\u56DE\u5E94\u7684\u9080\u8BF7", en: "That character already has a pending invitation" },
+  party_not_leader: { zh: "\u53EA\u6709\u961F\u957F\u53EF\u4EE5\u6267\u884C\u8FD9\u4E2A\u64CD\u4F5C", en: "Only the party leader can do that" },
+  party_already: { zh: "\u5BF9\u65B9\u5DF2\u7ECF\u5728\u961F\u4F0D\u4E2D", en: "That character is already in the party" },
+  party_full: { zh: "\u961F\u4F0D\u5DF2\u6EE1\uFF08\u6700\u591A 6 \u4EBA\uFF09", en: "The party is full (6 members at most)" },
+  party_no_invite: { zh: "\u6CA1\u6709\u5F85\u56DE\u5E94\u7684\u9080\u8BF7", en: "There is no pending invitation" },
+  party_declined: { zh: "\u5BF9\u65B9\u62D2\u7EDD\u4E86\u9080\u8BF7", en: "The invitation was declined" },
+  party_not_member: { zh: "\u5BF9\u65B9\u4E0D\u662F\u8FD9\u652F\u961F\u4F0D\u7684\u6210\u5458", en: "That character is not in this party" },
+  party_unavailable: { zh: "\u8FD9\u652F\u961F\u4F0D\u5DF2\u7ECF\u65E0\u6CD5\u52A0\u5165", en: "That party can no longer be joined" },
+  party_kicked: { zh: "\u4F60\u5DF2\u88AB\u79FB\u51FA\u961F\u4F0D", en: "You were removed from the party" },
+  friend_unknown_player: { zh: "\u627E\u4E0D\u5230\u8FD9\u4E2A\u540D\u5B57\u7684\u89D2\u8272", en: "No character with that name exists" },
+  friend_self: { zh: "\u4E0D\u80FD\u628A\u81EA\u5DF1\u52A0\u5165\u597D\u53CB\u6216\u9ED1\u540D\u5355", en: "You cannot befriend or block yourself" },
+  friend_already: { zh: "\u5BF9\u65B9\u5DF2\u7ECF\u5728\u540D\u5355\u4E2D", en: "That character is already in the list" },
+  friend_full: { zh: "\u540D\u5355\u5DF2\u6EE1", en: "The list is full" },
+  friend_declined: { zh: "\u5BF9\u65B9\u5DF2\u628A\u4F60\u52A0\u5165\u9ED1\u540D\u5355", en: "That character has blocked you" },
+  friend_not_friend: { zh: "\u5BF9\u65B9\u4E0D\u662F\u4F60\u7684\u597D\u53CB", en: "That character is not your friend" },
+  friend_not_blocked: { zh: "\u5BF9\u65B9\u4E0D\u5728\u9ED1\u540D\u5355\u4E2D", en: "That character is not on the blacklist" },
+  emoticon_unknown: { zh: "\u672A\u77E5\u7684\u8868\u60C5\u8D34\u56FE", en: "Unknown emoticon" },
+  emoticon_rate_limited: { zh: "\u8868\u60C5\u53D1\u9001\u592A\u5FEB\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5", en: "You are sending emoticons too fast; wait a moment" },
+  // 高频操作（T04）：攻击、拾取、任务、地图、宠物的拒绝以前没有文案，玩家看到的是
+  // 服务端的英文诊断加一个裸错误码 —— "为什么我按了没反应"完全没有答案。以下每条
+  // 对应一种玩家真的会撞上的情况，文案要说清**是什么挡住了他**。
+  attack_while_climbing: { zh: "\u722C\u5728\u7EF3\u5B50\u6216\u68AF\u5B50\u4E0A\u65F6\u65E0\u6CD5\u653B\u51FB", en: "You cannot attack while on a rope or ladder" },
+  attack_while_dead: { zh: "\u6B7B\u4EA1\u72B6\u6001\u65E0\u6CD5\u653B\u51FB", en: "You cannot attack while dead" },
+  attack_while_channeling: { zh: "\u6280\u80FD\u5F15\u5BFC\u4E2D\u65E0\u6CD5\u653B\u51FB", en: "You cannot attack while channelling a skill" },
+  cooldown: { zh: "\u4E0A\u4E00\u6B21\u653B\u51FB\u52A8\u4F5C\u8FD8\u6CA1\u7ED3\u675F", en: "The previous attack is still in progress" },
+  capacity: { zh: "\u670D\u52A1\u5668\u6682\u65F6\u65E0\u6CD5\u5904\u7406\u66F4\u591A\u52A8\u4F5C\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55", en: "The server cannot take more actions; please log in again" },
+  busy: { zh: "\u670D\u52A1\u5668\u5FD9\u788C\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5", en: "The server is busy; try again shortly" },
+  rate_limit: { zh: "\u64CD\u4F5C\u8FC7\u4E8E\u9891\u7E41\uFF0C\u8BF7\u653E\u6162\u4E00\u70B9", en: "You are acting too fast; slow down" },
+  invalid_message: { zh: "\u65E0\u6CD5\u8BC6\u522B\u7684\u64CD\u4F5C", en: "That request could not be understood" },
+  invalid_hello: { zh: "\u8FDE\u7EBF\u63E1\u624B\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u6574\u7406\u9875\u9762", en: "Handshake failed; reload the page" },
+  unauthenticated: { zh: "\u767B\u5F55\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55", en: "Your session expired; log in again" },
+  map_unavailable: { zh: "\u8FD9\u4E2A\u5730\u56FE\u76EE\u524D\u65E0\u6CD5\u8FDB\u5165", en: "That map is not available right now" },
+  portal_unavailable: { zh: "\u8FD9\u9053\u4F20\u9001\u95E8\u73B0\u5728\u65E0\u6CD5\u4F7F\u7528", en: "That portal cannot be used right now" },
+  pet_not_summoned: { zh: "\u5C1A\u672A\u53EC\u5524\u5BA0\u7269", en: "No pet is summoned" },
+  effect_persistence: { zh: "\u6548\u679C\u672A\u80FD\u4FDD\u5B58\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5", en: "The effect could not be saved; try again" },
+  // 采集物：别人先拿走 / 正在被摇动都是**正常的竞争结果**，不是错误，但也不该无声。
+  reactor_unknown: { zh: "\u8FD9\u91CC\u6CA1\u6709\u53EF\u4EE5\u4E92\u52A8\u7684\u7269\u4EF6", en: "There is nothing to interact with here" },
+  reactor_busy: { zh: "\u8FD9\u4E2A\u7269\u4EF6\u6B63\u5728\u88AB\u6447\u52A8\uFF0C\u8BF7\u7A0D\u7B49", en: "That object is already being used" },
+  reactor_out_of_range: { zh: "\u518D\u9760\u8FD1\u4E00\u4E9B\u624D\u80FD\u4E92\u52A8", en: "Move closer to interact with that" },
+  reactor_spent: { zh: "\u8FD9\u4E2A\u7269\u4EF6\u5DF2\u7ECF\u88AB\u91C7\u5B8C\u4E86", en: "That object has already been taken" },
+  quest_unknown: { zh: "\u8FD9\u4E2A\u4EFB\u52A1\u4E0D\u5728\u76EE\u524D\u7684\u4EFB\u52A1\u76EE\u5F55\u4E2D", en: "That quest is not in the current quest list" },
+  quest_script_unavailable: { zh: "\u6B64\u4EFB\u52A1\u7684\u539F\u7248\u5267\u60C5\u5C1A\u672A\u63A5\u5165", en: "This quest story is not available yet" },
+  quest_npc_unavailable: { zh: "\u6B64\u4EFB\u52A1NPC\u76EE\u524D\u65E0\u6CD5\u5904\u7406\u4EFB\u52A1", en: "That NPC cannot handle this quest right now" },
+  quest_option_unavailable: { zh: "\u4EFB\u52A1\u9009\u9879\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u5F00\u542F\u5BF9\u8BDD", en: "The quest options changed; reopen the dialogue" },
+  quest_step_invalid: { zh: "\u8FD9\u4E2A\u4EFB\u52A1\u9009\u9879\u5DF2\u7ECF\u4E0D\u5B58\u5728", en: "That quest option is no longer offered" },
+  quest_transition_invalid: { zh: "\u4EFB\u52A1\u72B6\u6001\u5DF2\u66F4\u65B0", en: "The quest state already changed" },
+  quest_requirements_missing: { zh: "\u4EFB\u52A1\u6761\u4EF6\u5C1A\u672A\u5B8C\u6210", en: "The quest requirements are not met yet" },
+  quest_return_unavailable: { zh: "\u4EFB\u52A1\u8DEF\u7EBF\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u5F00\u542F\u5BF9\u8BDD", en: "The quest route changed; reopen the dialogue" },
+  quest_self_service_unavailable: { zh: "\u6B64\u4EFB\u52A1\u65E0\u6CD5\u5728\u4EFB\u52A1\u89C6\u7A97\u5904\u7406\uFF0C\u8BF7\u627E\u5BF9\u5E94\u7684NPC", en: "This quest cannot be handled from the quest window; find its NPC" }
+});
+var MINIMAP_TEXT = Object.freeze({
+  minimapShow: { zh: "\u5C55\u5F00\u5C0F\u5730\u56FE", en: "Expand minimap" },
+  minimapHide: { zh: "\u6536\u8D77\u5C0F\u5730\u56FE", en: "Collapse minimap" },
+  minimapCompact: { zh: "\u5207\u6362\u4E3A\u7CBE\u7B80\u5C0F\u5730\u56FE", en: "Switch to compact minimap" },
+  minimapFull: { zh: "\u5207\u6362\u4E3A\u5B8C\u6574\u5C0F\u5730\u56FE", en: "Switch to full minimap" },
+  minimapZoomOut: { zh: "\u7F29\u5C0F\u5730\u56FE", en: "Zoom out" },
+  minimapZoomIn: { zh: "\u653E\u5927\u5730\u56FE", en: "Zoom in" },
+  // The BtNpc button opens the authored NPC 目录 window (its zh tooltip is the
+  // source's own `BtNpc/toolTip`; this is the en line and the window's aria
+  // label).
+  minimapNpc: { zh: "NPC \u76EE\u5F55", en: "NPC list" },
+  minimapPortal: { zh: "\u4F20\u9001\u95E8\u6807\u8BB0", en: "Portal markers" },
+  minimapParty: { zh: "\u961F\u4F0D\u6210\u5458\u6807\u8BB0", en: "Party markers" },
+  minimapWorld: { zh: "\u4E16\u754C\u5730\u56FE", en: "World map" },
+  minimapSelf: { zh: "\u4F60\u7684\u4F4D\u7F6E", en: "Your position" },
+  minimapNpcListEmpty: { zh: "\u8FD9\u5F20\u5730\u56FE\u4E0A\u6CA1\u6709 NPC\u3002", en: "No NPC is placed on this map." },
+  minimapNpcListClose: { zh: "\u5173\u95ED NPC \u76EE\u5F55", en: "Close the NPC list" }
+});
+var WORLD_MAP_TEXT = Object.freeze({
+  worldMapClose: { zh: "\u5173\u95ED\u4E16\u754C\u5730\u56FE", en: "Close the world map" },
+  worldMapAll: { zh: "\u8FD4\u56DE\u4E16\u754C\u603B\u89C8", en: "Back to the world overview" },
+  worldMapBefore: { zh: "\u4E0A\u4E00\u5F20\u5730\u56FE", en: "Previous map" },
+  worldMapNext: { zh: "\u4E0B\u4E00\u5F20\u5730\u56FE", en: "Next map" },
+  worldMapYou: { zh: "\u4F60\u7684\u4F4D\u7F6E", en: "Your position" },
+  worldMapMissing: { zh: "\u8FD9\u4E2A\u533A\u57DF\u8FD8\u6CA1\u6709\u53EF\u6D4F\u89C8\u7684\u5730\u56FE\u7D20\u6750\u3002", en: "No browsable map art is assembled for this region yet." },
+  worldMapNoSource: { zh: "\u8FD9\u5F20\u5730\u56FE\u5728\u539F\u7248\u6CA1\u6709\u4E16\u754C\u5730\u56FE\u7D20\u6750\u3002", en: "The original ships no world-map art for this map." },
+  worldMapUnreachable: { zh: "\u8FD9\u4E2A\u533A\u57DF\u6CA1\u6709\u53EF\u8FDB\u5165\u7684\u5730\u56FE\uFF0C\u672A\u6536\u5F55\u3002", en: "This region holds no reachable map, so it is not assembled." }
 });
 function uiLocale() {
   return locale;
 }
 function uiText(key, fallback = key) {
-  return TEXT[key]?.[locale] ?? fallback;
+  return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? fallback;
 }
 
-// client/src/network/session.ts
-async function authenticate(username, password, register) {
-  async function post(path) {
-    const response = await fetch(`/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error || `\u8BF7\u6C42\u5931\u8D25 (${response.status})`);
-    return body;
-  }
-  if (register) await post("register");
-  const session = await post("login");
-  if (session.protocolVersion !== PROTOCOL_VERSION || session.contentVersion !== CONTENT_VERSION) throw new Error("\u5BA2\u6237\u7AEF\u4E0E\u670D\u52A1\u5668\u7248\u672C\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u3002");
-  return session;
-}
-
-// client/src/features/entry/api.ts
+// src/features/entry/api.ts
 var errors = { "invalid session": "\u767B\u5F55\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u8FD4\u56DE\u9996\u9875\u91CD\u65B0\u767B\u5F55\u3002", "name already exists": "\u6B64\u89D2\u8272\u540D\u79F0\u5DF2\u88AB\u4F7F\u7528\uFF0C\u8BF7\u6362\u4E00\u4E2A\u540D\u79F0\u3002", "invalid character name": "\u89D2\u8272\u540D\u9700\u4E3A2\u201312\u4E2A\u4E2D\u6587\u5B57\u3001\u82F1\u6587\u5B57\u6BCD\u6216\u6570\u5B57\uFF0C\u53EF\u4F7F\u7528_\u548C-\u3002", "character slots full": "\u89D2\u8272\u680F\u4F4D\u5DF2\u6EE1\u3002", "character not found": "\u627E\u4E0D\u5230\u6B64\u89D2\u8272\uFF0C\u8BF7\u8FD4\u56DE\u9891\u9053\u91CD\u8BD5\u3002", "channel unavailable": "\u76EE\u524D\u4EC5\u5F00\u653E\u4E3B\u9891\u9053 CH. 1\u3002", "appearance option unavailable": "\u6B64\u5916\u89C2\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u3002", "request conflict": "\u521B\u5EFA\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u8BF7\u8FD4\u56DE\u89D2\u8272\u9009\u62E9\u540E\u91CD\u8BD5\u3002", "account persistence failed": "\u89D2\u8272\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002" };
 async function lobbyRequest(session, action, fields = {}) {
   const response = await fetch("/api/lobby", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: session.token, action, ...fields }) });
@@ -301,36 +442,143 @@ async function lobbyRequest(session, action, fields = {}) {
   return body;
 }
 
-// client/src/features/entry/appearance.ts
+// src/features/entry/appearance.ts
 var slots = (value) => value.match(/.{2}/g) ?? [];
+function normalizeAppearanceItemId(itemId) {
+  const raw = String(itemId).trim();
+  return /^\d+$/.test(raw) ? raw.padStart(8, "0") : raw;
+}
+function appearanceWeaponTypeForItemId(itemId, supportedWeaponTypes) {
+  const numeric = Number(String(itemId).trim());
+  if (!Number.isSafeInteger(numeric) || numeric <= 0) return void 0;
+  const family = Math.floor(numeric / 1e4);
+  if (family < 120 || family > 159) return void 0;
+  const branch = String(family % 100);
+  if (supportedWeaponTypes && !supportedWeaponTypes.map(String).includes(branch)) return void 0;
+  return branch;
+}
+function layerCandidates(itemId) {
+  const raw = String(itemId).trim();
+  const canonical = normalizeAppearanceItemId(raw);
+  const legacy = /^\d+$/.test(raw) ? String(Number(raw)) : raw;
+  return [.../* @__PURE__ */ new Set([raw, canonical, legacy])];
+}
+function appearanceLayer(catalog, itemId) {
+  const keys = layerCandidates(itemId);
+  const cashKeys = keys.filter((key) => catalog.cashAppearance?.items[key] || catalog.cashLayers?.[key]);
+  for (const key of cashKeys) {
+    const layer = catalog.cashLayers?.[key];
+    if (layer) return layer;
+  }
+  if (cashKeys.length) return void 0;
+  for (const layers of [catalog.layers, catalog.cashLayers ?? {}]) {
+    for (const key of keys) {
+      const layer = layers[key];
+      if (layer) return layer;
+    }
+  }
+  return void 0;
+}
+function cashAppearanceEntry(catalog, itemId) {
+  const items = catalog.cashAppearance?.items ?? {};
+  for (const key of layerCandidates(itemId)) {
+    const entry2 = items[key];
+    if (entry2) return entry2;
+  }
+  return void 0;
+}
+function appearanceWeaponType(catalog, equipped, lookWeapon) {
+  const supported = catalog.cashAppearance?.weaponTypes;
+  const candidates = [
+    ...equipped.filter((item) => item.slot === 11 || item.slot === -11).map((item) => item.itemId),
+    ...lookWeapon === void 0 ? [] : [lookWeapon]
+  ];
+  for (const itemId of candidates) {
+    const entry2 = cashAppearanceEntry(catalog, itemId);
+    const layer = appearanceLayer(catalog, itemId);
+    if (entry2?.cash === true || layer?.cash === true) continue;
+    const branch = appearanceWeaponTypeForItemId(itemId, supported);
+    if (branch) return branch;
+  }
+  return void 0;
+}
 function initialEquipment(look) {
   return [look.coat, look.pants, look.shoes, look.weapon].filter(Boolean).map((itemId) => ({ itemId: String(itemId) }));
 }
-function composeAppearance(catalog, look, equipped) {
+function layerActions(layer, gender, weaponType) {
+  const genderKey = String(gender);
+  const byGender = layer.actionsByWeaponTypeByGender?.[genderKey];
+  const byType = byGender ?? layer.actionsByWeaponType;
+  if (byType) {
+    const requested = weaponType === void 0 ? layer.weaponType : String(weaponType);
+    if (requested !== void 0) return byType[String(requested)] ?? {};
+    return {};
+  }
+  return layer.actionsByGender?.[genderKey] ?? layer.actions;
+}
+function layerIsLoaded(layer, options) {
+  if (!layer.lazy) return true;
+  if (options.loadedItemIds === void 0) return true;
+  if (!options.loadedItemIds) return false;
+  const ids = new Set(options.loadedItemIds.map(normalizeAppearanceItemId));
+  return ids.has(normalizeAppearanceItemId(layer.itemId ?? layer.id));
+}
+function layerFrames(layer, action, index, gender, weaponType) {
+  const actions = layerActions(layer, gender, weaponType);
+  const frames = actions[action];
+  if (!frames?.length) return [];
+  return frames[Math.min(index, frames.length - 1)]?.parts ?? [];
+}
+async function loadAppearanceLayer(catalog, itemId, fetcher = fetch) {
+  const entry2 = cashAppearanceEntry(catalog, itemId);
+  if (!entry2) return void 0;
+  const existing = catalog.cashLayers && appearanceLayer(catalog, itemId);
+  if (existing?.lazy && existing.cash === entry2.cash) return existing;
+  const response = await fetcher(entry2.url);
+  if (!response.ok) throw new Error(`\u89D2\u8272\u5916\u89C2\u8D44\u6E90\u52A0\u8F7D\u5931\u8D25 ${entry2.itemId} (${response.status})`);
+  const layer = await response.json();
+  if (layer.cash !== entry2.cash || layer.lazy !== entry2.lazy || normalizeAppearanceItemId(layer.itemId ?? layer.id) !== normalizeAppearanceItemId(entry2.itemId)) {
+    throw new Error(`\u89D2\u8272\u5916\u89C2\u8D44\u6E90\u6821\u9A8C\u5931\u8D25 ${entry2.itemId}`);
+  }
+  catalog.cashLayers ??= {};
+  catalog.cashLayers[entry2.itemId] = layer;
+  return layer;
+}
+async function loadAppearanceLayers(catalog, itemIds, fetcher = fetch) {
+  return Promise.all(itemIds.map((itemId) => loadAppearanceLayer(catalog, itemId, fetcher)));
+}
+function composeAppearance(catalog, look, equipped, options = {}) {
   const base = catalog.base[String(look.gender)];
   const face = catalog.layers[`face:${look.face}`];
   const hair = catalog.layers[`hair:${look.hair}`];
   if (!base || !face || !hair) return;
-  const gear = equipped.map((item) => catalog.layers[item.itemId]).filter((layer) => Boolean(layer));
+  const gear = equipped.map((item) => appearanceLayer(catalog, item.itemId)).filter((layer) => {
+    if (!layer) return false;
+    return layerIsLoaded(layer, options);
+  });
   const hiddenSlots = new Set(gear.flatMap((layer) => slots(layer.vslot)));
   const visible = (part) => !slots(catalog.smap[part.zName] ?? "").some((slot) => hiddenSlots.has(slot));
   const actions = {};
   for (const [action, frames] of Object.entries(base.actions)) {
     actions[action] = frames.map((frame, index) => {
       const layerParts = (layer) => {
-        const source = (layer.actionsByGender?.[String(look.gender)] ?? layer.actions)[action];
-        return source?.[index]?.parts ?? [];
+        return layerFrames(layer, action, index, look.gender, options.weaponType);
       };
       const parts = [...frame.parts.filter(visible), ...layerParts(face).filter(visible), ...layerParts(hair).filter(visible), ...gear.flatMap(layerParts)];
       return { ...frame, parts: parts.sort((a2, b2) => b2.z - a2.z) };
     });
   }
+  const ordinaryWeapon = gear.find((layer) => layer.part === "weapon" && layer.cash !== true && layer.vslot);
+  const standAction = ordinaryWeapon?.standAction;
+  const walkAction = ordinaryWeapon?.walkAction;
+  if (standAction && actions[standAction]?.length) actions.stand = actions[standAction];
+  if (walkAction && actions[walkAction]?.length) actions.walk = actions[walkAction];
   actions.climb = actions.ladder;
   actions.dead = actions.stand;
   return actions;
 }
 
-// client/src/features/entry/view.ts
+// src/features/entry/view.ts
 var text = (zh, en) => uiLocale() === "en" ? en : zh;
 var escape = (value) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 var jobName = (job) => job === 0 ? text("\u65B0\u624B", "Beginner") : job === 200 ? text("\u6CD5\u5E08", "Magician") : job === 220 ? text("\u5DEB\u5E08\uFF08\u51B0\u3001\u96F7\uFF09", "Wizard (Ice, Lightning)") : String(job);
@@ -363,6 +611,10 @@ var EntryView = class {
   note = "";
   error = false;
   animation;
+  /** Cash appearance layers already requested for the equipped list. */
+  appearanceLayerRequests = /* @__PURE__ */ new Set();
+  /** Cash appearance layers whose file failed; never refetched this session. */
+  appearanceLayerFailures = /* @__PURE__ */ new Set();
   async loadArt() {
     try {
       const [artResponse, manifestResponse, catalogResponse, appearanceResponse] = await Promise.all([fetch("/assets/entry/manifest.json"), fetch("/assets/manifest.json"), fetch("/assets/entry/creation.json"), fetch("/assets/entry/appearance.json")]);
@@ -531,6 +783,18 @@ var EntryView = class {
       this.page = Number(button.dataset.page);
       this.render();
     }));
+    if (this.stage === "login") this.focusLoginField();
+  }
+  focusLoginField() {
+    let savedId = "";
+    try {
+      savedId = localStorage.getItem("maple-saved-id") ?? "";
+    } catch {
+    }
+    const username = this.host.querySelector("#username");
+    const password = this.host.querySelector("#password");
+    if (savedId) password?.focus();
+    else username?.focus();
   }
   action(action) {
     if (action === "help") return this.setNote(text("\u8D26\u53F7\uFF1A3\u201332\u4F4D\u82F1\u6587\u5B57\u6BCD\u3001\u6570\u5B57\u3001_\u6216-\u3002\u5BC6\u7801\u81F3\u5C118\u4F4D\u3002\u9996\u6B21\u6E38\u73A9\u8BF7\u6CE8\u518C\uFF0C\u518D\u521B\u5EFA\u5192\u9669\u5BB6\u89D2\u8272\u3002", "ID: 3\u201332 ASCII letters, digits, _ or -. Password: at least 8 characters. Register an account, then create an Explorer."));
@@ -634,11 +898,15 @@ var EntryView = class {
   renderPreviews() {
     cancelAnimationFrame(this.animation ?? 0);
     const previews = Array.from(this.host.querySelectorAll(".entry-avatar")).map((target) => {
-      const look = target.dataset.draft ? this.appearance : this.characters.find((character) => character.id === target.dataset.character)?.appearance;
-      const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, initialEquipment(look)) : void 0;
+      const character = target.dataset.character ? this.characters.find((item) => item.id === target.dataset.character) : void 0;
+      const look = target.dataset.draft ? this.appearance : character?.appearance;
+      const equipped = character ? character.equipped ?? (look ? initialEquipment(look) : []) : look ? initialEquipment(look) : [];
+      const weaponType = look && this.avatarCatalog ? appearanceWeaponType(this.avatarCatalog, equipped, look.weapon) : void 0;
+      const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, equipped, { weaponType }) : void 0;
       const frames = target.dataset.empty ? this.assets?.effects?.empty.map((frame) => ({ delay: frame.delay, parts: [frame] })) : (actions ?? this.manifest?.avatar.actions)?.stand;
       return { target, frames, index: -1 };
     });
+    this.loadPendingAppearanceLayers();
     const animate = (now) => {
       for (const preview of previews) {
         const frames = preview.frames;
@@ -655,12 +923,105 @@ var EntryView = class {
     };
     this.animation = requestAnimationFrame(animate);
   }
+  /** Cash appearance layers are per-item JSON files; the world fetches the
+   *  ones the actor actually wears. The selection preview mirrors that for
+   *  equipped cash cosmetics and re-composes once they register. Failures
+   *  stay cached so the animation loop never refetches a missing file. */
+  loadPendingAppearanceLayers() {
+    const catalog = this.avatarCatalog;
+    if (!catalog) return;
+    const pending = [...new Set(this.characters.flatMap((character) => (character.equipped ?? []).map((item) => item.itemId)))].filter((itemId) => cashAppearanceEntry(catalog, itemId) && !appearanceLayer(catalog, itemId)).filter((itemId) => {
+      const key = normalizeAppearanceItemId(itemId);
+      return !this.appearanceLayerRequests.has(key) && !this.appearanceLayerFailures.has(key);
+    });
+    if (!pending.length) return;
+    const keys = pending.map((itemId) => normalizeAppearanceItemId(itemId));
+    for (const key of keys) this.appearanceLayerRequests.add(key);
+    const release = (failed) => {
+      for (const key of keys) {
+        this.appearanceLayerRequests.delete(key);
+        if (failed) this.appearanceLayerFailures.add(key);
+      }
+      if (!this.host.hidden) this.renderPreviews();
+    };
+    void loadAppearanceLayers(catalog, pending).then(() => release(false)).catch(() => release(true));
+  }
 };
 
-// client/src/features/menu/view.ts
+// src/features/ui/window-shell.ts
+function installWindowDrag(host, window2, options) {
+  const activationDistance = options.activationDistance ?? 3;
+  let pending;
+  let dragging;
+  const onPointerDown = (event) => {
+    if (event.button !== 0 || !options.isOpen()) return;
+    const target = event.target;
+    if (!options.allowOnButtons && target instanceof Element && target.closest("button")) return;
+    const titleHeight = typeof options.titleHeight === "function" ? options.titleHeight() : options.titleHeight;
+    const rect = window2.getBoundingClientRect();
+    if (event.clientY - rect.top > titleHeight) return;
+    pending = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top
+    };
+    window2.setPointerCapture?.(event.pointerId);
+  };
+  const onPointerMove = (event) => {
+    if (dragging) {
+      if (event.pointerId !== dragging.pointerId) return;
+      const hostRect = host.getBoundingClientRect();
+      const width = window2.getBoundingClientRect().width;
+      const height = window2.getBoundingClientRect().height;
+      const left = Math.min(Math.max(0, hostRect.width - width), Math.max(0, event.clientX - hostRect.left - dragging.offsetX));
+      const top = Math.min(Math.max(0, hostRect.height - height), Math.max(0, event.clientY - hostRect.top - dragging.offsetY));
+      window2.style.left = Math.round(left) + "px";
+      window2.style.top = Math.round(top) + "px";
+      return;
+    }
+    if (!pending || event.pointerId !== pending.pointerId) return;
+    if (Math.abs(event.clientX - pending.startX) < activationDistance && Math.abs(event.clientY - pending.startY) < activationDistance) return;
+    if (window2.dataset.windowPositioned !== "true") {
+      const hostRect = host.getBoundingClientRect();
+      const rect = window2.getBoundingClientRect();
+      window2.style.left = Math.round(rect.left - hostRect.left) + "px";
+      window2.style.top = Math.round(rect.top - hostRect.top) + "px";
+      window2.style.transform = "none";
+      window2.dataset.windowPositioned = "true";
+    }
+    dragging = { pointerId: pending.pointerId, offsetX: pending.offsetX, offsetY: pending.offsetY };
+    pending = void 0;
+    options.onActivate?.();
+    event.preventDefault();
+  };
+  const onPointerUp = (event) => {
+    if (pending && event.pointerId === pending.pointerId) {
+      window2.releasePointerCapture?.(event.pointerId);
+      pending = void 0;
+    }
+    if (!dragging || event.pointerId !== dragging.pointerId) return;
+    window2.releasePointerCapture?.(event.pointerId);
+    dragging = void 0;
+  };
+  window2.addEventListener("pointerdown", onPointerDown);
+  window2.addEventListener("pointermove", onPointerMove);
+  window2.addEventListener("pointerup", onPointerUp);
+  window2.addEventListener("pointercancel", onPointerUp);
+  return () => {
+    window2.removeEventListener("pointerdown", onPointerDown);
+    window2.removeEventListener("pointermove", onPointerMove);
+    window2.removeEventListener("pointerup", onPointerUp);
+    window2.removeEventListener("pointercancel", onPointerUp);
+  };
+}
+
+// src/features/menu/view.ts
 var SOURCE_MENU_WIDTH = 1022;
 var SOURCE_MENU_CENTER = SOURCE_MENU_WIDTH / 2;
 var WIDE_MENU_HEIGHT = 569;
+var MENU_TITLE_HEIGHT = 36;
 var WIDE_MENU_HEIGHT_MIN = 560;
 var CATEGORY_X = [23, 163, 303, 443, 583, 723, 863];
 var CATEGORY_LABELS = ["\u89D2\u8272", "\u9053\u5177", "\u6230\u9B25", "\u5192\u96AA", "\u793E\u7FA4", "\u6D3B\u52D5\u30FB\u91CC\u7A0B", "\u5176\u4ED6"];
@@ -684,7 +1045,7 @@ function groupMenuEntries(entries) {
   return groups;
 }
 var MenuView = class {
-  constructor(host, manifest, status, onInventory, onQuit, onEquipment, onQuest, onSkills, onCharacterInfo, onChannel, onCharacters, onSettings) {
+  constructor(host, manifest, status, onInventory, onQuit, onEquipment, onQuest, onSkills, onCharacterInfo, onChannel, onCharacters, onSettings, onNews, onParty, onFriend, onEmoticon, onActivities, onWorldMap, onCashShop, onKeybindings) {
     this.host = host;
     this.manifest = manifest;
     this.status = status;
@@ -697,6 +1058,14 @@ var MenuView = class {
     this.onChannel = onChannel;
     this.onCharacters = onCharacters;
     this.onSettings = onSettings;
+    this.onNews = onNews;
+    this.onParty = onParty;
+    this.onFriend = onFriend;
+    this.onEmoticon = onEmoticon;
+    this.onActivities = onActivities;
+    this.onWorldMap = onWorldMap;
+    this.onCashShop = onCashShop;
+    this.onKeybindings = onKeybindings;
     this.root = document.createElement("div");
     this.root.className = "maple-menu-layer";
     this.root.hidden = true;
@@ -718,9 +1087,18 @@ var MenuView = class {
   onChannel;
   onCharacters;
   onSettings;
+  onNews;
+  onParty;
+  onFriend;
+  onEmoticon;
+  onActivities;
+  onWorldMap;
+  onCashShop;
+  onKeybindings;
   root;
   active;
   anchor;
+  menuDragDispose;
   onWindowChange = () => {
     if (!this.active) return;
     const menu = this.root.querySelector(".maple-menu");
@@ -759,6 +1137,11 @@ var MenuView = class {
     this.active = kind;
     this.anchor = anchor;
     this.positionMenu(menu);
+    this.menuDragDispose?.();
+    this.menuDragDispose = installWindowDrag(this.root, menu, {
+      titleHeight: MENU_TITLE_HEIGHT,
+      isOpen: () => this.active === kind
+    });
     menu.querySelector(".maple-menu-item")?.focus({ preventScroll: true });
     return true;
   }
@@ -766,6 +1149,8 @@ var MenuView = class {
     const returnFocus = this.anchor;
     this.active = void 0;
     this.anchor = void 0;
+    this.menuDragDispose?.();
+    this.menuDragDispose = void 0;
     this.root.hidden = true;
     this.root.replaceChildren();
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
@@ -775,6 +1160,8 @@ var MenuView = class {
     document.removeEventListener("keydown", this.onDocumentKeyDown, true);
     window.removeEventListener("resize", this.onWindowChange);
     window.removeEventListener("scroll", this.onWindowChange, true);
+    this.menuDragDispose?.();
+    this.menuDragDispose = void 0;
     this.root.remove();
     this.host.replaceChildren();
     this.host.hidden = true;
@@ -883,7 +1270,7 @@ var MenuView = class {
     return button;
   }
   activateOperation(key) {
-    const action = key === "channel" ? this.onChannel : key === "characters" ? this.onCharacters : key === "settings" ? this.onSettings : key === "quit" ? this.onQuit : void 0;
+    const action = key === "channel" ? this.onChannel : key === "characters" ? this.onCharacters : key === "settings" ? this.onSettings : key === "quit" ? this.onQuit : key === "cashShop" ? this.onCashShop : key === "keybind" ? this.onKeybindings : void 0;
     if (action) {
       this.close();
       action();
@@ -893,7 +1280,12 @@ var MenuView = class {
     this.status(displayText(`${operation?.label ?? key}\u5C1A\u672A\u5B9E\u88C5\u3002`));
   }
   activateEntry(entry2) {
-    const action = entry2.type === 6 ? this.onInventory : entry2.type === 4 ? this.onEquipment : entry2.type === 17 ? this.onQuest : entry2.type === 11 ? this.onSkills : entry2.type === 0 ? this.onCharacterInfo : void 0;
+    if (entry2.type === 30 && this.onActivities) {
+      this.close();
+      this.onActivities();
+      return;
+    }
+    const action = entry2.type === 6 ? this.onInventory : entry2.type === 4 ? this.onEquipment : entry2.type === 17 ? this.onQuest : entry2.type === 11 ? this.onSkills : entry2.type === 0 ? this.onCharacterInfo : entry2.type === 25 ? this.onParty : entry2.type === 24 ? this.onFriend : entry2.type === 29 ? this.onEmoticon : entry2.type === 36 ? this.onNews : entry2.type === 19 ? this.onWorldMap : void 0;
     if (action) {
       this.close();
       action();
@@ -911,8 +1303,10 @@ var MenuView = class {
     menu.style.width = `${width}px`;
     menu.style.height = `${height}px`;
     menu.classList.toggle("maple-menu-narrow", narrow);
-    menu.style.left = `${Math.max(0, Math.round((hostWidth - width) / 2))}px`;
-    menu.style.top = "0";
+    if (menu.dataset.windowPositioned !== "true") {
+      menu.style.left = `${Math.max(0, Math.round((hostWidth - width) / 2))}px`;
+      menu.style.top = "0";
+    }
   }
   handleMenuKeyDown(event, menu) {
     const buttons = Array.from(menu.querySelectorAll("button:not([disabled])"));
@@ -994,3 +1388,8 @@ document.getElementById("show-menu").onclick = async () => {
   const menu = new MenuView(document.getElementById("menu-host"), manifest, (message) => document.getElementById("entered").textContent = message, () => document.getElementById("entered").textContent = "inventory");
   menu.open("game");
 };
+//! 认证 HTTP API（计划 §9.2：R5 从 network/session.ts 机械搬出）。
+//!
+//! 只包含登录 / 注册请求与协议版本检查；实时连接生命周期（`Connection`）
+//! 仍在 `network/session.ts`，由应用装配（`app/main.ts`）持有。
+//! 语义与搬移前逐行一致：同一 fetch 形状、同一错误信息、同一版本拒绝。

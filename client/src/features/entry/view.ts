@@ -3,7 +3,7 @@ import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { authenticate } from '../../network/auth-api';
 import { uiLocale, displayText } from '../../app/i18n';
 import { lobbyRequest, type Appearance, type CharacterList, type CharacterSummary } from './api';
-import { composeAppearance, initialEquipment, type AppearanceCatalog } from './appearance';
+import { appearanceLayer, appearanceWeaponType, cashAppearanceEntry, composeAppearance, initialEquipment, loadAppearanceLayers, normalizeAppearanceItemId, type AppearanceCatalog } from './appearance';
 import './style.css';
 
 type Stage = 'login' | 'channel' | 'characters' | 'create';
@@ -36,6 +36,10 @@ export class EntryView {
   private note = '';
   private error = false;
   private animation?: number;
+  /** Cash appearance layers already requested for the equipped list. */
+  private appearanceLayerRequests = new Set<string>();
+  /** Cash appearance layers whose file failed; never refetched this session. */
+  private appearanceLayerFailures = new Set<string>();
   constructor(private host: HTMLElement, private enter: (session: LoginResponse) => Promise<void>) {
     this.render();
     void this.loadArt();
@@ -234,11 +238,18 @@ export class EntryView {
   private renderPreviews() {
     cancelAnimationFrame(this.animation ?? 0);
     const previews = Array.from(this.host.querySelectorAll<HTMLElement>('.entry-avatar')).map(target => {
-      const look = target.dataset.draft ? this.appearance : this.characters.find(character => character.id === target.dataset.character)?.appearance;
-      const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, initialEquipment(look)) : undefined;
+      const character = target.dataset.character ? this.characters.find(item => item.id === target.dataset.character) : undefined;
+      const look = target.dataset.draft ? this.appearance : character?.appearance;
+      // The map and cash shop compose the paper doll from the character's
+      // current equipped rows; the lobby list carries those same rows, so the
+      // selection preview matches them instead of the frozen creation look.
+      const equipped = character ? character.equipped ?? (look ? initialEquipment(look) : []) : look ? initialEquipment(look) : [];
+      const weaponType = look && this.avatarCatalog ? appearanceWeaponType(this.avatarCatalog, equipped, look.weapon) : undefined;
+      const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, equipped, { weaponType }) : undefined;
       const frames = target.dataset.empty ? this.assets?.effects?.empty.map(frame => ({ delay: frame.delay, parts: [frame] })) : (actions ?? this.manifest?.avatar.actions)?.stand;
       return { target, frames, index: -1 };
     });
+    this.loadPendingAppearanceLayers();
     const animate = (now: number) => {
       for (const preview of previews) {
         const frames = preview.frames;
@@ -254,5 +265,32 @@ export class EntryView {
       if (!this.host.hidden) this.animation = requestAnimationFrame(animate);
     };
     this.animation = requestAnimationFrame(animate);
+  }
+  /** Cash appearance layers are per-item JSON files; the world fetches the
+   *  ones the actor actually wears. The selection preview mirrors that for
+   *  equipped cash cosmetics and re-composes once they register. Failures
+   *  stay cached so the animation loop never refetches a missing file. */
+  private loadPendingAppearanceLayers() {
+    const catalog = this.avatarCatalog;
+    if (!catalog) return;
+    const pending = [...new Set(this.characters.flatMap(character => (character.equipped ?? []).map(item => item.itemId)))]
+      .filter(itemId => cashAppearanceEntry(catalog, itemId) && !appearanceLayer(catalog, itemId))
+      .filter(itemId => {
+        const key = normalizeAppearanceItemId(itemId);
+        return !this.appearanceLayerRequests.has(key) && !this.appearanceLayerFailures.has(key);
+      });
+    if (!pending.length) return;
+    const keys = pending.map(itemId => normalizeAppearanceItemId(itemId));
+    for (const key of keys) this.appearanceLayerRequests.add(key);
+    const release = (failed: boolean) => {
+      for (const key of keys) {
+        this.appearanceLayerRequests.delete(key);
+        if (failed) this.appearanceLayerFailures.add(key);
+      }
+      if (!this.host.hidden) this.renderPreviews();
+    };
+    void loadAppearanceLayers(catalog, pending)
+      .then(() => release(false))
+      .catch(() => release(true));
   }
 }
