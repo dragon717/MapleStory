@@ -651,6 +651,9 @@ function main(argv = process.argv) {
   else if (command === 'rollback') result = finish(opts.root, opts.releaseId, true);
   else throw new Error(usage());
   process.stdout.write(`${JSON.stringify(result)}\n`);
+  // current-fresh 的判定结果通过退出码表达：false 必须 exit 1，
+  // 否则启动脚本会误判「现行版本新鲜」而跳过构建（曾导致旧版本顶替新协议被拉起）。
+  if (command === 'current-fresh' && !result) process.exitCode = 1;
   return result;
 }
 
