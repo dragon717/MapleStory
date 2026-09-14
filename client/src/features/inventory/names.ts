@@ -18,7 +18,7 @@ const PETS = petCatalog as Record<string, { name?: string }>;
 const EQUIPMENT_SLOT_BY_SOURCE: Readonly<Record<string, number>> = {
   Cp: 1, HrCp: 1, Af: 2, Ay: 3, Ae: 4, Ma: 5, MaPn: 5, Pn: 6, So: 7,
   GlGw: 8, Gv: 8, Sr: 9, Si: 10, Wp: 11, WpSi: 11, WpSp: 11, Ri: 12,
-  Ri2: 13, Ri3: 15, Ri4: 16, Pe: 17, Tm: 18, Sd: 19, Me: 49, Be: 50,
+  Ri2: 13, Ri3: 15, Ri4: 16, Pe: 17, Tm: 18, Sd: 19, Me: 49, Ba: 50, Be: 50,
 };
 
 const EQUIPMENT_STAT_LABELS: readonly [string, string, string][] = [

@@ -25,6 +25,10 @@ impl World {
         if self.ellinel_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
             return;
         }
+        // 赫爾奧斯塔电梯门（`helios.rs`）：99樓 ⇄ 2樓的 P 级路由；已处置即返回。
+        if self.helios_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
+            return;
+        }
         let source_map = self.map_for(&source_map_id).clone();
         let Some(portal) = source_map
             .portals

@@ -62,6 +62,9 @@ mod ship;
 /// 艾靈森林章节脚本门 P 级路由（时间门与两间首領房，源配对见模块头）。
 #[path = "ellinel.rs"]
 mod ellinel;
+/// 赫爾奧斯塔电梯脚本门 P 级路由（99樓 ⇄ 2樓，源到站门见模块头）。
+#[path = "helios.rs"]
+mod helios;
 #[path = "growth.rs"]
 mod growth;
 #[path = "revive.rs"]

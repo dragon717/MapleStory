@@ -298,9 +298,14 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
     // 01582001（埃德爾斯坦商店武器）authors the post-BB `weaponBelowHead`
     // spelling; TMS273's zmap keeps only the same-depth legacy name
     // `weaponOverArmBelowHead`, so alias it the same narrow way.
+    // 爪类（147 家族，WZ 全目录扫描仅此家族共 9 帧）在武器帧里附带
+    // `weaponWrist` 护腕绑带 Canvas，而 TMS273 的 zmap 没有为它编写深度。
+    // 绑带与爪身在同一个武器帧里且紧跟 `weapon` 之后，按武器本体深度
+    // 绘制（同深度按插入顺序，绑带画在爪身之后）。
     const zName = authoredZName === 'capBelowBody' ? 'capAccessoryBelowBody'
       : authoredZName === 'weaponBodyBelow' ? 'weaponBelowBody'
-      : authoredZName === 'weaponBelowHead' ? 'weaponOverArmBelowHead' : authoredZName;
+      : authoredZName === 'weaponBelowHead' ? 'weaponOverArmBelowHead'
+      : authoredZName === 'weaponWrist' ? 'weapon' : authoredZName;
     assert(zmap.has(zName), `273 zmap missing layer ${zName} from ${leaf.source}`);
     result.push({ node: leaf.node, source: leaf.source, frame, part, layerName: name, owner, zName });
   }

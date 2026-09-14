@@ -652,7 +652,11 @@ async function exportOrdinaryEquipment(bases, layers, index) {
     // Character/Mechanic and likewise has no doll layer in TMS273.
     // Ri (ring, e.g. 1112683) sources under Character/Ring — a dedicated
     // directory the doll compositor never reads; rings render no body layer.
-    if (info.islot === 'Po' || info.islot === 'Tm' || info.islot === 'Ri') continue;
+    // Pe (pendant) / Me (medal) / Ba+Be (badge, both spellings ship in
+    // TMS273 Accessory) source under Character/Accessory and are info-only
+    // across the whole directory (every Pe/Me/Ba/Be image carries just
+    // `info`+icon — verified 2026-09-15), so they render no body layer.
+    if (['Po', 'Tm', 'Ri', 'Pe', 'Me', 'Ba', 'Be'].includes(info.islot)) continue;
     const shape = cashPart(info.islot);
     assert(shape, `Unsupported ordinary equipment slot ${id}: ${info.islot}`);
     const itemId = canonicalItemId(id);

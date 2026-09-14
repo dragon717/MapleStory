@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-25');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-26');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -107,7 +107,9 @@ for(const mob of gameplay.monsters) {
 // 2026-09-14 飞行船一期 +6 船图，二期 +10 船图/码头（耶雷弗簇 3 + 埃德爾斯坦簇 7）。
 // 2026-09-14 艾靈森林章节 +21 图（现代侧 2：赫爾奧斯塔圖書館/時間監控室；
 // 过去侧 19：亞泰爾營地、苔蘚森林、封印的森林与两间首領房）。
-assert.equal(catalog.maps.length,108);
+// 2026-09-15 玩具城與赫爾奧斯塔塔步行链路 +7 图（玩具城 + 武防店/雜貨店、
+// 赫爾奧斯塔入口、塔身 100/99/2 樓）。
+assert.equal(catalog.maps.length,115);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -136,7 +138,9 @@ assert.equal(catalog.maps.length,108);
   // Towns the catalog does not ship stay legal data: the scroll is refused at
   // use time.  Pinning them keeps the refusal honest rather than a silent
   // wrong map.  The 3100401xx/3100403xx entries left this list when
-  // 310000000 埃德爾斯坦城 arrived with the 2026-09-14 phase-2 flight line.
+  // 310000000 埃德爾斯坦城 arrived with the 2026-09-14 phase-2 flight line;
+  // 222020000/222020400 (圖書館/時間監控室 → 220000000) left it when 玩具城
+  // arrived with the 2026-09-15 赫爾奧斯塔塔步行链路.
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
   assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),[
     '100030400->100030102','103010100->103000000','120010100->120000000',
@@ -144,10 +148,6 @@ assert.equal(catalog.maps.length,108);
     // 入库，但它们的 returnMap 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
     '200000100->200000000',
     '200000170->200000000',
-    // 艾靈森林章节（2026-09-14）：赫爾奧斯塔圖書館/時間監控室的源 returnMap
-    // 指向玩具城 220000000——玩具城方向链路未装配，死亡回城按源拒绝落地。
-    '222020000->220000000',
-    '222020400->220000000',
   ].sort(),'unshipped returnMap targets changed');
 }
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);

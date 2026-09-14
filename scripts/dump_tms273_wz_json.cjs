@@ -32,9 +32,16 @@ function typedProperty(property) {
     return node;
   }
   if (property instanceof wz.WzVectorProperty) {
+    // Most vectors expose `value:{x,y}` once parsed, but town maps carry
+    // `seat` vectors whose `value` stays undefined while the child
+    // `x`/`y` int properties hold the real coordinates (e.g. 玩具城
+    // seat/0 = -438,102).  Fall back to those children instead of refusing
+    // the whole image; the unpacked-tree contract only cares about shape.
     const value = property.value;
-    assert(value && Number.isFinite(value.x) && Number.isFinite(value.y), `invalid vector: ${property.fullPath}`);
-    return { _dirType: 'vector', _x: value.x, _y: value.y };
+    const x = value && Number.isFinite(value.x) ? value.x : property.x?.val;
+    const y = value && Number.isFinite(value.y) ? value.y : property.y?.val;
+    assert(Number.isFinite(x) && Number.isFinite(y), `invalid vector: ${property.fullPath}`);
+    return { _dirType: 'vector', _x: x, _y: y };
   }
   // `miniMap/canvas` holds a rendered minimap bitmap.  The unpacked tree that
   // `import_tms273.py` consumes carries no canvas payloads at all — every

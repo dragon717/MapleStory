@@ -748,7 +748,8 @@ pub fn equipment_slot(item_id: &str) -> Option<i16> {
         "Tm" => -18,
         "Sd" => -19,
         "Me" => -49,
-        "Be" => -50,
+        // TMS273 Accessory ships both badge spellings (Be 233 rows, Ba 156 rows).
+        "Ba" | "Be" => -50,
         _ => return None,
     };
     Some(slot)
