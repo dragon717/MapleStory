@@ -59,6 +59,9 @@ mod dialogue;
 mod portals;
 #[path = "ship.rs"]
 mod ship;
+/// 艾靈森林章节脚本门 P 级路由（时间门与两间首領房，源配对见模块头）。
+#[path = "ellinel.rs"]
+mod ellinel;
 #[path = "growth.rs"]
 mod growth;
 #[path = "revive.rs"]

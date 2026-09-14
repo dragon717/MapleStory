@@ -124,7 +124,13 @@ for (const quest of remaster) {
   if (quest.executable) {
     assert.deepEqual(quest.blockedBy, [], `${quest.questId} must have no block reason`);
     assert.equal(quest.blockedReason, null, `${quest.questId} blockedReason`);
-    assert(quest.start.conditions.job.length > 0, `${quest.questId} must restrict the job route`);
+    // 空 job 列表 = 源 Check/0 没写 job 节点（原版不限职业，如艾靈森林章节），
+    // 服务端 quest_rules.rs 的 jobs_match 对空列表放行；源写了职业列表的可执行
+    // 任务必须映射到项目法师路线，不允许借机开放其他职业。
+    assert(
+      sourceJob.length === 0 || quest.start.conditions.job.length > 0,
+      `${quest.questId} must restrict the job route when the source names jobs`,
+    );
     assert.equal(quest.complete.conditions.items.length, 0, `${quest.questId} must not need script-granted items`);
     // 没有 infoex 才和计数器无关；一旦带上 infoex，它必须是已核定的击杀计数，
     // 否则这条任务的完成条件依赖一个本任务没有执行的脚本计数器。
@@ -152,7 +158,11 @@ assert.equal(implemented.length, 15);
 for (const quest of implemented) {
   assert(quest.executable, `${quest.questId} must stay executable`);
   assert(quest.blockedBy === undefined, `${quest.questId} must not gain a block reason`);
-  assert(['tms273-opening-p1', 'tms273-continuation-p1'].includes(quest.ruleVersion), `${quest.questId} ruleVersion`);
+  // tms273-mage8-p1：用户指定的法师 8 级一转例外（b93b430，P 级）。
+  assert(
+    ['tms273-opening-p1', 'tms273-continuation-p1', 'tms273-mage8-p1'].includes(quest.ruleVersion),
+    `${quest.questId} ruleVersion`,
+  );
 }
 
 // 源里 70 条必须全部在运行时有对应条目，且没有源外任务混入。

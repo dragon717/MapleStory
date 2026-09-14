@@ -92,6 +92,23 @@ ADDITIONAL_SHIP2_MAP_IDS = (
     "200090600", "200090601", "200090610", "200090611",
     "310000000", "310000010",
 )
+# 艾靈森林章节（2026-09-14，审计 T06）：冒險家重製第二章「艾靈森林編年史」
+# （36341-36367，lvmin 95）所需的全部地图。现代侧两张是章节入口房：
+# 222020000 赫爾奧斯塔圖書館（NPC 2040052 圖書館員 懷玆）、222020400 時間監控室
+# （NPC 2041029 可玲）；过去侧 19 张是时间门后的艾靈森林（亞泰爾營地 300000000
+# 为枢纽，300000100 小森林的 out00→222020400/in01 是源内真实回程门，
+# 300010420 碴烏洞穴与 300030310 妖精首領房仅由脚本门进出）。
+# 塔的中继层（222020100/200/300、电梯 222020110/210）与玩具城方向链路
+# （220000000/220000500）不装：它们不承载本章节 NPC/任务，装了也只是死端；
+# 玩具城方向的自然步行入口属于后续区域装配。
+ADDITIONAL_ELLINEL_MAP_IDS = (
+    "222020000", "222020400",
+    "300000000", "300000002", "300000010", "300000100",
+    "300010000", "300010100", "300010200", "300010300",
+    "300010400", "300010410", "300010420",
+    "300020000", "300020200", "300020210",
+    "300030000", "300030010", "300030200", "300030300", "300030310",
+)
 # Portal closure (2026-09-13): every map an assembled map's portal names that
 # the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
 # with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
@@ -639,7 +656,7 @@ def build_maps(
     requested = list(dict.fromkeys([
         *catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS,
         *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS, *ADDITIONAL_SHIP_MAP_IDS,
-        *ADDITIONAL_SHIP2_MAP_IDS,
+        *ADDITIONAL_SHIP2_MAP_IDS, *ADDITIONAL_ELLINEL_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -685,6 +702,7 @@ def build_maps(
         "portalClosureMapIds": list(ADDITIONAL_PORTAL_CLOSURE_MAP_IDS),
         "shipMapIds": list(ADDITIONAL_SHIP_MAP_IDS),
         "ship2MapIds": list(ADDITIONAL_SHIP2_MAP_IDS),
+        "ellinelMapIds": list(ADDITIONAL_ELLINEL_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

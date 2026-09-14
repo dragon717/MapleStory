@@ -20,6 +20,11 @@ impl World {
         if self.ship_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
             return;
         }
+        // 艾靈森林章节脚本门（`ellinel.rs`）：时间门与两间首領房的 P 级路由；
+        // 已处置即返回。
+        if self.ellinel_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
+            return;
+        }
         let source_map = self.map_for(&source_map_id).clone();
         let Some(portal) = source_map
             .portals

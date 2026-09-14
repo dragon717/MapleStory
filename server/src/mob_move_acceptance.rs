@@ -102,7 +102,8 @@ fn advance(world: &mut World, from_tick: u64, ticks: u64) {
 ///
 /// 27 since the 楓之島災禍篇 scene execution (P) placed 8645261 藍色蘑菇王 on
 /// 001010000 so quest 36315 has a real kill target (audit C02); the previous
-/// 26 were authored `Map.life` rows only.
+/// 26 were authored `Map.life` rows only.  The 2026-09-14 艾靈森林 region added
+/// its 10 authored field species (4250000/4250001, 5250000-5250007), to 37.
 #[test]
 fn every_deployed_monster_can_move() {
     let gameplay = mushroom_gameplay();
@@ -113,7 +114,7 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        27,
+        37,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();

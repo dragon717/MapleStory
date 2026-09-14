@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-24');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-25');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -78,8 +78,9 @@ for(const mob of gameplay.monsters) {
   // 17 species before the 2026-09-13 portal-closure maps; the 弓箭手村东/墮落
   // 城市西/礦山 route rooms deployed nine more field species.  The 2026-09-14
   // 楓之島災禍篇 scene execution added 8645261 藍色蘑菇王 (36315's verified kill
-  // target) on 001010000, taking the surface to 27.
-  assert.equal(deployed.size,27,'the deployed monster surface changed');
+  // target) on 001010000, taking the surface to 27.  The 2026-09-14 艾靈森林
+  // region added 10 field species (4250000/4250001, 5250000-5250007), to 37.
+  assert.equal(deployed.size,37,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -104,7 +105,9 @@ for(const mob of gameplay.monsters) {
 // assembled map's portal names that the TMS273 WZ JSON actually ships
 // (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, 幸福村 platform, …).
 // 2026-09-14 飞行船一期 +6 船图，二期 +10 船图/码头（耶雷弗簇 3 + 埃德爾斯坦簇 7）。
-assert.equal(catalog.maps.length,87);
+// 2026-09-14 艾靈森林章节 +21 图（现代侧 2：赫爾奧斯塔圖書館/時間監控室；
+// 过去侧 19：亞泰爾營地、苔蘚森林、封印的森林与两间首領房）。
+assert.equal(catalog.maps.length,108);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -141,6 +144,10 @@ assert.equal(catalog.maps.length,87);
     // 入库，但它们的 returnMap 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
     '200000100->200000000',
     '200000170->200000000',
+    // 艾靈森林章节（2026-09-14）：赫爾奧斯塔圖書館/時間監控室的源 returnMap
+    // 指向玩具城 220000000——玩具城方向链路未装配，死亡回城按源拒绝落地。
+    '222020000->220000000',
+    '222020400->220000000',
   ].sort(),'unshipped returnMap targets changed');
 }
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
@@ -391,11 +398,20 @@ assert(sourceQuests.some(q=>q.id==='1402' && !q.executable));
 // （续章与重制）以及 36315（災禍篇首条——它的击杀目标 8645261 由 P 场景执行放进
 // 世界后，kill-target-missing 才解除，见上面的災禍篇断言）。数量变化必须来自源
 // 适配器的显式改动，不能靠手改 JSON。
-assert.equal(gameplay.quests.filter(q=>q.executable).length,18);
+// 18 since the 災禍篇 36315 joined; the 2026-09-14 艾靈森林 region brought
+// 36341-36366's 16 quests in (source has no job restriction there — the
+// adapter's empty-job misclassification was fixed with the region).
+assert.equal(gameplay.quests.filter(q=>q.executable).length,34);
 {
   const remaster = gameplay.quests.filter(q=>q.ruleVersion==='tms273-remaster-p1');
   assert.equal(remaster.length,55);
-  assert.deepEqual(remaster.filter(q=>q.executable).map(q=>q.questId),['36315','36316','36332']);
+  assert.deepEqual(remaster.filter(q=>q.executable).map(q=>q.questId),[
+    '36315','36316','36332',
+    // 艾靈森林编年史：进入三连（圖書館/時間監控室/小森林）+ 营地与森林段 +
+    // 两个击杀段（含碴烏 36357 与艾畢奈亞 36360 的首領房）+ 收尾（36366 回圖書館）。
+    '36341','36342','36343','36345','36346','36348','36349',
+    '36354','36355','36356','36357','36358','36359','36360','36361','36366',
+  ]);
   for(const quest of remaster) if(!quest.executable) assert(quest.blockedBy.length>0,`${quest.questId} must record a block reason`);
   assert(gameplay.compatibility.adventurerRemaster.unknown.startsWith('q36315'));
 }
@@ -571,6 +587,9 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
     // 2000906xx 与天空之城码头 200000170 同样没有源 spot（船图随 200090xxx
     // 一期先例整组缺席）。
     '130090000','200000170','200090600','200090601','200090610','200090611',
+    // 艾靈森林章节（2026-09-14）：時間監控室 222020400 与 104020130 同类——
+    // WorldMap 归档不给它源 spot（圖書館与过去侧各图均有收录）。
+    '222020400',
   ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));

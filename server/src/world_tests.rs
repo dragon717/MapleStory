@@ -3916,6 +3916,7 @@ include!("windbell_acceptance.rs");
     include!("pet_growth_acceptance.rs");
     include!("cashshop_acceptance.rs");
     include!("ship_acceptance.rs");
+    include!("ellinel_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

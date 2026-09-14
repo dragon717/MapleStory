@@ -49,8 +49,9 @@ fn boss_practice_actual_map_qualification_isolated_and_idempotent() {
     service.store.load_profile("boss", &boss_profile(25)).unwrap();
     let mut world = chapter_actual_world(service.store.clone());
     // 50 base maps + 21 portal-closure maps + 6 ship maps (2026-09-14) + 10
-    // phase-2 ship/dock maps (2026-09-14): 耶雷弗线与埃德爾斯坦线的船图/码头.
-    assert_eq!(world.maps.len(), 87);
+    // phase-2 ship/dock maps (2026-09-14) + 21 艾靈森林章节 maps (2026-09-14):
+    // 现代侧 2 图（赫爾奧斯塔圖書館/時間監控室）与过去侧 19 图.
+    assert_eq!(world.maps.len(), 108);
     assert!(world.maps.contains_key("102020500"));
     // 飞行船一期六图必须随目录一起加载。
     for id in ["200000100", "200000112", "200090000", "200090001", "200090010", "200090011"] {

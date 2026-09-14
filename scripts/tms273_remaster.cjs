@@ -206,7 +206,10 @@ function applyRemaster(gameplay, items, manifest, questText) {
     const blockedBy = [];
     if (DEV_QUESTS.has(id)) blockedBy.push('dev-quest');
     if (OTHER_JOB_ROUTE.has(id)) blockedBy.push('other-job-route');
-    if (!jobs.length) blockedBy.push('job-route-unmapped');
+    // 源 Check/0 不写 job 节点 = 原版不限职业（如艾靈森林章节），运行时
+    // conditions.job 空列表即"不限"（quest_rules.rs jobs_match：空列表放行）。
+    // 只有源写了职业列表且一个都映射不到项目职业时才算路线未映射。
+    if (sourceJob.length && !jobs.length) blockedBy.push('job-route-unmapped');
     const npcIds = [startNpc, completeNpc].filter(Boolean);
     if (npcIds.length && npcIds.every(npcId => !templates.has(npcId))) blockedBy.push('missing-region');
     // 没有源 NPC 的阶段：源标了自助且任务有可判定目标时由任务视窗承接，

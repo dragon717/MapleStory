@@ -650,7 +650,9 @@ async function exportOrdinaryEquipment(bases, layers, index) {
     // Po is a pocket item, with no paper-doll Canvas by design.
     // Tm (totem, e.g. 1612000 埃德爾斯坦商店新品) sources under
     // Character/Mechanic and likewise has no doll layer in TMS273.
-    if (info.islot === 'Po' || info.islot === 'Tm') continue;
+    // Ri (ring, e.g. 1112683) sources under Character/Ring — a dedicated
+    // directory the doll compositor never reads; rings render no body layer.
+    if (info.islot === 'Po' || info.islot === 'Tm' || info.islot === 'Ri') continue;
     const shape = cashPart(info.islot);
     assert(shape, `Unsupported ordinary equipment slot ${id}: ${info.islot}`);
     const itemId = canonicalItemId(id);
