@@ -2642,22 +2642,24 @@ impl World {
         let busy = player.channel_until > self.tick || player.state.climbing;
         let output = player.output.clone();
 
-        let reject_with = |code: &'static str, output: &mpsc::Sender<String>| {
-            let _ = output.try_send(reject(code, "Reactor hit rejected", Some(&request_id)));
+        // Every reason is spelled out at its own call site: a shared sentence
+        // would flatten "already taken" and "stand closer" into one shrug.
+        let reject_with = |code: &'static str, message: &str, output: &mpsc::Sender<String>| {
+            let _ = output.try_send(reject(code, message, Some(&request_id)));
         };
         if dead || busy {
-            reject_with("invalid_state", &output);
+            reject_with("invalid_state", "现在无法互动。", &output);
             return;
         }
 
         let Some(reactor) = self.reactors.get(&reactor_id) else {
-            reject_with("reactor_unknown", &output);
+            reject_with("reactor_unknown", "这里没有可以互动的物件。", &output);
             return;
         };
         // A reactor belongs to one map.  A request naming one on another map
         // is either stale (the player walked through a portal) or forged.
         if reactor.map_id != map_id {
-            reject_with("reactor_unknown", &output);
+            reject_with("reactor_unknown", "这里没有可以互动的物件。", &output);
             return;
         }
         let placement = reactor.placement.clone();
@@ -2666,17 +2668,17 @@ impl World {
         if !placement.interactable_at(state) {
             // Already used up: returning this instead of silently ignoring
             // lets the client stop prompting for a spent prop.
-            reject_with("reactor_spent", &output);
+            reject_with("reactor_spent", "这个物件已经被采完了。", &output);
             return;
         }
         if hit_until > self.tick {
             // One hit animation per state.  Accepting another now would skip
             // the art and let a fast client double-advance the state.
-            reject_with("reactor_busy", &output);
+            reject_with("reactor_busy", "这个物件正在被摇动，请稍等。", &output);
             return;
         }
         if !self.reactor_in_reach(&placement, x, y, facing) {
-            reject_with("reactor_out_of_range", &output);
+            reject_with("reactor_out_of_range", "再靠近一些才能互动。", &output);
             return;
         }
 
@@ -2845,13 +2847,31 @@ impl World {
         let Some(player) = self.players.get(&id) else {
             return;
         };
-        if player.state.climbing
-            || player.state.action == "dead"
-            || player.channel_until > self.tick
-        {
+        // Three different reasons used to share one `invalid_state`, so the
+        // player could not tell "I am on a rope" from "I am dead" — the same
+        // silent shrug for every case.  Name the actual blocker instead, and
+        // keep each reason a literal so the repository gate
+        // (`scripts/check_protocol_errors.cjs`) can see it is localized.
+        if player.state.climbing {
             let _ = player.output.try_send(reject(
-                "invalid_state",
-                "Cannot attack while climbing or dead",
+                "attack_while_climbing",
+                "爬在绳子或梯子上时无法攻击。",
+                Some(&request_id),
+            ));
+            return;
+        }
+        if player.state.action == "dead" || player.state.hp <= 0 {
+            let _ = player.output.try_send(reject(
+                "attack_while_dead",
+                "死亡状态无法攻击。",
+                Some(&request_id),
+            ));
+            return;
+        }
+        if player.channel_until > self.tick {
+            let _ = player.output.try_send(reject(
+                "attack_while_channeling",
+                "技能引导中无法攻击。",
                 Some(&request_id),
             ));
             return;

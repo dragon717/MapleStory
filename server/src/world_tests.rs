@@ -3887,6 +3887,7 @@ include!("windbell_acceptance.rs");
     include!("continuation_acceptance.rs");
     include!("quest_service_acceptance.rs");
     include!("chapter_route_acceptance.rs");
+    include!("combat_feedback_acceptance.rs");
     include!("content_boot_acceptance.rs");
     include!("third_acceptance.rs");
     include!("boss_acceptance.rs");

@@ -17,7 +17,10 @@ const compile = source => ts.transpileModule(source, { compilerOptions: { target
 const code = compile(await readFile(new URL('./session.ts', import.meta.url), 'utf8'))
   .replace(/^import .*from '\.\.\/\.\.\/\.\.\/shared\/protocol';$/m,
     "const CONTENT_VERSION = 'cv'; const PROTOCOL_VERSION = 'pv';")
-  .replace(/^import .*from '\.\.\/app\/i18n';$/m, "const uiLocale = () => 'zh';");
+  // protocolText 的桩刻意**不**回填 code：终端判定若又退回去从展示串里反解
+  // `(code)`，这里就会失去可解析的形状，场景 2/4 立刻变红。
+  .replace(/^import .*from '\.\.\/app\/i18n';$/m,
+    "const uiLocale = () => 'zh'; const protocolText = (code, fallback) => fallback || '已拒绝';");
 const { Connection } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
 // ---- stubs ----

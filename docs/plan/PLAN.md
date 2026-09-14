@@ -32,7 +32,16 @@
   - 协议 **22 → 23**（两处：`server/src/protocol.rs`、`shared/protocol.ts`）；`gameplay.json` 未改 ⇒ 内容版本仍 `tms273-23`。
   - 验收：cargo **401 过／0 失败**（基线 396 + 新增 5）、tsc 0、`log.check.mjs` 通过、`check_tms273_runtime` 87 图／82905 引用、`npm run check` **31/33**（2 项＝既有基线）。
   - 待验：`Q` 打开日志，36316 交付后应出现 36317「尚未开放」行；接取 36315 后应看到指路文案。
-- [ ] 下一个 P0（未领取）：按审计 §11 顺序表取用（T05 只做了"停下要说清楚"这一半；真正打通 36317 需要 `infoex` 语义核定；T04 高频操作与战斗表现仍未领取）。
+- [x] **T04（反馈面）｜高频操作被拒时说清是什么挡住了你**（实现与验收完成，**待统一加载实玩**）：见[交付记录](history/2026-09-14/高频操作反馈可区分.md)。
+  - 症结：静态扫描发现 **24 个服务端拒绝码在客户端没有文案**，走 `main.ts` 兜底 ⇒ 中文界面显示英文诊断 + 裸码，如 `Cannot attack while climbing or dead (invalid_state)`；且 `handle_attack` 用一个 `invalid_state` 覆盖「爬绳中／死亡／引导中」三种情况；采集物竞争失败（`reactor_spent`/`reactor_busy`）**完全静默**。
+  - 攻击阻塞拆为 `attack_while_climbing` / `attack_while_dead` / `attack_while_channeling`；`cooldown`／`capacity`／复活拒绝／采集物 5 个拒绝点 message 改中文。
+  - 客户端 `PROTOCOL_ERRORS` 补 **27** 个码的 zh/en 文案；**兜底不再把裸码拼给玩家**（改 `console.debug`）；采集物竞争给一行提示；`main.ts`／`session.ts`／`world.ts` 里 8 处 `(code)` 拼接一并拆掉（其中 `session.ts` 的握手失败曾把终端码**从展示串里正则反解**，去掉 `(code)` 等于废掉终端判定 ⇒ 改为独立 `handshakeCode` 字段携带）。
+  - **`invalid_state` 故意不设通用文案**：各调用点自带原因（「死亡角色不能加点。」），通用文案会把原因抹平 → 门禁规则定为"客户端文案 **或** 调用点自带中文 message"。
+  - 新增门禁 `scripts/check_protocol_errors.cjs`（挂进 `client/scripts/run-checks.mjs`）：扫描全部 **142** 个调用点，断言每个都有中文表达（28 个码靠客户端文案、75 处调用点自带中文 message；message 为变量的调用点记为盲区并计数）；新增 `server/src/combat_feedback_acceptance.rs`（3 条）。
+  - **未动任何数值**：攻击冷却／伤害／范围／判定逻辑未改；**未造命中率**（本版本不存在回避判定，凭空加 miss 等于伪造机制）。
+  - 验收：cargo **404 过／0 失败**（401 + 新增 3）、tsc 0、`npm run check` **32/34**（新增门禁通过，2 项＝既有基线）、`check_tms273_runtime` 87 图／82905 引用。协议 23 与内容 `tms273-23` 均未变。
+  - 待验：绳子上按攻击、连点攻击、采集已被采完的物件，三条提示的实际观感。
+- [ ] 下一个 P0（未领取）：T04 剩余部分（高低平台侧壁／绳顶／游泳起跳／移动中施法／死亡复活／暂离回归）需真机实玩记录，不能静态推断；T05 剩余（打通 36317 需核定 `infoex` 语义）；T06 之后按审计 §11 顺序取用。
 
 > 补充：`scripts/check_tms273_gameplay.py` 未接入任何链路且 HEAD 即红（15 条 item `source` 归属遗留），本轮未改它、也未顺手修那 15 条；见 T03 交付记录 §8。
 

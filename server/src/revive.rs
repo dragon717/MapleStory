@@ -78,7 +78,7 @@ impl World {
                 if let Some(player) = self.players.get(&id) {
                     let _ = player.output.try_send(reject(
                         "invalid_state",
-                        "Cannot revive while alive",
+                        "角色还活着，不需要复活。",
                         Some(&request_id),
                     ));
                 }
@@ -133,7 +133,7 @@ impl World {
             if let Some(player) = self.players.get(&id) {
                 let _ = player.output.try_send(reject(
                     "invalid_state",
-                    "Cannot revive while alive",
+                    "角色还活着，不需要复活。",
                     Some(&request_id),
                 ));
             }

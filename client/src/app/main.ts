@@ -13,7 +13,7 @@ import { EmoticonView } from '../features/chat/emoticon-view';
 import { CashShopView } from '../features/cashshop/view';
 import '../features/cashshop/style.css';
 import { loadManifest, type Manifest } from '../assets/manifest';
-import { mapText, protocolText, uiText, uiLocale } from './i18n';
+import { mapText, protocolText, hasProtocolError, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
 import { InventoryView } from '../features/inventory/view';
 import { itemName } from '../features/inventory/names';
@@ -473,7 +473,7 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'storageResult') {
         if (!message.success) {
           storage?.showResult(message.code, false);
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Storage action failed' : '仓库操作失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Storage action failed' : '仓库操作失败'}`), true);
         } else {
           storage?.showResult('', true);
         }
@@ -486,7 +486,7 @@ async function enterGame(session: LoginResponse) {
           );
         } else {
           storage?.showResult(message.code, false);
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Mesos transfer failed' : '枫币搬运失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Mesos transfer failed' : '枫币搬运失败'}`), true);
         }
       }
       if (message.type === 'partyState') {
@@ -507,12 +507,12 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'partyResult') {
         party?.receiveResult(message.code, message.success);
         if (!message.success) {
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Party action failed' : '队伍操作失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Party action failed' : '队伍操作失败'}`), true);
         }
       }
       if (message.type === 'partyNotice') {
         party?.receiveNotice(message.code, message.playerName);
-        status(protocolText(message.code, message.code), message.code !== 'party_declined');
+        status(protocolText(message.code, english ? 'Party notice' : '队伍通知'), message.code !== 'party_declined');
       }
       if (message.type === 'friendState') {
         // Friends are an account fact, so both lists always arrive together:
@@ -523,21 +523,21 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'friendResult') {
         friends?.receiveResult(message.code, message.success);
         if (!message.success) {
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Friend action failed' : '好友操作失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Friend action failed' : '好友操作失败'}`), true);
         }
       }
       if (message.type === 'shopResult') {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought' : '购买'} ${itemName(message.itemId)} × ${message.quantity}（${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
         } else {
-          status(`${uiLocale() === 'en' ? 'Purchase failed' : '购买失败'} (${message.code})`, true);
+          status(protocolText(message.code, english ? 'Purchase failed' : '购买失败'), true);
         }
       }
       if (message.type === 'shopSold') {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Sold' : '出售'} ${itemName(message.itemId)} × ${message.quantity}（+${message.mesosGained} ${uiText('meso')}）`, `shop:${message.requestId}`);
         } else {
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Sale failed' : '出售失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Sale failed' : '出售失败'}`), true);
         }
       }
       if (message.type === 'shopRebuyState') {
@@ -560,7 +560,7 @@ async function enterGame(session: LoginResponse) {
         if (message.success) {
           chat?.appendSystem(`${uiLocale() === 'en' ? 'Bought back' : '赎回'} ${itemName(message.itemId)} × ${message.quantity}（-${message.mesosSpent} ${uiText('meso')}）`, `shop:${message.requestId}`);
         } else {
-          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Buy-back failed' : '赎回失败'}（${message.code}）`), true);
+          status(protocolText(message.code, `${uiLocale() === 'en' ? 'Buy-back failed' : '赎回失败'}`), true);
         }
       }
       if (message.type === 'pickupResult') {
@@ -572,11 +572,11 @@ async function enterGame(session: LoginResponse) {
           wrong_job: '完成对应转职后可使用。', skill_hidden: '此技能由主技能自动触发。', max_level: '技能已达最高等级。' };
         status(message.success
           ? (message.operation === 'hyper_reset' ? '超级技能已重置，点数已返还。' : message.operation === 'learn' ? '技能已学习。' : '技能已施放。')
-          : reason[message.code] ?? `技能操作失败：${message.code}`, !message.success);
+          : reason[message.code] ?? protocolText(message.code, english ? 'Skill action failed' : '技能操作失败'), !message.success);
       }
       if (message.type === 'abilityResult') {
         characterInfo?.receiveAbilityResult(message);
-        status(message.success ? '属性点已分配。' : `属性点分配失败：${message.code}`, !message.success);
+        status(message.success ? '属性点已分配。' : protocolText(message.code, english ? 'Could not assign the point' : '属性点分配失败'), !message.success);
       }
       if (message.type === 'questList') {
         questLog?.setList(message.quests);
@@ -599,7 +599,7 @@ async function enterGame(session: LoginResponse) {
         // `setMap` moves the location plate, on failure the map is unchanged.
         const english = uiLocale() === 'en';
         if (message.success) status(english ? `Arrived at ${message.mapId}` : `已抵达 ${message.mapId}`);
-        else status(`${english ? 'World map jump failed' : '世界地图跳转失败'}：${message.code}`, true);
+        else status(`${english ? 'World map jump failed' : '世界地图跳转失败'}：${protocolText(message.code, english ? 'no route' : '没有可用路线')}`, true);
       }
       if (message.type === 'snapshot') {
         el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
@@ -663,7 +663,10 @@ async function enterGame(session: LoginResponse) {
         else if (['reactor_unknown', 'reactor_busy', 'reactor_spent', 'reactor_out_of_range'].includes(message.code)) {
           // A reactor rejection is a normal gameplay outcome, not an error:
           // the prop may already have been taken by someone else on the map.
-          if (message.code === 'reactor_out_of_range') status(english ? 'Move closer to interact with that.' : '再靠近一些才能互动。');
+          // It still gets one line — silence is what made a lost race read as
+          // "the click did nothing".
+          if (message.code === 'reactor_unknown') console.debug('[protocol] reactor request was stale or forged', message.message);
+          else status(protocolText(message.code, message.message), message.code !== 'reactor_spent');
         }
         // A rejected whisper behaves exactly like a rejected chat line: the
         // draft is restored (still addressed to the same target) and the
@@ -680,7 +683,13 @@ async function enterGame(session: LoginResponse) {
           chat?.failPending(message.requestId, protocolText(message.code, message.message));
         } else if (['boss_practice_cleared', 'boss_practice_left', 'boss_practice_failed'].includes(message.code)) {
           status(protocolText(message.code, message.message), message.code === 'boss_practice_failed');
-        } else if (!deathNotice?.reject(message)) status(`${protocolText(message.code, message.message)} (${message.code})`, true);
+        } else if (!deathNotice?.reject(message)) {
+          // The raw code is developer diagnostics, not player copy: it used to
+          // be appended to every untranslated line.  Keep it in the console so
+          // a missing translation is still findable.
+          if (!hasProtocolError(message.code)) console.debug('[protocol] 未翻譯的拒絕碼', message.code, message.message);
+          status(protocolText(message.code, message.message), true);
+        }
       }
       else if (message.type === 'reviveResult') deathNotice?.receive(message);
     }, (state, reason) => {

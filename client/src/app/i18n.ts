@@ -156,6 +156,37 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   friend_not_blocked: { zh: '对方不在黑名单中', en: 'That character is not on the blacklist' },
   emoticon_unknown: { zh: '未知的表情贴图', en: 'Unknown emoticon' },
   emoticon_rate_limited: { zh: '表情发送太快，请稍后再试', en: 'You are sending emoticons too fast; wait a moment' },
+  // 高频操作（T04）：攻击、拾取、任务、地图、宠物的拒绝以前没有文案，玩家看到的是
+  // 服务端的英文诊断加一个裸错误码 —— "为什么我按了没反应"完全没有答案。以下每条
+  // 对应一种玩家真的会撞上的情况，文案要说清**是什么挡住了他**。
+  attack_while_climbing: { zh: '爬在绳子或梯子上时无法攻击', en: 'You cannot attack while on a rope or ladder' },
+  attack_while_dead: { zh: '死亡状态无法攻击', en: 'You cannot attack while dead' },
+  attack_while_channeling: { zh: '技能引导中无法攻击', en: 'You cannot attack while channelling a skill' },
+  cooldown: { zh: '上一次攻击动作还没结束', en: 'The previous attack is still in progress' },
+  capacity: { zh: '服务器暂时无法处理更多动作，请重新登录', en: 'The server cannot take more actions; please log in again' },
+  busy: { zh: '服务器忙碌中，请稍后再试', en: 'The server is busy; try again shortly' },
+  rate_limit: { zh: '操作过于频繁，请放慢一点', en: 'You are acting too fast; slow down' },
+  invalid_message: { zh: '无法识别的操作', en: 'That request could not be understood' },
+  invalid_hello: { zh: '连线握手失败，请重新整理页面', en: 'Handshake failed; reload the page' },
+  unauthenticated: { zh: '登录已失效，请重新登录', en: 'Your session expired; log in again' },
+  map_unavailable: { zh: '这个地图目前无法进入', en: 'That map is not available right now' },
+  portal_unavailable: { zh: '这道传送门现在无法使用', en: 'That portal cannot be used right now' },
+  pet_not_summoned: { zh: '尚未召唤宠物', en: 'No pet is summoned' },
+  effect_persistence: { zh: '效果未能保存，请稍后再试', en: 'The effect could not be saved; try again' },
+  // 采集物：别人先拿走 / 正在被摇动都是**正常的竞争结果**，不是错误，但也不该无声。
+  reactor_unknown: { zh: '这里没有可以互动的物件', en: 'There is nothing to interact with here' },
+  reactor_busy: { zh: '这个物件正在被摇动，请稍等', en: 'That object is already being used' },
+  reactor_out_of_range: { zh: '再靠近一些才能互动', en: 'Move closer to interact with that' },
+  reactor_spent: { zh: '这个物件已经被采完了', en: 'That object has already been taken' },
+  quest_unknown: { zh: '这个任务不在目前的任务目录中', en: 'That quest is not in the current quest list' },
+  quest_script_unavailable: { zh: '此任务的原版剧情尚未接入', en: 'This quest story is not available yet' },
+  quest_npc_unavailable: { zh: '此任务NPC目前无法处理任务', en: 'That NPC cannot handle this quest right now' },
+  quest_option_unavailable: { zh: '任务选项已更新，请重新开启对话', en: 'The quest options changed; reopen the dialogue' },
+  quest_step_invalid: { zh: '这个任务选项已经不存在', en: 'That quest option is no longer offered' },
+  quest_transition_invalid: { zh: '任务状态已更新', en: 'The quest state already changed' },
+  quest_requirements_missing: { zh: '任务条件尚未完成', en: 'The quest requirements are not met yet' },
+  quest_return_unavailable: { zh: '任务路线已更新，请重新开启对话', en: 'The quest route changed; reopen the dialogue' },
+  quest_self_service_unavailable: { zh: '此任务无法在任务视窗处理，请找对应的NPC', en: 'This quest cannot be handled from the quest window; find its NPC' },
 });
 
 /** Minimap window copy (UI/UIMap.img/MiniMap).  The controls themselves are
@@ -195,6 +226,11 @@ const WORLD_MAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>
 });
 
 export function uiLocale(): UiLocale { return locale; }
+/** Whether a protocol code has a localized line of its own.  Sites that carry
+ *  their own reason in the server message (for example `invalid_state`) answer
+ *  `false` on purpose — a generic table entry would flatten those reasons into
+ *  one useless sentence. */
+export function hasProtocolError(code: string): boolean { return code in PROTOCOL_ERRORS; }
 export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? fallback; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
 export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }

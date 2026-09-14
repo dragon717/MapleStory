@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { randomDropId } from '../features/player/pickup';
+import { protocolText, uiLocale } from '../app/i18n';
 import type { NpcState, ServerMessage } from '../../../shared/protocol';
 import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/manifest';
 import { buildPreloadPlan } from '../assets/preload-plan';
@@ -345,7 +346,11 @@ export class World extends Phaser.Scene {
     if (message.type === 'portalResult') {
       this.portalCooldownUntil = performance.now() + (message.success ? 1200 : 300);
       // A rejected gameplay request is recoverable; the error callback tears down the resource session.
-      if (!message.success) this.status(`传送失败：${message.code}`);
+      // The code is developer diagnostics; the player gets the reason.
+      if (!message.success) {
+        const reason = protocolText(message.code, uiLocale() === 'en' ? 'That portal refused the move' : '这道门没有让你过去');
+        this.status(`${uiLocale() === 'en' ? 'Travel failed' : '传送失败'}：${reason}`);
+      }
     }
   }
   clear() {

@@ -49,13 +49,17 @@ impl Combat {
             return Attack::Reply(prior.clone());
         }
         if tick < active_until {
-            return Attack::Reply(reject("cooldown", "Attack still active", Some(request)));
+            return Attack::Reply(reject(
+                "cooldown",
+                "上一次攻击动作还没结束。",
+                Some(request),
+            ));
         }
         // ponytail: finite process-lifetime dedup; the SQLite action table carries it across restarts.
         if self.attacks.len() >= 100_000 {
             return Attack::Reply(reject(
                 "capacity",
-                "Action history capacity reached; restart server",
+                "服务器暂时无法处理更多动作，请重新登录。",
                 Some(request),
             ));
         }

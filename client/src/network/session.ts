@@ -1,5 +1,5 @@
 import { CONTENT_VERSION, PROTOCOL_VERSION, type ClientMessage, type LoginResponse, type ServerMessage } from '../../../shared/protocol';
-import { uiLocale } from '../app/i18n';
+import { protocolText, uiLocale } from '../app/i18n';
 // authenticate（认证 HTTP）已迁到 ./auth-api（计划 §9.2）；本文件只保留实时连接。
 /** Terminal results must stop the retry loop, otherwise two pages or a banned
  *  session would fight forever over the same character. */
@@ -42,6 +42,7 @@ export class Connection {
     this.closeSocket();
     this.report('connecting');
     let handshakeFailure = '';
+    let handshakeCode = '';
     let acknowledged = false;
     const socket = this.socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
     this.timeout = setTimeout(() => { if (this.socket === socket) { this.report('offline', '连接超时，请重连。'); socket.close(); } }, 10000);
@@ -51,7 +52,14 @@ export class Connection {
       try {
         const message = JSON.parse(event.data) as ServerMessage;
         if (message.type === 'snapshot') { acknowledged = true; clearTimeout(this.timeout); this.attempt = 0; this.report('online'); }
-        else if (message.type === 'rejected' && !acknowledged) handshakeFailure = `${message.message} (${message.code})`;
+        // The localized line comes first; the raw code stays in the console so
+        // a handshake failure is still diagnosable without showing it to the
+        // player on the connection screen.
+        else if (message.type === 'rejected' && !acknowledged) {
+          handshakeCode = message.code;
+          handshakeFailure = protocolText(message.code, message.message);
+          console.debug('[protocol] 握手被拒', message.code, message.message);
+        }
         this.message(message);
       } catch { this.report('offline', '服务器消息无法解析，请重连。'); socket.close(); }
     };
@@ -59,18 +67,21 @@ export class Connection {
       if (this.socket !== socket) return;
       clearTimeout(this.timeout);
       this.report('offline', event.reason || handshakeFailure || '连接已断开，正在尝试恢复…');
-      this.scheduleReconnect(handshakeFailure);
+      this.scheduleReconnect(handshakeCode);
     };
     socket.onerror = () => { if (this.socket === socket) this.report('offline', '无法连接服务器，请检查网络。'); };
   }
   /** Exponential backoff with jitter.  Hidden pages wait longer because a
-   *  background tab is typically frozen and would only burn timers. */
-  private scheduleReconnect(handshakeFailure = '') {
+   *  background tab is typically frozen and would only burn timers.
+   *
+   *  The terminal code arrives as its own field, never re-parsed out of the
+   *  player-facing sentence: the display text is localized, so any `(code)`
+   *  shape it used to carry is not part of the contract. */
+  private scheduleReconnect(handshakeCode = '') {
     if (this.stopped) return;
-    const code = handshakeFailure.match(/\(([a-z_]+)\)\s*$/)?.[1];
-    if (code && TERMINAL_CODES.has(code)) {
+    if (handshakeCode && TERMINAL_CODES.has(handshakeCode)) {
       this.stopped = true;
-      this.report('offline', code === 'session_replaced' ? '该角色已在其他页面或设备恢复。' : '登录状态已失效，请重新登录。');
+      this.report('offline', handshakeCode === 'session_replaced' ? '该角色已在其他页面或设备恢复。' : '登录状态已失效，请重新登录。');
       return;
     }
     const base = document.hidden ? 8000 : 1000;
