@@ -1106,6 +1106,17 @@ struct QuestSpec {
     _source_job: Vec<u32>,
     #[serde(default)]
     return_map_id: Option<String>,
+    /// Source-boundary tags recorded by the chapter adapters (`script-scene`,
+    /// `kill-target-missing`, …).  Purely descriptive: they say *why* a quest
+    /// this player has already unlocked still cannot be taken, so the log can
+    /// explain the stop instead of leaving a silent dead end.
+    #[serde(default)]
+    blocked_by: Vec<String>,
+    /// Same tags as `blocked_by`, joined by the adapter.  Kept only so the
+    /// source record stays traceable; the runtime always re-derives text from
+    /// `blocked_by` so one untranslated code can never leak into the UI.
+    #[serde(default)]
+    blocked_reason: Option<String>,
 }
 
 /// The sendable chat-emoticon catalogue, exported from

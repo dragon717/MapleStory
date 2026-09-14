@@ -255,7 +255,9 @@ export class QuestLogView {
       }
       this.body.append(row);
     }
-    const tracked = list.find(entry => entry.status !== 'completed');
+    // A blocked row explains a stop; it is not something to chase, so the
+    // tracker keeps pointing at the last step the player can still act on.
+    const tracked = list.find(entry => entry.status !== 'completed' && entry.status !== 'blocked');
     this.tracker.hidden = !tracked || this.openState;
     if (tracked) this.tracker.textContent = `${this.statusLabel(tracked)} · ${displayText(tracked.name)}
 ${displayText(tracked.blockReason || tracked.nextAction || tracked.summary)}${(tracked.objectives ?? []).map(o => `
@@ -273,13 +275,13 @@ ${displayText(o.text)} ${o.current}/${o.required}`).join('')}
    * rendered without a title.
    */
   private priority(entry: QuestLogEntry): number {
-    return { objectivesComplete: 0, active: 1, available: 2, completed: 3 }[entry.status];
+    return { objectivesComplete: 0, active: 1, available: 2, completed: 3, blocked: 4 }[entry.status];
   }
 
   private statusLabel(entry: QuestLogEntry): string {
     const labels = uiLocale() === 'en'
-      ? { available: 'Available', active: 'In progress', objectivesComplete: 'Ready to claim', completed: 'Claimed' }
-      : { available: '可接取', active: '进行中', objectivesComplete: '可交付', completed: '已领奖' };
+      ? { available: 'Available', active: 'In progress', objectivesComplete: 'Ready to claim', completed: 'Claimed', blocked: 'Not open yet' }
+      : { available: '可接取', active: '进行中', objectivesComplete: '可交付', completed: '已领奖', blocked: '尚未开放' };
     return labels[entry.status];
   }
 

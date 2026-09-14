@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 export const CONTENT_VERSION = 'tms273-23';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -300,7 +300,10 @@ export type ClientMessage =
 export interface DialogueOption { index: number; text: string }
 export interface QuestLogEntry {
   questId: string; name: string;
-  status: 'available' | 'active' | 'objectivesComplete' | 'completed';
+  /** `blocked`: every prerequisite is met, but the current build cannot run
+   *  this quest (missing source script / NPC / map).  Display-only — the row
+   *  carries `blockReason` and never an accept control. */
+  status: 'available' | 'active' | 'objectivesComplete' | 'completed' | 'blocked';
   summary: string;
   objectives?: { text: string; current: number; required: number }[];
   /** Source `QuestInfo/selfStart` / `selfComplete`: the quest window is this

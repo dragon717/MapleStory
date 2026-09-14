@@ -326,6 +326,90 @@ impl World {
             .unwrap_or_else(|| template_id.to_owned())
     }
 
+    /// `(map, localized monster name)` for the first kill objective this player
+    /// has not finished, when that monster really spawns in the assembled
+    /// world.  `None` for hunts already done or for targets that are only
+    /// spec-deep — inventing a map would be worse than saying nothing.
+    fn quest_hunt_hint(&self, spec: &QuestSpec, player: &Player) -> Option<(String, String)> {
+        let objective = spec.objectives.iter().find(|objective| {
+            objective._kind == "kill"
+                && self.quest_objective_count(&spec.quest_id, objective, player)
+                    < objective.required
+        })?;
+        let map_id = self.quest_mob_map(&objective.mob_id)?;
+        let label = self
+            .quest_objective_text(&objective.text, player.lang)
+            .unwrap_or_else(|| "任務目標".to_owned());
+        Some((map_id, label))
+    }
+
+    /// Map a monster template actually spawns on, from the assembled spawn
+    /// table.  A kill objective that only prints "藍色蘑菇王 0/1" sends the
+    /// player nowhere; the map is the missing half of the instruction.
+    fn quest_mob_map(&self, template_id: &str) -> Option<String> {
+        if template_id.trim().is_empty() {
+            return None;
+        }
+        self.gameplay
+            .spawns
+            .iter()
+            .find(|spawn| spawn.template_id == template_id)
+            .map(|spawn| spawn.map_id.clone())
+            .filter(|map_id| !map_id.is_empty() && self.maps.contains_key(map_id))
+    }
+
+    /// Player-facing reason a quest the player has already unlocked still
+    /// cannot be taken.  Adapter tags are source-boundary codes, never text a
+    /// player should read; each one maps to a plain sentence.  Returns `None`
+    /// when the quest is blocked for a reason that is not about this player's
+    /// route — a mage finishing a chapter must not be told about the swordsman
+    /// chapter they never chose.
+    pub(super) fn quest_blocked_reason(&self, spec: &QuestSpec) -> Option<String> {
+        if spec.executable() {
+            return None;
+        }
+        // The adapters record the same boundary twice (array and joined
+        // string); either one alone is enough, and neither is ever shown raw.
+        let mut codes: Vec<&str> = spec.blocked_by.iter().map(String::as_str).collect();
+        if codes.is_empty() {
+            codes = spec
+                .blocked_reason
+                .as_deref()
+                .unwrap_or_default()
+                .split(',')
+                .map(str::trim)
+                .filter(|code| !code.is_empty())
+                .collect();
+        }
+        const NOT_THIS_ROUTE: [&str; 3] = ["other-job-route", "dev-quest", "job-route-unmapped"];
+        if codes.iter().any(|code| NOT_THIS_ROUTE.contains(code)) {
+            return None;
+        }
+        let mut parts: Vec<String> = Vec::new();
+        for code in codes {
+            // Unknown tags stay honest instead of pretending to be story: the
+            // code is kept as a diagnostic suffix, never on its own.
+            let text = match code {
+                "script-counter" => "原版腳本計數器尚未復刻".to_owned(),
+                "script-scene" => "原版劇情場景尚未復刻".to_owned(),
+                "script-item-source" => "任務道具由原版腳本發放，尚未復刻".to_owned(),
+                "missing-start-npc" => "接取NPC尚未出現在目前的版本中".to_owned(),
+                "missing-complete-npc" => "交付NPC尚未出現在目前的版本中".to_owned(),
+                "missing-region" => "任務所屬區域尚未裝配".to_owned(),
+                "kill-target-missing" => "任務目標怪物尚未出現在目前的版本中".to_owned(),
+                "missing-map" => "任務地圖尚未裝配".to_owned(),
+                other => format!("尚未復刻的環節（{other}）"),
+            };
+            if !parts.iter().any(|part| *part == text) {
+                parts.push(text);
+            }
+        }
+        if parts.is_empty() {
+            return None;
+        }
+        Some(format!("尚未開放：{}", parts.join("、")))
+    }
+
     pub(super) fn quest_menu_choices(&self, id: &str, template_id: &str) -> Vec<(String, String)> {
         let Some(player) = self.players.get(id) else {
             return Vec::new();
@@ -569,6 +653,7 @@ impl World {
         persisted: Option<&str>,
     ) -> Option<serde_json::Value> {
         let player = self.players.get(id)?;
+        let blocked_reason = self.quest_blocked_reason(spec);
         let status = match persisted {
             Some("completed") => "completed",
             Some("active") if self.quest_objectives_complete(spec, player) => "objectivesComplete",
@@ -579,10 +664,20 @@ impl World {
             {
                 "available"
             }
+            // T05: the player has already unlocked this quest, but the current
+            // build cannot run it (missing source script / NPC / map …).  Say
+            // so instead of dropping the row: a chapter that ends in an empty
+            // log reads as "nothing left to do", which is exactly the
+            // "局部可执行当成正常可达" failure the audit calls out.
+            None if blocked_reason.is_some()
+                && quest_rules::conditions_match(&quest_facts(player), &spec.start.conditions) =>
+            {
+                "blocked"
+            }
             None => return None,
         };
         let objective_rows = self.quest_objective_rows(spec, player, player.lang);
-        let (target_map_id, target_npc_id, next_action) = match status {
+        let (mut target_map_id, target_npc_id, mut next_action) = match status {
             "available" => (
                 self.quest_npc_map(spec.start.npc_id.as_deref()),
                 spec.start.npc_id.clone(),
@@ -664,8 +759,47 @@ impl World {
                     .as_deref()
                     .map(|map_id| format!("返回{}", self.quest_map_label(map_id))),
             ),
+            "blocked" => {
+                // Point at the real place and NPC the source names, and say it
+                // is not open — a bare "尚未開放" would be a story substitute
+                // for a missing step, and a bare route would be a lie.
+                let npc_id = spec
+                    .start
+                    .npc_id
+                    .as_deref()
+                    .filter(|npc_id| !npc_id.is_empty());
+                let map_id = self.quest_npc_map(npc_id);
+                let next_action = match (map_id.as_deref(), npc_id) {
+                    (Some(map_id), Some(npc_id)) => Some(format!(
+                        "原版此步驟在{}的{}接取，尚未開放",
+                        self.quest_map_label(map_id),
+                        self.quest_npc_label(Some(npc_id))
+                    )),
+                    _ => None,
+                };
+                (map_id, npc_id.map(str::to_owned), next_action)
+            }
             _ => (None, None, None),
         };
+        // A hunt with no NPC to visit still has to say *where*: the objective
+        // row alone names the monster but not the map, which is the difference
+        // between "去找藍色蘑菇王" and a target the player can actually reach.
+        // An already-derived route wins — a delivery step must not be replaced
+        // by the map of the monster that only gates it.
+        if status == "active" {
+            if let Some((map_id, label)) = self.quest_hunt_hint(spec, player) {
+                if next_action.is_none() {
+                    next_action = Some(format!(
+                        "前往{}，擊殺{}",
+                        self.quest_map_label(&map_id),
+                        label
+                    ));
+                }
+                if target_map_id.is_none() {
+                    target_map_id = Some(map_id);
+                }
+            }
+        }
         // A self-service phase has no NPC to route to: the quest window is the
         // entrance, so name it instead of leaving the row with no next step
         // (the "看到任務卻找不到入口" failure this task exists to remove).  A
@@ -686,11 +820,12 @@ impl World {
         });
         // The client renders an accept/hand-in control only for the half the
         // source actually marks self-service, so the button can never offer a
-        // transition the server would refuse.
-        if spec.self_start {
+        // transition the server would refuse.  A blocked row offers nothing:
+        // its self-service flags belong to a phase this build cannot run.
+        if spec.self_start && status != "blocked" {
             entry["selfStart"] = serde_json::Value::Bool(true);
         }
-        if spec.self_complete {
+        if spec.self_complete && status != "blocked" {
             entry["selfComplete"] = serde_json::Value::Bool(true);
         }
         if !objective_rows.is_empty() {
@@ -704,6 +839,11 @@ impl World {
         }
         if let Some(next_action) = next_action {
             entry["nextAction"] = next_action.into();
+        }
+        if status == "blocked" {
+            if let Some(blocked_reason) = blocked_reason {
+                entry["blockReason"] = blocked_reason.into();
+            }
         }
         Some(entry)
     }

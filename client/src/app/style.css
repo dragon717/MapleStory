@@ -285,6 +285,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .quest-log-status{flex:0 0 auto;font:700 9px/1 Verdana,"Microsoft YaHei",sans-serif;color:#7b5a11;background:#ffe9a8;border:1px solid #cfa13c;border-radius:8px;padding:2px 6px}
 .quest-log-completed{opacity:.72}
 .quest-log-completed .quest-log-status{color:#3e6b38;background:#dceacd;border-color:#7fa564}
+/* 前置已满足但源边界未复刻：说明停在哪里，不给接取按钮。 */
+.quest-log-blocked{opacity:.8}
+.quest-log-blocked .quest-log-status{color:#5b5b5b;background:#e2e2e2;border-color:#9a9a9a}
 .quest-log-row p{margin:3px 0 0;color:#4b4b4b;font:11px/1.6 Verdana,"Microsoft YaHei",sans-serif;white-space:pre-line}
 /* 源自助阶段（QuestInfo selfStart/selfComplete）没有 NPC，任务视窗就是入口。 */
 .quest-log-action{margin:5px 0 0;padding:3px 12px;border:1px solid #cfa13c;border-radius:3px;background:linear-gradient(#ffe9a8,#f4cd6b);color:#4a3708;font:700 11px/1.5 Verdana,"Microsoft YaHei",sans-serif;cursor:pointer}
