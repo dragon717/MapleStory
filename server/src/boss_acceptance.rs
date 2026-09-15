@@ -51,8 +51,9 @@ fn boss_practice_actual_map_qualification_isolated_and_idempotent() {
     // 50 base maps + 21 portal-closure maps + 6 ship maps (2026-09-14) + 10
     // phase-2 ship/dock maps (2026-09-14) + 21 艾靈森林章节 maps (2026-09-14):
     // 现代侧 2 图（赫爾奧斯塔圖書館/時間監控室）与过去侧 19 图 + 7 张
-    // 玩具城與赫爾奧斯塔塔步行链路图（2026-09-15）.
-    assert_eq!(world.maps.len(), 115);
+    // 玩具城與赫爾奧斯塔塔步行链路图（2026-09-15）+ 9 张玩具城⇄天空之城
+    // 飞行船第三航线图（2026-09-15）。
+    assert_eq!(world.maps.len(), 124);
     assert!(world.maps.contains_key("102020500"));
     // 飞行船一期六图必须随目录一起加载。
     for id in ["200000100", "200000112", "200090000", "200090001", "200090010", "200090011"] {
@@ -65,6 +66,15 @@ fn boss_practice_actual_map_qualification_isolated_and_idempotent() {
         "310000000", "310000010",
     ] {
         assert!(world.maps.contains_key(id), "missing phase-2 ship map {id}");
+    }
+    // 飞行船三期九图（玩具城售票处/碼頭、天空之城港口通道/碼頭、两张船图、
+    // 天空之城城内与两家源商店）必须随目录一起加载。
+    for id in [
+        "220000100", "220000110", "200090110",
+        "200000120", "200000121", "200090100",
+        "200000000", "200000001", "200000002",
+    ] {
+        assert!(world.maps.contains_key(id), "missing phase-3 ship map {id}");
     }
     // 維多利亞港三家商店必须随目录一起加载，否则原版店门会回 map_unavailable。
     for id in ["104000001", "104000002", "104000003"] {

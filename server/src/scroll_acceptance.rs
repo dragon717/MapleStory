@@ -558,11 +558,15 @@ fn the_generated_catalog_carries_a_return_town_for_every_loaded_map() {
     assert!(loaded.contains("310000000"), "埃德爾斯坦城 must be assembled with the phase-2 line");
     assert_eq!(town("310040200"), Some("310000000"));
     assert_eq!(town("310050000"), Some("310000000"));
-    // The two Orbis-side maps whose town this build still does not ship keep
-    // their authored value; the refusal belongs to use time.
-    for orphan in ["200000100", "200000170"] {
-        assert_eq!(town(orphan), Some("200000000"));
-        assert!(!loaded.contains("200000000"));
+    // 天空之城城内 200000000 arrived with the 2026-09-15 玩具城⇄天空之城
+    // flight line, so the two Orbis-side maps that used to be orphans now name a
+    // loaded town and their 回家卷軸 is no longer refused at use time.
+    for map in ["200000100", "200000170"] {
+        assert_eq!(town(map), Some("200000000"));
+        assert!(
+            loaded.contains("200000000"),
+            "天空之城城内 must be assembled with the phase-3 flight line"
+        );
     }
     // 維多利亞港卷軸 names 104000000 outright, so that town has to exist or the
     // fixed-destination scroll is dead on arrival.

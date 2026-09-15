@@ -186,16 +186,27 @@ fn ship_snapshot_field_rides_only_route_maps() {
     assert_eq!(route_index_for_map("200090601"), Some(4));
     assert_eq!(route_index_for_map("310000010"), Some(5));
     assert_eq!(route_index_for_map("200090611"), Some(5));
+    assert_eq!(route_index_for_map("220000100"), Some(6));
+    assert_eq!(route_index_for_map("220000110"), Some(6));
+    assert_eq!(route_index_for_map("200090110"), Some(6));
+    assert_eq!(route_index_for_map("200000120"), Some(7));
+    assert_eq!(route_index_for_map("200000121"), Some(7));
+    assert_eq!(route_index_for_map("200090100"), Some(7));
     assert_eq!(route_index_for_map("100000000"), None);
-    // 检票员/播报员与航线的绑定关系随断言钉死（含二期四名检票员）。
+    // 检票员/播报员与航线的绑定关系随断言钉死（含二期四名检票员与三期两名）。
     assert_eq!(route_index_for_inspector("1032008"), Some(0));
     assert_eq!(route_index_for_inspector("2012000"), Some(1));
     assert_eq!(route_index_for_inspector("1100007"), Some(2));
     assert_eq!(route_index_for_inspector("1100003"), Some(3));
     assert_eq!(route_index_for_inspector("2150010"), Some(4));
     assert_eq!(route_index_for_inspector("2150008"), Some(5));
+    // 三期：检票员都站在碼頭上（不是售票处），两边各一名，不许互串。
+    assert_eq!(route_index_for_inspector("2041000"), Some(6));
+    assert_eq!(route_index_for_inspector("2012013"), Some(7));
+    assert_eq!(route_index_for_inspector("2040000"), None);
     assert_eq!(route_index_for_announcer("1032007"), Some(0));
     assert_eq!(route_index_for_announcer("1100004"), Some(3));
+    assert_eq!(route_index_for_announcer("2040000"), Some(6));
     assert_eq!(route_index_for_announcer("2012000"), None);
     // 快照字段只含三个展示键。
     let field = ship_snapshot_field(0);
@@ -206,6 +217,8 @@ fn ship_snapshot_field_rides_only_route_maps() {
     assert_eq!(ship_snapshot_field(3)["route"], "erev-victoria");
     assert_eq!(ship_snapshot_field(4)["route"], "victoria-edelstein");
     assert_eq!(ship_snapshot_field(5)["route"], "edelstein-victoria");
+    assert_eq!(ship_snapshot_field(6)["route"], "toys-orbis");
+    assert_eq!(ship_snapshot_field(7)["route"], "orbis-toys");
 }
 
 /// 二期世界：内存分支地图覆盖耶雷弗/埃德爾斯坦两线的站台/码头/甲板/船舱。
@@ -361,4 +374,110 @@ fn phase2_in01_and_dock_out00_route_per_source_adjacency() {
     place(&mut world, "p1", "130000210");
     assert!(world.ship_portal_gate("p1", "req-out00", "130000210", "out00"));
     assert_eq!(world.players["p1"].map_id, "130000200");
+}
+
+/// 三期世界：玩具城⇄天空之城两线的码头/售票处/港口通道/甲板，外加天空之城城内。
+fn ship_world3() -> World {
+    let mut world = World::new_with_gameplay(map(), 600, ship_gameplay());
+    for id in [
+        "200000100",
+        "220000100", "220000110", "200090110",
+        "200000120", "200000121", "200090100",
+        "200000000", "200000001", "200000002",
+    ] {
+        world.maps.insert(id.to_owned(), ship_room(id, -469.0));
+    }
+    world
+}
+
+#[test]
+fn phase3_toys_line_boards_at_the_dock_and_arrives_across() {
+    let mut world = ship_world3();
+    let _rx = join_test_player(&mut world, "p1");
+    let _rx2 = join_test_player(&mut world, "p2");
+    let boarding = SLOT_BASE + 10 * 60;
+
+    // 源里两张船图都没有船舱：cabin 必须是空串，到站判定只认甲板。
+    assert_eq!(super::ship::SHIP_ROUTES[6].cabin, "");
+    assert_eq!(super::ship::SHIP_ROUTES[7].cabin, "");
+
+    // 去程：玩具城碼頭 220000110 检票 → 甲板 200090110 → 到站天空之城碼頭。
+    place(&mut world, "p1", "220000110");
+    assert_eq!(world.ship_board_at("p1", 6, boarding), Ok(()));
+    assert_eq!(world.players["p1"].map_id, "200090110");
+    assert_eq!(world.ship_passengers[6], vec!["p1".to_owned()]);
+
+    // 返程：天空之城碼頭 200000121 检票 → 甲板 200090100 → 到站玩具城碼頭。
+    place(&mut world, "p2", "200000121");
+    assert_eq!(world.ship_board_at("p2", 7, boarding + 30), Ok(()));
+    assert_eq!(world.players["p2"].map_id, "200090100");
+
+    world.step_ship_at(SLOT_BASE + 15 * 60);
+    assert_eq!(world.players["p1"].map_id, "200000121");
+    assert_eq!(world.players["p2"].map_id, "220000110");
+    assert!(world.ship_passengers[6].is_empty());
+    assert!(world.ship_passengers[7].is_empty());
+
+    // 落点就是源里的到站碼頭，不是随手挑的图：下一班仍从同一张图检票。
+    assert_eq!(world.maps["200000121"].spawn.x, world.players["p1"].state.x);
+    assert_eq!(world.maps["220000110"].spawn.x, world.players["p2"].state.x);
+}
+
+#[test]
+fn phase3_station_in_gate_routes_into_the_harbor_passage() {
+    let mut world = ship_world3();
+    let _rx = join_test_player(&mut world, "p1");
+    // 售票处 east00 在源里是 pt:7 `station_in` 脚本门（无静态目标）；服务端
+    // 按源邻接（200000120.west00 正指 200000100/east00）P 级路由，落点是
+    // 港口通道自己的 west00——不是凭空补一个方向。
+    place(&mut world, "p1", "200000100");
+    assert!(world.ship_portal_gate("p1", "req-station-in", "200000100", "east00"));
+    assert_eq!(world.players["p1"].map_id, "200000120");
+    assert_eq!(world.players["p1"].state.x, world.maps["200000120"].spawn.x);
+    // 非本模块的门不接管。
+    assert!(!world.ship_portal_gate("p1", "req-other", "200000100", "west00"));
+    // 玩具城售票处没有脚本门（源里是静态 pt:2），钩子同样不接管。
+    assert!(!world.ship_portal_gate("p1", "req-toys", "220000100", "east00"));
+}
+
+#[test]
+fn phase3_stranded_passengers_are_recovered_by_phase() {
+    let mut world = ship_world3();
+    let _rx = join_test_player(&mut world, "p1");
+    let _rx2 = join_test_player(&mut world, "p2");
+
+    // 检票窗内已登记的乘客不许被相位恢复踢下船（否则登完船就被送回去）。
+    place(&mut world, "p1", "200000121");
+    let boarding = SLOT_BASE + 10 * 60;
+    assert_eq!(world.ship_board_at("p1", 7, boarding), Ok(()));
+    world.step_ship_at(boarding + 30);
+    assert_eq!(
+        world.players["p1"].map_id, "200090100",
+        "已登记的乘客必须留在船上"
+    );
+
+    // 靠港相位落在船图却不在名单里（服务重启/重连）⇒ 放回本端登船站台：
+    // 这两张船图在源里连一扇门都没有，不兜底就是死端。
+    place(&mut world, "p2", "200090110");
+    world.step_ship_at(boarding + 60);
+    assert_eq!(world.players["p2"].map_id, "220000110");
+    assert_eq!(world.players["p2"].state.x, world.maps["220000110"].spawn.x);
+
+    // 航行相位落在船图却不在名单里 ⇒ 补登记，随本班到站被送下船。
+    place(&mut world, "p2", "200090100");
+    world.step_ship_at(SLOT_BASE);
+    assert_eq!(world.ship_passengers[7], vec!["p2".to_owned()]);
+    assert_eq!(world.players["p2"].map_id, "200090100", "登记不等于立刻传送");
+    world.step_ship_at(SLOT_BASE + 15 * 60);
+    assert_eq!(world.players["p2"].map_id, "220000110");
+
+    // 恢复不碰站台与城内：站在碼頭/售票处的角色原地不动。
+    place(&mut world, "p2", "220000110");
+    world.step_ship_at(SLOT_BASE + 15 * 60 + 1);
+    assert_eq!(world.players["p2"].map_id, "220000110");
+    // 船图仍是「船上」：大地图跳转与回家卷軸照旧被拒。
+    for deck in ["200090100", "200090110"] {
+        assert!(super::ship::ship_is_on_board_map(deck));
+    }
+    assert!(!super::ship::ship_is_on_board_map("200000121"));
 }

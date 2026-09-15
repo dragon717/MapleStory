@@ -1890,7 +1890,8 @@ pub struct World {
     party_requests: BTreeMap<(String, String), PartyOutcome>,
     /// 飞行船乘客名单，按航线索引（`ship::SHIP_ROUTES`）。检票时登记，
     /// 相位进入航行时整单到站传送并清空；进程内状态，重启即清。
-    ship_passengers: [Vec<String>; 6],
+    /// 落在船图却不在名单里的角色由 `ship::step_ship_recover` 按相位兜底。
+    ship_passengers: [Vec<String>; 8],
     /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
     cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
     /// Per-(player, SN) cash purchase counters backing `Commodity.img`

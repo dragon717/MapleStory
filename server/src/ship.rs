@@ -9,7 +9,8 @@
 //! 一期边界（与 `docs/plan/topics/飞行船航线系统实现方案.md` 对齐）：
 //! - 检票 = 与站台上的检票员对话（`104020110` 的 `1032008`、`200000100` 的
 //!   `2012000`）；候船室 `200000112`/船員 阿霖 `2012002` 已随目录装配但一期
-//!   不承载机制（`east00` 的 `station_in` 脚本门保持关闭提示旧行为）。
+//!   不承载机制。售票处 `east00` 的 `station_in` 脚本门一期保持关闭提示旧行为，
+//!   三期起改由 `ship_portal_gate` 按源邻接 P 级路由进港口通道（见下）。
 //! - 票务道具 ID 未核实，一期免费登船（P 级）。
 //! - 航行中甲板刷蝙蝠魔属二期 Balrog 事件，不建模。
 //!
@@ -26,6 +27,20 @@
 //!   仅检票相位放行，航行中保持关闭提示。`200000170` 天空之城码头随目录
 //!   装配（west00 回 `200000100`），检票不在该侧。
 //! - 蝙蝠魔事件、候船室机制、票务道具仍属后续。
+//!
+//! 三期（2026-09-15）：玩具城⇄天空之城线，把玩具城从「只能靠大地图跳转」
+//! 变成有真实双向海上通道，并让天空之城第一次有城内可走。
+//! - 玩具城侧登船在碼頭 `220000110`（剪票員 `2041000`），售票处
+//!   `220000100` 的車掌 `2040000` 只报班次；两图由源静态 pt:2 门
+//!   `east00`↔`west00` 相连，售票处 `out00` 回玩具城 `220000000.station00`。
+//! - 天空之城侧登船在碼頭 `200000121`（剪票員 `2012013`），经港口通道
+//!   `200000120` 连售票处：源 `200000120.west00` 的 tm/tn 正是
+//!   `200000100.east00`（pt:7 `station_in`，脚本体缺失），按源邻接 P 级路由
+//!   （`ship_portal_gate`）；港口通道 `east00` → 碼頭 `west00` 是源静态门。
+//! - 两张船图 `200090100 開往玩具城` / `200090110 開往天空之城` 在源里只有
+//!   出生点，既无船舱也无舱门：登船即甲板，到站为服务端强制传送。因此
+//!   `step_ship_recover` 补上方案 §3 约定的相位恢复——名单是进程内状态，
+//!   服务重启即清空，而这两张船图没有任何门，不兜底就是玩家死端。
 
 use super::*;
 
@@ -139,13 +154,38 @@ pub(crate) static ROUTE_EDELSTEIN_VICTORIA: ShipRoute = ShipRoute {
     announcers: &[],
 };
 
-pub(crate) static SHIP_ROUTES: [&ShipRoute; 6] = [
+/// 三期（2026-09-15）：玩具城⇄天空之城线。两端的检票员都在**码头**上
+/// （玩具城 `220000110` 的剪票員 `2041000`、天空之城 `200000121` 的剪票員
+/// `2012013`），售票处只报班次；船图在源里没有船舱，`cabin` 为空串。
+pub(crate) static ROUTE_TOYS_ORBIS: ShipRoute = ShipRoute {
+    id: "toys-orbis",
+    board_map: "220000110",
+    deck: "200090110",
+    cabin: "",
+    dest_station: "200000121",
+    inspector: "2041000",
+    announcers: &["2040000"],
+};
+
+pub(crate) static ROUTE_ORBIS_TOYS: ShipRoute = ShipRoute {
+    id: "orbis-toys",
+    board_map: "200000121",
+    deck: "200090100",
+    cabin: "",
+    dest_station: "220000110",
+    inspector: "2012013",
+    announcers: &[],
+};
+
+pub(crate) static SHIP_ROUTES: [&ShipRoute; 8] = [
     &ROUTE_VICTORIA_ORBIS,
     &ROUTE_ORBIS_VICTORIA,
     &ROUTE_VICTORIA_EREV,
     &ROUTE_EREV_VICTORIA,
     &ROUTE_VICTORIA_EDELSTEIN,
     &ROUTE_EDELSTEIN_VICTORIA,
+    &ROUTE_TOYS_ORBIS,
+    &ROUTE_ORBIS_TOYS,
 ];
 
 /// 哪条航线与这张地图相关（快照 `ship` 字段只在船图/站台图携带）。
@@ -159,6 +199,10 @@ pub(crate) fn route_index_for_map(map_id: &str) -> Option<usize> {
         "130000210" => Some(3),
         "104020130" | "200000170" | "200090600" | "200090601" => Some(4),
         "310000010" | "200090610" | "200090611" => Some(5),
+        // 三期：售票处与港口通道也算站台侧——玩家在等船的这几张图上都能
+        // 看到班次；船图只有甲板一张（源无船舱）。
+        "220000100" | "220000110" | "200090110" => Some(6),
+        "200000120" | "200000121" | "200090100" => Some(7),
         _ => None,
     }
 }
@@ -406,6 +450,47 @@ impl World {
                 }
             }
         }
+        self.step_ship_recover(now_unix);
+    }
+
+    /// 相位恢复（方案 §3「掉线重连落在船图则按当前相位恢复或到站释放」）。
+    ///
+    /// 乘客名单是进程内状态，服务重启即清空；而船图在源里都没有下船门
+    /// （一期/二期的甲板只有舱门，三期两张船图连一扇门都没有），所以留在
+    /// 船上却不在名单里的角色必须兜底，否则就是死端：
+    ///
+    /// - 航行相位 ⇒ 补登记进名单，随本班到站被送下船（「按当前相位恢复」）；
+    /// - 靠港（检票）相位 ⇒ 直接放回本端登船站台的 `sp`（「到站释放」）。
+    ///
+    /// 只认甲板：船舱里要下船得先走脚本门到甲板，那条路仍在，不动它。
+    fn step_ship_recover(&mut self, now_unix: i64) {
+        if self.players.is_empty() {
+            return;
+        }
+        let sailing = matches!(ship_phase_of(now_unix), ShipPhase::Sailing { .. });
+        let mut adopt: Vec<(usize, String)> = Vec::new();
+        let mut release: Vec<(String, &'static str)> = Vec::new();
+        for (player_id, player) in self.players.iter() {
+            let aboard = SHIP_ROUTES.iter().position(|route| {
+                route.deck == player.map_id
+                    || (!route.cabin.is_empty() && route.cabin == player.map_id)
+            });
+            let Some(index) = aboard else { continue };
+            if self.ship_passengers[index].iter().any(|id| id == player_id) {
+                continue;
+            }
+            if sailing {
+                adopt.push((index, player_id.clone()));
+            } else if player.map_id == SHIP_ROUTES[index].deck {
+                release.push((player_id.clone(), SHIP_ROUTES[index].board_map));
+            }
+        }
+        for (index, player_id) in adopt {
+            self.ship_passengers[index].push(player_id);
+        }
+        for (player_id, target) in release {
+            self.warp_player_at(&player_id, target.to_owned(), Some("sp"));
+        }
     }
 
     /// 快照 `ship` 字段的航线索引：`130090000` 由耶雷弗双向航线共用，按
@@ -457,6 +542,16 @@ impl World {
             let moved = self.warp_player_at(id, "130000200".to_owned(), Some("in00"));
             let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
             self.send_portal_result(id, request_id, success, code, source_map, None);
+            return true;
+        }
+        // 三期：天空之城售票处 `east00`（pt:7 `station_in`，脚本体缺失）是
+        // 上船通道口。源里 `200000120` 港口通道的 `west00` 的 tm/tn 正是
+        // `200000100`/`east00`，落点用它自己的 `west00`——按源邻接 P 级路由，
+        // 不另造方向（港口通道 `east00` → 碼頭 `200000121` 是源静态门）。
+        if source_map == "200000100" && portal_name == "east00" {
+            let moved = self.warp_player_at(id, "200000120".to_owned(), Some("west00"));
+            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            self.send_portal_result(id, request_id, success, code, source_map, Some("200000120"));
             return true;
         }
         // 耶雷弗船的舷侧门（west00/east00，pt:2）：源里只在停靠时开门；

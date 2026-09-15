@@ -129,6 +129,30 @@ ADDITIONAL_HELIOS_MAP_IDS = (
     "220000000", "220000001", "220000002", "220000500",
     "222020300", "222020200", "222020100",
 )
+# 玩具城⇄天空之城 飞行船第三航线（2026-09-15，审计 T06/交通 下一片）：把
+# 玩具城從「只能靠大地图跳转」变成有真实双向海上通道，并让 天空之城 第一次
+# 有城内可走（此前的 200000100 只是站台，returnMap 200000000 未装配）。
+# 源事实（TMS273.7 WZ）：售票员 `2040000 車掌` 在 220000100 玩具城售票處、
+# 剪票员 `2041000` 在 220000110 碼頭<開往天空之城>、`2012013 剪票員` 在
+# 200000121 碼頭<開往玩具城>；售票處 `east00`↔碼頭 `west00`、碼頭
+# `west00`↔售票處 `east00` 是源内静态 pt:2 门；天空之城侧 200000100
+# `east00`（pt:7 `station_in`，脚本体缺失）对着 200000120 港口通道的
+# `west00`（源 `200000120.west00` 的 tm/tn 正是 200000100/east00），
+# 港口通道 `east00` → 碼頭 `200000121.west00` 同为源静态门。
+# 两张船图 `200090100 開往玩具城` / `200090110 開往天空之城` 在源里只有出生点、
+# 没有任何门（既无船舱也无舱门），到站由服务端强制传送（`ship.rs` 第三航线）。
+# 天空之城城内 `200000000`（31 个源 NPC，`in00`/`in01` 通两家店）与两家源商店
+# `200000001 天空之城武器/防具商店`（NPC 2012003 妖精 娜麗/2012004 妖精 諾麗）、
+# `200000002 天空之城雜貨店`（NPC 2012005 妖精 易多）随航线一并入城。
+# 不装：`220000111`/`200000122` 候船室（源里只有出生点、连一扇门都没有，
+# 装了是玩家死端）、`200000123 被遺棄的碼頭`、`200000110/111` 維多利亞线
+# 港口通道/碼頭（一期登船仍在售票处，改线不属本模块）。
+ADDITIONAL_SHIP3_MAP_IDS = (
+    "220000100", "220000110",
+    "200000120", "200000121",
+    "200090100", "200090110",
+    "200000000", "200000001", "200000002",
+)
 # Portal closure (2026-09-13): every map an assembled map's portal names that
 # the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
 # with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
@@ -677,7 +701,7 @@ def build_maps(
         *catalog_ids, *ADDITIONAL_STORY_MAP_IDS, *ADDITIONAL_REGION_MAP_IDS,
         *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS, *ADDITIONAL_SHIP_MAP_IDS,
         *ADDITIONAL_SHIP2_MAP_IDS, *ADDITIONAL_ELLINEL_MAP_IDS,
-        *ADDITIONAL_HELIOS_MAP_IDS,
+        *ADDITIONAL_HELIOS_MAP_IDS, *ADDITIONAL_SHIP3_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -724,6 +748,7 @@ def build_maps(
         "shipMapIds": list(ADDITIONAL_SHIP_MAP_IDS),
         "ship2MapIds": list(ADDITIONAL_SHIP2_MAP_IDS),
         "ellinelMapIds": list(ADDITIONAL_ELLINEL_MAP_IDS),
+        "ship3MapIds": list(ADDITIONAL_SHIP3_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

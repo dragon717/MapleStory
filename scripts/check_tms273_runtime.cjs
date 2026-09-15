@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-26');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-27');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -108,8 +108,10 @@ for(const mob of gameplay.monsters) {
 // 2026-09-14 艾靈森林章节 +21 图（现代侧 2：赫爾奧斯塔圖書館/時間監控室；
 // 过去侧 19：亞泰爾營地、苔蘚森林、封印的森林与两间首領房）。
 // 2026-09-15 玩具城與赫爾奧斯塔塔步行链路 +7 图（玩具城 + 武防店/雜貨店、
-// 赫爾奧斯塔入口、塔身 100/99/2 樓）。
-assert.equal(catalog.maps.length,115);
+// 赫爾奧斯塔入口、塔身 100/99/2 樓）；同日玩具城⇄天空之城飞行船第三航线
+// +9 图（玩具城售票处/碼頭、天空之城港口通道/碼頭、两张船图、天空之城城内
+// 与它的两家源商店）。
+assert.equal(catalog.maps.length,124);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -140,14 +142,13 @@ assert.equal(catalog.maps.length,115);
   // wrong map.  The 3100401xx/3100403xx entries left this list when
   // 310000000 埃德爾斯坦城 arrived with the 2026-09-14 phase-2 flight line;
   // 222020000/222020400 (圖書館/時間監控室 → 220000000) left it when 玩具城
-  // arrived with the 2026-09-15 赫爾奧斯塔塔步行链路.
+  // arrived with the 2026-09-15 赫爾奧斯塔塔步行链路; the last two —
+  // 200000100/200000170 → 200000000 — left it with the same day's
+  // 玩具城⇄天空之城 flight line, which is what brought 天空之城城内 into the
+  // catalog.  Every assembled flight-line map now resolves its returnMap.
   const unshipped=Object.entries(catalog.returnMaps).filter(([,id])=>!catalog.maps.some(map=>map.id===id));
   assert.deepEqual(unshipped.map(([from,to])=>`${from}->${to}`).sort(),[
     '100030400->100030102','103010100->103000000','120010100->120000000',
-    // 200000100 天空站台与 200000170 天空之城码头（二期）随 2026-09-14 飞行船
-    // 入库，但它们的 returnMap 200000000（天空之城城内）仍不在目录，死亡复活按源回城。
-    '200000100->200000000',
-    '200000170->200000000',
   ].sort(),'unshipped returnMap targets changed');
 }
 assert.equal(gameplay.monsters.find(mob=>mob.templateId==='3220000').maxHp,7500);
@@ -352,6 +353,85 @@ for(const map of catalog.maps) {
   // 前庭 in00 的源门必须指向渡口；码头 out00 必须通向城内（源 type-2 门）。
   assert.equal(byId.get('130000200').portals.find(p=>p.name==='in00').targetMapId,'130000210','耶雷弗前庭 in00 must face the dock');
   assert.equal(byId.get('310000010').portals.find(p=>p.name==='out00').targetMapId,'310000000','埃德爾斯坦码头 out00 must enter the town');
+}
+// 飞行船航线三期（2026-09-15）：玩具城⇄天空之城线。九张图按源装配；登船在
+// 两端的碼頭（剪票员站在码头上），售票处/港口通道只报班次与引路；船图在源里
+// 没有船舱也没有舱门，到站是服务端强制传送，所以这里只钉静态门与 returnMap。
+// 关键一条是天空之城售票处 `east00`（pt:7 `station_in`，脚本体缺失）：它的
+// P 级路由目标 200000120 港口通道的 `west00` 必须逐字回指 200000100/east00，
+// 否则那扇门就是凭空多出来的方向。
+{
+  const byId=new Map(catalog.maps.map(map=>[map.id,map]));
+  for(const id of [
+    '220000100','220000110',
+    '200000120','200000121',
+    '200090100','200090110',
+    '200000000','200000001','200000002',
+  ]) assert(byId.has(id),`phase-3 ship map must be assembled: ${id}`);
+  // 源静态 pt:2 门：玩具城售票处 ⇄ 碼頭，港口通道 → 碼頭，两家商店 ⇄ 城内。
+  for(const [from,name,to,gate] of [
+    ['220000000','station00','220000100','out00'],
+    ['220000100','out00','220000000','station00'],
+    ['220000100','east00','220000110','west00'],
+    ['220000110','west00','220000100','east00'],
+    ['200000120','east00','200000121','west00'],
+    ['200000121','west00','200000100','east00'],
+    ['200000100','west00','200000000','top00'],
+    ['200000000','top00','200000100','west00'],
+    ['200000000','in00','200000001','out00'],
+    ['200000000','in01','200000002','out00'],
+    ['200000001','out00','200000000','in00'],
+    ['200000002','out00','200000000','in01'],
+  ]) {
+    const portal=byId.get(from).portals.find(p=>p.name===name);
+    assert(portal,`${from}/${name} must exist`);
+    assert.equal(portal.targetMapId,to,`${from}/${name} must target ${to}`);
+    assert.equal(portal.targetPortalName,gate,`${from}/${name} must land on ${gate}`);
+  }
+  // 售票处 east00 是 pt:7 脚本门（`station_in`），源里没有静态目标——服务端
+  // ship.rs 的 P 级路由必须落在 200000120 的 west00，而港口通道的 west00 必须
+  // 回指它（源邻接证据）。两端一起钉，缺一条都是伪造映射。
+  const stationIn=byId.get('200000100').portals.find(p=>p.name==='east00');
+  assert.equal(stationIn.type,7,'售票处 east00 must stay a script gate in the source');
+  assert.equal(stationIn.targetMapId,null,'售票处 east00 must have no static target');
+  assert.equal(stationIn.script,'station_in');
+  assert.equal(byId.get('200000120').portals.find(p=>p.name==='west00').targetPortalName,'east00',
+    '港口通道 west00 must name the 售票处 east00 gate the server routes into it');
+  for(const [map,returnMap] of [
+    ['220000100','220000000'],['220000110','220000000'],
+    ['200000120','200000000'],['200000121','200000000'],
+    ['200090100','200000100'],['200090110','220000100'],
+    ['200000000','200000000'],['200000001','200000000'],['200000002','200000000'],
+  ]) {
+    assert.equal(catalog.returnMaps[map],returnMap,`${map} returnMap drifted`);
+    assert(catalog.maps.some(candidate=>candidate.id===returnMap),
+      `phase-3 returnMap must resolve inside the catalog: ${map} -> ${returnMap}`);
+  }
+  // 两张船图在源里只有出生点：多一扇门就等于给玩家一条源里不存在的下船路。
+  for(const deck of ['200090100','200090110'])
+    assert.deepEqual(byId.get(deck).portals.map(p=>p.name).sort(),['sp'],
+      `${deck} must ship only its spawn point`);
+  // 检票员必须站在检票地图（码头）上；售票员站在售票处。
+  for(const [map,template] of [
+    ['220000110','2041000'],['200000121','2012013'],['220000100','2040000'],
+    ['200000001','2012003'],['200000001','2012004'],['200000002','2012005'],
+  ]) assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),
+    `${template} must stand on ${map}`);
+  // 天空之城两家源商店：Shop 行来自 data/Shop/*.json，商店必须随 NPC 挂上。
+  const itemDefs=read('shared/items.json');
+  for(const [shopId,template,map] of [['2012003','2012003','200000001'],['2012004','2012004','200000001'],['2012005','2012005','200000002']]) {
+    const npc=gameplay.npcs.find(entry=>entry.templateId===template);
+    assert(npc,`shop NPC ${template} must be assembled`);
+    assert.equal(npc.shopId,shopId,`${template} must carry its source Shop row`);
+    const shop=gameplay.shops.find(entry=>entry.shopId===shopId);
+    assert(shop,`Shop row ${shopId} must be assembled`);
+    assert(shop.items.length>0,`Shop row ${shopId} must sell something`);
+    assert(shop.items.every(item=>itemDefs[item.itemId]),`every ${shopId} shelf item needs an item definition`);
+    assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
+  }
+  // 玩具城 ⇄ 售票处 的步行入口必须真的双向可达（本模块让玩具城第一次接上海路）。
+  assert.equal(byId.get('220000000').portals.find(p=>p.name==='station00').targetMapId,'220000100',
+    '玩具城 station00 must enter the ticket hall');
 }
 // 楓之島災禍篇 36315 的最小场景执行（P，2026-09-14，适配器 scripts/tms273_calamity.cjs）。
 // 36315 的完成是一次**已核定的击杀**（源 QuestInfo「擊殺藍色蘑菇王」+ Check.1.infoex
@@ -590,6 +670,11 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
     // 艾靈森林章节（2026-09-14）：時間監控室 222020400 与 104020130 同类——
     // WorldMap 归档不给它源 spot（圖書館与过去侧各图均有收录）。
     '222020400',
+    // 飞行船三期（2026-09-15）：玩具城⇄天空之城的两张船图 200090100/
+    // 200090110 与 200090xxx 整组同源——归档不给航海图任何 spot（这一层
+    // 由 `export_tms273_worldmap.cjs::selectPages` 穷举归档全部页面判定，
+    // 不是只看了导出的那几页：任何页面只要列到这两个 id 就会被拉进导出集）。
+    '200090100','200090110',
   ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));
