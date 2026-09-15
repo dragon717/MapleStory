@@ -61,18 +61,22 @@ pub(super) struct StorageStack {
 
 /// Read one inventory stack and check it can supply `quantity`.  Nothing is
 /// mutated, so a refusal later in the same transaction costs nothing.
+///
+/// The refusal channel is a typed `MoveRefusal`, not a player-visible code:
+/// which words the player eventually sees is the *business action's* choice
+/// (see `auth/item_world.rs`).
 pub(super) fn peek_inventory_stack(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
     inventory_type: u8,
     slot: i16,
     quantity: u32,
-) -> Result<Result<StorageStack, String>, String> {
+) -> Result<Result<StorageStack, item_world::MoveRefusal>, String> {
     if !inventory::valid_slot(slot) {
-        return Ok(Err("invalid_slot".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidSlot));
     }
     if quantity == 0 {
-        return Ok(Err("invalid_quantity".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
     }
     let row: Option<(String, i64, String, i64, i64)> = tx
         .query_row(
@@ -92,11 +96,11 @@ pub(super) fn peek_inventory_stack(
         .optional()
         .map_err(|_| "account persistence failed")?;
     let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
-        return Ok(Err("source_empty".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::SourceEmpty));
     };
     let available = u32::try_from(available.max(0)).unwrap_or(0);
     if available < quantity {
-        return Ok(Err("invalid_quantity".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
     }
     Ok(Ok(StorageStack {
         item_id,
@@ -113,12 +117,12 @@ pub(super) fn peek_storage_stack(
     account_id: &str,
     slot: i16,
     quantity: u32,
-) -> Result<Result<StorageStack, String>, String> {
+) -> Result<Result<StorageStack, item_world::MoveRefusal>, String> {
     if !valid_storage_slot(slot) {
-        return Ok(Err("invalid_slot".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidSlot));
     }
     if quantity == 0 {
-        return Ok(Err("invalid_quantity".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
     }
     let row: Option<(String, i64, String, i64, i64)> = tx
         .query_row(
@@ -138,11 +142,11 @@ pub(super) fn peek_storage_stack(
         .optional()
         .map_err(|_| "account persistence failed")?;
     let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
-        return Ok(Err("storage_slot_empty".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::SourceEmpty));
     };
     let available = u32::try_from(available.max(0)).unwrap_or(0);
     if available < quantity {
-        return Ok(Err("invalid_quantity".to_owned()));
+        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
     }
     Ok(Ok(StorageStack {
         item_id,
@@ -224,12 +228,21 @@ pub(super) fn take_storage_stack(
 /// Decide whether a deposit can fit, and if so where the row(s) would go.
 /// Checked before any mutation so a full warehouse refuses cleanly instead of
 /// destroying the stack.
+///
+/// Two error layers, deliberately separated (world model §32): `Ok(Err(_))` is
+/// a business refusal ("the warehouse cannot take this stack"), while `Err(_)`
+/// is a persistence failure that must abort the surrounding transaction.
+/// Before this was typed, the two shared one `String` channel, so a failed
+/// `query_row` was recorded in the idempotency receipt *as if the warehouse
+/// were full* and the transaction committed. That mislabelling is the one
+/// behaviour this refactor intentionally corrects; it is only reachable when
+/// SQLite itself fails, which no test or live path exercises.
 pub(super) fn reserve_storage_slot(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
     item_id: &str,
     quantity: u32,
-) -> Result<(), String> {
+) -> Result<Result<(), item_world::MoveRefusal>, String> {
     let mut need = i64::from(quantity);
     // Equipment instances never merge: two identical-looking weapons with a
     // different scroll history are different items.
@@ -248,7 +261,7 @@ pub(super) fn reserve_storage_slot(
         need = (need - mergeable.max(0)).max(0);
     }
     if need <= 0 {
-        return Ok(());
+        return Ok(Ok(()));
     }
     let free: i64 = tx
         .query_row(
@@ -258,7 +271,7 @@ pub(super) fn reserve_storage_slot(
         )
         .map_err(|_| "account persistence failed")?;
     if free <= 0 {
-        return Err("storage_full".to_owned());
+        return Ok(Err(item_world::MoveRefusal::DestinationFull));
     }
     // A single slot can hold at most `slotMax`; more than one new row is only
     // needed when the amount exceeds a fresh stack.  Equipment needs exactly
@@ -266,9 +279,9 @@ pub(super) fn reserve_storage_slot(
     let per_row = i64::from(inventory::item_slot_max(item_id)).max(1);
     let rows_needed = (need + per_row - 1) / per_row;
     if rows_needed > free {
-        return Err("storage_full".to_owned());
+        return Ok(Err(item_world::MoveRefusal::DestinationFull));
     }
-    Ok(())
+    Ok(Ok(()))
 }
 
 /// Put a prepared stack into the warehouse, merging into an identical stack

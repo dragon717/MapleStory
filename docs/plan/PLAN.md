@@ -74,6 +74,78 @@
 
 > 补充：`scripts/check_tms273_gameplay.py` 未接入任何链路且 HEAD 即红（15 条 item `source` 归属遗留），本轮未改它、也未顺手修那 15 条；见 T03 交付记录 §8。
 
+## 道具系统 → 权威世界模型改造（2026-09-15 立项，已落地三个增量）
+
+> 依据 [`docs/technical/rust_authoritative_world_model.md`](../technical/rust_authoritative_world_model.md)（Owner / Location / State + Move / Escrow / GrantReward）。
+> 审查全文：[物品系统审查与权威世界模型改造](../technical/物品系统审查与权威世界模型改造.md)；
+> 交付记录：[道具系统权威世界模型改造已落地增量](history/2026-09-15/道具系统权威世界模型改造已落地增量.md)。
+>
+> **编号约定**：本节「①/②/③」＝**已落地**的增量；「增量 2/3/4/5」＝路线图上**未落地**的后续步骤。
+> 两套编号互不相干（① 的"仓库搬运"与"增量 2 装备栏"不是同一件事）。
+
+- [x] **① 事实词汇 + 仓库搬运收敛**（已完成，行为零变化，待统一加载实玩）：新增 `server/src/auth/item_world.rs`（`Owner` /
+  `ItemLocation` / `ContainerSide` / `ItemState`+`LockReason`、私有 `Source`·`Destination` 契约、
+  `move_stack` 完整动作）；`Store::storage_transfer` 的两段手写 `peek→guard→take→insert` 合并为一次
+  `move_stack`；`Store::pickup` 的拾取权判定改用 `drop_fact` + `pickup_allowed`。
+  **签名、失败码、事务边界、调用方逐字未变**；协议 23 与内容 `tms273-28` 均未变，客户端零改动。
+  验收：cargo **422 过／0 失败**（基线 418 + 新增 4）、`check_protocol_errors` 142 调用点不变、新模块零告警。
+  - 审查结论摘要：物品"位置即身份"（`PRIMARY KEY(account_id,inventory_type,slot)`），Owner 隐含、State 缺席；
+    `add_items`/`remove_items`/`move_items` 被生产直调 24 处（违反 §6/RULE-2）；`write_inventory` 整表重写 4 处
+    （违反 §34）；**无邮件/拍卖/玩家交易** ⇒ Escrow 类概念零消费者，刻意不建。
+  - 待验：仓库存取双向与满包/满仓拒绝的文案观感；掉落保护窗（他人拾取提示、过期后可拾取）。
+- [x] **② 拒绝原因类型化**（已完成，行为零变化，待统一加载实玩）：容器契约定下的拒绝原因从 `String` 收紧为
+  类型 `item_world::MoveRefusal { InvalidSlot, InvalidQuantity, SourceEmpty, DestinationFull }`。
+  `Source::peek` / `Destination::can_accept` 改返回 `Result<Result<_, MoveRefusal>, String>`
+  （`Ok(Err(原因))`＝业务拒绝，`Err(_)`＝持久化失败回滚）；`MoveOutcome::Refused` 携带 `reason` 并提供
+  `refusal()`；玩家可见措辞收敛到 `StorageOperation::refusal_code` **唯一翻译点**（6 个既有码逐字不变）。
+  依据世界模型 §31：容器只回答*原因*，措辞属业务动作。`move_stack` 顺序 `peek→can_accept→take→put` 不变。
+  - **顺带修正一处潜在错标**：`reserve_storage_slot` 原先把 `query_row` 失败也标成 `storage_full` 并写进
+    幂等回执；现 `Ok(Err(DestinationFull))`＝业务拒绝、`Err(_)`＝中止事务。该路径不可达，无测试覆盖（如实交待）。
+  - 验收：cargo **422 过／0 失败**、`storage_acceptance` 14 条未修改全绿、`check_protocol_errors` 142 调用点不变。
+- [x] **③ 增量 4 的前置测试：商店购买路径失败边界（顺带修掉重复扣款）**（已完成，**基线 422 → 430**）：
+  补测试前清点站点，**发现上一版路线图把"四条路径"写错了**——真正的分界是**有没有事务**：
+  **A 组 4 处非事务整表写回**（`trade.rs` 商店购买/卖出/买回 + `cashshop.rs::step_rental_expiries`）
+  先改内存、再 `let _ = store.write_inventory(...)` 静默丢弃失败 ⇒ 内存与磁盘分叉；
+  **B 组 11 处事务内写回**（`auth/bag.rs` 7 / `auth/quests.rs` 2 / `auth/cash.rs` 1 / `auth/db.rs:1406` 1）
+  不吞失败，问题是 §34 修改权泄漏。
+  - **顺带发现并修掉一个真缺陷**：`handle_shop_buy` 没有 `requestId` 幂等账本，而 `ShopSell` / `ShopRebuy` /
+    现金购买三个同样动金币的兄弟动作都有 ⇒ **重发同一个 `ShopBuy` 包会再扣一次金币、再发一次道具**。
+    实测复现：临时短路保护后 `a replayed shopBuy must not deduct mesos twice` → `left: 900, right: 950`。
+    修法：`world.rs` 加 `ShopBuyOutcome` + `shop_buy_requests`（构造处 + `commands.rs` 两条断开路径 retain），
+    `trade.rs` 加 `send_shop_buy_result`（唯一记录点，7 个出口全改走它），`handle_shop_buy` 开头命中即原样重发。
+    **wire 形状与协议号未变**；已核实客户端每次购买都用新 `requestId`，不误伤连买。
+  - 新增 `server/src/shop_buy_acceptance.rs` 8 条（该路径此前**零覆盖**）：商人要价/同叠就地补满/
+    **页签满一分不扣**/余额差 1 拒绝/0 个不成交/伪造店铺·走远·买不售商品不动钱/重放只成交一次且换新 id 仍能买/
+    拒绝也被记住。helper 一律 `sb_` 前缀（与卖/买回验收 `include!` 同模块，裸名已被占用）。
+  - 验收：cargo **430 过／0 失败**、`check_protocol_errors` 142 不变、客户端零改动。
+- [x] **增量 2｜装备栏纳入 Move —— 已论证：不纳入**（2026-09-15 结论，非遗留缺陷）：三条代码级理由任何一条
+  独立即可否决 —— i.`equip_items` 是**槽位占用互换**（挤回旧装备，连身衣还额外挤 `-5` 槽并可能挤回来源格），
+  一次动作改两处位置、还可能反向 put 到来源侧，§13 单次 Move 表达不了；ii.目标槽位由 `equipment_slot(item_id)`
+  唯一决定并须等于请求 `to_slot`，与 `ContainerSide`"意图无槽位"正好相反；iii.放入前有物品自身准入规则
+  （职业/等级/数量）且拒绝码分层（`RequirementsNotMet` vs `InventoryFull`）。
+  `unequip_items` 一并排除（目标槽位由玩家指定且禁止合并，需要第三种意图，当前零独立消费者 ⇒ 不提前建）。
+  后人若想推翻，须给出反例推翻这三条，而不是重读代码。详见审查全文 §7。
+- [ ] **增量 3｜地面掉落 —— 已论证：只能纳入"去处命名"，不纳入容器契约**（未领取，**依赖增量 4**）：
+  原假设是 `ItemLocation::Ground` + `GroundSource` + `pickup` 走 `move_stack`，**已否决**。
+  决定性证据（对着 `HEAD` 核过）：同一个 `add_inventory_tx` 内层业务码，`storage_transfer` 用 `?`
+  当**硬错误**中止事务，`pickup` 用 `match Ok(Err(code))` 当**业务拒绝**并 `UPDATE drops SET active=1`
+  恢复掉落 ⇒ 两边语义相反，共享 `Destination` 必然改写其中一边，不再是行为零变化。
+  收窄后的可落地范围：给"拾取去处"建模（`PickupSink`：背包 / 怪物图鉴卡 / 金币 —— 三者中
+  只有背包会拒绝，卡片是**饱和**语义、金币不变），并把三个分支的 SQL 搬回 `auth/db.rs`。
+  **不做** `world.drop_owners` 去镜像（进程内镜像服务高频伤害归属，改读库是性能决策，需单独论证）。
+  丢弃方向的"取出后直接消失"（`is_drop_restricted`）按词汇是**销毁**而非 Move，应另立领域动词。
+- [ ] **增量 4｜收窄 `pub` 面与堵住整表重写**（未领取，收益最大）：`inventory::add_items`/`remove_items`/
+  `move_items` 降为 `pub(crate)`→内部原语；`write_inventory(account_id, &[InventoryItem])`
+  改为领域原语 + 按差异持久化（§33/§34）。**前置 1（③ 已更正）**：非事务整表写回 A 组 4 处
+  （商店买/卖/买回 + `cashshop.rs::step_rental_expiries`）是"内存权威 + 丢弃写库结果"的危险子集，
+  现已 3/4 有失败边界测试，**还差 `step_rental_expiries`**，且"写库失败被吞"本身也未测
+  （需 SQLite 写失败注入点）。**前置 2**：`add_inventory_tx` 用 `.code()` 把真正的类型
+  `inventory::InventoryError` 抹成 `&'static str`，且有多个调用方 ⇒ 拾取侧想回类型化拒绝
+  得先把这里的返回类型收敛，否则会引入第二个拒绝枚举。
+- [ ] **增量 5｜仅在立项时建**（阻塞于用户决策）：`TransferOwnership` / `Escrow` / `Lock(Auction|Trade|Contract)` /
+  `Reward` / `MailAttachment` / `DomainEvent` —— 当前零消费者（项目无邮件/拍卖/玩家交易/挂机收益）。
+  提前建会违反"不提前建空目录或通用工厂"的规范，也会把 LSP 边界重新搅乱。
+
 ## 待你确认或操作
 
 - [ ] **HMR 计划 P1（是否改双击默认行为）**。把统一脚本改造成 dev/build/preview/status/stop 模式后，双击启动会从“构建+服务”变成

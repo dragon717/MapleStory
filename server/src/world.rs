@@ -1691,6 +1691,22 @@ struct PendingAttack {
     hit_tick: u64,
 }
 
+/// The remembered result of one `ShopBuy`, replayed verbatim if the same
+/// request id arrives again.  Buying both spends mesos and grants the item, so
+/// without this a retried packet would charge the purse and hand out the stack
+/// twice.  The three sibling paths that move mesos (`ShopSell`, `ShopRebuy`,
+/// cash purchase) all carry this ledger; `ShopBuy` did not.
+#[derive(Clone)]
+#[allow(dead_code)] // fields are replayed through the wire message, not read back.
+struct ShopBuyOutcome {
+    success: bool,
+    code: String,
+    shop_id: String,
+    item_id: String,
+    quantity: u32,
+    mesos_spent: u64,
+}
+
 /// The remembered result of one `ShopSell`, replayed verbatim if the same
 /// request id arrives again.  Selling moves mesos, so without this a retried
 /// packet would pay twice for a stack that is already gone.
@@ -1869,6 +1885,10 @@ pub struct World {
     drop_maps: BTreeMap<String, String>,
     revive_requests: BTreeMap<(String, String), auth::ReviveOutcome>,
     inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
+    /// Authoritative outcome of the last shop purchase per (player, request),
+    /// so a replayed `ShopBuy` re-sends the original result instead of spending
+    /// mesos and granting the same stack a second time.
+    shop_buy_requests: BTreeMap<(String, String), ShopBuyOutcome>,
     /// Authoritative outcome of the last shop sell-back per (player, request),
     /// so a replayed `ShopSell` re-sends the original result instead of paying
     /// mesos a second time for the same stack.
@@ -2021,6 +2041,7 @@ impl World {
             drop_maps: BTreeMap::new(),
             revive_requests: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
+            shop_buy_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
             shop_rebuy_requests: BTreeMap::new(),
             open_storage: BTreeMap::new(),

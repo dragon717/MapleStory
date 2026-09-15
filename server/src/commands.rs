@@ -553,6 +553,8 @@ impl World {
                     .retain(|_, attack| attack.player_id != id);
                 self.inventory_requests
                     .retain(|(player_id, _), _| player_id != &id);
+                self.shop_buy_requests
+                    .retain(|(player_id, _), _| player_id != &id);
                 self.shop_sell_requests
                     .retain(|(player_id, _), _| player_id != &id);
                 self.shop_rebuy_requests
@@ -579,6 +581,8 @@ impl World {
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != id);
                     self.inventory_requests
+                        .retain(|(player_id, _), _| player_id != &id);
+                    self.shop_buy_requests
                         .retain(|(player_id, _), _| player_id != &id);
                     self.shop_sell_requests
                         .retain(|(player_id, _), _| player_id != &id);

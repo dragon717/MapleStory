@@ -47,6 +47,8 @@ pub(crate) mod cash;
 pub(crate) mod schema;
 #[path = "auth/db.rs"]
 pub(crate) mod db;
+#[path = "auth/item_world.rs"]
+pub(crate) mod item_world;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -236,6 +238,27 @@ impl StorageOperation {
         match self {
             StorageOperation::Deposit => "storageDeposit",
             StorageOperation::Withdraw => "storageWithdraw",
+        }
+    }
+
+    /// 把搬运被拒的**原因**翻译成本方向的玩家可见拒绝码。
+    ///
+    /// 这是业务动作的词汇，不是容器的词汇（世界模型 §31）：同一句"来源那一格
+    /// 是空的"在存仓方向说 `source_empty`、在取回方向说 `storage_slot_empty`；
+    /// 同一句"装不下"在存仓方向说 `storage_full`、在取回方向说 `inventory_full`。
+    /// 翻译点只有这一处，客户端 `PROTOCOL_ERRORS` 与门禁脚本扫的就是这些码。
+    fn refusal_code(self, reason: item_world::MoveRefusal) -> &'static str {
+        match (self, reason) {
+            (_, item_world::MoveRefusal::InvalidSlot) => "invalid_slot",
+            (_, item_world::MoveRefusal::InvalidQuantity) => "invalid_quantity",
+            (StorageOperation::Deposit, item_world::MoveRefusal::SourceEmpty) => "source_empty",
+            (StorageOperation::Withdraw, item_world::MoveRefusal::SourceEmpty) => {
+                "storage_slot_empty"
+            }
+            (StorageOperation::Deposit, item_world::MoveRefusal::DestinationFull) => "storage_full",
+            (StorageOperation::Withdraw, item_world::MoveRefusal::DestinationFull) => {
+                "inventory_full"
+            }
         }
     }
 }
@@ -1168,60 +1191,43 @@ impl Store {
         // transfer must be a true no-op, and recording the refusal in the same
         // transaction keeps a replay idempotent for failures as well as
         // successes.
-        let (success, code, item_id, moved) = match operation {
-            StorageOperation::Deposit => {
-                match peek_inventory_stack(&tx, account_id, inventory_type, slot, quantity)? {
-                    Err(reason) => (false, reason, String::new(), 0),
-                    Ok(stack) => {
-                        if let Err(reason) =
-                            reserve_storage_slot(&tx, account_id, &stack.item_id, stack.quantity)
-                        {
-                            (false, reason, stack.item_id, 0)
-                        } else {
-                            take_inventory_stack(&tx, account_id, inventory_type, slot, quantity)?;
-                            insert_storage_stack(&tx, account_id, &stack)?;
-                            (true, String::new(), stack.item_id, stack.quantity)
-                        }
-                    }
-                }
-            }
-            StorageOperation::Withdraw => {
-                match peek_storage_stack(&tx, account_id, slot, quantity)? {
-                    Err(reason) => (false, reason, String::new(), 0),
-                    Ok(stack) => {
-                        if !inventory_has_room(&tx, account_id, &stack)? {
-                            (false, "inventory_full".to_owned(), stack.item_id, 0)
-                        } else {
-                            take_storage_stack(&tx, account_id, slot, quantity)?;
-                            add_inventory_tx(
-                                &tx,
-                                account_id,
-                                &stack.item_id,
-                                stack.quantity,
-                                stack.stats.as_ref(),
-                                stack.remaining_slots,
-                                stack.upgrade_count,
-                            )
-                            .map_err(|error| error)?
-                            .map_err(|reason| reason.to_owned())?;
-                            (true, String::new(), stack.item_id, stack.quantity)
-                        }
-                    }
-                }
-            }
+        //
+        // The move itself is the domain action `MoveItem` (world model §13:
+        // 背包 ⇄ 仓库 Owner 不变、Location 改变）, so the two directions are
+        // just two (location, side) pairs and no longer two hand-written
+        // take/put pairs.
+        let (from, to) = match operation {
+            StorageOperation::Deposit => (
+                item_world::ItemLocation::Inventory {
+                    account_id,
+                    kind: inventory_type,
+                    slot,
+                },
+                item_world::ContainerSide::Storage { account_id },
+            ),
+            StorageOperation::Withdraw => (
+                item_world::ItemLocation::Storage { account_id, slot },
+                item_world::ContainerSide::Inventory { account_id },
+            ),
+        };
+        let moved = item_world::move_stack(&tx, from, to, quantity)?;
+        // 原因由领域原语给出，措辞由**本动作**决定（见 `refusal_code`）。
+        let (success, code) = match moved.refusal() {
+            None => (true, String::new()),
+            Some(reason) => (false, operation.refusal_code(reason).to_owned()),
         };
         let outcome = StorageOutcome {
             request_id: request_id.to_owned(),
             operation,
             inventory_type,
             slot,
-            item_id,
-            quantity: moved,
+            item_id: moved.item_id(),
+            quantity: moved.moved_quantity(),
             success,
             code,
         };
         insert_storage_action(&tx, account_id, &outcome)?;
-        if success {
+        if outcome.success {
             normalize_inventory_tx(&tx)?;
         }
         tx.commit().map_err(|_| "account persistence failed")?;

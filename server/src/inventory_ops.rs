@@ -33,8 +33,9 @@
 //!
 //! ## 测试入口
 //! `inventory_acceptance.rs` / `consume_acceptance.rs` / `scroll_acceptance.rs` /
-//! `slot_expand_acceptance.rs` / `shop_sell_acceptance.rs` / `storage_acceptance.rs` /
-//! `continuation_acceptance.rs` 与 `world.rs` 内的测试，经 `include!` 进入 `world.rs` 的 `mod tests`。
+//! `slot_expand_acceptance.rs` / `shop_buy_acceptance.rs` / `shop_sell_acceptance.rs` /
+//! `storage_acceptance.rs` / `continuation_acceptance.rs` 与 `world.rs` 内的测试，
+//! 经 `include!` 进入 `world.rs` 的 `mod tests`。
 
 use super::*;
 

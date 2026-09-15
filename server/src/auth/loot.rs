@@ -483,9 +483,10 @@ impl Store {
             remaining_slots,
         )) = drop
         {
-            if protected_until_ms > now_ms()
-                && owner_id.as_deref().is_some_and(|owner| owner != account_id)
-            {
+            // 世界事实判定（世界模型 §3.3 / §41）：`Owner` + `ItemState` 由
+            // `item_world` 唯一翻译，这里不再内联比较保护窗与 owner 列。
+            let (owner, state) = item_world::drop_fact(owner_id.as_deref(), protected_until_ms);
+            if !item_world::pickup_allowed(&owner, &state, account_id, now_ms()) {
                 (item_id, quantity, None, false, "drop_owned".to_owned())
             } else if quantity <= 0 || u32::try_from(quantity).is_err() {
                 (item_id, quantity, None, false, "drop_invalid".to_owned())

@@ -34,6 +34,25 @@ impl World {
         let Some(player) = self.players.get(&id) else {
             return;
         };
+        // A purchase spends mesos and grants an item, so a replayed request must
+        // not run twice.  Re-send the remembered result instead of charging
+        // again — the same guard `ShopSell` and `ShopRebuy` already carry.
+        if let Some(prior) = self
+            .shop_buy_requests
+            .get(&(id.clone(), request_id.clone()))
+        {
+            self.send_shop_result(
+                &id,
+                &request_id,
+                prior.success,
+                &prior.code,
+                &prior.shop_id,
+                &prior.item_id,
+                prior.quantity,
+                prior.mesos_spent,
+            );
+            return;
+        }
         let shop = match self
             .gameplay
             .shops
@@ -43,7 +62,7 @@ impl World {
         {
             Some(shop) => shop,
             None => {
-                self.send_shop_result(
+                self.send_shop_buy_result(
                     &id,
                     &request_id,
                     false,
@@ -63,7 +82,7 @@ impl World {
                 && (player.state.y - npc.state.y).abs() <= npc::TALK_RANGE_Y
         });
         if !npc_in_range {
-            self.send_shop_result(
+            self.send_shop_buy_result(
                 &id,
                 &request_id,
                 false,
@@ -78,7 +97,7 @@ impl World {
         let unit_price = match shop.price(&item_id) {
             Some(price) => price,
             None => {
-                self.send_shop_result(
+                self.send_shop_buy_result(
                     &id,
                     &request_id,
                     false,
@@ -94,7 +113,7 @@ impl World {
         let total = match unit_price.checked_mul(u64::from(quantity)) {
             Some(total) => total,
             None => {
-                self.send_shop_result(
+                self.send_shop_buy_result(
                     &id,
                     &request_id,
                     false,
@@ -108,7 +127,7 @@ impl World {
             }
         };
         if player.state.mesos < total {
-            self.send_shop_result(
+            self.send_shop_buy_result(
                 &id,
                 &request_id,
                 false,
@@ -130,7 +149,7 @@ impl World {
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
         if let Err(error) = inventory::add_items(&mut next_inventory, item_id.clone(), quantity, slot_limit) {
-            self.send_shop_result(
+            self.send_shop_buy_result(
                 &id,
                 &request_id,
                 false,
@@ -165,7 +184,7 @@ impl World {
                 ),
             );
         }
-        self.send_shop_result(
+        self.send_shop_buy_result(
             &id,
             &request_id,
             true,
@@ -174,6 +193,48 @@ impl World {
             &item_id,
             quantity,
             total,
+        );
+    }
+
+    /// Record one shop purchase outcome and send it.  Every exit of
+    /// `handle_shop_buy` goes through here, so the ledger sees refusals as well:
+    /// a request that was already refused stays refused, and a request that
+    /// already paid is never charged twice.
+    ///
+    /// This is the buy-side counterpart of `send_shop_sell_result` /
+    /// `send_shop_rebuy_result`.  It was the missing one: a retried `ShopBuy`
+    /// packet used to deduct mesos and grant the stack again.
+    fn send_shop_buy_result(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        success: bool,
+        code: &str,
+        shop_id: &str,
+        item_id: &str,
+        quantity: u32,
+        mesos_spent: u64,
+    ) {
+        self.shop_buy_requests.insert(
+            (id.to_owned(), request_id.to_owned()),
+            ShopBuyOutcome {
+                success,
+                code: code.to_owned(),
+                shop_id: shop_id.to_owned(),
+                item_id: item_id.to_owned(),
+                quantity,
+                mesos_spent,
+            },
+        );
+        self.send_shop_result(
+            id,
+            request_id,
+            success,
+            code,
+            shop_id,
+            item_id,
+            quantity,
+            mesos_spent,
         );
     }
 
