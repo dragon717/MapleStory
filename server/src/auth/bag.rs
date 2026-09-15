@@ -4,6 +4,7 @@
 //! 从 `auth.rs` 机械搬出的第五块完整职责（超大文件治理）。搬的是**代码位置**，
 //! 不是数据布局：inventory / monster_book 表结构与原子性语义均未改变。
 
+use super::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 use super::*;
 
 impl Store {
@@ -302,6 +303,18 @@ impl Store {
             match add_inventory_tx(&tx, account_id, item_id, quantity, None, None, None)? {
                 Ok(placed) => {
                     slot = i16::try_from(placed).unwrap_or(0);
+                    // NB-05：GM 授予与背包落位同一事务。
+                    granted_tx(
+                        &tx,
+                        account_id,
+                        &[ItemAcquisition {
+                            item_id,
+                            quantity,
+                            source: AcquisitionSource::Gm,
+                            source_ref: Some(request_id),
+                        }],
+                        now_ms(),
+                    )?;
                     (true, String::new())
                 }
                 Err(code) => (false, code.to_owned()),

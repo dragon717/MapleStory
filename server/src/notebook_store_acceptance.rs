@@ -109,6 +109,22 @@ fn notebook_schema_upgrade_adds_fact_tables_and_keeps_saved_rows() {
         db: NbArc::new(NbMutex::new(db)),
     };
 
+    // 升级本身不伪造任何历史事实：建完表、在跑任何业务之前，四张新表都是空的。
+    // 这条必须在这里查——`load_profile` 会发放创角初始装备，而 NB-05 之后那是
+    // 一次真实授予、会合法地写进 `notebook_item_records`（见下面的正向断言）。
+    for table in [
+        "notebook_item_records",
+        "monster_collection_records",
+        "notebook_revisions",
+        "notebook_backfill_runs",
+    ] {
+        assert_eq!(
+            nb_scalar(&store, &format!("SELECT COUNT(*) FROM {table}"), &[]),
+            0,
+            "{table} 必须由升级建出且为空"
+        );
+    }
+
     // 既有存档逐字保留：升级只加表，不动业务行。
     let defaults = nb_blank_profile();
     assert_eq!(store.load_profile("nb-legacy", &defaults).unwrap().level, 12);
@@ -128,25 +144,34 @@ fn notebook_schema_upgrade_adds_fact_tables_and_keeps_saved_rows() {
         ),
         1
     );
-    // 四张新表建好了，而且都是空的：升级不伪造任何历史事实。
-    for table in [
-        "notebook_item_records",
-        "monster_collection_records",
-        "notebook_revisions",
-        "notebook_backfill_runs",
-    ] {
-        assert_eq!(
-            nb_scalar(&store, &format!("SELECT COUNT(*) FROM {table}"), &[]),
-            0,
-            "{table} 必须由升级建出且为空"
-        );
-    }
-    assert!(store.notebook_item_records("nb-legacy").unwrap().is_empty());
+    // NB-05 正向：`load_profile` 发的创角初始装备是一次真实授予，逐件留档，
+    // 且只有这一批（升级留下的旧存档里那瓶紅藥水不会被追认成"刚获得"）。
+    let recorded = store.notebook_item_records("nb-legacy").unwrap();
+    assert_eq!(
+        recorded.iter().map(|row| row.item_id.as_str()).collect::<Vec<_>>(),
+        vec!["1040002", "1302000"],
+        "创角初始装备必须逐件留档（按 id 升序）、且不得多记"
+    );
+    assert!(
+        recorded
+            .iter()
+            .all(|row| row.source_kind == "starter" && row.time_quality == "event"),
+        "创角初始装备的来源必须记为 starter，时间依据必须是 event（不是补记）"
+    );
+    assert!(
+        recorded.iter().all(|row| row.first_obtained_at_ms.is_some()),
+        "实时授予必须带真实获得时间，不能写成未知"
+    );
+    assert!(
+        !recorded.iter().any(|row| row.item_id == "2000000"),
+        "升级前就存在的物品不得被当作本次获得"
+    );
     assert_eq!(
         store
             .notebook_revision(NB_SCOPE_CHARACTER, "nb-legacy")
             .unwrap(),
-        0
+        1,
+        "初始授予只推进一次 revision"
     );
     drop(store);
     nb_cleanup(&path);

@@ -21,6 +21,7 @@
 //! - 物品堆叠 / 容量规则本身：`crate::inventory`
 
 use super::*;
+use crate::auth::notebook::{AcquisitionSource, ItemAcquisition};
 use crate::auth::shop::ShopRebuyRow;
 
 impl World {
@@ -177,8 +178,19 @@ impl World {
             player.base_max_mp,
         );
         profile.mesos = new_mesos;
+        // NB-05：本次购买真正授予的物品＝商店这一笔的 item_id×quantity。只
+        // 在 add_items 已确认成功之后构造，与资产同事务留档。
+        let grants = [ItemAcquisition {
+            item_id: item_id.as_str(),
+            quantity,
+            source: AcquisitionSource::ShopBuy,
+            source_ref: Some(request_id.as_str()),
+        }];
         if let Some(store) = self.store.as_ref() {
-            if store.shop_buy_commit(&id, &profile, &next_inventory).is_err() {
+            if store
+                .shop_buy_commit(&id, &profile, &next_inventory, &grants)
+                .is_err()
+            {
                 self.send_shop_buy_result(
                     &id,
                     &request_id,

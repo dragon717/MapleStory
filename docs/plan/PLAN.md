@@ -176,7 +176,12 @@
   - 新增 `server/src/shop_commit_acceptance.rs` 5 条（事务内双写、失败整笔回滚、赎回行消费、行保留、二次取回为 miss）＋世界层 3 条失败注入（买／卖／买回各自：拒绝码 `persistence`、内存分文未动、重放拒绝同一码、恢复后新 request 照常成交）。
   - 失败注入机制：`Store::deny_persistence()` 作用域守卫（进程级开关 + 串行锁）。**踩坑**：最初用「握住库锁」注入，会卡死 `auth::start` spawn 的常驻后台线程（同一 `Arc<Mutex<Connection>>`），测试挂死 16 分钟；开关式注入无此问题，且必须串行化，否则并行测试的正常提交会被别的测试拒掉。
   - 验收：cargo **455 过／0 失败**（基线 447＋8）、非测试构建 **0 告警**、`check_tms273_notebook` ok（新增 NB-04 事务契约断言：三个 commit helper 存在、`let _ = store.xxx` 吞错写回清零、买回不得再单独 `take`）、`check_protocol_errors` 142、`check_tms273_runtime` 188 图、客户端 `tsc --noEmit` 0。**本轮对玩家不可见**（行为在失败路径上才不同，正常购买／出售结果不变），无需实玩验收。
-- [ ] **NB-05 全物品授予入口接入**（拾取／自动消耗／宠物／任务奖励／任务交互／商店购买／赎回／现金／创角初始／GM → `record_item_acquisitions_tx`，逐项闭合）。**接入后必须删除 `auth/notebook.rs` 顶部那条写明移除条件的 `#![allow(dead_code)]`。** 商店购买侧的预留位已在 `shop_buy_commit` 事务内标注。
+- [x] **NB-05 全物品授予入口接入**（本轮）：
+  - **11 个生产授予点**全部接入 `auth/notebook.rs::granted_tx`（与资产**同一事务**、只在业务确认成功后才构造 grants、数量＝本次真正发出的正数）：拾取（含宠物拾取与 `consumeOnPickup`，`auth/loot.rs:600`）、任务起始物品与完成奖励（`quest.rs:1345/1450` → `auth/quests.rs:220`）、任务交互补发（`auth/quests.rs:296`，数量取 `missing`）、普通商店购买（`auth/shop.rs:142`）、商店买回（`auth/shop.rs:227`，数量取自被消费的那一行）、現金商店购买（`auth/cash.rs:268`）、创角初始装备（`auth/db.rs:1466`）、创角初始背包券（`auth.rs:805`）、**创角外观装备（本次补接）**、GM `/add`（`auth/bag.rs:307`）。
+  - **审计发现并修复的缺口**：`lobby.rs::seed_character_equipment` 把创角选定的外观装备（外套／裤／鞋／武器）只写进 `equipped`、**不留档**；NB-03 的补记只能从「当前还穿着」反推，换装后该事实永久丢失。现与 `characters` 行、`equipped` 行同一事务留档（来源 `starter`，`pants == 0` 的槽不产生事实）。逐 id 核对 `shared/character-creation.json` ∪ `Appearance::default()` ∪ 测试用 `creation_default()` × 目录／出厂索引，**「会 Err 的目录缺陷 id」集合为空**（1060003／1070000 两目录皆无 ⇒ `NotAnItem` 静默跳过），所以接在这里不会让创角失败。
+  - 按计划 §10.3 输出[写点审计](history/2026-09-15/acquisition-hooks.md)：11 处实际授予＝已核查并接入；7 处同主体移动、9 处消耗／移除、4 类规范化／加载＝不属于获得；**尚缺实现 0 处**。关键结论：`save_profile` 只写 `player_stats`（不碰 `inventory`／`equipped`），其约 30 处调用点都不是获得写点；`write_inventory` 生产上只有 1 处（租赁到期回收＝移除）。
+  - `auth/notebook.rs` 顶部那条写明移除条件的 `#![allow(dead_code)]` 已删，改为**逐条**例外并各自写明移除条件（目录展示投影＝NB-07、历史补记整簇＝NB-08、`TIME_QUALITY_UNKNOWN`／`recorded_anything`）；模块级例外会连带掩盖刚接好的写入面。
+  - 验收：cargo **457 过／0 失败**（NB-04 基线 455）、非测试构建 **0 告警**、`check_tms273_notebook` ok（2584 物品＝7 页签 1738+206+1+86+520+12+21 无重叠全覆盖／1002 别名去重／4 事实表）、逐 id 分类交叉核对。**本轮对玩家不可见**（只在图鉴事实层落库，正常玩法结果不变），无需实玩验收。
 - [ ] **NB-06 原版怪物登记链路**（`collection_rules.rs`＋死亡结算事务内；阻塞于登记概率／资格门核定）。
 - [ ] **NB-07 单入口＋四页窗口＋私有查询**（复用 `menu/buttonInfo/3/6`；行列表、分页与「当前可获得」分母）。
 - [ ] **NB-08 奖励、勋章与探险**（规则未核定部分显式阻塞）。

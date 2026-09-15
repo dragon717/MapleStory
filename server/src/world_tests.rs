@@ -1143,6 +1143,16 @@ include!("windbell_acceptance.rs");
         while rx.try_recv().is_ok() {}
         let player_x = world.players["a"].state.x;
         let player_y = world.players["a"].state.y;
+        // 建号基线：创角初始装备（`load_profile` 发）与首次入场的初始背包券
+        // （`seed_starter_backpack` 发）各留档一次、各推进一次 revision——是**两**次，
+        // 不是一次。下面所有 revision 断言都相对这条基线，只量拾取路径的增量。
+        let notebook_revision = |store: &auth::Store| {
+            store
+                .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, "a")
+                .unwrap()
+        };
+        let baseline = notebook_revision(&store);
+        assert_eq!(baseline, 2, "建号应留档两次：初始装备 + 初始背包券");
         for drop_id in ["replay-drop", "persist-fail-drop"] {
             world.drops.insert(
                 drop_id.into(),
@@ -1175,6 +1185,32 @@ include!("windbell_acceptance.rs");
         }
         assert!(messages.iter().any(|message| message.contains("pickupResult")));
 
+        // NB-05：成功的拾取在图鉴里留一条 `pickup` 事实（与掉落认领、入包同事务）。
+        // 过滤 `starter`：建号时的创角初始装备同样留档，但那是 `load_profile`
+        // 发的，不是这条拾取路径（它自己的断言在 `notebook_store_acceptance`）。
+        let grants = || {
+            store
+                .notebook_item_records("a")
+                .unwrap()
+                .into_iter()
+                .filter(|row| row.source_kind != "starter")
+                .map(|row| (row.item_id, row.source_kind, row.time_quality))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            grants(),
+            vec![(
+                "4000019".to_owned(),
+                "pickup".to_owned(),
+                "event".to_owned()
+            )]
+        );
+        // 建号基线之上只多了拾取这一次。
+        assert_eq!(
+            notebook_revision(&store),
+            baseline + 1,
+            "拾取应恰好推进一次 revision"
+        );
         // 重放窗口：同 requestId 再次提交回放原结果，不二次发奖、不再广播。
         world.handle_pickup("a".into(), "replay-req".into(), "replay-drop".into());
         assert_eq!(
@@ -1199,6 +1235,13 @@ include!("windbell_acceptance.rs");
         assert!(
             !messages.iter().any(|message| message.contains("dropPickedUp")),
             "replay must not broadcast a second dropPickedUp: {messages:?}"
+        );
+        // NB-05：重放读回执、不再走事务，所以图鉴事实与 revision 都不动。
+        assert_eq!(grants().len(), 1);
+        assert_eq!(
+            notebook_revision(&store),
+            baseline + 1,
+            "revision 停在拾取那一次"
         );
 
         // 失败窗口：prior_pickup 持久化故障 → persistence 拒绝且世界无副作用。
@@ -1225,6 +1268,14 @@ include!("windbell_acceptance.rs");
             "persistence reject expected: {messages:?}"
         );
         assert!(!messages.iter().any(|message| message.contains("pickupResult")));
+        // NB-05：失败的拾取整笔回滚——图鉴事实与 revision 都不能留下痕迹，
+        // 否则会出现「掉落还在、图鉴却记了获得」。
+        assert_eq!(grants().len(), 1);
+        assert_eq!(
+            notebook_revision(&store),
+            baseline + 1,
+            "revision 停在拾取那一次"
+        );
 
         drop(service);
         let _ = std::fs::remove_file(&path);
@@ -1342,6 +1393,167 @@ include!("windbell_acceptance.rs");
             })
             .unwrap();
         assert_eq!(persisted, 10);
+        // NB-05：图鉴事实与资产在同一笔**已提交**事务里，所以它也必须已经落地——
+        // 内存回填失败不影响已提交事实（持久化为准，重连恢复）。
+        assert_eq!(
+            store
+                .notebook_item_records("a")
+                .unwrap()
+                .iter()
+                .filter(|row| row.source_kind != "starter")
+                .map(|row| (row.item_id.as_str(), row.source_kind.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("4000019", "pickup")]
+        );
+
+        drop(service);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    /// NB-05 定向：宠物拾取与「自动消耗拾取物」在图鉴里的去留。
+    ///
+    /// 两者都复用同一个拾取事务，规则不能被宠物动画或「卡片不进背包」这类结构
+    /// 细节改写：宠物拾取与本人拾取**完全同款**地留档；`consumeOnPickup` 的旧
+    /// MonsterBook 卡片由**分类**决定去留（不在出厂物品索引里 ⇒ 不留档），且不得
+    /// 变成现代收藏登记。
+    #[test]
+    fn store_pickup_archives_pet_loot_and_leaves_legacy_cards_to_the_classifier() {
+        let path = std::env::temp_dir().join(format!(
+            "maple-world-pickup-notebook-{}.sqlite3",
+            auth::random_id()
+        ));
+        let service = auth::start(&path).unwrap();
+        let store = service.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            cash: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+        store
+            .with_db(|db| {
+                db.execute(
+                    "INSERT INTO drops(id,map_id,item_id,quantity,x,y,active) VALUES
+                     ('pet-drop','test','4000019',1,0,0,1),
+                     ('card-drop','test','2380000',1,0,0,1)",
+                    [],
+                )
+                .map_err(|_| "drop insert failed".to_owned())?;
+                Ok(())
+            })
+            .unwrap();
+        let mut world =
+            World::new_with_store(map(), 600, Gameplay::default(), store.clone()).unwrap();
+        let (output, mut rx) = mpsc::channel(128);
+        let (reply, _) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: "a".into(),
+                username: "alice".into(),
+            },
+            connection: "c".into(),
+            output,
+            reply,
+            lang: "zh".to_owned(),
+        });
+        while rx.try_recv().is_ok() {}
+        let x = world.players["a"].state.x;
+        let y = world.players["a"].state.y;
+        // 建号基线（初始装备 + 初始背包券各一次），下面只看拾取路径的增量。
+        let baseline = store
+            .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, "a")
+            .unwrap();
+        assert_eq!(baseline, 2, "建号应留档两次：初始装备 + 初始背包券");
+        for drop_id in ["pet-drop", "card-drop"] {
+            world.drops.insert(
+                drop_id.into(),
+                DropState {
+                    id: drop_id.into(),
+                    item_id: if drop_id == "pet-drop" {
+                        "4000019".into()
+                    } else {
+                        "2380000".into()
+                    },
+                    quantity: 1,
+                    x,
+                    y,
+                },
+            );
+            world.drop_maps.insert(drop_id.into(), "test".into());
+        }
+
+        // 宠物拾取（`handle_pet_pickup`）：与本人拾取同一条事务、同一种留档。
+        world.handle_pet_pickup(
+            "a".into(),
+            "petpickup-pet-drop".into(),
+            "pet-drop".into(),
+            x,
+            y,
+        );
+        assert!(!world.drops.contains_key("pet-drop"));
+        assert_eq!(
+            store
+                .notebook_item_records("a")
+                .unwrap()
+                .iter()
+                .filter(|row| row.source_kind != "starter")
+                .map(|row| (row.item_id.as_str(), row.source_kind.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("4000019", "pickup")],
+            "宠物拾取必须与本人拾取同款留档"
+        );
+
+        // 自动消耗的旧 MonsterBook 卡片：进 `monster_book_cards`、不进背包，
+        // 分类为「不是常规物品」⇒ 不留档，也不产生现代收藏条目。
+        world.handle_pickup("a".into(), "card-pickup".into(), "card-drop".into());
+        assert!(!world.drops.contains_key("card-drop"));
+        assert_eq!(
+            world.players["a"].state.monster_book.get("2380000"),
+            Some(&1),
+            "卡片照旧饱和入账，拾取本身必须成功"
+        );
+        assert_eq!(
+            store
+                .notebook_item_records("a")
+                .unwrap()
+                .iter()
+                .filter(|row| row.source_kind != "starter")
+                .map(|row| row.item_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["4000019"],
+            "旧卡片不属于常规物品，不得混进物品图鉴"
+        );
+        assert!(
+            store
+                .notebook_collection_entries("a")
+                .unwrap()
+                .is_empty(),
+            "拾取卡片不得变成现代收藏登记（§8.4）"
+        );
+        assert_eq!(
+            store
+                .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, "a")
+                .unwrap(),
+            baseline + 1,
+            "卡片不留档 ⇒ 不推进 revision（宠物拾取那一次是唯一增量）"
+        );
 
         drop(service);
         let _ = std::fs::remove_file(&path);
@@ -1392,6 +1604,35 @@ include!("windbell_acceptance.rs");
             crate::lobby::Response::Created { character } => character,
             _ => panic!("unexpected character response"),
         };
+        // NB-05：创角时穿上的外观装备是**真实授予**，与角色行、`equipped` 行同一
+        // 事务留档。`pants: 0` 表示该槽为空，不产生事实。此刻还没有 `load_profile`，
+        // 所以 `ensure_starter_equipment_tx` 的固定初始套装尚未发放——图鉴里只有
+        // 这三件，且只推进一次 revision（同一笔提交）。
+        assert_eq!(
+            store
+                .notebook_item_records(&character.id)
+                .unwrap()
+                .iter()
+                .map(|row| (
+                    row.item_id.as_str(),
+                    row.source_kind.as_str(),
+                    row.time_quality.as_str()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("1050286", "starter", "event"),
+                ("1072833", "starter", "event"),
+                ("1302000", "starter", "event"),
+            ],
+            "创角外观装备必须按 starter 留档（空槽位不产生事实）"
+        );
+        assert_eq!(
+            store
+                .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, &character.id)
+                .unwrap(),
+            1,
+            "创角这一笔只推进一次 revision"
+        );
         let mut world = World::new_with_store(map(), 600, Gameplay::default(), store).unwrap();
         let (output, mut rx) = mpsc::channel(128);
         let (reply, _) = oneshot::channel();

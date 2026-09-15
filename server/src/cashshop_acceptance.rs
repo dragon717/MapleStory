@@ -388,6 +388,28 @@ fn stored_inventory_quantity(
 
 /// A bag holding exactly one unit of the test commodity, shaped like the
 /// candidate bag `handle_cash_buy` hands to the transaction.
+/// NB-05：图鉴留档里**非创角初始**的部分，`(item_id, source_kind)` 按 id 升序。
+///
+/// 过滤 `starter`：`load_profile` 建号时会发放创角初始装备（NB-05 之后同样留档），
+/// 那不属于本文件要检查的现金路径。创角初始装备自身的留档断言在
+/// `notebook_store_acceptance`。
+fn cash_notebook_grants(store: &auth::Store, character_id: &str) -> Vec<(String, String)> {
+    store
+        .notebook_item_records(character_id)
+        .unwrap()
+        .into_iter()
+        .filter(|row| row.source_kind != "starter")
+        .map(|row| (row.item_id, row.source_kind))
+        .collect()
+}
+
+/// NB-05：图鉴 revision。建号本身会推进一次，所以断言一律比「相对基线的增量」。
+fn cash_notebook_revision(store: &auth::Store, character_id: &str) -> u64 {
+    store
+        .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, character_id)
+        .unwrap()
+}
+
 fn one_unit_bag() -> Vec<InventoryItem> {
     let mut bag = Vec::new();
     inventory::add_items(&mut bag, "5062001".into(), 1, 24).expect("candidate bag");
@@ -403,6 +425,7 @@ fn durable_cash_purchase_replays_its_receipt_without_charging_twice() {
     let mut profile = store.load_profile("acc", &defaults).expect("profile row");
     profile.cash = 1_000;
     store.save_profile("acc", &profile).unwrap();
+    let baseline = cash_notebook_revision(store, "acc");
     let first = store
         .cash_purchase("acc", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
         .expect("transaction commits");
@@ -425,6 +448,18 @@ fn durable_cash_purchase_replays_its_receipt_without_charging_twice() {
         "the replay must not consume the budget again"
     );
     assert_eq!(stored_inventory_quantity(store, "acc", &defaults, "5062001"), 1);
+    // NB-05：现金购买按 `cashPurchase` 留档，与扣款、背包、限购、回执同一笔提交。
+    // 重放走的是持久回执（早于留档返回），所以不会写第二条事实、不刷 revision。
+    assert_eq!(
+        cash_notebook_grants(store, "acc"),
+        vec![("5062001".to_owned(), "cashPurchase".to_owned())],
+        "现金购买必须留档一次，且只留一条"
+    );
+    assert_eq!(
+        cash_notebook_revision(store, "acc"),
+        baseline + 1,
+        "重放不得推进 revision"
+    );
     let _ = std::fs::remove_file(path);
 }
 
@@ -437,6 +472,7 @@ fn durable_cash_purchase_rejects_a_reused_request_id_with_new_arguments() {
     let mut profile = store.load_profile("acc", &defaults).expect("profile row");
     profile.cash = 1_000;
     store.save_profile("acc", &profile).unwrap();
+    let baseline = cash_notebook_revision(store, "acc");
     let first = store
         .cash_purchase("acc", "r1", "120000001", "5062001", 1, 300, 0, &one_unit_bag())
         .unwrap();
@@ -450,6 +486,12 @@ fn durable_cash_purchase_rejects_a_reused_request_id_with_new_arguments() {
     assert_eq!(conflict.code, "cash_request_conflict");
     assert_eq!(store.load_profile("acc", &defaults).unwrap().cash, 700);
     assert_eq!(store.cash_purchased_units("acc", "999999999").unwrap(), 0);
+    // NB-05：被拒绝的购买在留档之前就返回了，图鉴里仍只有成功那一条。
+    assert_eq!(
+        cash_notebook_grants(store, "acc"),
+        vec![("5062001".to_owned(), "cashPurchase".to_owned())]
+    );
+    assert_eq!(cash_notebook_revision(store, "acc"), baseline + 1);
     let _ = std::fs::remove_file(path);
 }
 
@@ -540,19 +582,37 @@ fn cash_buy_commits_the_bag_and_the_wallet_to_the_store_together() {
         .sum();
     assert_eq!(units, 2, "the delivered bag must be durable, not just in memory");
     assert_eq!(store.cash_purchased_units("buyer", "120000001").unwrap(), 2);
+    // NB-05：走完整 World 链路的现金购买同样留档，来源是 `cashPurchase`。
+    assert_eq!(
+        cash_notebook_grants(&store, "buyer"),
+        vec![("5062001".to_owned(), "cashPurchase".to_owned())]
+    );
 }
 
 #[test]
 fn cash_buy_refusal_keeps_both_authorities_aligned() {
     let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
     set_cash(&mut world, 299);
+    // 建号基线：创角初始装备（`load_profile`）与首次入场的初始背包券
+    // （`seed_starter_backpack`）各留档一次——是**两**次，不是一次。失败的购买
+    // 必须让 revision 停在这条基线上。
+    let store = world.store.clone().expect("store attached");
+    let defaults = world.default_profile();
+    let baseline = cash_notebook_revision(&store, "buyer");
+    assert_eq!(baseline, 2, "建号应留档两次：初始装备 + 初始背包券");
     buy(&mut world, "thin-1", "120000001", 1);
     let refused = newest(&mut output, "cashBuyResult");
     assert_eq!(refused["code"], "cash_not_enough");
     // The durable wallet is untouched and still matches the mirror.
-    let store = world.store.clone().expect("store attached");
-    let defaults = world.default_profile();
     assert_eq!(store.load_profile("buyer", &defaults).unwrap().cash, 299);
     assert_eq!(world.players["buyer"].state.cash, 299);
     assert_eq!(store.cash_purchased_units("buyer", "120000001").unwrap(), 0);
+    // NB-05：余额不足的失败购买不登记（§10.1「发出购买请求但购买失败不构成获得」）。
+    // 建号那两次照旧留档，所以这里看的是「非 starter 的部分为空」。
+    assert!(cash_notebook_grants(&store, "buyer").is_empty());
+    assert_eq!(
+        cash_notebook_revision(&store, "buyer"),
+        baseline,
+        "失败的购买不得推进 revision"
+    );
 }

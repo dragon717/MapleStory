@@ -28,19 +28,20 @@
 //! 会破坏分层。因此目录与分类放在本模块（与 `auth` 引用 `crate::inventory` 同一个
 //! 方向），世界侧查询再引用它；不为此再拆一层只做转发的文件。
 //!
-//! ## 关于本模块的 `dead_code` 例外
-//! NB-03 交付的是**事实层本身**，把事实写进去的是 NB-05（物品授予入口）与 NB-06
-//! （怪物登记）。在它们接入之前，下面的写入 API 确实没有任何非测试调用方，Rust 的
-//! `dead_code` 说的是实话。这里显式记下这件事，而不是让它变成一条没人看的告警：
-//! - **读取面**由 `server/src/notebook.rs` 的查询真实消费（`revision` 与逐页
-//!   「已记录」计数），不是预建的空壳
-//! - **写入面**（`record_item_acquisitions_tx` / `backfill_item_records_tx` 及其
-//!   词表）的调用方是 NB-05、NB-06 与受控发布流程里的历史补记
+//! ## 写入面的调用方
+//! NB-05 已把**物品授予入口**全部接上（拾取 / 商店买与买回 / 現金商店 / 任务起始
+//! 物品与完成奖励 / 任务交互 / 创角初始装备与背包 / GM），所以
+//! `record_item_acquisitions_tx` 与 `backfill_item_records_tx` 都有真实调用方，
+//! 本模块不再需要 `#![allow(dead_code)]`（NB-03 期间的那条例外已随 NB-05 删除）。
 //!
-//! **NB-05 落地后请删掉这一行**——`docs/plan/PLAN.md` 有对应待办；那时写入面有了
-//! 真实调用方，这条例外就没有存在理由了。
-
-#![allow(dead_code)]
+//! ## 仍留在本文件里的 `#[allow(dead_code)]`
+//! 删掉 blanket 例外后，**只有**下面几处仍无生产调用方，且都只服务于尚未接线的
+//! 后续条目。它们一律**逐条**标注而不是再开一个模块级例外——模块级例外会连带
+//! 掩盖 NB-05 刚接好的写入面（那正是上一版 blanket 例外的害处）：
+//! - 目录的**展示投影**访问器（版本号、页签清单、逐页 id、物品类型）：NB-07
+//! - **历史补记**整簇（版本常量、证据来源、报告、两个入口）：NB-08
+//! - `TIME_QUALITY_UNKNOWN` / `recorded_anything`：补记与「首次发现」提示，NB-07/08
+//! 每条都写明了移除条件；接入该条目时必须删掉对应那一条。
 
 use super::*;
 use rusqlite::Transaction;
@@ -71,15 +72,25 @@ struct CatalogFile {
 struct CatalogItem {
     /// 目录声明的唯一键。规范化后按它回答，**不回显调用方传来的别名写法**。
     item_id: String,
+    // 移除条件：NB-07 的定向检查（核对「分类来自数据」）接入后即可删。
+    #[allow(dead_code)]
     inventory_type: u8,
 }
 
 /// 目录加上一次成型的分区反查索引。
 #[derive(Debug)]
 pub(crate) struct NotebookCatalog {
+    // 移除条件：NB-07 的响应投影开始回显服务端自己的目录版本号后即可删。
+    #[allow(dead_code)]
     catalog_version: String,
+    /// 与 `catalog_version` 成对，用于核对目录与内容版本是否同步（NB-07）。
+    ///
+    /// 移除条件：同 `catalog_version`。
+    #[allow(dead_code)]
     content_version: String,
     items: BTreeMap<String, CatalogItem>,
+    // 移除条件：NB-07 的页签投影（逐页 id 列表）接入后即可删。
+    #[allow(dead_code)]
     sections: BTreeMap<String, Vec<String>>,
     section_of_item: BTreeMap<String, String>,
 }
@@ -108,6 +119,10 @@ pub(crate) fn catalog() -> &'static NotebookCatalog {
     })
 }
 
+// 移除条件：NB-07 的行列表与分页投影接入后，这些访问器全部有生产调用方，
+// 届时删掉这一条 impl 级例外（`section_of` / `canonical_id` 已在生产使用，
+// 但同一 impl 里只要有未用项就会触发告警，所以例外挂在这里）。
+#[allow(dead_code)]
 impl NotebookCatalog {
     pub(crate) fn catalog_version(&self) -> &str {
         &self.catalog_version
@@ -229,7 +244,12 @@ pub(crate) fn classify_item(
     }
     // 物品索引里有、图鉴目录里没有 ⇒ 目录构建漏了一个常规物品。这不是「排除」而是
     // 缺陷：静默跳过会让这件物品在图鉴里永久漏记，所以整笔业务必须失败。
-    if crate::inventory::catalog_contains(item_id) || crate::inventory::catalog_contains(&canonical)
+    //
+    // 判据必须是**出厂**索引（`shipped_catalog_contains`）：`server/test-fixtures`
+    // 的 5 个条目是测试专用、故意不进运行时目录的，用测试增强过的索引会把它们
+    // 误报成目录缺陷。
+    if crate::inventory::shipped_catalog_contains(item_id)
+        || crate::inventory::shipped_catalog_contains(&canonical)
     {
         return Err(format!(
             "notebook catalog is missing the regular item {canonical}"
@@ -248,6 +268,9 @@ pub(crate) const SCOPE_ACCOUNT: &str = "account";
 /// 首次记录依据＝真实获得事件时间。
 pub(crate) const TIME_QUALITY_EVENT: &str = "event";
 /// 首次记录依据＝历史补记，**时间未知**（`first_obtained_at_ms` 写 NULL）。
+///
+/// 移除条件：NB-08 的历史补记有了生产入口后即可删（它是补记专用的时间档）。
+#[allow(dead_code)]
 pub(crate) const TIME_QUALITY_UNKNOWN: &str = "unknown";
 
 /// 一次**真正授予**的来源。取值是持久化 token，改动等于改 schema 语义。
@@ -309,6 +332,9 @@ pub(crate) struct NotebookChangeSet {
     pub first_obtained: Vec<String>,
 }
 
+// 移除条件：NB-07 的「首次发现」提示接线后，World 会读 `first_obtained` 决定
+// 是否提示，本 impl 即可删掉例外。
+#[allow(dead_code)]
 impl NotebookChangeSet {
     /// 这次提交是否产生了新事实。
     pub(crate) fn recorded_anything(&self) -> bool {
@@ -478,6 +504,10 @@ fn bump_revision_tx(
 /// - **不吞错**：目录缺陷（常规物品缺目录）与非法授予（数量为 0）都返回 `Err`，
 ///   调用方必须让**整笔业务**回滚，而不是留下「物品已到、图鉴漏记」
 /// - **不发消息**：返回 `NotebookChangeSet`，由 World 在提交成功后推送
+/// - **分类决定去留**：调用方把「这次真的发出去的东西」整批交过来，是否留档由
+///   `classify_item` 判定，不由调用方按结构筛。自动消耗拾取物（`consumeOnPickup`）
+///   因此也走这条路径：当场被消耗的物品如果本身是常规物品就留档，而它**不会**因为
+///   被消耗就变成怪物收藏登记（计划 §10.1）
 ///
 /// 一次业务提交只推进一步 revision，而不是每件物品一步：revision 是给客户端判断
 /// 「我这份缓存过期了没有」用的，一份缓存一次失效就够（§7.4）。
@@ -542,15 +572,46 @@ pub(crate) fn record_item_acquisitions_tx(
     })
 }
 
+/// 在一个**已经打开的事务**里，为一次成功的业务授予留档，并返回本次新增的事实。
+///
+/// NB-05 的全部授予入口都走这里，而不是各自拼 `ItemAcquisition` 再调
+/// `record_item_acquisitions_tx`：这样「授予时间取什么、来源怎么写、要不要发消息」
+/// 只有一处决定，接入点只需要回答「我这次真的发出去什么」。
+///
+/// - 时间用**业务真实发生的时刻**（`event_time_ms` 由调用方给，通常是动作落库时间），
+///   而不是图鉴自己的 `now_ms()`——同一笔业务里两处取时间会漂移
+/// - 返回 `NotebookChangeSet`：调用方在**提交成功之后**才能用它发「首次发现」提示
+///   （计划 §9.3），事务内发消息是禁止的
+/// - 目录缺陷（常规物品缺目录）与数量为 0 会让整笔业务 `Err`：宁可让这笔授予失败，
+///   也不能留下「物品已到、图鉴漏记」的不一致（计划 §9.1）
+pub(crate) fn granted_tx(
+    tx: &Transaction<'_>,
+    character_id: &str,
+    grants: &[ItemAcquisition<'_>],
+    event_time_ms: i64,
+) -> Result<NotebookChangeSet, String> {
+    record_item_acquisitions_tx(tx, character_id, grants, event_time_ms, catalog())
+}
+
 // ---------------------------------------------------------------- 历史补记 --
+//
+// 移除条件（整簇）：NB-08 的受控发布补记入口接线后，下面这些都会成为生产
+// 调用链的一部分，届时删掉本簇内各条例外。`backfill_item_records_tx` 本身已由
+// `backfill_notebook_item_records` 调用，只是因为后者还没有生产调用方而连带告警。
 
 /// 物品补记的迁移版本。版本变了才会再跑一遍（计划 §13.2）。
+///
+/// 移除条件：NB-08 接线后即可删。
+#[allow(dead_code)]
 pub(crate) const ITEM_BACKFILL_VERSION: &str = "notebook-item-backfill-1";
 
 /// 历史补记能拿到的、**能归属到具体角色**的证据来源（计划 §13.1）。
 ///
 /// 被刻意排除的：`storage` 之外的同名共享表、旧 MonsterBook 卡片（§8.4 与现代收藏
 /// 隔离）、以及任何只能靠等级或任务完成数推断的东西。
+///
+/// 移除条件：NB-08 接线后即可删。
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum BackfillEvidence {
     /// 当前背包里还留着
@@ -565,6 +626,8 @@ enum BackfillEvidence {
     CashReceipt,
 }
 
+// 移除条件：NB-08 接线后即可删。
+#[allow(dead_code)]
 impl BackfillEvidence {
     const ALL: [BackfillEvidence; 5] = [
         BackfillEvidence::Inventory,
@@ -617,6 +680,8 @@ impl BackfillEvidence {
 /// 报告要能回答「扫了什么、证明了多少、有多少是别名去重、有多少归不了、有多少是
 /// 历史资料不足、以及用的是哪个迁移版本」（计划 §13.2）——但没有原始时间就必须说
 /// 没有原始时间，不能靠等级或任务完成数猜（§13.3）。
+/// 移除条件：NB-08 接线后即可删。
+#[allow(dead_code)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NotebookBackfillReport {
@@ -649,6 +714,8 @@ pub(crate) struct NotebookBackfillReport {
 ///
 /// 调用点：受控发布流程按角色、事务、受控批次执行（§13.2／§13.4）。本模块不为它
 /// 挂任何自动启动路径——当前阶段不访问也不迁移用户在线库。
+/// 移除条件：NB-08 接线后即可删。
+#[allow(dead_code)]
 pub(crate) fn backfill_item_records_tx(
     tx: &Transaction<'_>,
     character_id: &str,
@@ -817,6 +884,11 @@ impl Store {
 
     /// 在一个自持事务里记录一批实际授予。业务侧调用它时**必须**把自己的其他写入
     /// 放进同一个事务（计划 §10），否则会出现「物品已到、图鉴漏记」。
+    ///
+    /// 移除条件：NB-05 的授予入口都自带事务、走 `granted_tx`（同事务内写入），
+    /// 所以这个「自开事务」的外观目前只有验收测试在用。NB-06／NB-08 若需要一个
+    /// 无事务调用方的入口就会用上它，届时删掉这条例外。
+    #[allow(dead_code)]
     pub(crate) fn record_notebook_acquisitions(
         &self,
         character_id: &str,
@@ -837,6 +909,9 @@ impl Store {
     }
 
     /// 按角色补记一次历史获得事实。见 `backfill_item_records_tx` 的调用约定。
+    ///
+    /// 移除条件：NB-08 接线后即可删。
+    #[allow(dead_code)]
     pub(crate) fn backfill_notebook_item_records(
         &self,
         character_id: &str,

@@ -4,6 +4,7 @@
 //! 从 `auth.rs` 机械搬出的第四块完整职责（超大文件治理）。搬的是**代码位置**，
 //! 不是数据布局：attacks / attack_drops / drop 表结构与结算口径均未改变。
 
+use super::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 use super::*;
 
 impl Store {
@@ -579,6 +580,34 @@ impl Store {
                                     params![account_id, quantity],
                                 )
                                 .map_err(|_| "account persistence failed")?;
+                            } else {
+                                // NB-05：这次真的发出去的常规物品都要留档，与
+                                // 掉落认领、背包写入同一事务。两条支路都覆盖：
+                                // 落进背包的（`inventory_slot` 有值）与
+                                // `consume_on_pickup` 当场消耗的（旧 MonsterBook
+                                // 卡片进 `monster_book_cards`、不进背包）。
+                                //
+                                // 是否算「获得」由**分类**决定，不由这里的结构
+                                // 猜（计划 §10.1「按分类决定是否保留实际物品
+                                // 获得记录；不得误转成怪物收藏」）：卡片不在出厂
+                                // 物品索引里 ⇒ 分类为「不是常规物品」⇒ 静默跳过，
+                                // 也不会变成现代收藏登记；将来若有既在目录里又
+                                // `consumeOnPickup` 的物品，它会像普通物品一样被
+                                // 记下。金币不是物品（§2.4.6），走上面的分支。
+                                //
+                                // 分类只对「出厂索引有、图鉴目录没有」报错——那是
+                                // 目录缺陷，宁可让这笔拾取失败也不漏记。
+                                granted_tx(
+                                    &tx,
+                                    account_id,
+                                    &[ItemAcquisition {
+                                        item_id: item_id.as_str(),
+                                        quantity: quantity_u32,
+                                        source: AcquisitionSource::Pickup,
+                                        source_ref: Some(request_id),
+                                    }],
+                                    now_ms(),
+                                )?;
                             }
                             (item_id, quantity, inventory_slot, true, String::new())
                         }

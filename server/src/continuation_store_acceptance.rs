@@ -49,7 +49,7 @@ fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     let mut bad = store.load_profile("bad", &base).unwrap();
     grant_first_mage(&mut bad);
     bad.skill_points.insert(MAGE_BOOK, 6);
-    assert!(store.commit_quest("bad", "1402", "completed", &bad).is_err());
+    assert!(store.commit_quest("bad", "1402", "completed", &bad, &[]).is_err());
     assert_eq!(store.load_profile("bad", &base).unwrap().job, 0);
     assert_eq!(store.load_quests("bad").unwrap()["1402"], "active");
 
@@ -57,17 +57,17 @@ fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     continuation_seed(&store, "low", &low, true);
     let mut low_candidate = store.load_profile("low", &low).unwrap();
     grant_first_mage(&mut low_candidate);
-    assert!(store.commit_quest("low", "1402", "completed", &low_candidate).is_err());
+    assert!(store.commit_quest("low", "1402", "completed", &low_candidate, &[]).is_err());
     let missing = continuation_profile(0, 10, 5, 5);
     continuation_seed(&store, "missing", &missing, false);
     let mut missing_candidate = store.load_profile("missing", &missing).unwrap();
     grant_first_mage(&mut missing_candidate);
-    assert!(store.commit_quest("missing", "1402", "completed", &missing_candidate).is_err());
+    assert!(store.commit_quest("missing", "1402", "completed", &missing_candidate, &[]).is_err());
 
     continuation_seed(&store, "mage", &base, true);
     let mut candidate = store.load_profile("mage", &base).unwrap();
     grant_first_mage(&mut candidate);
-    assert!(store.commit_quest("mage", "1402", "completed", &candidate).unwrap());
+    assert!(store.commit_quest("mage", "1402", "completed", &candidate, &[]).unwrap());
     let promoted = store.load_profile("mage", &base).unwrap();
     assert_eq!((promoted.job, promoted.max_mp, promoted.mp), (200, 100, 100));
     assert_eq!(promoted.skills.get(&1001), Some(&1));
@@ -92,7 +92,7 @@ fn continuation_store_q1402_gate_transfer_replay_and_reopen() {
     let mut forged = reopened.load_profile("mage", &base).unwrap();
     forged.skill_points.insert(MAGE_BOOK, 99);
     forged.mp = 100;
-    assert!(!reopened.commit_quest("mage", "1402", "completed", &forged).unwrap());
+    assert!(!reopened.commit_quest("mage", "1402", "completed", &forged, &[]).unwrap());
     let saved = reopened.load_profile("mage", &base).unwrap();
     assert_eq!((saved.job, saved.skill_points[&MAGE_BOOK], saved.mp), (200, 5, 17));
     drop(reopened);
@@ -108,7 +108,7 @@ fn continuation_store_story_recovery_preserves_existing_jobs() {
         let profile = continuation_profile(job, 100, mp, max_mp);
         continuation_seed(&store, &id, &profile, true);
         let candidate = store.load_profile(&id, &profile).unwrap();
-        assert!(store.commit_quest(&id, "1402", "completed", &candidate).unwrap());
+        assert!(store.commit_quest(&id, "1402", "completed", &candidate, &[]).unwrap());
         let saved = store.load_profile(&id, &profile).unwrap();
         assert_eq!((saved.job, saved.mp, saved.max_mp), (job, mp, max_mp));
         assert_eq!(saved.skill_points, candidate.skill_points);

@@ -27,6 +27,9 @@ use tokio::sync::{mpsc, oneshot};
 // `auth::X` 路径调用；搬入 db.rs 后 re-export 保住原路径。
 pub(crate) use db::{add_exp, grant_level_sp};
 use self::db::*;
+// NB-05：物品授予的图鉴留档入口。auth 层各授予事务（拾取 / 商店 / 现金 /
+// 任务 / 创角初始 / GM）统一走 `granted_tx`，保证「资产与留档同一事务」。
+use self::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 
 #[path = "auth/skills.rs"]
 pub(crate) mod skills;
@@ -788,6 +791,18 @@ impl Store {
             [account_id],
         )
         .map_err(|_| "account persistence failed")?;
+        // NB-05：创角初始背包物品是真实授予，与落库同一事务留档。`granted`
+        // 就是本次真正写进去的那几件（非空才走到这里）。
+        let starter_grants: Vec<ItemAcquisition> = granted
+            .iter()
+            .map(|item| ItemAcquisition {
+                item_id: item.item_id.as_str(),
+                quantity: item.quantity,
+                source: AcquisitionSource::Starter,
+                source_ref: None,
+            })
+            .collect();
+        granted_tx(&tx, account_id, &starter_grants, now_ms())?;
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(granted)
     }
@@ -4181,6 +4196,24 @@ mod tests {
         );
         assert!(inventory.iter().all(|item| item.item_id != "2000001"));
 
+        // NB-05：GM 正式授予是真实授予、要留档，来源写 `gm`（不伪装成掉落）；
+        // 同 requestId 的重放不写第二条事实，被拒绝的授予（数量 0、未知 id、
+        // 换参数的 requestId 重放）一条都不写。
+        let archived = store.notebook_item_records("a").unwrap();
+        assert_eq!(
+            archived
+                .iter()
+                .filter(|row| row.item_id == "2000000")
+                .map(|row| (row.source_kind.as_str(), row.time_quality.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("gm", "event")],
+            "GM 授予必须留档一次，重放不得算成第二次获得"
+        );
+        assert!(
+            archived.iter().all(|row| row.item_id != "2000001"),
+            "被拒绝的授予不得在图鉴里留下事实"
+        );
+
         // Deposit two same-species instances separately and withdraw them
         // again; warehouse stack logic must preserve their identities.
         let mut storage_ids = vec![first_pet_id];
@@ -4239,6 +4272,13 @@ mod tests {
                 .iter()
                 .any(|item| inventory::pet_instance_id(item) == Some(*id))
         }));
+        // NB-05：仓库存取是**同主体移动**，不是获得——存取往返不新增任何图鉴事实
+        // （反证：若把存入／取出误当授予，下面就会多出宠物条目）。
+        assert_eq!(
+            store.notebook_item_records("a").unwrap(),
+            archived,
+            "仓库往返不得改变图鉴事实"
+        );
 
         // Dropping the clone is required before reopening the same sqlite file.
         drop(store);

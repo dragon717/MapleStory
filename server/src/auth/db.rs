@@ -1432,7 +1432,8 @@ pub(super) fn ensure_starter_equipment_tx(
         )
         .map_err(|_| "account persistence failed")?;
     if equipped_count == 0 {
-        for item in inventory::starter_equipment() {
+        let starter = inventory::starter_equipment();
+        for item in &starter {
             let stats = item.stats.clone().unwrap_or_default();
             let stats_json =
                 serde_json::to_string(&stats).map_err(|_| "account persistence failed")?;
@@ -1451,6 +1452,18 @@ pub(super) fn ensure_starter_equipment_tx(
             )
             .map_err(|_| "account persistence failed")?;
         }
+        // NB-05：创角初始装备是真实授予（落在 `equipped` 而不是 `inventory`，
+        // 但图鉴只关心「这件物品被授予过」），与落库同一事务留档。
+        let grants: Vec<ItemAcquisition> = starter
+            .iter()
+            .map(|item| ItemAcquisition {
+                item_id: item.item_id.as_str(),
+                quantity: item.quantity,
+                source: AcquisitionSource::Starter,
+                source_ref: None,
+            })
+            .collect();
+        granted_tx(tx, account_id, &grants, now_ms())?;
     }
     tx.execute(
         "UPDATE player_stats SET starter_equipment_seeded=1 WHERE account_id=?1",

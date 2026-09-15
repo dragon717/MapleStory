@@ -46,6 +46,16 @@ fn sc_stack(quantity: u32) -> Vec<InventoryItem> {
     }]
 }
 
+/// NB-05：本次购买真正授予的物品（与 `sc_stack` 同一件，数量取自购买量）。
+fn sc_grant(quantity: u32) -> crate::auth::notebook::ItemAcquisition<'static> {
+    crate::auth::notebook::ItemAcquisition {
+        item_id: SC_ITEM,
+        quantity,
+        source: crate::auth::notebook::AcquisitionSource::ShopBuy,
+        source_ref: Some("sc-shop-buy"),
+    }
+}
+
 fn sc_db_mesos(store: &Store, account_id: &str) -> i64 {
     store
         .with_db(|db| {
@@ -97,21 +107,59 @@ fn sc_db_rebuy(store: &Store, account_id: &str) -> Vec<ShopRebuyRow> {
         .unwrap()
 }
 
+/// NB-05：图鉴留档的当前行，`(item_id, source_kind, time_quality)` 按 id 升序。
+///
+/// 过滤掉 `starter`：`load_profile` 建号时会发放创角初始装备（NB-05 之后那也是一次
+/// 真实授予、会留档），但它不是本文件要检查的商店路径，留着只会给每条断言加噪声。
+/// 创角初始装备本身的留档断言在 `notebook_store_acceptance`。
+fn sc_db_grants(store: &Store, character_id: &str) -> Vec<(String, String, String)> {
+    store
+        .notebook_item_records(character_id)
+        .unwrap()
+        .into_iter()
+        .filter(|row| row.source_kind != "starter")
+        .map(|row| (row.item_id, row.source_kind, row.time_quality))
+        .collect()
+}
+
+/// NB-05：留档的图鉴 revision。建号本身会推进一次，所以断言一律比「相对基线的
+/// 增量」，而不是写死的绝对值。
+fn sc_db_revision(store: &Store, character_id: &str) -> u64 {
+    store
+        .notebook_revision(crate::auth::notebook::SCOPE_CHARACTER, character_id)
+        .unwrap()
+}
+
 #[test]
 fn sc_shop_buy_commit_writes_mesos_and_inventory_in_one_commit() {
     let path = nb_path("shop-buy-commit");
     let store = nb_open(&path);
     let account = "sc-buyer";
     store.load_profile(account, &sc_profile(0)).unwrap();
+    let baseline = sc_db_revision(&store, account);
 
     let mut profile = sc_profile(0);
     profile.mesos = 97; // 100 - 3：买 3 瓶紅藥水后的余额
     let inventory = sc_stack(3);
-    store.shop_buy_commit(account, &profile, &inventory).unwrap();
+    let grants = [sc_grant(3)];
+    store
+        .shop_buy_commit(account, &profile, &inventory, &grants)
+        .unwrap();
 
     assert_eq!(sc_db_mesos(&store, account), 97);
     assert_eq!(sc_db_inventory(&store, account).len(), 1);
     assert_eq!(sc_db_inventory(&store, account)[0].quantity, 3);
+    // NB-05：图鉴留档与资产在同一笔提交里落地，来源是商店购买（不是拾取），
+    // 时间依据是真实事件（不是补记），且只推进一次 revision。
+    assert_eq!(
+        sc_db_grants(&store, account),
+        vec![(
+            SC_ITEM.to_owned(),
+            "shopBuy".to_owned(),
+            "event".to_owned()
+        )]
+    );
+    assert_eq!(sc_db_revision(&store, account), baseline + 1);
     // 内存权威未被 helper 碰过：profile 仍是调用前那份（0 金币）——
     // 改内存是 `crate::trade` 在 commit 成功后自己的事。
     assert_eq!(profile.mesos, 97);
@@ -124,6 +172,7 @@ fn sc_shop_buy_commit_failure_rolls_everything_back() {
     let store = nb_open(&path);
     let account = "sc-buyer-fail";
     store.load_profile(account, &sc_profile(0)).unwrap();
+    let baseline = sc_db_revision(&store, account);
 
     let mut profile = sc_profile(0);
     profile.mesos = 97;
@@ -131,11 +180,17 @@ fn sc_shop_buy_commit_failure_rolls_everything_back() {
     {
         // 失败注入：作用域结束（含 panic 展开）即自动恢复。
         let _denial = Store::deny_persistence();
-        assert!(store.shop_buy_commit(account, &profile, &inventory).is_err());
+        assert!(store
+            .shop_buy_commit(account, &profile, &inventory, &[sc_grant(3)])
+            .is_err());
     }
     // 整笔回滚：金币没扣、背包没多、库里和提交前完全一样。
     assert_eq!(sc_db_mesos(&store, account), 0);
     assert!(sc_db_inventory(&store, account).is_empty());
+    // NB-05：失败的购买不登记——图鉴事实与 revision 一起回滚，不留「物品没到、
+    // 图鉴却记了获得」的假事实。
+    assert!(sc_db_grants(&store, account).is_empty());
+    assert_eq!(sc_db_revision(&store, account), baseline);
     nb_cleanup(&path);
 }
 
@@ -145,6 +200,7 @@ fn sc_shop_sell_commit_writes_rebuy_row_with_the_assets() {
     let store = nb_open(&path);
     let account = "sc-seller";
     store.load_profile(account, &sc_profile(0)).unwrap();
+    let baseline = sc_db_revision(&store, account);
 
     let mut profile = sc_profile(0);
     profile.mesos = 15; // 卖 5 瓶 × 单价 3 的入账
@@ -168,6 +224,10 @@ fn sc_shop_sell_commit_writes_rebuy_row_with_the_assets() {
             unit_price: 3,
         }]
     );
+    // NB-05：出售是**消耗／移除**，不是获得——赎回权益的写入不得顺带在图鉴里
+    // 记一条「获得」。反证：如果出售被误当授予，下面这条会失败。
+    assert!(sc_db_grants(&store, account).is_empty());
+    assert_eq!(sc_db_revision(&store, account), baseline);
     nb_cleanup(&path);
 }
 
@@ -177,6 +237,7 @@ fn sc_shop_rebuy_commit_consumes_row_and_moves_assets_together() {
     let store = nb_open(&path);
     let account = "sc-rebuyer";
     store.load_profile(account, &sc_profile(0)).unwrap();
+    let baseline = sc_db_revision(&store, account);
     // 先卖一笔，把赎回行放进库里。
     let mut sold = sc_profile(0);
     sold.mesos = 15;
@@ -205,6 +266,16 @@ fn sc_shop_rebuy_commit_consumes_row_and_moves_assets_together() {
     assert_eq!(sc_db_mesos(&store, account), 0);
     assert_eq!(sc_db_inventory(&store, account).len(), 1);
     assert!(sc_db_rebuy(&store, account).is_empty());
+    // NB-05：买回是物品回到手上，按赎回来源留档，数量取自**被消费掉的那一行**。
+    assert_eq!(
+        sc_db_grants(&store, account),
+        vec![(
+            SC_ITEM.to_owned(),
+            "shopRebuy".to_owned(),
+            "event".to_owned()
+        )]
+    );
+    assert_eq!(sc_db_revision(&store, account), baseline + 1);
 
     // 行已不在：第二次买回同一行必须 Ok(false)，且金币 / 背包分文未动。
     assert_eq!(
@@ -215,6 +286,8 @@ fn sc_shop_rebuy_commit_consumes_row_and_moves_assets_together() {
     );
     assert_eq!(sc_db_mesos(&store, account), 0);
     assert_eq!(sc_db_inventory(&store, account).len(), 1);
+    // 被拒绝的买回同样不登记、不刷 revision（行不存在 ⇒ 整笔无写入）。
+    assert_eq!(sc_db_revision(&store, account), baseline + 1);
     nb_cleanup(&path);
 }
 
@@ -224,6 +297,7 @@ fn sc_shop_rebuy_commit_failure_keeps_the_row_and_the_assets() {
     let store = nb_open(&path);
     let account = "sc-rebuyer-fail";
     store.load_profile(account, &sc_profile(0)).unwrap();
+    let baseline = sc_db_revision(&store, account);
     let mut sold = sc_profile(0);
     sold.mesos = 15;
     store
@@ -259,5 +333,8 @@ fn sc_shop_rebuy_commit_failure_keeps_the_row_and_the_assets() {
     );
     assert_eq!(sc_db_mesos(&store, account), 15);
     assert!(sc_db_inventory(&store, account).is_empty());
+    // NB-05：失败的买回不登记。
+    assert!(sc_db_grants(&store, account).is_empty());
+    assert_eq!(sc_db_revision(&store, account), baseline);
     nb_cleanup(&path);
 }

@@ -21,6 +21,7 @@
 
 use super::*;
 use super::quest_rules;
+use crate::auth::notebook::{AcquisitionSource, ItemAcquisition};
 
 /// 一次任务状态推进从哪个入口发起。
 ///
@@ -1295,6 +1296,10 @@ impl World {
 
         let mut next_state = player_snapshot.state.clone();
         let mut next_quests = player_snapshot.quests.clone();
+        // NB-05：本次转场真正新发的物品（起始物品按「缺多少补多少」计，完成
+        // 奖励按奖励表计）。World 侧才知道哪些是本次新发的，`auth` 层只负责
+        // 在同事务内留档，因此在这里收集、随 `commit_quest` 一起传下去。
+        let mut granted_items: Vec<ItemAcquisition> = Vec::new();
         let reward = if wanted == "completed" {
             self.quest_reward(&quest_id)
         } else {
@@ -1337,6 +1342,12 @@ impl World {
                     self.send_reject(id, code, message, request_id);
                     return false;
                 }
+                granted_items.push(ItemAcquisition {
+                    item_id: item.item_id.as_str(),
+                    quantity: missing,
+                    source: AcquisitionSource::QuestReward,
+                    source_ref: Some(quest_id.as_str()),
+                });
             }
         }
         if wanted == "completed" {
@@ -1436,6 +1447,12 @@ impl World {
                     self.send_reject(id, code, message, request_id);
                     return false;
                 }
+                granted_items.push(ItemAcquisition {
+                    item_id: item.item_id.as_str(),
+                    quantity: item.quantity,
+                    source: AcquisitionSource::QuestReward,
+                    source_ref: Some(quest_id.as_str()),
+                });
             }
         }
 
@@ -1527,7 +1544,7 @@ impl World {
             apply_profile(&mut next_state, profile.clone());
         }
         if let Some(store) = self.store.as_ref() {
-            match store.commit_quest(id, &quest_id, wanted, &profile) {
+            match store.commit_quest(id, &quest_id, wanted, &profile, &granted_items) {
                 Ok(true) => {}
                 Ok(false) => {
                     let restored = store

@@ -3,6 +3,7 @@
 //! 从 `auth.rs` 机械搬出的第二块完整职责（超大文件治理）。搬的是**代码位置**，
 //! 不是数据布局：quest_states 表结构与回执语义均未改变。
 
+use super::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 use super::*;
 
 impl Store {
@@ -96,12 +97,18 @@ impl Store {
     /// Commit a quest transition and its player-side rewards as one durable
     /// business operation.  `(account_id, quest_id)` is the idempotency key;
     /// a retry after a committed transition returns `false` and rolls back.
+    ///
+    /// NB-05：`grants` 是本次转场真正新发的物品（起始物品与完成奖励合并后
+    /// 由 World 侧按业务事实给出）。本方法只负责在同事务内留档，不自行推断
+    /// 「哪些物品算新发的」——`profile` 是整份候选，从它里面做差集会把早已
+    /// 持有的物品也算进来。
     pub fn commit_quest(
         &self,
         account_id: &str,
         quest_id: &str,
         status: &str,
         profile: &Profile,
+        grants: &[ItemAcquisition],
     ) -> Result<bool, String> {
         if quest_id.trim().is_empty() {
             return Err("invalid quest id".to_owned());
@@ -208,6 +215,9 @@ impl Store {
             params![account_id, quest_id, status],
         )
         .map_err(|_| "account persistence failed")?;
+        // NB-05：起始物品与完成奖励都在本次转场里发出，与任务状态同事务留档。
+        // 空 `grants` 是合法输入（大量任务不发物品），不是「跳过」。
+        granted_tx(&tx, account_id, grants, now_ms())?;
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(true)
     }
@@ -281,6 +291,19 @@ impl Store {
         next_profile.inventory = next_inventory;
         write_profile(&tx, account_id, &next_profile)?;
         write_inventory_tx(&tx, account_id, &next_profile.inventory)?;
+        // NB-05：本次真正补发的数量是 `missing`（已持有部分不重复留档，否则
+        // 重试会让图鉴把同一件物品记两次「获得」）。
+        granted_tx(
+            &tx,
+            account_id,
+            &[ItemAcquisition {
+                item_id,
+                quantity: missing,
+                source: AcquisitionSource::QuestInteraction,
+                source_ref: Some(quest_id),
+            }],
+            now_ms(),
+        )?;
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(true)
     }

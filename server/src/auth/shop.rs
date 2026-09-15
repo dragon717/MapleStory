@@ -13,6 +13,7 @@
 //! 不负责：买回的金额 / 背包容量规则与回执（`crate::trade`），表结构声明
 //! （`crate::auth::schema`）。
 
+use super::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 use super::*;
 
 /// 赎回列表上限：只保留最近的若干行，超出的老行随写入淘汰。
@@ -119,13 +120,14 @@ impl Store {
     /// 内存与发回执。之前买路径是「先改内存再 `let _ =` 写库」，持久化
     /// 失败会被静默吞掉，内存与存档从此分叉。
     ///
-    /// NB-05 预留：接入 `crate::auth::notebook::record_item_acquisitions_tx`
-    /// 时，购买的图鉴留档就在本事务内追加（与资产同提交）。
+    /// NB-05：`grants` 是本次购买真正新授予的物品（由调用方按业务已知事实
+    /// 给出）；留档与资产在同一事务里落库，拒绝/回滚时不产生任何记录。
     pub fn shop_buy_commit(
         &self,
         account_id: &str,
         profile: &Profile,
         inventory: &[InventoryItem],
+        grants: &[ItemAcquisition],
     ) -> Result<(), String> {
         self.refuse_if_persistence_denied()?;
         let mut db = self
@@ -137,7 +139,7 @@ impl Store {
             .map_err(|_| "account persistence failed".to_owned())?;
         write_profile(&tx, account_id, profile)?;
         write_inventory_tx(&tx, account_id, inventory)?;
-        // NB-05 预留位：record_item_acquisitions_tx(&tx, ...) 落在本事务内。
+        granted_tx(&tx, account_id, grants, now_ms())?;
         tx.commit()
             .map_err(|_| "account persistence failed".to_owned())?;
         Ok(())
@@ -193,6 +195,21 @@ impl Store {
         let tx = db
             .transaction()
             .map_err(|_| "account persistence failed".to_owned())?;
+        // 数量必须在删除前读出来：买回是一次真实的获得，留档用的数量只能
+        // 来自「这次消费掉的那一行」，不能由调用方另传（否则两处事实可能
+        // 不一致）。行不存在即视为竞态/重放意图，事务随 drop 回滚。
+        let quantity: Option<i64> = tx
+            .query_row(
+                "SELECT quantity FROM shop_rebuy
+                 WHERE account_id=?1 AND item_id=?2 AND unit_price=?3",
+                params![account_id, item_id, unit_price as i64],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        let Some(quantity) = quantity else {
+            return Ok(false);
+        };
         let removed = tx
             .execute(
                 "DELETE FROM shop_rebuy
@@ -206,6 +223,18 @@ impl Store {
         }
         write_profile(&tx, account_id, profile)?;
         write_inventory_tx(&tx, account_id, inventory)?;
+        // NB-05：买回是「物品回到手上」，与资产同事务留档。
+        granted_tx(
+            &tx,
+            account_id,
+            &[ItemAcquisition {
+                item_id,
+                quantity: u32::try_from(quantity).unwrap_or(0),
+                source: AcquisitionSource::ShopRebuy,
+                source_ref: None,
+            }],
+            now_ms(),
+        )?;
         tx.commit()
             .map_err(|_| "account persistence failed".to_owned())?;
         Ok(true)

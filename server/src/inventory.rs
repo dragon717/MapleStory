@@ -38,34 +38,58 @@ struct ItemDefinition {
     spec: BTreeMap<String, Value>,
 }
 
+/// The **shipped** compile-time item index (`shared/items.json`).
+fn shipped_catalog() -> &'static BTreeMap<String, ItemDefinition> {
+    static SHIPPED: OnceLock<BTreeMap<String, ItemDefinition>> = OnceLock::new();
+    SHIPPED.get_or_init(|| {
+        serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../shared/items.json"
+        )))
+        .expect("shared/items.json must be valid")
+    })
+}
+
+/// The catalog the inventory engine answers from.
+///
+/// These entries exercise the inventory engine against source data that
+/// is intentionally outside the small runtime catalog.  They are
+/// compiled into tests only and never affect the server binary.
 fn catalog() -> &'static BTreeMap<String, ItemDefinition> {
-    static CATALOG: OnceLock<BTreeMap<String, ItemDefinition>> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        let catalog: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../shared/items.json")
-        ))
-        .expect("shared/items.json must be valid");
-        // These entries exercise the inventory engine against source data that
-        // is intentionally outside the small runtime catalog.  They are
-        // compiled into tests only and never affect the server binary.
-        #[cfg(test)]
-        let catalog = {
-            let mut catalog = catalog;
+    #[cfg(not(test))]
+    {
+        shipped_catalog()
+    }
+    #[cfg(test)]
+    {
+        static TEST_CATALOG: OnceLock<BTreeMap<String, ItemDefinition>> = OnceLock::new();
+        TEST_CATALOG.get_or_init(|| {
+            let mut catalog = shipped_catalog().clone();
             let fixture: BTreeMap<String, ItemDefinition> = serde_json::from_str(include_str!(
                 concat!(env!("CARGO_MANIFEST_DIR"), "/test-fixtures/items.json")
             ))
             .expect("test item fixture must be valid");
             catalog.extend(fixture);
             catalog
-        };
-        catalog
-    })
+        })
+    }
 }
 
 /// Whether the compile-time catalog itself carries the id (as opposed to the
 /// million-group fallback, which accepts source-shaped ids without a row).
 pub fn catalog_contains(item_id: &str) -> bool {
     catalog().contains_key(item_id)
+}
+
+/// Whether the **shipped** index carries the id, ignoring the test-only
+/// fixture rows.
+///
+/// Integrity checks that compare the item index against a product artifact
+/// (the notebook catalog) must use this one: fixtures are deliberately not
+/// part of the shipped index, so counting them as "the index has it" would
+/// report a data-pipeline defect for items the product does not contain.
+pub fn shipped_catalog_contains(item_id: &str) -> bool {
+    shipped_catalog().contains_key(item_id)
 }
 
 fn item_definition(item_id: &str) -> Option<&'static ItemDefinition> {

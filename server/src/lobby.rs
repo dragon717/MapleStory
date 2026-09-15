@@ -1,5 +1,8 @@
 use crate::{
-    auth::Store,
+    auth::{
+        notebook::{granted_tx, AcquisitionSource, ItemAcquisition},
+        Store,
+    },
     inventory,
     protocol::{InventoryItem, CONTENT_VERSION, PROTOCOL_VERSION},
 };
@@ -661,6 +664,16 @@ fn seed_character_equipment(
     if appearance.pants != 0 {
         equipment.push((6_u16, appearance.pants));
     }
+    // NB-05：创角时穿上的外观装备是**真实授予**——它和角色行、`equipped` 行
+    // 同一事务落库，所以图鉴记录也必须在这里、用同一个事务写下，否则一个角色
+    // 会永久缺掉「创角那几件」的获得事实（NB-03 的补记只能从当前装备反推，
+    // 换装后就丢了）。
+    //
+    // 分类交给 `granted_tx`：本表里可选的外观 id 全部在图鉴目录内；`Appearance`
+    // 的 `Default` 里那两个未进出厂索引的默认 id（1060003／1070000）在生产不可达
+    // （请求必须显式给出全部字段并通过 `validate()`），即便出现也只会被判为
+    // 「不是常规物品」而静默跳过——不会让创角失败。
+    let mut granted_ids: Vec<String> = Vec::new();
     for (slot, item_id) in equipment {
         let mut item = InventoryItem {
             slot,
@@ -671,6 +684,7 @@ fn seed_character_equipment(
         inventory::ensure_equipment_instance(&mut item);
         let stats_json = serde_json::to_string(&item.stats.clone().unwrap_or_default())
             .map_err(|_| "account persistence failed".to_owned())?;
+        granted_ids.push(item.item_id.clone());
         tx.execute(
             "INSERT INTO equipped(
                account_id,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots
@@ -687,6 +701,18 @@ fn seed_character_equipment(
         )
         .map_err(|_| "account persistence failed".to_owned())?;
     }
+    // 与角色行、`equipped` 行同一事务：创角成功 ⇒ 获得事实一定在；创角回滚 ⇒
+    // 一条都不留。数量恒为 1（外观槽位每格一件）。
+    let grants: Vec<ItemAcquisition<'_>> = granted_ids
+        .iter()
+        .map(|item_id| ItemAcquisition {
+            item_id: item_id.as_str(),
+            quantity: 1,
+            source: AcquisitionSource::Starter,
+            source_ref: None,
+        })
+        .collect();
+    granted_tx(tx, character_id, &grants, crate::auth::now_ms())?;
     Ok(())
 }
 

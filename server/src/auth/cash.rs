@@ -17,6 +17,7 @@
 //!   的候选背包作为事务的写入内容）；
 //! - 余额授予（GM `/cash`，`crate::gm`）与表结构声明（`schema.rs`）。
 
+use super::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 use super::*;
 
 /// 一次 `CashBuy` 的裁决结果。成功时字段是提交后的权威值；拒绝时
@@ -261,6 +262,20 @@ impl Store {
             code: String::new(),
         };
         insert_cash_action(&tx, account_id, &outcome)?;
+        // NB-05：现金购买与其它资产同一事务留档。购买的是常规物品，宠物（SN
+        // 前三码为宠物分类）同样会落进背包，故按 item_id 统一留档；数量取自
+        // 已裁决的购买数量。
+        granted_tx(
+            &tx,
+            account_id,
+            &[ItemAcquisition {
+                item_id,
+                quantity,
+                source: AcquisitionSource::CashPurchase,
+                source_ref: Some(request_id),
+            }],
+            now_ms(),
+        )?;
         tx.commit()
             .map_err(|_| "account persistence failed".to_owned())?;
         Ok(outcome)
