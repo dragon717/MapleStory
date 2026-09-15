@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-28');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-29');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -84,8 +84,13 @@ for(const mob of gameplay.monsters) {
   // target) on 001010000, taking the surface to 27.  The 2026-09-14 艾靈森林
   // region added 10 field species (4250000/4250001, 5250000-5250007), to 37.
   // The 2026-09-15 愛奧斯塔/地球防衛本部 region added 15 more (塔身 1~100 樓与
-  // 路德斯湖街的场地怪), to 52.
-  assert.equal(deployed.size,52,'the deployed monster surface changed');
+  // 路德斯湖街的场地怪), to 52.  The 2026-09-15 危險地帶/UFO 街 region added the
+  // ten field species of 洛斯威爾草原Ⅰ~Ⅳ 与 UFO 内部
+  // (4230127 馬堤安 / 4230128 培利堤安 / 4230129~4230134，分布在草原与走廊
+  // 101/103/202/203/通風口 D-1~D-4；以及 4230141/4230142 新葛雷白/新葛雷黑，
+  // 在走廊 H01~H03），to 62.  （4230137/4230138 只在 TMS273 WZ 里有怪物定义，
+  // 本片 23 张图的 life 行没有任何一条引用它们，因此连怪物目录都不进。）
+  assert.equal(deployed.size,62,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -122,7 +127,11 @@ for(const mob of gameplay.monsters) {
 // 2026-09-15 愛奧斯塔（Eos Tower）與地球防衛本部 +41 图（玩具城村莊、愛奧斯塔入口、
 // 塔身 1~100 樓含三段分組梯層 `221021000/221021600/221022200` 与隱藏之塔、
 // 地球防衛本部本部/通道/主控室/司令室/安全地帶）。
-assert.equal(catalog.maps.length,165);
+// 2026-09-15 危險地帶／洛斯威爾草原／UFO 街 +23 图（地球防衛總部街西段：
+// `221030000 危險地帶` + 草原Ⅰ~Ⅳ 五张纯静态门链，加 UFO 內部 18 张
+// 走廊/通風口图）。源里其余 19 张（操縱杆翼、无名字图、事件房与
+// `BossCaoong` 首領房）没有任何授权入边，逐条落在下方的不装配清单里。
+assert.equal(catalog.maps.length,188);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -806,6 +815,11 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
     // 归档不给它 spot（同 222020400 的城市隐藏图先例）；其余 40 张新图——
     // 玩具城村莊/愛奧斯塔入口、塔身 1~100 樓、地球防衛本部全簇——都在源 spot 里。
     '221020701',
+    // 危險地帶/UFO 街（2026-09-15）：走廊105 被源切成两段 221030550/221030551，
+    // 而 WorldMap035 给 UFO 内部逐图列 spot 时**只跳过了这两段**——同一 spot 的
+    // mapIds 从 221030540 直接跳到 221030600（Archiv 事实，逐图枚举过，非装配漏项）。
+    // 与 221020701 同性质：源没给 spot，归档就没有它。
+    '221030550','221030551',
   ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));

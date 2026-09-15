@@ -3935,6 +3935,7 @@ include!("windbell_acceptance.rs");
     include!("ship_acceptance.rs");
     include!("ellinel_acceptance.rs");
     include!("helios_acceptance.rs");
+    include!("ufo_acceptance.rs");
 
     #[test]
     fn quest_list_on_join_is_localized_to_player_language() {

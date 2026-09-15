@@ -404,16 +404,26 @@ function applyRemaster(gameplay, items, manifest, questText) {
 //     没有可达入口（21 图装配完成但走不进去）。
 //   * `222020200` 第 5 扇门（脚本 `LudiElevator_in`）→ `222020100`；
 //     `222020100` 第 4 扇门（同一脚本）→ `222020200`。赫爾奧斯塔电梯两端。
+//   * `221030540.pt00`（脚本 `pt_221030540`）→ `221030550`、
+//     `221030550.pt00`（脚本 `pt_221030550`）→ `221030551`、
+//     `221030600.up00`（脚本 `pt_221030600`）→ `221030700`（UFO 街三扇 pt:7
+//     门，Graph.json 逐条给出授权目标；`221030550.col00` 的授权目标是
+//     999999999 ⇒ 不在此列，保持未开放）。草原Ⅳ 的 NPC `2052026 UFO呼叫器`
+//     是进场门但由 NPC 对话驱动，不需要目录暴露（走 `dialogue.rs` 分发）。
 // P（有界适配）：落点沿用服务端钩子声明的目标门（`ellinel.rs` 的 `in00`、
-// `helios.rs` 的 `st00`/`st01`）。原版电梯按班次运行、时间门由 `q36342s` 把
-// 关；本路由不做时刻与任务状态校验，即到即走，与 `inERShip`、时间门既有口径
-// 一致。只在目标图已装配时生效——没装配的目标保持「走近提示一次」。
+// `helios.rs` 的 `st00`/`st01`、`ufo.rs` 的 `west00`/`pt00`）。原版电梯按班次
+// 运行、时间门由 `q36342s` 把关、UFO 三扇门由 `pt_22103xxx` 脚本把关；本路由
+// 不做时刻与任务状态校验，即到即走，与 `inERShip`、时间门既有口径一致。只在
+// 目标图已装配时生效——没装配的目标保持「走近提示一次」。
 function exposeScriptedGateRoutes(manifest) {
   const assembled = new Set(manifest.mapCatalog.maps.map(map => String(map.id)));
   for (const [mapId, portalName, targetMapId, targetPortalName] of [
     ['222020400', 'in01', '300000100', 'in00'],
     ['222020200', 'in00', '222020100', 'st00'],
     ['222020100', 'in00', '222020200', 'st01'],
+    ['221030540', 'pt00', '221030550', 'west00'],
+    ['221030550', 'pt00', '221030551', 'pt00'],
+    ['221030600', 'up00', '221030700', 'west00'],
   ]) {
     if (!assembled.has(targetMapId)) continue;
     const portal = manifest.mapCatalog.maps

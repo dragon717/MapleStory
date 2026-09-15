@@ -175,6 +175,22 @@ impl World {
             );
             return;
         }
+        // 危險地帶的 UFO 呼叫器（2026-09-15）：源 `Graph.json` 把草原Ⅳ
+        // `221030400` 的进场写成 NPC 脚本（`portalNum: 9999`），该图没有
+        // 任何授权这跳的静态门 ⇒ 对话即进场动作。分发在仓库管理员之前，
+        // 呼叫器不携带任何其他职能。
+        if super::ufo::is_ufo_pager(&template_id, &map_id) {
+            self.handle_ufo_pager(
+                &id,
+                &request_id,
+                &npc_id,
+                &name,
+                name_zh.as_deref(),
+                &lang,
+                can_advance,
+            );
+            return;
+        }
         // A warehouse keeper has no authored dialogue script: talking to one
         // *is* the "open my storage" action in the original.  Answering with
         // the shared `openStorage` marker keeps the same one-marker pattern as

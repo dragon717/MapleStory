@@ -65,6 +65,9 @@ mod ellinel;
 /// 赫爾奧斯塔电梯脚本门 P 级路由（99樓 ⇄ 2樓，源到站门见模块头）。
 #[path = "helios.rs"]
 mod helios;
+/// 危險地帶/UFO 街脚本门与呼叫器 NPC 的 P 级路由（源授权见模块头）。
+#[path = "ufo.rs"]
+mod ufo;
 #[path = "growth.rs"]
 mod growth;
 #[path = "revive.rs"]

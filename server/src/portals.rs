@@ -29,6 +29,11 @@ impl World {
         if self.helios_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
             return;
         }
+        // 危險地帶/UFO 街脚本门（`ufo.rs`）：走廊 104/105 与 走道 201 通往
+        // 通風口的三扇 pt:7 门；已处置即返回。
+        if self.ufo_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
+            return;
+        }
         let source_map = self.map_for(&source_map_id).clone();
         let Some(portal) = source_map
             .portals
