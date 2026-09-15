@@ -49,6 +49,8 @@ pub(crate) mod schema;
 pub(crate) mod db;
 #[path = "auth/item_world.rs"]
 pub(crate) mod item_world;
+#[path = "auth/notebook.rs"]
+pub(crate) mod notebook;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -103,6 +105,44 @@ struct Session {
     account_id: String,
     kind: SessionKind,
     expiry: Instant,
+}
+
+/// Acceptance-test failure injector: while set, the persistence write
+/// primitives refuse, so a caller sees the same "commit failed" path as a real
+/// SQLite error — without touching schema, data, or the connection mutex.
+///
+/// It is a process-global flag rather than a per-`Store` field because
+/// [`Store`] is built by struct literal in a dozen test modules; a lock hold
+/// was the first attempt and deadlocked the permanently blocked auth thread
+/// that [`start`] spawns over the same connection.
+///
+/// Because the flag is global and `cargo test` runs tests in parallel, any
+/// test that sets it must first take [`PERSISTENCE_INJECTION_LOCK`] — see
+/// `Store::deny_persistence`.
+#[cfg(test)]
+static PERSISTENCE_DENIED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Serializes the tests that turn [`PERSISTENCE_DENIED`] on.  Without it a
+/// parallel test's legitimate commit is refused by another test's injection.
+#[cfg(test)]
+static PERSISTENCE_INJECTION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// RAII guard returned by `Store::deny_persistence`; clearing on drop keeps a
+/// panicking test from poisoning the flag for the rest of the suite.  It also
+/// owns the injection lock, so the flag can never outlive the serialized
+/// section.
+#[cfg(test)]
+#[must_use = "the denial lasts only as long as this guard is alive"]
+pub struct PersistenceDenial {
+    _serialized: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl Drop for PersistenceDenial {
+    fn drop(&mut self) {
+        Store::release_persistence();
+    }
 }
 
 #[derive(Clone)]
@@ -551,6 +591,44 @@ impl Store {
             .lock()
             .map_err(|_| "account store unavailable".to_owned())?;
         operation(&mut db)
+    }
+
+    /// Acceptance-test failure injector for the shop commit helpers.
+    ///
+    /// `#[cfg(test)]`-only, process-global, and scoped: it makes
+    /// [`Self::persistence_denied`] report `true` until the returned guard
+    /// drops.  The guard also holds [`PERSISTENCE_INJECTION_LOCK`], so only one
+    /// test at a time can be in the injected state — otherwise a parallel
+    /// test's legitimate commit would be refused.  Always bind it in a block
+    /// (`let _denial = Store::deny_persistence();`) so the lock is released
+    /// before the assertions that need a working store.
+    #[cfg(test)]
+    pub fn deny_persistence() -> PersistenceDenial {
+        // A poisoned lock only means another injected test panicked; the flag
+        // itself is cleared by its guard, so recovering is safe here.
+        let serialized = PERSISTENCE_INJECTION_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        PERSISTENCE_DENIED.store(true, std::sync::atomic::Ordering::SeqCst);
+        PersistenceDenial {
+            _serialized: serialized,
+        }
+    }
+
+    #[cfg(test)]
+    fn release_persistence() {
+        PERSISTENCE_DENIED.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    fn persistence_denied() -> bool {
+        PERSISTENCE_DENIED.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[cfg(not(test))]
+    #[inline]
+    fn persistence_denied() -> bool {
+        false
     }
 
     pub fn character_appearance(
@@ -1641,6 +1719,8 @@ mod tests {
     include!("hyper_store_acceptance.rs");
     include!("continuation_store_acceptance.rs");
     include!("windbell_store_acceptance.rs");
+    include!("notebook_store_acceptance.rs");
+    include!("shop_commit_acceptance.rs");
 
     #[tokio::test]
     async fn accounts_persist_and_sessions_require_valid_credentials() {

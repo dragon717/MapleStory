@@ -152,6 +152,36 @@
   `Reward` / `MailAttachment` / `DomainEvent` —— 当前零消费者（项目无邮件/拍卖/玩家交易/挂机收益）。
   提前建会违反"不提前建空目录或通用工厂"的规范，也会把 LSP 边界重新搅乱。
 
+## 冒险笔记（图鉴）：怪物收集复刻与物品获得留档（2026-09-15，NB-00~04 已落地）
+
+> 详细方案：[`MapleStory_冒险笔记图鉴_怪物收集复刻与扩展计划_f62ef983.md`](MapleStory_冒险笔记图鉴_怪物收集复刻与扩展计划_f62ef983.md)。
+> 目标：复用原怪物收集菜单项（`menu/buttonInfo/3/6` type 22），可见名改「冒险笔记（图鉴）」；一个同版窗口承载怪物、装备、普通道具、仅已获得任务道具四页；保留现代收藏的勋章、奖励与探险目标，不混用旧 MonsterBook 卡片。
+> 依赖：NB-00 → NB-01；NB-02/03/04 → NB-05/06/07 → NB-08 → NB-09。协议 24 / 内容 `tms273-29`（两处同步；本轮未再升版）。
+> 保护：不改无关管理员规则；不清库、不重置机器人、不自行打断在线服务；补记不访问用户在线库。
+
+- [x] **NB-00 基线与来源核定**：原入口身份（菜单 key/type、`UIWindow4` 两面板、`Etc/mobCollection` 地区/页/行/槽结构）、规则证据矩阵（登记概率／资格门／三层奖励条件／探险槽位全为 U，保持 `unverified` 阻塞）、获得路径调用点清单、保护范围。
+- [x] **NB-01 契约冻结**：归属定为怪物收藏＝账号、物品与任务记录＝角色；四条私有消息（`NotebookQuery`／`CollectionClaim`／`ExplorationStart`／`ExplorationClaim`）双端类型与 `valid()` 形状校验（协议 23→24）；目录键＝规范化十进制 id；服务端 `notebook.rs` 查询如实报空、操作一律拒绝；`i18n` 补 `notebook_unverified` 文案。
+- [x] **NB-02 资源与目录导出**：`shared/notebook-catalog.json`（2584 物品定义／1550 收藏条目／310 行／15 地区／69 奖励键）＋ `shared/monster-collection-rules.json`（未核定项一律 `null`＋`unverified`＋人话阻塞原因）；69 个奖励键中 16 个本版有定义（已回填 items.json 与图标），53 个无定义（方塊椅子系列等）如实记为源边界、不编造；`export_tms273_collection.cjs`＋`backfill_tms273_notebook_rewards.py`＋`generate_tms273_notebook_catalog.cjs` 进入 `build_tms273.cjs` 重建链；门禁 `scripts/check_tms273_notebook.cjs`。
+- [x] **NB-03 核心事实、版本与历史补记**（本轮）：
+  - 新增 4 张事实表（`auth/schema.rs`，全为新表、既有库零列迁移）：`notebook_item_records`（角色级，键＝角色+规范化 id）、`monster_collection_records`（账号级）、`notebook_revisions`（scope_kind/scope_id）、`notebook_backfill_runs`（补记标记，最后写）。
+  - 新增 `server/src/auth/notebook.rs`：目录只读投影（2584 物品＋7 页签**无重叠全覆盖**分区）、规范化（字符串去前导零，拒绝浮点/负数/空串/指数）、分类**没有"未知"档**（`Recorded`／`NotAnItem` 带理由；物品索引有而目录无＝目录缺陷 → `Err` 整笔失败）、`record_item_acquisitions_tx`（幂等唯一键、批内去重、一次提交只推进一步 revision、不吞业务错、不在事务内发消息）、角色/账号两套 revision、归属解析（`characters.account_id` 唯一权威＋legacy 兜底）、历史补记（5 个能归属到角色的证据源；时间未知写 `NULL`＋`unknown`，不覆盖真实时间；先扫描后写标记，失败整批回滚；可重跑）。
+  - 世界侧 `server/src/notebook.rs`：查询的 `revision` 与逐页「已记录」计数改读事实层**真实提交**（不再写死 0）；`blockedReason` 逐分区说明缺的是哪一环（物品页＝授予入口未接入、怪物页＝登记规则未核定）；行列表与「当前可获得」分母留给 NB-07。
+  - 新增 `server/src/notebook_store_acceptance.rs` 7 条：升级建表不碰存量行、首次获得幂等且一步 revision、别名共用一条、归属解析、分类不猜测、目录缺陷与 0 数量整笔失败、补记不造时间＋可重跑＋整批回滚。
+  - 验收：cargo **447 过／0 失败**（基线 440＋7）、`check_tms273_notebook` ok（新增事实层契约断言：四表唯一键、NULL+unknown、规范化无浮点、查询读真实 revision、页签分区 2584 无重叠全覆盖、`dead_code` 例外必须写明移除条件）、`check_protocol_errors` 142 调用点、`check_tms273_runtime` 188 图、tsc 0。**本轮对玩家不可见**（事实层尚无写入方，查询计数仍为 0），无需实玩验收。
+- [x] **NB-04 普通商店购买／赎回事务化**（本轮）：
+  - `auth/shop.rs` 新增三个**单事务提交**入口：`shop_buy_commit`（金币 profile + 背包行）、`shop_sell_commit`（金币 + 背包行 + 赎回行入表）、`shop_rebuy_commit`（消费赎回行 + 金币 + 背包行）。赎回入表抽出事务内实现 `push_shop_rebuy_tx` 供出售事务复用。
+  - `trade.rs` 三个 handler 改为「克隆上算好结果 → 事务提交 → 成功才改内存并回执」；持久化失败按 `persistence` 拒绝（回执账本记住这次拒绝，重放不再重试）。`handle_shop_rebuy` 原先「校验后先删行、再写库」的顺序已消除：行不存在返回 `Ok(false)` 按 `shop_rebuy_unknown` 拒绝，写库失败整笔回滚、**行保留**。
+  - `cashshop.rs::step_rental_expiries`（A 组第 4 处）改为先落库再改内存，失败跳过本角色由下一轮清扫重试。
+  - `take_shop_rebuy`（被 `shop_rebuy_commit` 完全取代）删除；`push_shop_rebuy` 收敛为 `#[cfg(test)]`——生产上赎回行只允许随出售事务入表。
+  - 新增 `server/src/shop_commit_acceptance.rs` 5 条（事务内双写、失败整笔回滚、赎回行消费、行保留、二次取回为 miss）＋世界层 3 条失败注入（买／卖／买回各自：拒绝码 `persistence`、内存分文未动、重放拒绝同一码、恢复后新 request 照常成交）。
+  - 失败注入机制：`Store::deny_persistence()` 作用域守卫（进程级开关 + 串行锁）。**踩坑**：最初用「握住库锁」注入，会卡死 `auth::start` spawn 的常驻后台线程（同一 `Arc<Mutex<Connection>>`），测试挂死 16 分钟；开关式注入无此问题，且必须串行化，否则并行测试的正常提交会被别的测试拒掉。
+  - 验收：cargo **455 过／0 失败**（基线 447＋8）、非测试构建 **0 告警**、`check_tms273_notebook` ok（新增 NB-04 事务契约断言：三个 commit helper 存在、`let _ = store.xxx` 吞错写回清零、买回不得再单独 `take`）、`check_protocol_errors` 142、`check_tms273_runtime` 188 图、客户端 `tsc --noEmit` 0。**本轮对玩家不可见**（行为在失败路径上才不同，正常购买／出售结果不变），无需实玩验收。
+- [ ] **NB-05 全物品授予入口接入**（拾取／自动消耗／宠物／任务奖励／任务交互／商店购买／赎回／现金／创角初始／GM → `record_item_acquisitions_tx`，逐项闭合）。**接入后必须删除 `auth/notebook.rs` 顶部那条写明移除条件的 `#![allow(dead_code)]`。** 商店购买侧的预留位已在 `shop_buy_commit` 事务内标注。
+- [ ] **NB-06 原版怪物登记链路**（`collection_rules.rs`＋死亡结算事务内；阻塞于登记概率／资格门核定）。
+- [ ] **NB-07 单入口＋四页窗口＋私有查询**（复用 `menu/buttonInfo/3/6`；行列表、分页与「当前可获得」分母）。
+- [ ] **NB-08 奖励、勋章与探险**（规则未核定部分显式阻塞）。
+- [ ] **NB-09 定向检查与整合**。
+
 ## 待你确认或操作
 
 - [ ] **HMR 计划 P1（是否改双击默认行为）**。把统一脚本改造成 dev/build/preview/status/stop 模式后，双击启动会从“构建+服务”变成

@@ -314,8 +314,79 @@ fn shop_rebuy_list_merges_and_stays_capped() {
         "the oldest rows are the ones dropped"
     );
 
-    // Buying a row back takes it off the list, and taking it twice is a miss.
-    assert!(store.take_shop_rebuy("seller", "4000024", 5).expect("take"));
-    assert!(!store.take_shop_rebuy("seller", "4000024", 5).expect("take again"));
+    // 买回把行从列表上消费掉，「再取一次」必须是 miss（返回 false）。
+    // 这两条走 NB-04 的单事务提交入口——行与资产同事务，不再有独立的
+    // take 步骤；该行的金额 / 背包断言在 shop_commit_acceptance.rs。
+    let mut profile = quest_profile();
+    profile.mesos = 0;
+    assert!(store
+        .shop_rebuy_commit("seller", &profile, &[], "4000024", 5)
+        .expect("take"));
+    assert!(!store
+        .shop_rebuy_commit("seller", &profile, &[], "4000024", 5)
+        .expect("take again"));
     assert_eq!(store.load_shop_rebuy("seller").expect("reload").len(), 19);
+}
+
+/// NB-04：消费赎回行 + 扣金币 + 授予行是一个事务。持久化失败（握住库锁
+/// 注入）时整笔回滚：赎回行**必须还在**（旧行为是先删行再写库，行会凭空
+/// 丢掉），钱没扣、物品没到手，且该 request 的重放记住的是这次拒绝。
+#[test]
+fn shop_rebuy_refuses_and_keeps_the_row_when_the_commit_fails() {
+    let (mut world, mut output) = shop_world();
+    give(&mut world, SELLABLE_ITEM, 10);
+    sell(&mut world, 1, 10, "sell-before-db-down");
+    let price = unit_payout(SELLABLE_ITEM);
+    assert_eq!(rebuy_rows(&world), vec![(SELLABLE_ITEM.to_owned(), 10, price)]);
+    let purse_after_sale = world.players.get("seller").unwrap().state.mesos;
+
+    {
+        let _denial = Store::deny_persistence();
+        rebuy(&mut world, SELLABLE_ITEM, price, "rebuy-db-down");
+        let pushes = drain_pushes(&mut output);
+        let result = pushed(&pushes, "shopRebought").expect("shopRebought result");
+        assert_eq!(result.get("success").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            result.get("code").and_then(|v| v.as_str()),
+            Some("persistence")
+        );
+    }
+    assert_eq!(
+        rebuy_rows(&world),
+        vec![(SELLABLE_ITEM.to_owned(), 10, price)],
+        "a failed commit keeps the buy-back row"
+    );
+    assert_eq!(
+        world.players.get("seller").unwrap().state.mesos,
+        purse_after_sale,
+        "a failed commit never charges"
+    );
+    assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 0, "nor grants early");
+
+    // 同一 request 的重放重发同一次拒绝。
+    rebuy(&mut world, SELLABLE_ITEM, price, "rebuy-db-down");
+    let pushes = drain_pushes(&mut output);
+    let replay = pushed(&pushes, "shopRebought").expect("shopRebought result");
+    assert_eq!(
+        replay.get("code").and_then(|v| v.as_str()),
+        Some("persistence")
+    );
+
+    // 一个真正的新 request 在库恢复后照常买回：行被消费、钱被扣、物到手。
+    rebuy(&mut world, SELLABLE_ITEM, price, "rebuy-after-recovery");
+    let pushes = drain_pushes(&mut output);
+    let retry = pushed(&pushes, "shopRebought").expect("shopRebought result");
+    assert_eq!(
+        retry.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "buy-back was refused with code {:?}",
+        retry.get("code").and_then(|v| v.as_str())
+    );
+    assert!(rebuy_rows(&world).is_empty());
+    assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 10);
+    // 买回花掉正是卖出时拿到的那笔钱：余额回到卖出前的水平。
+    assert_eq!(
+        world.players.get("seller").unwrap().state.mesos,
+        purse_after_sale - price * 10
+    );
 }

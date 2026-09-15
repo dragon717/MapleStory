@@ -72,6 +72,8 @@ mod ufo;
 mod growth;
 #[path = "revive.rs"]
 mod revive;
+#[path = "notebook.rs"]
+mod notebook;
 #[path = "commands.rs"]
 mod commands;
 #[path = "derived.rs"]

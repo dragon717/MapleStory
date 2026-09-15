@@ -405,3 +405,48 @@ fn shop_buy_replays_a_refusal_instead_of_re_deciding_it() {
     assert_eq!(sb_purse(&world), 1_000, "a replayed refusal never charges");
     assert_eq!(sb_held(&world, SB_ITEM), 0);
 }
+
+/// NB-04：扣金币与授予行是一个事务。持久化失败（这里用「握住库锁」注入）
+/// 时整笔回滚：内存分文未动、一物未授，且该 request 的重放记住的是这次
+/// 拒绝——库恢复后也不会被偷偷重放成一次成交。
+#[test]
+fn shop_buy_refuses_and_keeps_memory_when_the_commit_fails() {
+    let (mut world, mut output) = sb_world();
+    sb_fund(&mut world, 1_000);
+
+    {
+        let _denial = Store::deny_persistence();
+        sb_buy(&mut world, SB_ITEM, 10, "buy-db-down");
+        let result = sb_last(&mut output).expect("shopResult");
+        assert_eq!(result.get("success").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            result.get("code").and_then(|v| v.as_str()),
+            Some("persistence")
+        );
+    }
+    assert_eq!(sb_purse(&world), 1_000, "a failed commit never charges");
+    assert_eq!(sb_held(&world, SB_ITEM), 0, "nor grants the stack");
+
+    // 同一 request 的重放重发同一次拒绝（幂等账本），库恢复后也不会成交。
+    sb_buy(&mut world, SB_ITEM, 10, "buy-db-down");
+    let replay = sb_last(&mut output).expect("replayed result is re-sent");
+    assert_eq!(replay.get("success").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(
+        replay.get("code").and_then(|v| v.as_str()),
+        Some("persistence")
+    );
+    assert_eq!(sb_purse(&world), 1_000);
+    assert_eq!(sb_held(&world, SB_ITEM), 0);
+
+    // 一个真正的新 request 在库恢复后照常成交。
+    sb_buy(&mut world, SB_ITEM, 10, "buy-after-recovery");
+    let retry = sb_last(&mut output).expect("shopResult");
+    assert_eq!(
+        retry.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "purchase was refused with code {:?}",
+        retry.get("code").and_then(|v| v.as_str())
+    );
+    assert_eq!(sb_purse(&world), 1_000 - SB_PRICE * 10);
+    assert_eq!(sb_held(&world, SB_ITEM), 10);
+}

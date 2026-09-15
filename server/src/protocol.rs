@@ -2,8 +2,35 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 23;
+pub const PROTOCOL_VERSION: u32 = 24;
 pub const CONTENT_VERSION: &str = "tms273-29";
+
+/// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
+/// 也不能用「先拿全量再隐藏」的方式绕过任务页的私有过滤（计划 §12.2）。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum NotebookSection {
+    Monster,
+    Equipment,
+    Use,
+    Setup,
+    Etc,
+    Cash,
+    Pet,
+    Quest,
+}
+
+/// 一次收藏操作的种类。  `rewardKey` 由服务器给出，客户端只回传它收到的那个键。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum NotebookOperation {
+    /// 领取一处行／分頁／地區完成奖励。
+    CollectionClaim,
+    /// 开始一次探险。
+    ExplorationStart,
+    /// 领取已完成的探险。
+    ExplorationClaim,
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -505,6 +532,43 @@ pub enum ClientMessage {
         #[allow(dead_code)]
         client_now_ms: Option<i64>,
     },
+    /// 冒险笔记（图鉴）查询。  主体只来自连接：客户端不提交角色或账号 id，
+    /// 只提交它要看的分区、页码和一个有限筛选。  任务页的筛选与分页完全在服务器侧
+    /// 的「已获得」集合上计算，客户端拿不到任何未获得的任务条目。
+    NotebookQuery {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        section: NotebookSection,
+        page: u32,
+        /// 目录版本回显：不一致时服务器明确拒绝，而不是用旧页码解释新数据。
+        #[serde(rename = "catalogVersion")]
+        catalog_version: String,
+        /// 名称筛选（服务端做包含匹配），长度受限。
+        #[serde(default)]
+        filter: Option<String>,
+    },
+    /// 领取一处原版完成奖励。  客户端只回传服务器此前给出的 `rewardKey`；
+    /// 资格、收件角色与容量全部由服务器重算。
+    CollectionClaim {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "rewardKey")]
+        reward_key: String,
+    },
+    /// 开始一次探险。  客户端只命名要派遣的收藏行；组合资格与时长由服务器决定。
+    ExplorationStart {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "rowKey")]
+        row_key: String,
+    },
+    /// 领取一次已完成的探险。  `runId` 必须由服务器此前签发。
+    ExplorationClaim {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "runId")]
+        run_id: String,
+    },
 }
 
 impl ClientMessage {
@@ -813,9 +877,45 @@ impl ClientMessage {
             } => valid_id(request_id) && valid_id(emoticon_id),
             Self::Lifecycle { .. } => true,
             Self::Logout => true,
+            // 图鉴查询只做形状与规模校验：主体身份来自连接，目录版本来自服务器
+            // 自己的目录文件，分区是枚举（未知取值在反序列化阶段就失败）。页码与
+            // 筛选长度必须在这里挡住，TypeScript 类型不能替代服务器检查。
+            Self::NotebookQuery {
+                request_id,
+                page,
+                catalog_version,
+                filter,
+                ..
+            } => {
+                valid_id(request_id)
+                    && *page <= NOTEBOOK_MAX_PAGE
+                    && valid_id(catalog_version)
+                    && filter.as_deref().is_none_or(|text| {
+                        !text.is_empty()
+                            && text.chars().count() <= NOTEBOOK_MAX_FILTER_CHARS
+                            && !text.chars().any(char::is_control)
+                    })
+            }
+            // 收藏操作只校验形状：`rewardKey`/`rowKey`/`runId` 是否真实存在、
+            // 是否属于当前主体、是否已领取，全部是权威世界的问题。
+            Self::CollectionClaim { request_id, reward_key } => {
+                valid_id(request_id) && valid_id(reward_key)
+            }
+            Self::ExplorationStart { request_id, row_key } => {
+                valid_id(request_id) && valid_id(row_key)
+            }
+            Self::ExplorationClaim { request_id, run_id } => {
+                valid_id(request_id) && valid_id(run_id)
+            }
         }
     }
 }
+
+/// 页码上限：一个分区最多几千条，这个上限只是为了让越界请求在协议层就失败，
+/// 而不是让服务器去做一次无意义的巨大偏移。
+pub const NOTEBOOK_MAX_PAGE: u32 = 4096;
+/// 搜索框上限：与聊天正文一起构成「输入型字段必须有界」的同一约定。
+pub const NOTEBOOK_MAX_FILTER_CHARS: usize = 32;
 
 /// Map/player chat body policy: non-empty after trimming, bounded by characters
 /// and UTF-8 bytes, and free of C0/C1 control characters (chat is a one-line
@@ -1192,6 +1292,62 @@ mod tests {
             r#"{"type":"hello","token":"0000000000000000000000000000000000000000000000000000000000000000","protocolVersion":6,"contentVersion":"tms273-5","skillPoints":{"1":5}}"#,
         ] {
             assert!(serde_json::from_str::<ClientMessage>(message).is_err());
+        }
+    }
+
+    /// 冒险笔记（图鉴）的消息形状。
+    ///
+    /// 这一层只回答「能不能解析、形状对不对」：某个 `rewardKey` / `rowKey` /
+    /// `runId` 是否真实存在、是否属于当前主体、是否已经领过，是权威世界的问题
+    /// （`notebook.rs` 与将来的奖励事务），不是这里能判定的。
+    #[test]
+    fn notebook_messages_only_police_their_shape() {
+        let query: ClientMessage = serde_json::from_str(
+            r#"{"type":"notebookQuery","requestId":"nb-1","section":"monster","page":0,"catalogVersion":"notebook-catalog-1"}"#,
+        )
+        .unwrap();
+        assert!(query.valid());
+        // 分区是枚举：拼错或凭空造一个分区在反序列化阶段就失败，不会退化成
+        // 「服务端悄悄忽略这个字段」。
+        assert!(
+            serde_json::from_str::<ClientMessage>(
+                r#"{"type":"notebookQuery","requestId":"nb-2","section":"monsters","page":0,"catalogVersion":"notebook-catalog-1"}"#,
+            )
+            .is_err()
+        );
+        // 页码与筛选长度是服务器侧的上限，TypeScript 类型不能替代这里。
+        let over_page: ClientMessage = serde_json::from_str(
+            r#"{"type":"notebookQuery","requestId":"nb-3","section":"use","page":4097,"catalogVersion":"notebook-catalog-1"}"#,
+        )
+        .unwrap();
+        assert!(!over_page.valid());
+        let long_filter: ClientMessage = serde_json::from_str(&format!(
+            r#"{{"type":"notebookQuery","requestId":"nb-4","section":"use","page":0,"catalogVersion":"notebook-catalog-1","filter":"{}"}}"#,
+            "搜".repeat(NOTEBOOK_MAX_FILTER_CHARS + 1)
+        ))
+        .unwrap();
+        assert!(!long_filter.valid());
+        let empty_request: ClientMessage = serde_json::from_str(
+            r#"{"type":"notebookQuery","requestId":"","section":"use","page":0,"catalogVersion":"notebook-catalog-1"}"#,
+        )
+        .unwrap();
+        assert!(!empty_request.valid());
+
+        let claim: ClientMessage =
+            serde_json::from_str(r#"{"type":"collectionClaim","requestId":"nb-5","rewardKey":"mc-0-0-0"}"#)
+                .unwrap();
+        assert!(claim.valid());
+        // 客户端不能自己声明操作种类：它只回传服务器给出的键，操作名由消息类型决定。
+        for bad in [
+            r#"{"type":"collectionClaim","requestId":"nb-6","rewardKey":""}"#,
+            r#"{"type":"explorationStart","requestId":"nb-7","rowKey":""}"#,
+            r#"{"type":"explorationClaim","requestId":"nb-8","runId":""}"#,
+        ] {
+            let parsed = serde_json::from_str::<ClientMessage>(bad);
+            assert!(
+                parsed.map(|message| !message.valid()).unwrap_or(true),
+                "{bad} must not reach a handler"
+            );
         }
     }
 }

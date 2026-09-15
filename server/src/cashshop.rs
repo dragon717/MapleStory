@@ -380,12 +380,24 @@ impl World {
             if expired.is_empty() {
                 continue;
             }
-            player
+            // NB-04：先在克隆上算好收紧后的背包并落库，写库成功才改内存。
+            // 之前是「先 retain 内存再 `let _ =` 写库」——持久化失败时内存
+            // 已把过期品丢掉而存档还在，重连后物品复活。失败时跳过本角色，
+            // 下一轮清扫（10s 节奏）自动重试。
+            let next_inventory: Vec<crate::protocol::InventoryItem> = player
                 .state
                 .inventory
-                .retain(|item| !inventory::rental_expired(item, now));
+                .iter()
+                .filter(|item| !inventory::rental_expired(item, now))
+                .cloned()
+                .collect();
             if let Some(store) = self.store.as_ref() {
-                let _ = store.write_inventory(&id, &player.state.inventory);
+                if store.write_inventory(&id, &next_inventory).is_err() {
+                    continue;
+                }
+            }
+            if let Some(player) = self.players.get_mut(&id) {
+                player.state.inventory = next_inventory;
             }
             let mut item_ids = expired;
             item_ids.sort();

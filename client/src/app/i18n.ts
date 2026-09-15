@@ -187,6 +187,9 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   quest_requirements_missing: { zh: '任务条件尚未完成', en: 'The quest requirements are not met yet' },
   quest_return_unavailable: { zh: '任务路线已更新，请重新开启对话', en: 'The quest route changed; reopen the dialogue' },
   quest_self_service_unavailable: { zh: '此任务无法在任务视窗处理，请找对应的NPC', en: 'This quest cannot be handled from the quest window; find its NPC' },
+  // 冒险笔记（图鉴）：登记／奖励／探险的规则尚未核定，本构建只提供浏览与登记事实，
+  // 不发放原版奖励，也不结算探险。服务端的回答另带 `blockedReason`，这里只是兜底文案。
+  notebook_unverified: { zh: '这个图鉴机制尚未核定，本版本暂不提供', en: 'This notebook mechanic is not verified yet in this build' },
 });
 
 /** Minimap window copy (UI/UIMap.img/MiniMap).  The controls themselves are

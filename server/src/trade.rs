@@ -21,6 +21,7 @@
 //! - 物品堆叠 / 容量规则本身：`crate::inventory`
 
 use super::*;
+use crate::auth::shop::ShopRebuyRow;
 
 impl World {
     pub(super) fn handle_shop_buy(
@@ -166,24 +167,37 @@ impl World {
             return;
         }
         let new_mesos = player.state.mesos - total;
+        // NB-04：扣金币 + 授予行是**一个事务**。先在克隆上算好结果并落库，
+        // commit 成功后才改内存——持久化失败整笔回滚并按 `persistence` 拒绝，
+        // 不再是「先改内存再 `let _ =` 写库」的静默吞错。
+        let mut profile = profile_from_state(
+            &player.state,
+            &player.map_id,
+            &player.death_id,
+            player.base_max_mp,
+        );
+        profile.mesos = new_mesos;
+        if let Some(store) = self.store.as_ref() {
+            if store.shop_buy_commit(&id, &profile, &next_inventory).is_err() {
+                self.send_shop_buy_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "persistence",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    0,
+                );
+                return;
+            }
+        }
         let player = match self.players.get_mut(&id) {
             Some(player) => player,
             None => return,
         };
         player.state.inventory = next_inventory;
         player.state.mesos = new_mesos;
-        if let Some(store) = self.store.as_ref() {
-            let _ = store.write_inventory(&id, &player.state.inventory);
-            let _ = store.save_profile(
-                &id,
-                &profile_from_state(
-                    &player.state,
-                    &player.map_id,
-                    &player.death_id,
-                    player.base_max_mp,
-                ),
-            );
-        }
         self.send_shop_buy_result(
             &id,
             &request_id,
@@ -457,24 +471,46 @@ impl World {
             return;
         }
         let new_mesos = player.state.mesos.saturating_add(payout);
+        // NB-04：移除背包行 + 入账金币 + 赎回行入表是**一个事务**。先在
+        // 克隆上算好并落库，commit 成功后才改内存；持久化失败整笔回滚并
+        // 按 `persistence` 拒绝（回执账本记住这次拒绝，重放不再重试）。
+        let mut profile = profile_from_state(
+            &player.state,
+            &player.map_id,
+            &player.death_id,
+            player.base_max_mp,
+        );
+        profile.mesos = new_mesos;
+        let rebuy_row = ShopRebuyRow {
+            item_id: item_id.clone(),
+            quantity,
+            unit_price: unit_payout,
+        };
+        if let Some(store) = self.store.as_ref() {
+            if store
+                .shop_sell_commit(&id, &profile, &next_inventory, Some(rebuy_row))
+                .is_err()
+            {
+                self.send_shop_sell_result(
+                    &id,
+                    &request_id,
+                    false,
+                    "persistence",
+                    &shop_id,
+                    &item_id,
+                    quantity,
+                    source_slot,
+                    0,
+                );
+                return;
+            }
+        }
         let player = match self.players.get_mut(&id) {
             Some(player) => player,
             None => return,
         };
         player.state.inventory = next_inventory;
         player.state.mesos = new_mesos;
-        if let Some(store) = self.store.as_ref() {
-            let _ = store.write_inventory(&id, &player.state.inventory);
-            let _ = store.save_profile(
-                &id,
-                &profile_from_state(
-                    &player.state,
-                    &player.map_id,
-                    &player.death_id,
-                    player.base_max_mp,
-                ),
-            );
-        }
         self.send_shop_sell_result(
             &id,
             &request_id,
@@ -486,13 +522,8 @@ impl World {
             source_slot,
             payout,
         );
-        // The shop now owes the character a buy-back row: remember the stack
-        // and the price it just paid, so the same money can take it back.  The
-        // sale itself has already been committed, so a persistence failure here
-        // only costs the buy-back entry.
-        if let Some(store) = self.store.as_ref() {
-            let _ = store.push_shop_rebuy(&id, &item_id, quantity, unit_payout);
-        }
+        // The buy-back row was written in the same commit as the sale, so the
+        // list the client now sees can never show a deal the shop would refuse.
         self.send_shop_rebuy_state(&id);
     }
 
@@ -648,9 +679,19 @@ impl World {
             );
             return;
         }
-        // Consume the row before handing anything out: if it is already gone
-        // the deal is off, and nothing has moved yet.
-        match store.take_shop_rebuy(&id, &item_id, unit_price) {
+        let new_mesos = player.state.mesos - cost;
+        // NB-04：消费赎回行 + 扣金币 + 授予行是**一个事务**。行不存在时
+        // `Ok(false)` 按 `shop_rebuy_unknown` 拒绝；写库失败整笔回滚、行保
+        // 留，内存不动。之前行在校验后被单独删掉，若后续写库失败，行已丢
+        // 而物品没到手，且错误被 `let _ =` 静默吞掉。
+        let mut profile = profile_from_state(
+            &player.state,
+            &player.map_id,
+            &player.death_id,
+            player.base_max_mp,
+        );
+        profile.mesos = new_mesos;
+        match store.shop_rebuy_commit(&id, &profile, &next_inventory, &item_id, unit_price) {
             Ok(true) => {}
             Ok(false) => {
                 self.send_shop_rebuy_result(
@@ -681,25 +722,12 @@ impl World {
                 return;
             }
         }
-        let new_mesos = player.state.mesos - cost;
         let player = match self.players.get_mut(&id) {
             Some(player) => player,
             None => return,
         };
         player.state.inventory = next_inventory;
         player.state.mesos = new_mesos;
-        if let Some(store) = self.store.as_ref() {
-            let _ = store.write_inventory(&id, &player.state.inventory);
-            let _ = store.save_profile(
-                &id,
-                &profile_from_state(
-                    &player.state,
-                    &player.map_id,
-                    &player.death_id,
-                    player.base_max_mp,
-                ),
-            );
-        }
         self.send_shop_rebuy_result(
             &id,
             &request_id,

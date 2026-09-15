@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 export const CONTENT_VERSION = 'tms273-29';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -296,7 +296,84 @@ export type ClientMessage =
    *  assets, invulnerability, or control of the away window. */
   | { type: 'lifecycle'; hidden: boolean; away?: boolean; clientNowMs?: number }
   /** Explicit logout: removes the character instead of keeping it resident. */
-  | { type: 'logout' };
+  | { type: 'logout' }
+  /** 冒险笔记（图鉴）查询. The client names a section, a page and a bounded
+   *  filter — never a character or account id, and never a monster or item it
+   *  claims to have. The quest section is filtered server-side over the rows
+   *  this character really obtained, so an un-obtained task entry is never on
+   *  the wire in the first place (not merely hidden with CSS). */
+  | { type: 'notebookQuery'; requestId: string; section: NotebookSection; page: number; catalogVersion: string; filter?: string }
+  /** Claim one original completion reward. The `rewardKey` is one the server
+   *  itself handed out; eligibility, the receiving character and the slot
+   *  capacity are all recomputed server-side. */
+  | { type: 'collectionClaim'; requestId: string; rewardKey: string }
+  /** Dispatch one collection row on an exploration. The client names only the
+   *  row; the combination requirement, the duration and the slot rule belong
+   *  to the server. */
+  | { type: 'explorationStart'; requestId: string; rowKey: string }
+  /** Claim a finished exploration. `runId` must be one the server issued. */
+  | { type: 'explorationClaim'; requestId: string; runId: string };
+/** 冒险笔记（图鉴）的页签。 Kept as its own union so an unknown or misspelled
+ *  section is a deserialization error on both sides rather than a silently
+ *  ignored field. `quest` is server-filtered: the client never learns an
+ *  un-obtained task entry from it. */
+export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'quest';
+/** One displayable notebook row. `owned`/`registered` are the private halves
+ *  and are only ever computed on the server; `label`, `iconItemId` and
+ *  `monsterTemplateId` are directory facts the client already ships. */
+export interface NotebookRow {
+  /** Stable directory key: collection entry id, item template id, or quest row key. */
+  key: string;
+  label: string;
+  /** `obtained` / `registered` are the private facts; `available` is the
+   *  directory's own availability for the item pages. */
+  obtained: boolean;
+  registered: boolean;
+  /** Item template id whose icon to draw, for the item pages. */
+  itemId?: string;
+  /** Monster template id whose standing frame to draw, for the monster page. */
+  monsterTemplateId?: string;
+  /** Item pages only: how the template is categorised (the directory's own
+   *  availability value, never a projection of what the player did). */
+  availability?: 'obtainable' | 'unavailable' | 'unverified';
+  /** Monster page only: the authored row this entry belongs to. */
+  rowKey?: string;
+  /** First-record evidence for an obtained row. Absent means "not obtained". */
+  firstRecordMs?: number;
+  /** True when the row is a historical backfill whose real event time is
+   *  unknown — the client must not render `firstRecordMs` as an obtain time. */
+  timeUnknown?: boolean;
+}
+export interface NotebookSummary {
+  /** Monster page: how many of the *whole original* entry set are registered. */
+  registered: number;
+  total: number;
+  /** Monster page: the reduced "collectable in this build" count, kept apart
+   *  from `total` so a row reward can never be earned against it. */
+  collectable: number;
+  /** Quest page: how many kinds this character has a record for. There is no
+   *  denominator on purpose — the future task catalogue is not public. */
+  recorded?: number;
+}
+export interface NotebookRewardState {
+  /** Server-authored key; the client echoes it back verbatim. */
+  rewardKey: string;
+  label: string;
+  rewardItemId: string | null;
+  /** `unverified` means the source does not state the completion condition,
+   *  so the client shows the reason instead of a progress bar. */
+  status: 'unverified' | 'claimable' | 'claimed';
+  reason?: string;
+}
+export interface NotebookExplorationState {
+  runId: string;
+  rowKey: string;
+  label: string;
+  startedAtMs: number;
+  finishesAtMs: number;
+  status: 'running' | 'claimable' | 'claimed';
+  rewardItemId: string | null;
+}
 export interface DialogueOption { index: number; text: string }
 export interface QuestLogEntry {
   questId: string; name: string;
@@ -419,7 +496,31 @@ export type ServerMessage =
   /** Server-initiated: the rental sweep reclaimed expired cash-shop
    *  `Period` items from this character.  `itemIds` lists the distinct item
    *  ids that disappeared; the inventory snapshot already reflects it. */
-  | { type: 'rentalNotice'; itemIds: string[] };
+  | { type: 'rentalNotice'; itemIds: string[] }
+  /** 冒险笔记（图鉴）私有快照：一次查询的完整答复. `revision` is the account
+   *  (monster page) or character (item pages) revision the rows were read at;
+   *  a client that sees it jump past its own value re-queries instead of
+   *  trusting a stale page. `serverNowMs` is the only clock the exploration
+   *  countdown may be computed from. */
+  | { type: 'notebookState'; requestId: string; section: NotebookSection; catalogVersion: string; scope: 'account' | 'character'; revision: number; page: number; pageCount: number; rows: NotebookRow[]; summary: NotebookSummary; serverNowMs: number
+      /** Monster page only: the authored region/page/row navigation, and the
+       *  reward/exploration state of the row on screen. */
+      rewards?: NotebookRewardState[];
+      exploration?: NotebookExplorationState | null
+      /** Present when the section itself cannot be served at all (an empty
+       *  quest page is normal, this is not). */
+      blockedReason?: string }
+  /** Lightweight private invalidation. `addedKeys` are the entries that just
+   *  became visible to this scope, so the window can play one "first found"
+   *  cue without re-fetching the whole section. A revision gap always means
+   *  "re-query", never "guess". */
+  | { type: 'notebookChanged'; scope: 'account' | 'character'; revision: number; section: NotebookSection; addedKeys: string[] }
+  /** Result of one collection claim / exploration intent. A replayed
+   *  `requestId` replays this same outcome instead of paying out twice. */
+  | { type: 'notebookActionResult'; requestId: string; operation: 'collectionClaim' | 'explorationStart' | 'explorationClaim'; success: boolean; code: string; rewardKey?: string; runId?: string; itemId?: string; quantity?: number; revision: number; serverNowMs: number
+      /** Set when the refusal is "this mechanic is not verified in this build",
+       *  so the window can show the reason rather than a generic failure. */
+      blockedReason?: string };
 export interface LoginResponse { token: string; playerId: string; username: string; protocolVersion: number; contentVersion: string; }
 export interface MapData {
   id: string; bounds: { xMin: number; xMax: number; yMin: number; yMax: number };

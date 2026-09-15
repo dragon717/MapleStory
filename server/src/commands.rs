@@ -935,6 +935,36 @@ impl World {
                         player_id,
                     ),
                     ClientMessage::Hello { .. } => {}
+                    // 冒险笔记（图鉴）。  查询回答当前角色／账号真正拥有的记录；
+                    // 三种操作在规则核定之前一律以「本构建没有核定这套机制」拒绝
+                    // （原因见 `notebook.rs`：登记／奖励／探险的规则都还是
+                    // `unverified`，所以没有可领取的奖励，也没有可开始的探险）。
+                    ClientMessage::NotebookQuery {
+                        request_id,
+                        section,
+                        page,
+                        catalog_version,
+                        filter,
+                    } => self.handle_notebook_query(
+                        &id,
+                        request_id,
+                        section,
+                        page,
+                        catalog_version,
+                        filter,
+                    ),
+                    // `reward_key` / `row_key` / `run_id` 的真实性、归属与重复领取
+                    // 是权威世界的问题，等奖励事务落地时在同一个事务里重算；此刻
+                    // 它们连一个可校验的目标都没有，所以拒绝回答里不回显这些键。
+                    ClientMessage::CollectionClaim { request_id, .. } => {
+                        self.handle_collection_claim(&id, request_id)
+                    }
+                    ClientMessage::ExplorationStart { request_id, .. } => {
+                        self.handle_exploration(&id, request_id, true)
+                    }
+                    ClientMessage::ExplorationClaim { request_id, .. } => {
+                        self.handle_exploration(&id, request_id, false)
+                    }
                 }
             }
         }

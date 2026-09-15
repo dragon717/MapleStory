@@ -440,3 +440,51 @@ fn shop_sell_ignores_a_replayed_request_id() {
     // The stack was only charged once.
     assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 4);
 }
+
+/// NB-04：移除背包行 + 入账金币 + 赎回行入表是一个事务。持久化失败
+/// （握住库锁注入）时整笔回滚：物品还在、分文未入账、赎回表为空，且
+/// 该 request 的重放记住的是这次拒绝。
+#[test]
+fn shop_sell_refuses_and_keeps_memory_when_the_commit_fails() {
+    let (mut world, mut output) = shop_world();
+    give(&mut world, SELLABLE_ITEM, 10);
+
+    {
+        let _denial = Store::deny_persistence();
+        sell(&mut world, 1, 10, "sell-db-down");
+        let result = last_sale(&mut output).expect("shopSold result");
+        assert_eq!(result.get("success").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            result.get("code").and_then(|v| v.as_str()),
+            Some("persistence")
+        );
+    }
+    assert_eq!(
+        inventory_quantity(&world, SELLABLE_ITEM),
+        10,
+        "a failed commit never takes the stack"
+    );
+    assert_eq!(world.players.get("seller").unwrap().state.mesos, 0);
+    assert!(rebuy_rows(&world).is_empty(), "nor writes a buy-back row");
+
+    // 同一 request 的重放重发同一次拒绝。
+    sell(&mut world, 1, 10, "sell-db-down");
+    let replay = last_sale(&mut output).expect("replayed result is re-sent");
+    assert_eq!(replay.get("success").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(
+        replay.get("code").and_then(|v| v.as_str()),
+        Some("persistence")
+    );
+
+    // 一个真正的新 request 在库恢复后照常成交：赎回行随出售同事务入表。
+    sell(&mut world, 1, 10, "sell-after-recovery");
+    let retry = last_sale(&mut output).expect("shopSold result");
+    assert_eq!(
+        retry.get("success").and_then(|v| v.as_bool()),
+        Some(true),
+        "sale was refused with code {:?}",
+        retry.get("code").and_then(|v| v.as_str())
+    );
+    assert_eq!(inventory_quantity(&world, SELLABLE_ITEM), 0);
+    assert_eq!(rebuy_rows(&world).len(), 1);
+}

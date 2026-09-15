@@ -654,6 +654,52 @@ impl Store {
         if has_pickup_slot.is_none() {
             db.execute("ALTER TABLE pickup_actions ADD COLUMN slot INTEGER", [])?;
         }
+        // 冒险笔记（图鉴）的事实层。四张表全部是新增表，既有库只需建表、无需列迁移；
+        // 旧 BINARY 读到新库时只是多出四张空表，不回读也不回写（计划 §13.4）。
+        //
+        // 归属刻意分开：物品获得记录按**角色**，怪物收藏按**登录账号**（计划 §2.3）。
+        // 表里**不复制**名称、图标、分类、进度百分比或当前库存——目录修正后重新投影
+        // 即可，不用清洗玩家记录（§7.2）。
+        db.execute_batch(
+            "CREATE TABLE IF NOT EXISTS notebook_item_records(
+               character_id TEXT NOT NULL,
+               -- 目录使用的唯一键（去掉多余前导零），别名写在同一行
+               item_id TEXT NOT NULL,
+               -- 真实获得时间；历史补记写 NULL＝时间未知，不是补记时间
+               first_obtained_at_ms INTEGER,
+               recorded_at_ms INTEGER NOT NULL,
+               -- 'event'（真实获得事件时间）｜'unknown'（历史补记，时间未知）
+               time_quality TEXT NOT NULL,
+               source_kind TEXT NOT NULL,
+               source_ref TEXT,
+               PRIMARY KEY(character_id,item_id)
+             );
+             CREATE TABLE IF NOT EXISTS monster_collection_records(
+               owner_account_id TEXT NOT NULL,
+               entry_id TEXT NOT NULL,
+               first_character_id TEXT NOT NULL,
+               registered_at_ms INTEGER NOT NULL,
+               rules_version TEXT NOT NULL,
+               PRIMARY KEY(owner_account_id,entry_id)
+             );
+             -- 每个归属一行已提交的 revision。只在**首次获得／登记真的提交**之后 +1，
+             -- 重复获得不刷；事务失败时与事实、奖励、回执一起回滚（计划 §7.4）。
+             CREATE TABLE IF NOT EXISTS notebook_revisions(
+               scope_kind TEXT NOT NULL,
+               scope_id TEXT NOT NULL,
+               revision INTEGER NOT NULL DEFAULT 0,
+               PRIMARY KEY(scope_kind,scope_id)
+             );
+             -- 历史补记的版本标记。**最后写**：扫描或事实写入失败都不留标记，
+             -- 所以「已完成」永远等于「事实真的写过了」（计划 §13.2）。
+             CREATE TABLE IF NOT EXISTS notebook_backfill_runs(
+               character_id TEXT NOT NULL,
+               migration_version TEXT NOT NULL,
+               completed_at_ms INTEGER NOT NULL,
+               summary_json TEXT NOT NULL,
+               PRIMARY KEY(character_id,migration_version)
+             );",
+        )?;
         crate::lobby::init(db)?;
         Ok(())
     }

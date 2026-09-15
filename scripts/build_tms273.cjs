@@ -34,6 +34,13 @@ run(path.join(require('node:os').homedir(),'.cargo/bin/cargo'),['run','--quiet',
 // wiped scratch dir cannot silently abort the entities export.
 run(path.join(root,'scripts/unpack_tms273_ms/target/debug/unpack_tms273_ms'),['--out','/tmp/tms273-inspect-boss','--image','Mob/3220000.img']);
 for(const mode of ['maps','entities','ui','windows','portals','effects'])run(process.execPath,['scripts/export_tms273.cjs',mode]);
+// 冒险笔记（图鉴）的窗口素材与收藏源数据。  It must run after
+// `export_tms273.cjs windows` because it re-derives the reused menu entry and
+// compares it against that export, and it must run *here* — before the item
+// pipeline below — because the reward backfill reads the collection source it
+// writes.  The catalogue half is still generated at the very end (inside
+// `assemble_tms273`), where the item tree is final.
+run(process.execPath,['scripts/export_tms273_collection.cjs']);
 run('python3',['scripts/generate_tms273_gameplay.py']);
 // The four slot-expansion coupons are sourced through an NPC script in TMS273,
 // so `generate_tms273_gameplay.py` only authors their shop rows; the item
@@ -42,7 +49,13 @@ run('python3',['scripts/generate_tms273_gameplay.py']);
 // image export (which derives one PNG per item definition) — otherwise the
 // coupons stay in the shops with no icon and `check_tms273_runtime` fails.
 run('python3',['scripts/backfill_tms273_slot_expand.py']);
+// The 怪物收藏 region/page/row rewards (`Etc/mobCollection.img`) that the
+// same-version client really ships a definition for.  Same two constraints as
+// the coupon backfill above: after the gameplay rebuild, before the item image
+// export — and after the collection export, which is what resolves each
+// rewardID to its source definition and name.
+run('python3',['scripts/backfill_tms273_notebook_rewards.py']);
 run(process.execPath,['scripts/export_tms273.cjs','items']);
 run(process.execPath,['scripts/export_tms273_cashshop.cjs']);
 run(process.execPath,['scripts/export_tms273_avatar.cjs','--mage-actions']);
-for(const script of ['export_tms273_avatar','export_tms273_inventory','export_tms273_combat','export_tms273_chat','export_tms273_balloon','export_tms273_skills','export_tms273_skill_ui','export_tms273_keybindings','export_tms273_npc_marker','export_tms273_mage_effects','export_tms273_character_ui','export_tms273_creation_items','export_tms273_entry','export_tms273_avatar_parts','export_tms273_skill_sounds','export_tms273_levelup','export_tms273_reactor','export_tms273_chapter','export_tms273_storage','export_tms273_party','export_tms273_friend','export_tms273_minimap','export_tms273_worldmap','assemble_tms273'])run(process.execPath,[`scripts/${script}.cjs`]);
+for(const script of ['export_tms273_avatar','export_tms273_inventory','export_tms273_combat','export_tms273_chat','export_tms273_balloon','export_tms273_skills','export_tms273_skill_ui','export_tms273_keybindings','export_tms273_npc_marker','export_tms273_mage_effects','export_tms273_character_ui','export_tms273_creation_items','export_tms273_entry','export_tms273_avatar_parts','export_tms273_skill_sounds','export_tms273_levelup','export_tms273_reactor','export_tms273_chapter','export_tms273_storage','export_tms273_party','export_tms273_friend','export_tms273_minimap','export_tms273_worldmap','assemble_tms273','check_tms273_notebook'])run(process.execPath,[`scripts/${script}.cjs`]);

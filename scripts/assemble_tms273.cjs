@@ -162,6 +162,15 @@ const manifest = {
   // alongside the other UI art.
   worldMap: read('worldmap'),
   petUi: read('pet-ui'),
+  // Source-backed 怪物收藏 / 物品圖鑑 window (UI/UIWindow4.img).  PNGs are
+  // exported by export_tms273_collection.cjs and copied into
+  // client/public-tms273/assets alongside the other UI art.  The catalogue and
+  // the rule tables that go with it are generated further down, once the item
+  // tree is final.
+  notebook: (() => {
+    const { contentVersion, source, panels, states, menu, frames, values } = read('notebook');
+    return { contentVersion, source, panels, states, menu, frames, values };
+  })(),
   // Source-backed UI/CashShop.img window art (shell, the 11 sidebar tab
   // sprites whose highlight row encodes the active category, exit / buy /
   // magnifier buttons and the effect labels) used by the cash-shop window.
@@ -354,6 +363,113 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
     }
     manifest.portals[key] = { ...beam, mapId: map.id, portalName: portal.name, type: portal.type, frames: beam.frames, frameDelay: beam.frameDelay };
   }
+}
+// 冒险笔记（图鉴）。  Catalogue + rules are generated *here* and not in
+// `build_tms273.cjs`, because the item tree is only final at this point: the
+// chapter and remaster adapters above inject their own items, and the cash-shop
+// definitions were folded in at the top of this file.  Running the generator
+// earlier classifies those items as absent, which is silently wrong rather
+// than loudly broken.
+//
+// `shared/notebook-catalog.json` is the "what exists" half the server loads;
+// `shared/monster-collection-rules.json` is the "what it means" half, and its
+// every rule the same-version source cannot prove stays `unverified` with the
+// reason written out.  Nothing here fills in a probability, a slot count or a
+// completion condition.
+{
+  const notebook = read('notebook');
+  const { buildCatalog } = require('./generate_tms273_notebook_catalog.cjs');
+  const { catalog, rules } = buildCatalog({
+    notebook,
+    items,
+    gameplay,
+    creation: JSON.parse(fs.readFileSync(path.join(root, 'shared/character-creation.json'), 'utf8')),
+  });
+  assert.equal(rules.registration.mode, 'unverified', '正式内容不得携带伪造的登记概率');
+  assert.equal(rules.exploration.slotCount, null, '正式内容不得携带未经核定的探险槽位');
+  assert.equal(manifest.notebook.menu.type, 22, '图鉴入口必须仍是原「怪物收藏」菜单项');
+  assert.deepEqual(
+    Object.keys(catalog.monsterStructure.rows).sort(),
+    notebook.collection.regions.flatMap(region => region.pages.flatMap(page => page.rows.map(row => `mc-${region.region}-${page.page}-${row.row}`))).sort(),
+    '图鉴行目录与导出的收藏源不一致');
+  // The authored reward set has to agree with the item tree in both directions:
+  // a key the client ships a definition for must have been imported, and a key
+  // it does not must not have been invented.  A mismatch here means the reward
+  // backfill did not run (or ran before the collection export) — a build-order
+  // bug, not a source boundary.
+  for (const reward of Object.values(catalog.rewardItems)) {
+    assert.equal(
+      reward.inItemIndex,
+      reward.definitionStatus === 'json-present',
+      `奖励物品 ${reward.itemId} 与物品目录不一致（源定义 ${reward.definitionStatus}，目录内 ${reward.inItemIndex}）：请检查 scripts/backfill_tms273_notebook_rewards.py 的执行顺序`);
+  }
+  write(path.join(root, 'shared/notebook-catalog.json'), catalog);
+  write(path.join(root, 'shared/monster-collection-rules.json'), rules);
+  // The client projection is the *public* half of the catalogue only.  The
+  // quest section is deliberately withheld: the task page is computed on the
+  // server from what the character actually obtained, so shipping the static
+  // list here would hand the client rows it must never render (plan §12.2).
+  assert(catalog.sections.quest.length > 0, '任务道具分区为空');
+  const clientSections = Object.fromEntries(Object.entries(catalog.sections).filter(([key]) => key !== 'quest'));
+  write(path.join(publicRoot, 'assets/notebook.json'), {
+    catalogVersion: catalog.catalogVersion,
+    contentVersion: catalog.contentVersion,
+    sections: clientSections,
+    items: Object.fromEntries(Object.entries(catalog.items).map(([id, item]) => [id, {
+      inventoryType: item.inventoryType,
+      equipmentSlot: item.equipmentSlot,
+      isPet: item.isPet,
+      availability: item.availability,
+      questIds: item.questIds,
+    }])),
+    monsterStructure: catalog.monsterStructure,
+    monsterEntries: Object.fromEntries(Object.entries(catalog.monsterEntries).map(([id, entry]) => [id, {
+      monsterTemplateId: entry.monsterTemplateId,
+      rowKey: entry.rowKey,
+      slot: entry.slot,
+      sourceType: entry.sourceType,
+      collectable: entry.collectable,
+      hasEpisode: entry.hasEpisode,
+    }])),
+    monsterText: catalog.monsterText,
+    collectableEntryCount: catalog.collectableEntryCount,
+    // The authored rewards the window has to *name*, even when this build
+    // cannot hand the item out: the source pays 方塊椅子 that the TMS273
+    // client ships no definition for, and a row whose reward is invisible is
+    // worse than one shown as "this version cannot deliver it".  An item with
+    // a catalogue entry of its own is referenced, never copied — the window
+    // reads its name and icon from `assets/items.json`.
+    rewardItems: Object.fromEntries(Object.entries(catalog.rewardItems).map(([id, reward]) => [id, {
+      roles: reward.roles,
+      referenceCounts: reward.referenceCounts,
+      definitionStatus: reward.definitionStatus,
+      definitionAvailable: reward.definitionAvailable,
+      // Only a reward with no catalogue entry carries its own text (resolved
+      // from the same-version String table); everything else is a reference.
+      name: reward.name,
+      nameSource: reward.nameSource,
+      reason: reward.reason,
+    }])),
+    // Which original mechanics this build cannot run, in the words the server
+    // also uses.  The window shows these instead of inventing a number.
+    status: {
+      registration: rules.registration.mode,
+      registrationReason: rules.registration.blockedReason,
+      rewardCondition: rules.rewards.row.mode,
+      rewardReason: rules.rewards.row.blockedReason,
+      rewardItemAvailability: rules.rewards.itemAvailability.mode,
+      rewardItemReason: rules.rewards.itemAvailability.blockedReason,
+      rewardItemCounts: {
+        deliverable: rules.rewards.itemAvailability.deliverableCount,
+        definitionMissing: rules.rewards.itemAvailability.definitionMissingCount,
+      },
+      exploration: rules.exploration.mode,
+      explorationReason: rules.exploration.blockedReason,
+      sourceType: rules.sourceType.mode,
+    },
+  });
+  gameplay.compatibility.notebook = `T: the window shell, its button states, the grid furniture, the grade marks and every vector come from TMS273.7 UI/UIWindow4.img (monsterCollection + itemCollection); the collection's region/page/row/slot structure, per-row recordID/rewardID/exploration cycle and per-slot monster id come from Etc/mobCollection.img; per-monster text, authored spawn maps and authored reward items come from String/MonsterBook.img. ${catalog.itemDefinitionCount} item templates are classified from the assembled item catalogue (${catalog.aliasDedupe.deduped} seven/eight-digit aliases deduped), and the menu entry is source entry ${manifest.notebook.menu.key} (type ${manifest.notebook.menu.type}) renamed only in the localised label. U: the source authors no registration probability, qualification gate, per-slot grade, reward completion condition, exploration slot count or daily limit, so ${rules.registration.mode} stays the production mode and the registration/reward/exploration paths report a blocked reason rather than a made-up number. P: the collection is account-scoped and the item records are character-scoped; the "collectable today" denominator is the deployed monster templates.`;
+  console.log(JSON.stringify({ notebook: { items: catalog.itemDefinitionCount, monsterEntries: catalog.monsterEntryCount, rows: Object.keys(catalog.monsterStructure.rows).length, rewards: catalog.rewardItemCount, rewardDefinitionMissing: catalog.definitionMissingRewardCount, registration: rules.registration.mode } }));
 }
 const urls=new Set();
 function collect(value) {
