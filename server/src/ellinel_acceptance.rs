@@ -141,7 +141,14 @@ fn ellinel_real_catalog_crossings_pair_with_the_source() {
     assert_eq!(back.target_portal_name.as_deref(), Some("in01"));
     let room = by_id("222020400");
     let gate = portal(room, "in01");
-    assert!(gate.target_map_id.is_none(), "in01 is the source script gate");
+    // 源里 `in01` 是脚本门（脚本 `move_elin`，`tm=999999999` 无静态目标）——这条
+    // 源事实由装配器 `tms273_remaster.cjs::exposeScriptedGateRoutes` 守住（赋值前
+    // 断言必须为 null），服务端路由由 `ellinel.rs` 的钩子无条件接手。这里钉的
+    // 是**暴露后的目录**：客户端只对带 `targetMapId` 的门受理 ↑ 键（
+    // `world.ts::tryPortal` 第 145 行），目录里没有目标时玩家根本发不出请求，
+    // 已经写好的 `ellinel.rs` 路由就是死代码（2026-09-15 修）。
+    assert_eq!(gate.target_map_id.as_deref(), Some("300000100"));
+    assert_eq!(gate.target_portal_name.as_deref(), Some("in00"));
     for id in [
         "300000000", "300000002", "300000010", "300000100", "300010000",
         "300010100", "300010200", "300010300", "300010400", "300010410",

@@ -113,6 +113,17 @@ async function getFrom(resourceReader, source) {
     return n;
   } catch (error) { throw new Error(`${source}: ${error.message}`, { cause: error }); }
 }
+// 源里确实没有这个节点时返回 null（而不是抛错）。只吞 reader 的"找不到节点"，
+// 解包损坏、PNG 缺失一类的真错误继续抛出去。用途见 `exportEntities` 的可选动作。
+const MISSING_NODE = '找不到 273 WZ 节点';
+async function optionalFrom(resourceReader, source) {
+  try {
+    return await getFrom(resourceReader, source);
+  } catch (error) {
+    if (String(error.message).includes(MISSING_NODE)) return null;
+    throw error;
+  }
+}
 async function framesFrom(resourceReader, source) {
   const n = resolved(await getFrom(resourceReader, source));
   if (n instanceof wz.WzCanvasProperty) return [await frameFrom(resourceReader, source)];
@@ -383,7 +394,23 @@ async function exportEntities() {
         result.npcs[id]={name,source,hidden,stand:await frames(sprite+'/stand')};
       } else {
         const actions={};
-        for(const [action,sourceAction] of [['stand','stand'],['move','move'],['hit','hit1'],['die','die1']]) actions[action]=await framesFrom(entityReader, sprite+'/'+sourceAction);
+        // 源里没有该动作节点的怪导出**空表**，不把 `move` 别名成 `stand`：
+        // 服务端 `monsters.rs::movement_force` 用「无 `info.speed` 且无 `move`
+        // 时长」判定"源授权的不能移动"，别名会让这类怪凭空按默认速度走起来。
+        // 空表经 `generate_tms273_gameplay.py` 自然省略 `moveDurationMs`
+        // （那里是 `if duration:`），正好把这个源事实带给服务端；客户端的
+        // `features/mob/view.ts` 对空表回退 `stand` 展示。
+        // T（2026-09-15，全 165 图 51 个模板逐个核验）：只有 `2230103 黃蜘蛛`
+        // 与 `2230104 紅蜘蛛`（均只在 `221022600`）源里没有 `move` —— 两个文件
+        // 只写 `stand/hit1/die1`，`info` 里既无 `speed` 也无 `fs`，`dirType` 为
+        // `1N`（固定朝向），即原版授权的固定怪。
+        for(const [action,sourceAction] of [['stand','stand'],['move','move'],['hit','hit1'],['die','die1']]) {
+          const actionSource=`${sprite}/${sourceAction}`;
+          actions[action]=await optionalFrom(entityReader, actionSource)?await framesFrom(entityReader, actionSource):[];
+        }
+        // `stand` 是客户端构造精灵的必需帧（`view.ts` 读 `actions.stand[0].url`）：
+        // 缺它属于导出缺陷而非源边界，必须在导出阶段就炸掉。
+        assert(actions.stand.length, `Mob ${id} has no stand animation`);
         const entity={templateId:id,source,info:Object.fromEntries(children(info).filter(n=>['number','string'].includes(typeof n.wzValue)).map(n=>[n.name,n.wzValue])),actions};
         if(id==='3220000') {
           const actionMeta={};

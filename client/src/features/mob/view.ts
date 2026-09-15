@@ -37,7 +37,11 @@ export class MonsterView {
     // The server's freeze action is a state, not a source mob action. Keep
     // the monster's stand pose and layer the source-backed freeze effect over
     // it instead of looking up a fabricated `actions.freeze` animation.
-    const frames = monster.action === 'freeze' ? this.asset.actions.stand : this.asset.actions[monster.action] ?? this.asset.actions.stand;
+    // An empty list means the source has no such action at all (2230103 黃蜘蛛 /
+    // 2230104 紅蜘蛛 author no `move`), so it falls back to `stand` — treating it
+    // as "frames available but zero-length" would hide the sprite.
+    const requested = monster.action === 'freeze' ? undefined : this.asset.actions[monster.action];
+    const frames = requested?.length ? requested : this.asset.actions.stand;
     if (!frames.length) {
       this.sprite.setVisible(false);
       this.freezeSprite?.setVisible(false);

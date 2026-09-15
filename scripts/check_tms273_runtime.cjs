@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-27');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-28');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -74,13 +74,18 @@ for(const mob of gameplay.monsters) {
     const authored=nodes.map(ownSpeed).find(speed=>speed!==null)??null;
     return nodes.some(node=>Boolean(node.move))&&(authored??0)>-100;
   };
+  // 源内**授权不动**的场地怪名单（唯一豁免来源）。前三个是既有的城门/道具怪，
+  // 后两个见下方 2026-09-15 注释。少写一个就会让"缺动作的坏数据"混过去。
+  const AUTHORED_STATIC_MOBS=['3300112','9602083','9601337','2230103','2230104'];
   const deployed=new Set(gameplay.spawns.map(spawn=>spawn.templateId));
   // 17 species before the 2026-09-13 portal-closure maps; the 弓箭手村东/墮落
   // 城市西/礦山 route rooms deployed nine more field species.  The 2026-09-14
   // 楓之島災禍篇 scene execution added 8645261 藍色蘑菇王 (36315's verified kill
   // target) on 001010000, taking the surface to 27.  The 2026-09-14 艾靈森林
   // region added 10 field species (4250000/4250001, 5250000-5250007), to 37.
-  assert.equal(deployed.size,37,'the deployed monster surface changed');
+  // The 2026-09-15 愛奧斯塔/地球防衛本部 region added 15 more (塔身 1~100 樓与
+  // 路德斯湖街的场地怪), to 52.
+  assert.equal(deployed.size,52,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -88,12 +93,15 @@ for(const mob of gameplay.monsters) {
     assert.equal(mob.speed ?? null,ownSpeed(own),`speed export drifted from the source: ${mob.templateId}`);
   }
   assert.equal(linkOf(mobJson('100004')),'1210102','菇菇寶貝 must keep its source link');
-  const broken=[...deployed].filter(id=>!walks(id));
+  const broken=[...deployed].filter(id=>!walks(id)&&!AUTHORED_STATIC_MOBS.includes(id));
   assert.deepEqual(broken,[],'deployed monsters without an authored walk');
   // Teeth: the same predicate must still call the authored static props static
   // and the other no-`speed` walkers walkers, so neither "everything moves" nor
   // "a missing `speed` node is broken" can pass this audit.
-  for(const id of ['3300112','9602083','9601337']) assert.equal(walks(id),false,`authored static prop counted as a walker: ${id}`);
+  // 2026-09-15：2230103 黃蜘蛛 / 2230104 紅蜘蛛（愛奧斯塔94樓）加入这张名单——
+  // 它们的 WZ 只有 `stand/hit1/die1`、`info` 里既无 speed 也无 fs，原版就是固定怪。
+  // 名单是**唯一豁免来源**：别的怪少了 `move` 照样被上面那条断言抓住。
+  for(const id of AUTHORED_STATIC_MOBS) assert.equal(walks(id),false,`authored static prop counted as a walker: ${id}`);
   for(const id of ['2400100','1210100']) assert.equal(walks(id),true,`no-speed walker lost its walk: ${id}`);
   for(const id of ['1210102','100004']) {
     assert(resolved(id).some(node=>Boolean(node.move)),`菇菇寶貝 must keep its move animation: ${id}`);
@@ -111,7 +119,10 @@ for(const mob of gameplay.monsters) {
 // 赫爾奧斯塔入口、塔身 100/99/2 樓）；同日玩具城⇄天空之城飞行船第三航线
 // +9 图（玩具城售票处/碼頭、天空之城港口通道/碼頭、两张船图、天空之城城内
 // 与它的两家源商店）。
-assert.equal(catalog.maps.length,124);
+// 2026-09-15 愛奧斯塔（Eos Tower）與地球防衛本部 +41 图（玩具城村莊、愛奧斯塔入口、
+// 塔身 1~100 樓含三段分組梯層 `221021000/221021600/221022200` 与隱藏之塔、
+// 地球防衛本部本部/通道/主控室/司令室/安全地帶）。
+assert.equal(catalog.maps.length,165);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -250,12 +261,22 @@ for(const map of catalog.maps) {
     }
     return best;
   };
+  // 愛奧斯塔 32樓/66樓：源 `tn` 指定的落点本身就是悬空锚（`221021200/st00`
+  // y=644 而该 x 只有 y=705 的地板，Δ61px；`221021700/top00` Δ41px）。这两处
+  // 是 pt:1 隐形锚，原版落上去也是自然下坠一小段——落点来自源，不能为了贴地
+  // 把锚点搬下来。逐条钉住这 6 条边，别让别的图悄悄借这条豁免。
+  const SOURCE_FLOATING_LANDINGS=[
+    '221021300/under00','221021300/under01','221021300/under02',
+    '221021300/under03','221021300/under04',
+    '221021800/under00',
+  ];
   const floating=[];
   for(const map of catalog.maps)for(const portal of map.portals) {
     // 埃德爾斯坦船的舱门（out00..09）由服务端 `ship.rs` 接管：检票相位
     // warp 回本端检票站台 `sp`，航行中不开门——静态 tn 落点（源 st00 悬空
     // 170px）不参与贴地审计。
     if(['200090600','200090601','200090610','200090611'].includes(map.id)&&/^out\d+$/.test(portal.name))continue;
+    if(SOURCE_FLOATING_LANDINGS.includes(`${map.id}/${portal.name}`))continue;
     const targetId=portal.targetMapId;
     if(!targetId || targetId===map.id || !byId.has(targetId))continue;
     const target=byId.get(targetId);
@@ -264,6 +285,15 @@ for(const map of catalog.maps) {
     if(ground===null||Math.abs(ground-landing.y)>24)floating.push(`${map.id}/${portal.name} → ${targetId}/${portal.targetPortalName ?? 'spawn'} (Δ${ground===null?'none':Math.round(ground-landing.y)}px)`);
   }
   assert.deepEqual(floating,[],`Warp landing is not grounded: ${floating.join('; ')}`);
+  // 豁免本身也会过期：这些边必须仍然真的悬空，否则名单该删。
+  for(const edge of SOURCE_FLOATING_LANDINGS) {
+    const [mapId,name]=edge.split('/');
+    const portal=byId.get(mapId).portals.find(entry=>entry.name===name);
+    const target=byId.get(portal.targetMapId);
+    const landing=target.portals.find(entry=>entry.name===portal.targetPortalName);
+    const ground=groundNear(target,landing.x,landing.y);
+    assert(ground!==null&&Math.abs(ground-landing.y)>24,`${edge} 已不再悬空，豁免该删掉`);
+  }
   // The pier ferry in both directions, per `Map/Map/Graph.json`.
   const pier=byId.get('002000000').portals.find(p=>p.name==='east00');
   assert.equal(pier.targetMapId,'002000100');
@@ -433,6 +463,93 @@ for(const map of catalog.maps) {
   assert.equal(byId.get('220000000').portals.find(p=>p.name==='station00').targetMapId,'220000100',
     '玩具城 station00 must enter the ticket hall');
 }
+// 愛奧斯塔（Eos Tower）與地球防衛本部（路德斯湖街）步行链路（2026-09-15，审计 T06）。
+// 玩具城第一次接上塔与湖街：城 `west00` → 村莊 `east00`、村莊 `west00` →
+// 愛奧斯塔入口 `east00`；入口 `tower00` 直接上 100樓，塔身逐层下行到 1樓，
+// 1樓 `under00` 落到地球防衛總部安全地帶，再由安全地帶接地球防衛本部城镇。
+// 全程源内静态门，无 P 级路由——所以这里钉的是门的目标与落点，不是路由。
+{
+  const byId=new Map(catalog.maps.map(map=>[map.id,map]));
+  const gate=(map,name)=>{
+    const found=byId.get(map)?.portals.find(entry=>entry.name===name);
+    assert(found,`${map}/${name} must exist`);
+    return found;
+  };
+  // 1~100 樓自下而上，三段分組梯層（11~30/36~65/71~90 樓）各占一个槽位。
+  const floors=[
+    '221020000','221020100','221020200','221020300','221020400',
+    '221020500','221020600','221020700','221020800','221020900',
+    '221021000','221021100','221021200','221021300','221021400','221021500',
+    '221021600','221021700','221021800','221021900','221022000','221022100',
+    '221022200','221022300','221022400','221022500','221022600','221022700',
+    '221022800','221022900','221023000','221023100','221023200',
+  ];
+  for(const floor of floors) assert(byId.has(floor),`愛奧斯塔楼层必须装配: ${floor}`);
+  // 逐层不变式：本层 `top00` 上行到上一层（源里落 `st01` 或 `under00`，视该段
+  // 用的是接触门还是静态门），上一层的 `under00` 原路下行回本层。任何一层错位
+  // 都会让塔断成两截，这里逐段核出是哪一段。
+  for(let index=0;index<floors.length-1;index+=1) {
+    const lower=floors[index],upper=floors[index+1];
+    assert.equal(gate(lower,'top00').targetMapId,upper,`${lower}/top00 must climb to ${upper}`);
+    assert.equal(gate(upper,'under00').targetMapId,lower,`${upper}/under00 must descend to ${lower}`);
+  }
+  // 塔的两端：入口 `tower00` 进 100樓，100樓 `top00` 原路出塔；1樓 `under00`
+  // 落到安全地帶，安全地帶 `tower00` 回 1樓。
+  for(const [from,name,to,landing] of [
+    ['220000000','west00','220000300','east00'],
+    ['220000300','west00','220000400','east00'],
+    ['220000300','east00','220000000','west00'],
+    ['220000400','tower00','221023200','top00'],
+    ['221023200','top00','220000400','tower00'],
+    ['221020000','under00','221000400','tower00'],
+    ['221000400','tower00','221020000','under00'],
+    ['221000400','west00','221000000','east00'],
+    ['221000000','east00','221000400','west00'],
+  ]) {
+    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} must target ${to}`);
+    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} must land on ${landing}`);
+  }
+  // 上塔是可见门、塔内爬升是接触门：源里 100樓 横向回入口是 pt:2，
+  // 99樓→100樓 是 pt:3（与原版"走进门口即换层、不算传送门"一致）。
+  assert.equal(gate('220000400','tower00').type,2,'愛奧斯塔入口 tower00 must stay a visible gate');
+  assert.equal(gate('221023100','top00').type,3,'99樓 top00 must stay a contact gate');
+  // 地球防衛本部城内门链：主控室、通道（对侧门）、司令室，双向都指回上一间。
+  for(const [from,name,to,landing] of [
+    ['221000000','in00','221000100','out00'],
+    ['221000100','out00','221000000','in00'],
+    ['221000000','in01','221000001','out00'],
+    ['221000001','out00','221000000','in01'],
+    ['221000001','in00','221000100','out01'],
+    ['221000100','out01','221000001','in00'],
+    ['221000000','pt99','221000300','pt00'],
+    ['221000100','in04','221000300','out00'],
+    ['221000300','out00','221000100','in04'],
+  ]) {
+    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} must target ${to}`);
+    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} must land on ${landing}`);
+  }
+  // 隱藏之塔挂在 4樓（源 pt:10 同族门，双向配对）。
+  assert.equal(gate('221020300','in00').targetMapId,'221020701');
+  assert.equal(gate('221020300','in00').targetPortalName,'out00');
+  assert.equal(gate('221020701','out00').targetMapId,'221020300');
+  assert.equal(gate('221020701','out00').targetPortalName,'in00');
+  // returnMap 必须落在已装配城镇，塔内/本部内死亡复活不会落到未收录图。
+  for(const map of ['220000300','220000400','221020000','221020701','221023200'])
+    assert.equal(catalog.returnMaps[map],'220000000',`${map} must return to 玩具城`);
+  for(const map of ['221000001','221000100','221000300','221000400'])
+    assert.equal(catalog.returnMaps[map],'221000000',`${map} must return to 地球防衛本部`);
+  // 源里没有 walk 动画的固定怪（2230103 黃蜘蛛 / 2230104 紅蜘蛛，只在 94樓）：
+  // 动作表保留空 `move`、运行时不得冒出 `moveDurationMs`，否则服务端
+  // `monsters.rs::movement_force` 会把它当能走的怪按默认速度推着跑。
+  for(const id of ['2230103','2230104']) {
+    assert.equal(manifest.monsters[id].actions.move.length,0,`${id} 源内没有 move 动画`);
+    assert(manifest.monsters[id].actions.stand.length,`${id} 必须有 stand 动画`);
+    const template=gameplay.monsters.find(mob=>mob.templateId===id);
+    assert.equal(template?.moveDurationMs,undefined,`${id} 不得有 moveDurationMs`);
+    assert(!template?.speed,`${id} 源内没有 speed`);
+  }
+}
+
 // 楓之島災禍篇 36315 的最小场景执行（P，2026-09-14，适配器 scripts/tms273_calamity.cjs）。
 // 36315 的完成是一次**已核定的击杀**（源 QuestInfo「擊殺藍色蘑菇王」+ Check.1.infoex
 // kill），可它的原版修練图 993166xxx 几何本地不可解，所以目标怪 8645261 在源 Map.life
@@ -464,7 +581,17 @@ for(const map of catalog.maps) {
     assert(runtimeQuest.objectives.some(objective=>objective.kind==='kill'&&String(objective.mobId)===placement.mobId&&Number(objective.required)>0),`calamity quest ${placement.questId} must carry a typed kill objective`);
   }
 }
-for(const spawn of gameplay.spawns)assert(manifest.monsters[spawn.templateId]?.actions.move.length,spawn.id);
+// 源里没有 `move` 动作的怪（WZ 无该节点、`info` 无 speed，原版固定的怪，如
+// 2230103 黃蜘蛛 / 2230104 紅蜘蛛）清单里 move 是空表，服务端 `movement_force`
+// 据此判"不能移动"。所以刷怪校验拆成两条：`stand` 必须存在（客户端建精灵要用），
+// `move` 的有无必须与运行时 `moveDurationMs` 一致——否则要么凭空走起来、
+// 要么走路不播动画。
+for(const spawn of gameplay.spawns) {
+  const template=manifest.monsters[spawn.templateId];
+  assert(template?.actions.stand.length,spawn.id);
+  const runtime=gameplay.monsters.find(monster=>String(monster.templateId)===String(spawn.templateId));
+  assert.equal(Boolean(template.actions.move.length),Boolean(runtime?.moveDurationMs),`${spawn.id} move 动画与 moveDurationMs 不一致`);
+}
 for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
 for(const shop of gameplay.shops)for(const entry of shop.items)assert(manifest.items[entry.itemId],entry.itemId);
 for(const id of ['36301','36302','36303','36304','36306','36307'])assert(gameplay.quests.some(q=>q.questId===id));
@@ -675,6 +802,10 @@ assert(manifest.friendUi.tabCount>=2,`friend tab strip too short: ${manifest.fri
     // 由 `export_tms273_worldmap.cjs::selectPages` 穷举归档全部页面判定，
     // 不是只看了导出的那几页：任何页面只要列到这两个 id 就会被拉进导出集）。
     '200090100','200090110',
+    // 愛奧斯塔/地球防衛本部（2026-09-15）：隱藏之塔 221020701 是隐藏图，
+    // 归档不给它 spot（同 222020400 的城市隐藏图先例）；其余 40 张新图——
+    // 玩具城村莊/愛奧斯塔入口、塔身 1~100 樓、地球防衛本部全簇——都在源 spot 里。
+    '221020701',
   ]);
   const located=new Set(Object.values(world.pages).flatMap(entry=>entry.mapList.flatMap(spot=>spot.mapIds)));
   const absent=catalog.maps.map(map=>map.id).filter(id=>!located.has(id)&&!WORLD_MAP_ABSENT.has(id));

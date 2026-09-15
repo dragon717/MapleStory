@@ -132,11 +132,17 @@ fn helios_real_catalog_pairs_the_full_walk_chain() {
     let library_gate = portal(floor2, "in01");
     assert_eq!(library_gate.target_map_id.as_deref(), Some("222020000"));
     assert_eq!(library_gate.target_portal_name.as_deref(), Some("out00"));
-    // 电梯门保持源样：无静态目标，由 helios.rs 处置。
+    // 电梯门：源里两扇 `in00` 都是 pt:7 脚本门（`LudiElevator_in`，`tm` 无静态
+    // 目标），源事实由装配器 `exposeScriptedGateRoutes` 断言守住；目录里必须带
+    // 上服务端钩子已经按同一目标处置的落点，否则客户端发不出请求（
+    // `world.ts::tryPortal` 只受理带 `targetMapId` 的门），`helios.rs` 的两条路由
+    // 永远收不到消息（2026-09-15 修）。
     let elevator99 = portal(by_id("222020200"), "in00");
-    assert!(elevator99.target_map_id.is_none());
+    assert_eq!(elevator99.target_map_id.as_deref(), Some("222020100"));
+    assert_eq!(elevator99.target_portal_name.as_deref(), Some("st00"));
     let elevator2 = portal(floor2, "in00");
-    assert!(elevator2.target_map_id.is_none());
+    assert_eq!(elevator2.target_map_id.as_deref(), Some("222020200"));
+    assert_eq!(elevator2.target_portal_name.as_deref(), Some("st01"));
     // 两间商店内殿与雜貨店 NPC 模板在目录里。
     for id in [
         "220000000", "220000001", "220000002", "220000500",

@@ -1787,6 +1787,22 @@ include!("windbell_acceptance.rs");
                 {
                     continue;
                 }
+                // 愛奧斯塔 32樓/66樓（2026-09-15）：源 `tn` 指定的落点本身是隐形
+                // 锚——`221021200/st00` y=644 而该 x 只有 y=705 的地板（Δ61px）、
+                // `221021700/top00` Δ41px。原版落在锚点上也自然下坠一小段，落点
+                // 来自源，不能为了贴地把锚点搬下来。同样的 6 条边在
+                // `scripts/check_tms273_runtime.cjs` 里也带反向断言钉着。
+                if matches!(
+                    (source.id.as_str(), portal.name.as_str()),
+                    ("221021300", "under00")
+                        | ("221021300", "under01")
+                        | ("221021300", "under02")
+                        | ("221021300", "under03")
+                        | ("221021300", "under04")
+                        | ("221021800", "under00")
+                ) {
+                    continue;
+                }
                 let target = map(target_id);
                 let landing = portal
                     .target_portal_name

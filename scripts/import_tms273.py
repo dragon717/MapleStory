@@ -153,6 +153,39 @@ ADDITIONAL_SHIP3_MAP_IDS = (
     "200090100", "200090110",
     "200000000", "200000001", "200000002",
 )
+# 愛奧斯塔（Eos Tower，玩具城側叫「愛奧斯塔」）⇄ 地球防衛本部（路德斯湖街）
+# 区域与玩具城自然衔接（2026-09-15，审计 T06/交通 下一片）。
+# 源事实（TMS273.7 WZ 全量核对）：玩具城 `220000000.west00` → `220000300`
+# 玩具城村莊的 `east00`；村莊 `west00` → `220000400` 愛奧斯塔入口的 `east00`
+# （两图的 returnMap 都是已装配的 220000000）；入口 `tower00` → `221023200`
+# 愛奧斯塔100樓的 `top00`。塔身自 100樓 起每一层用 `top00`（pt:3 接触门）下到
+# 下一层 `st01`、`under00..05`（pt:3）回到上一层 `st00`；其中 8樓→9樓
+#  32樓→33樓 等用 pt:2/pt:1 静态门；分组层 `221021000 11~30樓`、
+#  `221021600 36~65樓`、`221022200 71~90樓` 用 `h00xx` 静态门串联内部梯段。
+# 塔底 `221020000 愛奧斯塔1樓` `under00` → `221000400 地球防衛總部安全地帶`
+# `tower00`，安全地帶 `west00` → `221000000 地球防衛本部`（城镇，13 个源 NPC，
+# 含源商店 `9072100`）；城内静态门链到 `221000100 主控室`（`in00`）与
+# `221000001 通道`（`in01`），主控室 `in04`（pt:10）→ `221000300 司令室`。
+# 4樓 `221020300.in00`（pt:10）连 `221020701 隱藏之塔`。
+# 不装：`221023300 愛奧斯塔101樓<入場地圖>`（原版组队任务入口，进出全靠
+# `in_party2`/`party2_exit` 脚本体，本地缺失 ⇒ 装进去只有脚本出口＝死端）、
+# `221000200`/`221000201 機庫`（唯一入口是主控室 pt:8 脚本门，Graph.json 授权
+# 目标 221000201 自身四扇 pt:8 出门的授权目标全是 999999999，无授权回程）、
+# `221000002`/`221000301 某處`（无静态入口）、`221030000 危險地帶` 与
+# `22103xxx`/`22104xxx` 草原/UFO（同一街区的下一片区域）、
+# `220000301..220000307` 村莊民宅（7 间内景）。
+ADDITIONAL_EOS_MAP_IDS = (
+    "220000300", "220000400",
+    "221020000", "221020100", "221020200", "221020300", "221020400",
+    "221020500", "221020600", "221020700", "221020800", "221020900",
+    "221021000", "221021100", "221021200", "221021300", "221021400",
+    "221021500", "221021600", "221021700", "221021800", "221021900",
+    "221022000", "221022100", "221022200", "221022300", "221022400",
+    "221022500", "221022600", "221022700", "221022800", "221022900",
+    "221023000", "221023100", "221023200",
+    "221020701",
+    "221000400", "221000000", "221000001", "221000100", "221000300",
+)
 # Portal closure (2026-09-13): every map an assembled map's portal names that
 # the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
 # with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
@@ -702,6 +735,7 @@ def build_maps(
         *ADDITIONAL_PORTAL_CLOSURE_MAP_IDS, *ADDITIONAL_SHIP_MAP_IDS,
         *ADDITIONAL_SHIP2_MAP_IDS, *ADDITIONAL_ELLINEL_MAP_IDS,
         *ADDITIONAL_HELIOS_MAP_IDS, *ADDITIONAL_SHIP3_MAP_IDS,
+        *ADDITIONAL_EOS_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -749,6 +783,7 @@ def build_maps(
         "ship2MapIds": list(ADDITIONAL_SHIP2_MAP_IDS),
         "ellinelMapIds": list(ADDITIONAL_ELLINEL_MAP_IDS),
         "ship3MapIds": list(ADDITIONAL_SHIP3_MAP_IDS),
+        "eosMapIds": list(ADDITIONAL_EOS_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

@@ -14,13 +14,25 @@
 // in `stand` forever: both are placed on five maps, both own a three-frame
 // `move`, and both omit `speed`.
 //
-//   * every monster actually deployed in the assembled catalog can move;
+//   * every monster actually deployed in the assembled catalog can move,
+//     except the two source-authored static props 2230103/2230104 蜘蛛
+//     (see `AUTHORED_STATIC_MOBS`) — the same "neither speed nor move"
+//     form the last bullet describes, only actually placed on a map;
 //   * the real 1210102 template walks in the world when it is not hit;
 //   * a `-100` sentinel keeps its `move` animation but never walks;
 //   * a template with neither a speed nor a move animation stays immobile, so
 //     the new default is not "everything moves".
 
 use super::*;
+
+/// 源里**授权不动**的场地怪（唯一豁免来源）。
+///
+/// 2026-09-15 愛奧斯塔 94樓 的 2230103 黃蜘蛛 / 2230104 紅蜘蛛：WZ 只有
+/// `stand/hit1/die1`，`info` 里既无 `speed` 也无 `fs`，`dirType` 为 `1N`。
+/// 服务端的既有契约（`MonsterTemplate::movement_force` 的 `(None, None)`
+/// 分支）把"无 speed 且无 move 时长"读作源授权的不能移动，所以这里把它们
+/// 从"每个已放置的怪都能动"的断言里豁免，并用反向断言盯住名单不过期。
+const AUTHORED_STATIC_MOBS: [&str; 2] = ["2230103", "2230104"];
 
 /// The shipped catalog, loaded the same way the server loads it at boot.
 fn mushroom_gameplay() -> Gameplay {
@@ -104,6 +116,8 @@ fn advance(world: &mut World, from_tick: u64, ticks: u64) {
 /// 001010000 so quest 36315 has a real kill target (audit C02); the previous
 /// 26 were authored `Map.life` rows only.  The 2026-09-14 艾靈森林 region added
 /// its 10 authored field species (4250000/4250001, 5250000-5250007), to 37.
+/// The 2026-09-15 愛奧斯塔/地球防衛本部 region added 15 field species
+/// (塔身 1~100 樓与路德斯湖街), to 52.
 #[test]
 fn every_deployed_monster_can_move() {
     let gameplay = mushroom_gameplay();
@@ -114,11 +128,18 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        37,
+        52,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();
     for template_id in &deployed {
+        // 源里**授权不动**的固定怪：2230103 黃蜘蛛 / 2230104 紅蜘蛛（愛奧斯塔
+        // 94樓，2026-09-15）。它们的 WZ 只有 `stand/hit1/die1`，`info` 里既无
+        // `speed` 也无 `fs`，原版就是站着不动的固定怪。名单是唯一豁免来源——
+        // 别的怪少了 `move` 仍会被下面这条断言抓住（见末尾的反向断言）。
+        if AUTHORED_STATIC_MOBS.contains(template_id) {
+            continue;
+        }
         let template = gameplay
             .monsters
             .iter()
@@ -132,6 +153,18 @@ fn every_deployed_monster_can_move() {
         immobile.is_empty(),
         "deployed monsters that cannot move: {immobile:?}"
     );
+    // 反向断言：豁免名单不能悄悄盖住一只会走的怪，也不能变成过期名单。
+    for template_id in AUTHORED_STATIC_MOBS {
+        let template = gameplay
+            .monsters
+            .iter()
+            .find(|template| template.template_id == *template_id)
+            .unwrap_or_else(|| panic!("authored static prop missing: {template_id}"));
+        assert!(
+            !template.can_move(),
+            "{template_id} is no longer an authored static prop"
+        );
+    }
 }
 
 /// The regression itself: 1210102 and 100004 own a `move` animation but no

@@ -384,7 +384,44 @@ function applyRemaster(gameplay, items, manifest, questText) {
     unknown: 'q36315–q36334 与 q36341–q36367、q1401/q1403/q1404/q1405/q2570/q2684 的可执行脚本体在本地源中不存在：开场/交付场景、dummy/talk/lord/dir3 等非击杀计数器、脚本发放道具都按边界登记，未执行。源 infoex 的两个字符串子节点在任务间取值相反（36315/36322/36328 为 exVariable="kill"，36319 为 value="kill"），Quest 数据只在 Quest.wz 里、本地解包器仅支持 .ms 归档，故无法判定哪个子节点是变量名：适配器不按字段名判定，只认已核定来源记录并校验原始节点出现 kill 字样。艾靈森林（area 39）地图与 NPC 均未装配，相关 27 条任务只有源数据，没有可达入口；36315/36319/36322 的击杀目标（8645261/8645264/8645262）尚未放进装配世界，故仍不可达。',
   };
 
+  exposeScriptedGateRoutes(manifest);
   return { total: remaining.length, executable, blocked };
+}
+
+// 已交付的 P 级脚本门必须把同一目标暴露给客户端，否则服务端的 P 路由是死代码。
+//
+// `client/src/scenes/world.ts::tryPortal` 只对带 `targetMapId` 的门受理 ↑ 键
+// （第 145 行的过滤条件），而 TMS273 脚本门的源 `tm` 一律是 `999999999``
+// （无静态目标）⇒ 目录里没有目标时玩家按 ↑ 根本发不出请求，`ellinel.rs` /
+// `helios.rs` 里已经写好的路由永远收不到消息。本表只把服务端钩子**已经按同一
+// 目标处置**的路线写进目录，让玩家能发出这个请求；真正的传送仍由服务端钩子在
+// `portals.rs::handle_portal` 查表之前裁决，客户端不决定落点。
+//
+// T（源证据，`Map/Map/Graph.json` 逐图给出脚本门的授权目标）：
+//   * `222020400` 第 2 扇门（脚本 `move_elin`，時間監控室的時間門）→ `300000100`
+//     艾靈森林小森林；小森林 `out00` 的静态回门 `tm/tn` 正是
+//     `222020400/in01`，两端互为源内配对。缺这一条则 36341-36367 整章
+//     没有可达入口（21 图装配完成但走不进去）。
+//   * `222020200` 第 5 扇门（脚本 `LudiElevator_in`）→ `222020100`；
+//     `222020100` 第 4 扇门（同一脚本）→ `222020200`。赫爾奧斯塔电梯两端。
+// P（有界适配）：落点沿用服务端钩子声明的目标门（`ellinel.rs` 的 `in00`、
+// `helios.rs` 的 `st00`/`st01`）。原版电梯按班次运行、时间门由 `q36342s` 把
+// 关；本路由不做时刻与任务状态校验，即到即走，与 `inERShip`、时间门既有口径
+// 一致。只在目标图已装配时生效——没装配的目标保持「走近提示一次」。
+function exposeScriptedGateRoutes(manifest) {
+  const assembled = new Set(manifest.mapCatalog.maps.map(map => String(map.id)));
+  for (const [mapId, portalName, targetMapId, targetPortalName] of [
+    ['222020400', 'in01', '300000100', 'in00'],
+    ['222020200', 'in00', '222020100', 'st00'],
+    ['222020100', 'in00', '222020200', 'st01'],
+  ]) {
+    if (!assembled.has(targetMapId)) continue;
+    const portal = manifest.mapCatalog.maps
+      .find(map => String(map.id) === mapId)?.portals.find(candidate => candidate.name === portalName);
+    assert(portal, `Missing source scripted portal ${mapId}/${portalName}`);
+    assert.equal(portal.targetMapId, null, `${mapId}/${portalName} already carries a static target`);
+    Object.assign(portal, { targetMapId, targetPortalName });
+  }
 }
 
 module.exports = { applyRemaster, verifiedKillTargets, infoexMentionsKill };
