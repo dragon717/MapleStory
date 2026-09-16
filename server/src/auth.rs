@@ -25,35 +25,35 @@ use tokio::sync::{mpsc, oneshot};
 
 // `grant_level_sp` / `add_exp` 原是 auth 层 `pub(crate)` 自由函数，world::quest 走
 // `auth::X` 路径调用；搬入 db.rs 后 re-export 保住原路径。
-pub(crate) use db::{add_exp, grant_level_sp};
 use self::db::*;
+pub(crate) use db::{add_exp, grant_level_sp};
 // NB-05：物品授予的图鉴留档入口。auth 层各授予事务（拾取 / 商店 / 现金 /
 // 任务 / 创角初始 / GM）统一走 `granted_tx`，保证「资产与留档同一事务」。
 use self::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 
-#[path = "auth/skills.rs"]
-pub(crate) mod skills;
-#[path = "auth/quests.rs"]
-pub(crate) mod quests;
 #[path = "auth/friends.rs"]
 pub(crate) mod friends;
+#[path = "auth/quests.rs"]
+pub(crate) mod quests;
+#[path = "auth/skills.rs"]
+pub(crate) mod skills;
 pub use friends::{FriendOperation, FriendOutcome, FriendRow};
-#[path = "auth/loot.rs"]
-pub(crate) mod loot;
 #[path = "auth/bag.rs"]
 pub(crate) mod bag;
-#[path = "auth/shop.rs"]
-pub(crate) mod shop;
 #[path = "auth/cash.rs"]
 pub(crate) mod cash;
-#[path = "auth/schema.rs"]
-pub(crate) mod schema;
 #[path = "auth/db.rs"]
 pub(crate) mod db;
 #[path = "auth/item_world.rs"]
 pub(crate) mod item_world;
+#[path = "auth/loot.rs"]
+pub(crate) mod loot;
 #[path = "auth/notebook.rs"]
 pub(crate) mod notebook;
+#[path = "auth/schema.rs"]
+pub(crate) mod schema;
+#[path = "auth/shop.rs"]
+pub(crate) mod shop;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -584,7 +584,6 @@ pub(crate) fn is_practice_map(map_id: &str) -> bool {
 }
 
 impl Store {
-
     pub(crate) fn with_db<T>(
         &self,
         operation: impl FnOnce(&mut Connection) -> Result<T, String>,
@@ -826,7 +825,10 @@ impl Store {
         let mut slots = inventory::default_inventory_slots();
         for (kind, capacity) in parsed {
             if inventory::valid_inventory_type(kind) {
-                slots.insert(kind, capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT));
+                slots.insert(
+                    kind,
+                    capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT),
+                );
             }
         }
         Ok(slots)
@@ -1141,7 +1143,12 @@ impl Store {
     }
 
     /// 現金商店限购：add `units` to the SN's consumed budget (upsert).
-    pub fn record_cash_purchase(&self, account_id: &str, sn: &str, units: u64) -> Result<(), String> {
+    pub fn record_cash_purchase(
+        &self,
+        account_id: &str,
+        sn: &str,
+        units: u64,
+    ) -> Result<(), String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.execute(
             "INSERT INTO cash_purchases(account_id,sn,units) VALUES(?1,?2,?3)
@@ -1450,10 +1457,7 @@ impl Store {
     }
 
     /// Read the character-owned Windbell contribution/arrival memory.
-    pub fn load_windbell_player_state(
-        &self,
-        account_id: &str,
-    ) -> Result<Option<String>, String> {
+    pub fn load_windbell_player_state(&self, account_id: &str) -> Result<Option<String>, String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.query_row(
             "SELECT state_json FROM windbell_player_state WHERE account_id=?1",
@@ -1532,7 +1536,8 @@ impl Store {
             // Keep the transaction boundary explicit even for a duplicate so
             // SQLite releases its write lock before the caller replays the
             // already committed snapshot.
-            tx.commit().map_err(|_| "account persistence failed".to_owned())?;
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())?;
             return Ok(false);
         }
         if let Some((state_json, _)) = bridge {
@@ -1552,10 +1557,10 @@ impl Store {
             )
             .map_err(|_| "account persistence failed".to_owned())?;
         }
-        tx.commit().map_err(|_| "account persistence failed".to_owned())?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
         Ok(true)
     }
-
 }
 
 pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
@@ -3244,10 +3249,8 @@ mod tests {
 
     #[test]
     fn creation_longcoat_1051353_round_trips_through_login_normalization() {
-        let path = std::env::temp_dir().join(format!(
-            "maple-creation-equip-{}.sqlite3",
-            random_id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("maple-creation-equip-{}.sqlite3", random_id()));
         let defaults = Profile {
             hp: 50,
             max_hp: 50,
@@ -3320,7 +3323,10 @@ mod tests {
             auth.store.load_profile("creation", &defaults).unwrap().job,
             0
         );
-        assert_eq!(auth.store.load_equipped("creation").unwrap(), vec![expected]);
+        assert_eq!(
+            auth.store.load_equipped("creation").unwrap(),
+            vec![expected]
+        );
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));
@@ -3909,9 +3915,16 @@ mod tests {
         store.load_profile("a", &defaults).unwrap();
         // First init seeds exactly one equip-tab coupon in the use tab.
         let granted = store.seed_starter_backpack("a").unwrap();
-        assert_eq!(granted.len(), 1, "fresh beginner holds one equip-tab coupon");
+        assert_eq!(
+            granted.len(),
+            1,
+            "fresh beginner holds one equip-tab coupon"
+        );
         assert_eq!(granted[0].item_id, "2430768");
-        assert_eq!(granted[0].slot, SLOT_LIMIT, "the coupon sits at the end of the use tab");
+        assert_eq!(
+            granted[0].slot, SLOT_LIMIT,
+            "the coupon sits at the end of the use tab"
+        );
         assert_eq!(granted[0].quantity, 1);
         // Re-seeding must be a no-op (idempotent).
         let granted = store.seed_starter_backpack("a").unwrap();
@@ -3922,7 +3935,11 @@ mod tests {
         // The seeded row is visible through the normal profile read path.
         let profile = store.load_profile("a", &defaults).unwrap();
         assert_eq!(
-            profile.inventory.iter().filter(|item| item.item_id == "2430768").count(),
+            profile
+                .inventory
+                .iter()
+                .filter(|item| item.item_id == "2430768")
+                .count(),
             1,
             "profile inventory must include the freshly seeded coupon",
         );
@@ -3975,7 +3992,11 @@ mod tests {
             tx.commit().unwrap();
         }
         let read = store.load_profile("a", &defaults).unwrap().inventory;
-        assert_eq!(read, vec![expanded], "slot 25 item must round-trip after expansion");
+        assert_eq!(
+            read,
+            vec![expanded],
+            "slot 25 item must round-trip after expansion"
+        );
         drop(auth);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));
@@ -3984,10 +4005,8 @@ mod tests {
 
     #[test]
     fn pet_instance_and_active_state_survive_store_round_trip() {
-        let path = std::env::temp_dir().join(format!(
-            "maple-pet-persistence-{}.sqlite3",
-            random_id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("maple-pet-persistence-{}.sqlite3", random_id()));
         let auth = start(&path).unwrap();
         let store = auth.store.clone();
         let defaults = Profile {
@@ -4054,10 +4073,12 @@ mod tests {
         // a fourth physical row remains in the bag until one is recalled.
         for index in 2..=3 {
             let request = format!("pet-grant-{index}");
-            assert!(store
-                .grant_inventory_item("a", &request, "5000000", 1)
-                .unwrap()
-                .success);
+            assert!(
+                store
+                    .grant_inventory_item("a", &request, "5000000", 1)
+                    .unwrap()
+                    .success
+            );
             let inventory = store.load_profile("a", &defaults).unwrap().inventory;
             let pet = inventory
                 .iter()
@@ -4085,10 +4106,12 @@ mod tests {
             3
         );
 
-        assert!(store
-            .grant_inventory_item("a", "pet-grant-4", "5000000", 1)
-            .unwrap()
-            .success);
+        assert!(
+            store
+                .grant_inventory_item("a", "pet-grant-4", "5000000", 1)
+                .unwrap()
+                .success
+        );
         let inventory = store.load_profile("a", &defaults).unwrap().inventory;
         let fourth = inventory
             .iter()
@@ -4117,22 +4140,26 @@ mod tests {
             .find(|item| inventory::pet_instance_id(item) == Some(first_pet_id))
             .unwrap()
             .slot as i16;
-        assert!(store
-            .move_inventory(
-                "a",
-                "pet-move",
-                5,
-                first_slot,
-                24,
-                1,
-                EquipmentStats::default(),
-            )
-            .unwrap()
-            .success);
-        assert!(store
-            .gather_inventory("a", "pet-gather", 5)
-            .unwrap()
-            .success);
+        assert!(
+            store
+                .move_inventory(
+                    "a",
+                    "pet-move",
+                    5,
+                    first_slot,
+                    24,
+                    1,
+                    EquipmentStats::default(),
+                )
+                .unwrap()
+                .success
+        );
+        assert!(
+            store
+                .gather_inventory("a", "pet-gather", 5)
+                .unwrap()
+                .success
+        );
         let after_reorder = store.load_profile("a", &defaults).unwrap().inventory;
         assert_eq!(pet_ids(&after_reorder), ids_before);
 
@@ -4141,10 +4168,12 @@ mod tests {
             .grant_inventory_item("a", "ordinary-grant", "2000000", 3)
             .unwrap();
         assert!(ordinary.success);
-        assert!(store
-            .grant_inventory_item("a", "ordinary-grant", "2000000", 3)
-            .unwrap()
-            .success);
+        assert!(
+            store
+                .grant_inventory_item("a", "ordinary-grant", "2000000", 3)
+                .unwrap()
+                .success
+        );
         let changed_quantity = store
             .grant_inventory_item("a", "ordinary-grant", "2000000", 4)
             .unwrap();

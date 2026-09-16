@@ -219,6 +219,4 @@ impl World {
         .to_string();
         let _ = player.output.try_send(message);
     }
-
-
 }

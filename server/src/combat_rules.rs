@@ -25,7 +25,11 @@ impl PlayerConfig {
         config.with_equipment(equipped, job)
     }
 
-    pub(super) fn with_equipment(&self, equipped: &[crate::protocol::InventoryItem], job: u32) -> Self {
+    pub(super) fn with_equipment(
+        &self,
+        equipped: &[crate::protocol::InventoryItem],
+        job: u32,
+    ) -> Self {
         let bonus = |key: &str| {
             equipped.iter().fold(0i64, |total, item| {
                 total.saturating_add(inventory::equipment_attribute(item, key))
@@ -78,7 +82,11 @@ impl PlayerConfig {
 
     /// HeavenClient/Mob.cpp applies level difference and PDD to the raw
     /// interval, then samples a float and truncates it to an integer.
-    pub(super) fn attack_range_against(&self, player_level: u32, monster: &MonsterTemplate) -> (f64, f64) {
+    pub(super) fn attack_range_against(
+        &self,
+        player_level: u32,
+        monster: &MonsterTemplate,
+    ) -> (f64, f64) {
         let (min, max) = self.attack_range();
         if let Some(rate) = monster.pd_rate {
             let factor = (1.0 - rate / 100.0).max(0.0);
@@ -96,7 +104,11 @@ impl PlayerConfig {
         )
     }
 
-    pub(super) fn attack_damage_against(&self, player_level: u32, monster: &MonsterTemplate) -> i64 {
+    pub(super) fn attack_damage_against(
+        &self,
+        player_level: u32,
+        monster: &MonsterTemplate,
+    ) -> i64 {
         let (min, max) = self.attack_range_against(player_level, monster);
         let damage = if max <= min {
             min

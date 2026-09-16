@@ -276,13 +276,12 @@ impl Store {
             .get(&inventory::inventory_type(item_id).unwrap_or(4))
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
-        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing, slot_limit).map_err(
-            |error| match error {
+        inventory::add_items(&mut next_inventory, item_id.to_owned(), missing, slot_limit)
+            .map_err(|error| match error {
                 inventory::InventoryError::InventoryFull => "quest interaction inventory full",
                 inventory::InventoryError::UnknownItem => "quest interaction unknown item",
                 _ => "quest interaction rejected",
-            },
-        )?;
+            })?;
 
         // Keep the world-supplied profile fields (notably its current
         // position), but never trust its inventory snapshot: the DB fact is
@@ -307,5 +306,4 @@ impl Store {
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(true)
     }
-
 }

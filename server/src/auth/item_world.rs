@@ -36,7 +36,11 @@ pub(super) enum Owner<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ItemLocation<'a> {
     /// 角色背包的某一页签某一格。
-    Inventory { account_id: &'a str, kind: u8, slot: i16 },
+    Inventory {
+        account_id: &'a str,
+        kind: u8,
+        slot: i16,
+    },
     /// 账号仓库的某一格。
     Storage { account_id: &'a str, slot: i16 },
 }
@@ -99,7 +103,9 @@ pub(super) fn drop_fact(owner_id: Option<&str>, protected_until_ms: i64) -> (Own
         None => Owner::System,
     };
     let state = if protected_until_ms > 0 {
-        ItemState::Locked(LockReason::PickupProtection { until_ms: protected_until_ms })
+        ItemState::Locked(LockReason::PickupProtection {
+            until_ms: protected_until_ms,
+        })
     } else {
         ItemState::Normal
     };
@@ -257,12 +263,16 @@ impl Destination for StorageDestination<'_> {
 
 fn source_at(location: ItemLocation<'_>) -> Box<dyn Source + '_> {
     match location {
-        ItemLocation::Inventory { account_id, kind, slot } => {
-            Box::new(InventorySource { account_id, kind, slot })
-        }
-        ItemLocation::Storage { account_id, slot } => {
-            Box::new(StorageSource { account_id, slot })
-        }
+        ItemLocation::Inventory {
+            account_id,
+            kind,
+            slot,
+        } => Box::new(InventorySource {
+            account_id,
+            kind,
+            slot,
+        }),
+        ItemLocation::Storage { account_id, slot } => Box::new(StorageSource { account_id, slot }),
     }
 }
 
@@ -277,8 +287,14 @@ fn destination_at(side: ContainerSide<'_>) -> Box<dyn Destination + '_> {
 /// 可见的码并记进幂等回执），而 `move_stack` 返回 `Err` 才是持久化失败。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum MoveOutcome {
-    Moved { item_id: String, quantity: u32 },
-    Refused { reason: MoveRefusal, item_id: String },
+    Moved {
+        item_id: String,
+        quantity: u32,
+    },
+    Refused {
+        reason: MoveRefusal,
+        item_id: String,
+    },
 }
 
 impl MoveOutcome {
@@ -325,15 +341,24 @@ pub(super) fn move_stack(
     let stack = match source.peek(tx, quantity)? {
         Ok(stack) => stack,
         Err(reason) => {
-            return Ok(MoveOutcome::Refused { reason, item_id: String::new() });
+            return Ok(MoveOutcome::Refused {
+                reason,
+                item_id: String::new(),
+            });
         }
     };
     if let Err(reason) = target.can_accept(tx, &stack)? {
-        return Ok(MoveOutcome::Refused { reason, item_id: stack.item_id });
+        return Ok(MoveOutcome::Refused {
+            reason,
+            item_id: stack.item_id,
+        });
     }
     source.take(tx, quantity)?;
     target.put(tx, &stack)?;
-    Ok(MoveOutcome::Moved { item_id: stack.item_id, quantity: stack.quantity })
+    Ok(MoveOutcome::Moved {
+        item_id: stack.item_id,
+        quantity: stack.quantity,
+    })
 }
 
 #[cfg(test)]
@@ -433,7 +458,10 @@ mod tests {
         held: impl Fn(&Connection) -> i64,
     ) {
         let tx = conn.transaction().expect("tx");
-        let stack = source.peek(&tx, quantity).expect("peek runs").expect("stack readable");
+        let stack = source
+            .peek(&tx, quantity)
+            .expect("peek runs")
+            .expect("stack readable");
         assert_eq!(stack.quantity, quantity, "peek 报告的是被请求的数量");
         source.take(&tx, quantity).expect("take");
         tx.commit().expect("commit");
@@ -454,7 +482,10 @@ mod tests {
     ) {
         let tx = conn.transaction().expect("tx");
         assert!(
-            target.can_accept(&tx, stack).expect("can_accept runs").is_ok(),
+            target
+                .can_accept(&tx, stack)
+                .expect("can_accept runs")
+                .is_ok(),
             "目标容器应当收得下"
         );
         target.put(&tx, stack).expect("put");
@@ -473,7 +504,11 @@ mod tests {
         let bag_before = bag_at(&conn, 1);
         assert_source_contract(
             &mut conn,
-            &InventorySource { account_id: ACCOUNT, kind: bag_kind(), slot: 1 },
+            &InventorySource {
+                account_id: ACCOUNT,
+                kind: bag_kind(),
+                slot: 1,
+            },
             4,
             bag_before,
             |conn| bag_at(conn, 1),
@@ -483,7 +518,10 @@ mod tests {
         let warehouse_before = warehouse_total(&conn);
         assert_source_contract(
             &mut conn,
-            &StorageSource { account_id: ACCOUNT, slot: 3 },
+            &StorageSource {
+                account_id: ACCOUNT,
+                slot: 3,
+            },
             3,
             warehouse_before,
             warehouse_total,
@@ -493,7 +531,9 @@ mod tests {
         let warehouse_before = warehouse_total(&conn);
         assert_destination_contract(
             &mut conn,
-            &StorageDestination { account_id: ACCOUNT },
+            &StorageDestination {
+                account_id: ACCOUNT,
+            },
             &stack_of(STACK_ITEM, 4),
             warehouse_before,
             warehouse_total,
@@ -503,7 +543,9 @@ mod tests {
         let bag_before = bag_total(&conn);
         assert_destination_contract(
             &mut conn,
-            &InventoryDestination { account_id: ACCOUNT },
+            &InventoryDestination {
+                account_id: ACCOUNT,
+            },
             &stack_of(STACK_ITEM, 4),
             bag_before,
             bag_total,
@@ -519,14 +561,23 @@ mod tests {
             let tx = conn.transaction().expect("tx");
             let moved = move_stack(
                 &tx,
-                ItemLocation::Inventory { account_id: ACCOUNT, kind: bag_kind(), slot: 1 },
-                ContainerSide::Storage { account_id: ACCOUNT },
+                ItemLocation::Inventory {
+                    account_id: ACCOUNT,
+                    kind: bag_kind(),
+                    slot: 1,
+                },
+                ContainerSide::Storage {
+                    account_id: ACCOUNT,
+                },
                 4,
             )
             .expect("deposit runs");
             assert_eq!(
                 moved,
-                MoveOutcome::Moved { item_id: STACK_ITEM.to_owned(), quantity: 4 }
+                MoveOutcome::Moved {
+                    item_id: STACK_ITEM.to_owned(),
+                    quantity: 4
+                }
             );
             tx.commit().expect("commit");
         }
@@ -547,8 +598,13 @@ mod tests {
             let tx = conn.transaction().expect("tx");
             let moved = move_stack(
                 &tx,
-                ItemLocation::Storage { account_id: ACCOUNT, slot: stored_slot },
-                ContainerSide::Inventory { account_id: ACCOUNT },
+                ItemLocation::Storage {
+                    account_id: ACCOUNT,
+                    slot: stored_slot,
+                },
+                ContainerSide::Inventory {
+                    account_id: ACCOUNT,
+                },
                 4,
             )
             .expect("withdraw runs");
@@ -570,8 +626,14 @@ mod tests {
         let tx = conn.transaction().expect("tx");
         let refused = move_stack(
             &tx,
-            ItemLocation::Inventory { account_id: ACCOUNT, kind: bag_kind(), slot: 9 },
-            ContainerSide::Storage { account_id: ACCOUNT },
+            ItemLocation::Inventory {
+                account_id: ACCOUNT,
+                kind: bag_kind(),
+                slot: 9,
+            },
+            ContainerSide::Storage {
+                account_id: ACCOUNT,
+            },
             1,
         )
         .expect("refusal is not a persistence failure");
@@ -594,8 +656,14 @@ mod tests {
         let tx = conn.transaction().expect("tx");
         let refused = move_stack(
             &tx,
-            ItemLocation::Inventory { account_id: ACCOUNT, kind: bag_kind(), slot: 1 },
-            ContainerSide::Storage { account_id: ACCOUNT },
+            ItemLocation::Inventory {
+                account_id: ACCOUNT,
+                kind: bag_kind(),
+                slot: 1,
+            },
+            ContainerSide::Storage {
+                account_id: ACCOUNT,
+            },
             11,
         )
         .expect("refusal is not a persistence failure");
@@ -627,8 +695,13 @@ mod tests {
         let tx = conn.transaction().expect("tx");
         let refused = move_stack(
             &tx,
-            ItemLocation::Storage { account_id: ACCOUNT, slot: 4 },
-            ContainerSide::Inventory { account_id: ACCOUNT },
+            ItemLocation::Storage {
+                account_id: ACCOUNT,
+                slot: 4,
+            },
+            ContainerSide::Inventory {
+                account_id: ACCOUNT,
+            },
             1,
         )
         .expect("refusal is not a persistence failure");
@@ -684,4 +757,3 @@ mod tests {
         assert!(pickup_allowed(&owner, &state, OTHER, NOW));
     }
 }
-

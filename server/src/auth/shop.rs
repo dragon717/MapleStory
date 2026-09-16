@@ -282,7 +282,13 @@ fn push_shop_rebuy_tx(
             tx.execute(
                 "INSERT INTO shop_rebuy(account_id,seq,item_id,quantity,unit_price)
                  VALUES(?1,?2,?3,?4,?5)",
-                params![account_id, next, item_id, i64::from(quantity), unit_price as i64],
+                params![
+                    account_id,
+                    next,
+                    item_id,
+                    i64::from(quantity),
+                    unit_price as i64
+                ],
             )
             .map_err(|_| "account persistence failed".to_owned())?;
         }

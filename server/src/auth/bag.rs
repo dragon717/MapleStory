@@ -51,12 +51,12 @@ impl Store {
         let now_seconds = now_ms() / 1000;
         let (success, code) =
             match inventory::toggle_pet(&mut inventory, source_slot, item_id, now_seconds) {
-            Ok(()) => {
-                write_inventory_tx(&tx, account_id, &inventory)?;
-                (true, "pet_toggled".to_owned())
-            }
-            Err(code) => (false, code),
-        };
+                Ok(()) => {
+                    write_inventory_tx(&tx, account_id, &inventory)?;
+                    (true, "pet_toggled".to_owned())
+                }
+                Err(code) => (false, code),
+            };
         let outcome = InventoryOutcome {
             request_id: request_id.to_owned(),
             // Keep this in the existing use-item result family. The world
@@ -227,7 +227,10 @@ impl Store {
                 let stats = inventory[index].stats.get_or_insert_with(BTreeMap::new);
                 stats.insert(inventory::PET_ACTIVE_KEY.to_owned(), 0);
                 write_inventory_tx(&tx, account_id, &inventory)?;
-                (true, if dead { "pet_expired" } else { "pet_starved" }.to_owned())
+                (
+                    true,
+                    if dead { "pet_expired" } else { "pet_starved" }.to_owned(),
+                )
             }
             None => (false, "source_empty".to_owned()),
         };
@@ -271,9 +274,7 @@ impl Store {
         if let Some(prior) = read_inventory_action(&tx, account_id, request_id)? {
             tx.commit()
                 .map_err(|_| "account persistence failed".to_owned())?;
-            if prior.operation == "gmAdd"
-                && prior.item_id == item_id
-                && prior.quantity == quantity
+            if prior.operation == "gmAdd" && prior.item_id == item_id && prior.quantity == quantity
             {
                 return Ok(prior);
             }
@@ -425,9 +426,22 @@ impl Store {
             "move"
         };
         let mutation = if operation == "equip" {
-            inventory::equip_items(&mut inventory, &mut equipped, stats, from_slot, to_slot, slot_limit)
+            inventory::equip_items(
+                &mut inventory,
+                &mut equipped,
+                stats,
+                from_slot,
+                to_slot,
+                slot_limit,
+            )
         } else if operation == "unequip" {
-            inventory::unequip_items(&mut inventory, &mut equipped, from_slot, to_slot, slot_limit)
+            inventory::unequip_items(
+                &mut inventory,
+                &mut equipped,
+                from_slot,
+                to_slot,
+                slot_limit,
+            )
         } else {
             inventory::move_items(&mut inventory, inventory_type, from_slot, to_slot, quantity)
                 .map(|()| (item_id.clone(), quantity))

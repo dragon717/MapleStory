@@ -552,7 +552,13 @@ impl Map {
         self.water.iter().find(|water| water.contains(x, y))
     }
 
-    pub(super) fn water_entry(&self, from_x: f64, to_x: f64, from_y: f64, to_y: f64) -> Option<(f64, f64)> {
+    pub(super) fn water_entry(
+        &self,
+        from_x: f64,
+        to_x: f64,
+        from_y: f64,
+        to_y: f64,
+    ) -> Option<(f64, f64)> {
         const EPSILON: f64 = 0.001;
         if to_y < from_y - EPSILON {
             return None;
@@ -640,7 +646,16 @@ mod tests {
     }
 
     fn wall(x: f64) -> Foothold {
-        Foothold { id: 2, x1: x, y1: -50.0, x2: x, y2: 40.0, prev: 0, next: 0, forbid_fall_down: 0 }
+        Foothold {
+            id: 2,
+            x1: x,
+            y1: -50.0,
+            x2: x,
+            y2: 40.0,
+            prev: 0,
+            next: 0,
+            forbid_fall_down: 0,
+        }
     }
 
     #[test]
@@ -679,13 +694,27 @@ mod tests {
 
     #[test]
     fn ladder_accepts_only_within_column_and_probe_window() {
-        let ladder = Ladder { id: 3, x: 100.0, y1: 0.0, y2: 200.0, l: 1, uf: 1 };
+        let ladder = Ladder {
+            id: 3,
+            x: 100.0,
+            y1: 0.0,
+            y2: 200.0,
+            l: 1,
+            uf: 1,
+        };
         assert_eq!(ladder.action(), "ladder");
-        let rope = Ladder { l: 0, ..ladder.clone() };
+        let rope = Ladder {
+            l: 0,
+            ..ladder.clone()
+        };
         assert_eq!(rope.action(), "rope");
         // 顶端离开受 uf 控制。
         assert!(ladder.allows_top_exit());
-        assert!(!Ladder { uf: 0, ..ladder.clone() }.allows_top_exit());
+        assert!(!Ladder {
+            uf: 0,
+            ..ladder.clone()
+        }
+        .allows_top_exit());
         // 上爬探测点在脚下 5px：y=10 向上 → 探测 y=5，在 0..200 窗口内。
         assert!(ladder.accepts(100.0, 10.0, true));
         // 探测点越过顶端 → 不接受。
@@ -700,7 +729,12 @@ mod tests {
 
     #[test]
     fn water_floor_interpolates_and_validates() {
-        let bounds = Bounds { x_min: 0.0, y_min: 0.0, x_max: 500.0, y_max: 500.0 };
+        let bounds = Bounds {
+            x_min: 0.0,
+            y_min: 0.0,
+            x_max: 500.0,
+            y_max: 500.0,
+        };
         let water = WaterRect {
             x_min: 100.0,
             x_max: 200.0,
@@ -716,10 +750,16 @@ mod tests {
         assert!(water.contains(150.0, 350.0));
         assert!(!water.contains(250.0, 350.0));
         // floor 端点必须贴齐矩形左右边缘。
-        let detached = WaterRect { floor: vec![Point { x: 110.0, y: 380.0 }, Point { x: 200.0, y: 340.0 }], ..water.clone() };
+        let detached = WaterRect {
+            floor: vec![Point { x: 110.0, y: 380.0 }, Point { x: 200.0, y: 340.0 }],
+            ..water.clone()
+        };
         assert!(!detached.valid(&bounds));
         // 水域必须完全落在地图边界内。
-        let outside = WaterRect { x_max: 600.0, ..water };
+        let outside = WaterRect {
+            x_max: 600.0,
+            ..water
+        };
         assert!(!outside.valid(&bounds));
     }
 
@@ -744,7 +784,11 @@ mod tests {
         assert!(!placement.interactable_at(2), "最后一个状态是耗尽形态");
         assert_eq!(placement.hit_bounds(), Some((70.0, 120.0, 10.0, 60.0)));
         // 未书写 hitbox 的反应物回退攻击判定。
-        let plain = ReactorPlacement { hitbox_lt: None, hitbox_rb: None, ..placement };
+        let plain = ReactorPlacement {
+            hitbox_lt: None,
+            hitbox_rb: None,
+            ..placement
+        };
         assert_eq!(plain.hit_bounds(), None);
     }
 }

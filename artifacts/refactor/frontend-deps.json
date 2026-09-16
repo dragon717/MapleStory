@@ -8,13 +8,13 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 109,
-  "edge_count": 232,
+  "node_count": 117,
+  "edge_count": 258,
   "edge_kind_counts": {
-    "value": 135,
+    "value": 147,
     "dynamic": 1,
-    "type": 79,
-    "side-effect": 17
+    "type": 92,
+    "side-effect": 18
   },
   "external_specifiers": [
     "esbuild",
@@ -188,6 +188,16 @@
       "from": "client/src/app/main.ts",
       "to": "client/src/features/quest/log.ts",
       "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/notebook/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/notebook/style.css",
+      "kind": "side-effect"
     },
     {
       "from": "client/src/app/main.ts",
@@ -750,6 +760,126 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/notebook/directory.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "client/src/features/notebook/section-context.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/monster-section.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/monster-section.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/monster-section.ts",
+      "to": "client/src/features/notebook/view-model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/monster-section.ts",
+      "to": "client/src/features/notebook/section-context.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/section-context.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/section-context.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/section-context.ts",
+      "to": "client/src/features/notebook/directory.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view-model.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view-model.ts",
+      "to": "client/src/features/notebook/directory.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/notebook/view-model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/notebook/directory.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/notebook/section-context.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/notebook/monster-section.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/features/notebook/item-section.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/notice/away.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1205,8 +1335,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "1ba3da5c25a0950e157f923ece6c0958f70252e6",
+  "source_commit": "0301244484f452c78f8be60bb3813f58a2edaca6",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-15T07:51:58.543Z"
+  "generated_at": "2026-09-15T17:47:38.521Z"
 }

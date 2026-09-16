@@ -61,9 +61,13 @@ pub(crate) enum ShipPhase {
 pub(crate) fn ship_phase_of(now_unix: i64) -> ShipPhase {
     let minute = now_unix.rem_euclid(SHIP_SLOT_SECONDS);
     if minute < SHIP_SAIL_SECONDS {
-        ShipPhase::Sailing { left: SHIP_SAIL_SECONDS - minute }
+        ShipPhase::Sailing {
+            left: SHIP_SAIL_SECONDS - minute,
+        }
     } else {
-        ShipPhase::Boarding { left: SHIP_SLOT_SECONDS - minute }
+        ShipPhase::Boarding {
+            left: SHIP_SLOT_SECONDS - minute,
+        }
     }
 }
 
@@ -282,9 +286,7 @@ pub(crate) fn ship_schedule_text(_route_index: usize, lang: &str) -> String {
                     "The airship is sailing. It arrives in about {sail} min; the next boarding opens in about {board} min."
                 )
             } else {
-                format!(
-                    "飛行船正在航行中，約 {sail} 分鐘後到站；下一班約 {board} 分鐘後開始檢票。"
-                )
+                format!("飛行船正在航行中，約 {sail} 分鐘後到站；下一班約 {board} 分鐘後開始檢票。")
             }
         }
         ShipPhase::Boarding { left } => {
@@ -386,7 +388,11 @@ impl World {
     }
 
     /// 检票登船（生产入口）：以当前 unix 时间判定相位。
-    pub(crate) fn ship_board(&mut self, player_id: &str, route_index: usize) -> Result<(), &'static str> {
+    pub(crate) fn ship_board(
+        &mut self,
+        player_id: &str,
+        route_index: usize,
+    ) -> Result<(), &'static str> {
         self.ship_board_at(player_id, route_index, unix_now_ms() / 1000)
     }
 
@@ -516,7 +522,13 @@ impl World {
         source_map: &str,
         portal_name: &str,
     ) -> bool {
-        self.ship_portal_gate_at(id, request_id, source_map, portal_name, unix_now_ms() / 1000)
+        self.ship_portal_gate_at(
+            id,
+            request_id,
+            source_map,
+            portal_name,
+            unix_now_ms() / 1000,
+        )
     }
 
     /// 脚本门钩子（验收入口）：时间可注入，断言才有决定性。
@@ -532,7 +544,11 @@ impl World {
         // 进耶雷弗站台（源门数据只指向脚本，无静态目标）。
         if source_map == "104020100" && portal_name == "in01" {
             let moved = self.warp_player_at(id, "104020120".to_owned(), Some("come00"));
-            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            let (success, code) = if moved {
+                (true, "")
+            } else {
+                (false, "map_unavailable")
+            };
             self.send_portal_result(id, request_id, success, code, source_map, None);
             return true;
         }
@@ -540,7 +556,11 @@ impl World {
         // P 级按源邻接关系路由回耶雷弗前庭 `130000200`（其 `in00` 正对本渡口）。
         if source_map == "130000210" && portal_name == "out00" {
             let moved = self.warp_player_at(id, "130000200".to_owned(), Some("in00"));
-            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            let (success, code) = if moved {
+                (true, "")
+            } else {
+                (false, "map_unavailable")
+            };
             self.send_portal_result(id, request_id, success, code, source_map, None);
             return true;
         }
@@ -550,21 +570,36 @@ impl World {
         // 不另造方向（港口通道 `east00` → 碼頭 `200000121` 是源静态门）。
         if source_map == "200000100" && portal_name == "east00" {
             let moved = self.warp_player_at(id, "200000120".to_owned(), Some("west00"));
-            let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+            let (success, code) = if moved {
+                (true, "")
+            } else {
+                (false, "map_unavailable")
+            };
             self.send_portal_result(id, request_id, success, code, source_map, Some("200000120"));
             return true;
         }
         // 耶雷弗船的舷侧门（west00/east00，pt:2）：源里只在停靠时开门；
         // 本实现到站/检票均为服务端 warp，门保持关闭提示旧行为。
         if source_map == "130090000" && (portal_name == "west00" || portal_name == "east00") {
-            self.send_portal_result(id, request_id, false, "portal_unavailable", source_map, None);
+            self.send_portal_result(
+                id,
+                request_id,
+                false,
+                "portal_unavailable",
+                source_map,
+                None,
+            );
             return true;
         }
         // 甲板↔船舱 move 脚本门（pt:9）：固定互切，落点用对图的 `sp`。
         if let Some(target) = ship_move_door_target(source_map) {
             if portal_name.starts_with("move") {
                 let moved = self.warp_player_at(id, target.to_owned(), Some("sp"));
-                let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+                let (success, code) = if moved {
+                    (true, "")
+                } else {
+                    (false, "map_unavailable")
+                };
                 self.send_portal_result(id, request_id, success, code, source_map, None);
                 return true;
             }
@@ -576,11 +611,22 @@ impl World {
         if portal_name.starts_with("out") {
             if let Some(target) = ship_hatch_exit(source_map) {
                 if matches!(ship_phase_of(now_unix), ShipPhase::Sailing { .. }) {
-                    self.send_portal_result(id, request_id, false, "portal_unavailable", source_map, None);
+                    self.send_portal_result(
+                        id,
+                        request_id,
+                        false,
+                        "portal_unavailable",
+                        source_map,
+                        None,
+                    );
                     return true;
                 }
                 let moved = self.warp_player_at(id, target.to_owned(), Some("sp"));
-                let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+                let (success, code) = if moved {
+                    (true, "")
+                } else {
+                    (false, "map_unavailable")
+                };
                 self.send_portal_result(id, request_id, success, code, source_map, Some(target));
                 return true;
             }

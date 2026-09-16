@@ -7,7 +7,6 @@
 use super::*;
 
 impl World {
-
     pub(super) fn activate_infinity(&mut self, id: &str, level: &MageLevel) -> Result<(), String> {
         let base_ms = u64::try_from(level.time.unwrap_or(0).max(0))
             .map_err(|_| "infinity_duration_invalid".to_owned())?
@@ -478,7 +477,11 @@ impl World {
         self.broadcast_to_map(&map_id, &event);
     }
 
-    pub(super) fn finish_hyper_thunder(&mut self, id: &str, request_id: &str) -> Result<(), String> {
+    pub(super) fn finish_hyper_thunder(
+        &mut self,
+        id: &str,
+        request_id: &str,
+    ) -> Result<(), String> {
         let Some((level, map_id)) = self.players.get(id).map(|player| {
             (
                 self.mage_skills

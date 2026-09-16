@@ -22,6 +22,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const zlib = require('node:zlib');
 const { MENU_KEY, MENU_TYPE, INITIAL_GRANT_IDS, WZ_JSON, canonical } = (() => {
   const exported = require('./export_tms273_collection.cjs');
   const generated = require('./generate_tms273_notebook_catalog.cjs');
@@ -32,6 +33,59 @@ const ROOT = path.resolve(__dirname, '..');
 const INPUT = path.join(ROOT, 'resources/tms273-export');
 const read = file => JSON.parse(fs.readFileSync(path.join(ROOT, file), 'utf8'));
 const serverSource = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+// 改名只发生在客户端本地化层，所以这道门禁必须同时读客户端源码。
+const clientSource = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const sameColour = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+function paeth(a, b, c) {
+  const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+/** 极简 PNG 读取。本项目导出的按钮素材一律是 8 位 RGBA、非交错、单个 IDAT，
+ *  这里只为了把「底板颜色」「图标与字形的分界」从素材本身量出来，而不是把
+ *  量出来的数字抄成常量（抄下来的常量会随素材重导静默失效）。 */
+function readPngPixels(file) {
+  const raw = fs.readFileSync(file);
+  assert.equal(raw.subarray(0, 8).toString('latin1'), '\x89PNG\r\n\x1a\n', `不是 PNG: ${file}`);
+  const idat = [];
+  let header = null;
+  for (let off = 8; off + 8 <= raw.length;) {
+    const length = raw.readUInt32BE(off);
+    const type = raw.subarray(off + 4, off + 8).toString('latin1');
+    const body = raw.subarray(off + 8, off + 8 + length);
+    if (type === 'IHDR') header = { width: body.readUInt32BE(0), height: body.readUInt32BE(4), depth: body[8], colorType: body[9], interlace: body[12] };
+    else if (type === 'IDAT') idat.push(body);
+    off += 12 + length;
+  }
+  assert(header, `${file} 缺少 IHDR`);
+  assert.equal(header.depth, 8, `${file} 不是 8 位深`);
+  assert.equal(header.colorType, 6, `${file} 不是 RGBA`);
+  assert.equal(header.interlace, 0, `${file} 是交错 PNG，读取器不支持`);
+  const data = zlib.inflateSync(Buffer.concat(idat));
+  const bpp = 4, stride = header.width * bpp;
+  const previous = Buffer.alloc(stride), current = Buffer.alloc(stride);
+  const out = Buffer.alloc(stride * header.height);
+  let at = 0;
+  for (let y = 0; y < header.height; y++) {
+    const filter = data[at++];
+    assert(filter >= 0 && filter <= 4, `${file} 出现未知的行过滤器 ${filter}`);
+    const line = data.subarray(at, at + stride);
+    at += stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? current[i - bpp] : 0;
+      const b = previous[i];
+      const c = i >= bpp ? previous[i - bpp] : 0;
+      const x = line[i];
+      current[i] = (filter === 0 ? x
+        : filter === 1 ? x + a
+          : filter === 2 ? x + b
+            : filter === 3 ? x + ((a + b) >> 1)
+              : x + paeth(a, b, c)) & 0xff;
+    }
+    current.copy(out, y * stride);
+    current.copy(previous);
+  }
+  return { width: header.width, height: header.height, pixels: out };
+}
 
 // ------------------------------------------------------------------ 素材 --
 const notebook = read('resources/tms273-export/notebook.json');
@@ -394,14 +448,20 @@ assert(rules.scope.monsterCollectionEvidence.startsWith('P:'), '归属默认值�
 
   // 查询必须读事实层**真实提交**的 revision，不能把 0 写死。
   const world = serverSource('server/src/notebook.rs');
-  assert(world.includes('notebook_fact_summary'), '查询没有读事实层');
+  assert(world.includes('fn notebook_summary_for'), '查询没有读事实层');
   assert(world.includes('notebook_revision'), '查询没有读已提交的 revision');
   assert(world.includes('"revision": revision'), '查询必须把读到的 revision 发出去');
   for (const symbol of ['SCOPE_ACCOUNT', 'SCOPE_CHARACTER']) {
     assert(world.includes(`facts::${symbol}`), `查询缺少 ${symbol}`);
   }
-  // 阻塞原因逐分区说清楚**缺的是哪一环**，而不是一句笼统的"尚未开放"，且一律简体。
-  for (const name of ['ITEMS_BLOCKED', 'MONSTER_BLOCKED', 'CLAIM_BLOCKED', 'EXPLORATION_BLOCKED']) {
+  // 四页查询是纯函数（便于定向检查），且任务页的过滤必须落在服务器自己的集合上。
+  assert(/^fn item_rows\(/m.test(world) && /^fn monster_rows\(/m.test(world), '四页查询不是模块级纯函数');
+  assert(/records\.contains_key\(\*id\)/.test(world), '任务页没有按已获得集合过滤');
+  // 阻塞原因逐条说清楚**缺的是哪一环**，而不是一句笼统的"尚未开放"，且一律简体。
+  // NB-07 起物品页真的在出条目了，所以"物品页整页阻塞"这条豁免必须已经消失——
+  // 留着它就会让真实内容被一句"尚未开放"挡住。
+  assert(!/ITEMS_BLOCKED/.test(world), '物品页已经真实出条目，不该再保留整页阻塞豁免');
+  for (const name of ['VERSION_MISMATCH', 'MONSTER_BLOCKED', 'CLAIM_BLOCKED', 'EXPLORATION_BLOCKED']) {
     const match = world.match(new RegExp(`const ${name}: &str =\\s*"([^"]+)"`));
     assert(match, `server/src/notebook.rs 缺少 ${name}`);
     assert(!match[1].includes('該'), `${name} 必须用简体`);
@@ -479,6 +539,189 @@ assert(rules.scope.monsterCollectionEvidence.startsWith('P:'), '归属默认值�
   for (const forbidden of ['INSERT INTO notebook', 'UPDATE notebook']) {
     assert(!network.includes(forbidden), `网络层不得直接写图鉴: ${forbidden}`);
   }
+}
+
+// ------------------------------------------- 旧菜单可见改名（NB-07 前置） --
+{
+  // 源标签仍是 怪物收藏（上面的入口身份断言盯着它），玩家看到的却必须是
+  // 冒险笔记（图鉴）—— 改名只发生在客户端本地化层。而源按钮把标签**烘焙**在
+  // 136x40 的位图里（图标、平板底板、字形都在同一张图），所以改名不能只加
+  // 一行文字：必须裁掉烘焙字形、按素材自己的颜色重画底板、再自己画名字。
+  // 这一段把这三件事钉在**导出素材的真实像素**上。
+  const i18n = clientSource('client/src/app/i18n.ts');
+  const view = clientSource('client/src/features/menu/view.ts');
+  const css = clientSource('client/src/features/menu/style.css');
+
+  // 1) 改名登记在本地化层，源标签保持原样。
+  const override = i18n.match(new RegExp(`'${MENU_KEY}':\\s*\\{\\s*zh:\\s*'([^']+)'`));
+  assert(override, `客户端本地化层没有登记 ${MENU_KEY} 的可见名称`);
+  assert.equal(override[1], '冒險筆記（圖鑑）', `${MENU_KEY} 登记的可见名称不是计划要求的那个`);
+  assert.equal(notebook.menu.label, '怪物收藏', '源标签必须保持原样：改名只发生在本地化层');
+  assert(view.includes('menuEntryText('), '菜单视图没有消费本地化层的改名');
+  // 英文要跟着现有本地化机制走（计划 §7.4），不能只留中文。
+  const english = i18n.match(new RegExp(`'${MENU_KEY}':\\s*\\{\\s*zh:\\s*'[^']+',\\s*en:\\s*'([^']+)'`));
+  assert(english, `${MENU_KEY} 缺少英文可见名称`);
+  assert(english[1] !== override[1] && english[1].length > 0, `${MENU_KEY} 的英文可见名称没有实际含义`);
+  // 改名表里的每个键都必须真的是清单里的入口：写错一个键不会报错，只会静默不生效。
+  const table = i18n.slice(i18n.indexOf('const MENU_ENTRY_TEXT'), i18n.indexOf('export function uiLocale'));
+  const renamedKeys = [...table.matchAll(/'([^']*menu\/[^']*)':/g)].map(match => match[1]);
+  assert(renamedKeys.includes(MENU_KEY), `改名表里没有 ${MENU_KEY}`);
+  const known = new Set((manifest.totalMenuEntries ?? []).map(row => row.key));
+  for (const key of renamedKeys) assert(known.has(key), `改名表里的 ${key} 不是清单里的入口，这个改名永远不会生效`);
+
+  // 2) 裁切边界只写一处，样式表从它推导裁切与底板。
+  const clip = Number((view.match(/const ITEM_ICON_STRIP = (\d+);/) ?? [])[1]);
+  assert(Number.isInteger(clip), 'view.ts 缺少 ITEM_ICON_STRIP');
+  assert(view.includes("'--menu-icon-strip'"), '菜单视图没有把裁切边界交给样式表');
+  assert(css.includes('clip-path:inset(0 calc(136px - var(--menu-icon-strip)) 0 0)'), '样式表没有用同一个裁切边界');
+  assert(css.includes('left:var(--menu-icon-strip)'), '底板没有跟着裁切边界');
+  assert(css.includes('width:calc(136px - var(--menu-icon-strip))'), '底板宽度没有跟着裁切边界');
+
+  // 3) 边界与颜色必须与素材的真实像素一致：量出来，不抄常量。
+  const artOf = state => readPngPixels(path.join(ROOT, 'client/public-tms273', manifest.totalMenuUi[`${MENU_KEY}/${state}/0`].url.slice(1)));
+  const plateColour = {};
+  // 三态都要量：验收要求普通／悬停／按下都只能看到新名字（没有旧字透出、没有叠字），
+  // 所以每一态的底板颜色都必须被样式表的某条规则覆盖到。
+  const STATES = ['normal', 'mouseOver', 'pressed'];
+  let band = null;
+  let sourceOrigin = null;
+  let sourceSpan = null;
+  for (const state of STATES) {
+    const png = artOf(state);
+    assert.equal(png.width, 136, `${state} 素材宽度变了`);
+    assert.equal(png.height, 40, `${state} 素材高度变了`);
+    const at = (x, y) => { const i = (y * png.width + x) * 4; return [png.pixels[i], png.pixels[i + 1], png.pixels[i + 2], png.pixels[i + 3]]; };
+    // 右上角永远只有底板，用它自己的颜色来区分「墨迹」。
+    const plate = at(png.width - 1, 0);
+    plateColour[state] = plate;
+    const columns = [...Array(png.width).keys()];
+    const rows = [...Array(png.height).keys()];
+    const ink = columns.map(x => rows.some(y => !sameColour(at(x, y), plate)));
+    // 图标与字形之间那个空档：找第一段连续 ≥3 列无墨迹的地方。
+    const first = ink.indexOf(true);
+    assert(first >= 0, `${state} 素材没有任何墨迹`);
+    let start = -1, end = -1;
+    for (let x = first; x + 2 < png.width; x++) if (!ink[x] && !ink[x + 1] && !ink[x + 2]) { start = x; end = x + 2; break; }
+    assert(start >= 0, `${state} 素材里图标与字形之间没有空档，改名无从下手`);
+    while (end + 1 < png.width && !ink[end + 1]) end++;
+    const glyphStart = ink.indexOf(true, end + 1);
+    assert(glyphStart > end, `${state} 素材空档右侧没有字形，改名的前提不成立`);
+    // 裁切边界必须落在这个空档里：左侧图标整段留下，右侧烘焙字形整段裁掉。
+    assert(clip >= start && clip <= end, `${state} 的裁切边界 ${clip} 不在图标与字形之间的空档 [${start},${end}] 里`);
+    // 底板必须是纯色，否则「重画底板」这件事本身就不成立。
+    const glyphEnd = ink.lastIndexOf(true);
+    for (let x = glyphEnd + 1; x < png.width; x++) {
+      for (const y of rows) assert(sameColour(at(x, y), plate), `${state} 素材的底板不是纯色 (${x},${y})`);
+    }
+    if (state === 'normal') {
+      const bandRows = rows.filter(y => columns.some(x => x >= glyphStart && !sameColour(at(x, y), plate)));
+      band = { from: Math.min(...bandRows), to: Math.max(...bandRows) };
+      // 源字形自己的起点与跨度：改名后的名字要落在同一个起点上，而它比源标签长，
+      // 所以「能放多大」必须由这两个量算出来，不能拍脑袋。
+      sourceOrigin = glyphStart;
+      sourceSpan = glyphEnd - glyphStart + 1;
+    }
+  }
+
+  // 4) 样式表里的底板颜色、字号与位置必须与素材/可见名称对得上。
+  const plateRule = css.match(/\.maple-menu-item-plate\{([^}]*)\}/);
+  const hoverRule = css.match(/\.maple-menu-item\[data-menu-state="mouseOver"\] \.maple-menu-item-plate\{([^}]*)\}/);
+  assert(plateRule && hoverRule, '样式表缺少改名后的底板规则');
+  // 每一态实际生效的是哪条规则：悬停态有专门规则，其余态落到基础规则。
+  // 这样写出来，源素材哪天给按下态换了底板颜色，这条断言就会失败并要求补规则，
+  // 而不是让按下时露出白色的错误底板。
+  for (const state of STATES) {
+    const rule = state === 'mouseOver' ? hoverRule[1] : plateRule[1];
+    const colour = rule.match(/background:rgba\((\d+),(\d+),(\d+),([\d.]+)\)/);
+    assert(colour, `${state} 底板没有背景色`);
+    const written = [Number(colour[1]), Number(colour[2]), Number(colour[3]), Math.round(Number(colour[4]) * 255)];
+    assert.deepEqual(written, plateColour[state], `${state} 底板颜色与素材不一致`);
+  }
+  const labelRule = css.match(/\.maple-menu-item-label\{([^}]*)\}/);
+  assert(labelRule, '样式表缺少改名后的文字规则');
+  const labelLeft = Number((labelRule[1].match(/left:(\d+)px/) ?? [])[1]);
+  const labelWidth = Number((labelRule[1].match(/width:(\d+)px/) ?? [])[1]);
+  const font = labelRule[1].match(/font:([\d.]+)px\/([\d.]+)px/);
+  assert(Number.isInteger(labelLeft) && Number.isInteger(labelWidth) && font, '改名后的文字规则缺少定位或字号');
+  const fontSize = Number(font[1]), lineHeight = Number(font[2]);
+  assert(Number.isInteger(sourceOrigin) && Number.isInteger(sourceSpan), '没能从素材量出源字形的起点与跨度');
+  assert(labelLeft >= clip, '改名后的文字盖住了图标');
+  assert.equal(labelLeft + labelWidth, 136, '改名后的文字没有铺满底板右侧');
+  // 文字要从源字形的起点开始：偏出去就会和上下相邻按钮的左边缘错开。
+  assert(Math.abs(labelLeft - sourceOrigin) <= 2, `改名后的文字起点 ${labelLeft} 偏离源字形起点 ${sourceOrigin}`);
+  // 可见名称比源标签长，所以字号必须自己算：从源字形起点到按钮右边缘是全部可用
+  // 宽度，取放得下的**最大整数字号**——再大就会被 overflow:hidden 悄悄裁掉，
+  // 再小就是没理由地比源字形小。
+  const available = 136 - sourceOrigin;
+  const fitted = Math.floor(available / override[1].length);
+  assert.equal(fontSize, fitted, `可见名称在 ${available}px 可用宽度里应取最大整数字号 ${fitted}px，而不是 ${fontSize}px`);
+  assert(override[1].length * fontSize <= labelWidth, `可见名称 ${override[1].length} 个字在 ${fontSize}px 下放不进 ${labelWidth}px 的文字框`);
+  // 反向：源字号（由源字形自己量出来，不是抄来的常量）**放不下**这个更长的名字。
+  // 这条断言的意义是让「为什么不用源字号」一直有据可查——哪天源素材或可见名称
+  // 短到源字号也放得下，它会失败，提醒把这个缩小的理由删掉。
+  const sourceAdvance = Math.round(sourceSpan / notebook.menu.label.length);
+  assert(
+    override[1].length * sourceAdvance > available,
+    `源字号 ${sourceAdvance}px 已经放得下 ${override[1].length} 个字的可见名称，不该再缩小字号`);
+  // 名字要落在源字形同一条中线上，否则会和相邻按钮错开半行。行盒从按钮顶边
+  // 开始、高 lineHeight，字身盒居中于 lineHeight/2。
+  assert.equal(lineHeight / 2, (band.from + band.to) / 2, '改名后的文字与源字形不在同一条中线上');
+
+  // 5) 可见名称必须同时落到 tooltip 与 aria-label（计划 §7.4：三者一致），
+  //    而且改名入口要三态都换图——否则悬停或按下时会露出旧字形。
+  assert(
+    /createAssetButton\(entry\.key,\s*displayText\(label\),/.test(view),
+    '改名后的可见名称没有交给按钮的 tooltip／aria-label');
+  assert(view.includes('button.title = label;') && view.includes("button.setAttribute('aria-label', label)"),
+    '按钮没有把传入的名称同时写进 tooltip 与 aria-label');
+  assert(view.includes("assets[`${key}/${state}/0`] ?? normal"), '按钮没有按状态换图，改名后会出现「悬停变回旧字」');
+}
+
+// ---------------------------------------------------------------- NB-07
+// 单入口 + 四页窗口 + 私有查询。  目录／奖励／规则三件 NB-00..05 已经钉住，这里
+// 只补「窗口真的接上了」这件事：接线断在哪一环，玩家看到的就是菜单点了没反应，
+// 而这类断线不会被任何单元测试发现（每一半单看都是好的）。
+{
+  const menu = clientSource('client/src/features/menu/view.ts');
+  const main = clientSource('client/src/app/main.ts');
+  const directory = clientSource('client/src/features/notebook/directory.ts');
+  const viewModel = clientSource('client/src/features/notebook/view-model.ts');
+  const protocolRs = serverSource('server/src/protocol.rs');
+
+  // 1) 菜单：type 22 这一项必须接到 `onNotebook`，且是唯一新增的映射。
+  assert(/entry\.type === 22 \? this\.onNotebook/.test(menu), '源菜单 type 22 没有接到冒险笔记入口');
+  assert(/private onNotebook\?: \(\) => void/.test(menu), 'MenuView 缺少 onNotebook 回调');
+  // 2) main.ts 必须真的把回调传进去，并在打开前收起菜单（计划 §6.2 第 3 条）。
+  assert(/menus\?\.close\(\); notebook\?\.open\(\)/.test(main), '菜单回调没有开冒险笔记窗口');
+  // 3) 服务端推来的两路私有消息都要有人接，否则窗口永远停在"正在读取"。
+  assert(/message\.type === 'notebookState'[\s\S]{0,120}notebook\?\.receiveState/.test(main), 'main.ts 没有分发 notebookState');
+  assert(/message\.type === 'notebookChanged'\) notebook\?\.receiveChange/.test(main), 'main.ts 没有分发 notebookChanged');
+  // 4) ESC 与登出：不进 escapeBlocked 就会连菜单一起开；不销毁就会漏监听器。
+  assert(/notebook\?\.isOpen\(\)/.test(main), 'escapeBlocked 没有算上冒险笔记窗口');
+  assert(/notebook\?\.destroy\(\); notebook = undefined/.test(main), 'leaveGame 没有销毁冒险笔记窗口');
+  // 5) 样式表随窗口一起加载（离线检查不认 CSS，所以必须显式引入）。
+  assert(main.includes("import '../features/notebook/style.css';"), 'main.ts 没有引入冒险笔记样式表');
+
+  // 6) 四页与任务页的开关。  任务页没有「未获得」：未获得的条目从服务器的基集合
+  //    里就不存在，给一个开关等于向玩家暗示它们存在。
+  assert(/section === 'quest' \? \['all'\] : BROWSE_MODES/.test(viewModel), '任务页必须只有一种浏览方式');
+  for (const tab of ['monster', 'equipment', 'use', 'quest']) {
+    assert(viewModel.includes(`section: '${tab}'`), `四个页签缺少 ${tab}`);
+  }
+  // 7) 客户端目录类型里没有 quest 分区——任务条目是服务器算出来的，不是静态清单。
+  assert(/Record<Exclude<NotebookSection, 'monster' \| 'quest'>, string\[\]>/.test(directory),
+    '客户端目录不该声明 quest 分区');
+  const projection = read('client/public-tms273/assets/notebook.json');
+  assert(!('quest' in projection.sections), '客户端投影里出现了任务分区：未获得条目会被先泄后藏');
+
+  // 8) 浏览方式与搜索长度：服务端只认这四个取值，未知取值退化成默认而不是第四态。
+  for (const mode of ['available', 'all', 'obtained', 'missing']) {
+    assert(protocolRs.includes(`NOTEBOOK_MODE_${mode.toUpperCase()}: &str = "${mode}"`), `协议缺少浏览方式 ${mode}`);
+  }
+  assert(/NOTEBOOK_MAX_FILTER_CHARS: usize = 32/.test(protocolRs), '搜索长度上限不是 32');
+  // 客户端输入框的上限必须与服务端一致，否则玩家能打出服务器必拒的搜索词。
+  const viewTs = clientSource('client/src/features/notebook/view.ts');
+  assert(/search\.maxLength = 32/.test(viewTs), '搜索框上限与服务端不一致');
 }
 
 console.log(JSON.stringify({

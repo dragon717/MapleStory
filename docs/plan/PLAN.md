@@ -152,7 +152,7 @@
   `Reward` / `MailAttachment` / `DomainEvent` —— 当前零消费者（项目无邮件/拍卖/玩家交易/挂机收益）。
   提前建会违反"不提前建空目录或通用工厂"的规范，也会把 LSP 边界重新搅乱。
 
-## 冒险笔记（图鉴）：怪物收集复刻与物品获得留档（2026-09-15，NB-00~04 已落地）
+## 冒险笔记（图鉴）：怪物收集复刻与物品获得留档（2026-09-15，NB-00~05 已落地；**NB-07 单入口＋四页窗口＋私有查询已落地**）
 
 > 详细方案：[`MapleStory_冒险笔记图鉴_怪物收集复刻与扩展计划_f62ef983.md`](MapleStory_冒险笔记图鉴_怪物收集复刻与扩展计划_f62ef983.md)。
 > 目标：复用原怪物收集菜单项（`menu/buttonInfo/3/6` type 22），可见名改「冒险笔记（图鉴）」；一个同版窗口承载怪物、装备、普通道具、仅已获得任务道具四页；保留现代收藏的勋章、奖励与探险目标，不混用旧 MonsterBook 卡片。
@@ -183,7 +183,20 @@
   - `auth/notebook.rs` 顶部那条写明移除条件的 `#![allow(dead_code)]` 已删，改为**逐条**例外并各自写明移除条件（目录展示投影＝NB-07、历史补记整簇＝NB-08、`TIME_QUALITY_UNKNOWN`／`recorded_anything`）；模块级例外会连带掩盖刚接好的写入面。
   - 验收：cargo **457 过／0 失败**（NB-04 基线 455）、非测试构建 **0 告警**、`check_tms273_notebook` ok（2584 物品＝7 页签 1738+206+1+86+520+12+21 无重叠全覆盖／1002 别名去重／4 事实表）、逐 id 分类交叉核对。**本轮对玩家不可见**（只在图鉴事实层落库，正常玩法结果不变），无需实玩验收。
 - [ ] **NB-06 原版怪物登记链路**（`collection_rules.rs`＋死亡结算事务内；阻塞于登记概率／资格门核定）。
-- [ ] **NB-07 单入口＋四页窗口＋私有查询**（复用 `menu/buttonInfo/3/6`；行列表、分页与「当前可获得」分母）。
+- [x] **NB-07 单入口＋四页窗口＋私有查询**（复用 `menu/buttonInfo/3/6`；行列表、分页与「当前可获得」分母）。
+  - **服务端四页查询（`server/src/notebook.rs`，本轮完成）**：`monster_rows`／`item_rows` 抽成模块级**纯函数**便于定向检查。怪物页按「地区→分页→行→槽位」出（地区按数值 id 升序，槽位顺序＝源 `entryIds`），摘要同时报 `total`（完整原始集合 1550）与 `collectable`（本版可收集 57）——两个数分开报，行奖励永远不会拿缩小后的集合当分母（§5.5）。物品页在**服务器自己的集合**上筛选／分页／搜索：默认（`available`，含任何未定义取值）只给目录判定为当前可获得的条目；`all` 看全分区；`obtained`／`missing` 按已获得集合；搜索长度上限 32（`NOTEBOOK_MAX_FILTER_CHARS`，与客户端输入框一致）。**任务页的基集合就是已获得集合**：未获得的任务条目从基集合里就不存在，不是发给客户端再藏起来；且任务页不再叠加浏览方式——一件已拿到的任务道具不会因为目录把它的来源标成 `unverified` 就从玩家自己的记录里消失。新增 `scripts/export_tms273_mob_names.cjs` → `shared/mob-names.json`（1550 个收藏模板全有名字）并接入 `build_tms273.cjs`。
+  - **客户端窗口（`client/src/features/notebook/`，本轮完成）**：`view.ts`（共用壳＋四页导航＋详情面板）、`view-model.ts`（纯转换）、`monster-section.ts`、`item-section.ts`、`directory.ts`（`/assets/notebook.json` 目录，**故意不含 quest 分区**）、`section-context.ts`、`style.css`。几何全部取自同版 `UIWindow4.img/monsterCollection` 的源坐标（底板 891×664、页签 y82、左栏 19,119(182×524)、内容 204,120(666×520)、上/下一页 234,609／828,610、关闭 870,4）。源只授权了三张页签底板，第四页（用户授权的界面扩展）共用同一张横向铺满，不改动源素材。空间不足（host < 900×690）切 `notebook-compact` 流式布局，保住标题／页签／分页／内容滚动。
+  - **隐私与生命周期**：共享 host 只 `append` 自己的节点；`requestId`＋页签双重对齐，过期响应整份丢弃；目录版本错配**拒绝排版**并给出可见原因；`notebookChanged` 的 revision 前进才重新查询（不自己推测加了什么）；开窗即重新读快照，关窗即释放行与动画；ESC 只关本窗，搜索框内按键（含输入法组词）不漏给角色操作。任务页**没有「未获得」开关**（`browseModesFor('quest') === ['all']`）。
+  - **接线**：`menu/view.ts` type 22 → `onNotebook`；`main.ts` 构造／分发 `notebookState`·`notebookChanged`／进 `escapeBlocked`／`leaveGame` 销毁；`i18n.ts` 新增 `NOTEBOOK_TEXT` 并入 `uiText` 回退链。
+  - 验收：cargo notebook **17 过／0 失败**（新增 8 条四页查询定向检查：任务页不泄漏未获得、目录判 unavailable 的已获得任务道具仍在、默认分母、missing 排除已获得与不可获得、搜索不越出服务器集合、分页不重叠且越界为空、怪物分母＝完整原始集合、槽位登记与行级状态、搜索过滤槽位并丢空行）；新增 `client/src/features/notebook/view-model.check.mjs` 与 `view.check.mjs`（宿主只 append、过期响应丢弃、版本错配拒绝排版、revision 前进才重查、查询不含身份字段）并接入 `run-checks.mjs`；`check_tms273_notebook.cjs` 新增 NB-07 接线段（type 22→onNotebook、两路消息分发、escapeBlocked、销毁、样式表引入、任务页只有一种浏览方式、客户端目录不声明 quest、投影不含 quest、四个浏览方式与 32 上限双端一致；**反向断言**：物品页已真实出条目 ⇒ `ITEMS_BLOCKED` 整页阻塞豁免必须已消失）；`tsc --noEmit` 0 错；`vite build` 93 模块通过。
+  - 遗留：怪物页登记仍为 0（NB-06 阻塞于登记概率核定）；奖励／勋章／探险（NB-08）未做，窗口里对应区域不出控件。
+  - [x] **旧菜单可见改名（NB-07 前置，已完成）**：
+    - 源按钮 `menu/buttonInfo/3/6` 的 136×40 素材把图标、底板、名字**烘焙在同一张位图**里（底板＝纯色 `rgba(255,255,255,179)`；悬停态 `rgba(123,204,224,179)`；按下／禁用沿用普通态颜色），所以改名不能只加一行 DOM 文字——旧字形会和新文字并排出现叠字。
+    - 做法（`features/menu/`）：`view.ts::ITEM_ICON_STRIP = 27` 落在源素材图标与字形之间的空档内 ⇒ 图像 `clip-path:inset(0 calc(136px - var(--menu-icon-strip)) 0 0)` 只留图标；`.maple-menu-item-plate` 用素材自己的颜色重画底板（保留 179/255 alpha，叠加效果与源按钮一致）；`.maple-menu-item-label` 自己画名字。裁切边界只写一处，样式表从它推导。
+    - 名字登记在 `app/i18n.ts::MENU_ENTRY_TEXT`（唯一登记处，由 `menuEntryText()` 消费）＝`冒險筆記（圖鑑）`／en `Adventure Notebook`，经 `displayText` 得 `冒险笔记（图鉴）`，同时进 tooltip 与 aria-label；`activateEntry` 的「尚未实装」提示也改用可见名称（否则点下去提示的仍是旧名）。源标签 `怪物收藏` 保持原样，改名**只发生在本地化层**。
+    - 字号是 13px 而非源字形的 14px：可见名称 8 个全角字（源标签只有 4 个）放不进「源字形起点→按钮右边缘」的 106px（8×14=112px），所以取**放得下的最大整数字号**；中线仍是 18.5（源字形带 y12..25），与相邻按钮对齐。
+    - 门禁新增段「旧菜单可见改名」：从导出 PNG **现量**底板颜色、图标／字形分界、字形带与步进（不抄常量），断言裁切边界落在空档内、三态（普通／悬停／按下）底板颜色都有规则覆盖、名称确实进 tooltip/aria-label、字号＝放得下的最大整数且源字号确实放不下、改名表每个键都真的是清单入口。五处扰动（字号改小／起点右移／底板换色／tooltip 改回源标签／键写错）均已验证会让门禁失败。
+    - 验收：`check_tms273_notebook` ok、`i18n.check.ts` ok、`tsc --noEmit` 0 错。窗口已随 NB-07 落地，「冒险笔记（图鉴）尚未实装。」的提示不再出现。
 - [ ] **NB-08 奖励、勋章与探险**（规则未核定部分显式阻塞）。
 - [ ] **NB-09 定向检查与整合**。
 

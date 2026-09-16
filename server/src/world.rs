@@ -19,77 +19,77 @@ use std::{
 };
 use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
+#[path = "attacks.rs"]
+mod attacks;
 #[path = "boss.rs"]
 mod boss;
-#[path = "windbell.rs"]
-pub(crate) mod windbell;
-#[path = "messaging.rs"]
-mod messaging;
-#[path = "gm.rs"]
-mod gm;
-#[path = "pets.rs"]
-mod pets;
-#[path = "pet_motion.rs"]
-mod pet_motion;
-#[path = "inventory_ops.rs"]
-mod inventory_ops;
-#[path = "social.rs"]
-mod social;
-#[path = "trade.rs"]
-mod trade;
 #[path = "cashshop.rs"]
 mod cashshop;
+#[path = "combat_rules.rs"]
+mod combat_rules;
+#[path = "commands.rs"]
+mod commands;
+#[path = "derived.rs"]
+mod derived;
+#[path = "dialogue.rs"]
+mod dialogue;
+#[path = "elemental.rs"]
+mod elemental;
+/// 艾靈森林章节脚本门 P 级路由（时间门与两间首領房，源配对见模块头）。
+#[path = "ellinel.rs"]
+mod ellinel;
+#[path = "gameplay.rs"]
+mod gameplay;
+#[path = "geometry.rs"]
+mod geometry;
+#[path = "gm.rs"]
+mod gm;
+#[path = "growth.rs"]
+mod growth;
+/// 赫爾奧斯塔电梯脚本门 P 级路由（99樓 ⇄ 2樓，源到站门见模块头）。
+#[path = "helios.rs"]
+mod helios;
+#[path = "inventory_ops.rs"]
+mod inventory_ops;
+#[path = "messaging.rs"]
+mod messaging;
+#[path = "monsters.rs"]
+mod monsters;
+#[path = "movement.rs"]
+mod movement;
+#[path = "notebook.rs"]
+mod notebook;
+#[path = "pet_motion.rs"]
+mod pet_motion;
+#[path = "pets.rs"]
+mod pets;
+/// 拾取纯规则（计划 R6 试点）：掉落可得性判定与容量预检，不依赖整个 World。
+#[path = "pickup_rules.rs"]
+mod pickup_rules;
+#[path = "portals.rs"]
+mod portals;
 #[path = "quest.rs"]
 mod quest;
 /// 任务纯规则（计划 §6 试点）：只做判定与归一化，不依赖整个 World。
 #[path = "quest_rules.rs"]
 mod quest_rules;
-/// 拾取纯规则（计划 R6 试点）：掉落可得性判定与容量预检，不依赖整个 World。
-#[path = "pickup_rules.rs"]
-mod pickup_rules;
-#[path = "monsters.rs"]
-mod monsters;
-#[path = "skills.rs"]
-mod skills;
-#[path = "elemental.rs"]
-mod elemental;
-#[path = "dialogue.rs"]
-mod dialogue;
-#[path = "portals.rs"]
-mod portals;
+#[path = "revive.rs"]
+mod revive;
 #[path = "ship.rs"]
 mod ship;
-/// 艾靈森林章节脚本门 P 级路由（时间门与两间首領房，源配对见模块头）。
-#[path = "ellinel.rs"]
-mod ellinel;
-/// 赫爾奧斯塔电梯脚本门 P 级路由（99樓 ⇄ 2樓，源到站门见模块头）。
-#[path = "helios.rs"]
-mod helios;
+#[path = "skills.rs"]
+mod skills;
+#[path = "social.rs"]
+mod social;
+#[path = "trade.rs"]
+mod trade;
 /// 危險地帶/UFO 街脚本门与呼叫器 NPC 的 P 级路由（源授权见模块头）。
 #[path = "ufo.rs"]
 mod ufo;
-#[path = "growth.rs"]
-mod growth;
-#[path = "revive.rs"]
-mod revive;
-#[path = "notebook.rs"]
-mod notebook;
-#[path = "commands.rs"]
-mod commands;
-#[path = "derived.rs"]
-mod derived;
-#[path = "movement.rs"]
-mod movement;
-#[path = "attacks.rs"]
-mod attacks;
-#[path = "gameplay.rs"]
-mod gameplay;
-#[path = "combat_rules.rs"]
-mod combat_rules;
-#[path = "geometry.rs"]
-mod geometry;
-use self::monsters::mark_monster_hit_aggro;
+#[path = "windbell.rs"]
+pub(crate) mod windbell;
 use self::derived::*;
+use self::monsters::mark_monster_hit_aggro;
 use self::movement::*;
 
 pub const TICK_MS: u64 = 50;
@@ -465,7 +465,6 @@ pub struct Foothold {
     pub forbid_fall_down: i8,
 }
 
-
 fn endpoint(foothold: &Foothold, left: bool) -> (f64, f64) {
     let take_first = if left {
         foothold.x1 <= foothold.x2
@@ -508,7 +507,6 @@ where
     }
 }
 
-
 /// One authored reactor placement (Map.wz `reactor` subtree).
 ///
 /// A reactor is the original interactive map prop — a flower shaken for an
@@ -550,7 +548,6 @@ pub struct ReactorPlacement {
     pub drop_table: Option<DropInput>,
 }
 
-
 /// Live reactor state for one placement.  Session-scoped on purpose: a
 /// half-used flower is a moment-to-moment world fact, and losing it on a
 /// restart is far better than persisting a state the source would have reset.
@@ -578,7 +575,6 @@ pub struct WaterRect {
     pub floor: Vec<Point>,
 }
 
-
 fn deserialize_water_zones<'de, D>(deserializer: D) -> Result<Vec<WaterRect>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -605,7 +601,6 @@ pub struct Map {
     #[serde(default)]
     pub reactors: Vec<ReactorPlacement>,
 }
-
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1248,7 +1243,6 @@ pub struct CashShopCatalogue {
     pub commodities: Vec<CashCommodity>,
 }
 
-
 pub enum Command {
     Join {
         identity: Identity,
@@ -1283,10 +1277,7 @@ pub enum Command {
     /// Same as `Exit` with a mandatory connection tag; only acceptance tests
     /// construct it directly, production always goes through `Exit`.
     #[cfg_attr(not(test), allow(dead_code))]
-    Leave {
-        id: String,
-        connection: String,
-    },
+    Leave { id: String, connection: String },
 }
 
 /// Why a character entered an away window.  Stored as a fact next to the
@@ -2159,7 +2150,11 @@ impl World {
     }
 
     fn attach_catalog(&mut self, catalog: MapCatalog) -> Result<(), String> {
-        let MapCatalog { birth_map_id, maps, return_maps } = catalog;
+        let MapCatalog {
+            birth_map_id,
+            maps,
+            return_maps,
+        } = catalog;
         if birth_map_id != self.map.id {
             return Err(format!(
                 "map catalog birth map {} does not match {}",
@@ -2478,7 +2473,10 @@ impl World {
             };
             if !abnormal.is_empty() {
                 if let Some(object) = row.as_object_mut() {
-                    object.insert("abnormalStatus".to_owned(), serde_json::to_value(&abnormal).unwrap());
+                    object.insert(
+                        "abnormalStatus".to_owned(),
+                        serde_json::to_value(&abnormal).unwrap(),
+                    );
                 }
             }
             if let Some(object) = row.as_object_mut() {
@@ -2879,7 +2877,6 @@ impl World {
         }
     }
 
-
     fn handle_attack(&mut self, id: String, request_id: String) {
         let Some(player) = self.players.get(&id) else {
             return;
@@ -2975,7 +2972,6 @@ impl World {
             }
         }
     }
-
 
     fn send_snapshot(&mut self, id: &str) {
         let snapshot = self.snapshot(id);
@@ -3220,9 +3216,9 @@ impl World {
             // because poison bypasses weapon-defense/shield/guard layers; the
             // death transition itself is handled by the normal tick path.
             if player.poison_until > self.tick && player.poison_next_tick <= self.tick {
-                player.poison_next_tick = self.tick.saturating_add(
-                    (MOB_DISEASE_POISON_TICK_MS / TICK_MS).max(1),
-                );
+                player.poison_next_tick = self
+                    .tick
+                    .saturating_add((MOB_DISEASE_POISON_TICK_MS / TICK_MS).max(1));
                 player.state.hp = player.state.hp.saturating_sub(1).max(0);
             } else if player.poison_until != 0 && player.poison_until <= self.tick {
                 player.poison_until = 0;
@@ -3239,8 +3235,11 @@ impl World {
                 player.curse_until = 0;
                 player.curse_next_tick = 0;
             }
-            for deadline in [&mut player.seal_until, &mut player.stun_until, &mut player.slow_until]
-            {
+            for deadline in [
+                &mut player.seal_until,
+                &mut player.stun_until,
+                &mut player.slow_until,
+            ] {
                 if *deadline != 0 && *deadline <= self.tick {
                     *deadline = 0;
                 }
@@ -3400,7 +3399,6 @@ impl World {
             ),
         )
     }
-
 }
 
 fn mage_job_allowed(job: u32) -> bool {
@@ -3546,7 +3544,6 @@ fn hyper_barrier_active(player: &Player) -> bool {
             .is_some_and(|vortex| vortex.expires_at > 0 && hyper_vortex_contains(player, vortex))
 }
 
-
 fn profile_from_state(
     state: &PlayerState,
     map_id: &str,
@@ -3618,7 +3615,6 @@ fn apply_profile_to_player(
     refresh_player_derived(gameplay, mage_skills, player);
 }
 
-
 /// Human-readable remaining time for a rejected consumable use.
 ///
 /// The remaining value comes from the authoritative cooldown, so the text only
@@ -3670,7 +3666,6 @@ fn map_move_reject_message(code: &str, lang: &'static str) -> &'static str {
         zh
     }
 }
-
 
 fn pickup_error_message(code: &str) -> &'static str {
     match code {

@@ -238,7 +238,9 @@ impl MageSkills {
                         || level.md_r.is_some_and(|value| value < 0)
                         || level.cooltime.is_some_and(|value| value < 0)
                         || level.cooldown_ms.is_some_and(|value| value < 0)
-                        || level.mp_substitute_percent.is_some_and(|value| !(0..=100).contains(&value))
+                        || level
+                            .mp_substitute_percent
+                            .is_some_and(|value| !(0..=100).contains(&value))
                         || level.asr_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.ter_r.is_some_and(|value| !(0..=100).contains(&value))
                         || level.stance_prop.is_some_and(|value| value < 0)

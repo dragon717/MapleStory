@@ -14,7 +14,6 @@
 use super::*;
 
 impl World {
-
     pub(super) fn handle_cast_skill(
         &mut self,
         id: String,
@@ -747,7 +746,13 @@ impl World {
         self.send_snapshot(id);
     }
 
-    pub(super) fn skill_mp_cost(&self, id: &str, skill_id: u32, level: &MageLevel, vertical: i8) -> i64 {
+    pub(super) fn skill_mp_cost(
+        &self,
+        id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+        vertical: i8,
+    ) -> i64 {
         // Hyper Thunder's accepted cast is the first sustained pulse: the P
         // contract charges its authored 30 MP up front and starts the durable
         // 60-second cooldown.  Keep it outside Amp/Infinity adjustments so a
@@ -1253,9 +1258,7 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return false;
         };
-        let deadline = self
-            .tick
-            .saturating_add((duration_ms / TICK_MS).max(1));
+        let deadline = self.tick.saturating_add((duration_ms / TICK_MS).max(1));
         match disease {
             PlayerDisease::Seal => player.seal_until = deadline,
             PlayerDisease::Stun => player.stun_until = deadline,
@@ -1630,7 +1633,13 @@ impl World {
         player.attack_until = 0;
     }
 
-    pub(super) fn apply_magic_wave(&mut self, id: &str, level: &MageLevel, _vertical: i8, hidden: bool) {
+    pub(super) fn apply_magic_wave(
+        &mut self,
+        id: &str,
+        level: &MageLevel,
+        _vertical: i8,
+        hidden: bool,
+    ) {
         let tick = self.tick;
         let Some(player) = self.players.get_mut(id) else {
             return;
@@ -1733,7 +1742,12 @@ impl World {
         )
     }
 
-    pub(super) fn skill_area_targets(&self, id: &str, skill_id: u32, level: &MageLevel) -> Vec<String> {
+    pub(super) fn skill_area_targets(
+        &self,
+        id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+    ) -> Vec<String> {
         self.area_targets(id, &self.hyper_area_level(id, skill_id, level))
     }
 

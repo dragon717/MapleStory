@@ -501,6 +501,22 @@ export interface WorldMapPage {
 /** Source-backed Map.wz WorldMap pages plus the `UI/UIWindow2.img/WorldMap`
  *  window shell used by the world-map window.  Only the pages that can show an
  *  assembled map (and their ancestors) are exported. */
+/** Source-backed UI/UIWindow4.img 冒险笔记（图鉴）window art.  Exported by
+ *  `scripts/export_tms273_collection.cjs`, assembled by `assemble_tms273.cjs`. */
+export interface NotebookUiData {
+  contentVersion: string;
+  source: string;
+  /** The two source panels the window reuses. */
+  panels: Record<'monster' | 'item', string>;
+  /** The button states the source authors (`notAvailable` is collection-only). */
+  states: string[];
+  /** The reused UITotalMenu entry — its machine identity, never its label. */
+  menu: { key: string; type: number; x: number; y: number; label: string; source: string };
+  /** `<panel>/<path>` → frame. */
+  frames: Record<'monster' | 'item', Record<string, AssetFrame>>;
+  /** The authored scalars of each panel (counters, tooltip boxes, button ids). */
+  values: Record<'monster' | 'item', Record<string, unknown>>;
+}
 export interface WorldMapUiData {
   contentVersion: string;
   source: string;
@@ -608,6 +624,15 @@ export interface Manifest {
    *  used by the friend window.  Flat keys mirror the WZ layout
    *  (`backgrnd`, `Tab/enabled/0`, `BlackList/BtAdd/normal`). */
   friendUi?: FriendUiData;
+  /** Source-backed UI/UIWindow4.img 怪物收藏 (`monsterCollection`) and 物品圖鑑
+   *  (`itemCollection`) window art used by the 冒险笔记（图鉴）window.
+   *  `frames` is keyed `<panel>/<path>`, so the monster panel's region tabs are
+   *  `monster/Category/Enable/0` and the item panel's 94x94 slot plates are
+   *  `item/category/itemComplete` / `item/category/itemIncomplete`.  The
+   *  catalogue half is *not* here: it ships as `/assets/notebook.json` with the
+   *  quest section deliberately withheld (plan §12.2), and is fetched only when
+   *  the window first opens. */
+  notebook?: NotebookUiData;
   /** Source-backed UI/ChatEmoticon.img: the 表情 sticker catalogue and the 表情
    *  window shell used by the emoticon window. */
   emoticon?: EmoticonData;

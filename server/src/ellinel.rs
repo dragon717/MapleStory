@@ -72,7 +72,11 @@ impl World {
         // 38~122px，超出 24px 贴地窗），而门位都在可走地形上——与 ship 路由
         // 的 `come00`/`in00` 落点规则同一思路。
         let moved = self.warp_player_at(id, target_map.to_owned(), Some(landing_portal));
-        let (success, code) = if moved { (true, "") } else { (false, "map_unavailable") };
+        let (success, code) = if moved {
+            (true, "")
+        } else {
+            (false, "map_unavailable")
+        };
         self.send_portal_result(id, request_id, success, code, source_map, Some(target_map));
         true
     }

@@ -146,11 +146,14 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let kind = inventory::inventory_type(&item_id).unwrap_or(4);
         let slot_limit = player
-            .state.inventory_slots
+            .state
+            .inventory_slots
             .get(&kind)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
-        if let Err(error) = inventory::add_items(&mut next_inventory, item_id.clone(), quantity, slot_limit) {
+        if let Err(error) =
+            inventory::add_items(&mut next_inventory, item_id.clone(), quantity, slot_limit)
+        {
             self.send_shop_buy_result(
                 &id,
                 &request_id,
@@ -344,15 +347,10 @@ impl World {
         // has to be part of the match itself: filtering the slot match first
         // would let an equip-tab item with the same local slot number shadow
         // the consumable the client is actually selling.
-        let Some(stack) = player
-            .state
-            .inventory
-            .iter()
-            .find(|item| {
-                inventory::inventory_type(&item.item_id) == Some(inventory_type)
-                    && item.slot == source_slot as u16
-            })
-        else {
+        let Some(stack) = player.state.inventory.iter().find(|item| {
+            inventory::inventory_type(&item.item_id) == Some(inventory_type)
+                && item.slot == source_slot as u16
+        }) else {
             self.send_shop_sell_result(
                 &id,
                 &request_id,
@@ -577,7 +575,15 @@ impl World {
             .any(|shop| shop.shop_id == shop_id);
         if !shop_known {
             self.send_shop_rebuy_result(
-                &id, &request_id, false, "shop_unknown", &shop_id, &item_id, 0, unit_price, 0,
+                &id,
+                &request_id,
+                false,
+                "shop_unknown",
+                &shop_id,
+                &item_id,
+                0,
+                unit_price,
+                0,
             );
             return;
         }
@@ -589,13 +595,29 @@ impl World {
         });
         if !npc_in_range {
             self.send_shop_rebuy_result(
-                &id, &request_id, false, "shop_too_far", &shop_id, &item_id, 0, unit_price, 0,
+                &id,
+                &request_id,
+                false,
+                "shop_too_far",
+                &shop_id,
+                &item_id,
+                0,
+                unit_price,
+                0,
             );
             return;
         }
         let Some(store) = self.store.clone() else {
             self.send_shop_rebuy_result(
-                &id, &request_id, false, "persistence", &shop_id, &item_id, 0, unit_price, 0,
+                &id,
+                &request_id,
+                false,
+                "persistence",
+                &shop_id,
+                &item_id,
+                0,
+                unit_price,
+                0,
             );
             return;
         };
@@ -605,7 +627,15 @@ impl World {
             Ok(rows) => rows,
             Err(_) => {
                 self.send_shop_rebuy_result(
-                    &id, &request_id, false, "persistence", &shop_id, &item_id, 0, unit_price, 0,
+                    &id,
+                    &request_id,
+                    false,
+                    "persistence",
+                    &shop_id,
+                    &item_id,
+                    0,
+                    unit_price,
+                    0,
                 );
                 return;
             }
@@ -664,7 +694,8 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let kind = inventory::inventory_type(&item_id).unwrap_or(4);
         let slot_limit = player
-            .state.inventory_slots
+            .state
+            .inventory_slots
             .get(&kind)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);

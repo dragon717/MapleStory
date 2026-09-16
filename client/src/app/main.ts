@@ -26,6 +26,8 @@ import { MenuView } from '../features/menu/view';
 import { ActivitiesView } from '../features/windbell/activities';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
+import { NotebookView } from '../features/notebook/view';
+import '../features/notebook/style.css';
 import { SkillView } from '../features/skills/view';
 import { CharacterInfoView } from '../features/character/view';
 import { PetPanel } from '../features/pet/panel';
@@ -68,6 +70,9 @@ let cashShop: CashShopView | undefined;
 let miniMap: MiniMapView | undefined;
 let worldMap: WorldMapView | undefined;
 let questLog: QuestLogView | undefined;
+// 冒险笔记（图鉴）：一个窗口四个页签（怪物／装备／道具／任务道具），私有事实
+// 全部由服务器按身份算好，这里只负责构造、路由与销毁（计划 §6.4）。
+let notebook: NotebookView | undefined;
 let skills: SkillView | undefined;
 let keybindingsView: KeybindingsView | undefined;
 const keybindings = new KeyBindings({ onError: message => status(message, true) });
@@ -150,6 +155,7 @@ function escapeBlocked() {
     || emoticons?.isOpen()
     || inventory?.isOpen()
     || questLog?.isOpen()
+    || notebook?.isOpen()
     || worldMap?.isOpen()
     || Boolean(miniMap?.npcListShown()),
   );
@@ -350,6 +356,11 @@ async function enterGame(session: LoginResponse) {
     };
     worldMap.hotkeysEnabled = false;
     miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
+    notebook?.destroy();
+    notebook = new NotebookView(el('ui-windows'), manifest, {
+      send: message => connection?.send(message) ?? false,
+      status: message => status(message, true),
+    });
     questLog?.destroy();
     questLog = new QuestLogView(el('ui-windows'), manifest);
     // 源自助任务（QuestInfo selfStart/selfComplete）没有 NPC，入口就在任务视窗；
@@ -405,6 +416,9 @@ async function enterGame(session: LoginResponse) {
       // The 現金商店 operation opens the cash-shop window (source CashShop.img).
       openCashShop,
       () => openKeybindings(),
+      // Source UITotalMenu type 22 (怪物收藏) is the single notebook entry:
+      // opening it closes the menu and shows the same window every time.
+      () => { input?.reset(); menus?.close(); notebook?.open(); },
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -651,6 +665,12 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'questList') {
         questLog?.setList(message.quests);
       }
+      // 冒险笔记：一页私有事实按 requestId 对齐，过期响应由窗口自己丢弃。
+      if (message.type === 'notebookState') {
+        notebook?.receiveState(message);
+        if (message.blockedReason) status(message.blockedReason, true);
+      }
+      if (message.type === 'notebookChanged') notebook?.receiveChange(message);
       if (message.type === 'questUpdate') {
         questLog?.upsert(message);
         const parts: string[] = [];
@@ -819,7 +839,7 @@ function leaveGame(logout = false) {
   keyRouterDispose?.(); keyRouterDispose = undefined;
   keybindingsDispose?.(); keybindingsDispose = undefined;
   keybindingsView?.destroy(); keybindingsView = undefined;
-  generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; notebook?.destroy(); notebook = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }
 function castSkill(skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1): string | undefined {

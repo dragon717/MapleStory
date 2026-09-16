@@ -124,7 +124,12 @@ impl World {
         );
     }
 
-    pub(super) fn handle_reset_hyper(&mut self, id: String, request_id: String, expected_cost: u64) {
+    pub(super) fn handle_reset_hyper(
+        &mut self,
+        id: String,
+        request_id: String,
+        expected_cost: u64,
+    ) {
         let store_prior = if let Some(store) = self.store.as_ref() {
             match store.prior_skill_action(&id, &request_id, "hyper_reset", 0) {
                 Ok(prior) => prior,
@@ -502,5 +507,4 @@ impl World {
             .to_string(),
         );
     }
-
 }

@@ -310,17 +310,32 @@ impl World {
             .get(&id)
             .is_some_and(|sender| sender.blocked.contains(&target_id));
         if target_blocked_sender {
-            self.whisper_reject(&id, &request_id, "whisper_blocked", "对方已把你加入黑名单。");
+            self.whisper_reject(
+                &id,
+                &request_id,
+                "whisper_blocked",
+                "对方已把你加入黑名单。",
+            );
             return;
         }
         if sender_blocked_target {
-            self.whisper_reject(&id, &request_id, "whisper_ignored", "你已把对方加入黑名单。");
+            self.whisper_reject(
+                &id,
+                &request_id,
+                "whisper_ignored",
+                "你已把对方加入黑名单。",
+            );
             return;
         }
         // 6. Rate limit — the shared chat bucket, so whispering is not a way
         //    around the map-chat limit.
         if !self.chat_consume_token(&id) {
-            self.whisper_reject(&id, &request_id, "chat_rate_limited", "发言太快，请稍后再试。");
+            self.whisper_reject(
+                &id,
+                &request_id,
+                "chat_rate_limited",
+                "发言太快，请稍后再试。",
+            );
             return;
         }
         // 7. Immutable message fact; the server is the only author.
@@ -376,14 +391,7 @@ impl World {
     /// Re-send one recorded whisper to its sender only, used when a network
     /// retry replays a request id.  `recorded` is the text stored with the id,
     /// so a replay can never change what was said.
-    fn whisper_echo(
-        &self,
-        id: &str,
-        request_id: &str,
-        target_id: &str,
-        text: &str,
-        replay: bool,
-    ) {
+    fn whisper_echo(&self, id: &str, request_id: &str, target_id: &str, text: &str, replay: bool) {
         let (Some(sender), Some(target)) = (self.players.get(id), self.players.get(target_id))
         else {
             return;

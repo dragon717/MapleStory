@@ -74,11 +74,17 @@ fn reject(code: &'static str, message: &'static str) -> PickupVerdict {
 /// 掉落可得性判定。与原 `handle_pickup` 的校验链逐条一致，顺序固定：
 /// 地图匹配 → 归属保护窗口 → 距离 → 内存容量预检。
 pub(super) fn evaluate_pickup(facts: &PickupFacts<'_>) -> PickupVerdict {
-    if facts.drop_map.is_some_and(|drop_map| drop_map != facts.map_id) {
+    if facts
+        .drop_map
+        .is_some_and(|drop_map| drop_map != facts.map_id)
+    {
         return reject("drop_unavailable", "Drop is unavailable");
     }
     if facts.drop_owner.is_some_and(|(owner, until)| {
-        owner.as_deref().is_some_and(|owner| owner != facts.player_id) && facts.now_ms < *until
+        owner
+            .as_deref()
+            .is_some_and(|owner| owner != facts.player_id)
+            && facts.now_ms < *until
     }) {
         return reject("drop_owned", "该物品暂时不可拾取");
     }
@@ -90,9 +96,7 @@ pub(super) fn evaluate_pickup(facts: &PickupFacts<'_>) -> PickupVerdict {
     if let Some(probe) = facts.memory_capacity.as_ref() {
         // 金币（"0"）不占页签；ConsumeOnPickup 卡片恒可收（图鉴饱和在
         // 应用阶段处理），二者都不做容量预检——与原实现分支一致。
-        if drop_needs_capacity_check(&facts.drop)
-            && !memory_capacity_allows(probe, &facts.drop)
-        {
+        if drop_needs_capacity_check(&facts.drop) && !memory_capacity_allows(probe, &facts.drop) {
             return reject("inventory_full", "Inventory is full");
         }
     }
@@ -122,11 +126,7 @@ fn drop_needs_capacity_check(drop: &PickupDropView<'_>) -> bool {
 
 /// 图鉴卡片饱和入账（原 handle_pickup 内存路径的逐字抽离）：
 /// 每种卡片至多记 5 张，超出部分静默丢弃但拾取本身仍成功。
-pub(super) fn saturate_monster_book(
-    book: &mut BTreeMap<String, u8>,
-    item_id: &str,
-    quantity: u32,
-) {
+pub(super) fn saturate_monster_book(book: &mut BTreeMap<String, u8>, item_id: &str, quantity: u32) {
     let entry = book.entry(item_id.to_owned()).or_insert(0);
     let current = *entry;
     let amount = quantity.min(u32::from(5_u8.saturating_sub(current)));
@@ -178,7 +178,10 @@ mod tests {
         // 未登记地图（None）按可拾取处理，与原实现一致。
         let mut unregistered = facts(drop_view("4000019"));
         unregistered.drop_map = None;
-        assert!(matches!(evaluate_pickup(&unregistered), PickupVerdict::Allowed));
+        assert!(matches!(
+            evaluate_pickup(&unregistered),
+            PickupVerdict::Allowed
+        ));
     }
 
     #[test]
@@ -272,7 +275,10 @@ mod tests {
         // Store 权威路径（probe=None）不做内存预检。
         let mut store_path = facts(drop_view("1102173"));
         store_path.memory_capacity = None;
-        assert!(matches!(evaluate_pickup(&store_path), PickupVerdict::Allowed));
+        assert!(matches!(
+            evaluate_pickup(&store_path),
+            PickupVerdict::Allowed
+        ));
     }
 
     #[test]

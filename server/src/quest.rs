@@ -19,8 +19,8 @@
 //! - 传送落点（`warp_player*` 留在 `world.rs`；路线目标只算出地图 id）
 //! - 任务文本目录本身：`crate::quest_text`
 
-use super::*;
 use super::quest_rules;
+use super::*;
 use crate::auth::notebook::{AcquisitionSource, ItemAcquisition};
 
 /// 一次任务状态推进从哪个入口发起。
@@ -619,10 +619,8 @@ impl World {
                     || interaction.map_id != map_id
                     || interaction.item_id.is_empty()
                     || interaction.quantity == 0
-                    || quest_rules::item_count(
-                        &player.state.inventory,
-                        &interaction.item_id,
-                    ) >= interaction.quantity
+                    || quest_rules::item_count(&player.state.inventory, &interaction.item_id)
+                        >= interaction.quantity
                 {
                     return None;
                 }
@@ -808,9 +806,7 @@ impl World {
         // invents no step that would be wrong.
         let next_action = next_action.or_else(|| match status {
             "available" if spec.self_start => Some("在任務視窗中接取任務".to_owned()),
-            "objectivesComplete" if spec.self_complete => {
-                Some("在任務視窗中完成任務".to_owned())
-            }
+            "objectivesComplete" if spec.self_complete => Some("在任務視窗中完成任務".to_owned()),
             _ => None,
         });
         let mut entry = serde_json::json!({
@@ -1256,8 +1252,7 @@ impl World {
             QuestOrigin::Dialogue => {}
         }
         if quest_id == "1402"
-            && (origin.template() != Some("1032001")
-                || player_snapshot.map_id != "101000003")
+            && (origin.template() != Some("1032001") || player_snapshot.map_id != "101000003")
         {
             self.send_reject(
                 id,
@@ -1322,13 +1317,17 @@ impl World {
                 }
                 let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
                 let slot_limit = player_snapshot
-                    .state.inventory_slots
+                    .state
+                    .inventory_slots
                     .get(&kind)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
-                if let Err(error) =
-                    inventory::add_items(&mut next_state.inventory, item.item_id.clone(), missing, slot_limit)
-                {
+                if let Err(error) = inventory::add_items(
+                    &mut next_state.inventory,
+                    item.item_id.clone(),
+                    missing,
+                    slot_limit,
+                ) {
                     let code = match error {
                         inventory::InventoryError::InventoryFull => "quest_start_inventory_full",
                         inventory::InventoryError::UnknownItem => "quest_start_unknown_item",
@@ -1424,7 +1423,8 @@ impl World {
             for item in reward.items.iter() {
                 let kind = inventory::inventory_type(&item.item_id).unwrap_or(4);
                 let slot_limit = player_snapshot
-                    .state.inventory_slots
+                    .state
+                    .inventory_slots
                     .get(&kind)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -1640,15 +1640,16 @@ impl World {
                 return;
             }
         };
-        let _ = self.apply_quest_effect_at(
-            &id,
-            effect,
-            QuestOrigin::SelfService,
-            Some(&request_id),
-        );
+        let _ =
+            self.apply_quest_effect_at(&id, effect, QuestOrigin::SelfService, Some(&request_id));
     }
 
-    pub(super) fn handle_quest_interact(&mut self, id: String, request_id: String, quest_id: String) {
+    pub(super) fn handle_quest_interact(
+        &mut self,
+        id: String,
+        request_id: String,
+        quest_id: String,
+    ) {
         let Some(spec) = self
             .gameplay
             .quests
@@ -1746,7 +1747,8 @@ impl World {
             let missing = interaction.quantity.saturating_sub(held);
             let kind = inventory::inventory_type(&interaction.item_id).unwrap_or(4);
             let slot_limit = player_snapshot
-                .state.inventory_slots
+                .state
+                .inventory_slots
                 .get(&kind)
                 .copied()
                 .unwrap_or(inventory::SLOT_LIMIT);

@@ -168,11 +168,23 @@ impl World {
         // 飞行船航行中不从大地图跳走：登船/到站是服务端权威流程，甲板与
         // 船舱期间的一切自选传送（大地图、卷軸）都拒绝。
         if ship::ship_is_on_board_map(&source_map_id) {
-            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
+            self.send_world_map_move_result(
+                &id,
+                &request_id,
+                false,
+                "map_unavailable",
+                &source_map_id,
+            );
             return;
         }
         if self.maps.get(&map_id).is_none() {
-            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
+            self.send_world_map_move_result(
+                &id,
+                &request_id,
+                false,
+                "map_unavailable",
+                &source_map_id,
+            );
             return;
         }
         // `warp_player_at` resolves the named portal's coordinates, or the
@@ -182,7 +194,13 @@ impl World {
         if moved {
             self.send_world_map_move_result(&id, &request_id, true, "", &map_id);
         } else {
-            self.send_world_map_move_result(&id, &request_id, false, "map_unavailable", &source_map_id);
+            self.send_world_map_move_result(
+                &id,
+                &request_id,
+                false,
+                "map_unavailable",
+                &source_map_id,
+            );
         }
     }
 

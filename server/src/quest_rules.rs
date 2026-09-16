@@ -79,9 +79,10 @@ pub(super) fn conditions_match(facts: &QuestFacts<'_>, conditions: &QuestConditi
                 && requirement.quantity > 0
                 && item_count(facts.inventory, &requirement.item_id) >= requirement.quantity
         })
-        && conditions.equipped_items.iter().all(|item_id| {
-            !item_id.is_empty() && equipped_item_count(facts.equipped, item_id) > 0
-        })
+        && conditions
+            .equipped_items
+            .iter()
+            .all(|item_id| !item_id.is_empty() && equipped_item_count(facts.equipped, item_id) > 0)
 }
 
 /// 交付阶段的默认消耗清单：即完成条件的物品清单。
@@ -189,37 +190,58 @@ mod tests {
     #[test]
     fn conditions_check_level_job_items_and_equipment_separately() {
         let quests = BTreeMap::new();
-        let inventory = vec![
-            inventory_item("4000000", 2),
-            inventory_item("4000000", 3),
-        ];
+        let inventory = vec![inventory_item("4000000", 2), inventory_item("4000000", 3)];
         let equipped = vec![inventory_item("1302000", 1)];
         let mut conditions = QuestConditions::default();
         conditions.level_at_least = 10;
         conditions.items = vec![requirement("4000000", 5)];
         conditions.equipped_items = vec!["1302000".to_owned()];
 
-        assert!(conditions_match(&facts(10, 2, &quests, &inventory, &equipped), &conditions));
+        assert!(conditions_match(
+            &facts(10, 2, &quests, &inventory, &equipped),
+            &conditions
+        ));
         // 材料恰好够 / 差一个。
-        assert!(!conditions_match(&facts(10, 2, &quests, &inventory[..1], &equipped), &conditions));
+        assert!(!conditions_match(
+            &facts(10, 2, &quests, &inventory[..1], &equipped),
+            &conditions
+        ));
         // 等级不够，即使材料与装备都齐。
-        assert!(!conditions_match(&facts(9, 2, &quests, &inventory, &equipped), &conditions));
+        assert!(!conditions_match(
+            &facts(9, 2, &quests, &inventory, &equipped),
+            &conditions
+        ));
         // 职业不匹配。
         let mut job_conditions = QuestConditions::default();
         job_conditions.job = vec![4];
-        assert!(!conditions_match(&facts(10, 2, &quests, &inventory, &equipped), &job_conditions));
+        assert!(!conditions_match(
+            &facts(10, 2, &quests, &inventory, &equipped),
+            &job_conditions
+        ));
         // 要求穿装备但没穿。
         let mut equip_only = QuestConditions::default();
         equip_only.equipped_items = vec!["1302000".to_owned()];
-        assert!(conditions_match(&facts(1, 0, &quests, &[], &equipped), &equip_only));
-        assert!(!conditions_match(&facts(1, 0, &quests, &inventory, &[]), &equip_only));
+        assert!(conditions_match(
+            &facts(1, 0, &quests, &[], &equipped),
+            &equip_only
+        ));
+        assert!(!conditions_match(
+            &facts(1, 0, &quests, &inventory, &[]),
+            &equip_only
+        ));
         // 空白条目与零数量要求一律不满足（防御 authored 数据）。
         let mut junk = QuestConditions::default();
         junk.items = vec![requirement("", 1), requirement("4000000", 0)];
-        assert!(!conditions_match(&facts(1, 0, &quests, &inventory, &[]), &junk));
+        assert!(!conditions_match(
+            &facts(1, 0, &quests, &inventory, &[]),
+            &junk
+        ));
         let mut junk_equip = QuestConditions::default();
         junk_equip.equipped_items = vec!["".to_owned()];
-        assert!(!conditions_match(&facts(1, 0, &quests, &[], &[]), &junk_equip));
+        assert!(!conditions_match(
+            &facts(1, 0, &quests, &[], &[]),
+            &junk_equip
+        ));
     }
 
     #[test]
@@ -248,7 +270,10 @@ mod tests {
         assert_eq!(consume_items(&spec)[0].item_id, "4000000");
         spec.complete.consume_items = serde_json::json!([{"itemId": 12}]);
         let fallback = consume_items(&spec);
-        assert_eq!((&*fallback[0].item_id, fallback[0].quantity), ("4000000", 2));
+        assert_eq!(
+            (&*fallback[0].item_id, fallback[0].quantity),
+            ("4000000", 2)
+        );
 
         assert!(complete_items(&spec).iter().all(|r| r.item_id == "4000000"));
     }
@@ -256,10 +281,16 @@ mod tests {
     #[test]
     fn equipped_counts_floor_at_one_per_instance() {
         // 装备实例 quantity 可能为 0，计数按 1 起算；背包数量按实际累加。
-        assert_eq!(equipped_item_count(&[inventory_item("1302000", 0)], "1302000"), 1);
+        assert_eq!(
+            equipped_item_count(&[inventory_item("1302000", 0)], "1302000"),
+            1
+        );
         assert_eq!(equipped_item_count(&[], "1302000"), 0);
         assert_eq!(
-            item_count(&[inventory_item("4000000", 0), inventory_item("4000000", 2)], "4000000"),
+            item_count(
+                &[inventory_item("4000000", 0), inventory_item("4000000", 2)],
+                "4000000"
+            ),
             2
         );
     }

@@ -228,12 +228,66 @@ const WORLD_MAP_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>
   worldMapUnreachable: { zh: '这个区域没有可进入的地图，未收录。', en: 'This region holds no reachable map, so it is not assembled.' },
 });
 
+/** 冒险笔记（图鉴）窗口文案（计划 §6.3）。  窗口标题与四个页签的名字是**另绘**
+ *  的（源把名字烘焙在按钮图里），所以它们是本地化文本而不是源标签；怪物名与
+ *  物品名另有各自的目录，不在这里。 */
+const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  notebookTitle: { zh: '冒险笔记（图鉴）', en: 'Adventure Notebook' },
+  notebookClose: { zh: '关闭冒险笔记', en: 'Close the notebook' },
+  notebookDetailClose: { zh: '关闭详情', en: 'Close details' },
+  notebookTabMonster: { zh: '怪物收集', en: 'Monsters' },
+  notebookTabEquipment: { zh: '装备图鉴', en: 'Equipment' },
+  notebookTabUse: { zh: '道具图鉴', en: 'Use items' },
+  notebookTabQuest: { zh: '任务道具', en: 'Quest items' },
+  notebookLoading: { zh: '正在读取图鉴……', en: 'Loading the notebook…' },
+  notebookLoadFailed: { zh: '图鉴目录加载失败。', en: 'The notebook catalogue failed to load.' },
+  notebookRetry: { zh: '重试', en: 'Retry' },
+  notebookOffline: { zh: '当前未连接服务器，无法读取图鉴。', en: 'Not connected — the notebook cannot be read.' },
+  notebookCatalogMismatch: { zh: '图鉴目录版本与服务器不一致，请刷新页面后重试。', en: 'The notebook catalogue is out of date. Reload the page.' },
+  notebookSearch: { zh: '搜索名称', en: 'Search by name' },
+  notebookPrev: { zh: '上一页', en: 'Previous page' },
+  notebookNext: { zh: '下一页', en: 'Next page' },
+  notebookModeAvailable: { zh: '当前可获得', en: 'Obtainable now' },
+  notebookModeObtained: { zh: '已获得', en: 'Obtained' },
+  notebookModeMissing: { zh: '未获得', en: 'Not obtained' },
+  notebookModeAll: { zh: '全部', en: 'All' },
+  notebookRegistered: { zh: '已登记', en: 'Registered' },
+  notebookUnregistered: { zh: '尚未登记', en: 'Not registered' },
+  notebookUncollectable: { zh: '尚不可收集', en: 'Not collectable yet' },
+  notebookUnavailable: { zh: '本版本未开放', en: 'Not open in this build' },
+  notebookObtained: { zh: '已获得', en: 'Obtained' },
+  notebookNotObtained: { zh: '未获得', en: 'Not obtained' },
+  notebookUnknown: { zh: '未知怪物', en: 'Unknown monster' },
+  notebookSpawn: { zh: '出没地图', en: 'Found in' },
+  notebookFirstRecord: { zh: '首次记录', en: 'First recorded' },
+  notebookTimeUnknown: { zh: '首次获得时间未知（历史补记）', en: 'First obtain time unknown (backfilled)' },
+  notebookSourceUnverified: { zh: '获取来源待核实', en: 'Source not verified yet' },
+  notebookEmpty: { zh: '没有符合条件的收藏条目。', en: 'No collection row matches what you are looking at.' },
+});
+
+/** Menu-entry names that differ from the source button.  The manifest keeps
+ *  the source label (`scripts/check_tms273_notebook.cjs` pins it), so the
+ *  visible name is decided here — next to the 繁體→简体 conversion every
+ *  authored menu label goes through.  A renamed entry must also repaint its
+ *  button: the source art bakes the label into the 136x40 image, so a DOM
+ *  label alone would sit next to the old glyphs (see `features/menu/view.ts`). */
+const MENU_ENTRY_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  // 冒险笔记（图鉴）: the source button is the modern 怪物收藏 entry, but this
+  // build reuses that entry for the notebook window, so the name has to say
+  // what the window is instead of what the old collection was.
+  'menu/buttonInfo/3/6': { zh: '冒險筆記（圖鑑）', en: 'Adventure Notebook' },
+});
+
 export function uiLocale(): UiLocale { return locale; }
 /** Whether a protocol code has a localized line of its own.  Sites that carry
  *  their own reason in the server message (for example `invalid_state`) answer
  *  `false` on purpose — a generic table entry would flatten those reasons into
  *  one useless sentence. */
 export function hasProtocolError(code: string): boolean { return code in PROTOCOL_ERRORS; }
-export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? fallback; }
+export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? NOTEBOOK_TEXT[key]?.[locale] ?? fallback; }
+/** The name the menu shows for an entry: the localized override when one is
+ *  registered for that entry key, otherwise the source label untouched.  The
+ *  result is still authored text, so callers pass it through `displayText`. */
+export function menuEntryText(key: string, sourceLabel: string): string { return MENU_ENTRY_TEXT[key]?.[locale] ?? sourceLabel; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
 export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }

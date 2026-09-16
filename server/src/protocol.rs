@@ -546,6 +546,10 @@ pub enum ClientMessage {
         /// 名称筛选（服务端做包含匹配），长度受限。
         #[serde(default)]
         filter: Option<String>,
+        /// 浏览方式（NB-07）。  服务端在自己的集合上解释它，客户端不能靠它多看到
+        /// 一条未获得的任务条目；未知取值按默认处理，而不是当成一个新分区。
+        #[serde(default)]
+        mode: Option<String>,
     },
     /// 领取一处原版完成奖励。  客户端只回传服务器此前给出的 `rewardKey`；
     /// 资格、收件角色与容量全部由服务器重算。
@@ -618,7 +622,7 @@ impl ClientMessage {
                     && encounter_id.as_deref().is_none_or(|id| {
                         id.len() <= 96
                             && crate::auth::is_practice_map(id)
-                        && id
+                            && id
                                 .bytes()
                                 .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
                     })
@@ -661,9 +665,7 @@ impl ClientMessage {
                 request_id,
                 portal_name,
             } => valid_id(request_id) && valid_id(portal_name),
-            Self::WorldMapMove { request_id, map_id } => {
-                valid_id(request_id) && valid_id(map_id)
-            }
+            Self::WorldMapMove { request_id, map_id } => valid_id(request_id) && valid_id(map_id),
             Self::InventoryMove {
                 request_id,
                 inventory_type,
@@ -862,9 +864,7 @@ impl ClientMessage {
                 request_id,
                 target_name,
                 text,
-            } => {
-                valid_id(request_id) && valid_player_name(target_name) && valid_chat_text(text)
-            }
+            } => valid_id(request_id) && valid_player_name(target_name) && valid_chat_text(text),
             // A lifecycle report is only ever a hint; there is nothing to
             // validate beyond the shape, and nothing it can unlock.
             // An emoticon carries a catalogue id, so only the *shape* is
@@ -885,6 +885,7 @@ impl ClientMessage {
                 page,
                 catalog_version,
                 filter,
+                mode,
                 ..
             } => {
                 valid_id(request_id)
@@ -895,15 +896,28 @@ impl ClientMessage {
                             && text.chars().count() <= NOTEBOOK_MAX_FILTER_CHARS
                             && !text.chars().any(char::is_control)
                     })
+                    // 浏览方式是服务器侧枚举：客户端提交一个没定义过的取值不会
+                    // 报错，而是退化成默认筛选（只给当前可获得的条目）。
+                    && mode.as_deref().is_none_or(|text| {
+                        [
+                            NOTEBOOK_MODE_AVAILABLE,
+                            NOTEBOOK_MODE_ALL,
+                            NOTEBOOK_MODE_OBTAINED,
+                            NOTEBOOK_MODE_MISSING,
+                        ]
+                        .contains(&text)
+                    })
             }
             // 收藏操作只校验形状：`rewardKey`/`rowKey`/`runId` 是否真实存在、
             // 是否属于当前主体、是否已领取，全部是权威世界的问题。
-            Self::CollectionClaim { request_id, reward_key } => {
-                valid_id(request_id) && valid_id(reward_key)
-            }
-            Self::ExplorationStart { request_id, row_key } => {
-                valid_id(request_id) && valid_id(row_key)
-            }
+            Self::CollectionClaim {
+                request_id,
+                reward_key,
+            } => valid_id(request_id) && valid_id(reward_key),
+            Self::ExplorationStart {
+                request_id,
+                row_key,
+            } => valid_id(request_id) && valid_id(row_key),
             Self::ExplorationClaim { request_id, run_id } => {
                 valid_id(request_id) && valid_id(run_id)
             }
@@ -916,6 +930,14 @@ impl ClientMessage {
 pub const NOTEBOOK_MAX_PAGE: u32 = 4096;
 /// 搜索框上限：与聊天正文一起构成「输入型字段必须有界」的同一约定。
 pub const NOTEBOOK_MAX_FILTER_CHARS: usize = 32;
+/// 浏览方式：目录里「当前可获得」的条目（默认，计划 §5.5 的分母）。
+pub const NOTEBOOK_MODE_AVAILABLE: &str = "available";
+/// 浏览方式：整个分区，含目录判定为不可获得的条目。
+pub const NOTEBOOK_MODE_ALL: &str = "all";
+/// 浏览方式：只看这个角色真的获得过的条目。
+pub const NOTEBOOK_MODE_OBTAINED: &str = "obtained";
+/// 浏览方式：只看「当前可获得但还没获得」的条目。
+pub const NOTEBOOK_MODE_MISSING: &str = "missing";
 
 /// Map/player chat body policy: non-empty after trimming, bounded by characters
 /// and UTF-8 bytes, and free of C0/C1 control characters (chat is a one-line
@@ -1333,9 +1355,10 @@ mod tests {
         .unwrap();
         assert!(!empty_request.valid());
 
-        let claim: ClientMessage =
-            serde_json::from_str(r#"{"type":"collectionClaim","requestId":"nb-5","rewardKey":"mc-0-0-0"}"#)
-                .unwrap();
+        let claim: ClientMessage = serde_json::from_str(
+            r#"{"type":"collectionClaim","requestId":"nb-5","rewardKey":"mc-0-0-0"}"#,
+        )
+        .unwrap();
         assert!(claim.valid());
         // 客户端不能自己声明操作种类：它只回传服务器给出的键，操作名由消息类型决定。
         for bad in [

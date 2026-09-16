@@ -38,10 +38,13 @@
 //! 删掉 blanket 例外后，**只有**下面几处仍无生产调用方，且都只服务于尚未接线的
 //! 后续条目。它们一律**逐条**标注而不是再开一个模块级例外——模块级例外会连带
 //! 掩盖 NB-05 刚接好的写入面（那正是上一版 blanket 例外的害处）：
-//! - 目录的**展示投影**访问器（版本号、页签清单、逐页 id、物品类型）：NB-07
 //! - **历史补记**整簇（版本常量、证据来源、报告、两个入口）：NB-08
-//! - `TIME_QUALITY_UNKNOWN` / `recorded_anything`：补记与「首次发现」提示，NB-07/08
+//! - `TIME_QUALITY_UNKNOWN` / `recorded_anything`：补记与「首次发现」提示，NB-08。
+//!   NB-07 只做查询与窗口，私有快照在开窗时取，失效通知要等 NB-08 的奖励事务
+//!   一起接线，那时 `recorded_anything` 才有调用方。
 //! 每条都写明了移除条件；接入该条目时必须删掉对应那一条。
+//! NB-07 已经把目录的展示投影（版本号、页签清单、逐页 id、物品类型、可获得性、
+//! 怪物地区／行／条目与怪物名）全部接进查询，那一簇例外已随之删除。
 
 use super::*;
 use rusqlite::Transaction;
@@ -58,13 +61,20 @@ use std::sync::OnceLock;
 #[serde(rename_all = "camelCase")]
 struct CatalogFile {
     catalog_version: String,
-    content_version: String,
     items: BTreeMap<String, CatalogItem>,
     /// 页签 → 该页的规范化物品 id。装配时它已是 `items` 的一个**无重叠全覆盖**
     /// 分区（equipment 1738 + use 206 + setup 1 + etc 86 + cash 520 + pet 12 +
     /// quest 21 = 2584 ＝ `items` 的全部键），所以它同时是「这个 id 属于哪一页」
     /// 的唯一索引。
     sections: BTreeMap<String, Vec<String>>,
+    monster_structure: MonsterStructureFile,
+    monster_entries: BTreeMap<String, MonsterEntry>,
+    /// 逐怪物的同版文本（`String/MonsterBook.img`）。只用于详情面板，不参与
+    /// 任何判定：这里写的是源里的介绍与出没地图，不是登记规则。
+    monster_text: BTreeMap<String, MonsterText>,
+    /// 本构建真的出没于已装配地图的收藏条目数（计划 §5.5 的「当前可收集」摘要）。
+    /// 它只是**摘要**：原版行／页奖励按完整原始集合判定，不用这个缩小后的分母。
+    collectable_entry_count: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,27 +82,69 @@ struct CatalogFile {
 struct CatalogItem {
     /// 目录声明的唯一键。规范化后按它回答，**不回显调用方传来的别名写法**。
     item_id: String,
-    // 移除条件：NB-07 的定向检查（核对「分类来自数据」）接入后即可删。
-    #[allow(dead_code)]
-    inventory_type: u8,
+    /// 目录自己的可获得性（计划 §5.5）。它是**目录**事实，不是玩家做过什么：
+    /// GM 授予不会让一件物品变成「当前可获得」，因此也不进默认分母。
+    availability: String,
+}
+
+/// `Etc/mobCollection.img` 的地区／分頁／行三层结构。
+///
+/// 只保留**排序与归属**需要的字段：地区的显示名、分頁名与奖励键都随客户端
+/// 那份同版目录一起发布（`client/public-tms273/assets/notebook.json`），服务器
+/// 不为已经随资源下发的展示文本再建第二份权威（计划 §5.4）。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MonsterStructureFile {
+    /// `mc-<地区>-<分頁>-<行>` → 行定义，含本行的槽位顺序。
+    rows: BTreeMap<String, MonsterRow>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MonsterRow {
+    pub row_key: String,
+    pub region: u32,
+    pub page: u32,
+    pub row: u32,
+    /// 源里的行名（例如 `一般場地 第一個`）。
+    pub name: String,
+    /// 本行的收藏槽位，**保持源顺序**（每行 5 个）。
+    pub entry_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MonsterEntry {
+    pub entry_id: String,
+    pub monster_template_id: String,
+    /// 这个模板在本构建里是否真的出没于已装配地图（目录 `collectable`）。
+    pub collectable: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MonsterText {
+    /// 源里的怪物介绍（`episode`），可能为空。
+    #[serde(default)]
+    pub episode: String,
+    #[serde(default)]
+    pub spawn_map_ids: Vec<String>,
 }
 
 /// 目录加上一次成型的分区反查索引。
 #[derive(Debug)]
 pub(crate) struct NotebookCatalog {
-    // 移除条件：NB-07 的响应投影开始回显服务端自己的目录版本号后即可删。
-    #[allow(dead_code)]
     catalog_version: String,
-    /// 与 `catalog_version` 成对，用于核对目录与内容版本是否同步（NB-07）。
-    ///
-    /// 移除条件：同 `catalog_version`。
-    #[allow(dead_code)]
-    content_version: String,
     items: BTreeMap<String, CatalogItem>,
-    // 移除条件：NB-07 的页签投影（逐页 id 列表）接入后即可删。
-    #[allow(dead_code)]
     sections: BTreeMap<String, Vec<String>>,
     section_of_item: BTreeMap<String, String>,
+    /// 地区 id → 该地区的行，按 (分頁, 行) 升序。`BTreeMap` 的键序就是**数值**
+    /// 地区 id 升序（源的字符串键是 0/1/10/100/2…，不能按字典序），所以地区列表
+    /// 与怪物页的 `page` 下标都由它决定。
+    rows_by_region: BTreeMap<u32, Vec<MonsterRow>>,
+    monster_entries: BTreeMap<String, MonsterEntry>,
+    monster_text: BTreeMap<String, MonsterText>,
+    collectable_entry_count: u32,
 }
 
 pub(crate) fn catalog() -> &'static NotebookCatalog {
@@ -109,37 +161,32 @@ pub(crate) fn catalog() -> &'static NotebookCatalog {
                 section_of_item.insert(id.clone(), section.clone());
             }
         }
+        let mut rows_by_region: BTreeMap<u32, Vec<MonsterRow>> = BTreeMap::new();
+        for row in file.monster_structure.rows.into_values() {
+            rows_by_region.entry(row.region).or_default().push(row);
+        }
+        for rows in rows_by_region.values_mut() {
+            rows.sort_by_key(|row| (row.page, row.row));
+        }
         NotebookCatalog {
             catalog_version: file.catalog_version,
-            content_version: file.content_version,
             items: file.items,
             sections: file.sections,
             section_of_item,
+            rows_by_region,
+            monster_entries: file.monster_entries,
+            monster_text: file.monster_text,
+            collectable_entry_count: file.collectable_entry_count,
         }
     })
 }
 
-// 移除条件：NB-07 的行列表与分页投影接入后，这些访问器全部有生产调用方，
-// 届时删掉这一条 impl 级例外（`section_of` / `canonical_id` 已在生产使用，
-// 但同一 impl 里只要有未用项就会触发告警，所以例外挂在这里）。
-#[allow(dead_code)]
 impl NotebookCatalog {
     pub(crate) fn catalog_version(&self) -> &str {
         &self.catalog_version
     }
 
-    pub(crate) fn content_version(&self) -> &str {
-        &self.content_version
-    }
-
-    pub(crate) fn item_count(&self) -> usize {
-        self.items.len()
-    }
-
-    pub(crate) fn section_keys(&self) -> impl Iterator<Item = &str> {
-        self.sections.keys().map(String::as_str)
-    }
-
+    /// 逐页 id 列表（保持目录顺序）。物品页的行顺序就是它。
     pub(crate) fn section_ids(&self, section: &str) -> Option<&[String]> {
         self.sections.get(section).map(Vec::as_slice)
     }
@@ -154,25 +201,79 @@ impl NotebookCatalog {
         self.items.get(canonical).map(|item| item.item_id.as_str())
     }
 
-    /// 目录声明的物品类型（1 装备 / 2 消耗 / 3 设置 / 4 其它 / 5 现金）。
-    ///
-    /// 只用于定向检查核对「分类来自数据」；业务分类一律走 `section_of`。
-    pub(crate) fn inventory_type(&self, canonical: &str) -> Option<u8> {
-        self.items.get(canonical).map(|item| item.inventory_type)
+    /// 目录自己的可获得性。只有 `obtainable` 进「当前可获得」分母（计划 §5.5）。
+    pub(crate) fn availability(&self, canonical: &str) -> Option<&str> {
+        self.items
+            .get(canonical)
+            .map(|item| item.availability.as_str())
+    }
+
+    /// 物品显示名。名字归客户端所有，但搜索必须在服务器自己的集合上算
+    /// （计划 §12.2），所以这里要能读到它。
+    pub(crate) fn item_label(&self, canonical: &str) -> Option<&str> {
+        crate::inventory::item_name(canonical)
+    }
+
+    /// 怪物收藏的地区 id，按数值升序。怪物页的 `page` 就是这个向量的下标。
+    pub(crate) fn regions(&self) -> Vec<u32> {
+        self.rows_by_region.keys().copied().collect()
+    }
+
+    /// 一个地区的收藏行，按 (分頁, 行) 升序。
+    pub(crate) fn rows_of_region(&self, region: u32) -> &[MonsterRow] {
+        self.rows_by_region
+            .get(&region)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn entry(&self, entry_id: &str) -> Option<&MonsterEntry> {
+        self.monster_entries.get(entry_id)
+    }
+
+    pub(crate) fn entry_count(&self) -> usize {
+        self.monster_entries.len()
+    }
+
+    /// 本构建真的出没于已装配地图的收藏条目数（「当前可收集」摘要，计划 §5.5）。
+    pub(crate) fn collectable_entry_count(&self) -> usize {
+        self.collectable_entry_count as usize
+    }
+
+    /// 同版怪物名（`String/Mob.json`）。源里没有名字时返回 `None`——不拿模板
+    /// id 冒充名字。
+    pub(crate) fn monster_label(&self, monster_template_id: &str) -> Option<&str> {
+        mob_names().get(monster_template_id).map(String::as_str)
+    }
+
+    pub(crate) fn monster_text(&self, monster_template_id: &str) -> Option<&MonsterText> {
+        self.monster_text.get(monster_template_id)
+    }
+}
+
+#[cfg(test)]
+impl NotebookCatalog {
+    /// 目录里的条目数。只用于定向检查核对「分区是目录的无重叠全覆盖」。
+    pub(crate) fn item_count(&self) -> usize {
+        self.items.len()
+    }
+
+    /// 目录声明的全部页签名。
+    pub(crate) fn section_keys(&self) -> impl Iterator<Item = &str> {
+        self.sections.keys().map(String::as_str)
     }
 
     fn from_items(items: &[(&str, u8)], sections: &[(&str, &[&str])]) -> NotebookCatalog {
         NotebookCatalog {
             catalog_version: "test".to_owned(),
-            content_version: "test".to_owned(),
             items: items
                 .iter()
-                .map(|(id, kind)| {
+                .map(|(id, _kind)| {
                     (
                         (*id).to_owned(),
                         CatalogItem {
                             item_id: (*id).to_owned(),
-                            inventory_type: *kind,
+                            availability: "obtainable".to_owned(),
                         },
                     )
                 })
@@ -189,11 +290,38 @@ impl NotebookCatalog {
             section_of_item: sections
                 .iter()
                 .flat_map(|(name, ids)| {
-                    ids.iter().map(move |id| ((*id).to_owned(), (*name).to_owned()))
+                    ids.iter()
+                        .map(move |id| ((*id).to_owned(), (*name).to_owned()))
                 })
                 .collect(),
+            rows_by_region: BTreeMap::new(),
+            monster_entries: BTreeMap::new(),
+            monster_text: BTreeMap::new(),
+            collectable_entry_count: 0,
         }
     }
+}
+
+/// 同版怪物名表（`shared/mob-names.json`）。
+///
+/// 源里唯一给怪物命名的表是 `String/Mob.json`；`shared/gameplay.json` 只有数值，
+/// `String/MonsterBook.img` 只有介绍文字。键按源写法保存（补零形式各不相同），
+/// 收藏条目给出的 `monsterTemplateId` 与之一致，`generate_tms273_notebook_catalog.cjs`
+/// 就是按这个写法索引 `monsterText` 的。
+fn mob_names() -> &'static BTreeMap<String, String> {
+    static NAMES: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        #[derive(Deserialize)]
+        struct File {
+            names: BTreeMap<String, String>,
+        }
+        let file: File = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../shared/mob-names.json"
+        )))
+        .expect("shared/mob-names.json must be valid");
+        file.names
+    })
 }
 
 /// 枫币不是物品：`auth/loot.rs` 用 `item_id == "0"` 表示金币入账。
@@ -229,10 +357,7 @@ pub(crate) enum ItemScope {
     NotAnItem(&'static str),
 }
 
-pub(crate) fn classify_item(
-    item_id: &str,
-    catalog: &NotebookCatalog,
-) -> Result<ItemScope, String> {
+pub(crate) fn classify_item(item_id: &str, catalog: &NotebookCatalog) -> Result<ItemScope, String> {
     let Some(canonical) = canonical_item_id(item_id) else {
         return Ok(ItemScope::NotAnItem("不是合法的十进制物品 id"));
     };
@@ -477,11 +602,7 @@ pub(crate) fn read_revision(
 }
 
 /// 推进一步 revision。只在**本次提交真的新增了事实**之后调用。
-fn bump_revision_tx(
-    tx: &Transaction<'_>,
-    scope_kind: &str,
-    scope_id: &str,
-) -> Result<u64, String> {
+fn bump_revision_tx(tx: &Transaction<'_>, scope_kind: &str, scope_id: &str) -> Result<u64, String> {
     tx.execute(
         "INSERT INTO notebook_revisions(scope_kind,scope_id,revision) VALUES (?1,?2,1)
          ON CONFLICT(scope_kind,scope_id) DO UPDATE SET revision=revision+1",
@@ -744,7 +865,9 @@ pub(crate) fn backfill_item_records_tx(
     let mut deduped = 0_u64;
     let mut proved: BTreeMap<String, (BackfillEvidence, Option<String>)> = BTreeMap::new();
     for evidence in BackfillEvidence::ALL {
-        let mut statement = tx.prepare(evidence.sql()).map_err(|_| "notebook read failed")?;
+        let mut statement = tx
+            .prepare(evidence.sql())
+            .map_err(|_| "notebook read failed")?;
         let rows = statement
             .query_map([character_id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -897,13 +1020,8 @@ impl Store {
     ) -> Result<NotebookChangeSet, String> {
         let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
         let tx = db.transaction().map_err(|_| "account persistence failed")?;
-        let change = record_item_acquisitions_tx(
-            &tx,
-            character_id,
-            grants,
-            event_time_ms,
-            catalog(),
-        )?;
+        let change =
+            record_item_acquisitions_tx(&tx, character_id, grants, event_time_ms, catalog())?;
         tx.commit().map_err(|_| "account persistence failed")?;
         Ok(change)
     }

@@ -291,7 +291,12 @@ impl World {
     /// Invite one character.  When the inviter has no party yet, the first
     /// invitation creates it — that is what the authored `BtCreate` button
     /// stands for in the original window.
-    pub(super) fn handle_party_invite(&mut self, id: String, request_id: String, player_name: String) {
+    pub(super) fn handle_party_invite(
+        &mut self,
+        id: String,
+        request_id: String,
+        player_name: String,
+    ) {
         if !self.players.contains_key(&id) {
             return;
         }
@@ -436,7 +441,12 @@ impl World {
     }
 
     /// Hand leadership to another member of the same party.
-    pub(super) fn handle_party_leader(&mut self, id: String, request_id: String, player_id: String) {
+    pub(super) fn handle_party_leader(
+        &mut self,
+        id: String,
+        request_id: String,
+        player_id: String,
+    ) {
         if !self.players.contains_key(&id) {
             return;
         }

@@ -25,7 +25,14 @@ use super::*;
 /// GM feedback for one command invocation.  Only the sender receives it; the
 /// server is the only author of every field, so a modified client cannot
 /// fake a system notice for somebody else.
-fn gm_result(world: &mut World, id: &str, request_id: &str, success: bool, code: &str, message: &str) {
+fn gm_result(
+    world: &mut World,
+    id: &str,
+    request_id: &str,
+    success: bool,
+    code: &str,
+    message: &str,
+) {
     if let Some(player) = world.players.get(id) {
         let payload = serde_json::json!({
             "type": "gmResult",
@@ -92,7 +99,12 @@ impl World {
         if let (Some(store), Some(player)) = (self.store.as_ref(), self.players.get(id)) {
             let _ = store.save_profile(
                 id,
-                &profile_from_state(&player.state, &player.map_id, &player.death_id, player.base_max_mp),
+                &profile_from_state(
+                    &player.state,
+                    &player.map_id,
+                    &player.death_id,
+                    player.base_max_mp,
+                ),
             );
         }
         gm_result(
@@ -141,7 +153,14 @@ impl World {
                 }
             },
             (None, _) => {
-                gm_result(self, id, request_id, false, "gm_usage", "用法：/add <道具id> <数量>");
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    false,
+                    "gm_usage",
+                    "用法：/add <道具id> <数量>",
+                );
                 return;
             }
         };
@@ -225,7 +244,8 @@ impl World {
                 return;
             };
             player
-                .state.inventory_slots
+                .state
+                .inventory_slots
                 .get(&kind)
                 .copied()
                 .unwrap_or(crate::inventory::SLOT_LIMIT)
@@ -233,7 +253,12 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
-        match crate::inventory::add_items(&mut player.state.inventory, item_id.clone(), quantity, slot_limit) {
+        match crate::inventory::add_items(
+            &mut player.state.inventory,
+            item_id.clone(),
+            quantity,
+            slot_limit,
+        ) {
             Ok(slot) => {
                 let display = crate::inventory::pet_name(&item_id).map(str::to_owned);
                 gm_result(

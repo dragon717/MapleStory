@@ -1,0 +1,505 @@
+/* 冒险笔记（图鉴）窗口。
+ *
+ * 几何全部来自同版源 `UI/UIWindow4.img/monsterCollection`（计划 §6.1）：
+ *   底板 891x664 · 标题条 24 · 页签 y82 · 左侧分类栏 19,119(182x524) ·
+ *   内容区 204,120(666x520) · 上一页 234,609 / 下一页 828,610 · 关闭 870,4。
+ * 这些常量只在下面出现一次，改窗口要先改源坐标，不在这里凭手感调。
+ *
+ * 空间不足（窄屏／矮屏）时不再用绝对坐标，改走 `notebook-compact` 的流式
+ * 布局：保住标题、关闭、页签、分页与内容滚动（§6.5）。 */
+
+.notebook-window {
+  --notebook-width: 891px;
+  --notebook-height: 664px;
+  --notebook-tab-top: 82px;
+  --notebook-side-left: 19px;
+  --notebook-side-top: 119px;
+  --notebook-side-width: 182px;
+  --notebook-side-height: 524px;
+  --notebook-content-left: 204px;
+  --notebook-content-top: 120px;
+  --notebook-content-width: 666px;
+  --notebook-content-height: 480px;
+
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--notebook-width);
+  height: var(--notebook-height);
+  transform: translate(-50%, -50%);
+  z-index: var(--ui-window-z, 40);
+  color: #e8e2d2;
+  font-size: 12px;
+  font-family: var(--ui-font, 'Microsoft JhengHei', 'PingFang SC', sans-serif);
+  user-select: none;
+}
+
+.notebook-window[data-window-positioned='true'] {
+  transform: none;
+}
+
+.notebook-backgrnd {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.notebook-title {
+  position: absolute;
+  left: 16px;
+  top: 5px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: #f3e6b6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* 进度行：源把「已登记 / 总数」画在 608,46 与 661,46。 */
+.notebook-progress {
+  position: absolute;
+  left: 560px;
+  top: 42px;
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+  font-size: 12px;
+  color: #ffe9a8;
+}
+
+.notebook-progress-note,
+.notebook-progress-scope {
+  margin-left: 8px;
+  color: #b9b09a;
+}
+
+.notebook-tabs {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: var(--notebook-tab-top);
+  height: 28px;
+  display: flex;
+  gap: 1px;
+}
+
+.notebook-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  /* 源只给了三张页签底板；第四页共用同一张横向铺满（见 view.ts 的说明）。 */
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  color: #6b5b3a;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.notebook-tab[aria-selected='true'] {
+  color: #33270f;
+  font-weight: 700;
+}
+
+.notebook-side {
+  position: absolute;
+  left: var(--notebook-side-left);
+  top: var(--notebook-side-top);
+  width: var(--notebook-side-width);
+  height: var(--notebook-side-height);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.notebook-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  border: 1px solid #6a5a3a;
+  border-radius: 3px;
+  background: rgba(20, 16, 10, 0.85);
+  color: #f0e6cc;
+  font: inherit;
+}
+
+.notebook-regions {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notebook-region,
+.notebook-mode {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: rgba(40, 32, 18, 0.6);
+  color: #d8cba6;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notebook-region[data-active='true'],
+.notebook-mode[data-active='true'] {
+  border-color: #d9b45a;
+  background: rgba(92, 72, 26, 0.85);
+  color: #fff3c8;
+}
+
+.notebook-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notebook-content {
+  position: absolute;
+  left: var(--notebook-content-left);
+  top: var(--notebook-content-top);
+  width: var(--notebook-content-width);
+  height: var(--notebook-content-height);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 4px 6px;
+}
+
+.notebook-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notebook-empty,
+.notebook-loading,
+.notebook-error {
+  margin: 24px 0;
+  text-align: center;
+  color: #b9b09a;
+}
+
+.notebook-error {
+  color: #ff9b8a;
+}
+
+.notebook-retry {
+  display: block;
+  margin: 0 auto;
+  padding: 4px 14px;
+  border: 1px solid #6a5a3a;
+  border-radius: 3px;
+  background: rgba(40, 32, 18, 0.9);
+  color: #f0e6cc;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 怪物页：一行五个槽位，槽位顺序就是源 `entryIds` 的顺序。 */
+.notebook-monster-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(120, 104, 70, 0.35);
+}
+
+.notebook-monster-row-name {
+  flex: 0 0 92px;
+  color: #ffe9a8;
+  font-size: 12px;
+}
+
+.notebook-monster-slots {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notebook-monster-page-name {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #ffd77a;
+}
+
+.notebook-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 96px;
+  min-height: 96px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: #d8cba6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.notebook-slot-art {
+  max-width: 72px;
+  max-height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.notebook-slot-plate {
+  position: absolute;
+  inset: 0;
+  width: 94px;
+  height: 94px;
+  opacity: 0.85;
+}
+
+.notebook-slot-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 64px;
+  font-size: 22px;
+  color: #7c705a;
+}
+
+.notebook-slot-label {
+  max-width: 94px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 已登记／已获得的格子点亮；未登记的保持暗色，两者不靠颜色区分。 */
+.notebook-slot[data-registered='true'] .notebook-slot-label,
+.notebook-item-slot[data-obtained='true'] .notebook-slot-label {
+  color: #ffe9a8;
+}
+
+.notebook-slot[data-registered='false'] .notebook-slot-art,
+.notebook-item-slot[data-obtained='false'] .notebook-slot-art {
+  filter: grayscale(1) brightness(0.45);
+}
+
+.notebook-slot-flag {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(120, 40, 30, 0.85);
+  color: #ffd9d0;
+  font-size: 10px;
+}
+
+.notebook-item-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--notebook-grid-columns, 7), 94px);
+  gap: 2px;
+}
+
+/* 分页：源的上一页／下一页在内容区底部，页码居中。 */
+.notebook-pager {
+  position: absolute;
+  left: var(--notebook-content-left);
+  top: 604px;
+  width: var(--notebook-content-width);
+  height: 34px;
+}
+
+.notebook-pager button {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.notebook-pager button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.notebook-pages {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.notebook-page {
+  min-width: 20px;
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: rgba(30, 24, 14, 0.7);
+  color: #d8cba6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.notebook-page[data-active='true'] {
+  border-color: #d9b45a;
+  color: #fff3c8;
+}
+
+.notebook-page-gap {
+  color: #8b8069;
+}
+
+/* 详情面板：浮在内容区底部，关掉就完全让出空间。 */
+.notebook-detail {
+  position: absolute;
+  left: 214px;
+  bottom: 44px;
+  width: 440px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: 1px solid #6a5a3a;
+  border-radius: 4px;
+  background: rgba(18, 14, 8, 0.94);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.notebook-detail-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #ffd77a;
+}
+
+.notebook-detail-body {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: #e2d8bd;
+}
+
+.notebook-detail-close {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  border: 0;
+  background: transparent;
+  color: #b9b09a;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notebook-notice {
+  position: absolute;
+  left: 204px;
+  right: 22px;
+  top: 24px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: rgba(120, 40, 30, 0.9);
+  color: #ffe0d6;
+}
+
+/* 空间不足：放弃绝对坐标，改流式布局，保住标题／页签／分页／内容滚动。 */
+.notebook-window.notebook-compact {
+  /* 源底板在流式布局里铺不下，改用不透明底色把文字托住。 */
+  background: #1b160d;
+  border: 1px solid #6a5a3a;
+  border-radius: 4px;
+  position: relative;
+  left: auto;
+  top: auto;
+  width: min(100%, 100%);
+  height: min(100%, 100%);
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notebook-window.notebook-compact .notebook-backgrnd {
+  display: none;
+}
+
+.notebook-window.notebook-compact .notebook-title,
+.notebook-window.notebook-compact .notebook-progress,
+.notebook-window.notebook-compact .notebook-tabs,
+.notebook-window.notebook-compact .notebook-side,
+.notebook-window.notebook-compact .notebook-content,
+.notebook-window.notebook-compact .notebook-pager,
+.notebook-window.notebook-compact .notebook-detail,
+.notebook-window.notebook-compact .notebook-notice {
+  position: static;
+  left: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  height: auto;
+  max-height: none;
+}
+
+.notebook-window.notebook-compact .notebook-side {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  overflow: visible;
+  border-bottom: 1px solid rgba(120, 104, 70, 0.4);
+}
+
+.notebook-window.notebook-compact .notebook-search {
+  flex: 1 1 120px;
+  width: auto;
+}
+
+.notebook-window.notebook-compact .notebook-regions,
+.notebook-window.notebook-compact .notebook-modes {
+  flex-direction: row;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.notebook-window.notebook-compact .notebook-content {
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+.notebook-window.notebook-compact .notebook-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-top: 1px solid rgba(120, 104, 70, 0.4);
+}
+
+.notebook-window.notebook-compact .notebook-pager button {
+  position: static;
+}
+
+.notebook-window.notebook-compact .notebook-pages {
+  position: static;
+  flex-wrap: wrap;
+}
+
+.notebook-window.notebook-compact .notebook-detail {
+  max-height: 140px;
+}

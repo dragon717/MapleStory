@@ -41,6 +41,11 @@ for(const mode of ['maps','entities','ui','windows','portals','effects'])run(pro
 // writes.  The catalogue half is still generated at the very end (inside
 // `assemble_tms273`), where the item tree is final.
 run(process.execPath,['scripts/export_tms273_collection.cjs']);
+// The collection's 1550 slots have to be named, and `String/Mob.json` is the
+// only same-version table that names a monster.  It reads no other export, so
+// it can run straight after the collection dump; it must run before
+// `assemble_tms273` because both the server and the client compile it in.
+run(process.execPath,['scripts/export_tms273_mob_names.cjs']);
 run('python3',['scripts/generate_tms273_gameplay.py']);
 // The four slot-expansion coupons are sourced through an NPC script in TMS273,
 // so `generate_tms273_gameplay.py` only authors their shop rows; the item

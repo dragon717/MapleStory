@@ -1,7 +1,7 @@
 import './style.css';
 
 import type { AssetFrame, Manifest } from '../../assets/manifest';
-import { displayText, uiText } from '../../app/i18n';
+import { displayText, menuEntryText, uiText } from '../../app/i18n';
 import { installWindowDrag } from '../ui/window-shell.ts';
 
 export type MenuKind = 'game' | 'shortcut';
@@ -27,6 +27,18 @@ const OPERATIONS = [
   { key: 'settings', label: '遊戲設定', icon: '⚙', className: 'settings' },
   { key: 'quit', label: '遊戲結束', icon: '⏻', className: 'quit' },
 ] as const;
+
+/** Where the source button art stops being the icon and starts being its baked
+ *  label.  Every `menu/buttonInfo/<column>/<row>` frame is a 136x40 plate of a
+ *  flat rgba fill with the icon and the name drawn into the bitmap, so an entry
+ *  whose visible name changes (see `MENU_ENTRY_TEXT` in `app/i18n.ts`) cannot
+ *  be renamed with text alone — the old glyphs would still show through.
+ *  Those entries therefore show only the art left of this boundary, repaint the
+ *  plate and draw the name themselves.  In the source art the icon's ink ends
+ *  at x24 even in the hover glow and the glyphs start at x28, so any value in
+ *  between is correct; `scripts/check_tms273_notebook.cjs` re-measures the
+ *  exported PNG and fails if this boundary stops falling inside that gap. */
+const ITEM_ICON_STRIP = 27;
 
 /** Group source entries by their UITotalMenu column for the responsive layout. */
 export function groupMenuEntries(entries: readonly MenuEntry[]): MenuEntry[][] {
@@ -89,6 +101,9 @@ export class MenuView {
      *  window; the window itself asks the server for the wallet on open. */
     private onCashShop?: () => void,
     private onKeybindings?: () => void,
+    /** Source UITotalMenu type 22 is the 怪物收藏 entry this build reuses for
+     *  冒险笔记（图鉴）: one menu entry, one window, four pages (NB-07). */
+    private onNotebook?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -209,13 +224,8 @@ export class MenuView {
       const items = document.createElement('div');
       items.className = 'maple-menu-category-items';
       for (const entry of entries) {
-        const normal = assets[`${entry.key}/normal/0`];
-        if (!normal) continue;
-        const button = this.createAssetButton(entry.key, displayText(entry.label), assets, 'maple-menu-item', normal);
-        button.dataset.menuItem = entry.key;
-        button.setAttribute('role', 'menuitem');
-        button.style.setProperty('--menu-entry-y', `${entry.y}px`);
-        button.addEventListener('click', () => this.activateEntry(entry));
+        const button = this.createEntryButton(entry, assets);
+        if (!button) continue;
         items.append(button);
       }
       category.append(items);
@@ -270,6 +280,36 @@ export class MenuView {
     return button;
   }
 
+  /** One source menu entry.  The button keeps the entry's own art, key and
+   *  position; only the visible name can differ from the source, and when it
+   *  does the button has to carry the name itself (see `ITEM_ICON_STRIP`). */
+  private createEntryButton(entry: MenuEntry, assets: MenuAssets) {
+    const normal = assets[`${entry.key}/normal/0`];
+    if (!normal) return undefined;
+    const label = menuEntryText(entry.key, entry.label);
+    const button = this.createAssetButton(entry.key, displayText(label), assets, 'maple-menu-item', normal);
+    button.dataset.menuItem = entry.key;
+    button.setAttribute('role', 'menuitem');
+    button.style.setProperty('--menu-entry-y', `${entry.y}px`);
+    button.addEventListener('click', () => this.activateEntry(entry));
+    if (label === entry.label) return button;
+    // Renamed entry: drop the baked glyphs, repaint the plate in the art's own
+    // colour and draw the name.  The plate keeps the art's alpha, so it
+    // composites over the menu background exactly like the source button.
+    button.dataset.menuLabelOverride = 'true';
+    // The stylesheet derives the clip and the plate from this, so the boundary
+    // lives in exactly one place.
+    button.style.setProperty('--menu-icon-strip', `${ITEM_ICON_STRIP}px`);
+    const plate = document.createElement('span');
+    plate.className = 'maple-menu-item-plate';
+    plate.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.className = 'maple-menu-item-label';
+    text.textContent = displayText(label);
+    button.append(plate, text);
+    return button;
+  }
+
   private activateOperation(key: string) {
     const action = key === 'channel' ? this.onChannel
       : key === 'characters' ? this.onCharacters
@@ -299,13 +339,17 @@ export class MenuView {
                   // Type 29 is the 表情 / chat emoticon shortcut.
                   : entry.type === 29 ? this.onEmoticon
                     : entry.type === 36 ? this.onNews
-                      // Type 19 is the 世界地圖 / world map shortcut.
-                      : entry.type === 19 ? this.onWorldMap : undefined;
+                      // Type 19 is the 世界地圖 / world map shortcut and
+                      // type 22 is 怪物收藏, reused here as 冒险笔记（图鉴）.
+                      : entry.type === 19 ? this.onWorldMap
+                        : entry.type === 22 ? this.onNotebook : undefined;
     if (action) {
       this.close();
       action();
     } else {
-      this.status(displayText(`${entry.label}尚未实装。`));
+      // The status line must say the name the player just clicked, not the
+      // source label the renamed button no longer shows.
+      this.status(displayText(`${menuEntryText(entry.key, entry.label)}尚未实装。`));
     }
   }
 
@@ -380,6 +424,9 @@ export class MenuView {
   private bindButton(button: HTMLButtonElement, image: HTMLImageElement, assets: MenuAssets, key: string, normal: AssetFrame) {
     const setState = (state: 'normal' | 'pressed' | 'mouseOver') => {
       image.src = (assets[`${key}/${state}/0`] ?? normal).url;
+      // Renamed entries repaint the plate instead of inheriting it from the
+      // art, so the button has to publish the state for the plate to follow.
+      button.dataset.menuState = state;
     };
     button.addEventListener('pointerover', () => setState('mouseOver'));
     button.addEventListener('pointerout', () => setState('normal'));

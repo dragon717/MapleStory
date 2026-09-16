@@ -92,7 +92,10 @@ impl MonsterTemplate {
     /// Resolve the authored level's effect numbers for one authored skill.
     /// `Mob/<id>.img/info/skill` references a level; the exported `effects`
     /// map carries that level's `Skill/MobSkill/<id>.json` numbers.
-    pub(super) fn skill_effect<'a>(&self, skill: &'a MonsterSkillTemplate) -> Option<&'a MonsterSkillEffect> {
+    pub(super) fn skill_effect<'a>(
+        &self,
+        skill: &'a MonsterSkillTemplate,
+    ) -> Option<&'a MonsterSkillEffect> {
         skill
             .effects
             .get(&skill.level.to_string())
@@ -138,7 +141,11 @@ impl World {
         Ok(())
     }
 
-    pub(super) fn spawn_monster_on_map(&mut self, map_id: String, spawn: MonsterSpawn) -> Result<(), String> {
+    pub(super) fn spawn_monster_on_map(
+        &mut self,
+        map_id: String,
+        spawn: MonsterSpawn,
+    ) -> Result<(), String> {
         if self
             .monsters
             .values()
@@ -338,9 +345,11 @@ impl World {
         if template.skills.is_empty() {
             return;
         }
-        let Some(target) = self.players.get(&target_id).filter(|p| {
-            p.map_id == map_id && p.state.action != "dead" && p.state.hp > 0
-        }) else {
+        let Some(target) = self
+            .players
+            .get(&target_id)
+            .filter(|p| p.map_id == map_id && p.state.action != "dead" && p.state.hp > 0)
+        else {
             return;
         };
         let target_x = target.state.x;
@@ -373,8 +382,7 @@ impl World {
                     &target_id,
                     &skill.skill_id.to_string(),
                     &self.tick.to_string(),
-                ])
-                    < prop;
+                ]) < prop;
             if !in_range || !rolled {
                 continue;
             }
@@ -383,8 +391,7 @@ impl World {
             // Advance the interval for the skill that fired (or was blocked)
             // so a mob cannot spam its debuff every tick.  Blocked casts still
             // spend the interval.
-            let interval_ms = effect.interval.unwrap_or(10).max(0) as u64
-                * 1_000;
+            let interval_ms = effect.interval.unwrap_or(10).max(0) as u64 * 1_000;
             let next = self.tick.saturating_add((interval_ms / TICK_MS).max(1));
             if let Some(monster) = self.monsters.get_mut(id) {
                 monster.next_skill_tick = next;
@@ -421,7 +428,10 @@ impl World {
         if !advanced {
             if let (Some(skill), Some(effect)) = (
                 template.skills.first(),
-                template.skills.first().and_then(|s| template.skill_effect(s)),
+                template
+                    .skills
+                    .first()
+                    .and_then(|s| template.skill_effect(s)),
             ) {
                 let interval_ms = effect.interval.unwrap_or(10).max(0) as u64 * 1_000;
                 let next = self.tick.saturating_add((interval_ms / TICK_MS).max(1));
@@ -525,7 +535,11 @@ impl World {
                 }
                 if let Some(target) = mobile_target {
                     monster.returning_home = false;
-                    Some(if monster.state.x < target.state.x { 1 } else { -1 })
+                    Some(if monster.state.x < target.state.x {
+                        1
+                    } else {
+                        -1
+                    })
                 } else if monster.returning_home {
                     let dx = monster.spawn.x - monster.state.x;
                     if dx.abs() <= MOB_HOME_RADIUS {
@@ -756,9 +770,7 @@ impl World {
             let mp = intended_mp.min(snapshot.0.mp.max(0) as i128) as i64;
             let mp_shortfall = (intended_mp - i128::from(mp)).max(0);
             // 未被接下的那 1% 始终由 HP 承担。
-            let hp = (reduced_damage as i128
-                * i128::from(100 - MAGIC_GUARD_COVERED_PERCENT)
-                / 100
+            let hp = (reduced_damage as i128 * i128::from(100 - MAGIC_GUARD_COVERED_PERCENT) / 100
                 + mp_shortfall)
                 .clamp(0, i128::from(reduced_damage)) as i64;
             (mp, hp)
@@ -873,48 +885,47 @@ impl World {
                 // windows; generic body contact must not add a second hit.
                 continue;
             }
-            let hit =
-                self.monsters
-                    .values()
-                    .filter(|monster| {
-                        if monster.map_id != map_id
-                            || monster.state.hp <= 0
-                            || !monster.template.body_attack
-                            || monster.template.pa_damage.is_none()
-                        {
-                            return false;
-                        }
-                        let Some((mob_left, mob_right, mob_top, mob_bottom)) = monster
-                            .template
-                            .body_bounds(monster.state.x, monster.state.y)
-                        else {
-                            return false;
-                        };
-                        // Mapleweb's collision probe uses the player's current
-                        // movement span and a -50..0 body rectangle.
-                        player.state.x >= mob_left
-                            && player.state.x <= mob_right
-                            && player.state.y - 50.0 <= mob_bottom
-                            && player.state.y >= mob_top
+            let hit = self
+                .monsters
+                .values()
+                .filter(|monster| {
+                    if monster.map_id != map_id
+                        || monster.state.hp <= 0
+                        || !monster.template.body_attack
+                        || monster.template.pa_damage.is_none()
+                    {
+                        return false;
+                    }
+                    let Some((mob_left, mob_right, mob_top, mob_bottom)) = monster
+                        .template
+                        .body_bounds(monster.state.x, monster.state.y)
+                    else {
+                        return false;
+                    };
+                    // Mapleweb's collision probe uses the player's current
+                    // movement span and a -50..0 body rectangle.
+                    player.state.x >= mob_left
+                        && player.state.x <= mob_right
+                        && player.state.y - 50.0 <= mob_bottom
+                        && player.state.y >= mob_top
+                })
+                .min_by(|a, b| {
+                    (a.state.x - player.state.x)
+                        .abs()
+                        .total_cmp(&(b.state.x - player.state.x).abs())
+                })
+                .and_then(|monster| {
+                    monster.template.pa_damage.map(|damage| {
+                        (
+                            monster.state.id.clone(),
+                            monster.state.x,
+                            damage.max(1),
+                            monster.template.body_disease,
+                            monster.template.body_disease_level,
+                        )
                     })
-                    .min_by(|a, b| {
-                        (a.state.x - player.state.x)
-                            .abs()
-                            .total_cmp(&(b.state.x - player.state.x).abs())
-                    })
-                    .and_then(|monster| {
-                        monster.template.pa_damage.map(|damage| {
-                            (
-                                monster.state.id.clone(),
-                                monster.state.x,
-                                damage.max(1),
-                                monster.template.body_disease,
-                                monster.template.body_disease_level,
-                            )
-                        })
-                    });
-            let Some((monster_id, monster_x, raw_damage, body_disease, body_disease_level)) =
-                hit
+                });
+            let Some((monster_id, monster_x, raw_damage, body_disease, body_disease_level)) = hit
             else {
                 continue;
             };

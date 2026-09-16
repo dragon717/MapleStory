@@ -500,7 +500,12 @@ impl World {
                     return;
                 }
                 if !self.disconnect_windbell_player(&id) {
-                    self.send_reject(&id, "persistence", "旧连接的风铃岛记忆尚未保存，请稍后重试。", None);
+                    self.send_reject(
+                        &id,
+                        "persistence",
+                        "旧连接的风铃岛记忆尚未保存，请稍后重试。",
+                        None,
+                    );
                     return;
                 }
                 self.disconnect_boss_player(&id);
@@ -735,10 +740,9 @@ impl World {
                         request_id,
                         portal_name,
                     } => self.handle_portal(id, request_id, portal_name),
-                    ClientMessage::WorldMapMove {
-                        request_id,
-                        map_id,
-                    } => self.handle_world_map_move(id, request_id, map_id),
+                    ClientMessage::WorldMapMove { request_id, map_id } => {
+                        self.handle_world_map_move(id, request_id, map_id)
+                    }
                     ClientMessage::InventoryMove {
                         request_id,
                         inventory_type,
@@ -835,9 +839,7 @@ impl World {
                         item_id,
                         unit_price,
                     } => self.handle_shop_rebuy(id, request_id, shop_id, item_id, unit_price),
-                    ClientMessage::CashOpen { request_id } => {
-                        self.handle_cash_open(id, request_id)
-                    }
+                    ClientMessage::CashOpen { request_id } => self.handle_cash_open(id, request_id),
                     ClientMessage::CashBuy {
                         request_id,
                         sn,
@@ -945,6 +947,7 @@ impl World {
                         page,
                         catalog_version,
                         filter,
+                        mode,
                     } => self.handle_notebook_query(
                         &id,
                         request_id,
@@ -952,6 +955,7 @@ impl World {
                         page,
                         catalog_version,
                         filter,
+                        mode,
                     ),
                     // `reward_key` / `row_key` / `run_id` 的真实性、归属与重复领取
                     // 是权威世界的问题，等奖励事务落地时在同一个事务里重算；此刻

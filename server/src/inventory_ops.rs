@@ -124,11 +124,15 @@ impl World {
                     Some(pickup_rules::CapacityProbe {
                         inventory: &player.state.inventory,
                         slot_limit: player
-                            .state.inventory_slots
+                            .state
+                            .inventory_slots
                             .get(&kind)
                             .copied()
                             .unwrap_or(inventory::SLOT_LIMIT),
-                        stats: self.drop_instances.get(&drop_id).and_then(|v| v.stats.as_ref()),
+                        stats: self
+                            .drop_instances
+                            .get(&drop_id)
+                            .and_then(|v| v.stats.as_ref()),
                         remaining_slots: self
                             .drop_instances
                             .get(&drop_id)
@@ -148,7 +152,9 @@ impl World {
             if silent {
                 return;
             }
-            let _ = player.output.try_send(reject(code, message, Some(&request_id)));
+            let _ = player
+                .output
+                .try_send(reject(code, message, Some(&request_id)));
             return;
         }
         let outcome = match self.store.as_ref() {
@@ -216,7 +222,8 @@ impl World {
                     } else {
                         let kind = inventory::inventory_type(&outcome.item_id).unwrap_or(4);
                         let slot_limit = player
-                            .state.inventory_slots
+                            .state
+                            .inventory_slots
                             .get(&kind)
                             .copied()
                             .unwrap_or(inventory::SLOT_LIMIT);
@@ -312,7 +319,8 @@ impl World {
                             .get_mut(&id)
                             .map(|player| {
                                 let slot_limit = player
-                                    .state.inventory_slots
+                                    .state
+                                    .inventory_slots
                                     .get(&kind)
                                     .copied()
                                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -410,7 +418,8 @@ impl World {
         let mut next_inventory = player.state.inventory.clone();
         let mut next_equipped = player.state.equipped.clone();
         let slot_limit = player
-            .state.inventory_slots
+            .state
+            .inventory_slots
             .get(&inventory_type)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
@@ -457,8 +466,14 @@ impl World {
             )
             .map(|_| ())
         } else if operation == "unequip" {
-            inventory::unequip_items(&mut next_inventory, &mut next_equipped, from_slot, to_slot, slot_limit)
-                .map(|_| ())
+            inventory::unequip_items(
+                &mut next_inventory,
+                &mut next_equipped,
+                from_slot,
+                to_slot,
+                slot_limit,
+            )
+            .map(|_| ())
         } else {
             inventory::move_items(
                 &mut next_inventory,
@@ -708,11 +723,21 @@ impl World {
         }
     }
 
-    pub(super) fn handle_inventory_gather(&mut self, id: String, request_id: String, inventory_type: u8) {
+    pub(super) fn handle_inventory_gather(
+        &mut self,
+        id: String,
+        request_id: String,
+        inventory_type: u8,
+    ) {
         self.handle_inventory_compact(id, request_id, inventory_type, false);
     }
 
-    pub(super) fn handle_inventory_sort(&mut self, id: String, request_id: String, inventory_type: u8) {
+    pub(super) fn handle_inventory_sort(
+        &mut self,
+        id: String,
+        request_id: String,
+        inventory_type: u8,
+    ) {
         self.handle_inventory_compact(id, request_id, inventory_type, true);
     }
 
@@ -1139,7 +1164,8 @@ impl World {
         let mut inventory_items = player.state.inventory.clone();
         let mut equipped_items = player.state.equipped.clone();
         let slot_limit = player
-            .state.inventory_slots
+            .state
+            .inventory_slots
             .get(&inventory_type)
             .copied()
             .unwrap_or(inventory::SLOT_LIMIT);
@@ -1200,7 +1226,8 @@ impl World {
                 // In-memory slot expansion mirrors the store branch: grow the
                 // tab by one step and consume the coupon, atomically.
                 let capacity = player
-                    .state.inventory_slots
+                    .state
+                    .inventory_slots
                     .get(&target_tab)
                     .copied()
                     .unwrap_or(inventory::SLOT_LIMIT);
@@ -1210,15 +1237,14 @@ impl World {
                 } else {
                     let mut slots = player.state.inventory_slots.clone();
                     slots.insert(target_tab, grown);
-                    inventory::remove_items(&mut inventory_items, 2, source_slot, 1)
-                        .map(|_| {
-                            if let Some(player) = self.players.get_mut(&id) {
-                                // Single wire copy: the snapshot picks the new
-                                // capacity up without any extra syncing.
-                                player.state.inventory_slots = slots;
-                            }
-                            result_code = "slot_expand".to_owned();
-                        })
+                    inventory::remove_items(&mut inventory_items, 2, source_slot, 1).map(|_| {
+                        if let Some(player) = self.players.get_mut(&id) {
+                            // Single wire copy: the snapshot picks the new
+                            // capacity up without any extra syncing.
+                            player.state.inventory_slots = slots;
+                        }
+                        result_code = "slot_expand".to_owned();
+                    })
                 }
             } else if let Ok(effect) = inventory::use_effect(&item_id) {
                 // Percentage recovery (`hpR`/`mpR`) is resolved against this
@@ -1535,5 +1561,4 @@ impl World {
         self.drop_owners.insert(drop_id.to_owned(), (None, 0));
         self.drop_maps.insert(drop_id.to_owned(), map_id.to_owned());
     }
-
 }

@@ -82,7 +82,6 @@ impl QuestSpec {
     }
 }
 
-
 impl Gameplay {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let mut gameplay: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
@@ -476,4 +475,3 @@ impl Gameplay {
         Ok(())
     }
 }
-

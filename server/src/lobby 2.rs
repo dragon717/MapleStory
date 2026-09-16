@@ -1,8 +1,5 @@
 use crate::{
-    auth::{
-        notebook::{granted_tx, AcquisitionSource, ItemAcquisition},
-        Store,
-    },
+    auth::Store,
     inventory,
     protocol::{InventoryItem, CONTENT_VERSION, PROTOCOL_VERSION},
 };
@@ -203,10 +200,6 @@ pub struct CharacterSummary {
     pub level: u32,
     pub job: u32,
     pub appearance: Appearance,
-    /// The character's current equipped rows — the same source the world and
-    /// cash shop compose the paper doll from. `appearance` alone is the frozen
-    /// creation look and diverges as soon as the player changes equipment.
-    pub equipped: Vec<InventoryItem>,
 }
 
 pub enum Response {
@@ -664,16 +657,6 @@ fn seed_character_equipment(
     if appearance.pants != 0 {
         equipment.push((6_u16, appearance.pants));
     }
-    // NB-05：创角时穿上的外观装备是**真实授予**——它和角色行、`equipped` 行
-    // 同一事务落库，所以图鉴记录也必须在这里、用同一个事务写下，否则一个角色
-    // 会永久缺掉「创角那几件」的获得事实（NB-03 的补记只能从当前装备反推，
-    // 换装后就丢了）。
-    //
-    // 分类交给 `granted_tx`：本表里可选的外观 id 全部在图鉴目录内；`Appearance`
-    // 的 `Default` 里那两个未进出厂索引的默认 id（1060003／1070000）在生产不可达
-    // （请求必须显式给出全部字段并通过 `validate()`），即便出现也只会被判为
-    // 「不是常规物品」而静默跳过——不会让创角失败。
-    let mut granted_ids: Vec<String> = Vec::new();
     for (slot, item_id) in equipment {
         let mut item = InventoryItem {
             slot,
@@ -684,7 +667,6 @@ fn seed_character_equipment(
         inventory::ensure_equipment_instance(&mut item);
         let stats_json = serde_json::to_string(&item.stats.clone().unwrap_or_default())
             .map_err(|_| "account persistence failed".to_owned())?;
-        granted_ids.push(item.item_id.clone());
         tx.execute(
             "INSERT INTO equipped(
                account_id,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots
@@ -701,18 +683,6 @@ fn seed_character_equipment(
         )
         .map_err(|_| "account persistence failed".to_owned())?;
     }
-    // 与角色行、`equipped` 行同一事务：创角成功 ⇒ 获得事实一定在；创角回滚 ⇒
-    // 一条都不留。数量恒为 1（外观槽位每格一件）。
-    let grants: Vec<ItemAcquisition<'_>> = granted_ids
-        .iter()
-        .map(|item_id| ItemAcquisition {
-            item_id: item_id.as_str(),
-            quantity: 1,
-            source: AcquisitionSource::Starter,
-            source_ref: None,
-        })
-        .collect();
-    granted_tx(tx, character_id, &grants, crate::auth::now_ms())?;
     Ok(())
 }
 
@@ -732,10 +702,7 @@ fn list_characters(
         .query_map([account_id], character_from_row)
         .map_err(|_| "account persistence failed".to_owned())?;
     rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "invalid saved character".to_owned())?
-        .into_iter()
-        .map(|character| with_equipped(tx, character))
-        .collect()
+        .map_err(|_| "invalid saved character".to_owned())
 }
 
 fn find_character(
@@ -752,20 +719,7 @@ fn find_character(
         character_from_row,
     )
     .optional()
-    .map_err(|_| "account persistence failed".to_owned())?
-    .map(|character| with_equipped(tx, character))
-    .transpose()
-}
-
-/// Fill in the live equipped rows for one lobby summary. Reading them through
-/// the caller's transaction (not `Store::load_equipped`) avoids re-locking the
-/// account database the caller already holds.
-fn with_equipped(
-    tx: &Transaction<'_>,
-    mut character: CharacterSummary,
-) -> Result<CharacterSummary, String> {
-    character.equipped = crate::auth::db::read_equipped_db(tx, &character.id)?;
-    Ok(character)
+    .map_err(|_| "account persistence failed".to_owned())
 }
 
 pub(crate) fn character_appearance(
@@ -818,9 +772,6 @@ fn character_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CharacterSumm
         appearance,
         level: row.get::<_, i64>(3)?.try_into().unwrap_or(1),
         job: row.get::<_, i64>(4)?.try_into().unwrap_or(0),
-        // `with_equipped` fills this from the equipped table right after the
-        // row is mapped; the summary is never served without it.
-        equipped: Vec::new(),
     })
 }
 
@@ -1218,132 +1169,6 @@ mod tests {
             Some(Appearance::default())
         );
         drop(reopened);
-        let _ = fs::remove_file(&path);
-        let _ = fs::remove_file(format!("{}-wal", path.display()));
-        let _ = fs::remove_file(format!("{}-shm", path.display()));
-    }
-
-    #[tokio::test]
-    async fn lobby_summary_equipped_tracks_the_live_equipped_rows() {
-        let path = std::env::temp_dir().join(format!(
-            "maple-lobby-equipped-{}.sqlite3",
-            auth::random_id()
-        ));
-        let service = auth::start(&path).unwrap();
-        let (reply, rx) = oneshot::channel();
-        service
-            .sender
-            .send(auth::Request::Register(
-                Credentials {
-                    username: "equipped-user".into(),
-                    password: "correct-password".into(),
-                },
-                reply,
-            ))
-            .await
-            .unwrap();
-        rx.await.unwrap().unwrap();
-        let (reply, rx) = oneshot::channel();
-        service
-            .sender
-            .send(auth::Request::Login(
-                Credentials {
-                    username: "equipped-user".into(),
-                    password: "correct-password".into(),
-                },
-                reply,
-            ))
-            .await
-            .unwrap();
-        let (identity, _) = rx.await.unwrap().unwrap();
-        let created = match handle(
-            &service.store,
-            &identity.id,
-            Action::Create {
-                request_id: "create-1".into(),
-                name: "EquippedOne".into(),
-                appearance: creation_default(),
-            },
-        )
-        .unwrap()
-        {
-            Response::Created { character } => character,
-            _ => panic!("unexpected response"),
-        };
-        // Creation seeds the starter rows; the summary must carry the same
-        // list the world composes its paper doll from.
-        assert_eq!(
-            created.equipped,
-            service.store.load_equipped(&created.id).unwrap()
-        );
-        assert!(created
-            .equipped
-            .iter()
-            .any(|item| item.item_id == "1302000"));
-
-        // A later equipment change (swap the coat, wear a cap) must be
-        // reflected by list and select instead of the frozen creation look.
-        service.store.with_db(|db| {
-            let changed = db
-                .execute(
-                    "UPDATE equipped SET item_id='1040002' WHERE account_id=?1 AND slot=-5",
-                    params![created.id],
-                )
-                .map_err(|_| "update failed".to_owned())?;
-            assert_eq!(changed, 1);
-            db.execute(
-                "INSERT INTO equipped(account_id,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots)
-                 VALUES(?1,-1,'1002067',1,'{}',0,0)",
-                params![created.id],
-            )
-            .map_err(|_| "insert failed".to_owned())?;
-            Ok(())
-        }).unwrap();
-
-        let listed = match handle(
-            &service.store,
-            &identity.id,
-            Action::List { channel_id: None },
-        )
-        .unwrap()
-        {
-            Response::List { characters, .. } => characters,
-            _ => panic!("unexpected response"),
-        };
-        assert_eq!(listed.len(), 1);
-        assert_eq!(
-            listed[0].equipped,
-            service.store.load_equipped(&listed[0].id).unwrap()
-        );
-        assert!(listed[0]
-            .equipped
-            .iter()
-            .any(|item| item.item_id == "1040002"));
-        assert!(listed[0]
-            .equipped
-            .iter()
-            .any(|item| item.item_id == "1002067"));
-        assert!(!listed[0]
-            .equipped
-            .iter()
-            .any(|item| item.item_id == "1050286"));
-
-        let selected = match handle(
-            &service.store,
-            &identity.id,
-            Action::Select {
-                character_id: created.id.clone(),
-                channel_id: Some(CHANNEL_ID),
-            },
-        )
-        .unwrap()
-        {
-            Response::Selected { character, .. } => character,
-            _ => panic!("unexpected response"),
-        };
-        assert_eq!(selected.equipped, listed[0].equipped);
-
-        drop(service);
         let _ = fs::remove_file(&path);
         let _ = fs::remove_file(format!("{}-wal", path.display()));
         let _ = fs::remove_file(format!("{}-shm", path.display()));

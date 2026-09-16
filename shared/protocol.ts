@@ -302,7 +302,7 @@ export type ClientMessage =
    *  claims to have. The quest section is filtered server-side over the rows
    *  this character really obtained, so an un-obtained task entry is never on
    *  the wire in the first place (not merely hidden with CSS). */
-  | { type: 'notebookQuery'; requestId: string; section: NotebookSection; page: number; catalogVersion: string; filter?: string }
+  | { type: 'notebookQuery'; requestId: string; section: NotebookSection; page: number; catalogVersion: string; filter?: string; mode?: NotebookBrowseMode }
   /** Claim one original completion reward. The `rewardKey` is one the server
    *  itself handed out; eligibility, the receiving character and the slot
    *  capacity are all recomputed server-side. */
@@ -318,6 +318,17 @@ export type ClientMessage =
  *  ignored field. `quest` is server-filtered: the client never learns an
  *  un-obtained task entry from it. */
 export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'quest';
+/** How the server narrows an item page.  It is interpreted **inside** the
+ *  server's own set, so no value of it can reveal an un-obtained quest entry:
+ *  - `available` (default, and any unknown value): only templates the catalog
+ *    says are obtainable today — the honest denominator (plan §5.5).
+ *  - `all`: the whole section, including templates this build cannot source.
+ *  - `obtained`: only what this character really obtained.
+ *  - `missing`: obtainable but not obtained yet.  A template the catalog
+ *    cannot source is not "missing", it is simply not open.
+ *  The quest section ignores it on purpose: its base set is already "obtained",
+ *  so a mode could only ever hide a fact the player really has. */
+export type NotebookBrowseMode = 'available' | 'all' | 'obtained' | 'missing';
 /** One displayable notebook row. `owned`/`registered` are the private halves
  *  and are only ever computed on the server; `label`, `iconItemId` and
  *  `monsterTemplateId` are directory facts the client already ships. */
@@ -343,6 +354,27 @@ export interface NotebookRow {
   /** True when the row is a historical backfill whose real event time is
    *  unknown — the client must not render `firstRecordMs` as an obtain time. */
   timeUnknown?: boolean;
+  /** Monster page only: the authored slots of this row, in `Etc/mobCollection`
+   *  order.  Each slot is one collection entry, so the row's own
+   *  `obtained`/`registered` are derived from them, never the other way round. */
+  slots?: NotebookSlot[];
+  /** Source-authored prose for the detail panel (monster `episode`).  Absent
+   *  when the source writes none, so the panel never renders an empty block. */
+  detail?: string;
+  /** Monster page only: the authored spawn maps the source really names. */
+  spawnMapIds?: string[];
+}
+/** One authored collection slot.  `collectable` is the directory's own verdict
+ *  on whether this build actually fields the monster — it is not a promise that
+ *  a registration rule exists. */
+export interface NotebookSlot {
+  key: string;
+  label: string;
+  monsterTemplateId: string;
+  registered: boolean;
+  collectable: boolean;
+  detail?: string;
+  spawnMapIds?: string[];
 }
 export interface NotebookSummary {
   /** Monster page: how many of the *whole original* entry set are registered. */
@@ -502,6 +534,9 @@ export type ServerMessage =
    *  a client that sees it jump past its own value re-queries instead of
    *  trusting a stale page. `serverNowMs` is the only clock the exploration
    *  countdown may be computed from. */
+  /** `catalogVersion` is the **server's** catalogue version, not an echo of the
+   *  client's: a mismatch means the client must refuse to lay the rows out
+   *  rather than apply an old page index to a new catalogue (plan §12.2). */
   | { type: 'notebookState'; requestId: string; section: NotebookSection; catalogVersion: string; scope: 'account' | 'character'; revision: number; page: number; pageCount: number; rows: NotebookRow[]; summary: NotebookSummary; serverNowMs: number
       /** Monster page only: the authored region/page/row navigation, and the
        *  reward/exploration state of the row on screen. */

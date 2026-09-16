@@ -90,16 +90,7 @@ impl World {
             return;
         }
         let fail = |world: &mut World, code: &str| {
-            world.remember_cash_request(
-                &id,
-                &request_id,
-                false,
-                code,
-                &sn,
-                "",
-                quantity,
-                0,
-            );
+            world.remember_cash_request(&id, &request_id, false, code, &sn, "", quantity, 0);
             world.send_cash_buy_result(&id, &request_id, false, code, &sn, "", quantity, 0);
         };
         let store = self.store.clone();
@@ -265,7 +256,11 @@ impl World {
         }
         self.cash_purchases
             .insert((id.clone(), sn.clone()), outcome.purchased_units);
-        let delivered = if outcome.success { entry.item_id.as_str() } else { "" };
+        let delivered = if outcome.success {
+            entry.item_id.as_str()
+        } else {
+            ""
+        };
         self.remember_cash_request(
             &id,
             &request_id,

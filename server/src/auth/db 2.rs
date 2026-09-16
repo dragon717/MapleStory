@@ -8,10 +8,7 @@
 
 use super::*;
 
-pub(super) fn read_storage_db(
-    db: &Connection,
-    account_id: &str,
-) -> Result<Vec<InventoryItem>, String> {
+pub(super) fn read_storage_db(db: &Connection, account_id: &str) -> Result<Vec<InventoryItem>, String> {
     let mut stmt = db
         .prepare(
             "SELECT slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM storage
@@ -64,22 +61,18 @@ pub(super) struct StorageStack {
 
 /// Read one inventory stack and check it can supply `quantity`.  Nothing is
 /// mutated, so a refusal later in the same transaction costs nothing.
-///
-/// The refusal channel is a typed `MoveRefusal`, not a player-visible code:
-/// which words the player eventually sees is the *business action's* choice
-/// (see `auth/item_world.rs`).
 pub(super) fn peek_inventory_stack(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
     inventory_type: u8,
     slot: i16,
     quantity: u32,
-) -> Result<Result<StorageStack, item_world::MoveRefusal>, String> {
+) -> Result<Result<StorageStack, String>, String> {
     if !inventory::valid_slot(slot) {
-        return Ok(Err(item_world::MoveRefusal::InvalidSlot));
+        return Ok(Err("invalid_slot".to_owned()));
     }
     if quantity == 0 {
-        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
+        return Ok(Err("invalid_quantity".to_owned()));
     }
     let row: Option<(String, i64, String, i64, i64)> = tx
         .query_row(
@@ -99,11 +92,11 @@ pub(super) fn peek_inventory_stack(
         .optional()
         .map_err(|_| "account persistence failed")?;
     let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
-        return Ok(Err(item_world::MoveRefusal::SourceEmpty));
+        return Ok(Err("source_empty".to_owned()));
     };
     let available = u32::try_from(available.max(0)).unwrap_or(0);
     if available < quantity {
-        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
+        return Ok(Err("invalid_quantity".to_owned()));
     }
     Ok(Ok(StorageStack {
         item_id,
@@ -120,12 +113,12 @@ pub(super) fn peek_storage_stack(
     account_id: &str,
     slot: i16,
     quantity: u32,
-) -> Result<Result<StorageStack, item_world::MoveRefusal>, String> {
+) -> Result<Result<StorageStack, String>, String> {
     if !valid_storage_slot(slot) {
-        return Ok(Err(item_world::MoveRefusal::InvalidSlot));
+        return Ok(Err("invalid_slot".to_owned()));
     }
     if quantity == 0 {
-        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
+        return Ok(Err("invalid_quantity".to_owned()));
     }
     let row: Option<(String, i64, String, i64, i64)> = tx
         .query_row(
@@ -145,11 +138,11 @@ pub(super) fn peek_storage_stack(
         .optional()
         .map_err(|_| "account persistence failed")?;
     let Some((item_id, available, stats_json, upgrade, remaining)) = row else {
-        return Ok(Err(item_world::MoveRefusal::SourceEmpty));
+        return Ok(Err("storage_slot_empty".to_owned()));
     };
     let available = u32::try_from(available.max(0)).unwrap_or(0);
     if available < quantity {
-        return Ok(Err(item_world::MoveRefusal::InvalidQuantity));
+        return Ok(Err("invalid_quantity".to_owned()));
     }
     Ok(Ok(StorageStack {
         item_id,
@@ -231,21 +224,12 @@ pub(super) fn take_storage_stack(
 /// Decide whether a deposit can fit, and if so where the row(s) would go.
 /// Checked before any mutation so a full warehouse refuses cleanly instead of
 /// destroying the stack.
-///
-/// Two error layers, deliberately separated (world model §32): `Ok(Err(_))` is
-/// a business refusal ("the warehouse cannot take this stack"), while `Err(_)`
-/// is a persistence failure that must abort the surrounding transaction.
-/// Before this was typed, the two shared one `String` channel, so a failed
-/// `query_row` was recorded in the idempotency receipt *as if the warehouse
-/// were full* and the transaction committed. That mislabelling is the one
-/// behaviour this refactor intentionally corrects; it is only reachable when
-/// SQLite itself fails, which no test or live path exercises.
 pub(super) fn reserve_storage_slot(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
     item_id: &str,
     quantity: u32,
-) -> Result<Result<(), item_world::MoveRefusal>, String> {
+) -> Result<(), String> {
     let mut need = i64::from(quantity);
     // Equipment instances never merge: two identical-looking weapons with a
     // different scroll history are different items.
@@ -264,7 +248,7 @@ pub(super) fn reserve_storage_slot(
         need = (need - mergeable.max(0)).max(0);
     }
     if need <= 0 {
-        return Ok(Ok(()));
+        return Ok(());
     }
     let free: i64 = tx
         .query_row(
@@ -274,7 +258,7 @@ pub(super) fn reserve_storage_slot(
         )
         .map_err(|_| "account persistence failed")?;
     if free <= 0 {
-        return Ok(Err(item_world::MoveRefusal::DestinationFull));
+        return Err("storage_full".to_owned());
     }
     // A single slot can hold at most `slotMax`; more than one new row is only
     // needed when the amount exceeds a fresh stack.  Equipment needs exactly
@@ -282,9 +266,9 @@ pub(super) fn reserve_storage_slot(
     let per_row = i64::from(inventory::item_slot_max(item_id)).max(1);
     let rows_needed = (need + per_row - 1) / per_row;
     if rows_needed > free {
-        return Ok(Err(item_world::MoveRefusal::DestinationFull));
+        return Err("storage_full".to_owned());
     }
-    Ok(Ok(()))
+    Ok(())
 }
 
 /// Put a prepared stack into the warehouse, merging into an identical stack
@@ -553,10 +537,7 @@ pub(super) fn insert_storage_mesos_action(
     Ok(())
 }
 
-pub(super) fn read_mesos_tx(
-    tx: &rusqlite::Transaction<'_>,
-    account_id: &str,
-) -> Result<u64, String> {
+pub(super) fn read_mesos_tx(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<u64, String> {
     let mesos: i64 = tx
         .query_row(
             "SELECT mesos FROM player_stats WHERE account_id=?1",
@@ -569,10 +550,7 @@ pub(super) fn read_mesos_tx(
     Ok(u64::try_from(mesos.max(0)).unwrap_or(0))
 }
 
-pub(super) fn read_storage_mesos_tx(
-    tx: &rusqlite::Transaction<'_>,
-    account_id: &str,
-) -> Result<u64, String> {
+pub(super) fn read_storage_mesos_tx(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<u64, String> {
     let mesos: i64 = tx
         .query_row(
             "SELECT mesos FROM storage_mesos WHERE account_id=?1",
@@ -1065,10 +1043,7 @@ pub(super) fn read_equipped_tx(
     Ok(collected)
 }
 
-pub(crate) fn read_equipped_db(
-    db: &Connection,
-    account_id: &str,
-) -> Result<Vec<InventoryItem>, String> {
+pub(super) fn read_equipped_db(db: &Connection, account_id: &str) -> Result<Vec<InventoryItem>, String> {
     let mut stmt = db
         .prepare(
             "SELECT slot,item_id,quantity,stats_json,upgrade_count,remaining_slots FROM equipped
@@ -1209,15 +1184,12 @@ pub(super) fn read_inventory_slots_tx(
     if raw.is_empty() {
         return Ok(inventory::default_inventory_slots());
     }
-    let parsed: BTreeMap<u8, u16> =
-        serde_json::from_str(&raw).map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    let parsed: BTreeMap<u8, u16> = serde_json::from_str(&raw)
+        .map_err(|_| inventory::InventoryError::QuantityOverflow)?;
     let mut slots = inventory::default_inventory_slots();
     for (kind, capacity) in parsed {
         if inventory::valid_inventory_type(kind) {
-            slots.insert(
-                kind,
-                capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT),
-            );
+            slots.insert(kind, capacity.clamp(inventory::SLOT_LIMIT, inventory::MAX_SLOT_LIMIT));
         }
     }
     Ok(slots)
@@ -1228,8 +1200,7 @@ pub(super) fn write_inventory_slots_tx(
     account_id: &str,
     slots: &BTreeMap<u8, u16>,
 ) -> Result<(), inventory::InventoryError> {
-    let json =
-        serde_json::to_string(slots).map_err(|_| inventory::InventoryError::QuantityOverflow)?;
+    let json = serde_json::to_string(slots).map_err(|_| inventory::InventoryError::QuantityOverflow)?;
     tx.execute(
         "UPDATE player_stats SET inventory_slots_json=?2 WHERE account_id=?1",
         params![account_id, json],
@@ -1307,9 +1278,7 @@ pub(super) fn apply_scroll_tx(
     Ok(success)
 }
 
-pub(super) fn inventory_outcome_from_row(
-    row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<InventoryOutcome> {
+pub(super) fn inventory_outcome_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<InventoryOutcome> {
     Ok(InventoryOutcome {
         request_id: row.get(0)?,
         operation: row.get(1)?,
@@ -1391,15 +1360,10 @@ pub(super) fn add_inventory_tx(
         return Ok(Err("quantity_mismatch"));
     }
     let mut inventory_items = read_inventory_tx(tx, account_id)?;
-    let slots =
-        read_inventory_slots_tx(tx, account_id).map_err(|_| "account persistence failed")?;
+    let slots = read_inventory_slots_tx(tx, account_id)
+        .map_err(|_| "account persistence failed")?;
     let slot_limit = slots.get(&kind).copied().unwrap_or(inventory::SLOT_LIMIT);
-    match inventory::add_items(
-        &mut inventory_items,
-        item_id.to_owned(),
-        quantity,
-        slot_limit,
-    ) {
+    match inventory::add_items(&mut inventory_items, item_id.to_owned(), quantity, slot_limit) {
         Ok(slot) => {
             if kind == 1 || inventory::is_pet(item_id) {
                 if let Some(item) = inventory_items.iter_mut().find(|item| {
@@ -1455,8 +1419,7 @@ pub(super) fn ensure_starter_equipment_tx(
         )
         .map_err(|_| "account persistence failed")?;
     if equipped_count == 0 {
-        let starter = inventory::starter_equipment();
-        for item in &starter {
+        for item in inventory::starter_equipment() {
             let stats = item.stats.clone().unwrap_or_default();
             let stats_json =
                 serde_json::to_string(&stats).map_err(|_| "account persistence failed")?;
@@ -1475,18 +1438,6 @@ pub(super) fn ensure_starter_equipment_tx(
             )
             .map_err(|_| "account persistence failed")?;
         }
-        // NB-05：创角初始装备是真实授予（落在 `equipped` 而不是 `inventory`，
-        // 但图鉴只关心「这件物品被授予过」），与落库同一事务留档。
-        let grants: Vec<ItemAcquisition> = starter
-            .iter()
-            .map(|item| ItemAcquisition {
-                item_id: item.item_id.as_str(),
-                quantity: item.quantity,
-                source: AcquisitionSource::Starter,
-                source_ref: None,
-            })
-            .collect();
-        granted_tx(tx, account_id, &grants, now_ms())?;
     }
     tx.execute(
         "UPDATE player_stats SET starter_equipment_seeded=1 WHERE account_id=?1",
@@ -1589,10 +1540,7 @@ pub(super) fn normalize_equipped_tx(tx: &rusqlite::Transaction<'_>) -> Result<()
     Ok(())
 }
 
-pub(super) fn read_profile(
-    tx: &rusqlite::Transaction<'_>,
-    account_id: &str,
-) -> Result<Profile, String> {
+pub(super) fn read_profile(tx: &rusqlite::Transaction<'_>, account_id: &str) -> Result<Profile, String> {
     normalize_inventory_tx(tx)?;
     let (
         hp,

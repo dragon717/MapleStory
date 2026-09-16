@@ -80,8 +80,8 @@ pub(super) fn snapshots(player: &Player) -> serde_json::Value {
                 let motion = &runtime.motion;
                 let fullness = inventory::pet_fullness(item, now_seconds);
                 let closeness = inventory::pet_closeness(item);
-                let life_remaining_ms = inventory::pet_lifespan_end(item)
-                    .map(|end| (end - now_seconds).max(0) * 1000);
+                let life_remaining_ms =
+                    inventory::pet_lifespan_end(item).map(|end| (end - now_seconds).max(0) * 1000);
                 serde_json::json!({
                     "id": id.to_string(), "itemId": item.item_id,
                     "name": inventory::pet_name(&item.item_id).unwrap_or_default(),
@@ -289,12 +289,8 @@ impl World {
                 return;
             }
             let mut items = player.state.inventory.clone();
-            let result = inventory::toggle_pet(
-                &mut items,
-                source_slot,
-                item_id,
-                auth::now_ms() / 1000,
-            );
+            let result =
+                inventory::toggle_pet(&mut items, source_slot, item_id, auth::now_ms() / 1000);
             let outcome = auth::InventoryOutcome {
                 request_id: request_id.to_owned(),
                 operation: "use".to_owned(),
@@ -383,7 +379,8 @@ impl World {
                                 memory_capacity: Some(pickup_rules::CapacityProbe {
                                     inventory: &player.state.inventory,
                                     slot_limit: player
-                                        .state.inventory_slots
+                                        .state
+                                        .inventory_slots
                                         .get(&kind)
                                         .copied()
                                         .unwrap_or(inventory::SLOT_LIMIT),
@@ -462,11 +459,10 @@ impl World {
         let now_seconds = auth::now_ms() / 1000;
         let retiring: Vec<(i64, u16, String, bool)> = active_items(player)
             .filter_map(|(item, instance)| {
-                let expired = inventory::pet_lifespan_end(item)
-                    .is_some_and(|end| end <= now_seconds);
+                let expired =
+                    inventory::pet_lifespan_end(item).is_some_and(|end| end <= now_seconds);
                 let starved = inventory::pet_fullness(item, now_seconds) <= 0;
-                (expired || starved)
-                    .then(|| (instance, item.slot, item.item_id.clone(), expired))
+                (expired || starved).then(|| (instance, item.slot, item.item_id.clone(), expired))
             })
             .collect();
         if retiring.is_empty() {
@@ -514,14 +510,11 @@ impl World {
                     return;
                 };
                 let Some(index) = player.state.inventory.iter().position(|item| {
-                    item.slot == slot
-                        && item.item_id == item_id
-                        && inventory::pet_active(item)
+                    item.slot == slot && item.item_id == item_id && inventory::pet_active(item)
                 }) else {
                     continue;
                 };
-                let fullness =
-                    inventory::pet_fullness(&player.state.inventory[index], now_seconds);
+                let fullness = inventory::pet_fullness(&player.state.inventory[index], now_seconds);
                 inventory::set_pet_fullness(
                     &mut player.state.inventory[index],
                     fullness,
@@ -588,10 +581,7 @@ fn pet_feed_reject_message(code: &str, lang: &'static str) -> &'static str {
             "请先召唤一只宠物，寵物食品未被消耗。",
             "Summon a pet first; the pet food was not consumed.",
         ),
-        _ => (
-            "无法使用寵物食品。",
-            "The pet food could not be used.",
-        ),
+        _ => ("无法使用寵物食品。", "The pet food could not be used."),
     };
     if lang == crate::quest_text::LANG_EN {
         en

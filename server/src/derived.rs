@@ -232,7 +232,11 @@ pub(super) fn compute_derived_stats(
     )
 }
 
-pub(super) fn refresh_player_derived(gameplay: &Gameplay, mage_skills: &MageSkills, player: &mut Player) {
+pub(super) fn refresh_player_derived(
+    gameplay: &Gameplay,
+    mage_skills: &MageSkills,
+    player: &mut Player,
+) {
     let (derived_stats, derived_max_mp) = compute_derived_stats(
         gameplay,
         mage_skills,
