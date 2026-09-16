@@ -54,6 +54,12 @@ Rust只有一个逻辑拥有者顺序处理输入、模拟、广播。网络与�
 
 导出器的bitmap缓存由WZ archive拥有，不逐次dispose被UOL共享的bitmap。地图图片与服务端foothold使用同一世界坐标。断线/离图清输入、监听器、角色、声音与计时器；重连重新认证并以服务端快照恢复。
 
+## 生成物与仓库体积上限（2026-09-16）
+
+`参考/`、`resources/`、`client/public-tms273/`、`build/` 等素材树与生成物不入库，`references/tms273-data/` 下的导出同样按生成物对待。`maps.json` 是装配管线从 `参考/` WZ 包导出的地图目录，随每次地图装配单调增长（98.16→138.58→152.60 MB）；2026-09-16 撞穿 GitHub 100 MB 单文件硬限，被 pre-receive hook 拒绝导致推送失败。该文件已脱离版本控制并补入 `.gitignore`，本地保留不影响装配，重新导出用 `scripts/import_tms273.py` + `scripts/export_tms273.cjs`。
+
+提交前守卫 `scripts/check_tracked_blob_size.cjs` 反向断言 `references/tms273-data/maps.json` 不得重新入库，并拒绝任何超过 90 MB（GitHub 硬限留余量）的被跟踪文件。守卫经 `.githooks/pre-commit` 接入，每次 clone 后须执行 `git config core.hooksPath .githooks` 启用；未启用时守卫不会自动运行，只能手动 `node scripts/check_tracked_blob_size.cjs`。体积超限属于历史累积问题：单个提交看似正常，超限发生在推送时，因此不要在发现被拒后才回滚，落库前就要拦住。
+
 ## 完成一条业务后的最小验证
 
 1. 非平凡规则留下一个可运行检查，覆盖实际失败边界；修改权威/幂等规则必须含伪造或重复请求。
