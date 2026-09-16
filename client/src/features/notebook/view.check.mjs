@@ -160,14 +160,37 @@ try {
   view.receiveChange({ type: 'notebookChanged', scope: 'account', revision: 5, section: 'monster', addedKeys: [] });
   assert.equal(sent.length, before + 1, 'revision 没有前进就不重复查询');
 
-  // --- 5. 任务页：不发「未获得」请求，且查询仍不带身份 ---------------------
+  // --- 5. 点页签必须真的换页（每一页都在同一个窗口里） ---------------------
+  // 这条是回归检查：页签的 click 监听挂在每次重绘新建的按钮上，一旦重绘路径变了
+  // （比如把监听挂到容器上、或在 replaceChildren 之后才绑），页签会「点了没反应」
+  // ——而且这种断线不会让任何布局检查失败。
+  view.open();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  view.receiveState(stateFor(sent[sent.length - 1].requestId, []));
+  const strip = host.children[0].children.find(child => child.className === 'notebook-tabs');
+  assert.equal(strip.children.length, 4, '窗口必须有四个页签');
+  for (const [index, section] of ['monster', 'equipment', 'use', 'quest'].entries()) {
+    assert.equal((strip.children[index].listeners.click ?? []).length, 1, `${section} 页签没有 click 监听`);
+    // 标签是画上去的 DOM 文字；源底板把字形烧在图里，所以底板必须另画（见第 8 节）。
+    assert.equal(strip.children[index].textContent, section, `${section} 页签没画出自己的标签`);
+    assert.equal(strip.children[index].getAttribute('aria-selected'), index === 0 ? 'true' : 'false', `${section} 页签的选中态不对`);
+  }
+  const beforeTab = sent.length;
+  strip.children[1].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sent.length, beforeTab + 1, '点装备页签必须发一次查询');
+  assert.equal(sent[sent.length - 1].section, 'equipment');
+  assert.equal(sent[sent.length - 1].mode, 'available', '装备页必须带默认浏览方式');
+  assert.equal(sent[sent.length - 1].page, 0, '换页签必须从第一页开始');
+
+  // --- 6. 任务页：不发「未获得」请求，且查询仍不带身份 ---------------------
   view.open('quest');
   await new Promise(resolve => setTimeout(resolve, 0));
   const quest = sent[sent.length - 1];
   assert.equal(quest.section, 'quest');
   assert.ok(quest.requestId !== again, '换页签必须换 requestId');
 
-  // --- 6. 关窗与销毁 -------------------------------------------------------
+  // --- 7. 关窗与销毁 -------------------------------------------------------
   view.close();
   assert.equal(view.isOpen(), false);
   view.destroy();
@@ -176,6 +199,67 @@ try {
 } finally {
   globalThis.document = original.document;
   globalThis.ResizeObserver = original.ResizeObserver;
+}
+
+// ---------------------------------------------------------------------------
+// 8. 页签必须真的点得到，而且标签是画上去的（不叠字）
+//
+// 窗口挂在共享浮层 `#ui-windows` 下，而那个 host 是 `pointer-events:none` 的：
+// 窗口根节点不把事件收回来，页签／关闭／分页就全部「点了没反应」，而**这种断线
+// 不会让任何布局断言失败**（上面的点页签检查是直接调 click 监听，也照样通过）。
+// 同理，源 `Tab/enabled|disabled` 底板把页签文字烧在位图里，贴图 + 画字就是叠字。
+//
+// 两条都只能对样式表与源码断言，所以在这里单独钉。
+{
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const appStyle = await readFile(new URL('../../app/style.css', import.meta.url), 'utf8');
+  const mainSource = await readFile(new URL('../../app/main.ts', import.meta.url), 'utf8');
+  const monsterSource = await readFile(new URL('./monster-section.ts', import.meta.url), 'utf8');
+
+  // 对照面：共享浮层确实是惰性的（它变了，这条检查的前提就变了）。
+  assert.match(
+    appStyle,
+    /#game-shell>#ui-windows\{[^}]*pointer-events:none/,
+    '共享 UI 浮层必须是 pointer-events:none（本检查的前提）',
+  );
+  assert.match(
+    style,
+    /\.notebook-window\s*\{[^}]*pointer-events:\s*auto;/,
+    '窗口必须在共享惰性浮层里把事件收回来，否则页签点了没反应',
+  );
+
+  // 底板重画，不贴源图；选中态由 aria-selected 选中。
+  assert.match(style, /--notebook-tab-off-image:\s*linear-gradient\(/, '未选中的页签底板要按源配色重画');
+  assert.match(style, /--notebook-tab-on-image:\s*linear-gradient\(/, '选中的页签底板要按源配色重画');
+  assert.match(
+    style,
+    /\.notebook-tab\[aria-selected='true'\]\s*\{[^}]*--notebook-tab-on-image/,
+    '选中态必须切到源 enabled 配色',
+  );
+  assert.doesNotMatch(
+    style,
+    /\.notebook-tab[^{]*\{[^}]*url\(/,
+    '页签底板不能贴源 Tab 图：源把页签文字烧在图里，贴图再画字就是叠字',
+  );
+  // 源码里不能再出现源 Tab 帧的**键字面量**（注释里提到它不算）。
+  assert.doesNotMatch(code, /'Tab\/(enabled|disabled)/, '页签不该再引用源 Tab 帧');
+  assert.doesNotMatch(code, /backgroundImage/, '页签底板归样式表，源码里不该再设 backgroundImage');
+  // 字色跟着源烧在图里的字形走：选中底板是纯白，未选中底板最亮只到浅灰。
+  assert.match(style, /\.notebook-tab\s*\{[^}]*color:\s*#999999;/, '未选中页签的字色要跟源字形一致（源该态没有纯白像素）');
+  assert.match(style, /\.notebook-tab\[aria-selected='true'\]\s*\{[^}]*color:\s*#ffffff;/, '选中页签的字色要跟源字形一致（纯白）');
+
+  // 分区状态说明（登记规则尚未核定）画在页内，不抬成全局红字。
+  assert.match(monsterSource, /'notebook-note'/, '怪物页要把分区状态说明画在页内');
+  assert.match(
+    mainSource,
+    /if \(message\.type === 'notebookState'\) notebook\?\.receiveState\(message\);/,
+    'notebookState 整份交给窗口，不在分发处再解释一次',
+  );
+  assert.doesNotMatch(
+    mainSource,
+    /status\(message\.blockedReason/,
+    '分区的阻塞说明是已知事实，不能播报成全局错误',
+  );
 }
 
 console.log('notebook view check passed');

@@ -666,10 +666,12 @@ async function enterGame(session: LoginResponse) {
         questLog?.setList(message.quests);
       }
       // 冒险笔记：一页私有事实按 requestId 对齐，过期响应由窗口自己丢弃。
-      if (message.type === 'notebookState') {
-        notebook?.receiveState(message);
-        if (message.blockedReason) status(message.blockedReason, true);
-      }
+      // `blockedReason` 是**这一页**的状态说明（例如怪物登记规则尚未核定，
+      // 计划 §5.5），由窗口画在页内；把它抬成全局红字会把这件已知、预期的事
+      // 说成一次失败，而且每次开窗都重复一次。真正的错误各有自己的通道：
+      // 目录版本错配由窗口 `receiveState` 判出并报错，连接与目录失败走窗口的
+      // `status` 回调。
+      if (message.type === 'notebookState') notebook?.receiveState(message);
       if (message.type === 'notebookChanged') notebook?.receiveChange(message);
       if (message.type === 'questUpdate') {
         questLog?.upsert(message);

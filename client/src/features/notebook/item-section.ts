@@ -72,15 +72,18 @@ export function renderItemPage(context: SectionContext): HTMLElement {
   const body = document.createElement('div');
   body.className = 'notebook-body notebook-item-body';
   body.style.setProperty('--notebook-grid-columns', String(ITEM_GRID_COLUMNS));
+  // 与怪物页同一套：分区状态说明画在页内，是事实不是错误（`monster-section.ts`）。
+  if (context.blockedReason) {
+    const note = document.createElement('p');
+    note.className = 'notebook-note';
+    note.textContent = context.blockedReason;
+    body.append(note);
+  }
   if (!context.rows.length) {
     const empty = document.createElement('p');
     empty.className = 'notebook-empty';
-    // 任务页的空态不能暗示「还有 N 个等你去拿」——未来任务条目不是公开信息。
-    empty.textContent = context.directory && context.rows.length === 0 && context.blockedReason
-      ? context.blockedReason
-      : uiLocale() === 'en'
-        ? 'Nothing here yet.'
-        : '还没有记录。';
+    // 空态不能暗示「还有 N 个等你去拿」——未来任务条目不是公开信息（计划 §6.3）。
+    empty.textContent = uiLocale() === 'en' ? 'Nothing here yet.' : '还没有记录。';
     body.append(empty);
     return body;
   }

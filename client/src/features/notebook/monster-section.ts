@@ -73,7 +73,17 @@ export function renderMonsterPage(
 ): HTMLElement {
   const body = document.createElement('div');
   body.className = 'notebook-body notebook-monster-body';
+  // 分区状态说明（现状＝登记规则尚未核定，计划 §5.5）是**这一页的事实**，不是一次
+  // 失败：画在页内、跟内容一起滚，不上报成全局错误。它出现在这里而不在窗口级
+  // 横幅上，是因为它解释的正是下面这批格子的状态。
+  if (context.blockedReason) {
+    const note = document.createElement('p');
+    note.className = 'notebook-note';
+    note.textContent = context.blockedReason;
+    body.append(note);
+  }
   if (!context.rows.length) {
+    // 空态只说「这次筛选没命中」：登记未核定已经由上面那条说明讲过了，不重复。
     const empty = document.createElement('p');
     empty.className = 'notebook-empty';
     empty.textContent = uiLocale() === 'en'

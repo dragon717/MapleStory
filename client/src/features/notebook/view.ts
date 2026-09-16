@@ -477,12 +477,10 @@ export class NotebookView {
       button.setAttribute('role', 'tab');
       button.setAttribute('aria-selected', section === this.section ? 'true' : 'false');
       button.textContent = displayText(uiText(key, section));
-      const plate = this.manifest.notebook?.frames.monster?.[section === 'monster' ? 'Tab/enabled/0' : 'Tab/disabled'];
-      if (plate) {
-        // 源只授权了三张页签底板（原版怪物收藏只有三页）；第四页是用户授权的
-        // 界面扩展，共用同一张底板横向铺满，不改动源素材本身。
-        button.style.backgroundImage = `url("${plate.url}")`;
-      }
+      // 底板不贴源图：`Tab/enabled|disabled` 把页签文字**烧在位图里**，贴上去
+      // 会与这里画的文案叠字。样式表按源实测配色重画底板，选中态由
+      // `aria-selected` 选中（计划 §6.4：四类内容导航是 P：界面扩展，
+      // 可读文字按本地化自己画）。
       button.addEventListener('click', () => this.switchSection(section));
       this.tabStrip.append(button);
     }

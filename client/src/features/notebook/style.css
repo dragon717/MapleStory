@@ -21,6 +21,35 @@
   --notebook-content-width: 666px;
   --notebook-content-height: 480px;
 
+  /* 页签底板。  源只给了 6 张 279x28 位图（`Tab/enabled|disabled/0..2`），
+   * 每张都把**页签文字烧在图里**，而本项目新增的四类内容导航是用户授权的
+   * P：界面扩展，可读文字按本地化自己画（计划 §6.4）——所以底板重画、文案
+   * 另写，否则源字形与新文案会叠字。
+   *
+   * 重画是安全的：底板**横向均匀、只有竖直渐变**（实测 x=40 / x=200 / x=270
+   * 同一行同色），所以 28px 高的 CSS 渐变能把色标落在与源相同的行上。下面的
+   * 色标是在源 PNG 的一整列上逐行读出来的（y=0..27）：源用棋盘抖动把阶梯色
+   * 抹平，同一段里交替出现两个色，这里取其中一个并去掉抖动——最坏一行与源
+   * 差 17/255（±一个抖动步），取值本身仍是源在该渐变里写过的颜色。
+   * 源底板 1px 的左右提亮边不重画：单像素、低于可见阈值。 */
+  --notebook-tab-off-image: linear-gradient(
+    to bottom,
+    #777777 0px, #777777 1px,
+    #444444 1px, #444444 2px,
+    #555555 2px, #555555 3px,
+    #444444 3px, #444444 9px,
+    #333333 9px, #333333 21px,
+    #222222 21px);
+  --notebook-tab-on-image: linear-gradient(
+    to bottom,
+    #33ccdd 0px, #33ccdd 1px,
+    #339999 1px, #339999 2px,
+    #2299aa 2px, #2299aa 5px,
+    #228899 5px, #228899 10px,
+    #227788 10px, #227788 16px,
+    #116677 16px, #116677 21px,
+    #115566 21px);
+
   position: absolute;
   left: 50%;
   top: 50%;
@@ -32,6 +61,10 @@
   font-size: 12px;
   font-family: var(--ui-font, 'Microsoft JhengHei', 'PingFang SC', sans-serif);
   user-select: none;
+  /* 共享浮层 `#ui-windows` 是 pointer-events:none，每个窗口自己把事件收回来
+   * （inventory／pet／cashshop 同一套规则）。漏了这一行，窗口画得出来却
+   * **点不到**：页签、关闭、分页统统没反应，而任何布局检查都不会失败。 */
+  pointer-events: auto;
 }
 
 .notebook-window[data-window-positioned='true'] {
@@ -91,10 +124,17 @@
   padding: 0;
   border: 0;
   background-color: transparent;
-  /* 源只给了三张页签底板；第四页共用同一张横向铺满（见 view.ts 的说明）。 */
+  /* 底板按源实测配色重画（见窗口上的两个渐变）；文案是这里画的 DOM 文字，
+   * 所以**不能**再贴 `Tab/*` 源图——那会把源字形一起显示出来。 */
+  background-image: var(--notebook-tab-off-image);
   background-repeat: no-repeat;
   background-size: 100% 100%;
-  color: #6b5b3a;
+  /* 源底板顶角是圆的（实测不透明像素从 (0,≈5) 弧形走到 (≈5,0)），底边平齐。 */
+  border-radius: 5px 5px 0 0;
+  /* 两态的字色都按源烧在图里的字形取：选中底板上的字形核心是纯白
+   * （255,255,255 占该带最大单一色），未选中底板上**没有纯白像素**，
+   * 最亮只到 #999999。源没有描边，这里也不加。 */
+  color: #999999;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -103,9 +143,10 @@
   text-overflow: ellipsis;
 }
 
+/* 选中态靠底板颜色区分（源的做法），不靠字号／字重——那是另一个按钮的语言。 */
 .notebook-tab[aria-selected='true'] {
-  color: #33270f;
-  font-weight: 700;
+  background-image: var(--notebook-tab-on-image);
+  color: #ffffff;
 }
 
 .notebook-side {
@@ -408,6 +449,7 @@
   cursor: pointer;
 }
 
+/* 窗口级错误（目录版本错配、目录加载失败）：这才是红色横幅该管的事。 */
 .notebook-notice {
   position: absolute;
   left: 204px;
@@ -417,6 +459,19 @@
   border-radius: 3px;
   background: rgba(120, 40, 30, 0.9);
   color: #ffe0d6;
+}
+
+/* 分区状态说明（例如「登记规则尚未核定」）：它是这一页的**事实**，不是一次
+ * 失败。所以画在页内、跟内容一起滚，用中性的琥珀色，而不是窗口级错误横幅。 */
+.notebook-note {
+  margin: 0 0 6px;
+  padding: 3px 6px;
+  border-left: 3px solid #d9b45a;
+  border-radius: 2px;
+  background: rgba(58, 48, 24, 0.6);
+  color: #e6d9b4;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* 空间不足：放弃绝对坐标，改流式布局，保住标题／页签／分页／内容滚动。 */
