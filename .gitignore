@@ -27,6 +27,12 @@ references/gameplay-assets/assets/
 references/gameplay-assets/avatar/assets/
 resources/
 
+# TMS273 map catalog: a 152 MB export derived from the 参考/ WZ packages. It grows
+# with every map assembly (98 -> 139 -> 153 MB) and broke GitHub's 100 MB blob
+# limit, so it stays local like the generated trees above. Rebuild it through
+# scripts/import_tms273.py + scripts/export_tms273.cjs instead of committing it.
+references/tms273-data/maps.json
+
 # Evidence media and other binary art/audio are not source commits.
 *.png
 *.jpg

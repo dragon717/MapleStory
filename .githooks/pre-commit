@@ -1,0 +1,13 @@
+#!/bin/sh
+# Version-controlled hooks.  Enable once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Blocks a commit that would put a blob GitHub refuses to accept into history.
+# references/tms273-data/maps.json reached 152 MB that way and stalled the push
+# only after it was already committed.
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node is not on PATH, so scripts/check_tracked_blob_size.cjs cannot run." >&2
+  echo "pre-commit: fix PATH, or bypass deliberately with 'git commit --no-verify'." >&2
+  exit 1
+fi
+exec node "$(git rev-parse --show-toplevel)/scripts/check_tracked_blob_size.cjs"
