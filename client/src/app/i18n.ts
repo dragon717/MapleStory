@@ -253,6 +253,10 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   notebookModeAll: { zh: '全部', en: 'All' },
   notebookRegistered: { zh: '已登记', en: 'Registered' },
   notebookUnregistered: { zh: '尚未登记', en: 'Not registered' },
+  // 源 `monsterStructure.regions[100]` 自己没有名字（那 5 行
+  // 「2017冬季怪物收藏活動N」在它里面）。给它编一个地区名是凑数，做成一个
+  // 点不出东西的空按钮也没意义——这里标出的是「源没给名字」这件事本身。
+  notebookUnnamedRegion: { zh: '（源未命名地区）', en: '(region unnamed in source)' },
   notebookUncollectable: { zh: '尚不可收集', en: 'Not collectable yet' },
   notebookUnavailable: { zh: '本版本未开放', en: 'Not open in this build' },
   notebookObtained: { zh: '已获得', en: 'Obtained' },

@@ -1,36 +1,4 @@
-/* 冒险笔记（图鉴）窗口 —— 「笔记本 / 相册」主题
- *
- * 几何与配色全部有来源，两层证据分开记：
- *   T（源素材）：窗口壳、相册页板、槽位底板、丝带、分隔线、页码按钮、位图数字。
- *   P（项目适配）：索引栏按钮、纸卡、图例、孔位凹槽、窄屏流式布局。
- *
- * 源坐标（同版 `UI/UIWindow4.img/monsterCollection`，计划 §6.1）：
- *   底板 891x664 · 标题条 24 · 页签 y82 · 左侧索引栏 19,119(182x524) ·
- *   内容视口 204,120(666x480) · 上一页 234,609 / 下一页 828,610 · 关闭 870,4。
- * 这些常量只在下面出现一次，改窗口要先改源坐标，不在这里凭手感调。
- *
- * 相册页板 `Collection/backgrnd` 是 666x520，而内容视口只有 666x480 ⇒ 下缘
- * 40px 被视口裁掉。该区域在源板上是空白板面（最下一行瓦片止于 y474），
- * 裁掉不丢内容。
- *
- * 相册瓦片的实测几何（在源 PNG 上逐列逐行读出来）：
- *   瓦片 68x68 · 列 x = 35 + 73i · 行 y = 70 + 84j（i,j = 0..4）
- *   ⇒ 刚好等于 `padding: 70px 0 0 35px` + `grid-template-columns: repeat(5,68px)`
- *     + `gap: 16px 5px`，所以格位是**算出来的**而不是手调的：
- *     70+68+16=154、+84=238、+84=322、+84=406；35+68+5=108、181、254、327。
- *   5 行 5 列共 25 格，与源 `Etc/mobCollection.img` 的「每分頁 5 行 x 每行 5 槽」
- *   一一对应（310 行 / 62 分頁实测每頁都是 5 行、每行 5 槽）。
- *
- * 物品页：源 `itemCollection` 的 94x94 槽位牌（`category/itemComplete` /
- * `itemIncomplete`）。服务端 `ITEM_PAGE_SIZE = 60` ⇒ 取 6 列 x 10 行，
- * 一格不漏也不留半行（原来的 7 列 94px 共 670px，比 654px 的内容内宽还宽，
- * 是横向溢出的来源）。
- *
- * 文字全部画在**白纸上**：源底板内部实测 `#ffffff` 不透明（不是透明窗），
- * 所以正文一律用墨色，不能用浅色字 —— 浅色字压在白纸上是这个窗口此前的
- * 主要可读性问题。面板（相册板、槽位底板、丝带）内部的字才用浅色。
- */
-
+/* client/src/features/notebook/style.css */
 .notebook-window {
   --notebook-width: 891px;
   --notebook-height: 664px;
@@ -43,20 +11,6 @@
   --notebook-content-top: 120px;
   --notebook-content-width: 666px;
   --notebook-content-height: 480px;
-
-  /* ---- 笔记本配色（每个值都能指回源像素）---------------------------------
-   * paper  源底板内部实测 (255,255,255,255)：白纸，正文的底。
-   * paper2 纸页上略深的一层（索引栏底），由 paper 与 frame 之间取值。
-   * board  源 `Collection/backgrnd` 的板面色族 #222/#333/#444，取中间值。
-   * tile   源相册瓦片实测 #ddddee~#ffffff，取其中间调和值。
-   * teal   源 `Tab/enabled` / `Collection/monsterGrade` 的青色族
-   *        #115566..#33ccdd，选中态取最深的 #116677（白字对比 7.0:1）。
-   * teal2  同族的中间值 #228899（悬停/次级强调）。
-   * ribbon 源 `itemCollection/category/backgrndN` 的丝带棕 #443322/#554433。
-   * gold   源 `Tab` 未选中底板上最亮的字形灰 #999999 之上的暖强调；
-   *        但白底上的金字必须压暗才有对比，取 #7a5a0a（对白 6.4:1）。
-   * alert  源 `Collection/eventTitle` 的砖红族压暗值（对白 6.9:1）。
-   * ink    白纸上的正文墨色（对白 12.6:1）。 */
   --nb-paper: #ffffff;
   --nb-paper-2: #f3f1ea;
   --nb-paper-3: #e8e4d8;
@@ -76,47 +30,43 @@
   --nb-ink: #33302a;
   --nb-ink-2: #6f675a;
   --nb-ink-3: #9a917f;
-  /* 顶栏标题的浅字：底是标题自己那层 rgba(0,0,0,.62) 叠在源顶栏带上，
-   * 最亮（窗外是白）时合成约 #3b3b3b，本值对它 9.7:1。 */
   --nb-title-ink: #f4efe2;
-  /* 「本版尚不可收集」的角标。压在压暗后的青色槽位牌
-   * （#228899 @0.45 叠板面 #222 ⇒ #225058，实测中位）上，要满足
-   * 非文本指示的 3:1：近黑的点只有 1.9:1，读不出来；浅灰绿 #b9c2bd 是
-   * 5.0:1，看得见却不带报警语义。 */
   --nb-notyet: #b9c2bd;
   --nb-notyet-rim: rgba(20, 32, 36, 0.55);
   --nb-frame: #6a5a3a;
   --nb-frame-2: #cdc4ae;
-
-  /* 页签底板。  源只给了 6 张 279x28 位图（`Tab/enabled|disabled/0..2`），
-   * 每张都把**页签文字烧在图里**，而本项目新增的四类内容导航是用户授权的
-   * P：界面扩展，可读文字按本地化自己画（计划 §6.4）——所以底板重画、文案
-   * 另写，否则源字形与新文案会叠字。
-   *
-   * 重画是安全的：底板**横向均匀、只有竖直渐变**（实测 x=40 / x=200 / x=270
-   * 同一行同色），所以 28px 高的 CSS 渐变能把色标落在与源相同的行上。下面的
-   * 色标是在源 PNG 的一整列上逐行读出来的（y=0..27）：源用棋盘抖动把阶梯色
-   * 抹平，同一段里交替出现两个色，这里取其中一个并去掉抖动——最坏一行与源
-   * 差 17/255（±一个抖动步），取值本身仍是源在该渐变里写过的颜色。
-   * 源底板 1px 的左右提亮边不重画：单像素、低于可见阈值。 */
-  --notebook-tab-off-image: linear-gradient(
-    to bottom,
-    #777777 0px, #777777 1px,
-    #444444 1px, #444444 2px,
-    #555555 2px, #555555 3px,
-    #444444 3px, #444444 9px,
-    #333333 9px, #333333 21px,
-    #222222 21px);
-  --notebook-tab-on-image: linear-gradient(
-    to bottom,
-    #33ccdd 0px, #33ccdd 1px,
-    #339999 1px, #339999 2px,
-    #2299aa 2px, #2299aa 5px,
-    #228899 5px, #228899 10px,
-    #227788 10px, #227788 16px,
-    #116677 16px, #116677 21px,
-    #115566 21px);
-
+  --notebook-tab-off-image:
+    linear-gradient(
+      
+      to bottom,
+      #777777 0px,
+      #777777 1px,
+      #444444 1px,
+      #444444 2px,
+      #555555 2px,
+      #555555 3px,
+      #444444 3px,
+      #444444 9px,
+      #333333 9px,
+      #333333 21px,
+      #222222 21px);
+  --notebook-tab-on-image:
+    linear-gradient(
+      
+      to bottom,
+      #33ccdd 0px,
+      #33ccdd 1px,
+      #339999 1px,
+      #339999 2px,
+      #2299aa 2px,
+      #2299aa 5px,
+      #228899 5px,
+      #228899 10px,
+      #227788 10px,
+      #227788 16px,
+      #116677 16px,
+      #116677 21px,
+      #115566 21px);
   position: absolute;
   left: 50%;
   top: 50%;
@@ -126,18 +76,13 @@
   z-index: var(--ui-window-z, 40);
   color: var(--nb-ink);
   font-size: 12px;
-  font-family: var(--ui-font, 'PingFang SC', 'Microsoft JhengHei', 'Microsoft YaHei', sans-serif);
+  font-family: var(--ui-font, "PingFang SC", "Microsoft JhengHei", "Microsoft YaHei", sans-serif);
   user-select: none;
-  /* 共享浮层 `#ui-windows` 是 pointer-events:none，每个窗口自己把事件收回来
-   * （inventory／pet／cashshop 同一套规则）。漏了这一行，窗口画得出来却
-   * **点不到**：页签、关闭、分页统统没反应，而任何布局检查都不会失败。 */
   pointer-events: auto;
 }
-
-.notebook-window[data-window-positioned='true'] {
+.notebook-window[data-window-positioned=true] {
   transform: none;
 }
-
 .notebook-backgrnd {
   position: absolute;
   inset: 0;
@@ -145,14 +90,6 @@
   height: 100%;
   pointer-events: none;
 }
-
-/* 标题落在源窗口顶栏那条**半透明黑带**上，不是白纸上。
- *
- * 实测源 `backgrnd`：y0..18 是 a≈187（73% 不透明）的黑色渐变带，y19 起才是
- * 不透明的白纸。所以墨色标题在这条带上是深字压深底（改造前就是这样）。
- * 换浅字还不够：带只有 73% 不透明，底板是窗外画的东西——亮地图下这条带
- * 最亮处合成到 #9b9b9b，浅字掉到 2.5:1。所以标题自己带一层近乎不透明的暗底，
- * 可读性就不再取决于窗外是什么。 */
 .notebook-title {
   position: absolute;
   left: 16px;
@@ -166,10 +103,6 @@
   color: var(--nb-title-ink);
   text-shadow: none;
 }
-
-/* ---------------------------------------------------------------- 进度读数
- * 源把「已登记 / 总数」画在 608,46 与 661,46。数字用源位图 `number/0..9`
- * （9x13，字身比 12px DOM 文本更清、更亮），后面的说明按本地化画 DOM 文字。 */
 .notebook-progress {
   position: absolute;
   left: 560px;
@@ -181,39 +114,35 @@
   color: var(--nb-ink-2);
   font-variant-numeric: tabular-nums;
 }
-
 .notebook-progress-digits {
   display: flex;
   align-items: center;
   gap: 1px;
   height: 13px;
 }
-
 .notebook-progress-digits img {
   display: block;
   width: auto;
   height: 13px;
   image-rendering: pixelated;
 }
-
-/* 位图数字缺帧时的回退：同样的字号与位置，用墨色文本顶上。 */
 .notebook-progress-fallback {
-  font-family: 'Trebuchet MS', Verdana, sans-serif;
+  font-family:
+    "Trebuchet MS",
+    Verdana,
+    sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: var(--nb-ink);
 }
-
 .notebook-progress-slash {
   color: var(--nb-ink-3);
 }
-
 .notebook-progress-note,
 .notebook-progress-scope {
   margin-left: 6px;
   color: var(--nb-ink-2);
 }
-
 .notebook-progress-scope {
   padding: 0 4px;
   border: 1px solid var(--nb-frame-2);
@@ -222,8 +151,6 @@
   font-size: 10px;
   line-height: 14px;
 }
-
-/* ---------------------------------------------------------------- 页签条 */
 .notebook-tabs {
   position: absolute;
   left: 22px;
@@ -233,7 +160,6 @@
   display: flex;
   gap: 1px;
 }
-
 .notebook-tab {
   flex: 1 1 0;
   min-width: 0;
@@ -241,16 +167,10 @@
   padding: 0;
   border: 0;
   background-color: transparent;
-  /* 底板按源实测配色重画（见窗口上的两个渐变）；文案是这里画的 DOM 文字，
-   * 所以**不能**再贴 `Tab/*` 源图——那会把源字形一起显示出来。 */
   background-image: var(--notebook-tab-off-image);
   background-repeat: no-repeat;
   background-size: 100% 100%;
-  /* 源底板顶角是圆的（实测不透明像素从 (0,≈5) 弧形走到 (≈5,0)），底边平齐。 */
   border-radius: 5px 5px 0 0;
-  /* 两态的字色都按源烧在图里的字形取：选中底板上的字形核心是纯白
-   * （255,255,255 占该带最大单一色），未选中底板上**没有纯白像素**，
-   * 最亮只到 #999999。源没有描边，这里也不加。 */
   color: #999999;
   font: inherit;
   font-size: 13px;
@@ -259,14 +179,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
-/* 选中态靠底板颜色区分（源的做法），不靠字号／字重——那是另一个按钮的语言。 */
-.notebook-tab[aria-selected='true'] {
+.notebook-tab[aria-selected=true] {
   background-image: var(--notebook-tab-on-image);
   color: #ffffff;
 }
-
-/* 页签条下缘的分隔线：源 `layer:tab_line`（865x8），不是自绘的 1px 边框。 */
 .notebook-tab-rule {
   position: absolute;
   left: 13px;
@@ -276,11 +192,6 @@
   max-width: none;
   pointer-events: none;
 }
-
-/* ---------------------------------------------------------------- 索引栏
- * 182x524 的纸槽：上搜索框、下索引条目。整套是 P（源在这一栏用的是带烘焙
- * 繁体字形的 `Category/*` 底板，本项目既要简体可见名又要自画文案，只能用
- * 源配色重画），配色取自源青色族与纸面色族。 */
 .notebook-side {
   position: absolute;
   left: var(--notebook-side-left);
@@ -297,7 +208,6 @@
   border-radius: 3px;
   background: var(--nb-paper-2);
 }
-
 .notebook-search {
   flex: 0 0 auto;
   width: 100%;
@@ -310,16 +220,13 @@
   font: inherit;
   font-size: 12px;
 }
-
 .notebook-search::placeholder {
   color: var(--nb-ink-3);
 }
-
 .notebook-search:focus-visible {
   outline: 2px solid var(--nb-teal-2);
   outline-offset: -1px;
 }
-
 .notebook-regions {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -327,8 +234,6 @@
   flex-direction: column;
   gap: 3px;
 }
-
-/* 索引条目：白纸上的一张签，靠左侧的青色书签边区分层级。 */
 .notebook-region,
 .notebook-mode {
   flex: 0 0 auto;
@@ -346,36 +251,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .notebook-region:hover,
 .notebook-mode:hover {
   border-left-color: var(--nb-teal-2);
   background: var(--nb-teal-soft);
 }
-
-.notebook-region[data-active='true'],
-.notebook-mode[data-active='true'] {
+.notebook-region[data-active=true],
+.notebook-mode[data-active=true] {
   border-color: var(--nb-teal);
   border-left-color: var(--nb-teal);
   background: var(--nb-teal);
   color: #ffffff;
   font-weight: 600;
 }
-
 .notebook-region:focus-visible,
 .notebook-mode:focus-visible {
   outline: 2px solid var(--nb-teal-2);
   outline-offset: 1px;
 }
-
 .notebook-modes {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-
-/* ---------------------------------------------------------------- 内容视口
- * 666x480，按源坐标放；页签条下缘的分隔线在 y110，视口从 y120 起。 */
 .notebook-content {
   position: absolute;
   left: var(--notebook-content-left);
@@ -387,14 +285,11 @@
   box-sizing: border-box;
   padding: 0;
 }
-
 .notebook-body {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
-
-/* ---- 相册页：一张板 = 一个源分頁（5 行 x 5 槽） ------------------------- */
 .notebook-sheet {
   position: relative;
   flex: 0 0 auto;
@@ -402,11 +297,9 @@
   height: 480px;
   overflow: hidden;
 }
-
 .notebook-sheet + .notebook-sheet {
   margin-top: 4px;
 }
-
 .notebook-sheet-board {
   position: absolute;
   left: 0;
@@ -416,10 +309,6 @@
   max-width: none;
   pointer-events: none;
 }
-
-/* 相册板右侧的两块深色面板：上块当页签卡（分頁名 + 图例），
- * 下块当注记卡（分区状态说明）。坐标取自源板实测：
- * 上块 518,66 (129x162)；下块 518,232 (129x248)。 */
 .notebook-sheet-card,
 .notebook-sheet-note {
   position: absolute;
@@ -430,18 +319,15 @@
   overflow: hidden;
   color: var(--nb-ribbon-ink);
 }
-
 .notebook-sheet-card {
   top: 66px;
   height: 162px;
 }
-
 .notebook-sheet-note {
   top: 232px;
   height: 248px;
   overflow-y: auto;
 }
-
 .notebook-sheet-title {
   margin: 0 0 2px;
   font-size: 12px;
@@ -450,28 +336,22 @@
   color: #f2ecdc;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.65);
 }
-
-/* 页签卡第二行：这一页属于哪个地区（分頁名与地区名是两个不同层级）。 */
 .notebook-sheet-region {
   margin: 0 0 6px;
   font-size: 10px;
   line-height: 1.4;
   color: #a9e4ef;
 }
-
 .notebook-sheet-legend {
   margin: 0;
   font-size: 10px;
   line-height: 1.6;
   color: #c9c2b0;
 }
-
 .notebook-sheet-legend b {
   color: #a9e4ef;
   font-weight: 600;
 }
-
-/* 注记卡里的分区状态说明：深面板上的浅字（与白纸上的墨色相反）。 */
 .notebook-sheet-note .notebook-note {
   margin: 0;
   padding: 0;
@@ -481,10 +361,8 @@
   font-size: 10px;
   line-height: 1.6;
 }
-
-/* 深色面板上的光标提示：说明是这一页的事实，不是失败横幅，所以不用红。 */
 .notebook-sheet-note::before {
-  content: '';
+  content: "";
   display: block;
   width: 24px;
   height: 2px;
@@ -492,8 +370,6 @@
   border-radius: 1px;
   background: var(--nb-teal-2);
 }
-
-/* ---- 怪物行：5 列固定格，行距 16px 正好留出行标签带 --------------------- */
 .notebook-monster-rows {
   position: absolute;
   left: 35px;
@@ -503,16 +379,12 @@
   flex-direction: column;
   gap: 16px;
 }
-
 .notebook-monster-row {
   position: relative;
   display: grid;
   grid-template-columns: repeat(5, 68px);
   gap: 5px;
 }
-
-/* 行名放在这一行瓦片上方的 16px 留白里：相册板上没有别的空位，
- * 而「一般場地 第一個」这类行名是源行的真名，不能丢。 */
 .notebook-monster-row-name {
   position: absolute;
   left: 0;
@@ -525,8 +397,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ---- 槽位：怪物与物品共用按钮骨架，外观各走自己的源底板 ---------------- */
 .notebook-slot {
   position: relative;
   padding: 0;
@@ -536,19 +406,14 @@
   cursor: pointer;
   overflow: visible;
 }
-
 .notebook-slot:focus-visible {
   outline: 2px solid #a9e4ef;
   outline-offset: 1px;
 }
-
 .notebook-monster-slot {
   width: 68px;
   height: 68px;
 }
-
-/* 源 `Collection/monsterGrade/empty` 是 74x74，字身自 2px 起 ⇒ 按 -2px 贴，
- * 让 70x70 的字身正好落在 68x68 的格位上（列距 73、行距 84，不会互相压）。 */
 .notebook-slot-plate {
   position: absolute;
   left: -2px;
@@ -558,7 +423,6 @@
   max-width: none;
   pointer-events: none;
 }
-
 .notebook-slot-art {
   position: absolute;
   left: 0;
@@ -571,8 +435,6 @@
   image-rendering: pixelated;
   pointer-events: none;
 }
-
-/* 名字压在槽位底板下缘：底板中心实测 #227788，浅字加一层暗底才稳。 */
 .notebook-slot-label {
   position: absolute;
   left: 5px;
@@ -590,7 +452,6 @@
   white-space: nowrap;
   pointer-events: none;
 }
-
 .notebook-slot-mark {
   position: absolute;
   left: 0;
@@ -602,34 +463,19 @@
   color: #9fd8e2;
   pointer-events: none;
 }
-
-/* 三态只靠底板亮度与描边区分，**不再用 filter 把图压黑**：
- * 原来 `grayscale(1) brightness(0.45)` 让 96% 的格子变成认不出的黑块，
- * 这才是「看不清」的主因。未开放的格子把底板压暗即可，图保持原色。
- * 源不含逐槽位 grade（`U`），所以一律用 `monsterGrade/empty`，不编造等级。 */
-.notebook-monster-slot[data-collectable='false'] .notebook-slot-plate {
-  /* 1493/1550 格都是这一态，压到 0.45 才让那 57 格「本版可收集」真正跳出来。 */
+.notebook-monster-slot[data-collectable=false] .notebook-slot-plate {
   opacity: 0.45;
 }
-
-.notebook-monster-slot[data-collectable='true'] .notebook-slot-plate {
+.notebook-monster-slot[data-collectable=true] .notebook-slot-plate {
   filter: drop-shadow(0 0 3px rgba(120, 226, 245, 0.85));
 }
-
-.notebook-monster-slot[data-registered='true'] .notebook-slot-plate {
+.notebook-monster-slot[data-registered=true] .notebook-slot-plate {
   filter: drop-shadow(0 0 4px rgba(255, 209, 106, 0.95));
 }
-
-.notebook-monster-slot[data-registered='true'] .notebook-slot-label {
+.notebook-monster-slot[data-registered=true] .notebook-slot-label {
   background: rgba(72, 48, 4, 0.78);
   color: #ffd77a;
 }
-
-/* 「尚不可收集」不再是压在每一格上的大红块（1550 格里有 1493 格是它，
- * 铺满等于噪声）。这里只留一个角标，整句仍在 tooltip 与详情面板里。
- * 角标本身也**不用报警红**：1493 个红点读起来是「每一格都出了错」，
- * 而它其实是这一版的默认状态。改用中性浅灰绿 + 一圈暗描边——该「明确标出」
- * 的还在（对压暗后的槽位牌 5.0:1，过非文本指示的 3:1），只是不再喊。 */
 .notebook-slot-flag {
   position: absolute;
   right: 6px;
@@ -644,8 +490,6 @@
   font-size: 0;
   pointer-events: none;
 }
-
-/* ---- 物品页：6 列 x 10 行 = 60 格 = 服务端一页 ------------------------- */
 .notebook-item-grid {
   display: grid;
   grid-template-columns: repeat(var(--notebook-grid-columns, 6), 94px);
@@ -653,22 +497,16 @@
   justify-content: center;
   padding: 0 0 12px;
 }
-
 .notebook-item-slot {
   width: 94px;
   height: 94px;
 }
-
 .notebook-item-slot .notebook-slot-plate {
   left: 0;
   top: 0;
   width: 94px;
   height: 94px;
 }
-
-/* 孔位凹槽：源牌子的孔在 (46,52) 附近，但源孔是暗的，而物品图标本身也偏暗
- * ⇒ 深色图标压在深棕牌子上认不出。这里在孔位上铺一层纸色凹槽（P：底色取源
- * 相册瓦片的纸色族），图标立刻能读，牌子本身仍是源素材。 */
 .notebook-slot-well {
   position: absolute;
   left: 18px;
@@ -676,12 +514,15 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 34%, #fffdf5 0%, #f1ebdc 68%, #ddd5c2 100%);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.95),
-    inset 0 -2px 3px rgba(88, 72, 50, 0.32);
+  background:
+    radial-gradient(
+      circle at 50% 34%,
+      #fffdf5 0%,
+      #f1ebdc 68%,
+      #ddd5c2 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -2px 3px rgba(88, 72, 50, 0.32);
   pointer-events: none;
 }
-
 .notebook-item-slot .notebook-slot-art {
   position: absolute;
   left: 18px;
@@ -693,25 +534,19 @@
   max-height: none;
   object-fit: contain;
 }
-
 .notebook-item-slot .notebook-slot-mark {
   left: 18px;
   top: 36px;
   width: 56px;
   color: #7c705a;
 }
-
-/* 未获得的格子：牌子压暗（源 `itemIncomplete` 本来就是暗孔），图标保留原色。 */
-.notebook-item-slot[data-obtained='false'] .notebook-slot-plate {
+.notebook-item-slot[data-obtained=false] .notebook-slot-plate {
   opacity: 0.78;
 }
-
-.notebook-item-slot[data-obtained='true'] .notebook-slot-label {
+.notebook-item-slot[data-obtained=true] .notebook-slot-label {
   background: rgba(60, 42, 22, 0.9);
   color: #ffe6a8;
 }
-
-/* 物品名放进源牌子底部的凹槽（实测 y72..88）：深底浅字。 */
 .notebook-item-slot .notebook-slot-label {
   left: 9px;
   right: 9px;
@@ -722,7 +557,6 @@
   font-size: 10px;
   line-height: 14px;
 }
-
 .notebook-item-slot .notebook-slot-flag {
   right: 8px;
   top: 8px;
@@ -736,16 +570,11 @@
   line-height: 12px;
   overflow: visible;
 }
-
-/* 物品页页眉：源丝带 `category/backgrndN`（411x38）+ 本页范围。
- * 丝带里那条深色梯形斜带实测 x 84..317 / y 2..31（下缘收到 108..293），
- * 所以标题写在 x110..290 的带内，范围写在带外右侧的纸面上。 */
 .notebook-sheet-head {
   position: relative;
   height: 38px;
   margin-bottom: 10px;
 }
-
 .notebook-sheet-head-art {
   position: absolute;
   left: 0;
@@ -755,7 +584,6 @@
   max-width: none;
   pointer-events: none;
 }
-
 .notebook-sheet-head-title,
 .notebook-sheet-head-range {
   position: absolute;
@@ -764,7 +592,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .notebook-sheet-head-title {
   left: 110px;
   z-index: 1;
@@ -777,7 +604,6 @@
   color: var(--nb-ribbon-ink);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
 }
-
 .notebook-sheet-head-range {
   left: 326px;
   right: 0;
@@ -786,8 +612,6 @@
   color: var(--nb-ink-2);
   font-variant-numeric: tabular-nums;
 }
-
-/* ---------------------------------------------------------------- 空态/错误 */
 .notebook-empty,
 .notebook-loading,
 .notebook-error {
@@ -795,11 +619,9 @@
   text-align: center;
   color: var(--nb-ink-2);
 }
-
 .notebook-error {
   color: var(--nb-alert);
 }
-
 .notebook-retry {
   display: block;
   margin: 0 auto;
@@ -812,12 +634,9 @@
   font-weight: 600;
   cursor: pointer;
 }
-
 .notebook-retry:hover {
   background: var(--nb-teal-soft);
 }
-
-/* ---------------------------------------------------------------- 分页 */
 .notebook-pager {
   position: absolute;
   left: var(--notebook-content-left);
@@ -825,7 +644,6 @@
   width: var(--notebook-content-width);
   height: 34px;
 }
-
 .notebook-pager button {
   position: absolute;
   border: 0;
@@ -833,12 +651,10 @@
   background: transparent;
   cursor: pointer;
 }
-
 .notebook-pager button:disabled {
   opacity: 0.35;
   cursor: default;
 }
-
 .notebook-pages {
   position: absolute;
   left: 0;
@@ -849,7 +665,6 @@
   align-items: center;
   justify-content: center;
 }
-
 .notebook-page {
   min-width: 22px;
   padding: 2px 5px;
@@ -862,24 +677,19 @@
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-
 .notebook-page:hover {
   border-color: var(--nb-teal-2);
   color: var(--nb-teal);
 }
-
-.notebook-page[data-active='true'] {
+.notebook-page[data-active=true] {
   border-color: var(--nb-teal);
   background: var(--nb-teal);
   color: #ffffff;
   font-weight: 600;
 }
-
 .notebook-page-gap {
   color: var(--nb-ink-3);
 }
-
-/* ---------------------------------------------------------------- 详情卡 */
 .notebook-detail {
   position: absolute;
   left: 214px;
@@ -895,8 +705,6 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   color: var(--nb-ink);
 }
-
-/* 标题条走源丝带 `category/backgrndN` 的棕色，与物品页页眉同一套语言。 */
 .notebook-detail-title {
   margin: -10px -12px 8px;
   padding: 5px 12px;
@@ -905,14 +713,12 @@
   font-size: 13px;
   font-weight: 600;
 }
-
 .notebook-detail-body {
   margin: 0;
   white-space: pre-wrap;
   line-height: 1.7;
   color: var(--nb-ink);
 }
-
 .notebook-detail-close {
   position: absolute;
   right: 6px;
@@ -924,13 +730,9 @@
   line-height: 1;
   cursor: pointer;
 }
-
 .notebook-detail-close:hover {
   color: #ffffff;
 }
-
-/* ---------------------------------------------------------------- 窗口级错误
- * 窗口级错误（目录版本错配、目录加载失败）：这才是红色横幅该管的事。 */
 .notebook-notice {
   position: absolute;
   left: 204px;
@@ -944,10 +746,6 @@
   color: var(--nb-alert);
   font-size: 12px;
 }
-
-/* 分区状态说明（例如「登记规则尚未核定」）：它是这一页的**事实**，不是一次
- * 失败。所以画在页内、跟内容一起滚，用中性的墨色，而不是窗口级错误横幅。
- * 白纸上的版本（窄屏 / 无相册板时用）。 */
 .notebook-note {
   margin: 0 0 8px;
   padding: 5px 8px;
@@ -958,20 +756,13 @@
   font-size: 11px;
   line-height: 1.6;
 }
-
-/* ---------------------------------------------------------------- 窄屏/矮屏
- * 空间不足时放弃源绝对坐标，改流式布局：保住标题／页签／分页与内容滚动，
- * 相册板与卡片退回纸面样式（§6.5）。 */
 .notebook-window.notebook-compact {
-  /* 源底板在流式布局里铺不下，改用纸色把文字托住。 */
   background: var(--nb-paper);
   border: 1px solid var(--nb-frame);
   border-radius: 4px;
   position: relative;
   left: auto;
   top: auto;
-  /* 流式布局没有源坐标可依，窗口就铺满宿主；必须 border-box，
-   * 否则那圈 1px 边框会让窗口比视口大 2px（实测 846x392 vs 844x390）。 */
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -980,16 +771,12 @@
   flex-direction: column;
   overflow: hidden;
 }
-
-/* 只隐藏「铺满整块源坐标」的位图；槽位底板留着——它就是让图能读的那层，
- * 流式布局里同样需要它。 */
 .notebook-window.notebook-compact .notebook-backgrnd,
 .notebook-window.notebook-compact .notebook-tab-rule,
 .notebook-window.notebook-compact .notebook-sheet-board,
 .notebook-window.notebook-compact .notebook-sheet-head-art {
   display: none;
 }
-
 .notebook-window.notebook-compact .notebook-title,
 .notebook-window.notebook-compact .notebook-progress,
 .notebook-window.notebook-compact .notebook-tabs,
@@ -1015,21 +802,17 @@
   max-width: none;
   margin: 0;
 }
-
 .notebook-window.notebook-compact .notebook-title {
   padding: 6px 10px;
   font-weight: 600;
 }
-
 .notebook-window.notebook-compact .notebook-progress {
   padding: 0 10px 6px;
   flex-wrap: wrap;
 }
-
 .notebook-window.notebook-compact .notebook-tabs {
   padding: 0 10px;
 }
-
 .notebook-window.notebook-compact .notebook-side {
   flex-direction: row;
   align-items: center;
@@ -1043,12 +826,10 @@
   background: var(--nb-paper-2);
   overflow: visible;
 }
-
 .notebook-window.notebook-compact .notebook-search {
   flex: 1 1 120px;
   width: auto;
 }
-
 .notebook-window.notebook-compact .notebook-regions,
 .notebook-window.notebook-compact .notebook-modes {
   flex-direction: row;
@@ -1056,18 +837,15 @@
   gap: 4px;
   overflow: visible;
 }
-
 .notebook-window.notebook-compact .notebook-content {
   flex: 1 1 auto;
   min-height: 120px;
   padding: 8px 10px;
   border: 0;
 }
-
 .notebook-window.notebook-compact .notebook-sheet {
   overflow: visible;
 }
-
 .notebook-window.notebook-compact .notebook-sheet-card,
 .notebook-window.notebook-compact .notebook-sheet-note {
   margin-bottom: 8px;
@@ -1075,20 +853,16 @@
   overflow: visible;
   color: var(--nb-ink);
 }
-
 .notebook-window.notebook-compact .notebook-sheet-title {
   color: var(--nb-teal);
   text-shadow: none;
 }
-
 .notebook-window.notebook-compact .notebook-sheet-legend {
   color: var(--nb-ink-2);
 }
-
 .notebook-window.notebook-compact .notebook-sheet-legend b {
   color: var(--nb-teal-2);
 }
-
 .notebook-window.notebook-compact .notebook-sheet-note .notebook-note {
   padding: 5px 8px;
   border-left: 3px solid var(--nb-teal-2);
@@ -1096,41 +870,33 @@
   color: var(--nb-ink-2);
   font-size: 11px;
 }
-
 .notebook-window.notebook-compact .notebook-monster-rows {
   display: flex;
   flex-direction: column;
   gap: 14px;
   margin-top: 6px;
 }
-
-/* 流式布局里行不再是 5 列固定格：行名占一行，槽位自己换行。 */
 .notebook-window.notebook-compact .notebook-monster-row {
   display: block;
 }
-
 .notebook-window.notebook-compact .notebook-monster-row-name {
   display: block;
   max-width: none;
   margin-bottom: 4px;
   color: var(--nb-ink-2);
 }
-
 .notebook-window.notebook-compact .notebook-monster-slot {
   margin: 0 5px 8px 0;
   vertical-align: top;
 }
-
 .notebook-window.notebook-compact .notebook-slot-plate {
   left: -2px;
   top: -2px;
 }
-
 .notebook-window.notebook-compact .notebook-item-grid {
   grid-template-columns: repeat(auto-fill, 94px);
   justify-content: start;
 }
-
 .notebook-window.notebook-compact .notebook-sheet-head {
   display: flex;
   align-items: baseline;
@@ -1138,7 +904,6 @@
   height: auto;
   margin-bottom: 6px;
 }
-
 .notebook-window.notebook-compact .notebook-sheet-head-title,
 .notebook-window.notebook-compact .notebook-sheet-head-range {
   position: static;
@@ -1147,12 +912,10 @@
   line-height: 1.4;
   text-align: left;
 }
-
 .notebook-window.notebook-compact .notebook-sheet-head-title {
   color: var(--nb-ink);
   text-shadow: none;
 }
-
 .notebook-window.notebook-compact .notebook-pager {
   display: flex;
   align-items: center;
@@ -1161,16 +924,13 @@
   padding: 4px 10px;
   border-top: 1px solid var(--nb-frame-2);
 }
-
 .notebook-window.notebook-compact .notebook-pager button {
   position: static;
 }
-
 .notebook-window.notebook-compact .notebook-pages {
   position: static;
   flex-wrap: wrap;
 }
-
 .notebook-window.notebook-compact .notebook-detail {
   margin: 8px 10px;
   max-height: 140px;

@@ -364,7 +364,7 @@ export class NotebookView {
 
   // ---------------------------------------------------------------- 绘制
 
-  /** 窗口壳上与页签无关的部分：底板、标题、页签条、关闭键。 */
+  /** 窗口壳上与页签无关的部分：底板、标题、页签条、关闭键、页签条下缘线。 */
   private paintChrome(): void {
     const frames = this.manifest.notebook?.frames.monster ?? {};
     const back = frames['backgrnd'];
@@ -378,6 +378,21 @@ export class NotebookView {
     this.titleNode.textContent = displayText(uiText('notebookTitle', '冒险笔记（图鉴）'));
     this.element.setAttribute('aria-label', this.titleNode.textContent ?? '');
     if (this.element.querySelector('.notebook-close')) return;
+
+    // 页签条下缘的分隔线是源 `layer:tab_line`（865x8），不是自绘的 1px 边框：
+    // 源板在白纸上没有横线，少它这一段页签会「浮」在纸面上。
+    const rule = frames['layer:tab_line'];
+    if (rule) {
+      const image = document.createElement('img');
+      image.className = 'notebook-tab-rule';
+      image.src = rule.url;
+      image.width = rule.width;
+      image.height = rule.height;
+      image.alt = '';
+      image.draggable = false;
+      image.setAttribute('aria-hidden', 'true');
+      this.element.append(image);
+    }
 
     const close = this.frameButton(frames, 'button:Close', uiText('notebookClose', '关闭冒险笔记'));
     if (close) {
@@ -447,14 +462,33 @@ export class NotebookView {
   private context(): SectionContext | undefined {
     const directory = this.directory;
     if (!directory) return undefined;
+    const snapshot = this.snapshot;
     return {
       directory,
       manifest: this.manifest,
-      rows: this.snapshot?.rows ?? [],
+      rows: snapshot?.rows ?? [],
       selectedKey: this.selection?.row.key,
       onSelect: (row, slotKey) => this.select(row, slotKey),
-      blockedReason: this.snapshot?.blockedReason,
+      blockedReason: snapshot?.blockedReason,
+      // 页码／总页数都是服务器在 `notebookState` 里给的：渲染器只写进页眉，
+      // 不参与判定，也不自己补一个服务器没给的分母。
+      page: snapshot?.page ?? this.tab(this.section).page,
+      ...(snapshot ? { pageCount: snapshot.pageCount } : {}),
+      pageLabel: this.pageLabel(),
     };
+  }
+
+  /** 页眉上那一行「页签名 · 细分」。  全部是已本地化的可见名，不另外造词。 */
+  private pageLabel(): string {
+    const tabKey = `notebookTab${this.section[0].toUpperCase()}${this.section.slice(1)}`;
+    const tab = displayText(uiText(tabKey, this.section));
+    if (this.section === 'monster') {
+      const region = this.directory ? regionList(this.directory)[this.tab('monster').page] : undefined;
+      return region ? `${tab} · ${displayText(region.name)}` : tab;
+    }
+    const mode = this.tab(this.section).mode;
+    const modeKey = `notebookMode${mode[0].toUpperCase()}${mode.slice(1)}`;
+    return `${tab} · ${displayText(uiText(modeKey, mode))}`;
   }
 
   /** 整窗重绘。  结构（页签／侧栏／分页）与内容都在这里，纯展示。 */
@@ -496,24 +530,48 @@ export class NotebookView {
     void this.refresh();
   }
 
+  /** 一位源位图数字（`number/0..9`，9x13）。缺帧返回 undefined。 */
+  private progressDigit(digit: string): HTMLImageElement | undefined {
+    const frame = this.manifest.notebook?.frames.monster?.[`number/${digit}`];
+    if (!frame) return undefined;
+    const image = document.createElement('img');
+    image.src = frame.url;
+    image.width = frame.width;
+    image.height = frame.height;
+    image.alt = '';
+    image.draggable = false;
+    image.setAttribute('aria-hidden', 'true');
+    return image;
+  }
+
+  /** 一段纯数字：整段用源位图数字；**任何一位缺帧就整段退回文本**，
+   *  不把两套字形混在一行里（混排的数字看起来像两个不同的计数器）。 */
+  private digitRun(text: string, fallbackClass: string): HTMLElement {
+    const images = [...text].map(character => this.progressDigit(character));
+    if (images.some(image => !image)) {
+      const fallback = document.createElement('span');
+      fallback.className = `notebook-progress-fallback ${fallbackClass}`;
+      fallback.textContent = text;
+      return fallback;
+    }
+    const run = document.createElement('span');
+    run.className = 'notebook-progress-digits';
+    run.append(...(images as HTMLImageElement[]));
+    return run;
+  }
+
   /** 进度行。  任务页没有分母——未来的任务条目不是公开信息（§5.5）。 */
   private renderProgress(): void {
     const snapshot = this.snapshot;
     this.progressNode.replaceChildren();
     if (!snapshot) return;
     const progress = progressOf(snapshot.section, snapshot.summary);
-    const done = document.createElement('span');
-    done.className = 'notebook-progress-done';
-    done.textContent = String(progress.done);
-    this.progressNode.append(done);
+    this.progressNode.append(this.digitRun(String(progress.done), 'notebook-progress-done'));
     if (progress.total !== null) {
       const slash = document.createElement('span');
       slash.className = 'notebook-progress-slash';
       slash.textContent = '/';
-      const total = document.createElement('span');
-      total.className = 'notebook-progress-total';
-      total.textContent = String(progress.total);
-      this.progressNode.append(slash, total);
+      this.progressNode.append(slash, this.digitRun(String(progress.total), 'notebook-progress-total'));
     }
     if (progress.note) {
       const note = document.createElement('span');
@@ -568,7 +626,9 @@ export class NotebookView {
       button.type = 'button';
       button.className = 'notebook-region';
       button.dataset.active = index === current ? 'true' : 'false';
-      button.textContent = displayText(region.name);
+      // 源里有一个地区没有名字（region 100）。空名字直接当标题会得到一个
+      // 认不出来的空按钮，所以标出「源未命名」而不是留白、也不编名字。
+      button.textContent = displayText(region.name || uiText('notebookUnnamedRegion', '（源未命名地区）'));
       button.addEventListener('click', () => {
         const state = this.tab('monster');
         if (state.page === index) return;

@@ -12,6 +12,7 @@
 | [REFERENCE_PROJECTS.md](REFERENCE_PROJECTS.md) | 参考项目分级与去重 |
 | [SHARED_ARCHITECTURE.md](SHARED_ARCHITECTURE.md) | 前后端通用技术方案（审查草案） |
 | [UI_WINDOW_SYSTEM.md](UI_WINDOW_SYSTEM.md) | UI 窗口系统规范与架构（TMS273 前端） |
+| [NOTEBOOK_VISUAL_SPEC.md](NOTEBOOK_VISUAL_SPEC.md) | 冒险笔记（图鉴）视觉规范：布局结构、字体与配色、关键界面呈现方案 |
 | [large-file-audit.md](architecture/large-file-audit.md) | 超大文件审计（P0） |
 | [module-boundaries.md](architecture/module-boundaries.md) | 模块边界：允许与禁止的依赖方向 |
 | [state-ownership.md](architecture/state-ownership.md) | 可变状态的所有权 |
