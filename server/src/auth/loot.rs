@@ -447,52 +447,27 @@ impl Store {
             tx.commit().map_err(|_| "account persistence failed")?;
             return Ok(prior);
         }
-        let drop: Option<(
-            String,
-            i64,
-            Option<String>,
-            i64,
-            String,
-            i64,
-            i64,
-        )> = tx
-            .query_row(
-                "SELECT item_id,quantity,owner_account_id,protected_until_ms,stats_json,upgrade_count,remaining_slots
-                 FROM drops WHERE id=?1 AND map_id=?2 AND active=1",
-                params![drop_id, map_id],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                        row.get(5)?,
-                        row.get(6)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(|_| "account persistence failed")?;
-        let (item_id, quantity, slot, success, code) = if let Some((
-            item_id,
-            quantity,
-            owner_id,
-            protected_until_ms,
-            stats_json,
-            upgrade_count,
-            remaining_slots,
-        )) = drop
-        {
+        // 增量 3：掉落行读取与三个去处的 SQL 都搬到 `db.rs`，这里只留下编排。
+        let drop = read_active_drop_tx(&tx, drop_id, map_id)?;
+        let (item_id, quantity, slot, success, code) = if let Some(drop_row) = drop {
+            let item_id = drop_row.item_id.clone();
+            let quantity = drop_row.quantity;
             // 世界事实判定（世界模型 §3.3 / §41）：`Owner` + `ItemState` 由
             // `item_world` 唯一翻译，这里不再内联比较保护窗与 owner 列。
-            let (owner, state) = item_world::drop_fact(owner_id.as_deref(), protected_until_ms);
+            let (owner, state) = item_world::drop_fact(
+                drop_row.owner_account_id.as_deref(),
+                drop_row.protected_until_ms,
+            );
             if !item_world::pickup_allowed(&owner, &state, account_id, now_ms()) {
                 (item_id, quantity, None, false, "drop_owned".to_owned())
             } else if quantity <= 0 || u32::try_from(quantity).is_err() {
                 (item_id, quantity, None, false, "drop_invalid".to_owned())
             } else {
                 let quantity_u32 = u32::try_from(quantity).unwrap_or(0);
+                // 去处是数据而不是一串 `if`（审查文档 §7 增量 3）：金币 / 图鉴
+                // 卡片 / 背包三种语义的差别集中在 `PickupSink` 里，下面只按它
+                // 分派，不再内联判定。
+                let sink = item_world::PickupSink::for_drop(&item_id);
                 // Claim the row before awarding anything.  A second SQLite
                 // connection can have read the same active row while the
                 // first transaction is still open; making this conditional
@@ -513,51 +488,18 @@ impl Store {
                         "drop_unavailable".to_owned(),
                     )
                 } else {
-                    let add_result = if item_id == "0" {
-                        Ok(Ok(None))
-                    } else if inventory::consume_on_pickup(&item_id) {
-                        let existing: i64 = tx
-                            .query_row(
-                                "SELECT COALESCE(quantity,0) FROM monster_book_cards
-                                     WHERE account_id=?1 AND item_id=?2",
-                                params![account_id, item_id.as_str()],
-                                |row| row.get(0),
-                            )
-                            .optional()
-                            .map_err(|_| "account persistence failed")?
-                            .unwrap_or(0);
-                        // Cosmic consumes every consumeOnPickup card even
-                        // after the MonsterBook reaches five copies.  Only
-                        // the persisted count saturates at five; the drop is
-                        // still claimed successfully.
-                        let capped_existing = existing.clamp(0, 5);
-                        let accepted = (5 - capped_existing).min(i64::from(quantity_u32));
-                        if accepted > 0 {
-                            tx.execute(
-                                    "INSERT INTO monster_book_cards(account_id,item_id,quantity)
-                                     VALUES (?1,?2,?3)
-                                     ON CONFLICT(account_id,item_id) DO UPDATE SET quantity=quantity+excluded.quantity",
-                                    params![account_id, item_id.as_str(), accepted],
-                                )
-                                .map_err(|_| "account persistence failed")?;
-                        }
-                        Ok(Ok(None))
-                    } else {
-                        let stats = serde_json::from_str::<BTreeMap<String, i64>>(&stats_json).ok();
-                        add_inventory_tx(
-                            &tx,
-                            account_id,
-                            &item_id,
-                            quantity_u32,
-                            stats.as_ref(),
-                            u32::try_from(remaining_slots.max(0)).ok(),
-                            u32::try_from(upgrade_count.max(0)).ok(),
-                        )
-                        .map(|result| result.map(Some))
-                    };
+                    let add_result =
+                        apply_pickup_sink_tx(&tx, account_id, sink, &drop_row, quantity_u32);
                     match add_result {
                         Err(error) => return Err(error),
                         Ok(Err(error)) => {
+                            // 只有 `Inventory` 这一处去处会拒绝（卡片饱和与金币
+                            // 入账都不算），所以这一支就是"必须把掉落放回地上"
+                            // 的唯一路径——`can_refuse()` 是它的类型级理由。
+                            debug_assert!(
+                                sink.can_refuse(),
+                                "只有会拒绝的去处才需要恢复掉落：{sink:?}"
+                            );
                             // Business-level rejection (full tab or card
                             // cap) must leave the drop available.  Restoring
                             // the claim inside this transaction also keeps
@@ -574,12 +516,10 @@ impl Store {
                             (item_id, quantity, None, false, error.code().to_owned())
                         }
                         Ok(Ok(inventory_slot)) => {
-                            if item_id == "0" {
-                                tx.execute(
-                                    "UPDATE player_stats SET mesos=mesos+?2 WHERE account_id=?1",
-                                    params![account_id, quantity],
-                                )
-                                .map_err(|_| "account persistence failed")?;
+                            if sink == item_world::PickupSink::Mesos {
+                                // 金币不是物品（世界模型 §2.4.6）：入账已在
+                                // `apply_pickup_sink_tx` 里完成，这里不产生图鉴
+                                // 获得记录，也不占背包槽位。
                             } else {
                                 // NB-05：这次真的发出去的常规物品都要留档，与
                                 // 掉落认领、背包写入同一事务。两条支路都覆盖：

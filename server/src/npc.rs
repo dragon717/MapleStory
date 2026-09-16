@@ -395,6 +395,54 @@ impl DialogueView {
     }
 }
 
+/// 阶段一（2026-09-17）：没有原版脚本的 NPC 被点击时的占位对话来源标记。
+///
+/// 已摆放的 265 个 NPC 模板里只有 30 个带 `script`，其余全部落在「无脚本」分支；
+/// 那一条此前只回一个 `ended`，玩家点下去屏幕上什么都不发生。阶段一改为回一段
+/// 占位提示，并用这个标记把「占位」与「服务端脚本／职能产生的对话」区分开：
+/// 缺省表示这段对话由服务端脚本或职能分发产生，`placeholder` 表示还没有内容。
+///
+/// 这是阶段二（接入完整对话并对接任务系统）的**唯一替换点**：真实对话接进来后，
+/// 本常量与 `placeholder_view` 一起删除，客户端的 `dialog.source` 消费者同步下线。
+pub const PLACEHOLDER_DIALOGUE: &str = "placeholder";
+
+/// 占位提示的玩家可见文案：产品默认简体，`en` 供 `?lang=en`。
+const PLACEHOLDER_TEXT_ZH: &str = "这个 NPC 的对话内容尚未实装。";
+const PLACEHOLDER_TEXT_EN: &str = "This NPC's dialogue has not been implemented yet.";
+
+/// 无脚本 NPC 的占位视图：一个 `ok` 节点（关闭即结束）外加来源标记。
+///
+/// 视图与标记必须一起产出——只给视图等于让客户端把占位当成本人台词，只给标记则
+/// 玩家什么都看不到。
+pub fn placeholder_view(
+    request_id: &str,
+    npc_id: &str,
+    name: &str,
+    name_zh: Option<&str>,
+    lang: &str,
+) -> serde_json::Value {
+    let mut value = DialogueView::Say {
+        text: if lang == crate::quest_text::LANG_EN {
+            PLACEHOLDER_TEXT_EN
+        } else {
+            PLACEHOLDER_TEXT_ZH
+        }
+        .to_owned(),
+        kind: "ok".to_owned(),
+        options: Vec::new(),
+    }
+    .to_json(request_id, npc_id, name, name_zh);
+    value
+        .get_mut("dialog")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("a say view always carries a dialog object")
+        .insert(
+            "source".to_owned(),
+            serde_json::Value::String(PLACEHOLDER_DIALOGUE.to_owned()),
+        );
+    value
+}
+
 /// Resolve branch/act nodes until a node that waits for input is reached.
 /// `branch_depth` bounds the data-driven chain so a malformed config can never
 /// spin here.  Quest acts surface a one-shot effect the world applies; they

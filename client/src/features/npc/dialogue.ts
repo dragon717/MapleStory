@@ -139,7 +139,10 @@ export class NpcDialogueView {
   private itemNames: Record<string, string> = {};
   private itemSources: Record<string, string> = {};
 
-  constructor(host: HTMLElement, manifest: Manifest, private status: (message: string, error?: boolean) => void, send: SendClientMessage = () => false) {
+  constructor(
+    host: HTMLElement, manifest: Manifest, private status: (message: string, error?: boolean) => void,
+    send: SendClientMessage = () => false, private onClose?: () => void,
+  ) {
     this.host = host;
     this.manifest = manifest;
     this.send = send;
@@ -235,6 +238,7 @@ export class NpcDialogueView {
       nameZh: message.nameZh,
       dialog: message.dialog,
     };
+    this.syncOpenState();
     this.renderDialogue();
   }
 
@@ -309,13 +313,35 @@ export class NpcDialogueView {
     this.dialogueRoot = undefined;
     this.dialogueCurrent = undefined;
     this.currentNpcId = '';
+    this.syncOpenState();
   }
 
   private closeShop() {
     this.shopRoot?.remove();
     this.shopRoot = undefined;
     this.shopCurrent = undefined;
+    this.syncOpenState();
   }
+
+  /**
+   * Keep the host informed of the open → closed edge.
+   *
+   * Escape, the close buttons, a server-side `ended` and a map change all land
+   * in `closeDialogue`/`closeShop`, so the notification has to live there rather
+   * than at each call site — the map view uses it to drop the clicked-npc
+   * highlight, and a missed path would leave a nameplate lit forever.  Opening a
+   * window arms the report and closing fires it once, so `clear()` (which closes
+   * both windows) cannot report twice.
+   */
+  private syncOpenState() {
+    const open = this.isOpen();
+    if (open === this.reportedOpen) return;
+    this.reportedOpen = open;
+    if (!open) this.onClose?.();
+  }
+
+  /** Last open/closed state the host was told about; nothing is open at boot. */
+  private reportedOpen = false;
 
   // ------------------------------------------------------------------ dialog
 
@@ -346,6 +372,10 @@ export class NpcDialogueView {
     if (plateName) plateName.textContent = displayName(state.nameZh, state.name);
 
     const dialog = state.dialog;
+    // 阶段一占位提示（`source: 'placeholder'`）按「备注」呈现：它说的是“这里还
+    // 没有内容”，不是 NPC 本人的台词，所以用灰斜体与真实对白分开。真实对白不带
+    // 这个类，也不会因为切换过占位而残留。
+    text.classList.toggle('is-placeholder', dialog?.source === 'placeholder');
     if (!dialog) {
       text.textContent = '';
       options.replaceChildren();
@@ -512,6 +542,7 @@ export class NpcDialogueView {
       source: this.itemSources[entry.itemId],
     }));
     this.shopCurrent = { ...state, items };
+    this.syncOpenState();
     this.renderShop();
   }
 

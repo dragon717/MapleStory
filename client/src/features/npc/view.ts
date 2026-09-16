@@ -18,17 +18,48 @@ export interface NpcSnapshot {
   actionStartedTick?: number;
 }
 
+/** Nameplate styling: idle white, gold while the clicked npc owns the window. */
+const LABEL_COLOR_IDLE = '#ffffff';
+const LABEL_COLOR_SELECTED = '#ffe066';
+const LABEL_ALPHA_IDLE = 0.92;
+
 /** Renders a server-owned npc using the Npc.wz `stand` action. */
 export class NpcView {
   private readonly sprite?: Phaser.GameObjects.Image;
   private label?: Phaser.GameObjects.Text;
   private signature = '';
   private marker?: Phaser.GameObjects.Image;
+  /**
+   * Click-selection state (阶段一).  The nameplate is the only NPC-owned element
+   * this client draws itself (the sprite is source art), so the selection
+   * feedback lands there: the clicked NPC's name turns gold and goes fully
+   * opaque while its conversation is open.  A npc without stand frames never
+   * gets a nameplate, so the flag is kept and applied whenever one exists.
+   */
+  private selected = false;
 
   constructor(private scene: Phaser.Scene, private asset: NpcAsset, depth: number, private markerFrames: AssetFrame[] = []) {
     const first = asset.stand[0];
     if (!first) return;
     this.sprite = scene.add.image(0, 0, first.url).setOrigin(0).setDepth(depth);
+  }
+
+  /** Selection feedback for a click.  Idempotent, so the caller may re-assert. */
+  setSelected(selected: boolean) {
+    if (this.selected === selected) return;
+    this.selected = selected;
+    this.applyLabelStyle();
+  }
+
+  isSelected(): boolean {
+    return this.selected;
+  }
+
+  private applyLabelStyle() {
+    if (!this.label) return;
+    this.label
+      .setColor(this.selected ? LABEL_COLOR_SELECTED : LABEL_COLOR_IDLE)
+      .setAlpha(this.selected ? 1 : LABEL_ALPHA_IDLE);
   }
 
   /**
@@ -44,14 +75,15 @@ export class NpcView {
         .text(0, 0, display, {
           fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif',
           fontSize: '13px',
-          color: '#ffffff',
+          color: LABEL_COLOR_IDLE,
           stroke: '#16202b',
           strokeThickness: 4,
           resolution: 2,
         })
         .setOrigin(0.5, 1)
         .setDepth(depth + 10)
-        .setAlpha(0.92);
+        .setAlpha(LABEL_ALPHA_IDLE);
+      this.applyLabelStyle();
     } else if (this.label.text !== display) {
       this.label.setText(display);
     }

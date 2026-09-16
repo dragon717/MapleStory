@@ -524,12 +524,26 @@ impl World {
             }
             return;
         }
+        // 阶段一（2026-09-17）：「点击任何 NPC 都要有可见响应」的兜底分支。
+        //
+        // 走到这里说明该模板既没有原版脚本，也不属于船务／呼叫器／仓库／任务菜单／
+        // 转职任何一条已接入的分发——已摆放的 265 个模板里有 235 个落在这一支。
+        // 此前只回一个 `ended`，客户端会把窗口直接关掉，玩家看到的是「点了没反应」。
+        // 现在回 `npc::placeholder_view`（占位提示 + 来源标记）。
+        //
+        // 阶段二接真实对话时只改这里：把 `placeholder_view` 换成真实来源即可，
+        // 上面的分发顺序与下面的脚本路径都不动，`placeholder_view` 连同
+        // `npc::PLACEHOLDER_DIALOGUE` 一起删除。
         let Some(script) = template.script.clone() else {
-            self.send_npc_dialogue(
-                &id,
-                npc::DialogueView::End.to_json(&request_id, &npc_id, &name, name_zh.as_deref()),
-            );
             self.end_conversation(&id);
+            let value = if opening {
+                npc::placeholder_view(&request_id, &npc_id, &name, name_zh.as_deref(), lang)
+            } else {
+                // 占位对话只有「开启」这一步有内容：任何后续步骤（含 `end`）都直接
+                // 结束，否则关闭动作会被当成新一轮开启，窗口关不掉。
+                npc::DialogueView::End.to_json(&request_id, &npc_id, &name, name_zh.as_deref())
+            };
+            self.send_npc_dialogue(&id, value);
             return;
         };
         let current_node = self

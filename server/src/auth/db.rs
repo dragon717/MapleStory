@@ -1549,6 +1549,128 @@ pub(super) fn add_inventory_tx(
     }
 }
 
+/// 一张怪物图鉴卡最多记的数量。
+///
+/// 与内存侧的 [`crate::pickup_rules::saturate_monster_book`] 是同一个源规则的
+/// 两处表达（一个写库、一个改快照），两边都写死 5；`pickup_sink_acceptance`
+/// 用一条断言把它们钉在一起，改一边忘另一边会直接失败。
+pub(super) const MONSTER_BOOK_CARD_LIMIT: i64 = 5;
+
+/// 一行**仍可拾取**的掉落物（`drops` 表的事实投影）。
+///
+/// 增量 3：把 `Store::pickup` 里那段 7 列匿名 tuple 的 `SELECT` 搬回 SQL 归属
+/// 层并逐字段命名。列名与列序逐字照抄原查询，不新增派生值、不改判定口径。
+#[derive(Clone, Debug)]
+pub(super) struct PickupDropRow {
+    pub(super) item_id: String,
+    pub(super) quantity: i64,
+    pub(super) owner_account_id: Option<String>,
+    pub(super) protected_until_ms: i64,
+    pub(super) stats_json: String,
+    pub(super) upgrade_count: i64,
+    pub(super) remaining_slots: i64,
+}
+
+/// 读取一件仍然 `active=1`、且与请求地图一致的掉落物。
+///
+/// 与原来的内联查询唯一的区别是返回命名结构；`map_id` 仍然参与过滤，所以跨图
+/// 伪造 drop id 依旧拿不到东西。
+pub(super) fn read_active_drop_tx(
+    tx: &rusqlite::Transaction<'_>,
+    drop_id: &str,
+    map_id: &str,
+) -> Result<Option<PickupDropRow>, String> {
+    tx.query_row(
+        "SELECT item_id,quantity,owner_account_id,protected_until_ms,stats_json,upgrade_count,remaining_slots
+         FROM drops WHERE id=?1 AND map_id=?2 AND active=1",
+        params![drop_id, map_id],
+        |row| {
+            Ok(PickupDropRow {
+                item_id: row.get(0)?,
+                quantity: row.get(1)?,
+                owner_account_id: row.get(2)?,
+                protected_until_ms: row.get(3)?,
+                stats_json: row.get(4)?,
+                upgrade_count: row.get(5)?,
+                remaining_slots: row.get(6)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|_| "account persistence failed".into())
+}
+
+/// 把一件**已认领**的掉落物落进它的去处（审查文档 §7 增量 3）。
+///
+/// 三个支路的 SQL 从此只住在这里，`Store::pickup` 只负责"认领 / 恢复 / 留档"的
+/// 编排。返回值的两层 `Result` 与 [`add_inventory_tx`] 同形：
+/// `Ok(Err(原因))`＝业务拒绝（只有 `PickupSink::Inventory` 会走到），
+/// `Err(_)`＝持久化失败，由调用方整笔回滚。
+///
+/// `Ok(Ok(Some(slot)))` 只有进背包时才有值；卡片与金币返回 `None`，因为它们没
+/// 有背包槽位可言（金币根本不是物品，见世界模型 §2.4.6）。
+pub(super) fn apply_pickup_sink_tx(
+    tx: &rusqlite::Transaction<'_>,
+    account_id: &str,
+    sink: item_world::PickupSink,
+    drop_row: &PickupDropRow,
+    quantity: u32,
+) -> Result<Result<Option<u16>, inventory::InventoryError>, String> {
+    match sink {
+        // 金币不是物品，直接进 profile；这一步没有"装不下"的概念，也不会产
+        // 生图鉴获得记录（`granted_tx` 由调用方按去处跳过）。
+        item_world::PickupSink::Mesos => {
+            tx.execute(
+                "UPDATE player_stats SET mesos=mesos+?2 WHERE account_id=?1",
+                params![account_id, i64::from(quantity)],
+            )
+            .map_err(|_| "account persistence failed")?;
+            Ok(Ok(None))
+        }
+        // 卡片是**饱和**语义：计数封顶后多余部分被吸收，但拾取照样成功，所以
+        // 这里永远返回 `Ok(Ok(None))`——它与"拒绝"的区别正是增量 3 要表达的
+        // 那一点（见 `PickupSink` 的文档）。
+        item_world::PickupSink::MonsterBookCard => {
+            let existing: i64 = tx
+                .query_row(
+                    "SELECT COALESCE(quantity,0) FROM monster_book_cards
+                     WHERE account_id=?1 AND item_id=?2",
+                    params![account_id, drop_row.item_id.as_str()],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "account persistence failed")?
+                .unwrap_or(0);
+            let capped_existing = existing.clamp(0, MONSTER_BOOK_CARD_LIMIT);
+            let accepted = (MONSTER_BOOK_CARD_LIMIT - capped_existing).min(i64::from(quantity));
+            if accepted > 0 {
+                tx.execute(
+                    "INSERT INTO monster_book_cards(account_id,item_id,quantity)
+                     VALUES (?1,?2,?3)
+                     ON CONFLICT(account_id,item_id) DO UPDATE SET quantity=quantity+excluded.quantity",
+                    params![account_id, drop_row.item_id.as_str(), accepted],
+                )
+                .map_err(|_| "account persistence failed")?;
+            }
+            Ok(Ok(None))
+        }
+        // 只有这一条会拒绝（页签满 / 数量与装备类型不符 / 目录不认识）。
+        item_world::PickupSink::Inventory => {
+            let stats = serde_json::from_str::<BTreeMap<String, i64>>(&drop_row.stats_json).ok();
+            add_inventory_tx(
+                tx,
+                account_id,
+                &drop_row.item_id,
+                quantity,
+                stats.as_ref(),
+                u32::try_from(drop_row.remaining_slots.max(0)).ok(),
+                u32::try_from(drop_row.upgrade_count.max(0)).ok(),
+            )
+            .map(|result| result.map(Some))
+        }
+    }
+}
+
 pub(super) fn ensure_starter_equipment_tx(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,

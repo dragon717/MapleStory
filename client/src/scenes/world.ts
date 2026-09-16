@@ -52,6 +52,8 @@ export class World extends Phaser.Scene {
   // Gates whose target map this build does not assemble announce themselves
   // once per map visit (see `tryPortal`), not once per snapshot tick.
   private closedPortalNotices = new Set<string>();
+  /** The npc the player last clicked, highlighted until its window closes. */
+  private selectedNpcId: string | null = null;
   constructor(
     private manifest: Manifest,
     private status: (message: string, error?: boolean) => void,
@@ -372,6 +374,9 @@ export class World extends Phaser.Scene {
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     for (const water of this.waters) water.destroy();
     this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
+    // 选中态属于「这一张图上的这一个 NPC」：视图先被销毁、id 也必须一起丢掉，
+    // 否则换图后高亮会记着一个已经不存在（或换了同名实例）的目标。
+    this.selectedNpcId = null;
     // A closed gate explains itself once per visit; re-entering the map is a
     // new visit.
     this.closedPortalNotices.clear();
@@ -554,6 +559,27 @@ export class World extends Phaser.Scene {
         return distA - distB;
       });
     return reachable[0] ?? null;
+  }
+
+  /**
+   * Click-selection feedback（阶段一）: highlight the npc the player clicked
+   * (or clear it with `null`) before/after the server answers.
+   *
+   * The scene owns only the *highlight*: which npc may be talked to, how far
+   * away it may be and what it answers are all the server's call.  Passing a
+   * null / unknown id is a no-op beyond clearing the previous highlight, so the
+   * caller never has to check whether the view still exists.
+   */
+  selectNpc(npcId: string | null) {
+    if (this.selectedNpcId === npcId) return;
+    if (this.selectedNpcId) this.npcs.get(this.selectedNpcId)?.setSelected(false);
+    this.selectedNpcId = npcId;
+    if (npcId) this.npcs.get(npcId)?.setSelected(true);
+  }
+
+  /** Clicked npc id, for tests and for the highlight's lifecycle bookkeeping. */
+  selectedNpc(): string | null {
+    return this.selectedNpcId;
   }
 
   /** v83 left-click NPC dialogue: open conversation with the nearest NPC whose
@@ -782,7 +808,13 @@ export class World extends Phaser.Scene {
     const npcs = snapshot.npcs ?? [];
     const npcIds = new Set(npcs.map(npc => npc.id));
     for (const [id, view] of this.npcs) {
-      if (!npcIds.has(id)) { view.destroy(); this.npcs.delete(id); }
+      if (!npcIds.has(id)) {
+        view.destroy();
+        this.npcs.delete(id);
+        // 任务阶段会把 NPC 从快照里撤掉：销毁视图的同时必须收掉选中态，否则
+        // `selectedNpcId` 指着一个不在图上的实例，之后的新实例也不会被点亮。
+        if (this.selectedNpcId === id) this.selectedNpcId = null;
+      }
     }
     for (const npc of npcs) {
       const asset = this.manifest.npcs?.[npc.templateId];

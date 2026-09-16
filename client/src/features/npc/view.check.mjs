@@ -49,3 +49,50 @@ staticView.update({ ...npc, jobAdvancementAvailable: true }, 9000);
 assert.equal(images.at(-1).texture, 'marker0', 'Source without delay is a static original frame');
 staticView.destroy();
 console.log('PASS: NPC marker eligibility, source timing/origin, sprite reuse and cleanup.');
+
+// --- 点击选中高亮（阶段一）---
+// 客户端的命中测试本来就能点到每一个模板；阶段一补的是「点下去有反馈」。NPC 的
+// 精灵是源素材，客户端自己画的只有头顶名牌，所以选中反馈落在名牌上（金 + 全不透明）。
+const texts = [];
+scene.add.text = (x, y, text, style) => {
+  const object = {
+    x, y, text, style, color: style.color, alpha: 1, destroyed: false,
+    setOrigin() { return this; }, setDepth(depth) { this.depth = depth; return this; },
+    setAlpha(alpha) { this.alpha = alpha; return this; },
+    setColor(color) { this.color = color; return this; },
+    setText(next) { this.text = next; return this; },
+    setPosition(x, y) { this.x = x; this.y = y; return this; },
+    destroy() { this.destroyed = true; },
+  };
+  texts.push(object);
+  return object;
+};
+const named = new NpcView(scene, { stand: [stand] }, 5, marker);
+assert.equal(texts.length, 0, 'An unnamed npc gets no nameplate');
+named.update({ ...npc, name: 'Hans' }, 0);
+assert.equal(texts.length, 1);
+const plate = texts.at(-1);
+assert.equal(plate.color, '#ffffff');
+assert.equal(plate.alpha, 0.92);
+assert.equal(named.isSelected(), false, 'A fresh npc is not highlighted');
+const spritesBeforeSelection = images.length;
+named.setSelected(true);
+assert.equal(named.isSelected(), true);
+assert.equal(plate.color, '#ffe066', 'The clicked npc name turns gold');
+assert.equal(plate.alpha, 1);
+assert.equal(plate.destroyed, false);
+assert.equal(images.length, spritesBeforeSelection, 'Selection adds no sprite of its own');
+assert.equal(named.containsMarker(91, 100), false, 'Selection is not a quest marker');
+named.setSelected(true);
+assert.equal(texts.length, 1, 'Re-asserting the selection is a no-op');
+named.setSelected(false);
+assert.equal(plate.color, '#ffffff', 'Closing the window restores the nameplate');
+assert.equal(plate.alpha, 0.92);
+named.destroy();
+// 没有 stand 帧的 NPC 连名牌都不建；选中态必须只记住状态，不能在这里炸。
+const bare = new NpcView(scene, { stand: [] }, 5, marker);
+bare.setSelected(true);
+assert.equal(bare.isSelected(), true);
+assert.equal(texts.length, 1, 'A texture-less npc never builds a nameplate');
+bare.destroy();
+console.log('PASS: NPC click selection highlights the clicked nameplate and reverts.');

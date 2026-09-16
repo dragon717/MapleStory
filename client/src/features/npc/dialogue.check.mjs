@@ -152,6 +152,61 @@ try {
   assert.ok(confirmView.shopCurrent, 'The shop itself stays open behind the dialog');
   confirmView.destroy();
   console.log('NPC sell quantity confirm: partial-stack dialog, clamped count and Escape scoping passed.');
+
+  // --- 阶段一：占位对话的样式与关闭通知 ---
+  // `renderDialogue` 只碰 root / text / options 三处 DOM，用最小替身就能驱动真实
+  // 代码路径（按钮那一段与占位样式无关，替掉）。
+  const classed = () => {
+    const names = new Set();
+    return {
+      textContent: '',
+      classList: {
+        toggle(name, on) { if (on) names.add(name); else names.delete(name); },
+        contains(name) { return names.has(name); },
+      },
+    };
+  };
+  const closed = [];
+  const placeholderView = new NpcDialogueView({}, {}, () => {}, () => true, () => closed.push('closed'));
+  placeholderView.updateDialogueButtons = () => {};
+  // 替身必须覆盖 renderDialogue / closeDialogue 碰到的每个成员：`remove()` 漏掉
+  // 的话关窗会在清除 dialogueCurrent 之前抛错，syncOpenState 就永远不会执行，
+  // 表现成“关窗不通知宿主”——那是替身的漏洞，不是产品代码的问题。
+  placeholderView.dialogueRoot = {
+    classList: { toggle() {} },
+    querySelector: () => null,
+    remove() {},
+  };
+  placeholderView.dialogueText = classed();
+  placeholderView.dialogueOptions = { replaceChildren() {} };
+  placeholderView.currentRequestId = 'ph-1';
+  placeholderView.receive({
+    requestId: 'ph-1', npcId: 'npc-ph', name: 'N',
+    dialog: { kind: 'ok', text: '这个 NPC 的对话内容尚未实装。', source: 'placeholder' },
+  });
+  assert.equal(
+    placeholderView.dialogueText.classList.contains('is-placeholder'), true,
+    '占位提示必须与 NPC 本人的台词区分开（它不是内容，是“还没有内容”）',
+  );
+  assert.equal(placeholderView.dialogueText.textContent, '这个 NPC 的对话内容尚未实装。');
+  assert.deepEqual(closed, [], '开窗本身不通知宿主');
+  placeholderView.receive({
+    requestId: 'ph-1', npcId: 'npc-ph', name: 'N',
+    dialog: { kind: 'ok', text: '你好。' },
+  });
+  assert.equal(
+    placeholderView.dialogueText.classList.contains('is-placeholder'), false,
+    '真实对白不带占位样式',
+  );
+  // Escape 关窗必须通知宿主：地图上被点中的 NPC 名牌靠它取消高亮，漏一条路径
+  // 就会让名牌一直亮着。
+  placeholderView.dialogueCurrent = { npcId: 'npc-ph', name: 'N' };
+  assert.equal(escape().defaultPrevented, true);
+  assert.deepEqual(closed, ['closed']);
+  escape();
+  assert.deepEqual(closed, ['closed'], '关窗只通知一次');
+  placeholderView.destroy();
+  console.log('NPC placeholder dialogue: remark styling and single close notification passed.');
 } finally {
   Object.assign(globalThis, original);
 }

@@ -202,6 +202,9 @@ function activateBinding(binding: KeyBinding) {
   } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
+  // 阶段一：点击/按键选中的即时反馈先落地（名牌高亮），服务端的占位或真实
+  // 对话随后到达；两路入口（鼠标点击与 ↑ 键）都从这里走，所以选中态只在这一处点亮。
+  world?.selectNpc(npc.id);
   if (npc.templateId.startsWith('windbell-')) { input?.reset(); activities?.talk(); return; }
   skills?.close();
   characterInfo?.close();
@@ -319,7 +322,7 @@ async function enterGame(session: LoginResponse) {
       returnToEntry('characters');
     }, message => status(message));
     npcDialogue?.destroy();
-    npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
+    npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => world?.selectNpc(null));
     storage?.destroy();
     storage = new StorageView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     party?.destroy();

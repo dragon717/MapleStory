@@ -56,6 +56,64 @@ pub(super) enum ContainerSide<'a> {
     Storage { account_id: &'a str },
 }
 
+/// 掉落物里表示**金币**的 `item_id`（世界模型 §2.4.6：枫币不是物品）。
+///
+/// 这个值在此前散落在 `auth/loot.rs` / `inventory_ops.rs` / `monsters.rs` 的
+/// 字面量 `"0"`；本模块只给"拾取去处"这一处命名，其余调用点维持原样，避免把
+/// 一次增量 3 扩成全仓改名。
+pub(super) const MESOS_DROP_ITEM_ID: &str = "0";
+
+/// 一次**拾取**的去处（审查文档 §7 增量 3）。
+///
+/// 拾取不是"搬运"（`move_stack`）：来源侧是一个 `drops` 行，按 §41 不实现
+/// `Source` / `Destination`——它的规则是"谁在什么时候获得操作权"，不是"从哪一
+/// 格拿出来"。所以这里只给**去处**建模。三个去处的共同点是"掉落一定已经被认
+/// 领"，真正的差别在会不会拒绝：
+/// - `Inventory` 是**唯一**会拒绝的去处（页签满、数量与装备类型不符等）。被拒
+///   绝时必须把掉落恢复成可拾取，否则物品会凭空消失；
+/// - `MonsterBookCard` 是**饱和**语义（计数封顶 5，超出部分被吸收但不再累加）。
+///   饱和不是拒绝：掉落照样认领成功，玩家看到的是"卡片已收满"而不是"拿不到"；
+/// - `Mesos` 恒不拒绝——金币不是物品（§2.4.6），直接进 `player_stats`。
+///
+/// 之所以值得单独建类型而不是留三个 `if`：增量 3 之前这个判定内联在
+/// `Store::pickup` 里，和认领、恢复、留档的 SQL 缠在一起，于是"哪条支路会让
+/// 掉落留在地上"只能靠读实现顺序推断。现在去处是数据，`can_refuse()` 一处就
+/// 说清了唯一需要回滚的那条路。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PickupSink {
+    /// 进角色背包的某一页签（唯一可拒绝）。
+    Inventory,
+    /// 进怪物图鉴卡（`monster_book_cards`，饱和语义）。
+    MonsterBookCard,
+    /// 进 `player_stats.mesos`（恒不拒绝）。
+    Mesos,
+}
+
+impl PickupSink {
+    /// 按源规则判定这一件掉落物该往哪里去。
+    ///
+    /// 顺序即语义：金币先看（它不是物品，不能用物品目录的 `consumeOnPickup`
+    /// 判定），再看源的 `consumeOnPickup`（旧 MonsterBook 卡片），其余一
+    /// 律进背包。
+    pub(super) fn for_drop(item_id: &str) -> Self {
+        if item_id == MESOS_DROP_ITEM_ID {
+            Self::Mesos
+        } else if inventory::consume_on_pickup(item_id) {
+            Self::MonsterBookCard
+        } else {
+            Self::Inventory
+        }
+    }
+
+    /// 这个去处会不会因为装不下而**拒绝**一次已经被认领的掉落。
+    ///
+    /// 只有背包会。卡片饱和与金币入账都发生在"认领成功"之后，调用方据此决定
+    /// 要不要把 `drops.active` 恢复成 1。
+    pub(super) fn can_refuse(&self) -> bool {
+        matches!(self, Self::Inventory)
+    }
+}
+
 /// 物品当前为什么不可自由操作（世界模型 §3.3）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LockReason {
@@ -756,5 +814,32 @@ mod tests {
         let (owner, state) = drop_fact(None, NOW + 500);
         assert_eq!(owner, Owner::System);
         assert!(pickup_allowed(&owner, &state, OTHER, NOW));
+    }
+
+    // i05 — 增量 3：拾取去处的分类真值表。判定顺序本身就是语义（金币先于
+    // 物品目录，因为它根本不是物品），所以三个方向都钉住。
+    #[test]
+    fn pickup_sink_names_the_three_destinations() {
+        // 金币常量与判定口径一致。
+        assert_eq!(PickupSink::for_drop(MESOS_DROP_ITEM_ID), PickupSink::Mesos);
+        assert_eq!(PickupSink::for_drop("0"), PickupSink::Mesos);
+        // 源的 consumeOnPickup 卡片（旧 MonsterBook 卡）走饱和语义。
+        assert_eq!(
+            PickupSink::for_drop("2380000"),
+            PickupSink::MonsterBookCard
+        );
+        // 其余一律进背包。
+        assert_eq!(PickupSink::for_drop("2000000"), PickupSink::Inventory);
+        assert_eq!(PickupSink::for_drop("1102173"), PickupSink::Inventory);
+    }
+
+    // i06 — 增量 3 的核心性质：**只有背包会拒绝**。卡片饱和与金币入账都不是
+    // 拒绝，调用方据此决定要不要把 `drops.active` 恢复成 1；这条断言就是那个
+    // 决定的唯一依据，改坏它等于让"物品凭空消失"重新变成可能。
+    #[test]
+    fn only_the_inventory_sink_can_refuse_a_claimed_drop() {
+        assert!(PickupSink::Inventory.can_refuse());
+        assert!(!PickupSink::MonsterBookCard.can_refuse());
+        assert!(!PickupSink::Mesos.can_refuse());
     }
 }

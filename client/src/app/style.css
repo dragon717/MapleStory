@@ -322,6 +322,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .npc-dlg-msg{color:#333;text-shadow:none}
 .npc-dlg-opt{color:#1766ac;text-shadow:none}
 .npc-dlg-plate-img{width:100%;height:100%}
+/* 阶段一占位对话：原版脚本体未接入的 NPC 被点击时，服务端回的是“这里还没内容”
+   的系统提示，不是本人台词。用灰斜体与真实对白分开（窗口底板是白纸，所以取灰色
+   而不是提亮）。真实对白不带这个类。 */
+.npc-dlg-msg.is-placeholder{color:#8a8a8a;font-style:italic}
 .header-tools{display:flex;align-items:center;gap:16px;margin-left:auto}
 .locale-picker{display:flex;align-items:center;gap:6px;color:#b4c1ae;font-size:11px}
 .locale-picker select{padding:4px 7px;border:1px solid #648068;border-radius:3px;background:#2e463d;color:#e2e4c9;font:inherit}

@@ -79,4 +79,45 @@ assert.deepEqual(
 const missing = [...allowed].filter((rel) => !fs.existsSync(path.join(root, rel))).sort();
 assert.deepEqual(missing, [], `stale allowlist entries: ${missing.join(', ')}`);
 
-console.log('PASS inventory surface: primitives stay pub(crate), whole-table wrapper stays removed, call-site roster matches');
+// 4) 增量 3（审查 §7）：拾取的**去处**是类型，三个分支的 SQL 只住在
+//    `auth/db.rs`。反向面：把任何一条分支的 SQL 写回 `loot.rs`、给
+//    `PickupSink` 加变体却不管 `db.rs` 的匹配，都会让本检查失败。
+const loot = read('server/src/auth/loot.rs');
+const dbSource = read('server/src/auth/db.rs');
+const itemWorld = read('server/src/auth/item_world.rs');
+assert(
+  itemWorld.includes('pub(super) enum PickupSink'),
+  'PickupSink must stay the single name for a pickup destination'
+);
+assert(
+  itemWorld.includes('pub(super) fn can_refuse(&self)'),
+  'PickupSink::can_refuse is the only reason a claimed drop is put back'
+);
+const dbSql = dbSource;
+assert(dbSql.includes('pub(super) fn apply_pickup_sink_tx('), 'pickup sink SQL belongs in auth/db.rs');
+assert(dbSql.includes('pub(super) fn read_active_drop_tx('), 'the active-drop SELECT belongs in auth/db.rs');
+for (const variant of ['Inventory', 'MonsterBookCard', 'Mesos']) {
+  assert(
+    new RegExp(`^    ${variant},$`, 'm').test(itemWorld),
+    `PickupSink::${variant} must stay a variant`
+  );
+  assert(
+    dbSql.includes(`item_world::PickupSink::${variant} =>`),
+    `apply_pickup_sink_tx must handle PickupSink::${variant}`
+  );
+}
+assert(loot.includes('apply_pickup_sink_tx('), 'Store::pickup must dispatch through the sink');
+assert(
+  !loot.includes('INSERT INTO monster_book_cards'),
+  'the monster-book branch must not creep back into Store::pickup'
+);
+assert(
+  !/UPDATE player_stats SET mesos/.test(loot),
+  'the mesos branch must not creep back into Store::pickup'
+);
+assert(
+  !/\badd_inventory_tx\(/.test(loot),
+  'the inventory branch must not creep back into Store::pickup'
+);
+
+console.log('PASS inventory surface: primitives stay pub(crate), whole-table wrapper stays removed, call-site roster matches, pickup sinks live in auth/db.rs');
