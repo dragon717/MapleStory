@@ -172,7 +172,11 @@ function main() {
     write(path.join(root, 'server', 'Cargo.lock'), 'version = 3\n');
     write(path.join(root, 'server', 'src', 'main.rs'), 'fn main() {}\n');
     write(path.join(root, 'shared', 'protocol.ts'), 'export const PROTOCOL_VERSION = 1;\n');
-    write(path.join(root, 'client', 'public-tms273', 'assets', 'manifest.json'), '{}\n');
+    // 内容数据（client/public-tms273/assets）刻意不进构建指纹：它不由构建产出，
+    // 也不进产物（见 client/vite.config.ts），服务端按 ASSETS_DIR 直接读源目录。
+    // 改动它不得让候选失效，否则每次改内容都要再付一次全量拷贝。
+    const assetsManifest = path.join(root, 'client', 'public-tms273', 'assets', 'manifest.json');
+    write(assetsManifest, '{}\n');
     const fingerprint = computeFingerprint(root);
     assert.ok(fingerprint, 'fingerprint computable for check tree');
     assert(!currentFresh(root), 'no stamp yet must not count as fresh');
@@ -197,6 +201,9 @@ function main() {
       releaseId: 'r4',
     }, null, 2)}\n`);
     assert(currentFresh(root), 'matching stamp over current release must be fresh');
+    write(assetsManifest, '{"content":"only changed"}\n');
+    assert.equal(computeFingerprint(root), fingerprint, '内容数据变化不得改变构建指纹');
+    assert(currentFresh(root), '内容数据变化不得让候选构建失效');
     write(path.join(root, 'client', 'src', 'main.ts'), 'export const changed = 1;\n');
     assert(!currentFresh(root), 'source edit must invalidate freshness');
 

@@ -7,6 +7,15 @@ CONTROL_DIR="$ROOT/runtime/3010-control"
 SERVER_PID_FILE="$CONTROL_DIR/server.pid"
 BOT_PID_FILE="$CONTROL_DIR/bot.pid"
 
+# ---- 分步耗时：先停陪测 bot 再停游戏服务，最后给出两段与总计 ----
+zmodload zsh/datetime 2>/dev/null || true
+now_seconds() {
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then print -r -- "$EPOCHREALTIME"
+  else print -r -- "$(date +%s.%N 2>/dev/null || date +%s)"; fi
+}
+secs_between() { LC_NUMERIC=C printf '%.1f' $(( $2 - $1 )) }
+STOP_ALL="$(now_seconds)"
+
 print_pid() { [[ -r "$1" ]] || return 0; sed -n '1{s/[[:space:]]//g;p;}' "$1"; }
 process_command() { ps -p "$1" -o command= 2>/dev/null | sed 's/^[[:space:]]*//'; }
 process_cwd() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -n 1; }
@@ -67,6 +76,7 @@ else
   done
 fi
 rm -f "$BOT_PID_FILE"
+STOP_BOT_DONE="$(now_seconds)"
 
 SERVER_PID="$(print_pid "$SERVER_PID_FILE")"
 if ! is_server_process "$SERVER_PID"; then
@@ -87,4 +97,11 @@ else
 fi
 [[ -z "$SERVER_PID" ]] && rm -f "$SERVER_PID_FILE"
 (( result == 0 )) || exit "$result"
-print -- "3010 游戏服务与陪测 bot 已停止；数据库、账号和日志保留。"
+STOP_SERVER_DONE="$(now_seconds)"
+STOP_BOT_SECONDS="$(secs_between "$STOP_ALL" "$STOP_BOT_DONE")"
+STOP_SERVER_SECONDS="$(secs_between "$STOP_BOT_DONE" "$STOP_SERVER_DONE")"
+STOP_TOTAL_SECONDS="$(secs_between "$STOP_ALL" "$STOP_SERVER_DONE")"
+print -- "3010 游戏服务与陪测 bot 已停止（耗时：陪测 bot ${STOP_BOT_SECONDS}s ｜ 游戏服务 ${STOP_SERVER_SECONDS}s ｜ 总计 ${STOP_TOTAL_SECONDS}s）；数据库、账号和日志保留。"
+# 机器可读行：启动脚本剥掉 `[stop] ` 前缀后贴在「停旧服务」那一行上。
+# **前缀必须保持 ASCII**（启动脚本按它取行），后面的中文只给人看，不参与匹配。
+print -- "[stop] 陪测 bot ${STOP_BOT_SECONDS}s · 游戏服务 ${STOP_SERVER_SECONDS}s · 总计 ${STOP_TOTAL_SECONDS}s"

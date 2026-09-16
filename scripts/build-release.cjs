@@ -243,11 +243,10 @@ function computeFingerprint(root) {
       if (!exists(file)) return null;
       hash.update(`${name}:${hashFile(file)}\n`);
     }
-    // client/public-tms273/assets is stat-fingerprinted on purpose: the data
-    // pipeline (assemble/export scripts) rewrites manifest/items/icons there,
-    // and the server serves those files from the dist copy first. Missing a
-    // data-only change would let a reused candidate clobber it.
-    for (const dir of ['client/src', 'client/scripts', 'server/src', 'shared', 'client/public-tms273/assets']) {
+    // 内容数据（client/public-tms273）刻意不参与构建指纹：它不由构建产出，也不进产物
+    // （见 client/vite.config.ts），服务端按 ASSETS_DIR 直接读源目录。把它算进指纹有两重
+    // 代价：每次改内容都作废候选、再付一次全量拷贝；每次判定都要白扫 7 万个文件。
+    for (const dir of ['client/src', 'client/scripts', 'server/src', 'shared']) {
       const base = path.join(root, dir);
       if (!exists(base)) return null;
       const entries = [];
@@ -296,13 +295,14 @@ function metadataFor(root, releaseId) {
 
 function prepare(root) {
   return withLock(root, paths => {
+    const commandStarted = Date.now();
     recoverInterrupted(paths);
     const candidate = paths.tmp;
 
     // Fast path: when every build input is unchanged since the last prepare,
     // reuse the validated candidate and only refresh its release metadata.
-    // Without this, every restart paid for tsc + vite + a 600 MB publicDir
-    // copy even on a no-op relaunch.
+    // Build inputs are code-only（内容数据不参与，见 computeFingerprint），所以
+    // 复用候选的判定只需读源码与清单，不必再扫 7 万个内容资源文件。
     const fingerprint = computeFingerprint(root);
     if (fingerprint) {
       const stamp = loadStamp(paths);
@@ -315,8 +315,21 @@ function prepare(root) {
           atomicWrite(path.join(candidate, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
           validateCandidate(root, candidate);
           const modules = Number.isSafeInteger(stamp.clientModules) ? stamp.clientModules : '?';
+          // stamp.releaseId 的语义是「本指纹产出的那个发布的 id」。复用候选时它就是该发布，
+          // 必须一起刷新：否则 commit 之后 currentFresh 恒假，每次启动都要空跑一遍
+          // prepare+activate（只为换一个 id），跳过构建的快路径永远走不到。
+          atomicWrite(stampFile(paths), `${JSON.stringify({
+            schemaVersion: STAMP_VERSION,
+            fingerprint,
+            clientModules: stamp.clientModules ?? null,
+            releaseId: metadata.releaseId,
+          }, null, 2)}\n`);
           // The launcher greps "N modules transformed" from prepare.log; keep the phrase intact.
-          process.stdout.write(`✓ 输入未变化，复用候选构建（client ${modules} modules transformed，跳过 Cargo/Vite）\n`);
+          process.stdout.write(`✓ 输入未变化，复用候选构建（client ${modules} modules transformed，跳过 Cargo 与 tsc/vite）\n`);
+          // [prepare] 行是启动脚本唯一的分项耗时来源，格式固定为 `mode | 明细`。
+          // mode 只含 ASCII：启动脚本据此判断走了哪条路径，不靠中文/正则去猜
+          // （macOS 上 grep 对多字节模式并不总是可靠）。
+          process.stdout.write(`[prepare] reuse | 复用候选构建（跳过 cargo 与 tsc/vite） · 合计 ${((Date.now() - commandStarted) / 1000).toFixed(1)}s\n`);
           return metadata;
         } catch (error) {
           process.stderr.write(`候选复用校验失败，改为全量构建：${error.message}\n`);
@@ -340,11 +353,17 @@ function prepare(root) {
       const env = { ...process.env, CARGO_INCREMENTAL: '0' };
       const cargoCommand = path.isAbsolute(cargo) ? cargo : executable(cargo);
       const npm = npmInvocation();
+      const cargoStarted = Date.now();
       run(cargoCommand, [
         'build', '--quiet', '--locked', '--manifest-path', path.join(root, 'server', 'Cargo.toml'),
         '--target-dir', targetDir,
       ], root, env);
+      const cargoSeconds = ((Date.now() - cargoStarted) / 1000).toFixed(1);
+      // client/package.json 的 build 是 `tsc --noEmit && vite build`，所以这一段量的是
+      // 「客户端整条流水线」（类型检查 + 打包），不要只标成 vite。
+      const clientStarted = Date.now();
       const npmBuild = run(npm.command, [...npm.prefix, 'run', 'build', '--prefix', path.join(root, 'client')], root, env, true);
+      const clientSeconds = ((Date.now() - clientStarted) / 1000).toFixed(1);
       process.stdout.write(npmBuild.stdout);
       process.stderr.write(npmBuild.stderr);
 
@@ -369,6 +388,12 @@ function prepare(root) {
           releaseId: metadata.releaseId,
         }, null, 2)}\n`);
       }
+      const totalSeconds = ((Date.now() - commandStarted) / 1000).toFixed(1);
+      // 余量可能因四舍五入变成 -0.0，钳到 0（展示用的数字不该出现负号）。
+      const overheadSeconds = Math.max(0, totalSeconds - cargoSeconds - clientSeconds).toFixed(1);
+      // 启动脚本从 prepare.log 的 [prepare] 行取分项，展示在「[2/4] 构建打包」那一行里。
+      // `mode | 明细` 里的 mode 只含 ASCII（见复用路径同款说明）。
+      process.stdout.write(`[prepare] build | cargo ${cargoSeconds}s · 客户端(tsc+vite) ${clientSeconds}s · 清理与校验 ${overheadSeconds}s · 合计 ${totalSeconds}s\n`);
       return metadata;
     } catch (error) {
       remove(path.join(candidate, 'client'));
@@ -452,29 +477,84 @@ function buildAbsolute(paths, relative) {
   return file;
 }
 
+// 只用于日志：数一个目录（或单个文件＝1）里有几个文件。「按文件」的操作在 iCloud 卷上
+// 慢好几个数量级，所以文件数是判断一次轮替会不会被拖住的关键数字。遍历本身只是读目录项，
+// 实测 7 万个文件 0.42s（约 6µs/文件），而正常发布目录只有个位数文件，所以这一步的代价
+// 可以忽略；真正贵的是被它计数的那些搬移。
+function countFiles(target) {
+  try {
+    if (!fs.lstatSync(target).isDirectory()) return 1;
+  } catch (error) {
+    return 0;
+  }
+  let files = 0;
+  const queue = [target];
+  while (queue.length > 0) {
+    const current = queue.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (error) {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) queue.push(path.join(current, entry.name));
+      else files += 1;
+    }
+  }
+  return files;
+}
+
+// 2026-09-16 实测（本仓库所在 iCloud 卷，全部为真机数字）：
+//   改名「文件」                = 0.00s（5 天前的老文件也一样）
+//   改名「老目录」              = 10.81s / 36.65s / 95.57s（最后一个的目录里有 11166 个文件）
+//   mkdir / writeFileSync / fs.rmSync = 0.00~0.04s
+//   「建新目录 + 逐个搬文件」搬同一个 11166 文件的目录 = 1.13s（约 0.1ms/文件）
+// ⇒ **整目录改名在这块卷上是负数优化**：同一棵树 95.57s vs 1.13s，差 85 倍。iCloud 会对
+// 「有同步历史的目录」在改名时收敛状态，代价与目录里的文件数完全不成比例。
+// 这正是 2026-09-16 那次「停旧与切换 325s」的来源：activate 要搬的 9 个条目都是上一版
+// 留下的目录（311s ÷ 9 ≈ 34.6s/次），而每个目录里其实只有个位数文件。
+// 因此：小树一律「建目录 + 逐个搬文件」，只有超过 PERFILE_LIMIT 的大树才赌一次整目录
+// 改名（那是本地盘上的单系统调用优化；发布目录按设计已不再含大内容树）。
+const PERFILE_LIMIT = 20000;
+
+// 只 mkdir 目录、只 rename 文件：**绝不对目录做改名**。
+// mkdir 与文件改名在本卷都是 0.00s 级，所以整棵树的成本≈文件数×0.1ms，与目录的年龄无关。
+function moveFlat(source, target) {
+  mkdir(target);
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (entry.isDirectory()) moveFlat(from, to);
+    else fs.renameSync(from, to);
+  }
+  fs.rmdirSync(source);
+}
+
 // iCloud can block renaming populated directories. Move files into ordinary
 // directories instead; rollback can merge a partially moved tree after
-// interruption. A whole-directory rename is attempted first because it turns
-// the ~50k-file client tree into a single syscall; POSIX rename either
-// applies atomically or leaves both sides untouched, so falling back to the
-// per-file walk stays correct.
+// interruption. A whole-directory rename is only attempted for very large
+// trees, where one syscall still beats a per-file walk on ordinary disks.
 function moveTree(source, target) {
   if (!fs.lstatSync(source).isDirectory()) {
     if (exists(target)) throw new Error(`恢复目标已存在：${target}`);
     fs.renameSync(source, target);
     return;
   }
+  if (countFiles(source) <= PERFILE_LIMIT) {
+    moveFlat(source, target);
+    return;
+  }
   try {
     fs.renameSync(source, target);
-    return;
   } catch (error) {
-    // Fall through to the per-file move below.
+    // 这条回退仍然保留：大树改名在本卷上可能失败，也可能「成功但很慢」。
+    const files = countFiles(source);
+    const began = Date.now();
+    process.stderr.write(`[rotate] 目录改名失败（${error.code || error.message}），回退逐文件搬移：${path.basename(source)}，${files} 个文件\n`);
+    moveFlat(source, target);
+    process.stderr.write(`[rotate] 逐文件搬移完成：${path.basename(source)}，${files} 个文件用了 ${((Date.now() - began) / 1000).toFixed(1)}s\n`);
   }
-  mkdir(target);
-  for (const name of fs.readdirSync(source)) {
-    moveTree(path.join(source, name), path.join(target, name));
-  }
-  fs.rmdirSync(source);
 }
 
 function moveItem(sourceRoot, name, destinationRoot, paths, transaction, rename = moveTree) {
@@ -504,45 +584,112 @@ function moveItem(sourceRoot, name, destinationRoot, paths, transaction, rename 
 
 function activate(root, expectedReleaseId, options = {}) {
   return withLock(root, paths => {
-    if (transactionFor(paths)) throw new Error('已有未完成的发布轮替');
-    assertNoRunningReferences(root);
-    const metadata = validateCandidate(root, paths.tmp);
-    if (expectedReleaseId && metadata.releaseId !== expectedReleaseId) {
-      throw new Error(`候选 releaseId 不匹配：${metadata.releaseId}`);
-    }
-    const transactionDir = path.join(paths.tmp, `.activation-${metadata.releaseId}-${crypto.randomBytes(4).toString('hex')}`);
-    const oldCurrent = path.join(transactionDir, 'old-current');
-    const oldPrevious = path.join(transactionDir, 'old-previous');
-    const newCandidate = path.join(transactionDir, 'candidate');
-    mkdir(oldCurrent); mkdir(oldPrevious); mkdir(newCandidate);
-    const transaction = {
-      schemaVersion: SCHEMA_VERSION,
-      releaseId: metadata.releaseId,
-      directory: path.relative(paths.build, transactionDir),
-      state: 'activating',
-      moves: [],
+    // 轮替这一段过去没有任何可观测性：一旦被文件系统拖住，启动脚本只会表现为
+    // 「几分钟没有任何输出」。这里把子步骤耗时与本次搬移的文件数都打出来
+    // （`[rotate]` 行），失败也打——否则「卡在哪一步」永远只能靠猜。
+    const startedAt = Date.now();
+    let checkpoint = startedAt;
+    const phases = [];
+    const moved = [];
+    let movedFiles = 0;
+    let reported = false;
+    const mark = label => {
+      const now = Date.now();
+      phases.push(`${label} ${((now - checkpoint) / 1000).toFixed(1)}s`);
+      checkpoint = now;
     };
-    try {
-      atomicWrite(paths.transaction, `${JSON.stringify(transaction, null, 2)}\n`);
-    } catch (error) {
-      remove(transactionDir);
-      throw error;
-    }
-    const rename = options.rename || moveTree;
-    try {
-      for (const name of ITEM_NAMES) moveItem(paths.previous, name, oldPrevious, paths, transaction, rename);
-      for (const name of ITEM_NAMES) moveItem(paths.current, name, oldCurrent, paths, transaction, rename);
-      for (const name of ITEM_NAMES) moveItem(paths.tmp, name, newCandidate, paths, transaction, rename);
-      mkdir(paths.current); mkdir(paths.previous);
-      for (const name of ITEM_NAMES) moveItem(oldCurrent, name, paths.previous, paths, transaction, rename);
-      for (const name of ITEM_NAMES) moveItem(newCandidate, name, paths.current, paths, transaction, rename);
-      transaction.state = 'active';
-      atomicWrite(paths.transaction, `${JSON.stringify(transaction, null, 2)}\n`);
-      return metadata;
-    } catch (error) {
-      try { restoreActivation(paths, transaction); } catch (restoreError) {
-        throw new Error(`${error.message}；且无法恢复旧版本：${restoreError.message}`);
+    // 失败路径上内层 catch 会先报一次，外层再补一次；同一段轮替只留一行，
+    // 否则回看 activate.log 时两个「合计」互相矛盾（后一个是含恢复的时长）。
+    // 分两行写：`[rotate]` 是给人看的摘要（会被启动脚本贴进进度行，必须短），
+    // `[rotate-all]` 是 12 项搬移的完整账本，只留在 activate.log 里备查。
+    const report = () => {
+      if (reported) return;
+      reported = true;
+      const slow = moved
+        .filter(item => item.seconds > 0.5)
+        .sort((left, right) => right.seconds - left.seconds)
+        .slice(0, 4)
+        .map(item => `${item.label} ${item.seconds.toFixed(1)}s/${item.files}文件`);
+      process.stdout.write(
+        `[rotate] ${phases.join(' · ')} · 合计 ${((Date.now() - startedAt) / 1000).toFixed(1)}s`
+        + `${moved.length > 0 ? ` · 搬移 ${movedFiles} 个文件` : ''}`
+        + `${slow.length > 0 ? ` · 慢项 ${slow.join('，')}` : ''}\n`,
+      );
+      if (moved.length > 0) {
+        process.stdout.write(`[rotate-all] ${moved.map(item => `${item.label} ${item.seconds.toFixed(1)}s/${item.files}文件`).join('，')}\n`);
       }
+    };
+    const rename = options.rename || ((source, target) => {
+      const label = `${path.basename(path.dirname(source))}/${path.basename(source)}`;
+      const files = countFiles(source);
+      const began = Date.now();
+      try {
+        moveTree(source, target);
+      } finally {
+        const seconds = (Date.now() - began) / 1000;
+        movedFiles += files;
+        moved.push({ label, seconds, files });
+        // 发布目录里正常只有个位数文件（内容数据已移出构建产物）。单次搬移超过 3 秒
+        // 说明大目录又回到了发布路径上，必须立刻可见，而不是等 5 分钟。
+        if (seconds > 3) {
+          process.stderr.write(`[rotate] 搬移 ${label} 用了 ${seconds.toFixed(1)}s（${files} 个文件），远高于正常值\n`);
+        }
+      }
+    });
+    try {
+      if (transactionFor(paths)) throw new Error('已有未完成的发布轮替');
+      mark('事务检查');
+      assertNoRunningReferences(root);
+      mark('进程扫描');
+      const metadata = validateCandidate(root, paths.tmp);
+      if (expectedReleaseId && metadata.releaseId !== expectedReleaseId) {
+        throw new Error(`候选 releaseId 不匹配：${metadata.releaseId}`);
+      }
+      mark('候选校验');
+      const transactionDir = path.join(paths.tmp, `.activation-${metadata.releaseId}-${crypto.randomBytes(4).toString('hex')}`);
+      const oldCurrent = path.join(transactionDir, 'old-current');
+      const oldPrevious = path.join(transactionDir, 'old-previous');
+      const newCandidate = path.join(transactionDir, 'candidate');
+      mkdir(oldCurrent); mkdir(oldPrevious); mkdir(newCandidate);
+      const transaction = {
+        schemaVersion: SCHEMA_VERSION,
+        releaseId: metadata.releaseId,
+        directory: path.relative(paths.build, transactionDir),
+        state: 'activating',
+        moves: [],
+      };
+      try {
+        atomicWrite(paths.transaction, `${JSON.stringify(transaction, null, 2)}\n`);
+      } catch (error) {
+        remove(transactionDir);
+        throw error;
+      }
+      try {
+        for (const name of ITEM_NAMES) moveItem(paths.previous, name, oldPrevious, paths, transaction, rename);
+        mark('搬走旧上一版');
+        for (const name of ITEM_NAMES) moveItem(paths.current, name, oldCurrent, paths, transaction, rename);
+        mark('搬走现行版');
+        for (const name of ITEM_NAMES) moveItem(paths.tmp, name, newCandidate, paths, transaction, rename);
+        mark('搬入候选');
+        mkdir(paths.current); mkdir(paths.previous);
+        for (const name of ITEM_NAMES) moveItem(oldCurrent, name, paths.previous, paths, transaction, rename);
+        mark('回填上一版');
+        for (const name of ITEM_NAMES) moveItem(newCandidate, name, paths.current, paths, transaction, rename);
+        mark('候选就位');
+        transaction.state = 'active';
+        atomicWrite(paths.transaction, `${JSON.stringify(transaction, null, 2)}\n`);
+        mark('落事务');
+        report();
+        return metadata;
+      } catch (error) {
+        report();
+        try { restoreActivation(paths, transaction); } catch (restoreError) {
+          throw new Error(`${error.message}；且无法恢复旧版本：${restoreError.message}`);
+        }
+        throw error;
+      }
+    } catch (error) {
+      report();
       throw error;
     }
   });

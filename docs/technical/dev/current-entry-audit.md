@@ -72,6 +72,8 @@ server: { host: '0.0.0.0', proxy: { '/api': 'http://127.0.0.1:3010',
                                      '/ws': { target: 'ws://127.0.0.1:3010', ws: true } } },
 ```
 
+> 2026-09-16 更新：上表的「产物目录 / 静态资源根」两项已变。`publicDir` 只在 dev（`command === 'serve'`）生效，生产构建不再复制 `public-tms273`（843MB / 7 万文件，实测占掉构建步骤 95% 以上时间），`outDir` 现为 `build/tmp/client`。内容数据改由服务端按 `ASSETS_DIR` 提供，`/assets` 先命中 `dist/assets`（vite 产物）再兜底内容目录。细则见 [`docs/technical/BUSINESS_DEVELOPMENT.md`](../BUSINESS_DEVELOPMENT.md)「内容数据不参与构建」与 [`history/2026-09-16/启动构建提速-内容数据移出构建产物.md`](../../plan/history/2026-09-16/启动构建提速-内容数据移出构建产物.md)。
+
 ## 5. 开发模式现状：已具备能力，但没接进统一入口
 
 `npm run dev` = `vite --host 0.0.0.0`，默认端口 5173，已配置 `/api` 与 `/ws` 代理到 Rust 的 3010。

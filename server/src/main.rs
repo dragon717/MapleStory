@@ -141,9 +141,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ASSETS_DIR",
         root.join("client/public-tms273/assets").to_str().unwrap(),
     ));
+    // /assets 命名空间被两类东西共用，顺序不能反：
+    //   ① dist/assets —— vite 的构建产物（index-<hash>.js/css），必须先命中；
+    //   ② ASSETS_DIR —— 内容数据（tms273/windbell/entry 等美术音频），由两个启停入口
+    //      指向 client/public-tms273/assets，作为兜底。
+    // 内容数据不再复制进候选版本：那份副本既让每次启动多花 25~50s 全量拷贝 843MB，
+    // 又会在变旧时遮蔽源目录里的新内容（见 client/vite.config.ts）。
     let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/lobby",post(lobby_route)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
         .route("/api/{*path}",get(||async{error(StatusCode::NOT_FOUND,"Unknown API route")}))
-        .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(assets)))
+        .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(&assets)))
         .fallback_service(ServeDir::new(&dist).not_found_service(ServeFile::new(dist.join("index.html"))))
         .layer(DefaultBodyLimit::max(2048)).with_state(state);
     let address = setting("BIND_ADDR", "127.0.0.1:3010");
