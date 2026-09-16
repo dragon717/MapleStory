@@ -115,7 +115,7 @@ fn chapter_store_interaction_recovery_replay_and_full_bag_retry() {
 
     let mut free = full_active.inventory.clone();
     free.pop();
-    store.write_inventory("full", &free).unwrap();
+    store.seed_inventory_for_test("full", &free).unwrap();
     let retry = store.load_profile("full", &base).unwrap();
     assert!(store.commit_quest_interaction("full", QUEST, HAIRPIN, 1, &retry).unwrap());
     let saved = store.load_profile("full", &base).unwrap();

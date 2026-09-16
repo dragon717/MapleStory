@@ -163,7 +163,7 @@ fn storage_give(world: &mut World, item_id: &str, quantity: u32) {
             ..InventoryItem::default()
         });
         let items = player.state.inventory.clone();
-        world_store(world).write_inventory("banker", &items).expect("persist seeded stack");
+        world_store(world).seed_inventory_for_test("banker", &items).expect("persist seeded stack");
     }
 }
 
@@ -180,7 +180,7 @@ fn storage_give_slot(world: &mut World, slot: i16, item_id: &str, quantity: u32)
             ..InventoryItem::default()
         });
         let items = player.state.inventory.clone();
-        world_store(world).write_inventory("banker", &items).expect("persist seeded stack");
+        world_store(world).seed_inventory_for_test("banker", &items).expect("persist seeded stack");
     }
 }
 
@@ -550,7 +550,7 @@ fn storage_preserves_equipment_instance_stats() {
         remaining_slots: Some(4),
     };
     let (mut world, mut output) = storage_world();
-    world_store(&world).write_inventory("banker", &[strengthened.clone()]).unwrap();
+    world_store(&world).seed_inventory_for_test("banker", &[strengthened.clone()]).unwrap();
     world.players.get_mut("banker").unwrap().state.inventory = vec![strengthened];
     open_storage(&mut world, STORAGE_NPC_ID, "open-1");
     transfer_in(&mut world, StorageTransferOperation::Deposit, EQUIP_TAB, 1, 1, "eq-dep");

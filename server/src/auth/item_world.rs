@@ -229,6 +229,7 @@ impl Destination for InventoryDestination<'_> {
     fn put(&self, tx: &Transaction<'_>, stack: &StorageStack) -> Result<(), String> {
         // 与重构前逐字一致：`add_inventory_tx` 的内层业务错误同样是硬错误
         // （原始调用方对它也用了 `?`），只有 `can_accept` 的拒绝才记业务码。
+        // 增量 4：内层错误已类型化，这里在**出口**处才取 wire 码字符串。
         add_inventory_tx(
             tx,
             self.account_id,
@@ -238,7 +239,7 @@ impl Destination for InventoryDestination<'_> {
             stack.remaining_slots,
             stack.upgrade_count,
         )
-        .and_then(|result| result.map(|_| ()).map_err(|code| code.to_owned()))
+        .and_then(|result| result.map(|_| ()).map_err(|error| error.code().to_owned()))
     }
 }
 

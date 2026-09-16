@@ -111,11 +111,13 @@ function verifiedKillTargets() {
 }
 
 // 源 `infoex` 的两个字符串子节点在任务之间取值相反：36315/36322/36328 是
-// `exVariable:"kill"`，而 36319 是 `value:"kill"` / `exVariable:"1"`。Quest 数据只
-// 存在于 `Quest.wz`（本地 unpack_tms273_ms 只解析 .ms 归档），无法从二进制判定
-// 哪个子节点才是变量名，所以不按字段名猜它是哪一种计数器。这里只回答"原始节点
-// 里出现了 kill 字样"，是否真的按击杀执行由已核定来源记录决定（见
-// `verifiedKillTargets`）。
+// `exVariable:"kill"`，而 36319 是 `value:"kill"` / `exVariable:"1"`。语义已核定
+// —— `QuestData/*.json` 现已全量解包（23404 个文件），用需求串
+// `#R<id>Ex<名>Ref<id>#` 逐条交叉验证：1090 条命中 `exVariable`、5 条命中
+// `value`，另 18 条引用的是**别的**任务的变量（如 15974 串里写 18764 的名）。
+// 即 `exVariable` 是计数器名字、`value` 是目标数，少数条目是原著把两者写反。
+// 这里仍取"任一子节点出现 kill 字样"的保守并集：写反的条目照样认得出，而是否
+// 真的按击杀执行由已核定来源记录决定（见 `verifiedKillTargets`）。
 function infoexMentionsKill(infoex) {
   return infoex.some(
     entry => entry.exVariable === 'kill' || entry.value === 'kill',
@@ -410,28 +412,82 @@ function applyRemaster(gameplay, items, manifest, questText) {
 //     门，Graph.json 逐条给出授权目标；`221030550.col00` 的授权目标是
 //     999999999 ⇒ 不在此列，保持未开放）。草原Ⅳ 的 NPC `2052026 UFO呼叫器`
 //     是进场门但由 NPC 对话驱动，不需要目录暴露（走 `dialogue.rs` 分发）。
+//   * `200000100.east00`（脚本 `station_in`，天空之城售票处）→ 碼頭
+//     `200000121`。**Graph.json 给这扇门授权了七个码头**
+//     （`200000111/121/131/141/151/161/170`，`portalNum` 一律 4），本仓库只
+//     装配了 `200000121` 与 `200000170`；服务端 `ship.rs::station_in_exit`
+//     按同一张表分流并把未装配目标如实拒绝，所以这里只暴露已装配的那个。
+//     缺这一条则 `ship_portal_gate` 里写好的 station_in 路由是死代码：源 `tm`
+//     是 `999999999` ⇒ 目录里 targetMapId 为 null ⇒ 玩家按 ↑ 发不出请求。
+//     刻意**不**暴露港口通道 `200000120`——它不在授权表里，且 `200000121`
+//     本就有 `west00` 静态门直接回售票处，接上会与登船相位门撞车。
 // P（有界适配）：落点沿用服务端钩子声明的目标门（`ellinel.rs` 的 `in00`、
-// `helios.rs` 的 `st00`/`st01`、`ufo.rs` 的 `west00`/`pt00`）。原版电梯按班次
-// 运行、时间门由 `q36342s` 把关、UFO 三扇门由 `pt_22103xxx` 脚本把关；本路由
-// 不做时刻与任务状态校验，即到即走，与 `inERShip`、时间门既有口径一致。只在
-// 目标图已装配时生效——没装配的目标保持「走近提示一次」。
+// `helios.rs` 的 `st00`/`st01`、`ufo.rs` 的 `west00`/`pt00`、`ship.rs` 的
+// `station_in_exit` → `west00`、`edelstein.rs` 的 `out00`）。原版电梯按班次
+// 运行、时间门由 `q36342s` 把关、UFO 三扇门由 `pt_22103xxx` 脚本把关、售票处
+// 这门由 `station_in` 脚本体把关（作用未核定）；本路由不做时刻与任务状态校验，
+// 即到即走，与 `inERShip`、时间门既有口径一致。只在目标图已装配时生效——
+// 没装配的目标保持「走近提示一次」。
+//
+// T2（源证据，`Map/Map/Graph.json` 逐图给出脚本门的授权目标）：下面第二张表
+// 列的是**授权目标本仓库未装配**的脚本门。它们也写进目录，但不是为了让服务端
+// 收请求（服务端没有对应路由，`edelstein.rs` 只接已装配的那四扇），而是让
+// `client/src/scenes/world.ts::tryPortal` 的既有规则生效 —— 目录里带
+// `targetMapId` 而 `mapCatalog` 没有这张图时，客户端给一次性提示
+// 「此路线尚未开放：目标地图 X 尚未收录」而不是按 ↑ 毫无反应。这与目录里
+// 37 扇「源静态门指向未装配图」的门是同一种可见行为（都不画光束：装配器
+// 只给已装配目标的门补 `pv`，见 `assemble_tms273.cjs`）。逐条：
+//   * `310000000/market00`（脚本 `market19`，`Graph.json` portalNum 16）→
+//     `910000000 自由市場入口`。脚本体 `script/portal/market19.js` **在包内**，
+//     它明确 `stage.changeMap(910000000, 0)`；本仓库没有自由市場玩法。
+//   * `310000000/profession`（`profession09`，portalNum 22）→ `910001000
+//     專業技術村<梅斯特鎮>`（匠人街，全局系统）。
+//   * `310000000/inXenonHouse`（`check_23637`，portalNum 24）→ `931060000
+//     空蕩蕩的房子`。
+//   * `130030006/east00`（`pt_01_130030006`，portalNum 4）→ `130030005
+//     離開遺忘的森林的路`。
+//   * `130000200/in01`（`cygnus_q20754`，portalNum 6）→ `913060000`（隐藏图，
+//     连 `String/Map.json` 都没有名字）。
+// 刻意**不**暴露的（源自己就没给目标，保持关闭，与 `ufo.rs` 的
+// `221030550.col00` 同口径）：`310000000/in05`（`enterResi_23120`，授权
+// `999999999`）、`310000000/pt_regionMove` 与 `130000200/pt_regionMove`
+// （授权 `999999999`）。给它们编一个目标就是把「原版无路」写成「有路」。
 function exposeScriptedGateRoutes(manifest) {
   const assembled = new Set(manifest.mapCatalog.maps.map(map => String(map.id)));
-  for (const [mapId, portalName, targetMapId, targetPortalName] of [
+  const expose = (list, onlyAssembled) => {
+    for (const [mapId, portalName, targetMapId, targetPortalName] of list) {
+      if (onlyAssembled && !assembled.has(targetMapId)) continue;
+      const portal = manifest.mapCatalog.maps
+        .find(map => String(map.id) === mapId)?.portals.find(candidate => candidate.name === portalName);
+      assert(portal, `Missing source scripted portal ${mapId}/${portalName}`);
+      assert.equal(portal.targetMapId, null, `${mapId}/${portalName} already carries a static target`);
+      assert.equal(assembled.has(targetMapId), onlyAssembled,
+        `${mapId}/${portalName} is in the wrong exposure table (target ${targetMapId} assembled=${assembled.has(targetMapId)})`);
+      Object.assign(portal, { targetMapId, targetPortalName });
+    }
+  };
+  expose([
     ['222020400', 'in01', '300000100', 'in00'],
     ['222020200', 'in00', '222020100', 'st00'],
     ['222020100', 'in00', '222020200', 'st01'],
     ['221030540', 'pt00', '221030550', 'west00'],
     ['221030550', 'pt00', '221030551', 'pt00'],
     ['221030600', 'up00', '221030700', 'west00'],
-  ]) {
-    if (!assembled.has(targetMapId)) continue;
-    const portal = manifest.mapCatalog.maps
-      .find(map => String(map.id) === mapId)?.portals.find(candidate => candidate.name === portalName);
-    assert(portal, `Missing source scripted portal ${mapId}/${portalName}`);
-    assert.equal(portal.targetMapId, null, `${mapId}/${portalName} already carries a static target`);
-    Object.assign(portal, { targetMapId, targetPortalName });
-  }
+    ['200000100', 'east00', '200000121', 'west00'],
+    // 埃德爾斯坦城内四扇脚本门（`edelstein.rs` 的 `EDELSTEIN_CITY_GATES`）：
+    // `in02` 取 `Graph.json` 两个授权目标里已装配的那个（`310000010`）。
+    ['310000000', 'in00', '310000001', 'out00'],
+    ['310000000', 'in01', '310000004', 'out00'],
+    ['310000000', 'in02', '310000010', 'out00'],
+    ['310000000', 'in03', '310000003', 'out00'],
+  ], true);
+  expose([
+    ['310000000', 'market00', '910000000', null],
+    ['310000000', 'profession', '910001000', null],
+    ['310000000', 'inXenonHouse', '931060000', null],
+    ['130030006', 'east00', '130030005', null],
+    ['130000200', 'in01', '913060000', null],
+  ], false);
 }
 
 module.exports = { applyRemaster, verifiedKillTargets, infoexMentionsKill };

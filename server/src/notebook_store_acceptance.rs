@@ -234,7 +234,10 @@ fn notebook_acquisition_is_idempotent_and_bumps_the_revision_once_per_commit() {
     );
     // 角色作用域与账号作用域互不影响。
     assert_eq!(store.notebook_revision("account", "nb-char").unwrap(), 0);
-    assert_eq!(catalog.item_count(), 2588);
+    // 2026-09-16 埃德爾斯坦城簇 10 图：新内容（3 家商店的在售品与 6 只新怪
+    // 的掉落）把装配物品目录从 2588 推到 2624；图鉴分区必须随目录一起长大，
+    // 下面那条「页签分区必须覆盖整份目录」才是真正的不变式。
+    assert_eq!(catalog.item_count(), 2624);
 
     drop(store);
     nb_cleanup(&path);

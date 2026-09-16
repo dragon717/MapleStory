@@ -104,11 +104,12 @@ impl Store {
     }
 
     /// NB-04 单事务提交的统一入口守卫：验收测试可用 `Store::deny_persistence`
-    /// 打开失败注入，三个 commit helper 都会走这里拒绝，调用方看到的行为与
+    /// 打开失败注入，各 commit helper 都会走这里拒绝，调用方看到的行为与
     /// 真实 SQLite 写失败完全一致（整笔不落、内存不改）。非测试构建下
     /// `persistence_denied()` 恒为 `false`，编译期即被消除。
+    /// （`pub(super)`：`auth/cash.rs` 的 `rental_sweep_commit` 同守卫。）
     #[inline]
-    fn refuse_if_persistence_denied(&self) -> Result<(), String> {
+    pub(super) fn refuse_if_persistence_denied(&self) -> Result<(), String> {
         if Self::persistence_denied() {
             return Err("account persistence failed".to_owned());
         }

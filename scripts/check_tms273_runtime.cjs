@@ -33,7 +33,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-30');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-31');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -90,7 +90,10 @@ for(const mob of gameplay.monsters) {
   // 101/103/202/203/通風口 D-1~D-4；以及 4230141/4230142 新葛雷白/新葛雷黑，
   // 在走廊 H01~H03），to 62.  （4230137/4230138 只在 TMS273 WZ 里有怪物定义，
   // 本片 23 张图的 life 行没有任何一条引用它们，因此连怪物目录都不进。）
-  assert.equal(deployed.size,62,'the deployed monster surface changed');
+  // 2026-09-16 埃德爾斯坦城簇 6 只：150000 芽芽花盆（公園1）、1150000 巡邏機器人
+  // / 1150001 奇怪的里程碑（散步路道 1~2）、2150000 竊水賊（散步路道3）、
+  // 2150001 垃圾桶（散步路道4）、2150003 巡邏機器人S（去礦山的路1），to 68.
+  assert.equal(deployed.size,68,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -131,7 +134,13 @@ for(const mob of gameplay.monsters) {
 // `221030000 危險地帶` + 草原Ⅰ~Ⅳ 五张纯静态门链，加 UFO 內部 18 张
 // 走廊/通風口图）。源里其余 19 张（操縱杆翼、无名字图、事件房与
 // `BossCaoong` 首領房）没有任何授权入边，逐条落在下方的不装配清单里。
-assert.equal(catalog.maps.length,188);
+// 2026-09-16 埃德爾斯坦城簇 +10 图（`310000000 埃德爾斯坦` 是全死胡同：11 扇
+// 出向门全指向未装配图；本片装配它的城内簇——議會/美髮店/住宅/秘密廣場/
+// 公園1/散步路道 1~4/去礦山的路1——城才第一次接上散步路道链，并让 2026-09-15
+// 就已装配却整簇不可达的「去礦山的路2」第一次可达。**步行链到那里为止**：
+// `310040100.east00` 是 pt:7 `enterBlackMine`（脚本体不在本包）、`in00` 指向
+// 未装配的 `310040110` ⇒ 礦山入口 310040200 及整个雷本礦山簇仍无达入边）。
+assert.equal(catalog.maps.length,198);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -274,10 +283,14 @@ for(const map of catalog.maps) {
   // y=644 而该 x 只有 y=705 的地板，Δ61px；`221021700/top00` Δ41px）。这两处
   // 是 pt:1 隐形锚，原版落上去也是自然下坠一小段——落点来自源，不能为了贴地
   // 把锚点搬下来。逐条钉住这 6 条边，别让别的图悄悄借这条豁免。
+  // 埃德爾斯坦散步路道4 → 去礦山的路1（2026-09-16）：`310040000/west00` 是
+  // pt:2 可见门，源里就落在 y=-129、该列最近地板 `foothold/5/0/47` y=-99，
+  // Δ30px；源图与目录逐条都是 116 条 foothold，不是导入丢地板。同样照源保留。
   const SOURCE_FLOATING_LANDINGS=[
     '221021300/under00','221021300/under01','221021300/under02',
     '221021300/under03','221021300/under04',
     '221021800/under00',
+    '310030300/east00',
   ];
   const floating=[];
   for(const map of catalog.maps)for(const portal of map.portals) {
@@ -427,15 +440,34 @@ for(const map of catalog.maps) {
     assert.equal(portal.targetMapId,to,`${from}/${name} must target ${to}`);
     assert.equal(portal.targetPortalName,gate,`${from}/${name} must land on ${gate}`);
   }
-  // 售票处 east00 是 pt:7 脚本门（`station_in`），源里没有静态目标——服务端
-  // ship.rs 的 P 级路由必须落在 200000120 的 west00，而港口通道的 west00 必须
-  // 回指它（源邻接证据）。两端一起钉，缺一条都是伪造映射。
+  // 售票处 east00 是 pt:7 脚本门（`station_in`），源 `tm` 是 999999999 ⇒ 目录里
+  // 必须**没有**服务器的静态目标。服务端 ship.rs::station_in_exit 按
+  // `Graph.json` 的授权表（`20/200000100/portal`，七个码头、portalNum 一律 4）
+  // 分流到已装配的码头，并把未装配目标如实拒绝。
+  // 修正（2026-09-16）：原先这里钉的是「路由到港口通道 200000120」，那是
+  // **错的**——港口通道不在授权表里，只是码头的另一条回程旁路（其 east00 →
+  // 200000121.west00），而 200000121.west00 本就有静态门直接回售票处；接上
+  // 它会把登船相位门包过去。现按授权表钉。
   const stationIn=byId.get('200000100').portals.find(p=>p.name==='east00');
   assert.equal(stationIn.type,7,'售票处 east00 must stay a script gate in the source');
-  assert.equal(stationIn.targetMapId,null,'售票处 east00 must have no static target');
+  // 客户端目录（remaster 的 exposeScriptedGateRoutes）必须把它暴露给玩家，
+  // 否则玩家按 ↑ 发不出请求，服务端写好的路由就是死代码。源 tm 无目标，
+  // 目录里的目标是我们按同一张授权表补的。
+  assert.equal(stationIn.targetMapId,'200000121',
+    'exposeScriptedGateRoutes must publish the authorized 碼頭 target on 售票处 east00');
+  assert.equal(stationIn.targetPortalName,'west00');
   assert.equal(stationIn.script,'station_in');
-  assert.equal(byId.get('200000120').portals.find(p=>p.name==='west00').targetPortalName,'east00',
-    '港口通道 west00 must name the 售票处 east00 gate the server routes into it');
+  // 反向断言：港口通道**不得**成为这扇门的目标，也不得被暴露成它的落点。
+  assert.notEqual(stationIn.targetMapId,'200000120',
+    'station_in must not bypass into 港口通道: it is absent from the Graph authorization table');
+  // 授权表里两个已装配码头都必须真装配（否则落点会踩空）。
+  for(const target of ['200000121','200000170']) assert(byId.has(target),
+    `station_in authorized target must be assembled: ${target}`);
+  // 未装配的五个授权目标必须**没有**目录暴露（暴露了就是送玩家进空图）。
+  assert.equal(byId.size,198,`catalog size drifted: ${byId.size}`);
+  for(const target of ['200000111','200000131','200000141','200000151','200000161']) {
+    assert(!byId.has(target),`${target} must stay unassembled so station_in refuses it`);
+  }
   for(const [map,returnMap] of [
     ['220000100','220000000'],['220000110','220000000'],
     ['200000120','200000000'],['200000121','200000000'],
@@ -557,6 +589,104 @@ for(const map of catalog.maps) {
     assert.equal(template?.moveDurationMs,undefined,`${id} 不得有 moveDurationMs`);
     assert(!template?.speed,`${id} 源内没有 speed`);
   }
+}
+
+// 埃德爾斯坦城内 NPC 职能与脚本门（2026-09-16，飞行船三期剩余）。
+// 城 `310000000` 在二期交付后是**全死胡同**：11 扇出向门全指向未装配图。本片
+// 装配它的城内簇 10 张图，并按 `Map/Map/Graph.json` 的 `31/310000000/portal`
+// 授权表把四扇 pt:7 脚本门接上（服务端 `server/src/edelstein.rs`）。这里钉的是
+// **客户端目录暴露**：`world.ts::tryPortal` 只受理带 `targetMapId` 的门，源 `tm`
+// 是 `999999999` ⇒ 不暴露就等于玩家按 ↑ 发不出请求、服务端路由成死代码。
+{
+  const byId=new Map(catalog.maps.map(map=>[map.id,map]));
+  const gate=(map,name)=>{
+    const found=byId.get(map)?.portals.find(entry=>entry.name===name);
+    assert(found,`${map}/${name} must exist`);
+    return found;
+  };
+  // 四扇已路由的脚本门：目录必须带上服务端钩子用的目标与落点。
+  for(const [name,target,landing] of [
+    ['in00','310000001','out00'],
+    ['in01','310000004','out00'],
+    ['in02','310000010','out00'],
+    ['in03','310000003','out00'],
+  ]) {
+    assert.equal(gate('310000000',name).type,7,`城 ${name} 必须仍是源 pt:7 脚本门`);
+    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须暴露已装配的授权目标`);
+    assert.equal(gate('310000000',name).targetPortalName,landing,`城 ${name} 必须落在目标图的回门`);
+    // 内景的源静态回门正对本门，两端互为原样保留的源门。
+    assert.equal(gate(target,'out00').targetMapId,'310000000',`${target}/out00 必须回城`);
+    assert.equal(gate(target,'out00').targetPortalName,name,`${target}/out00 必须落在城的 ${name}`);
+  }
+  // 源 `tm` 自带目标的静态/接触门：目标图随本片装配。
+  for(const [name,target,landing] of [
+    ['west00','310020000','east00'],
+    ['east00','310030000','west00'],
+    ['resi00','310010000','out00'],
+  ]) {
+    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须通向 ${target}`);
+    assert.equal(gate('310000000',name).targetPortalName,landing,`城 ${name} 必须落在 ${target}/${landing}`);
+  }
+  // 「有授权、目标未装配」的三扇：目录里**写上**授权目标，客户端才会给
+  // 「此路线尚未开放：目标地图 X 尚未收录」，而不是按 ↑ 毫无反应。
+  for(const [name,target] of [
+    ['market00','910000000'],
+    ['profession','910001000'],
+    ['inXenonHouse','931060000'],
+  ]) {
+    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须写明授权目标`);
+    assert(!byId.has(target),`${target} 必须仍未装配，否则这条记录失效`);
+  }
+  // 反向断言：源自己没给目标（授权 `999999999`）的两扇**必须**保持 null——
+  // 给它们编一个目标就是把「原版无路」写成「有路」。
+  for(const name of ['in05','pt_regionMove']) {
+    assert.equal(gate('310000000',name).targetMapId,null,`城 ${name} 必须保持关闭`);
+  }
+  // 城东全静态门步行链 → 去礦山的路2。
+  for(const [from,name,to,landing] of [
+    ['310030000','east00','310030100','west00'],
+    ['310030100','east00','310030200','west00'],
+    ['310030200','east00','310030300','west00'],
+    ['310030300','east00','310040000','west00'],
+    ['310040000','east00','310040100','west00'],
+  ]) {
+    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} 必须通向 ${to}`);
+    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} 必须落在 ${to}/${landing}`);
+    assert.equal(gate(to,landing).targetMapId,from,`${to}/${landing} 必须原路回 ${from}`);
+  }
+  // **步行链的终点边界**：去礦山的路2 的 `east00` 是 pt:7 `enterBlackMine`
+  // （脚本体不在本包）、`in00` 指向未装配的 `310040110` ⇒ `310040200 礦山入口`
+  // 及整个雷本礦山簇**没有任何可达入边**。本条是反向断言：谁给 east00 编目标、
+  // 或把 310040110/310040200 的入边接上，都会在这里失败。
+  assert.equal(gate('310040100','east00').type,7,'去礦山的路2 east00 必须仍是源 pt:7 脚本门');
+  assert.equal(gate('310040100','east00').script,'enterBlackMine');
+  assert.equal(gate('310040100','east00').targetMapId,null,'enterBlackMine 无脚本体 ⇒ 不得编目标');
+  assert.equal(gate('310040100','in00').targetMapId,'310040110');
+  assert(!byId.has('310040110'),'310040110 必须仍未装配，否则矿山区边界记录失效');
+  const mineEntrance=['310040200','310040300','310040210'];
+  for(const map of catalog.maps)for(const portal of map.portals) {
+    if(portal.targetMapId===null)continue;
+    assert(!mineEntrance.includes(portal.targetMapId)||mineEntrance.includes(map.id),
+      `${map.id}/${portal.name} 不得从矿山簇外接进 ${portal.targetMapId}：唯一入口 enterBlackMine 的脚本体不在本包`);
+  }
+  // 城内 10 张新图的 returnMap 必须落在已装配城镇，死亡复活不会踩空。
+  for(const [map,town] of [
+    ['310000001','310000000'],['310000003','310000000'],['310000004','310000000'],
+    ['310020000','310000000'],['310030000','310000000'],['310030100','310000000'],
+    ['310030200','310000000'],['310030300','310000000'],['310040000','310000000'],
+    // 秘密廣場的源 returnMap 指向自己（末日反抗軍本部内景），如实照抄源。
+    ['310010000','310010000'],
+  ]) {
+    assert.equal(catalog.returnMaps[map],town,`${map} returnMap drifted`);
+    assert(byId.has(town),`${map} returnMap must resolve inside the catalog`);
+  }
+  // 城 NPC 职能：三家源商店（`shopId = npcId`）与一名仓库管理员（`func` 含「倉庫」）
+  // 随目录装配后本来就能用，本片不改它们；这里钉住「城的职能集没被后来的装配挤掉」。
+  const cityNpcs=new Set(gameplay.npcSpawns.filter(spawn=>spawn.mapId==='310000000').map(spawn=>spawn.templateId));
+  const cityShops=gameplay.shops.filter(shop=>cityNpcs.has(shop.npcId)).map(shop=>shop.shopId).sort();
+  assert.deepEqual(cityShops,['2150001','2150002','9072100'],'埃德爾斯坦城的源商店集变了');
+  const keepers=gameplay.npcs.filter(npc=>cityNpcs.has(npc.templateId)&&npc.func.includes('倉庫')).map(npc=>npc.templateId);
+  assert.deepEqual(keepers,['2150000'],'埃德爾斯坦城的仓库管理员集变了');
 }
 
 // 楓之島災禍篇 36315 的最小场景执行（P，2026-09-14，适配器 scripts/tms273_calamity.cjs）。

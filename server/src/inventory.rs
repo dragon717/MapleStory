@@ -852,6 +852,11 @@ pub enum InventoryError {
     QuantityOverflow,
     InventoryFull,
     UnknownItem,
+    /// `is_only` 物品（唯一装备/坐骑类）在背包、装备栏或怪物卡册里已经
+    /// 有一份时再发放。此前这个拒绝只存在于 `add_inventory_tx` 的
+    /// `&'static str` 通道里（审查 §7 增量 3 前置：拒绝必须先有类型），
+    /// 增量 4 把它收进本枚举，wire 码保持 `item_unavailable` 不变。
+    ItemUnavailable,
     ItemNotUsable,
     RequirementsNotMet,
     LegendarySpiritRequired,
@@ -870,6 +875,7 @@ impl InventoryError {
             Self::QuantityOverflow => "quantity_overflow",
             Self::InventoryFull => "inventory_full",
             Self::UnknownItem => "unknown_item",
+            Self::ItemUnavailable => "item_unavailable",
             Self::ItemNotUsable => "item_not_usable",
             Self::RequirementsNotMet => "requirements_not_met",
             Self::LegendarySpiritRequired => "legendary_spirit_required",
@@ -897,7 +903,11 @@ fn stackable(kind: u8, item_id: &str) -> bool {
 /// Move one complete source stack.  For a regular tab, equal stackable IDs
 /// merge up to the catalog slotMax; overflow remains in the source slot.  The
 /// equip transition is handled by `equip_items`/`unequip_items` below.
-pub fn move_items(
+///
+/// 增量 4（审查 §7）：这批 `&mut Vec` 原语从 `pub` 收窄为 `pub(crate)`——
+/// 它们是「内存权威」的内部构件，不是仓库对外契约；crate 外不存在消费者，
+/// 由 `scripts/check_inventory_surface.cjs` 连同调用点名单一起钉住。
+pub(crate) fn move_items(
     items: &mut Vec<InventoryItem>,
     kind: u8,
     from_slot: i16,
@@ -959,7 +969,7 @@ pub fn move_items(
     Ok(())
 }
 
-pub fn remove_items(
+pub(crate) fn remove_items(
     items: &mut Vec<InventoryItem>,
     kind: u8,
     slot: i16,
@@ -997,7 +1007,7 @@ pub fn remove_items(
 /// Add a server-authoritative reward/drop.  Existing stacks are filled to
 /// slotMax, then additional stacks are allocated in the first free local
 /// slots.  The clone makes a full-tab failure atomic for the caller.
-pub fn add_items(
+pub(crate) fn add_items(
     items: &mut Vec<InventoryItem>,
     item_id: String,
     quantity: u32,
@@ -1010,7 +1020,7 @@ pub fn add_items(
 /// only merge into stacks with the *same* deadline, so a 7-day rental never
 /// tops up a permanent stack of the same item, and each delivery keeps its
 /// own deadline.  `None` behaves exactly like [`add_items`].
-pub fn add_items_expiring(
+pub(crate) fn add_items_expiring(
     items: &mut Vec<InventoryItem>,
     item_id: String,
     quantity: u32,

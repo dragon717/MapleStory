@@ -146,6 +146,12 @@ for (const quest of remaster) {
     }
   } else {
     assert(quest.blockedBy.length > 0, `${quest.questId} must record a block reason`);
+    // 反向断言：`script-counter` 只在源真的写了 `infoex` 时才会被打上。计数器
+    // 的种类（`dummy` / `talk` / …）现在由服务端按 `sourceInfoex` 说出来，但那
+    // 只改措辞不改判定 —— 带计数器的任务一条都不许被当成没有完成条件而放行。
+    if (quest.blockedBy.includes('script-counter')) {
+      assert(sourceInfoex.length > 0, `${quest.questId} script-counter without a source counter`);
+    }
   }
   // 运行时职业只允许项目已有的法师路线，不能凭源数据开放其他职业。
   for (const job of quest.start.conditions.job) assert([0, 200, 220, 221, 222].includes(job), `${quest.questId} unexpected runtime job ${job}`);

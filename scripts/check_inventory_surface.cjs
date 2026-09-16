@@ -1,0 +1,82 @@
+#!/usr/bin/env node
+// 增量 4（审查 §33/§34）的门禁：把「背包原语收窄 + 整表写回外观拆除」钉在
+// 源码表面上。三条断言都带反向面——名单里的调用点消失/多出、或有人把
+// `pub fn` 改回去/把 `write_inventory` 外观加回来，都会让本检查失败。
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '..');
+const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+
+// 1) 原语的可见性：inventory.rs 里的 &mut Vec 原语一律 pub(crate)，不许回到 pub。
+const inventory = read('server/src/inventory.rs');
+for (const name of ['move_items', 'remove_items', 'add_items', 'add_items_expiring']) {
+  assert(
+    inventory.includes(`pub(crate) fn ${name}(`) && !inventory.includes(`pub fn ${name}(`),
+    `inventory::${name} must stay pub(crate) (增量 4 收窄原语面)`
+  );
+}
+
+// 2) 整表写回的生产外观不得回来：Store 上不许再出现非测试的 write_inventory。
+const auth = read('server/src/auth.rs');
+assert(
+  !/pub fn write_inventory\(/.test(auth),
+  'Store::write_inventory must stay removed; add a single-transaction commit helper instead'
+);
+assert(
+  auth.includes('fn seed_inventory_for_test('),
+  'the test-only seeding entry point is part of the recorded surface'
+);
+
+// 3) 调用点名单：这些原语只允许出现在下面这些文件里（含测试）。
+//    新增调用点 = 有意的业务动作变化 ⇒ 把文件加进名单并在交付记录里说明。
+const allowed = new Set([
+  'server/src/inventory.rs',            // 定义与内部互调（add_items→add_items_expiring）
+  'server/src/auth/db.rs',              // add_inventory_tx（put 原语的事务半边）
+  'server/src/auth/bag.rs',             // 背包动作簇（移动/消耗/丢弃）
+  'server/src/auth/cash.rs',            // 现金购买候选背包（add_items_expiring）
+  'server/src/auth/quests.rs',          // 任务结算发奖
+  'server/src/auth/loot.rs',            // 掉落拾取（拾取侧 put）
+  'server/src/auth/item_world.rs',      // 物品世界 Destination::put
+  'server/src/inventory_ops.rs',        // 背包协议操作簇
+  'server/src/trade.rs',                // 商店买/卖/买回的候选背包
+  'server/src/cashshop.rs',             // 现金商店购买/租赁候选背包
+  'server/src/quest.rs',                // 任务场景执行（add/remove）
+  'server/src/gm.rs',                   // GM /add
+  'server/src/chapter_acceptance.rs',   // 验收
+  'server/src/pet_acceptance.rs',       // 验收
+  'server/src/cashshop_acceptance.rs',  // 验收
+  'server/src/inventory_persistence_acceptance.rs', // 验收（经 seed 入口）
+  'server/src/storage_acceptance.rs',   // 验收（经 seed 入口）
+  'server/src/quest_store_acceptance.rs', // 验收（经 seed 入口）
+]);
+const callers = new Set();
+const call = /(?:inventory::|crate::inventory::)?\b(add_items|add_items_expiring|remove_items|move_items)\s*\(/g;
+const skip = (rel) => / \d+\.rs$/.test(rel); // 「xxx 2.rs」是 iCloud 复制残留，不参与编译
+function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    const rel = path.relative(root, full);
+    if (entry.isDirectory()) { walk(full); continue; }
+    if (!entry.name.endsWith('.rs') || skip(rel)) continue;
+    const text = fs.readFileSync(full, 'utf8');
+    for (const match of text.matchAll(call)) {
+      // 只算对原语的真实调用：排除定义本身与同名但无关的本地函数。
+      const isDefinition = new RegExp(`fn ${match[1]}\\s*\\(`).test(text);
+      if (isDefinition && rel === 'server/src/inventory.rs') continue;
+      if (match[1] === 'add_items_expiring' && rel === 'server/src/inventory.rs') continue;
+      callers.add(rel);
+    }
+  }
+}
+walk(path.join(root, 'server/src'));
+const unexpected = [...callers].filter((rel) => !allowed.has(rel)).sort();
+assert.deepEqual(
+  unexpected,
+  [],
+  `unexpected inventory-primitive call sites (add them to check_inventory_surface.cjs with a reason): ${unexpected.join(', ')}`
+);
+const missing = [...allowed].filter((rel) => !fs.existsSync(path.join(root, rel))).sort();
+assert.deepEqual(missing, [], `stale allowlist entries: ${missing.join(', ')}`);
+
+console.log('PASS inventory surface: primitives stay pub(crate), whole-table wrapper stays removed, call-site roster matches');

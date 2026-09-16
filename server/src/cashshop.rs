@@ -387,7 +387,9 @@ impl World {
                 .cloned()
                 .collect();
             if let Some(store) = self.store.as_ref() {
-                if store.write_inventory(&id, &next_inventory).is_err() {
+                // 增量 4：从 `write_inventory`（仓储自己开事务的整表写回）
+                // 换成与商店买/卖/买回同形的单事务 commit helper。
+                if store.rental_sweep_commit(&id, &next_inventory).is_err() {
                     continue;
                 }
             }

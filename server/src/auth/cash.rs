@@ -150,6 +150,30 @@ fn read_cash_purchased_tx(
 }
 
 impl Store {
+    /// 增量 4（审查 §7 增量 4 A 组第 4 处，也是最后一处非事务整表写回）：
+    /// 租赁到期清扫的单事务提交。清扫候选背包由调用方（`crate::cashshop::
+    /// step_rental_expiries`）在内存里算好；提交成功才改内存并发回收通知，
+    /// 失败跳过本角色、下一轮 10s 清扫自动重试。验收可用
+    /// `Store::deny_persistence` 注入写失败，行为与真实 SQLite 写失败一致。
+    pub fn rental_sweep_commit(
+        &self,
+        account_id: &str,
+        inventory: &[InventoryItem],
+    ) -> Result<(), String> {
+        self.refuse_if_persistence_denied()?;
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        write_inventory_tx(&tx, account_id, inventory)?;
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(())
+    }
+
     /// 現金商店购买的唯一权威事务。`inventory` 是调用方已按
     /// `inventory::add_items_expiring` 建好的候选背包（含堆叠与租赁期限戳），
     /// 只有本事务提交成功它才落库。

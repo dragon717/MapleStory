@@ -236,12 +236,60 @@ ADDITIONAL_UFO_MAP_IDS = (
     "221030630", "221030640", "221030650", "221030660", "221030700",
     "221030710", "221030720", "221030730",
 )
+# 埃德爾斯坦城内簇（耶雷弗/埃德爾斯坦飞行船三期剩余，2026-09-16）。
+#
+# 源事实（TMS273.7 WZ 全量核对，Map/Map/Map3 + `Map/Map/Graph.json`）：
+# `310000000 埃德爾斯坦` 的**全部 11 扇出向门都指向本仓库未装配的图**，所以
+# 三期二期交付后这座城是死胡同：两扇静态门（`west00 → 310020000`、
+# `east00 → 310030000`）与一扇接触门（`resi00 → 310010000`）只是走不出去，
+# 另外七扇 pt:7/8/11 脚本门的源 `tm` 一律 `999999999`（目标写在 Graph.json
+# 的授权表里，`server/src/edelstein.rs` 按它分流）。本片装配目标图本体：
+#
+# * 城内内景（`in00`/`in01`/`in03`/`resi00` 的去处）：
+#   `310000001 埃德爾斯坦議會`、`310000004 住宅`（门名 `enterMansion`）、
+#   `310000003 埃德爾斯坦美髮店`（`enterDangerHair`；源 3 条 life 行里
+#   `2121018` 自己 `hide=1`，落地 2 个发廊 NPC）、`310010000 秘密廣場`
+#   （`末日反抗軍本部`；源 10 条 life 行里 4 条自己 `Npc.info.hide=1`
+#   ——登记在 `sources.hiddenNpcConditions`——落地 6 名教官；`in00` 通
+#   `310010010 訓練房入口` 属下一片）。
+# * 城门外第一段街道：`310020000 埃德爾斯坦公園1`（12 只 `0150000`）、
+#   `310030000 埃德爾斯坦散步路道1`（13 只 `1150000`）。
+# * 城东街道与**去礦山的路**：`310030100 散步路道2`（14 只 `1150001`）、
+#   `310030200 散步路道3`（12 只 `2150000`）、`310030300 散步路道4`
+#   （15 只 `2150001`）、`310040000 去礦山的路1`（18 只 `2150003`）。
+#   `310040000.east00 → 310040100 去礦山的路2`（2026-09-15 已装配），于是
+#   城 → 散步路道1..4 → 去礦山的路1/2 是一条全静态门的连续可走路径
+#   （逐段由 `check_tms273_runtime.cjs` 钉住）。
+#   **步行链到此为止**：`310040100.east00` 是 pt:7 `enterBlackMine`（脚本体
+#   不在本包）、`310040100.in00` 指向 `310040110 隱藏著的入口`（未装配）
+#   ⇒ `310040200 礦山入口` 与整个雷本礦山簇（HEAD 就已装配）**仍然没有任何
+#   可达入边**。本片对它的净贡献是让原本同样不可达的 `310040100` 第一次
+#   接进城里——不是「打通矿山」（那需要 `enterBlackMine` 的脚本体语义）。
+#
+# 不装（逐条给理由，不是漏装）：
+# * `310020100 公園2`/`310020200 公園3`/`931010000 天竺牡丹花園`：公園链在
+#   `310020200.in00` 就转进 `931010000`，装到哪一段都还是断口；本片只让
+#   `west00` 有第一站，`310020000.west00 → 310020100` 保持「尚未收录」。
+# * `310030110 出現蛇的路`/`310030210`/`310030211 秘密通道`/`310030310 街燈路`：
+#   进它们的门是脚本体（`secretElevator` 等）或无名字源图，本仓库不接。
+# * `310010010 訓練房入口` 与 `310010100..310010500 訓練房 A~D/第四訓練房`：
+#   `310010000.in00` 的静态目标，属下一片（末日反抗軍本部训练房链）。
+# * `310040110 隱藏著的入口`、`310040400 礦石路`、`310050100..310050800`
+#   与 `310020100/200`：需要时按同一口径补。
+ADDITIONAL_EDELSTEIN_MAP_IDS = (
+    "310000001", "310000003", "310000004", "310010000",
+    "310020000", "310030000", "310030100", "310030200", "310030300",
+    "310040000",
+)
 # Portal closure (2026-09-13): every map an assembled map's portal names that
 # the TMS273 WZ JSON actually ships.  Without these the client refuses the gate
 # with 「此路线尚未开放：目标地图 … 尚未收录」 even though the source has the
 # destination (弓箭手村 interiors, 墮落城市 west route, 蘑菇村 east road, the
-# 幸福村 train platform, …).  Targets whose source JSON is absent (103010000,
-# 120010000, 310040000, …) are a source boundary and stay outside on purpose.
+# 幸福村 train platform, …).  Targets whose source JSON is absent from the
+# unpacked tree (103010000, 120010000, …) stay outside on purpose until a dump
+# brings them in; `310040000` left this list on 2026-09-16 when the
+# 埃德爾斯坦城内簇 dump added it (it is the road map between 散步路道4 and the
+# already-assembled 去礦山的路2 310040100, see ADDITIONAL_EDELSTEIN_MAP_IDS).
 ADDITIONAL_PORTAL_CLOSURE_MAP_IDS = (
     "100000001", "100000002", "100000003", "100000100", "100000200",
     "100010001", "100020000", "100030400", "101020000", "101080000",
@@ -786,6 +834,7 @@ def build_maps(
         *ADDITIONAL_SHIP2_MAP_IDS, *ADDITIONAL_ELLINEL_MAP_IDS,
         *ADDITIONAL_HELIOS_MAP_IDS, *ADDITIONAL_SHIP3_MAP_IDS,
         *ADDITIONAL_EOS_MAP_IDS, *ADDITIONAL_UFO_MAP_IDS,
+        *ADDITIONAL_EDELSTEIN_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -835,6 +884,7 @@ def build_maps(
         "ship3MapIds": list(ADDITIONAL_SHIP3_MAP_IDS),
         "eosMapIds": list(ADDITIONAL_EOS_MAP_IDS),
         "ufoMapIds": list(ADDITIONAL_UFO_MAP_IDS),
+        "edelsteinMapIds": list(ADDITIONAL_EDELSTEIN_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

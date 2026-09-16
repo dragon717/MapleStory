@@ -245,6 +245,67 @@ fn the_rental_sweep_reclaims_expired_rows_and_notifies() {
     assert_eq!(notice["itemIds"][0], "5062001");
 }
 
+/// 增量 4（审查 §7 增量 4 的解锁前置，A 组第 4 处的失败边界）：持久化失败时
+/// 清扫必须**整笔不动**——内存里的过期品保留、不发回收通知，下一轮 10s
+/// 清扫自动重试。之前的形状是「先改内存再 `let _ =` 写库」，写库失败时
+/// 内存已丢而存档还在，重连后过期品复活；现在的形状与商店买/卖/买回的
+/// commit helper 一致：`rental_sweep_commit` 返回 `Err` ⇒ 本角色整笔跳过。
+#[test]
+fn the_rental_sweep_keeps_memory_authoritative_when_persistence_fails() {
+    let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
+    // 与成功路径同一副背包：3 个永久 + 1 个已过期租赁堆。
+    let mut bag = world.players["buyer"].state.inventory.clone();
+    inventory::add_items(&mut bag, "5062001".into(), 3, 24).expect("permanent stack");
+    let mut expired = InventoryItem {
+        slot: 9,
+        item_id: "5062001".into(),
+        quantity: 2,
+        ..InventoryItem::default()
+    };
+    expired.stats = Some(BTreeMap::from([(
+        inventory::EXPIRES_AT_KEY.to_owned(),
+        1,
+    )]));
+    bag.push(expired);
+    world.players.get_mut("buyer").unwrap().state.inventory = bag;
+
+    {
+        // 进程级失败注入必须串行：守卫 drop 即解除，之后的断言才有可用存储。
+        let _denial = auth::Store::deny_persistence();
+        world.tick = 10_000 / TICK_MS;
+        world.step_rental_expiries();
+        // 写库失败 ⇒ 过期品仍在内存里（权威未动），且没有回收通知。
+        assert_eq!(cash_inventory_quantity(&world, "5062001"), 5);
+        assert!(world.players["buyer"]
+            .state
+            .inventory
+            .iter()
+            .any(|item| inventory::item_expires_at(item) == Some(1)));
+        let mut saw_notice = false;
+        while let Ok(message) = output.try_recv() {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&message) {
+                if value.get("type").and_then(|v| v.as_str()) == Some("rentalNotice") {
+                    saw_notice = true;
+                }
+            }
+        }
+        assert!(!saw_notice, "a failed sweep must not send a reclaim notice");
+    }
+    // 解除注入后的下一轮清扫成功：内存收紧、发出通知、存档同步。
+    world.tick = 2 * (10_000 / TICK_MS);
+    world.step_rental_expiries();
+    assert_eq!(cash_inventory_quantity(&world, "5062001"), 3);
+    let notice = newest(&mut output, "rentalNotice");
+    assert_eq!(notice["itemIds"][0], "5062001");
+    let store = world.store.clone().expect("cash_world always has a store");
+    let defaults = world.default_profile();
+    assert_eq!(
+        stored_inventory_quantity(&store, "buyer", &defaults, "5062001"),
+        3,
+        "the retrying sweep must also make the durable bag agree"
+    );
+}
+
 #[test]
 fn cash_buy_happy_path_spends_and_persists() {
     let (mut world, mut output) = cash_world(vec![cash_commodity("120000001", "5062001", 1, 300)]);
@@ -350,7 +411,7 @@ fn cash_equipment_and_pets_keep_source_identity_after_store_reopen() {
         let mut bag = Vec::new();
         inventory::add_items(&mut bag, weapon.into(), 1, 24).unwrap();
         inventory::add_items(&mut bag, pet.into(), 1, 24).unwrap();
-        store.write_inventory("binding", &bag).unwrap();
+        store.seed_inventory_for_test("binding", &bag).unwrap();
         let stats = inventory::EquipmentStats { level: 200, ..Default::default() };
         let wrong = store.move_inventory("binding", "wrong", 1, 1, -5, 1, stats).unwrap();
         assert!(!wrong.success, "a cash weapon cannot bind to the coat slot");

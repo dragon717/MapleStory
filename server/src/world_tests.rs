@@ -2045,6 +2045,18 @@ fn tms273_warp_landings_are_grounded() {
             ) {
                 continue;
             }
+            // 埃德爾斯坦散步路道4 → 去礦山的路1（310030300.east00 →
+            // 310040000.west00，2026-09-16）：源 `west00` 落在 y=-129，而该列的
+            // 最近地板是 `foothold/5/0/47`（x -391..40）y=-99，Δ30px。这不是
+            // 导入丢地板——源图与目录**逐条**都是 116 条 foothold，该列上方的确
+            // 没有任何平台；原版落上去同样是自然下坠一小段。与 愛奧斯塔 两条
+            // 同性质：落点来自源，不为贴地把门搬下来。
+            if matches!(
+                (source.id.as_str(), portal.name.as_str()),
+                ("310030300", "east00")
+            ) {
+                continue;
+            }
             let target = map(target_id);
             let landing = portal
                 .target_portal_name
@@ -4181,6 +4193,8 @@ include!("ship_event_acceptance.rs");
 include!("ellinel_acceptance.rs");
 include!("helios_acceptance.rs");
 include!("ufo_acceptance.rs");
+include!("edelstein_acceptance.rs");
+include!("inventory_persistence_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

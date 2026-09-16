@@ -557,7 +557,7 @@ impl Store {
                     };
                     match add_result {
                         Err(error) => return Err(error),
-                        Ok(Err(code)) => {
+                        Ok(Err(error)) => {
                             // Business-level rejection (full tab or card
                             // cap) must leave the drop available.  Restoring
                             // the claim inside this transaction also keeps
@@ -571,7 +571,7 @@ impl Store {
                             if restored != 1 {
                                 return Err("account persistence failed".to_owned());
                             }
-                            (item_id, quantity, None, false, code.to_owned())
+                            (item_id, quantity, None, false, error.code().to_owned())
                         }
                         Ok(Ok(inventory_slot)) => {
                             if item_id == "0" {

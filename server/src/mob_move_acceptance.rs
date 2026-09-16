@@ -120,7 +120,10 @@ fn advance(world: &mut World, from_tick: u64, ticks: u64) {
 /// (塔身 1~100 樓与路德斯湖街), to 52.  The 2026-09-15 危險地帶/UFO 街 region
 /// added 10 more (4230127 馬堤安 / 4230128 培利堤安 / 4230129-4230134 on
 /// 洛斯威爾草原Ⅰ~Ⅳ and the UFO corridors/vents, plus 4230141/4230142
-/// 新葛雷白/新葛雷黑 on 走廊 H01~H03), to 62.
+/// 新葛雷白/新葛雷黑 on 走廊 H01~H03), to 62.  The 2026-09-16 埃德爾斯坦城簇
+/// added 6 authored field species — 150000 芽芽花盆（公園1）、1150000 巡邏機器人
+/// / 1150001 奇怪的里程碑（散步路道 1~2）、2150000 竊水賊（散步路道3）、
+/// 2150001 垃圾桶（散步路道4）、2150003 巡邏機器人S（去礦山的路1）—— to 68.
 #[test]
 fn every_deployed_monster_can_move() {
     let gameplay = mushroom_gameplay();
@@ -131,7 +134,7 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        62,
+        68,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();

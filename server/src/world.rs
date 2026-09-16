@@ -31,6 +31,9 @@ mod combat_rules;
 mod commands;
 #[path = "derived.rs"]
 mod derived;
+/// 埃德爾斯坦城/耶雷弗簇的城内脚本门 P 级路由（授权表与边界见模块头）。
+#[path = "edelstein.rs"]
+mod edelstein;
 #[path = "dialogue.rs"]
 mod dialogue;
 #[path = "elemental.rs"]
@@ -1127,6 +1130,27 @@ struct QuestSpec {
     /// `blocked_by` so one untranslated code can never leak into the UI.
     #[serde(default)]
     blocked_reason: Option<String>,
+    /// Raw source `Check/1/infoex` counters, exported verbatim by the chapter
+    /// adapters.  Descriptive only: it lets the stop message name the counter's
+    /// *kind* instead of saying "some counter"; `blocked_by` alone decides
+    /// playability, so a counter can never open or close a quest by itself.
+    #[serde(default)]
+    source_infoex: Vec<QuestInfoex>,
+}
+
+/// One source `Check/1/infoex` entry.  The source's two string children are not
+/// symmetric and which one carries the *kind* differs between entries, so the
+/// adapter exports both and the runtime reads both (see
+/// `quest.rs::counter_kinds`).  `exVariable` is the counter's name and `value`
+/// its target amount — verified against the `#R<id>Ex<name>Ref<id>#` demand
+/// string across every `QuestData` file, 1090 : 5 (T05 delivery record §2).
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestInfoex {
+    #[serde(default)]
+    value: String,
+    #[serde(default)]
+    ex_variable: String,
 }
 
 /// The sendable chat-emoticon catalogue, exported from

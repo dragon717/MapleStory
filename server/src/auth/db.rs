@@ -1106,16 +1106,34 @@ pub(crate) fn read_equipped_db(
     Ok(collected)
 }
 
+/// Persist the caller's post-action inventory table **by diff** against the
+/// durable rows (审查 §33/§34，增量 4).
+///
+/// 之前这里是「`DELETE FROM inventory WHERE account_id=?` 整表重写」：仓储把
+/// 修改权整个交给调用方的内存 Vec，任何一次调用都会把该账号所有背包行拆掉
+/// 重插。现在改为：
+///
+/// 1. 先在内存里归一化（`normalize_pet_instances` + 逐行 `ensure_*`）并做
+///    与旧版逐字相同的校验（同样的错误串，全部在校验期完成，不先动 SQL）；
+/// 2. 读出该账号**全部**持久行（不帯显示期过滤——窗口外的垃圾行旧版
+///    `DELETE` 也会带走，这里必须同样清掉，终点状态才逐行等价）；
+/// 3. 对差集做最小写入：键 `(inventory_type, slot)` 消失 ⇒ DELETE；键还在但
+///    内容变了 ⇒ 按 `rowid` UPDATE；键是新的 ⇒ INSERT。
+///
+/// 终点状态与整表重写逐行等价（同一事务内，原子性不变）；`inventory_*
+/// acceptance` 的全套回归与 `inventory_persistence_acceptance.rs` 的
+/// `total_changes` 差异计数钉住这条等价性。
 pub(super) fn write_inventory_tx(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
     inventory_items: &[InventoryItem],
 ) -> Result<(), String> {
-    tx.execute("DELETE FROM inventory WHERE account_id=?1", [account_id])
-        .map_err(|_| "account persistence failed")?;
-    let mut inventory_items = inventory_items.to_vec();
-    inventory::normalize_pet_instances(&mut inventory_items);
-    for item in &inventory_items {
+    // -- 1) 归一化 + 校验（不动 SQL；拒绝时事务里什么都没发生过）。 ----------
+    let mut after = inventory_items.to_vec();
+    inventory::normalize_pet_instances(&mut after);
+    let mut targets: std::collections::HashMap<(i64, i64), (String, i64, String, i64, i64)> =
+        std::collections::HashMap::new();
+    for item in &after {
         let kind = inventory::inventory_type(&item.item_id)
             .ok_or_else(|| format!("unknown inventory item {}", item.item_id))?;
         if !inventory::valid_slot(item.slot as i16) {
@@ -1132,18 +1150,110 @@ pub(super) fn write_inventory_tx(
         inventory::ensure_pet_instance(&mut item);
         let stats_json = serde_json::to_string(&item.stats.clone().unwrap_or_default())
             .map_err(|_| "account persistence failed")?;
+        let key = (i64::from(kind), i64::from(item.slot));
+        if targets
+            .insert(
+                key,
+                (
+                    item.item_id.clone(),
+                    i64::from(item.quantity),
+                    stats_json,
+                    i64::from(item.upgrade_count.unwrap_or(0)),
+                    i64::from(item.remaining_slots.unwrap_or(0)),
+                ),
+            )
+            .is_some()
+        {
+            // 整表重写时代这条会以 PRIMARY KEY 冲突失败；这里提前拒绝，
+            // 错误串同样终止调用方的事务。
+            return Err(format!("duplicate inventory slot for {}", item.item_id));
+        }
+    }
+
+    // -- 2) 读持久现状（不过滤：垃圾行也要被清理，等价于旧版 DELETE-all）。 --
+    let mut stmt = tx
+        .prepare(
+            "SELECT rowid,inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots
+             FROM inventory WHERE account_id=?1",
+        )
+        .map_err(|_| "account persistence failed")?;
+    let current: Vec<(i64, (i64, i64), String, Option<i64>, Option<String>, Option<i64>, Option<i64>)> = stmt
+        .query_map([account_id], |row| {
+            Ok((
+                row.get(0)?,
+                (row.get(1)?, row.get(2)?),
+                row.get(3)?,
+                row.get(4).ok(),
+                row.get(5).ok(),
+                row.get(6).ok(),
+                row.get(7).ok(),
+            ))
+        })
+        .map_err(|_| "account persistence failed")?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "account persistence failed")?;
+    drop(stmt);
+
+    // -- 3) 差集写入。 ------------------------------------------------------
+    let mut touched_keys: std::collections::HashSet<(i64, i64)> =
+        std::collections::HashSet::new();
+    for (rowid, key, current_item_id, current_quantity, current_stats, current_upgrade, current_remaining) in current {
+        match targets.get(&key) {
+            Some((item_id, quantity, stats_json, upgrade_count, remaining_slots)) => {
+                touched_keys.insert(key);
+                let stats_equal = |stored: &Option<String>, target: &str| {
+                    let parsed: serde_json::Value = stored
+                        .as_deref()
+                        .and_then(|json| serde_json::from_str(json).ok())
+                        .unwrap_or(serde_json::Value::Null);
+                    let expected: serde_json::Value =
+                        serde_json::from_str(target).unwrap_or(serde_json::Value::Null);
+                    parsed == expected
+                };
+                if *item_id == current_item_id
+                    && Some(*quantity) == current_quantity
+                    && stats_equal(&current_stats, stats_json)
+                    && Some(*upgrade_count) == current_upgrade
+                    && Some(*remaining_slots) == current_remaining
+                {
+                    continue;
+                }
+                tx.execute(
+                    "UPDATE inventory SET item_id=?2,quantity=?3,stats_json=?4,
+                     upgrade_count=?5,remaining_slots=?6 WHERE rowid=?1",
+                    params![
+                        rowid,
+                        item_id,
+                        quantity,
+                        stats_json,
+                        upgrade_count,
+                        remaining_slots,
+                    ],
+                )
+                .map_err(|_| "account persistence failed")?;
+            }
+            None => {
+                tx.execute("DELETE FROM inventory WHERE rowid=?1", [rowid])
+                    .map_err(|_| "account persistence failed")?;
+            }
+        }
+    }
+    for (key, (item_id, quantity, stats_json, upgrade_count, remaining_slots)) in &targets {
+        if touched_keys.contains(key) {
+            continue;
+        }
         tx.execute(
             "INSERT INTO inventory(account_id,inventory_type,slot,item_id,quantity,stats_json,upgrade_count,remaining_slots)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
                 account_id,
-                i64::from(kind),
-                i64::from(item.slot),
-                item.item_id,
-                i64::from(item.quantity),
+                key.0,
+                key.1,
+                item_id,
+                quantity,
                 stats_json,
-                i64::from(item.upgrade_count.unwrap_or(0)),
-                i64::from(item.remaining_slots.unwrap_or(0)),
+                upgrade_count,
+                remaining_slots,
             ],
         )
         .map_err(|_| "account persistence failed")?;
@@ -1359,6 +1469,12 @@ pub(super) fn insert_inventory_action(
 /// Add a normal item to the first matching stack, or the first empty regular
 /// inventory slot.  The caller owns the surrounding transaction so a failed
 /// full/overflow result leaves both the item and its source drop untouched.
+///
+/// 增量 4（审查 §7 增量 3 前置）：内层业务拒绝从 `.code()` 压平的
+/// `&'static str` 收敛回真正的类型 [`inventory::InventoryError`]——
+/// `.code()` 的字符串只在各调用方的**出口**（落 `inventory_actions.code` /
+/// wire 文案）处再取，类型不再在中途丢失，拾取侧（增量 3 的 `PickupSink`）
+/// 就能直接 `match` 类型而不必引入第二个拒绝枚举。
 pub(super) fn add_inventory_tx(
     tx: &rusqlite::Transaction<'_>,
     account_id: &str,
@@ -1367,7 +1483,7 @@ pub(super) fn add_inventory_tx(
     instance_stats: Option<&BTreeMap<String, i64>>,
     instance_remaining_slots: Option<u32>,
     instance_upgrade_count: Option<u32>,
-) -> Result<Result<u16, &'static str>, String> {
+) -> Result<Result<u16, inventory::InventoryError>, String> {
     if inventory::is_only(item_id) {
         let exists: Option<i64> = tx
             .query_row(
@@ -1381,14 +1497,14 @@ pub(super) fn add_inventory_tx(
             .optional()
             .map_err(|_| "account persistence failed")?;
         if exists.is_some() {
-            return Ok(Err("item_unavailable"));
+            return Ok(Err(inventory::InventoryError::ItemUnavailable));
         }
     }
     let Some(kind) = inventory::inventory_type(item_id) else {
-        return Ok(Err("unknown_item"));
+        return Ok(Err(inventory::InventoryError::UnknownItem));
     };
     if kind == 1 && quantity != 1 {
-        return Ok(Err("quantity_mismatch"));
+        return Ok(Err(inventory::InventoryError::QuantityMismatch));
     }
     let mut inventory_items = read_inventory_tx(tx, account_id)?;
     let slots =
@@ -1429,7 +1545,7 @@ pub(super) fn add_inventory_tx(
             write_inventory_tx(tx, account_id, &inventory_items)?;
             Ok(Ok(slot))
         }
-        Err(error) => Ok(Err(error.code())),
+        Err(error) => Ok(Err(error)),
     }
 }
 

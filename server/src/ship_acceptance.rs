@@ -424,20 +424,99 @@ fn phase3_toys_line_boards_at_the_dock_and_arrives_across() {
 }
 
 #[test]
-fn phase3_station_in_gate_routes_into_the_harbor_passage() {
+fn phase3_station_in_gate_follows_the_graph_authorization_table() {
     let mut world = ship_world3();
     let _rx = join_test_player(&mut world, "p1");
-    // 售票处 east00 在源里是 pt:7 `station_in` 脚本门（无静态目标）；服务端
-    // 按源邻接（200000120.west00 正指 200000100/east00）P 级路由，落点是
-    // 港口通道自己的 west00——不是凭空补一个方向。
+    // 售票处 east00 在源里是 pt:7 `station_in` 脚本门（无静态目标）。权威依据
+    // 是 `Graph.json` 的 `20/200000100/portal`：它给这扇门授权了七个码头
+    // （111/121/131/141/151/161/170），`portalNum` 一律 4。本仓库只装配了
+    // 121 与 170 ⇒ 门按授权落到码头，**不旁路到港口通道 200000120**（它不在
+    // 授权表里，只是码头的另一条回程旁路）。
     place(&mut world, "p1", "200000100");
     assert!(world.ship_portal_gate("p1", "req-station-in", "200000100", "east00"));
-    assert_eq!(world.players["p1"].map_id, "200000120");
-    assert_eq!(world.players["p1"].state.x, world.maps["200000120"].spawn.x);
+    assert_eq!(world.players["p1"].map_id, "200000121");
+    assert_eq!(world.players["p1"].state.x, world.maps["200000121"].spawn.x);
+    // 反向断言：港口通道**不得**再被这扇门选中——接上它会把登船相位门包
+    // 过去（200000120.east00 → 200000121.west00 与 121.west00 静态门撞车）。
+    assert_ne!(
+        world.players["p1"].map_id, "200000120",
+        "station_in 不得旁路到港口通道：它不在 Graph 授权表里，且是冗余旁路"
+    );
     // 非本模块的门不接管。
     assert!(!world.ship_portal_gate("p1", "req-other", "200000100", "west00"));
     // 玩具城售票处没有脚本门（源里是静态 pt:2），钩子同样不接管。
     assert!(!world.ship_portal_gate("p1", "req-toys", "220000100", "east00"));
+}
+
+#[test]
+fn phase3_station_in_authorization_table_is_pinned() {
+    // 授权表本身要钉住：七个目标是源事实，少一个就说明有人凭印象改窄了门。
+    assert_eq!(
+        super::ship::STATION_IN_AUTHORIZED,
+        &[
+            "200000111", "200000121", "200000131", "200000141", "200000151", "200000161",
+            "200000170",
+        ]
+    );
+    // 已装配的两个按源落点（两图 west00 都是回售票处的静态门）可落地。
+    assert_eq!(super::ship::station_in_exit("200000121"), Some("west00"));
+    assert_eq!(super::ship::station_in_exit("200000170"), Some("west00"));
+    // 未装配的五个、以及港口通道，都必须如实返回 None（走近收门提示），
+    // 不能凭空给一个落点把玩家送进空图。
+    for target in super::ship::STATION_IN_AUTHORIZED {
+        let expected = matches!(*target, "200000121" | "200000170").then_some("west00");
+        assert_eq!(
+            super::ship::station_in_exit(target),
+            expected,
+            "{target} 的落点判定与装配状态不符"
+        );
+    }
+    assert_eq!(super::ship::station_in_exit("200000120"), None);
+}
+
+#[test]
+fn phase3_station_in_lands_on_an_assembled_map() {
+    // 已装配性不由本表保证（表是源授权），但**已装配的**目标必须真在目录里，
+    // 否则 station_in_exit 就是死代码。这里读**真图目录**交叉核对：夹具
+    // `ship_room()` 只有 `sp`，量它等于量夹具，量不出源事实。
+    // 路径走 `CARGO_MANIFEST_DIR`（测试的 cwd 是 `server/`，不是仓库根）。
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../shared/maps.json"),
+    )
+    .expect("shared/maps.json");
+    let catalog: serde_json::Value = serde_json::from_str(&source).expect("maps.json parses");
+    // `maps` 是数组（每项自带 `id`），不是以 id 为键的对象。
+    let rooms = catalog["maps"].as_array().expect("maps array");
+    let find = |map_id: &str| rooms.iter().find(|room| room["id"] == map_id);
+
+    let assembled: Vec<&str> = super::ship::STATION_IN_AUTHORIZED
+        .iter()
+        .copied()
+        .filter(|target| find(target).is_some())
+        .collect();
+    // 授权七个、装配两个；两者的差就是「走近收门提示」的那五个。
+    assert_eq!(assembled, vec!["200000121", "200000170"]);
+    // 装配状态与落点判定必须**逐一对应**：装了就要有落点，没装就必须没有。
+    for target in super::ship::STATION_IN_AUTHORIZED {
+        assert_eq!(
+            super::ship::station_in_exit(target).is_some(),
+            find(target).is_some(),
+            "{target} 的落点判定与真图目录的装配状态不符"
+        );
+    }
+    // 港口通道刻意不接：它确实装配了，但落点仍是 None（不在授权表里）。
+    assert!(find("200000120").is_some());
+    assert_eq!(super::ship::station_in_exit("200000120"), None);
+    // 两个已装配目标必须有 west00 回程门，否则落地就会掉出地图边界。
+    for target in assembled {
+        let portals = find(target).expect("assembled")["portals"]
+            .as_array()
+            .expect("portals");
+        assert!(
+            portals.iter().any(|portal| portal["name"] == "west00"),
+            "{target} 必须有 west00 回程门"
+        );
+    }
 }
 
 #[test]

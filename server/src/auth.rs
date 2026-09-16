@@ -1113,19 +1113,25 @@ impl Store {
         )
     }
 
-    /// Public wrapper around `write_inventory_tx` for callers that mutate
-    /// inventory outside an existing transaction (for example: the shop buy
-    /// pipeline that adjusts slots and equipped directly).
-    pub fn write_inventory(
+    /// 增量 4（审查 §34）：整表写回的仓储外观已拆除——它此前唯一的生产
+    /// 调用方（现金商店租赁清扫）改走 `auth/cash.rs::rental_sweep_commit`
+    /// 的单事务提交，商店买/卖/买回早在 NB-04 就各自有了 commit helper。
+    /// "业务拿内存 Vec 直接重写背包表"的入口从此不存在；验收测试需要
+    /// 造背包初始状态时用 [`Self::seed_inventory_for_test`]。
+    #[cfg(test)]
+    pub(crate) fn seed_inventory_for_test(
         &self,
         account_id: &str,
         inventory_items: &[InventoryItem],
     ) -> Result<(), String> {
-        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
-        let tx = db.transaction().map_err(|_| "account persistence failed")?;
-        write_inventory_tx(&tx, account_id, inventory_items)?;
-        tx.commit().map_err(|_| "account persistence failed")?;
-        Ok(())
+        self.with_db(|db| {
+            let tx = db
+                .transaction()
+                .map_err(|_| "account persistence failed".to_owned())?;
+            db::write_inventory_tx(&tx, account_id, inventory_items)?;
+            tx.commit()
+                .map_err(|_| "account persistence failed".to_owned())
+        })
     }
 
     /// 現金商店限购：one SN's already-consumed purchase budget for this

@@ -8,6 +8,11 @@
 // 只把「可执行」的任务写进日志，于是玩家交完 36316 后日志里什么都不会新增 ——
 // 不可执行与不存在在界面上长得一模一样。
 //
+// 之后一轮把 `infoex` 的语义核定完了（`exVariable` 是计数器名字、`value` 是
+// 目标数；见 §2 的 1090:5 交叉验证），于是停下的理由可以按**计数器种类**说准：
+// `dummy` 是剧情场景的布尔位，`talk` 是对话步骤。种类只是把理由说准，不放行
+// 任何一条任务 —— 见 `a_script_counter_is_named_from_the_source_and_still_opens_nothing`。
+//
 // 这里钉住的是"可解释的停止"而不是"把 36317 打开"：源里没有的剧情不伪造，
 // 但停下这件事必须说清楚、指得出真实地图与 NPC，并且绝不给出按下去必被拒的
 // 接取按钮。
@@ -62,10 +67,15 @@ fn the_stop_after_the_hand_in_says_why_instead_of_disappearing() {
         .unwrap_or_else(|| panic!("{ROUTE_STOP} 已解锁，日志里不能没有它"));
     assert_eq!(stop["status"], "blocked");
 
-    // 说人话，不是把装配标签直接贴给玩家看。
+    // 说人话，不是把装配标签直接贴给玩家看。计数器种类按源 `infoex` 说出来：
+    // 36317 的是 `dummy`，即剧情场景的布尔位，不再是笼统的"有计数器没复刻"。
     let reason = stop["blockReason"].as_str().expect("blockReason 必须有");
     assert!(reason.starts_with("尚未開放："), "阻塞原因要人话：{reason}");
-    assert!(reason.contains("原版腳本計數器尚未復刻"), "阻塞原因要命中真实原因：{reason}");
+    assert!(reason.contains("劇情場景"), "阻塞原因要说出计数器种类：{reason}");
+    assert!(
+        !reason.contains("原版腳本計數器尚未復刻"),
+        "已核定种类就不该再退回笼统措辞：{reason}"
+    );
     assert!(!reason.contains("script-counter"), "装配标签不能原样露给玩家：{reason}");
 
     // 指向真实存在的地图与 NPC，并明说它还没开放：只给坐标不给状态会让人白跑，
@@ -193,4 +203,77 @@ fn an_unknown_block_tag_stays_honest_and_executable_quests_are_never_blocked() {
         ..QuestSpec::default()
     };
     assert!(world.quest_blocked_reason(&runnable).is_none());
+}
+
+/// 真装配数据里某一条任务的规格，与 `chapter_actual_world` 反序列化的是同一份
+/// `shared/gameplay.json`。
+fn route_spec<'a>(world: &'a World, quest_id: &str) -> &'a QuestSpec {
+    world
+        .gameplay
+        .quests
+        .iter()
+        .find(|spec| spec.quest_id == quest_id)
+        .unwrap_or_else(|| panic!("装配数据里必须有 {quest_id}"))
+}
+
+#[test]
+fn a_script_counter_is_named_from_the_source_and_still_opens_nothing() {
+    // 计数器语义已核定（`exVariable` 是名字、`value` 是目标数，见 36317 交付
+    // 记录 §2），所以能说出"这一步是什么"的理由就该说出来；说不出来的时候
+    // 保持原文案，不发明类别。
+    let account = "route-counter-kind";
+    let (world, mut rx) = route_world(account, &ROUTE_PREV);
+    chapter_drain(&mut rx);
+
+    assert_eq!(
+        world.quest_blocked_reason(route_spec(&world, ROUTE_STOP)),
+        Some("尚未開放：原版此步驟由劇情場景推進，腳本未隨源提供".to_owned()),
+        "36317 的 dummy 是剧情场景的布尔位"
+    );
+
+    // `talk` 是对话步骤：36350 自己的需求串就是「和#questorder1##r#p2132001##k對話」。
+    for quest_id in ["36329", "36333", "36350"] {
+        let reason = world
+            .quest_blocked_reason(route_spec(&world, quest_id))
+            .unwrap_or_else(|| panic!("{quest_id} 必须给出停止理由"));
+        assert!(reason.contains("對話腳本"), "{quest_id}: {reason}");
+    }
+
+    // 说不出种类的仍用原文案，只把源里的 token 当括号内的诊断后缀，不当句子。
+    for (quest_id, kind) in [("36328", "kill"), ("36365", "dir3")] {
+        let reason = world
+            .quest_blocked_reason(route_spec(&world, quest_id))
+            .unwrap_or_else(|| panic!("{quest_id} 必须给出停止理由"));
+        assert!(reason.contains("原版腳本計數器尚未復刻"), "{quest_id}: {reason}");
+        assert!(reason.contains(&format!("（{kind}）")), "{quest_id}: {reason}");
+    }
+
+    // 源只写了数量、没写名字（`1401` 一族）时不许编一个种类出来。
+    let unnamed = QuestSpec {
+        executable: Some(false),
+        blocked_by: vec!["script-counter".to_owned()],
+        source_infoex: vec![QuestInfoex {
+            value: "3".to_owned(),
+            ex_variable: String::new(),
+        }],
+        ..QuestSpec::default()
+    };
+    assert_eq!(
+        world.quest_blocked_reason(&unnamed),
+        Some("尚未開放：原版腳本計數器尚未復刻".to_owned()),
+        "没有名字可用时保持原文案"
+    );
+
+    // 命名种类只是把话说准，一条都不许因此放行：这十条的完成条件仍然绑在
+    // 未复刻的脚本计数器上。
+    for quest_id in [
+        "1401", "1403", "1404", "1405", "36317", "36328", "36329", "36333", "36350", "36365",
+    ] {
+        let spec = route_spec(&world, quest_id);
+        assert!(!spec.executable(), "{quest_id} 不得因命名种类而被放行");
+        assert!(
+            spec.blocked_by.iter().any(|code| code == "script-counter"),
+            "{quest_id} 必须仍带着 script-counter 边界"
+        );
+    }
 }

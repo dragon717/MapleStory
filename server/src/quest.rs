@@ -391,7 +391,7 @@ impl World {
             // Unknown tags stay honest instead of pretending to be story: the
             // code is kept as a diagnostic suffix, never on its own.
             let text = match code {
-                "script-counter" => "原版腳本計數器尚未復刻".to_owned(),
+                "script-counter" => Self::script_counter_reason(spec),
                 "script-scene" => "原版劇情場景尚未復刻".to_owned(),
                 "script-item-source" => "任務道具由原版腳本發放，尚未復刻".to_owned(),
                 "missing-start-npc" => "接取NPC尚未出現在目前的版本中".to_owned(),
@@ -409,6 +409,57 @@ impl World {
             return None;
         }
         Some(format!("尚未開放：{}", parts.join("、")))
+    }
+
+    /// Every non-numeric child of the quest's source `infoex` counters, in
+    /// source order and de-duplicated.  The source writes the counter's amount
+    /// as the numeric child and its *kind* in the other one, but which child
+    /// that is differs between entries — `36315` is `exVariable:"kill"` while
+    /// `36319` is `value:"kill"` — so both are read, the same conservative rule
+    /// the adapter uses to recognise a kill counter.  Entries whose children are
+    /// all numeric carry no kind at all (e.g. `1401`) and contribute nothing.
+    fn counter_kinds(spec: &QuestSpec) -> Vec<&str> {
+        let mut kinds: Vec<&str> = Vec::new();
+        for entry in &spec.source_infoex {
+            for child in [entry.ex_variable.as_str(), entry.value.as_str()] {
+                let child = child.trim();
+                if child.is_empty() || child.chars().all(|digit| digit.is_ascii_digit()) {
+                    continue;
+                }
+                if !kinds.contains(&child) {
+                    kinds.push(child);
+                }
+            }
+        }
+        kinds
+    }
+
+    /// A `script-counter` stop is not one thing.  Where the source names the
+    /// counter, the name says what kind of step it is, and the two kinds this
+    /// project can state from source evidence read very differently from a bare
+    /// numeric counter:
+    ///
+    /// * `dummy` is a story scene's boolean.  All 26 of its demand-bearing
+    ///   siblings ask for a scene or a place in words (`和雷卡托村長對話`,
+    ///   `抵達頂層`, `進入反轉城市`), and not one of the 74 ships an end script.
+    /// * `talk` is a dialogue step — `36350`'s own demand string is
+    ///   `和#questorder1##r#p2132001##k對話`.
+    ///
+    /// The raw token stays a parenthesised diagnostic and never becomes a
+    /// sentence of its own; when the source wrote no kind at all the original
+    /// wording stays, because inventing one would be worse than saying less.
+    fn script_counter_reason(spec: &QuestSpec) -> String {
+        let kinds = Self::counter_kinds(spec);
+        if kinds.contains(&"dummy") {
+            return "原版此步驟由劇情場景推進，腳本未隨源提供".to_owned();
+        }
+        if kinds.contains(&"talk") {
+            return "原版此步驟由對話腳本推進，腳本未隨源提供".to_owned();
+        }
+        match kinds.first() {
+            Some(kind) => format!("原版腳本計數器尚未復刻（{kind}）"),
+            None => "原版腳本計數器尚未復刻".to_owned(),
+        }
     }
 
     pub(super) fn quest_menu_choices(&self, id: &str, template_id: &str) -> Vec<(String, String)> {

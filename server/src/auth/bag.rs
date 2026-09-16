@@ -318,7 +318,7 @@ impl Store {
                     )?;
                     (true, String::new())
                 }
-                Err(code) => (false, code.to_owned()),
+                Err(error) => (false, error.code().to_owned()),
             }
         };
         let outcome = InventoryOutcome {

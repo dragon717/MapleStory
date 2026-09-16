@@ -34,6 +34,11 @@ impl World {
         if self.ufo_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
             return;
         }
+        // 埃德爾斯坦城/耶雷弗簇城内脚本门（`edelstein.rs`）：埃德爾斯坦城
+        // `310000000` 的四扇 pt:7 门（議會/住宅/臨時機場/美髮店）；已处置即返回。
+        if self.edelstein_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
+            return;
+        }
         let source_map = self.map_for(&source_map_id).clone();
         let Some(portal) = source_map
             .portals
