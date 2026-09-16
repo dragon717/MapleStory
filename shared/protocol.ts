@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 24;
-export const CONTENT_VERSION = 'tms273-29';
+export const CONTENT_VERSION = 'tms273-30';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -432,6 +432,25 @@ export interface ShipSnapshotState {
   route: 'victoria-orbis' | 'orbis-victoria' | 'victoria-erev' | 'erev-victoria' | 'victoria-edelstein' | 'edelstein-victoria';
   phase: 'sailing' | 'boarding';
   secondsLeft: number;
+  /** 甲板正被「地獄巴洛古」袭击时才有（三期）。同样是展示字段：袭击的刷怪、
+   *  撤离与掉落在服务端权威模拟里完成，客户端只用它显示倒计时。 */
+  event?: ShipEventState;
+}
+/** 飞行船甲板袭击（三期）。`monsterId` 是源模板 id，`monsterName` 取自同版
+ *  怪物名表（`String/Mob.json`）。 */
+export interface ShipEventState {
+  monsterId: string;
+  secondsLeft: number;
+}
+/** 甲板袭击开始/结束的全图播报。与 `shipEvent` 快照字段不同，这是**一次性**
+ *  事件，只在袭击起止那一刻推给甲板上的观察者。 */
+export interface ShipEventNotice {
+  type: 'shipEvent';
+  route: ShipSnapshotState['route'];
+  event: 'balrog_attack' | 'balrog_over';
+  monsterId: string;
+  monsterName: string;
+  seconds: number;
 }
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
@@ -508,6 +527,9 @@ export type ServerMessage =
   /** Result of one party intent. A replayed `requestId` replays this same
    *  outcome instead of acting a second time. */
   | { type: 'partyResult'; requestId: string; success: boolean; code: string }
+  /** 甲板袭击的全图播报（三期）。一次性事件，不是权威状态：谁在甲板上、袭击
+   *  何时起止、巴洛古何时被撤，全部由服务端的顺序模拟决定。 */
+  | ShipEventNotice
   /** Display-only notice for a party event the character did not cause itself
    *  — a declined invitation, or being kicked. Never authoritative state. */
   | { type: 'partyNotice'; code: string; playerId: string; playerName: string }

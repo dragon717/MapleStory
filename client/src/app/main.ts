@@ -598,6 +598,20 @@ async function enterGame(session: LoginResponse) {
         party?.receiveNotice(message.code, message.playerName);
         status(protocolText(message.code, english ? 'Party notice' : '队伍通知'), message.code !== 'party_declined');
       }
+      if (message.type === 'shipEvent') {
+        // 飞行船甲板袭击播报（三期）：服务端权威事实，客户端只做展示——巴洛古
+        // 本身按普通怪物走 `monsters[]` 快照，这里只是把起止那一刻提示给全甲板。
+        // 怪物名是源名表里的繁体专名，句子按产品默认用简体。
+        const attacking = message.event === 'balrog_attack';
+        status(
+          attacking
+            ? (uiLocale() === 'en'
+              ? `${message.monsterName} is attacking the deck!`
+              : `${message.monsterName} 袭击甲板！`)
+            : (uiLocale() === 'en' ? 'The deck is quiet again.' : '甲板上的袭击已经平息。'),
+          attacking,
+        );
+      }
       if (message.type === 'friendState') {
         // Friends are an account fact, so both lists always arrive together:
         // a block also dissolves the friendship, and a half-window would let

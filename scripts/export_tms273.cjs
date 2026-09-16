@@ -380,7 +380,11 @@ async function exportEntities() {
     // neither has an authored Map.life row (the source practice map 993166xxx is
     // not decodable locally), so they are exported explicitly.  See
     // scripts/tms273_calamity.cjs for the placement decision.
-    if(kind==='m') for(const extra of ['3220000','8645261']) idsSet.add(extra);
+    // 8150000 地獄巴洛古 is the 航行中襲擊事件的怪：同版源里八张飞行船图
+    // （200090000/001/010/011/100/110/600/610…）的 `life` 节点**全是空的**，
+    // 没有任何 Map.life 行，事件触发写在客户端脚本里而 TMS273 一鍵端不带脚本
+    // ⇒ 模板同样显式导出，落点交给 server/src/ship_event.rs（P 级事件规则）。
+    if(kind==='m') for(const extra of ['3220000','8645261','8150000']) idsSet.add(extra);
     const ids=[...idsSet].sort((a,b)=>Number(a)-Number(b));
     for(const id of ids) {
       const source=`${folder}/${id.padStart(7,'0')}.img`;

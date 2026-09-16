@@ -234,7 +234,7 @@ fn notebook_acquisition_is_idempotent_and_bumps_the_revision_once_per_commit() {
     );
     // 角色作用域与账号作用域互不影响。
     assert_eq!(store.notebook_revision("account", "nb-char").unwrap(), 0);
-    assert_eq!(catalog.item_count(), 2584);
+    assert_eq!(catalog.item_count(), 2588);
 
     drop(store);
     nb_cleanup(&path);

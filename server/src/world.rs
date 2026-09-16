@@ -77,6 +77,10 @@ mod quest_rules;
 mod revive;
 #[path = "ship.rs"]
 mod ship;
+/// 航行中「地獄巴洛古」袭击事件（三期）：源船图都不放怪，调度规则是 P 级
+/// 常量，怪物本体（8150000）是真实源数据。见模块头。
+#[path = "ship_event.rs"]
+mod ship_event;
 #[path = "skills.rs"]
 mod skills;
 #[path = "social.rs"]
@@ -1908,6 +1912,10 @@ pub struct World {
     /// 相位进入航行时整单到站传送并清空；进程内状态，重启即清。
     /// 落在船图却不在名单里的角色由 `ship::step_ship_recover` 按相位兜底。
     ship_passengers: [Vec<String>; 8],
+    /// 航行中「地獄巴洛古」袭击事件，按航线索引（`ship::SHIP_ROUTES`）。
+    /// 进程内状态，重启即清——与 `ship_passengers` 同一档内存状态边界；
+    /// 相位本身是 unix 时间的纯函数，所以事件中断也不影响下一班。
+    ship_events: [Option<ship_event::BalrogEvent>; 8],
     /// Bounded request-id replay window for 現金商店 intents (`cashshop.rs`).
     cash_requests: BTreeMap<(String, String), cashshop::CashOutcome>,
     /// Per-(player, SN) cash purchase counters backing `Commodity.img`
@@ -2045,6 +2053,7 @@ impl World {
             party_invites: BTreeMap::new(),
             party_requests: BTreeMap::new(),
             ship_passengers: std::array::from_fn(|_| Vec::new()),
+            ship_events: std::array::from_fn(|_| None),
             cash_requests: BTreeMap::new(),
             cash_purchases: BTreeMap::new(),
             party_sequence: 0,
@@ -2521,7 +2530,13 @@ impl World {
         // 共用船图 `130090000` 按乘客名单归属），其余地图的快照不带该字段，
         // 避免全量广播膨胀。
         if let Some(route_index) = self.ship_snapshot_route_index(map_id, id) {
-            snapshot["ship"] = ship::ship_snapshot_field(route_index);
+            let mut ship_field = ship::ship_snapshot_field(route_index);
+            // 航行中袭击只在这条航线正被袭击时附上 `event`，其余班次快照形态不变
+            // （客户端按 `ship.event` 是否存在决定是否显示袭击倒计时）。
+            if let Some(event) = self.ship_event_snapshot_field(route_index, unix_now_ms() / 1000) {
+                ship_field["event"] = event;
+            }
+            snapshot["ship"] = ship_field;
         }
         snapshot.to_string()
     }
@@ -3336,6 +3351,9 @@ impl World {
         // 飞行船到站传送在怪物/宠物步进之前落位，被传送角色当拍即以到站
         // 站台身份参与后续模拟。
         self.step_ship();
+        // 到站传送落位之后立刻判定袭击：本拍刚被传上岸的乘客不再算「甲板上
+        // 有人」，靠港相位下这一步只会撤怪，不会补刷。
+        self.step_ship_event();
         self.step_boss_practice();
         self.step_monsters();
         self.step_ice_fields();

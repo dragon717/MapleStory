@@ -484,6 +484,13 @@ def convert(args):
     # 8645262/8645264 (36319/36322) are deliberately absent: those quests have no
     # source `selfComplete`, so placing their target would not make them playable.
     calamity_templates = {"8645261"}
+    # P 飞行船「航行中襲擊事件」的怪 8150000 地獄巴洛古。  同版源里八张飞行船图
+    # （`200090000/001/010/011/100/110/600/610`）的 `life` 节点**全部为空**，
+    # 事件由客户端脚本触发，而 TMS273 一鍵端不带任何脚本体 ⇒ 模板同样没有
+    # authored Map.life 行，显式导出；落点与相位规则在 `server/src/ship_event.rs`
+    # （P 级事件规则，理由见那里的模块注释）。  与 `calamity_templates` 的区别只是
+    # 它按相位反复出现，不是一次性场景怪。
+    event_templates = {"8150000"}
     # P-only templates whose client Mob image ships no `info/exp` at all.  A
     # quest-exclusive mob simply has no authored EXP, so the template keeps 0
     # instead of inventing a curve value; every other monster must still carry a
@@ -495,6 +502,7 @@ def convert(args):
         {str(e.get("id", "")) for _, e in visible_mobs}
         | {practice_boss}
         | calamity_templates
+        | event_templates
     )
     raw_npc_ids = sorted({str(e.get("id", "")) for _, e in visible_npcs})
     if not all(raw_mob_ids) or not all(raw_npc_ids):
@@ -885,6 +893,7 @@ def convert(args):
         "TMS273 NPC dialogue/script references are not converted; shop NPCs use the current runtime's direct Act shop route and no Say text is invented.",
         "Player initial HP/attributes were not found in the selected TMS273 map/entity inputs; empty player config preserves current engine compatibility defaults.",
         "P: 8645261 藍色蘑菇王 (楓之島災禍篇 36315's verified kill target) has no authored `info/exp` in the client Mob image, so its template carries exp 0 rather than an invented value. Placement is the P scene execution in scripts/tms273_calamity.cjs.",
+        "P: 8150000 地獄巴洛古 has no authored Map.life row either — every source airship map (200090000/001/010/011/100/110/600/610) ships an empty `life` node and the attack event lived in client scripts the TMS273 starter package does not carry. The template is real source data (Mob/8150000.json + data/MobReward/8150000.json); only the trigger rule (phase, timing, which decks) is P and lives in server/src/ship_event.rs.",
     ])
     gameplay = {
         "sourceContentVersion": "TMS273-273",

@@ -63,8 +63,8 @@ struct CatalogFile {
     catalog_version: String,
     items: BTreeMap<String, CatalogItem>,
     /// 页签 → 该页的规范化物品 id。装配时它已是 `items` 的一个**无重叠全覆盖**
-    /// 分区（equipment 1738 + use 206 + setup 1 + etc 86 + cash 520 + pet 12 +
-    /// quest 21 = 2584 ＝ `items` 的全部键），所以它同时是「这个 id 属于哪一页」
+    /// 分区（equipment 1741 + use 206 + setup 1 + etc 87 + cash 520 + pet 12 +
+    /// quest 21 = 2588 ＝ `items` 的全部键），所以它同时是「这个 id 属于哪一页」
     /// 的唯一索引。
     sections: BTreeMap<String, Vec<String>>,
     monster_structure: MonsterStructureFile,
