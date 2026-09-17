@@ -1,4 +1,5 @@
 import { CONTENT_VERSION, PROTOCOL_VERSION, type ClientMessage, type LoginResponse, type ServerMessage } from '../../../shared/protocol';
+import { wsUrl } from './endpoints';
 import { protocolText, uiLocale } from '../app/i18n';
 // authenticate（认证 HTTP）已迁到 ./auth-api（计划 §9.2）；本文件只保留实时连接。
 /** Terminal results must stop the retry loop, otherwise two pages or a banned
@@ -44,7 +45,7 @@ export class Connection {
     let handshakeFailure = '';
     let handshakeCode = '';
     let acknowledged = false;
-    const socket = this.socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
+    const socket = this.socket = new WebSocket(wsUrl());
     this.timeout = setTimeout(() => { if (this.socket === socket) { this.report('offline', '连接超时，请重连。'); socket.close(); } }, 10000);
     socket.onopen = () => this.send({ type: 'hello', token: this.session.token, protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION, lang: uiLocale() });
     socket.onmessage = event => {

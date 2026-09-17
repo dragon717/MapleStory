@@ -939,6 +939,14 @@ impl World {
                 .and_then(|level| level.stance_prop)
                 .unwrap_or(0)
                 .clamp(0, 100) as u64;
+            // 承伤防御是**装备侧**的 `weapon_defense`（`incPDD`）：魔力之盾的 `pddX`
+            // 由 `commit_incoming_damage` 在内部再减一次（`shield_bonus`），所以这里
+            // **不能**用聚合的 `defense()`——它已含 `pddX`，会变成同一击扣两次。
+            // 面板口径（含 pddX）与实战抵偿总量因此仍是一致的，只是拆在两处。
+            // 承伤防御是**装备侧**的 `weapon_defense`（`incPDD`）：魔力之盾的 `pddX`
+            // 由 `commit_incoming_damage` 在内部再减一次（`shield_bonus`），所以这里
+            // **不能**用聚合的 `defense()`——它已含 `pddX`，会变成同一击扣两次。
+            // 面板口径（含 pddX）与实战抵偿总量因此仍是一致的，只是拆在两处。
             let defense = self
                 .gameplay
                 .player

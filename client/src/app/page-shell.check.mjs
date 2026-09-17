@@ -16,6 +16,10 @@ const i18nCode = ts.transpileModule(await readFile(new URL('./i18n.ts', import.m
 }).outputText.replace("import OpenCC from 'opencc-js/t2cn';", 'const OpenCC = { Converter: () => text => text };');
 globalThis.__RELEASE_VERSION__ = '9.9.9-check';
 globalThis.__RELEASE_TIME__ = '2026-09-12';
+// 页面身份（v3 §8）：dev（serve）＝DEV_SOURCE，构建＝BUILT_PACKAGE。
+// 构建产物页的发布徽章带构建时间，源码开发页不带（配置求值时间不是「最后一次
+// 成功应用源码的时间」），所以这里按构建产物一侧钉住。
+globalThis.__CODE_MODE__ = 'BUILT_PACKAGE';
 const shellCode = ts.transpileModule(await readFile(new URL('./page-shell.ts', import.meta.url), 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replaceAll("from './i18n'", `from 'data:text/javascript;base64,${Buffer.from(i18nCode).toString('base64')}'`);

@@ -1,6 +1,7 @@
 import type { ClientMessage, InventoryItem } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, StorageUiData } from '../../assets/manifest';
 import { itemName } from '../inventory/names';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import { protocolText, uiLocale } from '../../app/i18n';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
@@ -83,7 +84,7 @@ export class StorageView {
   /** Item tab / trade rules come from the same catalog the inventory uses. */
   private async loadCatalog() {
     try {
-      const response = await fetch('/assets/items.json');
+      const response = await fetch(resolveAssetUrl('/assets/items.json'));
       this.catalog = (await response.json()) as Record<string, ItemCatalogEntry>;
       if (this.root) this.render();
     } catch {

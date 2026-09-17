@@ -35,7 +35,9 @@ const {frameAt}=await load('../player/animation.ts');
 const {WindbellScene}=await load('./scene.ts',{
  ...configImport,
  "import { frameAt } from '../player/animation';":`const frameAt=${frameAt.toString()};`,
- "import { WINDBELL_ASSETS as A } from './maps';":"const A='/assets/windbell/';"
+ "import { WINDBELL_ASSETS as A } from './maps';":"const A='/assets/windbell/';",
+ // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩，逻辑 key 与下载地址在此相同。
+ "import { resolveAssetUrl } from '../../assets/resource-url';":"const resolveAssetUrl=url=>url;"
 });
 // Run the actual constructor/preload/state path with a minimal Phaser drawing surface.
 const queued=new Set(), played=[];

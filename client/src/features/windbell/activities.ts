@@ -1,5 +1,6 @@
 import type { WindbellAction, WindbellState, PlayerState, NpcState } from '../../../../shared/protocol';
 import config from '../../../../shared/windbell.json';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 
 /** Menus send intentions; the server owns entry, proximity and world facts. */
@@ -30,7 +31,7 @@ export class ActivitiesView {
       ['风铃桥渡口', '扶正货车、交接材料，看一座公共桥恢复通行。', 'enterBridge', 'bridge-dormant'],
     ] as const) {
       const card = document.createElement('article'); const art = document.createElement('img');
-      art.src = `/assets/windbell/${image}.png`; art.alt = name;
+      art.src = resolveAssetUrl(`/assets/windbell/${image}.png`); art.alt = name;
       const heading = document.createElement('h3'); heading.textContent = name;
       const copy = document.createElement('p'); copy.textContent = description;
       card.append(art, heading, copy, this.button('进入', () => { this.send(action); this.close(); })); this.root.append(card);

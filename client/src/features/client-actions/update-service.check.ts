@@ -1,0 +1,89 @@
+// update-service.check.ts — 强制更新状态机的离线检查（v3 §6.3 / U01 U02 U04）。
+//
+// 钉住的是**契约**，不是某次网络结果：
+//   * 兼容性只做校验、不放宽：协议或内容版本不一致一律停在 blocked；
+//   * 检查失败不假报成功，也不导航；
+//   * 重复点击合并成一次检查（U01），导航只发生一次；
+//   * 入口 URL 不用 `location.reload(true)`：导航到带发布标识的根地址；
+//   * 修复代数只在用户明确选择修复时推进，普通更新保持原代数。
+//
+// 仓库约定：`.ts` 检查会被 `tsc --noEmit` 类型检查，因此这里不 import
+// `node:*`（项目没有 @types/node），断言用本文件自带的 equal/ok。
+
+export {};
+// runtime-config 在模块顶层读取 `__CODE_MODE__`（构建期 define），stub 必须先于装载。
+Object.defineProperty(globalThis, '__CODE_MODE__', { value: 'BUILT_PACKAGE' });
+
+const { UpdateService, evaluateCompatibility, entryUrl } = await import('./update-service.ts');
+const { PROTOCOL_VERSION, CONTENT_VERSION } = await import('../../../../shared/protocol.ts');
+
+function equal(actual: unknown, expected: unknown, label = '') {
+  if (actual !== expected) throw new Error(`${label} expected ${String(expected)}, received ${String(actual)}`);
+}
+function ok(label: string) { console.log(`  ok  ${label}`); }
+
+const compatible = { releaseId: 'r-1', protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION, assetRevision: null, desktop: null };
+
+// ① 兼容性：只校验，不放宽。
+equal(evaluateCompatibility(compatible as never), 'compatible', 'compatible');
+equal(evaluateCompatibility({ ...compatible, protocolVersion: PROTOCOL_VERSION + 1 } as never), 'incompatible-protocol', 'protocol');
+equal(evaluateCompatibility({ ...compatible, contentVersion: `${CONTENT_VERSION}-next` } as never), 'incompatible-content', 'content');
+ok('协议 / 内容版本不一致分别被判为两种阻塞，不降级放行');
+
+// ② 重复点击合并：一次检查、一次导航。
+let fetches = 0;
+let navigated: string[] = [];
+const service = new UpdateService({
+  navigate: url => { navigated.push(url); },
+  fetchRelease: async () => { fetches++; return compatible as never; },
+  href: () => 'http://127.0.0.1:3010/?lang=zh',
+});
+// 真的是**并发**两次点击（都在在途任务结束前发起），不是先等一次再发起第二次。
+const [first, second] = await Promise.all([service.check(), service.check()]);
+equal(fetches, 1, 'U01 并发点击');
+equal(first.phase, 'verified', 'first');
+equal(second.phase, 'verified', 'second');
+ok('U01：并发点击合并为单个在途任务');
+
+// ③ 应用：导航一次，地址带发布标识，保留既有的 lang 参数。
+await service.apply(false);
+equal(navigated.length, 1, '一次确认只导航一次');
+const url = new URL(navigated[0] ?? '');
+equal(url.pathname, '/', 'pathname');
+equal(url.searchParams.get('r'), 'r-1', 'release id');
+equal(url.searchParams.get('lang'), 'zh', 'lang');
+equal(url.searchParams.get('ce'), null, '普通更新不得带修复代数');
+ok('U03：入口 URL 带发布标识，普通更新不带修复代数');
+
+// ④ 失败路径：不导航、不假成功。
+navigated = [];
+const failing = new UpdateService({
+  navigate: url2 => { navigated.push(url2); },
+  fetchRelease: async () => { throw new Error('offline'); },
+  href: () => 'http://127.0.0.1:3010/',
+});
+const failed = await failing.apply(true);
+equal(failed.phase, 'failed', 'failed phase');
+equal(failed.reason, 'network', 'failed reason');
+equal(navigated.length, 0, '检查失败不得导航');
+ok('U02：检查失败停在 failed，不导航、不报成功');
+
+// ⑤ 阻塞路径：版本不兼容时停在 blocked。
+navigated = [];
+const blocked = new UpdateService({
+  navigate: url3 => { navigated.push(url3); },
+  fetchRelease: async () => ({ ...compatible, protocolVersion: PROTOCOL_VERSION + 1 }) as never,
+  href: () => 'http://127.0.0.1:3010/',
+});
+const blockedState = await blocked.apply(false);
+equal(blockedState.phase, 'blocked', 'blocked phase');
+equal(blockedState.reason, 'incompatible-protocol', 'blocked reason');
+equal(navigated.length, 0, '不兼容不得导航');
+ok('U04：不兼容发布停在 blocked，不放宽校验');
+
+// ⑥ 修复代数：只有明确修复才出现在 URL 上。
+equal(new URL(entryUrl('http://127.0.0.1:3010/', 'r-9', 3)).searchParams.get('ce'), '3', 'repair epoch');
+equal(new URL(entryUrl('http://127.0.0.1:3010/', 'r-9')).searchParams.get('ce'), null, 'no epoch');
+ok('修复代数只随用户确认的修复进入入口地址');
+
+console.log('\nupdate-service.check: 6 组断言全部通过');

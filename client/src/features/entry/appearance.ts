@@ -1,4 +1,5 @@
 import type { Frame, Part, AvatarActionSet } from '../../assets/avatar-types';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import type { Appearance } from './api';
 
 type AppearancePart = Part & { part: string; zName: string; itemId?: string };
@@ -206,7 +207,7 @@ export async function loadAppearanceLayer(
   if (!entry) return undefined;
   const existing = catalog.cashLayers && appearanceLayer(catalog, itemId);
   if (existing?.lazy && existing.cash === entry.cash) return existing;
-  const response = await fetcher(entry.url);
+  const response = await fetcher(resolveAssetUrl(entry.url));
   if (!response.ok) throw new Error(`角色外观资源加载失败 ${entry.itemId} (${response.status})`);
   const layer = await response.json() as AppearanceLayer;
   if (layer.cash !== entry.cash || layer.lazy !== entry.lazy

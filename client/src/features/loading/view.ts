@@ -20,6 +20,7 @@
  */
 
 import { uiLocale } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 
 /* eslint-disable no-restricted-syntax */
@@ -78,7 +79,9 @@ export class LoadingOverlay {
     const backdrop = document.createElement('div');
     backdrop.className = 'loading-overlay-backdrop';
     backdrop.setAttribute('aria-hidden', 'true');
-    backdrop.style.backgroundImage = "url('/assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png')";
+    // v3 §3.2：CSS 里的美术 URL 也必须经 resolver，否则「重新下载所需资源」
+    // 修不到这张底板（它是页面级 CSS 背景，不走 Phaser loader）。
+    backdrop.style.backgroundImage = `url('${resolveAssetUrl('/assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png')}')`;
     root.appendChild(backdrop);
 
     // The card carries the live progress UI.  It is a flat DOM tree of named

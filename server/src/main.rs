@@ -1,4 +1,6 @@
 mod auth;
+// 客户端交付边界（v3 §4/§5）：发布描述端点、静态缓存分类、资源修订标识。
+mod client_delivery;
 mod combat;
 mod inventory;
 #[cfg(test)]
@@ -210,10 +212,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //      指向 client/public-tms273/assets，作为兜底。
     // 内容数据不再复制进候选版本：那份副本既让每次启动多花 25~50s 全量拷贝 843MB，
     // 又会在变旧时遮蔽源目录里的新内容（见 client/vite.config.ts）。
+    // /api/client-release（v3 §4）：小型发布描述（releaseId / 协议 / 内容 /
+    // 资源修订 / 已发布桌面包），no-store，不含任何玩家数据。首页强制更新
+    // 按钮靠它判断兼容性，它不依赖地图资源加载成功。
+    let release = std::sync::Arc::new(client_delivery::ReleaseDescriptor::load(&dist));
     let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/lobby",post(lobby_route)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
+        .route("/api/client-release",get({
+            let release = std::sync::Arc::clone(&release);
+            move || client_delivery::client_release(std::sync::Arc::clone(&release))
+        }))
         .route("/api/{*path}",get(||async{error(StatusCode::NOT_FOUND,"Unknown API route")}))
         .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(&assets)))
         .fallback_service(ServeDir::new(&dist).not_found_service(ServeFile::new(dist.join("index.html"))))
+        // 静态缓存分类（v3 §5.1）：指纹产物长期 immutable，入口页与过渡期
+        // 固定名内容资源 no-cache，API 一律 no-store。
+        .layer(axum::middleware::from_fn(client_delivery::apply_cache_headers))
         .layer(DefaultBodyLimit::max(2048)).with_state(state);
     let address = setting("BIND_ADDR", "127.0.0.1:3010");
     let listener = tokio::net::TcpListener::bind(&address).await?;

@@ -282,13 +282,44 @@ const MENU_ENTRY_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>
   'menu/buttonInfo/3/6': { zh: '冒險筆記（圖鑑）', en: 'Adventure Notebook' },
 });
 
+/** 首页右下角「强制更新 / 下载桌面客户端」文案（v3 §6 / §10）。
+ *  按钮名字按功能命名，不使用源素材烘焙过的标签；桌面包未发布时如实说
+ *  「准备中」，不给出占位链接。 */
+const CLIENT_ACTION_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  clientUpdate: { zh: '强制更新', en: 'Force update' },
+  clientUpdateHint: { zh: '联网检查最新发布，并重新装载页面与资源清单', en: 'Check the newest release, then reload the page and manifests' },
+  clientDownload: { zh: '下载桌面客户端', en: 'Download desktop client' },
+  clientVersion: { zh: '当前发布', en: 'Current release' },
+  clientResource: { zh: '资源修订', en: 'Asset revision' },
+  clientResourceNone: { zh: '未建立索引', en: 'No index yet' },
+  clientChecking: { zh: '正在检查更新……', en: 'Checking for updates…' },
+  clientVerified: { zh: '已确认最新兼容发布，可重新装载页面。', en: 'Newest compatible release confirmed. Ready to reload.' },
+  clientApplying: { zh: '正在重新装载页面……', en: 'Reloading the page…' },
+  clientFailed: { zh: '更新检查失败，未改动任何设置。请稍后重试。', en: 'Update check failed. Nothing was changed; retry later.' },
+  clientBadResponse: { zh: '发布描述格式无效，未改动任何设置。', en: 'The release description is malformed. Nothing was changed.' },
+  clientBlockedProtocol: { zh: '新发布的通信协议与本页面不一致，请更新客户端后再登录。', en: 'The new release uses a different protocol. Update the client before logging in.' },
+  clientBlockedContent: { zh: '新发布的内容版本与本页面不一致，请更新客户端后再登录。', en: 'The new release ships different content. Update the client before logging in.' },
+  clientRepair: { zh: '同时重新下载所需资源', en: 'Also re-download needed assets' },
+  clientApply: { zh: '重新装载页面', en: 'Reload the page' },
+  clientCancel: { zh: '取消', en: 'Cancel' },
+  clientDownloadTitle: { zh: '选择平台', en: 'Choose a platform' },
+  clientDownloadClose: { zh: '关闭', en: 'Close' },
+  clientDownloadPreparing: { zh: '桌面版准备中：尚未发布真实安装包，这里不会给出占位链接。', en: 'Desktop build is not published yet — no placeholder link is offered.' },
+  clientDownloadRecommended: { zh: '推荐', en: 'Recommended' },
+  clientDownloadUnknown: { zh: '无法判断系统，请手动选择；未列出的平台表示尚未提供。', en: 'Platform unknown — pick one manually. Unlisted platforms are not available yet.' },
+  clientDownloadArch: { zh: '架构', en: 'Arch' },
+  clientDownloadSize: { zh: '大小', en: 'Size' },
+  clientDownloadSha: { zh: '校验值', en: 'Checksum' },
+  clientDownloadPublished: { zh: '发布日期', en: 'Published' },
+});
+
 export function uiLocale(): UiLocale { return locale; }
 /** Whether a protocol code has a localized line of its own.  Sites that carry
  *  their own reason in the server message (for example `invalid_state`) answer
  *  `false` on purpose — a generic table entry would flatten those reasons into
  *  one useless sentence. */
 export function hasProtocolError(code: string): boolean { return code in PROTOCOL_ERRORS; }
-export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? NOTEBOOK_TEXT[key]?.[locale] ?? fallback; }
+export function uiText(key: string, fallback = key): string { return TEXT[key]?.[locale] ?? MINIMAP_TEXT[key]?.[locale] ?? WORLD_MAP_TEXT[key]?.[locale] ?? NOTEBOOK_TEXT[key]?.[locale] ?? CLIENT_ACTION_TEXT[key]?.[locale] ?? fallback; }
 /** The name the menu shows for an entry: the localized override when one is
  *  registered for that entry key, otherwise the source label untouched.  The
  *  result is still authored text, so callers pass it through `displayText`. */

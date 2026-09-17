@@ -29,6 +29,8 @@ const viewModelUrl = `data:text/javascript;base64,${Buffer.from(viewModelCode).t
 
 const code = compile(source)
   .replace(/import .* from '..\/..\/app\/i18n';/, i18nStub)
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩，逻辑 key 与下载地址在此相同。
+  .replace(/import .* from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;')
   .replace(/'..\/inventory\/names'/, JSON.stringify(namesUrl))
   .replace(/'..\/inventory\/view-model'/, JSON.stringify(viewModelUrl));
 const { NpcDialogueView } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);

@@ -2,6 +2,7 @@ import type {
   ClientMessage, InventoryItem, NpcState, PlayerState, ServerMessage, ShopRebuyEntry,
 } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import { itemCategoryTab } from '../inventory/names';
 import { inventoryTypeForTab } from '../inventory/view-model';
 import { uiLocale, uiText, displayText } from '../../app/i18n';
@@ -160,8 +161,8 @@ export class NpcDialogueView {
   private async loadCatalog() {
     try {
       const [gameplay, items] = await Promise.all([
-        fetch('/assets/gameplay.json').then(response => response.json()),
-        fetch('/assets/items.json').then(response => response.json()),
+        fetch(resolveAssetUrl('/assets/gameplay.json')).then(response => response.json()),
+        fetch(resolveAssetUrl('/assets/items.json')).then(response => response.json()),
       ]);
       const shops = (gameplay?.shops ?? []) as { shopId: string; items: { itemId: string; price: number }[] }[];
       const grouped: Record<string, { itemId: string; shopId: string; price: number }[]> = {};

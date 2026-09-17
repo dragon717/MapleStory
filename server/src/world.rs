@@ -21,6 +21,12 @@ use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
 #[path = "attacks.rs"]
 mod attacks;
+/// 玩家属性聚合权威模块：**唯一**的属性聚合入口与**唯一**的口径
+/// （层序 能力值 → 被动 → 增益 → 装备；加算/取高者由每个来源各自声明；
+/// 取整只在楓葉祝福那一次整数截断；上限只在声明处）。UI 快照与全部战斗/受伤路径
+/// 都只消费它，见模块头。
+#[path = "attribute.rs"]
+mod attribute;
 #[path = "boss.rs"]
 mod boss;
 #[path = "cashshop.rs"]
@@ -103,6 +109,7 @@ mod trade;
 mod ufo;
 #[path = "windbell.rs"]
 pub(crate) mod windbell;
+use self::attribute::*;
 use self::damage::*;
 use self::derived::*;
 use self::monsters::mark_monster_hit_aggro;
@@ -3233,42 +3240,21 @@ impl World {
             } else {
                 None
             };
-            let (derived_stats, derived_max_mp) = compute_derived_stats(
-                &self.gameplay,
+            // 属性聚合的**唯一入口**：UI 快照与战斗公式共用这一份结果，
+            // 「面板上的数字」与「实际打出来的数字」因此不可能分叉（见 `attribute.rs`）。
+            let attributes =
+                aggregate_attributes(AttributeInput::of(&self.gameplay, &self.mage_skills, player));
+            let derived_stats = compute_derived_stats(
                 &self.mage_skills,
-                player.state.job,
-                player.base_max_mp,
-                player.state.level,
+                &attributes,
                 &player.state.skills,
-                &player.state.ability_stats,
-                &player.state.equipped,
-                player.magic_guard,
-                player.meditation_mad,
-                meditation_remaining_ms,
-                player.ice_teleport_enabled,
-                player.teleport_mastery_enabled,
-                player.teleport_boost_enabled,
-                hyper_barrier_active(player),
-                player.hyper_teleport_enabled,
-                if player.adaptation_active {
-                    player.adaptation_charges
-                } else {
-                    0
-                },
-                (player.adaptation_cooldown_ms > 0).then_some(player.adaptation_cooldown_ms),
-                player.beginner_speed_percent,
-                &player.skill_cooldowns,
-                &player.status.buff_map(),
-            );
-            let derived = self.gameplay.player.with_ability_stats(
-                &player.state.ability_stats,
-                &player.state.equipped,
                 player.state.job,
+                &DerivedRuntime::of(player, meditation_remaining_ms),
             );
-            player.state.max_hp = derived.max_hp.unwrap_or(1);
-            player.state.max_mp = derived_max_mp;
-            player.state.derived_stats = derived_stats.clone();
+            player.state.max_hp = attributes.max_hp();
+            player.state.max_mp = attributes.max_mp();
             player.move_speed = derived_stats.move_speed;
+            player.state.derived_stats = derived_stats;
             if windbell_speed_factor > 1.0 {
                 player.move_speed *= windbell_speed_factor;
             }

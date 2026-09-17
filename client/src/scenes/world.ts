@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
-import type { NpcState, ServerMessage } from '../../../shared/protocol';
+import type { NpcState, PlayerState, ServerMessage } from '../../../shared/protocol';
 import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/manifest';
 import { buildPreloadPlan } from '../assets/preload-plan';
+import { resolveAssetUrl } from '../assets/resource-url';
 import type { AssetFrame, Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
 import { PetView } from '../features/pet/view';
@@ -15,6 +16,7 @@ import { WaterView } from '../features/world/water';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 import { WindbellScene } from '../features/windbell/scene';
+import { MotionInterpolator, SELF_DELAY_TICKS } from '../features/net-motion/motion-interpolator';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
@@ -54,6 +56,15 @@ export class World extends Phaser.Scene {
   private closedPortalNotices = new Set<string>();
   /** The npc the player last clicked, highlighted until its window closes. */
   private selectedNpcId: string | null = null;
+  /**
+   * 权威快照运动插值。服务端 20 Hz 推快照、浏览器 60 fps 画，插值把两者接上；
+   * 自角色只缓冲半拍（手感优先），远端与怪物/宠物缓冲一拍（观感优先）。
+   * 详见 `features/net-motion/motion-interpolator.ts`。
+   */
+  private selfMotion = new MotionInterpolator<PlayerState>({ delayTicks: SELF_DELAY_TICKS });
+  private peerMotion = new MotionInterpolator<PlayerState>();
+  private monsterMotion = new MotionInterpolator<MonsterSnapshot>();
+  private petMotion = new MotionInterpolator<{ id: string; x: number; y: number }>();
   constructor(
     private manifest: Manifest,
     private status: (message: string, error?: boolean) => void,
@@ -86,6 +97,7 @@ export class World extends Phaser.Scene {
     }
     this.manifest = { ...this.manifest, map: next as MapDefinition };
     this.clear();
+    this.motionReset();
     this.pendingSnapshot = snapshot;
     this.loaded = false;
     this.failed = false;
@@ -170,17 +182,19 @@ export class World extends Phaser.Scene {
     // 顺序与去重语义逐行保留：图片先全部入队，音频按 原顺序（升级→技能→
     // BGM→普攻→受击→怪物受击）；BGM 的 cache.audio.exists 短路留在 Scene。
     const plan = buildPreloadPlan(this.manifest);
-    for (const { key, url } of plan.images) this.load.image(key, url);
+    // 纹理 key 保留逻辑 URL（所有视图用 frame.url 找纹理）；传输地址经
+    // resource-url 解析（v3 §3.1）：普通刷新＝恒等，仅修复代数改变下载地址。
+    for (const { key, url } of plan.images) this.load.image(key, resolveAssetUrl(url));
     for (const entry of plan.audio) {
       if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
-      this.load.audio(entry.key, entry.url);
+      this.load.audio(entry.key, resolveAssetUrl(entry.url));
     }
     if (this.manifest.map.source?.includes('windbell.json')) {
       const kind = this.manifest.map.id.includes('island') ? 'island' : 'bridge';
       WindbellScene.preload(this, kind);
     }
     if(this.manifest.map.source?.includes('windbell.json'))for(const name of WindbellScene.sounds){
-      const url=`/assets/windbell/sfx/${name}.ogg`;if(!this.cache.audio.exists(url))this.load.audio(url,url);
+      const url=`/assets/windbell/sfx/${name}.ogg`;if(!this.cache.audio.exists(url))this.load.audio(url,resolveAssetUrl(url));
     }
     this.load.on('progress', (progress: number) => { if (!this.failed) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
     this.load.on('loaderror', (file: Phaser.Loader.File) => { this.failed = true; this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true); });
@@ -374,6 +388,7 @@ export class World extends Phaser.Scene {
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     for (const water of this.waters) water.destroy();
     this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
+    this.motionReset();
     // 选中态属于「这一张图上的这一个 NPC」：视图先被销毁、id 也必须一起丢掉，
     // 否则换图后高亮会记着一个已经不存在（或换了同名实例）的目标。
     this.selectedNpcId = null;
@@ -507,12 +522,13 @@ export class World extends Phaser.Scene {
     this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);
     for (const water of this.waters) water.update(delta);
-    this.combat?.syncPlayers(this.snapshot?.players);
+    const drawn = this.snapshot ? this.interpolate(this.snapshot as GameplaySnapshot, delta) : undefined;
+    this.combat?.syncPlayers(drawn?.players);
     this.combat?.syncSummons(this.snapshot?.summons);
     this.combat?.update();
     this.drawBossWarning();
-    if (!this.snapshot) return;
-    const snapshot = this.snapshot;
+    if (!drawn) return;
+    const snapshot = drawn;
     const ids = new Set(snapshot.players.map(player => player.id));
     for (const [id, view] of this.players) if (!ids.has(id)) { this.combat?.clearSkillPlayer(id); view.destroy(); this.players.delete(id); this.actions.delete(id); }
     for (const player of snapshot.players) {
@@ -536,6 +552,43 @@ export class World extends Phaser.Scene {
       }
     }
     this.updateGameplayEntities(snapshot as GameplaySnapshot, delta);
+  }
+
+  /**
+   * 把 20 Hz 的权威快照摊到 60 fps 的显示上：只改 `x`/`y`，动作、朝向、血量等
+   * 一律取最新样本。返回值**只用于绘制**——门、采集、拾取的判定仍然读
+   * `this.snapshot` 的权威坐标，插值不得参与任何判定。
+   */
+  private interpolate(snapshot: GameplaySnapshot, delta: number): GameplaySnapshot {
+    const tick = snapshot.serverTick;
+    const tickMs = snapshot.tickMs;
+    const self = snapshot.players.filter(player => player.id === snapshot.selfId);
+    const peers = snapshot.players.filter(player => player.id !== snapshot.selfId);
+    // 宠物按「主人:宠物」复合键记轨迹：不同玩家的宠物 id 可能撞在一起。
+    const pets: { id: string; x: number; y: number }[] = [];
+    for (const player of snapshot.players) {
+      for (const pet of player.pets ?? []) pets.push({ id: `${player.id}:${pet.id}`, x: pet.x, y: pet.y });
+    }
+    this.selfMotion.observe(self, tick, tickMs);
+    this.peerMotion.observe(peers, tick, tickMs);
+    this.monsterMotion.observe(snapshot.monsters ?? [], tick, tickMs);
+    this.petMotion.observe(pets, tick, tickMs);
+    this.selfMotion.advance(delta);
+    this.peerMotion.advance(delta);
+    this.monsterMotion.advance(delta);
+    this.petMotion.advance(delta);
+    const players = snapshot.players.map(player =>
+      player.id === snapshot.selfId ? this.selfMotion.render(player) : this.peerMotion.render(player));
+    const monsters = (snapshot.monsters ?? []).map(monster => this.monsterMotion.render(monster));
+    return { ...snapshot, players, monsters };
+  }
+
+  /** 换图/重连：轨迹属于「这一张图上的这一个实例」，必须连同时钟一起丢掉。 */
+  private motionReset() {
+    this.selfMotion.reset();
+    this.peerMotion.reset();
+    this.monsterMotion.reset();
+    this.petMotion.reset();
   }
 
   nearestDropId(): string | null {
@@ -734,7 +787,10 @@ export class World extends Phaser.Scene {
         visiblePets.add(key);
         let view = this.pets.get(key);
         if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(key, view); }
-        view.update(pet, this.petClock);
+        // 与玩家同一套插值（复合键已在 `interpolate` 里登记），只把脚点换成插值后的，
+        // 其余字段仍取最新权威样本。
+        const drawn = this.petMotion.render({ id: key, x: pet.x, y: pet.y });
+        view.update({ ...pet, x: drawn.x, y: drawn.y }, this.petClock);
       }
     }
     for (const [id, view] of this.pets) {

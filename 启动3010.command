@@ -7,7 +7,7 @@ cd -- "$ROOT" || exit 1
 
 # 双击打开时把窗口放大到约 120 列（默认 80x24 太挤，字符画与启动状态都放不下）。
 # 仅 Terminal.app 且有终端时执行；被其他环境调用或系统拒绝时静默跳过。
-if [[ "$TERM_PROGRAM" == "Apple_Terminal" && -t 1 ]] && (( $+commands[osascript] )); then
+if [[ "${TERM_PROGRAM:-}" == "Apple_Terminal" && -t 1 ]] && (( $+commands[osascript] )); then
   osascript >/dev/null 2>&1 <<'OSA' || true
 tell application "Terminal"
   if (count of windows) > 0 then
@@ -36,6 +36,125 @@ MAP_CATALOG="$ROOT/shared/maps.json"
 HEALTH_URL="http://127.0.0.1:3010/api/health"
 ART_ZSH="$ROOT/scripts/launcher-art.zsh"
 ART_GENERATOR="$ROOT/scripts/gen_launcher_ascii_art.py"
+
+# ---- 模式分派（v2 §4 / v3 §8）：无参数＝既有发布式启动，逐字不变；----
+# dev/status/stop dev 是显式子命令。未知参数一律用法说明 + 非零退出，
+# 绝不落入旧的构建重启分支（防止 `./启动3010.command status` 意外重build）。
+# dev 只附着已运行的 3010（不构建、不重启、不碰 bot），并管理本入口的 Vite。
+VITE_PID_FILE="$CONTROL_DIR/vite.pid"
+VITE_LOG="$CONTROL_DIR/vite.log"
+DEV_URL="http://127.0.0.1:5173"
+launcher_usage() {
+  print -r -- "用法：启动3010.command [模式]"
+  print -r -- "  （无参数）  构建候选并启动正式 3010（原发布流程，数据库与 bot 保留）"
+  print -r -- "  dev         源码开发：附着已运行的 3010，启动/复用 Vite 5173 开发页"
+  print -r -- "  status      只读查看 3010 与开发页状态（不构建、不启停）"
+  print -r -- "  stop dev    仅停止本入口管理的 Vite 开发页；3010 与 bot 不动"
+}
+mode_die() { print -u2 -- "$*"; exit 1; }
+mode_process_command() { ps -p "$1" -o command= 2>/dev/null | sed 's/^[[:space:]]*//'; }
+mode_process_cwd() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -n 1; }
+mode_is_vite_pid() {
+  local pid="$1" cmd cwd
+  [[ "$pid" =~ '^[0-9]+$' ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  cmd="$(mode_process_command "$pid")"
+  cwd="$(mode_process_cwd "$pid")"
+  [[ "$cmd" == *vite* ]] || return 1
+  [[ "$cwd" == "$ROOT/client" || "$cwd" == "$ROOT" ]] || return 1
+  lsof -nP -a -p "$pid" -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1
+}
+mode_vite_occupant() { lsof -nP -tiTCP:5173 -sTCP:LISTEN 2>/dev/null | head -n 1 | tr -d '[:space:]'; }
+mode_read_pid() { [[ -r "$1" ]] || return 0; sed -n '1{s/[[:space:]]//g;p;}' "$1"; }
+mode_health() { curl -fsS --noproxy "*" --max-time 2 "$HEALTH_URL" 2>/dev/null || true; }
+mode_backend_summary() {
+  local health
+  health="$(mode_health)"
+  if [[ -z "$health" ]]; then print -r -- "未运行（$HEALTH_URL 不可达；先运行 启动3010.command 启动后端）"; return 1; fi
+  print -r -- "运行中 · $health"
+}
+mode_ensure_backend() {
+  mode_health >/dev/null || mode_die "dev 模式需要已运行的 3010 后端（本模式不构建、不重启服务）。请先运行：./启动3010.command"
+}
+mode_start_vite() {
+  local pid occupant
+  pid="$(mode_read_pid "$VITE_PID_FILE")"
+  if mode_is_vite_pid "$pid"; then
+    print -r -- "Vite 开发页已在运行（PID $pid，复用，不重复启动）：$DEV_URL"
+    return 0
+  fi
+  [[ -n "$pid" ]] && rm -f "$VITE_PID_FILE"
+  occupant="$(mode_vite_occupant)"
+  if [[ -n "$occupant" ]]; then
+    mode_die "127.0.0.1:5173 已被其他进程占用（PID $occupant）。不换端口、不停止占用者；如属本项目残留 Vite，请用 stop dev 或手动确认后处理。"
+  fi
+  [[ -f "$ROOT/client/node_modules/vite/bin/vite.js" ]] || mode_die "缺少前端依赖：client/node_modules/vite 不存在，请先在 client 目录 npm install"
+  nohup "$NODE_BIN" "$ROOT/client/node_modules/vite/bin/vite.js" >>"$VITE_LOG" 2>&1 </dev/null &
+  pid=$!
+  print -r -- "$pid" >| "$VITE_PID_FILE"
+  local ok=0
+  for _ in {1..60}; do
+    if curl -fsS --noproxy "*" --max-time 1 "$DEV_URL/" 2>/dev/null | grep -q '/src/app/main.ts'; then ok=1; break; fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  (( ok )) || mode_die "Vite 开发页未就绪（源码入口不可达）；日志：$VITE_LOG"
+  print -r -- "Vite 开发页已启动（PID $pid）：$DEV_URL"
+}
+mode_dev() {
+  NODE_BIN="$(command -v node || true)"
+  [[ -n "$NODE_BIN" ]] || mode_die "找不到 Node"
+  mkdir -p "$CONTROL_DIR"
+  print -r -- "━━━━━━━━ 3010 源码开发模式 ━━━━━━━━"
+  mode_ensure_backend
+  print -r -- "① 后端 3010：$(mode_backend_summary)"
+  mode_start_vite
+  print -r -- "② 开发页：$DEV_URL（DEV_SOURCE，保存源码自动生效；构建页 3010 不受影响）"
+  print -r -- "③ 说明：5173 与 3010 是不同 origin，localStorage 不共用，首次进入可能需要重新登录；"
+  print -r -- "   同一角色不要同时在两页登录。停止开发页用：./启动3010.command stop dev"
+}
+mode_status() {
+  print -r -- "━━━━━━━━ 3010 状态（只读）━━━━━━━━"
+  local backend vite_pid
+  backend="$(mode_backend_summary)" && print -r -- "① 后端 3010：$backend" || print -r -- "① 后端 3010：$backend"
+  vite_pid="$(mode_read_pid "$VITE_PID_FILE")"
+  if mode_is_vite_pid "$vite_pid"; then
+    print -r -- "② 开发页：运行中（PID $vite_pid）$DEV_URL"
+  else
+    local occupant
+    occupant="$(mode_vite_occupant)"
+    if [[ -n "$occupant" ]]; then
+      print -r -- "② 开发页：5173 被其他进程占用（PID $occupant），本入口未管理"
+    else
+      print -r -- "② 开发页：未运行"
+    fi
+  fi
+  print -r -- "③ 控制文件：$CONTROL_DIR"
+}
+mode_stop_dev() {
+  local pid
+  pid="$(mode_read_pid "$VITE_PID_FILE")"
+  if mode_is_vite_pid "$pid"; then
+    kill -TERM "$pid" 2>/dev/null || true
+    for _ in {1..40}; do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    rm -f "$VITE_PID_FILE"
+    print -r -- "Vite 开发页已停止；3010 后端与陪测 bot 未受影响。"
+  else
+    rm -f "$VITE_PID_FILE"
+    print -r -- "本入口未在管理 Vite 开发页（无停止对象）；3010 后端与陪测 bot 未受影响。"
+  fi
+}
+MODE_DISPATCH=0
+case "${1:-}" in
+  "") ;;
+  dev) mode_dev "$@"; exit 0 ;;
+  status) mode_status; exit 0 ;;
+  stop)
+    if [[ "${2:-}" == "dev" && $# -eq 2 ]]; then mode_stop_dev; exit 0; fi
+    launcher_usage; exit 2 ;;
+  *) launcher_usage; exit 2 ;;
+esac
+unset MODE_DISPATCH
 
 # ---- 分步耗时：每个阶段一行「耗时 X.Xs」，末尾汇总并追加一条记录到 startup-timings.log ----
 # 用 zsh/datetime 的 EPOCHREALTIME（无子进程开销）；模块不可用时回退到 date。
@@ -143,7 +262,7 @@ find_bot_pid() {
 wait_health() {
   local health
   for _ in {1..40}; do
-    health="$(curl -fsS --max-time 1 "$HEALTH_URL" 2>/dev/null || true)"
+    health="$(curl -fsS --noproxy "*" --max-time 1 "$HEALTH_URL" 2>/dev/null || true)"
     if "$NODE_BIN" -e 'const h=JSON.parse(process.argv[1]); process.exit(h.ok === true && h.protocolVersion === Number(process.argv[2]) && h.contentVersion === process.argv[3] ? 0 : 1)' "$health" "$PROTOCOL_VERSION" "$CONTENT_VERSION" 2>/dev/null; then return 0; fi
     sleep 0.25
   done

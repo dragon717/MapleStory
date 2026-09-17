@@ -4,6 +4,7 @@ import { authenticate } from '../../network/auth-api';
 import { uiLocale, displayText } from '../../app/i18n';
 import { lobbyRequest, type Appearance, type CharacterList, type CharacterSummary } from './api';
 import { appearanceLayer, appearanceWeaponType, cashAppearanceEntry, composeAppearance, initialEquipment, loadAppearanceLayers, normalizeAppearanceItemId, type AppearanceCatalog } from './appearance';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 
 type Stage = 'login' | 'channel' | 'characters' | 'create';
@@ -16,6 +17,9 @@ const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&am
 const jobName = (job: number) => job === 0 ? text('新手', 'Beginner') : job === 200 ? text('法师', 'Magician') : job === 220 ? text('巫师（冰、雷）', 'Wizard (Ice, Lightning)') : String(job);
 
 export class EntryView {
+  /** 首页阶段通知（v3 §6.1）：进入频道 / 角色选择 / 创角后应隐藏首页右下角的
+   *  客户端操作区，回到登录首页再显示。只读通知，不改变本视图任何流程。 */
+  onStageChange?: (stage: Stage) => void;
   private session?: LoginResponse;
   private stage: Stage = 'login';
   private characters: CharacterSummary[] = [];
@@ -46,7 +50,7 @@ export class EntryView {
   }
   private async loadArt() {
     try {
-      const [artResponse, manifestResponse, catalogResponse, appearanceResponse] = await Promise.all([fetch('/assets/entry/manifest.json'), fetch('/assets/manifest.json'), fetch('/assets/entry/creation.json'), fetch('/assets/entry/appearance.json')]);
+      const [artResponse, manifestResponse, catalogResponse, appearanceResponse] = await Promise.all([fetch(resolveAssetUrl('/assets/entry/manifest.json')), fetch(resolveAssetUrl('/assets/manifest.json')), fetch(resolveAssetUrl('/assets/entry/creation.json')), fetch(resolveAssetUrl('/assets/entry/appearance.json'))]);
       if (!artResponse.ok || !manifestResponse.ok) throw new Error(text('登录素材加载失败，请刷新重试。', 'Unable to load entry artwork. Refresh to retry.'));
       this.assets = await artResponse.json();
       this.manifest = await manifestResponse.json();
@@ -67,8 +71,8 @@ export class EntryView {
     this.revision++;
     this.host.hidden = false;
     document.body.classList.add('entry-active');
-    if (!this.session) { this.stage = 'login'; this.render(); return; }
-    this.stage = stage;
+    if (!this.session) { this.setStage('login'); this.render(); return; }
+    this.setStage(stage);
     await this.run(async () => { await this.refreshCharacters(); this.render(); });
   }
   private async refreshCharacters() {
@@ -96,7 +100,12 @@ export class EntryView {
     this.host.setAttribute('aria-busy', String(this.busy));
     this.host.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.disabled = this.busy || button.dataset.unavailable === 'true'; });
   }
-  private go(stage: Stage) { this.stage = stage; this.setNote(''); this.render(); }
+  private go(stage: Stage) { this.setStage(stage); this.setNote(''); this.render(); }
+  private setStage(stage: Stage) {
+    if (this.stage === stage) return;
+    this.stage = stage;
+    this.onStageChange?.(stage);
+  }
   private render() {
     cancelAnimationFrame(this.animation ?? 0);
     this.host.className = `entry entry-stage-${this.stage}`;
@@ -201,7 +210,7 @@ export class EntryView {
     const target = this.host.querySelector<HTMLElement>('.entry-background');
     const scene = this.assets?.scenes[this.stage];
     if (!target || !scene) return;
-    target.innerHTML = `<div class="entry-background-canvas" style="--scene-ratio:${scene.width / scene.height};width:max(100vw,${scene.width / scene.height * 100}dvh);height:max(100dvh,${scene.height / scene.width * 100}vw)">${scene.layers.map(layer => `<img src="${escape(layer.url)}" alt="" draggable="false" style="left:${layer.x / scene.width * 100}%;top:${layer.y / scene.height * 100}%;width:${layer.width / scene.width * 100}%;height:${layer.height / scene.height * 100}%">`).join('')}</div>`;
+    target.innerHTML = `<div class="entry-background-canvas" style="--scene-ratio:${scene.width / scene.height};width:max(100vw,${scene.width / scene.height * 100}dvh);height:max(100dvh,${scene.height / scene.width * 100}vw)">${scene.layers.map(layer => `<img src="${escape(resolveAssetUrl(layer.url))}" alt="" draggable="false" style="left:${layer.x / scene.width * 100}%;top:${layer.y / scene.height * 100}%;width:${layer.width / scene.width * 100}%;height:${layer.height / scene.height * 100}%">`).join('')}</div>`;
   }
   private chooseGender(gender: number) {
     const options = this.catalog?.genders.find(group => group.gender === gender);
@@ -260,7 +269,7 @@ export class EntryView {
         while (index < frames.length - 1 && elapsed >= Math.max(1, frames[index].delay ?? 100)) elapsed -= Math.max(1, frames[index++].delay ?? 100);
         if (preview.index === index) continue;
         preview.index = index;
-        preview.target.innerHTML = frames[index].parts.map(part => `<img src="${escape(part.url)}" alt="" draggable="false" style="left:calc(50% + ${part.x}px);top:calc(100% + ${part.y}px);width:${part.width}px;height:${part.height}px">`).join('');
+        preview.target.innerHTML = frames[index].parts.map(part => `<img src="${escape(resolveAssetUrl(part.url))}" alt="" draggable="false" style="left:calc(50% + ${part.x}px);top:calc(100% + ${part.y}px);width:${part.width}px;height:${part.height}px">`).join('');
       }
       if (!this.host.hidden) this.animation = requestAnimationFrame(animate);
     };

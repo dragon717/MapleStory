@@ -12,6 +12,8 @@ import { uiLocale } from './i18n';
 
 declare const __RELEASE_VERSION__: string;
 declare const __RELEASE_TIME__: string;
+// 页面身份（v3 §8）：源码开发页与构建产物页必须可区分，不靠端口号猜。
+declare const __CODE_MODE__: 'DEV_SOURCE' | 'BUILT_PACKAGE';
 
 export function pageElement<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -38,7 +40,11 @@ export class PageShell {
     document.addEventListener('contextmenu', event => event.preventDefault(), { capture: true });
     document.documentElement.lang = english ? 'en' : 'zh-CN';
     document.title = english ? 'MapleStory · Adventure Begins' : 'MapleStory · 冒险启程';
-    const releaseLabel = `${__RELEASE_VERSION__} · ${__RELEASE_TIME__}`;
+    // DEV_SOURCE 不显示配置求值时间——它不是「最后一次成功应用源码的时间」（v3 §8）。
+    const codeModeLabel = __CODE_MODE__ === 'DEV_SOURCE'
+      ? (english ? 'dev source' : '源码开发')
+      : `${english ? 'built' : '构建版'} · ${__RELEASE_TIME__}`;
+    const releaseLabel = `${__RELEASE_VERSION__} · ${codeModeLabel}`;
     app.innerHTML = pageTemplate(english, releaseLabel);
     this.language = pageElement<HTMLSelectElement>('language');
     this.language.onchange = () => {

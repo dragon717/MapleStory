@@ -19,6 +19,10 @@ const code = compile(await readFile(new URL('./session.ts', import.meta.url), 'u
     "const CONTENT_VERSION = 'cv'; const PROTOCOL_VERSION = 'pv';")
   // protocolText 的桩刻意**不**回填 code：终端判定若又退回去从展示串里反解
   // `(code)`，这里就会失去可解析的形状，场景 2/4 立刻变红。
+  .replace(/^import .*from '\.\/endpoints';$/m,
+    // 端点收敛后 WS 地址来自 `network/endpoints.ts`；这里给一个同形同义的桩
+    // （同源 + 相对路径），不改动 Connection 自身的重连语义。
+    "const wsUrl = (path = '/ws') => `ws://stub${path}`;")
   .replace(/^import .*from '\.\.\/app\/i18n';$/m,
     "const uiLocale = () => 'zh'; const protocolText = (code, fallback) => fallback || '已拒绝';");
 const { Connection } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);

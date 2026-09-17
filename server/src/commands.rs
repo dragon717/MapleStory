@@ -296,29 +296,20 @@ impl World {
                     },
                     None => 0,
                 };
-                let (derived_stats, derived_max_mp) = compute_derived_stats(
+                let attributes = aggregate_attributes(AttributeInput::joining(
                     &self.gameplay,
                     &self.mage_skills,
-                    profile.job,
-                    profile.max_mp,
-                    profile.level,
-                    &profile.skills,
-                    &profile.ability_stats,
+                    &profile,
                     &equipped,
-                    false,
-                    0,
-                    None,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    0,
-                    (adaptation_cooldown_ms > 0).then_some(adaptation_cooldown_ms),
-                    0,
-                    &skill_cooldowns,
-                    &BTreeMap::new(),
+                ));
+                let derived_stats = compute_derived_stats(
+                    &self.mage_skills,
+                    &attributes,
+                    &profile.skills,
+                    profile.job,
+                    &DerivedRuntime::joining(adaptation_cooldown_ms, &skill_cooldowns),
                 );
+                let derived_max_mp = attributes.max_mp();
                 let derived_move_speed = derived_stats.move_speed;
                 // The blacklist is read once here instead of inside the chat
                 // fan-out: it only ever changes through a friend intent, and

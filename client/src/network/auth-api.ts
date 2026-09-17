@@ -5,10 +5,11 @@
 //! 语义与搬移前逐行一致：同一 fetch 形状、同一错误信息、同一版本拒绝。
 
 import { CONTENT_VERSION, PROTOCOL_VERSION, type LoginResponse } from '../../../shared/protocol';
+import { apiUrl } from './endpoints';
 
 export async function authenticate(username: string, password: string, register: boolean): Promise<LoginResponse> {
   async function post(path: string) {
-    const response = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+    const response = await fetch(apiUrl(`/api/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || `请求失败 (${response.status})`);
     return body;

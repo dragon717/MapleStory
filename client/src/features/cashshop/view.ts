@@ -1,6 +1,7 @@
 import type { ClientMessage, PlayerState, ServerMessage } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { displayText, uiLocale } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import { appearanceLayer, appearanceWeaponType, composeAppearance, loadAppearanceLayers, type AppearanceCatalog } from '../entry/appearance';
 import { installWindowDrag, bringToFront, clampIntoHost } from '../ui/window-shell.ts';
 
@@ -290,7 +291,7 @@ export class CashShopView {
 
   private async loadData() {
     try {
-      const response = await fetch('/assets/cashshop.json');
+      const response = await fetch(resolveAssetUrl('/assets/cashshop.json'));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.data = (await response.json()) as CashShopData;
       if (this.root) this.renderAll();

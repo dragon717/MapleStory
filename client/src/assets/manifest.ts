@@ -1,5 +1,6 @@
 import type { AppearanceCatalog } from '../features/entry/appearance';
 import { CONTENT_VERSION } from '../../../shared/protocol.ts';
+import { resolveAssetUrl } from './resource-url';
 import { installWindbellMaps } from '../features/windbell/maps';
 import { frameAt } from '../features/player/animation.ts';
 // 纸娃娃类型叶（计划 §9.1）：帧/部件/动作集迁到 avatar-types.ts，
@@ -682,7 +683,8 @@ export function actorDepthForLayers(layers: readonly Pick<MapLayer, 'depth' | 'b
   return Number.isFinite(maxBackDepth) ? maxBackDepth + 1 : 1;
 }
 export async function loadManifest(): Promise<Manifest> {
-  const response = await fetch('/assets/manifest.json');
+  // 清单与外观目录经 resource-url 解析（普通刷新＝恒等；仅修复代数会改传输地址）。
+  const response = await fetch(resolveAssetUrl('/assets/manifest.json'));
   if (!response.ok) throw new Error(`资源清单加载失败 /assets/manifest.json (${response.status})`);
   const manifest = await response.json() as Manifest;
   installWindbellMaps(manifest);
@@ -693,7 +695,7 @@ export async function loadManifest(): Promise<Manifest> {
   for (const map of [manifest.map, ...(manifest.mapCatalog?.maps ?? [])]) {
     for (const layer of map.layers ?? []) if (layer.frames?.length) mapFrameAt(layer.frames, 0);
   }
-  const appearances = await fetch('/assets/entry/appearance.json');
+  const appearances = await fetch(resolveAssetUrl('/assets/entry/appearance.json'));
   if (!appearances.ok) throw new Error('角色外观资源加载失败，请刷新重试。');
   manifest.appearanceCatalog = await appearances.json();
   return manifest;

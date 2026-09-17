@@ -1,0 +1,186 @@
+/* 首页右下角客户端操作区（v3 §6.1）。
+   与页面既有 UI 同一套变量与圆角；小窗/窄屏只缩小留白，不裁掉按钮文字。
+   游戏模式（body.game-mode）下隐藏：更新按钮不该打断正在进行的输入与提交。 */
+
+.client-actions {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(12, 18, 30, 0.72);
+  color: #f2f4f8;
+  font-size: 12px;
+  line-height: 1.5;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.client-actions[hidden] {
+  display: none;
+}
+
+.client-actions-version {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin: 0;
+  color: rgba(242, 244, 248, 0.82);
+}
+
+.client-actions-label {
+  margin-right: 4px;
+  opacity: 0.72;
+}
+
+.client-actions-version strong {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.client-actions-resource {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.client-actions-resource em {
+  font-style: normal;
+  opacity: 0.82;
+}
+
+.client-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.client-actions button {
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.client-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.client-actions button:focus-visible {
+  outline: 2px solid #8fd0ff;
+  outline-offset: 1px;
+}
+
+.client-actions button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.client-actions-status {
+  margin: 0;
+  min-height: 1.5em;
+  text-align: right;
+  color: rgba(242, 244, 248, 0.88);
+  word-break: break-word;
+}
+
+.client-actions-status.error {
+  color: #ffc9c2;
+}
+
+.client-actions-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.client-actions-confirm[hidden],
+.client-actions-downloads[hidden] {
+  display: none;
+}
+
+.client-actions-confirm label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.client-actions-downloads {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.client-actions-downloads ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.client-actions-downloads a {
+  color: #9fdcff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.client-actions-downloads a:hover,
+.client-actions-downloads a:focus-visible {
+  text-decoration: underline;
+}
+
+.client-actions-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(159, 220, 255, 0.18);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.client-actions-meta,
+.client-actions-note {
+  display: block;
+  color: rgba(242, 244, 248, 0.72);
+  font-size: 11px;
+}
+
+/* 进入游戏后隐藏：PageShell 的 game-mode 切换即为此处唯一开关，
+   不需要额外搬动节点（v3 §6.1）。 */
+body.game-mode .client-actions {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .client-actions {
+    left: max(12px, env(safe-area-inset-left));
+    align-items: stretch;
+    max-width: none;
+  }
+
+  .client-actions-row,
+  .client-actions-confirm {
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+
+  .client-actions-status {
+    text-align: left;
+  }
+}

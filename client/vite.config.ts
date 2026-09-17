@@ -21,6 +21,9 @@ export default defineConfig(({ command }) => ({
   define: {
     __RELEASE_VERSION__: JSON.stringify(`v${packageJson.version}`),
     __RELEASE_TIME__: JSON.stringify(buildTime),
+    // 页面身份（v3 §8）：源码开发页与构建产物页必须能被看见地区分，
+    // 不靠端口号猜。dev（serve）＝DEV_SOURCE；构建＝BUILT_PACKAGE。
+    __CODE_MODE__: JSON.stringify(command === 'serve' ? 'DEV_SOURCE' : 'BUILT_PACKAGE'),
   },
   // TMS273 导出是唯一的内容来源，但内容数据（assets，843MB / 约 7 万个美术音频文件）
   // 不是构建产物：它由构建之外的装配管线写进 client/public-tms273，服务端再按
@@ -31,5 +34,13 @@ export default defineConfig(({ command }) => ({
   publicDir: command === 'serve' ? 'public-tms273' : false,
   // Phaser's full runtime is bundled locally; retain a 1.6 MB warning budget.
   build: { outDir: resolve(projectRoot, 'build/tmp/client'), emptyOutDir: true, chunkSizeWarningLimit: 1600 },
-  server: { host: '0.0.0.0', proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } } },
+  // 开发固定本机 5173、strictPort：端口被占用就明确失败，不自动换 5174，
+  // 也不按端口盲杀（v2 §4.4 / v3 §8）。package.json 的 dev 脚本必须保持
+  // 不带 --host，否则 CLI 参数会覆盖这里的本地默认值；局域网模式由调用方显式传参。
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+    proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } },
+  },
 }));

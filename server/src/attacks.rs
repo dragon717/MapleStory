@@ -92,15 +92,16 @@ impl World {
             // 基准：普通攻击的区间已经含了等级差与目标 PDD 减免
             // （`combat_rules.rs::attack_range_against` 的既有 P 适配，作用在区间上），
             // 所以这里不调用管线的目标侧减免——两套目标减伤模型不擅自统一，见 `damage.rs` 模块头。
-            let base_damage = self
-                .gameplay
-                .player
-                .with_ability_stats(
-                    &player.state.ability_stats,
-                    &player.state.equipped,
-                    player.state.job,
-                )
-                .attack_damage_against(player.state.level, &target_template);
+            //
+            // 四维与熟练度取自**聚合**结果（改前是原始 `ability_stats` ⇒ 面板与实战分叉：
+            // 智慧昇華/極速詠唱的 `intX`、楓葉祝福的 `basicStatUp`、咒語精通/冰龍吐息的
+            // `mastery` 都只在面板上生效）。见 `attribute.rs` 模块头的 D1/D2/D4。
+            let attributes = aggregate_attributes(AttributeInput::of(
+                &self.gameplay,
+                &self.mage_skills,
+                player,
+            ));
+            let base_damage = attributes.attack_damage_against(player.state.level, &target_template);
             let mut pipeline = DamagePipeline::new(base_damage);
             if player.status.buff_active(SKILL_INFINITY) {
                 pipeline.add(

@@ -110,32 +110,38 @@ fn join_test_player(world: &mut World, id: &str) -> mpsc::Receiver<String> {
     rx
 }
 
+/// 属性聚合后的协议快照，供只关心**非属性字段**的用例使用：空装备、默认能力值、
+/// 无任何增益，只有 `job` / `level` / `skills` 三个输入有差别。
+fn derived_for(job: u32, level: u32, skills: &BTreeMap<u32, u32>) -> DerivedStats {
+    let gameplay = Gameplay::default();
+    let mage_skills = MageSkills::default();
+    let ability = AbilityStats::default();
+    let equipped: Vec<crate::protocol::InventoryItem> = Vec::new();
+    let attributes = aggregate_attributes(AttributeInput {
+        gameplay: &gameplay,
+        mage_skills: &mage_skills,
+        job,
+        character_level: level,
+        base_max_mp: 5,
+        skills,
+        ability_stats: &ability,
+        equipped: &equipped,
+        meditation_mad: 0,
+        beginner_speed_percent: 0,
+    });
+    compute_derived_stats(
+        &mage_skills,
+        &attributes,
+        skills,
+        job,
+        &DerivedRuntime::joining(0, &BTreeMap::new()),
+    )
+}
+
 #[test]
 fn natural_recovery_passives_follow_job_without_skill_stacking() {
     let empty = BTreeMap::new();
-    let (beginner, _) = compute_derived_stats(
-        &Gameplay::default(),
-        &MageSkills::default(),
-        BEGINNER_JOB,
-        5,
-        1,
-        &empty,
-        &AbilityStats::default(),
-        &[],
-        false,
-        0,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        0,
-        None,
-        0,
-        &BTreeMap::new(),
-        &BTreeMap::new(),
-    );
+    let beginner = derived_for(BEGINNER_JOB, 1, &empty);
     assert_eq!(
         beginner.regeneration_passives,
         vec![RegenerationPassive {
@@ -146,29 +152,7 @@ fn natural_recovery_passives_follow_job_without_skill_stacking() {
         }]
     );
     let forged_skills = BTreeMap::from([(SKILL_RECOVERY, 30), (1000003, 30), (1000009, 30)]);
-    let (magician, _) = compute_derived_stats(
-        &Gameplay::default(),
-        &MageSkills::default(),
-        ICE_MAGE_JOB,
-        5,
-        30,
-        &forged_skills,
-        &AbilityStats::default(),
-        &[],
-        false,
-        0,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        0,
-        None,
-        0,
-        &BTreeMap::new(),
-        &BTreeMap::new(),
-    );
+    let magician = derived_for(ICE_MAGE_JOB, 30, &forged_skills);
     assert_eq!(
         magician.regeneration_passives,
         vec![
@@ -186,29 +170,7 @@ fn natural_recovery_passives_follow_job_without_skill_stacking() {
             },
         ]
     );
-    let (warrior, _) = compute_derived_stats(
-        &Gameplay::default(),
-        &MageSkills::default(),
-        100,
-        5,
-        30,
-        &forged_skills,
-        &AbilityStats::default(),
-        &[],
-        false,
-        0,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        0,
-        None,
-        0,
-        &BTreeMap::new(),
-        &BTreeMap::new(),
-    );
+    let warrior = derived_for(100, 30, &forged_skills);
     assert_eq!(
         warrior.regeneration_passives,
         vec![
@@ -4202,6 +4164,7 @@ include!("pickup_sink_acceptance.rs");
 include!("npc_click_acceptance.rs");
 include!("npc_teleport_acceptance.rs");
 include!("damage_pipeline_acceptance.rs");
+include!("attribute_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

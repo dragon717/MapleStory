@@ -122,7 +122,14 @@
   - **两处有意数值偏离（已量化登记）**：① 同源 `damR` 由「各自乘」改「求和后乘一次」（`base=1000`、20%+50%：改前 1800 → 改后 **1700**，由验收钉死）；② 逐步 `.floor()` 改末端一次（旧值 ≤ 新值，`base ∈ [1,4000]` 逐点实测偏离 **+0…+3**，绝大多数 +0/+1）。其余口径逐字保留（区域系数 `trunc`==`floor` 对正值等价、恒等系数不留痕、零暴击仍双倍）。
   - **刻意不碰**：**玩家受伤侧**（`monsters.rs` 护盾/魔心防禦抵偿是另一条通道，一行未改，由门禁正向登记为边界）；**目标侧减免的两套模型不擅自统一**（魔法走 `mdRate`−无视防御，普通攻击走等级差+PDD 且**作用在区间上**，故普通攻击**不调用**管线的目标减免，`combat_rules.rs` 一行未改）；基准伤害与命中/目标选择仍留在各自调用点。
   - 验收：cargo **544 过／0 失败**（基线 **527**，净增 **+17** = `damage.rs` 单测 10 + 验收 7）、非测试构建 **0 告警**、测试构建 **49 条 / 47 可修复**与 HEAD 基线同数同分布（新增两文件贡献 **0**）、`tsc --noEmit` 0、客户端 `run-checks.mjs` **42/43**（新增门禁 PASS，唯一失败＝既有 `layer-animation.check.ts`）、新门禁 `check_tms273_damage_pipeline.cjs` 6 组断言 + **7 组扰动**全部被拒（其中第 5 组是**第一次没红、当场收紧的**：初版只认一个驼峰写法，注入 `_DamageEvent { damageBreakdown }` 能绕过，已改为两侧协议文件大小写不敏感扫四族名字）；`artifacts/refactor/frontend-deps.json` 已还原；**协议 24 / 内容 `tms273-31` / 198 图零改动、客户端零改动**；**有玩家可见数值变化**（§4）。
-- [ ] 下一个 P0（未领取）：T04 剩余部分（高低平台侧壁／绳顶／游泳起跳／移动中施法／死亡复活／暂离回归）需真机实玩记录，不能静态推断；T05 剩余**已收口**（`infoex` 语义已核定，36317/36350 核定为「原版机制不在源里 ⇒ 维持阻塞」，见上一条目）；T07 的**属性聚合口径**（本次只收掉 `damR`/`indieDamR` 这一处，其余字段如 `bossdamR`/`finaldamR` 的聚合层级未动）未做，与 B05/B06 的其余部分一并待取用；之后按审计 §11 顺序取用。
+- [x] **T07｜属性与技能组合边界·**「**属性聚合口径**」切片（实现与验收完成，**待统一加载实玩**）：见[交付记录](history/2026-09-17/属性聚合权威模块.md)。
+  - 审计 T07 卡的「**属性聚合口径**」原文是：*「明确基础能力、装备实例、被动、临时 Buff/异常等来源如何聚合，哪些加算、哪些独立乘算、上限和取整在哪一层发生。只对当前技能/装备真正使用的属性做类型化。」*——上一条「可解释输出」切片里声明「属性聚合口径未做」，本轮就是它的落地。
+  - **病根**：「玩家最终属性是多少」有两个入口各算一套：UI 侧（`compute_derived_stats`）在折叠装备**之前**加被动 `intX`、乘楓葉祝福 `basicStatUp`；战斗侧（`attacks.rs`/`monsters.rs`/`boss.rs`/world tick）直接 `with_ability_stats(原始 ability_stats)`。逐字段核实：**D1/D2/D4 三处真分叉**（intX 合计 +60 INT、basicStatUp +15% 四维、mastery——后者在改前 `derived.rs` 里是**写了没人读**的赋值 ⇒ 物理区间下限恒 0.1）。
+  - **D3 被证伪（本轮最重要的修正）**：魔力之盾 `pddX` 不是「只进显示」——受伤侧在 `commit_incoming_damage` 内层（`shield_bonus`）**也在减它**，两侧总量本来就一致。第一版据此把含 `pddX` 的聚合 `defense()` 接进受伤路径 ⇒ **同一击扣两次**，被全量测试 `mage_skill_runtime…` 当场抓出（预期 MP −9、实际 −0）。最终：受伤路径**一行未动**，边界（外层装备侧 + 内层 pddX = 面板 `defense()`）写进模块头与门禁反向断言。
+  - **唯一入口**：新增 `server/src/attribute.rs::aggregate_attributes`——层序 `能力值 → 被动 → 增益 → 装备`（枚举顺序即层序）；加算/加算%（求和后整组只乘一次，仅楓葉祝福）/取高（仅 `mastery`）由 `AttributeOp` 表达；**取整只有楓葉祝福那一次整数截断**（全模块 0 处 `.floor()`）；上限只在声明处（含移速的源 `speedMax`）；`AttributeKey` 13 个只类型化真正使用的属性。`AttributeInput` 收敛输入（tick / join 两构造器），`compute_derived_stats` 16 位置参数 → 5 参数 + `DerivedRuntime`。UI 取值逐字不变；**有玩家可见数值变化**：普通攻击区间因 D1/D2/D4 **上升**。
+  - **源侧事实（门禁独立重算钉死）**：「学得即生效」的判据是「取值不随增益窗口变化」而**不是「无 mpCon」**（楓葉祝福**有** `mpCon`）；四个学得即生效来源（`2200007`/`2200012`/`2000010`/`2221000`）源 `common` 均无 `time`；带 `time` 却按被动读的必须登记 `INTRINSIC_DURATION_SKILLS`（本版仅冰龍吐息 `2221005` 的技能固有 `mastery`）。留痕字段名写**源字段名**（`indieMad`、`asrR`/`terR` 分列）。最大 MP 从持久化基线算 ⇒ 重连/换装/每拍重算**不复利**（验收用「踩成 9,999,999 再重算」证明）。
+  - 验收：cargo **560 过／0 失败**（本轮净增 **+14** 条验收；并行会话同期 +2）、非测试构建 **0 告警**、测试构建 **49 条**与基线同数（新增文件贡献 **0**）、新门禁 `check_tms273_attributes.cjs` **6 组**断言（已挂进 `client/scripts/run-checks.mjs`，42 → 43 项）+ **3 组扰动**全部被拒（楓葉祝福取整改四舍五入 ⇒ 验收+门禁双红；mastery 取高改相加 ⇒ 验收红；受伤路径改读聚合 `defense()` ⇒ 门禁红）；**协议 24 / 内容 `tms273-31` / 198 图零改动、客户端零改动** ⇒ `tsc` 不受影响；构建环境备注：`server/target` 在 iCloud 下 flock 失效（挂起的 flycheck 持锁 70+ 分钟），验证改用 `CARGO_TARGET_DIR=/tmp/attr-target`。
+- [ ] 下一个 P0（未领取）：T04 剩余部分（高低平台侧壁／绳顶／游泳起跳／移动中施法／死亡复活／暂离回归）需真机实玩记录，不能静态推断；T05 剩余**已收口**（`infoex` 语义已核定，36317/36350 核定为「原版机制不在源里 ⇒ 维持阻塞」，见上一条目）；T07 的**属性聚合口径已收口**（本轮；`bossdamR`/`finaldamR` 等源里不存在对应消费点的字段**未类型化**，出现消费点时按同一模式登记），与 B05/B06 的其余部分一并待取用；之后按审计 §11 顺序取用。
 
 > 补充：`scripts/check_tms273_gameplay.py` 未接入任何链路且 HEAD 即红（15 条 item `source` 归属遗留），本轮未改它、也未顺手修那 15 条；见 T03 交付记录 §8。
 
@@ -336,12 +343,83 @@
     选「否」原地不动。次元之鏡／怪物公園公車／蕾雅仍只说话（目的地未装配，**不是漏配**）。
   - 边界：若要 `103000000` 等三个目的地也进来，先装配对应图再重跑 `node scripts/build_tms273.cjs` 或至少重跑导出脚本。
 
+## Web 实时开发、资源缓存、强制更新与桌面客户端（2026-09-17，v3）
+
+> 主计划：[`topics/MapleStory_Web_Cache_Force_Update_Tauri_Plan_v3_2026-09-17.md`](topics/MapleStory_Web_Cache_Force_Update_Tauri_Plan_v3_2026-09-17.md)。
+> 旧实时/HMR 方案：[`topics/MapleStory_TMS273_Web_Realtime_HMR_Repo_Reviewed_v2.md`](topics/MapleStory_TMS273_Web_Realtime_HMR_Repo_Reviewed_v2.md)（方向与 HMR/Three.js 目标保留，路径与资源交付按 v3 修订）。
+> 阶段编号带 V2/V3 前缀，避免两份计划的 P2/P3 混淆。
+
+### V3-P0/P1 源码开发入口（**代码已实现，待用户实跑一次**）
+
+- [x] 启动入口模式分派：`启动3010.command` 新增 `dev` / `status` / `stop dev`，**无参数仍是原来的发布式启动**（构建候选 + 轮替 + 启动 3010），未知参数打印用法并以 2 退出，不会落入旧的构建重启分支。
+  - `dev` 只**附着**已运行的 3010（不构建、不重启、不动 bot），管理本入口自己的 Vite：5173 已被别的进程占用时明确失败，不换端口、不杀进程；PID 文件在 `runtime/3010-control/vite.pid`。
+  - `status` 只读：不构建、不启停、不写库。`stop dev` 只停本入口的 Vite。
+  - 待验：用户在自己的终端跑 `./启动3010.command dev`（需已有 3010 在跑）、`status`、`stop dev`，以及**双击（无参数）行为与从前完全一致**。
+- [x] Vite 固定本机 `127.0.0.1:5173` + `strictPort`；`package.json` 的 `dev` 去掉 `--host 0.0.0.0`（否则 CLI 覆盖配置）；局域网模式改由调用方显式传参。
+- [x] 页面身份：`vite.config.ts` 注入 `__CODE_MODE__`（serve＝`DEV_SOURCE`，build＝`BUILT_PACKAGE`），`page-shell.ts` 把发布徽章显示成「源码开发」或「构建版 · 时间」——**不用配置求值时间冒充最后一次成功应用源码的时间**。
+
+### V3-P2a 资源修订、HTTP 缓存、端点与 URL 适配（**代码已实现，缓存效果待用户实测**）
+
+- [x] 服务端新增 `server/src/client_delivery.rs`：
+  - `/api/client-release`（`no-store`）：小型发布描述，`releaseId` 优先取 `build/current/metadata.json`（复用既有发布元数据，不新建版本来源），另含 `protocolVersion` / `contentVersion` / `assetRevision` / `desktop`（**没有真实发布的安装包就是 `null`，不伪造链接**）。
+  - 缓存分类中间件：带内容指纹的构建产物与未来的内容寻址对象 `/assets/objects/<算法>/<摘要>.<ext>` → `public, max-age=31536000, immutable`；**过渡期固定名内容资源一律 `no-cache`**（可被装配管线原地改写，不允许锁一年）；`/` 与 `*.html` → `no-cache`；`/api/*` → `no-store`；`/ws` 不纳入分类。
+  - `assetRevision` 只在显式配置 `ASSET_REVISION`（不可变资源索引）时才有值，否则如实为 `null`；没有走 Service Worker，也没有给正常请求加时间戳。
+  - 验收：`cargo test client_delivery::` **8 过 / 0 失败**（8 组分类与发布契约断言），新文件 **0 告警**（测试构建仍 49 条，与基线同数）。
+- [x] 端点收敛 `client/src/network/endpoints.ts`：登录/注册、lobby、WS 三个入口改走 `apiUrl()` / `wsUrl()`，语义逐字不变（同源依旧，开发继续借 Vite 代理）。
+- [x] `client/src/assets/resource-url.ts`：逻辑 key 与下载地址分离。代数为 0 时 `resolveAssetUrl` 是**恒等函数**（本模块接入前后网络请求逐字节相同）；只有用户明确选择「重新下载所需资源」才推进 `ce=` 代数，且代数可由 URL 携带（偏好存储不可用时仍可修复）。
+- [x] 消费者接入（11 处）：`manifest.ts`、`scenes/world.ts`（图片/音频/windbell 音效）、`windbell/scene.ts`、`entry/view.ts`（登录素材 + DOM 背景与纸娃娃 `<img>`）、`entry/appearance.ts`、`cashshop/view.ts`、`notebook/directory.ts`、`npc/dialogue.ts`、`storage-view.ts`、`loading/view.ts`（CSS 底板 `url()`）、`windbell/activities.ts`。
+  - **如实登记的未覆盖项**：22 个文件仍把 `frame.url` 直接赋给 DOM `<img>`（HUD/技能/背包/聊天/图鉴/菜单/小地图/世界地图/组队/好友/宠物/NPC 头像/商品图标等）。它们仍享受 HTTP 缓存，但**不参与修复代数**；由门禁 `scripts/check_tms273_client_actions.cjs` 逐条登记，新增站点会失败、站点消失也会失败。
+- [x] 新门禁 `scripts/check_tms273_client_actions.cjs`（已挂进 `npm run check`）：8 组断言覆盖发布端点、缓存四类常量与 8 组 Rust 验收、URL 恒等与禁用时间戳、消费者名单与未覆盖登记、更新流程禁止事项、下载只接受 http(s)、端点收敛、页面身份与固定端口。
+- 待验（需用户在浏览器里看 DevTools）：同版本刷新是否复用（看传输字节而不是「请求行数」）、DevTools 开启 Disable cache 是否正常联网、`/api/client-release` 是否 `no-store`、构建产物 JS/CSS 是否带一年 immutable、内容资源是否 `no-cache`。
+
+### V3-P2b 首页强制更新与真实下载面板（**代码已实现，待用户实玩**）
+
+- [x] `client/src/features/client-actions/`：`update-service.ts`（状态机）、`desktop-downloads.ts`（下载目录）、`view.ts`、`style.css`。
+  - 首页右下角：`强制更新` + `下载桌面客户端` + 版本/资源修订显示；真 `<button>`、状态 `aria-live`；挂在 `#app` 下（与 PageShell 会搬进消息窗的 header/footer/`#message` 是兄弟节点，不会被搬走）。
+  - **不依赖 manifest / 外观 / Phaser**：只向 `/api/client-release` 要描述，地图资源坏掉时按钮仍在。进入频道/创角/游戏后隐藏（`EntryView.onStageChange` + `body.game-mode`）。
+  - 状态机：重复点击合并成单个在途任务（U01）；检查失败**不清存储、不改发布选择、不假报成功**（U02）；协议或内容版本不一致停在 `blocked` 并说明，**不放宽校验**（U04）；应用时导航到带发布标识的入口地址（**不用 `location.reload(true)`**）。
+  - 修复选项「同时重新下载所需资源」只在用户勾选时推进 `ce` 代数，**不触发全世界预下载**，也不把「已经最新」误报成「重新下载全部完成」。
+  - 下载面板：只列服务器如实发布的包（版本/架构/大小/校验值/日期），按浏览器自述**推荐**平台但允许手选；**未发布就显示「桌面版准备中」，不给占位链接**；地址只接受 http(s)，用普通 `<a download>` 交给浏览器下载，不把安装包 fetch 进 JS 内存。
+  - 验收：`update-service.check.ts` **6 组**、`desktop-downloads.check.ts` **4 组**断言全过（均已挂进 `run-checks.mjs`）；另修掉三处因新接线而红的既有检查（`network/session.check.mjs`、`features/windbell/runtime.check.mjs`、`features/npc/dialogue.check.mjs`：内联模块解析不到新增的 `endpoints` / `resource-url`，补成恒等桩）。
+- 待验：点两次强制更新只检查一次；断网时按钮报错但账号记忆/语言/键位不变；勾选修复后刷新，资源重新下载且后续刷新恢复复用；未发布桌面包时不出现假链接。
+
+### 尚未开始（按 v3 顺序，未做不写成已完成）
+
+- [ ] **V3-P3 按图加载**：计划要求「缩小集合后必须有可靠的动态补齐路径、换图代数与资源释放」，不能只删掉一个循环。当前 `buildPreloadPlan` 仍是全量全集（行为未变），本轮未动。
+- [ ] **V3-D0 Tauri 薄壳**：`client/src-tauri/` 尚未创建；真实安装包必须在没有 Vite、没有本机 3010 的环境验证。
+- [ ] **V3-D1 分平台构建与签名**：缺目标系统 runner、代码签名/公证身份与发布凭据；**缺什么就阻塞哪一步**，不伪造下载地址与签名结果。
+- [ ] **V2-HMR**：CSS 原位更新与 TS 整页刷新由 Vite 默认能力提供；「明确 UI/表现模块的安全热替换」（`session-runtime` / `presentation-host`、单个 HUD 槽位替换协议）尚未实现。
+- [ ] **V2-R1 / R2 / R3（Three.js）**：依赖里已存在 `three@^0.186`，但**安装依赖不等于接入**；R1（可关闭的局部接入 + 资源/生命周期验收）未开始，未过门槛不删除 Phaser。
+
+## 网络运动插值（Net Motion，2026-09-17 立项，实现与定向检查完成，**待统一加载实玩**）
+
+> 审计 T04 卡的「**网络表现**」原文：*「先确认现有插值/预测与校正逻辑，再改实际问题；不直接提高 Tick 频率，
+> 不让客户端提交伤害/最终坐标，不以牺牲权威换流畅。」*——本轮就是这句话的落地。
+> 交付记录：[网络运动插值](history/2026-09-17/网络运动插值.md)。
+
+- [x] **病根**：服务端 `TICK_MS = 50`（20 Hz）推权威快照，浏览器按 60 fps 画，而改之前每个 actor
+  都直接画在快照坐标上（`features/player/view.ts:217` 的 `setPosition(Math.round(player.x), …)`，
+  怪物与 NPC 同理），全仓 `interpolat|lerp|predict` 在 `client/src` 下**零命中** ⇒ 走路每 50ms 跳一步、
+  **一帧跳一整拍两帧原地不动**，相机 `centerOn` 吃同一份坐标 ⇒ 整屏走楼梯。
+- [x] **实现**：新增 `client/src/features/net-motion/motion-interpolator.ts`（纯逻辑、无 Phaser 依赖）——
+  每个 id 留 `prev`/`latest` 两份权威样本，用一个**按服务端 tick 速率前进的客户端时钟**在两者之间取位置；
+  **只插值 `x`/`y`**（动作/朝向/血量一律取最新样本）；自角色缓冲**半拍**、远端与怪物/宠物缓冲**一拍**。
+- [x] **不变量**：时钟**只调速率不倒流**（`maxSlew < 1` ⇒ rate 恒正，绝不为了对齐把角色往回拽）；
+  **不外推**（`clock ≤ latestTick`，数据用完宁可停半拍）；瞬移/换图/断流**直接落点**（单拍 > 600 单位或间隔 > 6 拍）；
+  乱序与同拍重复不回退；离场清轨；`reset()` 连时钟一起丢。**判定不受影响**：门/采集/拾取仍读权威坐标。
+- [x] **刻意不做**：本地预测（客户端没有地形与物理，预测位置不是权威的，且会把"卡墙"变成客户端自说自话）、
+  提高 Tick 频率、插值 NPC/掉落/采集物（静态或自带本地动画）。
+- [x] **验收**：新检查 `features/net-motion/motion-interpolator.check.mjs` **全绿**（12 组断言：稳态**最小帧位移 > 0**
+  且最大 < 一整拍、稳态帧位移 ≈ `STEP/3`、瞬移/断流落点、只改 x/y、离场清轨、乱序不回退、自角色比远端更靠前、
+  时钟不倒流、不外推、reset 重新对表 + 接线）；已挂进 `run-checks.mjs`。
+  **协议 24 / 内容 `tms273-31` / 198 图 / 服务端零改动**（纯展示层，前后端不需要一起换）。
+- [ ] **待实玩**：走动/跳跃/爬绳/游泳时角色与相机是否连续；换图/传送/复活落点是否干脆（无横穿地图的滑行）；
+  怪物追击与宠物跟随是否平滑；原地不动时不该抖动；标签页切回后第一帧直接落点。
+
 ## 待你确认或操作
 
 - [ ] **确认 3010 启动提速（2026-09-16）**。`构建打包` 那一步的根因（843MB / 7 万个内容文件被当成构建产物、每次启动全量复制一遍）已修：生产构建不再复制内容数据，实测 vite 段 50.61s → 3.1s、候选 882MB → 3.3MB。请按惯例在你自己的终端跑一次 `zsh 启动3010.command` 确认 `[2/4]` 落到秒级——本机沙箱读不到进程表，`activate` 那一步我无法代跑。同一改动带来一条行为变化：**改内容不再需要重建**，直接改 `client/public-tms273/assets/**` 刷新页面即生效（旧的 `rsync` 覆盖 `build/current/client/assets` 热修做法已失效）。
-- [ ] **HMR 计划 P1（是否改双击默认行为）**。把统一脚本改造成 dev/build/preview/status/stop 模式后，双击启动会从“构建+服务”变成
-  “Vite 源码开发 + 内部 Rust”。dev 链路技术上已通（`npm run dev` + 已配置的 `/api`、`/ws` 代理），缺统一入口、`strictPort`、模式/实例标识与
-  HMR 边界。改变默认行为与验收必须真跑一次（即重启 3010），按既有约定等用户决定时机。
+- [x] **HMR 计划 P1（模式分派已实现，默认行为**未**改变）**。`dev` / `status` / `stop dev` 已按上文 V3-P1 落地；**双击（无参数）仍然是原来的构建+服务**，所以不必担心默认行为被改。是否把双击默认切到 dev，等你决定；本机沙箱读不到进程表，`dev` 这条链路需要你在自己的终端跑一次才算验过。
 
 ## 仓库重构计划（[专题方案](topics/MapleStory_Repository_Based_Refactoring_Plan.md)）
 

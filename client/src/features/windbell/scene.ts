@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import type { WindbellState, PlayerState } from '../../../../shared/protocol';
 import config from '../../../../shared/windbell.json';
 import { frameAt } from '../player/animation';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import { WINDBELL_ASSETS as A } from './maps';
 
 type Frame = { url: string; width: number; height: number; origin: { x: number; y: number }; delay: number };
@@ -17,16 +18,16 @@ export class WindbellScene {
   static preload(scene: Phaser.Scene, kind: 'island'|'bridge') {
     for (const name of [`${kind}-distant-background`, 'island-ancient-tree', 'island-floating-ground', 'prop-waystation', 'prop-leafwing', 'prop-dragon', 'prop-cart', 'prop-materials', 'prop-bell']) {
       const url = `${A}${name}.png`;
-      if (!scene.textures.exists(url)) scene.load.image(url, url);
+      if (!scene.textures.exists(url)) scene.load.image(url, resolveAssetUrl(url));
     }
     const queue = (assets: Assets) => {
       const urls = new Set(Object.values(assets).flatMap(frames => frames.map(frame => frame.url)));
-      for (const url of urls) if (!scene.textures.exists(url)) scene.load.image(url, url);
+      for (const url of urls) if (!scene.textures.exists(url)) scene.load.image(url, resolveAssetUrl(url));
     };
     if (scene.cache.json.exists(CATALOG)) queue(scene.cache.json.get(CATALOG));
     else {
       scene.load.once(`filecomplete-json-${CATALOG}`, (_key: string, _type: string, assets: Assets) => queue(assets));
-      scene.load.json(CATALOG, CATALOG);
+      scene.load.json(CATALOG, resolveAssetUrl(CATALOG));
     }
   }
 

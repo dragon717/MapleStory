@@ -10,6 +10,16 @@
 
 use super::*;
 
+/// 装备实例对**一个源字段**的合计（`incSTR` / `incPAD` / `incPDD` / `incMAD` / `incMHP` /
+/// `incMMP` / `incSpeed` …）。**这是唯一的装备折叠实现**：`with_equipment` 与
+/// `attribute.rs` 的属性留痕都调它 ⇒「记下来的装备贡献」与「真正折进配置的值」
+/// 不可能不一致（同一个纯函数、同一份 `equipped`）。
+pub(super) fn equipment_field_sum(equipped: &[crate::protocol::InventoryItem], key: &str) -> i64 {
+    equipped.iter().fold(0i64, |total, item| {
+        total.saturating_add(inventory::equipment_attribute(item, key))
+    })
+}
+
 impl PlayerConfig {
     pub(super) fn with_ability_stats(
         &self,
@@ -30,11 +40,7 @@ impl PlayerConfig {
         equipped: &[crate::protocol::InventoryItem],
         job: u32,
     ) -> Self {
-        let bonus = |key: &str| {
-            equipped.iter().fold(0i64, |total, item| {
-                total.saturating_add(inventory::equipment_attribute(item, key))
-            })
-        };
+        let bonus = |key: &str| equipment_field_sum(equipped, key);
         let mut derived = self.clone();
         derived.job = Some(job);
         derived.base_str = Some(self.base_str.unwrap_or(0).saturating_add(bonus("incSTR")));

@@ -1016,6 +1016,9 @@ impl World {
         magic: bool,
     ) -> bool {
         let Some((map_id, defense)) = self.players.get(id).map(|player| {
+            // 与接触伤害同一条口径：**装备侧** `weapon_defense`。魔力之盾的 `pddX`
+            // 由 `commit_incoming_damage` 在内部减一次，这里再读含 `pddX` 的聚合
+            // `defense()` 会变成同一击扣两次（见 `monsters.rs::apply_contact_damage`）。
             let defense = self
                 .gameplay
                 .player

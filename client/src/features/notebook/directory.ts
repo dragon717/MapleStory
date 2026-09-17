@@ -8,6 +8,7 @@
 //! - 版本由服务器回显核对，不一致时窗口拒绝排版，而不是用旧页码解释新目录。
 
 import type { NotebookSection } from '../../../../shared/protocol';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 export type Availability = 'obtainable' | 'unavailable' | 'unverified';
 
@@ -93,7 +94,7 @@ let pending: Promise<NotebookDirectory> | undefined;
 
 /** 取目录。  反复开窗只取一次；失败不留缓存，下一次可以重试。 */
 export function loadNotebookDirectory(): Promise<NotebookDirectory> {
-  pending ??= fetch('/assets/notebook.json').then(response => {
+  pending ??= fetch(resolveAssetUrl('/assets/notebook.json')).then(response => {
     if (!response.ok) throw new Error(`图鉴目录加载失败 (${response.status})`);
     return response.json() as Promise<NotebookDirectory>;
   }).catch(error => {
