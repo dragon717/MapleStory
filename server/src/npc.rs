@@ -161,6 +161,20 @@ pub struct MenuOption {
     pub index: u32,
     pub text: LocalizedText,
     pub next: String,
+    /// When present, the option is only offered while the condition holds —
+    /// and, just as importantly, only *selectable* while it holds.  Hiding an
+    /// option without gating the selection would let a stale client pick it by
+    /// index and warp where the source never offered.
+    #[serde(default)]
+    pub cond: Option<Condition>,
+}
+
+impl MenuOption {
+    fn offered(&self, context: &DialogueContext<'_>) -> bool {
+        self.cond
+            .as_ref()
+            .is_none_or(|condition| condition.matches(context))
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -214,6 +228,17 @@ pub struct Condition {
     /// completion gates such as quest 1021 "Roger's Apple": hp must be full).
     #[serde(default)]
     pub hp_at_least: Option<u32>,
+    /// Passes when the player is **not** standing on this map id.
+    ///
+    /// Source npc scripts routinely hide the entry for wherever you already
+    /// are — 維多利亞計程車's `if (taxiMaps[i] != map.getId())` is the canonical
+    /// case (its destinations are exactly the four towns it is placed in, so
+    /// without this the taxi would offer to drive you to the town you are
+    /// standing in).  Menus read it through `MenuOption::cond`, which is why
+    /// it is a condition rather than a branch: a branch would need one arm per
+    /// map, and the taxi is placed in four.
+    #[serde(default)]
+    pub map_is_not: Option<String>,
 }
 
 /// Read-only view of the player state a condition may test.
@@ -224,6 +249,8 @@ pub struct DialogueContext<'a> {
     pub inventory: &'a [crate::protocol::InventoryItem],
     /// quest id -> "active" | "completed"; absent rows are "available".
     pub quests: &'a BTreeMap<String, String>,
+    /// The map the player is standing on, tested by `Condition::map_is_not`.
+    pub map_id: &'a str,
     /// Display language for localized dialogue text ("zh" default, "en" for
     /// the ?lang=en UI).  See quest_text::normalize_lang.
     pub lang: &'a str,
@@ -287,6 +314,11 @@ impl Condition {
         }
         if let Some(min_hp) = self.hp_at_least {
             if context.hp < min_hp {
+                return false;
+            }
+        }
+        if let Some(map_id) = self.map_is_not.as_deref() {
+            if context.map_id == map_id {
                 return false;
             }
         }
@@ -614,6 +646,7 @@ fn resolve(
                         options: menu
                             .options
                             .iter()
+                            .filter(|option| option.offered(context))
                             .map(|option| (option.index, option.text.pick(context.lang).to_owned()))
                             .collect(),
                     },
@@ -668,7 +701,11 @@ pub fn advance(
         (DialogueNode::Ask(ask), Some("yes"), _) => ask.yes.clone(),
         (DialogueNode::Ask(ask), Some("no"), _) => ask.no.clone(),
         (DialogueNode::Menu(menu), Some("select"), Some(selection)) => {
-            let Some(option) = menu.options.iter().find(|option| option.index == selection) else {
+            let Some(option) = menu
+                .options
+                .iter()
+                .find(|option| option.index == selection && option.offered(context))
+            else {
                 return Err("npc dialogue selection is not offered".to_owned());
             };
             option.next.clone()
@@ -708,6 +745,9 @@ mod tests {
             mesos,
             inventory: &[],
             quests: empty_quests(),
+            // "" is no map, so a `mapIsNot` gate always passes here; the
+            // map-gated cases use `context_on_map`.
+            map_id: "",
             lang: "zh",
         }
     }
@@ -719,6 +759,22 @@ mod tests {
             mesos: 0,
             inventory: &[],
             quests,
+            map_id: "",
+            lang: "zh",
+        }
+    }
+
+    fn context_on_map(map_id: &str) -> DialogueContext<'_> {
+        fn empty_quests() -> &'static BTreeMap<String, String> {
+            Box::leak(Box::new(BTreeMap::new()))
+        }
+        DialogueContext {
+            hp: 50,
+            level: 1,
+            mesos: 0,
+            inventory: &[],
+            quests: empty_quests(),
+            map_id,
             lang: "zh",
         }
     }
@@ -843,6 +899,63 @@ mod tests {
         )
         .unwrap();
         assert_eq!(node, "a");
+    }
+
+    #[test]
+    fn map_gated_menu_option_is_hidden_and_not_selectable() {
+        // 維多利亞計程車 in miniature: two destinations, each hidden on the map
+        // it points at.  The source rule is `taxiMaps[i] != map.getId()`.
+        let script: DialogueScript = serde_json::from_str(
+            r#"{"start":"pick","nodes":{
+                "pick":{"menu":{"text":"要去哪","options":[
+                    {"index":0,"text":"弓箭手村","next":"go0","cond":{"mapIsNot":"100000000"}},
+                    {"index":1,"text":"魔法森林","next":"go1","cond":{"mapIsNot":"101000000"}}]}},
+                "go0":{"act":{"kind":"warp","mapId":"100000000"}},
+                "go1":{"act":{"kind":"warp","mapId":"101000000"}}}}"#,
+        )
+        .unwrap();
+        script.validate("taxi").unwrap();
+
+        let (_, view, _) = advance(&script, None, None, None, &context_on_map("100000000")).unwrap();
+        let DialogueView::Say { options, .. } = view else {
+            panic!("a menu always resolves to a say view");
+        };
+        assert_eq!(
+            options,
+            vec![(1, "魔法森林".to_owned())],
+            "站在弓箭手村时，計程車不能把弓箭手村列成目的地"
+        );
+
+        // 隐藏的项必须连「按 index 直接选」也做不到：只隐藏不拦选，旧客户端仍能选到
+        // 源里从未提供的目的地。
+        assert!(
+            advance(
+                &script,
+                Some("pick"),
+                Some("select"),
+                Some(0),
+                &context_on_map("100000000")
+            )
+            .is_err(),
+            "被地图条件隐藏的选项不得可选中"
+        );
+        let (node, view, _) = advance(
+            &script,
+            Some("pick"),
+            Some("select"),
+            Some(1),
+            &context_on_map("100000000"),
+        )
+        .unwrap();
+        assert_eq!(node, "go1");
+        assert!(matches!(view, DialogueView::Warp { map_id } if map_id == "101000000"));
+
+        // 换一张图，被隐藏的换成另一个（两个条件互不干扰）。
+        let (_, view, _) = advance(&script, None, None, None, &context_on_map("101000000")).unwrap();
+        let DialogueView::Say { options, .. } = view else {
+            panic!("a menu always resolves to a say view");
+        };
+        assert_eq!(options, vec![(0, "弓箭手村".to_owned())]);
     }
 
     #[test]

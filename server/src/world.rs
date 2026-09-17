@@ -1992,6 +1992,11 @@ pub struct World {
     /// Source dialogue lines per placed npc template (shared/npc-dialogue.json).
     /// 阶段二：无脚本 NPC 由这张表说话；表里查不到＝源里没台词，回占位提示。
     npc_dialogue: BTreeMap<String, npc::NpcDialogue>,
+    /// Source npc **scripts** per placed template (shared/npc-scripts.json).
+    /// 根因修复：源 `script/npc/<name>.js` 转换出的对话 DSL。模板自带的
+    /// `template.script` 优先；这张表补的是「源里有脚本实体、但装配管线没接上」
+    /// 的那一批（計程車这类传送 NPC）。
+    npc_scripts: BTreeMap<String, npc::DialogueScript>,
     tick: u64,
     /// Monotonic id source for away windows, so each continuous absence has a
     /// stable identity for prompt de-duplication and logging.
@@ -2099,6 +2104,7 @@ impl World {
             quest_text: crate::quest_text::QuestTextCorpus::default(),
             npc_names_zh: BTreeMap::new(),
             npc_dialogue: BTreeMap::new(),
+            npc_scripts: BTreeMap::new(),
             tick: 0,
             next_away: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
@@ -2175,6 +2181,19 @@ impl World {
     /// instead of silence.
     pub fn with_npc_dialogue(mut self, dialogue: BTreeMap<String, npc::NpcDialogue>) -> Self {
         self.npc_dialogue = dialogue;
+        self
+    }
+
+    /// Inject the converted **source npc scripts** for placed templates
+    /// (shared/npc-scripts.json).
+    ///
+    /// These occupy the same slot as `template.script` and are consulted only
+    /// when a template carries no DSL of its own, so this is purely additive:
+    /// every NPC that already had behaviour keeps it byte for byte, and the
+    /// ones whose source script entity shipped but was never wired (the
+    /// teleport class — 計程車 and friends) start working.
+    pub fn with_npc_scripts(mut self, scripts: BTreeMap<String, npc::DialogueScript>) -> Self {
+        self.npc_scripts = scripts;
         self
     }
 

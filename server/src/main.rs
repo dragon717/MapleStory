@@ -117,6 +117,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     })?
     .npcs;
+    // 根因修复（2026-09-17）：源 NPC 脚本表。与台词表同一条装配链产出
+    // （scripts/export_tms273_npc_scripts.cjs），因此同样按硬失败处理：表在=源里有
+    // 实体且可转换的脚本都接上了；表缺=装配没跑完，而静默降级的表现**恰好**是
+    // 「計程車这类 NPC 说一句话然后什么都不发生」——那正是要修的病症本身，所以
+    // 不能让它悄悄回退。
+    #[derive(Deserialize)]
+    struct NpcScriptsFile {
+        npcs: BTreeMap<String, npc::DialogueScript>,
+    }
+    let npc_scripts_path = PathBuf::from(setting(
+        "NPC_SCRIPTS_FILE",
+        root.join("shared/npc-scripts.json").to_str().unwrap(),
+    ));
+    let npc_scripts: BTreeMap<String, npc::DialogueScript> = serde_json::from_str::<NpcScriptsFile>(
+        &std::fs::read_to_string(&npc_scripts_path).map_err(|error| {
+            format!(
+                "Cannot read npc scripts {}: {error}",
+                npc_scripts_path.display()
+            )
+        })?,
+    )
+    .map_err(|error| {
+        format!(
+            "Cannot parse npc scripts {}: {error}",
+            npc_scripts_path.display()
+        )
+    })?
+    .npcs;
+    // 与 `gameplay.rs` 对 `template.script` 的校验同一口径：悬空的跳转节点在运行时会
+    // 变成「对话卡住」，必须在启动时挡下。
+    for (template_id, script) in &npc_scripts {
+        script
+            .validate(template_id)
+            .map_err(|error| format!("invalid source npc script: {error}"))?;
+    }
     let windbell_path = PathBuf::from(setting(
         "WINDBELL_FILE",
         root.join("shared/windbell.json").to_str().unwrap(),
@@ -151,6 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_quest_text(quest_text)
     .with_npc_names_zh(npc_names_zh)
     .with_npc_dialogue(npc_dialogue)
+    .with_npc_scripts(npc_scripts)
     .with_mage_skills(mage_skills)
     .with_windbell(windbell)?;
     tokio::spawn(world::run(world, rx));

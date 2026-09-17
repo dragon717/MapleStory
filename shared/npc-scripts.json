@@ -1,0 +1,782 @@
+{
+ "schemaVersion": 1,
+ "kind": "npc-scripts-zh",
+ "generatedFrom": "TMS273/script/npc/<info/script name>.js converted into the runtime dialogue DSL; destinations intersected with shared/maps.json (rendered maps), #p#/#m# resolved from the same version tables",
+ "encoding": "UTF-8",
+ "npcs": {
+  "1012000": {
+   "start": "greet",
+   "nodes": {
+    "greet": {
+     "say": {
+      "text": "您好~! 維多利亞計程車. 想要往其他村莊安全又快速的移動嗎? 如果是這樣, 為了優先考量滿足顧客, 請使用 #b維多利亞計程車#k. 特別免費! 親切的送你到想要到達的地方.",
+      "kind": "next",
+      "next": "pick"
+     }
+    },
+    "confirm-0": {
+     "ask": {
+      "text": "這裡看起來感覺沒有什麼事好做了。真的要移動到 #b弓箭手村#k 村莊嗎？",
+      "yes": "go-0",
+      "no": "decline"
+     }
+    },
+    "go-0": {
+     "act": {
+      "kind": "warp",
+      "mapId": "100000000"
+     }
+    },
+    "confirm-1": {
+     "ask": {
+      "text": "這裡看起來感覺沒有什麼事好做了。真的要移動到 #b魔法森林#k 村莊嗎？",
+      "yes": "go-1",
+      "no": "decline"
+     }
+    },
+    "go-1": {
+     "act": {
+      "kind": "warp",
+      "mapId": "101000000"
+     }
+    },
+    "confirm-2": {
+     "ask": {
+      "text": "這裡看起來感覺沒有什麼事好做了。真的要移動到 #b勇士之村#k 村莊嗎？",
+      "yes": "go-2",
+      "no": "decline"
+     }
+    },
+    "go-2": {
+     "act": {
+      "kind": "warp",
+      "mapId": "102000000"
+     }
+    },
+    "confirm-4": {
+     "ask": {
+      "text": "這裡看起來感覺沒有什麼事好做了。真的要移動到 #b維多利亞港#k 村莊嗎？",
+      "yes": "go-4",
+      "no": "decline"
+     }
+    },
+    "go-4": {
+     "act": {
+      "kind": "warp",
+      "mapId": "104000000"
+     }
+    },
+    "pick": {
+     "menu": {
+      "text": "請選擇目的地.\r\n#b",
+      "options": [
+       {
+        "index": 0,
+        "text": "弓箭手村",
+        "next": "confirm-0",
+        "cond": {
+         "mapIsNot": "100000000"
+        }
+       },
+       {
+        "index": 1,
+        "text": "魔法森林",
+        "next": "confirm-1",
+        "cond": {
+         "mapIsNot": "101000000"
+        }
+       },
+       {
+        "index": 2,
+        "text": "勇士之村",
+        "next": "confirm-2",
+        "cond": {
+         "mapIsNot": "102000000"
+        }
+       },
+       {
+        "index": 4,
+        "text": "維多利亞港",
+        "next": "confirm-4",
+        "cond": {
+         "mapIsNot": "104000000"
+        }
+       }
+      ]
+     }
+    },
+    "decline": {
+     "say": {
+      "text": "要是想要移動至其他村莊的話，隨時歡迎使用計程車~",
+      "kind": "ok"
+     }
+    }
+   }
+  }
+ },
+ "provenance": {
+  "1012000": {
+   "source": "victoria_taxi",
+   "convertedFrom": "script/npc/victoria_taxi.js",
+   "excluded": [
+    {
+     "mapId": "103000000",
+     "name": "墮落城市",
+     "reason": "not-rendered"
+    },
+    {
+     "mapId": "105000000",
+     "name": "奇幻村",
+     "reason": "not-rendered"
+    },
+    {
+     "mapId": "120000100",
+     "name": "上層走廊",
+     "reason": "not-rendered"
+    }
+   ]
+  }
+ },
+ "unconverted": {
+  "10200": {
+   "source": "infoArcher",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "10201": {
+   "source": "infoMagician",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "10202": {
+   "source": "infoSwordman",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "10203": {
+   "source": "infoRogue",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "10204": {
+   "source": "infoPirate",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "12000": {
+   "source": "talk_lukas",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "12100": {
+   "source": "enterTraining",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "12101": {
+   "source": "rein",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "22000": {
+   "source": "get_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1002003": {
+   "source": "friend00",
+   "reason": "unsupported-pattern",
+   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+  },
+  "1002100": {
+   "source": "jane",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1002101": {
+   "source": "contimoveSDIRit",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1002105": {
+   "source": "dimensionGate",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012002": {
+   "source": "make_alert",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012005": {
+   "source": "petmaster",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012008": {
+   "source": "minigame00",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012100": {
+   "source": "ArcherMaster",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012102": {
+   "source": "npc_1012102",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012108": {
+   "source": "npc_1012108",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012109": {
+   "source": "npc_1012109",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012110": {
+   "source": "npc_1012110",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012117": {
+   "source": "hair_royal",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1012121": {
+   "source": "say_1012121",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022000": {
+   "source": "FighterMaster",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022002": {
+   "source": "Manji",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022003": {
+   "source": "make_alert",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022006": {
+   "source": "ramsarReport",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022007": {
+   "source": "npc_1022007",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022107": {
+   "source": "periPatrol02",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1022110": {
+   "source": "periPatrol",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032001": {
+   "source": "MagicianMaster",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032002": {
+   "source": "make_alert",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032003": {
+   "source": "herb_in",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032007": {
+   "source": "sell_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032008": {
+   "source": "get_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032100": {
+   "source": "owen",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032101": {
+   "source": "rowen",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032102": {
+   "source": "pet_life",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1032116": {
+   "source": "potionBook",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1040000": {
+   "source": "talk_luke",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1043002": {
+   "source": "dual_wallpaper",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1082200": {
+   "source": "backToVictoria",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1100003": {
+   "source": "contimoveEreEli",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1100004": {
+   "source": "contimoveEreOrb",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1100007": {
+   "source": "contimoveEliEre",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1101001": {
+   "source": "createCygnus",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1101002": {
+   "source": "tutorNineheart",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1102003": {
+   "source": "cygnus_lv120",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1103003": {
+   "source": "npc_1103003",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1200004": {
+   "source": "contimoveRitRie",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1300007": {
+   "source": "npc_1300007",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "1540941": {
+   "source": "npc_horizonPortal",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2010000": {
+   "source": "carlie",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2010011": {
+   "source": "guild_move",
+   "reason": "destination-not-rendered",
+   "detail": "stage.changeMap(200000301, …) 的目标不在已装配的地图目录里"
+  },
+  "2012000": {
+   "source": "sell_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2012002": {
+   "source": "goOutWaitingRoom",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2012006": {
+   "source": "getAboard",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2012012": {
+   "source": "oldBook2",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2012013": {
+   "source": "get_ticket1",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2012019": {
+   "source": "npc_2012019",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2023000": {
+   "source": "ossyria_taxi",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040000": {
+   "source": "sell_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040002": {
+   "source": "ludi023",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040014": {
+   "source": "minigame00",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040016": {
+   "source": "make_alert",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040024": {
+   "source": "ludi_move",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040030": {
+   "source": "ludi026",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040046": {
+   "source": "friend01",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040050": {
+   "source": "make_ston",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2040052": {
+   "source": "library",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2041000": {
+   "source": "get_ticket",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2042000": {
+   "source": "mc_move",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2052026": {
+   "source": "npc_2052026",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2084001": {
+   "source": "goldrich",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2091010": {
+   "source": "dojang_Ranking",
+   "reason": "unsupported-pattern",
+   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+  },
+  "2120028": {
+   "source": "rouletteNPC_2015",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2131003": {
+   "source": "roha",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2131005": {
+   "source": "talk_cion",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2131011": {
+   "source": "talk_fstone",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2131012": {
+   "source": "talk_umb",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2131013": {
+   "source": "talk_mflower",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2132001": {
+   "source": "talk_lord",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2133000": {
+   "source": "party6_entry",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150003": {
+   "source": "hair_edel1",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150004": {
+   "source": "skin_edel1",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150005": {
+   "source": "face_edel1",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150006": {
+   "source": "face_edel2",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150007": {
+   "source": "edelstein_taxi",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150008": {
+   "source": "contimoveEdeGo",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150009": {
+   "source": "contimoveOrbEde",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2150010": {
+   "source": "contimoveEliEde",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2151000": {
+   "source": "illex",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2151001": {
+   "source": "henrite",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2151002": {
+   "source": "bell",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2151004": {
+   "source": "cheki",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2151008": {
+   "source": "jaguar_in",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2152001": {
+   "source": "npc_2152001",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2152004": {
+   "source": "declarationOflove4",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2152009": {
+   "source": "npc_2152009",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2152018": {
+   "source": "talk2159305",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2152019": {
+   "source": "q23005ing",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "2153002": {
+   "source": "talk2153002",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "3003614": {
+   "source": "BM1_Outpost",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9000009": {
+   "source": "Event03_1",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9000014": {
+   "source": "jini",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9000040": {
+   "source": "medal_rank",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9000041": {
+   "source": "Donation",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9000234": {
+   "source": "relocateWorld_challengers",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9001105": {
+   "source": "consume_4000631",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9001130": {
+   "source": "q15285s",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9010000": {
+   "source": "mapleAdmin",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9010010": {
+   "source": "kasandra",
+   "reason": "unsupported-pattern",
+   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+  },
+  "9010022": {
+   "source": "unityPortal",
+   "reason": "unsupported-pattern",
+   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+  },
+  "9010109": {
+   "source": "NPC_unionShop",
+   "reason": "unsupported-pattern",
+   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+  },
+  "9010113": {
+   "source": "npc_9010113",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9063173": {
+   "source": "npc_9063173",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9063313": {
+   "source": "npc_9063313",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9063397": {
+   "source": "npc_9063397",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9063620": {
+   "source": "npc_9063620",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9071003": {
+   "source": "mParkShuttle",
+   "reason": "destination-not-rendered",
+   "detail": "stage.changeMap(951000000, …) 的目标不在已装配的地图目录里"
+  },
+  "9072000": {
+   "source": "sellContiMoveRiding",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9102002": {
+   "source": "cashRiding",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9110000": {
+   "source": "goKinoc",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9201023": {
+   "source": "amoria_enter",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9201594": {
+   "source": "wedding_enter",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9401434": {
+   "source": "npc_9401434",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9402029": {
+   "source": "npc_9402029",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  },
+  "9402032": {
+   "source": "npc_9402032",
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
+  }
+ }
+}

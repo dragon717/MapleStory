@@ -4197,6 +4197,7 @@ include!("edelstein_acceptance.rs");
 include!("inventory_persistence_acceptance.rs");
 include!("pickup_sink_acceptance.rs");
 include!("npc_click_acceptance.rs");
+include!("npc_teleport_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

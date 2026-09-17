@@ -54,6 +54,11 @@ run('python3',['scripts/generate_tms273_gameplay.py']);
 // 之后；又因为它按模板集合取交集，装配了新图就必须重跑，否则新图上的 NPC 会退回
 // 占位提示。详见 scripts/check_tms273_npc_dialogue.cjs。
 run(process.execPath,['scripts/export_tms273_npc_dialogue.cjs']);
+// 源 NPC 脚本（`参考/.../TMS273/script/npc/*.js`）→ 对话 DSL。放在台词表之后：
+// 两者都按「已摆放模板集合」取交集，装配新图后必须重跑。它同时吃 `shared/maps.json`
+// 的已装配目录（目的地取交集），所以在候选地图产出之后跑最稳。
+// 详见 scripts/check_tms273_npc_scripts.cjs。
+run(process.execPath,['scripts/export_tms273_npc_scripts.cjs']);
 // The four slot-expansion coupons are sourced through an NPC script in TMS273,
 // so `generate_tms273_gameplay.py` only authors their shop rows; the item
 // definitions come from this backfill.  It must run *after* the gameplay

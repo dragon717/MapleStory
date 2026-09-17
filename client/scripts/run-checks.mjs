@@ -72,7 +72,7 @@ const audit = spawnSync(
 );
 results.push({ label: auditLabel, ok: audit.status === 0, status: audit.status });
 
-for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
+for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'check_tms273_npc_scripts.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
   const result = spawnSync(process.execPath, [path.join(clientRoot, '..', 'scripts', file)], {
     cwd: path.join(clientRoot, '..'), stdio: 'inherit',
   });

@@ -542,7 +542,17 @@ impl World {
         // `info/speak` 声明的顺序 + `String/Npc.json` 的文本）接进来后，绝大多数
         // 模板能说出源里真实说过的话，占位收窄为「源里确实没有说话内容」的那批
         // 物件型条目（`傳送門`／`警告牌`／`繳納箱`…）。详见 `npc::NpcDialogue`。
-        let Some(script) = template.script.clone() else {
+        // 根因修复（2026-09-17）：**源 NPC 脚本的接线槽位就在这里**。
+        //
+        // `scripts/generate_tms273_gameplay.py` 从设计上不转换 `info/script`（该文件
+        // 的 `incomplete` 段明写 "NPC dialogue/script references are not converted"），
+        // 所以即使源脚本实体就在包里（`script/npc/victoria_taxi.js`），模板里的
+        // `script` 仍然是 null ⇒ 計程車这类**传送类** NPC 只能「说一句、然后什么都不
+        // 发生」。`shared/npc-scripts.json` 把源脚本按可证明的模式转成同一套 DSL，
+        // 在这一槽位补上；**模板自带的 DSL 优先**（那是本项目已核定的内容，且
+        // `validate()` 已在加载时校验过它）。
+        let source_script = self.npc_scripts.get(&template_id).cloned();
+        let Some(script) = template.script.clone().or(source_script) else {
             self.handle_scriptless_npc_talk(
                 &id,
                 &request_id,
@@ -591,12 +601,21 @@ impl World {
             .get(&id)
             .map(|player| u32::try_from(player.state.hp.max(0)).unwrap_or(0))
             .unwrap_or(0);
+        // The map the player is on right now.  Menu options may gate on it
+        // (`Condition::map_is_not`) — 維多利亞計程車 lists the four towns it is
+        // placed in and hides whichever one you are standing in.
+        let player_map = self
+            .players
+            .get(&id)
+            .map(|player| player.map_id.clone())
+            .unwrap_or_default();
         let context = DialogueContext {
             hp,
             level,
             mesos,
             inventory: &inventory,
             quests: &quests,
+            map_id: &player_map,
             lang,
         };
         match npc::advance(&script, current_node.as_deref(), step, selection, &context) {
