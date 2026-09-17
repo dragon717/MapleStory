@@ -29,6 +29,10 @@ mod cashshop;
 mod combat_rules;
 #[path = "commands.rs"]
 mod commands;
+/// 伤害修正管线：玩家侧伤害修正的唯一求值点与唯一口径（分组按源字段名判定、
+/// 取整只在末端一次、上限只在声明处）。见模块头。
+#[path = "damage.rs"]
+mod damage;
 #[path = "derived.rs"]
 mod derived;
 /// 埃德爾斯坦城/耶雷弗簇的城内脚本门 P 级路由（授权表与边界见模块头）。
@@ -99,6 +103,7 @@ mod trade;
 mod ufo;
 #[path = "windbell.rs"]
 pub(crate) mod windbell;
+use self::damage::*;
 use self::derived::*;
 use self::monsters::mark_monster_hit_aggro;
 use self::movement::*;

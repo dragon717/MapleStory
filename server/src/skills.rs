@@ -1989,7 +1989,13 @@ impl World {
         (mastery_crit + third_crit + hyper_ice_crit + if wand_crit { 5 } else { 0 }).clamp(0, 100)
     }
 
-    pub(super) fn magic_damage_with_passives(
+    /// 魔法技能命中一次的**可解释求值**：把该技能的全部玩家侧修正来源收齐，
+    /// 交给 [`DamagePipeline`] 统一求值。分组（加算 / 独立乘算 / 暴击）、取整层与
+    /// 上限层的口径全在 `damage.rs` 的模块头，这里只负责「说出有哪些来源」。
+    ///
+    /// `pre` 是「命中本身携带、但不由技能表决定」的前置修正（元素弱化的 `x`、
+    /// 被消耗掉的冻结层的 `x`/`y`）：调用点算出**百分比与来源**，求值仍走同一处。
+    pub(super) fn magic_damage_breakdown(
         &self,
         id: &str,
         skill_id: u32,
@@ -1998,11 +2004,14 @@ impl World {
         critical: bool,
         request_id: &str,
         segment: u32,
-    ) -> i64 {
+        pre: &[(DamageSource, i64)],
+    ) -> DamageBreakdown {
         let Some(target) = self.monsters.get(target_id) else {
-            return base_damage.max(1);
+            // 目标已经不在了：不做任何修正，如实返回基准。
+            return DamagePipeline::new(base_damage.max(1)).resolve();
         };
-        let mut damage = base_damage.max(1);
+        let mut pipeline = DamagePipeline::new(base_damage);
+        // 冻结层拆解 → 无视魔法防御。层数上限来自源（五层），每层独立掷一次。
         let frozen_stacks = target
             .state
             .freeze_stacks
@@ -2071,48 +2080,46 @@ impl World {
             .unwrap_or(0)
             .clamp(0, 100) as f64;
         if let Some(md_rate) = target.template.md_rate {
-            let md_rate = (md_rate - bind_md_rate).max(0.0);
-            let effective_md_rate = (md_rate * (100.0 - ignored_md_rate.clamp(0, 100) as f64)
-                / 100.0)
-                .clamp(0.0, 100.0);
-            damage = (damage as f64 * (100.0 - effective_md_rate) / 100.0)
-                .floor()
-                .max(1.0) as i64;
+            // 目标侧减免是既有的第 0 层（公式逐字保留），无视防御只作用于它。
+            pipeline.apply_target_mitigation((md_rate - bind_md_rate).max(0.0), ignored_md_rate);
         }
-        let hyper_damage_percent = self
-            .players
-            .get(id)
-            .and_then(|player| {
-                let passive = match skill_id {
-                    SKILL_TELEPORT_MASTERY => SKILL_HYPER_TELEPORT_DAMAGE,
-                    SKILL_CHAIN_LIGHTNING => SKILL_HYPER_CHAIN_DAMAGE,
-                    SKILL_ICE_DEMON => SKILL_HYPER_ICE_DAMAGE,
-                    _ => 0,
-                };
-                let passive_bonus = (passive != 0)
-                    .then(|| player.state.skills.get(&passive).copied().unwrap_or(0))
-                    .and_then(|level| self.mage_skills.level(passive, level))
-                    .and_then(|level| level.dam_r)
-                    .unwrap_or(0)
-                    .max(0);
-                let adventurer_bonus = player
-                    .status
-                    .buff_active(SKILL_HYPER_ADVENTURER)
-                    .then(|| {
-                        self.mage_skills
-                            .level(SKILL_HYPER_ADVENTURER, 1)
-                            .and_then(|level| level.indie_dam_r)
-                            .unwrap_or(10)
-                    })
-                    .unwrap_or(0)
-                    .max(0);
-                Some(passive_bonus.saturating_add(adventurer_bonus))
-            })
-            .unwrap_or(0);
-        if hyper_damage_percent > 0 {
-            damage = (damage as f64 * (100 + hyper_damage_percent) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
+        for (source, percent) in pre {
+            pipeline.add(*source, *percent);
+        }
+        // 源 `damR`（总伤害，加算组）与源 `indieDamR`（独立乘算组）**分组不同**，
+        // 改前它们被写进同一个百分比、乘在同一步里 ⇒ 同一份源数据两条路径两种口径。
+        let hyper_passive = match skill_id {
+            SKILL_TELEPORT_MASTERY => SKILL_HYPER_TELEPORT_DAMAGE,
+            SKILL_CHAIN_LIGHTNING => SKILL_HYPER_CHAIN_DAMAGE,
+            SKILL_ICE_DEMON => SKILL_HYPER_ICE_DAMAGE,
+            _ => 0,
+        };
+        if hyper_passive != 0 {
+            let passive_bonus = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&hyper_passive))
+                .copied()
+                .and_then(|level| self.mage_skills.level(hyper_passive, level))
+                .and_then(|level| level.dam_r)
+                .unwrap_or(0)
+                .max(0);
+            pipeline.add(
+                DamageSource::DamageRate {
+                    skill_id: hyper_passive,
+                },
+                passive_bonus,
+            );
+        }
+        if let Some(player) = self.players.get(id) {
+            if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
+                pipeline.add(
+                    DamageSource::IndependentDamageRate {
+                        skill_id: SKILL_HYPER_ADVENTURER,
+                    },
+                    hyper_adventurer_damage_percent(&self.mage_skills, player),
+                );
+            }
         }
         let amp = self
             .players
@@ -2123,10 +2130,13 @@ impl World {
             .and_then(|level| level.dam_r)
             .unwrap_or(0)
             .max(0);
-        if is_magic_attack_skill(skill_id) && amp > 0 {
-            damage = (damage as f64 * (100 + amp) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
+        if is_magic_attack_skill(skill_id) {
+            pipeline.add(
+                DamageSource::DamageRate {
+                    skill_id: SKILL_ELEMENT_AMP,
+                },
+                amp,
+            );
         }
         let reset = self
             .players
@@ -2140,11 +2150,13 @@ impl World {
         // P: no current mob export carries an elemental-resistance target, so
         // source `u` is intentionally not applied to mdRate.  mdR is the
         // independent final-damage multiplier and always applies here.
-        if reset > 0 {
-            damage = (damage as f64 * (100 + reset) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
-        }
+        pipeline.add(
+            DamageSource::UnmarkedField {
+                skill_id: SKILL_ELEMENTAL_RESET,
+                field: "mdR",
+            },
+            reset,
+        );
         let extreme = self
             .players
             .get(id)
@@ -2156,10 +2168,14 @@ impl World {
             .max(0);
         let has_status =
             target.state.freeze_stacks.unwrap_or(0) > 0 || target.stun_until > self.tick;
-        if extreme > 0 && has_status {
-            damage = (damage as f64 * (100 + extreme) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
+        if has_status {
+            pipeline.add(
+                DamageSource::UnmarkedField {
+                    skill_id: SKILL_EXTREME_MAGIC,
+                    field: "z",
+                },
+                extreme,
+            );
         }
         if critical {
             let critical_damage = self
@@ -2171,29 +2187,59 @@ impl World {
                 .and_then(|level| level.critical_damage)
                 .unwrap_or(0)
                 .max(0);
-            damage = (damage as f64 * (200 + critical_damage) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
+            // 暴击组的基准是 200：没学 魔法爆擊 时 `criticaldamage = 0`，仍是 ×2。
+            pipeline.add(
+                DamageSource::CriticalDamage {
+                    skill_id: SKILL_MAGIC_CRITICAL,
+                },
+                critical_damage,
+            );
         }
-        if mystic_bonus > 0 {
-            damage = (damage as f64 * (100 + mystic_bonus) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
-        }
-        if infinity_bonus > 0 {
-            damage = (damage as f64 * (100 + infinity_bonus) as f64 / 100.0)
-                .floor()
-                .max(1.0) as i64;
-        }
-        if let Some(map_id) = self
-            .monsters
-            .get(target_id)
-            .map(|monster| monster.map_id.clone())
-        {
-            let guard_percent = self.boss_damage_multiplier(&map_id, true);
-            damage = (damage as i128 * i128::from(guard_percent) / 100).max(1) as i64;
-        }
-        damage
+        pipeline.add(
+            DamageSource::UnmarkedField {
+                skill_id: SKILL_MYSTIC_STRIKE,
+                field: "x",
+            },
+            mystic_bonus,
+        );
+        pipeline.add(
+            DamageSource::UnmarkedField {
+                skill_id: SKILL_INFINITY,
+                field: "damage",
+            },
+            infinity_bonus,
+        );
+        pipeline.add(
+            DamageSource::RegionGuard,
+            self.boss_damage_multiplier(&target.map_id, true) - 100,
+        );
+        pipeline.resolve()
+    }
+
+    /// 一次魔法命中的伤害数字。签名与改前相同，便于既有验收与调用点不动；
+    /// 本体就是上面那条管线取权威值。
+    #[cfg_attr(not(test), allow(dead_code))] // 生产调用点都要传 `pre`，走 `magic_damage_breakdown`
+    pub(super) fn magic_damage_with_passives(
+        &self,
+        id: &str,
+        skill_id: u32,
+        target_id: &str,
+        base_damage: i64,
+        critical: bool,
+        request_id: &str,
+        segment: u32,
+    ) -> i64 {
+        self.magic_damage_breakdown(
+            id,
+            skill_id,
+            target_id,
+            base_damage,
+            critical,
+            request_id,
+            segment,
+            &[],
+        )
+        .total()
     }
 
     pub(super) fn advance_mystic_strike(&mut self, id: &str, request_id: &str, target_id: &str) {
@@ -2336,19 +2382,33 @@ impl World {
                 .get(id)
                 .and_then(|player| player.state.skills.get(&SKILL_FOURTH_FREEZE))
                 .copied()
-                .and_then(|level| self.mage_skills.level(SKILL_FOURTH_FREEZE, level));
-            fourth
-                .or_else(|| {
-                    self.players
-                        .get(id)
-                        .and_then(|player| player.state.skills.get(&SKILL_ICE_EFFECT))
-                        .copied()
-                        .and_then(|level| self.mage_skills.level(SKILL_ICE_EFFECT, level))
-                })
-                .map(|level| (level.x.unwrap_or(0).max(0), level.y.unwrap_or(0).max(0)))
+                .and_then(|level| self.mage_skills.level(SKILL_FOURTH_FREEZE, level))
+                .map(|level| {
+                    (
+                        SKILL_FOURTH_FREEZE,
+                        level.x.unwrap_or(0).max(0),
+                        level.y.unwrap_or(0).max(0),
+                    )
+                });
+            fourth.or_else(|| {
+                self.players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(&SKILL_ICE_EFFECT))
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(SKILL_ICE_EFFECT, level))
+                    .map(|level| {
+                        (
+                            SKILL_ICE_EFFECT,
+                            level.x.unwrap_or(0).max(0),
+                            level.y.unwrap_or(0).max(0),
+                        )
+                    })
+            })
         };
-        let fixed_crit = fixed_effect.map(|effect| effect.0).unwrap_or(0);
-        let fixed_lightning = fixed_effect.map(|effect| effect.1).unwrap_or(0);
+        // 冻结层加成带着**它的来源技能 id** 一起走：管线的诊断串要说清是哪一层来的。
+        let freeze_layer_skill = fixed_effect.map(|effect| effect.0);
+        let fixed_crit = fixed_effect.map(|effect| effect.1).unwrap_or(0);
+        let fixed_lightning = fixed_effect.map(|effect| effect.2).unwrap_or(0);
         if !lightning_effect && fixed_effect.is_some() {
             for target_id in &targets {
                 if let Some(stacks) = self
@@ -2439,29 +2499,42 @@ impl World {
                             .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
                     }
                 }
+                let critical = rand::thread_rng().gen_range(0..100) < critical_chance;
+                // 命中携带的前置修正：只交出**来源 + 百分比**，求值仍走同一条管线
+                // （分组、取整层与上限层的口径见 `damage.rs` 模块头）。
+                let mut pre: Vec<(DamageSource, i64)> = Vec::new();
                 if self
                     .monsters
                     .get(target_id)
                     .is_some_and(|monster| monster.elemental_weaken_until > self.tick)
                 {
-                    let bonus = weaken
-                        .as_ref()
-                        .and_then(|level| level.x)
-                        .unwrap_or(20)
-                        .max(0);
-                    damage = (damage as f64 * (1.0 + bonus as f64 / 100.0)).floor() as i64;
+                    pre.push((
+                        DamageSource::UnmarkedField {
+                            skill_id: SKILL_ELEMENTAL_WEAKEN,
+                            field: "x",
+                        },
+                        weaken
+                            .as_ref()
+                            .and_then(|level| level.x)
+                            .unwrap_or(20)
+                            .max(0),
+                    ));
                 }
-                let critical = rand::thread_rng().gen_range(0..100) < critical_chance;
                 if let Some(stacks) = consumed.get(target_id).copied() {
-                    let layer_bonus = if lightning_effect { fixed_lightning } else { 0 }
-                        .saturating_add(if critical { fixed_crit } else { 0 });
-                    damage = (damage as f64 * (1.0 + layer_bonus as f64 * stacks as f64 / 100.0))
-                        .floor()
-                        .max(1.0) as i64;
+                    if let Some(skill_id) = freeze_layer_skill {
+                        let layer_bonus = if lightning_effect { fixed_lightning } else { 0 }
+                            .saturating_add(if critical { fixed_crit } else { 0 });
+                        pre.push((
+                            DamageSource::FreezeLayerBonus { skill_id },
+                            layer_bonus.saturating_mul(i64::from(stacks)),
+                        ));
+                    }
                 }
-                damage = self.magic_damage_with_passives(
-                    id, skill_id, target_id, damage, critical, request_id, segment,
-                );
+                damage = self
+                    .magic_damage_breakdown(
+                        id, skill_id, target_id, damage, critical, request_id, segment, &pre,
+                    )
+                    .total();
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
                 let practice = auth::is_practice_map(&map_id);
@@ -2822,27 +2895,35 @@ impl World {
                         }
                     }
                 }
-                if self
-                    .monsters
-                    .get(target_id)
-                    .is_some_and(|monster| monster.elemental_weaken_until > self.tick)
-                {
-                    let x = self
-                        .mage_skills
-                        .level(SKILL_ELEMENTAL_WEAKEN, weaken_level)
-                        .and_then(|value| value.x)
-                        .unwrap_or(20)
-                        .max(0);
-                    damage = (damage as f64 * (1.0 + x as f64 / 100.0)).floor() as i64;
-                }
                 // P/R: Character/Weapon 1372000's source display flag carries
                 // cr=5; second-job Spell Mastery adds its exported `cr`.
                 if rand::thread_rng().gen_range(0..100) < critical_chance {
                     critical = true;
                 }
-                damage = self.magic_damage_with_passives(
-                    id, skill_id, target_id, damage, critical, request_id, segment,
-                );
+                // 元素弱化与上面那条元素场路径同源同口径：只交出**来源 + 百分比**。
+                let mut pre: Vec<(DamageSource, i64)> = Vec::new();
+                if self
+                    .monsters
+                    .get(target_id)
+                    .is_some_and(|monster| monster.elemental_weaken_until > self.tick)
+                {
+                    pre.push((
+                        DamageSource::UnmarkedField {
+                            skill_id: SKILL_ELEMENTAL_WEAKEN,
+                            field: "x",
+                        },
+                        self.mage_skills
+                            .level(SKILL_ELEMENTAL_WEAKEN, weaken_level)
+                            .and_then(|value| value.x)
+                            .unwrap_or(20)
+                            .max(0),
+                    ));
+                }
+                damage = self
+                    .magic_damage_breakdown(
+                        id, skill_id, target_id, damage, critical, request_id, segment, &pre,
+                    )
+                    .total();
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
                 let practice = auth::is_practice_map(&map_id);

@@ -89,7 +89,10 @@ impl World {
                     }
                 }
             }
-            let mut damage = self
+            // 基准：普通攻击的区间已经含了等级差与目标 PDD 减免
+            // （`combat_rules.rs::attack_range_against` 的既有 P 适配，作用在区间上），
+            // 所以这里不调用管线的目标侧减免——两套目标减伤模型不擅自统一，见 `damage.rs` 模块头。
+            let base_damage = self
                 .gameplay
                 .player
                 .with_ability_stats(
@@ -98,11 +101,15 @@ impl World {
                     player.state.job,
                 )
                 .attack_damage_against(player.state.level, &target_template);
+            let mut pipeline = DamagePipeline::new(base_damage);
             if player.status.buff_active(SKILL_INFINITY) {
-                damage = (damage as f64 * (100 + player.infinity_damage_bonus.max(0)) as f64
-                    / 100.0)
-                    .floor()
-                    .max(1.0) as i64;
+                pipeline.add(
+                    DamageSource::UnmarkedField {
+                        skill_id: SKILL_INFINITY,
+                        field: "damage",
+                    },
+                    player.infinity_damage_bonus,
+                );
             }
             if let Some(level) = player
                 .state
@@ -111,39 +118,34 @@ impl World {
                 .copied()
                 .and_then(|level| self.mage_skills.level(SKILL_MYSTIC_STRIKE, level))
             {
-                let bonus = level
-                    .x
-                    .unwrap_or(0)
-                    .max(0)
-                    .saturating_mul(i64::from(player.mystic_strike_stacks));
-                if bonus > 0 {
-                    damage = (damage as f64 * (100 + bonus) as f64 / 100.0)
-                        .floor()
-                        .max(1.0) as i64;
-                }
+                // 普通攻击就是「非召唤物的直接命中」，与魔法技能路径的闸门同义，
+                // 所以这里不再额外判定 `is_nonsummon_direct_skill`。
+                pipeline.add(
+                    DamageSource::UnmarkedField {
+                        skill_id: SKILL_MYSTIC_STRIKE,
+                        field: "x",
+                    },
+                    level
+                        .x
+                        .unwrap_or(0)
+                        .max(0)
+                        .saturating_mul(i64::from(player.mystic_strike_stacks)),
+                );
             }
-            let hyper_adventurer_bonus = if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
-                player
-                    .state
-                    .skills
-                    .get(&SKILL_HYPER_ADVENTURER)
-                    .copied()
-                    .and_then(|skill_level| {
-                        self.mage_skills.level(SKILL_HYPER_ADVENTURER, skill_level)
-                    })
-                    .and_then(|level| level.indie_dam_r)
-                    .unwrap_or(10)
-                    .clamp(0, 100)
-            } else {
-                0
-            };
-            if hyper_adventurer_bonus > 0 {
-                damage = (damage as f64 * (100 + hyper_adventurer_bonus) as f64 / 100.0)
-                    .floor()
-                    .max(1.0) as i64;
+            if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
+                pipeline.add(
+                    DamageSource::IndependentDamageRate {
+                        skill_id: SKILL_HYPER_ADVENTURER,
+                    },
+                    hyper_adventurer_damage_percent(&self.mage_skills, player),
+                );
             }
-            let guard_percent = self.boss_damage_multiplier(&map_id, false);
-            damage = (damage as i128 * i128::from(guard_percent) / 100).max(1) as i64;
+            // 区域系数（Boss 练习场地护盾）是减伤，源里没有它，`percent` 为负。
+            pipeline.add(
+                DamageSource::RegionGuard,
+                self.boss_damage_multiplier(&map_id, false) - 100,
+            );
+            let damage = pipeline.resolve().total();
             let killed = target_id.is_some() && target_hp > 0 && damage >= target_hp;
             let applied_damage = target_id
                 .is_some()
