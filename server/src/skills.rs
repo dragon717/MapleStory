@@ -80,7 +80,7 @@ impl World {
         // Seal and stun both silence the skill bar: seal only blocks skills,
         // stun blocks every action and is already filtered at input, but the
         // cast path re-checks so a queued cast cannot slip through a stun.
-        if player.seal_until > self.tick || player.stun_until > self.tick {
+        if player.status.suppresses_skill_cast() {
             self.send_reject(
                 &id,
                 "status_sealed",
@@ -529,7 +529,12 @@ impl World {
                     level.time.unwrap_or(0).max(0) as u64 * 1_000,
                 );
                 if let Some(player) = self.players.get_mut(&id) {
-                    player.skill_buffs.insert(SKILL_MAPLE_WARRIOR, duration_ms);
+                    player.status.apply_buff(
+                        SKILL_MAPLE_WARRIOR,
+                        duration_ms,
+                        self.tick,
+                        Release::None,
+                    );
                 }
             }
             SKILL_INFINITY => {
@@ -714,7 +719,7 @@ impl World {
         player.channel_skill_id = None;
         player.channel_until = 0;
         player.channel_level = 0;
-        player.skill_buffs.remove(&SKILL_ICE_DRAGON_BREATH);
+        player.status.remove_buff(SKILL_ICE_DRAGON_BREATH);
         player.attack_until = self.tick;
         player.state.action = "stand";
         player.state.action_started_tick = self.tick;
@@ -815,13 +820,10 @@ impl World {
         // to every other accepted skill, including skills whose source value
         // is zero or whose Elemental Amp adjustment was already calculated.
         if skill_id != SKILL_INFINITY
-            && self.players.get(id).is_some_and(|player| {
-                player
-                    .skill_buffs
-                    .get(&SKILL_INFINITY)
-                    .copied()
-                    .is_some_and(|remaining| remaining > 0)
-            })
+            && self
+                .players
+                .get(id)
+                .is_some_and(|player| player.status.buff_active(SKILL_INFINITY))
         {
             cost = 0;
         }
@@ -1000,7 +1002,17 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
-        player.skill_buffs.insert(skill_id, duration_ms);
+        // 增益与它的附属状态绑成同一条记录：到期时由 `Release` 说明要收回哪些
+        // 字段，`world.rs` 的 tick 块 `match` 到全部变体（新增一种带附属状态的
+        // 增益而不写清理会编译不过，不再是「名单漏一个就静默泄漏」）。
+        let release = match skill_id {
+            SKILL_RECOVERY => Release::BeginnerRecovery,
+            SKILL_NIMBLE_FEET => Release::BeginnerSpeed,
+            _ => Release::None,
+        };
+        player
+            .status
+            .apply_buff(skill_id, duration_ms, self.tick, release);
         match skill_id {
             SKILL_RECOVERY => {
                 player.beginner_heal_next_tick = self
@@ -1032,12 +1044,7 @@ impl World {
     pub(super) fn apply_beginner_heal_tick(&mut self, id: &str) {
         let Some((state, map_id, death_id, base_max_mp, next_tick, remaining_ticks, per_tick)) =
             self.players.get(id).and_then(|player| {
-                (player
-                    .skill_buffs
-                    .get(&SKILL_RECOVERY)
-                    .copied()
-                    .is_some_and(|remaining| remaining > 0))
-                .then(|| {
+                player.status.buff_active(SKILL_RECOVERY).then(|| {
                     (
                         player.state.clone(),
                         player.map_id.clone(),
@@ -1189,15 +1196,14 @@ impl World {
         // three-second immunity window.  The immunity deadline is consumed by
         // the abnormal-status entry point, so a cleanse both removes current
         // diseases and blocks new ones for the authored window.
-        player.seal_until = 0;
-        player.stun_until = 0;
-        player.curse_until = 0;
-        player.poison_until = 0;
-        player.slow_until = 0;
-        player.poison_next_tick = 0;
-        player.curse_next_tick = 0;
-        player.status_immune_until = self.tick.saturating_add((3_000_u64 / TICK_MS).max(1));
-        player.skill_buffs.insert(SKILL_MAPLE_CURE, 3_000);
+        //
+        // 两件事都收在 `PlayerStatus` 里：`cleanse()` 一次清空全部疾病**并**盖章
+        // 免疫窗；增益记录自带 `Release::StatusImmunity`，所以它到期时不需要第二处
+        // 去清那个窗口（窗口自己按截止点失效）。
+        player.status.cleanse(self.tick, 3_000);
+        player
+            .status
+            .apply_buff(SKILL_MAPLE_CURE, 3_000, self.tick, Release::StatusImmunity);
     }
 
     /// Resolve the player-side defenses against one monster disease, returning
@@ -1226,7 +1232,7 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return true;
         };
-        if self.tick < player.status_immune_until {
+        if player.status.is_immune() {
             return true;
         }
         if player.adaptation_active && player.adaptation_charges > 0 {
@@ -1244,7 +1250,7 @@ impl World {
     pub(super) fn inflict_disease(
         &mut self,
         id: &str,
-        disease: PlayerDisease,
+        disease: Disease,
         duration_ms: u64,
         monster_id: &str,
     ) -> bool {
@@ -1258,20 +1264,9 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return false;
         };
-        let deadline = self.tick.saturating_add((duration_ms / TICK_MS).max(1));
-        match disease {
-            PlayerDisease::Seal => player.seal_until = deadline,
-            PlayerDisease::Stun => player.stun_until = deadline,
-            PlayerDisease::Curse => {
-                player.curse_until = deadline;
-                player.curse_next_tick = self.tick.saturating_add(1);
-            }
-            PlayerDisease::Poison => {
-                player.poison_until = deadline;
-                player.poison_next_tick = self.tick.saturating_add(1);
-            }
-            PlayerDisease::Slow => player.slow_until = deadline,
-        }
+        // 截止点与脉冲节拍都由 `PlayerStatus` 记（每格疾病各自独立，所以一种源
+        // 技能不会把另一种挤掉）。
+        player.status.apply_disease(disease, duration_ms, self.tick);
         true
     }
 
@@ -2062,7 +2057,7 @@ impl World {
                     } else {
                         0
                     },
-                    if player.skill_buffs.contains_key(&SKILL_INFINITY) {
+                    if player.status.buff_active(SKILL_INFINITY) {
                         player.infinity_damage_bonus.max(0)
                     } else {
                         0
@@ -2101,11 +2096,9 @@ impl World {
                     .unwrap_or(0)
                     .max(0);
                 let adventurer_bonus = player
-                    .skill_buffs
-                    .get(&SKILL_HYPER_ADVENTURER)
-                    .copied()
-                    .filter(|remaining| *remaining > 0)
-                    .map(|_| {
+                    .status
+                    .buff_active(SKILL_HYPER_ADVENTURER)
+                    .then(|| {
                         self.mage_skills
                             .level(SKILL_HYPER_ADVENTURER, 1)
                             .and_then(|level| level.indie_dam_r)

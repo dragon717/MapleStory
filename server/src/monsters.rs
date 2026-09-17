@@ -1,7 +1,7 @@
 //! 怪物与掉落职责：生成、AI 步进、受击/仇恨、疾病判定、掉落与重生。
 //!
 //! 从 `world.rs` 机械搬出的第六块完整职责（超大文件治理 P2）。搬的是**代码位置**，
-//! 不是数据布局：`Monster` / `MonsterTemplate` / `PlayerDisease` 等类型仍在 `world.rs`，
+//! 不是数据布局：`Monster` / `MonsterTemplate` 等类型仍在 `world.rs`，
 //! 协议、存档与 Tick 次序均未改变。
 //!
 //! ## 负责
@@ -14,11 +14,12 @@
 //! - 仇恨与疾病辅助：`mark_monster_hit_aggro` / `mob_skill_disease`。
 //!
 //! ## 不负责
-//! - 疾病类型本身（`PlayerDisease` 枚举与免疫/抗性字段留在 `world.rs` 的玩家侧）。
+//! - 疾病类型本身（`player_status::Disease` 枚举与免疫/抗性状态留在玩家侧）。
 //! - 玩家移动与攻击结算（`step_player` / `resolve_pending_attacks` 留在 `world.rs`，
 //!   它们调用本模块的仇恨与步进入口）。
 //! - 掉落拾取与背包入包（`inventory_ops.rs`）。
 
+use super::player_status::{mob_skill_effect, Disease, SkillEffect};
 use super::*;
 
 impl MonsterTemplate {
@@ -1021,7 +1022,7 @@ impl World {
             // through the same MapleDisease space and honours the same defence
             // layers.  Only modelled diseases apply.
             if !killed {
-                if let Some(disease) = body_disease.and_then(PlayerDisease::from_mob_skill_id) {
+                if let Some(disease) = body_disease.and_then(Disease::from_mob_skill_id) {
                     let level = body_disease_level.unwrap_or(1).max(1);
                     // P: no per-level disease duration is exported; the contact
                     // window is a fixed adapter value scaled by the source level.
@@ -1096,19 +1097,29 @@ impl World {
 }
 
 /// Resolve a MobSkill id plus its authored level effect into the disease and
-/// the duration it should apply for.  Only modelled diseases return `Some`;
-/// buffs / summon / unknown ids return `None` and are ignored.
+/// the duration it should apply for.
+///
+/// 「这个源 id 算不算疾病」不再由注释或另一张名单决定：它走
+/// [`mob_skill_effect`] 的处置表，所以**没建模的那几个 id 也有名字与理由**，
+/// 而不是落进 `None` 的静默黑洞。门禁 `check_tms273_player_status.cjs` 对着
+/// 真实内容逐 id 重算这张表（名单过期要失败）。
 pub(super) fn mob_skill_disease(
     template: &MonsterTemplate,
     skill: &MonsterSkillTemplate,
-) -> Option<(PlayerDisease, u64)> {
-    let disease = PlayerDisease::from_mob_skill_id(skill.skill_id)?;
+) -> Option<(Disease, u64)> {
+    let disease = match mob_skill_effect(skill.skill_id) {
+        SkillEffect::Disease(disease) => disease,
+        // 源里属于 MapleDisease、本仓库没建模：如实不放，理由登记在表里。
+        SkillEffect::Unmodelled(_) => return None,
+        // 怪物自身的增益 / 召唤 / 治疗，本来就不是玩家疾病。
+        SkillEffect::NotADisease => return None,
+    };
     let effect = template.skill_effect(skill)?;
     // Debuff skills author `time` in seconds.  Seal uses `x` (ms) as its
     // hold length instead of `time`; Slow uses `x` as the move percent but
     // still authors a `time`.  Normalise to milliseconds.
     let duration_ms = match disease {
-        PlayerDisease::Seal => effect.x.unwrap_or(0).max(0) as u64,
+        Disease::Seal => effect.x.unwrap_or(0).max(0) as u64,
         _ => effect.time.unwrap_or(0).max(0) as u64 * 1_000,
     };
     (duration_ms >= MOB_SKILL_MIN_DISEASE_MS).then_some((disease, duration_ms))

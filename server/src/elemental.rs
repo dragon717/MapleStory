@@ -20,7 +20,11 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return Err("player_unknown".to_owned());
         };
-        player.skill_buffs.insert(SKILL_INFINITY, duration_ms);
+        // 無限的伤害加成是会话状态，随增益记录一起到期：`Release::Infinity`
+        // 让 tick 块的清理 `match` 必须收回 `infinity_next_tick`/`_damage_bonus`。
+        player
+            .status
+            .apply_buff(SKILL_INFINITY, duration_ms, self.tick, Release::Infinity);
         player.infinity_next_tick = next_tick;
         player.infinity_damage_bonus = initial_bonus.min(level.w.unwrap_or(0).max(0));
         Ok(())
@@ -38,9 +42,8 @@ impl World {
                 player.base_max_mp,
                 player.infinity_next_tick,
                 player
-                    .skill_buffs
-                    .get(&SKILL_INFINITY)
-                    .copied()
+                    .status
+                    .buff_remaining_ms(SKILL_INFINITY)
                     .unwrap_or(0),
                 player
                     .state
@@ -275,9 +278,14 @@ impl World {
             .get(&SKILL_ICE_DRAGON_BREATH)
             .copied()
             .unwrap_or(1);
-        player
-            .skill_buffs
-            .insert(SKILL_ICE_DRAGON_BREATH, duration_ms);
+        // 冰龙吐息是**引导**：它的宿主是引导状态机，收尾时会显式收掉这条增益
+        // （`remove_buff`），与「到期」是两条不同的理由。
+        player.status.apply_buff(
+            SKILL_ICE_DRAGON_BREATH,
+            duration_ms,
+            self.tick,
+            Release::None,
+        );
         Ok(())
     }
 
@@ -309,9 +317,13 @@ impl World {
         player.hyper_channel_prepare_until = self.tick.saturating_add(prepare_ticks);
         player.hyper_channel_next_pulse = player.hyper_channel_prepare_until;
         player.hyper_channel_pulse_index = 0;
-        player.skill_buffs.insert(
+        // 引导期与持有期合成一条增益：`channel_until` 与它的截止点是同一拍，
+        // 收尾走 `finish_hyper_thunder` 的显式 `remove_buff`（不是等到期）。
+        player.status.apply_buff(
             SKILL_HYPER_THUNDER,
             (prepare_ticks + hold_ticks).saturating_mul(TICK_MS),
+            self.tick,
+            Release::None,
         );
         player.state.action = "attack";
         player.state.action_started_tick = self.tick;
@@ -454,7 +466,7 @@ impl World {
         player.hyper_channel_prepare_until = 0;
         player.hyper_channel_next_pulse = 0;
         player.hyper_channel_pulse_index = 0;
-        player.skill_buffs.remove(&SKILL_HYPER_THUNDER);
+        player.status.remove_buff(SKILL_HYPER_THUNDER);
         player.attack_until = self.tick;
         if player.state.action == "attack" {
             player.state.action = "stand";
@@ -536,9 +548,12 @@ impl World {
         }
         for target in self.party_members_on_map(id) {
             if let Some(player) = self.players.get_mut(&target) {
-                player
-                    .skill_buffs
-                    .insert(SKILL_HYPER_ADVENTURER, duration_ms);
+                player.status.apply_buff(
+                    SKILL_HYPER_ADVENTURER,
+                    duration_ms,
+                    self.tick,
+                    Release::None,
+                );
             }
         }
     }
@@ -649,7 +664,7 @@ impl World {
                 let cost = if self
                     .players
                     .get(&id)
-                    .is_some_and(|player| player.skill_buffs.contains_key(&SKILL_INFINITY))
+                    .is_some_and(|player| player.status.buff_active(SKILL_INFINITY))
                 {
                     0
                 } else {

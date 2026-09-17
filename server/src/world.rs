@@ -66,6 +66,10 @@ mod notebook;
 mod pet_motion;
 #[path = "pets.rs"]
 mod pets;
+/// 玩家限时状态（技能增益 / 怪物疾病 / 免疫窗）的唯一权威：唯一时钟、唯一生效判据、
+/// 唯一到期判定与唯一清理点。见模块头。
+#[path = "player_status.rs"]
+mod player_status;
 /// 拾取纯规则（计划 R6 试点）：掉落可得性判定与容量预检，不依赖整个 World。
 #[path = "pickup_rules.rs"]
 mod pickup_rules;
@@ -98,6 +102,7 @@ pub(crate) mod windbell;
 use self::derived::*;
 use self::monsters::mark_monster_hit_aggro;
 use self::movement::*;
+use self::player_status::{Disease, Expiry, PlayerStatus, Release};
 
 pub const TICK_MS: u64 = 50;
 const NATURAL_RECOVERY_INTERVAL_TICKS: u64 = 1_000 / TICK_MS;
@@ -254,9 +259,11 @@ const DEFAULT_MONSTER_RESPAWN_MS: u64 = 10_000;
 // the table every open MapleStory server carries (R reference, not TMS273 text):
 //   120=Seal 121=Darkness 122=Weaken 123=Stun 124=Curse 125=Poison 126=Slow
 //   128=Seduce 133=Zombify 134=Potion 137=Freeze.
-// The same id space feeds `info/bodyDisease`, the contact-hit disease.  Only
-// the subset this server models is wired below; anything else is ignored as an
-// unknown source node rather than guessed into a different effect.
+// The same id space feeds `info/bodyDisease`, the contact-hit disease.
+//
+// 这里只留下 id 常量（导入器与门禁按它们做双向断言）。**哪个 id 被建模、哪个
+// 没建模、没建模的原因**不再写成本段注释，而是 `player_status::mob_skill_effect`
+// 的数据表——注释会腐烂，表会被 `scripts/check_tms273_player_status.cjs` 逐 id 重算。
 const MOB_SKILL_SEAL: u32 = 120;
 const MOB_SKILL_STUN: u32 = 123;
 const MOB_SKILL_CURSE: u32 = 124;
@@ -265,10 +272,6 @@ const MOB_SKILL_SLOW: u32 = 126;
 /// Lower bound (ms) under which a source `time` reads as "instant" and is not
 /// a disease duration (e.g. Seal time=3 is not a disease, it gates the cast).
 const MOB_SKILL_MIN_DISEASE_MS: u64 = 1_000;
-/// Stun locks movement but keeps the body airborne-legal; seal blocks skills;
-/// slow scales the walk; poison/curse tick damage.  Each disease has its own
-/// authoritative deadline so one source cannot overwrite an unrelated one.
-const MOB_DISEASE_POISON_TICK_MS: u64 = 1_000;
 /// Contact `bodyDisease` has no per-level duration in the export, so a fixed
 /// base window (scaled by the authored `bodyDiseaseLevel`) is the P adapter.
 const MOB_DISEASE_CONTACT_BASE_MS: u64 = 1_000;
@@ -896,42 +899,9 @@ where
     }
 }
 
-/// A player-side abnormal status inflicted by a monster.  `MapleDisease`-space
-/// id is kept so the runtime can report which source disease is active, but the
-/// authoritative deadlines live on `Player`, one per modelled disease.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PlayerDisease {
-    Seal,
-    Stun,
-    Curse,
-    Poison,
-    Slow,
-}
-
-impl PlayerDisease {
-    /// MapleDisease.getBySkill id -> modelled disease.  `None` for the many
-    /// ids this server does not model (buffs, summon, darkness, weaken, ...).
-    fn from_mob_skill_id(id: u32) -> Option<Self> {
-        match id {
-            MOB_SKILL_SEAL => Some(Self::Seal),
-            MOB_SKILL_STUN => Some(Self::Stun),
-            MOB_SKILL_CURSE => Some(Self::Curse),
-            MOB_SKILL_POISON => Some(Self::Poison),
-            MOB_SKILL_SLOW => Some(Self::Slow),
-            _ => None,
-        }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Seal => "seal",
-            Self::Stun => "stun",
-            Self::Curse => "curse",
-            Self::Poison => "poison",
-            Self::Slow => "slow",
-        }
-    }
-}
+// 玩家侧异常状态本体已收进 `player_status`（`Disease` / `PlayerStatus`）：
+// 这里只保留上面那张 `MOB_SKILL_*` 的 id 常量，因为导入器与门禁都按它做双向断言。
+// 一个 id 属于「疾病」还是「怪物自身增益」的结论在 `player_status::mob_skill_effect`。
 
 fn default_monster_facing() -> i8 {
     1
@@ -1496,9 +1466,10 @@ struct Player {
     /// Durable cooldowns are loaded from auth at join and mirrored here so
     /// the single world loop can expose an up-to-date remaining value.
     skill_cooldowns: BTreeMap<u32, u64>,
-    /// Beginner buffs are intentionally session state: their effects clear on
-    /// reconnect, death, or map change while their skill cooldowns persist.
-    skill_buffs: BTreeMap<u32, u64>,
+    /// 玩家身上**唯一**的限时状态字段：技能增益、怪物疾病与異常狀態免疫窗。
+    /// 表示、时钟、生效判据、到期判定与本处清理全部由 `PlayerStatus` 负责
+    /// （它们是会话状态：重连 / 死亡 / 换图一律经 `clear()` 收掉，技能冷却不在此列）。
+    status: PlayerStatus,
     /// Next authoritative one-second natural-recovery boundary.  It is reset
     /// on join, map entry, death, and revive; failed persistence only advances
     /// this retry boundary, so a failed second is never replayed every tick.
@@ -1535,20 +1506,6 @@ struct Player {
     hyper_barrier_next_pulse: u64,
     hyper_teleport_enabled: bool,
     hyper_reset_count: u8,
-    status_immune_until: u64,
-    /// Monster-inflicted abnormal-status deadlines (world tick).  Each disease
-    /// has its own deadline so a seal cannot be overwritten by an unrelated
-    /// slow; the client renders whatever is still in the future.  A value of 0
-    /// means "not afflicted".
-    seal_until: u64,
-    stun_until: u64,
-    curse_until: u64,
-    poison_until: u64,
-    slow_until: u64,
-    /// Tick of the next poison/curse damage pulse while afflicted, so the DoT
-    /// keeps its own cadence instead of riding the world's recovery tick.
-    poison_next_tick: u64,
-    curse_next_tick: u64,
     infinity_next_tick: u64,
     infinity_damage_bonus: i64,
     mystic_strike_stacks: u32,
@@ -1607,8 +1564,12 @@ struct Player {
     area_reactor_overlaps: BTreeSet<String>,
 }
 
+/// 会话级临时状态的唯一清理入口（死亡 / 换图 / 重连都会走到它）。
+///
+/// 名字是历史遗留：它早就不只清初心者增益了。限时状态（增益 + 疾病 + 免疫窗）
+/// 现在整体由 `PlayerStatus::clear()` 收掉，这里不再逐个字段手写。
 fn clear_beginner_buffs(player: &mut Player) {
-    player.skill_buffs.clear();
+    player.status.clear();
     player.beginner_heal_next_tick = 0;
     player.beginner_heal_remaining_ticks = 0;
     player.beginner_heal_per_tick = 0;
@@ -1626,14 +1587,6 @@ fn clear_beginner_buffs(player: &mut Player) {
     player.hyper_barrier_next_mp = 0;
     player.hyper_barrier_next_pulse = 0;
     player.hyper_teleport_enabled = false;
-    player.status_immune_until = 0;
-    player.seal_until = 0;
-    player.stun_until = 0;
-    player.curse_until = 0;
-    player.poison_until = 0;
-    player.slow_until = 0;
-    player.poison_next_tick = 0;
-    player.curse_next_tick = 0;
     player.infinity_next_tick = 0;
     player.infinity_damage_bonus = 0;
     player.mystic_strike_stacks = 0;
@@ -1647,9 +1600,9 @@ fn clear_beginner_buffs(player: &mut Player) {
 }
 
 fn clear_hyper_runtime(player: &mut Player) {
-    player.skill_buffs.remove(&SKILL_HYPER_THUNDER);
-    player.skill_buffs.remove(&SKILL_HYPER_ADVENTURER);
-    player.skill_buffs.remove(&SKILL_HYPER_VORTEX);
+    player.status.remove_buff(SKILL_HYPER_THUNDER);
+    player.status.remove_buff(SKILL_HYPER_ADVENTURER);
+    player.status.remove_buff(SKILL_HYPER_VORTEX);
     if player.channel_skill_id == Some(SKILL_HYPER_THUNDER) {
         player.channel_request_id = None;
         player.channel_skill_id = None;
@@ -2529,14 +2482,9 @@ impl World {
             }
             // Monster-inflicted abnormal statuses ride the same per-row block;
             // only active diseases are serialized so a healthy player never
-            // carries an empty object.
-            let abnormal = crate::protocol::AbnormalStatus {
-                seal_ms: remaining_ticks(player.seal_until, self.tick),
-                stun_ms: remaining_ticks(player.stun_until, self.tick),
-                curse_ms: remaining_ticks(player.curse_until, self.tick),
-                poison_ms: remaining_ticks(player.poison_until, self.tick),
-                slow_ms: remaining_ticks(player.slow_until, self.tick),
-            };
+            // carries an empty object.  投影在 `PlayerStatus::abnormal()` 里，
+            // 字段名 / 单位 / `None` 语义与拆分前逐字相同（客户端零改动）。
+            let abnormal = player.status.abnormal();
             if !abnormal.is_empty() {
                 if let Some(object) = row.as_object_mut() {
                     object.insert(
@@ -3202,63 +3150,35 @@ impl World {
                 *remaining = remaining.saturating_sub(TICK_MS);
                 *remaining > 0
             });
-            for remaining in player.skill_buffs.values_mut() {
-                *remaining = remaining.saturating_sub(TICK_MS);
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_RECOVERY)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_RECOVERY);
-                player.beginner_heal_next_tick = 0;
-                player.beginner_heal_remaining_ticks = 0;
-                player.beginner_heal_per_tick = 0;
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_NIMBLE_FEET)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_NIMBLE_FEET);
-                player.beginner_speed_percent = 0;
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_INFINITY)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_INFINITY);
-                player.infinity_next_tick = 0;
-                player.infinity_damage_bonus = 0;
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_MAPLE_WARRIOR)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_MAPLE_WARRIOR);
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_MAPLE_CURE)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_MAPLE_CURE);
-                player.status_immune_until = 0;
-            }
-            if player
-                .skill_buffs
-                .get(&SKILL_HYPER_ADVENTURER)
-                .copied()
-                .is_some_and(|remaining| remaining == 0)
-            {
-                player.skill_buffs.remove(&SKILL_HYPER_ADVENTURER);
+            // ---- 限时状态的唯一推进点 -------------------------------------
+            // 改前这里是「逐 tick 相减 + 按写死的技能名单逐条 `if remaining == 0` 清理」，
+            // 名单漏一个，那个增益就永远停在 0。现在 `advance()` 返回本拍失效的全部项，
+            // 增益的附属状态由效果自带的 `Release` 表达，下面的 `match` 穷尽到全部变体
+            // ⇒ 新增一种带附属状态的增益而不写清理，编译不过。
+            for expiry in player.status.advance(self.tick) {
+                match expiry {
+                    Expiry::Buff { release, .. } => match release {
+                        // 绝大多数增益到期只是「不再生效」，没有第二份状态要收回。
+                        Release::None => {}
+                        Release::BeginnerRecovery => {
+                            player.beginner_heal_next_tick = 0;
+                            player.beginner_heal_remaining_ticks = 0;
+                            player.beginner_heal_per_tick = 0;
+                        }
+                        Release::BeginnerSpeed => {
+                            player.beginner_speed_percent = 0;
+                        }
+                        Release::Infinity => {
+                            player.infinity_next_tick = 0;
+                            player.infinity_damage_bonus = 0;
+                        }
+                        // 免疫窗的截止点由 `PlayerStatus` 自己持有：`advance()` 已让它
+                        // 失效（`is_immune()` 随之为假），这里没有第二份状态要收回。
+                        Release::StatusImmunity => {}
+                    },
+                    // 疾病到期就是「不再影响玩家」，没有附属字段要收回。
+                    Expiry::Disease(_) => {}
+                }
             }
             if player.channel_request_id.is_some()
                 && player.channel_skill_id.is_some()
@@ -3270,7 +3190,7 @@ impl World {
                 player.channel_skill_id = None;
                 player.channel_until = 0;
                 player.channel_level = 0;
-                player.skill_buffs.remove(&SKILL_ICE_DRAGON_BREATH);
+                player.status.remove_buff(SKILL_ICE_DRAGON_BREATH);
                 if player.state.action == "attack" {
                     player.state.action = "stand";
                     player.state.action_started_tick = self.tick;
@@ -3281,39 +3201,22 @@ impl World {
                 player.mystic_strike_stacks = 0;
                 player.mystic_strike_until = 0;
             }
-            // ---- Monster abnormal-status ticking (poison/curse DoT + expiry) ----
-            // Poison and curse tick damage on their own cadence; the deadlines
-            // are cleared once expired so a dead status never re-arms itself.
-            // DoT is applied directly to `state.hp` (not `commit_incoming_damage`)
-            // because poison bypasses weapon-defense/shield/guard layers; the
-            // death transition itself is handled by the normal tick path.
-            if player.poison_until > self.tick && player.poison_next_tick <= self.tick {
-                player.poison_next_tick = self
-                    .tick
-                    .saturating_add((MOB_DISEASE_POISON_TICK_MS / TICK_MS).max(1));
-                player.state.hp = player.state.hp.saturating_sub(1).max(0);
-            } else if player.poison_until != 0 && player.poison_until <= self.tick {
-                player.poison_until = 0;
-                player.poison_next_tick = 0;
-            }
-            if player.curse_until > self.tick && player.curse_next_tick <= self.tick {
-                // Curse lowers effective EXP/ATK rather than dealing a large
-                // DoT; model it as a light periodic drain like the original's
-                // "every interval lose a little" behavior (P adapter).
-                player.curse_next_tick = self
-                    .tick
-                    .saturating_add((MOB_DISEASE_POISON_TICK_MS / TICK_MS).max(1));
-            } else if player.curse_until != 0 && player.curse_until <= self.tick {
-                player.curse_until = 0;
-                player.curse_next_tick = 0;
-            }
-            for deadline in [
-                &mut player.seal_until,
-                &mut player.stun_until,
-                &mut player.slow_until,
-            ] {
-                if *deadline != 0 && *deadline <= self.tick {
-                    *deadline = 0;
+            // ---- 疾病的伤害脉冲 ------------------------------------------
+            // 节拍由 `PlayerStatus` 持有，`due_dots()` 会就地推进各家自己的
+            // `next`，所以同一个脉冲只会被返回一次；到期拍上疾病已被上面的
+            // `advance()` 收掉，脉冲无从发生（与改前的 else-if 分支同序）。
+            // DoT 直接扣 `state.hp`（不走 `commit_incoming_damage`）：疾病伤害
+            // 绕开武器防御 / 护盾 / 守护层，死亡转变交给常规 tick 路径。
+            for disease in player.status.due_dots() {
+                match disease {
+                    Disease::Poison => {
+                        player.state.hp = player.state.hp.saturating_sub(1).max(0);
+                    }
+                    // 詛咒按原著语义是「降低有效攻击 / 经验」，本仓库模型成
+                    // 同节拍的轻量流失（P 适配）：节拍已经推进，不额外扣血。
+                    Disease::Curse => {}
+                    // 这三种不做周期伤害，`due_dots()` 不会返回它们。
+                    Disease::Seal | Disease::Stun | Disease::Slow => {}
                 }
             }
             if player.meditation_until <= self.tick {
@@ -3350,7 +3253,7 @@ impl World {
                 (player.adaptation_cooldown_ms > 0).then_some(player.adaptation_cooldown_ms),
                 player.beginner_speed_percent,
                 &player.skill_cooldowns,
-                &player.skill_buffs,
+                &player.status.buff_map(),
             );
             let derived = self.gameplay.player.with_ability_stats(
                 &player.state.ability_stats,
@@ -3557,12 +3460,6 @@ fn is_nonsummon_direct_skill(skill_id: u32) -> bool {
             | SKILL_BLIZZARD
             | SKILL_ICE_DRAGON_BREATH
     )
-}
-
-/// Convert a tick deadline into `Some(remaining ms)` while it is still in the
-/// future, or `None` once it has lapsed (or was never set).
-fn remaining_ticks(deadline: u64, now: u64) -> Option<u64> {
-    (deadline > now).then(|| deadline.saturating_sub(now).saturating_mul(TICK_MS))
 }
 
 fn deterministic_percent(parts: &[&str]) -> u64 {

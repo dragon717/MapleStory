@@ -262,7 +262,7 @@ pub(super) fn refresh_player_derived(
         (player.adaptation_cooldown_ms > 0).then_some(player.adaptation_cooldown_ms),
         player.beginner_speed_percent,
         &player.skill_cooldowns,
-        &player.skill_buffs,
+        &player.status.buff_map(),
     );
     player.state.derived_stats = derived_stats.clone();
     player.state.max_mp = derived_max_mp;

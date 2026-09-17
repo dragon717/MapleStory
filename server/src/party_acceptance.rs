@@ -711,9 +711,9 @@ fn p14_party_buffs_reach_the_members_on_the_map_and_nobody_else() {
             time: Some(60),
             ..MageLevel::default()
         });
-    assert!(rig.world.players["a"].skill_buffs.contains_key(&SKILL_HYPER_ADVENTURER));
-    assert!(rig.world.players["b"].skill_buffs.contains_key(&SKILL_HYPER_ADVENTURER));
-    assert!(!rig.world.players["c"].skill_buffs.contains_key(&SKILL_HYPER_ADVENTURER));
+    assert!(rig.world.players["a"].status.buff_active(SKILL_HYPER_ADVENTURER));
+    assert!(rig.world.players["b"].status.buff_active(SKILL_HYPER_ADVENTURER));
+    assert!(!rig.world.players["c"].status.buff_active(SKILL_HYPER_ADVENTURER));
 }
 
 // p15 --------------------------------------------------------------------

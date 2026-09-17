@@ -98,12 +98,7 @@ impl World {
                     player.state.job,
                 )
                 .attack_damage_against(player.state.level, &target_template);
-            if player
-                .skill_buffs
-                .get(&SKILL_INFINITY)
-                .copied()
-                .is_some_and(|remaining| remaining > 0)
-            {
+            if player.status.buff_active(SKILL_INFINITY) {
                 damage = (damage as f64 * (100 + player.infinity_damage_bonus.max(0)) as f64
                     / 100.0)
                     .floor()
@@ -127,12 +122,7 @@ impl World {
                         .max(1.0) as i64;
                 }
             }
-            let hyper_adventurer_bonus = if player
-                .skill_buffs
-                .get(&SKILL_HYPER_ADVENTURER)
-                .copied()
-                .is_some_and(|remaining| remaining > 0)
-            {
+            let hyper_adventurer_bonus = if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
                 player
                     .state
                     .skills

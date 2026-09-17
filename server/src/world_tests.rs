@@ -599,8 +599,8 @@ fn beginner_skill_runtime_locks_fixed_damage_and_timed_buffs() {
         6
     );
     assert!(world.players["beginner-runtime"]
-        .skill_buffs
-        .contains_key(&SKILL_RECOVERY));
+        .status
+        .buff_active(SKILL_RECOVERY));
     assert_eq!(world.players["beginner-runtime"].state.hp, 16);
     world.step();
     // Tick 100 applies the active 4 HP heal and the permanent +1 HP/s
@@ -668,7 +668,10 @@ fn beginner_skill_runtime_locks_fixed_damage_and_timed_buffs() {
         .pa_damage = Some(2);
     world.apply_contact_damage();
     assert_eq!(world.players["beginner-runtime"].state.hp, 0);
-    assert!(world.players["beginner-runtime"].skill_buffs.is_empty());
+    assert!(world.players["beginner-runtime"]
+        .status
+        .buff_map()
+        .is_empty());
     assert_eq!(world.players["beginner-runtime"].beginner_speed_percent, 0);
     assert!(world.players["beginner-runtime"]
         .state
@@ -5658,7 +5661,11 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
     assert_eq!(world.players["fourth-runtime"].state.mp, 1);
     {
         let player = world.players.get_mut("fourth-runtime").unwrap();
-        player.skill_buffs.insert(SKILL_INFINITY, 1_000);
+        // 把無限压进「强化窗」（源语义：剩余时间低于阈值时加成生效），
+        // 走与施法同一条入口，而不是往内部表里塞一个剩余毫秒。
+        player
+            .status
+            .apply_buff(SKILL_INFINITY, 1_000, world.tick, Release::Infinity);
         refresh_player_derived(&world.gameplay, &world.mage_skills, player);
     }
     assert!(

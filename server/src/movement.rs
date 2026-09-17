@@ -23,7 +23,9 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
     // Stun locks the body: no walk, no jump, and the body is held in place
     // until the deadline passes.  It is applied here, in the authoritative
     // movement step, so a stunned body cannot be moved by a held key.
-    if player.stun_until > tick {
+    // 时钟由 `PlayerStatus` 自己持有（本拍已在 tick 块 `advance(tick)` 过），
+    // 所以这里不再把 `tick` 传进判定——读侧传 tick 正是「两处读出不同剩余」的来源。
+    if player.status.locks_controls() {
         player.direction = 0;
         player.vertical = 0;
         player.jump = false;
@@ -302,7 +304,7 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
     // the authored move percent (e.g. 85 keeps 85% of normal speed); the
     // runtime folds it into the walk so a slowed body genuinely lags rather
     // than only displaying a marker.
-    let slow_factor = if player.slow_until > tick {
+    let slow_factor = if player.status.slows_walk() {
         // P: no per-source slow percent is re-read here; 50% is the adapter
         // stand-in for the unmodelled `x` denominator until a slow skill is
         // actually wired onto a placed mob.

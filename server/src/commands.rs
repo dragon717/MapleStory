@@ -420,7 +420,9 @@ impl World {
                         adaptation_charges: 0,
                         adaptation_cooldown_ms,
                         skill_cooldowns,
-                        skill_buffs: BTreeMap::new(),
+                        // 新角色的限时状态一律空：技能增益、怪物疾病、免疫窗
+                        // 由 `PlayerStatus` 一处持有（`Player` 上不再有第二份）。
+                        status: PlayerStatus::default(),
                         natural_recovery_next_tick: self
                             .tick
                             .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS),
@@ -445,14 +447,6 @@ impl World {
                         hyper_barrier_next_pulse: 0,
                         hyper_teleport_enabled: false,
                         hyper_reset_count,
-                        status_immune_until: 0,
-                        seal_until: 0,
-                        stun_until: 0,
-                        curse_until: 0,
-                        poison_until: 0,
-                        slow_until: 0,
-                        poison_next_tick: 0,
-                        curse_next_tick: 0,
                         infinity_next_tick: 0,
                         infinity_damage_bonus: 0,
                         mystic_strike_stacks: 0,
