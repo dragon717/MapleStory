@@ -55,3 +55,14 @@ evidence/*/quest-i18n/cache/*
 /build/
 /runtime/
 /client/dist*/
+
+# Desktop shell: Cargo build output for src-tauri（与 server/target 同性质）。
+client/src-tauri/target/
+
+# Desktop installer staging area.
+build/desktop/
+
+# Content object index report（由 scripts/index_client_assets.cjs --report 生成；
+# 权威版本号在 assets/objects/current.json 指针里，这份报告只是可重算的流水）。
+artifacts/asset-index-report.json
+evidence/*
