@@ -395,20 +395,101 @@ impl DialogueView {
     }
 }
 
-/// 阶段一（2026-09-17）：没有原版脚本的 NPC 被点击时的占位对话来源标记。
+/// 阶段二（2026-09-17）：一个 NPC 模板在源里说过的话（`shared/npc-dialogue.json`）。
 ///
-/// 已摆放的 265 个 NPC 模板里只有 30 个带 `script`，其余全部落在「无脚本」分支；
-/// 那一条此前只回一个 `ended`，玩家点下去屏幕上什么都不发生。阶段一改为回一段
-/// 占位提示，并用这个标记把「占位」与「服务端脚本／职能产生的对话」区分开：
-/// 缺省表示这段对话由服务端脚本或职能分发产生，`placeholder` 表示还没有内容。
+/// 数据来自同版两张表的交叉引用：`Npc.wz/<id>.img/info/speak` 声明「这个 NPC 说
+/// 哪几句、按什么顺序」（`origin: "speak"`），`String/Npc.json` 提供文本；没有声明
+/// 的模板退到同一张表的 `d*`（对话框台词）再 `n*`（常态台词），记 `origin: "strings"`。
+/// 两者都是**源里真实存在的话**，区别只在证据强度，因此都带着来源字段一起走，
+/// 将来核定升级时能分辨。
 ///
-/// 这是阶段二（接入完整对话并对接任务系统）的**唯一替换点**：真实对话接进来后，
-/// 本常量与 `placeholder_view` 一起删除，客户端的 `dialog.source` 消费者同步下线。
+/// 没有台词的模板**不出现在这张表里**（导出侧不补默认值），所以「表里查不到」
+/// 就是「源里这个 NPC 没有说话内容」，与「还没接」是两件事。
+#[derive(Clone, Deserialize)]
+pub struct NpcDialogue {
+    /// 源里这个 NPC 说过的话，按源声明的顺序。
+    ///
+    /// 导出文件另带一个 `origin` 字段（`speak` / `strings`）记录这条序列是
+    /// 「`info/speak` 显式声明」还是「只有 `String` 表台词时的回退」——那是给门禁
+    /// 与后续核定用的溯源信息，服务端只消费 `lines`，所以这里不声明它（serde 会
+    /// 忽略未声明的字段），免得留一个没人读的字段在构建里报警。
+    #[serde(default)]
+    pub lines: Vec<String>,
+}
+
+/// 台词会话的节点前缀：`npc-line:<index>` 或 `npc-line:<index>:menu`。
+///
+/// 与阶段一的占位分支共用 `npc.conversation`（`String` 节点名）这套既有会话状态，
+/// 不新增第二个会话槽位；`:menu` 后缀表示「这句之后要接任务菜单」，让「台词」
+/// 与「任务选项」在同一次对话里先后出现，而不需要客户端参与判断。
+pub const NPC_LINE_NODE: &str = "npc-line:";
+
+/// Encode a line-step node name.
+pub fn line_node(index: usize, menu: bool) -> String {
+    if menu {
+        format!("{NPC_LINE_NODE}{index}:menu")
+    } else {
+        format!("{NPC_LINE_NODE}{index}")
+    }
+}
+
+/// Decode a line-step node name into `(index, menu)`.  Anything that is not a
+/// line node — including a script node or the stage-one placeholder state —
+/// yields `None`, so callers cannot mistake one state machine for another.
+pub fn parse_line_node(node: &str) -> Option<(usize, bool)> {
+    let rest = node.strip_prefix(NPC_LINE_NODE)?;
+    match rest.strip_suffix(":menu") {
+        Some(index) => Some((index.parse().ok()?, true)),
+        None => Some((rest.parse().ok()?, false)),
+    }
+}
+
+/// One page of an NPC's source dialogue.
+///
+/// `more` tells the client there is a following step (another line, or the quest
+/// menu that this line leads into): it renders the source's 「下一页」 button and
+/// sends `step: "next"`.  The last page asks for `ok` instead.  The view carries
+/// no `source` marker — only the stage-one placeholder does, and the client keys
+/// its grey-italic note style off that — so a real line renders as the NPC's own
+/// speech.
+pub fn line_view(
+    request_id: &str,
+    npc_id: &str,
+    name: &str,
+    name_zh: Option<&str>,
+    text: &str,
+    more: bool,
+) -> serde_json::Value {
+    DialogueView::Say {
+        text: text.to_owned(),
+        kind: if more { "next" } else { "ok" }.to_owned(),
+        options: Vec::new(),
+    }
+    .to_json(request_id, npc_id, name, name_zh)
+}
+
+/// 阶段一（2026-09-17）：**源里没有说话内容**的 NPC 被点击时的占位对话来源标记。
+///
+/// 阶段一当时的判定是「已摆放的 265 个模板里只有 30 个带原版 `script`，其余落这一支」，
+/// 所以那条分支回的是「对话内容尚未实装」。阶段二把源台词表接进来之后（见
+/// `NpcDialogue`）这个判定被**收窄**为它的字面意思：
+///
+/// * 265 个模板里有 **233 个**在 `String/Npc.json` 里有真实台词（`shared/npc-dialogue.json`）
+///   ⇒ 走 `line_view`，不再是占位；
+/// * 剩下 **32 个确实一句话都没有** —— 它们是 `傳送門`／`警告牌`／`繳納箱`／`武將排行榜`
+///   这类物件型条目，源里既无 `info/speak` 也无 `String` 台词，原版对它们也没有
+///   对话（点击只有脚本或干脆没有反应）。
+///
+/// 因此占位**没有被删除**，但它现在的含义是「源里就没有台词」，而不是「还没接」——
+/// 文案据此改为如实陈述。`dialog.source` 仍是同一层标记：缺省＝真实台词（源台词或
+/// 服务端脚本／职能产生），`placeholder`＝源里没有说话内容，供客户端用灰斜体区分。
+///
+/// 客户端与门禁仍可据此把两者分开；真实台词**不带**这个标记。
 pub const PLACEHOLDER_DIALOGUE: &str = "placeholder";
 
 /// 占位提示的玩家可见文案：产品默认简体，`en` 供 `?lang=en`。
-const PLACEHOLDER_TEXT_ZH: &str = "这个 NPC 的对话内容尚未实装。";
-const PLACEHOLDER_TEXT_EN: &str = "This NPC's dialogue has not been implemented yet.";
+const PLACEHOLDER_TEXT_ZH: &str = "这个 NPC 在原文中没有对话内容。";
+const PLACEHOLDER_TEXT_EN: &str = "This NPC has no dialogue in the source data.";
 
 /// 无脚本 NPC 的占位视图：一个 `ok` 节点（关闭即结束）外加来源标记。
 ///

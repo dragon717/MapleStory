@@ -180,15 +180,22 @@ try {
   placeholderView.dialogueText = classed();
   placeholderView.dialogueOptions = { replaceChildren() {} };
   placeholderView.currentRequestId = 'ph-1';
+  // 文案用自造的哨兵串，**不抄服务端的实际占位文案**：这条检查验的是「带
+  // `source: 'placeholder'` 的对话被标成备注、并且原样渲染」，与文案本身无关。
+  // 抄服务端文案的夹具会变成陈旧夹具——它自带断言，所以服务端改字之后两侧测试仍然
+  // 全绿，谁也没发现它们已经不一致。占位文案本身（简/英两条、非空、互不相同）由
+  // 仓库级门禁 `scripts/check_tms273_npc_dialogue.cjs` 直接读 `server/src/npc.rs`
+  // 的常量来钉。
+  const placeholderText = '（占位提示哨兵）';
   placeholderView.receive({
     requestId: 'ph-1', npcId: 'npc-ph', name: 'N',
-    dialog: { kind: 'ok', text: '这个 NPC 的对话内容尚未实装。', source: 'placeholder' },
+    dialog: { kind: 'ok', text: placeholderText, source: 'placeholder' },
   });
   assert.equal(
     placeholderView.dialogueText.classList.contains('is-placeholder'), true,
-    '占位提示必须与 NPC 本人的台词区分开（它不是内容，是“还没有内容”）',
+    '占位提示必须与 NPC 本人的台词区分开（它不是内容，是「源里没有说话内容」）',
   );
-  assert.equal(placeholderView.dialogueText.textContent, '这个 NPC 的对话内容尚未实装。');
+  assert.equal(placeholderView.dialogueText.textContent, placeholderText);
   assert.deepEqual(closed, [], '开窗本身不通知宿主');
   placeholderView.receive({
     requestId: 'ph-1', npcId: 'npc-ph', name: 'N',

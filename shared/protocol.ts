@@ -475,11 +475,14 @@ export type ServerMessage =
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
   | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[];
-  /** 这段对话的来源（阶段一，2026-09-17）。缺省＝服务端脚本或职能分发产生的
-   *  对话；`placeholder`＝该 NPC 的原版脚本体还没接入，服务端只回了占位提示
+  /** 这段对话的来源（阶段一 2026-09-17 / 阶段二 2026-09-17）。缺省＝源台词、
+   *  服务端脚本或职能分发产生的对话；`placeholder`＝**源里这个 NPC 就没有说话
+   *  内容**（`傳送門`／`警告牌`／`繳納箱` 这类物件型条目），服务端据实回占位提示
    *  （`server/src/npc.rs::PLACEHOLDER_DIALOGUE`，与这里必须同值）。
-   *  阶段二接入真实对话后这个取值连同它的客户端消费者一起删除——它不是给玩家
-   *  的文案，只是让客户端与门禁能把「占位」与「本人台词」分开的标记。 */
+   *  它不是给玩家的文案，只是让客户端与门禁能把「源里没有说话内容」与「本人
+   *  台词」分开的标记。阶段二接入源台词（`shared/npc-dialogue.json`）后这个取值
+   *  **没有**被删除，而是从「还没接」收窄成了它的字面意思，所以客户端的灰斜体
+   *  消费者（`is-placeholder`）继续保留。 */
   source?: 'placeholder' }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean;
   /** Set when the npc is an account warehouse keeper, so the client opens the
    *  storage window instead of rendering a dialogue tree. */

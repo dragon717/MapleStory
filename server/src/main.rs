@@ -91,6 +91,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     })?
     .npcs;
+    // 阶段二（2026-09-17）：NPC 台词表。与 npc-names.json 同一条装配链产出
+    // （scripts/export_tms273_npc_dialogue.cjs），因此同样按硬失败处理：表在=内容
+    // 完整，表缺=装配没跑完；静默降级会让整张地图的 NPC 集体回到占位提示而不报警。
+    #[derive(Deserialize)]
+    struct NpcDialogueFile {
+        npcs: BTreeMap<String, npc::NpcDialogue>,
+    }
+    let npc_dialogue_path = PathBuf::from(setting(
+        "NPC_DIALOGUE_FILE",
+        root.join("shared/npc-dialogue.json").to_str().unwrap(),
+    ));
+    let npc_dialogue: BTreeMap<String, npc::NpcDialogue> = serde_json::from_str::<NpcDialogueFile>(
+        &std::fs::read_to_string(&npc_dialogue_path).map_err(|error| {
+            format!(
+                "Cannot read npc dialogue {}: {error}",
+                npc_dialogue_path.display()
+            )
+        })?,
+    )
+    .map_err(|error| {
+        format!(
+            "Cannot parse npc dialogue {}: {error}",
+            npc_dialogue_path.display()
+        )
+    })?
+    .npcs;
     let windbell_path = PathBuf::from(setting(
         "WINDBELL_FILE",
         root.join("shared/windbell.json").to_str().unwrap(),
@@ -124,6 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     .with_quest_text(quest_text)
     .with_npc_names_zh(npc_names_zh)
+    .with_npc_dialogue(npc_dialogue)
     .with_mage_skills(mage_skills)
     .with_windbell(windbell)?;
     tokio::spawn(world::run(world, rx));

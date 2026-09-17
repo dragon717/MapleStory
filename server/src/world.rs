@@ -1989,6 +1989,9 @@ pub struct World {
     /// Attached to snapshot/npcResult rows as `nameZh` so the zh UI can label
     /// npcs consistently with quest text without shipping a client table.
     npc_names_zh: BTreeMap<String, String>,
+    /// Source dialogue lines per placed npc template (shared/npc-dialogue.json).
+    /// 阶段二：无脚本 NPC 由这张表说话；表里查不到＝源里没台词，回占位提示。
+    npc_dialogue: BTreeMap<String, npc::NpcDialogue>,
     tick: u64,
     /// Monotonic id source for away windows, so each continuous absence has a
     /// stable identity for prompt de-duplication and logging.
@@ -2095,6 +2098,7 @@ impl World {
             hyper_reset_quotes: BTreeMap::new(),
             quest_text: crate::quest_text::QuestTextCorpus::default(),
             npc_names_zh: BTreeMap::new(),
+            npc_dialogue: BTreeMap::new(),
             tick: 0,
             next_away: 0,
             combat: Combat::new(duration_ms, hit_after_ms),
@@ -2161,6 +2165,16 @@ impl World {
                     .cloned();
             }
         }
+        self
+    }
+
+    /// Inject the source dialogue lines for placed npc templates
+    /// (shared/npc-dialogue.json).  Worlds built without it (unit tests, and any
+    /// run whose content has not been exported) fall back to the stage-one
+    /// placeholder, so a missing table degrades to the old visible answer
+    /// instead of silence.
+    pub fn with_npc_dialogue(mut self, dialogue: BTreeMap<String, npc::NpcDialogue>) -> Self {
+        self.npc_dialogue = dialogue;
         self
     }
 

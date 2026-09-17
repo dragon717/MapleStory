@@ -19,6 +19,7 @@
 //! - 传送落点（`warp_player*` 留在 `world.rs`；路线目标只算出地图 id）
 //! - 任务文本目录本身：`crate::quest_text`
 
+use super::dialogue::LineStep;
 use super::quest_rules;
 use super::*;
 use crate::auth::notebook::{AcquisitionSource, ItemAcquisition};
@@ -949,14 +950,34 @@ impl World {
             .get(npc_id)
             .and_then(|npc| npc.conversation.get(id).cloned());
         let opening = step.is_none_or(|value| value == "start");
+        // 阶段二（2026-09-17）：台词先说话。
+        //
+        // 原版的 NPC 先开口，然后才给「接取／交付」这类选项；所以一个既有源台词
+        // 又有任务可做的 NPC，这次对话是「逐页台词 → 任务菜单」。台词页由
+        // `dialogue.rs` 的通用推进器维护（节点名 `npc-line:<i>:menu`），播完时它
+        // 交回控制权，这里接着出菜单。没有台词的模板（源里就没有）走原来的路径，
+        // 行为逐字不变。
+        let menu_pending =
+            match self.advance_npc_lines(id, request_id, npc_id, template_id, name, name_zh, step) {
+                LineStep::Answered => return true,
+                LineStep::ContinueToMenu => true,
+                LineStep::NotALine => false,
+            };
         let cached_choices = current_node
             .as_deref()
             .and_then(|node| node.strip_prefix(QUEST_MENU_NODE))
             .and_then(|json| serde_json::from_str::<Vec<(String, String)>>(json).ok());
-        if cached_choices.is_none() && opening {
+        if cached_choices.is_none() && (opening || menu_pending) {
             let choices = self.quest_menu_choices(id, template_id);
             if choices.is_empty() {
                 return false;
+            }
+            // 阶段二：有源台词的模板先逐页把话说出来（末页的「下一页」指向本菜单），
+            // 播完才出选项；源里没有说话内容的模板走原来那一条，行为逐字不变。
+            if opening
+                && self.open_npc_lines(id, request_id, npc_id, template_id, name, name_zh, true)
+            {
+                return true;
             }
             let options = choices
                 .iter()

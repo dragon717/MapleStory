@@ -9,6 +9,7 @@ const REQUIRED_JSON = [
   'shared/mage-skills.json',
   'shared/quest-text.json',
   'shared/npc-names.json',
+  'shared/npc-dialogue.json',
   'shared/character-creation.json',
   'shared/items.json',
   'client/public-tms273/assets/manifest.json',

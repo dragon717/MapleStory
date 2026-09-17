@@ -11,6 +11,16 @@
 
 use super::*;
 
+/// 推进「源台词」阶段的结果（阶段二）。
+pub(super) enum LineStep {
+    /// 当前会话节点不是台词页：调用方按自己的状态机处理。
+    NotALine,
+    /// 已经产出并下发了一个视图，本次请求到此为止。
+    Answered,
+    /// 台词播完，且这次对话后面还挂着任务菜单：控制权交回调用方。
+    ContinueToMenu,
+}
+
 impl World {
     pub(super) fn send_npc_dialogue(&self, id: &str, value: serde_json::Value) {
         let Some(player) = self.players.get(id) else {
@@ -524,26 +534,26 @@ impl World {
             }
             return;
         }
-        // 阶段一（2026-09-17）：「点击任何 NPC 都要有可见响应」的兜底分支。
+        // 阶段二（2026-09-17）：无原版脚本的模板由**源台词表**说话。
         //
         // 走到这里说明该模板既没有原版脚本，也不属于船务／呼叫器／仓库／任务菜单／
-        // 转职任何一条已接入的分发——已摆放的 265 个模板里有 235 个落在这一支。
-        // 此前只回一个 `ended`，客户端会把窗口直接关掉，玩家看到的是「点了没反应」。
-        // 现在回 `npc::placeholder_view`（占位提示 + 来源标记）。
-        //
-        // 阶段二接真实对话时只改这里：把 `placeholder_view` 换成真实来源即可，
-        // 上面的分发顺序与下面的脚本路径都不动，`placeholder_view` 连同
-        // `npc::PLACEHOLDER_DIALOGUE` 一起删除。
+        // 转职任何一条已接入的分发。阶段一在这一支只回占位提示（当时的口径是
+        // 「还没有内容」）；阶段二把 `shared/npc-dialogue.json`（源 `Npc.wz`
+        // `info/speak` 声明的顺序 + `String/Npc.json` 的文本）接进来后，绝大多数
+        // 模板能说出源里真实说过的话，占位收窄为「源里确实没有说话内容」的那批
+        // 物件型条目（`傳送門`／`警告牌`／`繳納箱`…）。详见 `npc::NpcDialogue`。
         let Some(script) = template.script.clone() else {
-            self.end_conversation(&id);
-            let value = if opening {
-                npc::placeholder_view(&request_id, &npc_id, &name, name_zh.as_deref(), lang)
-            } else {
-                // 占位对话只有「开启」这一步有内容：任何后续步骤（含 `end`）都直接
-                // 结束，否则关闭动作会被当成新一轮开启，窗口关不掉。
-                npc::DialogueView::End.to_json(&request_id, &npc_id, &name, name_zh.as_deref())
-            };
-            self.send_npc_dialogue(&id, value);
+            self.handle_scriptless_npc_talk(
+                &id,
+                &request_id,
+                &npc_id,
+                &template_id,
+                &name,
+                name_zh.as_deref(),
+                step,
+                opening,
+                lang,
+            );
             return;
         };
         let current_node = self
@@ -676,6 +686,145 @@ impl World {
                 self.send_reject(&id, "npc_step_invalid", &error, Some(&request_id));
             }
         }
+    }
+
+    /// 无原版脚本、也不属于任何已接入职能分发的模板：用源台词表说话。
+    ///
+    /// 阶段二的主路径。`opening` 为真（客户端刚点开）时开台词阶段；否则推进一页。
+    /// 源里的确没有说话内容的模板回占位提示（`npc::PLACEHOLDER_DIALOGUE`）——
+    /// 那不是「还没接」，是「源里就没有」。
+    fn handle_scriptless_npc_talk(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        template_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        step: Option<&str>,
+        opening: bool,
+        lang: &str,
+    ) {
+        match self.advance_npc_lines(id, request_id, npc_id, template_id, name, name_zh, step) {
+            LineStep::Answered => return,
+            // 这一支后面不挂任务菜单（有任务可做的模板在 `handle_quest_npc_menu` 就被
+            // 接走了，那里会自己出「台词 → 菜单」的序列），所以 `ContinueToMenu`
+            // 到不了这里；真到了也只能按结束处理。
+            LineStep::ContinueToMenu | LineStep::NotALine => {}
+        }
+        if opening && self.open_npc_lines(id, request_id, npc_id, template_id, name, name_zh, false) {
+            return;
+        }
+        self.end_conversation(id);
+        let value = if opening {
+            npc::placeholder_view(request_id, npc_id, name, name_zh, lang)
+        } else {
+            npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh)
+        };
+        self.send_npc_dialogue(id, value);
+    }
+
+    /// 当前会话节点是不是台词页；是则给出 `(页号, 之后是否接任务菜单)`。
+    fn line_node(&self, id: &str, npc_id: &str) -> Option<(usize, bool)> {
+        self.npcs
+            .get(npc_id)
+            .and_then(|npc| npc.conversation.get(id))
+            .and_then(|node| npc::parse_line_node(node))
+    }
+
+    fn set_line_node(&mut self, id: &str, npc_id: &str, index: usize, menu: bool) {
+        if let Some(npc) = self.npcs.get_mut(npc_id) {
+            npc.conversation
+                .insert(id.to_owned(), npc::line_node(index, menu));
+        }
+    }
+
+    /// 开启台词阶段：出第 0 页并把会话节点置为台词页。
+    ///
+    /// 返回 `false` ＝这个模板在源里没有说话内容，调用方自己决定退路（占位提示）。
+    /// `menu_after` 为真时最后一页仍然给「下一页」，好把玩家送进后面的任务菜单。
+    pub(super) fn open_npc_lines(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        template_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        menu_after: bool,
+    ) -> bool {
+        let Some(lines) = self.npc_dialogue.get(template_id).map(|entry| entry.lines.clone())
+        else {
+            return false;
+        };
+        let Some(first) = lines.first().cloned() else {
+            return false;
+        };
+        self.set_line_node(id, npc_id, 0, menu_after);
+        let more = lines.len() > 1 || menu_after;
+        self.send_npc_dialogue(
+            id,
+            npc::line_view(request_id, npc_id, name, name_zh, &first, more),
+        );
+        true
+    }
+
+    /// 推进台词页。演出与原版一致：一页一句，末页给「确认」。
+    ///
+    /// 只有当前节点确实编码着台词页时才会接手；否则回 `NotALine`，让调用方按自己的
+    /// 状态机处理（脚本节点、任务菜单缓存节点、法师训练节点都走那条路）。
+    pub(super) fn advance_npc_lines(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        template_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        step: Option<&str>,
+    ) -> LineStep {
+        let Some((index, menu)) = self.line_node(id, npc_id) else {
+            return LineStep::NotALine;
+        };
+        let lines = self
+            .npc_dialogue
+            .get(template_id)
+            .map(|entry| entry.lines.clone())
+            .unwrap_or_default();
+        let next = index + 1;
+        if step == Some("end") {
+            // 玩家按了关闭：直接把这次对话收掉，不要因为「后面还挂着菜单」而把菜单
+            // 弹出来——那等于关不掉窗口。
+            self.end_conversation(id);
+            self.send_npc_dialogue(
+                id,
+                npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+            );
+            return LineStep::Answered;
+        }
+        if step == Some("next") && next < lines.len() {
+            self.set_line_node(id, npc_id, next, menu);
+            let more = next + 1 < lines.len() || menu;
+            self.send_npc_dialogue(
+                id,
+                npc::line_view(request_id, npc_id, name, name_zh, &lines[next], more),
+            );
+            return LineStep::Answered;
+        }
+        if menu {
+            // 台词播完、后面还有任务菜单：清掉台词节点，把控制权交回菜单分支
+            // （它会写自己的 `QUEST_MENU_NODE…` 状态）。
+            if let Some(npc) = self.npcs.get_mut(npc_id) {
+                npc.conversation.remove(id);
+            }
+            return LineStep::ContinueToMenu;
+        }
+        self.end_conversation(id);
+        self.send_npc_dialogue(
+            id,
+            npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+        );
+        LineStep::Answered
     }
 
     pub(super) fn end_conversation(&mut self, player_id: &str) {

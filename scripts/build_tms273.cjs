@@ -49,6 +49,11 @@ run(process.execPath,['scripts/export_tms273_collection.cjs']);
 // `assemble_tms273` because both the server and the client compile it in.
 run(process.execPath,['scripts/export_tms273_mob_names.cjs']);
 run('python3',['scripts/generate_tms273_gameplay.py']);
+// NPC 源台词表。它读 `gameplay.json` 的已摆放模板集合（表只覆盖真正会出场的 NPC）
+// 与 `items.json` 的物品名（还原台词里的 `#t<id>#`），所以必须跑在 gameplay 重建
+// 之后；又因为它按模板集合取交集，装配了新图就必须重跑，否则新图上的 NPC 会退回
+// 占位提示。详见 scripts/check_tms273_npc_dialogue.cjs。
+run(process.execPath,['scripts/export_tms273_npc_dialogue.cjs']);
 // The four slot-expansion coupons are sourced through an NPC script in TMS273,
 // so `generate_tms273_gameplay.py` only authors their shop rows; the item
 // definitions come from this backfill.  It must run *after* the gameplay

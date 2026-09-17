@@ -372,9 +372,10 @@ export class NpcDialogueView {
     if (plateName) plateName.textContent = displayName(state.nameZh, state.name);
 
     const dialog = state.dialog;
-    // 阶段一占位提示（`source: 'placeholder'`）按「备注」呈现：它说的是“这里还
-    // 没有内容”，不是 NPC 本人的台词，所以用灰斜体与真实对白分开。真实对白不带
-    // 这个类，也不会因为切换过占位而残留。
+    // 占位提示（`source: 'placeholder'`）按「备注」呈现：它说的是“源里这个 NPC
+    // 就没有说话内容”，不是 NPC 本人的台词，所以用灰斜体与真实对白分开。阶段二
+    // 接进来的源台词（`shared/npc-dialogue.json`）不带这个标记，因此不会被误标成
+    // 备注；真实对白也不会因为切换过占位而残留这个类。
     text.classList.toggle('is-placeholder', dialog?.source === 'placeholder');
     if (!dialog) {
       text.textContent = '';
