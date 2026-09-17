@@ -1,6 +1,7 @@
 import type { AppearanceCatalog } from '../features/entry/appearance';
 import { CONTENT_VERSION } from '../../../shared/protocol.ts';
 import { resolveAssetUrl } from './resource-url';
+import { loadAssetIndex } from './asset-index';
 import { installWindbellMaps } from '../features/windbell/maps';
 import { frameAt } from '../features/player/animation.ts';
 // 纸娃娃类型叶（计划 §9.1）：帧/部件/动作集迁到 avatar-types.ts，
@@ -684,7 +685,13 @@ export function actorDepthForLayers(layers: readonly Pick<MapLayer, 'depth' | 'b
 }
 export async function loadManifest(): Promise<Manifest> {
   // 清单与外观目录经 resource-url 解析（普通刷新＝恒等；仅修复代数会改传输地址）。
-  const response = await fetch(resolveAssetUrl('/assets/manifest.json'));
+  // 内容寻址索引与清单一并并行取：索引决定后面两万多个资源走不走强缓存
+  // （v3 §4.1），而它是**可选增强**——`loadAssetIndex` 自己吞掉全部失败并退回
+  // 恒等解析，所以索引缺失不会拖垮登录（v3 §5.3 / §6.1）。
+  const [response] = await Promise.all([
+    fetch(resolveAssetUrl('/assets/manifest.json')),
+    loadAssetIndex(),
+  ]);
   if (!response.ok) throw new Error(`资源清单加载失败 /assets/manifest.json (${response.status})`);
   const manifest = await response.json() as Manifest;
   installWindbellMaps(manifest);

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MapleStory TMS273",
+  "version": "0.1.0",
+  "identifier": "cn.tms273.maplestory.desktop",
+  "build": {
+    "frontendDist": "../../build/desktop/current/frontend",
+    "devUrl": "http://127.0.0.1:5173"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'",
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Game",
+    "shortDescription": "冒险岛 TMS273 复刻桌面客户端",
+    "longDescription": "冒险岛 TMS273 复刻版的桌面外壳：前端随签名包更新，地图资源按兼容的资源修订从内容服务获取。"
+  }
+}

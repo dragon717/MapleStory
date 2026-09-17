@@ -1,0 +1,29 @@
+[package]
+name = "maplestory-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "冒险岛 TMS273 复刻桌面外壳（v3 §9）"
+publish = false
+
+# 桌面外壳只做一件事：把**本地打包**的前端装进系统 WebView，并把服务器来源
+# 注入页面。它**不是第二份权威世界**（v3 §9.1 / §15-7）：
+#   - 不连数据库、不跑世界 tick、不复制任何游戏规则；
+#   - 不分发 bot 凭据、源素材工作目录或 Cargo target；
+#   - 除窗口本身外不向页面暴露原生能力（见 capabilities/default.json）。
+#
+# 依赖刻意保持最小：没有 tauri-plugin-shell / fs / http，也没有 serde 全量特性。
+# 加任何一个插件都必须同时说明「它替页面做了什么、为什么 WebView 本身做不到」。
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -1,0 +1,119 @@
+# 桌面安装包流水线（v3 §10.2）。
+#
+# 这条流水线**只做构建与取证**，不做发布。理由（照 v3 §10.3 / §12-D1 逐条）：
+#   - 程序更新签名与操作系统代码签名/公证是两件不同的责任，两者都需要**受控发布
+#     环境**里的密钥；在 CI 里临时生成一个签名等于伪造签名链；
+#   - 「最后发布下载目录与更新指针」是人工放行动作：服务端一旦不兼容旧桌面包，
+#     必须保证兼容的新包已经可下载，或明确阻止登录并给升级入口。
+#
+# 因此本流水线的产出是**不可变制品 + 清单**（含 sha256），发布是下一步人工动作。
+#
+# 必须用对应平台的 runner：不假设在一台 Mac 上就能完整构建、签名、验收所有平台。
+
+name: desktop-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: '权威世界来源（scheme+主机，例如 https://world.example.com）'
+        required: true
+        type: string
+      asset_base:
+        description: '游戏静态内容来源（scheme+主机，例如 https://content.example.com）'
+        required: true
+        type: string
+
+concurrency:
+  # 同一来源的构建串行：暂存区按 buildId 隔离，但上传与审计没有必要并发。
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14        # Apple Silicon：aarch64-apple-darwin
+            target: aarch64-apple-darwin
+            artifact: dmg
+          - runner: windows-2022    # x86_64-pc-windows-msvc
+            target: x86_64-pc-windows-msvc
+            artifact: nsis
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. 源码与依赖锁定：锁定文件存在才允许继续（v3 §10.2 第一步）。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: client/src-tauri
+
+      - name: 安装前端依赖（严格按锁文件）
+        working-directory: client
+        run: npm ci
+
+      # 2. 前端/平台检查：边界检查先跑，避免花几十分钟构建一个越界的包。
+      - name: 桌面交付边界检查（只读）
+        run: node scripts/check_tms273_desktop_package.cjs
+
+      # 3. 目标系统构建：前端进独立暂存区 + 原生打包（v3 §10.2）。
+      #    来源作编译期常量传入，与生成的 CSP 同源，避免「页面能连的」和
+      #    「外壳注入的」不一致。
+      - name: 构建安装包
+        run: node scripts/build-desktop.cjs --api-base "${{ inputs.api_base }}" --asset-base "${{ inputs.asset_base }}" --target ${{ matrix.target }}
+
+      # 4. 安装包内容审计：不得含数据库、bot 凭据、签名私钥与源素材（v3 §D04）。
+      - name: 安装包内容审计
+        shell: bash
+        run: |
+          staging=$(ls -d build/desktop/${{ matrix.target }}/*/ | tail -1)
+          node scripts/check_tms273_desktop_package.cjs --staging "$staging"
+
+      # 5. 平台签名/公证：**需要受控发布环境提供的身份**。
+      #    没有密钥时明确跳过并留痕，而不是产出「看起来已签名」的包。
+      - name: 签名与公证（缺密钥则明确跳过）
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.DESKTOP_SIGNING_IDENTITY }}" ]; then
+            echo "::notice title=未签名::未提供 DESKTOP_SIGNING_IDENTITY，本产物为未签名构建，不得对外分发。"
+            echo "UNSIGNED=1" >> "$GITHUB_ENV"
+          else
+            echo "::error title=签名未实装::已提供签名身份，但签名步骤尚未实装（v3 §12-D1 未开始）。拒绝静默通过。"
+            exit 1
+          fi
+
+      # 6. 上传不可变制品：路径里带 buildId，天然不可覆盖（v3 §10.2 末段）。
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/desktop/${{ matrix.target }}/*/artifacts.json
+            build/desktop/${{ matrix.target }}/*/tauri.conf.generated.json
+            client/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.${{ matrix.artifact }}
+
+      - name: 发布前置条件说明
+        shell: bash
+        run: |
+          {
+            echo "### desktop-release: ${{ matrix.target }}"
+            echo ""
+            echo "- 制品已上传（不可变路径，含 sha256 清单）。"
+            echo "- **未执行**：平台签名/公证（缺受控密钥）、updater 签名、下载目录与更新指针发布。"
+            echo "- 正式分发前必须落实（v3 §10.3）：公网域名 + TLS、内容服务、平台签名身份、更新密钥，"
+            echo "  并保证服务端发布造成旧包不兼容时，兼容的新包已可下载或已明确阻止登录。"
+          } >> "$GITHUB_STEP_SUMMARY"

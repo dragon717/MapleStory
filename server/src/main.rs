@@ -212,10 +212,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //      指向 client/public-tms273/assets，作为兜底。
     // 内容数据不再复制进候选版本：那份副本既让每次启动多花 25~50s 全量拷贝 843MB，
     // 又会在变旧时遮蔽源目录里的新内容（见 client/vite.config.ts）。
+    //
+    // ASSETS_DIR 下的 `objects/` 是内容寻址对象库（scripts/index_client_assets.cjs）：
+    // 同一份字节被复制成 `objects/sha256/<摘要><扩展名>`，地址由字节决定，因此
+    // 服务端可以给它 immutable 强缓存（见 client_delivery::classify）。它落在资源根
+    // 内部，正好由这里已经挂好的 ServeDir 兜底提供，不需要额外路由。
     // /api/client-release（v3 §4）：小型发布描述（releaseId / 协议 / 内容 /
     // 资源修订 / 已发布桌面包），no-store，不含任何玩家数据。首页强制更新
     // 按钮靠它判断兼容性，它不依赖地图资源加载成功。
-    let release = std::sync::Arc::new(client_delivery::ReleaseDescriptor::load(&dist));
+    let release = std::sync::Arc::new(client_delivery::ReleaseDescriptor::load(&dist, &assets));
     let app=Router::new().route("/api/register",post(register)).route("/api/login",post(login)).route("/api/lobby",post(lobby_route)).route("/api/health",get(||async{Json(serde_json::json!({"ok":true,"protocolVersion":protocol::PROTOCOL_VERSION,"contentVersion":CONTENT_VERSION}))}))
         .route("/api/client-release",get({
             let release = std::sync::Arc::clone(&release);

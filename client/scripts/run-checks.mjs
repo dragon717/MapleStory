@@ -20,6 +20,7 @@ const checks = [
   ['features/hud/gauge.check.ts', ['--experimental-transform-types']],
   ['app/i18n.check.ts', ['--experimental-strip-types']],
   ['assets/preload-plan.check.mjs', []],
+  ['assets/asset-index.check.mjs', []],
   ['features/windbell/runtime.check.mjs', []],
   ['app/page-shell.check.mjs', []],
   ['features/ui/window-shell.check.mjs', []],
@@ -75,7 +76,7 @@ const audit = spawnSync(
 );
 results.push({ label: auditLabel, ok: audit.status === 0, status: audit.status });
 
-for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'check_tms273_npc_scripts.cjs', 'check_tms273_player_status.cjs', 'check_tms273_damage_pipeline.cjs', 'check_tms273_attributes.cjs', 'check_tms273_client_actions.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
+for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'check_tms273_npc_scripts.cjs', 'check_tms273_player_status.cjs', 'check_tms273_damage_pipeline.cjs', 'check_tms273_attributes.cjs', 'check_tms273_client_actions.cjs', 'check_tms273_desktop_package.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
   const result = spawnSync(process.execPath, [path.join(clientRoot, '..', 'scripts', file)], {
     cwd: path.join(clientRoot, '..'), stdio: 'inherit',
   });

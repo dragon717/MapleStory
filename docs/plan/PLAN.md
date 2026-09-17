@@ -383,10 +383,97 @@
   - 验收：`update-service.check.ts` **6 组**、`desktop-downloads.check.ts` **4 组**断言全过（均已挂进 `run-checks.mjs`）；另修掉三处因新接线而红的既有检查（`network/session.check.mjs`、`features/windbell/runtime.check.mjs`、`features/npc/dialogue.check.mjs`：内联模块解析不到新增的 `endpoints` / `resource-url`，补成恒等桩）。
 - 待验：点两次强制更新只检查一次；断网时按钮报错但账号记忆/语言/键位不变；勾选修复后刷新，资源重新下载且后续刷新恢复复用；未发布桌面包时不出现假链接。
 
+### V3-P2c 内容寻址对象库：强缓存真正生效（2026-09-17 第二轮，**已实测生效**）
+
+> 第一轮的 `client_delivery.rs` 只完成了**分类规则**；27,928 个内容资源仍是固定名 ⇒ 一律 `no-cache`
+> ＝**只有协商缓存**。所以「刷新仍长时间加载地图资源」不是分类写错，而是**强缓存从未存在**。
+> 详见[交付记录](history/2026-09-17/桌面打包环境与强缓存收口.md)。
+
+- [x] 新增 `scripts/index_client_assets.cjs`：引用闭包 → sha256 → 对象库 `objects/sha256/<摘要><扩展名>`
+      （**只写缺失摘要**）→ 不可变索引 `objects/index/<revision>.json` → 固定名指针 `objects/current.json`
+      （**最后写＝唯一发布动作**）。复制而非硬链接、临时名 + rename 原子落盘、索引不含自身哈希、
+      路径不得逃逸资源根、缺文件如实报告。`--dry-run` / `--verify`（独立重算 + 抽查对象字节）齐备。
+- [x] 实测：闭包 28,065 → 对象 27,928（去重后 27,772 个文件，376.2MB）、索引 4.78MB、
+      `assetRevision=95588f79e762ab773a589c57eba243109dde4a1706fd139dba41fb9c8000e00b`、构建 **12.8s**。
+- [x] 服务端：`ReleaseDescriptor::load(dist, assets)` 的 `assetRevision` 改为读该指针（env 覆盖优先），
+      并校验「索引地址必须由 revision 自身命名」；新增 `AssetIndex` 与 2 组单元测试。
+- [x] 客户端：新增 `assets/asset-index.ts`（指针 + 索引 → 逻辑地址到对象地址映射，**任何失败都不抛**、
+      幂等、并发共享）；`resolveAssetUrl` 变为「对象地址 → 修复代数 → 桌面 `assetBase`」三步，
+      **逻辑 key 不变**；`loadManifest` 并行预取索引。`world.ts` 的预加载原本就逐个调 resolver，
+      28k 资源因此无需改动即接入。新增 `assets/asset-index.check.mjs`（含降级、代数、桌面来源三组）。
+- [x] **对正在运行的 3010 实测**：`current.json` → `no-cache`；`index/<rev>.json` 与
+      `objects/sha256/<摘要>.png` → `public, max-age=31536000, immutable`；对象正文与逻辑源地址
+      sha256 **逐字节相同**。⇒ 刷新时这些地址不再发生网络请求。
+- [x] **收口复查（同日晚间）**：查清「对象库建好了但刷新还是慢」的真因——**不是服务端**（对象地址线上已给
+      `immutable`），而是**客户端产物未重建**（`build/current/client/assets/index-*.js` 时间戳 18:15，
+      源码 19:44/19:53，产物里搜不到 `objects/current.json`）⇒ 浏览器仍在请求 27,928 个固定名逻辑地址、
+      每个都要 304 协商。覆盖率实测：manifest 引用 28,058 条 → 命中 27,928 条（**99.54%**），
+      未命中 130 条**与索引 `dataless` 数精确相等**（iCloud 占位，物化后重跑索引即补齐）。
+      另修正一条被本轮改动证伪的门禁断言：`check_tms273_client_actions.cjs` 原断言「代数 0 ⇒ 恒等函数」
+      与「故意换传输地址」的强缓存目标直接冲突，已改写为「映射缺失逐字节退回 / `ce=` 被 `epoch > 0` 守住 /
+      `assetBase` 只加 `/assets/**`」三条不变式，改后 8 组全过。
+- [x] **客户端已重建并切换**（产物 20:44，含对象库代码；`/api/client-release` 的 `assetRevision` 已非空）。
+- [x] **修掉「卡在 37%」的代码真因：闭包名单写死漏了 57% 资源**。`index_client_assets.cjs` 的
+      `CONTENT_FILES` 原是一张手写 6 项清单，漏了 `entry/appearance.json`（23MB 外观目录，而
+      `preload-plan.ts` 会把它的每一帧收进预加载）、`entry/manifest.json`、`windbell/tms273.json`
+      与 1,718 个 `appearance-cashshop/*.json`。⇒ 闭包 **28,065 → 69,692**、对象 **27,928 → 67,582**，
+      **39,654 个资源（57%）此前每次加载都在走逻辑地址做 304 协商**，这才是「刷新很久」的主要成分。
+      已改为**自动发现** `assets/**` 下除 `objects/` 外全部 JSON（不再维护名单），并给扫描加上
+      `blocks === 0` 预检（否则读占位 JSON 会永久阻塞）。已发布新 revision
+      `a656c645b99d7ab2c3ccd2a1ec44325821cef1f8a7cbc172cf8eb2651e471049`（67,582 对象 / 423MB）。
+- [ ] **仍需物化才能进游戏**：`client/public-tms273/assets` 还有 **452 个占位文件**（`Character_Cap/Coat/Cape…`），
+      服务端读它们要**阻塞约 30s**（实测 654B 等 32.8s）⇒ 预加载被钉死在 37%。**批量物化只能由用户在
+      Terminal 跑 `brctl download client/public-tms273/assets`，或在 Finder 里右键「立即下载」/「保留下载」**；
+      用 HTTP 并发触发下载会把 iCloud 通道堵死（实测 16 并发后连单发都 90s 无响应），
+      故 `scripts/warm_dataless_assets.cjs` 只作单文件应急。物化后重跑索引即可把缺口补到 0。
+- [ ] 残余待办：`server/target`（193MB）与 `参考/`（9.4GB）仍需物化；`run-checks.mjs` 整链因此未跑；
+      `/api/client-release` 的 `assetRevision` 是**启动时算一次**，与最新指针暂时不一致（仅界面显示，无功能影响）。
+- [ ] **跑启动前必须先物化 iCloud 占位文件**（否则 cargo / vite / 门禁会**永久挂死**——不报错、只是不动）。
+      全仓 **39,967 个占位 / 9.8GB**：`node_modules` 已用「删目录 + `npm install --prefer-offline`」修复
+      （`scripts/` 与 `client/` 均 0 残留）；`server/target`（200MB）与 `参考/`（9.4GB）等非 npm 文件
+      **只能由用户在 Terminal 跑 `brctl download <目录>`**（沙箱内 `brctl` 被拒）。盘点用
+      `node scripts/scan_icloud_dataless.cjs`（只 `stat`、自己不会被卡住）；三种死锁形态与判死锁手法
+      见[技术细节 §4](../technical/跨会话约束细节-管线内容与玩法.md)。
+- [x] 服务端新单测已绿：`cargo test` 全量 **570 passed / 0 failed**（14.00s）；`client_delivery` 单模块
+      **10 passed / 0 failed**，含新增的 `asset_index_requires_self_consistent_pointer` 与
+      `classifies_published_pointer_and_index_separately`。测试构建告警 **49 条＝既有基线**，
+      **本轮改动的文件贡献 0 条**。（过程：该次 `cargo test` 先因 `.rlib` 占位在元数据阶段 `mmap`
+      死锁近 1 小时，占位自行物化后随即跑完——**死锁不是编译慢，别误判**。）
+- [ ] 仍待重跑：`run-checks.mjs` 整链（挂在读 `参考/` 源 WZ 的那一项上，需先 `brctl download 参考`）。
+      已单独跑绿的门禁＝`check_tms273_runtime.cjs`、`asset-index.check.mjs`、
+      `check_tms273_client_actions.cjs`、`check_tms273_desktop_package.cjs`。
+- 未做：**V3-P3 按图加载**仍是全量预加载（本轮只解决「少下载」，没解决「少初始化」）。
+
+### V3-D0 桌面打包脚本与环境（2026-09-17 第二轮，**脚本与环境已实装；原生打包与签名未验**）
+
+- [x] `client/src-tauri/` Tauri 2 薄壳：`Cargo.toml` / `build.rs` / `src/main.rs` / `tauri.conf.json` /
+      `capabilities/default.json` / 图标集。职责只有「创建窗口 + 注入来源 + 校验来源」。
+- [x] `scripts/build-desktop.cjs`：**独立暂存区** `build/desktop/<target>/<buildId>/{frontend,tauri.conf.generated.json,artifacts.json}`；
+      **显式拒绝**写 `build/current` 与 `build/tmp`；生成与 vite 输出同源的 config overlay 与 CSP；
+      来源经 `MAPLE_API_BASE`/`MAPLE_ASSET_BASE` 进编译期。`--plan` / `--frontend-only` 可用。
+- [x] `client/vite.config.ts` 支持 `MAPLE_DESKTOP_DIST`，**未设时回落原 Web 输出**（默认行为不变）。
+- [x] `scripts/make_desktop_icon.cjs`：仓库没有 ≥256 的**正方形**素材可裁（导出美术全是非正方形），
+      改为用内置 zlib 自己编 PNG（含 2×2 超采样），可复算、不塞来路不明的二进制。
+- [x] `.github/workflows/desktop-release.yml`：分平台 runner → 边界检查 → 构建 → 安装包内容审计 →
+      上传**不可变制品**（含 sha256 清单）。**不做发布**：缺签名身份时明确跳过并留痕；
+      提供了签名身份则**故意失败**（拒绝产出「看起来已签名」的包）。
+- [x] 新门禁 `scripts/check_tms273_desktop_package.cjs`（已挂进 `npm run check`）：外壳文件/图标/打包目标、
+      插件允许清单为空（无 fs/shell/http）、权限收窄到 `core:default` 且无通配、
+      外壳不含数据库/世界 tick、来源两侧都校验 scheme、暂存区隔离与 `.gitignore`、
+      CSP 含 http 与 **ws** 变体、暂存前端不得夹带内容资源与凭据。
+- [x] 已跑通：`--plan`；`--frontend-only`（vite **3.07s** 产出 `index.html` + 1 JS chunk + 1 CSS）；
+      审计 **6 组全过**；`npx tauri icon` 生成 `.icns`/`.ico`。
+- [ ] **未验**：`tauri build` 的完整原生打包与真安装包在干净机器（无 Vite、无本机 3010）启动——D0 验收项。
+- [ ] **D0 真实阻塞**：桌面 `frontendDist` 只含应用代码，内容走远端 `assetBase`，而
+      `check_tms273_client_actions.cjs` 的 `UNCOVERED` 名单里**还有 22 个 DOM `<img>.src=frame.url` 站点**
+      未接 `resolveAssetUrl`（HUD/背包/聊天/图鉴/小地图/世界地图/组队/好友/角色/宠物/NPC 头像/仓库/商城）。
+      Web 下它们只是不参与强缓存，**桌面下会 404** ⇒ 需要一次机械迁移，名单已在门禁里（新增会自动失败）。
+- [ ] 服务端 CORS：桌面来源（`tauri://localhost` / `http://tauri.localhost`）需**精确** CORS，
+      且 WebSocket 的 Origin 校验要单独核对（CORS 不能替代它）。属部署条件，需真实域名后落实。
+
 ### 尚未开始（按 v3 顺序，未做不写成已完成）
 
 - [ ] **V3-P3 按图加载**：计划要求「缩小集合后必须有可靠的动态补齐路径、换图代数与资源释放」，不能只删掉一个循环。当前 `buildPreloadPlan` 仍是全量全集（行为未变），本轮未动。
-- [ ] **V3-D0 Tauri 薄壳**：`client/src-tauri/` 尚未创建；真实安装包必须在没有 Vite、没有本机 3010 的环境验证。
 - [ ] **V3-D1 分平台构建与签名**：缺目标系统 runner、代码签名/公证身份与发布凭据；**缺什么就阻塞哪一步**，不伪造下载地址与签名结果。
 - [ ] **V2-HMR**：CSS 原位更新与 TS 整页刷新由 Vite 默认能力提供；「明确 UI/表现模块的安全热替换」（`session-runtime` / `presentation-host`、单个 HUD 槽位替换协议）尚未实现。
 - [ ] **V2-R1 / R2 / R3（Three.js）**：依赖里已存在 `three@^0.186`，但**安装依赖不等于接入**；R1（可关闭的局部接入 + 资源/生命周期验收）未开始，未过门槛不删除 Phaser。

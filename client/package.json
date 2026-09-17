@@ -8,7 +8,12 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "check": "node scripts/run-checks.mjs",
-    "check:inventory": "node ../scripts/check_inventory.mjs"
+    "check:inventory": "node ../scripts/check_inventory.mjs",
+    "desktop:icon": "node ../scripts/make_desktop_icon.cjs && tauri icon src-tauri/icon-source.png",
+    "desktop:plan": "node ../scripts/build-desktop.cjs --plan",
+    "desktop:frontend": "node ../scripts/build-desktop.cjs --frontend-only",
+    "desktop:build": "node ../scripts/build-desktop.cjs",
+    "desktop:audit": "node ../scripts/check_tms273_desktop_package.cjs"
   },
   "dependencies": {
     "opencc-js": "1.4.2",
@@ -16,6 +21,7 @@
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/three": "^0.186.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"

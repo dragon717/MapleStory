@@ -33,7 +33,18 @@ export default defineConfig(({ command }) => ({
   // 而拷出来的内容与源目录逐字节相同。
   publicDir: command === 'serve' ? 'public-tms273' : false,
   // Phaser's full runtime is bundled locally; retain a 1.6 MB warning budget.
-  build: { outDir: resolve(projectRoot, 'build/tmp/client'), emptyOutDir: true, chunkSizeWarningLimit: 1600 },
+  //
+  // 桌面包（v3 §10.2）用**独立暂存区**：由 scripts/build-desktop.cjs 经
+  // MAPLE_DESKTOP_DIST 指定（`build/desktop/<target>/<buildId>/frontend`）。
+  // 它绝不写正在运行的 `build/current`，也不与配对发布的 `build/tmp` 争用那个
+  // 可被清空的目录。未设该变量＝Web 目标，行为与接入前完全一致。
+  build: {
+    outDir: process.env.MAPLE_DESKTOP_DIST
+      ? resolve(process.env.MAPLE_DESKTOP_DIST)
+      : resolve(projectRoot, 'build/tmp/client'),
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1600,
+  },
   // 开发固定本机 5173、strictPort：端口被占用就明确失败，不自动换 5174，
   // 也不按端口盲杀（v2 §4.4 / v3 §8）。package.json 的 dev 脚本必须保持
   // 不带 --host，否则 CLI 参数会覆盖这里的本地默认值；局域网模式由调用方显式传参。

@@ -9,7 +9,8 @@
 //   2. **缓存分类不许撒谎**：只有带内容指纹 / 内容寻址对象才允许长期 immutable；
 //      过渡期固定名内容资源一律 `no-cache`；私人 API 一律 `no-store`；WS 不分类；
 //   3. **逻辑 key 与下载地址分开**：Phaser loader / DOM / CSS / JSON 各处消费者
-//      走 `resolveAssetUrl`，且**普通请求不带时间戳**（代数只随明确修复变化）；
+//      走 `resolveAssetUrl`；传输地址换成内容寻址对象（强缓存的前提），逻辑 key
+//      不变；且**普通请求不带时间戳**（代数只随明确修复变化）；
 //   4. **资源消费者覆盖如实登记**：已接入的文件逐个钉住；还没接入的 DOM `<img>`
 //      站点必须列在 `UNCOVERED` 名单里并写明理由，名单过期（站点消失或新增文件）
 //      都要失败；
@@ -80,14 +81,59 @@ for (const name of [
 group('缓存分类四类常量与 8 组验收在位');
 
 // ── 3. 逻辑 key 与下载地址分开；普通请求不带时间戳 ─────────────────────────
+// v3-P2c 起，传输地址**必然**与逻辑地址不同（换成内容寻址对象地址，服务端才敢给
+// immutable），所以旧断言「代数为 0 即恒等函数」不再是正确的不变式——它会与强缓存
+// 的目标直接冲突。现在钉住三条更准确的不变式：
+//   ① 映射缺失时必须逐字节退回逻辑地址（对象库没建好/网络失败也不许坏）；
+//   ② 代数为 0 时不得附加任何查询参数（正常刷新零时间戳，ce= 只在明确修复后出现）；
+//   ③ `assetBase` 前缀只加在 `/assets/**` 上（桌面包里前端自身 JS/CSS 必须留本地），
+//      且非 `/assets/` 地址（`/api/**`、外部地址）在加任何前缀前就原样返回。
 const resourceUrl = read(path.join(CLIENT_SRC, 'assets/resource-url.ts'));
 assert.ok(/export function resolveAssetUrl\(url: string\): string/.test(resourceUrl));
-assert.ok(/return url;/.test(resourceUrl), '代数为 0 时解析必须是恒等函数（普通请求逐字节不变）');
+assert.ok(
+  /assetObjectUrl\(url\) \?\? url/.test(resourceUrl),
+  '必须把逻辑地址换成内容寻址对象地址（强缓存的前提），映射缺失时退回逻辑地址',
+);
+const assetsGuard = resourceUrl.indexOf("if (!resolved.startsWith('/assets/')) return resolved;");
+assert.ok(assetsGuard > 0, '非 /assets/ 地址必须在附加任何前缀前原样返回');
+assert.ok(/const epoch = loadEpoch\(\)/.test(resourceUrl), '代数必须来自 loadEpoch()，不得就地取时间');
+assert.ok(
+  resourceUrl.indexOf('epoch > 0', assetsGuard) > assetsGuard,
+  'ce= 必须被 epoch > 0 守住（代数为 0 时请求逐字节不变）',
+);
+assert.ok(
+  resourceUrl.indexOf('assetBase', assetsGuard) > assetsGuard,
+  'assetBase 前缀只能加在 /assets/** 上（前端自身 JS/CSS 留在桌面包本地）',
+);
 for (const banned of ['Date.now', 'performance.now', 'Math.random']) {
   assert.ok(!codeOnly(resourceUrl).includes(banned), `resource-url 不得使用 ${banned} 给正常请求加时间戳`);
 }
 assert.ok(/EPOCH_URL_PARAM/.test(resourceUrl), '修复代数必须能在偏好存储不可用时由 URL 携带');
-group('逻辑 key 与下载地址分离，普通请求不加时间戳');
+group('内容寻址后仍不加时间戳：映射缺失即恒等，ce= 只在明确修复后出现');
+
+// ── 3b. 索引闭包必须自动发现，且扫描前要预检占位文件 ───────────────────────
+// 2026-09-17 血亏：`CONTENT_FILES` 是一张手写 6 项清单，漏掉 `entry/appearance.json`
+// ⇒ 闭包漏了 57% 的资源（39,654 个），而它们每次加载都退回答协商缓存；
+// 症状只是「刷新很久 / 卡在 37%」，脚本与线上服务看上去全都正常。这两条断言就是
+// 那次事故的反向断言：**不许再出现手写名单**，**读 JSON 前必须先看 `blocks`**
+// （占位文件读下去会永久阻塞）。
+const indexScript = read(path.join(ROOT, 'scripts/index_client_assets.cjs'));
+assert.ok(
+  indexScript.includes('discoverContentFiles('),
+  '索引闭包必须自动发现内容 JSON（discoverContentFiles），不许维护手写名单',
+);
+assert.ok(
+  !/CONTENT_FILES\s*=\s*\[/.test(indexScript),
+  '不许把内容 JSON 退回成手写数组：漏一项就等于漏掉它引用的全部资源（见 §3b 注释）',
+);
+const statGuard = indexScript.indexOf('stat.blocks === 0');
+const jsonRead = indexScript.indexOf('JSON.parse(fs.readFileSync(file');
+assert.ok(statGuard > 0 && jsonRead > 0, '索引脚本必须同时含占位预检与 JSON 读取');
+assert.ok(
+  statGuard < jsonRead,
+  '对内容 JSON 的 `blocks === 0` 预检必须排在读取之前（否则读到占位 JSON 会永久阻塞）',
+);
+group('索引闭包自动发现 + 读前预检占位（防止退回手写名单）');
 
 // ── 4. 已接入消费者 / 未接入登记 ───────────────────────────────────────────
 const RESOLVER_CONSUMERS = [

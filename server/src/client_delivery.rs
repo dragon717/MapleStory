@@ -146,7 +146,10 @@ pub struct ReleaseDescriptor {
 impl ReleaseDescriptor {
     /// 只有候选发布清单可解析时才用它；读不到就退回「未版本化」，
     /// 不猜、不用构建时间冒充发布身份。
-    pub fn load(dist: &Path) -> Self {
+    ///
+    /// `assets` 是内容资源根（`ASSETS_DIR`）：资源修订只能来自该目录里已发布的
+    /// 内容寻址对象库指针，不从别处推断。
+    pub fn load(dist: &Path, assets: &Path) -> Self {
         let metadata = dist.parent().map(|parent| parent.join("metadata.json"));
         let release_id = metadata
             .as_ref()
@@ -164,7 +167,7 @@ impl ReleaseDescriptor {
             release_id,
             protocol_version: crate::protocol::PROTOCOL_VERSION,
             content_version: crate::protocol::CONTENT_VERSION.to_string(),
-            asset_revision: asset_revision(),
+            asset_revision: asset_revision(assets),
             desktop: desktop_releases(),
             created_at,
         }
@@ -182,14 +185,61 @@ impl ReleaseDescriptor {
     }
 }
 
-/// 资源修订：只在显式配置了不可变资源索引（`ASSET_REVISION`）时才有值。
-fn asset_revision() -> Option<String> {
-    let value = std::env::var("ASSET_REVISION").ok()?;
-    let value = value.trim().to_string();
-    if value.is_empty() || !value.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) {
-        return None;
+/// 资源修订：优先显式配置（`ASSET_REVISION`），否则读内容寻址对象库的发布指针。
+///
+/// 指针由 `scripts/index_client_assets.cjs` 在**对象与不可变索引都写完之后**最后
+/// 写入，所以「指针存在」就等于「对象库已完整发布」。指针缺失＝尚未建立索引＝
+/// 如实为空，不拿构建时间或 contentVersion 冒充（v3 §4 表格）。
+fn asset_revision(assets: &Path) -> Option<String> {
+    if let Ok(value) = std::env::var("ASSET_REVISION") {
+        let value = value.trim().to_string();
+        if !value.is_empty() && is_valid_revision(&value) {
+            return Some(value);
+        }
     }
-    Some(value)
+    AssetIndex::load(assets).map(|index| index.revision)
+}
+
+/// 修订标识只允许十六进制摘要（长度 ≥ 16）；这是**双向**约束：写方（索引脚本）
+/// 与读方（本模块）必须对同一个形状达成一致，否则客户端会拿到一个它无法
+/// 拼出索引地址的修订号。
+fn is_valid_revision(value: &str) -> bool {
+    value.len() >= 16 && value.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// 内容寻址对象库的发布指针 `<ASSETS_DIR>/objects/current.json`。
+///
+/// 字段与 `scripts/index_client_assets.cjs` 写出的形状逐字对应；形状对不上
+/// 一律视为「未建立」，宁可退回复验式缓存，也不给客户端一个拼不出索引的修订号。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssetIndex {
+    pub revision: String,
+    pub index: String,
+    pub count: u64,
+    pub bytes: u64,
+}
+
+impl AssetIndex {
+    pub fn load(assets: &Path) -> Option<Self> {
+        let body = std::fs::read_to_string(assets.join("objects/current.json")).ok()?;
+        let value: serde_json::Value = serde_json::from_str(&body).ok()?;
+        let revision = value.get("revision")?.as_str()?.to_string();
+        let index = value.get("index")?.as_str()?.to_string();
+        if !is_valid_revision(&revision) {
+            return None;
+        }
+        // 索引地址必须自洽：固定前缀 + 以自身 revision 命名的文件。这条同时挡住
+        // 「索引被换过但指针没换」和「revision 被改写」两种不一致。
+        if index != format!("/assets/objects/index/{revision}.json") {
+            return None;
+        }
+        Some(Self {
+            revision,
+            index,
+            count: value.get("count").and_then(serde_json::Value::as_u64).unwrap_or(0),
+            bytes: value.get("bytes").and_then(serde_json::Value::as_u64).unwrap_or(0),
+        })
+    }
 }
 
 /// 已发布桌面包。只有配置了 `DESKTOP_RELEASE_FILE` 且文件是数组时才上报；
@@ -296,9 +346,62 @@ mod tests {
     #[test]
     fn release_descriptor_falls_back_without_metadata() {
         // 发布清单读不到时不能假造身份；`unversioned` 是明确可识别的兜底。
-        let descriptor = ReleaseDescriptor::load(Path::new("/nonexistent/client"));
+        let descriptor = ReleaseDescriptor::load(Path::new("/nonexistent/client"), Path::new("/nonexistent/assets"));
         assert_eq!(descriptor.release_id, "unversioned");
         assert_eq!(descriptor.protocol_version, crate::protocol::PROTOCOL_VERSION);
         assert_eq!(descriptor.content_version, crate::protocol::CONTENT_VERSION);
+        // 资源根不存在＝对象库未建立＝如实为空，不用 contentVersion 冒充资源修订。
+        assert!(descriptor.asset_revision.is_none());
+    }
+
+    #[test]
+    fn asset_index_requires_self_consistent_pointer() {
+        let root = std::env::temp_dir().join(format!("maple-asset-index-{}", std::process::id()));
+        let objects = root.join("objects");
+        std::fs::create_dir_all(&objects).unwrap();
+        let revision = "a".repeat(64);
+        // 索引地址必须由 revision 自身命名，否则读方无法从修订号拼出索引。
+        let pointer = |index: &str| {
+            serde_json::json!({
+                "revision": revision,
+                "index": index,
+                "count": 3,
+                "bytes": 42,
+            })
+        };
+
+        std::fs::write(objects.join("current.json"), pointer("/assets/objects/index/other.json").to_string()).unwrap();
+        assert!(AssetIndex::load(&root).is_none(), "索引地址与 revision 不一致时必须判为未建立");
+
+        std::fs::write(
+            objects.join("current.json"),
+            pointer(&format!("/assets/objects/index/{revision}.json")).to_string(),
+        )
+        .unwrap();
+        let index = AssetIndex::load(&root).expect("自洽的指针必须可读");
+        assert_eq!(index.revision, revision);
+        assert_eq!(index.index, format!("/assets/objects/index/{revision}.json"));
+        assert_eq!(index.count, 3);
+        assert_eq!(index.bytes, 42);
+
+        // 修订号不是十六进制摘要 → 判为未建立，而不是把脏值透给客户端。
+        std::fs::write(
+            objects.join("current.json"),
+            serde_json::json!({"revision": "not-a-digest", "index": "/assets/objects/index/not-a-digest.json"}).to_string(),
+        )
+        .unwrap();
+        assert!(AssetIndex::load(&root).is_none());
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn classifies_published_pointer_and_index_separately() {
+        let revision = "b".repeat(64);
+        // 发布指针是固定名、会被后续发布改写 ⇒ 只能重新验证。
+        assert_eq!(classify("/assets/objects/current.json"), CacheClass::Revalidate);
+        // 不可变索引与内容对象由自身摘要命名 ⇒ 才是强缓存。
+        assert_eq!(classify(&format!("/assets/objects/index/{revision}.json")), CacheClass::Immutable);
+        assert_eq!(classify(&format!("/assets/objects/sha256/{revision}.png")), CacheClass::Immutable);
     }
 }
