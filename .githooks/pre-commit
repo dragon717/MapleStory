@@ -2,12 +2,20 @@
 # Version-controlled hooks.  Enable once per clone with:
 #   git config core.hooksPath .githooks
 #
-# Blocks a commit that would put a blob GitHub refuses to accept into history.
-# references/tms273-data/maps.json reached 152 MB that way and stalled the push
-# only after it was already committed.
+# Two guards, both reading the git index so that a merely-staged mistake is
+# caught before it reaches history:
+#
+#   check_tracked_blob_size.cjs          a blob GitHub would refuse to accept
+#   check_icloud_conflict_copies.cjs     a "<name> 2.<ext>" iCloud conflict copy
+#
+# The second one exists because three earlier guards were taught to *skip*
+# conflict copies instead of rejecting them, which let six stale copies live in
+# server/src and client/src while grep kept matching the old revision first.
 if ! command -v node >/dev/null 2>&1; then
-  echo "pre-commit: node is not on PATH, so scripts/check_tracked_blob_size.cjs cannot run." >&2
+  echo "pre-commit: node is not on PATH, so the scripts/ guards cannot run." >&2
   echo "pre-commit: fix PATH, or bypass deliberately with 'git commit --no-verify'." >&2
   exit 1
 fi
-exec node "$(git rev-parse --show-toplevel)/scripts/check_tracked_blob_size.cjs"
+root="$(git rev-parse --show-toplevel)"
+node "$root/scripts/check_tracked_blob_size.cjs" || exit 1
+exec node "$root/scripts/check_icloud_conflict_copies.cjs"

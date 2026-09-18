@@ -52,13 +52,16 @@ const allowed = new Set([
 ]);
 const callers = new Set();
 const call = /(?:inventory::|crate::inventory::)?\b(add_items|add_items_expiring|remove_items|move_items)\s*\(/g;
-const skip = (rel) => / \d+\.rs$/.test(rel); // 「xxx 2.rs」是 iCloud 复制残留，不参与编译
+// 这里曾经有过 `skip = (rel) => / \d+\.rs$/.test(rel)`，把「xxx 2.rs」当作
+// 「不参与编译的 iCloud 复制残留」放行。那等于把污染合法化：副本会一直躺在
+// server/src 里，让 grep 先匹配到旧版本。现在由 check_icloud_conflict_copies.cjs
+// 禁止副本进入版本库，本文件不再需要任何例外。
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     const rel = path.relative(root, full);
     if (entry.isDirectory()) { walk(full); continue; }
-    if (!entry.name.endsWith('.rs') || skip(rel)) continue;
+    if (!entry.name.endsWith('.rs')) continue;
     const text = fs.readFileSync(full, 'utf8');
     for (const match of text.matchAll(call)) {
       // 只算对原语的真实调用：排除定义本身与同名但无关的本地函数。

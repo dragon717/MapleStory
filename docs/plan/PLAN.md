@@ -4,6 +4,19 @@
 > 已完成条目的逐任务归档见 [`INDEX.md`](INDEX.md)，归档目录为 `history/YYYY-MM-DD/`。
 > 当前详细实施方案见 [`topics/`](topics/)；拆分依据 `topics/MapleStory_Repository_Based_Refactoring_Plan.md`。
 
+## iCloud 冲突副本清理与门禁封堵（2026-09-18）
+
+第三次同类问题，前两轮都只删不封堵（09-12 删了一部分、其余入库；09-17 的门禁把副本写成「显式跳过」的例外），
+且 `core.hooksPath` 从未启用、既有 pre-commit 一直没跑。本轮清点 398 项：删 355 项零信息损失残留、
+隔离 34 项存疑残留、`git rm` 6 个已入库旧版源码副本，并新增 `scripts/check_icloud_conflict_copies.cjs`
+接入 pre-commit、撤销三处跳过例外、在装配脚本复制前加反向断言。详见[交付记录](history/2026-09-18/iCloud冲突副本全量清理与根因封堵.md)。
+
+本轮不需要进游戏实玩（无玩家可见行为变化）。剩一件需要你确认的事：
+
+- [ ] 复核 `.trash-icloud-dup/`（34 项，含 `MANIFEST.json`）后整目录删除。其中 4 个 Blender 工程
+      **刻意未删**：本体时间戳更新但 `windbell_world_asset_library_textured 2.blend` 反而更大
+      （18.1 MB vs 12.8 MB），存在「旧版打包了贴图、新版改为外链」的可能，需要你确认哪一版是想要的。
+
 ## 法师 8 级一转与自定义键位（2026-09-14，待加载实玩）
 
 主代理集成，三个 GPT-5.6 Luna / max 子代理分别负责后端、输入/配置与原图导出；实现、定向检查及配套候选构建完成，见[交付记录](history/2026-09-14/法师8级一转与自定义键盘快捷栏.md)。

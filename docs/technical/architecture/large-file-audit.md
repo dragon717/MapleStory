@@ -30,7 +30,7 @@
 
 ### 2.1 iCloud 冲突副本（卫生问题，非行数问题）
 
-扫描发现 3 个「已跟踪、被 iCloud 同步分裂出的带空格副本」，且原文件时间戳更新（副本是陈旧重复物）：
+**已于 2026-09-18 全量处置并封堵，本节只作历史留痕。** 当时的记录：
 
 ```
 client/src/features/loading/style 2.css        （原文件 style.css      更新）
@@ -38,8 +38,12 @@ client/src/features/loading/view 2.ts          （原文件 view.ts        更�
 client/src/features/loading/view.check 2.mjs   （原文件 view.check.mjs 更新）
 ```
 
-它们都在 `tsc` 的扫描范围内（类型检查仍通过，因为每个 `.ts` 是独立模块），不被任何 import 引用。
-仓库已有一笔同类清理提交（`chore: 清理历史遗留的带空格后缀副本文件`）。**本轮未删除**（删除已跟踪文件需你确认）。
+当时**未删除**（删除已跟踪文件需用户确认）。后续演进见
+[交付记录 2026-09-18](../../plan/history/2026-09-18/iCloud冲突副本全量清理与根因封堵.md)：
+全库实际有 **398** 项，删 355 / 隔离 34 / 保留 9（保留项是第三方原包自带的 `9402153 copy 2.json`，非 iCloud 产物）。
+本轮起由 `scripts/check_icloud_conflict_copies.cjs` 拦在 pre-commit，
+`check_inventory_surface.cjs` / `check_tms273_client_actions.cjs` / `client/tsconfig.json` 里
+「跳过冲突副本」的三处例外已全部撤销。
 
 ## 3. 热点清单
 

@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { skillManifest, mageRules } = require('./tms273_skill_manifest.cjs');
+const { assertNoConflictCopyName } = require('./check_icloud_conflict_copies.cjs');
 const root = path.resolve(__dirname, '..');
 const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
@@ -503,6 +504,11 @@ for (const entry of Object.values(appearance.cashAppearance?.items ?? {})) {
   collect(layer);
 }
 write(path.join(publicRoot,'assets/entry/appearance.json'),appearance);
+// resources/tms273-export 是 .gitignore 覆盖的本地导出树，所以 check_icloud_conflict_copies.cjs
+// 在 pre-commit 里看不到它——而这里正是副本泄漏进受控树的入口：源侧一个
+// 「xxx 2.png」被清单引用后，就被原样复制进 client/public-tms273，两边各留一份。
+// 在复制前对清单里的每个名字做反向断言，把这条链掐断在源头。
+for(const url of urls) assertNoConflictCopyName(path.basename(url), `清单引用的导出资源 ${url}`);
 for(const url of urls) assert(fs.statSync(path.join(input,url.slice(1))).size>0,`Missing asset ${url}`);
 for(const url of urls) {
   const destination=path.join(publicRoot,url.slice(1));fs.mkdirSync(path.dirname(destination),{recursive:true});

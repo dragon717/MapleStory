@@ -3,6 +3,12 @@ __pycache__/
 *.pyc
 .playwright-cli/
 
+# iCloud 冲突副本的隔离区（scripts/check_icloud_conflict_copies.cjs 的配套）。
+# 待人工复核的「<名字> 2.<ext>」暂存在这里，附 MANIFEST.json；确认无用后整目录删除。
+# 这是过渡区，不是垃圾桶：门禁保证副本进不了版本库，这里只保证它们不会
+# 在复核期间又被 git add 带走。
+.trash-icloud-dup/
+
 # Original third-party repositories, WZ packages and acquisition material.
 参考/
 

@@ -189,7 +189,10 @@ const BARE_SRC_LINES = file => read(file).split('\n')
 const offenders = [];
 for (const file of walk(CLIENT_SRC, name => name.endsWith('.ts') && !name.includes('.check.'))) {
   const key = path.relative(CLIENT_SRC, file).split(path.sep).join('/');
-  if (/ 2\.ts$/.test(key)) continue; // tsconfig 排除的冲突副本，不参与
+  // 这里曾经有 `if (/ 2\.ts$/.test(key)) continue;`：把冲突副本从「未接入
+  // resolver」的判定里摘出去。摘掉之后副本就成了隐形文件——tsc 也排除它、
+  // 门禁也跳过它。副本本身现在由 check_icloud_conflict_copies.cjs 拦在版本库外，
+  // 所以这个例外连同 client/tsconfig.json 的 exclude 一并撤销。
   if (BARE_SRC_LINES(file).length === 0) continue;
   if (!(key in UNCOVERED)) offenders.push(key);
 }
