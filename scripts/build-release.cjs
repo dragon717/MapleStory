@@ -182,7 +182,16 @@ function run(command, args, root, env, capture = false) {
     encoding: 'utf8',
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`${path.basename(command)} 构建失败（exit ${result.status ?? 'unknown'}）`);
+  if (result.status !== 0) {
+    // 捕获模式下子进程的输出不再直通终端。失败时若不补打，真正的诊断信息会
+    // 连同错误一起消失：终端上只剩「npm 构建失败（exit 127）」，而 127 本身的
+    // 含义（`sh: tsc: command not found`，即 client/node_modules 缺失）无从看起。
+    if (capture) {
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+    }
+    throw new Error(`${path.basename(command)} 构建失败（exit ${result.status ?? 'unknown'}）`);
+  }
   return capture ? { stdout: result.stdout || '', stderr: result.stderr || '' } : undefined;
 }
 
@@ -359,6 +368,14 @@ function prepare(root) {
         '--target-dir', targetDir,
       ], root, env);
       const cargoSeconds = ((Date.now() - cargoStarted) / 1000).toFixed(1);
+      // client/node_modules 既不在构建指纹里（依赖由 npm 自己管理），也无法从别的
+      // 输入推断出来。缺失时 `npm run build` 只会以 127 收场（sh 找不到 tsc），
+      // 退出码本身读不出该做什么；这里先给出可执行的下一步。
+      // 位置放在 Cargo 之后：本文件的门禁断言「缺 CARGO_BIN 时报 ENOENT」，
+      // 提前到这里就会把它顶掉（见 build-release.check.cjs）。
+      if (!exists(path.join(root, 'client', 'node_modules'))) {
+        throw new Error('缺少前端依赖：client/node_modules 不存在，请先在 client 目录执行 npm install');
+      }
       // client/package.json 的 build 是 `tsc --noEmit && vite build`，所以这一段量的是
       // 「客户端整条流水线」（类型检查 + 打包），不要只标成 vite。
       const clientStarted = Date.now();
