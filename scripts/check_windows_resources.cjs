@@ -1,6 +1,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// 风铃运行期资源不属于下面这套「遍历 manifest/entry 里的 /assets/**」判据的射程：
+// 风铃地图不在 manifest.json 里（客户端 installWindbellMaps 注入），素材地址又硬编码在
+// scene.ts 的 preload 清单里。判据单独成模块，这里只登记调用点——**Windows 包缺一张
+// 风铃图，是整张地图装载失败，而 start.bat 照样过**（2026-09-18 实况）。
+const windbellBundle = require('./check_windbell_bundle.cjs');
 
 const REQUIRED_JSON = [
   'shared/gameplay.json',
@@ -120,11 +125,13 @@ function validate(root = path.resolve(__dirname, '..')) {
     (count, relativePath) => count + checkAssetReferences(projectRoot, relativePath, publicRoot),
     0,
   );
+  const windbell = windbellBundle.validate(projectRoot);
   return {
     protocolVersion: protocol.protocolVersion,
     contentVersion: protocol.contentVersion,
     checkedFiles: REQUIRED_JSON.length,
     checkedAssets,
+    windbell,
     mapCount: mapCatalog.maps.length,
   };
 }
@@ -132,6 +139,7 @@ function validate(root = path.resolve(__dirname, '..')) {
 function main(root = process.argv[2] || path.resolve(__dirname, '..')) {
   const result = validate(root);
   console.log(`Windows runtime resources: protocol ${result.protocolVersion}, ${result.contentVersion}; ${result.checkedFiles} JSON files and ${result.checkedAssets} asset references checked; ${result.mapCount} maps.`);
+  console.log(`Windbell bundle: ${result.windbell.files} ledgered files (${(result.windbell.bytes / 1024 / 1024).toFixed(1)}MB) + ${result.windbell.catalogFrames} TMS273 frames checked.`);
   return result;
 }
 

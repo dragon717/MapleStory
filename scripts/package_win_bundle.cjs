@@ -17,6 +17,8 @@ const ROOT = path.resolve(__dirname, '..');
 fs.mkdirSync(path.join(ROOT, 'build', 'tmp'), { recursive: true });
 const STAGE = fs.mkdtempSync(path.join(ROOT, 'build', 'tmp', 'windows-package-'));
 const { publish } = require('./publish-package.cjs');
+// 风铃运行期资源的单一权威断言模块；Windows 端 start.bat 跑的是同一个模块。
+const windbellBundle = require('./check_windbell_bundle.cjs');
 const PKG_ROOT = path.join(STAGE, 'MapleStory');
 
 // ---------------------------------------------------------------------------
@@ -32,6 +34,13 @@ const FILES = [
   'client/index.html',
   'scripts/windows-control.ps1',
   'scripts/check_windows_resources.cjs',
+  // 下面两行是 check_windows_resources.cjs 自己的 require：清单漏一个，Windows 端
+  // start.bat 就在资源校验这一步 MODULE_NOT_FOUND 直接失败（包本身看不出问题）。
+  // 复现依据：`tms273_creation_catalog.cjs` 一直是这条漏网（2026-09-18 实测），
+  // 而 `check_windbell_bundle.cjs` 是新增的风铃台账断言模块。
+  // 现在由本文件的 assertPackClosure() 反向核对，不再只靠人记得加。
+  'scripts/tms273_creation_catalog.cjs',
+  'scripts/check_windbell_bundle.cjs',
   'scripts/build-release.cjs',
   'start.bat',
   'stop.bat',
@@ -41,8 +50,15 @@ const DIRS = [
   'shared',                          // 全部运行时 JSON + protocol.ts
   'server/src',
   'client/src',
-  'client/public-tms273/assets',     // 约 311MB 静态美术/音频资源
+  'client/public-tms273/assets',     // 静态美术/音频 + 内容寻址对象库（实测约 1.5GB，其中 objects/ 638MB）
 ];
+// `client/public-tms273/assets` 是**整棵**复制，风铃（assets/windbell）与其余内容簇一样
+// 自动进包 ⇒ 这里**不要再单列**一条 `assets/windbell`，那会把同一批文件复制两份。
+// 但「跟着复制过来」不等于「进包且完整」：拷完立刻拿风铃自己的台账逐条重算一遍
+// （见 main 里的 windbellBundle.validate），缺一张图当场不产 zip。
+// 风铃需要的额外照看是有原因的：它的地图不在 manifest.json 里（客户端 installWindbellMaps
+// 注入），素材地址又硬编码在 scene.ts 的 preload 清单里，所以「遍历 manifest 引用」那套
+// 判据看不见它——2026-09-18 就是这么让一张 prop-cart.png 丢了还照常出货的。
 
 // 明确不打包：node_modules、dist-*（Windows 端现场构建）、evidence、.DS_Store 等
 const README_NAME = 'README.md';
@@ -77,6 +93,38 @@ function stripJunk(dir) {
       stripJunk(full);
     }
   }
+}
+
+/**
+ * 包内脚本的本地依赖必须闭合。
+ *
+ * 打包清单是**手写**的数组，所以「新增一行 `require('./x.cjs')` 却忘了加清单」这类
+ * 漏网在 macOS 上完全看不出来（源仓库里那个文件一直在），到了 Windows 才以
+ * `MODULE_NOT_FOUND` 炸在 start.bat 的资源校验步骤上。这里反过来读一遍清单里每个脚本，
+ * 把 `require('./x')` 与 PowerShell 的 `$PSScriptRoot 'x'` 解析到**暂存树**里核对，
+ * 缺哪个一次性列全，而不是让 Windows 端一次只报一个。
+ *
+ * 只查 `$PSScriptRoot`（= 脚本目录）而不查 `Join-Path $Root`：后者指的是构建产物、
+ * 运行时目录、数据库这些**包交付后才产生**的路径，打包时刻本来就不该存在。
+ */
+function assertPackClosure() {
+  const missing = [];
+  for (const rel of FILES) {
+    const file = path.join(PKG_ROOT, rel);
+    const text = fs.readFileSync(file, 'utf8');
+    const references = rel.endsWith('.ps1')
+      ? [...text.matchAll(/\$PSScriptRoot\s+['"]([^'"]+)['"]/g)].map(match => `scripts/${match[1]}`)
+      : [...text.matchAll(/require\((['"])(\.[^'"]+)\1\)/g)]
+        .map(match => path.posix.join(path.posix.dirname(rel), match[2]));
+    for (const reference of references) {
+      const target = path.posix.normalize(reference);
+      if (!fs.existsSync(path.join(PKG_ROOT, target))) missing.push(`${rel} -> ${target}`);
+    }
+  }
+  if (missing.length) {
+    throw new Error(`打包清单不闭合，Windows 端会 MODULE_NOT_FOUND：\n  ${missing.join('\n  ')}`);
+  }
+  console.log(`[win-bundle] 包内脚本依赖闭合（${FILES.length} 个清单项的 require / $PSScriptRoot 逐条核对）`);
 }
 
 function writeReadme(version) {
@@ -137,6 +185,7 @@ function main() {
   const version = contentVersion();
   const zipName = `MapleStory-win-${version}.zip`;
   const zipPath = path.join(STAGE, zipName);
+  const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
 
   console.log(`[win-bundle] 内容版本: ${version}`);
   fs.mkdirSync(PKG_ROOT, { recursive: true });
@@ -146,19 +195,26 @@ function main() {
 
   console.log('[win-bundle] 复制文件...');
   for (const rel of FILES) copyFile(rel);
-  console.log('[win-bundle] 复制目录（assets 约 311MB，请稍候）...');
+  console.log('[win-bundle] 复制目录（assets 约 1.5GB，请稍候）...');
   for (const rel of DIRS) {
     console.log(`  - ${rel}`);
     copyDir(rel);
   }
   stripJunk(PKG_ROOT);
+  assertPackClosure();
+
+  // 包内容自证（压缩前跑，红了就不出货）。判据直接作用在**暂存树**上，而不是源仓库：
+  // 这样证明的是「zip 里那份确实完整」，而不是「我源目录里看着挺全」。
+  console.log('[win-bundle] 校验风铃运行期资源...');
+  const windbell = windbellBundle.validate(PKG_ROOT);
+  console.log(`[win-bundle] 风铃资源在包内：${windbell.files} 个台账文件（${mb(windbell.bytes)}）+ ${windbell.catalogFrames} 个 TMS273 帧，路径/字节/摘要逐条重算通过`);
+
   writeReadme(version);
 
   console.log('[win-bundle] 压缩 zip...');
   execFileSync('zip', ['-rq', zipPath, 'MapleStory'], { cwd: STAGE, stdio: 'inherit' });
   execFileSync('unzip', ['-tq', zipPath], { stdio: 'inherit' });
 
-  const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
   console.log(`[win-bundle] 目录: ${PKG_ROOT} (${mb(dirSize(PKG_ROOT))})`);
   console.log(`[win-bundle] 产物: ${zipPath} (${mb(fs.statSync(zipPath).size)})`);
 

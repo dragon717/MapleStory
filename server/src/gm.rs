@@ -6,6 +6,8 @@
 //!
 //! ## 负责
 //! - `/add <itemId> <count>`：向发起者背包新增道具（走 `crate::inventory::add_items`）
+//! - `/cash <amount>`：向发起者发放現金商店余额
+//! - `/exp <amount>`：向发起者发放经验（走 `World::add_exp`，与战斗/任务奖励同一条升级路径）
 //! - 未知命令回执：`gm_unknown_command`（不广播、不中断聊天限流状态）
 //!
 //! ## 不负责
@@ -56,6 +58,7 @@ impl World {
         match command.as_str() {
             "/add" => self.gm_add(&id, &request_id, &args),
             "/cash" => self.gm_cash(&id, &request_id, &args),
+            "/exp" => self.gm_exp(&id, &request_id, &args),
             _ => {
                 gm_result(
                     self,
@@ -63,7 +66,7 @@ impl World {
                     &request_id,
                     false,
                     "gm_unknown_command",
-                    "未知的 GM 命令。可用：/add <道具id> <数量>；/cash <楓點数>",
+                    "未知的 GM 命令。可用：/add <道具id> <数量>；/cash <楓點数>；/exp <经验值>",
                 );
             }
         }
@@ -115,6 +118,77 @@ impl World {
             "",
             &format!("已发放 {parsed} 楓點，当前余额 {balance}。"),
         );
+    }
+
+    /// `/exp <amount>` — grant experience to the sender.
+    ///
+    /// P: only hunting and quest rewards award EXP, and the authored hunting
+    /// grounds stop well below the ceiling, so this is the only way to walk the
+    /// growth curve past them.  It runs through the same `World::add_exp` the
+    /// combat/quest reward path uses, so every level crossed pays exactly the
+    /// same +5 AP and job SP, and the profile is written back through the same
+    /// save path `/cash` uses.  The amount must land in a sane
+    /// 1..=1_000_000_000 window — anything else is refused, not clamped, so a
+    /// typo can never move a character by accident.  Running off the end of the
+    /// 273 exp table (200 entries, the last one 0) is `add_exp`'s own behavior,
+    /// not something special-cased here.
+    fn gm_exp(&mut self, id: &str, request_id: &str, args: &[&str]) {
+        let parsed = args
+            .first()
+            .and_then(|raw| raw.parse::<u64>().ok())
+            .unwrap_or(0);
+        if args.len() != 1 || parsed == 0 || parsed > 1_000_000_000 {
+            gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "gm_usage",
+                "用法：/exp <经验值>（1..=1000000000），例如 /exp 10000",
+            );
+            return;
+        }
+        let (level_before, after) = {
+            let Some(player) = self.players.get_mut(id) else {
+                return;
+            };
+            let level_before = player.state.level;
+            Self::add_exp(&mut player.state, parsed, &self.gameplay.exp_table);
+            let after = (player.state.level, player.state.exp, player.state.exp_to_next);
+            // A level-up changes the attribute inputs (level feeds max HP/MP),
+            // so refresh the same derived view the reward path refreshes.
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+            (level_before, after)
+        };
+        let persisted = match (self.store.as_ref(), self.players.get(id)) {
+            (Some(store), Some(player)) => store
+                .save_profile(
+                    id,
+                    &profile_from_state(
+                        &player.state,
+                        &player.map_id,
+                        &player.death_id,
+                        player.base_max_mp,
+                    ),
+                )
+                .is_ok(),
+            _ => true,
+        };
+        let (level, exp, exp_to_next) = after;
+        let summary = if level > level_before {
+            format!("已获得 {parsed} 经验，升级至 {level} 级（{exp}/{exp_to_next}）。")
+        } else {
+            format!("已获得 {parsed} 经验，当前 {level} 级（{exp}/{exp_to_next}）。")
+        };
+        // Never claim the progress survived a failed write: the level is real
+        // in this session but a reconnect would load the older row.
+        let message = if persisted {
+            summary
+        } else {
+            format!("{summary}（存档失败，重连后可能回退）")
+        };
+        gm_result(self, id, request_id, true, "gm_exp_ok", &message);
+        self.send_snapshot(id);
     }
 
     /// `/add <itemId> <count>` — grant items to the sender's inventory.
