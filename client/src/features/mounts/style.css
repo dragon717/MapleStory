@@ -1,0 +1,33 @@
+/* 骑乘状态标记：挂在 #notices 的左下角，纯文字，不使用任何未抽取的源贴图。
+   #notices 本身是 pointer-events:none 的满屏网格，子元素自行开启命中。 */
+#game-shell > #notices > .mount-status-host {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 8;
+  padding: 0 0 10px 10px;
+  pointer-events: none;
+}
+.mount-status-host[hidden] { display: none !important; }
+.mount-status {
+  pointer-events: auto;
+  display: block;
+  max-width: 240px;
+  padding: 4px 10px;
+  border: 2px solid #6b7f52;
+  border-radius: 6px;
+  background: #eef4e6;
+  color: #2f3d22;
+  font: 12px/1.5 "Microsoft YaHei", sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.mount-status:hover { background: #e0ebd3; }
+.mount-status:focus-visible { outline: 2px solid #efc269; outline-offset: 1px; }
+.mount-status.is-riding {
+  border-color: #8a6b2f;
+  background: #f6efdc;
+  color: #4a3a19;
+  font-weight: 700;
+}
+.mount-status.is-riding:hover { background: #efe4c8; }

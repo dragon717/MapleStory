@@ -1,0 +1,30 @@
+/* 坐姿状态标记：挂在 #notices 的右下角，与骑乘标记分居两侧，
+   两者可以同时存在（不可能同时骑乘与坐下，但布局上不互相遮挡）。
+   注：椅子本体没有源坐标可依（源 Item/Install 只有 info/icon 与 effect），
+   所以这里只画状态，不画椅子，也不发明椅子贴图的落点。 */
+#game-shell > #notices > .chair-status-host {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  padding: 0 10px 10px 0;
+  pointer-events: none;
+}
+.chair-status-host[hidden] { display: none !important; }
+.chair-status {
+  display: flex;
+  flex-direction: column;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 2px solid #7a6a8f;
+  border-radius: 6px;
+  background: #f2eef7;
+  color: #38304a;
+  font: 12px/1.6 "Microsoft YaHei", sans-serif;
+  box-shadow: 0 4px 10px #0003;
+}
+.chair-status strong { display: block; font-weight: 700; }
+.chair-status-recovery { color: #5b4a75; }
+.chair-status-countdown { color: #2f6b4f; font-variant-numeric: tabular-nums; }
+.chair-status-unverified { color: #8a5a2f; }
+.chair-status-hint { color: #6b7d8c; font-size: 11px; }

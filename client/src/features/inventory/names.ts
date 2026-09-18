@@ -1,6 +1,8 @@
 import { uiLocale, displayText } from '../../app/i18n';
 import catalog from '../../../../shared/items.json';
 import petCatalog from '../../../../shared/pets.json';
+import mountIndex from '../../../../shared/mount-index.json';
+import chairNames from '../../../../shared/chair-names.json';
 import type { InventoryItem } from '../../../../shared/protocol';
 
 // Source info also retains nested metadata such as equipment growth levels.
@@ -9,6 +11,22 @@ type CatalogInfo = Record<string, unknown>;
 /** TMS273 pet rows (`shared/pets.json`): pets are not in items.json but still
  *  need authoritative display names in the cash tab and tooltips. */
 const PETS = petCatalog as Record<string, { name?: string }>;
+
+/** 坐骑索引（源 `Character/TamingMob/*` 的 `info.islot`/`info.tamingMob`
+ *  ＋ `String/Eqp.json` 的名字）与椅子名索引（源 `String/Ins.json`）。
+ *
+ *  为什么不 import `shared/mounts.json` / `chairs.json` 整表：`items.json` 已经
+ *  被静态打进客户端包（构建产物 3.34 MB），再挂 1.68 MB 的整表会把包推到 ~5 MB，
+ *  而渲染路径上真正要的只有「名字／槽位／是不是坐骑」。两份索引由
+ *  `scripts/export_tms273_mounts_chairs.cjs` 与整表**同一次导出**产出，
+ *  因此不可能与整表分叉。
+ *
+ *  坐骑索引必须带 `islot`（`equipmentSlot` 用）与 `tamingMob`（`isMountItem` 用），
+ *  不能只有名字：见 `scripts/export_tms273_mounts_chairs.cjs` 里那一段的理由。
+ *  两处缺席都表示「源里就没有」——坐骑 935 件里有 840 件在 `String/Eqp.json/Eqp/Taming`
+ *  下没有名字，此时 `itemName` 回落成 id，而不是编一个名字。 */
+const MOUNT_INDEX = mountIndex as Record<string, { islot?: string; tamingMob?: number; name?: string }>;
+const CHAIR_NAMES = chairNames as Record<string, string>;
 
 /**
  * `islot` is the TMS273 source field used by server/src/inventory.rs.  Keep
@@ -32,7 +50,17 @@ const EQUIPMENT_STAT_LABELS: readonly [string, string, string][] = [
 
 function catalogInfo(itemId: string): CatalogInfo | undefined {
   const item = catalog[itemId as keyof typeof catalog] as { info?: CatalogInfo } | undefined;
-  return item?.info;
+  // items.json 是可达性驱动目录，坐骑与椅子不在其中（源里 notSale/only）。
+  // 回落顺序与 `server/src/inventory.rs` 的 `shipped_mounts → shipped_chairs`
+  // 逐字同序：两端对「这件东西的 islot 是什么」必须给出同一个答案。
+  return item?.info ?? MOUNT_INDEX[itemId];
+}
+
+/** 是否为可骑的坐骑装备。判据与 `inventory::is_mount_item` 同源：看 `info.tamingMob`
+ *  在不在，**不看** `islot`——`Tm` 槽里还有 21 件现金件，按槽位判会把它们与機械師
+ *  整套装备（同样 `islot = Tm`）一起误认成坐骑。 */
+export function isMountItem(itemId: string): boolean {
+  return MOUNT_INDEX[itemId]?.tamingMob !== undefined;
 }
 
 function numberOrZero(value: unknown): number {
@@ -89,12 +117,17 @@ export function itemComparisonDetails(candidate: InventoryItem, current: Invento
   return lines.join('\n');
 }
 
-/** The active TMS273 String catalog is authoritative for item names; pets
- *  fall back to the pet catalog generated from String/Pet.json. */
+/** The active TMS273 String catalog is authoritative for item names; pets,
+ *  骑宠与椅子 fall back to their own source tables in the same order the server's
+ *  `inventory::item_name` uses (items.json → 骑宠 → 椅子 → 宠物 → id). */
 export function itemName(itemId: string): string {
   if (itemId === '0') return uiLocale() === 'en' ? 'Mesos' : '枫币';
   const item = catalog[itemId as keyof typeof catalog];
   if (item && "name" in item) return displayText(item.name);
+  const mountName = MOUNT_INDEX[itemId]?.name;
+  if (mountName) return displayText(mountName);
+  const chairName = CHAIR_NAMES[itemId];
+  if (chairName) return displayText(chairName);
   const petName = PETS[itemId]?.name;
   return petName ? displayText(petName) : itemId;
 }

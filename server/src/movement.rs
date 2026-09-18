@@ -293,7 +293,10 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
             player.state.grounded = false;
             player.foothold_id = 0;
         } else if !down_jump_intent && player.jump {
-            player.state.vy = -JUMP_SPEED;
+            // 骑乘时起跳速度乘坐骑的源 `jump`（百分比，100 = 常规）。上绳跳与
+            // 水中蹬腿两条跳跃路径**不**乘：坐骑在上绳/入水的那一拍已经被
+            // `mounts::reconcile` 收掉，那两处按构造不可能带着坐骑到。
+            player.state.vy = -mounts::jump_speed(player, JUMP_SPEED);
             player.state.grounded = false;
             player.foothold_id = 0;
             player.drop_fh = 0;
@@ -316,8 +319,14 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
         // Body-hit slide: keep the authoritative push even when the player
         // holds the opposite direction key.
         player.knockback_vx
+    } else if player.chair.is_some() {
+        // 坐姿不给位移。移动输入已在 `world.rs` 的 tick 里（早于本函数）解除坐姿，
+        // 所以走到这里只可能是**同一拍刚坐下**——姿态交给下面的动作选择，位移为 0。
+        0.0
     } else {
-        player.direction as f64 * player.move_speed * slow_factor
+        // 骑乘时基础速度乘坐骑的源 `speed`（百分比，100 = 常规）。倍率只在
+        // `mounts::walk_speed` 一处出现，慢速 `slow_factor` 照旧相乘。
+        player.direction as f64 * mounts::walk_speed(player, player.move_speed) * slow_factor
     };
     if player.direction != 0 {
         player.state.facing = player.direction;
@@ -488,6 +497,12 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
             } else {
                 "jump"
             }
+        } else if player.chair.is_some() {
+            // 坐姿压过 walk/jump 的常规推导。起立由 `world.rs` 在输入到达时完成
+            // （早于本函数），所以这里不需要「想动」的判据。
+            // 贴图来源是角色自身的 `sit` 帧（源 `Character/00002000.img/sit` 只有
+            // 一帧、且没有 delay），`F/player/animation.ts` 对静态单帧显式短路。
+            "sit"
         } else if player.state.climbing {
             player
                 .state
@@ -582,6 +597,10 @@ pub(super) fn reset_player_to_spawn(map: &Map, player: &mut Player, tick: u64) {
     player.vertical = 0;
     player.jump = false;
     player.swimming = false;
+    // 落回出生点＝一次会话内的位置重置（掉出地图下边界、回城卷轴落点），
+    // 骑乘与坐姿一律作废：两者都挂在「当前这块地」上。
+    player.mount = None;
+    player.chair = None;
     player.state.action = if player.state.grounded {
         "stand"
     } else {

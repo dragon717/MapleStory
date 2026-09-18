@@ -26,4 +26,10 @@ export interface Part {
 
 export interface Frame { delay: number; parts: Part[] }
 
-export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;
+/**
+ * `sit` 是可选的静态单帧动作（源 `Character/00002000.img/sit` 等只有 1 帧且**没有
+ * delay**）：缺席时 `F/player/view.ts` 回落 `actions.stand`，因此没有 sit 帧的部件
+ * （源 `Face/00020000.img` 就没有）不会破图。`scripts/export_tms273_avatar.cjs`
+ * 只在角色自身部件上导出它。
+ */
+export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead' | 'sit' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;

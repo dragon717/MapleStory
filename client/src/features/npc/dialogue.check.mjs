@@ -9,16 +9,22 @@ const i18nStub = "const uiLocale = () => 'zh', uiText = x => x, displayText = x 
 // dialogue.ts imports `../inventory/names` at runtime, so that module must be
 // loaded through the same module graph instead of a bare data: URL (whose base
 // cannot resolve relative specifiers).  Transpile names.ts the same way the
-// other checks do: stub i18n, keep the real shared/items.json via a JSON data
-// URL module so itemCategoryTab / itemDetails read the authoritative catalog.
-const itemsJson = await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8');
-const itemsUrl = `data:application/json;base64,${Buffer.from(itemsJson).toString('base64')}`;
-const petsJson = await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8');
-const petsUrl = `data:application/json;base64,${Buffer.from(petsJson).toString('base64')}`;
-const namesCode = compile(await readFile(new URL('../inventory/names.ts', import.meta.url), 'utf8'))
-  .replace(/import .* from '..\/..\/app\/i18n';/, i18nStub)
-  .replace(/^import catalog from '.*items\.json';$/m, `import catalog from ${JSON.stringify(itemsUrl)} with { type: 'json' };`)
-  .replace(/^import petCatalog from '.*pets\.json';$/m, `import petCatalog from ${JSON.stringify(petsUrl)} with { type: 'json' };`);
+// other checks do: stub i18n and swap **every** `shared/*.json` import for a
+// JSON data: URL module, so itemCategoryTab / itemDetails read the
+// authoritative catalogs (items / pets / mount-index / chair-names).
+let namesCode = compile(await readFile(new URL('../inventory/names.ts', import.meta.url), 'utf8'))
+  .replace(/import .* from '..\/..\/app\/i18n';/, i18nStub);
+// names.ts 依赖 shared/ 下的四张表。**按实际导入逐个**换成 data: URL 并补上
+// Node ESM 要的 json 导入属性 —— 新加一张表时若忘了换，这里会以
+// ERR_UNSUPPORTED_RESOLVE_REQUEST 整块炸掉（响亮），而不是静默漏掉一层回落。
+// 判据与 features/inventory/*.check.mjs 的装载器一致。
+const sharedJson = [...new Set([...namesCode.matchAll(/from '\.\.\/\.\.\/\.\.\/\.\.\/shared\/([\w.-]+\.json)'/g)].map(match => match[1]))];
+assert(sharedJson.length >= 4, `names.ts 的 shared/*.json 导入只认出 ${sharedJson.length} 张，装载器可能失效了`);
+for (const file of sharedJson) {
+  // JSON 必须是 application/json：Node 的 `with { type: 'json' }` 会校验 MIME。
+  const url = `data:application/json;base64,${Buffer.from(await readFile(new URL(`../../../../shared/${file}`, import.meta.url), 'utf8')).toString('base64')}`;
+  namesCode = namesCode.replaceAll(`from '../../../../shared/${file}'`, `from '${url}' with { type: 'json' }`);
+}
 const namesUrl = `data:text/javascript;base64,${Buffer.from(namesCode).toString('base64')}`;
 
 // dialogue.ts also pulls the tab → WZ category table from view-model.ts, which

@@ -8,13 +8,13 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 117,
-  "edge_count": 258,
+  "node_count": 140,
+  "edge_count": 316,
   "edge_kind_counts": {
-    "value": 147,
-    "dynamic": 1,
-    "type": 92,
-    "side-effect": 18
+    "value": 193,
+    "dynamic": 4,
+    "type": 98,
+    "side-effect": 21
   },
   "external_specifiers": [
     "esbuild",
@@ -171,6 +171,26 @@
     },
     {
       "from": "client/src/app/main.ts",
+      "to": "client/src/features/mounts/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/mounts/style.css",
+      "kind": "side-effect"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/chairs/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/chairs/style.css",
+      "kind": "side-effect"
+    },
+    {
+      "from": "client/src/app/main.ts",
       "to": "client/src/features/menu/view.ts",
       "kind": "value"
     },
@@ -246,6 +266,11 @@
     },
     {
       "from": "client/src/app/main.ts",
+      "to": "client/src/features/client-actions/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
       "to": "client/src/app/ui-router.ts",
       "kind": "value"
     },
@@ -265,6 +290,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/assets/lazy-texture.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/assets/manifest.ts",
       "to": "client/src/features/entry/appearance.ts",
       "kind": "type"
@@ -272,6 +302,16 @@
     {
       "from": "client/src/assets/manifest.ts",
       "to": "shared/protocol.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/assets/manifest.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/assets/manifest.ts",
+      "to": "client/src/assets/asset-index.ts",
       "kind": "value"
     },
     {
@@ -300,6 +340,16 @@
       "kind": "type"
     },
     {
+      "from": "client/src/assets/resource-url.ts",
+      "to": "client/src/assets/asset-index.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/assets/resource-url.ts",
+      "to": "client/src/platform/desktop-config.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/cashshop/view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -316,12 +366,57 @@
     },
     {
       "from": "client/src/features/cashshop/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/cashshop/view.ts",
       "to": "client/src/features/entry/appearance.ts",
       "kind": "value"
     },
     {
       "from": "client/src/features/cashshop/view.ts",
       "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/chairs/model.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/chairs/model.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/chairs/store.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/chairs/store.ts",
+      "to": "client/src/features/chairs/model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/chairs/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/chairs/view.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/chairs/view.ts",
+      "to": "client/src/features/chairs/model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/chairs/view.ts",
+      "to": "client/src/features/chairs/store.ts",
       "kind": "value"
     },
     {
@@ -390,6 +485,61 @@
       "kind": "side-effect"
     },
     {
+      "from": "client/src/features/client-actions/desktop-downloads.check.ts",
+      "to": "client/src/features/client-actions/desktop-downloads.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/update-service.check.ts",
+      "to": "client/src/features/client-actions/update-service.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/update-service.check.ts",
+      "to": "shared/protocol.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/update-service.ts",
+      "to": "shared/protocol.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/update-service.ts",
+      "to": "client/src/platform/runtime-config.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/update-service.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/view.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/view.ts",
+      "to": "client/src/platform/runtime-config.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/view.ts",
+      "to": "client/src/features/client-actions/desktop-downloads.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/view.ts",
+      "to": "client/src/features/client-actions/update-service.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/view.ts",
+      "to": "client/src/features/client-actions/style.css",
+      "kind": "side-effect"
+    },
+    {
       "from": "client/src/features/combat/damage-number.check.ts",
       "to": "client/src/features/combat/damage-number.ts",
       "kind": "value"
@@ -411,6 +561,11 @@
     },
     {
       "from": "client/src/features/combat/view.ts",
+      "to": "client/src/assets/lazy-texture.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/combat/view.ts",
       "to": "client/src/features/combat/damage-number.ts",
       "kind": "value"
     },
@@ -422,6 +577,11 @@
     {
       "from": "client/src/features/entry/api.ts",
       "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/entry/api.ts",
+      "to": "client/src/network/endpoints.ts",
       "kind": "value"
     },
     {
@@ -443,6 +603,11 @@
       "from": "client/src/features/entry/appearance.ts",
       "to": "client/src/assets/avatar-types.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/entry/appearance.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/entry/appearance.ts",
@@ -477,6 +642,11 @@
     {
       "from": "client/src/features/entry/view.ts",
       "to": "client/src/features/entry/appearance.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/entry/view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -551,6 +721,11 @@
     },
     {
       "from": "client/src/features/inventory/equipment-view.ts",
+      "to": "client/src/features/mounts/model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/equipment-view.ts",
       "to": "client/src/features/inventory/tooltip-view.ts",
       "kind": "type"
     },
@@ -587,6 +762,16 @@
     {
       "from": "client/src/features/inventory/names.ts",
       "to": "shared/pets.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/names.ts",
+      "to": "shared/mount-index.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/names.ts",
+      "to": "shared/chair-names.json",
       "kind": "value"
     },
     {
@@ -711,6 +896,11 @@
     },
     {
       "from": "client/src/features/loading/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/loading/view.ts",
       "to": "client/src/features/loading/style.css",
       "kind": "side-effect"
     },
@@ -760,9 +950,59 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/mounts/model.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/mounts/model.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/mounts/store.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/mounts/store.ts",
+      "to": "client/src/features/mounts/model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/mounts/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/mounts/view.ts",
+      "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/mounts/view.ts",
+      "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/mounts/view.ts",
+      "to": "client/src/features/mounts/model.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/mounts/view.ts",
+      "to": "client/src/features/mounts/store.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/notebook/directory.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/directory.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/notebook/item-section.ts",
@@ -903,6 +1143,11 @@
       "from": "client/src/features/npc/dialogue.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/npc/dialogue.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/npc/dialogue.ts",
@@ -1091,6 +1336,11 @@
     },
     {
       "from": "client/src/features/windbell/activities.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/windbell/activities.ts",
       "to": "client/src/features/windbell/style.css",
       "kind": "side-effect"
     },
@@ -1117,6 +1367,11 @@
     {
       "from": "client/src/features/windbell/scene.ts",
       "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/windbell/scene.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1216,6 +1471,11 @@
     },
     {
       "from": "client/src/features/world/storage-view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/world/storage-view.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
     },
@@ -1240,8 +1500,23 @@
       "kind": "value"
     },
     {
+      "from": "client/src/network/auth-api.ts",
+      "to": "client/src/network/endpoints.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/network/endpoints.ts",
+      "to": "client/src/platform/desktop-config.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/network/session.ts",
       "to": "shared/protocol.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/network/session.ts",
+      "to": "client/src/network/endpoints.ts",
       "kind": "value"
     },
     {
@@ -1277,6 +1552,16 @@
     {
       "from": "client/src/scenes/world.ts",
       "to": "client/src/assets/preload-plan.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/assets/lazy-texture.ts",
       "kind": "value"
     },
     {
@@ -1333,10 +1618,15 @@
       "from": "client/src/scenes/world.ts",
       "to": "client/src/features/windbell/scene.ts",
       "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/net-motion/motion-interpolator.ts",
+      "kind": "value"
     }
   ],
-  "source_commit": "0301244484f452c78f8be60bb3813f58a2edaca6",
+  "source_commit": "c50b5647a9a57fb00cd4947559d41eb5b694885f",
   "working_tree_dirty": true,
-  "node_version": "v22.22.2",
-  "generated_at": "2026-09-15T17:47:38.521Z"
+  "node_version": "v22.17.1",
+  "generated_at": "2026-09-18T09:10:59.833Z"
 }

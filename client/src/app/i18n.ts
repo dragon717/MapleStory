@@ -127,6 +127,30 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   map_move: { zh: '已使用传送卷轴，正在移动', en: 'Teleport scroll used; moving' },
   slot_expand_max: { zh: '该物品栏已扩充到上限，无法继续扩充', en: 'This inventory tab is already at its maximum capacity' },
   slot_expand: { zh: '已扩充物品栏', en: 'Inventory expanded' },
+  // 坐骑（第 30 项）：开关的两种结果 + 八种拒绝。拒绝码由服务端在**会话状态**
+  // 判据里给出，每一个都点明真实原因，不合并成一句「无法操作」。
+  mount_on: { zh: '已骑乘', en: 'Mounted' },
+  mount_off: { zh: '已下马', en: 'Dismounted' },
+  no_mount_equipped: { zh: '装备栏里没有可骑乘的坐骑', en: 'No rideable mount is equipped' },
+  mount_no_ride_stats: { zh: '这只坐骑在源里没有已核定的骑乘数值，无法骑乘', en: 'This mount has no verified ride data in the source, so it cannot be ridden' },
+  mount_mismatch: { zh: '装备栏里的坐骑已经变了，请重试', en: 'The equipped mount changed; try again' },
+  mount_dead: { zh: '死亡状态无法骑乘', en: 'Cannot ride while dead' },
+  mount_climbing: { zh: '攀爬中无法骑乘', en: 'Cannot ride while climbing' },
+  mount_airborne: { zh: '必须站在地面上才能骑乘', en: 'Land on the ground before riding' },
+  mount_swimming: { zh: '水中无法骑乘', en: 'Cannot ride while swimming' },
+  mount_seated: { zh: '请先起身再骑乘', en: 'Stand up before riding' },
+  mount_busy: { zh: '技能引导中无法骑乘', en: 'Cannot ride while channeling a skill' },
+  // 椅子（第 31 项）
+  chair_sit: { zh: '已坐下', en: 'Seated' },
+  chair_stand: { zh: '已起身', en: 'Stood up' },
+  chair_mismatch: { zh: '这一格的椅子已经变了，请重试', en: 'The chair in that slot changed; try again' },
+  not_a_chair: { zh: '这个装饰品不能坐', en: 'That setup item cannot be sat on' },
+  chair_dead: { zh: '死亡状态无法坐下', en: 'Cannot sit while dead' },
+  chair_mounted: { zh: '请先下马再坐下', en: 'Dismount before sitting' },
+  chair_unsupported: { zh: '只有站在地面上才能坐下', en: 'Sit on the ground, not mid-air or on a rope' },
+  // 骑乘与坐姿是会话状态：没有可落库的字段，走到持久化事务里就是调用方绕过了
+  // 世界侧。给一个具名原因，而不是复用「栏位非法」（设置栏与装备槽都是合法栏位）。
+  session_state_only: { zh: '这个操作由服务器即时判定，无法记录', en: 'This action is decided live by the server' },
   scroll_blocked: { zh: '练习中不能使用传送卷轴', en: 'Teleport scrolls cannot be used during practice' },
   scroll_no_target: { zh: '此地图没有可返回的城镇，卷轴未被消耗', en: 'This map has no return town, so the scroll was not consumed' },
   scroll_unavailable: { zh: '目标城镇尚未开放，卷轴未被消耗', en: 'The destination town is not open yet, so the scroll was not consumed' },

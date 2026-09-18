@@ -1014,6 +1014,36 @@ impl World {
             self.feed_pet(&id, &request_id, inventory_type, source_slot, &item_id);
             return;
         }
+        // 骑乘 / 坐下：**会话状态**，既不是消耗品也不改背包，因此必须挡在持久化
+        // 事务之前——否则 −18 槽会落进下面的 unequip 分支（把坐骑脱下来）、设置栏
+        // 会落进末尾的 `InvalidInventoryType`（把合法栏位说成非法）。这与
+        // `pet_toggle` 挡在 store 之前是同一个理由，区别只是宠物要把 `_petActive`
+        // 落库，而骑乘/坐姿没有可落库的字段。
+        //
+        // 重放：两者的 operation 是具名的 `mount` / `chair`，不在既有的
+        // `["use","equip","unequip"]` 白名单里，所以台账命中时直接回原结果。
+        if let Some(prior) = self
+            .inventory_requests
+            .get(&(id.clone(), request_id.clone()))
+            .filter(|prior| matches!(prior.operation.as_str(), "mount" | "chair"))
+            .cloned()
+        {
+            self.send_inventory_outcome(&id, &prior);
+            return;
+        }
+        if inventory_type == 1
+            && crate::inventory::valid_equipment_slot(source_slot)
+            && target_slot.is_none()
+            && target_item_id.is_none()
+            && crate::inventory::is_mount_item(&item_id)
+        {
+            self.mount_toggle(&id, &request_id, inventory_type, source_slot, &item_id);
+            return;
+        }
+        if inventory_type == 3 && crate::inventory::valid_slot(source_slot) {
+            self.chair_toggle(&id, &request_id, inventory_type, source_slot, &item_id);
+            return;
+        }
         if let Some(store) = self.store.clone() {
             let derived_max_mp = player.state.max_mp;
             match store.prior_inventory(&id, &request_id) {

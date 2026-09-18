@@ -12,20 +12,26 @@ import ts from 'typescript';
 const compile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const b64 = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
 
-// ---- 依赖装载：i18n → items.json → names → equipment-view ----
+// ---- 依赖装载：i18n → shared/*.json → names → equipment-view ----
 globalThis.window = { location: { search: '' } };
 const i18nCode = compile(await readFile(new URL('../../app/i18n.ts', import.meta.url), 'utf8'))
   .replace("import OpenCC from 'opencc-js/t2cn';", 'const OpenCC = { Converter: () => text => text };');
 const i18nUrl = b64(i18nCode);
-const itemsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8')).toString('base64')}`;
-const petsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8')).toString('base64')}`;
-const namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
-  .replaceAll("from '../../app/i18n'", `from '${i18nUrl}'`)
-  .replaceAll("from '../../../../shared/items.json'", `from '${itemsUrl}' with { type: 'json' }`)
-  .replaceAll("from '../../../../shared/pets.json'", `from '${petsUrl}' with { type: 'json' }`);
+// names.ts 依赖 shared/ 下的四张表（items / pets / mount-index / chair-names）。
+// 这里**按实际导入逐个**换，不写死名单：新加一张表时若忘了换，会在这里整块炸掉
+// 而不是静默漏测（漏测的表现是"names 少回落一层"，很难看出来）。
+let namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
+  .replaceAll("from '../../app/i18n'", `from '${i18nUrl}'`);
+const sharedJson = [...new Set([...namesCode.matchAll(/from '\.\.\/\.\.\/\.\.\/\.\.\/shared\/([\w.-]+\.json)'/g)].map(match => match[1]))];
+assert(sharedJson.length >= 4, `names.ts 的 shared/*.json 导入只认出 ${sharedJson.length} 张，装载器可能失效了`);
+for (const file of sharedJson) {
+  const url = `data:application/json;base64,${Buffer.from(await readFile(new URL(`../../../../shared/${file}`, import.meta.url), 'utf8')).toString('base64')}`;
+  namesCode = namesCode.replaceAll(`from '../../../../shared/${file}'`, `from '${url}' with { type: 'json' }`);
+}
 const namesUrl = b64(namesCode);
 const equipCode = compile(await readFile(new URL('./equipment-view.ts', import.meta.url), 'utf8'))
-  .replaceAll("from './names'", `from '${namesUrl}'`);
+  .replaceAll("from './names'", `from '${namesUrl}'`)
+  .replaceAll("from '../mounts/model'", `from '${b64(compile(await readFile(new URL('../mounts/model.ts', import.meta.url), 'utf8')).replaceAll("from '../inventory/names'", `from '${namesUrl}'`))}'`);
 const { EquipmentView } = await import(b64(equipCode));
 
 // ---- DOM stub ----
@@ -101,6 +107,7 @@ const state = {
   scrollTargets: [],
   announced: [],
   unequipped: [],
+  used: [],
   closeRequests: 0,
   tooltipHides: 0,
 };
@@ -111,7 +118,15 @@ const layout = {
   height: 400,
   close: { x: 280, y: 8 },
   itemOffset: { x: 4, y: 4 },
-  slots: { 1: { x: 10, y: 10, width: 32, height: 32 }, 5: { x: 10, y: 50, width: 32, height: 32 }, 11: { x: 10, y: 90, width: 32, height: 32 } },
+  slots: {
+    1: { x: 10, y: 10, width: 32, height: 32 },
+    5: { x: 10, y: 50, width: 32, height: 32 },
+    11: { x: 10, y: 90, width: 32, height: 32 },
+    // 18/19（源 Tm/Sd）本轮在源 UI 里不存在，但双击判定按源 islot 走，
+    // 所以这两格要在**测试布局**里造出来才能覆盖到（见 equipment-view.ts 的注）。
+    18: { x: 10, y: 130, width: 32, height: 32 },
+    19: { x: 10, y: 170, width: 32, height: 32 },
+  },
 };
 const ui = { backgrnd: { url: 'bg.png', width: 300, height: 400 }, 'main/button:close/normal/0': { url: 'close.png', width: 12, height: 12 }, 'EquipTab/canvas:equip': { url: 'canvas.png', x: 2, y: 2, width: 1, height: 1 } };
 const makeHost = () => ({
@@ -139,6 +154,7 @@ const makeHost = () => ({
   chooseScrollTarget: (slotNumber, target) => state.scrollTargets.push([slotNumber, target?.itemId]),
   announceSelection: target => state.announced.push(target.itemId),
   unequip: target => state.unequipped.push(target.itemId),
+  useItem: (sourceTab, sourceSlot, target) => state.used.push([sourceTab, sourceSlot, target.itemId]),
   onCloseRequest: () => { state.closeRequests += 1; },
   drag: { bindEquipmentSlot() {} },
   tooltips,
@@ -158,7 +174,7 @@ assert.equal(bare.isOpen(), false, '缺资源时 open 是 no-op');
 const host = makeHost();
 const view = new EquipmentView(root, manifest, layout, host);
 assert.ok(view.window, '资源齐全时窗口创建');
-assert.equal(view.window.querySelectorAll('.equipment-slot').length, 3, '三个装备槽');
+assert.equal(view.window.querySelectorAll('.equipment-slot').length, 5, '五个装备槽');
 assert.equal(view.isOpen(), false);
 assert.equal(root.children.at(-1), view.window, '窗口挂在根容器上');
 
@@ -212,4 +228,28 @@ const closeRequests = state.closeRequests;
 view.window.children.filter(child => child.action).at(-1).action();
 assert.equal(state.closeRequests, closeRequests + 1, 'close 按钮请求关闭');
 
-console.log('inventory equipment-view: window build, open/close sync, render states, slot click branches, close request passed.');
+// 双击已装备的骑宠 = 上下马，**不是**卸下（審計第 30 项）。
+// 判据是源 `info.islot`（Tm → 18、Sd → 19），不是物品名或 id 段。
+const mountIndex = JSON.parse(await readFile(new URL('../../../../shared/mount-index.json', import.meta.url), 'utf8'));
+const mountId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Tm');
+const saddleId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Sd');
+assert(mountId && saddleId, '坐骑索引里找不到 Tm / Sd 两族，这条覆盖就白做了');
+const unequippedBefore = state.unequipped.length;
+state.equipped.set(18, item(18, mountId));
+view.render();
+slotByNumber.get(18).emit('dblclick');
+assert.deepEqual(state.used.at(-1), [0, -18, mountId], '双击 Tm 槽骑宠提交 useItem(tab 0, −18, id)');
+assert.equal(state.unequipped.length, unequippedBefore, '双击骑宠不产生卸下意图');
+state.equipped.set(19, item(19, saddleId));
+view.render();
+slotByNumber.get(19).emit('dblclick');
+assert.deepEqual(state.used.at(-1), [0, -19, saddleId], '双击 Sd 槽（馬鞍）同样走骑乘通道');
+assert.equal(state.unequipped.length, unequippedBefore, '馬鞍也不产生卸下意图');
+// 普通装备仍然双击即卸下：这一支没被骑乘分支吞掉。
+state.equipped.set(11, item(11, '1002067'));
+view.render();
+slotByNumber.get(11).emit('dblclick');
+assert.equal(state.used.length, 2, '普通装备不进骑乘通道');
+assert.equal(state.unequipped.length, unequippedBefore + 1, '普通装备双击仍是卸下');
+
+console.log('inventory equipment-view: window build, open/close sync, render states, slot click branches, mount ride branch, close request passed.');

@@ -1,6 +1,7 @@
 import type { InventoryItem } from '../../../../shared/protocol';
 import type { AssetFrame, EquipmentLayout, Manifest } from '../../assets/manifest';
-import { itemDetails, itemName } from './names';
+import { equipmentSlot, itemDetails, itemName } from './names';
+import { MOUNT_BODY_SLOTS } from '../mounts/model';
 import type { TooltipController } from './tooltip-view';
 import type { DragController } from './drag-controller';
 
@@ -30,6 +31,9 @@ export interface EquipmentHost {
   /** 非卷轴阶段点击已装备槽的状态提示。 */
   announceSelection(item: InventoryItem): void;
   unequip(item: InventoryItem): void;
+  /** 骑乘入口（審計第 30 项）：双击**已装备**的骑宠走既有的 `useItem` 通道
+   *  （负槽号＝已装备），而不是卸下。道具与装备都不动，只切换骑乘状态。 */
+  useItem(sourceTab: number, sourceSlot: number, item: InventoryItem): void;
   /** close 按钮请求（view 负责 pendingScroll 清理与焦点归还）。 */
   onCloseRequest(): void;
   drag: DragController;
@@ -197,7 +201,7 @@ export class EquipmentView {
     button.addEventListener('dblclick', () => {
       if (!this.host.selectingTarget()) {
         const item = this.host.equippedItemAt(slotNumber);
-        if (item) this.host.unequip(item);
+        if (item) this.onSlotActivate(slotNumber, item);
       }
     });
     button.addEventListener('contextmenu', event => {
@@ -225,5 +229,29 @@ export class EquipmentView {
     button.addEventListener('blur', () => this.host.tooltips.noteAnchorBlur());
     this.host.drag.bindEquipmentSlot(button, slotNumber);
     parent.append(button);
+  }
+
+  /**
+   * 双击某个已装备槽。既有语义是「卸下」，**骑宠是唯一的例外**：源里双击坐骑是
+   * 上下马（`server/src/mounts.rs` 的开关不消耗道具、也不改装备）。
+   *
+   * 判据只用 `equipmentSlot()`（源 `info.islot` → ±18/±19），与
+   * `inventory::equipment_slot`、`names.ts::isMountItem` 同一套源字段，
+   * 不按物品名或 id 段猜。
+   *
+   * 现实说明（别当成活路径来测）：源 `UI/UIEquip.img/Equip/EquipTab/Slots`
+   * **没有** Tm/Sd 两个槽（探针直读 wz：只有 1..13,15,16,17,21,22,28,31..36），
+   * 所以当前 UI 画不出 18/19 槽，这一支点不到——活的入口是
+   * `F/mounts/view.ts` 的状态标记。留在这里是因为它编码的是**源语义**：
+   * 一旦有窗口把这两个槽画出来，双击必须是上下马，而不是「把坐骑脱下来」。
+   */
+  private onSlotActivate(slotNumber: number, item: InventoryItem) {
+    const slot = equipmentSlot(item.itemId);
+    if (slot !== undefined && MOUNT_BODY_SLOTS.includes(slot)) {
+      // `sourceTab` 0 = 装备页签（`TAB_INVENTORY_TYPE[0] === 1`）；负槽号＝已装备。
+      this.host.useItem(0, -slot, item);
+      return;
+    }
+    this.host.unequip(item);
   }
 }

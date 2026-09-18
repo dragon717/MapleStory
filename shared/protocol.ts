@@ -16,16 +16,42 @@ export interface Appearance {
 export interface RegenerationPassive {
   id: string; bookId: number; hpPerSecond: number; mpPerSecond: number;
 }
+/** 骑乘状态（协议 24 的加法字段，双端同名同形）。全部由服务端从**已装备**的骑宠行与
+ *  源坐骑档推出；客户端只读，永远不能上报「我在骑」「我骑的是哪只」。 */
+export interface MountState {
+  /** 已装备的骑宠装备 id（源 islot Tm/Sd，身体槽 −18/−19）。 */
+  itemId: string;
+  /** 源 `info.tamingMob` 指向的坐骑档 id。 */
+  tamingMob: number;
+  /** 以下全部来自源 `TamingMob/<id>.json/info`：百分比口径（100 = 常规），不是像素速率。 */
+  speed: number; jump: number; fs: number; fatigue: number;
+}
+/** 坐姿状态（协议 24 的加法字段）。坐姿是**会话状态**：不落库，
+ *  重连/换图/死亡/受击/移动输入即结束。 */
+export interface ChairState {
+  itemId: string;
+  /** 源 `info.recoveryHP` / `info.recoveryMP`（缺席即 0）。 */
+  recoveryHp: number; recoveryMp: number;
+  /** 恢复间隔。**缺席**表示该椅子的间隔未核定（源只看描述文案有没有写「每N秒」），
+   *  此时服务端不恢复，客户端也不得显示倒计时——套一个默认 10 秒就是编规则。 */
+  recoveryIntervalMs?: number;
+  /** 距下一次恢复的剩余毫秒；与 `recoveryIntervalMs` 同生共死。 */
+  nextRecoveryInMs?: number;
+}
 export interface PlayerState {
   id: string; username: string; appearance?: Appearance; x: number; y: number; vx: number; vy: number;
   facing: Facing; grounded: boolean;
   /** True while inside an authored water rectangle. A swimming body is never
    *  grounded, so clients need this to route the jump key correctly. */
   swimming?: boolean;
-  action: 'stand' | 'walk' | 'jump' | 'attack' | 'climb' | 'ladder' | 'rope' | 'dead';
+  action: 'stand' | 'walk' | 'jump' | 'attack' | 'climb' | 'ladder' | 'rope' | 'dead' | 'sit';
   actionId: string | null; actionStartedTick: number; lastInputSeq: number;
   climbing: boolean; ladderId: number | null;
   hp: number; maxHp: number; mp: number; maxMp: number;
+  /** 骑乘中才有；服务端从已装备的骑宠行导出（缺席即未骑乘）。 */
+  mount?: MountState;
+  /** 坐在椅子上才有；服务端从设置栏的实物导出（缺席即未坐下）。 */
+  chair?: ChairState;
   /** Server-owned persisted job ID; absent on older protocol 6 servers. */
   job?: number;
   /** Server-owned learned levels by skill ID; missing entries mean level 0, absent map means unknown. */

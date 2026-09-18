@@ -48,6 +48,27 @@ impl World {
             self.send_skill_result_with_request(&id, &request_id, &outcome);
             return;
         }
+        // 骑乘中不能施法：骑宠的动作集合（源 `Character/TamingMob/*.img`）里没有任何
+        // `swing*` / `shoot*` 帧，源里也没有「骑乘中施法」的可执行规则。落点选在
+        // 冷却与 MP 消耗**之前**，因此被拒的技能不扣 MP、不进冷却（与 `skill_hidden`
+        // 同一处早退位置）。坐姿则相反：先起立再施放，而不是「坐着出招」。
+        match self
+            .players
+            .get(&id)
+            .map(|player| (player.mount.is_some(), player.chair.is_some()))
+        {
+            Some((true, _)) => {
+                self.send_reject(
+                    &id,
+                    "mounted_no_attack",
+                    "騎乘中無法攻擊。",
+                    Some(&request_id),
+                );
+                return;
+            }
+            Some((false, true)) => self.stand_up(&id, "cast"),
+            _ => {}
+        }
         let Some(skill) = self.mage_skills.get(skill_id).cloned() else {
             self.send_reject(&id, "skill_unknown", "未知法师技能。", Some(&request_id));
             return;

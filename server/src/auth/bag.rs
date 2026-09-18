@@ -600,6 +600,51 @@ impl Store {
         let result_quantity = 1;
         let mut operation = "use".to_owned();
         let mut result_code = None;
+        // 骑乘与坐姿是**会话状态**，没有可落库的字段：世界侧已在
+        // `inventory_ops::handle_use_item` 的持久事务之前拦截并答复（专题 §3.6）。
+        // 走到这里说明有调用方绕过了世界侧，此时必须回一个**具名**结果——不能让
+        // −18/−19 槽落进下面的 `equip_items`（那会把坐骑按普通装备穿一遍），也不能
+        // 让设置栏(3)落进末尾的 `InvalidInventoryType`（3 是合法栏位）。
+        // 两条路都登记进持久台账，于是即使绕过了世界侧，重发也只会拿到同一个结局。
+        if inventory_type == 1
+            && inventory::valid_equipment_slot(source_slot)
+            && target_slot.is_none()
+            && target_item_id.is_none()
+            && inventory::is_mount_item(item_id)
+        {
+            let outcome = InventoryOutcome {
+                request_id: request_id.to_owned(),
+                operation: "mount".to_owned(),
+                inventory_type: Some(inventory_type),
+                from_slot: source_slot,
+                to_slot: None,
+                item_id: result_item.clone(),
+                quantity: 1,
+                drop_id: None,
+                success: false,
+                code: inventory::InventoryError::SessionStateOnly.code().to_owned(),
+            };
+            insert_inventory_action(&tx, account_id, &outcome)?;
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(outcome);
+        }
+        if inventory_type == 3 && inventory::valid_slot(source_slot) {
+            let outcome = InventoryOutcome {
+                request_id: request_id.to_owned(),
+                operation: "chair".to_owned(),
+                inventory_type: Some(inventory_type),
+                from_slot: source_slot,
+                to_slot: None,
+                item_id: result_item.clone(),
+                quantity: 1,
+                drop_id: None,
+                success: false,
+                code: inventory::InventoryError::SessionStateOnly.code().to_owned(),
+            };
+            insert_inventory_action(&tx, account_id, &outcome)?;
+            tx.commit().map_err(|_| "account persistence failed")?;
+            return Ok(outcome);
+        }
         let mutation: Result<(), inventory::InventoryError> = if inventory_type == 1 {
             if inventory::valid_slot(source_slot) {
                 if target_slot.is_some() || target_item_id.is_some() {

@@ -497,8 +497,15 @@ for (const [id, definition] of Object.entries(items)) {
 collect(appearance);
 // The first-screen catalogue contains only an index; copy each selected
 // item's JSON and its textures without putting them in the initial preload.
+// 教训（2026-09-18）：`entry.url` 指向的就是那件装备自己的外观 JSON，它和
+// layer 里的贴图一样是运行期要 fetch 的产物。这里原先只 `collect(layer)`，
+// 索引 JSON 从未进入复制清单——于是它们能否出现在 client/public-tms273 全靠
+// 手工拷贝，漏了 20 个（01004230/01040063/…/01482011）也无人察觉，直到
+// Windows 打包门禁按 appearance.json 的引用逐条校验才炸。索引 JSON 必须和
+// 贴图一起由这份清单派生，两者不能有两种来源。
 for (const entry of Object.values(appearance.cashAppearance?.items ?? {})) {
   assert(entry.url.startsWith('/assets/tms273/'), `Invalid cash appearance URL: ${entry.url}`);
+  collect(entry.url);
   const layer = JSON.parse(fs.readFileSync(path.join(input, entry.url.slice(1)), 'utf8'));
   assert.equal(Number(layer.itemId ?? layer.id), Number(entry.itemId), `Cash appearance binding mismatch: ${entry.itemId}`);
   collect(layer);
@@ -514,6 +521,18 @@ for(const url of urls) {
   const destination=path.join(publicRoot,url.slice(1));fs.mkdirSync(path.dirname(destination),{recursive:true});
   fs.copyFileSync(path.join(input,url.slice(1)),destination);
 }
+// 反向核对：服务目录里的外观索引 JSON 必须恰好等于清单派生的那一批。
+// 少一个 ⇒ entry/appearance.json 引用了一个没落地的文件，运行时 404；
+// 多一个 ⇒ 源侧已经改名/下架的旧层赖在包里，从此没人会清理。
+// `.br`/`.gz` 是离线预压缩副本，不是独立条目，不参与这条判据。
+const cashAppearanceLayers = (() => {
+  const dir = path.join(publicRoot, 'assets/tms273/appearance-cashshop');
+  const declared = new Set(Object.values(appearance.cashAppearance?.items ?? {}).map(entry => path.basename(entry.url)));
+  const landed = fs.existsSync(dir) ? fs.readdirSync(dir).filter(name => name.endsWith('.json')) : [];
+  for (const name of landed) assert(declared.has(name), `Stale cash appearance layer in public root: ${name}`);
+  for (const name of declared) assert(landed.includes(name), `Cash appearance layer not copied: ${name}`);
+  return landed.length;
+})();
 for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'npc-names':npcNames,map:birth,maps:{birthMapId:birth.id,returnMaps,maps}})) {
   // Rendering layers belong to the client manifest, not the server's map catalog.
   const serverData=name==='map'?(({layers,...map})=>map)(data):name==='maps'?{...data,maps:data.maps.map(({layers,...map})=>map)}:data;
@@ -533,4 +552,4 @@ for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'
 }
 write(path.join(publicRoot,'assets/manifest.json'),manifest);
 write(path.join(root,'shared/mage-skills.json'),mageRules(read('skills')));
-console.log(JSON.stringify({version,maps:maps.length,assets:urls.size,npcs:Object.keys(entities.npcs).length,monsters:Object.keys(entities.monsters).length}));
+console.log(JSON.stringify({version,maps:maps.length,assets:urls.size,cashAppearanceLayers,npcs:Object.keys(entities.npcs).length,monsters:Object.keys(entities.monsters).length}));

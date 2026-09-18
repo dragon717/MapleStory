@@ -31,6 +31,9 @@ mod attribute;
 mod boss;
 #[path = "cashshop.rs"]
 mod cashshop;
+/// 椅子（第 31 项）：设置栏道具 → 坐姿会话状态 → 坐椅恢复。见模块头。
+#[path = "chairs.rs"]
+mod chairs;
 #[path = "combat_rules.rs"]
 mod combat_rules;
 #[path = "commands.rs"]
@@ -68,6 +71,9 @@ mod inventory_ops;
 mod messaging;
 #[path = "monsters.rs"]
 mod monsters;
+/// 坐骑（第 30 项）：装备层基础之上的骑乘切换 / 骑乘状态 / 移动与表现。见模块头。
+#[path = "mounts.rs"]
+mod mounts;
 #[path = "movement.rs"]
 mod movement;
 #[path = "notebook.rs"]
@@ -1478,6 +1484,12 @@ struct Player {
     /// Durable cooldowns are loaded from auth at join and mirrored here so
     /// the single world loop can expose an up-to-date remaining value.
     skill_cooldowns: BTreeMap<u32, u64>,
+    /// 骑乘中的会话状态。**不落库**：重连接管、死亡、换图、上绳、入水、卸下骑宠
+    /// 都会收掉；每拍还会经 `mounts::reconcile` 对账装备里的实物。权威值只有这一份，
+    /// 快照在拼装处投影（与 `away` / `pets` 同一段代码）。
+    mount: Option<mounts::MountRuntime>,
+    /// 坐姿的会话状态。持有的是设置栏里的实物 id，离开即作废（**不落库**）。
+    chair: Option<chairs::ChairRuntime>,
     /// 玩家身上**唯一**的限时状态字段：技能增益、怪物疾病与異常狀態免疫窗。
     /// 表示、时钟、生效判据、到期判定与本处清理全部由 `PlayerStatus` 负责
     /// （它们是会话状态：重连 / 死亡 / 换图一律经 `clear()` 收掉，技能冷却不在此列）。
@@ -2508,6 +2520,19 @@ impl World {
             if let Some(object) = row.as_object_mut() {
                 object.insert("pets".to_owned(), pets::snapshots(player));
             }
+            // 骑乘与坐姿是**状态**（不是 `away` / `abnormalStatus` 那种由别处时钟算出的
+            // 投影），但权威值只留在 `Player` 上，快照在这里投影一次：缺席即「无此事」，
+            // 未骑乘/未坐下的玩家行因此不变形。
+            if let Some(mount) = mounts::snapshot_field(player) {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert("mount".to_owned(), mount);
+                }
+            }
+            if let Some(chair) = chairs::snapshot_field(player, self.tick) {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert("chair".to_owned(), chair);
+                }
+            }
             player_rows.push(row);
         }
         let mut snapshot = serde_json::json!({
@@ -2910,6 +2935,27 @@ impl World {
     }
 
     fn handle_attack(&mut self, id: String, request_id: String) {
+        // 骑宠的动作集合（源 `Character/TamingMob/*.img`）里没有任何 `swing*`/`shoot*`
+        // 帧，源里也没有「骑乘中攻击」的可执行规则 ⇒ 骑乘中不发普攻。这不是数值
+        // 平衡，是源数据不支持该姿态。
+        // 坐姿则相反：先起立再出招，而不是「坐着打」。
+        match self
+            .players
+            .get(&id)
+            .map(|player| (player.mount.is_some(), player.chair.is_some()))
+        {
+            Some((true, _)) => {
+                self.send_reject(
+                    &id,
+                    "mounted_no_attack",
+                    "騎乘中無法攻擊。",
+                    Some(&request_id),
+                );
+                return;
+            }
+            Some((false, true)) => self.stand_up(&id, "attack"),
+            _ => {}
+        }
         let Some(player) = self.players.get(&id) else {
             return;
         };
@@ -3153,6 +3199,16 @@ impl World {
             let Some(player) = self.players.get_mut(&id) else {
                 continue;
             };
+            // ---- 坐姿的输入解除（必须在 `step_player` **之前**）-------------
+            // 判据读客户端的原始意图（`direction` / `vertical` / `jump`），不读位移
+            // 结果：按住方向键时 `vx` 可能被墙吃掉，但「想动」这件事本身就是起立的
+            // 条件。放在步进之前是为了不吞掉这一拍——坐姿若留到步进之后再解除，
+            // 玩家的第一拍输入会既不起立也不位移（movement 侧还会按 `sit` 压掉 `vx`）。
+            if player.chair.is_some()
+                && (player.direction != 0 || player.vertical != 0 || player.jump)
+            {
+                chairs::stand_up(player, self.tick, "movement_input");
+            }
             let old_hp = player.state.hp;
             let old_mp = player.state.mp;
             let old_max_hp = player.state.max_hp;
@@ -3266,6 +3322,12 @@ impl World {
             // Mirror the authoritative swim flag into the snapshot so clients
             // can tell "swimming" (never grounded) apart from "airborne".
             player.state.swimming = player.swimming;
+            // ---- 骑乘 / 坐姿的对账（步进之后）-------------------------------
+            // 骑乘在无输入下也可能结束（卸下骑宠、死亡、上绳、入水），所以写成
+            // **对账**而不是事件：任何能在别处移动装备或改变姿态的路径都自动被覆盖。
+            // 坐姿的移动输入那一条在上面（必须早于步进），这里只兜住无输入的那一种。
+            mounts::reconcile(player, self.tick);
+            chairs::reconcile(player, self.tick);
             if player.state.grounded {
                 player.magic_wave_used = false;
                 player.magic_wave_float_used = false;
@@ -3295,6 +3357,8 @@ impl World {
             }
             self.step_area_reactor_interactions(&id);
         }
+        // 坐椅恢复：全部玩家一趟，挂在既有的顺序 tick 上（理由见 `chairs::step_chairs`）。
+        self.step_chairs();
         self.step_hyper_channels();
         self.step_hyper_effects();
         self.resolve_pending_attacks();

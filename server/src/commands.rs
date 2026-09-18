@@ -75,6 +75,12 @@ impl World {
                             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
                         existing.beginner_heal_next_tick = 0;
                         existing.beginner_heal_remaining_ticks = 0;
+                        // 会话状态不跨连接：新连接一律以「未骑乘、未坐下」开始，
+                        // 与上面 `direction/vertical/jump` 的清零同一处、同一理由。
+                        // `mount` 每拍会从权威装备重建，但那是「装备还在」的前提下；
+                        // 新客户端看到的第一个快照必须与它自己的界面一致。
+                        existing.mount = None;
+                        existing.chair = None;
                         let _ = output.try_send(self.snapshot(&identity.id));
                         self.send_quest_list(&identity.id);
                         let _ = reply.send(true);
@@ -414,6 +420,9 @@ impl World {
                         // 新角色的限时状态一律空：技能增益、怪物疾病、免疫窗
                         // 由 `PlayerStatus` 一处持有（`Player` 上不再有第二份）。
                         status: PlayerStatus::default(),
+                        // 骑乘与坐姿是会话状态，新连接从「未骑乘、未坐下」开始。
+                        mount: None,
+                        chair: None,
                         natural_recovery_next_tick: self
                             .tick
                             .saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS),

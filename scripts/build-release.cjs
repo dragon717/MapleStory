@@ -113,12 +113,53 @@ function expectedServerName() {
   return `maplestory-server${process.platform === 'win32' ? '.exe' : ''}`;
 }
 
-function validateMetadata(metadata, candidate) {
+// 这颗二进制到底是哪一版，只有它自己内嵌的字符串说了算。
+// metadata.json 里的 contentVersion 是构建时照着 shared/protocol.ts **自述**写下的，
+// 与二进制的真实内容毫无关系。2026-09-18 在 Windows 上正是靠这层错位出的事：
+// build/.cargo-cache 让 Cargo 复用了旧产物（cargo 0.8s 没重编），一颗内嵌
+// tms273-23 的二进制被贴上 tms273-31 的清单发了出去，资源校验全过，
+// 服务端启动后拿内嵌版本比 gameplay.json 的 contentVersion，不一致直接退出。
+// 所以「文件存在且非空」根本不构成判据，必须把二进制读出来对内容。
+// 代价是每次校验要顺序扫一遍可执行文件（实测 37MB 约 0.2s），
+// 换来的是旧版本再也无法冒充新版本上线——这个代价比一次错误发布便宜得多。
+const EMBEDDED_VERSION_REGEX = /tms273-[0-9]+(?:\.[0-9]+)*/g;
+
+function embeddedContentVersions(file) {
+  const found = new Set();
+  for (const match of fs.readFileSync(file).toString('latin1').matchAll(EMBEDDED_VERSION_REGEX)) found.add(match[0]);
+  return [...found].sort();
+}
+
+function assertServerBinaryContentVersion(root, server) {
+  const source = readProtocol(root);
+  const found = embeddedContentVersions(server);
+  if (!found.includes(source.contentVersion)) {
+    throw new Error(`服务端二进制内嵌的内容版本不是 ${source.contentVersion}`
+      + `（实测 ${found.length ? found.join(', ') : '未找到 tms273-*'}）：它不是当前源码编译出来的，`
+      + '通常是 build/.cargo-cache 复用了旧产物（表现为 cargo 耗时不到 1s 却"编译成功"）。'
+      + '删除 build/.cargo-cache 后重新 prepare 即可强制完整重编。');
+  }
+  const stale = found.filter(value => value !== source.contentVersion);
+  if (stale.length) {
+    throw new Error(`服务端二进制里残留旧内容版本 ${stale.join(', ')}（应为 ${source.contentVersion}）`);
+  }
+}
+
+function validateMetadata(root, metadata, candidate) {
   if (metadata.schemaVersion !== SCHEMA_VERSION) throw new Error(`不支持的发布清单版本：${metadata.schemaVersion}`);
   for (const field of ['releaseId', 'platform', 'contentVersion', 'createdAt']) {
     if (typeof metadata[field] !== 'string' || metadata[field].length === 0) {
       throw new Error(`发布清单缺少 ${field}`);
     }
+  }
+  // 清单同样只是自述：字段非空不等于它和当前源码一致。一并按 protocol.ts 核对，
+  // 免得一份写死的旧清单陪着旧二进制一起过关。
+  const source = readProtocol(root);
+  if (metadata.contentVersion !== source.contentVersion) {
+    throw new Error(`发布清单 contentVersion 与 shared/protocol.ts 不一致：${metadata.contentVersion} ≠ ${source.contentVersion}`);
+  }
+  if (metadata.protocolVersion !== source.protocolVersion) {
+    throw new Error(`发布清单 protocolVersion 与 shared/protocol.ts 不一致：${metadata.protocolVersion} ≠ ${source.protocolVersion}`);
   }
   if (!Number.isSafeInteger(metadata.protocolVersion) || metadata.protocolVersion <= 0) {
     throw new Error('发布清单 protocolVersion 无效');
@@ -140,6 +181,7 @@ function validateMetadata(metadata, candidate) {
   if (!exists(server) || !fs.statSync(server).isFile() || fs.statSync(server).size === 0) {
     throw new Error('候选服务端可执行文件不完整');
   }
+  assertServerBinaryContentVersion(root, server);
   return metadata;
 }
 
@@ -147,7 +189,7 @@ function validateCandidate(root, candidate = rootPaths(root).tmp) {
   if (!exists(candidate) || !fs.statSync(candidate).isDirectory()) throw new Error(`候选目录不存在：${candidate}`);
   const metadataFile = path.join(candidate, 'metadata.json');
   if (!exists(metadataFile) || !fs.statSync(metadataFile).isFile()) throw new Error('候选缺少 metadata.json');
-  return validateMetadata(readMetadata(metadataFile), candidate);
+  return validateMetadata(root, readMetadata(metadataFile), candidate);
 }
 
 function readProtocol(root) {
@@ -760,7 +802,7 @@ function finish(root, expectedReleaseId, rollback) {
 function validateCurrent(root) {
   const paths = rootPaths(root);
   if (!exists(path.join(paths.current, 'metadata.json'))) return null;
-  return validateMetadata(readMetadata(path.join(paths.current, 'metadata.json')), paths.current);
+  return validateMetadata(root, readMetadata(path.join(paths.current, 'metadata.json')), paths.current);
 }
 
 function usage() {
@@ -832,6 +874,8 @@ module.exports = {
   ITEM_NAMES,
   SCHEMA_VERSION,
   activate,
+  assertServerBinaryContentVersion,
+  embeddedContentVersions,
   assertNoRunningReferences,
   computeFingerprint,
   currentFresh,

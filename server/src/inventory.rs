@@ -84,8 +84,14 @@ fn catalog() -> &'static BTreeMap<String, ItemDefinition> {
 
 /// Whether the compile-time catalog itself carries the id (as opposed to the
 /// million-group fallback, which accepts source-shaped ids without a row).
+///
+/// 含骑宠与椅子（GM `/add` 走这里）：它们在源里不进掉落与商店，因此拿到手只能
+/// 靠发放，而「可发放」正是这一轮要验证的前提。**不动** `shipped_catalog_contains`
+/// ——图鉴与笔记本的可获得分母按那一份算，加进来会改分母。
 pub fn catalog_contains(item_id: &str) -> bool {
     catalog().contains_key(item_id)
+        || shipped_mounts().contains_key(item_id)
+        || shipped_chairs().contains_key(item_id)
 }
 
 /// Whether the **shipped** index carries the id, ignoring the test-only
@@ -103,6 +109,151 @@ fn item_definition(item_id: &str) -> Option<&'static ItemDefinition> {
     catalog().get(item_id)
 }
 
+// ---------------------------------------------------------------------------
+// 骑宠与椅子目录（第 30 / 31 项）
+//
+// 两张表与 `shared/pets.json` 同一先例：它们在源里是 `notSale:1 / only:1`，
+// 不进任何掉落或商店行，因此不在**可达性驱动**的 `items.json` 里（那份表同时是
+// 图鉴与笔记本的「可获得分母」，塞进去会改动分母）。这里与 `pet_catalog` 一样
+// 从发布产物直读，并在 `items.json` 未命中时回落。
+// ---------------------------------------------------------------------------
+
+/// 骑宠装备行（源 `Character/TamingMob/<8位id>.json` 的 `info`）。
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MountItemDefinition {
+    #[serde(default)]
+    info: BTreeMap<String, Value>,
+    /// 源坐骑档 `TamingMob/<n>.json/info` 的内联副本；缺席＝该件没有已核定的
+    /// 骑行数值（源引用了一个不存在的坐骑档），此时**不允许**骑乘。
+    #[serde(default)]
+    ride: Option<RideStats>,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// 源 `TamingMob/<n>.json/info` 的骑行数值。
+///
+/// `speed` / `jump` 是**百分比口径**（100 = 常规）：24 个坐骑档的 `swim` 全部为
+/// `100`，`speed` 取值 80..190、`jump` 85..120 也都以 100 为中枢，说明它们是相对
+/// 基准的倍率而不是像素速率；像素换算只发生在 `mounts::walk_speed` 一处。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub struct RideStats {
+    pub speed: i64,
+    pub jump: i64,
+    pub fs: i64,
+    pub swim: i64,
+    pub fatigue: i64,
+}
+
+#[derive(Deserialize)]
+struct MountCatalogFile {
+    items: BTreeMap<String, MountItemDefinition>,
+}
+
+/// 椅子行（源 `Item/Install/<分组>/<8位id>.json` 的 `info` 与 `String/Ins.json` 文案）。
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChairItemDefinition {
+    #[serde(default)]
+    info: BTreeMap<String, Value>,
+    #[serde(default)]
+    name: Option<String>,
+    /// 恢复间隔；**缺席**表示该椅子的间隔未核定（源 `info` 没有间隔字段，只有
+    /// 描述文案里写「每N秒」），调用方必须按「不恢复」处理（见 `chairs.rs`）。
+    #[serde(default)]
+    recovery_interval_ms: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct ChairCatalogFile {
+    items: BTreeMap<String, ChairItemDefinition>,
+}
+
+fn shipped_mounts() -> &'static BTreeMap<String, MountItemDefinition> {
+    static SHIPPED: OnceLock<BTreeMap<String, MountItemDefinition>> = OnceLock::new();
+    SHIPPED.get_or_init(|| {
+        serde_json::from_str::<MountCatalogFile>(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../shared/mounts.json"
+        )))
+        .expect("shared/mounts.json must be valid")
+        .items
+    })
+}
+
+fn shipped_chairs() -> &'static BTreeMap<String, ChairItemDefinition> {
+    static SHIPPED: OnceLock<BTreeMap<String, ChairItemDefinition>> = OnceLock::new();
+    SHIPPED.get_or_init(|| {
+        serde_json::from_str::<ChairCatalogFile>(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../shared/chairs.json"
+        )))
+        .expect("shared/chairs.json must be valid")
+        .items
+    })
+}
+
+/// 骑宠装备（源 `info.islot` 为 `Tm` / `Sd`）。
+///
+/// 判定只用源字段 `tamingMob`，**不用** `islot`、物品名或 id 段：`Tm` 槽同时被
+/// 機械師的引擎/手臂/腳/身軀/電晶體占用（`Character/Mechanic/0161200x`，同样
+/// `islot = Tm`），按 islot 判会把整套機械師装备误认成坐骑。
+///
+/// 现行源包下 `Sd` 槽 26 件**全部**不带 `tamingMob`（是「馬鞍」这类搭在坐骑上的
+/// 饰品），`Tm` 槽另有 21 件非坐骑（现金件）——它们一律返回 `false`，骑乘请求因此
+/// 拿到 `no_mount_equipped`，不会套默认速度。
+///
+/// 注意「有 `tamingMob`」与「真能骑」不是同一个数：`1932057` 的 `tamingMob = 16`
+/// 指向源里缺席的坐骑档，它**算**坐骑（本函数为 `true`，所以骑乘请求会被本模块
+/// 接手而不是落进通用使用路径），但 `ride_stats` 为 `None` ⇒ `resolve_mount` 取不到
+/// 数值，`mount_toggle` 回 `no_mount_equipped`。888 / 887 的差就是这一件。
+pub fn is_mount_item(item_id: &str) -> bool {
+    mount_taming_mob(item_id).is_some()
+}
+
+/// 骑宠的已核定骑行数值。缺席＝源里没有可依的坐骑档，此时不骑，而不是套默认值。
+pub fn ride_stats(item_id: &str) -> Option<RideStats> {
+    shipped_mounts().get(item_id).and_then(|mount| mount.ride)
+}
+
+/// 骑宠指向的源坐骑档 id（`info.tamingMob`）。
+pub fn mount_taming_mob(item_id: &str) -> Option<i64> {
+    shipped_mounts()
+        .get(item_id)
+        .and_then(|mount| value_i64(mount.info.get("tamingMob")))
+        .filter(|taming_mob| *taming_mob > 0)
+}
+
+/// 设置栏物品（`inventoryType 3`）里可坐的那一件：源里带恢复量的椅子。
+pub fn is_chair_item(item_id: &str) -> bool {
+    chair_definition(item_id).is_some()
+}
+
+fn chair_definition(item_id: &str) -> Option<&'static ChairItemDefinition> {
+    shipped_chairs().get(item_id).filter(|chair| {
+        info_i64_of(&chair.info, "recoveryHP").unwrap_or(0) > 0
+            || info_i64_of(&chair.info, "recoveryMP").unwrap_or(0) > 0
+    })
+}
+
+/// 坐姿的恢复量与间隔。`interval_ms` 为 `None` ＝ 源文案没写「每N秒」⇒ 间隔未核定，
+/// 调用方必须**不恢复**（见 `chairs.rs`）。
+pub fn chair_recovery(item_id: &str) -> Option<(i64, i64, Option<i64>)> {
+    let chair = chair_definition(item_id)?;
+    Some((
+        info_i64_of(&chair.info, "recoveryHP").unwrap_or(0),
+        info_i64_of(&chair.info, "recoveryMP").unwrap_or(0),
+        chair.recovery_interval_ms,
+    ))
+}
+
+/// `info` 是**已经读进来**的平表；不能借 `info_i64(item_id, key)`——那个函数查的是
+/// `items.json`，而骑宠/椅子根本不在那份表里。
+fn info_i64_of(info: &BTreeMap<String, Value>, key: &str) -> Option<i64> {
+    value_i64(info.get(key))
+}
+
 /// The source display name of one item, or `None` when the index carries no
 /// name for it.
 ///
@@ -114,6 +265,21 @@ pub fn item_name(item_id: &str) -> Option<&'static str> {
         .get(item_id)
         .and_then(|item| item.name.as_deref())
         .filter(|name| !name.is_empty())
+        // 骑宠与椅子不在 items.json（不可达驱动的表，见 `shipped_mounts` 的注释），
+        // 但它们的名字是源 `String/Eqp.json` / `String/Ins.json` 的实值，
+        // 图鉴与 GM 回执都要用；回落顺序与客户端 `itemName` 逐字同序。
+        .or_else(|| {
+            shipped_mounts()
+                .get(item_id)
+                .and_then(|mount| mount.name.as_deref())
+                .filter(|name| !name.is_empty())
+        })
+        .or_else(|| {
+            shipped_chairs()
+                .get(item_id)
+                .and_then(|chair| chair.name.as_deref())
+                .filter(|name| !name.is_empty())
+        })
 }
 
 /// One TMS273 pet row (`shared/pets.json`, generated by
@@ -745,8 +911,8 @@ pub fn is_rechargeable(item_id: &str) -> bool {
 }
 
 pub fn is_drop_restricted(item_id: &str) -> bool {
-    info_i64(item_id, "tradeBlock").unwrap_or(0) != 0
-        || info_i64(item_id, "dropBlock").unwrap_or(0) != 0
+    catalog_info_i64(item_id, "tradeBlock").unwrap_or(0) != 0
+        || catalog_info_i64(item_id, "dropBlock").unwrap_or(0) != 0
 }
 
 pub fn consume_on_pickup(item_id: &str) -> bool {
@@ -754,7 +920,26 @@ pub fn consume_on_pickup(item_id: &str) -> bool {
 }
 
 pub fn is_only(item_id: &str) -> bool {
-    info_i64(item_id, "only").unwrap_or(0) != 0
+    catalog_info_i64(item_id, "only").unwrap_or(0) != 0
+}
+
+/// `info` 字段的统一读取口径：`items.json` → 骑宠 → 椅子。
+///
+/// 三张表都是源目录、同名字段同一含义；少了这一层，`is_only` 与
+/// `is_drop_restricted` 会对着骑宠/椅子读空——而 `only:1 / tradeBlock:1` 就在源里
+/// 写着——于是同一件东西会在「能不能再拿一份、能不能丢」上给出与源相反的答案。
+fn catalog_info_i64(item_id: &str, key: &str) -> Option<i64> {
+    info_i64(item_id, key)
+        .or_else(|| {
+            shipped_mounts()
+                .get(item_id)
+                .and_then(|mount| info_i64_of(&mount.info, key))
+        })
+        .or_else(|| {
+            shipped_chairs()
+                .get(item_id)
+                .and_then(|chair| info_i64_of(&chair.info, key))
+        })
 }
 
 /// The TMS273 slot-expansion coupon family.  `info.slotExpand` names the tab a
@@ -775,10 +960,20 @@ pub fn slot_expand_target(item_id: &str) -> Option<u8> {
 
 /// The source's `EquipSlot` values, kept as the negative slots used by the
 /// inventory protocol for an equipped item.
+///
+/// 骑宠的 `islot` 只在 `mounts.json` 里（它们不在 `items.json`），因此这里多一层
+/// **查找回落**。回落**不新建槽位口径**：`Tm`/`Sd` 仍在下面这同一张 match 里解析，
+/// 与 `1612000` 这类从 `items.json` 走进来的機械師部件共用同一句。
 pub fn equipment_slot(item_id: &str) -> Option<i16> {
     let slot = item_definition(item_id)
         .and_then(|item| item.info.get("islot"))
-        .and_then(Value::as_str)?;
+        .and_then(Value::as_str)
+        .or_else(|| {
+            shipped_mounts()
+                .get(item_id)
+                .and_then(|mount| mount.info.get("islot"))
+                .and_then(Value::as_str)
+        })?;
     let slot = match slot {
         "Cp" | "HrCp" => -1,
         "Af" => -2,
@@ -861,6 +1056,12 @@ pub enum InventoryError {
     RequirementsNotMet,
     LegendarySpiritRequired,
     SlotExpandMax,
+    /// 骑乘与坐姿是**会话状态**：没有可落库的字段，因此不存在「持久化事务里的
+    /// 使用分支」。世界侧在事务之前就拦截并答复（`inventory_ops.rs`），走到这里
+    /// 说明有调用方绕过了世界侧——此时必须回一个**具名**结果：末尾那个
+    /// `InvalidInventoryType` 的含义是「栏位非法」，而设置栏(3)与装备槽(−18/−19)
+    /// 都是合法栏位，用它回答等于把合法说成非法。
+    SessionStateOnly,
 }
 
 impl InventoryError {
@@ -880,6 +1081,7 @@ impl InventoryError {
             Self::RequirementsNotMet => "requirements_not_met",
             Self::LegendarySpiritRequired => "legendary_spirit_required",
             Self::SlotExpandMax => "slot_expand_max",
+            Self::SessionStateOnly => "session_state_only",
         }
     }
 }

@@ -235,6 +235,9 @@ export class InventoryView {
       },
       announceSelection: item => this.status(this.t('已选择装备 ' + this.itemLabel(item), 'Selected equipment ' + this.itemLabel(item))),
       unequip: item => this.unequip(item),
+      // 骑乘入口：双击已装备的骑宠由 `EquipmentView::onSlotActivate` 判出来，
+      // 这里只把它接回既有的 useItem 通道（负槽号＝已装备），不另开消息类型。
+      useItem: (sourceTab, sourceSlot, item) => this.submitUseItem(sourceTab, sourceSlot, item),
       onCloseRequest: () => this.closeEquipment(),
       drag: this.drag,
       tooltips: this.tooltips,
@@ -699,7 +702,14 @@ export class InventoryView {
       message.code === 'map_move' ||
       // A slot-expansion coupon reports its own outcome; the authoritative new
       // capacity arrives with the next snapshot, so this is a notice.
-      message.code === 'slot_expand'
+      message.code === 'slot_expand' ||
+      // 骑乘/坐姿的开关**方向**只有服务端知道（它自己判定是骑上还是下马、
+      // 坐下还是起身），所以由服务端在回执里点名结果，客户端照译，不从
+      // 「我这次点击是不是开了」反推。
+      message.code === 'mount_on' ||
+      message.code === 'mount_off' ||
+      message.code === 'chair_sit' ||
+      message.code === 'chair_stand'
     ) {
       this.status(protocolText(message.code, message.code));
       return;

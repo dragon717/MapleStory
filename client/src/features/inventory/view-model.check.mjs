@@ -8,16 +8,19 @@ import ts from 'typescript';
 
 const compile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 
-// view-model 运行期只依赖 names.ts（而 names 依赖 i18n 与 items.json），
-// 按 dialogue.check 的方式装进同一模块图：i18n 打桩、items.json 保真。
-const itemsJson = await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8');
-const itemsUrl = `data:application/json;base64,${Buffer.from(itemsJson).toString('base64')}`;
-const petsJson = await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8');
-const petsUrl = `data:application/json;base64,${Buffer.from(petsJson).toString('base64')}`;
-const namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
-  .replace(/import .* from '..\/..\/app\/i18n';/, "const uiLocale = () => 'zh', uiText = x => x, displayText = x => x;")
-  .replace(/^import catalog from '.*items\.json';$/m, `import catalog from ${JSON.stringify(itemsUrl)} with { type: 'json' };`)
-  .replace(/^import petCatalog from '.*pets\.json';$/m, `import petCatalog from ${JSON.stringify(petsUrl)} with { type: 'json' };`);
+// view-model 运行期只依赖 names.ts（而 names 依赖 i18n 与 shared/ 下的四张表），
+// 按 dialogue.check 的方式装进同一模块图：i18n 打桩、四张表保真。
+// **按实际导入逐个**换：新加一张表时若忘了换，这里会以
+// ERR_UNSUPPORTED_RESOLVE_REQUEST 整块炸掉（响亮），而不是静默漏掉一层回落。
+const namesSource = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'));
+const sharedJson = [...new Set([...namesSource.matchAll(/from '\.\.\/\.\.\/\.\.\/\.\.\/shared\/([\w.-]+\.json)'/g)].map(match => match[1]))];
+assert(sharedJson.length >= 4, `names.ts 的 shared/*.json 导入只认出 ${sharedJson.length} 张，装载器可能失效了`);
+let namesCode = namesSource.replace(/import .* from '..\/..\/app\/i18n';/, "const uiLocale = () => 'zh', uiText = x => x, displayText = x => x;");
+for (const file of sharedJson) {
+  const text = await readFile(new URL(`../../../../shared/${file}`, import.meta.url), 'utf8');
+  const url = `data:application/json;base64,${Buffer.from(text).toString('base64')}`;
+  namesCode = namesCode.replaceAll(`from '../../../../shared/${file}'`, `from '${url}' with { type: 'json' }`);
+}
 const namesUrl = `data:text/javascript;base64,${Buffer.from(namesCode).toString('base64')}`;
 
 const code = compile(await readFile(new URL('./view-model.ts', import.meta.url), 'utf8'))

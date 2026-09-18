@@ -22,6 +22,10 @@ import { itemName } from '../features/inventory/names';
 import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
 import { AwayNoticeView } from '../features/notice/away';
+import { MountStatusView } from '../features/mounts/view';
+import '../features/mounts/style.css';
+import { ChairStatusView } from '../features/chairs/view';
+import '../features/chairs/style.css';
 import { MenuView } from '../features/menu/view';
 import { ActivitiesView } from '../features/windbell/activities';
 import { NpcDialogueView } from '../features/npc/dialogue';
@@ -60,6 +64,8 @@ let inventory: InventoryView | undefined;
 let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
 let awayNotice: AwayNoticeView | undefined;
+let mountStatus: MountStatusView | undefined;
+let chairStatus: ChairStatusView | undefined;
 let menus: MenuView | undefined;
 let activities: ActivitiesView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
@@ -322,6 +328,13 @@ async function enterGame(session: LoginResponse) {
       // keeping it resident, then the entry flow reopens at char select.
       returnToEntry('characters');
     }, message => status(message));
+    // 骑乘与坐姿的状态标记。两者都挂在 `#notices`（死亡提示与暂离横幅的同一个容器），
+    // 都是**纯文字**：骑宠与椅子的贴图本轮未抽取，源装备窗也没有坐骑槽可依，
+    // 因此不发明坐标，只显示服务端事实（见 F/mounts/README.md 的入口说明）。
+    mountStatus?.destroy();
+    mountStatus = new MountStatusView(el('notices'), message => status(message), request => connection?.send(request) ?? false);
+    chairStatus?.destroy();
+    chairStatus = new ChairStatusView(el('notices'));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => world?.selectNpc(null));
     storage?.destroy();
@@ -488,7 +501,7 @@ async function enterGame(session: LoginResponse) {
       // `isLoaded` flipped true; when the snapshot beat the textures, this
       // is the side that finishes last and performs the reveal.
       if (!error) revealGame();
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
@@ -749,6 +762,10 @@ async function enterGame(session: LoginResponse) {
         petPanel?.update(self);
         deathNotice?.update(self);
         awayNotice?.update(self);
+        // 骑乘/坐姿标记紧邻 petPanel：两者都是「快照里有没有那个字段」的投影，
+        // 不参与任何窗口生命周期，也不需要开合状态。
+        mountStatus?.update(self);
+        chairStatus?.update(self);
         if (self) npcDialogue?.syncPlayer(self);
         // The cash shop's readout mirrors the authoritative wallet between
         // cashState pushes.
@@ -816,7 +833,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => world?.nearestDropId() ?? null,
@@ -868,7 +885,7 @@ function leaveGame(logout = false) {
   keyRouterDispose?.(); keyRouterDispose = undefined;
   keybindingsDispose?.(); keybindingsDispose = undefined;
   keybindingsView?.destroy(); keybindingsView = undefined;
-  generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; notebook?.destroy(); notebook = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
+  generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; mountStatus?.destroy(); mountStatus = undefined; chairStatus?.destroy(); chairStatus = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; notebook?.destroy(); notebook = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }
 function castSkill(skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1): string | undefined {

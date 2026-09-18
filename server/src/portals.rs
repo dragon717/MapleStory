@@ -136,6 +136,9 @@ impl World {
         player.attack_until = 0;
         player.meditation_until = 0;
         player.meditation_mad = 0;
+        // 换图即结束骑乘与坐姿：两者都挂在「当前这块地」的实物上。
+        player.mount = None;
+        player.chair = None;
         clear_beginner_buffs(player);
         player.ice_teleport_enabled = false;
         player.ice_fields.clear();
@@ -326,6 +329,11 @@ impl World {
         candidate.knockback_until = 0;
         candidate.meditation_until = 0;
         candidate.meditation_mad = 0;
+        // 这一处是所有程序性换图的**唯一**落点（门、大地图、卷轴、脚本传送、
+        // 飞船到站、复活），因此骑乘与坐姿在这里一次收干净：`Player` 是整份替换的，
+        // 少清一处就会把上一张图的坐骑带过图（源里换图一律下马/起立）。
+        candidate.mount = None;
+        candidate.chair = None;
         clear_beginner_buffs(&mut candidate);
         candidate.ice_teleport_enabled = false;
         candidate.ice_fields.clear();

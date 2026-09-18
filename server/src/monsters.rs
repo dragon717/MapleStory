@@ -854,6 +854,11 @@ impl World {
             player.summon = None;
             player.knockback_vx = 0.0;
             player.knockback_until = 0;
+            // 死亡即下马、即起立（这里是唯一能当场收口的地方：`player` 已经是
+            // `&mut` 借用，`self.dismount(&id)` 会撞借用检查器）。死后的快照因此
+            // 不会再带着 `mount` / `chair`，客户端不需要靠 action 反推。
+            player.mount = None;
+            player.chair = None;
             refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         } else {
             if snapshot.6 != Some(SKILL_HYPER_THUNDER) {
@@ -981,6 +986,11 @@ impl World {
                     // the ballistic arc and stands the player again on landing;
                     // clients render the white flash from the damage event below
                     // and follow the authoritative position from snapshots.
+                    //
+                    // 受击同时结束骑乘与坐姿：击退把身体抛出立足点，两者都挂在
+                    // 「站着/骑着的那块地」上（专题文档的结束条件矩阵）。
+                    mounts::dismount(player, self.tick, "contact_hit");
+                    chairs::stand_up(player, self.tick, "contact_hit");
                     player.attack_until = 0;
                     player.state.action_id = None;
                     if player.state.climbing {

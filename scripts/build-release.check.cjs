@@ -22,13 +22,15 @@ function write(file, value) {
   fs.writeFileSync(file, value, 'utf8');
 }
 
+const CHECK_CONTENT_VERSION = 'tms273-1';
+
 function metadata(id) {
   return {
     schemaVersion: 1,
     releaseId: id,
     platform: 'check',
     protocolVersion: 1,
-    contentVersion: 'check',
+    contentVersion: CHECK_CONTENT_VERSION,
     createdAt: new Date(0).toISOString(),
     clientPath: 'client',
     serverPath: 'server/maplestory-server',
@@ -38,7 +40,9 @@ function metadata(id) {
 function putRelease(root, slot, id) {
   const dir = path.join(root, 'build', slot);
   write(path.join(dir, 'client', 'index.html'), `<html>${id}</html>\n`);
-  write(path.join(dir, 'server', 'maplestory-server'), `server ${id}\n`);
+  // 服务端"二进制"里必须真的内嵌那个内容版本：发布清单是自述的，
+  // 校验读的是这颗文件本身（见 build-release.cjs 的 assertServerBinaryContentVersion）。
+  write(path.join(dir, 'server', 'maplestory-server'), `server ${id} ${CHECK_CONTENT_VERSION}\n`);
   write(path.join(dir, 'metadata.json'), `${JSON.stringify(metadata(id))}\n`);
 }
 
@@ -57,10 +61,14 @@ function assertOnlyVersionItems(root, slot) {
 }
 
 function main() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maple-release-check-'));
-  try {
-    const paths = rootPaths(root);
-    putRelease(root, 'current', 'r1');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maple-release-check-'));
+    try {
+      const paths = rootPaths(root);
+      // 校验按 shared/protocol.ts 核对清单与二进制，所以夹具得自带一份，
+      // 且与上面 CHECK_CONTENT_VERSION 一致。
+      write(path.join(root, 'shared', 'protocol.ts'),
+        `export const PROTOCOL_VERSION = 1;\nexport const CONTENT_VERSION = '${CHECK_CONTENT_VERSION}';\n`);
+      putRelease(root, 'current', 'r1');
     fs.mkdirSync(path.join(paths.current, 'packages', 'windows'), { recursive: true });
     write(path.join(paths.current, 'packages', 'windows', 'r1.zip'), 'package r1');
 

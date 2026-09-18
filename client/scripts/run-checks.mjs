@@ -35,6 +35,8 @@ const checks = [
   ['features/inventory/tooltip-view.check.mjs', []],
   ['features/inventory/drag-controller.check.mjs', []],
   ['features/inventory/equipment-view.check.mjs', []],
+  ['features/mounts/model.check.mjs', []],
+  ['features/chairs/model.check.mjs', []],
   ['network/session.check.mjs', []],
   ['features/npc/dialogue.check.mjs', []],
   ['features/skills/view.check.mjs', []],

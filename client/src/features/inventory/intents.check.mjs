@@ -12,17 +12,23 @@ import ts from 'typescript';
 const compile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const b64 = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
 
-// ---- 依赖装载：i18n → items.json → names → view-model → intents ----
+// ---- 依赖装载：i18n → shared/*.json → names → view-model → intents ----
 globalThis.window = { location: { search: '' }, prompt: () => null };
 const i18nCode = compile(await readFile(new URL('../../app/i18n.ts', import.meta.url), 'utf8'))
   .replace("import OpenCC from 'opencc-js/t2cn';", 'const OpenCC = { Converter: () => text => text };');
 const i18nUrl = b64(i18nCode);
-const itemsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/items.json', import.meta.url), 'utf8')).toString('base64')}`;
-const petsUrl = `data:application/json;base64,${Buffer.from(await readFile(new URL('../../../../shared/pets.json', import.meta.url), 'utf8')).toString('base64')}`;
-const namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
-  .replaceAll("from '../../app/i18n'", `from '${i18nUrl}'`)
-  .replaceAll("from '../../../../shared/items.json'", `from '${itemsUrl}' with { type: 'json' }`)
-  .replaceAll("from '../../../../shared/pets.json'", `from '${petsUrl}' with { type: 'json' }`);
+// names.ts 依赖 shared/ 下的四张表。**按实际导入逐个**换成 data: URL 并补上
+// Node ESM 要的 json 导入属性 —— 新加一张表时若忘了换，这里会以
+// ERR_UNSUPPORTED_RESOLVE_REQUEST 整块炸掉（响亮），而不是静默漏掉一层回落。
+let namesCode = compile(await readFile(new URL('./names.ts', import.meta.url), 'utf8'))
+  .replaceAll("from '../../app/i18n'", `from '${i18nUrl}'`);
+const sharedJson = [...new Set([...namesCode.matchAll(/from '\.\.\/\.\.\/\.\.\/\.\.\/shared\/([\w.-]+\.json)'/g)].map(match => match[1]))];
+assert(sharedJson.length >= 4, `names.ts 的 shared/*.json 导入只认出 ${sharedJson.length} 张，装载器可能失效了`);
+for (const file of sharedJson) {
+  // JSON 必须是 application/json：Node 的 `with { type: 'json' }` 会校验 MIME。
+  const url = `data:application/json;base64,${Buffer.from(await readFile(new URL(`../../../../shared/${file}`, import.meta.url), 'utf8')).toString('base64')}`;
+  namesCode = namesCode.replaceAll(`from '../../../../shared/${file}'`, `from '${url}' with { type: 'json' }`);
+}
 const namesUrl = b64(namesCode);
 const viewModelCode = compile(await readFile(new URL('./view-model.ts', import.meta.url), 'utf8'))
   .replaceAll("from './names'", `from '${namesUrl}'`);

@@ -33,6 +33,14 @@ const DEFAULT_SOURCES = Object.freeze({
   shoes: SHOES,
 });
 
+// [导出动作 key, 源动作名, 选项]。角色坐姿来自**角色自身**的部件帧，不是椅子贴图：
+//   Character/00002000.img/sit    1 帧（body/arm/face，**无 delay**）
+//   Character/00012000.img/sit    1 帧（head）
+//   Character/{Cap,Longcoat,Coat,Hair}/<id>.img/sit   1 帧
+//   Character/Weapon/<id>.img 与 Face/00020000.img   **没有** sit
+//     ⇒ `leavesFor` 跳过缺失层（既有行为），整段动作仍成立，不破图。
+// 静态单帧动作源里没有 delay，导出写 0 并由客户端 `frameAt` 短路为第 0 帧
+// （否则 duration=0 会让 `elapsed % 0` 得到 NaN）。
 const ACTIONS = [
   ['stand', 'stand1'],
   ['walk', 'walk1'],
@@ -40,6 +48,7 @@ const ACTIONS = [
   ['attack', 'swingO1'],
   ['ladder', 'ladder'],
   ['rope', 'rope'],
+  ['sit', 'sit', { static: true }],
 ];
 
 // These are the four item ids accepted by PlayerView.  The twelve keys below
@@ -450,10 +459,18 @@ async function actionFrames(action, sourceAction, selected, starter, options = {
   const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
   const bodyFrames = numeric(actionNode);
   assert(bodyFrames.length, `273 body has no ${sourceAction} frames`);
+  // 静态动作必须是**单帧**：多帧却没有 delay 的话，`frameAt` 会停在第 0 帧，
+  // 后面的帧永远不显示。所以这里不是"放宽断言"，而是换一条更强的断言。
+  if (options.static) {
+    assert(bodyFrames.length === 1, `273 static action ${sourceAction} must have exactly one frame`);
+  }
   const result = [];
   for (const bodyFrame of bodyFrames) {
     const delay = Number(value(bodyFrame, 'delay', 0));
-    assert(Number.isFinite(delay) && delay > 0, `273 body ${sourceAction}/${bodyFrame.name} has no positive delay`);
+    assert(
+      options.static ? Number.isFinite(delay) && delay >= 0 : Number.isFinite(delay) && delay > 0,
+      `273 body ${sourceAction}/${bodyFrame.name} has no ${options.static ? 'valid' : 'positive'} delay`,
+    );
     result.push(await buildAction(action, sourceAction, bodyFrame, selected, starter, options));
   }
   return result;
@@ -474,12 +491,17 @@ async function actionSet(selected, starter, options = {}) {
   const actions = {};
   const actionSources = {};
   const bodySource = options.sources?.body || BODY;
-  for (const [action, sourceAction] of [...ACTIONS, ...(options.appearanceVariants ? [['stand2', 'stand2'], ['walk2', 'walk2']] : [])]) {
+  for (const [action, sourceAction, actionOptions] of [...ACTIONS, ...(options.appearanceVariants ? [['stand2', 'stand2'], ['walk2', 'walk2']] : [])]) {
     const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
     const frames = numeric(actionNode);
     const delays = frames.map(frame => Number(value(frame, 'delay', 0)));
-    assert(frames.length && delays.every(delay => Number.isFinite(delay) && delay > 0), `273 action ${sourceAction} delay data invalid`);
-    actions[action] = await actionFrames(action, sourceAction, selected, starter, options);
+    assert(frames.length, `273 action ${sourceAction} has no frames`);
+    assert(delays.every(delay => Number.isFinite(delay) && delay >= 0), `273 action ${sourceAction} delay data invalid`);
+    // 单帧静态动作（源 `sit`）可以没有 delay；**多帧动作必须每一帧都有正 delay**，
+    // 否则会出现"某帧永不显示"的静默缺陷。
+    assert(frames.length === 1 || delays.every(delay => delay > 0), `273 action ${sourceAction} has a non-positive delay`);
+    const merged = { ...options, ...(actionOptions ?? {}) };
+    actions[action] = await actionFrames(action, sourceAction, selected, starter, merged);
     actionSources[action] = { sourceAction, frameCount: frames.length, delays };
   }
   return { actions, actionSources };
