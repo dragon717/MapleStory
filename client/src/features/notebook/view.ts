@@ -466,6 +466,7 @@ export class NotebookView {
     return {
       directory,
       manifest: this.manifest,
+      section: this.section,
       rows: snapshot?.rows ?? [],
       selectedKey: this.selection?.row.key,
       onSelect: (row, slotKey) => this.select(row, slotKey),
@@ -764,6 +765,10 @@ export class NotebookView {
     this.detail.append(heading);
 
     const lines: string[] = [];
+    // 配置 ID 先说：名字在源里可能根本不存在（骑宠 935 件里 840 件没有名字），
+    // 只有源 id 与坐骑档是稳定的。
+    const configId = slot ? slot.monsterTemplateId : (row.itemId ?? row.key);
+    if (configId) lines.push(`${uiText('notebookConfigId', '配置 ID')}：${configId}`);
     if (slot) {
       lines.push(slot.registered
         ? uiText('notebookRegistered', '已登记')
@@ -779,6 +784,29 @@ export class NotebookView {
     } else {
       lines.push(row.obtained ? uiText('notebookObtained', '已获得') : uiText('notebookNotObtained', '未获得'));
       const itemId = row.itemId ?? row.key;
+      // 骑宠额外报出它指向的坐骑档（`info.tamingMob`）：同一档坐骑共一套骑行数值，
+      // 查源与核对骑行都要靠它。源里没有这一档就如实说没有。
+      const mount = this.directory?.mounts?.[itemId];
+      if (mount) {
+        lines.push(`${uiText('notebookMountTier', '坐骑档')}：${mount.tamingMob === null
+          ? uiText('notebookMountTierMissing', '源未提供')
+          : mount.tamingMob}`);
+      }
+      // 椅子额外报出恢复量与间隔：源只在描述里写明「每 N 秒」时才有间隔，
+      // 没写就是未核定，不能替源编一个 10 秒出来。
+      const chair = this.directory?.chairs?.[itemId];
+      if (chair) {
+        const amounts = [
+          chair.recoveryHP === null ? '' : `HP ${chair.recoveryHP}`,
+          chair.recoveryMP === null ? '' : `MP ${chair.recoveryMP}`,
+        ].filter(Boolean).join(' / ');
+        const recovery = amounts
+          ? (chair.recoveryIntervalMs === null
+            ? `${amounts}（${uiText('notebookChairIntervalUnverified', '间隔未核定')}）`
+            : `${amounts}（每 ${Math.round(chair.recoveryIntervalMs / 1000)} 秒）`)
+          : uiText('notebookChairRecoveryMissing', '源未提供');
+        lines.push(`${uiText('notebookChairRecovery', '恢复')}：${recovery}`);
+      }
       const info = itemDetails(itemId);
       if (info) lines.push(info);
       if (row.firstRecordMs !== undefined && !row.timeUnknown) {

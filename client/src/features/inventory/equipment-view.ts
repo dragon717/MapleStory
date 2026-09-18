@@ -238,6 +238,7 @@ export class EquipmentView {
       this.host.tooltips.noteAnchorEnter();
       const item = this.host.equippedItemAt(slotNumber);
       if (item) this.host.tooltips.showForItem(item, button);
+      else this.host.tooltips.hide();
     });
     button.addEventListener('pointermove', () => this.host.tooltips.position(button));
     button.addEventListener('pointerleave', () => this.host.tooltips.noteAnchorLeave());
@@ -245,6 +246,7 @@ export class EquipmentView {
       this.host.tooltips.noteAnchorFocus();
       const item = this.host.equippedItemAt(slotNumber);
       if (item) this.host.tooltips.showForItem(item, button);
+      else this.host.tooltips.hide();
     });
     button.addEventListener('blur', () => this.host.tooltips.noteAnchorBlur());
     this.host.drag.bindEquipmentSlot(button, slotNumber);

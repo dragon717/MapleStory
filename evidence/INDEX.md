@@ -33,5 +33,6 @@
 | [`2026-09-12/runtime-recovery/`](2026-09-12/runtime-recovery/) | runtime-recovery | 主代理从 `3010-control/` 整理 | 8 |
 | [2026-09-12/retired-runtime/](2026-09-12/retired-runtime/) | 已退出服务的历史日志与 PID | 原 output/ | 4 |
 | [2026-09-12/refactor-recovery/](2026-09-12/refactor-recovery/) | 一次性重构脚本恢复证据 | 原 artifacts/refactor/ | 1 |
+| [`2026-09-19/notebook-ui/`](2026-09-19/notebook-ui/) | notebook-ui 冒险笔记六页签（新增骑宠页、椅子页）与配置 ID 标签的离线样张与对比度/命中测试 | `scripts/check_tms273_notebook_ui.mjs`；四尺寸样张含 `mount-1440x900.png`、`chair-1440x900.png` | 13 |
 
 本批共归档 3,058 个证据文件；`output/wcr2-Calculator.cs` 与 `output/wcr2-SummaryParser.cs` 是纯源码研究工具，已移至 `scripts/research/`，见迁移映射 [directory-migration/moves.json](2026-09-12/directory-migration/moves.json)。残余旧日志/PID 归入 `2026-09-12/retired-runtime/`，夹具资产链接已按新目录重建；无运行引用的旧研究构建已清理，`output/` 已移除。本批未处理 `bugfix/*.md`，其归档由文档代理负责。运行态与恢复快照由主代理处理，数据库快照未删除。

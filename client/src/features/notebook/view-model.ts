@@ -11,11 +11,13 @@ import type {
   NotebookRowDefinition,
 } from './directory';
 
-/** 四个页签。索引顺序就是窗口上的顺序。 */
+/** 六个页签。索引顺序就是窗口上的顺序。 */
 export const NOTEBOOK_TABS: readonly { section: NotebookSection; key: string }[] = [
   { section: 'monster', key: 'notebookTabMonster' },
   { section: 'equipment', key: 'notebookTabEquipment' },
   { section: 'use', key: 'notebookTabUse' },
+  { section: 'mount', key: 'notebookTabMount' },
+  { section: 'chair', key: 'notebookTabChair' },
   { section: 'quest', key: 'notebookTabQuest' },
 ] as const;
 
@@ -23,13 +25,28 @@ export const NOTEBOOK_TABS: readonly { section: NotebookSection; key: string }[]
 export const BROWSE_MODES = ['available', 'obtained', 'missing', 'all'] as const;
 export type BrowseMode = typeof BROWSE_MODES[number];
 
+/** 骑宠页没有「当前可获得」：源把每件骑宠标成 `notSale / only`，本版本没有一条
+ *  开放的获取途径，按它过滤会得到空页——读起来像「本版本没有坐骑」。骑宠页的
+ *  基集合是整张坐骑表，浏览方式只在「全部 / 已获得 / 未获得」之间切换。 */
+export const MOUNT_MODES = ['all', 'obtained', 'missing'] as const;
+
+/** 椅子页同样不给「当前可获得」：源把椅子整族排除在掉落与商店之外，2799 件里
+ *  真进商店的是个位数，按它过滤会得到一个几乎空页——读起来像「本版本没有椅子」。
+ *  椅子页的基集合是整张椅子表，浏览方式只在「全部 / 已获得 / 未获得」之间切换；
+ *  服务端仍认得 `available`（会如实筛出那几件），只是界面不给这一档。 */
+export const CHAIR_MODES = ['all', 'obtained', 'missing'] as const;
+
 /** 任务页没有「未获得」开关：未获得的条目根本不在服务器给的行里（计划 §6.3）。 */
 export function browseModesFor(section: NotebookSection): readonly BrowseMode[] {
-  return section === 'quest' ? ['all'] : BROWSE_MODES;
+  if (section === 'quest') return ['all'];
+  if (section === 'mount') return MOUNT_MODES;
+  return section === 'chair' ? CHAIR_MODES : BROWSE_MODES;
 }
 
 export function defaultModeFor(section: NotebookSection): BrowseMode {
-  return 'available';
+  // 骑宠页与椅子页默认「全部」：它们的基集合是整张表，而「当前可获得」那
+  // 一档要么为空（骑宠）、要么只有个位数（椅子），默认落在上面等于空页。
+  return section === 'mount' || section === 'chair' ? 'all' : 'available';
 }
 
 /** 地区按**数值**地区 id 升序（源的键是字符串，字典序会把 10 排在 2 前面）。 */

@@ -1466,6 +1466,73 @@ pub(super) fn insert_inventory_action(
     Ok(())
 }
 
+/// 唯一道具（`info.only`）已持有的位置。
+///
+/// 三处都算「拥有一份」：背包里躺着、身上装备着、收进了怪物图鉴卡册。这个
+/// 枚举是 **拒绝** 与 **回执** 的共同依据——`add_inventory_tx` 只问「有没有」，
+/// GM 回执要说「在哪儿」；两者必须由同一条判据回答，否则就会出现「拒绝说已
+/// 拥有、回执却指不出位置」的第二套口径（2026-09-18：`/add 1902000` 被拒后
+/// 只回「道具发放失败」，GM 无从判断角色其实已经骑着那头野豬）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OnlyHeld {
+    /// 背包：`inventory_type` 号页签的 `slot` 格。
+    Inventory { inventory_type: u8, slot: u16 },
+    /// 装备栏的负槽位（`−18` 骑宠槽、`−19` 鞍槽）。
+    Equipped { slot: i16 },
+    /// 怪物图鉴卡册（饱和语义，进册即消耗，不占背包格）。
+    MonsterBook,
+}
+
+/// 唯一道具的持有判据——**全仓唯一一处** `only` 冲突查询。
+///
+/// 顺序固定为「背包 → 装备栏 → 图鉴」，先命中的那一处就是回执要报的位置，
+/// 所以「被拒」与「报位置」永远同指一处，不会出现两处各查一遍的漂移。
+pub fn only_item_holder(
+    db: &rusqlite::Connection,
+    account_id: &str,
+    item_id: &str,
+) -> Result<Option<OnlyHeld>, String> {
+    let bag = db
+        .query_row(
+            "SELECT inventory_type,slot FROM inventory
+             WHERE account_id=?1 AND item_id=?2 AND quantity>0 LIMIT 1",
+            params![account_id, item_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())?;
+    if let Some((kind, slot)) = bag {
+        return Ok(Some(OnlyHeld::Inventory {
+            inventory_type: u8::try_from(kind).unwrap_or(0),
+            slot: u16::try_from(slot).unwrap_or(0),
+        }));
+    }
+    let worn = db
+        .query_row(
+            "SELECT slot FROM equipped
+             WHERE account_id=?1 AND item_id=?2 AND quantity>0 LIMIT 1",
+            params![account_id, item_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())?;
+    if let Some(slot) = worn {
+        return Ok(Some(OnlyHeld::Equipped {
+            slot: i16::try_from(slot).unwrap_or(0),
+        }));
+    }
+    let carded = db
+        .query_row(
+            "SELECT 1 FROM monster_book_cards
+             WHERE account_id=?1 AND item_id=?2 AND quantity>0 LIMIT 1",
+            params![account_id, item_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map_err(|_| "account persistence failed".to_owned())?;
+    Ok(carded.map(|_| OnlyHeld::MonsterBook))
+}
+
 /// Add a normal item to the first matching stack, or the first empty regular
 /// inventory slot.  The caller owns the surrounding transaction so a failed
 /// full/overflow result leaves both the item and its source drop untouched.
@@ -1484,21 +1551,11 @@ pub(super) fn add_inventory_tx(
     instance_remaining_slots: Option<u32>,
     instance_upgrade_count: Option<u32>,
 ) -> Result<Result<u16, inventory::InventoryError>, String> {
-    if inventory::is_only(item_id) {
-        let exists: Option<i64> = tx
-            .query_row(
-                "SELECT 1 FROM inventory WHERE account_id=?1 AND item_id=?2 AND quantity>0
-                 UNION ALL SELECT 1 FROM equipped WHERE account_id=?1 AND item_id=?2 AND quantity>0
-                 UNION ALL SELECT 1 FROM monster_book_cards WHERE account_id=?1 AND item_id=?2 AND quantity>0
-                 LIMIT 1",
-                params![account_id, item_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|_| "account persistence failed")?;
-        if exists.is_some() {
-            return Ok(Err(inventory::InventoryError::ItemUnavailable));
-        }
+    // `only` 是源 `info.only`（角色唯一持有），不是「本途径限购」：坐骑、
+    // 任务唯一件都在其列。判据只有 `only_item_holder` 一处，GM 回执报的
+    // 位置与这里的拒绝同源。
+    if inventory::is_only(item_id) && only_item_holder(tx, account_id, item_id)?.is_some() {
+        return Ok(Err(inventory::InventoryError::ItemUnavailable));
     }
     let Some(kind) = inventory::inventory_type(item_id) else {
         return Ok(Err(inventory::InventoryError::UnknownItem));

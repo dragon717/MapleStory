@@ -34,6 +34,11 @@ const SOURCE = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_
 const MIRRORS = ['shared', 'client/public-tms273/assets'];
 // 骑宠图标帧表，由 `export_tms273_mount_icons.cjs` 产出（**先跑那个**）。
 const MOUNT_ICONS = path.join(ROOT, 'resources/tms273-export/mount-images.json');
+// 椅子图标帧表（同构，由椅子图标导出产出）。缺席时椅子状态保持
+// `wz-present-unextracted`，与骑宠同一语义：**没查过就说没查过**。
+const CHAIR_ICONS = path.join(ROOT, 'resources/tms273-export/chair-images.json');
+// 帧表里的 `url` 是**站点相对**路径（`/assets/tms273/…`），落盘实况在这棵树下比。
+const SITE = path.join(ROOT, 'client/public-tms273');
 
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 
@@ -205,12 +210,20 @@ function buildChairs() {
     const document = readJson(file);
     if (!document.info) continue;
     const info = infoTable(document.info);
-    if (info.slotMax === undefined && info.price === undefined && info.recoveryHP === undefined) continue;
-    const mirror = path.basename(file, '.json');
-    const itemId = itemIdOf(mirror);
     // 源导出的扇出目录是 `Item/Install/<分组>/<8位id>.json`，而资源的规范地址是
     // `Item/Install/<分组>.img/<8位id>/info/icon`（与 items.json 既有行同形）。
     const group = path.basename(path.dirname(file));
+    // 椅子分组与服务端 `inventory::is_chair_source` **同一口径**（`0301*` / `0302`）：
+    // 落在这些分组里就是椅子，不再靠 `slotMax / price / recoveryHP` 碰运气——
+    // `03015159` / `03015161`（11 週年 楓之谷冰淇淋 椅子，源名与描述都在
+    // `String/Ins.json` 里）的 `info` 只有 `accountSharable` 与 `collabo`，按字段
+    // 过滤会被整把漏掉：图标导得出（帧表有这条），目录里却没人认领 ⇒ 能看见图、
+    // 服务端 `is_chair_item` 却答 false。分组外（0304/0370/0399 等装饰、分解机、
+    // 椅子袋）仍按原字段过滤，保持 `chairs.json` 作为 Install 全类目表的现状。
+    const chairGroup = group.startsWith('0301') || group === '0302';
+    if (!chairGroup && info.slotMax === undefined && info.price === undefined && info.recoveryHP === undefined) continue;
+    const mirror = path.basename(file, '.json');
+    const itemId = itemIdOf(mirror);
     const sourcePath = `Item/Install/${group}/${mirror}.json`;
     const description = unwrap(names[itemId]?.desc);
     const name = unwrap(names[itemId]?.name);
@@ -265,34 +278,70 @@ function write(relative, value) {
 }
 
 /**
- * 骑宠图标状态落定。本脚本是 `mounts.json` 的**唯一写者**，所以状态字段在这里定：
- *   * 抽到帧（帧表里有这条 id） ⇒ `wz-verified`，并把帧挂在 `icon` 上；
- *   * 帧表存在但没有这条 id ⇒ `wz-missing`（源 WZ 里就没有这件映像），逐条登记；
- *   * 帧表整体缺席（没跑图标导出） ⇒ 保持 `wz-present-unextracted` 且**留住**「未完成项」
- *     提示——绝不因为「这次没查」就把状态说成已完成。
+ * 图标状态落定的**唯一**实现（骑宠与椅子共用）。
+ *
+ * 判据有两层，缺一层就会写出假结论：
+ *   1. 帧表里有这条 id（自述「抽到了」）；
+ *   2. 帧表指向的 PNG **在服务目录里真的存在且非空**（事实）。
+ * 只认第 1 层就是「自述 ≠ 事实」的老毛病：帧表写着 `url`，文件却没落盘，
+ * 状态照样报 verified，而浏览器拿到的是 404。
+ *
+ * 帧表整体缺席（没跑图标导出）⇒ 保持 `wz-present-unextracted` 且**留住**「未完成项」
+ * 提示——绝不因为「这次没查」就把状态说成已完成。
+ *
+ * 落定的只有状态，**不**把帧挂进目录表：目录表回答「这件东西是什么」、帧表回答
+ * 「怎么画」，两张表在装配器里分别挂（`manifest.mounts` 是帧），把帧塞回目录表会让
+ * `shared/*.json` 白胖一圈，而它们是要 `include_str!` 进服务端二进制的。
  */
-function applyMountIcons(mounts) {
-  if (!fs.existsSync(MOUNT_ICONS)) return { extracted: false, verified: 0, absent: [] };
-  const frames = JSON.parse(fs.readFileSync(MOUNT_ICONS, 'utf8'));
+function settleIcons(items, frameFile, label) {
+  if (!fs.existsSync(frameFile)) return { extracted: false, verified: 0, absent: [], orphanFile: [] };
+  const frames = JSON.parse(fs.readFileSync(frameFile, 'utf8'));
   const absent = [];
+  const orphanFile = [];
   let verified = 0;
-  for (const [id, entry] of Object.entries(mounts.items)) {
+  for (const [id, entry] of Object.entries(items)) {
     const frame = frames[id];
-    if (frame) {
-      entry.icon = frame;
+    const file = frame && typeof frame.url === 'string'
+      ? path.join(SITE, frame.url.replace(/^\//, ''))
+      : null;
+    if (frame && file && fs.existsSync(file) && fs.statSync(file).size > 0) {
       entry.spriteSourceStatus = 'wz-verified';
       verified++;
     } else {
       entry.spriteSourceStatus = 'wz-missing';
       absent.push(id);
+      // 帧表登记了、文件却不在 ⇒ 不是「源里没有」，是「抽到了没落盘」，
+      // 单独点名，免得两种情况被混成一句「源内无映像」。
+      if (frame) orphanFile.push(id);
     }
   }
+  return { extracted: true, verified, absent, orphanFile, frameFile };
+}
+
+/** 骑宠侧：状态落定 + 未核定项文案。 */
+function applyMountIcons(mounts) {
+  const icons = settleIcons(mounts.items, MOUNT_ICONS, '骑宠');
+  if (!icons.extracted) return { ...icons, label: '骑宠' };
   mounts.unverified = mounts.unverified.filter(line => !line.includes('图标未抽取'));
-  if (absent.length) {
-    mounts.unverified.push(`骑宠图标：源 WZ 里没有这 ${absent.length} 件对应的映像（spriteSourceStatus = wz-missing），该槽位无图可画；其余 ${verified} 件已抽取并核对（wz-verified）。`);
+  if (icons.absent.length) {
+    mounts.unverified.push(`骑宠图标：这 ${icons.absent.length} 件没有可画图的产物（spriteSourceStatus = wz-missing）${icons.orphanFile.length ? `，其中 ${icons.orphanFile.length} 件帧表登记了但 PNG 未落盘` : ''}；其余 ${icons.verified} 件已抽取并核对（wz-verified）。`);
   }
   mounts.iconSource = 'resources/tms273-export/mount-images.json ← Character/TamingMob/<8位>.img/info/icon（外链 Canvas，像素在 TamingMob/_Canvas/_Canvas_00N.wz）';
-  return { extracted: true, verified, absent };
+  return { ...icons, label: '骑宠' };
+}
+
+/** 椅子侧：同上。此前椅子**没有**这一步，所以 2797 件永远停在
+ *  `wz-present-unextracted`——写者没写，读的人就只能当「未查」。 */
+function applyChairIcons(chairs) {
+  const icons = settleIcons(chairs.items, CHAIR_ICONS, '椅子');
+  if (!icons.extracted) return { ...icons, label: '椅子' };
+  chairs.unverified = chairs.unverified.filter(line => !line.includes('椅子图未抽取'));
+  if (icons.absent.length) {
+    const groups = [...new Set(icons.absent.map(id => `0301${String(id).slice(4, 5)}`))].join('/');
+    chairs.unverified.push(`椅子图标：这 ${icons.absent.length} 件没有可画图的产物（spriteSourceStatus = wz-missing，集中在 ${groups} 分组）${icons.orphanFile.length ? `，其中 ${icons.orphanFile.length} 件帧表登记了但 PNG 未落盘` : ''}；其余 ${icons.verified} 件已抽取并核对（wz-verified）。`);
+  }
+  chairs.iconSource = 'resources/tms273-export/chair-images.json ← Item/Install/<分组>.img/<8位id>/info/icon（外链 Canvas，像素在 Item/Install/_Canvas/_Canvas_00N.wz）';
+  return { ...icons, label: '椅子' };
 }
 
 function main() {
@@ -304,6 +353,7 @@ function main() {
   const mounts = buildMounts();
   const icons = applyMountIcons(mounts);
   const chairs = buildChairs();
+  const chairIcons = applyChairIcons(chairs);
   for (const mirror of MIRRORS) {
     write(path.join(mirror, 'mounts.json'), mounts);
     write(path.join(mirror, 'chairs.json'), chairs);
@@ -349,8 +399,11 @@ function main() {
   console.log(`未登记：非装备图 ${mounts.skipped.nonEquipment}、无名 ${mounts.skipped.unnamed}、缺坐骑档 ${mounts.skipped.missingRideStats.length}；椅子间隔未核定 ${chairs.counts.intervalUnverified}。`);
   console.log(`客户端索引：坐骑 ${Object.keys(mountIndex).length} 条（带名字 ${mountIds.filter(id => mountIndex[id].name).length}、带 tamingMob ${mountIds.filter(id => mountIndex[id].tamingMob !== undefined).length}）、椅子名 ${Object.keys(chairNames).length} 条。`);
   console.log(icons.extracted
-    ? `骑宠图标：wz-verified ${icons.verified} 件、源内无映像 ${icons.absent.length} 件（帧表 ${path.relative(ROOT, MOUNT_ICONS)}）。`
+    ? `骑宠图标：wz-verified ${icons.verified} 件、无产物 ${icons.absent.length} 件（帧表 ${path.relative(ROOT, MOUNT_ICONS)}）。`
     : `骑宠图标：帧表缺席（${path.relative(ROOT, MOUNT_ICONS)}），状态保持 wz-present-unextracted——先跑 scripts/export_tms273_mount_icons.cjs。`);
+  console.log(chairIcons.extracted
+    ? `椅子图标：wz-verified ${chairIcons.verified} 件、无产物 ${chairIcons.absent.length} 件（帧表 ${path.relative(ROOT, CHAIR_ICONS)}）。`
+    : `椅子图标：帧表缺席（${path.relative(ROOT, CHAIR_ICONS)}），状态保持 wz-present-unextracted——先跑椅子图标导出。`);
 }
 
 main();

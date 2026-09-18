@@ -144,9 +144,19 @@ assert.equal(catalog.catalogVersion, rules.catalogVersion, '目录与规则的�
 assert.equal(catalog.contentVersion, gameplay.contentVersion, '目录与运行时内容版本不一致');
 
 // 规范化键必须与最终物品目录完全一致：少一个 = 图鉴漏收，多一个 = 凭空造物。
+//
+// 唯一的例外是椅子：源 `Item/Install/0301*`、`0302` 整族归椅子表，物品树里
+// 带着的那一两件（真的进商店的）也必须跟着归椅子表，否则同一件东西会同时属于
+// 「设置」与「椅子」两个分区。所以物品目录的覆盖是 `items` ∪（椅子 ∩ items.json）。
+const chairsShipped = JSON.parse(fs.readFileSync('shared/chairs.json', 'utf8')).items;
+const chairCanonical = new Set(Object.keys(chairsShipped).map(canonical).filter(Boolean));
 const finalCanonical = new Set(Object.keys(finalItems).map(canonical).filter(Boolean));
 const catalogCanonical = new Set(Object.keys(catalog.items));
-assert.deepEqual([...catalogCanonical].sort(), [...finalCanonical].sort(), '图鉴物品定义与最终物品目录不一致');
+const chairsFromItemTree = [...chairCanonical].filter(id => finalCanonical.has(id));
+assert.deepEqual(
+  [...catalogCanonical, ...chairsFromItemTree].sort(),
+  [...finalCanonical].sort(),
+  '图鉴定义（物品 + 归椅子页的那几件）与最终物品目录不一致');
 for (const id of catalogCanonical) {
   const definition = catalog.items[id];
   assert.equal(definition.itemId, id, `物品定义的键与 itemId 不一致: ${id}`);
@@ -158,16 +168,50 @@ for (const id of catalogCanonical) {
 for (const row of catalog.excluded) assert(row.reason, `被排除项没有原因: ${row.itemId}`);
 
 // 分区必须恰好划分定义集合，且不重不漏。
+// 「定义集合」= 物品 ∪ 骑宠 ∪ 椅子：这两族都不在 `items.json` 里（那份同时是
+// 「当前可获得」分母），所以在目录里各有自己的一张表。
+const mountsShipped = JSON.parse(fs.readFileSync('shared/mounts.json', 'utf8')).items;
+const mountCanonical = new Set(Object.keys(mountsShipped).map(canonical).filter(Boolean));
+assert.equal(mountCanonical.size, Object.keys(mountsShipped).length, '骑宠表里有非规范化 id');
+assert.deepEqual([...Object.keys(catalog.mounts)].sort(), [...mountCanonical].sort(), '图鉴骑宠定义与坐骑表不一致');
+for (const [id, definition] of Object.entries(catalog.mounts)) {
+  assert.equal(definition.itemId, id, `骑宠定义的键与 itemId 不一致: ${id}`);
+  assert(['obtainable', 'unavailable', 'unverified'].includes(definition.availability), `未知的可获得性取值（骑宠）: ${id}`);
+  assert(!catalog.items[id], `骑宠 ${id} 混进了物品定义表：那张表是可获得分母`);
+}
+// 椅子（`Item/Install/0301*`、`0302`，`shared/chairs.json`）：与骑宠同族。
+// 物品树里带着的那一两件进商店的椅子也必须归椅子页，否则同一件东西属于两个分区。
+assert.equal(chairCanonical.size, Object.keys(chairsShipped).length, '椅子表里有非规范化 id');
+assert.deepEqual([...Object.keys(catalog.chairs)].sort(), [...chairCanonical].sort(), '图鉴椅子定义与椅子表不一致');
+for (const [id, definition] of Object.entries(catalog.chairs)) {
+  assert.equal(definition.itemId, id, `椅子定义的键与 itemId 不一致: ${id}`);
+  assert(['obtainable', 'unavailable', 'unverified'].includes(definition.availability), `未知的可获得性取值（椅子）: ${id}`);
+  assert(!catalog.items[id], `椅子 ${id} 混进了物品定义表：那张表是可获得分母`);
+  assert.equal(definition.inventoryType, 3, `椅子的栏位不是设置栏: ${id}`);
+  // 间隔是源描述里写明「每 N 秒」才有的：缺席必须是 null，不许替源编一个。
+  assert(definition.recoveryIntervalMs === null || Number.isInteger(definition.recoveryIntervalMs),
+    `椅子的恢复间隔不是整数或 null: ${id}`);
+}
 const sectionMembers = new Set();
 for (const [name, ids] of Object.entries(catalog.sections)) {
   for (const id of ids) {
-    assert(catalog.items[id], `分区 ${name} 引用了不存在的物品 ${id}`);
-    assert(!sectionMembers.has(id), `物品 ${id} 同时出现在多个分区`);
+    assert(catalog.items[id] || catalog.mounts[id] || catalog.chairs[id], `分区 ${name} 引用了不存在的条目 ${id}`);
+    assert(!sectionMembers.has(id), `条目 ${id} 同时出现在多个分区`);
     sectionMembers.add(id);
   }
   assert.deepEqual(ids, [...ids].sort((a, b) => Number(a) - Number(b)), `分区 ${name} 未排序`);
 }
-assert.deepEqual([...sectionMembers].sort(), [...catalogCanonical].sort(), '分区没有覆盖全部物品定义');
+assert.deepEqual(
+  [...sectionMembers].sort(),
+  [...catalogCanonical, ...mountCanonical, ...chairCanonical].sort(),
+  '分区没有覆盖全部定义（物品 + 骑宠 + 椅子）');
+// 骑宠分区就是整张坐骑表：本版本没有开放获取途径，所以这一页的基集合是全集，
+// 少一件等于这一页少一件。
+assert.deepEqual([...catalog.sections.mount].sort(), [...mountCanonical].sort(), '骑宠分区与坐骑表不一致');
+// 椅子分区同理就是整张椅子表。
+assert.deepEqual([...catalog.sections.chair].sort(), [...chairCanonical].sort(), '椅子分区与椅子表不一致');
+// 一件东西只能属于一个页签：设置页现在必须为空（唯一的那一把椅子归椅子页了）。
+assert.deepEqual(catalog.sections.setup, [], '设置分区不得再留着椅子');
 // 任务专用装备可以同时在装备页；任务专用消耗品不得落进普通页。
 for (const id of catalog.sections.quest) {
   const definition = catalog.items[id];
@@ -206,12 +250,14 @@ for (const entry of Object.values(catalog.monsterEntries)) {
 }
 // 可获得性只认「本版本真的跑得起来的链路」：收藏奖励的达成条件未核定，
 // 所以由它授权的物品不能因为「源里有这条奖励」而变成已可获得（§5.5）。
-for (const [id, definition] of Object.entries(catalog.items)) {
-  const open = definition.obtainEvidence.filter(evidence => !evidence.startsWith('collectionReward:'));
-  assert.equal(
-    definition.availability,
-    open.length ? 'obtainable' : 'unverified',
-    `物品 ${id} 的可获得性把未核定的收藏奖励算成了已开放链路`);
+for (const [table, label] of [[catalog.items, '物品'], [catalog.mounts, '骑宠'], [catalog.chairs, '椅子']]) {
+  for (const [id, definition] of Object.entries(table)) {
+    const open = definition.obtainEvidence.filter(evidence => !evidence.startsWith('collectionReward:'));
+    assert.equal(
+      definition.availability,
+      open.length ? 'obtainable' : 'unverified',
+      `${label} ${id} 的可获得性把未核定的收藏奖励算成了已开放链路`);
+  }
 }
 
 // 原版奖励物品：源在每个地區／分頁／行都授权了自己的 rewardID，本项目必须
@@ -301,6 +347,19 @@ for (const [name, ids] of Object.entries(client.sections)) {
   assert.deepEqual(ids, catalog.sections[name], `客户端投影的 ${name} 分区与服务端不一致`);
 }
 assert.deepEqual(Object.keys(client.sections).sort(), Object.keys(catalog.sections).filter(name => name !== 'quest').sort(), '客户端投影分区表不完整');
+// 椅子页的展示投影：随资源下发的那半张表必须与分区一一对应（名字归
+// `chair-names.json`、图标归素材表，这里不复制第二份）。
+assert.deepEqual(
+  sorted(Object.keys(client.chairs ?? {})),
+  sorted(catalog.sections.chair),
+  '客户端投影的椅子表与椅子分区不一致');
+for (const [id, chair] of Object.entries(client.chairs ?? {})) {
+  assert.deepEqual(
+    [chair.recoveryHP, chair.recoveryMP, chair.recoveryIntervalMs],
+    [catalog.chairs[id].recoveryHP, catalog.chairs[id].recoveryMP, catalog.chairs[id].recoveryIntervalMs],
+    `客户端投影的椅子恢复量与服务端不一致: ${id}`);
+  assert.equal(chair.availability, catalog.chairs[id].availability, `客户端投影的椅子可获得性不一致: ${id}`);
+}
 // 奖励物品的展示投影：窗口必须能说出「这一行给什么」，包括本版本发不出去的
 // 那些——但可发放性、名称引用必须与服务端目录逐项一致。
 assert.deepEqual(sorted(Object.keys(client.rewardItems)), sorted(Object.keys(catalog.rewardItems)), '客户端投影缺少奖励物品');
@@ -476,11 +535,14 @@ assert(rules.scope.monsterCollectionEvidence.startsWith('P:'), '归属默认值�
   }
 
   // 页签必须是目录的无重叠全覆盖分区：重叠会把一件装备算两种，漏掉会永久漏记。
+  // 定义集合是「物品 ∪ 骑宠」：骑宠（`Character/TamingMob`）不在 `items.json`
+  // 里（那份同时是「当前可获得」分母），所以坐骑表是第二张定义表。
   const sectionIds = Object.values(catalog.sections).flat();
-  assert.equal(sectionIds.length, catalog.itemDefinitionCount, '页签必须覆盖整份目录');
-  assert.equal(new Set(sectionIds).size, catalog.itemDefinitionCount, '页签不得重叠');
+  const definitionCount = catalog.itemDefinitionCount + catalog.mountCount + catalog.chairCount;
+  assert.equal(sectionIds.length, definitionCount, '页签必须覆盖整份目录（物品 + 骑宠 + 椅子）');
+  assert.equal(new Set(sectionIds).size, definitionCount, '页签不得重叠');
   for (const id of sectionIds) {
-    assert(catalog.items[id], `页签里的 ${id} 不在物品目录里`);
+    assert(catalog.items[id] || catalog.mounts[id] || catalog.chairs[id], `页签里的 ${id} 不在目录里`);
   }
 }
 
@@ -704,15 +766,42 @@ assert(rules.scope.monsterCollectionEvidence.startsWith('P:'), '归属默认值�
 
   // 6) 四页与任务页的开关。  任务页没有「未获得」：未获得的条目从服务器的基集合
   //    里就不存在，给一个开关等于向玩家暗示它们存在。
-  assert(/section === 'quest' \? \['all'\] : BROWSE_MODES/.test(viewModel), '任务页必须只有一种浏览方式');
-  for (const tab of ['monster', 'equipment', 'use', 'quest']) {
-    assert(viewModel.includes(`section: '${tab}'`), `四个页签缺少 ${tab}`);
+  assert(/if \(section === 'quest'\) return \['all'\];/.test(viewModel), '任务页必须只有一种浏览方式');
+  // 骑宠页同样不能给「当前可获得」：源把每件骑宠都标成 `notSale / only`，本版本没有
+  // 一条开放获取途径，按它过滤只会得到空页，读起来像「本版本没有坐骑」。
+  assert(/section === 'mount'\) return MOUNT_MODES;/.test(viewModel),
+    '骑宠页必须用自己的浏览方式（没有「当前可获得」）');
+  assert(/MOUNT_MODES = \['all', 'obtained', 'missing'\]/.test(viewModel),
+    '骑宠页的浏览方式不得包含「当前可获得」');
+  // 椅子页同理：2799 件里真进商店的是个位数，按「当前可获得」过滤几乎空页。
+  assert(/section === 'chair' \? CHAIR_MODES : BROWSE_MODES/.test(viewModel),
+    '椅子页必须用自己的浏览方式（没有「当前可获得」）');
+  assert(/CHAIR_MODES = \['all', 'obtained', 'missing'\]/.test(viewModel),
+    '椅子页的浏览方式不得包含「当前可获得」');
+  assert(/section === 'mount' \|\| section === 'chair' \? 'all' : 'available'/.test(viewModel),
+    '骑宠页与椅子页默认必须是「全部」');
+  for (const tab of ['monster', 'equipment', 'use', 'mount', 'chair', 'quest']) {
+    assert(viewModel.includes(`section: '${tab}'`), `六个页签缺少 ${tab}`);
   }
   // 7) 客户端目录类型里没有 quest 分区——任务条目是服务器算出来的，不是静态清单。
   assert(/Record<Exclude<NotebookSection, 'monster' \| 'quest'>, string\[\]>/.test(directory),
     '客户端目录不该声明 quest 分区');
   const projection = read('client/public-tms273/assets/notebook.json');
   assert(!('quest' in projection.sections), '客户端投影里出现了任务分区：未获得条目会被先泄后藏');
+  // 骑宠页不是任务页，分区与坐骑表都要随资源下发（名字与图标另归
+  // `mount-index.json` 与素材表，这里不复制第二份）。
+  assert('mount' in projection.sections, '客户端投影缺少骑宠分区');
+  assert.deepEqual(
+    [...projection.sections.mount].sort(),
+    [...Object.keys(projection.mounts)].sort(),
+    '骑宠分区与随资源下发的坐骑表不一致');
+  // 椅子页同骑宠页：分区与椅子表都要随资源下发（名字与图标另归
+  // `chair-names.json` 与素材表，这里不复制第二份）。
+  assert('chair' in projection.sections, '客户端投影缺少椅子分区');
+  assert.deepEqual(
+    [...projection.sections.chair].sort(),
+    [...Object.keys(projection.chairs)].sort(),
+    '椅子分区与随资源下发的椅子表不一致');
 
   // 8) 浏览方式与搜索长度：服务端只认这四个取值，未知取值退化成默认而不是第四态。
   for (const mode of ['available', 'all', 'obtained', 'missing']) {
@@ -729,6 +818,8 @@ console.log(JSON.stringify({
   menu: `${MENU_KEY} type ${MENU_TYPE}`,
   notebookFrames: Object.fromEntries(Object.entries(manifest.notebook.frames).map(([panel, frames]) => [panel, Object.keys(frames).length])),
   itemDefinitions: catalog.itemDefinitionCount,
+  mountDefinitions: catalog.mountCount,
+  chairDefinitions: catalog.chairCount,
   aliasesDeduped: catalog.aliasDedupe.deduped,
   sections: Object.fromEntries(Object.entries(catalog.sections).map(([name, ids]) => [name, ids.length])),
   monsterEntries: catalog.monsterEntryCount,

@@ -48,6 +48,12 @@ async function main() {
       const source = `Character/TamingMob/${mirrorOf(id)}.img/info/icon`;
       try {
         const frame = await reader.frame(source, ASSETS);
+        // `reader.frame()` returns a path relative to the export directory.
+        // Manifest consumers load frames as HTTP URLs; leaving this relative
+        // makes the browser request `/Character_TamingMob_...png` and show its
+        // broken-image placeholder (the mount still renders on the map because
+        // ride scenes use absolute URLs).
+        if (frame.url && !frame.url.startsWith('/')) frame.url = `/assets/tms273/${frame.url}`;
         images[id] = frame;
       } catch (error) {
         // 源里就是没有这一件（例如目录登记了 id 但 WZ 无对应映像）。逐条记录，

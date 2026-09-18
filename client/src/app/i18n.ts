@@ -262,6 +262,10 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   notebookTabMonster: { zh: '怪物收集', en: 'Monsters' },
   notebookTabEquipment: { zh: '装备图鉴', en: 'Equipment' },
   notebookTabUse: { zh: '道具图鉴', en: 'Use items' },
+  // 骑宠（源 `Character/TamingMob`）：不在物品树里，因此是独立页签。
+  notebookTabMount: { zh: '骑宠', en: 'Mounts' },
+  // 椅子（源 `Item/Install/0301*`、`0302`）：与骑宠同族，因此也是独立页签。
+  notebookTabChair: { zh: '椅子', en: 'Chairs' },
   notebookTabQuest: { zh: '任务道具', en: 'Quest items' },
   notebookLoading: { zh: '正在读取图鉴……', en: 'Loading the notebook…' },
   notebookLoadFailed: { zh: '图鉴目录加载失败。', en: 'The notebook catalogue failed to load.' },
@@ -285,6 +289,17 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   notebookUnavailable: { zh: '本版本未开放', en: 'Not open in this build' },
   notebookObtained: { zh: '已获得', en: 'Obtained' },
   notebookNotObtained: { zh: '未获得', en: 'Not obtained' },
+  // 配置 ID：目录里那条条目的源 id（物品模板 id／怪物模板 id），以及骑宠指向的
+  // 坐骑档（`info.tamingMob`）。核对内容与查源都要靠它，所以显示在格子与详情里。
+  notebookConfigId: { zh: '配置 ID', en: 'Config ID' },
+  notebookMountTier: { zh: '坐骑档', en: 'Ride tier' },
+  // 源里有坐骑装备但没有 `info.tamingMob`：如实说源没给，不猜一个档位。
+  notebookMountTierMissing: { zh: '源未提供', en: 'not authored in source' },
+  // 椅子的恢复量（`info.recoveryHP` / `recoveryMP`）与间隔：间隔缺席＝源未核定，
+  // 运行时不套默认值，图鉴也照实说未核定。
+  notebookChairRecovery: { zh: '恢复', en: 'Recovery' },
+  notebookChairRecoveryMissing: { zh: '源未提供', en: 'not authored in source' },
+  notebookChairIntervalUnverified: { zh: '间隔未核定', en: 'interval not verified' },
   notebookUnknown: { zh: '未知怪物', en: 'Unknown monster' },
   notebookSpawn: { zh: '出没地图', en: 'Found in' },
   notebookFirstRecord: { zh: '首次记录', en: 'First recorded' },

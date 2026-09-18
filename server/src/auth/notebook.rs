@@ -53,6 +53,13 @@ use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------- 目录 --
 
+/// 骑宠页在目录里的分区名。  两个 crate 内的写法（`notebook.rs` 的分派与这里的
+/// 分类）共用这一个常量：拼错一个字符串不会报错，只会让整页骑宠静默消失。
+pub(crate) const MOUNT_SECTION: &str = "mount";
+
+/// 椅子页在目录里的分区名。同上：两个 crate 内的写法共用这一个常量。
+pub(crate) const CHAIR_SECTION: &str = "chair";
+
 /// `shared/notebook-catalog.json` 里事实层需要的部分。
 ///
 /// 只反序列化**身份与分类**：名称、说明、图标、可获得性属于展示投影
@@ -62,11 +69,24 @@ use std::sync::OnceLock;
 struct CatalogFile {
     catalog_version: String,
     items: BTreeMap<String, CatalogItem>,
-    /// 页签 → 该页的规范化物品 id。装配时它已是 `items` 的一个**无重叠全覆盖**
-    /// 分区（equipment 1741 + use 206 + setup 1 + etc 87 + cash 520 + pet 12 +
-    /// quest 21 = 2588 ＝ `items` 的全部键），所以它同时是「这个 id 属于哪一页」
+    /// 页签 → 该页的规范化 id。装配时它是 `items` ∪ `mounts` ∪ `chairs` 的一个
+    /// **无重叠全覆盖**分区（`items` 的全部键 + mount 935 ＝ `mounts` 的全部键
+    /// + chair 2799 ＝ `chairs` 的全部键），所以它同时是「这个 id 属于哪一页」
     /// 的唯一索引。
     sections: BTreeMap<String, Vec<String>>,
+    /// 骑宠（`shared/mounts.json`，源 `Character/TamingMob/*`）。
+    ///
+    /// 它们**故意不在 `items` 里**：源标了 `notSale:1 / only:1`，不进任何掉落与
+    /// 商店，而 `items.json` 同时是图鉴的「当前可获得分母」，塞进去会改动分母
+    /// （同一条理由见 `inventory::shipped_mounts`）。因此骑宠在图鉴里也是一张
+    /// 独立表 + 独立分区，而不是装备页的一部分。
+    mounts: BTreeMap<String, CatalogMount>,
+    /// 椅子（`shared/chairs.json`，源 `Item/Install/0301*`、`0302`）。
+    ///
+    /// 与骑宠同一条理由独立成表：源把它们整族排除在掉落与商店之外，而
+    /// `items.json` 是可获得分母。物品树里只带着那一件真的进商店的椅子，
+    /// 目录生成时会把它从 `items` 移到这张表，避免一件东西属于两个分区。
+    chairs: BTreeMap<String, CatalogChair>,
     monster_structure: MonsterStructureFile,
     monster_entries: BTreeMap<String, MonsterEntry>,
     /// 逐怪物的同版文本（`String/MonsterBook.img`）。只用于详情面板，不参与
@@ -84,6 +104,24 @@ struct CatalogItem {
     item_id: String,
     /// 目录自己的可获得性（计划 §5.5）。它是**目录**事实，不是玩家做过什么：
     /// GM 授予不会让一件物品变成「当前可获得」，因此也不进默认分母。
+    availability: String,
+}
+
+/// 一条骑宠目录条目。  只反序列化身份与可获得性：坐骑档（`tamingMob`）与等级
+/// 要求属于客户端已经随资源下发的展示数据，服务器判定不读它们。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogMount {
+    item_id: String,
+    availability: String,
+}
+
+/// 一条椅子目录条目。同骑宠：只反序列化身份与可获得性，恢复量与间隔属于
+/// 已经随资源下发的展示数据，服务器判定不读它们。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogChair {
+    item_id: String,
     availability: String,
 }
 
@@ -136,6 +174,8 @@ pub(crate) struct MonsterText {
 pub(crate) struct NotebookCatalog {
     catalog_version: String,
     items: BTreeMap<String, CatalogItem>,
+    mounts: BTreeMap<String, CatalogMount>,
+    chairs: BTreeMap<String, CatalogChair>,
     sections: BTreeMap<String, Vec<String>>,
     section_of_item: BTreeMap<String, String>,
     /// 地区 id → 该地区的行，按 (分頁, 行) 升序。`BTreeMap` 的键序就是**数值**
@@ -171,6 +211,8 @@ pub(crate) fn catalog() -> &'static NotebookCatalog {
         NotebookCatalog {
             catalog_version: file.catalog_version,
             items: file.items,
+            mounts: file.mounts,
+            chairs: file.chairs,
             sections: file.sections,
             section_of_item,
             rows_by_region,
@@ -202,10 +244,33 @@ impl NotebookCatalog {
     }
 
     /// 目录自己的可获得性。只有 `obtainable` 进「当前可获得」分母（计划 §5.5）。
+    ///
+    /// 骑宠与椅子不在 `items` 里，落在各自的表上——同一套取值，所以这里一起
+    /// 回答，而不是让调用方分三处查。
     pub(crate) fn availability(&self, canonical: &str) -> Option<&str> {
         self.items
             .get(canonical)
             .map(|item| item.availability.as_str())
+            .or_else(|| {
+                self.mounts
+                    .get(canonical)
+                    .map(|mount| mount.availability.as_str())
+            })
+            .or_else(|| {
+                self.chairs
+                    .get(canonical)
+                    .map(|chair| chair.availability.as_str())
+            })
+    }
+
+    /// 这个 id 是不是目录里的骑宠（`sections.mount` 的成员）。
+    pub(crate) fn is_mount(&self, canonical: &str) -> bool {
+        self.mounts.contains_key(canonical)
+    }
+
+    /// 这个 id 是不是目录里的椅子（`sections.chair` 的成员）。
+    pub(crate) fn is_chair(&self, canonical: &str) -> bool {
+        self.chairs.contains_key(canonical)
     }
 
     /// 物品显示名。名字归客户端所有，但搜索必须在服务器自己的集合上算
@@ -258,12 +323,55 @@ impl NotebookCatalog {
         self.items.len()
     }
 
+    /// 目录里的骑宠数。骑宠不在 `items` 里，所以「分区覆盖整份目录」的核对必须
+    /// 把这两张表一起算，否则加了骑宠分区就会被误报成漏记。
+    pub(crate) fn mount_count(&self) -> usize {
+        self.mounts.len()
+    }
+
+    /// 目录里的椅子数。同上：椅子是第三张独立表。
+    pub(crate) fn chair_count(&self) -> usize {
+        self.chairs.len()
+    }
+
     /// 目录声明的全部页签名。
     pub(crate) fn section_keys(&self) -> impl Iterator<Item = &str> {
         self.sections.keys().map(String::as_str)
     }
 
     fn from_items(items: &[(&str, u8)], sections: &[(&str, &[&str])]) -> NotebookCatalog {
+        // 名为 `mount` / `chair` 的分区是骑宠与椅子：与出厂目录同构，它们**不在**
+        // `items` 里，所以测试目录也必须把它们放进各自的表，分类才会认出来。
+        let mounts: BTreeMap<String, CatalogMount> = sections
+            .iter()
+            .filter(|(name, _)| *name == MOUNT_SECTION)
+            .flat_map(|(_, ids)| {
+                ids.iter().map(|id| {
+                    (
+                        (*id).to_owned(),
+                        CatalogMount {
+                            item_id: (*id).to_owned(),
+                            availability: "unverified".to_owned(),
+                        },
+                    )
+                })
+            })
+            .collect();
+        let chairs: BTreeMap<String, CatalogChair> = sections
+            .iter()
+            .filter(|(name, _)| *name == CHAIR_SECTION)
+            .flat_map(|(_, ids)| {
+                ids.iter().map(|id| {
+                    (
+                        (*id).to_owned(),
+                        CatalogChair {
+                            item_id: (*id).to_owned(),
+                            availability: "unverified".to_owned(),
+                        },
+                    )
+                })
+            })
+            .collect();
         NotebookCatalog {
             catalog_version: "test".to_owned(),
             items: items
@@ -278,6 +386,8 @@ impl NotebookCatalog {
                     )
                 })
                 .collect(),
+            mounts,
+            chairs,
             sections: sections
                 .iter()
                 .map(|(name, ids)| {
@@ -366,6 +476,17 @@ pub(crate) fn classify_item(item_id: &str, catalog: &NotebookCatalog) -> Result<
     }
     if let Some(id) = catalog.canonical_id(&canonical) {
         return Ok(ItemScope::Recorded(id.to_owned()));
+    }
+    // 骑宠：不在物品树里，但在图鉴里是自己的一页（源 `Character/TamingMob`）。
+    // 拿到手只能靠发放，而发放正是要留档的那一次事实——漏记等于玩家永远看不到
+    // 自己骑过什么。
+    if catalog.is_mount(&canonical) {
+        return Ok(ItemScope::Recorded(canonical));
+    }
+    // 椅子同理（`Item/Install/0301*`、`0302`）：坐下一把椅子是玩家真的做过的
+    // 事，拿到手（发放／那唯一一件商店货）时留档，椅子页才对得上。
+    if catalog.is_chair(&canonical) {
+        return Ok(ItemScope::Recorded(canonical));
     }
     // 物品索引里有、图鉴目录里没有 ⇒ 目录构建漏了一个常规物品。这不是「排除」而是
     // 缺陷：静默跳过会让这件物品在图鉴里永久漏记，所以整笔业务必须失败。

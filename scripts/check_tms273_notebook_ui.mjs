@@ -219,6 +219,34 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     registered: index < 12,
     availability: directory.items[id]?.availability ?? 'obtainable',
   }));
+  // 骑宠页：整张坐骑表（源 notSale / only，本版本没有开放获取途径），名字取自
+  // `mount-index.json`（840 件在源里没有名字，那时 label 退回 id——与服务端
+  // `item_label` 的回落逐字同序），图标取自清单里按坐骑 id 发布的那一帧。
+  const mountNames = JSON.parse(await fs.readFile(path.join(root, 'shared/mount-index.json'), 'utf8'));
+  const mountIds = directory.sections.mount.slice(0, 60);
+  assert.equal(mountIds.length, 60, '骑宠分区应当够一页');
+  const mountRows = mountIds.map((id, index) => ({
+    key: id,
+    label: mountNames[id]?.name ?? id,
+    itemId: id,
+    obtained: index < 12,
+    registered: index < 12,
+    availability: directory.mounts?.[id]?.availability ?? 'unverified',
+  }));
+  // 椅子页：整张椅子表（源把整族排除在掉落与商店之外），名字取自
+  // `chair-names.json`，图标取自清单里按椅子 id 发布的那一帧。
+  const chairNames = JSON.parse(await fs.readFile(path.join(root, 'shared/chair-names.json'), 'utf8'));
+  const chairIds = directory.sections.chair.slice(0, 60);
+  assert.equal(chairIds.length, 60, '椅子分区应当够一页');
+  const chairRows = chairIds.map((id, index) => ({
+    key: id,
+    label: chairNames[id] ?? id,
+    itemId: id,
+    obtained: index < 12,
+    registered: index < 12,
+    availability: directory.chairs?.[id]?.availability ?? 'unverified',
+  }));
+
   const itemFrames = {};
   // 清单里同一件装备可能同时有 7 位与 8 位键：两个都留，和真实清单一致。
   for (const id of equipmentIds) {
@@ -227,6 +255,24 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     }
   }
   assert(Object.keys(itemFrames).length >= equipmentIds.length, '装备图标没有从清单里取到');
+  for (const id of mountIds) {
+    for (const key of new Set([id, id.padStart(8, '0')])) {
+      if (manifest.items?.[key]) itemFrames[key] = manifest.items[key];
+    }
+  }
+  assert(
+    mountIds.every(id => manifest.items?.[id]),
+    '骑宠图标没有从清单里取到：坐骑帧没有并进 `manifest.items`',
+  );
+  for (const id of chairIds) {
+    for (const key of new Set([id, id.padStart(8, '0')])) {
+      if (manifest.items?.[key]) itemFrames[key] = manifest.items[key];
+    }
+  }
+  assert(
+    chairIds.every(id => manifest.items?.[id]),
+    '椅子图标没有从清单里取到：椅子帧没有并进 `manifest.items`',
+  );
 
   const rel = url => url.replace(/^\//, '');
   for (const monster of Object.values(monsterFrames)) {
@@ -243,6 +289,8 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     contentVersion: directory.contentVersion,
     sections: directory.sections,
     items: Object.fromEntries(equipmentIds.map(id => [id, directory.items[id]])),
+    mounts: Object.fromEntries(mountIds.map(id => [id, directory.mounts?.[id] ?? { tamingMob: null, reqLevel: null, availability: 'unverified' }])),
+    chairs: Object.fromEntries(chairIds.map(id => [id, directory.chairs?.[id] ?? { recoveryHP: null, recoveryMP: null, recoveryIntervalMs: null, availability: 'unverified' }])),
     monsterStructure: {
       regions: directory.monsterStructure.regions,
       rows: Object.fromEntries(rows.map(row => [row.rowKey, row])),
@@ -259,7 +307,14 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     directory: trimmedDirectory,
     monsterRows,
     equipmentRows,
-    summary: { monster: { registered: 0, total: 1550, collectable: 57 }, equipment: { registered: 12, total: 1738 } },
+    mountRows,
+    chairRows,
+    summary: {
+      monster: { registered: 0, total: 1550, collectable: 57 },
+      equipment: { registered: 12, total: 1738 },
+      mount: { registered: 12, total: directory.sections.mount.length },
+      chair: { registered: 12, total: directory.sections.chair.length },
+    },
   }));
 }
 
@@ -292,12 +347,23 @@ const reply = message => {
   };
   const state = message.section === 'monster'
     ? { ...base, pageCount: 15, rows: data.monsterRows, summary: data.summary.monster, blockedReason: '本构建尚未接入收藏登记（该登记规则尚未核定），因此怪物页暂时没有已登记的条目。' }
-    : { ...base, pageCount: signal.pageCount, rows: message.page === 0 ? data.equipmentRows : [], summary: data.summary.equipment };
+    : { ...base, ...(message.section === 'mount'
+      // 骑宠页：基集合是整张坐骑表，本版本没有开放获取途径（页内如实说明）。
+      ? { pageCount: signal.pageCountMount, rows: message.page === 0 ? data.mountRows : [], summary: data.summary.mount, blockedReason: '本版本没有开放的骑宠获取途径（源 notSale / only，不进掉落与商店）；已发放到手的会如实记录在这里。' }
+      : message.section === 'chair'
+        // 椅子页：基集合是整张椅子表（页内如实说明几乎没有开放途径）。
+        ? { pageCount: signal.pageCountChair, rows: message.page === 0 ? data.chairRows : [], summary: data.summary.chair, blockedReason: '本版本几乎没有开放的椅子获取途径（源里只有个位数进商店）；发放到手或买到的会如实记录在这里。' }
+        : { pageCount: signal.pageCount, rows: message.page === 0 ? data.equipmentRows : [], summary: data.summary.equipment }) };
   states.push(state);
   window.__sentCount = sent.length;
   setTimeout(() => view.receiveState(state), 0);
 };
-const signal = { pageCount: 29 };
+// 骑宠页与椅子页的页数：整张表按服务端 ITEM_PAGE_SIZE = 60 分页。
+const signal = {
+  pageCount: 29,
+  pageCountMount: Math.ceil(data.directory.sections.mount.length / 60),
+  pageCountChair: Math.ceil(data.directory.sections.chair.length / 60),
+};
 
 const view = new NotebookView(host, data.manifest, {
   send: message => { sent.push(message); reply(message); return true; },
@@ -425,7 +491,7 @@ try {
   await at('.notebook-content', 204, 120, 666, 480);
   await box('.notebook-pager').then(value => assert.equal(Math.round(value.y - frame.y), 604, '分页行必须落在源的 y604'));
   await box('.notebook-backgrnd').then(value => near(value, { x: frame.x, y: frame.y, width: 891, height: 664 }, 'backgrnd'));
-  assert.equal(await page.locator('.notebook-tab').count(), 4, '窗口必须有四个页签');
+  assert.equal(await page.locator('.notebook-tab').count(), 6, '窗口必须有六个页签（骑宠页与椅子页是新增的）');
   // 源里有一个地区没有名字（`regions[100]`）。索引按钮若跟着留白，就是一个
   // 认不出来的空按钮；也不该给它编名字，所以标出「源未命名」这件事。
   const blankRegions = await page.evaluate(() => [...document.querySelectorAll('.notebook-region')]
@@ -580,6 +646,87 @@ try {
     assert.ok(missing.every(entry => entry.opacity < 1), '未获得的牌子必须压暗，否则两种状态分不开');
   }
 
+  // 8b — 骑宠页签：整张坐骑表、每格带配置 ID、整页只说一次「没有开放途径」
+  await page.locator('.notebook-tab').nth(3).click();
+  await page.waitForFunction(() => document.querySelectorAll('.notebook-item-slot').length > 0);
+  assert.equal(await page.locator('.notebook-item-slot').count(), 60, '骑宠页一页也是 60 格');
+  const mountCell = await page.evaluate(() => {
+    const slots = [...document.querySelectorAll('.notebook-item-slot')];
+    return {
+      ids: slots.map(node => node.querySelector('.notebook-slot-id')?.textContent ?? null),
+      flags: slots.filter(node => node.querySelector('.notebook-slot-flag')).length,
+      icons: slots.filter(node => node.querySelector('.notebook-slot-art')).length,
+      notes: [...document.querySelectorAll('.notebook-note')].map(node => node.textContent ?? ''),
+    };
+  });
+  assert.ok(mountCell.ids.every(id => /^#\d+$/.test(id ?? '')), '每格都要把配置 ID 显示出来');
+  // 「有文本、有配色」不等于「看得见」：槽位牌是绝对定位的，会盖在同层的在流内
+  // 内容上面。这里用命中测试证明它真的画在牌子上、而不是被挡住（被挡住时
+  // getComputedStyle 一切正常，只有截图能看出没有）。
+  const idHit = await page.evaluate(() => {
+    const tag = document.querySelector('.notebook-item-slot .notebook-slot-id');
+    const rect = tag.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      inside: rect.left >= tag.closest('.notebook-item-slot').getBoundingClientRect().left,
+      onTop: hit === tag || tag.contains(hit),
+    };
+  });
+  assert.ok(idHit.width >= 30 && idHit.height >= 9, `配置 ID 标签必须有可见尺寸（got ${idHit.width}x${idHit.height}）`);
+  assert.ok(idHit.inside, '配置 ID 标签必须落在自己的格子里');
+  assert.ok(idHit.onTop, '配置 ID 标签被槽位牌挡住了：绝对定位的牌子会盖住同层在流内的内容');
+  assert.equal(new Set(mountCell.ids).size, 60, '配置 ID 不能重复');
+  assert.equal(mountCell.flags, 0, '骑宠页不逐格标「本版本未开放」：整页都没有开放途径，页内已经说了一遍');
+  assert.equal(mountCell.icons, 60, '每件骑宠都要有自己的图标（清单里按坐骑 id 发布）');
+  assert.ok(
+    mountCell.notes.some(note => note.includes('没有开放的骑宠获取途径')),
+    '骑宠页必须说明本版本没有开放获取途径',
+  );
+  contrasts.slotId = await ratio('.notebook-item-slot .notebook-slot-id', '#554433', '配置 ID');
+  await page.screenshot({ path: path.join(output, 'mount-1440x900.png') });
+
+  // 8c — 椅子页签：整张椅子表、每格带配置 ID、整页只说一次「几乎没有开放途径」，
+  //      详情里额外报恢复量与间隔（间隔缺席＝源未核定，不许替源编一个）。
+  await page.locator('.notebook-tab').nth(4).click();
+  await page.waitForFunction(() => document.querySelectorAll('.notebook-item-slot').length > 0);
+  assert.equal(await page.locator('.notebook-item-slot').count(), 60, '椅子页一页也是 60 格');
+  const chairCell = await page.evaluate(() => {
+    const slots = [...document.querySelectorAll('.notebook-item-slot')];
+    return {
+      ids: slots.map(node => node.querySelector('.notebook-slot-id')?.textContent ?? null),
+      flags: slots.filter(node => node.querySelector('.notebook-slot-flag')).length,
+      icons: slots.filter(node => node.querySelector('.notebook-slot-art')).length,
+      notes: [...document.querySelectorAll('.notebook-note')].map(node => node.textContent ?? ''),
+    };
+  });
+  assert.ok(chairCell.ids.every(id => /^#\d+$/.test(id ?? '')), '椅子页每格也要把配置 ID 显示出来');
+  assert.equal(new Set(chairCell.ids).size, 60, '椅子页配置 ID 不能重复');
+  assert.equal(chairCell.flags, 0, '椅子页不逐格标「本版本未开放」：整页都没有开放途径，页内已经说了一遍');
+  assert.equal(chairCell.icons, 60, '每把椅子都要有自己的图标（清单里按椅子 id 发布）');
+  assert.ok(
+    chairCell.notes.some(note => note.includes('椅子获取途径')),
+    '椅子页必须说明本版本几乎没有开放获取途径',
+  );
+  // 详情面板：配置 ID 之后要报恢复量（「每 10 秒」只在源写明时才有）。
+  await page.locator('.notebook-item-slot').first().click();
+  await page.waitForFunction(() => document.querySelector('.notebook-detail-title'));
+  // 详情面板是一整块文本（每行一段），所以按「含不含这一行」判，不按元素判。
+  const chairDetail = await page.evaluate(() => [...document.querySelectorAll('.notebook-detail p, .notebook-detail div')]
+    .map(node => node.textContent ?? '')
+    .filter(Boolean)
+    .flatMap(text => text.split('\n')));
+  assert.ok(
+    chairDetail.some(line => line.startsWith('配置 ID：')),
+    `椅子详情必须先报配置 ID（got ${JSON.stringify(chairDetail)}）`,
+  );
+  assert.ok(
+    chairDetail.some(line => line.startsWith('恢复：')),
+    `椅子详情必须报恢复量（got ${JSON.stringify(chairDetail)}）`,
+  );
+  await page.screenshot({ path: path.join(output, 'chair-1440x900.png') });
+
   // 9 — 视口：四档尺寸都不溢出，窄屏切流式布局
   for (const [width, height] of [[1440, 900], [1024, 768], [844, 390], [390, 844]]) {
     await page.setViewportSize({ width, height });
@@ -602,7 +749,7 @@ try {
     }
     assert.equal(state.pageOverflow, 0, `${width}x${height} 不该横向溢出`);
     assert.equal(state.compact, width < 900 || height < 690, `${width}x${height} 的紧凑布局判定不对`);
-    assert.equal(state.tabs, 4, `${width}x${height} 必须保住四个页签`);
+    assert.equal(state.tabs, 6, `${width}x${height} 必须保住六个页签`);
     assert.ok(state.pager >= 2, `${width}x${height} 必须保住分页按钮`);
     assert.ok(state.box.width <= width + 1 && state.box.height <= height + 1, `${width}x${height} 窗口不能超出视口`);
     await page.screenshot({ path: path.join(output, `viewport-${width}x${height}.png`) });

@@ -205,6 +205,82 @@ fn gm_exp_grants_experience_through_the_shared_level_up_path() {
     assert!(gm_take_all(&mut bob).is_empty());
 }
 
+/// 带持久化的世界。
+///
+/// `only` 冲突只存在于落库事务 `add_inventory_tx` 里：没有 store 时 `/add` 走
+/// 内存的 `inventory::add_items`，那条路径不做持有判据。所以「唯一道具第二次
+/// 发放被拒」这个事实**只能**在 store-backed 的世界里钉住。
+fn gm_store_world(tag: &str) -> (World, std::path::PathBuf) {
+    let path = std::env::temp_dir()
+        .join(format!("maple-gm-only-{tag}-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).expect("temp store");
+    let world =
+        World::new_with_store(map(), 600, Gameplay::default(), service.store.clone())
+            .expect("world with store");
+    (world, path)
+}
+
+#[test]
+fn gm_add_refusing_a_unique_item_names_where_the_other_one_is_held() {
+    let (mut world, path) = gm_store_world("mount");
+    let mut alice = join_test_player(&mut world, "alice");
+    chat_drain(&mut alice);
+
+    // 野豬（1902000）：源 `Character/TamingMob/01902000.json` 的 `info.only=1`，
+    // 一个角色只能有一份。第一次发放进装备栏页签。
+    chat_send(&mut world, "alice", "gm-mount-1", "/add 1902000 1");
+    let first = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0]["code"], "gm_add_ok");
+    assert!(
+        first[0]["message"].as_str().is_some_and(|text| text.contains("野豬")),
+        "回执要叫出坐骑的源名，回成 id 就认不出发了什么：{}",
+        first[0]["message"]
+    );
+
+    // 第二次：已有一份 ⇒ 拒绝，且回执必须报出那一件现在在哪儿（背包页签+格）。
+    chat_send(&mut world, "alice", "gm-mount-2", "/add 1902000 1");
+    let second = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0]["success"], false);
+    assert_eq!(second[0]["code"], "item_unavailable");
+    let in_bag = second[0]["message"].as_str().unwrap_or_default();
+    assert!(in_bag.contains("唯一道具"), "回执要点名唯一道具：{in_bag}");
+    assert!(in_bag.contains("1 号页签"), "回执要报出背包位置：{in_bag}");
+
+    // 真实场景是「角色正骑着那头野豬」：把它挪到骑宠槽 −18 再发一次。
+    let store = world.store.clone().expect("store attached");
+    store
+        .with_db(|db| {
+            db.execute(
+                "DELETE FROM inventory WHERE account_id='alice' AND item_id='1902000'",
+                [],
+            )
+            .map_err(|error| error.to_string())?;
+            db.execute(
+                "INSERT INTO equipped(account_id,slot,item_id,quantity)
+                 VALUES('alice',-18,'1902000',1)",
+                [],
+            )
+            .map_err(|error| error.to_string())
+        })
+        .expect("seed the mounted 野豬");
+
+    chat_send(&mut world, "alice", "gm-mount-3", "/add 1902000 1");
+    let third = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(third.len(), 1);
+    assert_eq!(third[0]["success"], false);
+    assert_eq!(third[0]["code"], "item_unavailable");
+    let mounted = third[0]["message"].as_str().unwrap_or_default();
+    assert!(
+        mounted.contains("骑宠槽（-18）") || mounted.contains("骑宠槽（−18）"),
+        "回执要报出已装备在骑宠槽：{mounted}"
+    );
+    assert!(mounted.contains("1902000"), "回执要带上道具 id：{mounted}");
+
+    let _ = std::fs::remove_file(path);
+}
+
 #[test]
 fn gm_exp_rejects_out_of_band_amounts_without_touching_progress() {
     let mut world = chat_world();

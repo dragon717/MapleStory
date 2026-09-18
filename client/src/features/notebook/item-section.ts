@@ -77,7 +77,18 @@ function itemCell(context: SectionContext, row: NotebookRow) {
   label.textContent = name;
   cell.append(label);
 
-  if (row.availability && row.availability !== 'obtainable') {
+  // 配置 ID：目录里这条条目的源 id。查源、核对内容、GM 发放都用它，
+  // 而名字在源里可能根本没有（骑宠 935 件里有 840 件没有名字），只有它稳定。
+  const idTag = document.createElement('span');
+  idTag.className = 'notebook-slot-id';
+  idTag.textContent = `#${itemId}`;
+  cell.append(idTag);
+
+  // 骑宠页与椅子页不逐格标「本版本未开放」：这两页的基集合是整张表，几乎每一件
+  // 都没有开放获取途径，逐格标是噪声，而且会盖掉真正的事实——页内已经把这件事
+  // 说了一遍（服务端 `blockedReason`）。
+  if (row.availability && row.availability !== 'obtainable'
+    && context.section !== 'mount' && context.section !== 'chair') {
     const flag = document.createElement('span');
     flag.className = 'notebook-slot-flag';
     flag.textContent = uiText('notebookUnavailable', '本版本未开放');

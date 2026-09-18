@@ -723,9 +723,34 @@
   line-height: 14px;
 }
 
+/* 配置 ID（源模板 id）：查源、核对内容、GM 发放都只认它——而名字在源里可能根本
+ * 没有（骑宠 935 件里 840 件没有名字）。放在牌子的左上角：牌子顶部是空的，
+ * 右下角已经给了名字，右上角留给「本版本未开放」。等宽字形 + 深底浅字，
+ * 让它读起来像编号而不是另一个名字。 */
+.notebook-item-slot .notebook-slot-id {
+  /* 必须显式定位：槽位牌是绝对定位的，会盖在同层**在流内**的内容上面——
+   * 少这一行时标签照样有文本、有配色，却整块被牌子挡住（截图上就是看不见）。 */
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  width: auto;
+  height: auto;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(20, 26, 30, 0.78);
+  color: #cfd8dd;
+  font-size: 9px;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+/* 「本版本未开放」改到右下角（名字上方）：左上角让给了配置 ID，两者挤在同一行
+ * 会叠字。 */
 .notebook-item-slot .notebook-slot-flag {
   right: 8px;
-  top: 8px;
+  bottom: 25px;
+  top: auto;
   width: auto;
   height: auto;
   padding: 0 4px;

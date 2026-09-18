@@ -262,18 +262,25 @@ impl World {
                 }
             };
             if !outcome.success {
-                gm_result(
-                    self,
-                    id,
-                    request_id,
-                    false,
-                    &outcome.code,
-                    match outcome.code.as_str() {
-                        "inventory_full" => "背包页签已满，没有空位。",
-                        "request_reused" => "请求编号已用于其他道具操作。",
-                        _ => "道具发放失败。",
-                    },
-                );
+                let message = match outcome.code.as_str() {
+                    "inventory_full" => "背包页签已满，没有空位。".to_owned(),
+                    "request_reused" => "请求编号已用于其他道具操作。".to_owned(),
+                    // `only`（源 `info.only`）拒绝。此前落进兜底分支只回一句
+                    // 「道具发放失败」，GM 无从判断角色其实已经持有着同一件
+                    // （2026-09-18：`/add 1902000` 的野豬就装备在骑宠槽上），
+                    // 于是看着像发放通道坏了。回执必须点名道具、点名已持有的
+                    // 位置、点名解除办法；位置查的是与拒绝同一条判据
+                    // `auth::only_item_holder`，不在这里另起一套口径。
+                    "item_unavailable" => {
+                        let held = self
+                            .store
+                            .as_ref()
+                            .and_then(|store| store.only_item_holder(id, &item_id).ok().flatten());
+                        only_item_message(&item_id, held)
+                    }
+                    _ => "道具发放失败。".to_owned(),
+                };
+                gm_result(self, id, request_id, false, &outcome.code, &message);
                 return;
             }
             let profile = match store.load_profile(id, &self.default_profile()) {
@@ -286,9 +293,7 @@ impl World {
             if let Some(player) = self.players.get_mut(id) {
                 player.state.inventory = profile.inventory;
             }
-            let display = crate::inventory::pet_name(&item_id)
-                .map(str::to_owned)
-                .unwrap_or_else(|| item_id.clone());
+            let display = display_name(&item_id);
             gm_result(
                 self,
                 id,
@@ -334,7 +339,7 @@ impl World {
             slot_limit,
         ) {
             Ok(slot) => {
-                let display = crate::inventory::pet_name(&item_id).map(str::to_owned);
+                let display = display_name(&item_id);
                 gm_result(
                     self,
                     id,
@@ -343,7 +348,7 @@ impl World {
                     "gm_add_ok",
                     &format!(
                         "已获得 {}（{}）×{quantity}，放入 {} 号页签 {} 格。",
-                        display.unwrap_or_else(|| item_id.clone()),
+                        display,
                         item_id,
                         match kind {
                             1 => "装备",
@@ -376,6 +381,43 @@ impl World {
 
 fn kind_for_item(item_id: &str) -> u8 {
     crate::inventory::inventory_type(item_id).unwrap_or(5)
+}
+
+/// 回执里的道具名：宠物 → 骑宠/椅子/道具的源 `String` 名 → id。
+///
+/// 骑宠与椅子不在 `items.json`（源里 `notSale:1 / only:1`，不进掉落与商店），
+/// 但它们的名字是源 `String/Eqp.json` / `String/Ins.json` 的实值；只看
+/// `pet_name` 会把「野豬」回成 `1902000`，GM 认不出自己发了什么。
+fn display_name(item_id: &str) -> String {
+    crate::inventory::pet_name(item_id)
+        .or_else(|| crate::inventory::item_name(item_id))
+        .unwrap_or(item_id)
+        .to_owned()
+}
+
+/// 唯一道具（源 `info.only = 1`）的拒绝回执。
+///
+/// `held` 由 `auth::only_item_holder` 给出，与 `add_inventory_tx` 里那次拒绝
+/// 是同一条判据：拒绝说「已拥有」，这里就说清「拥有的那一份在哪儿」。
+fn only_item_message(item_id: &str, held: Option<crate::auth::OnlyHeld>) -> String {
+    let place = match held {
+        Some(crate::auth::OnlyHeld::Equipped { slot }) if matches!(slot, -18 | -19) => {
+            format!("装备在骑宠槽（{slot}）")
+        }
+        Some(crate::auth::OnlyHeld::Equipped { slot }) => format!("装备在 {slot} 号装备槽"),
+        Some(crate::auth::OnlyHeld::Inventory {
+            inventory_type,
+            slot,
+        }) => format!("放在 {inventory_type} 号页签 {slot} 格"),
+        Some(crate::auth::OnlyHeld::MonsterBook) => "收在怪物图鉴里".to_owned(),
+        None => "持有一份".to_owned(),
+    };
+    format!(
+        "{}（{}）是唯一道具（源 only=1）：你已{}。先卸下或丢弃现有那一份再发放。",
+        display_name(item_id),
+        item_id,
+        place,
+    )
 }
 
 /// Whether the compile-time item catalog itself carries the id (as opposed to

@@ -122,6 +122,7 @@ fn item_definition(item_id: &str) -> Option<&'static ItemDefinition> {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MountItemDefinition {
+    inventory_type: u8,
     #[serde(default)]
     info: BTreeMap<String, Value>,
     /// 源坐骑档 `TamingMob/<n>.json/info` 的内联副本；缺席＝该件没有已核定的
@@ -155,6 +156,7 @@ struct MountCatalogFile {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChairItemDefinition {
+    inventory_type: u8,
     /// Source `Item/Install/<group>/<id>.json` path.  The `03010`..`03019`
     /// and `0302` groups are the chair families; other install groups are
     /// decomposers, chair bags, titles, decorations, etc.

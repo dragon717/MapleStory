@@ -15,13 +15,13 @@ const code = ts.transpileModule(source, {
 }).outputText;
 assert.ok(!/^import (?!type )/m.test(code), 'view-model 只该有类型导入');
 const {
-  NOTEBOOK_TABS, BROWSE_MODES, browseModesFor, defaultModeFor,
+  NOTEBOOK_TABS, BROWSE_MODES, MOUNT_MODES, CHAIR_MODES, browseModesFor, defaultModeFor,
   regionList, pagesOfRegion, rowsOfPage, rowsOfRegion, groupRowsByPage,
   pageWindow, progressOf, catalogMismatch,
 } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
-// --- 四个页签：顺序固定，任务页在最后 ------------------------------------
-assert.deepEqual(NOTEBOOK_TABS.map(tab => tab.section), ['monster', 'equipment', 'use', 'quest']);
+// --- 六个页签：顺序固定，任务页在最后 ------------------------------------
+assert.deepEqual(NOTEBOOK_TABS.map(tab => tab.section), ['monster', 'equipment', 'use', 'mount', 'chair', 'quest']);
 
 // --- 任务页没有「未获得」开关 --------------------------------------------
 // 未获得的任务条目从服务器的基集合里就不存在，给一个开关等于暗示它存在。
@@ -29,6 +29,18 @@ assert.deepEqual(browseModesFor('quest'), ['all']);
 assert.deepEqual(browseModesFor('monster'), BROWSE_MODES);
 assert.deepEqual(browseModesFor('equipment'), BROWSE_MODES);
 assert.equal(defaultModeFor('equipment'), 'available');
+// --- 骑宠页没有「当前可获得」---------------------------------------------
+// 源把骑宠标成 notSale / only，本版本没有一条开放获取途径：按它过滤会得到空页，
+// 读起来像「本版本没有坐骑」。所以基集合是整张坐骑表，默认看全部。
+assert.deepEqual(browseModesFor('mount'), MOUNT_MODES);
+assert.deepEqual(MOUNT_MODES, ['all', 'obtained', 'missing']);
+assert.equal(defaultModeFor('mount'), 'all');
+// --- 椅子页同样没有「当前可获得」-----------------------------------------
+// 源把椅子整族排除在掉落与商店之外，2799 件里真进商店的是个位数：按它过滤
+// 会得到几乎空页。所以基集合是整张椅子表，默认看全部。
+assert.deepEqual(browseModesFor('chair'), CHAIR_MODES);
+assert.deepEqual(CHAIR_MODES, ['all', 'obtained', 'missing']);
+assert.equal(defaultModeFor('chair'), 'all');
 
 // --- 分母：任务页没有分母，怪物页把「当前可收集」分开报 ------------------
 // 未来的任务条目总数不是公开信息（§5.5），所以 total 必须是 null 而不是 0。

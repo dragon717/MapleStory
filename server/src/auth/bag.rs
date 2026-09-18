@@ -252,6 +252,19 @@ impl Store {
         Ok(outcome)
     }
 
+    /// 唯一道具（`info.only`）现在在哪儿。
+    ///
+    /// 只读，且与 `add_inventory_tx` 的拒绝共用 `only_item_holder` 一条判据：
+    /// 发放事务里拒绝用的那一次查在事务内，这一次查在提交之后，两次回答的是
+    /// 同一个问题，因此 GM 回执报出的位置不会与拒绝理由脱节。
+    pub(crate) fn only_item_holder(
+        &self,
+        account_id: &str,
+        item_id: &str,
+    ) -> Result<Option<OnlyHeld>, String> {
+        self.with_db(|db| only_item_holder(db, account_id, item_id))
+    }
+
     /// Atomically grant an item for a server command such as `/add`. This is
     /// deliberately separate from `write_inventory`: it resolves capacity,
     /// assigns pet instance metadata, and records request-id idempotency in

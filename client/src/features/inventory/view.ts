@@ -85,7 +85,7 @@ export class InventoryView {
   private readonly handleWindowPointerMove = (event: PointerEvent) => this.onWindowPointerMove(event);
   private readonly handleWindowPointerUp = (event: PointerEvent) => this.onWindowPointerUp(event);
   private readonly handleGridWheel = (event: WheelEvent) => this.onGridWheel(event);
-  private readonly handleGridScroll = () => this.scheduleGridScrollSnap();
+  private readonly handleGridScroll = () => this.clampGridScroll();
 
   constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false) {
     this.manifest = manifest;
@@ -104,6 +104,8 @@ export class InventoryView {
     this.tooltips = new TooltipController(this.root, tooltipSkin(this.ui), {
       assetImage: (frame, className) => this.assetImage(frame, className),
       detailsFor: (item, comparison) => itemDetails(item.itemId, item, comparison),
+      itemFrame: itemId => this.itemIconFrame(itemId),
+      itemLabel: itemId => itemName(itemId),
     });
 
     this.intents = new InventoryIntents(this.send, {
@@ -322,8 +324,11 @@ export class InventoryView {
       this.slotsSignature = signature;
       this.renderSlots();
       this.refreshGatherButton();
-      this.refreshTooltip();
     }
+    // The pointer may still be over the same DOM slot after a move/drop.  The
+    // slot node is reused, so validate the tooltip anchor even when a caller's
+    // signature omitted a cosmetic-only inventory field.
+    this.refreshTooltip();
     const pending = this.intents.scrollTarget();
     if (pending && !this.itemAt(pending.sourceSlot, pending.sourceTab)) {
       this.cancelScrollTarget(false);
@@ -343,6 +348,7 @@ export class InventoryView {
 
   private openEquipment() {
     if (this.destroyed) return;
+    this.hideTooltip();
     this.equipment?.open();
     this.layout();
   }
@@ -438,6 +444,7 @@ export class InventoryView {
       this.keepGatherResultMode = false;
       this.intents.resetPendingOperation();
       this.hideTooltip();
+      this.resetGridScroll();
       this.refreshGatherButton();
       this.root.dataset.tab = String(index);
       this.updateTabs();
@@ -623,6 +630,7 @@ export class InventoryView {
       slot.classList.toggle('inventory-slot-occupied', Boolean(item));
       slot.classList.toggle('inventory-slot-disabled', !available);
       slot.classList.toggle('inventory-slot-targetable', targetable);
+      slot.classList.remove('inventory-slot-cooling');
       slot.setAttribute('aria-disabled', available ? 'false' : 'true');
       slot.setAttribute('aria-label', item
         ? this.t('道具 ' + itemName(item.itemId) + this.itemQuantity(item), 'Item ' + itemName(item.itemId) + this.itemQuantity(item))
@@ -771,10 +779,12 @@ export class InventoryView {
   }
 
   private moveSlot(sourceTab: number, sourceSlot: number, targetSlot: number) {
+    this.hideTooltip();
     this.intents.moveSlot(sourceTab, sourceSlot, targetSlot);
   }
 
   private dropSlot(sourceTab: number, sourceSlot: number) {
+    this.hideTooltip();
     this.intents.dropSlot(sourceTab, sourceSlot);
   }
 
@@ -783,6 +793,7 @@ export class InventoryView {
   }
 
   private submitUseItem(sourceTab: number, sourceSlot: number, item: InventoryItem, targetSlot?: number, targetItem?: InventoryItem) {
+    this.hideTooltip();
     this.intents.submitUseItem(sourceTab, sourceSlot, item, targetSlot, targetItem);
   }
 
@@ -837,7 +848,11 @@ export class InventoryView {
     if (item) {
       const slot = this.grid?.querySelector<HTMLButtonElement>('[data-slot="' + slotNumber + '"]');
       if (slot) this.tooltips.showForItem(item, slot, this.comparisonTarget(item));
+      return;
     }
+    // A reused slot can receive pointer/focus without a pointerleave from the
+    // previous item.  Empty slots are authoritative hide points.
+    this.hideTooltip();
   }
 
   private comparisonTarget(item: InventoryItem): InventoryItem | null | undefined {
@@ -935,20 +950,23 @@ export class InventoryView {
     this.wheelRemainder -= rows * this.slotStepY;
     const snapped = Math.round(viewport.scrollTop / this.slotStepY) * this.slotStepY;
     const target = Math.min(maxScroll, Math.max(0, snapped + rows * this.slotStepY));
-    if (target !== viewport.scrollTop) viewport.scrollTo({ top: target, behavior: 'smooth' });
+    if (target !== viewport.scrollTop) viewport.scrollTop = target;
   }
 
-  /** Touch/trackpad panning scrolls freely; settle it back onto a row. */
-  private scheduleGridScrollSnap() {
-    if (!this.gridViewport) return;
+  /** Keep native/touch scrolling inside the current content and on a row. */
+  private clampGridScroll() {
+    const viewport = this.gridViewport;
+    if (!viewport) return;
+    const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const target = Math.min(maxScroll, Math.max(0, Math.round(viewport.scrollTop / this.slotStepY) * this.slotStepY));
+    if (target !== viewport.scrollTop) viewport.scrollTop = target;
+  }
+
+  private resetGridScroll() {
+    this.wheelRemainder = 0;
     if (this.gridSnapTimer) clearTimeout(this.gridSnapTimer);
-    this.gridSnapTimer = setTimeout(() => {
-      this.gridSnapTimer = undefined;
-      const viewport = this.gridViewport;
-      if (!viewport) return;
-      const target = Math.round(viewport.scrollTop / this.slotStepY) * this.slotStepY;
-      if (target !== viewport.scrollTop) viewport.scrollTo({ top: target, behavior: 'smooth' });
-    }, 160);
+    this.gridSnapTimer = undefined;
+    if (this.gridViewport) this.gridViewport.scrollTop = 0;
   }
 
   private onKeyDown(event: KeyboardEvent) {
@@ -1065,6 +1083,7 @@ export class InventoryView {
       }
     }
     this.refreshGatherButton();
+    this.resetGridScroll();
     this.positionWindowButton(this.closeButton, dimensions.buttons.close);
     this.positionWindowButton(this.gatherButton, dimensions.buttons.sort);
     this.positionWindowButton(this.sizeButton, dimensions.buttons.size);
@@ -1133,7 +1152,16 @@ export class InventoryView {
       slot.style.height = layout.slotHeight + 'px';
       slot.dataset.column = String(column);
       slot.dataset.row = String(row);
+      // The source paints slot wells inside the window background. Crop that
+      // same image onto each moving slot so the well travels with its item.
+      const sourceRow = row % Math.max(1, layout.rows);
+      if (this.background?.src) {
+        slot.style.backgroundImage = `url("${this.background.src}")`;
+        slot.style.backgroundRepeat = 'no-repeat';
+        slot.style.backgroundPosition = `-${layout.origin.x + x}px -${layout.origin.y + sourceRow * stepY}px`;
+      }
     });
+    this.clampGridScroll();
   }
 
   private layout() {
@@ -1190,10 +1218,15 @@ export class InventoryView {
    * 里画不出——那属于「同一事实两套判据」。
    */
   private itemIconFrame(itemId: string | number): AssetFrame | undefined {
-    return this.manifest.items?.[itemId]
-      ?? this.manifest.pets?.[itemId]?.icon
-      ?? this.manifest.mounts?.[itemId]
-      ?? this.manifest.mounts?.[String(Number(itemId))];
+    const raw = String(itemId);
+    const canonical = /^\d+$/.test(raw) ? String(Number(raw)) : raw;
+    for (const key of raw === canonical ? [raw] : [raw, canonical]) {
+      const frame = this.manifest.items?.[key]
+        ?? this.manifest.pets?.[key]?.icon
+        ?? this.manifest.mounts?.[key];
+      if (frame) return frame;
+    }
+    return undefined;
   }
 
   private assetImage(frame: AssetFrame, className: string) {

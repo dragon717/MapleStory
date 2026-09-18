@@ -19,6 +19,8 @@ export interface TooltipControllerOptions {
   assetImage: (frame: AssetFrame, className: string) => HTMLImageElement;
   /** Renders the tooltip body text; the caller owns the item details lookup. */
   detailsFor: (item: InventoryItem, comparison?: InventoryItem | null) => string;
+  itemFrame?: (itemId: string) => AssetFrame | undefined;
+  itemLabel?: (itemId: string) => string;
 }
 
 /**
@@ -31,6 +33,9 @@ export class TooltipController {
   readonly element: HTMLDivElement;
   private readonly content?: HTMLDivElement;
   private readonly detailsFor: TooltipControllerOptions['detailsFor'];
+  private readonly assetImage: TooltipControllerOptions['assetImage'];
+  private readonly itemFrame?: TooltipControllerOptions['itemFrame'];
+  private readonly itemLabel: (itemId: string) => string;
   private anchor?: HTMLElement;
   private anchorHovered = false;
   private anchorFocused = false;
@@ -39,6 +44,9 @@ export class TooltipController {
 
   constructor(root: HTMLElement, skin: TooltipSkin, options: TooltipControllerOptions) {
     this.detailsFor = options.detailsFor;
+    this.assetImage = options.assetImage;
+    this.itemFrame = options.itemFrame;
+    this.itemLabel = options.itemLabel ?? (itemId => itemId);
     const tooltip = document.createElement('div');
     tooltip.className = 'inventory-tooltip';
     tooltip.id = 'inventory-tooltip';
@@ -106,12 +114,62 @@ export class TooltipController {
     if (this.hideTimer !== undefined) window.clearTimeout(this.hideTimer);
     this.hideTimer = undefined;
     this.anchor = anchor;
-    const text = this.detailsFor(item, comparison);
-    if (this.content) this.content.textContent = text;
-    else this.element.textContent = text;
+    if (comparison !== undefined && this.content && this.itemFrame) {
+      this.renderComparison(item, comparison);
+    } else {
+      const text = this.detailsFor(item, comparison);
+      if (this.content) this.content.textContent = text;
+      else this.element.textContent = text;
+    }
     this.element.hidden = false;
     this.element.dataset.itemId = item.itemId;
     this.position(anchor);
+  }
+
+  private renderComparison(candidate: InventoryItem, equipped: InventoryItem | null) {
+    const content = this.content;
+    if (!content) return;
+    content.replaceChildren();
+    const comparison = document.createElement('div');
+    comparison.className = 'inventory-comparison';
+    comparison.append(this.comparisonPane('当前选择', candidate, false), this.comparisonPane('已装备', equipped, true));
+    content.append(comparison);
+  }
+
+  private comparisonPane(label: string, item: InventoryItem | null, equipped: boolean) {
+    const pane = document.createElement('div');
+    pane.className = 'inventory-comparison-pane';
+    pane.classList.toggle('inventory-comparison-equipped', equipped);
+    const title = document.createElement('div');
+    title.className = 'inventory-comparison-title';
+    title.textContent = label;
+    pane.append(title);
+    const iconBox = document.createElement('div');
+    iconBox.className = 'inventory-comparison-icon';
+    if (item) {
+      const frame = this.itemFrame?.(item.itemId);
+      if (frame) {
+        const icon = this.assetImage(frame, 'inventory-comparison-icon-image');
+        icon.alt = this.itemLabel(item.itemId);
+        iconBox.append(icon);
+      }
+      const name = document.createElement('div');
+      name.className = 'inventory-comparison-name';
+      name.textContent = this.itemLabel(item.itemId);
+      pane.append(iconBox, name);
+      const details = document.createElement('div');
+      details.className = 'inventory-comparison-details';
+      details.textContent = this.detailsFor(item);
+      pane.append(details);
+    } else {
+      iconBox.textContent = '—';
+      pane.append(iconBox);
+      const empty = document.createElement('div');
+      empty.className = 'inventory-comparison-empty';
+      empty.textContent = '无已装备';
+      pane.append(empty);
+    }
+    return pane;
   }
 
   /**

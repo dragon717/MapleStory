@@ -235,9 +235,10 @@ fn notebook_acquisition_is_idempotent_and_bumps_the_revision_once_per_commit() {
     // 角色作用域与账号作用域互不影响。
     assert_eq!(store.notebook_revision("account", "nb-char").unwrap(), 0);
     // 2026-09-16 埃德爾斯坦城簇 10 图：新内容（3 家商店的在售品与 6 只新怪
-    // 的掉落）把装配物品目录从 2588 推到 2624；图鉴分区必须随目录一起长大，
+    // 的掉落）把装配物品目录从 2588 推到 2624；2026-09-19 椅子整族归椅子页后
+    // 少了那一件真的进商店的椅子（3010001），所以是 2623。变化的从来是内容，
     // 下面那条「页签分区必须覆盖整份目录」才是真正的不变式。
-    assert_eq!(catalog.item_count(), 2624);
+    assert_eq!(catalog.item_count(), 2623);
 
     drop(store);
     nb_cleanup(&path);
@@ -335,8 +336,54 @@ fn notebook_classification_reads_the_catalog_and_never_guesses() {
             );
         }
     }
-    assert_eq!(total, catalog.item_count(), "页签分区必须覆盖整份目录");
+    assert_eq!(
+        total,
+        catalog.item_count() + catalog.mount_count() + catalog.chair_count(),
+        "页签分区必须覆盖整份目录（物品 + 骑宠 + 椅子）"
+    );
     assert!(catalog.section_of("99999999").is_none());
+
+    // 骑宠：不在物品树里，但在图鉴里是自己的一页 ⇒ 发放必须留档，否则玩家永远
+    // 看不到自己骑过什么（源 notSale/only，拿到手只能靠发放）。
+    let mounts = catalog.section_ids("mount").unwrap();
+    assert!(!mounts.is_empty(), "骑宠分区不能为空");
+    let mount = &mounts[0];
+    assert_eq!(
+        nb_classify(mount, catalog).unwrap(),
+        NbScope::Recorded(mount.clone()),
+        "骑宠必须被留档：{mount}"
+    );
+    assert_eq!(catalog.section_of(mount), Some("mount"));
+    // 骑宠不在物品表里（它另有 `mounts` 表），这点必须一直成立：合进 `items`
+    // 会改动「当前可获得」分母。
+    assert!(
+        catalog
+            .section_ids("equipment")
+            .unwrap()
+            .iter()
+            .all(|id| id != mount),
+        "骑宠不得混进装备页"
+    );
+
+    // 椅子同族（`Item/Install/0301*`、`0302`）：整族归自己的一页，发放／买到
+    // 时留档，且不得留在物品页的设置分区里（一件东西只能属于一个页签）。
+    let chairs = catalog.section_ids("chair").unwrap();
+    assert!(!chairs.is_empty(), "椅子分区不能为空");
+    let chair = &chairs[0];
+    assert_eq!(
+        nb_classify(chair, catalog).unwrap(),
+        NbScope::Recorded(chair.clone()),
+        "椅子必须被留档：{chair}"
+    );
+    assert_eq!(catalog.section_of(chair), Some("chair"));
+    assert!(
+        catalog
+            .section_ids("setup")
+            .unwrap()
+            .iter()
+            .all(|id| id != chair),
+        "椅子不得混进设置页"
+    );
 }
 
 #[test]

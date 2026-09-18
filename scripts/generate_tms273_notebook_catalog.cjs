@@ -43,7 +43,7 @@ const INPUT = path.join(ROOT, 'resources/tms273-export');
 /// Catalogue and rules carry their own versions.  They are *not* the runtime
 /// content version: a catalogue rebuild that changes nothing a running client
 /// can observe must not invalidate live sessions (plan §7.4).
-const CATALOG_VERSION = 'notebook-catalog-1';
+const CATALOG_VERSION = 'notebook-catalog-3';
 const RULES_VERSION = 'notebook-rules-1';
 
 /// Item ids that are provably obtainable through a chain this build really
@@ -82,7 +82,7 @@ function classify(item) {
   };
 }
 
-function buildCatalog({ notebook, items, gameplay, creation }) {
+function buildCatalog({ notebook, items, mounts = {}, chairs = {}, gameplay, creation }) {
   // ------------------------------------------------------------- evidence --
   // Every obtainable chain this build actually ships, as (itemId -> evidence).
   const obtainable = new Map();
@@ -145,6 +145,13 @@ function buildCatalog({ notebook, items, gameplay, creation }) {
       excluded.push({ itemId: id, reason: `unsupported-inventory-type:${item.inventoryType}` });
       return;
     }
+    // 椅子（`Item/Install/0301*`、`0302`）与骑宠同族：整表收进椅子页
+    // （`sections.chair`），不再各留一件在物品页的设置分区里——同一件东西
+    // 出现在两个分区会让页签不再是「无重叠全覆盖」。
+    if (chairs[id]) {
+      excluded.push({ itemId: id, reason: 'chair-family:notebook-chair-section' });
+      return;
+    }
     definitions[id] = {
       itemId: id,
       inventoryType: facts.inventoryType,
@@ -180,11 +187,89 @@ function buildCatalog({ notebook, items, gameplay, creation }) {
     else build(rawId);
   }
 
+  // ------------------------------------------------------------------ 骑宠 --
+  // Mounts are a *separate* family, not another item section.  The source marks
+  // them `notSale:1 / only:1`, so they appear in no drop, shop or quest row —
+  // which is exactly why `shared/mounts.json` exists apart from `items.json`
+  // and why the latter is the "obtainable today" denominator.  Folding 935
+  // mounts into `items` would silently move that denominator, so the catalogue
+  // declares them in their own table and its own section instead
+  // (`server/src/inventory.rs::shipped_mounts` says the same).
+  //
+  // What is recorded per mount is only what the same-version source authors:
+  // the taming-mob tier (`info.tamingMob`, the ride config the mount points at),
+  // the level requirement and the availability derived from the same evidence
+  // map the items use.  Name and icon stay references — they already ship in
+  // `shared/mount-index.json` and the asset manifest.
+  const mountDefinitions = {};
+  for (const [rawId, mount] of Object.entries(mounts)) {
+    const id = canonical(rawId);
+    if (!id || id !== rawId) { excluded.push({ itemId: rawId, reason: 'mount-id-not-canonical' }); continue; }
+    const info = mount.info ?? {};
+    const evidence = [...(obtainable.get(id) ?? [])].sort();
+    mountDefinitions[id] = {
+      itemId: id,
+      inventoryType: 1,
+      // 坐骑档（`info.tamingMob`）：源里真正决定它骑什么、多快的那一档配置。
+      // 缺席（或指向源里没有的档）如实写 null，不猜一个档位。
+      tamingMob: Number.isFinite(Number(info.tamingMob)) && info.tamingMob !== undefined ? Number(info.tamingMob) : null,
+      reqLevel: Number.isFinite(Number(info.reqLevel)) ? Number(info.reqLevel) : null,
+      equipmentSlot: typeof info.islot === 'string' ? info.islot : null,
+      availability: evidence.some(openChain) ? 'obtainable' : 'unverified',
+      obtainEvidence: evidence,
+      // 名与图标归既有目录/素材表：本表只引用，不复制第二份权威。
+      nameRef: mount.name ? `mount-index.json:${id}.name` : null,
+      iconRef: `manifest.items:${id}`,
+      sourceRefs: [String(mount.source ?? '')].filter(Boolean),
+    };
+  }
+
+  // ------------------------------------------------------------------ 椅子 --
+  // Chairs are the second family the source authors outside the item tree:
+  // `Item/Install/0301*`、`0302`，shipped as `shared/chairs.json`（2799 件）。
+  // The item tree carries exactly one of them (a single shop-sold chair), which
+  // is why the setup page looked almost empty; the chair page owns the whole
+  // family now, and the loop above drops any chair from the item definitions so
+  // the sections stay a disjoint cover.
+  //
+  // Recorded per chair is only what the same-version source authors: the
+  // recovery amounts (`info.recoveryHP` / `recoveryMP`) and — only when the
+  // source really states it — the interval (`recoveryIntervalMs`, parsed out of
+  // the authored `desc`; absent means "not核定", never a defaulted 10s).
+  const chairDefinitions = {};
+  for (const [rawId, chair] of Object.entries(chairs)) {
+    const id = canonical(rawId);
+    if (!id || id !== rawId) { excluded.push({ itemId: rawId, reason: 'chair-id-not-canonical' }); continue; }
+    const info = chair.info ?? {};
+    const evidence = [...(obtainable.get(id) ?? [])].sort();
+    const number = value => (Number.isFinite(Number(value)) ? Number(value) : null);
+    chairDefinitions[id] = {
+      itemId: id,
+      inventoryType: 3,
+      // 恢复量与间隔。间隔缺席时如实写 null：`shared/chairs.json` 的契约就是
+      // 「未核定」，运行时也不许套默认值，图鉴更不能替源编一个出来。
+      recoveryHP: number(info.recoveryHP),
+      recoveryMP: number(info.recoveryMP),
+      recoveryIntervalMs: number(chair.recoveryIntervalMs),
+      reqLevel: number(info.reqLevel),
+      availability: evidence.some(openChain) ? 'obtainable' : 'unverified',
+      obtainEvidence: evidence,
+      // 名与图标归既有目录/素材表：本表只引用，不复制第二份权威。
+      nameRef: chair.name ? `chair-names.json:${id}` : null,
+      iconRef: `manifest.items:${id}`,
+      sourceRefs: [String(chair.source ?? '')].filter(Boolean),
+    };
+  }
+
   // Section membership.  A quest-specific *equipment* template is legitimately
   // reachable from both the equipment page and the quest page — the two pages
   // reference the same acquisition fact, so nothing is stored twice and the
   // four page counts are never summed into one total (plan §2.4.5).
-  const sections = { equipment: [], use: [], setup: [], etc: [], cash: [], pet: [], quest: [] };
+  const sections = { equipment: [], use: [], setup: [], etc: [], cash: [], pet: [], mount: [], chair: [], quest: [] };
+  sections.mount.push(...Object.keys(mountDefinitions));
+  // 椅子分区就是整张椅子表：本版本几乎没有开放获取途径，所以这一页的基集合是全集，
+  // 少一件等于这一页少一件。
+  sections.chair.push(...Object.keys(chairDefinitions));
   for (const definition of Object.values(definitions)) {
     const { itemId, inventoryType, questSpecific, isPet } = definition;
     if (questSpecific) sections.quest.push(itemId);
@@ -325,6 +410,13 @@ function buildCatalog({ notebook, items, gameplay, creation }) {
     // The alias bookkeeping the plan asks every catalogue rebuild to report.
     aliasDedupe: { deduped: aliasDeduped },
     items: definitions,
+    // 骑宠是独立表：不在 `items`（那份是可获得分母），只在自己的分区里。
+    mounts: mountDefinitions,
+    mountCount: Object.keys(mountDefinitions).length,
+    // 椅子同理（`Item/Install/0301*`、`0302`，`shared/chairs.json`）：独立表 +
+    // 独立分区，物品页一件也不留。
+    chairs: chairDefinitions,
+    chairCount: Object.keys(chairDefinitions).length,
     monsterStructure: { regions, rows },
     monsterEntryCount: monsterEntries.length,
     monsterEntries: Object.fromEntries(monsterEntries.map(entry => [entry.entryId, entry])),
@@ -446,6 +538,10 @@ function main() {
   const { catalog, rules, aliasDeduped } = buildCatalog({
     notebook: read('notebook'),
     items,
+    // 骑宠不在导出物品树里，本表是它的唯一来源（`shared/mounts.json`）。
+    mounts: JSON.parse(fs.readFileSync(path.join(ROOT, 'shared/mounts.json'), 'utf8')).items,
+    // 椅子同理：`shared/chairs.json`（`Item/Install/0301*`、`0302`）。
+    chairs: JSON.parse(fs.readFileSync(path.join(ROOT, 'shared/chairs.json'), 'utf8')).items,
     gameplay: read('gameplay'),
     creation: JSON.parse(fs.readFileSync(path.join(ROOT, 'shared/character-creation.json'), 'utf8')),
   });
@@ -459,6 +555,8 @@ function main() {
     catalog: write('notebook-catalog', catalog),
     rules: write('notebook-rules', rules),
     itemDefinitions: Object.keys(catalog.items).length,
+    mountDefinitions: catalog.mountCount,
+    chairDefinitions: catalog.chairCount,
     aliasDedupe: { deduped: aliasDeduped, mergedFromCashShop: mergedFromCashShop.length },
     sections: Object.fromEntries(Object.entries(catalog.sections).map(([key, ids]) => [key, ids.length])),
     monsterEntries: catalog.monsterEntryCount,

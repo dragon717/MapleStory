@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 26;
 export const CONTENT_VERSION = 'tms273-32';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -342,8 +342,14 @@ export type ClientMessage =
 /** 冒险笔记（图鉴）的页签。 Kept as its own union so an unknown or misspelled
  *  section is a deserialization error on both sides rather than a silently
  *  ignored field. `quest` is server-filtered: the client never learns an
- *  un-obtained task entry from it. */
-export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'quest';
+ *  un-obtained task entry from it. `mount` is the ride-pet page: mounts are
+ *  authored outside the item tree (`Character/TamingMob`, shipped as
+ *  `shared/mounts.json`), so they get their own section rather than being
+ *  folded into the equipment page's obtainable denominator. `chair` is the same
+ *  shape: chairs ship as `shared/chairs.json` (`Item/Install/0301*`, `0302`),
+ *  the item tree carries only the couple that a shop really sells, and the rest
+ *  of the family lives only on this page. */
+export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'mount' | 'chair' | 'quest';
 /** How the server narrows an item page.  It is interpreted **inside** the
  *  server's own set, so no value of it can reveal an un-obtained quest entry:
  *  - `available` (default, and any unknown value): only templates the catalog

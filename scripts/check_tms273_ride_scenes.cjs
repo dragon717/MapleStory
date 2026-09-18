@@ -54,6 +54,7 @@ const ridingChair = read(path.join(assets, manifest.rideScenes.chairs['3010029']
 assert(Object.values(ridingChair.actions).some(list => list.length), 'tamingMob chair omitted');
 for (const id of ['1902000', '1912000', '3010000']) {
   assert(manifest.items[id]?.url, `shared icon missing ${id}`);
+  assert(manifest.items[id].url.startsWith('/assets/tms273/'), `shared icon has non-HTTP path ${id}`);
   assert.deepEqual(manifest.items[id], manifest.items[id.padStart(8, '0')], `split icon aliases ${id}`);
 }
 for (const relative of ['assets/manifest.json', 'assets/entry/appearance.json']) {

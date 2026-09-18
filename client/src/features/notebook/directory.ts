@@ -43,6 +43,26 @@ export interface NotebookRowDefinition {
   entryIds: string[];
 }
 
+/** 一条骑宠。  骑宠不在 `items` 里（源 `Character/TamingMob`，`notSale / only`），
+ *  所以目录为它单列一张表：这里只带「它是哪一档坐骑」与目录自己的可获得性。
+ *  名字与图标仍归 `mount-index.json` 与素材表，本表不复制第二份。 */
+export interface NotebookMountDefinition {
+  tamingMob: number | null;
+  reqLevel: number | null;
+  availability: Availability;
+}
+
+/** 一条椅子。  椅子与骑宠同族（源 `Item/Install/0301*`、`0302`，整族不进掉落与
+ *  商店），所以目录也为它单列一张表。这里只带恢复量与目录自己的可获得性：
+ *  名字与图标仍归 `chair-names.json` 与素材表，本表不复制第二份。
+ *  `recoveryIntervalMs` 为 null 表示**源未核定**，不是「每 10 秒」。 */
+export interface NotebookChairDefinition {
+  recoveryHP: number | null;
+  recoveryMP: number | null;
+  recoveryIntervalMs: number | null;
+  availability: Availability;
+}
+
 export interface NotebookMonsterEntry {
   monsterTemplateId: string;
   rowKey: string;
@@ -71,6 +91,8 @@ export interface NotebookDirectory {
   /** 物品分区。**没有 `quest`** —— 见本文件顶部。 */
   sections: Record<Exclude<NotebookSection, 'monster' | 'quest'>, string[]>;
   items: Record<string, NotebookItemDefinition>;
+  mounts: Record<string, NotebookMountDefinition>;
+  chairs: Record<string, NotebookChairDefinition>;
   monsterStructure: {
     regions: Record<string, NotebookRegion>;
     rows: Record<string, NotebookRowDefinition>;

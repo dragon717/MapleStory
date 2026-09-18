@@ -27,6 +27,10 @@ use tokio::sync::{mpsc, oneshot};
 // `auth::X` 路径调用；搬入 db.rs 后 re-export 保住原路径。
 use self::db::*;
 pub(crate) use db::{add_exp, grant_level_sp};
+// `only` 冲突的持有位置：`add_inventory_tx` 用它拒绝，GM `/add` 用它把拒绝
+// 说清楚（`auth::OnlyHeld` 供 `gm.rs` 生成回执文案）。
+pub(crate) use db::only_item_holder;
+pub use db::OnlyHeld;
 // NB-05：物品授予的图鉴留档入口。auth 层各授予事务（拾取 / 商店 / 现金 /
 // 任务 / 创角初始 / GM）统一走 `granted_tx`，保证「资产与留档同一事务」。
 use self::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};

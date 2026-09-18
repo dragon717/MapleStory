@@ -27,13 +27,16 @@ import type { SectionContext } from './section-context';
 
 /** 一个槽位：源收录的怪物图（只有已装配模板才有），否则一个「？」牌。 */
 function slotCell(context: SectionContext, row: NotebookRow, slot: NotebookSlot) {
+  // 配置 ID（源怪物模板 id）进 tooltip 与无障碍名：格子里已经画了名字与底板，
+  // 再塞一行数字会挤掉位图，而查源与核对只靠它。
+  const slotText = `${slotLabel(slot)} #${slot.monsterTemplateId}`;
   const cell = document.createElement('button');
   cell.type = 'button';
   cell.className = 'notebook-slot notebook-monster-slot';
   cell.dataset.registered = slot.registered ? 'true' : 'false';
   cell.dataset.collectable = slot.collectable ? 'true' : 'false';
-  cell.title = slotLabel(slot);
-  cell.setAttribute('aria-label', slotLabel(slot));
+  cell.title = slotText;
+  cell.setAttribute('aria-label', slotText);
   cell.setAttribute('aria-pressed', slot.registered ? 'true' : 'false');
 
   // 槽位底板是源 `Collection/monsterGrade/empty`（74x74，字身自 2px 起）。

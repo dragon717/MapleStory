@@ -8,13 +8,15 @@
 //! 里给出，`pageLabel` 是窗口已经本地化好的页签名。渲染器只把它们写进页眉，
 //! 不参与任何判定，也不自己补一个服务器没给的分母。
 
-import type { NotebookRow } from '../../../../shared/protocol';
+import type { NotebookRow, NotebookSection } from '../../../../shared/protocol';
 import type { Manifest } from '../../assets/manifest';
 import type { NotebookDirectory } from './directory';
 
 export interface SectionContext {
   directory: NotebookDirectory;
   manifest: Manifest;
+  /** 当前页签。  渲染器只用它决定「这一页要不要逐格标不可获得」，不参与判定。 */
+  section: NotebookSection;
   rows: readonly NotebookRow[];
   /** 当前悬停／选中的行键，用于详情面板高亮。 */
   selectedKey?: string;

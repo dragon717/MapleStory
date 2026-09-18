@@ -8,12 +8,12 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 140,
-  "edge_count": 316,
+  "node_count": 142,
+  "edge_count": 323,
   "edge_kind_counts": {
-    "value": 193,
+    "value": 198,
     "dynamic": 4,
-    "type": 98,
+    "type": 100,
     "side-effect": 21
   },
   "external_specifiers": [
@@ -317,6 +317,11 @@
     {
       "from": "client/src/assets/manifest.ts",
       "to": "client/src/features/windbell/maps.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/assets/manifest.ts",
+      "to": "client/src/features/player/animation.ts",
       "kind": "value"
     },
     {
@@ -1245,6 +1250,21 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/player/ride-scene.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/player/ride-scene.ts",
+      "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/player/ride-scene.ts",
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/player/view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1262,6 +1282,21 @@
     {
       "from": "client/src/features/player/view.ts",
       "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/player/view.ts",
+      "to": "client/src/assets/lazy-texture.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/player/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/player/view.ts",
+      "to": "client/src/features/player/ride-scene.ts",
       "kind": "value"
     },
     {
@@ -1625,8 +1660,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "98748ac84ad17537ffc4777fda32754913564447",
+  "source_commit": "ae7d58c87ef1fc132cbb9874c101fcd0a24d08c3",
   "working_tree_dirty": true,
-  "node_version": "v22.17.1",
-  "generated_at": "2026-09-18T11:43:00.517Z"
+  "node_version": "v22.22.2",
+  "generated_at": "2026-09-18T18:46:15.911Z"
 }

@@ -20,6 +20,11 @@ class FakeElement {
     this.style = { setProperty(name, value) { this['--' + name] = value; } };
     this.hidden = false;
     this.className = '';
+    this.classes = new Set();
+    this.classList = {
+      toggle: (name, force) => { if (force) this.classes.add(name); else this.classes.delete(name); },
+      contains: name => this.classes.has(name),
+    };
     this.id = '';
     this.tabIndex = 0;
     this.textContentValue = '';
@@ -30,6 +35,7 @@ class FakeElement {
   }
   appendChild(node) { this.children.push(node); return node; }
   append(...nodes) { for (const n of nodes) this.appendChild(n); }
+  replaceChildren(...nodes) { this.children = [...nodes]; }
   set textContent(value) { this.textContentValue = value; this.children = []; }
   get textContent() { return this.textContentValue; }
   addEventListener(type, fn) { (this.listeners.get(type) ?? this.listeners.set(type, []).get(type)).push(fn); }
@@ -128,6 +134,18 @@ destroyedPending?.();
 assert.equal(controller.element.hidden, false, 'destroy 后挂起定时器已失效');
 
 // 空皮肤（无 tooltip:top/mid/btm）也能构造：只有 content，缺省宽度参与定位。
+const comparisonController = new TooltipController(root, tooltipSkin(undefined), {
+  assetImage: () => new FakeElement('img'),
+  detailsFor: it => it.itemId,
+  itemFrame: itemId => ({ url: itemId + '.png', width: 32, height: 32 }),
+  itemLabel: itemId => 'name:' + itemId,
+});
+comparisonController.showForItem(item(2, '1002043'), anchor, item(-1, '1002067'));
+const comparisonRoot = comparisonController.element.children.at(-1).children.at(-1);
+assert.equal(comparisonRoot.className, 'inventory-comparison', '装备对比使用左右双栏');
+assert.equal(comparisonRoot.children.length, 2, '装备对比包含候选与已装备两栏');
+assert.ok(comparisonRoot.children[1].classList.contains('inventory-comparison-equipped'), '已装备栏保留黄框状态类');
+
 const bare = new TooltipController(root, tooltipSkin(undefined), {
   assetImage: () => new FakeElement('img'),
   detailsFor: it => it.itemId,

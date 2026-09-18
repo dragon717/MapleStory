@@ -87,8 +87,12 @@ try {
   const directory = {
     catalogVersion: 'v1',
     contentVersion: 'tms273-29',
-    sections: { equipment: ['1302000'], use: ['2000000'], setup: [], etc: [], cash: [], pet: [] },
+    sections: { equipment: ['1302000'], use: ['2000000'], setup: [], etc: [], cash: [], pet: [], mount: ['1902000'], chair: ['3010000'] },
     items: { '1302000': { inventoryType: 1, isPet: false, availability: 'obtainable', questIds: [] } },
+    // 骑宠不在 `items` 里：源 notSale / only，另有自己的表。
+    mounts: { '1902000': { tamingMob: 1, reqLevel: 60, availability: 'unverified' } },
+    // 椅子同族（`Item/Install/0301*`、`0302`）：另有自己的表。
+    chairs: { '3010000': { recoveryHP: 50, recoveryMP: null, recoveryIntervalMs: 10000, availability: 'unverified' } },
     monsterStructure: {
       regions: { '0': { region: 0, name: '楓之島', pages: [0] } },
       rows: { 'mc-0-0-0': { rowKey: 'mc-0-0-0', region: 0, page: 0, pageName: '楓之島 1', row: 0, name: '行0', entryIds: [] } },
@@ -168,8 +172,8 @@ try {
   await new Promise(resolve => setTimeout(resolve, 0));
   view.receiveState(stateFor(sent[sent.length - 1].requestId, []));
   const strip = host.children[0].children.find(child => child.className === 'notebook-tabs');
-  assert.equal(strip.children.length, 4, '窗口必须有四个页签');
-  for (const [index, section] of ['monster', 'equipment', 'use', 'quest'].entries()) {
+  assert.equal(strip.children.length, 6, '窗口必须有六个页签');
+  for (const [index, section] of ['monster', 'equipment', 'use', 'mount', 'chair', 'quest'].entries()) {
     assert.equal((strip.children[index].listeners.click ?? []).length, 1, `${section} 页签没有 click 监听`);
     // 标签是画上去的 DOM 文字；源底板把字形烧在图里，所以底板必须另画（见第 8 节）。
     assert.equal(strip.children[index].textContent, section, `${section} 页签没画出自己的标签`);
@@ -182,6 +186,24 @@ try {
   assert.equal(sent[sent.length - 1].section, 'equipment');
   assert.equal(sent[sent.length - 1].mode, 'available', '装备页必须带默认浏览方式');
   assert.equal(sent[sent.length - 1].page, 0, '换页签必须从第一页开始');
+
+  // 骑宠页默认「全部」：源把骑宠标成 notSale / only，本版本没有开放获取途径，
+  // 按「当前可获得」问会得到空页——读起来像「本版本没有坐骑」。
+  const beforeMount = sent.length;
+  strip.children[3].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sent.length, beforeMount + 1, '点骑宠页签必须发一次查询');
+  assert.equal(sent[sent.length - 1].section, 'mount');
+  assert.equal(sent[sent.length - 1].mode, 'all', '骑宠页默认必须看全部');
+
+  // 椅子页同骑宠页默认「全部」：2799 件里真进商店的是个位数，按「当前可获得」
+  // 问会得到几乎空页。
+  const beforeChair = sent.length;
+  strip.children[4].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sent.length, beforeChair + 1, '点椅子页签必须发一次查询');
+  assert.equal(sent[sent.length - 1].section, 'chair');
+  assert.equal(sent[sent.length - 1].mode, 'all', '椅子页默认必须看全部');
 
   // --- 6. 任务页：不发「未获得」请求，且查询仍不带身份 ---------------------
   view.open('quest');
