@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { PlayerState, SummonState } from '../../../../shared/protocol';
 import type { AssetFrame, CombatAssets, Manifest } from '../../assets/manifest';
 import { assetFrameAlpha } from '../../assets/manifest';
+import { ensureTextures } from '../../assets/lazy-texture';
 import { damageNumberAdvances } from './damage-number';
 import { frameAt } from '../player/animation';
 
@@ -185,9 +186,31 @@ export class CombatView {
   }
 
   receive(event: CombatEvent) {
+    // 技能特效改按需装载：整本 `skillEffects` 实测 1,327 张 / 115.6MB，占首屏集
+    // 字节的 **90%**，而本视图真正用到的只是事件里那几个技能。在**事件入口**入队，
+    // 让纹理在要画之前就上路；返回值故意忽略——特效该照常播，不能因为纹理晚到
+    // 就整段不画（首帧若有极短暂的占位，下一帧纹理落地后自愈）。
+    const skillId = event.type === 'actionStarted' ? undefined : event.skillId;
+    if (typeof skillId === 'number' && Number.isFinite(skillId)) {
+      this.ensureEffectTextures(skillId, event.type === 'skillCast' ? undefined : (event as AuthoritativeDamageEvent).skillLevel);
+    }
     if (event.type === 'actionStarted') this.receiveActionStarted(event);
     else if (event.type === 'skillCast') this.receiveSkillCast(event);
     else this.receiveDamageEvent(event);
+  }
+
+  /**
+   * 把某条技能用到的特效帧全部入队（含 `<id>:<等级>` 这一组变体）。
+   * 只入队、不判就绪：调用方按原节奏播效果。
+   */
+  private ensureEffectTextures(skillId: number, skillLevel?: number) {
+    const urls: string[] = [];
+    for (const key of [`${skillId}:${skillLevel}`, String(skillId)]) {
+      const set = this.skillEffects?.[key];
+      if (!set) continue;
+      for (const frames of Object.values(set)) for (const frame of frames ?? []) if (frame?.url) urls.push(frame.url);
+    }
+    if (urls.length) ensureTextures(this.scene, urls);
   }
 
   /** Start source-backed skill VFX only after the server accepts the cast. */
@@ -688,6 +711,9 @@ export class CombatView {
   private spawnSkillVisual(event: SkillCastEvent | AuthoritativeDamageEvent, frames: AssetFrame[], travel?: SkillVisual['travel'], loopMs?: number) {
     const first = frames[0];
     if (!first) return;
+    // 兜底：召唤物/硬编码分支直接走到这里，未必经过 `receive()` 的入口入队。
+    // 同一条 URL 重复请求是幂等的（lazy-texture 自去重），所以这里可以放心冗余。
+    ensureTextures(this.scene, frames.map(frame => frame.url));
     const sprite = this.scene.add.image(0, 0, first.url).setOrigin(0).setDepth(this.depth).setVisible(false);
     const visual: SkillVisual = { event, frames, startedAtMs: this.clock(), sprite, travel, loopMs };
     this.skillVisuals.push(visual);

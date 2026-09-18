@@ -503,7 +503,11 @@ async function enterGame(session: LoginResponse) {
       input?.reset();
       connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId });
     });
-    game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, banner: false });
+    // loader.imageLoadType：Phaser 默认 'XHR'——每张图都要走 XHR→Blob→objectURL→Image
+    // 四步，23.5k 张图时这一层开销就是「装载地图与角色」的主要成本（实测服务端能到
+    // 6000 req/s、而客户端 1.1ms/张）。'HTMLImageElement' 直接 <img src>，省掉 blob
+    // 中转，也让浏览器自己的解码/缓存路径生效。
+    game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, banner: false, loader: { imageLoadType: 'HTMLImageElement' } });
     layoutObserver = new ResizeObserver(() => {
       const { clientWidth: width, clientHeight: height } = el('game');
       if (width && height && game && (game.scale.width !== width || game.scale.height !== height)) game.scale.resize(width, height);

@@ -16,7 +16,7 @@
 
 use axum::{
     extract::Request,
-    http::{header::CACHE_CONTROL, HeaderValue, StatusCode},
+    http::{header::{CACHE_CONTROL, CONTENT_ENCODING, VARY}, HeaderMap, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -118,6 +118,11 @@ pub fn classify(path: &str) -> CacheClass {
 /// 缓存头中间件：按路径给响应补 `Cache-Control`，不改动状态码与正文。
 ///
 /// 只在响应**没有**自带该头时写入，避免覆盖业务路由显式设置的策略。
+///
+/// 顺带补 `Vary: Accept-Encoding`：预压缩变体（`ServeDir::precompressed_*`）按
+/// `Accept-Encoding` 返回**不同字节**，但 tower-http 自己不加 `Vary`。同一地址在
+/// 有无压缩之间是可变的，缺了它任何共享缓存都可能把 br 的字节发给不支持 br 的读方。
+/// 只在响应确实带 `Content-Encoding` 时补——未压缩的响应没有这个可变性。
 pub async fn apply_cache_headers(request: Request, next: Next) -> Response {
     let class = classify(request.uri().path());
     let mut response = next.run(request).await;
@@ -126,7 +131,16 @@ pub async fn apply_cache_headers(request: Request, next: Next) -> Response {
             response.headers_mut().insert(CACHE_CONTROL, value);
         }
     }
+    apply_vary_for_encoding(response.headers_mut());
     response
+}
+
+/// 给按 `Accept-Encoding` 变化的响应补 `Vary`。抽成纯函数是为了能直接断言——
+/// 中间件本身要跑 `Request`/`Next`，而这条不变量（**只在带编码时补**）才是要守的东西。
+fn apply_vary_for_encoding(headers: &mut HeaderMap) {
+    if headers.contains_key(CONTENT_ENCODING) && !headers.contains_key(VARY) {
+        headers.insert(VARY, HeaderValue::from_static("accept-encoding"));
+    }
 }
 
 /// 当前发布描述。字段与 `client/src/platform/runtime-config.ts` 的
@@ -287,6 +301,33 @@ mod tests {
     fn classifies_content_addressed_objects_as_immutable() {
         let hex = "a".repeat(64);
         assert_eq!(classify(&format!("/assets/objects/sha256/{hex}.png")), CacheClass::Immutable);
+    }
+
+    /// 预压缩（`ServeDir::precompressed_*`）让同一地址按 `Accept-Encoding` 返回不同字节，
+    /// 而 tower-http 不加 `Vary`。这条不变量必须双向守：带了编码就补、没带就不能补
+    /// ——给未压缩的响应乱贴 `Vary` 会把本来可以共用的缓存条目拆开。
+    #[test]
+    fn adds_vary_only_for_encoded_responses() {
+        let mut encoded = HeaderMap::new();
+        encoded.insert(CONTENT_ENCODING, HeaderValue::from_static("br"));
+        apply_vary_for_encoding(&mut encoded);
+        assert_eq!(encoded.get(VARY).unwrap(), "accept-encoding");
+
+        // 已有 Vary 时不覆盖（可能是别的可变维度拼好的）。
+        let mut custom = HeaderMap::new();
+        custom.insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+        custom.insert(VARY, HeaderValue::from_static("origin, accept-encoding"));
+        apply_vary_for_encoding(&mut custom);
+        assert_eq!(custom.get(VARY).unwrap(), "origin, accept-encoding");
+
+        // 未压缩的响应不得新增 Vary。
+        let mut plain = HeaderMap::new();
+        apply_vary_for_encoding(&mut plain);
+        assert!(!plain.contains_key(VARY));
+
+        // 幂等：跑两次结果不变。
+        apply_vary_for_encoding(&mut encoded);
+        assert_eq!(encoded.get(VARY).unwrap(), "accept-encoding");
     }
 
     #[test]

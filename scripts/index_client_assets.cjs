@@ -24,6 +24,14 @@
  *     （`st_blocks === 0`＝内容不在本机）。读它会**永久阻塞**在云下载上——实测
  *     卡死在 28k 中的第 233 个。这类文件按 `blocks` 预判后跳过并如实报告，
  *     它们继续走逻辑地址（协商缓存），不影响其余资源的强缓存。
+ *   - **大内容 JSON 预压缩**（2026-09-18 补）：见 `publishPrecompressed`。浏览器
+ *     对**单个响应**有体积上限，超过就不再写 HTTP 缓存——实测 1.5MB 的图片能留
+ *     本地副本、11.9MB 的索引留不下。`manifest.json`(35MB) 与 `entry/appearance.json`
+ *     (23MB) 因此**每次加载都全量重下**，`no-cache` 的 304 重验证根本没机会发生。
+ *     预压缩把编码后体积降到 1.49MB / 0.16MB，重新落进缓存门槛内。
+ *   - **对象索引同规格**（2026-09-18 同日补）：`objects/index/<revision>.json` 本身就是
+ *     那个 11.9MB 的不可缓存样本。首屏体积收口做完后，刷新时剩下的字节**几乎只有它**
+ *     —— 所以索引也必须带 `.br`/`.gz`，否则「缓存没生效」只是被压缩到只剩这一条。
  *
  * 用法：
  *   node scripts/index_client_assets.cjs                  # 建立/补齐对象库
@@ -38,6 +46,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_ASSETS = path.join(ROOT, 'client/public-tms273/assets');
@@ -69,10 +78,91 @@ function discoverContentFiles(root) {
   })(root);
   return found.sort();
 }
-/** 只把真正的内容字节做成对象。JSON 清单留在固定名（它们靠 304 重验证已足够便宜）。 */
+/**
+ * 只把真正的内容字节做成对象。JSON 清单**留在固定名**：它们是本次装配的产物、
+ * 名字固定且内容随装配变化，进对象库只会让地址每轮都换。它们靠 `no-cache` 重验证 +
+ * 预压缩这条路线（见 `publishPrecompressed`），不走内容寻址。
+ */
 const OBJECT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.ogg', '.wav', '.m4a']);
 const ALGORITHM = 'sha256';
 const SCHEMA = 1;
+
+/**
+ * 预压缩（br + gz）的门槛与参数。
+ *
+ * 门槛取 256KB 的理由不是「压缩收益」，而是**浏览器愿不愿意留下副本**：实测同一个
+ * 浏览器里 1.5MB 的 immutable 响应能留在磁盘缓存、11.9MB 的留不下（Chromium 对单个
+ * 缓存条目有体积上限）。超过门槛才压，是为了把小内容 JSON 排除在外——它们本来就能
+ * 走 304，压了只是多两份文件。
+ *
+ * br q9 在 35MB 的清单上耗 615ms、压到 1.49MB（gz9 是 391ms / 2.50MB）；两个编码都写，
+ * 让服务端按客户端 `Accept-Encoding` 协商（tower-http 的档位是 zstd > br > gz，浏览器
+ * 会拿到 br）。预压是**离线**做的，服务端只做文件查找，零 CPU 开销。
+ */
+const PRECOMPRESS_MIN_BYTES = 256 * 1024;
+const PRECOMPRESS_VARIANTS = [
+  {
+    suffix: '.br',
+    encode: body => zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }),
+    decode: body => zlib.brotliDecompressSync(body),
+  },
+  {
+    suffix: '.gz',
+    encode: body => zlib.gzipSync(body, { level: 9 }),
+    decode: body => zlib.gunzipSync(body),
+  },
+];
+
+/**
+ * 为大内容 JSON 写 `<文件>.br` / `<文件>.gz` 兄弟文件。
+ *
+ * 服务端靠 `ServeDir::precompressed_br()/precompressed_gzip()` 查找它们：只认**同目录同名的
+ * 后缀变体**，所以这两份文件必须紧挨着源文件放，不能另建目录。
+ *
+ * 幂等规则是**比 mtime**而不是只看存在：内容被装配管线原地改写后，`mtime` 会变新，
+ * 这一轮就必须重压——否则服务端会继续发旧的压缩字节（比不发压缩更坏）。
+ * 同一理由，源文件掉到门槛以下时要**删掉**遗留变体，不然它会一直被发出去。
+ */
+function publishPrecompressed(entries, options) {
+  let written = 0;
+  let reused = 0;
+  let removed = 0;
+  let sourceBytes = 0;
+  let encodedBytes = 0;
+
+  for (const entry of entries) {
+    const qualifies = entry.size >= PRECOMPRESS_MIN_BYTES;
+    let sourceStat;
+    try { sourceStat = fs.statSync(entry.file); } catch { continue; }
+    if (qualifies) sourceBytes += entry.size;
+    for (const variant of PRECOMPRESS_VARIANTS) {
+      const target = `${entry.file}${variant.suffix}`;
+      let targetStat = null;
+      try { targetStat = fs.statSync(target); } catch { /* 尚无变体 */ }
+
+      if (!qualifies) {
+        if (targetStat) {
+          if (!options.dryRun && !options.verify) { fs.rmSync(target); removed += 1; }
+        }
+        continue;
+      }
+      // mtime 相等也算新鲜：内容没动过就不该重压。
+      if (targetStat && targetStat.size > 0 && targetStat.mtimeMs >= sourceStat.mtimeMs) {
+        reused += 1;
+        encodedBytes += targetStat.size;
+        continue;
+      }
+      if (options.dryRun || options.verify) { continue; }
+      const body = fs.readFileSync(entry.file);
+      const encoded = variant.encode(body);
+      fs.writeFileSync(`${target}.tmp-${process.pid}`, encoded);
+      fs.renameSync(`${target}.tmp-${process.pid}`, target);
+      written += 1;
+      encodedBytes += encoded.length;
+    }
+  }
+  return { written, reused, removed, sourceBytes, encodedBytes };
+}
 
 function parseArgs(argv) {
   const options = { assets: DEFAULT_ASSETS, dryRun: false, verify: false, limit: 0, report: null };
@@ -155,6 +245,7 @@ function main() {
   const started = Date.now();
   const references = new Set();
   const contentDataless = [];
+  const compressible = [];
   const contentFiles = discoverContentFiles(root);
   for (const name of contentFiles) {
     const file = path.join(root, name);
@@ -163,6 +254,7 @@ function main() {
     // 与对象一样：占位 JSON 读下去会永久阻塞，先用 stat 预判再决定读不读。
     // 跳过它意味着**它引用的资源这一轮进不了闭包**，所以必须计入报告并显式警告。
     if (stat.blocks === 0 && stat.size > 0) { contentDataless.push(name); continue; }
+    compressible.push({ name, file, size: stat.size });
     try {
       collectReferences(JSON.parse(fs.readFileSync(file, 'utf8')), references);
     } catch {
@@ -257,6 +349,8 @@ function main() {
     objects,
   };
 
+  const precompressed = publishPrecompressed(compressible, options);
+
   const report = {
     schema: SCHEMA,
     algorithm: ALGORITHM,
@@ -273,6 +367,11 @@ function main() {
     dataless,
     contentFiles: contentFiles.length,
     contentDataless,
+    precompressedFiles: compressible.filter(entry => entry.size >= PRECOMPRESS_MIN_BYTES).length,
+    precompressedWritten: precompressed.written,
+    precompressedReused: precompressed.reused,
+    precompressedSourceBytes: precompressed.sourceBytes,
+    precompressedEncodedBytes: precompressed.encodedBytes,
     slowestMs: Date.now() - started,
     dryRun: options.dryRun,
   };
@@ -286,6 +385,19 @@ function main() {
     const indexName = `${revision}.json`;
     const indexFile = path.join(indexDir, indexName);
     if (!fs.existsSync(indexFile)) writeAtomic(indexFile, JSON.stringify(indexBody));
+    // 索引本身也走预压缩。**这一条是不可省的**：索引是 11.9MB 的 immutable JSON，
+    // 实测它正好落在「浏览器单响应上限」之上 ⇒ Chromium 永远不把它写进 HTTP 缓存
+    // ⇒ 每次进游戏都要重下它（2026-09-18 修完首屏体积后，刷新时剩下的字节几乎就是它）。
+    // 索引与内容 JSON 同规格，所以在同一次发布里顺手生成兄弟文件；服务端零 CPU 直发。
+    const indexPrecompressed = publishPrecompressed([{ name: `objects/index/${indexName}`, file: indexFile, size: fs.statSync(indexFile).size }], options);
+    for (const key of ['written', 'reused', 'removed', 'sourceBytes', 'encodedBytes']) precompressed[key] += indexPrecompressed[key];
+    report.precompressedFiles += 1;
+    report.precompressedWritten = precompressed.written;
+    report.precompressedReused = precompressed.reused;
+    report.precompressedSourceBytes = precompressed.sourceBytes;
+    report.precompressedEncodedBytes = precompressed.encodedBytes;
+    report.indexPrecompressedSourceBytes = indexPrecompressed.sourceBytes;
+    report.indexPrecompressedEncodedBytes = indexPrecompressed.encodedBytes;
     // 指针最后写：它是唯一的「发布」动作，读方要么看到旧组合、要么看到新组合。
     writeAtomic(path.join(root, 'objects', 'current.json'), JSON.stringify({
       schema: SCHEMA,
@@ -302,6 +414,11 @@ function main() {
 
   console.log(`资源引用闭包: ${references.size}（内容 JSON ${contentFiles.length} 个 → 对象 ${report.indexed} / 清单类保持固定名 ${skipped.length}）`);
   console.log(`对象: 新增 ${report.objectsWritten}、复用 ${report.objectsReused}；逻辑 ${(logicalBytes / 1048576).toFixed(1)}MB → 去重后 ${(objectBytes / 1048576).toFixed(1)}MB`);
+  console.log(`预压缩(br+gz): ${report.precompressedFiles} 个 ≥${PRECOMPRESS_MIN_BYTES / 1024}KB 的内容 JSON + 1 个对象索引；新增 ${precompressed.written}、复用 ${precompressed.reused}、清理 ${precompressed.removed}；`
+    + `${(precompressed.sourceBytes / 1048576).toFixed(1)}MB → ${(precompressed.encodedBytes / 1048576).toFixed(2)}MB`);
+  if (report.indexPrecompressedSourceBytes) {
+    console.log(`  其中对象索引: ${(report.indexPrecompressedSourceBytes / 1048576).toFixed(1)}MB → ${(report.indexPrecompressedEncodedBytes / 1048576).toFixed(2)}MB`);
+  }
   console.log(`缺文件: ${missing.length}${missing.length ? `（${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ' …' : ''}）` : ''}`);
   console.log(`未实体化(iCloud 占位) 资源: ${dataless.length} ｜ 内容 JSON: ${contentDataless.length}`);
   if (dataless.length > 0 || contentDataless.length > 0) {
@@ -363,7 +480,42 @@ function verify(root, report) {
     checked += 1;
   }
 
-  console.log(`校验：索引 ${entries.length} 条，抽查对象 ${checked} 个，revision ${index.revision}`);
+  // 预压缩变体：必须存在、且**解压后与源逐字节一致**。
+  // 只比 mtime 不够——服务端发的是压缩字节，一份过期的变体会让客户端拿到旧清单，
+  // 比不发压缩更坏。所以这里独立解压比对，不看 publishPrecompressed 自己的记账。
+  let precompressedChecked = 0;
+  // 内容 JSON 与**对象索引**同规格：索引也是大 JSON，也必须带兄弟文件，否则刷新时
+  // 客户端要重下 11.9MB。校验把两者一起走，避免「补了索引却没进这套判据」。
+  const storeIndexName = String(pointer.index ?? '').replace(/^\/assets\//, '');
+  const precompressTargets = [...discoverContentFiles(root)];
+  if (storeIndexName) precompressTargets.push(storeIndexName);
+  for (const name of precompressTargets) {
+    const file = path.join(root, name);
+    let stat;
+    try { stat = fs.statSync(file); } catch { continue; }
+    if (stat.blocks === 0 && stat.size > 0) continue;
+    const qualifies = stat.size >= PRECOMPRESS_MIN_BYTES;
+    for (const variant of PRECOMPRESS_VARIANTS) {
+      const target = `${file}${variant.suffix}`;
+      const label = path.relative(root, target).split(path.sep).join('/');
+      if (!qualifies) {
+        if (fs.existsSync(target)) failures.push(`多余的预压缩变体（源已小于门槛）: ${label}`);
+        continue;
+      }
+      if (!fs.existsSync(target)) { failures.push(`缺少预压缩变体: ${label}`); continue; }
+      let decoded;
+      try {
+        decoded = variant.decode(fs.readFileSync(target));
+      } catch (error) {
+        failures.push(`预压缩变体无法解压: ${label}（${error instanceof Error ? error.message : error}）`);
+        continue;
+      }
+      if (!decoded.equals(fs.readFileSync(file))) { failures.push(`预压缩变体与源不一致: ${label}`); continue; }
+      precompressedChecked += 1;
+    }
+  }
+
+  console.log(`校验：索引 ${entries.length} 条，抽查对象 ${checked} 个，预压缩变体 ${precompressedChecked} 个，revision ${index.revision}`);
   if (failures.length > 0) {
     console.error(`校验失败 ${failures.length} 项：`);
     for (const failure of failures.slice(0, 20)) console.error(`  - ${failure}`);

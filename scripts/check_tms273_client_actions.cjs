@@ -246,4 +246,48 @@ assert.equal(packageJson.scripts.dev, 'vite', 'dev 脚本不得带 --host 覆盖
 assert.ok(/__CODE_MODE__/.test(read(path.join(CLIENT_SRC, 'app/page-shell.ts'))), '页面必须显示代码模式');
 group('页面身份（DEV_SOURCE / BUILT_PACKAGE）与固定开发端口在位');
 
-console.log('\ncheck_tms273_client_actions: 8 组断言全部通过');
+// ── 9. 角标排版：长串不得顶穿面板 ──────────────────────────────────────────
+// 2026-09-18 实拍故障：资源修订（64 位十六进制）溢出到面板圆角框之外，同时中文标签
+// 被挤成「当前发 / 布：」。根因是**没有断点的长串 + 中文标签的最小内容宽度只有一个字**，
+// 而布局检查当时是全绿的。这里守两条：显示侧留完整值、样式侧给出断点与 nowrap。
+const actionsCss = read(path.join(CLIENT_SRC, 'features/client-actions/style.css'));
+assert.ok(/resource\.title = revision \?\? ''/.test(viewSource),
+  '缩短显示后必须把完整修订号留在 title（报障要用的仍是整串）');
+assert.ok(/displayRevision\(revision\)/.test(viewSource),
+  '修订号的显示必须经 displayRevision 收口，不得直接 textContent = assetRevision');
+assert.ok(/revision\.length <= REVISION_SHORT_LIMIT/.test(viewSource),
+  'displayRevision 必须按长度判断，短值原样显示');
+assert.ok(/\.client-actions-label \{[\s\S]*?white-space: nowrap;[\s\S]*?\}/.test(actionsCss),
+  '中文标签必须 nowrap：否则 flex 收缩会把它拆成两截');
+for (const selector of ['.client-actions-version strong', '.client-actions-resource em']) {
+  assert.ok(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^{]*\\{[^}]*overflow-wrap: anywhere;`).test(actionsCss),
+    `${selector} 必须给出断点（overflow-wrap: anywhere），否则长串会顶穿 max-width`);
+}
+assert.ok(/\.client-actions \{[\s\S]*?max-width: min\(340px/.test(actionsCss),
+  '面板宽度上限不得被移除：它是溢出可见性的前提');
+group('角标排版：长串有断点、中文标签不拆行、完整修订号留在 title');
+
+// ── 10. 大内容 JSON 的预压缩交付 ───────────────────────────────────────────
+// 为什么必须成对守：浏览器对**单个**响应有缓存体积上限（实测 1.5MB 的能留副本、
+// 11.9MB 的留不下）。`manifest.json`(35MB) 与 `entry/appearance.json`(23MB) 因此
+// 每次加载都全量重下——实测刷新仍传 61MB。修法是**离线**预压缩 + 服务端只查文件：
+// 编码后 1.49MB / 0.16MB 重新落回门槛内，刷新变成 304（实测刷新 61MB → 815B）。
+// 两侧缺一不可：脚本不产变体，服务端就没得发；服务端不配置，变体白占磁盘。
+const serverMain = read(path.join(ROOT, 'server/src/main.rs'));
+assert.ok(/precompressed_br\(\)\.precompressed_gzip\(\)/.test(serverMain),
+  '内容目录必须启用预压缩变体（br 优先、gz 兜底），否则大 JSON 永远进不了浏览器缓存');
+assert.ok(!/compression-(gzip|br|zstd)/.test(read(path.join(ROOT, 'server/Cargo.toml'))),
+  '预压缩必须在发布侧离线完成：服务端不得引入请求期压缩 feature（白烧 CPU）');
+const indexer = read(path.join(ROOT, 'scripts/index_client_assets.cjs'));
+assert.ok(/PRECOMPRESS_MIN_BYTES/.test(indexer) && /PRECOMPRESS_VARIANTS/.test(indexer),
+  '发布脚本必须自带预压缩门槛与变体定义');
+for (const suffix of ["'.br'", "'.gz'"]) {
+  assert.ok(indexer.includes(`suffix: ${suffix}`), `预压缩必须同时产出 ${suffix}`);
+}
+assert.ok(/variant\.decode\(fs\.readFileSync\(target\)\)/.test(indexer) && /decoded\.equals\(fs\.readFileSync\(file\)\)/.test(indexer),
+  '--verify 必须独立解压比对变体：只比 mtime 挡不住「发旧压缩字节」');
+assert.ok(/targetStat\.mtimeMs >= sourceStat\.mtimeMs/.test(indexer),
+  '变体新鲜度必须比 mtime：源被原地改写后要重压');
+group('大内容 JSON 预压缩：离线产变体、服务端只查文件、--verify 解压比对');
+
+console.log('\ncheck_tms273_client_actions: 10 组断言全部通过');

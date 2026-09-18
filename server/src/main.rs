@@ -227,7 +227,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             move || client_delivery::client_release(std::sync::Arc::clone(&release))
         }))
         .route("/api/{*path}",get(||async{error(StatusCode::NOT_FOUND,"Unknown API route")}))
-        .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(ServeDir::new(&assets)))
+        .route("/ws",get(upgrade)).nest_service("/assets",ServeDir::new(dist.join("assets")).fallback(
+            // 内容目录的**大 JSON** 走预压缩变体（见 scripts/index_client_assets.cjs 的
+            // publishPrecompressed）：`manifest.json` 35MB、`entry/appearance.json` 23MB
+            // 超过浏览器的单条缓存体积上限，`no-cache` 的 304 重验证根本不会发生，
+            // 每次加载都全量重下（实测刷新仍传 61MB）。预压缩后编码体积 1.49MB / 0.16MB，
+            // 重新落回门槛内 ⇒ 刷新变成 304。
+            //
+            // `precompressed_*` 只做**同目录同名的后缀查找**，不在请求期压缩，服务端
+            // 零 CPU 开销；变体由发布脚本离线生成，二者必须成对存在（`--verify` 会解压比对）。
+            // 编码档位由 tower-http 按 Accept-Encoding 协商，顺序是 zstd > br > gz，
+            // 所以浏览器拿到 br、只支持 gzip 的客户端自动降级到 .gz。
+            ServeDir::new(&assets).precompressed_br().precompressed_gzip()
+        ))
         .fallback_service(ServeDir::new(&dist).not_found_service(ServeFile::new(dist.join("index.html"))))
         // 静态缓存分类（v3 §5.1）：指纹产物长期 immutable，入口页与过渡期
         // 固定名内容资源 no-cache，API 一律 no-store。

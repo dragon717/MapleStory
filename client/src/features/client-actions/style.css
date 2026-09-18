@@ -35,9 +35,12 @@
   color: rgba(242, 244, 248, 0.82);
 }
 
+/* 中文标签的「最小内容宽度」只有一个字，flex 收缩会把它拆成「当前发 / 布：」
+   （2026-09-18 实拍）。锁住它，换行就只发生在两个条目之间。 */
 .client-actions-label {
   margin-right: 4px;
   opacity: 0.72;
+  white-space: nowrap;
 }
 
 .client-actions-version strong {
@@ -45,10 +48,20 @@
   letter-spacing: 0.02em;
 }
 
+/* 版本号/修订号都是**没有断点的长串**：不给出断点它就不会收缩，整条会把
+   `max-width` 顶穿、文字溢出到圆角框外。给出断点后即便将来真出现超长值，
+   它也只会在框内换行，而不是糊到框外。 */
+.client-actions-version strong,
+.client-actions-resource em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .client-actions-resource {
   display: inline-flex;
   gap: 4px;
   align-items: baseline;
+  min-width: 0;
 }
 
 .client-actions-resource em {

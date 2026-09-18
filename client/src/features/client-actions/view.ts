@@ -31,6 +31,25 @@ const PLATFORM_LABEL: Record<DesktopPlatform, { zh: string; en: string }> = {
   unknown: { zh: '未知', en: 'Unknown' },
 };
 
+/** 摘要短到多少才原样显示；再长就保留首尾。 */
+const REVISION_SHORT_LIMIT = 16;
+/** 短形态保留的首、尾字符数（合计 14 + 省略号，正好 ≤ 上面那个上限）。 */
+const REVISION_HEAD = 8;
+const REVISION_TAIL = 6;
+
+/**
+ * 角标里的资源修订。
+ *
+ * 内容寻址的 revision 是 64 位十六进制摘要，整串放进右下角会把面板顶出边界
+ * （2026-09-18 实拍：文字溢出到圆角框外，同时把中文标签挤成「当前发 布：」）。
+ * 折行能让它塞进去，但三行十六进制既难看也没人读；这里只显示首尾，**完整值留在
+ * `title`**——来回报障要用的仍然是整串。
+ */
+function displayRevision(revision: string): string {
+  if (revision.length <= REVISION_SHORT_LIMIT) return revision;
+  return `${revision.slice(0, REVISION_HEAD)}…${revision.slice(-REVISION_TAIL)}`;
+}
+
 export interface ClientActionsOptions {
   /** 当前页面地址；默认 `window.location.href`。 */
   href?: () => string;
@@ -136,8 +155,13 @@ export class ClientActionsView {
       this.release = release;
       this.releases = normalizeDesktopReleases(release.desktop);
       this.version.textContent = release.releaseId;
-      const resource = this.root.querySelector('[data-role="resource"]');
-      if (resource) resource.textContent = release.assetRevision ?? uiText('clientResourceNone');
+      const resource = this.root.querySelector<HTMLElement>('[data-role="resource"]');
+      if (resource) {
+        const revision = release.assetRevision;
+        resource.textContent = revision ? displayRevision(revision) : uiText('clientResourceNone');
+        // 完整摘要留在 title：面板只放得下首尾，报障要用的仍是整串。
+        resource.title = revision ?? '';
+      }
       this.renderDownloads();
     } catch {
       // 版本显示失败不影响按钮可用：强制更新本身就是要重新检查（v3 §6.1）。

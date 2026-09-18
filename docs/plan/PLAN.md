@@ -442,7 +442,57 @@
 - [ ] 仍待重跑：`run-checks.mjs` 整链（挂在读 `参考/` 源 WZ 的那一项上，需先 `brctl download 参考`）。
       已单独跑绿的门禁＝`check_tms273_runtime.cjs`、`asset-index.check.mjs`、
       `check_tms273_client_actions.cjs`、`check_tms273_desktop_package.cjs`。
-- 未做：**V3-P3 按图加载**仍是全量预加载（本轮只解决「少下载」，没解决「少初始化」）。
+- [x] **大内容 JSON 预压缩（2026-09-18 凌晨）⇒ 刷新 61MB → 781B**。用户复测「卡进度好了但刷新仍等于首次
+      加载」，用真浏览器探针（`qa/cache-effect-probe.mjs`，读 CDP 的 `fromDiskCache` / `encodedDataLength`）
+      查出真因：**浏览器对单个响应有缓存体积上限**——同一次实测里 1.5MB 的 immutable 图片能留本地副本、
+      **11.9MB 的索引留不下**；于是 35MB 的 `manifest.json` 与 23MB 的 `entry/appearance.json`
+      **从不进缓存**，`no-cache` 的 304 连机会都没有（请求里没有 `If-Modified-Since`）。
+      做法＝**离线预压缩 + 服务端只查文件**：`publishPrecompressed`（门槛 256KB，写 `.br`+`.gz` 兄弟文件，
+      mtime 判新鲜、源降级即删变体、`--verify` 解压逐字节比对）+ `ServeDir::precompressed_br().precompressed_gzip()`
+      （零 CPU，档位按 `Accept-Encoding` 协商：br 1.49MB / gz 2.50MB）+ 补 `Vary: accept-encoding`（仅带编码时）。
+      **刻意不引入 `tower-http` 的 `compression-*` feature**（`precompressed_*` 属 `fs` 特性，无需新依赖）。
+      实测：首次 66.3MB→6.79MB、刷新 61.3MB→**781B**、刷新/首次 **0.0%**；36 个内容 JSON 合计 89MB→6.2MB。
+      `client_delivery` 单测 11 passed（新增 `adds_vary_only_for_encoded_responses` 双向断言）。
+- [x] **首页角标长串溢出修复**（同夜）：64 位修订号无断点顶穿面板、中文标签被拆成「当前发 / 布：」。
+      `displayRevision()` 只显示 `前8…后6`（**完整值留 `title`**）+ 样式补 `white-space: nowrap` /
+      `overflow-wrap: anywhere` / `min-width: 0`。新增 `qa/client-actions-fit-probe.mjs`（几何判据 +
+      **注入超长值**用例，因为本机实例的 `releaseId` 恰是 `unversioned` 复现不出故障）；4 用例全过。
+- [x] **根因收口：那 26 秒从来不是缓存问题，是「整份 manifest 全量预加载」（2026-09-18 凌晨第二轮）**。
+      用户第三次复测仍是「刷新等于首次加载」，于是换判据重新归因：进入游戏实测联网 **23,518 个对象 /
+      387MB / 26.1s**，而同机服务端能跑 **6,000 req/s**（3,000 个对象 0.5s）⇒ **≈1.1ms/张，瓶颈在客户端逐张建
+      纹理**，与 HTTP 缓存、304、体积上限都无关。`preload-plan.ts` 原先把**整份 manifest** 一次入队
+      （22,594 张），而**当前地图只占 92 张（0.4%）**：宠物 7,850、其余 198 张地图 4,461、表情贴纸 3,727、
+      物品图标 2,454 全部白装。两处修：
+      ① `new Phaser.Game({ loader: { imageLoadType: 'HTMLImageElement' } })`——默认 `XHR` 走
+      「下载→Blob→objectURL→Image」四跳，换直连 `<img>`：**26.1s → 15.6s**；
+      ② 新增 `assets/lazy-texture.ts::ensureTextures`（**返回布尔＝本帧能不能画**，调用方下一帧自然重试；
+      不插队 / 失败只记账不重试 / 装载器空闲即清等待集以自愈 `scene.restart()`），首屏只入队
+      **当前地图 + 本角色 + 战斗 + 界面**，其余 5 类改由 7 个绘制点按需装载
+      （`world.ts` 的宠物/怪物/掉落/NPC/表情贴纸、`combat/view.ts` 的技能特效）。
+      `preload-plan.ts::DEFERRED_CATEGORIES` 与首屏集**双向断言**（在的要断言在，出去的要断言不在**且**已登记），
+      新增 `lazy-texture.check.mjs`（8 用例）并进 `run-checks`。
+      **实测：冷 2.3s / 刷新 1.4s，对象 1602/1602 全命中磁盘缓存（0 字节），两次 in-game 截图逐像素一致、
+      控制台无缺纹理告警。**
+- [x] **对象索引自己补上预压缩 ⇒ 刷新最后那 11.9MB 也归零**。索引是「逻辑地址 → 内容寻址地址」的映射表，
+      `resource-url.ts` 每次请求都要查它，**挡在所有资源前面必须先取**；它有 11.9MB，正好落在浏览器上限之外，
+      于是成了刷新时唯一还在重下的东西。`index_client_assets.cjs` 现在对索引文件也跑一遍 `publishPrecompressed`：
+      **11.9MB → br 3.35MB / gz 3.24MB**；CDP 实测刷新 **1 请求 / 1 命中磁盘缓存 / 0 字节**。
+      整轮：**冷 38.6MB / 2.3s → 刷新 3.8KB / 1.4s（0.0%）**（接入前为冷 422MB / 26.1s、刷新 417MB / 25.9s、99.2%）。
+- [x] **本轮把「改了源码为什么线上没变」也钉成了判据**：`build/current/client` 与工作区不同步时浏览器跑的还是
+      旧包——`curl -s http://127.0.0.1:3010/ | grep -o '/assets/index-[^"]*\.js'` 拿到 `index-DUrATpDO.js`，
+      而它里面**没有** `imageLoadType:"HTMLImageElement"`（注意 `imageLoadType` 这个名字 **Phaser 自己也有**，
+      只数它必然误判）。⇒ **交付动作＝用户双击一次 `启动3010.command`**（它内部跑
+      `build-release.cjs prepare → activate`，重建并轮替），我全程不重启在线服务。
+- [x] `run-checks.mjs` 客户端 36 项逐项复跑（**带看门狗**）：`features/combat/skill.check.mjs` 曾因
+      `view.ts` 新增 `import { ensureTextures }` 被「剥 import + 注入全局桩」的检查方式漏掉而 `ReferenceError`
+      ——按其既有约定补 `globalThis.ensureTextures` 桩并**用反向断言钉住技能特效走了按需装载**；
+      `features/loading/view.check.mjs` 曾因 `view.ts` 新增 `resolveAssetUrl` 后的**相对 import 在 `data:` 模块里
+      解析不了**（`ERR_INVALID_URL`）而失败——补 identity 桩，并顺手加了「底板美术必须过 resolver」的反向断言。
+      两项均转绿。**注意 `scripts/check_tms273_npc_dialogue.cjs` 等仓库级门在本机会假死**（`sample` 采样显示主线程
+      卡在 `SyncProcessRunner::Spawn → kevent`，属已知的 iCloud 占位阻塞，与本轮改动无关）。
+- [ ] 未做（明确交待）：**V3-P3 的「按图加载」只做了「按需装载」，没做「分块/分级」**。
+      **「刷新不再传字节」≠「刷新不再解码」**——每张图的解码与建纹理在内存里，与 HTTP 缓存无关；
+      当前做法保证「没画的就不解码」，但没有对**同一屏内的图**做 LOD 或分帧上限。
 
 ### V3-D0 桌面打包脚本与环境（2026-09-17 第二轮，**脚本与环境已实装；原生打包与签名未验**）
 

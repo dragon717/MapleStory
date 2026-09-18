@@ -5,6 +5,7 @@ import type { NpcState, PlayerState, ServerMessage } from '../../../shared/proto
 import { actorDepthForLayers, mapFrameAt, mapFramePosition } from '../assets/manifest';
 import { buildPreloadPlan } from '../assets/preload-plan';
 import { resolveAssetUrl } from '../assets/resource-url';
+import { ensureTextures } from '../assets/lazy-texture';
 import type { AssetFrame, Background, MapCatalogEntry, MapDefinition, MapLayer, MapPortal, Manifest } from '../assets/manifest';
 import { PlayerView } from '../features/player/view';
 import { PetView } from '../features/pet/view';
@@ -35,6 +36,8 @@ export class World extends Phaser.Scene {
   private questTargets = new Map<string, Phaser.GameObjects.Container>();
   private drops = new Map<string, DropView>();
   private portals = new Map<string, PortalView>();
+  /** 贴纸纹理还在按需装载、这一帧没画出来的表情消息；update() 每帧尝试补画。 */
+  private pendingEmoticons: Array<{ authorId: string; frames: AssetFrame[] }> = [];
   private actions = new Map<string, { actionId: string; tick: number }>();
   private pendingSkillCasts = new Map<string, SkillCastEvent>();
   private waters: WaterView[] = [];
@@ -181,10 +184,20 @@ export class World extends Phaser.Scene {
     // R8：收集逻辑纯函数化到 assets/preload-plan.ts；Scene 只执行 loader。
     // 顺序与去重语义逐行保留：图片先全部入队，音频按 原顺序（升级→技能→
     // BGM→普攻→受击→怪物受击）；BGM 的 cache.audio.exists 短路留在 Scene。
+    //
+    // 首屏集合已收窄成「当前地图 + 本角色 + 战斗与界面」（见 preload-plan.ts），
+    // 怪物/NPC/宠物/掉落物/表情贴纸/别的地图由 lazy-texture 按需装载。
     const plan = buildPreloadPlan(this.manifest);
     // 纹理 key 保留逻辑 URL（所有视图用 frame.url 找纹理）；传输地址经
     // resource-url 解析（v3 §3.1）：普通刷新＝恒等，仅修复代数改变下载地址。
-    for (const { key, url } of plan.images) this.load.image(key, resolveAssetUrl(url));
+    //
+    // `switchMap` 会 `scene.restart()` 再跑一遍这里，而纹理缓存是**游戏级**的、
+    // 不随场景重建：已经在缓存里的 key 直接跳过——否则每次切图都会把首屏集合
+    // 重新入队一次，并在 TextureManager 里刷一屏「Texture key already in use」。
+    for (const { key, url } of plan.images) {
+      if (this.textures.exists(key)) continue;
+      this.load.image(key, resolveAssetUrl(url));
+    }
     for (const entry of plan.audio) {
       if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
       this.load.audio(entry.key, resolveAssetUrl(entry.url));
@@ -196,8 +209,15 @@ export class World extends Phaser.Scene {
     if(this.manifest.map.source?.includes('windbell.json'))for(const name of WindbellScene.sounds){
       const url=`/assets/windbell/sfx/${name}.ogg`;if(!this.cache.audio.exists(url))this.load.audio(url,resolveAssetUrl(url));
     }
-    this.load.on('progress', (progress: number) => { if (!this.failed) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
-    this.load.on('loaderror', (file: Phaser.Loader.File) => { this.failed = true; this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true); });
+    // 进度与失败只在**首屏那一趟**播报：运行期的按需装载（lazy-texture）会复用
+    // 同一个装载器，若不加这道闸门，场上冒出一只怪就会把「正在装载地图与角色 ·
+    // x%」的遮罩重新弹出来。
+    this.load.on('progress', (progress: number) => { if (!this.failed && !this.loaded) this.status(`正在装载地图与角色 · ${Math.round(progress * 100)}%`); });
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      if (this.loaded) return;
+      this.failed = true;
+      this.status(`资源加载失败：${file.src} · ${this.manifest.contentVersion}`, true);
+    });
   }
   create() {
     if (this.failed) return;
@@ -290,6 +310,12 @@ export class World extends Phaser.Scene {
       // map chat: only same-map members are ever told, and the sender sees its
       // own sticker because the server echoes it.
       const frames = this.manifest.emoticon?.stickers.find(sticker => sticker.id === message.emoticonId)?.frames ?? [];
+      // 贴纸纹理按需装载：这一帧没就绪就先记下来，update() 里下一帧补画。
+      // 贴纸本身播一两秒，晚几毫秒出现看不出来；直接画会得到占位方块。
+      if (frames.length && !ensureTextures(this, frames.map(frame => frame.url))) {
+        this.pendingEmoticons.push({ authorId: message.authorId, frames });
+        return;
+      }
       this.players.get(message.authorId)?.showEmoticon(frames);
       return;
     }
@@ -519,6 +545,7 @@ export class World extends Phaser.Scene {
   update(_time?: number, delta = 8) {
     this.windbellScene?.update(this.snapshot?.windbell, this.snapshot?.players.find(p => p.id === this.snapshot?.selfId), delta, this.snapshot?.tickMs);
     if (!this.loaded) return;
+    this.flushPendingEmoticons();
     this.advanceMapAnimations(delta);
     this.updateBackgrounds(delta);
     for (const water of this.waters) water.update(delta);
@@ -775,6 +802,20 @@ export class World extends Phaser.Scene {
   private static readonly REACTOR_CLICK_RANGE_X = 56;
   private static readonly REACTOR_CLICK_RANGE_Y = 80;
 
+  /**
+   * 补画上一帧因贴纸纹理未就绪而推迟的表情消息。
+   * 只在这一帧全部就绪时才画（`ensureTextures` 一次问一整条贴纸的所有帧，
+   * 避免只画出第一帧、后面几帧又是占位）。
+   */
+  private flushPendingEmoticons() {
+    if (!this.pendingEmoticons.length) return;
+    const pending = this.pendingEmoticons;
+    this.pendingEmoticons = [];
+    for (const entry of pending) {
+      if (!ensureTextures(this, entry.frames.map(frame => frame.url))) { this.pendingEmoticons.push(entry); continue; }
+      this.players.get(entry.authorId)?.showEmoticon(entry.frames);
+    }
+  }
   private updateGameplayEntities(snapshot: GameplaySnapshot, delta = 8) {
     const actorDepth = actorDepthForLayers(this.manifest.map.layers);
     this.petClock += delta;
@@ -784,6 +825,8 @@ export class World extends Phaser.Scene {
         const key = `${player.id}:${pet.id}`;
         const asset = this.manifest.pets?.[pet.itemId];
         if (!asset) continue;
+        // 宠物纹理按需装载（首屏不再装载整本宠物图鉴）；没就绪就下一帧再画。
+        if (!ensureTextures(this, [asset.icon.url, ...asset.stand.map(frame => frame.url), ...asset.move.map(frame => frame.url), ...asset.jump.map(frame => frame.url)])) continue;
         visiblePets.add(key);
         let view = this.pets.get(key);
         if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(key, view); }
@@ -804,6 +847,11 @@ export class World extends Phaser.Scene {
     for (const monster of monsters) {
       const asset = this.manifest.monsters?.[monster.templateId];
       if (!asset) continue;
+      // 怪物纹理按需装载：出场晚一两帧和「进快照就出现」在观感上没有区别，
+      // 但省掉首屏 1,190 张（全部怪物的所有动作帧）。怪物攻击特效（2200011）
+      // 也从技能特效表里一并按需取。
+      const attackEffect = this.manifest.skillEffects?.['2200011']?.mob ?? [];
+      if (!ensureTextures(this, [...Object.values(asset.actions).flatMap(frames => frames.map(frame => frame.url)), ...attackEffect.map(frame => frame.url)])) continue;
       let view = this.monsters.get(monster.id);
       if (!view) { view = new MonsterView(this, asset, actorDepth, this.manifest.skillEffects?.['2200011']?.mob, this.manifest.bossEffects); this.monsters.set(monster.id, view); }
       const elapsed = (snapshot.serverTick - monster.actionStartedTick) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
@@ -819,6 +867,8 @@ export class World extends Phaser.Scene {
     for (const drop of drops) {
       const asset = this.manifest.items?.[drop.itemId];
       if (!asset) continue;
+      // 掉落物图标按需装载（首屏不再装载全物品表 2,454 张；界面里的图标是 DOM）。
+      if (!ensureTextures(this, [asset.url])) continue;
       let view = this.drops.get(drop.id);
       if (!view) { view = new DropView(this, asset, actorDepth + 1); this.drops.set(drop.id, view); }
       const float = this.dropFloat(drop.id, drop.x, drop.y, asset, delta);
@@ -875,6 +925,8 @@ export class World extends Phaser.Scene {
     for (const npc of npcs) {
       const asset = this.manifest.npcs?.[npc.templateId];
       if (!asset || !asset.stand.length) continue;
+      // NPC 纹理按需装载；没就绪就下一帧再建视图（点击判定只用到几何，不受影响）。
+      if (!ensureTextures(this, asset.stand.map(frame => frame.url))) continue;
       let view = this.npcs.get(npc.id);
       if (!view) { view = new NpcView(this, asset, actorDepth, this.manifest.npcQuestAvailable?.frames); this.npcs.set(npc.id, view); }
       const elapsed = (snapshot.serverTick - (npc.actionStartedTick ?? 0)) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);

@@ -16,6 +16,11 @@ globalThis.frameAt = (delays, elapsed, loop) => {
 };
 globalThis.assetFrameAlpha = () => 1;
 globalThis.damageNumberAdvances = () => [];
+// 技能特效按需装载（`assets/lazy-texture.ts`）。本检查用假 scene，没有 Phaser
+// 装载器，所以与 frameAt/assetFrameAlpha 一样按全局桩注入；同时记下请求过的
+// URL，用反向断言钉住「特效不许回到首屏预装载」这条接线。
+const ensureRequests = [];
+globalThis.ensureTextures = (_scene, urls) => { ensureRequests.push(...urls); return true; };
 const stripped = outputText.replace(/^import .*;\r?\n/gm, '');
 const { CombatView } = await import(`data:text/javascript;base64,${Buffer.from(stripped).toString('base64')}`);
 
@@ -49,6 +54,7 @@ assert.equal(view.receiveSkillCast(event), false, 'duplicate skillCast event is 
 assert.equal(sprites.length, 1, 'duplicate skillCast events create one VFX');
 view.update(now);
 assert.equal(sprites[0].visible, true, 'duration zero still starts the source VFX');
+assert.ok(ensureRequests.includes('/skill.png'), `技能特效必须走按需装载：${JSON.stringify(ensureRequests)}`);
 now += 20;
 view.update(now);
 assert.equal(sprites[0].destroyed, true, 'source frame timing controls VFX lifetime');
