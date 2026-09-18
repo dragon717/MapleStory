@@ -24,12 +24,12 @@ export interface Part {
   anchor?: string;
 }
 
-export interface Frame { delay: number; parts: Part[] }
+export interface Frame { delay: number; parts: Part[]; anchors?: Record<string, Point> }
 
 /**
  * `sit` 是可选的静态单帧动作（源 `Character/00002000.img/sit` 等只有 1 帧且**没有
- * delay**）：缺席时 `F/player/view.ts` 回落 `actions.stand`，因此没有 sit 帧的部件
- * （源 `Face/00020000.img` 就没有）不会破图。`scripts/export_tms273_avatar.cjs`
- * 只在角色自身部件上导出它。
+ * delay**）。部分源部件没有对应动作；外观合成层对 sit/ride 使用带锚点位移的
+ * standing fallback，技能动作仍保持严格缺失语义。`scripts/export_tms273_avatar.cjs`
+ * 也可以把源角色动作导出为 ride/ride2/ride3。
  */
-export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'climb' | 'ladder' | 'rope' | 'dead' | 'sit' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;
+export type AvatarActionSet = Record<'stand' | 'walk' | 'jump' | 'attack', Frame[]> & Partial<Record<'stand1' | 'walk1' | 'stand2' | 'walk2' | 'climb' | 'ladder' | 'rope' | 'dead' | 'sit' | 'prone' | 'fly' | 'swingOF' | 'swingO1' | 'alert' | 'PL_walking_ELUNA' | 'ride' | 'ride2' | 'ride3' | 'skill2001008' | 'skill2001011' | 'skill2001012', Frame[]>>;

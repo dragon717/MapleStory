@@ -155,6 +155,10 @@ struct MountCatalogFile {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChairItemDefinition {
+    /// Source `Item/Install/<group>/<id>.json` path.  The `03010`..`03019`
+    /// and `0302` groups are the chair families; other install groups are
+    /// decomposers, chair bags, titles, decorations, etc.
+    source: String,
     #[serde(default)]
     info: BTreeMap<String, Value>,
     #[serde(default)]
@@ -225,16 +229,26 @@ pub fn mount_taming_mob(item_id: &str) -> Option<i64> {
         .filter(|taming_mob| *taming_mob > 0)
 }
 
-/// 设置栏物品（`inventoryType 3`）里可坐的那一件：源里带恢复量的椅子。
+/// 设置栏物品（`inventoryType 3`）里可坐的那一件：源椅子类别中的物品。
+///
+/// 恢复量是椅子的效果，不是椅子身份。TMS273 同版源里有零恢复的经验椅，
+/// 也有只在描述里写恢复量、`info` 没有 `recoveryHP` / `recoveryMP` 的椅子；
+/// 用恢复量筛选会把这些合法椅子挡在坐姿入口外。
 pub fn is_chair_item(item_id: &str) -> bool {
     chair_definition(item_id).is_some()
 }
 
 fn chair_definition(item_id: &str) -> Option<&'static ChairItemDefinition> {
-    shipped_chairs().get(item_id).filter(|chair| {
-        info_i64_of(&chair.info, "recoveryHP").unwrap_or(0) > 0
-            || info_i64_of(&chair.info, "recoveryMP").unwrap_or(0) > 0
-    })
+    shipped_chairs()
+        .get(item_id)
+        .filter(|chair| is_chair_source(&chair.source))
+}
+
+fn is_chair_source(source: &str) -> bool {
+    let Some(group) = source.split('/').nth(2) else {
+        return false;
+    };
+    group.starts_with("0301") || group == "0302"
 }
 
 /// 坐姿的恢复量与间隔。`interval_ms` 为 `None` ＝ 源文案没写「每N秒」⇒ 间隔未核定，
@@ -1808,6 +1822,23 @@ mod tests {
         assert_eq!(flat_sell_payout("2330000"), None);
         assert!(is_rechargeable("2070000"));
         assert!(!is_rechargeable("2330000"));
+    }
+
+    #[test]
+    fn chair_identity_comes_from_source_category_not_recovery_amount() {
+        // 3010078 has no recovery fields in Item/Install, but String/Ins says
+        // it restores MP while seated.  3020000 is an experience chair and
+        // intentionally has neither HP nor MP recovery fields.
+        assert!(is_chair_item("3010078"));
+        assert_eq!(chair_recovery("3010078"), Some((0, 0, Some(10_000))));
+        assert!(is_chair_item("3020000"));
+        assert_eq!(chair_recovery("3020000"), Some((0, 0, None)));
+
+        // These are install-tab items, but their source groups are not chair
+        // families and must stay on the ordinary use-item path.
+        assert!(!is_chair_item("3049000"));
+        assert!(!is_chair_item("3080001"));
+        assert!(!is_chair_item("3990000"));
     }
 
     #[test]

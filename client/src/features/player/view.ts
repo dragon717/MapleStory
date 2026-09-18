@@ -3,6 +3,9 @@ import type { PlayerState } from '../../../../shared/protocol';
 import { actorDepthForLayers, assetFrameAlpha } from '../../assets/manifest';
 import type { AssetFrame, AvatarActionSet, Manifest } from '../../assets/manifest';
 import { frameAt } from './animation';
+import { ensureTextures } from '../../assets/lazy-texture';
+import { resolveAssetUrl } from '../../assets/resource-url';
+import { composeRideFrame, rideFrame, rideFrames, type RideScene } from './ride-scene';
 import {
   appearanceKey,
   appearanceAssetUrls,
@@ -18,6 +21,7 @@ const supportedEquipment = new Set(['1002067', '1040002', '1052095', '1302000'])
 
 /** Shared per-scene requests keep several actors from queueing one PNG twice. */
 const appearanceTextureLoads = new WeakMap<Phaser.Scene, Map<string, Promise<boolean>>>();
+const rideSceneLoads = new WeakMap<Manifest, Map<string, Promise<RideScene>>>();
 
 function ensureAppearanceTextures(scene: Phaser.Scene, urls: readonly string[]) {
   const loads = appearanceTextureLoads.get(scene) ?? new Map<string, Promise<boolean>>();
@@ -59,6 +63,11 @@ export class PlayerView {
   private appearanceLoads = new Map<string, Promise<unknown>>();
   private appearanceLoadFailures = new Set<string>();
   private destroyed = false;
+  private rideKey = '';
+  private rideStartedAt = 0;
+  private rideScene?: RideScene;
+  private saddleScene?: RideScene;
+  private rideTexturesReadyFor?: unknown;
   private climbFrame = 0;
   /** Hurt-flash window (scene clock ms). White double-flash while active. */
   private flashStartedAt = 0;
@@ -137,7 +146,12 @@ export class PlayerView {
     this.signature = '';
   }
   update(player: PlayerState, elapsed: number) {
-    if (player.hp <= 0 || player.action === 'dead') this.skillAction = undefined;
+    if (player.hp <= 0 || player.action === 'dead' || player.mount || player.chair) this.skillAction = undefined;
+    this.updateRideScene(player);
+    const rideElapsed = Math.max(0, this.scene.time.now - this.rideStartedAt);
+    const mountFrame = rideFrame(this.rideScene, player, rideElapsed);
+    const saddle = player.mount ? this.saddleScene?.variants?.[String(Number(player.mount.itemId))] ?? this.saddleScene : undefined;
+    const saddleFrame = rideFrame(saddle, player, rideElapsed);
     let loadout = this.equipmentLoadout(player.equipped);
     if (player.appearance && this.manifest.appearanceCatalog) {
       const catalog = this.manifest.appearanceCatalog;
@@ -182,7 +196,12 @@ export class PlayerView {
     // state while rendering the closest source-backed stand frame.
     const skillActive = this.skillAction !== undefined && this.scene.time.now < this.skillActionUntil;
     if (!skillActive) this.skillAction = undefined;
-    const renderAction = skillActive && this.skillAction && actions[this.skillAction]?.length
+    const sourceRiderAction = this.rideScene?.sitAction ?? mountFrame?.action ?? this.rideScene?.forceCharacterAction ?? 'sit';
+    const riderAction = actions[sourceRiderAction as keyof typeof actions]?.length ? sourceRiderAction
+      : sourceRiderAction === 'stand1' ? 'stand' : sourceRiderAction === 'walk1' ? 'walk' : sourceRiderAction;
+    const renderAction = player.mount || player.chair
+      ? (actions[riderAction as keyof typeof actions]?.length ? riderAction as keyof typeof actions : 'sit')
+      : skillActive && this.skillAction && actions[this.skillAction]?.length
       ? this.skillAction
       : player.action === 'climb' ? this.climbAsset(player, actions) : player.action;
     const candidate = actions[renderAction];
@@ -191,18 +210,28 @@ export class PlayerView {
     if (player.action === 'climb' && player.vy === 0) {
       index = Math.min(this.climbFrame, frames.length - 1);
     } else {
-      const animationElapsed = skillActive ? Math.max(0, this.scene.time.now - this.skillActionStartedAt) : elapsed;
+      const animationElapsed = skillActive ? Math.max(0, this.scene.time.now - this.skillActionStartedAt) : player.mount || player.chair ? rideElapsed : elapsed;
       index = frameAt(frames.map(frame => frame.delay), animationElapsed, skillActive ? false : player.action !== 'attack');
       if (player.action === 'climb') this.climbFrame = index;
     }
+    if (mountFrame?.action) index = Math.max(0, Math.min(mountFrame.forceCharacterActionFrameIndex ?? 0, frames.length - 1));
     if (player.action !== 'climb') this.climbFrame = 0;
-    const signature = `${loadout.key}:${renderAction}:${index}`;
+    const avatarFrame = frames[index];
+    const sceneParts = composeRideFrame(this.rideScene, mountFrame, avatarFrame, rideElapsed, saddleFrame);
+    const activeRideFrames = rideFrames(this.rideScene, player);
+    const textureGroup = activeRideFrames ?? this.rideScene;
+    if (textureGroup && this.rideTexturesReadyFor !== textureGroup) {
+      const allFrames = [...(activeRideFrames ?? []), ...(rideFrames(saddle, player) ?? []), ...(this.rideScene?.effects ?? []).flatMap(effect => effect.frames)];
+      if (ensureTextures(this.scene, allFrames.flatMap(frame => frame.parts.map(part => part.url)))) this.rideTexturesReadyFor = textureGroup;
+    }
+    const ready = !this.rideScene || this.rideTexturesReadyFor === textureGroup;
+    const parts = (ready ? sceneParts : avatarFrame.parts).filter(part => this.scene.textures.exists(part.url)).sort((a, b) => b.z - a.z);
+    const signature = `${loadout.key}:${renderAction}:${index}:${this.rideKey}:${parts.map(part => `${part.url},${part.x},${part.y},${part.z},${(part as { flipX?: boolean }).flipX ?? false}`).join(';')}`;
     if (signature !== this.signature) {
       this.signature = signature;
       this.body.removeAll(true);
-      const parts = [...frames[index].parts].sort((a, b) => b.z - a.z);
       for (const part of parts) {
-        const image = this.scene.add.image(part.x, part.y, part.url).setOrigin(0);
+        const image = this.scene.add.image(part.x, part.y, part.url).setOrigin(0).setFlipX(Boolean((part as { flipX?: boolean }).flipX));
         // A rebuild mid-flash must re-apply the white tint to the fresh
         // children; updateFlash() only runs on state changes.
         if (this.flashWhite) image.setTintFill(0xffffff);
@@ -214,6 +243,7 @@ export class PlayerView {
       const top = parts.reduce((lowest, part) => Math.min(lowest, part.y), 0);
       this.headOffsetY = Math.round(Math.min(top, -1) - 2);
     }
+    this.body.list.forEach((child, i) => (child as Phaser.GameObjects.Image).setAlpha((parts[i] as { opacity?: number })?.opacity ?? 1));
     this.body.setPosition(Math.round(player.x), Math.round(player.y)).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
     this.name.setPosition(Math.round(player.x), Math.round(player.y + 8));
     this.updateBubble(player);
@@ -221,6 +251,44 @@ export class PlayerView {
     this.updateFlash();
     this.updateAbnormalStatus(player);
     this.updateLevelFeedback(player);
+  }
+
+  private updateRideScene(player: PlayerState) {
+    const kind = player.mount ? 'mounts' : 'chairs';
+    const itemId = player.mount?.itemId ?? player.chair?.itemId;
+    const saddleId = player.mount ? player.equipped?.find(item => Math.abs(item.slot) === 19 && item.itemId !== itemId)?.itemId : undefined;
+    const key = itemId === undefined ? '' : `${kind}:${Number(itemId)}:${saddleId ?? ''}`;
+    if (key === this.rideKey) return;
+    this.rideKey = key;
+    this.rideScene = undefined;
+    this.saddleScene = undefined;
+    this.rideTexturesReadyFor = undefined;
+    this.rideStartedAt = this.scene.time.now;
+    const loads = rideSceneLoads.get(this.manifest) ?? new Map<string, Promise<RideScene>>();
+    rideSceneLoads.set(this.manifest, loads);
+    const targets = [
+      { kind, itemId, field: 'rideScene' },
+      { kind: 'mounts', itemId: saddleId, field: 'saddleScene' },
+    ] as const;
+    for (const target of targets) {
+      const entry = target.itemId === undefined ? undefined : this.manifest.rideScenes?.[target.kind]?.[String(Number(target.itemId))];
+      if (!entry?.url) continue;
+      let request = loads.get(entry.url);
+      if (!request) {
+        request = fetch(resolveAssetUrl(entry.url)).then(async response => {
+          if (!response.ok) throw new Error(`Ride scene ${response.status}: ${entry.url}`);
+          const scene = await response.json() as RideScene;
+          if (Number(scene.itemId) !== Number(target.itemId) || scene.kind !== (target.kind === 'mounts' ? 'mount-scene' : 'chair-scene')) throw new Error('Ride scene binding mismatch');
+          return scene;
+        });
+        loads.set(entry.url, request);
+      }
+      void request.then(scene => {
+        if (this.destroyed || this.rideKey !== key) return;
+        this[target.field] = scene;
+        this.rideTexturesReadyFor = undefined;
+      }).catch(error => console.warn('骑宠/椅子场景加载失败', error));
+    }
   }
 
   /** Abnormal-status tint (server-authored remaining ms).  Stun and seal lock

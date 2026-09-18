@@ -25,13 +25,12 @@
 3. **开关失败即不给**：快照与权威装备行对不上时返回 `undefined`，不硬凑一个槽位。
    服务端还会再复核（不符回 `mount_mismatch`）。
 
-## 上下马的入口为什么在这里
+## 上下马与地图表现
 
-源 `UI/UIEquip.img/Equip/EquipTab/Slots` 里**没有** Tm/Sd 两个槽（子节点只有
-1..13,15,16,17,21,22,28,31..36，`SlotName` 同样没有），也就是本版本的装备窗画不出坐骑槽。
-因此「双击已装备坐骑」在原版 UI 里没有落点，本模块用一个纯文字标记承担开关：
-点击发的是既有的 `useItem(1, −18, id)`，不发明任何源里没有的坐标或贴图。
+装备窗主画布的源布局没有 Tm/Sd 两槽；网页附栏补上骑宠与鞍具的可访问格子，
+复用图标、拖动和右键卸下逻辑。只有带 tamingMob 的骑宠双击切换上下马，鞍具双击卸下。
+状态标记保留为快捷入口，仍发送 `useItem(1, −槽位, id)`。
 
-骑宠**贴图**（`Character/TamingMob/<id>.img/{stand1,walk1,jump}`）本轮未抽取，
-所以骑乘时纸娃娃仍用角色自身帧，只有状态与读数；见
-`docs/plan/topics/MapleStory_Mounts_Chairs.md` §7。
+地图 `PlayerView` 按权威 mount 状态读取 `rideScenes.mounts` 单件场景，
+按源动作时间轴播放，按 navel 对齐角色与骑宠，整体随角色翻转。
+图标装配进统一 manifest.items，使背包、装备、仓库及掉落显示使用同一资源。

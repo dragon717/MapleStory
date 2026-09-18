@@ -250,3 +250,29 @@
   overflow-wrap: anywhere;
   pointer-events: auto;
 }
+
+.tms273-inventory-host .equipment-mount-slots {
+  position: absolute;
+  inset-inline: 0;
+  height: 60px;
+  display: flex;
+  justify-content: space-evenly;
+  background: #f4f4f2;
+  border: 1px solid #999;
+  border-radius: 0 0 6px 6px;
+  color: #333;
+  font-size: 11px;
+}
+.tms273-inventory-host .equipment-mount-slots > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tms273-inventory-host .equipment-mount-slots .equipment-slot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #e1e5e7;
+}

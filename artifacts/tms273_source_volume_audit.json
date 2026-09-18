@@ -1,0 +1,1616 @@
+{
+  "generatedAt": "2026-09-18T13:15:58.153Z",
+  "rule": "应有分卷 = <Stem>.wz + <Stem>_000.wz … <Stem>_00N.wz，N 来自同目录 <Stem>.ini 的 LastWzIndex",
+  "dataRoot": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data",
+  "subtrees": [
+    {
+      "label": "Base",
+      "stem": "Base",
+      "declared": 0,
+      "present": [
+        "Base.wz",
+        "Base_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character",
+      "stem": "Character",
+      "declared": 0,
+      "present": [
+        "Character.wz",
+        "Character_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Effect",
+      "stem": "Effect",
+      "declared": 0,
+      "present": [
+        "Effect.wz",
+        "Effect_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Effect/_Canvas",
+      "stem": "_Canvas",
+      "declared": 48,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz",
+        "_Canvas_024.wz",
+        "_Canvas_025.wz",
+        "_Canvas_026.wz",
+        "_Canvas_027.wz",
+        "_Canvas_028.wz",
+        "_Canvas_029.wz",
+        "_Canvas_030.wz",
+        "_Canvas_031.wz",
+        "_Canvas_032.wz",
+        "_Canvas_033.wz",
+        "_Canvas_034.wz",
+        "_Canvas_035.wz",
+        "_Canvas_036.wz",
+        "_Canvas_037.wz",
+        "_Canvas_038.wz",
+        "_Canvas_039.wz",
+        "_Canvas_040.wz",
+        "_Canvas_041.wz",
+        "_Canvas_042.wz",
+        "_Canvas_043.wz",
+        "_Canvas_044.wz",
+        "_Canvas_045.wz",
+        "_Canvas_046.wz",
+        "_Canvas_048.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz",
+        "_Canvas_009.wz",
+        "_Canvas_047.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Etc",
+      "stem": "Etc",
+      "declared": 2,
+      "present": [
+        "Etc.wz",
+        "Etc_000.wz",
+        "Etc_001.wz",
+        "Etc_002.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Etc/_Canvas",
+      "stem": "_Canvas",
+      "declared": 9,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Item",
+      "stem": "Item",
+      "declared": 0,
+      "present": [
+        "Item.wz",
+        "Item_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Item/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Map",
+      "stem": "Map",
+      "declared": 0,
+      "present": [
+        "Map.wz",
+        "Map_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Map/_Canvas",
+      "stem": "_Canvas",
+      "declared": 8,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Mob",
+      "stem": "Mob",
+      "declared": null,
+      "present": [
+        "Mob.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Mob/_Canvas",
+      "stem": "_Canvas",
+      "declared": 85,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz",
+        "_Canvas_024.wz",
+        "_Canvas_025.wz",
+        "_Canvas_026.wz",
+        "_Canvas_027.wz",
+        "_Canvas_028.wz",
+        "_Canvas_029.wz",
+        "_Canvas_030.wz",
+        "_Canvas_031.wz",
+        "_Canvas_032.wz",
+        "_Canvas_033.wz",
+        "_Canvas_034.wz",
+        "_Canvas_035.wz",
+        "_Canvas_036.wz",
+        "_Canvas_037.wz",
+        "_Canvas_038.wz",
+        "_Canvas_039.wz",
+        "_Canvas_040.wz",
+        "_Canvas_041.wz",
+        "_Canvas_042.wz",
+        "_Canvas_043.wz",
+        "_Canvas_044.wz",
+        "_Canvas_045.wz",
+        "_Canvas_046.wz",
+        "_Canvas_047.wz",
+        "_Canvas_048.wz",
+        "_Canvas_049.wz",
+        "_Canvas_050.wz",
+        "_Canvas_051.wz",
+        "_Canvas_052.wz",
+        "_Canvas_053.wz",
+        "_Canvas_054.wz",
+        "_Canvas_055.wz",
+        "_Canvas_056.wz",
+        "_Canvas_057.wz",
+        "_Canvas_058.wz",
+        "_Canvas_059.wz",
+        "_Canvas_060.wz",
+        "_Canvas_061.wz",
+        "_Canvas_062.wz",
+        "_Canvas_063.wz",
+        "_Canvas_064.wz",
+        "_Canvas_065.wz",
+        "_Canvas_066.wz",
+        "_Canvas_067.wz",
+        "_Canvas_068.wz",
+        "_Canvas_069.wz",
+        "_Canvas_070.wz",
+        "_Canvas_071.wz",
+        "_Canvas_072.wz",
+        "_Canvas_073.wz",
+        "_Canvas_074.wz",
+        "_Canvas_075.wz",
+        "_Canvas_076.wz",
+        "_Canvas_077.wz",
+        "_Canvas_078.wz",
+        "_Canvas_079.wz",
+        "_Canvas_080.wz",
+        "_Canvas_081.wz",
+        "_Canvas_082.wz",
+        "_Canvas_083.wz",
+        "_Canvas_084.wz",
+        "_Canvas_085.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Morph",
+      "stem": "Morph",
+      "declared": 0,
+      "present": [
+        "Morph.wz",
+        "Morph_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Morph/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Npc",
+      "stem": "Npc",
+      "declared": 0,
+      "present": [
+        "Npc.wz",
+        "Npc_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Npc/_Canvas",
+      "stem": "_Canvas",
+      "declared": null,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Packs",
+      "stem": "Packs",
+      "declared": null,
+      "present": [],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Quest",
+      "stem": "Quest",
+      "declared": 0,
+      "present": [
+        "Quest.wz",
+        "Quest_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Quest/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Reactor",
+      "stem": "Reactor",
+      "declared": 0,
+      "present": [
+        "Reactor.wz",
+        "Reactor_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Reactor/_Canvas",
+      "stem": "_Canvas",
+      "declared": 1,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Skill",
+      "stem": "Skill",
+      "declared": -1,
+      "present": [
+        "Skill.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Skill/_Canvas",
+      "stem": "_Canvas",
+      "declared": 112,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz",
+        "_Canvas_024.wz",
+        "_Canvas_025.wz",
+        "_Canvas_026.wz",
+        "_Canvas_027.wz",
+        "_Canvas_028.wz",
+        "_Canvas_030.wz",
+        "_Canvas_031.wz",
+        "_Canvas_033.wz",
+        "_Canvas_034.wz",
+        "_Canvas_035.wz",
+        "_Canvas_036.wz",
+        "_Canvas_037.wz",
+        "_Canvas_038.wz",
+        "_Canvas_039.wz",
+        "_Canvas_040.wz",
+        "_Canvas_041.wz",
+        "_Canvas_042.wz",
+        "_Canvas_043.wz",
+        "_Canvas_044.wz",
+        "_Canvas_045.wz",
+        "_Canvas_046.wz",
+        "_Canvas_047.wz",
+        "_Canvas_048.wz",
+        "_Canvas_049.wz",
+        "_Canvas_051.wz",
+        "_Canvas_052.wz",
+        "_Canvas_053.wz",
+        "_Canvas_054.wz",
+        "_Canvas_055.wz",
+        "_Canvas_056.wz",
+        "_Canvas_057.wz",
+        "_Canvas_058.wz",
+        "_Canvas_059.wz",
+        "_Canvas_060.wz",
+        "_Canvas_061.wz",
+        "_Canvas_062.wz",
+        "_Canvas_063.wz",
+        "_Canvas_064.wz",
+        "_Canvas_065.wz",
+        "_Canvas_066.wz",
+        "_Canvas_067.wz",
+        "_Canvas_068.wz",
+        "_Canvas_069.wz",
+        "_Canvas_070.wz",
+        "_Canvas_071.wz",
+        "_Canvas_072.wz",
+        "_Canvas_074.wz",
+        "_Canvas_075.wz",
+        "_Canvas_076.wz",
+        "_Canvas_077.wz",
+        "_Canvas_080.wz",
+        "_Canvas_081.wz",
+        "_Canvas_082.wz",
+        "_Canvas_083.wz",
+        "_Canvas_084.wz",
+        "_Canvas_085.wz",
+        "_Canvas_086.wz",
+        "_Canvas_087.wz",
+        "_Canvas_088.wz",
+        "_Canvas_089.wz",
+        "_Canvas_090.wz",
+        "_Canvas_091.wz",
+        "_Canvas_092.wz",
+        "_Canvas_093.wz",
+        "_Canvas_094.wz",
+        "_Canvas_095.wz",
+        "_Canvas_096.wz",
+        "_Canvas_097.wz",
+        "_Canvas_099.wz",
+        "_Canvas_100.wz",
+        "_Canvas_101.wz",
+        "_Canvas_102.wz",
+        "_Canvas_103.wz",
+        "_Canvas_104.wz",
+        "_Canvas_105.wz",
+        "_Canvas_106.wz",
+        "_Canvas_107.wz",
+        "_Canvas_108.wz",
+        "_Canvas_109.wz",
+        "_Canvas_110.wz",
+        "_Canvas_111.wz",
+        "_Canvas_112.wz"
+      ],
+      "missing": [
+        "_Canvas_013.wz",
+        "_Canvas_019.wz",
+        "_Canvas_029.wz",
+        "_Canvas_032.wz",
+        "_Canvas_050.wz",
+        "_Canvas_073.wz",
+        "_Canvas_078.wz",
+        "_Canvas_079.wz",
+        "_Canvas_098.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Sound",
+      "stem": "Sound",
+      "declared": null,
+      "present": [
+        "Sound.wz",
+        "Sound_000.wz",
+        "Sound_001.wz",
+        "Sound_002.wz",
+        "Sound_003.wz",
+        "Sound_004.wz",
+        "Sound_005.wz",
+        "Sound_006.wz",
+        "Sound_007.wz",
+        "Sound_008.wz",
+        "Sound_009.wz",
+        "Sound_010.wz",
+        "Sound_011.wz",
+        "Sound_012.wz",
+        "Sound_013.wz",
+        "Sound_014.wz",
+        "Sound_016.wz",
+        "Sound_017.wz",
+        "Sound_019.wz",
+        "Sound_020.wz",
+        "Sound_021.wz",
+        "Sound_022.wz",
+        "Sound_023.wz",
+        "Sound_024.wz",
+        "Sound_025.wz",
+        "Sound_026.wz",
+        "Sound_027.wz",
+        "Sound_028.wz",
+        "Sound_029.wz",
+        "Sound_030.wz",
+        "Sound_031.wz",
+        "Sound_032.wz",
+        "Sound_033.wz",
+        "Sound_034.wz",
+        "Sound_035.wz",
+        "Sound_036.wz",
+        "Sound_037.wz",
+        "Sound_038.wz",
+        "Sound_040.wz",
+        "Sound_041.wz",
+        "Sound_042.wz",
+        "Sound_043.wz",
+        "Sound_045.wz",
+        "Sound_046.wz",
+        "Sound_047.wz",
+        "Sound_048.wz",
+        "Sound_049.wz",
+        "Sound_050.wz",
+        "Sound_051.wz",
+        "Sound_052.wz",
+        "Sound_053.wz",
+        "Sound_054.wz",
+        "Sound_055.wz",
+        "Sound_057.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "String",
+      "stem": "String",
+      "declared": 0,
+      "present": [
+        "String.wz",
+        "String_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "String/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "TamingMob",
+      "stem": "TamingMob",
+      "declared": 0,
+      "present": [
+        "TamingMob_000.wz"
+      ],
+      "missing": [
+        "TamingMob.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "UI",
+      "stem": "UI",
+      "declared": null,
+      "present": [
+        "UI_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "UI/_Canvas",
+      "stem": "_Canvas",
+      "declared": 19,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz"
+      ],
+      "missing": [
+        "_Canvas_004.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Accessory",
+      "stem": "Accessory",
+      "declared": 0,
+      "present": [
+        "Accessory.wz",
+        "Accessory_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Accessory/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Afterimage",
+      "stem": "Afterimage",
+      "declared": 0,
+      "present": [
+        "Afterimage.wz",
+        "Afterimage_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Afterimage/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Android",
+      "stem": "Android",
+      "declared": 0,
+      "present": [
+        "Android.wz",
+        "Android_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Android/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/ArcaneForce",
+      "stem": "ArcaneForce",
+      "declared": 0,
+      "present": [
+        "ArcaneForce.wz",
+        "ArcaneForce_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/ArcaneForce/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/AuthenticForce",
+      "stem": "AuthenticForce",
+      "declared": 0,
+      "present": [
+        "AuthenticForce.wz",
+        "AuthenticForce_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/AuthenticForce/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Bits",
+      "stem": "Bits",
+      "declared": 0,
+      "present": [
+        "Bits.wz",
+        "Bits_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Bits/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Cap",
+      "stem": "Cap",
+      "declared": 0,
+      "present": [
+        "Cap.wz",
+        "Cap_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Cap/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Cape",
+      "stem": "Cape",
+      "declared": 0,
+      "present": [
+        "Cape.wz",
+        "Cape_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Cape/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Coat",
+      "stem": "Coat",
+      "declared": 0,
+      "present": [
+        "Coat.wz",
+        "Coat_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Coat/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Dragon",
+      "stem": "Dragon",
+      "declared": 0,
+      "present": [
+        "Dragon.wz"
+      ],
+      "missing": [
+        "Dragon_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Dragon/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Face",
+      "stem": "Face",
+      "declared": 0,
+      "present": [
+        "Face.wz",
+        "Face_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Face/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Familiar",
+      "stem": "Familiar",
+      "declared": 0,
+      "present": [
+        "Familiar.wz",
+        "Familiar_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Familiar/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Glove",
+      "stem": "Glove",
+      "declared": 0,
+      "present": [
+        "Glove.wz",
+        "Glove_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Glove/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Hair",
+      "stem": "Hair",
+      "declared": 1,
+      "present": [
+        "Hair.wz",
+        "Hair_000.wz",
+        "Hair_001.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Hair/_Canvas",
+      "stem": "_Canvas",
+      "declared": null,
+      "present": [
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Jewel",
+      "stem": "Jewel",
+      "declared": 0,
+      "present": [
+        "Jewel.wz",
+        "Jewel_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Jewel/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Longcoat",
+      "stem": "Longcoat",
+      "declared": 1,
+      "present": [
+        "Longcoat.wz",
+        "Longcoat_000.wz",
+        "Longcoat_001.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Longcoat/_Canvas",
+      "stem": "_Canvas",
+      "declared": 1,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Mechanic",
+      "stem": "Mechanic",
+      "declared": 0,
+      "present": [
+        "Mechanic.wz"
+      ],
+      "missing": [
+        "Mechanic_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Mechanic/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Pants",
+      "stem": "Pants",
+      "declared": 0,
+      "present": [
+        "Pants.wz"
+      ],
+      "missing": [
+        "Pants_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Pants/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/PetEquip",
+      "stem": "PetEquip",
+      "declared": 0,
+      "present": [
+        "PetEquip.wz",
+        "PetEquip_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/PetEquip/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Ring",
+      "stem": "Ring",
+      "declared": 0,
+      "present": [
+        "Ring.wz",
+        "Ring_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Ring/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Shield",
+      "stem": "Shield",
+      "declared": 0,
+      "present": [
+        "Shield.wz",
+        "Shield_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Shield/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Shoes",
+      "stem": "Shoes",
+      "declared": 0,
+      "present": [
+        "Shoes.wz",
+        "Shoes_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Shoes/_Canvas",
+      "stem": "_Canvas",
+      "declared": null,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/SkillSkin",
+      "stem": "SkillSkin",
+      "declared": 0,
+      "present": [
+        "SkillSkin.wz",
+        "SkillSkin_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/SkillSkin/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/TamingMob",
+      "stem": "TamingMob",
+      "declared": 0,
+      "present": [
+        "TamingMob.wz",
+        "TamingMob_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/TamingMob/_Canvas",
+      "stem": "_Canvas",
+      "declared": 7,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Totem",
+      "stem": "Totem",
+      "declared": 0,
+      "present": [
+        "Totem.wz",
+        "Totem_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Totem/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    },
+    {
+      "label": "Character/Weapon",
+      "stem": "Weapon",
+      "declared": 1,
+      "present": [
+        "Weapon.wz",
+        "Weapon_001.wz"
+      ],
+      "missing": [
+        "Weapon_000.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/Weapon/_Canvas",
+      "stem": "_Canvas",
+      "declared": 5,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_005.wz"
+      ],
+      "missing": [
+        "_Canvas_004.wz"
+      ],
+      "unknown": []
+    },
+    {
+      "label": "Character/_Canvas",
+      "stem": "_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz"
+      ],
+      "missing": [],
+      "unknown": []
+    }
+  ],
+  "gaps": [
+    {
+      "label": "Effect/_Canvas",
+      "declared": 48,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz",
+        "_Canvas_024.wz",
+        "_Canvas_025.wz",
+        "_Canvas_026.wz",
+        "_Canvas_027.wz",
+        "_Canvas_028.wz",
+        "_Canvas_029.wz",
+        "_Canvas_030.wz",
+        "_Canvas_031.wz",
+        "_Canvas_032.wz",
+        "_Canvas_033.wz",
+        "_Canvas_034.wz",
+        "_Canvas_035.wz",
+        "_Canvas_036.wz",
+        "_Canvas_037.wz",
+        "_Canvas_038.wz",
+        "_Canvas_039.wz",
+        "_Canvas_040.wz",
+        "_Canvas_041.wz",
+        "_Canvas_042.wz",
+        "_Canvas_043.wz",
+        "_Canvas_044.wz",
+        "_Canvas_045.wz",
+        "_Canvas_046.wz",
+        "_Canvas_048.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz",
+        "_Canvas_009.wz",
+        "_Canvas_047.wz"
+      ]
+    },
+    {
+      "label": "Etc/_Canvas",
+      "declared": 9,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ]
+    },
+    {
+      "label": "Reactor/_Canvas",
+      "declared": 1,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_001.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ]
+    },
+    {
+      "label": "Skill/_Canvas",
+      "declared": 112,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_004.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_020.wz",
+        "_Canvas_021.wz",
+        "_Canvas_022.wz",
+        "_Canvas_023.wz",
+        "_Canvas_024.wz",
+        "_Canvas_025.wz",
+        "_Canvas_026.wz",
+        "_Canvas_027.wz",
+        "_Canvas_028.wz",
+        "_Canvas_030.wz",
+        "_Canvas_031.wz",
+        "_Canvas_033.wz",
+        "_Canvas_034.wz",
+        "_Canvas_035.wz",
+        "_Canvas_036.wz",
+        "_Canvas_037.wz",
+        "_Canvas_038.wz",
+        "_Canvas_039.wz",
+        "_Canvas_040.wz",
+        "_Canvas_041.wz",
+        "_Canvas_042.wz",
+        "_Canvas_043.wz",
+        "_Canvas_044.wz",
+        "_Canvas_045.wz",
+        "_Canvas_046.wz",
+        "_Canvas_047.wz",
+        "_Canvas_048.wz",
+        "_Canvas_049.wz",
+        "_Canvas_051.wz",
+        "_Canvas_052.wz",
+        "_Canvas_053.wz",
+        "_Canvas_054.wz",
+        "_Canvas_055.wz",
+        "_Canvas_056.wz",
+        "_Canvas_057.wz",
+        "_Canvas_058.wz",
+        "_Canvas_059.wz",
+        "_Canvas_060.wz",
+        "_Canvas_061.wz",
+        "_Canvas_062.wz",
+        "_Canvas_063.wz",
+        "_Canvas_064.wz",
+        "_Canvas_065.wz",
+        "_Canvas_066.wz",
+        "_Canvas_067.wz",
+        "_Canvas_068.wz",
+        "_Canvas_069.wz",
+        "_Canvas_070.wz",
+        "_Canvas_071.wz",
+        "_Canvas_072.wz",
+        "_Canvas_074.wz",
+        "_Canvas_075.wz",
+        "_Canvas_076.wz",
+        "_Canvas_077.wz",
+        "_Canvas_080.wz",
+        "_Canvas_081.wz",
+        "_Canvas_082.wz",
+        "_Canvas_083.wz",
+        "_Canvas_084.wz",
+        "_Canvas_085.wz",
+        "_Canvas_086.wz",
+        "_Canvas_087.wz",
+        "_Canvas_088.wz",
+        "_Canvas_089.wz",
+        "_Canvas_090.wz",
+        "_Canvas_091.wz",
+        "_Canvas_092.wz",
+        "_Canvas_093.wz",
+        "_Canvas_094.wz",
+        "_Canvas_095.wz",
+        "_Canvas_096.wz",
+        "_Canvas_097.wz",
+        "_Canvas_099.wz",
+        "_Canvas_100.wz",
+        "_Canvas_101.wz",
+        "_Canvas_102.wz",
+        "_Canvas_103.wz",
+        "_Canvas_104.wz",
+        "_Canvas_105.wz",
+        "_Canvas_106.wz",
+        "_Canvas_107.wz",
+        "_Canvas_108.wz",
+        "_Canvas_109.wz",
+        "_Canvas_110.wz",
+        "_Canvas_111.wz",
+        "_Canvas_112.wz"
+      ],
+      "missing": [
+        "_Canvas_013.wz",
+        "_Canvas_019.wz",
+        "_Canvas_029.wz",
+        "_Canvas_032.wz",
+        "_Canvas_050.wz",
+        "_Canvas_073.wz",
+        "_Canvas_078.wz",
+        "_Canvas_079.wz",
+        "_Canvas_098.wz"
+      ]
+    },
+    {
+      "label": "TamingMob",
+      "declared": 0,
+      "present": [
+        "TamingMob_000.wz"
+      ],
+      "missing": [
+        "TamingMob.wz"
+      ]
+    },
+    {
+      "label": "UI/_Canvas",
+      "declared": 19,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_005.wz",
+        "_Canvas_006.wz",
+        "_Canvas_007.wz",
+        "_Canvas_008.wz",
+        "_Canvas_009.wz",
+        "_Canvas_010.wz",
+        "_Canvas_011.wz",
+        "_Canvas_012.wz",
+        "_Canvas_013.wz",
+        "_Canvas_014.wz",
+        "_Canvas_015.wz",
+        "_Canvas_016.wz",
+        "_Canvas_017.wz",
+        "_Canvas_018.wz",
+        "_Canvas_019.wz"
+      ],
+      "missing": [
+        "_Canvas_004.wz"
+      ]
+    },
+    {
+      "label": "Character/Cape/_Canvas",
+      "declared": 0,
+      "present": [
+        "_Canvas.wz"
+      ],
+      "missing": [
+        "_Canvas_000.wz"
+      ]
+    },
+    {
+      "label": "Character/Dragon",
+      "declared": 0,
+      "present": [
+        "Dragon.wz"
+      ],
+      "missing": [
+        "Dragon_000.wz"
+      ]
+    },
+    {
+      "label": "Character/Mechanic",
+      "declared": 0,
+      "present": [
+        "Mechanic.wz"
+      ],
+      "missing": [
+        "Mechanic_000.wz"
+      ]
+    },
+    {
+      "label": "Character/Pants",
+      "declared": 0,
+      "present": [
+        "Pants.wz"
+      ],
+      "missing": [
+        "Pants_000.wz"
+      ]
+    },
+    {
+      "label": "Character/Weapon",
+      "declared": 1,
+      "present": [
+        "Weapon.wz",
+        "Weapon_001.wz"
+      ],
+      "missing": [
+        "Weapon_000.wz"
+      ]
+    },
+    {
+      "label": "Character/Weapon/_Canvas",
+      "declared": 5,
+      "present": [
+        "_Canvas.wz",
+        "_Canvas_000.wz",
+        "_Canvas_001.wz",
+        "_Canvas_002.wz",
+        "_Canvas_003.wz",
+        "_Canvas_005.wz"
+      ],
+      "missing": [
+        "_Canvas_004.wz"
+      ]
+    }
+  ]
+}

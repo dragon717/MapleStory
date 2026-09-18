@@ -8,8 +8,11 @@ const root = path.resolve(__dirname, '..');
 const input = path.join(root, 'resources/tms273-export');
 const publicRoot = path.join(root, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
-const write = (file, value) => { fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-31';
+// ServeDir chooses a compressed sibling without checking its freshness. Never
+// leave yesterday's JSON in front of today's poses or manifest after assembly.
+const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
+const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
+const version = 'tms273-32';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -109,6 +112,12 @@ const manifest = {
   // stand0/move/jump loops, keyed by pet item id.  PNGs are exported by
   // export_tms273_pet.cjs and copied into client/public-tms273/assets.
   pets: read('pet-images'),
+  // 骑宠 `info/icon` 帧表（`export_tms273_mount_icons.cjs` → mount-images.json）。
+  // 与 pets 同构：目录（名字/槽位/骑行数值）在 `shared/mounts.json`，这里只放帧。
+  // 坐骑不在 `items.json` 里，所以 inventory 的图标查找链必须是
+  // `items → pets → mounts`（见 client/src/features/inventory/view.ts）。
+  mounts: read('mount-images'),
+  rideScenes: read('ride-scenes'),
   hud:read('hud'),portals:read('portals'),combat:effects.combat,...windows,...inventory,chatUi:read('chat').chatUi,
   // Source-backed UI/ChatBalloon.img/0 used by PlayerView for map-chat bubbles
   // above speaking characters. PNGs are exported by export_tms273_balloon.cjs
@@ -193,6 +202,13 @@ for (const [id, frame] of Object.entries(cashshop.itemIcons)) {
   manifest.items[canonical] ??= frame;
   manifest.items[canonical.padStart(8, '0')] ??= frame;
   if (manifest.pets[canonical]) manifest.pets[canonical.padStart(8, '0')] ??= manifest.pets[canonical];
+}
+// Every item surface (bag, equipment, storage, drops and hotkeys) reads this
+// table. Special catalogues must not depend on one window's icon fallback.
+for (const [id, frame] of Object.entries({ ...manifest.mounts, ...read('chair-images') })) {
+  const canonical = String(Number(id));
+  manifest.items[canonical] = frame;
+  manifest.items[canonical.padStart(8, '0')] = frame;
 }
 for(const id of Object.keys(items))assert(manifest.items[id],`Item image export is stale: ${id}`);
 {
@@ -478,6 +494,14 @@ function collect(value) {
   else if(value&&typeof value==='object')for(const child of Object.values(value))collect(child);
 }
 collect(manifest);
+for (const group of [manifest.rideScenes.mounts, manifest.rideScenes.chairs]) {
+  for (const [id, entry] of Object.entries(group)) {
+    if (!entry.url) continue;
+    const scene = JSON.parse(fs.readFileSync(path.join(input, entry.url.slice(1)), 'utf8'));
+    assert.equal(Number(scene.itemId), Number(id), `Ride scene binding mismatch: ${entry.url}`);
+    collect(scene);
+  }
+}
 const appearance = read('appearance');
 // A valid inventory definition alone is not a renderable paper-doll item.
 // Fail assembly before deployment if a playable ordinary layer was omitted.
@@ -516,9 +540,36 @@ write(path.join(publicRoot,'assets/entry/appearance.json'),appearance);
 // 「xxx 2.png」被清单引用后，就被原样复制进 client/public-tms273，两边各留一份。
 // 在复制前对清单里的每个名字做反向断言，把这条链掐断在源头。
 for(const url of urls) assertNoConflictCopyName(path.basename(url), `清单引用的导出资源 ${url}`);
-for(const url of urls) assert(fs.statSync(path.join(input,url.slice(1))).size>0,`Missing asset ${url}`);
+// 撞到第一个缺口就 throw，只能告诉你一个名字——而导出树被中途失败的导出
+// 破坏时，缺口从来是成片的（2026-09-18：一次 rm -rf + 中途崩溃留下跨
+// appearance-cashshop / boss-effects / mage-effects 的缺口）。这里把「文件
+// 不存在」与「文件存在但是 0 字节」分开，一次列全，与
+// scripts/package_win_bundle.cjs 的 assertPackClosure 同一口径：修复者需要
+// 一眼看到全部，而不是逐个重跑脚本。
+{
+  const missing=[];const zeroByte=[];
+  for(const url of urls){
+    let stat=null;
+    try{stat=fs.statSync(path.join(input,url.slice(1)));}catch{missing.push(url);continue;}
+    if(stat.size===0)zeroByte.push(url);
+  }
+  // 终端报告必须截断（缺口可能上千条），但修复者需要的是全量，所以全量落成台账。
+  // **每次装配都重写**：这份台账的含义是「**最近一次**校验的结论」，不是失败历史。
+  // 装配通过了却留着一份旧的失败清单，正是本项目反复吃亏的「自述 ≠ 事实」
+  // （对照 metadata.json 的 contentVersion：只校验自述，就能让旧二进制贴上新清单上线）。
+  // 因此不设「只在失败时写」——成功就必须把台账改写成空。
+  const ledger=path.join(root,'artifacts/tms273_assemble_missing.json');
+  write(ledger,{version,input:path.relative(root,input),checked:urls.size,missing,zeroByte});
+  if(missing.length||zeroByte.length){
+    const sections=[`全量清单已落盘：${path.relative(root,ledger)}`];
+    if(missing.length)sections.push(`导出树缺少 ${missing.length} 个清单引用的资源：\n  ${missing.slice(0,20).join('\n  ')}${missing.length>20?`\n  …（共 ${missing.length} 个，完整清单见台账）`:''}`);
+    if(zeroByte.length)sections.push(`导出树里 ${zeroByte.length} 个清单引用的资源是 0 字节：\n  ${zeroByte.slice(0,20).join('\n  ')}`);
+    assert(false,sections.join('\n\n'));
+  }
+}
 for(const url of urls) {
   const destination=path.join(publicRoot,url.slice(1));fs.mkdirSync(path.dirname(destination),{recursive:true});
+  if (destination.endsWith('.json')) invalidateCompressed(destination);
   fs.copyFileSync(path.join(input,url.slice(1)),destination);
 }
 // 反向核对：服务目录里的外观索引 JSON 必须恰好等于清单派生的那一批。

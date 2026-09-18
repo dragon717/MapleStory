@@ -51,6 +51,25 @@ const ACTIONS = [
   ['sit', 'sit', { static: true }],
 ];
 
+// Chair/mount scene metadata may select one of these source poses directly.
+// Keep them behind `appearanceVariants` so the existing avatar export remains
+// compact, while the appearance catalogue can carry every source pose needed
+// by `sitAction`/`forceCharacterAction`.  ride* are timeline aliases in WZ;
+// actionFrames resolves their per-frame `action` + `frame` links below.
+const APPEARANCE_VARIANTS = [
+  ['stand2', 'stand2'],
+  ['walk2', 'walk2'],
+  ['prone', 'prone', { static: true }],
+  ['fly', 'fly'],
+  ['swingOF', 'swingOF'],
+  ['swingO1', 'swingO1'],
+  ['alert', 'alert'],
+  ['PL_walking_ELUNA', 'PL_walking_ELUNA'],
+  ['ride', 'ride'],
+  ['ride2', 'ride2'],
+  ['ride3', 'ride3'],
+];
+
 // These are the four item ids accepted by PlayerView.  The twelve keys below
 // are the non-conflicting combinations already exposed by the client: a
 // longcoat occupies both the coat and pants slots, so coat+longcoat is not a
@@ -73,6 +92,9 @@ const reader = createReader(DATA);
 const zmap = new Map();
 const smap = new Map();
 const frameCache = new Map();
+// 逐层跳过时记下的源缺口（像素分卷缺席且无已导出产物）。由 main() 写进清单，
+// 让「哪一层的像素在源包里就是没有」成为可追溯的事实，而不是导出日志里的一行。
+const sourceGaps = new Set();
 
 function children(node) {
   return [...(node?.wzProperties || [])];
@@ -184,13 +206,30 @@ async function sourceFrame(source) {
   return frameCache.get(source);
 }
 
+// 结构分卷缺席的映像（`Character/Pants/` 只剩索引 `Pants.wz`；`Weapon` 缺 `_000`）在
+// WZ 里只剩 **`_Canvas` 像素镜像**，那份 `info` 只有 `icon`/`iconRaw` 这类画图字段，
+// **没有 `islot`/`vslot`**。槽位此时由 JSON 树派生的目录（`resources/tms273-export/items.json`，
+// 由 parts 导出器灌入）提供；读不到槽位绝不等同于槽位是空串。
+const slotInfoByImage = new Map();
+
+/** 登记「映像逻辑路径 → 槽位」。由调用方在读入 items.json 后灌入。 */
+function registerSlotInfo(entries) {
+  for (const [image, slot] of entries) slotInfoByImage.set(image, slot);
+  return slotInfoByImage.size;
+}
+
 async function sourceInfo(image, source) {
   const imageNode = await get(image);
   const info = imageNode?.at?.('info');
+  const authored = primitive(info, 'islot', '');
+  const fallback = slotInfoByImage.get(image) ?? {};
   return {
     source: `${image}/info`,
-    islot: primitive(info, 'islot', ''),
-    vslot: primitive(info, 'vslot', ''),
+    islot: authored || fallback.islot || '',
+    vslot: primitive(info, 'vslot', '') || (authored || fallback.islot ? fallback.vslot ?? '' : ''),
+    // 该映像的槽位是否真的从 **WZ 结构**读出来的。false ⇒ 来自目录回填，
+    // 调用方若要做「WZ vs 目录」的独立核对必须跳过，而不是把两者当成一致。
+    structureInfo: Boolean(authored),
   };
 }
 
@@ -295,7 +334,18 @@ async function leavesFor(image, part, action, frameIndex, owner, include = undef
   const result = [];
   for (const leaf of leaves) {
     const name = layerName(leaf.source, actionRoot, action, frameIndex);
-    const frame = await sourceFrame(leaf.source);
+    let frame;
+    try {
+      frame = await sourceFrame(leaf.source);
+    } catch (error) {
+      // 这一层的**像素分卷在包内缺席**（现金披风的 `Character/Cape/_Canvas/` 只剩索引
+      // `_Canvas.wz`，没有 `_Canvas_000.wz`），且该动作此前没有导出过、无从复用。
+      // 与上面「该动作本就没有这一层」同策：跳过这一层、保留同帧其余层，让整次导出
+      // 不被一个部位拖垮。缺口**不静默**——记进 sourceGaps，由 main() 汇总进清单。
+      if (!error.message.includes('像素分卷缺失且无已导出产物')) throw error;
+      sourceGaps.add(error.message);
+      continue;
+    }
     // Two legacy TMS273 cash capes author `z=0` on their UOL Canvas instead
     // of the named zmap entry.  Their authored slot is Sr, so the source
     // layer is the regular cape depth.  A pair of cap accessory leaves uses
@@ -471,9 +521,76 @@ async function actionFrames(action, sourceAction, selected, starter, options = {
       options.static ? Number.isFinite(delay) && delay >= 0 : Number.isFinite(delay) && delay > 0,
       `273 body ${sourceAction}/${bodyFrame.name} has no ${options.static ? 'valid' : 'positive'} delay`,
     );
-    result.push(await buildAction(action, sourceAction, bodyFrame, selected, starter, options));
+    const pose = await resolveActionPose(bodySource, sourceAction, bodyFrame);
+    const frame = await buildAction(action, pose.linkedAction, pose.node, selected, starter, options);
+    // A linked timeline frame's delay belongs to the outer action (for
+    // example ride/0 is 30ms even though stand1/0 is 500ms).  Static sit has
+    // no authored delay, so normalize it to the client's zero-delay contract.
+    frame.delay = options.static ? 0 : delay;
+    if (pose.linkedAction !== sourceAction || pose.linkedFrame !== Number(bodyFrame.name)) {
+      frame.source = `${bodySource}/${sourceAction}/${bodyFrame.name}`;
+      frame.linkedAction = pose.linkedAction;
+      frame.linkedFrame = pose.linkedFrame;
+      frame.rawLinkedAction = pose.rawAction;
+      frame.rawLinkedFrame = pose.rawFrame;
+      frame.linkResolution = pose.linkResolution;
+      frame.linkedSource = pose.source;
+    }
+    result.push(frame);
   }
   return result;
+}
+
+/** Resolve a WZ timeline frame such as ride/0 -> stand1/0 or
+ * PL_walking_ELUNA/0 -> walk1/0 before asking the common compositor for
+ * body/equipment leaves.  Direct actions have no metadata and stay intact. */
+async function resolveActionPose(bodySource, sourceAction, frameNode) {
+  const rawAction = value(frameNode, 'action', undefined);
+  const rawFrame = value(frameNode, 'frame', undefined);
+  if (rawAction === undefined && rawFrame === undefined) {
+    return {
+      node: frameNode,
+      source: `${bodySource}/${sourceAction}/${frameNode.name}`,
+      linkedAction: sourceAction,
+      linkedFrame: Number(frameNode.name),
+      rawAction,
+      rawFrame,
+      linkResolution: 'direct',
+    };
+  }
+  const actionName = String(rawAction ?? sourceAction);
+  const frameText = String(rawFrame ?? frameNode.name);
+  const numericFrame = /^\d+$/.test(frameText) ? Number(frameText) : null;
+  const candidates = numericFrame === null
+    ? [
+      { action: frameText, frame: 0, mode: 'frame-action-alias' },
+      { action: actionName, frame: 0, mode: 'action-default-frame' },
+    ]
+    : [{ action: actionName, frame: numericFrame, mode: 'direct-link' }];
+  let lastError;
+  for (const candidate of candidates) {
+    const source = `${bodySource}/${candidate.action}/${candidate.frame}`;
+    try {
+      const node = resolved(await get(source));
+      return {
+        node,
+        source,
+        linkedAction: candidate.action,
+        linkedFrame: candidate.frame,
+        rawAction,
+        rawFrame,
+        linkResolution: candidate.mode,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!error.message.includes('找不到 273 WZ 节点')) throw error;
+    }
+  }
+  throw new Error(
+    `Unable to resolve action pose link ${sourceAction}/${frameNode.name}: `
+      + `${String(rawAction)}/${String(rawFrame)} (${lastError?.message || 'no candidate'})`,
+    { cause: lastError },
+  );
 }
 
 async function loadSourceTables() {
@@ -491,7 +608,14 @@ async function actionSet(selected, starter, options = {}) {
   const actions = {};
   const actionSources = {};
   const bodySource = options.sources?.body || BODY;
-  for (const [action, sourceAction, actionOptions] of [...ACTIONS, ...(options.appearanceVariants ? [['stand2', 'stand2'], ['walk2', 'walk2']] : [])]) {
+  // `onlyActions` 让调用方只算其中几个动作（例如只补 `sit`）。它存在的原因是：
+  // 增量补丁**不需要**（也不应该）重算已在清单里、几何正确的 27 个动作——
+  // 那些动作的源分卷可能已被裁剪，重算只会把正确的旧值覆盖成读不到的 (0,0)。
+  const requested = options.onlyActions ? new Set(options.onlyActions) : null;
+  const entries = [...ACTIONS, ...(options.appearanceVariants ? APPEARANCE_VARIANTS : [])]
+    .filter(([action]) => !requested || requested.has(action));
+  assert(entries.length || !requested, `onlyActions matched no action: ${options.onlyActions?.join(',')}`);
+  for (const [action, sourceAction, actionOptions] of entries) {
     const actionNode = resolved(await get(`${bodySource}/${sourceAction}`));
     const frames = numeric(actionNode);
     const delays = frames.map(frame => Number(value(frame, 'delay', 0)));
@@ -704,10 +828,12 @@ module.exports = {
   STARTER_WEAPON,
   DEFAULT_SOURCES,
   ACTIONS,
+  APPEARANCE_VARIANTS,
   MAGE_ACTIONS,
   SUPPORT,
   LOADOUT_IDS,
   reader,
+  sourceGaps,
   zmap,
   smap,
   children,
@@ -733,6 +859,8 @@ module.exports = {
   buildAction,
   actionFrames,
   loadSourceTables,
+  registerSlotInfo,
+  slotInfoByImage,
   actionSet,
   mageActionSet,
   equipmentSlots,

@@ -4,6 +4,7 @@ import { resolveAssetUrl } from './resource-url';
 import { loadAssetIndex } from './asset-index';
 import { installWindbellMaps } from '../features/windbell/maps';
 import { frameAt } from '../features/player/animation.ts';
+export { assetFrameAlpha } from '../features/player/animation.ts';
 // 纸娃娃类型叶（计划 §9.1）：帧/部件/动作集迁到 avatar-types.ts，
 // 这里 re-export 保持既有 `from '../../assets/manifest'` 导入者不变。
 import type { AvatarActionSet, Frame, Part, Point } from './avatar-types';
@@ -603,6 +604,16 @@ export interface Manifest {
   npcs?: Record<string, NpcAsset>;
   /** Source-backed TMS273 pets, keyed by pet item id (5000000+). */
   pets?: Record<string, PetAsset>;
+  /** Source-backed TMS273 ride pets (`Character/TamingMob/<8位>.img/info/icon`),
+   *  keyed by the item id without leading zeros (matching `shared/mounts.json`).
+   *  Ride pets are not in `items.json`, so the inventory icon lookup chain is
+   *  `items → pets → mounts`.  Exported by export_tms273_mount_icons.cjs. */
+  mounts?: Record<string, AssetFrame>;
+  /** Per-item scene JSON; textures are loaded only while riding or seated. */
+  rideScenes?: {
+    mounts: Record<string, { url?: string; status?: string; reason?: string }>;
+    chairs: Record<string, { url?: string; status?: string; reason?: string }>;
+  };
   /** Source-backed UIWindow.img/Shop entries used by the buy/sell window. */
   shopUi?: Record<string, AssetFrame>;
   /** Source-backed UI/CashShop.img window art used by the 現金商店 window:
@@ -657,11 +668,6 @@ export function mapFrameAt(frames: readonly Pick<AssetFrame, 'delay'>[], elapsed
     throw new Error('地图动画帧 delay 必须为正数');
   }
   return frameAt(delays, elapsed, true);
-}
-export function assetFrameAlpha(frame: Pick<AssetFrame,'a0'|'a1'|'alpha'|'delay'>, elapsed: number): number {
-  const start = frame.a0 ?? frame.alpha ?? 255, end = frame.a1 ?? start;
-  const progress = Math.max(0, Math.min(1, elapsed / frame.delay));
-  return Math.max(0, Math.min(1, (start + (end - start) * progress) / 255));
 }
 export function mapFramePosition(
   layer: Pick<MapLayer, 'x' | 'y' | 'origin' | 'flip' | 'frames'>,

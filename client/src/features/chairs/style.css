@@ -1,20 +1,27 @@
-/* 坐姿状态标记：挂在 #notices 的右下角，与骑乘标记分居两侧，
-   两者可以同时存在（不可能同时骑乘与坐下，但布局上不互相遮挡）。
+/* 坐姿状态标记：抬到快捷栏**上方**，不再压住快捷栏（原先贴右下角，
+   正好盖住快捷栏右半）。
+   `--hud-height` 由 `app/main.ts` 按 `#hud` 实测高度写入，与聊天框、宠物面板
+   同一套约定 ⇒ 快捷栏换行/折叠时标记自动跟着走，不需要另写断点猜高度。
+
+   落点与骑乘标记**共用右下角**：左下 HUD 上方是聊天框、左上是小地图，
+   而骑乘与坐下**互斥**（服务端 `chair_mounted` / `mount_seated` 双向拒绝），
+   所以两者不会同时出现，不需要分居两侧。
+
    注：椅子本体没有源坐标可依（源 Item/Install 只有 info/icon 与 effect），
    所以这里只画状态，不画椅子，也不发明椅子贴图的落点。 */
 #game-shell > #notices > .chair-status-host {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(var(--hud-height, 86px) + 6px);
   z-index: 8;
-  padding: 0 10px 10px 0;
+  max-width: min(260px, calc(100% - 16px));
   pointer-events: none;
 }
 .chair-status-host[hidden] { display: none !important; }
 .chair-status {
   display: flex;
   flex-direction: column;
-  max-width: 260px;
+  max-width: 100%;
   padding: 6px 10px;
   border: 2px solid #7a6a8f;
   border-radius: 6px;
@@ -28,3 +35,14 @@
 .chair-status-countdown { color: #2f6b4f; font-variant-numeric: tabular-nums; }
 .chair-status-unverified { color: #8a5a2f; }
 .chair-status-hint { color: #6b7d8c; font-size: 11px; }
+
+/* 窄屏：快捷栏几乎占满宽度，标记跟着放宽并贴到 HUD 正上方。 */
+@media (max-width: 480px) {
+  #game-shell > #notices > .chair-status-host {
+    right: max(6px, env(safe-area-inset-right));
+    bottom: calc(var(--hud-height, 86px) + 4px);
+    max-width: calc(100% - 12px);
+  }
+  .chair-status { padding: 4px 8px; font-size: 11px; line-height: 1.5; }
+  .chair-status-hint { font-size: 10px; }
+}

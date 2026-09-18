@@ -9,3 +9,9 @@ export function frameAt(delays: number[], elapsed: number, loop: boolean): numbe
   for (let index = 0; index < delays.length; index++) { cursor -= delays[index]; if (cursor < 0) return index; }
   return delays.length - 1;
 }
+
+export function assetFrameAlpha(frame: { a0?: number; a1?: number; alpha?: number; delay: number }, elapsed: number): number {
+  const start = frame.a0 ?? frame.alpha ?? 255, end = frame.a1 ?? start;
+  const progress = frame.delay > 0 ? Math.max(0, Math.min(1, elapsed / frame.delay)) : 0;
+  return Math.max(0, Math.min(1, (start + (end - start) * progress) / 255));
+}

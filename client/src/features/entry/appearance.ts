@@ -188,13 +188,63 @@ function layerIsLoaded(layer: AppearanceLayer, options: AppearanceComposeOptions
   return ids.has(normalizeAppearanceItemId(layer.itemId ?? layer.id));
 }
 
-function layerFrames(layer: AppearanceLayer, action: string, index: number, gender: number, weaponType?: string | number) {
+const STANDING_FALLBACK_ACTIONS = new Set([
+  'sit', 'ride', 'ride2', 'ride3', 'prone', 'fly', 'swingOF', 'swingO1', 'alert',
+  'PL_walking_ELUNA', 'stand2', 'walk2',
+]);
+
+function fallbackActionFor(action: string) {
+  // TMS273 does not author a pose for every equipment layer.  This
+  // composition compatibility policy retains that layer's standing canvas
+  // for sitting/riding and moves it with the actor's authored anchor delta.
+  return STANDING_FALLBACK_ACTIONS.has(action) ? 'stand' : undefined;
+}
+
+function fallbackAnchorFor(part: AppearancePart) {
+  if (part.anchor) return part.anchor;
+  if (['head', 'hair', 'cap', 'face', 'faceAccessory', 'accessory'].includes(part.part)) return 'brow';
+  if (part.part === 'weapon') return 'hand';
+  return 'navel';
+}
+
+function shiftFallbackParts(
+  parts: AppearancePart[],
+  fromFrame: AppearanceFrame | undefined,
+  toFrame: AppearanceFrame,
+) {
+  const fromAnchors = fromFrame?.anchors;
+  const toAnchors = toFrame.anchors;
+  if (!fromAnchors || !toAnchors) return parts;
+  return parts.map(part => {
+    const anchor = fallbackAnchorFor(part);
+    const from = fromAnchors[anchor] ?? fromAnchors.navel;
+    const to = toAnchors[anchor] ?? toAnchors.navel;
+    if (!from || !to) return part;
+    return { ...part, x: part.x + to.x - from.x, y: part.y + to.y - from.y };
+  });
+}
+
+function layerFrames(
+  layer: AppearanceLayer,
+  action: string,
+  index: number,
+  gender: number,
+  weaponType?: string | number,
+  targetFrame?: AppearanceFrame,
+  fallbackBaseFrame?: AppearanceFrame,
+) {
   const actions = layerActions(layer, gender, weaponType);
-  // Every action must use its own authored body anchors.  Falling back to
-  // stand here would place an outfit on the wrong hand/neck during a skill.
+  // Skills remain strict: only the source-selected pose actions above use the
+  // compatibility fallback, shifted by the base anchor delta.
   const frames = actions[action];
-  if (!frames?.length) return [];
-  return frames[Math.min(index, frames.length - 1)]?.parts ?? [];
+  const frame = frames?.length ? frames[Math.min(index, frames.length - 1)] : undefined;
+  if (frame?.parts?.length) return frame.parts;
+  const fallbackAction = fallbackActionFor(action);
+  if (!fallbackAction) return [];
+  const fallbackFrames = actions[fallbackAction];
+  if (!fallbackFrames?.length) return [];
+  const fallback = fallbackFrames[Math.min(index, fallbackFrames.length - 1)];
+  return shiftFallbackParts(fallback?.parts ?? [], fallbackBaseFrame, targetFrame ?? fallbackBaseFrame ?? fallback);
 }
 
 /** Fetch and register one complete cash appearance layer on demand. */
@@ -270,12 +320,23 @@ export function composeAppearance(
   for (const [action, frames] of Object.entries(base.actions)) {
     actions[action] = frames.map((frame, index) => {
       const layerParts = (layer: AppearanceLayer) => {
-        return layerFrames(layer, action, index, look.gender, options.weaponType);
+        const fallbackAction = fallbackActionFor(action);
+        const standFrames = base.actions.stand;
+        const fallbackBaseFrame = fallbackAction && standFrames?.length
+          ? standFrames[Math.min(index, standFrames.length - 1)]
+          : undefined;
+        return layerFrames(layer, action, index, look.gender, options.weaponType, frame, fallbackBaseFrame);
       };
       const parts = [...frame.parts.filter(visible), ...layerParts(face).filter(visible), ...layerParts(hair).filter(visible), ...gear.flatMap(layerParts)];
       return { ...frame, parts: parts.sort((a, b) => b.z - a.z) };
     });
   }
+  // Keep the source names as stable aliases before an ordinary weapon is
+  // allowed to replace the gameplay `stand`/`walk` variant with stand2/walk2.
+  // Chair and mount metadata uses stand1/walk1 to mean the authored source
+  // pose, so it must not inherit that weapon-specific replacement.
+  const sourceStand = actions.stand;
+  const sourceWalk = actions.walk;
   // Info-only副武器 has an empty vslot and no body pose; only a real ordinary
   // weapon may choose the actor's authored stand/walk variant.
   const ordinaryWeapon = gear.find(layer => layer.part === 'weapon' && layer.cash !== true && layer.vslot);
@@ -283,6 +344,8 @@ export function composeAppearance(
   const walkAction = ordinaryWeapon?.walkAction;
   if (standAction && actions[standAction]?.length) actions.stand = actions[standAction];
   if (walkAction && actions[walkAction]?.length) actions.walk = actions[walkAction];
+  actions.stand1 = sourceStand;
+  actions.walk1 = sourceWalk;
   actions.climb = actions.ladder;
   actions.dead = actions.stand;
   return actions as unknown as AvatarActionSet;

@@ -217,7 +217,7 @@ export class InventoryView {
     const equipment = new EquipmentView(this.root, manifest, this.equipmentLayout, {
       equippedItemAt: slot => this.equippedAt(slot),
       selectingTarget: () => this.intents.hasScrollTarget(),
-      itemFrame: itemId => this.manifest.items?.[itemId],
+      itemFrame: itemId => this.itemIconFrame(itemId),
       assetImage: (frame, className) => this.assetImage(frame, className),
       translate: (zh, en) => this.t(zh, en),
       status: message => this.status(message),
@@ -634,7 +634,8 @@ export class InventoryView {
         if (this.backendOnlyDisabled(slotNumber)) this.appendDisabled(slot);
         continue;
       }
-      const frame = this.manifest.items?.[item.itemId] ?? this.manifest.pets?.[item.itemId]?.icon;
+      // 图标查找链见 `itemIconFrame`：items → pets → mounts。
+      const frame = this.itemIconFrame(item.itemId);
       if (!frame) continue;
       const icon = this.assetImage(frame, 'inventory-item-icon');
       icon.alt = itemName(item.itemId);
@@ -1174,6 +1175,25 @@ export class InventoryView {
 
   private backendOnlyDisabled(slot: number) {
     return slot > this.slotLimit(this.selectedTab) && slot <= this.inventoryMode().slots.itemCount && !this.itemAt(slot);
+  }
+
+  /**
+   * 道具图标查找链——**唯一**实现，格子视图与装备栏都走这里。
+   *
+   * items（掉落/商店可达的常规物）→ pets（宠物，单独成表，图标在 `icon` 下）
+   * → mounts（骑宠，既不在 items.json 里也不在 pets 表里，单独一张
+   * `mount-images.json`；该表按**不带前导零**的 id 建键，所以两种写法都试，
+   * 免得 01902000 / 1902000 分叉成两套键）。
+   *
+   * 抽出成方法的原因不只是复用：装备栏（`EquipmentView` 的 `itemFrame` 回调）
+   * 与格子视图必须用**同一条**链，否则同一个道具在背包里画得出图标、在装备栏
+   * 里画不出——那属于「同一事实两套判据」。
+   */
+  private itemIconFrame(itemId: string | number): AssetFrame | undefined {
+    return this.manifest.items?.[itemId]
+      ?? this.manifest.pets?.[itemId]?.icon
+      ?? this.manifest.mounts?.[itemId]
+      ?? this.manifest.mounts?.[String(Number(itemId))];
   }
 
   private assetImage(frame: AssetFrame, className: string) {

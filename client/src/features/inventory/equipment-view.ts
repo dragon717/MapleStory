@@ -1,6 +1,6 @@
 import type { InventoryItem } from '../../../../shared/protocol';
 import type { AssetFrame, EquipmentLayout, Manifest } from '../../assets/manifest';
-import { equipmentSlot, itemDetails, itemName } from './names';
+import { isMountItem, itemDetails, itemName } from './names';
 import { MOUNT_BODY_SLOTS } from '../mounts/model';
 import type { TooltipController } from './tooltip-view';
 import type { DragController } from './drag-controller';
@@ -92,6 +92,24 @@ export class EquipmentView {
     for (const slotNumber of Object.keys(this.layout.slots).map(Number)) {
       this.createSlot(equipmentWindow, slotNumber);
     }
+    // TMS273's main equip canvas omits Tm/Sd. Keep equipped items reachable
+    // in a web footer, using the same slot interactions as the source canvas.
+    const extraSlots = MOUNT_BODY_SLOTS.filter(slot => !this.layout.slots[String(slot)]);
+    if (extraSlots.length) {
+      const mounts = document.createElement('div');
+      mounts.className = 'equipment-mount-slots';
+      mounts.style.top = `${this.layout.height}px`;
+      for (const slot of extraSlots) {
+        const group = document.createElement('div');
+        const label = document.createElement('span');
+        label.textContent = slot === 18 ? t('骑宠', 'Mount') : t('鞍具', 'Saddle');
+        group.append(label);
+        this.createSlot(group, slot);
+        mounts.append(group);
+      }
+      equipmentWindow.append(mounts);
+      equipmentWindow.style.height = `${this.layout.height + 60}px`;
+    }
     const close = this.host.createWindowButton(equipmentWindow, 'close', ui, 'main/button:close/normal/0', () => this.host.onCloseRequest());
     close?.setAttribute('aria-label', t('关闭装备栏', 'Close equip inventory'));
     if (close) close.title = t('关闭装备栏', 'Close equip inventory');
@@ -152,7 +170,9 @@ export class EquipmentView {
         button.title = itemDetails(item.itemId, item);
         button.setAttribute('aria-label', selecting
           ? t('对 ' + itemName(item.itemId) + ' 使用卷轴', 'Use the scroll on ' + itemName(item.itemId))
-          : t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
+          : isMountItem(item.itemId)
+            ? t('已装备 ' + itemName(item.itemId) + '（双击骑乘/下马，右键卸下）', itemName(item.itemId) + ' (double-click to ride/dismount, right-click to unequip)')
+            : t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
         const frame = this.host.itemFrame(item.itemId);
         if (frame) {
           const icon = this.host.assetImage(frame, 'inventory-item-icon');
@@ -231,23 +251,10 @@ export class EquipmentView {
     parent.append(button);
   }
 
-  /**
-   * 双击某个已装备槽。既有语义是「卸下」，**骑宠是唯一的例外**：源里双击坐骑是
-   * 上下马（`server/src/mounts.rs` 的开关不消耗道具、也不改装备）。
-   *
-   * 判据只用 `equipmentSlot()`（源 `info.islot` → ±18/±19），与
-   * `inventory::equipment_slot`、`names.ts::isMountItem` 同一套源字段，
-   * 不按物品名或 id 段猜。
-   *
-   * 现实说明（别当成活路径来测）：源 `UI/UIEquip.img/Equip/EquipTab/Slots`
-   * **没有** Tm/Sd 两个槽（探针直读 wz：只有 1..13,15,16,17,21,22,28,31..36），
-   * 所以当前 UI 画不出 18/19 槽，这一支点不到——活的入口是
-   * `F/mounts/view.ts` 的状态标记。留在这里是因为它编码的是**源语义**：
-   * 一旦有窗口把这两个槽画出来，双击必须是上下马，而不是「把坐骑脱下来」。
-   */
+  /** Only a source-declared mount toggles riding; saddles remain removable. */
   private onSlotActivate(slotNumber: number, item: InventoryItem) {
-    const slot = equipmentSlot(item.itemId);
-    if (slot !== undefined && MOUNT_BODY_SLOTS.includes(slot)) {
+    if (MOUNT_BODY_SLOTS.includes(slotNumber) && isMountItem(item.itemId)) {
+      const slot = slotNumber;
       // `sourceTab` 0 = 装备页签（`TAB_INVENTORY_TYPE[0] === 1`）；负槽号＝已装备。
       this.host.useItem(0, -slot, item);
       return;

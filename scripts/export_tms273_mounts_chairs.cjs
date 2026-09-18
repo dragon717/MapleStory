@@ -32,6 +32,8 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW');
 const MIRRORS = ['shared', 'client/public-tms273/assets'];
+// 骑宠图标帧表，由 `export_tms273_mount_icons.cjs` 产出（**先跑那个**）。
+const MOUNT_ICONS = path.join(ROOT, 'resources/tms273-export/mount-images.json');
 
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 
@@ -262,6 +264,37 @@ function write(relative, value) {
   return file;
 }
 
+/**
+ * 骑宠图标状态落定。本脚本是 `mounts.json` 的**唯一写者**，所以状态字段在这里定：
+ *   * 抽到帧（帧表里有这条 id） ⇒ `wz-verified`，并把帧挂在 `icon` 上；
+ *   * 帧表存在但没有这条 id ⇒ `wz-missing`（源 WZ 里就没有这件映像），逐条登记；
+ *   * 帧表整体缺席（没跑图标导出） ⇒ 保持 `wz-present-unextracted` 且**留住**「未完成项」
+ *     提示——绝不因为「这次没查」就把状态说成已完成。
+ */
+function applyMountIcons(mounts) {
+  if (!fs.existsSync(MOUNT_ICONS)) return { extracted: false, verified: 0, absent: [] };
+  const frames = JSON.parse(fs.readFileSync(MOUNT_ICONS, 'utf8'));
+  const absent = [];
+  let verified = 0;
+  for (const [id, entry] of Object.entries(mounts.items)) {
+    const frame = frames[id];
+    if (frame) {
+      entry.icon = frame;
+      entry.spriteSourceStatus = 'wz-verified';
+      verified++;
+    } else {
+      entry.spriteSourceStatus = 'wz-missing';
+      absent.push(id);
+    }
+  }
+  mounts.unverified = mounts.unverified.filter(line => !line.includes('图标未抽取'));
+  if (absent.length) {
+    mounts.unverified.push(`骑宠图标：源 WZ 里没有这 ${absent.length} 件对应的映像（spriteSourceStatus = wz-missing），该槽位无图可画；其余 ${verified} 件已抽取并核对（wz-verified）。`);
+  }
+  mounts.iconSource = 'resources/tms273-export/mount-images.json ← Character/TamingMob/<8位>.img/info/icon（外链 Canvas，像素在 TamingMob/_Canvas/_Canvas_00N.wz）';
+  return { extracted: true, verified, absent };
+}
+
 function main() {
   if (!fs.existsSync(SOURCE)) {
     console.error(`generate: 源目录不存在 ${SOURCE}`);
@@ -269,6 +302,7 @@ function main() {
     return;
   }
   const mounts = buildMounts();
+  const icons = applyMountIcons(mounts);
   const chairs = buildChairs();
   for (const mirror of MIRRORS) {
     write(path.join(mirror, 'mounts.json'), mounts);
@@ -314,6 +348,9 @@ function main() {
   console.log(`导出坐骑 ${mountIds.length} 件（${withRide} 件带已核定骑行数值，坐骑档 ${Object.keys(mounts.mobs).length} 个）、椅子 ${chairs.counts.total} 件（${chairs.counts.withInterval} 件带已核定恢复间隔）。`);
   console.log(`未登记：非装备图 ${mounts.skipped.nonEquipment}、无名 ${mounts.skipped.unnamed}、缺坐骑档 ${mounts.skipped.missingRideStats.length}；椅子间隔未核定 ${chairs.counts.intervalUnverified}。`);
   console.log(`客户端索引：坐骑 ${Object.keys(mountIndex).length} 条（带名字 ${mountIds.filter(id => mountIndex[id].name).length}、带 tamingMob ${mountIds.filter(id => mountIndex[id].tamingMob !== undefined).length}）、椅子名 ${Object.keys(chairNames).length} 条。`);
+  console.log(icons.extracted
+    ? `骑宠图标：wz-verified ${icons.verified} 件、源内无映像 ${icons.absent.length} 件（帧表 ${path.relative(ROOT, MOUNT_ICONS)}）。`
+    : `骑宠图标：帧表缺席（${path.relative(ROOT, MOUNT_ICONS)}），状态保持 wz-present-unextracted——先跑 scripts/export_tms273_mount_icons.cjs。`);
 }
 
 main();

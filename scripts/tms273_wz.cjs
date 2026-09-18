@@ -172,10 +172,26 @@ function imagePrefix(source) {
   return imageIndex < 0 ? [] : parts.slice(0, imageIndex + 1);
 }
 
+/** 同一映像在 `_Canvas` 并行树里的逻辑路径；已经在 `_Canvas` 里则原样返回。 */
+function canvasSibling(logicalPath) {
+  const parts = resourcePath(logicalPath);
+  const imageIndex = parts.findIndex(segment => /\.img$/i.test(segment));
+  if (imageIndex < 0) return parts.join('/');
+  const directory = parts.slice(0, imageIndex);
+  if (directory[directory.length - 1] === '_Canvas') return parts.join('/');
+  return [...directory, '_Canvas', ...parts.slice(imageIndex)].join('/');
+}
+
 function pngInfo(object) {
   const png = object?.pngProperty;
   if (!png) return null;
   return { width: png.width, height: png.height, format: png.format };
+}
+
+/** 直接从 PNG 字节的 IHDR 读尺寸（用于复用已落盘产物时补 width/height）。 */
+function pngSize(buffer) {
+  if (!buffer || buffer.length < 24) throw new Error('PNG 字节不足，无法读出 IHDR 尺寸');
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
 function value(object, name) {
@@ -268,19 +284,13 @@ class ResourceReader {
     return fs.existsSync(filePath) && fs.statSync(filePath).isFile() ? filePath : null;
   }
 
-  async get(logicalPath) {
-    await ensureInit();
-    const source = resourcePath(logicalPath).join('/');
-    if (this.nodes.has(source)) return this.nodes.get(source);
+  /** 一次常规查找：按 stem 枚举同名分卷，再退到 imageRoot。命中返回 {object,filePath}，否则 null。 */
+  async lookup(source) {
     const { targetPath, paths } = this.candidates(source);
     for (const filePath of paths) {
       const file = await this.file(filePath);
       const object = await getObject(file, targetPath);
-      if (object != null) {
-        META.set(object, { reader: this, source, filePath, image: parentImage(object), node: object });
-        this.nodes.set(source, object);
-        return object;
-      }
+      if (object != null) return { object, filePath };
     }
     const imagePath = this.imageCandidate(source);
     if (imagePath) {
@@ -288,10 +298,37 @@ class ResourceReader {
       const separator = targetPath.indexOf('/');
       const imageObjectPath = separator < 0 ? '' : targetPath.slice(separator + 1);
       const object = await getObject(image, imageObjectPath);
-      if (object != null) {
-        META.set(object, { reader: this, source, filePath: imagePath, image: parentImage(object), node: object });
-        this.nodes.set(source, object);
-        return object;
+      if (object != null) return { object, filePath: imagePath };
+    }
+    return null;
+  }
+
+  async get(logicalPath) {
+    await ensureInit();
+    const source = resourcePath(logicalPath).join('/');
+    if (this.nodes.has(source)) return this.nodes.get(source);
+    // 有些部位的**结构分卷被裁剪掉了**（Pants 只剩索引 `Pants.wz`、Weapon 缺 `_000`），
+    // 同一映像的节点却留在同目录的 `_Canvas` 并行树里（`Character/Pants/_Canvas/01060003.img`
+    // 由 `_Canvas_000.wz` 提供）。先按调用方给的逻辑路径找；找不到才插一级 `_Canvas` 重找。
+    //
+    // 命中后登记两条路径：`source` 记**像素实际所在的** `_Canvas` 路径，让下游
+    // `resolvedSource` 与既有先例（结构健全时外链解析出的 `_Canvas` 路径）一致，从而
+    // 复用已落盘的确定性命名产物；`requestedSource` 记调用方的逻辑路径，供帧清单的
+    // `source` 字段保持稳定。`nodes` 两条都登记，重复调用直接命中缓存。
+    const direct = await this.lookup(source);
+    if (direct) {
+      META.set(direct.object, { reader: this, source, filePath: direct.filePath, image: parentImage(direct.object), node: direct.object });
+      this.nodes.set(source, direct.object);
+      return direct.object;
+    }
+    const sibling = canvasSibling(source);
+    if (sibling !== source) {
+      const viaCanvas = await this.lookup(sibling);
+      if (viaCanvas) {
+        META.set(viaCanvas.object, { reader: this, source: sibling, requestedSource: source, filePath: viaCanvas.filePath, image: parentImage(viaCanvas.object), node: viaCanvas.object });
+        this.nodes.set(source, viaCanvas.object);
+        this.nodes.set(sibling, viaCanvas.object);
+        return viaCanvas.object;
       }
     }
     throw new Error(`找不到 273 WZ 节点: ${source}`);
@@ -375,7 +412,18 @@ class ResourceReader {
         }
         const outlink = linkedPath(current);
         if (outlink) {
-          current = await this.getLink(outlink);
+          let linked;
+          try {
+            linked = await this.getLink(outlink);
+          } catch (error) {
+            // 外链指向的像素分卷在包内被整体裁剪（例如 `Character/Cape/_Canvas/` 只剩
+            // 索引 `_Canvas.wz`，没有 `_Canvas_000.wz`）。这不是「链接写错」，而是
+            // 「这一层的像素不在源里」。把外链原样交给 frame()：能命中已落盘的确定性
+            // 命名产物就复用，命中不了就明确报缺——绝不在这里退化成空画布。
+            if (!error.message.includes('找不到 273 WZ 节点')) throw error;
+            return { resolved: current, resolvedMeta: meta, chain, unresolvedSource: outlink };
+          }
+          current = linked;
           meta = META.get(current);
           continue;
         }
@@ -422,22 +470,41 @@ class ResourceReader {
     const raw = typeof source === 'string' ? await this.get(source) : source;
     const sourceMeta = META.get(raw);
     if (!sourceMeta) throw new Error('frame 需要 reader.get() 返回的节点');
-    const { resolved, resolvedMeta, chain } = await this.resolveFrame(raw);
+    const { resolved, resolvedMeta, chain, unresolvedSource } = await this.resolveFrame(raw);
     const resolvedSource = resolvedMeta.source;
-    const info = pngInfo(resolved);
-    if (!info) throw new Error(`节点没有 PNG 数据: ${sourceMeta.source}`);
     const origin = chain.map(item => vector(item.object, 'origin')).find(Boolean) || { x: 0, y: 0 };
     const delay = Number(chain.map(item => value(item.object, 'delay')).find(item => item != null) ?? 100);
+    const rawMap = mapValue(raw);
+    const mapField = Object.keys(rawMap).length ? rawMap : mapValue(resolved);
+    const alpha = alphaFields(chain);
+    const anchors = Object.fromEntries(['lt', 'rb', 'head'].map(key => [key, chain.map(node => vector(node, key)).find(Boolean) ?? null]));
+    // 结构里那一层登记的调用方路径才是帧清单的 `source`；回退到 `_Canvas` 时两者不同。
+    const sourceLabel = sourceMeta.requestedSource ?? sourceMeta.source;
+
+    // 外链指向的像素分卷被整体裁剪（例如 `Cape/_Canvas/` 只剩索引）。此时既不能解像素、
+    // 也不能退化成空画布——只认此前按**确定性命名**落盘的那一份；找不到就明确报缺，
+    // 让缺失在导出期可见，而不是把空骨架写进清单。
+    if (unresolvedSource) {
+      const cached = outputDir ? path.join(path.resolve(outputDir), sourceName(unresolvedSource)) : null;
+      if (!cached || !fs.existsSync(cached)) {
+        throw new Error(`像素分卷缺失且无已导出产物: ${unresolvedSource}`);
+      }
+      const size = pngSize(fs.readFileSync(cached));
+      return { url: path.relative(path.resolve(outputDir), cached).split(path.sep).join('/'),
+        width: size.width, height: size.height,
+        origin, x: -origin.x, y: -origin.y,
+        delay, map: mapField, source: sourceLabel, resolvedSource: unresolvedSource, ...alpha, ...anchors };
+    }
+
+    const info = pngInfo(resolved);
+    if (!info) throw new Error(`节点没有 PNG 数据: ${sourceMeta.source}`);
     let url = null;
     if (outputDir) {
       const target = await this.writePng(resolved, resolvedSource, outputDir);
       url = path.relative(path.resolve(outputDir), target).split(path.sep).join('/');
     }
-    const rawMap = mapValue(raw);
-    const alpha = alphaFields(chain);
-    const anchors = Object.fromEntries(['lt', 'rb', 'head'].map(key => [key, chain.map(node => vector(node, key)).find(Boolean) ?? null]));
     return { url, width: info.width, height: info.height, origin, x: -origin.x, y: -origin.y,
-      delay, map: Object.keys(rawMap).length ? rawMap : mapValue(resolved), source: sourceMeta.source, resolvedSource, ...alpha, ...anchors };
+      delay, map: mapField, source: sourceLabel, resolvedSource, ...alpha, ...anchors };
   }
 
   close() {
@@ -516,7 +583,10 @@ async function main() {
   }
 }
 
-module.exports = { PATCH, IV, ResourceReader, WzRawDataProperty, createReader };
+// `sourceName` / `canvasSibling` 一并导出：扁平文件名 `<逻辑路径转义>-<sha1(逻辑路径).slice(0,10)>.png`
+// 这条规则只允许有一处定义。修复脚本要靠它**自校验**「声明的源路径 == 缺口文件名」，
+// 自己重写一遍哈希就又多了一套会漂移的口径。
+module.exports = { PATCH, IV, ResourceReader, WzRawDataProperty, createReader, sourceName, canvasSibling, pngSize };
 
 if (require.main === module) {
   main().then(code => { process.exitCode = code; }).catch(error => {

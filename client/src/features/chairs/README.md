@@ -35,6 +35,9 @@
 移动输入、跳跃、普攻、技能、受击、死亡、换图也都会起身（服务端收口），
 所以这里**不放**「起身」按钮——多一个入口就多一处要和权威状态对齐。
 
-椅子本体没有源坐标可依（源 `Item/Install` 只有 `info/icon` 与 `effect`，**没有 `sit` 节点**，
-584 件全查过），所以标记只画状态，不画椅子。角色坐姿的帧来自角色自身部件
-（`Character/00002000.img/sit` 等），见 `scripts/export_tms273_avatar.cjs`。
+地图表现由 `features/player/view.ts` 读取同一权威 `chair` 状态，按需加载
+`rideScenes.chairs` 的单件场景。椅子使用 Item/Install 的 effect 图层与 origin、
+角色使用 Character 的坐姿；`effect.pos=1` 对齐角色 brow，bodyRelMove 只移动角色。
+没有 Item/Install/sit 节点不代表椅子没有可绘制资源。
+
+是否可坐按源椅子目录类别判断，恢复量为 0 的椅子也可以坐；普通设置类装饰物仍排除。

@@ -229,9 +229,9 @@ view.window.children.filter(child => child.action).at(-1).action();
 assert.equal(state.closeRequests, closeRequests + 1, 'close 按钮请求关闭');
 
 // 双击已装备的骑宠 = 上下马，**不是**卸下（審計第 30 项）。
-// 判据是源 `info.islot`（Tm → 18、Sd → 19），不是物品名或 id 段。
+// 判据是源 tamingMob；鞍具只有 Sd 槽位，不是可骑宠物。
 const mountIndex = JSON.parse(await readFile(new URL('../../../../shared/mount-index.json', import.meta.url), 'utf8'));
-const mountId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Tm');
+const mountId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Tm' && mountIndex[id].tamingMob);
 const saddleId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Sd');
 assert(mountId && saddleId, '坐骑索引里找不到 Tm / Sd 两族，这条覆盖就白做了');
 const unequippedBefore = state.unequipped.length;
@@ -243,13 +243,26 @@ assert.equal(state.unequipped.length, unequippedBefore, '双击骑宠不产生�
 state.equipped.set(19, item(19, saddleId));
 view.render();
 slotByNumber.get(19).emit('dblclick');
-assert.deepEqual(state.used.at(-1), [0, -19, saddleId], '双击 Sd 槽（馬鞍）同样走骑乘通道');
-assert.equal(state.unequipped.length, unequippedBefore, '馬鞍也不产生卸下意图');
+assert.deepEqual(state.unequipped.at(-1), saddleId, '无 tamingMob 的馬鞍双击卸下');
 // 普通装备仍然双击即卸下：这一支没被骑乘分支吞掉。
 state.equipped.set(11, item(11, '1002067'));
 view.render();
 slotByNumber.get(11).emit('dblclick');
-assert.equal(state.used.length, 2, '普通装备不进骑乘通道');
-assert.equal(state.unequipped.length, unequippedBefore + 1, '普通装备双击仍是卸下');
+assert.equal(state.used.length, 1, '普通装备不进骑乘通道');
+assert.equal(state.unequipped.length, unequippedBefore + 2, '普通装备双击仍是卸下');
 
 console.log('inventory equipment-view: window build, open/close sync, render states, slot click branches, mount ride branch, close request passed.');
+
+// Real source layout has no Tm/Sd slots: equipped mounts must still be visible
+// and removable, rather than disappearing into an unreachable equipment row.
+const sourceLayout = { ...layout, slots: { 1: layout.slots[1] } };
+const sourceView = new EquipmentView(new FakeElement(), manifest, sourceLayout, makeHost());
+sourceView.render();
+const extra = sourceView.window.querySelectorAll('.equipment-slot');
+assert.deepEqual(extra.map(button => Number(button.dataset.slot)), [1, 18, 19]);
+const mountSlot = extra.find(button => button.dataset.slot === '18');
+assert.equal(mountSlot.children[0].srcFrame.url, mountId + '.png');
+assert.match(mountSlot.getAttribute('aria-label'), /右键卸下/);
+mountSlot.emit('contextmenu');
+assert.equal(state.unequipped.at(-1), mountId);
+assert.equal(sourceView.window.style.height, '460px');

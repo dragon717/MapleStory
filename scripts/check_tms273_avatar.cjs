@@ -10,6 +10,7 @@ const OUTPUT = path.join(ROOT, 'resources/tms273-export');
 const ASSET_ROOT = path.join(OUTPUT, 'assets/tms273');
 const data = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'avatar.json'), 'utf8'));
 const avatar = data.avatar;
+const STATIC_ACTIONS = new Set(['sit', 'prone']);
 
 assert.deepEqual(avatar.look.weapon, ['Weapon', '01302000.img']);
 
@@ -38,7 +39,8 @@ function checkActionSet(name, actions) {
   for (const [action, frames] of Object.entries(actions)) {
     assert(frames.length, `${name}/${action}: no frames`);
     for (const [index, frame] of frames.entries()) {
-      assert(frame.delay > 0, `${name}/${action}/${index}: invalid body delay`);
+      assert(STATIC_ACTIONS.has(action) ? frame.delay >= 0 : frame.delay > 0,
+        `${name}/${action}/${index}: invalid body delay`);
       const body = frame.parts.find(part => part.part === 'body' && part.name === 'body');
       const head = frame.parts.find(part => part.part === 'head' && part.name === 'head');
       assert(body && head, `${name}/${action}/${index}: body/head missing`);
@@ -62,7 +64,7 @@ function checkActionSet(name, actions) {
 checkActionSet('starter', avatar.actions);
 for (const [key, loadout] of Object.entries(avatar.equipmentLoadouts)) checkActionSet(key, loadout.actions);
 for (const [action, frames] of Object.entries(avatar.actions)) {
-  if (action === 'ladder' || action === 'rope' || action === 'climb') continue;
+  if (action === 'ladder' || action === 'rope' || action === 'climb' || STATIC_ACTIONS.has(action)) continue;
   assert(frames.every(frame => frame.parts.some(part => part.part === 'weapon' && part.source?.includes('Character/Weapon/01302000.img'))), `${action}: starter look must use 273 weapon 01302000`);
 }
 for (const [key, loadout] of Object.entries(avatar.equipmentLoadouts)) {

@@ -118,6 +118,42 @@ function imageForPart(part, id) {
 }
 
 function equipmentDescriptor(id) {
+  return { ...equipmentShape(id), ...catalogSlotInfo(id) };
+}
+
+/**
+ * `items.json`（JSON 树派生）里的槽位。结构分卷缺席的部位（`Character/Pants/` 只剩索引、
+ * `Weapon` 缺 `_000`）在 WZ 侧只会解到 `_Canvas` 像素镜像，其 `info` 没有 `islot`/`vslot`；
+ * 此时的权威来源就是这张目录。返回 `{}` 表示目录里也没有，交由 WZ 侧如实报错。
+ */
+function catalogSlotInfo(id) {
+  const info = catalogItems()[String(Number(id))]?.info;
+  return info?.islot ? { slotInfo: { islot: info.islot, vslot: info.vslot ?? '' } } : {};
+}
+
+/** `items.json` 只读一次；缺文件即视为目录为空（由调用方另行报缺）。 */
+let catalogCache;
+function catalogItems() {
+  catalogCache ??= JSON.parse(fs.readFileSync(path.join(OUTPUT, 'items.json'), 'utf8'));
+  return catalogCache;
+}
+
+/**
+ * 把目录里每条装备的槽位登记给源读取层：`Character/<部位>/<8位>.img` → `{islot, vslot}`。
+ * 这样 `sourceInfo` 在结构分卷缺席时仍能给出**权威**槽位，而不是空串——空串会让
+ * `hidesBaseLayer` 少遮蔽一层、客户端长袍/裤子遮蔽失效，属于看不见的漂移。
+ */
+function registerCatalogSlots(items) {
+  const entries = new Map();
+  for (const definition of Object.values(items)) {
+    const info = definition?.info;
+    if (!info?.islot || typeof definition.source !== 'string' || !definition.source.startsWith('Character/')) continue;
+    entries.set(definition.source.replace(/\.json$/, '.img'), { islot: info.islot, vslot: info.vslot ?? '' });
+  }
+  return avatar.registerSlotInfo(entries);
+}
+
+function equipmentShape(id) {
   const numericId = Number(id);
   // Keep the explicit source-backed descriptors keyed by their own id.  The
   // old implementation used the id as an array index here, which silently
@@ -361,7 +397,8 @@ async function exportEquipmentLayer(gender, descriptor, includeSkills) {
     Object.assign(actionSources, actionSourcesFor(skills));
     addActions(actions, filterActions(skills.actions, part => part.itemId === itemId && part.part === descriptor.part));
   }
-  const info = await sourceInfo(descriptor.image, descriptor.image);
+  // 槽位优先取描述符上随目录带来的权威值（结构分卷缺席时 WZ 侧 `info` 无槽位字段）。
+  const info = descriptor.slotInfo ?? await sourceInfo(descriptor.image, descriptor.image);
   return {
     id: Number(descriptor.id),
     itemId,
@@ -448,7 +485,8 @@ async function exportStaticEquipmentLayer(gender, descriptor, base) {
       return withParts(baseFrame, [compose(candidate, baseFrame.anchors)]);
     });
   }
-  const info = await sourceInfo(descriptor.image, descriptor.image);
+  // 槽位同上：描述符带权威值就用它，否则回落到 WZ（结构健全时两者一致）。
+  const info = descriptor.slotInfo ?? await sourceInfo(descriptor.image, descriptor.image);
   return {
     id: Number(descriptor.id),
     itemId,
@@ -644,6 +682,8 @@ async function exportDefaultAppearanceLayers(bases, layers) {
 async function exportOrdinaryEquipment(bases, layers, index) {
   const items = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'items.json'), 'utf8'));
   let count = 0;
+  // 目录登记了、但源 WZ 里没有对应映像的件（JSON 树有 `.json`，WZ 无 `.img`）。
+  const noImage = [];
   for (const [id, definition] of Object.entries(items)) {
     const info = definition.info;
     if (!info?.islot || info.cash === 1 || layers[String(Number(id))]) continue;
@@ -662,9 +702,27 @@ async function exportOrdinaryEquipment(bases, layers, index) {
     const itemId = canonicalItemId(id);
     const image = definition.source.replace(/\.json$/, '.img');
     assert(image.startsWith('Character/'), `Missing Character source for ${id}`);
+    // 目录里有这件（JSON 树有 `Character/.../01062002.json`），源 WZ 里却没有对应映像，
+    // **连 `_Canvas` 像素镜像也没有** ⇒ 无层可导。照 `Po/Tm/Ri/Pe/Me/Ba/Be` 的先例跳过
+    // 并逐条记录：不凭空造层，也不因为一件缺料让整次导出失败。
+    let imageNode;
+    try {
+      imageNode = await get(image);
+    } catch (error) {
+      if (!error.message.includes('找不到 273 WZ 节点')) throw error;
+      noImage.push(id);
+      continue;
+    }
     const source = await sourceInfo(image, image);
-    assert.equal(source.islot, info.islot, `Ordinary equipment slot drift: ${id}`);
-    const noVisual = children(await get(image)).every(node => node.name === 'info');
+    if (source.structureInfo) {
+      assert.equal(source.islot, info.islot, `Ordinary equipment slot drift: ${id}`);
+    } else {
+      // WZ 结构分卷缺席（只剩 `_Canvas` 像素镜像，其 `info` 无槽位字段）：独立核对
+      // 无从进行。槽位已由 `registerCatalogSlots` 用同一份 JSON 树目录回填，此处只把
+      // 「核对未执行」记成缺口——不把读不到当成一致。
+      avatar.sourceGaps.add(`结构分卷缺席，槽位取自 JSON 树目录、未做 WZ 独立核对: ${image}/info`);
+    }
+    const noVisual = children(imageNode).every(node => node.name === 'info');
     const descriptor = { id: Number(id), itemId, image, ...shape, cash: false, lazy: true,
       ...(shape.part === 'weapon' ? { standAction: info.stand === 2 ? 'stand2' : 'stand', walkAction: info.walk === 2 ? 'walk2' : 'walk' } : {}),
     };
@@ -692,12 +750,19 @@ async function exportOrdinaryEquipment(bases, layers, index) {
   }
   index.source = 'TMS273.7 client WZ / Character equipment; cash and ordinary layers fetched per item';
   fs.writeFileSync(path.join(OUTPUT, 'appearance-cashshop.json'), JSON.stringify(index, null, 2) + '\n', 'utf8');
+  if (noImage.length) {
+    for (const id of noImage) avatar.sourceGaps.add(`目录有登记但源 WZ 无映像（连 _Canvas 像素镜像也没有），整件跳过: ${id}`);
+    console.log(`源 WZ 无映像、按缺料整件跳过 ${noImage.length} 件：${noImage.slice(0, 12).join(', ')}${noImage.length > 12 ? ' …' : ''}`);
+  }
   return count;
 }
 
 async function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
   await loadSourceTables();
+  // 先把目录里的槽位登记给源读取层：结构分卷缺席的部位（Pants / 部分 Weapon 映像）
+  // 在 WZ 侧读不到 islot/vslot，槽位只能由这份 JSON 树派生的目录提供。
+  const catalogSlotCount = registerCatalogSlots(catalogItems());
   const rawCatalog = JSON.parse(fs.readFileSync(MAKE_CHAR_INFO, 'utf8'));
   const group = rawCatalog['000'];
   assert(group, 'Missing TMS273 MakeCharInfo/000 source');
@@ -775,6 +840,11 @@ async function main() {
     contentVersion: 'tms273-avatar-parts',
     sourceVersion: 'TMS273.7',
     source: 'TMS273.7 client WZ / Character + Base / MakeCharInfo.img#000',
+    // 源包缺料导致的缺口，逐条记录。两种形态：
+    //  * 像素分卷缺席且无已导出产物可复用 ⇒ 该层缺席，同帧其余层照常；
+    //  * 目录有登记但源 WZ 无映像（连 `_Canvas` 镜像也没有）⇒ 整件跳过。
+    // 空数组=本轮没有任何缺口。
+    sourceGaps: [...avatar.sourceGaps].sort(),
     actionSources,
     zmap: [...avatar.zmap].map(([name, index]) => ({ name, index })),
     smap: Object.fromEntries(avatar.smap),
@@ -793,8 +863,10 @@ async function main() {
     cashAppearanceItemBytes: cashAppearance.itemBytes,
     cashAppearancePngs: avatar.reader.pngOutputs.size - cashPngsBefore,
     cashWeaponTypes,
+    catalogSlots: catalogSlotCount,
     genders: Object.keys(bases),
     actionKeys: Object.keys(actionSources),
+    sourceGaps: avatar.sourceGaps.size,
     pngs: avatar.reader.pngOutputs.size,
   }, null, 2));
 }

@@ -1,18 +1,28 @@
-/* 骑乘状态标记：挂在 #notices 的左下角，纯文字，不使用任何未抽取的源贴图。
+/* 骑乘状态标记：抬到快捷栏**上方**，不再压住快捷栏。
+   `--hud-height` 由 `app/main.ts` 按 `#hud` 的实测高度写入，与聊天框
+   （`app/style.css` 的 `.game-mode #game-shell>#chat`）和宠物面板
+   （`features/pet/style.css`）用的是同一套约定，所以快捷栏换行/折叠后
+   标记会自动跟着走，不需要另写断点去猜高度。
+
+   落点选**右侧**而不是左下：左下 HUD 上方是聊天框、左上是小地图，
+   右下 HUD 上方才是空的。
+   与坐姿标记**互斥**（服务端保证：骑乘中不能坐下 `chair_mounted`、
+   坐下不能骑乘 `mount_seated`），所以两者共用同一落点也不会同时出现。
+
    #notices 本身是 pointer-events:none 的满屏网格，子元素自行开启命中。 */
 #game-shell > #notices > .mount-status-host {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(var(--hud-height, 86px) + 6px);
   z-index: 8;
-  padding: 0 0 10px 10px;
+  max-width: min(240px, calc(100% - 16px));
   pointer-events: none;
 }
 .mount-status-host[hidden] { display: none !important; }
 .mount-status {
   pointer-events: auto;
   display: block;
-  max-width: 240px;
+  max-width: 100%;
   padding: 4px 10px;
   border: 2px solid #6b7f52;
   border-radius: 6px;
@@ -31,3 +41,13 @@
   font-weight: 700;
 }
 .mount-status.is-riding:hover { background: #efe4c8; }
+
+/* 窄屏：快捷栏几乎占满宽度，标记跟着放宽并贴到 HUD 正上方。 */
+@media (max-width: 480px) {
+  #game-shell > #notices > .mount-status-host {
+    right: max(6px, env(safe-area-inset-right));
+    bottom: calc(var(--hud-height, 86px) + 4px);
+    max-width: calc(100% - 12px);
+  }
+  .mount-status { padding: 3px 8px; font-size: 11px; }
+}

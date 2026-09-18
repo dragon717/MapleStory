@@ -123,7 +123,31 @@ const alternateEquipment = [{ itemId: alternateEntry.itemId, slot: 11 }];
 const alternate = composeAppearance(catalog, ordinaryLook, alternateEquipment, { loadedItemIds: alternateEquipment.map(item => item.itemId), weaponType: appearanceWeaponType(catalog, alternateEquipment, alternateEntry.itemId) });
 assert(alternate?.stand?.[0]?.parts.some(part => Number(part.itemId) === Number(alternateEntry.itemId)));
 assert.deepEqual(alternate?.stand?.[0]?.parts.find(part => part.part === 'body'), catalog.base[String(ordinaryLook.gender)].actions.stand2[0].parts.find(part => part.part === 'body'));
+assert.deepEqual(alternate?.stand1?.[0]?.parts.find(part => part.part === 'body'), catalog.base[String(ordinaryLook.gender)].actions.stand[0].parts.find(part => part.part === 'body'), 'stand1 must retain source stand after stand2 replacement');
 console.log(`Alternate ordinary weapon pose: ${alternateEntry.itemId} selects stand2 body.`);
+
+// A layer may omit a source pose entirely.  Sitting/riding keeps that layer
+// visible by translating its standing canvas between the authored base
+// anchors; skills remain strict and do not borrow stand art.
+const fallbackItemId = '09999999';
+catalog.layers[fallbackItemId] = {
+  id: Number(fallbackItemId), itemId: fallbackItemId, part: 'cap', islot: 'Cp', vslot: '',
+  actions: {
+    stand: [{ delay: 500, parts: [{
+      key: 'fallback-cap', url: '/assets/tms273/fallback-cap.png', x: 10, y: 20,
+      origin: { x: 0, y: 0 }, z: 100, part: 'cap', zName: 'cap', itemId: fallbackItemId, anchor: 'brow',
+    }] }],
+  },
+};
+const fallbackLook = { ...ordinaryLook, weapon: 1302000 };
+const fallback = composeAppearance(catalog, fallbackLook, [{ itemId: fallbackItemId }]);
+const fallbackSit = fallback?.sit?.[0]?.parts.find(part => part.itemId === fallbackItemId);
+const fallbackStand = fallback?.stand?.[0]?.parts.find(part => part.itemId === fallbackItemId);
+assert(fallbackSit && fallbackStand, 'missing sit layer must retain its standing canvas');
+assert.deepEqual([fallbackSit.x, fallbackSit.y], [fallbackStand.x + 3, fallbackStand.y + 4], 'sit fallback did not use brow anchor delta');
+assert(!fallback?.skill2201008?.[0]?.parts.some(part => part.itemId === fallbackItemId), 'skill unexpectedly borrowed stand fallback');
+delete catalog.layers[fallbackItemId];
+console.log('Missing sit layer: standing fallback translated by authored brow anchors; skill fallback remains strict.');
 
 // Persisted starter looks predate today's MakeCharInfo choices. They must
 // remain composable, including trial cash layers, after a full resource export.
