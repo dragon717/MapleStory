@@ -23,6 +23,7 @@ fn windbell_action_commit_rolls_back_all_rows_and_replays_by_request_id() {
         "{\"action\":\"deliverPlank\"}",
         Some(("{\"sourcePlanks\":5}", 1)),
         Some("{\"deliveredPlanks\":1}"),
+        None,
     );
     assert!(failed.is_err(), "the injected bridge failure must reject the transaction");
     assert!(store.load_windbell_action("a", "windbell-r1").unwrap().is_none());
@@ -43,6 +44,7 @@ fn windbell_action_commit_rolls_back_all_rows_and_replays_by_request_id() {
             "{\"action\":\"deliverPlank\"}",
             Some(("{\"sourcePlanks\":5}", 1)),
             Some("{\"deliveredPlanks\":1}"),
+            None,
         )
         .unwrap());
     assert!(!store
@@ -53,6 +55,7 @@ fn windbell_action_commit_rolls_back_all_rows_and_replays_by_request_id() {
             "{\"action\":\"deliverPlank\",\"changed\":true}",
             Some(("{\"sourcePlanks\":4}", 2)),
             Some("{\"deliveredPlanks\":2}"),
+            None,
         )
         .unwrap());
     assert_eq!(

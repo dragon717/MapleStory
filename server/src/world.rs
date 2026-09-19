@@ -2606,6 +2606,7 @@ impl World {
         let mut snapshot = serde_json::json!({
             "type":"snapshot",
             "serverTick":self.tick,
+            "windbellSequence":self.players.get(id).map_or(0, |p| p.windbell_progress.command_sequence),
             "tickMs":TICK_MS,
             "mapId":map_id,
             "selfId":id,

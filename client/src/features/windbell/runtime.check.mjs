@@ -13,6 +13,8 @@ const {installWindbellMaps}=await load('./maps.ts',configImport);
 const original={id:'original',bounds:{},layers:[]};
 const manifest={map:original,mapCatalog:{maps:[original],birthMapId:'original'}};
 installWindbellMaps(manifest);installWindbellMaps(manifest);
+for (const npc of Object.values(manifest.npcs)) for (const frame of [...npc.stand, ...(npc.move ?? [])]) await fs.access(new URL(`../../../public-tms273${frame.url}`,import.meta.url));
+assert.equal(new Set(manifest.npcs['windbell-awei'].move.map(frame => frame.url)).size, 2);
 assert.equal(manifest.map,original);assert.equal(manifest.mapCatalog.maps.length,3);
 for(const kind of ['island','bridge']){
   const actual=manifest.mapCatalog.maps.find(m=>m.id===`windbell-${kind}`);
@@ -45,11 +47,12 @@ function object(x=0,y=0,key=''){
  return {x,y,key,width:768,visible:true,rotation:0,children:[],
   setDepth(){return this},setAlpha(){return this},setScrollFactor(){return this},setScale(){return this},setOrigin(){return this},setFlipX(){return this},
   setRotation(v){this.rotation=v;return this},setVisible(v){this.visible=v;return this},setTexture(v){this.key=v;return this},setPosition(x,y){this.x=x;this.y=y;return this},setX(x){this.x=x;return this},
+  setFillStyle(v){this.fill=v;return this},setText(v){this.text=v;return this},
   add(child){this.children.push(child);return this},destroy(){this.destroyed=true;this.children.forEach(c=>c.destroy())}};
 }
 const scene={cache:{json:{exists:()=>true,get:()=>assets},audio:{exists:()=>true}},textures:{exists:()=>false},
  load:{image:(key)=>queued.add(key)},sound:{play:key=>played.push(key)},
- add:{image:(x,y,key)=>object(x,y,key),container:(x,y)=>object(x,y),tileSprite:(x,y,w,h,key)=>object(x,y,key)}};
+ add:{image:(x,y,key)=>object(x,y,key),container:(x,y)=>object(x,y),tileSprite:(x,y,w,h,key)=>object(x,y,key),rectangle:(x,y)=>object(x,y),text:(x,y)=>object(x,y)}};
 let complete;
 WindbellScene.preload({...scene,cache:{...scene.cache,json:{exists:()=>false}},load:{...scene.load,once:(_event,fn)=>complete=fn,json:()=>{}}},'island');
 assert.equal(typeof complete,'function');complete('catalog','json',assets);
@@ -60,6 +63,11 @@ const island=new WindbellScene(scene,'island',()=>{},()=>{}), bridge=new Windbel
 const state={treeBridge:'held',heat:'dry',bridgeStage:'working',cartUpright:true,bridgeSegments:1,cartX:450};
 island.update(state,undefined,20);bridge.update(state,undefined,20);
 assert.equal(played.length,0,'restored facts do not replay sounds');
+bridge.update({...state,livelihood:{paperMoisture:0,shelter:3,deliveries:2},archiveSafe:true,leafwing:true},{x:1200,y:850,grounded:false,facing:1},20);
+assert.equal(bridge.archiveLabel.text,'旧路记 · 可阅读');
+assert.equal(bridge.paper.fill,0xf5e5be);
+assert.equal(bridge.wing.visible,true,'the same glider renders in the second location');
+assert.equal(bridge.supplies.visible,true);
 assert.equal(island.fire.visible,false);assert.equal(bridge.segments[0].visible,true);assert.equal(bridge.segments[1].visible,false);
 island.update({...state,heat:'burning'},undefined,20);
 assert.equal(island.fire.key,assets.fire[0].url);

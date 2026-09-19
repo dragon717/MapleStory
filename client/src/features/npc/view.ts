@@ -14,7 +14,7 @@ export interface NpcSnapshot {
   shopId?: string;
   jobAdvancementAvailable?: boolean;
   questAvailable?: boolean;
-  /** World tick when the npc last changed pose; npcs only play `stand`. */
+  /** World tick used for the authored animation clock. */
   actionStartedTick?: number;
 }
 
@@ -23,11 +23,13 @@ const LABEL_COLOR_IDLE = '#ffffff';
 const LABEL_COLOR_SELECTED = '#ffe066';
 const LABEL_ALPHA_IDLE = 0.92;
 
-/** Renders a server-owned npc using the Npc.wz `stand` action. */
+/** Renders server-owned positions; optional movement art follows real displacement. */
 export class NpcView {
   private readonly sprite?: Phaser.GameObjects.Image;
   private label?: Phaser.GameObjects.Text;
   private signature = '';
+  private lastX?: number;
+  private movingUntil = 0;
   private marker?: Phaser.GameObjects.Image;
   /**
    * Click-selection state (阶段一).  The nameplate is the only NPC-owned element
@@ -93,7 +95,9 @@ export class NpcView {
   update(npc: NpcSnapshot, elapsed: number) {
     const sprite = this.sprite;
     if (!sprite) return;
-    const frames = this.asset.stand;
+    if (this.lastX !== undefined && Math.abs(npc.x - this.lastX) > .05) this.movingUntil = elapsed + 250;
+    this.lastX = npc.x;
+    const frames = this.asset.move?.length && elapsed < this.movingUntil ? this.asset.move : this.asset.stand;
     if (!frames.length) {
       sprite.setVisible(false);
       return;
@@ -104,6 +108,7 @@ export class NpcView {
     if (signature !== this.signature) {
       this.signature = signature;
       sprite.setTexture(frame.url);
+      sprite.setDisplaySize(frame.width, frame.height);
     }
     const flipped = npc.facing === 1;
     const left = Math.round(flipped ? npc.x - frame.x - frame.width : npc.x + frame.x);

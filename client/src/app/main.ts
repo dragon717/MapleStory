@@ -277,6 +277,7 @@ function renderMapRoute(manifest: Manifest) {
   route.hidden = names.length === 0;
 }
 async function enterGame(session: LoginResponse) {
+  let windbellSequence = 0;
   const current = ++generation;
   // Switch away from the character-select screen *before* fetching the
   // manifest.  The user picks a character and the very next frame should be
@@ -409,7 +410,7 @@ async function enterGame(session: LoginResponse) {
     activities?.destroy();
     activities = new ActivitiesView(el('ui-windows'), (action, instanceId) => {
       input?.reset();
-      if (!connection?.send({ type: 'windbell', action, instanceId, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
+      if (!connection?.send({ type: 'windbell', action, instanceId, sequence: ++windbellSequence, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
     }, focusGame);
     menus = new MenuView(
       el('menus'),
@@ -740,6 +741,7 @@ async function enterGame(session: LoginResponse) {
         else status(`${english ? 'World map jump failed' : '世界地图跳转失败'}：${protocolText(message.code, english ? 'no route' : '没有可用路线')}`, true);
       }
       if (message.type === 'snapshot') {
+        windbellSequence = Math.max(windbellSequence, message.windbellSequence ?? 0);
         el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
         const currentMap = world?.getMap(message.mapId);
         if (currentMap && world?.mapId === message.mapId) {

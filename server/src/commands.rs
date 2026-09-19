@@ -716,9 +716,10 @@ impl World {
                     } => self.handle_boss_practice(id, request_id, action, encounter_id),
                     ClientMessage::Windbell {
                         request_id,
+                        sequence,
                         action,
                         instance_id,
-                    } => self.handle_windbell(id, request_id, action, instance_id),
+                    } => self.handle_windbell(id, request_id, sequence, action, instance_id),
                     ClientMessage::ReleaseSkill { request_id } => {
                         self.handle_release_skill(id, request_id)
                     }

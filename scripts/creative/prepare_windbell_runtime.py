@@ -155,6 +155,20 @@ def prepare_npc(name):
     return record
 
 
+def prepare_original_npc(name):
+    """Keep the generated pixels; the manifest supplies scaled foot geometry."""
+    source = CHARACTERS / "images" / "npc-{}.png".format(name)
+    size, mode = verify_png(source, (1024, 1536), "RGBA")
+    destination = OUT / source.name
+    OUT.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    shutil.copy2(source, temporary)
+    temporary.replace(destination)
+    return {"kind": "npc", "source": rel(source), "path": rel(destination),
+            "size": list(size), "mode": mode, "sha256": sha256(destination),
+            "bytes": destination.stat().st_size, "operation": "copy_unchanged"}
+
+
 def prepare_prop(name):
     source = CLEAN / "prop-{}.png".format(name)
     destination = OUT / "prop-{}.png".format(name)
@@ -375,6 +389,8 @@ def main():
     records = []
     for name in NPC_NAMES:
         records.append(prepare_npc(name))
+    for name in ("huaisheng-fresh", "awei-walk-1", "awei-walk-2"):
+        records.append(prepare_original_npc(name))
     for name in PROP_NAMES:
         records.append(prepare_prop(name))
     records.append(prepare_keyart("island-keyart.png"))

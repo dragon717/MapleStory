@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 export const CONTENT_VERSION = 'tms273-33';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -220,17 +220,20 @@ export interface BossPracticeState {
   effects?: { skillId: number; elapsedMs: number; remainingMs: number }[];
   telegraph?: { kind: 'rect' | 'circle'; x: number; y: number; width?: number; height?: number; radius?: number; remainingMs: number };
 }
-export type WindbellAction = 'enterIsland' | 'enterBridge' | 'leave' | 'cutSupport' | 'ignite' | 'deployLeafwing' | 'talk' | 'braceCart' | 'deliverPlank' | 'deliverRope';
+export type WindbellAction = 'enterIsland' | 'enterBridge' | 'leave' | 'cutSupport' | 'ignite' | 'deployLeafwing' | 'talk' | 'braceCart' | 'deliverPlank' | 'deliverRope' | 'rest' | 'dryRecords';
 export interface WindbellState {
   scene: 'island' | 'bridge'; instanceId: string;
   treeBridge: 'held' | 'falling' | 'landed'; heat: 'dry' | 'burning' | 'spent';
-  leafwing: boolean; arrivalPath: 'root' | 'bridge' | 'fire' | null;
+  leafwing: boolean; leafwingLearned?: boolean; arrivalPath: 'root' | 'bridge' | 'fire' | 'leafwing' | null;
   bridgeStage: 'broken' | 'working' | 'connected' | 'inhabited';
   bridgeSegments?: number; cartX?: number;
+  livelihood?: { phase: 'loading' | 'outbound' | 'resting' | 'returning'; source: number; shelter: number; cargo: number; deliveries: number; paperMoisture: number };
+  archiveSafe?: boolean;
+  journey?: { braceCart: boolean; deliveredPlanks: number; deliveredRopes: number; arrived: boolean; arrivalPath: WindbellState['arrivalPath']; lastAttempt: string | null; leafwingLearned: boolean; archiveHelped: boolean; archiveRead: boolean; huaishengMet: boolean };
   cartUpright: boolean; planks: number; ropes: number; dialogue: string[]; revision: number;
 }
 export type ClientMessage =
-  | { type: 'windbell'; requestId: string; action: WindbellAction; instanceId?: string }
+  | { type: 'windbell'; requestId: string; sequence: number; action: WindbellAction; instanceId?: string }
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
   | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean }
   | { type: 'attack'; requestId: string }
@@ -507,7 +510,7 @@ export interface ShipEventNotice {
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
+  | { type: 'snapshot'; windbellSequence?: number; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
@@ -527,7 +530,7 @@ export type ServerMessage =
    *
    *  刻意**没有**自然恢复（`regeneration_passives_for_job` 的每秒被动回复）这一档：
    *  原版那条路径不产生跳字，且每秒触发会持续刷屏。 */
-  | { type: 'recoveryEvent'; eventId: string; serverTick: number; playerId: string; x: number; y: number; hp?: number; mp?: number; source: 'potion' | 'recovery' | 'chair' | 'infinity' }
+  | { type: 'recoveryEvent'; eventId: string; serverTick: number; playerId: string; x: number; y: number; hp?: number; mp?: number; source: 'potion' | 'recovery' | 'chair' | 'infinity' | 'windbell' }
   /** A mob's authored abnormal-status skill cast, broadcast to its map so every
    *  observer can play the source action. `targetId` is the player the cast
    *  resolved against; the authoritative disease application rides the next

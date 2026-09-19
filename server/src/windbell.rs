@@ -10,6 +10,10 @@ use crate::protocol::WindbellAction;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
 
+#[path = "windbell_life.rs"]
+mod life;
+use life::{Material, RoutePhase, WindbellLife};
+
 pub(super) const WIND_BELL_ISLAND_MAP_ID: &str = "windbell-island";
 pub(super) const WIND_BELL_BRIDGE_MAP_ID: &str = "windbell-bridge";
 const WIND_BELL_INSTANCE_PREFIX: &str = "windbell:island:";
@@ -181,6 +185,9 @@ pub struct WindbellBridgeRules {
     pub segment_ids: Vec<u64>,
     pub segments: Vec<Foothold>,
     pub npc_spawns: Vec<WindbellNpcSpawn>,
+    pub archive: WindbellInteractionPoint,
+    #[serde(default)]
+    pub monster_spawns: Vec<MonsterSpawn>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -306,6 +313,39 @@ impl WindbellConfig {
             return Err("invalid Windbell public bridge geometry".to_owned());
         }
         validate_npcs(&self.bridge.npc_spawns, &bridge)?;
+        if !point_in_map(&self.bridge.archive, &bridge)
+            || self
+                .bridge
+                .monster_spawns
+                .iter()
+                .enumerate()
+                .any(|(index, spawn)| {
+                    spawn.map_id != WIND_BELL_BRIDGE_MAP_ID
+                        || !spawn.x.is_finite()
+                        || !spawn.y.is_finite()
+                        || spawn.id.trim().is_empty()
+                        || spawn.template_id.trim().is_empty()
+                        || ![-1, 1].contains(&spawn.facing)
+                        || spawn.mob_time < -1
+                        || self.bridge.monster_spawns[..index]
+                            .iter()
+                            .any(|old| old.id == spawn.id)
+                        || match (spawn.rx0, spawn.rx1) {
+                            (Some(left), Some(right)) => {
+                                !finite_range(left, right, bridge.bounds.x_min, bridge.bounds.x_max)
+                            }
+                            (None, None) => false,
+                            _ => true,
+                        }
+                        || spawn
+                            .foothold_id
+                            .and_then(|id| bridge.get(id))
+                            .and_then(|f| f.at(spawn.x))
+                            .is_none()
+                })
+        {
+            return Err("invalid Windbell archive or creature location".to_owned());
+        }
         Ok(())
     }
 }
@@ -411,6 +451,7 @@ pub(super) enum WindbellArrivalPath {
     Root,
     Bridge,
     Fire,
+    Leafwing,
 }
 
 impl WindbellArrivalPath {
@@ -419,6 +460,7 @@ impl WindbellArrivalPath {
             Self::Root => "root",
             Self::Bridge => "bridge",
             Self::Fire => "fire",
+            Self::Leafwing => "leafwing",
         }
     }
 }
@@ -446,6 +488,19 @@ pub(super) struct WindbellPlayerProgress {
     pub(super) arrival_path: Option<WindbellArrivalPath>,
     #[serde(default)]
     pub(super) last_attempt: Option<String>,
+    #[serde(default)]
+    pub(super) leafwing_learned: bool,
+    /// Only the route discussed with this witness; not global player knowledge.
+    #[serde(default)]
+    pub(super) lanzhi_last_path: Option<WindbellArrivalPath>,
+    #[serde(default)]
+    pub(super) archive_helped: bool,
+    #[serde(default)]
+    pub(super) archive_read: bool,
+    #[serde(default)]
+    pub(super) huaisheng_met: bool,
+    #[serde(default)]
+    pub(super) command_sequence: u64,
 }
 
 impl Default for WindbellPlayerProgress {
@@ -457,6 +512,12 @@ impl Default for WindbellPlayerProgress {
             arrived: false,
             arrival_path: None,
             last_attempt: None,
+            leafwing_learned: false,
+            lanzhi_last_path: None,
+            archive_helped: false,
+            archive_read: false,
+            huaisheng_met: false,
+            command_sequence: 0,
         }
     }
 }
@@ -476,6 +537,8 @@ pub(super) struct WindbellBridgeState {
     pub(super) cart_x: f64,
     pub(super) shipment: WindbellShipmentState,
     pub(super) revision: u64,
+    #[serde(default)]
+    life: Option<WindbellLife>,
 }
 
 #[derive(Clone)]
@@ -496,6 +559,7 @@ pub(super) struct WindbellIslandInstance {
     heat: WindbellHeatState,
     heat_until: u64,
     leafwing: bool,
+    leafwing_from_heat: bool,
     arrival_path: Option<WindbellArrivalPath>,
     revision: u64,
 }
@@ -505,6 +569,7 @@ struct WindbellRequestRecord {
     action: WindbellAction,
     instance_id: Option<String>,
     sequence: u64,
+    command_sequence: u64,
 }
 
 #[derive(Clone)]
@@ -519,6 +584,7 @@ pub(super) struct WindbellRuntime {
     bridge_shipment_arrival_tick: Option<u64>,
     bridge_shipment_started_tick: Option<u64>,
     bridge_shipment_origin_x: f64,
+    life_retry_after_ms: i64,
     pub(super) islands: BTreeMap<String, WindbellIslandInstance>,
     bridge_returns: BTreeMap<String, WindbellReturn>,
     requests: BTreeMap<(String, String), WindbellRequestRecord>,
@@ -526,6 +592,24 @@ pub(super) struct WindbellRuntime {
 }
 
 impl WindbellRuntime {
+    fn cart_x(&self, now_ms: i64) -> f64 {
+        self.bridge
+            .life
+            .as_ref()
+            .map_or(self.bridge.cart_x, |life| {
+                life.cart_x(
+                    now_ms,
+                    self.config.bridge.cart.x,
+                    self.config
+                        .bridge
+                        .segments
+                        .last()
+                        .expect("validated segments")
+                        .x2,
+                )
+            })
+    }
+
     fn new(config: WindbellConfig, store: Option<&Store>) -> Result<Self, String> {
         let mut bridge = WindbellBridgeState {
             source_planks: config.bridge.material.source_planks,
@@ -537,6 +621,7 @@ impl WindbellRuntime {
             cart_x: config.bridge.cart.x,
             shipment: WindbellShipmentState::Stopped,
             revision: 0,
+            life: None,
         };
         let mut shipment_arrival_tick = None;
         let mut shipment_started_tick = None;
@@ -571,6 +656,7 @@ impl WindbellRuntime {
             bridge_shipment_arrival_tick: shipment_arrival_tick,
             bridge_shipment_started_tick: shipment_started_tick,
             bridge_shipment_origin_x: shipment_origin_x,
+            life_retry_after_ms: 0,
             islands: BTreeMap::new(),
             bridge_returns: BTreeMap::new(),
             requests: BTreeMap::new(),
@@ -599,6 +685,9 @@ fn validate_bridge_state(
         .map(|segment| segment.x2)
         .unwrap_or(rules.cart.x);
     if state.source_planks > rules.material.source_planks
+        || state.life.as_ref().is_some_and(|life| {
+            state.shipment != WindbellShipmentState::Arrived || !life.validate()
+        })
         || state.source_ropes > rules.material.source_ropes
         || planks_used > rules.material.source_planks
         || ropes_used > rules.material.source_ropes
@@ -627,6 +716,8 @@ fn action_name(action: WindbellAction) -> &'static str {
         WindbellAction::BraceCart => "braceCart",
         WindbellAction::DeliverPlank => "deliverPlank",
         WindbellAction::DeliverRope => "deliverRope",
+        WindbellAction::Rest => "rest",
+        WindbellAction::DryRecords => "dryRecords",
     }
 }
 
@@ -641,13 +732,20 @@ fn action_is_enter(action: WindbellAction) -> bool {
 /// same instance-token check used by the in-memory cache when replaying a row
 /// from SQLite; a reused request id with a forged/different instance must be a
 /// conflict, never a snapshot replay.
-fn persisted_windbell_instance_matches(result_json: &str, expected: Option<&str>) -> bool {
+fn persisted_windbell_instance_matches(
+    result_json: &str,
+    expected: Option<&str>,
+    sequence: u64,
+) -> bool {
     let Ok(result) = serde_json::from_str::<serde_json::Value>(result_json) else {
         return false;
     };
     let Some(instance) = result.get("instanceId") else {
         return false;
     };
+    if result.get("sequence").and_then(|value| value.as_u64()) != Some(sequence) {
+        return false;
+    }
     match (instance, expected) {
         (serde_json::Value::Null, None) => true,
         (serde_json::Value::String(value), Some(expected)) => value == expected,
@@ -684,6 +782,17 @@ impl World {
         self.windbell = Some(runtime);
         self.sync_windbell_bridge_map()?;
         self.spawn_windbell_npcs(WIND_BELL_BRIDGE_MAP_ID, false)?;
+        let spawns = self
+            .windbell
+            .as_ref()
+            .unwrap()
+            .config
+            .bridge
+            .monster_spawns
+            .clone();
+        for spawn in spawns {
+            self.spawn_monster_on_map(WIND_BELL_BRIDGE_MAP_ID.to_owned(), spawn)?;
+        }
         Ok(self)
     }
 
@@ -814,6 +923,7 @@ impl World {
         &mut self,
         id: String,
         request_id: String,
+        sequence: u64,
         action: WindbellAction,
         instance_id: Option<String>,
     ) {
@@ -835,7 +945,10 @@ impl World {
             .as_ref()
             .and_then(|runtime| runtime.requests.get(&key).cloned())
         {
-            if prior.action == action && prior.instance_id == instance_id {
+            if prior.action == action
+                && prior.instance_id == instance_id
+                && prior.command_sequence == sequence
+            {
                 self.send_snapshot(&id);
             } else {
                 self.send_reject(
@@ -856,6 +969,20 @@ impl World {
             );
             return;
         }
+        if action != WindbellAction::Leave
+            && self
+                .players
+                .get(&id)
+                .is_some_and(|player| player.state.hp <= 0 || player.state.action == "dead")
+        {
+            self.send_reject(
+                &id,
+                "windbell_dead",
+                "请先复活，再继续旅行。",
+                Some(&request_id),
+            );
+            return;
+        }
         if let Some(store) = self.store.as_ref() {
             match store.load_windbell_action(&id, &request_id) {
                 Ok(Some((prior_action, result_json)))
@@ -863,6 +990,7 @@ impl World {
                         && persisted_windbell_instance_matches(
                             &result_json,
                             instance_id.as_deref(),
+                            sequence,
                         ) =>
                 {
                     self.send_snapshot(&id);
@@ -884,6 +1012,17 @@ impl World {
                 }
             }
         }
+        let last_sequence = self.players[&id].windbell_progress.command_sequence;
+        if sequence <= last_sequence || sequence > 9_007_199_254_740_991 {
+            self.send_reject(
+                &id,
+                "windbell_sequence",
+                "这次行动已过期，请按最新状态再试。",
+                Some(&request_id),
+            );
+            self.send_snapshot(&id);
+            return;
+        }
         if !action_is_enter(action) && instance_id.is_none() {
             self.send_reject(
                 &id,
@@ -893,13 +1032,14 @@ impl World {
             );
             return;
         }
-        self.execute_windbell_action(id, request_id, action, instance_id);
+        self.execute_windbell_action(id, request_id, sequence, action, instance_id);
     }
 
     fn execute_windbell_action(
         &mut self,
         id: String,
         request_id: String,
+        sequence: u64,
         action: WindbellAction,
         instance_id: Option<String>,
     ) {
@@ -922,20 +1062,29 @@ impl World {
             WindbellAction::DeliverRope => {
                 self.deliver_windbell_material(&id, instance_id.as_deref(), false)
             }
+            WindbellAction::Rest => self.rest_windbell(&id, instance_id.as_deref()),
+            WindbellAction::DryRecords => self.dry_windbell_records(&id, instance_id.as_deref()),
         };
         let Err((code, message)) = result else {
             let result_json = serde_json::json!({
                 "instanceId": instance_id,
                 "action": action_name(action),
+                "sequence": sequence,
             })
             .to_string();
             let mut bridge_json = None;
-            let mut player_json = None;
+            self.players
+                .get_mut(&id)
+                .expect("checked player")
+                .windbell_progress
+                .command_sequence = sequence;
             if matches!(
                 action,
                 WindbellAction::BraceCart
                     | WindbellAction::DeliverPlank
                     | WindbellAction::DeliverRope
+                    | WindbellAction::Rest
+                    | WindbellAction::DryRecords
             ) {
                 let Some(runtime) = self.windbell.as_ref() else {
                     self.rollback_windbell_action(&id, before_runtime, before_player);
@@ -960,20 +1109,15 @@ impl World {
                         return;
                     }
                 };
-                player_json = self
-                    .players
-                    .get(&id)
-                    .and_then(|player| serde_json::to_string(&player.windbell_progress).ok());
-                if player_json.is_none() {
-                    self.rollback_windbell_action(&id, before_runtime, before_player);
-                    self.send_reject(
-                        &id,
-                        "persistence",
-                        "个人贡献记忆编码失败。",
-                        Some(&request_id),
-                    );
-                    return;
-                }
+            }
+            let player_json = self
+                .players
+                .get(&id)
+                .and_then(|player| serde_json::to_string(&player.windbell_progress).ok());
+            if player_json.is_none() {
+                self.rollback_windbell_action(&id, before_runtime, before_player);
+                self.send_reject(&id, "persistence", "行动记忆保存失败。", Some(&request_id));
+                return;
             }
             let committed = match self.store.as_ref() {
                 Some(store) => store.commit_windbell_action(
@@ -990,12 +1134,28 @@ impl World {
                         )
                     }),
                     player_json.as_deref(),
+                    (action == WindbellAction::Rest).then(|| {
+                        let player = &self.players[&id];
+                        (player.state.hp, player.state.mp)
+                    }),
                 ),
                 None => Ok(true),
             };
             match committed {
                 Ok(true) => {
-                    self.record_windbell_request(&id, &request_id, action, instance_id);
+                    if action == WindbellAction::Rest {
+                        if let (Some(before), Some(after)) =
+                            (before_player.as_ref(), self.players.get(&id))
+                        {
+                            self.emit_recovery_event(
+                                &id,
+                                after.state.hp - before.state.hp,
+                                after.state.mp - before.state.mp,
+                                "windbell",
+                            );
+                        }
+                    }
+                    self.record_windbell_request(&id, &request_id, sequence, action, instance_id);
                     self.send_snapshot(&id);
                 }
                 Ok(false) => {
@@ -1022,6 +1182,7 @@ impl World {
         &mut self,
         id: &str,
         request_id: &str,
+        command_sequence: u64,
         action: WindbellAction,
         instance_id: Option<String>,
     ) {
@@ -1036,6 +1197,7 @@ impl World {
                 action,
                 instance_id: instance_id.clone(),
                 sequence,
+                command_sequence,
             },
         );
         while runtime.requests.len() > 256 {
@@ -1210,6 +1372,7 @@ impl World {
             heat: WindbellHeatState::Dry,
             heat_until: 0,
             leafwing: false,
+            leafwing_from_heat: false,
             arrival_path: None,
             revision: 0,
         };
@@ -1276,9 +1439,12 @@ impl World {
                 .remove(id);
             return Err(("windbell_unavailable", "风铃桥出生点无效。"));
         }
-        if let Some(player) = self.players.get_mut(id) {
-            player.windbell_dialogue = vec!["渡口的木板和绳索都等着被送到工地。".to_owned()];
-        }
+        let welcome = match bridge_stage(&self.windbell.as_ref().expect("attached runtime").bridge) {
+            "inhabited" => "渡口已经通车。东岸有歇脚棚，桥下的槐生守着旧路记；再往东，石脊通向风铃岛。",
+            "connected" => "桥面已连通，运输正在恢复。也可以沿桥下河道走到对岸。",
+            _ => "木岑在照看桥边工地。桥没通时，沿桥下河道也能走到对岸。",
+        };
+        if let Some(player) = self.players.get_mut(id) { player.windbell_dialogue = vec![welcome.to_owned()]; }
         self.start_windbell_public_activity();
         Ok(())
     }
@@ -1370,7 +1536,9 @@ impl World {
         candidate.state.grounded = foothold_id != 0;
         candidate.state.climbing = false;
         candidate.state.ladder_id = None;
-        candidate.state.action = if candidate.state.grounded {
+        candidate.state.action = if candidate.state.hp <= 0 || candidate.state.action == "dead" {
+            "dead"
+        } else if candidate.state.grounded {
             "stand"
         } else {
             "jump"
@@ -1572,6 +1740,13 @@ impl World {
         if instance.heat != WindbellHeatState::Dry {
             return Err(("windbell_fire_spent", "这次热流已经结束。"));
         }
+        let mut branches = Material {
+            moisture: 0,
+            fuel: 1,
+        };
+        if !branches.heat() {
+            return Err(("windbell_fire_spent", "枯枝已耗尽。"));
+        }
         instance.heat = WindbellHeatState::Burning;
         instance.heat_until = self.tick.saturating_add(rules.active_ticks);
         instance.revision = instance.revision.saturating_add(1);
@@ -1583,6 +1758,61 @@ impl World {
         id: &str,
         instance_id: Option<&str>,
     ) -> Result<(), (&'static str, &'static str)> {
+        let player = self
+            .players
+            .get(id)
+            .ok_or(("player_unknown", "角色不存在。"))?;
+        if player.windbell_progress.leafwing_learned && !player.state.grounded {
+            if player.map_id == WIND_BELL_BRIDGE_MAP_ID {
+                self.bridge_player(id, instance_id)?;
+            } else {
+                self.require_instance(id, instance_id)?;
+            }
+            if player.state.hp <= 0
+                || player.state.action == "dead"
+                || player.state.climbing
+                || player.swimming
+                || player.mount.is_some()
+            {
+                return Err((
+                    "windbell_leafwing_state",
+                    "离开绳索、水面和骑乘，再在空中展开叶翼。",
+                ));
+            }
+            if player.windbell_glide_until != 0 {
+                return Err((
+                    "windbell_leafwing_active",
+                    "这次起落已经展开过叶翼，落稳后再试。",
+                ));
+            }
+            let map_id = player.map_id.clone();
+            let rules = self
+                .windbell
+                .as_ref()
+                .ok_or(("windbell_unavailable", "叶翼尚未准备好。"))?
+                .config
+                .island
+                .heat
+                .clone();
+            let player = self.players.get_mut(id).expect("checked player");
+            player.windbell_glide_until = self.tick.saturating_add(rules.glide_ticks);
+            player.windbell_glide_fall_speed = rules.glide_fall_speed;
+            if let Some(instance) = self
+                .windbell
+                .as_mut()
+                .and_then(|runtime| runtime.islands.get_mut(&map_id))
+            {
+                instance.leafwing = true;
+                instance.leafwing_from_heat = false;
+            }
+            return Ok(());
+        }
+        if player.map_id == WIND_BELL_BRIDGE_MAP_ID {
+            return Err((
+                "windbell_leafwing_unlearned",
+                "到树梢驿站请岚织教你御风，再从高处跃下展开叶翼。",
+            ));
+        }
         self.require_instance(id, instance_id)?;
         let (map_id, x, y, alive) = self
             .players
@@ -1627,6 +1857,7 @@ impl World {
             return Err(("windbell_instance", "活动实例已变化，请刷新后重试。"));
         };
         instance.leafwing = true;
+        instance.leafwing_from_heat = true;
         instance.revision = instance.revision.saturating_add(1);
         if let Some(player) = self.players.get_mut(id) {
             player.state.vy = rules.launch_vy;
@@ -1780,6 +2011,122 @@ impl World {
         Ok(())
     }
 
+    fn rest_windbell(
+        &mut self,
+        id: &str,
+        instance_id: Option<&str>,
+    ) -> Result<(), (&'static str, &'static str)> {
+        let (x, y) = self.bridge_player(id, instance_id)?;
+        let runtime = self
+            .windbell
+            .as_ref()
+            .ok_or(("windbell_unavailable", "渡口尚未开放。"))?;
+        let destination = runtime
+            .config
+            .bridge
+            .segments
+            .last()
+            .expect("validated segments");
+        if (x - destination.x2).abs() > 180.0 || (y - destination.y2).abs() > 120.0 {
+            return Err(("windbell_out_of_range", "请到对岸歇脚棚的货架旁休息。"));
+        }
+        let player = &self.players[id];
+        if player.state.hp <= 0 || player.state.action == "dead" {
+            return Err(("windbell_dead", "请先复活，再到歇脚棚休息。"));
+        }
+        if player.state.hp >= player.state.max_hp && player.state.mp >= player.state.max_mp {
+            return Err((
+                "windbell_rest_full",
+                "你已恢复精神，把补给留给下一位旅人吧。",
+            ));
+        }
+        let runtime = self.windbell.as_mut().expect("checked runtime");
+        if !runtime
+            .bridge
+            .life
+            .as_mut()
+            .is_some_and(WindbellLife::consume)
+        {
+            return Err((
+                "windbell_supply_empty",
+                "棚里的补给还没到，阿苇正在照看运输。",
+            ));
+        }
+        runtime.bridge.revision = runtime.bridge.revision.saturating_add(1);
+        let player = self.players.get_mut(id).expect("checked player");
+        player.state.hp = player
+            .state
+            .hp
+            .saturating_add((player.state.max_hp / 3).max(1))
+            .min(player.state.max_hp);
+        player.state.mp = player
+            .state
+            .mp
+            .saturating_add((player.state.max_mp / 3).max(1))
+            .min(player.state.max_mp);
+        player.windbell_dialogue =
+            vec!["你取用一份桥边补给，坐下恢复了些气力。路还在，随时可以再出发。".to_owned()];
+        Ok(())
+    }
+
+    fn windbell_archive_safe(&self) -> bool {
+        let Some(runtime) = &self.windbell else {
+            return false;
+        };
+        let place = &runtime.config.bridge.archive;
+        !self.monsters.values().any(|m| {
+            m.map_id == WIND_BELL_BRIDGE_MAP_ID
+                && m.state.hp > 0
+                && (m.state.x - place.x).abs() < 80.0
+                && (m.state.y - place.y).abs() < 100.0
+        })
+    }
+
+    fn dry_windbell_records(
+        &mut self,
+        id: &str,
+        instance: Option<&str>,
+    ) -> Result<(), (&'static str, &'static str)> {
+        let (x, y) = self.bridge_player(id, instance)?;
+        let runtime = self.windbell.as_ref().unwrap();
+        if !near(x, y, &runtime.config.bridge.archive) {
+            return Err(("windbell_out_of_range", "请走到桥下槐生的石台旁。"));
+        }
+        if !self.windbell_archive_safe() {
+            return Err((
+                "windbell_archive_unsafe",
+                "蜗牛正爬过石台。可以等它走远，引开它，或用武器开路。",
+            ));
+        }
+        let runtime = self.windbell.as_mut().unwrap();
+        let life = runtime.bridge.life.as_mut().ok_or((
+            "windbell_supply_empty",
+            "第一车补给还没送到，火盆暂时没有燃料。",
+        ))?;
+        if life.paper.moisture == 0 {
+            return Err((
+                "windbell_records_dry",
+                "纸页已经干了。再加热会烧坏它，和槐生一起读吧。",
+            ));
+        }
+        if !life.dry_paper() {
+            return Err((
+                "windbell_supply_empty",
+                "棚里的补给用完了，等下一车送来再烘纸。",
+            ));
+        }
+        runtime.bridge.revision = runtime.bridge.revision.saturating_add(1);
+        let player = self.players.get_mut(id).unwrap();
+        player.windbell_progress.archive_helped = true;
+        player.windbell_dialogue = vec![if life.paper.moisture == 0 {
+            "槐生把纸从火盆上取下：够了，字已经显出来。留一点热给下一位赶路人。"
+        } else {
+            "槐生接住你递来的纸页：水汽正在散去。火先带走水，纸干了才会燃烧。"
+        }
+        .to_owned()];
+        Ok(())
+    }
+
     fn talk_windbell(
         &mut self,
         id: &str,
@@ -1807,19 +2154,43 @@ impl World {
             {
                 return Err(("windbell_out_of_range", "请靠近岚织再交谈。"));
             }
-            let line = self
+            let path = self
                 .windbell
                 .as_ref()
                 .and_then(|runtime| runtime.islands.get(&map_id))
-                .and_then(|instance| instance.arrival_path)
+                .and_then(|instance| instance.arrival_path);
+            let line = path
                 .map(|path| match path {
                     WindbellArrivalPath::Root => "你从根道上来了。石脊没有替你走路。",
                     WindbellArrivalPath::Bridge => "你踩着刚落稳的树桥过来了。",
                     WindbellArrivalPath::Fire => "你从热流里落下，叶翼还留着一点温度。",
+                    WindbellArrivalPath::Leafwing => {
+                        "这回你借着叶翼滑过来，没有借火，也找到了落脚处。"
+                    }
                 })
                 .unwrap_or("风铃岛的根道一直开着，想走哪条路都可以慢慢来。");
             if let Some(player) = self.players.get_mut(id) {
-                player.windbell_dialogue = vec![line.to_owned()];
+                let mut lines = Vec::new();
+                if let Some(previous) = player.windbell_progress.lanzhi_last_path {
+                    let route = match previous {
+                        WindbellArrivalPath::Root => "根道",
+                        WindbellArrivalPath::Bridge => "树桥",
+                        WindbellArrivalPath::Fire => "热流",
+                        WindbellArrivalPath::Leafwing => "叶翼滑翔",
+                    };
+                    lines.push(format!(
+                        "又见面了。上回在这里交谈时，你走的是{route}。今天的风怎样？"
+                    ));
+                }
+                lines.push(line.to_owned());
+                if let Some(path) = path {
+                    if !player.windbell_progress.leafwing_learned {
+                        lines.push("岚织教你折叶御风：从高处跃下，在空中展开叶翼，就能放缓下落。热流仍能托住它，桥下也能用；落稳后可再展开。".to_owned());
+                        player.windbell_progress.leafwing_learned = true;
+                    }
+                    player.windbell_progress.lanzhi_last_path = Some(path);
+                }
+                player.windbell_dialogue = lines;
             }
             return Ok(());
         }
@@ -1853,8 +2224,46 @@ impl World {
             .as_ref()
             .ok_or(("windbell_unavailable", "风铃活动尚未加载。"))?;
         let bridge = &runtime.bridge;
-        let line = if bridge_npc == "windbell-awei" {
-            if bridge.shipment == WindbellShipmentState::Arrived {
+        let line = if bridge_npc == "windbell-huaisheng" {
+            let greeting = if progress.archive_helped {
+                "我记得你在火盆边托住湿纸的手。"
+            } else if progress.huaisheng_met {
+                "又回到桥下了。纸记得路，我记得来读它的人。"
+            } else {
+                "我是槐生。这箱浸过水的旧路记不是货单，我想留住人们走过的路。"
+            };
+            let work = if bridge
+                .life
+                .as_ref()
+                .is_some_and(|life| life.paper.moisture == 0)
+            {
+                "旧路记已干：『石脊上方是风铃岛，根道不需要火。树梢的岚织会折叶；回到渡口，顺叶翼落入桥影，石台就在脚下。』你可以亲自走这条路，也可以把读过的地方记在来路中。"
+            } else if !self.windbell_archive_safe() {
+                "蜗牛爬近火盆时，我会停下等它。你可以等、引开它，或用手里的武器开路；上面的桥始终可以绕行。"
+            } else if bridge.life.is_none() {
+                "我先铺开湿纸。等桥上运来补给，火盆才能开工。你也可以先沿根道找岚织。"
+            } else {
+                "热先带走纸里的水。我会慢慢烘，也欢迎你递一张；纸干以后就停火，别把路记烧掉。"
+            };
+            format!("{greeting}{work}")
+        } else if bridge_npc == "windbell-awei" {
+            if let Some(life) = &bridge.life {
+                let memory = if progress.brace_cart {
+                    "我还记得你扶住车辕的那一下。"
+                } else {
+                    "桥通了，旅人都能歇脚。"
+                };
+                let work = match life.phase {
+                    RoutePhase::Loading => "我在西岸等林圃的补给装车。",
+                    RoutePhase::Outbound => "这车补给正送去对岸的歇脚棚。",
+                    RoutePhase::Resting => "货已运过桥，我先歇一会儿，再回林圃。",
+                    RoutePhase::Returning => "棚里卸完货了，我带空车回林圃。",
+                };
+                format!(
+                    "{memory}{work}棚里还留着{}份，路过需要就取用。",
+                    life.shelter
+                )
+            } else if bridge.shipment == WindbellShipmentState::Arrived {
                 if progress.brace_cart {
                     "货已运过桥了。我还记得你扶住车辕的那一下，进棚歇歇吧。".to_owned()
                 } else {
@@ -1881,6 +2290,16 @@ impl World {
             "木板和绳索一件件交到工地，桥会按顺序恢复。".to_owned()
         };
         if let Some(player) = self.players.get_mut(id) {
+            if bridge_npc == "windbell-huaisheng" {
+                player.windbell_progress.huaisheng_met = true;
+                if bridge
+                    .life
+                    .as_ref()
+                    .is_some_and(|life| life.paper.moisture == 0)
+                {
+                    player.windbell_progress.archive_read = true;
+                }
+            }
             player.windbell_dialogue = vec![line];
         }
         Ok(())
@@ -2039,6 +2458,7 @@ impl World {
                 }
             }
         }
+        self.step_windbell_life_at(unix_now_ms());
         if let Some(runtime) = self.windbell.as_ref() {
             if let Some(spawn) = runtime
                 .config
@@ -2048,12 +2468,53 @@ impl World {
                 .find(|npc| npc.template_id == "windbell-awei")
             {
                 if let Some(npc) = self.npcs.get_mut(&spawn.id) {
-                    npc.state.x = runtime.bridge.cart_x + spawn.x - runtime.config.bridge.cart.x;
+                    let next_x =
+                        runtime.cart_x(unix_now_ms()) + spawn.x - runtime.config.bridge.cart.x;
+                    if (next_x - npc.state.x).abs() > 0.01 {
+                        npc.state.facing = if next_x > npc.state.x { 1 } else { -1 };
+                    }
+                    npc.state.x = next_x;
                     npc.state.y = spawn.y;
                 }
             }
         }
         self.step_windbell_island_schedules();
+    }
+
+    pub(super) fn step_windbell_life_at(&mut self, now_ms: i64) {
+        let Some(runtime) = self.windbell.as_ref() else {
+            return;
+        };
+        if runtime.bridge.shipment != WindbellShipmentState::Arrived
+            || now_ms < runtime.life_retry_after_ms
+        {
+            return;
+        }
+        let mut next = runtime.bridge.clone();
+        let changed = if let Some(life) = next.life.as_mut() {
+            life.advance(now_ms, self.windbell_archive_safe())
+        } else {
+            next.life = Some(WindbellLife::new(now_ms));
+            true
+        };
+        if !changed {
+            return;
+        }
+        next.revision = next.revision.saturating_add(1);
+        match self.save_windbell_bridge_state(&next) {
+            Ok(()) => {
+                let runtime = self.windbell.as_mut().expect("checked runtime");
+                runtime.bridge = next;
+                runtime.life_retry_after_ms = 0;
+            }
+            Err(error) => {
+                self.windbell
+                    .as_mut()
+                    .expect("checked runtime")
+                    .life_retry_after_ms = now_ms.saturating_add(5_000);
+                eprintln!("windbell livelihood commit deferred: {error}");
+            }
+        }
     }
 
     fn step_windbell_island_schedules(&mut self) {
@@ -2189,16 +2650,25 @@ impl World {
             return;
         };
         let heat = &runtime.config.island.heat;
+        let in_heat = instance.leafwing
+            && instance.heat == WindbellHeatState::Burning
+            && self.tick < instance.heat_until
+            && zone_contains(&heat.zone, x, y);
         if let Some(player) = self.players.get_mut(id) {
             player.windbell_previous_foothold = player.foothold_id;
-            if instance.leafwing
-                && instance.heat == WindbellHeatState::Burning
-                && self.tick < instance.heat_until
-                && zone_contains(&heat.zone, x, y)
-            {
+            if in_heat && player.windbell_glide_until > self.tick {
                 let dt = TICK_MS as f64 / 1000.0;
                 player.state.vy =
                     (player.state.vy - WIND_BELL_HEAT_LIFT_ACCEL * dt).max(heat.launch_vy);
+            }
+        }
+        if in_heat {
+            if let Some(instance) = self
+                .windbell
+                .as_mut()
+                .and_then(|runtime| runtime.islands.get_mut(&map_id))
+            {
+                instance.leafwing_from_heat = true;
             }
         }
     }
@@ -2209,6 +2679,11 @@ impl World {
         };
         if player.windbell_glide_until <= self.tick {
             return 1.0;
+        }
+        if player.windbell_progress.leafwing_learned
+            && (instance_map_id(&player.map_id) || player.map_id == WIND_BELL_BRIDGE_MAP_ID)
+        {
+            return WIND_BELL_LEAFWING_SPEED_FACTOR;
         }
         let Some(instance) = self
             .windbell
@@ -2260,7 +2735,16 @@ impl World {
         else {
             return;
         };
-        if !instance_map_id(&map_id) || !grounded {
+        if !grounded {
+            return;
+        }
+        if !instance_map_id(&map_id) {
+            if map_id == WIND_BELL_BRIDGE_MAP_ID {
+                if let Some(player) = self.players.get_mut(id) {
+                    player.windbell_glide_until = 0;
+                    player.windbell_glide_fall_speed = 0.0;
+                }
+            }
             return;
         }
         let Some(runtime) = self.windbell.as_ref() else {
@@ -2278,6 +2762,13 @@ impl World {
         if let Some(player) = self.players.get_mut(id) {
             player.windbell_glide_until = 0;
             player.windbell_glide_fall_speed = 0.0;
+        }
+        if let Some(instance) = self
+            .windbell
+            .as_mut()
+            .and_then(|runtime| runtime.islands.get_mut(&map_id))
+        {
+            instance.leafwing = false;
         }
 
         let in_arrival_zone = foothold_id == heat_arrival.foothold_id
@@ -2300,7 +2791,11 @@ impl World {
         }
         let path = if in_arrival_zone && instance_snapshot.arrival_path.is_none() {
             if was_leafwing {
-                Some(WindbellArrivalPath::Fire)
+                Some(if instance_snapshot.leafwing_from_heat {
+                    WindbellArrivalPath::Fire
+                } else {
+                    WindbellArrivalPath::Leafwing
+                })
             } else if instance_snapshot.tree_bridge == WindbellTreeBridgeState::Landed
                 && (route_origin == 6 || route_origin == 7)
             {
@@ -2349,7 +2844,10 @@ impl World {
             if let Some(player) = self.players.get_mut(id) {
                 player.windbell_arrival_origin_foothold = 0;
             }
-        } else if was_leafwing && instance_snapshot.arrival_path.is_none() {
+        } else if was_leafwing
+            && instance_snapshot.leafwing_from_heat
+            && instance_snapshot.arrival_path.is_none()
+        {
             // A leafwing run that landed away from the destination consumed
             // its one finite fuel source and records a failed attempt only.
             let progress = if let Some(player) = self.players.get_mut(id) {
@@ -2364,8 +2862,10 @@ impl World {
                 .and_then(|runtime| runtime.islands.get_mut(&map_id))
             {
                 instance.leafwing = false;
-                instance.heat = WindbellHeatState::Spent;
-                instance.heat_until = 0;
+                if instance_snapshot.leafwing_from_heat {
+                    instance.heat = WindbellHeatState::Spent;
+                    instance.heat_until = 0;
+                }
                 instance.revision = instance.revision.saturating_add(1);
             }
             if let Some(progress) = progress {
@@ -2385,14 +2885,13 @@ impl World {
         let player = self.players.get(id)?;
         if map_id == WIND_BELL_BRIDGE_MAP_ID {
             let bridge = &runtime.bridge;
-            return Some((
-                WIND_BELL_BRIDGE_MAP_ID.to_owned(),
-                windbell_state_json(
+            return Some((WIND_BELL_BRIDGE_MAP_ID.to_owned(), {
+                let mut state = windbell_state_json(
                     "bridge",
                     WIND_BELL_SHARED_INSTANCE_ID,
                     WindbellTreeBridgeState::Held,
                     WindbellHeatState::Dry,
-                    false,
+                    player.windbell_glide_until > self.tick && !player.state.grounded,
                     player.windbell_progress.arrival_path,
                     bridge_stage(bridge),
                     bridge.cart_upright,
@@ -2401,23 +2900,34 @@ impl World {
                         .iter()
                         .filter(|installed| **installed)
                         .count() as u32,
-                    bridge.cart_x,
+                    runtime.cart_x(unix_now_ms()),
                     bridge.source_planks,
                     bridge.source_ropes,
                     player.windbell_dialogue.clone(),
                     bridge.revision,
-                ),
-            ));
+                );
+                if let Some(life) = &bridge.life {
+                    state["livelihood"] = serde_json::json!({
+                        "phase": life.phase, "source": life.source, "shelter": life.shelter,
+                        "cargo": life.cargo, "deliveries": life.deliveries,
+                        "paperMoisture": life.paper.moisture,
+                    });
+                }
+                state["leafwingLearned"] =
+                    serde_json::json!(player.windbell_progress.leafwing_learned);
+                state["archiveSafe"] = serde_json::json!(self.windbell_archive_safe());
+                state["journey"] = serde_json::json!(player.windbell_progress);
+                state
+            }));
         }
         let instance = runtime.islands.get(map_id)?;
-        Some((
-            WIND_BELL_ISLAND_MAP_ID.to_owned(),
-            windbell_state_json(
+        Some((WIND_BELL_ISLAND_MAP_ID.to_owned(), {
+            let mut state = windbell_state_json(
                 "island",
                 &instance.map_id,
                 instance.tree_bridge,
                 instance.heat,
-                instance.leafwing,
+                player.windbell_glide_until > self.tick && !player.state.grounded,
                 instance.arrival_path,
                 bridge_stage(&runtime.bridge),
                 runtime.bridge.cart_upright,
@@ -2432,8 +2942,11 @@ impl World {
                 runtime.bridge.source_ropes,
                 player.windbell_dialogue.clone(),
                 instance.revision,
-            ),
-        ))
+            );
+            state["leafwingLearned"] = serde_json::json!(player.windbell_progress.leafwing_learned);
+            state["journey"] = serde_json::json!(player.windbell_progress);
+            state
+        }))
     }
 }
 
@@ -2504,6 +3017,7 @@ fn windbell_npc_name(template_id: &str) -> (&'static str, &'static str) {
         "windbell-awei" => ("Awei", "阿苇"),
         "windbell-mucen" => ("Mucen", "木岑"),
         "windbell-lanzhi" => ("Lanzhi", "岚织"),
+        "windbell-huaisheng" => ("Huaisheng", "槐生"),
         _ => ("Windbell NPC", "风铃岛居民"),
     }
 }

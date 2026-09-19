@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { PlayerState, SummonState } from '../../../../shared/protocol';
+import type { PlayerState, SummonState, ServerMessage } from '../../../../shared/protocol';
 import type { AssetFrame, CombatAssets, DamageNumberSet, Manifest } from '../../assets/manifest';
 import { assetFrameAlpha } from '../../assets/manifest';
 import { ensureTextures } from '../../assets/lazy-texture';
@@ -58,7 +58,7 @@ export interface RecoveryEvent {
   y: number;
   hp?: number;
   mp?: number;
-  source?: 'potion' | 'recovery' | 'chair' | 'infinity';
+  source?: Extract<ServerMessage, { type: 'recoveryEvent' }>['source'];
 }
 
 export interface SkillCastEvent {

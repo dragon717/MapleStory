@@ -15,10 +15,11 @@ const scene = { add: { image: (x, y, texture) => {
   const image = { x, y, texture, visible: true, destroyed: false,
     setOrigin() { return this; }, setDepth(depth) { this.depth = depth; return this; },
     setTexture(texture) { this.texture = texture; return this; },
+    setDisplaySize(width, height) { this.displayWidth = width; this.displayHeight = height; return this; },
     setVisible(visible) { this.visible = visible; return this; },
     setPosition(x, y) { this.x = x; this.y = y; return this; },
     getBounds() { return { contains: (x, y) => x === this.x && y === this.y }; },
-    setFlipX() { return this; }, destroy() { this.destroyed = true; },
+    setFlipX(value) { this.flipped = value; return this; }, destroy() { this.destroyed = true; },
   };
   images.push(image); return image;
 } } };
@@ -28,6 +29,7 @@ const marker = [{ url: 'marker0', x: -8, y: -20, width: 16, height: 20, delay: 1
 const npc = { id: 'hans', templateId: '10201', name: '', x: 100, y: 200, facing: -1 };
 const view = new NpcView(scene, { stand: [stand] }, 5, marker);
 view.update(npc, 0);
+assert.deepEqual([images[0].displayWidth, images[0].displayHeight], [stand.width, stand.height], 'Frame geometry also controls display size for high resolution original art');
 assert.equal(images.length, 1, 'No marker without server eligibility');
 assert.equal(view.containsMarker(91, 100), false);
 view.update({ ...npc, jobAdvancementAvailable: true }, 100);
@@ -96,3 +98,18 @@ assert.equal(bare.isSelected(), true);
 assert.equal(texts.length, 1, 'A texture-less npc never builds a nameplate');
 bare.destroy();
 console.log('PASS: NPC click selection highlights the clicked nameplate and reverts.');
+
+const walk = [{ ...stand, url: 'walk-1', delay: 180 }, { ...stand, url: 'walk-2', delay: 180 }];
+const walker = new NpcView(scene, { stand: [stand], move: walk }, 5);
+const walkingSprite = images.at(-1);
+walker.update(npc, 0);
+assert.equal(walkingSprite.texture, 'npc', 'Restored position starts standing');
+walker.update({ ...npc, x: 102, facing: 1 }, 100);
+assert.equal(walkingSprite.texture, 'walk-1');
+assert.equal(walkingSprite.flipped, true);
+walker.update({ ...npc, x: 104, facing: 1 }, 280);
+assert.equal(walkingSprite.texture, 'walk-2', 'Movement changes the actual pose, not just the sprite position');
+walker.update({ ...npc, x: 104, facing: 1 }, 600);
+assert.equal(walkingSprite.texture, 'npc', 'The NPC stops walking when the authoritative position stops');
+walker.destroy();
+console.log('PASS: NPC movement uses authored frames only while server positions change.');

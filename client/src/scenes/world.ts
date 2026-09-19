@@ -991,7 +991,7 @@ export class World extends Phaser.Scene {
       const asset = this.manifest.npcs?.[npc.templateId];
       if (!asset || !asset.stand.length) continue;
       // NPC 纹理按需装载；没就绪就下一帧再建视图（点击判定只用到几何，不受影响）。
-      if (!ensureTextures(this, asset.stand.map(frame => frame.url))) continue;
+      if (!ensureTextures(this, [...asset.stand, ...(asset.move ?? [])].map(frame => frame.url))) continue;
       let view = this.npcs.get(npc.id);
       if (!view) { view = new NpcView(this, asset, actorDepth, this.manifest.npcQuestAvailable?.frames); this.npcs.set(npc.id, view); }
       const elapsed = (snapshot.serverTick - (npc.actionStartedTick ?? 0)) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);

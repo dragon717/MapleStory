@@ -39,6 +39,9 @@ export class WindbellScene {
   private fire?: Phaser.GameObjects.Image;
   private wing?: Phaser.GameObjects.Image;
   private cart?: Phaser.GameObjects.Image;
+  private supplies?: Phaser.GameObjects.Image;
+  private paper?: Phaser.GameObjects.Rectangle;
+  private archiveLabel?: Phaser.GameObjects.Text;
   private dragon?: Phaser.GameObjects.Image;
   private clouds: { image: Phaser.GameObjects.Image; x: number }[] = [];
   private clock = 0;
@@ -79,14 +82,21 @@ export class WindbellScene {
         fuel.add(scene.add.image((i - 1) * 20, 0, frame.url).setOrigin(.5, 1).setScale(2).setRotation((i - 1) * .3));
       }
       this.fire = this.original('fire', branch.x, branch.y, 2).setVisible(false);
-      this.wing = this.picture('prop-leafwing', 0, 0, 155, .5).setVisible(false);
       this.picture('prop-bell', 560, 575, 45, -1);
     } else {
-      this.picture('prop-waystation', 2210, 700, 580, -4).setOrigin(.5, .8);
+      this.picture('prop-waystation', 1840, 700, 580, -4).setOrigin(.5, .8);
       this.cart = this.picture('prop-cart', config.bridge.cart.x, config.bridge.cart.y, 190, 0).setOrigin(.5, 1);
       this.picture('prop-materials', config.bridge.material.x, config.bridge.material.y - 30, 130, 0);
+      const shore = config.bridge.segments.at(-1)!;
+      this.supplies = this.picture('prop-materials', shore.x2, shore.y2, 100, 0).setOrigin(.5, 1).setVisible(false);
       this.segments = config.bridge.segments.map(surface => this.surface(surface, 'bridge', false).setVisible(false));
+      const archive = config.bridge.archive;
+      this.original('rock', archive.x, archive.y, -1);
+      this.paper = this.track(scene.add.rectangle(archive.x, archive.y - 26, 38, 22, 0x99b9bf).setDepth(0).setRotation(-.12));
+      this.archiveLabel = this.track(scene.add.text(archive.x, archive.y - 84, '', { fontSize: '13px', color: '#fff5dd', backgroundColor: '#344747', padding: { x: 5, y: 4 } }).setOrigin(.5, 1).setDepth(1));
+      this.track(scene.add.text(2300, 644, '石脊 → 风铃岛', { fontSize: '14px', color: '#fff5dd', backgroundColor: '#344747', padding: { x: 5, y: 4 } }).setOrigin(.5, 1).setDepth(1));
     }
+    this.wing = this.picture('prop-leafwing', 0, 0, 155, .5).setVisible(false);
     onReady();
   }
 
@@ -138,6 +148,8 @@ export class WindbellScene {
       if (state.cartUpright && !old.cartUpright) cues.push('cart_wood_support');
       if ((state.bridgeSegments ?? 0) > (old.bridgeSegments ?? 0)) cues.push('craftsman_install');
       if ((state.arrivalPath && !old.arrivalPath) || (state.bridgeStage === 'inhabited' && old.bridgeStage !== 'inhabited')) cues.push('arrival', 'bell');
+      else if (state.livelihood && old.livelihood && state.livelihood.deliveries > old.livelihood.deliveries) cues.push('arrival');
+      if (state.livelihood && old.livelihood && state.livelihood.paperMoisture < old.livelihood.paperMoisture) cues.push(state.livelihood.paperMoisture === 0 ? 'bell' : 'material_handoff');
       for (const cue of cues) { const key = A + 'sfx/' + cue + '.ogg'; if (this.scene.cache.audio.exists(key)) this.scene.sound.play(key, { volume: .25 }); }
     }
     this.clock += delta;
@@ -160,6 +172,10 @@ export class WindbellScene {
     const count = state.bridgeSegments ?? (['connected', 'inhabited'].includes(state.bridgeStage) ? 3 : 0);
     this.segments.forEach((segment, i) => segment.setVisible(count > i));
     this.cart?.setX(state.cartX ?? config.bridge.cart.x).setRotation(state.cartUpright ? 0 : -.21);
+    this.supplies?.setVisible(Boolean(state.livelihood?.shelter));
+    const moisture = state.livelihood?.paperMoisture ?? 3;
+    this.paper?.setFillStyle(moisture > 0 ? 0x99b9bf : 0xf5e5be);
+    this.archiveLabel?.setText(moisture === 0 ? '旧路记 · 可阅读' : `湿纸 · ${state.archiveSafe === false ? '等蜗牛走远' : '等待烘干'}`);
     this.wing?.setVisible(Boolean(player && state.leafwing && !player.grounded));
     if (this.wing && player) this.wing.setPosition(player.x, player.y - 38).setFlipX(player.facing < 0);
     const seconds = this.clock / 1000;

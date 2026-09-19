@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentVersion": "windbell-runtime-0.1",
+  "contentVersion": "windbell-runtime-0.2",
   "sourceClass": "P",
   "maps": {
     "island": {
@@ -300,6 +300,34 @@
         "y": 700,
         "footholdId": 1,
         "facing": -1
+      },
+      {
+        "id": "windbell-huaisheng",
+        "templateId": "windbell-huaisheng",
+        "x": 1260,
+        "y": 950,
+        "footholdId": 3,
+        "facing": -1
+      }
+    ],
+    "archive": {
+      "x": 1200,
+      "y": 950,
+      "rangeX": 100,
+      "rangeY": 100
+    },
+    "monsterSpawns": [
+      {
+        "id": "windbell-river-snail",
+        "templateId": "100100",
+        "mapId": "windbell-bridge",
+        "x": 1130,
+        "y": 950,
+        "footholdId": 3,
+        "facing": -1,
+        "mobTime": 120,
+        "rx0": 1100,
+        "rx1": 1300
       }
     ]
   }

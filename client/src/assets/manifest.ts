@@ -59,7 +59,7 @@ export interface MonsterAsset {
   damageSound?: { url: string; source: string };
 }
 export interface NpcAsset {
-  name: string; source: string; stand: AssetFrame[];
+  name: string; source: string; stand: AssetFrame[]; move?: AssetFrame[];
 }
 /** One TMS273 pet (`Item/Pet` + `String/Pet.json`), keyed by item id. */
 export interface PetAsset {

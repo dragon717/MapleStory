@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 29;
+pub const PROTOCOL_VERSION: u32 = 30;
 pub const CONTENT_VERSION: &str = "tms273-33";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -70,6 +70,8 @@ pub enum WindbellAction {
     BraceCart,
     DeliverPlank,
     DeliverRope,
+    Rest,
+    DryRecords,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -203,6 +205,7 @@ pub enum ClientMessage {
     Windbell {
         #[serde(rename = "requestId")]
         request_id: String,
+        sequence: u64,
         action: WindbellAction,
         #[serde(rename = "instanceId", default)]
         instance_id: Option<String>,

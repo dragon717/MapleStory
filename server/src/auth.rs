@@ -1530,6 +1530,7 @@ impl Store {
         result_json: &str,
         bridge: Option<(&str, u64)>,
         player_state_json: Option<&str>,
+        vitals: Option<(i64, i64)>,
     ) -> Result<bool, String> {
         let revision = bridge
             .map(|(_, revision)| {
@@ -1570,6 +1571,21 @@ impl Store {
             )
             .map_err(|_| "account persistence failed".to_owned())?;
         }
+        if let Some((hp, mp)) = vitals {
+            if hp <= 0 || mp < 0 || tx.execute(
+                "UPDATE player_stats SET hp=?2,mp=?3 WHERE account_id=?1 AND hp>0",
+                params![account_id, hp, mp],
+            ).map_err(|_| "account persistence failed")? != 1 {
+                return Err("account persistence failed".to_owned());
+            }
+        }
+        // The character's committed command_sequence rejects every older
+        // request, including ones outside this bounded replay window.
+        tx.execute(
+            "DELETE FROM windbell_action_log WHERE account_id=?1 AND rowid NOT IN
+             (SELECT rowid FROM windbell_action_log WHERE account_id=?1 ORDER BY rowid DESC LIMIT 64)",
+            params![account_id],
+        ).map_err(|_| "account persistence failed".to_owned())?;
         tx.commit()
             .map_err(|_| "account persistence failed".to_owned())?;
         Ok(true)
