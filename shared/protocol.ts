@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 28;
+export const PROTOCOL_VERSION = 29;
 export const CONTENT_VERSION = 'tms273-33';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -141,6 +141,19 @@ export interface NpcState {
   questAvailable?: boolean;
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
+/** 原创扩展「死亡世界」：一座墓碑的权威快照。虚影演化阶段（0 潜伏 → 1 游荡 →
+ *  2 凝聚）由服务端按死亡经过时间与悼念人数**纯函数推导**，客户端只渲染标签与
+ *  观感差异，永远不自行推进或回退阶段。碑文是死亡事实的一部分，随快照公开；
+ *  `expiresInMs` 是展示倒计时，真正的到期裁决永远在服务端时钟里。
+ *  `appearance` 是死亡时刻的角色外观：虚影的样子 = 这份外观的灰色形态，走现有
+ *  纸娃娃管线渲染；缺席（老快照/无外观）时客户端退回抽象光点。 */
+export interface TombstoneSnapshot {
+  id: string; x: number; y: number;
+  characterName: string; epitaph: string;
+  stage: 0 | 1 | 2; stageName: string;
+  mourners: number; expiresInMs: number;
+  appearance?: Appearance;
+}
 /** Authoritative live state of one placed map reactor. `state` is the authored
  *  WZ state index; the last state is the empty "used up" form. */
 export interface ReactorState {
@@ -228,6 +241,9 @@ export type ClientMessage =
   | { type: 'castSkill'; requestId: string; skillId: number; direction?: -1 | 0 | 1; vertical?: -1 | 0 | 1 }
   | { type: 'releaseSkill'; requestId: string }
   | { type: 'revive'; requestId: string }
+  /** 原创扩展「死亡世界」：向一座墓碑悼念。客户端只命名墓碑；存在性、到期、
+   *  同图、距离与去重全部由服务器裁决——重复悼念重放同一份状态，不重复计数。 */
+  | { type: 'tombstoneMourn'; requestId: string; tombstoneId: string }
   | { type: 'pickup'; requestId: string; dropId: string }
   /** Intent to strike one authored map reactor. The client only names the prop;
    *  the server decides range, whether it is still usable, and the next state. */
@@ -491,7 +507,7 @@ export interface ShipEventNotice {
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; drops: DropState[] }
+  | { type: 'snapshot'; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
@@ -526,6 +542,9 @@ export type ServerMessage =
   | { type: 'inventoryResult'; requestId: string; operation: 'move' | 'drop' | 'gather' | 'sort' | 'use' | 'equip' | 'unequip' | 'dropMesos'; inventoryType?: number; sourceSlot: number; targetSlot?: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'inventoryDropResult'; requestId: string; operation: 'drop'; sourceSlot: number; itemId: string; quantity: number; dropId?: string; success: boolean; code: string }
   | { type: 'reviveResult'; requestId: string; success: boolean; code: string }
+  /** 原创扩展「死亡世界」：一次悼念的权威结果（只发给悼念者本人）。`alreadyMourned`
+   *  表示这份结果是一次重放：同一角色对同一座碑只计一次。 */
+  | { type: 'tombstoneResult'; requestId: string; tombstoneId: string; characterName: string; epitaph: string; stage: 0 | 1 | 2; stageName: string; mourners: number; alreadyMourned: boolean }
   | { type: 'npcResult'; requestId: string; success: boolean; code: string; npcId: string; name: string; nameZh?: string; dialog?: { kind: 'next' | 'nextPrev' | 'prev' | 'ok' | 'yesNo' | 'simple'; text: string; options?: DialogueOption[];
   /** 这段对话的来源（阶段一 2026-09-17 / 阶段二 2026-09-17）。缺省＝源台词、
    *  服务端脚本或职能分发产生的对话；`placeholder`＝**源里这个 NPC 就没有说话

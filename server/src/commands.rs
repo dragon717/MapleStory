@@ -792,6 +792,10 @@ impl World {
                         quantity,
                     } => self.handle_drop_mesos(id, request_id, quantity),
                     ClientMessage::Revive { request_id } => self.handle_revive(id, request_id),
+                    ClientMessage::TombstoneMourn {
+                        request_id,
+                        tombstone_id,
+                    } => self.handle_tombstone_mourn(id, request_id, tombstone_id),
                     ClientMessage::QuestInteract {
                         request_id,
                         quest_id,

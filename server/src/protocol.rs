@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 28;
+pub const PROTOCOL_VERSION: u32 = 29;
 pub const CONTENT_VERSION: &str = "tms273-33";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -587,6 +587,14 @@ pub enum ClientMessage {
         #[serde(rename = "runId")]
         run_id: String,
     },
+    /// 原创扩展「死亡世界」：向一座墓碑悼念。  客户端只命名墓碑；是否存在、
+    /// 是否到期、是否同图、距离与去重全部由服务器裁决。
+    TombstoneMourn {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "tombstoneId")]
+        tombstone_id: String,
+    },
 }
 
 impl ClientMessage {
@@ -623,6 +631,10 @@ impl ClientMessage {
             | Self::LearnSkill { request_id, .. }
             | Self::Pickup { request_id, .. }
             | Self::Revive { request_id } => valid_id(request_id),
+            Self::TombstoneMourn {
+                request_id,
+                tombstone_id,
+            } => valid_id(request_id) && valid_id(tombstone_id),
             Self::ReactorHit {
                 request_id,
                 reactor_id,

@@ -518,6 +518,14 @@ async function enterGame(session: LoginResponse) {
       if (news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
       input?.reset();
       connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId });
+    }, tombstoneId => {
+      // 原创扩展「死亡世界」：点击墓碑 = 悼念一次。服务器裁决一切（存在、
+      // 距离、到期、去重），这里只上报意图。
+      if (news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+      input?.reset();
+      if (!connection?.send({ type: 'tombstoneMourn', requestId: `tombstone-${Date.now()}-${++skillRequestSequence}`, tombstoneId })) {
+        status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
+      }
     });
     // loader.imageLoadType：Phaser 默认 'XHR'——每张图都要走 XHR→Blob→objectURL→Image
     // 四步，23.5k 张图时这一层开销就是「装载地图与角色」的主要成本（实测服务端能到
@@ -804,6 +812,11 @@ async function enterGame(session: LoginResponse) {
           if (message.code === 'reactor_unknown') console.debug('[protocol] reactor request was stale or forged', message.message);
           else status(protocolText(message.code, message.message), message.code !== 'reactor_spent');
         }
+        else if (['tombstone_unknown', 'tombstone_gone', 'tombstone_out_of_range'].includes(message.code)) {
+          // 原创扩展「死亡世界」：悼念被拒同样是一次正常结果——碑可能刚刚
+          // 到期或被人先行处理，说一句就够，不升红字。
+          status(protocolText(message.code, message.message));
+        }
         // A rejected whisper behaves exactly like a rejected chat line: the
         // draft is restored (still addressed to the same target) and the
         // server's reason is shown.
@@ -828,6 +841,19 @@ async function enterGame(session: LoginResponse) {
         }
       }
       else if (message.type === 'reviveResult') deathNotice?.receive(message);
+      if (message.type === 'tombstoneResult') {
+        // 悼念回执是**私人**结果：碑文、虚影阶段与悼念人数只发给悼念者本人，
+        // 与恢复跳字同一隐私口径。alreadyMourned 是重放，措辞相应区分。
+        const stage = uiLocale() === 'en' ? `echo: ${message.stageName}` : `虚影 · ${message.stageName}`;
+        const mourners = uiLocale() === 'en'
+          ? `${message.mourners} ${message.mourners === 1 ? 'mourner' : 'mourners'}`
+          : `${message.mourners} 人悼念`;
+        const summary = `${message.characterName} · ${stage} · ${mourners}`;
+        chat?.appendSystem(`${uiLocale() === 'en' ? 'Mourned' : '悼念了'} ${message.characterName}：「${message.epitaph}」（${summary}）`, `tombstone:${message.requestId}`);
+        status(message.alreadyMourned
+          ? `${uiLocale() === 'en' ? 'You already mourned this tombstone.' : '你已经悼念过这座墓碑。'}${summary}`
+          : `${uiLocale() === 'en' ? `Rest in peace, ${message.characterName}.` : `愿 ${message.characterName} 安息。`}${summary}`);
+      }
     }, (state, reason) => {
       connectionState = state;
       el('connection').textContent = state === 'online' ? `● ${english ? 'Connected' : '已连接'} · ${session.username}` : state === 'connecting' ? (english ? 'Connecting…' : '正在连接…') : (english ? 'Disconnected' : '连接已断开');

@@ -4,6 +4,44 @@
 > 已完成条目的逐任务归档见 [`INDEX.md`](INDEX.md)，归档目录为 `history/YYYY-MM-DD/`。
 > 当前详细实施方案见 [`topics/`](topics/)；拆分依据 `topics/MapleStory_Repository_Based_Refactoring_Plan.md`。
 
+## 原创扩展·死亡世界一期：墓碑留存与虚影演化（2026-09-19，已实现，待实玩）
+
+审计代码图条目 06 的边界注记把「原创墓碑留存／虚影演化」列为**另行立项的原创扩展**（不计入
+原版缺口）；本条目就是那次立项的一期交付。原版死亡/复活语义**零改动**：死亡判定与惩罚仍在
+`monsters.rs::commit_incoming_damage`，复活落点与状态恢复仍在 `revive.rs::complete_revive`。
+
+新增服务端权威模块 `server/src/death_world.rs`（+ `auth/death_world.rs` 持久化与
+`death_tombstones` 表迁移）：
+
+- **墓碑留存**：所有致死路径（接触 / Boss，共用同一结算口）在死亡落点留碑（贴地、夹边界）；
+  复活**不**撤碑；`death_id` 去重（一次死亡一座碑，库层 UNIQUE 兜底）；绝对时钟 30 分钟到期，
+  重启不刷新期限、掉线换图不删世界状态；同图容量 8、最早先走；练习图与风铃实例图不落碑。
+- **虚影演化**：每碑一个虚影，阶段 潜伏→游荡（5 min）→凝聚（15 min 或 3 位悼念者）是
+  `(now, mourners)` 的**纯函数**，快照时推导，无第二时钟、无回退路径。
+- **悼念**：`tombstoneMourn`（客户端只报墓碑 id）；服务器重裁存在/到期/同图/距离/死活；
+  同角色对同碑只计一次，重复悼念重放同一状态。碑文按 `death_id` 稳定哈希从原创文案池取。
+- **虚影形态 = 死者灰色形态**（二期，2026-09-19）：死亡瞬间服务端把 `state.appearance` 存进
+  `Tombstone`（持久化列 `appearance_json`，重建不丢），随快照下发；客户端
+  `scenes/world.ts` 用既有 `composeAppearance` 拼出 stand 帧，`tombstone.ts` 把零件统一
+  `setTint(0x94a3ad)` 压成灰蓝——零件/管线与玩家同一套，死亡观感只靠 tint，不重画。
+  贴图未齐时保持光点兜底、`update` 每帧重试、成一次即止，绝不出现半座灰影。
+
+协议 **28 → 29**（`shared/protocol.ts` 与 `server/src/protocol.rs`）：快照加 `tombstones[]`、
+新增 `tombstoneMourn` / `tombstoneResult`（碑文随快照公开；悼念回执只发本人）。**无新增资源 ⇒
+CONTENT_VERSION 不动**。客户端 `features/notice/tombstone.ts` 用 Phaser Graphics/Text 绘制
+（刻意不占内容版本与资源门禁），`scenes/world.ts` 按快照增删（与反应器同构），点击=悼念意图。
+
+- [x] 定向验证：`cargo test` **588 passed / 0 failed**（基线 581 + 新增死亡世界验收 7）；
+      `tsc --noEmit` 0 错误；新增 `features/notice/tombstone.check.mjs`（已登记进
+      `run-checks.mjs`）；`check_protocol_errors.cjs` PASS；`refactor_audit --deps` PASS；
+      引用协议版本的三个既有客户端检查无回归。
+- [ ] 既有红灯（与本次无关，基线复跑确认）：`check_repository_layout.cjs` 红在
+      `evidence/INDEX.md` 失效链接 `2026-09-14/keybindings/`（e11fb7f 清理证据目录所致）；
+      `update-service.check.ts` 基线即红（asset-index 模块缺失）。
+- [ ] 未实玩：碑体观感、虚影三阶段的可读差异、悼念回执文案需实玩确认。
+- [ ] 未做（后续立项）：虚影帮助/危及后来者（P2）、经验球、独立 NPC 与天命参与（P3+），
+      见 `topics/MapleStory_Death_Implementation_Plan_v0.1.md`。
+
 ## 战斗跳字与数值表现 + 怪物受击击退（2026-09-19，已完成实现，待加载实玩）
 
 用户需求单：「复刻实现以下战斗跳字与数值表现功能，参考原版 tms273 与 gms83 的逻辑进行落地：

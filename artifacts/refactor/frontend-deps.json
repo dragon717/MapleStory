@@ -8,12 +8,12 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 142,
-  "edge_count": 324,
+  "node_count": 144,
+  "edge_count": 326,
   "edge_kind_counts": {
-    "value": 199,
+    "value": 200,
     "dynamic": 4,
-    "type": 100,
+    "type": 101,
     "side-effect": 21
   },
   "external_specifiers": [
@@ -1145,6 +1145,11 @@
       "kind": "type"
     },
     {
+      "from": "client/src/features/notice/tombstone.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
       "from": "client/src/features/npc/dialogue.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1646,6 +1651,11 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/notice/tombstone.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/features/combat/view.ts",
       "kind": "value"
     },
@@ -1665,8 +1675,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "3ba7ad9ff83c6aa4cbf9d6b4f06d10e5f8988126",
+  "source_commit": "620b2521eda49f003b4816814a26b31c9805551e",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-19T12:52:10.794Z"
+  "generated_at": "2026-09-19T13:34:37.027Z"
 }

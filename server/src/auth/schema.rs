@@ -224,6 +224,22 @@ impl Store {
                code TEXT NOT NULL,
                PRIMARY KEY(account_id,request_id)
              );
+             -- 原创扩展「死亡世界」的墓碑（death_world.rs）。death_id 上
+             -- UNIQUE：重复致死在库层也只容得下一座碑。演化阶段不落库——
+             -- 阶段是 (now, mourners) 的纯函数，落库反而制造第二份事实。
+             CREATE TABLE IF NOT EXISTS death_tombstones(
+               id TEXT PRIMARY KEY,
+               death_id TEXT NOT NULL UNIQUE,
+               character_name TEXT NOT NULL,
+               map_id TEXT NOT NULL,
+               x REAL NOT NULL,
+               y REAL NOT NULL,
+               epitaph TEXT NOT NULL,
+               appearance_json TEXT,
+               created_unix_ms INTEGER NOT NULL,
+               expires_unix_ms INTEGER NOT NULL,
+               mourners_json TEXT NOT NULL DEFAULT '[]'
+             );
              CREATE TABLE IF NOT EXISTS player_quests(
                account_id TEXT NOT NULL,
                quest_id TEXT NOT NULL,
@@ -640,6 +656,31 @@ impl Store {
             if exists.is_none() {
                 db.execute(
                     &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+                    [],
+                )?;
+            }
+        }
+        // 原创扩展「死亡世界」一期的表；appearance_json 是二期补列（灰色虚影
+        // 的外观原料），既有库按可空列加回，旧行读作 NULL＝无外观。表本身
+        // 还不存在的库（CREATE 上面已建）跳过这条 ALTER。
+        let tombstone_table_exists: Option<String> = db
+            .query_row(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='death_tombstones'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if tombstone_table_exists.is_some() {
+            let has_tombstone_appearance: Option<String> = db
+                .query_row(
+                    "SELECT name FROM pragma_table_info('death_tombstones') WHERE name='appearance_json'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if has_tombstone_appearance.is_none() {
+                db.execute(
+                    "ALTER TABLE death_tombstones ADD COLUMN appearance_json TEXT",
                     [],
                 )?;
             }

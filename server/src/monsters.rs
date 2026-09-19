@@ -873,6 +873,17 @@ impl World {
                 player.state.action_id = None;
             }
         }
+        if killed {
+            // 原创扩展「死亡世界」：正式死亡后留一座墓碑（练习图/实例图不落，
+            // 见 death_world.rs）。放在借用结束之后调用，不影响上面的收口；
+            // death_id 此时已落到 player 上，从权威处读回。
+            let death_id = self
+                .players
+                .get(id)
+                .map(|player| player.death_id.clone())
+                .unwrap_or_default();
+            self.spawn_death_tombstone(id, &death_id);
+        }
         Some((hp_damage, mp_damage, killed))
     }
 

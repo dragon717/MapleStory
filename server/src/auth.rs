@@ -46,6 +46,9 @@ pub use friends::{FriendOperation, FriendOutcome, FriendRow};
 pub(crate) mod bag;
 #[path = "auth/cash.rs"]
 pub(crate) mod cash;
+/// 原创扩展「死亡世界」的墓碑持久化（death_tombstones 表）。见模块头。
+#[path = "auth/death_world.rs"]
+pub(crate) mod death_world;
 #[path = "auth/db.rs"]
 pub(crate) mod db;
 #[path = "auth/item_world.rs"]

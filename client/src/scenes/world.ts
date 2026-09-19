@@ -14,6 +14,8 @@ import { NpcView, type NpcSnapshot } from '../features/npc/view';
 import { PortalView } from '../features/world/portal-view';
 import { ReactorView, reactorStateAsset } from '../features/world/reactor-view';
 import { WaterView } from '../features/world/water';
+import { TombstoneWorldView } from '../features/notice/tombstone';
+import { composeAppearance } from '../features/entry/appearance';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 import { WindbellScene } from '../features/windbell/scene';
@@ -21,6 +23,7 @@ import { MotionInterpolator, SELF_DELAY_TICKS } from '../features/net-motion/mot
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
+type TombstoneSnapshot = NonNullable<Snapshot['tombstones']>[number];
 type MapLayerView = { layer: MapLayer; frames: AssetFrame[]; images: Phaser.GameObjects.Image[]; elapsed: number; frameIndex: number };
 type BackgroundView = MapLayerView & { motionX: number; motionY: number };
 export interface PortalRequest {
@@ -42,6 +45,9 @@ export class World extends Phaser.Scene {
   private pendingSkillCasts = new Map<string, SkillCastEvent>();
   private waters: WaterView[] = [];
   private reactors = new Map<string, ReactorView>();
+  /** 原创扩展「死亡世界」：本图的墓碑视图。生命周期与反应器同构——快照在
+   *  即渲染，快照撤走即销毁，本视图从不自行决定一座碑的存在与否。 */
+  private tombstones = new Map<string, TombstoneWorldView>();
   private animatedLayers: MapLayerView[] = [];
   private backgrounds: BackgroundView[] = [];
   private snapshot?: Snapshot;
@@ -75,6 +81,7 @@ export class World extends Phaser.Scene {
     private onNpcTalk?: (npc: NpcState) => void,
     private onQuestInteract?: (questId: string) => void,
     private onReactorHit?: (reactorId: string) => void,
+    private onTombstoneMourn?: (tombstoneId: string) => void,
   ) { super('world'); }
   get mapId() { return this.manifest.map.id; }
   /** True once `create()` finished for the current map; `switchMap` flips it
@@ -415,11 +422,12 @@ export class World extends Phaser.Scene {
     this.questTargets.clear();
     for (const drop of this.drops.values()) drop.destroy();
     for (const reactor of this.reactors.values()) reactor.destroy();
+    for (const tombstone of this.tombstones.values()) tombstone.destroy();
     for (const portal of this.portals.values()) portal.destroy();
     for (const view of this.animatedLayers) for (const image of view.images) image.destroy();
     for (const view of this.backgrounds) for (const image of view.images) image.destroy();
     for (const water of this.waters) water.destroy();
-    this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
+    this.players.clear(); this.monsters.clear(); this.npcs.clear(); this.drops.clear(); this.portals.clear(); this.reactors.clear(); this.tombstones.clear(); this.actions.clear(); this.pendingSkillCasts.clear(); this.sound?.stopAll();
     this.motionReset();
     // 选中态属于「这一张图上的这一个 NPC」：视图先被销毁、id 也必须一起丢掉，
     // 否则换图后高亮会记着一个已经不存在（或换了同名实例）的目标。
@@ -787,6 +795,56 @@ export class World extends Phaser.Scene {
     }
   }
 
+  /**
+   * Sync the death-world tombstones with the authoritative snapshot.
+   *
+   * 快照里有就出现、快照撤走就销毁：一座碑是否存在永远是服务端的裁决。
+   * 演化阶段只翻译成观感（见 TombstoneWorldView），本地从不推算。
+   */
+  private updateTombstones(snapshot: GameplaySnapshot, actorDepth: number, delta: number) {
+    const tombstones = (snapshot as { tombstones?: TombstoneSnapshot[] }).tombstones ?? [];
+    const ids = new Set(tombstones.map(tombstone => tombstone.id));
+    for (const [id, view] of this.tombstones) {
+      if (!ids.has(id)) { view.destroy(); this.tombstones.delete(id); }
+    }
+    for (const tombstone of tombstones) {
+      let view = this.tombstones.get(tombstone.id);
+      if (!view) {
+        // 虚影的样子 = 死亡角色外观的灰色形态：用死亡时的 appearance 走
+        // 现有纸娃娃管线组装 stand 帧作为渲染原料；目录缺席时 undefined，
+        // 视图自己退回抽象光点。纹理懒加载在视图内完成。
+        const ghostStand = tombstone.appearance && this.manifest.appearanceCatalog
+          ? composeAppearance(this.manifest.appearanceCatalog, tombstone.appearance, [], {})?.stand
+          : undefined;
+        view = new TombstoneWorldView(
+          this, tombstone, actorDepth + 1,
+          id => this.onTombstoneMourn?.(id),
+          ghostStand,
+        );
+        this.tombstones.set(tombstone.id, view);
+      }
+      view.update(tombstone, delta);
+    }
+  }
+
+  /** The nearest tombstone the local player could mourn (hint only; the
+   *  server re-checks range authoritatively). */
+  nearestTombstone(): TombstoneSnapshot | null {
+    const snapshot = this.snapshot as (GameplaySnapshot & { tombstones?: TombstoneSnapshot[] }) | undefined;
+    if (!snapshot) return null;
+    const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
+    if (!player) return null;
+    const candidates = (snapshot.tombstones ?? [])
+      .map(tombstone => ({ tombstone, dx: tombstone.x - player.x, dy: tombstone.y - player.y }))
+      .filter(({ dx, dy }) => Math.abs(dx) <= World.TOMBSTONE_HINT_RANGE_X && Math.abs(dy) <= World.TOMBSTONE_HINT_RANGE_Y)
+      .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+    return candidates[0]?.tombstone ?? null;
+  }
+
+  /** 与服务端 TOMBSTONE_RANGE_* 对齐的提示半径；裁决权在服务器。 */
+  private static readonly TOMBSTONE_HINT_RANGE_X = 120;
+  private static readonly TOMBSTONE_HINT_RANGE_Y = 100;
+
   /** The nearest reactor the local player can actually interact with. */
   nearestReactor(): ReactorSnapshot | null {
     const snapshot = this.snapshot as (GameplaySnapshot & { reactors?: ReactorSnapshot[] }) | undefined;
@@ -915,6 +973,7 @@ export class World extends Phaser.Scene {
       }
       target.setPosition(entry.x, entry.y);
     }
+    this.updateTombstones(snapshot, actorDepth, delta);
     this.updateReactors(snapshot, actorDepth, delta);
 
     const npcs = snapshot.npcs ?? [];

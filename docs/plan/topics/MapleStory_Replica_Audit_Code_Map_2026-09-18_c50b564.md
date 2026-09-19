@@ -23,7 +23,7 @@
 | 03 | 移动与碰撞 | 主干已实现 | 行走、跳跃、下跳、爬绳、游泳、墙体碰撞与坠落恢复；完整原版手感未实玩核验。 | `F/player/`；`B/movement.rs`、`geometry.rs` | 复用现有移动链；缺陷定向修复。 | [E30] [E40] |
 | 04 | 战斗与怪物 | 主干已实现 | 普攻／技能命中、受击、仇恨、刷新、部分怪物技能；不是全怪物 AI 完整复刻。 | `F/combat/`；`B/combat.rs`、`attacks.rs`、`skills.rs`、`elemental.rs`、`monsters.rs` | 新规则按职责扩现有模块；特殊事件见 30—33。 | [E08] [E10] [E11] |
 | 05 | 掉落与拾取 | 主干已实现 | 掉落、归属保护、手动／宠物拾取、奖励认领与入包；目录数量不计进度。 | `B/inventory_ops.rs`、`pickup_rules.rs`、`monsters.rs`；`A/loot.rs` | 扩奖励来源时复用资产事务与 `A/notebook.rs` 留档。 | [E05] [E09] [E11] [E16] |
-| 06 | 死亡与复活 | 基础已实现 | 死亡、惩罚、复活落点、状态恢复、去重；不含原创墓碑留存／虚影演化。 | `F/notice/death.ts`；`B/combat.rs`、`revive.rs` | 原创扩展另立项，不计入原版缺口。 | [E29] [E15] |
+| 06 | 死亡与复活 | 基础已实现 | 死亡、惩罚、复活落点、状态恢复、去重；不含原创墓碑留存／虚影演化（该原创扩展已于 2026-09-19 一期实现：`B/death_world.rs`、`A/death_world.rs`、`F/notice/tombstone.ts`，协议 29，见当前 PLAN）。 | `F/notice/death.ts`；`B/combat.rs`、`revive.rs` | 原创扩展另立项，不计入原版缺口。 | [E29] [E15] |
 | 07 | 职业与技能成长 | 部分实现 | 经验、AP／SP、初心者→法师→冰雷四转及部分 Hyper；其他职业未接入。 | `F/skills/`；`B/mage.rs`、`growth.rs`、`skills.rs`、`elemental.rs`；`D/mage-skills.json` | 先选一个新职业；确有独立规则再增 `B/<职业域>.rs`。 | [E08] [E20] [E19] |
 | 08 | 属性、Buff、异常状态 | 部分实现 | 属性聚合、伤害修正、Buff 生命周期和五类疾病已接入；黑暗、虚弱、诱惑、尸化、禁药等未建模。 | `B/attribute.rs`、`damage.rs`、`derived.rs`、`player_status.rs`；`F/hud/buff-bar.ts` | 在现有属性／状态权威内补规则，不再维护第二套面板算法。 | [E21] [E22] [E40] |
 | 09 | NPC 与对话 | 部分实现 | 点击、原文分页、任务菜单、商店／仓库／转职／部分传送；完整脚本能力未覆盖。 | `F/npc/`；`B/npc.rs`、`dialogue.rs`；`D/npc-dialogue.json`、`npc-scripts.json` | 按真实动作扩 DSL 或专属职能，不能只补台词。 | [E13] [E15] [E33] |

@@ -38,6 +38,10 @@ mod chairs;
 mod combat_rules;
 #[path = "commands.rs"]
 mod commands;
+/// 原创扩展「死亡世界」第一期：墓碑留存 + 虚影演化（审计代码图条目 06 的
+/// 原创扩展立项）。不改变任何原版死亡/复活语义。见模块头。
+#[path = "death_world.rs"]
+mod death_world;
 /// 伤害修正管线：玩家侧伤害修正的唯一求值点与唯一口径（分组按源字段名判定、
 /// 取整只在末端一次、上限只在声明处）。见模块头。
 #[path = "damage.rs"]
@@ -1905,6 +1909,9 @@ pub struct World {
     drop_owners: BTreeMap<String, (Option<String>, i64)>,
     drop_maps: BTreeMap<String, String>,
     revive_requests: BTreeMap<(String, String), auth::ReviveOutcome>,
+    /// 原创扩展「死亡世界」：墓碑（含虚影演化状态）的唯一内存事实源。
+    /// 键是墓碑 id（`tomb-<death_id>`）；持久化见 `auth::death_world`。
+    death_tombstones: BTreeMap<String, death_world::Tombstone>,
     inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
     /// Authoritative outcome of the last shop purchase per (player, request),
     /// so a replayed `ShopBuy` re-sends the original result instead of spending
@@ -2073,6 +2080,7 @@ impl World {
             drop_owners: BTreeMap::new(),
             drop_maps: BTreeMap::new(),
             revive_requests: BTreeMap::new(),
+            death_tombstones: BTreeMap::new(),
             inventory_requests: BTreeMap::new(),
             shop_buy_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
@@ -2137,6 +2145,38 @@ impl World {
                     .drop_owners
                     .insert(drop_id.clone(), (owner_id, drop.protected_until_ms));
                 world.drop_maps.insert(drop_id, world.map.id.clone());
+            }
+            // 原创扩展「死亡世界」：重启恢复已留存的墓碑。到期的直接丢弃
+            // （期限是绝对时钟，重启不刷新）；落库时没被世界收走的过期行
+            // 在这里得到第二次清理。
+            let now = unix_now_ms();
+            for record in store.load_tombstones()? {
+                if record.expires_unix_ms <= now {
+                    let _ = store.remove_tombstone(&record.id);
+                    continue;
+                }
+                let mourners: BTreeSet<String> = record.mourners.iter().cloned().collect();
+                world.death_tombstones.insert(
+                    record.id.clone(),
+                    death_world::Tombstone {
+                        id: record.id,
+                        death_id: record.death_id,
+                        character_name: record.character_name,
+                        map_id: record.map_id,
+                        x: record.x,
+                        y: record.y,
+                        // 碑文按内容落库（String），文案表更新不影响已留存的碑。
+                        epitaph: record.epitaph,
+                        // 外观解析失败按「无外观」降级为抽象光点，不让一座碑
+                        // 因一个坏 JSON 整座消失。
+                        appearance: record
+                            .appearance
+                            .and_then(|value| serde_json::from_value(value).ok()),
+                        created_unix_ms: record.created_unix_ms,
+                        expires_unix_ms: record.expires_unix_ms,
+                        mourners,
+                    },
+                );
             }
         }
         // Reactors are authored per map, so build them once the map set is
@@ -2566,6 +2606,7 @@ impl World {
             "npcs":npcs,
             "questInteractions":quest_interactions,
             "summons": summons,
+            "tombstones": self.tombstones_for_snapshot(map_id),
             "reactors":self.reactors.values().filter(|reactor| reactor.map_id == map_id).map(|reactor| serde_json::json!({
                 "id": reactor.placement.id,
                 "templateId": reactor.placement.template_id,
@@ -3224,6 +3265,8 @@ impl World {
         // cannot grow without bound over a long session, and mirror what is
         // left onto the wire state for the client to render.
         self.expire_potion_cooldowns();
+        // 原创扩展「死亡世界」：收走到期墓碑（期限是绝对时钟，这只是执行）。
+        self.step_death_tombstones();
         // Reclaim expired rental items (cash-shop `Period` rows) from every
         // online character; internally gated to a 10 s cadence.
         self.step_rental_expiries();
