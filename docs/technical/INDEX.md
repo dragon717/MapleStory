@@ -8,9 +8,11 @@
 | [ARCHITECTURE_ACCEPTANCE.md](ARCHITECTURE_ACCEPTANCE.md) | 架构与资源验收标准 |
 | [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md) | 后端技术方案（审查草案） |
 | [BUSINESS_DEVELOPMENT.md](BUSINESS_DEVELOPMENT.md) | 后续业务开发指南 |
+| [../design/world-awareness/巨像世界_设计与技术索引.md](../design/world-awareness/巨像世界_设计与技术索引.md) | 巨像世界设计与技术统一导航 |
 | [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md) | 前端技术方案（审查草案） |
 | [REFERENCE_PROJECTS.md](REFERENCE_PROJECTS.md) | 参考项目分级与去重 |
 | [SHARED_ARCHITECTURE.md](SHARED_ARCHITECTURE.md) | 前后端通用技术方案（审查草案） |
+| [2.5D轨道巨像世界技术基建规范.md](2.5D轨道巨像世界技术基建规范.md) | 2.5D 轨道空间、巨像参考系、网络与水云基建入口 |
 | [UI_WINDOW_SYSTEM.md](UI_WINDOW_SYSTEM.md) | UI 窗口系统规范与架构（TMS273 前端） |
 | [NOTEBOOK_VISUAL_SPEC.md](NOTEBOOK_VISUAL_SPEC.md) | 冒险笔记（图鉴）视觉规范：布局结构、字体与配色、关键界面呈现方案 |
 | [large-file-audit.md](architecture/large-file-audit.md) | 超大文件审计（P0） |

@@ -14,7 +14,10 @@
 | [MapleStory_First_Minute_Emergent_World_Design.md](world-awareness/MapleStory_First_Minute_Emergent_World_Design.md) | 冒险岛·最初一分钟重设计 |
 | [MapleStory_World_Awareness_Engagement_Model_v0.1.md](world-awareness/MapleStory_World_Awareness_Engagement_Model_v0.1.md) | 冒险岛复刻与超越：世界意识、玩家投入曲线与翻车事件 v0.1 |
 | [五步可玩故事设计范式](world-awareness/五步可玩故事设计范式.md) | 可复用的五步因果方法；具体故事精要另列，未实现 |
+| [巨像世界_设计与技术索引](world-awareness/巨像世界_设计与技术索引.md) | 巨像世界设计入口、技术规范入口与当前客户端技术栈核实；不合并正文 |
 | [港口巨像开场：故事精要](world-awareness/港口巨像开场_故事精要.md) | 已确认的开场故事方向、节奏、操作因果与容错边界；待制作与实玩验证 |
+| [巨像第一章：设计目的](world-awareness/巨像第一章_设计目的.md) | 第一章设计意图、世界因果、三时期职责、人物弧光、能力/代价边界与待定项；未实现 |
+| [巨像第一章：分幕情景大纲](world-awareness/巨像第一章_分幕情景大纲.md) | 以玩家行动推进的十二幕情景草案；含具体画面、少量对白、伏笔回收与结局；未实现 |
 
 ## 历史文档
 
