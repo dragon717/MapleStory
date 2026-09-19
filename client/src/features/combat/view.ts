@@ -3,7 +3,7 @@ import type { PlayerState, SummonState } from '../../../../shared/protocol';
 import type { AssetFrame, CombatAssets, DamageNumberSet, Manifest } from '../../assets/manifest';
 import { assetFrameAlpha } from '../../assets/manifest';
 import { ensureTextures } from '../../assets/lazy-texture';
-import { damageNumberAdvances } from './damage-number';
+import { damageNumberAdvances, damageNumberLayers } from './damage-number';
 import { frameAt } from '../player/animation';
 
 export type Facing = -1 | 1;
@@ -182,7 +182,11 @@ export class CombatView {
    * this class never chooses a target or derives a damage amount.
    */
   receiveDamageEvent(event: AuthoritativeDamageEvent, hitSoundKey: string | null = this.hitSoundKey) {
-    if (!event.eventId || !event.targetId || !Number.isFinite(event.serverTick) || !validPoint(event.x, event.y) || !Number.isFinite(event.damage) || event.damage <= 0) return;
+    if (!event.eventId || !event.targetId || !Number.isFinite(event.serverTick) || !validPoint(event.x, event.y) || !Number.isFinite(event.damage) || event.damage < 0) return;
+    // 魔心防禦：HP 那一份可能是 0（未接下的 1% 做整数除法，伤害 < 100 时正好取整成 0），
+    // 而这一击仍要画蓝字。判据因此是**「两根都为 0 才整条丢弃」**，不是「HP 为 0 就丢」
+    // ——后者会让「MP 在掉、一根数字都没有」（2026-09-19 实玩实锤）。
+    if (damageNumberLayers(event.damage, Math.round(event.mpDamage ?? 0)).length === 0) return;
     const id = `damage:${event.eventId}`;
     if (this.seen.has(id)) return;
     this.seen.add(id);
@@ -678,14 +682,16 @@ export class CombatView {
   private spawnDamageNumber(event: AuthoritativeDamageEvent) {
     const sets = this.assets?.damageNumbers;
     const critical = Boolean(event.critical && sets?.critical);
-    const set = critical ? sets?.critical : sets?.normal;
-    if (!set) return;
-    this.spawnNumber(event.x, event.y, event.damage, set, Boolean(event.critical), Boolean(sets?.critical));
-    // 魔心防禦：被护罩接下、由 MP 承受的那一份是**同一击的第二根数字**，走蓝字，
-    // 下移一点免得与 HP 红字互相盖住。服务端没开魔心时这个字段就是 0，不画。
-    const mpDamage = Math.round(event.mpDamage ?? 0);
-    if (mpDamage > 0 && sets?.recoverMp) {
-      this.spawnNumber(event.x, event.y + 20, mpDamage, sets.recoverMp, false, false);
+    // 魔心防禦：被护罩接下、由 MP 承受的那一份是**同一击的第二根数字**，走蓝字。
+    // 取舍口径与事件入口共用 `damageNumberLayers`（HP 为 0 时蓝字上移到红字那一行，
+    // 免得头顶空出一截）；服务端没开魔心时这个字段是 0，不画。
+    for (const layer of damageNumberLayers(event.damage, Math.round(event.mpDamage ?? 0))) {
+      if (layer.kind === 'damage') {
+        const set = critical ? sets?.critical : sets?.normal;
+        if (set) this.spawnNumber(event.x, event.y, layer.value, set, Boolean(event.critical), Boolean(sets?.critical));
+      } else if (sets?.recoverMp) {
+        this.spawnNumber(event.x, event.y + layer.offsetY, layer.value, sets.recoverMp, false, false);
+      }
     }
   }
 

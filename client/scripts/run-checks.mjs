@@ -43,6 +43,9 @@ const checks = [
   ['features/skills/view.check.mjs', []],
   ['features/npc/view.check.mjs', []],
   ['features/combat/skill.check.mjs', []],
+  // 数字集的字距与「一次承伤画几根」此前只写在文件里、没进这张表 ⇒ 等于没人跑
+  // （2026-09-19：魔心蓝字被 `damage <= 0` 整条丢弃，离线全绿）。判据必须真的被跑。
+  ['features/combat/damage-number.check.ts', ['--experimental-strip-types']],
   ['features/character/view.check.mjs', []],
   ['features/loading/view.check.mjs', []],
   ['features/player/levelup.check.mjs', []],

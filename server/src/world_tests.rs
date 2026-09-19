@@ -4915,7 +4915,20 @@ fn mage_skill_runtime_covers_learning_targets_replay_guard_teleport_and_wave() {
         world.players["mage-runtime"].state.mp,
         mp_before_contact - expected_mp_damage
     );
-    while rx.try_recv().is_ok() {}
+    // 这一击 HP 一点不掉，但事件**仍然要广播**，而且蓝字那一份必须在里面。
+    // 客户端曾经因为「`damage <= 0` 就整条丢弃」而一根数字都不画（2026-09-19 实玩：
+    // MP 在掉、没有跳字）。判据因此钉在**广播出来的事件**上，而不是「HP 没掉就没事」
+    // ——原来的写法 `while rx.try_recv().is_ok() {}` 把这条契约直接丢掉了。
+    let contact = drain(&mut rx);
+    let contact_event = contact
+        .iter()
+        .find(|message| message["type"] == "damageEvent" && message["targetId"] == "mage-runtime")
+        .expect("护罩承伤必须广播 damageEvent（HP 那一份为 0 也不例外）");
+    assert_eq!(contact_event["damage"], 0, "未被接下的 1% 向下取整为 0");
+    assert_eq!(
+        contact_event["mpDamage"], expected_mp_damage,
+        "MP 那一份必须随事件发出去，客户端才有蓝字可画"
+    );
 
     // 满级（10 级）抵偿率 80%：同一击接下 9 点，只化去 floor(9 * 80%) = 7 点，
     // 差额 2 点由护盾消解——既不扣 HP 也不扣 MP。HP 仍只承担那 1%（此处为 0）。
@@ -4932,7 +4945,14 @@ fn mage_skill_runtime_covers_learning_targets_replay_guard_teleport_and_wave() {
         world.players["mage-runtime"].state.mp,
         mp_before_max_guard - 7
     );
-    while rx.try_recv().is_ok() {}
+    // 满级抵偿率 80% 的同一击：HP 那 1% 同样是 0，蓝字那一份是 7 点。
+    let max_guard_contact = drain(&mut rx);
+    let max_guard_event = max_guard_contact
+        .iter()
+        .find(|message| message["type"] == "damageEvent" && message["targetId"] == "mage-runtime")
+        .expect("护罩承伤必须广播 damageEvent");
+    assert_eq!(max_guard_event["damage"], 0);
+    assert_eq!(max_guard_event["mpDamage"], 7);
     {
         let player = world.players.get_mut("mage-runtime").unwrap();
         player.state.skills.insert(SKILL_MAGIC_GUARD, 1);
