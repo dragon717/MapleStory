@@ -306,3 +306,54 @@ fn gm_exp_rejects_out_of_band_amounts_without_touching_progress() {
     assert_eq!((state.level, state.exp), (1, 0), "a refused command grants nothing");
     assert!(gm_take_kind(&mut alice, "snapshot").is_empty());
 }
+
+#[test]
+fn gm_shadow_answers_the_guide_then_spawns_a_staged_tombstone() {
+    let mut world = chat_world();
+    let mut alice = join_test_player(&mut world, "alice");
+    let mut bob = join_test_player(&mut world, "bob");
+    chat_drain(&mut alice);
+    chat_drain(&mut bob);
+
+    // 无参数：三行使用指南只回给发起者，不落碑。
+    chat_send(&mut world, "alice", "sh-help", "/shadow");
+    let results = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["success"], true);
+    assert_eq!(results[0]["code"], "gm_shadow_help");
+    let guide = results[0]["message"].as_str().unwrap();
+    assert_eq!(guide.matches('\n').count(), 2, "指南恰好三行（客户端最多渲染 3 行）");
+    assert!(world.death_tombstones.is_empty(), "指南不落碑");
+    assert!(gm_take_kind(&mut alice, "snapshot").is_empty());
+
+    // /shadow 2：凝聚阶段的真碑。外观缺席不挡碑（客户端走光点兜底），
+    // 名字来自发起者；回执 + 快照都只发给发起者。
+    chat_send(&mut world, "alice", "sh-2", "/shadow 2");
+    let batch = gm_take_all(&mut alice);
+    let results = gm_of_kind(&batch, "gmResult");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["code"], "gm_shadow_ok");
+    assert!(
+        results[0]["message"].as_str().is_some_and(|text| text.contains("凝聚")),
+        "回执要点名生成的阶段：{}",
+        results[0]["message"]
+    );
+    let snapshots = gm_of_kind(&batch, "snapshot");
+    assert_eq!(snapshots.len(), 1, "the sender gets one snapshot");
+    let tombstones = snapshots[0]["tombstones"].as_array().expect("snapshot carries tombstones");
+    assert_eq!(tombstones.len(), 1);
+    assert_eq!(tombstones[0]["stage"].as_u64(), Some(2), "GM 拨出的碑龄要推出凝聚阶段");
+    assert_eq!(tombstones[0]["stageName"].as_str(), Some("凝聚"));
+    assert_eq!(tombstones[0]["characterName"].as_str(), Some("alice"));
+
+    // 阶段越界（3）与多余参数都被拒，碑的数量不变。
+    chat_send(&mut world, "alice", "sh-bad", "/shadow 3");
+    chat_send(&mut world, "alice", "sh-extra", "/shadow 1 2");
+    let rejects = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(rejects.len(), 2);
+    assert!(rejects.iter().all(|value| value["code"] == "gm_usage"));
+    assert_eq!(world.death_tombstones.len(), 1);
+
+    // 其他玩家什么也收不到：命令不广播，快照不旁落。
+    assert!(gm_take_all(&mut bob).is_empty());
+}

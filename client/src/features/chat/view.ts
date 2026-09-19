@@ -164,13 +164,18 @@ export class ChatView {
   }
 
   /** Render one server gmResult: a GM-prefixed system line, success in the
-   *  normal colour and refusals flagged inline. */
+   *  normal colour and refusals flagged inline.  A message containing `\n`
+   *  (e.g. the /shadow usage guide) wraps naturally and is hard-capped at
+   *  three lines via CSS; ordinary feedback stays one clipped line. */
   appendGmResult(message: GmResultEnvelope) {
     if (!this.systemLog) return;
     if (this.systemEventIds.has(`gm:${message.requestId}`)) return;
     this.systemEventIds.add(`gm:${message.requestId}`);
     const line = document.createElement('div');
-    line.className = this.chat273 ? 'chat273-system-line' : 'chat-system-line';
+    const multiline = message.message.includes('\n');
+    line.className = this.chat273
+      ? `chat273-system-line${multiline ? ' chat273-system-line-wrap' : ''}`
+      : 'chat-system-line';
     line.textContent = message.success ? `GM：${message.message}` : `GM：${message.message}（${message.code}）`;
     appendChatLogLine(this.systemLog, line);
   }

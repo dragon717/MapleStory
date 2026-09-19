@@ -8,6 +8,8 @@
 //! - `/add <itemId> <count>`：向发起者背包新增道具（走 `crate::inventory::add_items`）
 //! - `/cash <amount>`：向发起者发放現金商店余额
 //! - `/exp <amount>`：向发起者发放经验（走 `World::add_exp`，与战斗/任务奖励同一条升级路径）
+//! - `/shadow`：无参数回三行使用指南；`/shadow <0|1|2>` 在脚下落一座对应
+//!   演化阶段的虚影墓碑（走 `death_world::gm_spawn_shadow` 的真实落碑路径）
 //! - 未知命令回执：`gm_unknown_command`（不广播、不中断聊天限流状态）
 //!
 //! ## 不负责
@@ -59,6 +61,7 @@ impl World {
             "/add" => self.gm_add(&id, &request_id, &args),
             "/cash" => self.gm_cash(&id, &request_id, &args),
             "/exp" => self.gm_exp(&id, &request_id, &args),
+            "/shadow" => self.gm_shadow(&id, &request_id, &args),
             _ => {
                 gm_result(
                     self,
@@ -66,7 +69,7 @@ impl World {
                     &request_id,
                     false,
                     "gm_unknown_command",
-                    "未知的 GM 命令。可用：/add <道具id> <数量>；/cash <楓點数>；/exp <经验值>",
+                    "未知的 GM 命令。可用：/add <道具id> <数量>；/cash <楓點数>；/exp <经验值>；/shadow <0|1|2>",
                 );
             }
         }
@@ -374,6 +377,63 @@ impl World {
                         _ => "道具发放失败。",
                     },
                 );
+            }
+        }
+    }
+
+    /// `/shadow` — 死亡世界虚影的 GM 直通车。
+    ///
+    /// 无参数：只回使用指南。指南消息带 `\n`，客户端对含换行的 gmResult
+    /// 自动切行、最多 3 行（见 chat/view.ts 的 `chat273-system-line-wrap`），
+    /// 所以文案恰好写成三行短句。无参数不落碑、不发快照。
+    ///
+    /// `/shadow <0|1|2>`：在脚下落一座对应演化阶段的真碑（潜伏/游荡/凝聚），
+    /// 走 `death_world::gm_spawn_shadow`——GM 只拨时间，不另造阶段判据。
+    /// 成功后给发起者补一份快照，虚影立刻出现在视野里。
+    fn gm_shadow(&mut self, id: &str, request_id: &str, args: &[&str]) {
+        if args.is_empty() {
+            gm_result(
+                self,
+                id,
+                request_id,
+                true,
+                "gm_shadow_help",
+                "用法：/shadow <0|1|2>\n0=潜伏　1=游荡　2=凝聚\n在脚下生成对应阶段的虚影墓碑",
+            );
+            return;
+        }
+        if args.len() != 1 {
+            gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "gm_usage",
+                "用法：/shadow <0|1|2>，例如 /shadow 2",
+            );
+            return;
+        }
+        let stage = match args[0].parse::<u8>() {
+            Ok(stage @ 0..=2) => stage,
+            _ => {
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    false,
+                    "gm_usage",
+                    "阶段必须是 0（潜伏）、1（游荡）或 2（凝聚）。",
+                );
+                return;
+            }
+        };
+        match self.gm_spawn_shadow(id, stage) {
+            Ok(message) => {
+                gm_result(self, id, request_id, true, "gm_shadow_ok", &message);
+                self.send_snapshot(id);
+            }
+            Err(message) => {
+                gm_result(self, id, request_id, false, "gm_shadow_failed", &message);
             }
         }
     }

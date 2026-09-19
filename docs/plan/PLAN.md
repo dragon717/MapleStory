@@ -25,6 +25,15 @@
   `scenes/world.ts` 用既有 `composeAppearance` 拼出 stand 帧，`tombstone.ts` 把零件统一
   `setTint(0x94a3ad)` 压成灰蓝——零件/管线与玩家同一套，死亡观感只靠 tint，不重画。
   贴图未齐时保持光点兜底、`update` 每帧重试、成一次即止，绝不出现半座灰影。
+- **D06 试点遭遇：类型化行动者与单一奖励路由**（P2 第一步，2026-09-19）：凝聚虚影每
+  2.5s 打击一次碑边（200×120 范围内）**无玩家交战**（无 aggro）的最近怪物，单击
+  15% maxHp（过量按剩余 HP 截断）；与玩家击杀共用 `monster_rewards` 同一把主键——
+  虚影行 `account_id=NULL, actor_kind='echo'`（表重建放开 NOT NULL，旧行原样保留），
+  不建虚影账号、不写伤害贡献表（玩家补刀分成不被稀释）、无掉落无玩家经验，怪物模板
+  经验以冻结值留在奖励行里作 D08 经验球的根预算；新广播 `echoStrikeEvent`（客户端
+  现阶段忽略，D09 接表现）。打击节流阀是运行时 pacing 不入库。验收 5 条
+  （单一认领/重启不重复、不碰交战与远距与低阶段怪、不稀释分成、schema 重建兼容）
+  已进 `death_world_acceptance.rs`。
 
 协议 **28 → 29**（`shared/protocol.ts` 与 `server/src/protocol.rs`）：快照加 `tombstones[]`、
 新增 `tombstoneMourn` / `tombstoneResult`（碑文随快照公开；悼念回执只发本人）。**无新增资源 ⇒

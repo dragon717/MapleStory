@@ -35,6 +35,16 @@ pub(super) const TOMBSTONE_RANGE_Y: f64 = 100.0;
 pub(super) const ECHO_WANDER_AFTER_MS: i64 = 5 * 60 * 1000;
 pub(super) const ECHO_CONVERGE_AFTER_MS: i64 = 15 * 60 * 1000;
 pub(super) const ECHO_CONVERGE_MOURNERS: usize = 3;
+/// D06 试点遭遇：凝聚虚影的护路打击范围（相对碑位）与节流。
+pub(super) const ECHO_STRIKE_RANGE_X: f64 = 200.0;
+pub(super) const ECHO_STRIKE_RANGE_Y: f64 = 120.0;
+/// 单击伤害 = 怪物最大 HP 的 15%（至少 1），过量部分按剩余 HP 截断。
+/// 固定百分比、无随机数：D06 的判据要可独立复算，命中/未命中的可控随机
+/// 留给 D07/D10 的注入缝。
+pub(super) const ECHO_STRIKE_DAMAGE_PERCENT: i64 = 15;
+/// 两次打击之间的最小间隔（unix ms）。这是 pacing 不是事实：重启归零
+/// 只意味着「重启后可以立刻再试一次」，不产生任何结算分叉。
+pub(super) const ECHO_STRIKE_INTERVAL_MS: i64 = 2500;
 
 /// 一座墓碑。`death_id` 是唯一性来源：重复致死只有一次事实，同一次死亡的
 /// 墓碑也只会有一个（死亡去重逻辑复用既有 `death_id` 机制）。
@@ -54,6 +64,9 @@ pub(super) struct Tombstone {
     pub expires_unix_ms: i64,
     /// 去重后的悼念者（角色 id）。集合语义 ⇒ 同一角色重复悼念只计一次。
     pub mourners: BTreeSet<String>,
+    /// 试点打击的节流阀（unix ms）。**运行时 pacing，不入库**：重启归零
+    /// 只影响下一次尝试的早晚，不产生结算分叉（奖励认领按生命去重在库层）。
+    pub next_strike_unix_ms: i64,
 }
 
 impl Tombstone {
@@ -167,6 +180,7 @@ impl World {
             created_unix_ms: now,
             expires_unix_ms: now.saturating_add(TOMBSTONE_RETENTION_MS),
             mourners: BTreeSet::new(),
+            next_strike_unix_ms: 0,
         };
         self.make_room_for_tombstone(&tombstone);
         if let Some(store) = self.store.as_ref() {
@@ -228,6 +242,139 @@ impl World {
         for id in expired {
             self.remove_tombstone(&id);
         }
+        self.step_echo_strikes(now);
+    }
+
+    /// D06 试点遭遇：凝聚阶段的虚影打击**没有玩家交战**的近身怪物——
+    /// 「护路」的最小原型：虚影清的是无人认领的威胁，绝不抢普通战斗。
+    ///
+    /// 奖励路由：致死一击与玩家击杀共用 `monster_rewards` 的同一把主键
+    /// （虚影行 `account_id=NULL, actor_kind='echo'`）。虚影伤害**不写**
+    /// 伤害贡献表——玩家后续补刀的分成按纯玩家贡献计算，不被稀释。
+    /// 虚影击杀无掉落、无玩家经验；怪物模板经验以冻结值留在奖励行里，
+    /// 成为 D08 经验球的根预算。
+    fn step_echo_strikes(&mut self, now: i64) {
+        struct EchoStrike {
+            tombstone_id: String,
+            map_id: String,
+            monster_id: String,
+            x: f64,
+            y: f64,
+            damage: i64,
+            killed: bool,
+            exp: u64,
+        }
+        // 先收集、后应用：决策阶段全部只读，避免借用交错。
+        let mut strikes: Vec<EchoStrike> = Vec::new();
+        for tombstone in self.death_tombstones.values() {
+            if tombstone.echo_stage(now) < 2 {
+                continue;
+            }
+            if now < tombstone.next_strike_unix_ms {
+                continue;
+            }
+            // 私有遭遇不参与试点（与落碑守卫同口径；正常情况下那里不会有碑）。
+            if auth::is_practice_map(&tombstone.map_id)
+                || windbell::is_runtime_instance_map(&tombstone.map_id)
+            {
+                continue;
+            }
+            let target = self
+                .monsters
+                .iter()
+                .filter(|(_, monster)| {
+                    if monster.map_id != tombstone.map_id || monster.state.hp <= 0 {
+                        return false;
+                    }
+                    // 不抢普通已占据的战斗：仇恨还在玩家手里的怪不碰。
+                    if monster.aggro_target.is_some() && self.tick <= monster.aggro_until {
+                        return false;
+                    }
+                    (monster.state.x - tombstone.x).abs() <= ECHO_STRIKE_RANGE_X
+                        && (monster.state.y - tombstone.y).abs() <= ECHO_STRIKE_RANGE_Y
+                })
+                .min_by(|(a_id, a), (b_id, b)| {
+                    (a.state.x - tombstone.x)
+                        .abs()
+                        .total_cmp(&(b.state.x - tombstone.x).abs())
+                        .then_with(|| a_id.cmp(b_id))
+                });
+            let Some((monster_id, monster)) = target else {
+                continue;
+            };
+            let damage = ((monster.state.max_hp as i64) * ECHO_STRIKE_DAMAGE_PERCENT / 100)
+                .max(1)
+                .min(monster.state.hp);
+            strikes.push(EchoStrike {
+                tombstone_id: tombstone.id.clone(),
+                map_id: tombstone.map_id.clone(),
+                monster_id: monster_id.clone(),
+                x: monster.state.x,
+                y: monster.state.y,
+                killed: damage >= monster.state.hp,
+                damage,
+                exp: monster.template.exp.max(0) as u64,
+            });
+        }
+        for strike in strikes {
+            // 唯一奖励主键：只有致死那一击才认领；认领失败（已被认领/
+            // 持久化故障）就当这一击没发生过——绝不无凭据地弄死一只怪。
+            let mut applied_killed = false;
+            if strike.killed {
+                let claimed = match self.store.as_ref() {
+                    Some(store) => store
+                        .claim_echo_kill(
+                            &strike.monster_id,
+                            &format!("{}-{}", strike.tombstone_id, strike.monster_id),
+                            strike.exp,
+                        )
+                        .unwrap_or(false),
+                    // 无持久层的测试世界：击杀事实只存在于运行时，无需认领。
+                    None => true,
+                };
+                if !claimed {
+                    continue;
+                }
+                applied_killed = true;
+            }
+            if let Some(monster) = self.monsters.get_mut(&strike.monster_id) {
+                monster.state.hp = (monster.state.hp - strike.damage).max(0);
+                monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
+                monster.state.action_started_tick = self.tick;
+                if monster.state.hp == 0 {
+                    monster.freeze_until = 0;
+                    monster.state.freeze_stacks = None;
+                    monster.stun_until = 0;
+                    let die_ticks = monster
+                        .template
+                        .die_duration_ms
+                        .unwrap_or(1)
+                        .div_ceil(TICK_MS)
+                        .max(1);
+                    monster.death_until = Some(self.tick + die_ticks);
+                    monster.respawn_at = respawn_deadline(
+                        self.tick,
+                        self.gameplay.monster_respawn_ms,
+                        monster.spawn.mob_time,
+                    );
+                }
+            }
+            if let Some(tombstone) = self.death_tombstones.get_mut(&strike.tombstone_id) {
+                tombstone.next_strike_unix_ms =
+                    now.saturating_add(self.echo_strike_interval_ms);
+            }
+            let event = serde_json::json!({
+                "type": "echoStrikeEvent",
+                "tombstoneId": strike.tombstone_id,
+                "monsterId": strike.monster_id,
+                "x": strike.x,
+                "y": strike.y,
+                "damage": strike.damage,
+                "killed": applied_killed,
+            })
+            .to_string();
+            self.broadcast_to_map(&strike.map_id, &event);
+        }
     }
 
     /// 快照投影：观察者所在地图的墓碑列表。阶段在这里按当前时钟推导，
@@ -258,6 +405,67 @@ impl World {
                 value
             })
             .collect()
+    }
+
+    /// GM 指令 `/shadow <0..=2>`：在发起者脚下落一座指定演化阶段的碑。
+    ///
+    /// 阶段仍由那条纯函数推导：这里只把 `created_unix_ms` 拨回相应的过去
+    /// （潜伏=现在、游荡=5 分钟前、凝聚=15 分钟前），不为 GM 另开第二套
+    /// 阶段判据。碑本身是一座真碑——持久化、同图容量与到期全部走真实
+    /// 路径；`death_id` 带 `gm-shadow-` 前缀并拼接随机后缀，每次调用都是
+    /// 一座新碑（不会被死亡去重误伤），容量满了同样挤掉同图最早的。
+    pub(super) fn gm_spawn_shadow(&mut self, id: &str, stage: u8) -> Result<String, String> {
+        let Some(player) = self.players.get(id) else {
+            return Err("你还没有进入世界。".into());
+        };
+        // 与真实落碑同一条边界：私有遭遇不在世界里留公共痕迹。
+        if auth::is_practice_map(&player.map_id)
+            || windbell::is_runtime_instance_map(&player.map_id)
+        {
+            return Err("练习图与风铃运行期实例图不留墓碑，换张普通图再试。".into());
+        }
+        let map = self.map_for(&player.map_id).clone();
+        // 落点贴地，与 `spawn_death_tombstone` 同一套口径：不悬空、不出界。
+        let x = player.state.x.clamp(map.bounds.x_min, map.bounds.x_max);
+        let y = map
+            .ground_near(x, player.state.y)
+            .map(|(_, ground)| ground)
+            .unwrap_or(player.state.y);
+        let now = unix_now_ms();
+        let created = now
+            - match stage {
+                2 => ECHO_CONVERGE_AFTER_MS,
+                1 => ECHO_WANDER_AFTER_MS,
+                _ => 0,
+            };
+        let death_id = format!("gm-shadow-{}-{}", now, auth::random_id());
+        let tombstone = Tombstone {
+            id: format!("tomb-{death_id}"),
+            character_name: player.state.username.clone(),
+            appearance: player.state.appearance.clone(),
+            epitaph: epitaph_for(&death_id).to_owned(),
+            death_id,
+            map_id: player.map_id.clone(),
+            x,
+            y,
+            created_unix_ms: created,
+            expires_unix_ms: now.saturating_add(TOMBSTONE_RETENTION_MS),
+            mourners: BTreeSet::new(),
+            next_strike_unix_ms: 0,
+        };
+        self.make_room_for_tombstone(&tombstone);
+        if let Some(store) = self.store.as_ref() {
+            if store.save_tombstone(&tombstone_record(&tombstone)).is_err() {
+                return Err("墓碑留档失败，这一座没有落成。".into());
+            }
+        }
+        let name = tombstone.character_name.clone();
+        self.death_tombstones
+            .insert(tombstone.id.clone(), tombstone);
+        Ok(format!(
+            "已在脚下生成虚影「{}」（{name} 的碑）。走近可悼念，30 分钟后随风而逝。",
+            Tombstone::STAGE_NAMES[stage as usize],
+        ))
     }
 
     /// 悼念一次。客户端只命名墓碑；存在性、到期、同图、距离与死活全部由

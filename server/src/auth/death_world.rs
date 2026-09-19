@@ -105,4 +105,28 @@ impl Store {
             .map_err(|_| "account persistence failed")?;
         Ok(())
     }
+
+    /// D06：虚影击杀的奖励认领。与玩家击杀共用 `monster_rewards` 的同一把
+    /// 主键（monster_id 每条命唯一）：虚影行 `account_id=NULL`、
+    /// `actor_kind='echo'`——不创建任何账号形状的行，也不写怪物伤害贡献
+    /// （虚影伤害不参与、也不稀释玩家的分成）。重复结算（重放/重启后同一
+    /// 生命）由 `INSERT OR IGNORE` 兜底：一条命只认领一次，经验值按击杀
+    /// 当时的怪物模板冻结，成为后续经验球的根预算。
+    pub fn claim_echo_kill(
+        &self,
+        monster_id: &str,
+        request_id: &str,
+        exp_gain: u64,
+    ) -> Result<bool, String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let exp = i64::try_from(exp_gain).map_err(|_| "account persistence failed")?;
+        let claimed = db
+            .execute(
+                "INSERT OR IGNORE INTO monster_rewards(monster_id,account_id,request_id,exp_gain,drop_id,practice,actor_kind)
+                 VALUES (?1,NULL,?2,?3,NULL,0,'echo')",
+                params![monster_id, request_id, exp],
+            )
+            .map_err(|_| "account persistence failed")?;
+        Ok(claimed > 0)
+    }
 }

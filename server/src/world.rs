@@ -1912,6 +1912,10 @@ pub struct World {
     /// 原创扩展「死亡世界」：墓碑（含虚影演化状态）的唯一内存事实源。
     /// 键是墓碑 id（`tomb-<death_id>`）；持久化见 `auth::death_world`。
     death_tombstones: BTreeMap<String, death_world::Tombstone>,
+    /// D06 试点：凝聚虚影两次打击的最小间隔（unix ms）。生产取常量；
+    /// 验收测试拨小以便在毫秒级驱动整个「打击→认领→死亡」序列，
+    /// 不引入任何客户端可见的可配置性。
+    echo_strike_interval_ms: i64,
     inventory_requests: BTreeMap<(String, String), auth::InventoryOutcome>,
     /// Authoritative outcome of the last shop purchase per (player, request),
     /// so a replayed `ShopBuy` re-sends the original result instead of spending
@@ -2081,6 +2085,7 @@ impl World {
             drop_maps: BTreeMap::new(),
             revive_requests: BTreeMap::new(),
             death_tombstones: BTreeMap::new(),
+            echo_strike_interval_ms: death_world::ECHO_STRIKE_INTERVAL_MS,
             inventory_requests: BTreeMap::new(),
             shop_buy_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
@@ -2175,6 +2180,9 @@ impl World {
                         created_unix_ms: record.created_unix_ms,
                         expires_unix_ms: record.expires_unix_ms,
                         mourners,
+                        // 打击节流阀是运行时 pacing，不入库：重启后从「可立即
+                        // 再试」开始，不产生任何结算分叉。
+                        next_strike_unix_ms: 0,
                     },
                 );
             }

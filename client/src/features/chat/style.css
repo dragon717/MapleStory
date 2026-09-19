@@ -10,6 +10,10 @@
 .chat273-background-closed{display:none}
 .chat273-log{position:relative;z-index:1;display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-height:22px;max-height:66px;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#8c9aa3 #25333a;margin:0 0 4px;color:#e6eef0;font-size:10px;line-height:12px;text-shadow:1px 1px 0 #111820}
 .chat273-system-line{flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Multi-line GM feedback (e.g. the /shadow usage guide): the server-authored
+   \n points become real breaks (pre-line), and line-clamp caps the block at
+   three lines so a long guide can never push the chat history out of view. */
+.chat273-system-line-wrap{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;text-overflow:clip;white-space:pre-line;word-break:break-word}
 .chat273-player-line{flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat273-player-line .chat273-name{font-weight:bold}
 .chat273-name-other{color:#7fd4ff}.chat273-name-self{color:#fff3a5}

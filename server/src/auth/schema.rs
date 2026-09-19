@@ -179,11 +179,12 @@ impl Store {
              );
              CREATE TABLE IF NOT EXISTS monster_rewards(
                monster_id TEXT PRIMARY KEY,
-               account_id TEXT NOT NULL,
+               account_id TEXT,
                request_id TEXT NOT NULL,
                exp_gain INTEGER NOT NULL,
                drop_id TEXT,
-               practice INTEGER NOT NULL DEFAULT 0
+               practice INTEGER NOT NULL DEFAULT 0,
+               actor_kind TEXT
              );
              CREATE TABLE IF NOT EXISTS monster_damage(
                monster_id TEXT NOT NULL,
@@ -604,6 +605,51 @@ impl Store {
                 has_inventory_remaining_slots.is_some(),
             )?;
         }
+        // D06（2026-09-19）：monster_rewards 的行动者类型化。虚影击杀以
+        // `account_id=NULL, actor_kind='echo'` 认领与玩家同一把奖励主键，
+        // 不创建任何账号形状的行；旧行 actor_kind 为 NULL，按「玩家」解读。
+        // account_id 从 NOT NULL 放开为可空无法用 ALTER 表达，走一次
+        // 保数据的表重建：旧行原样搬入，兼容读（列集与语义）不变。
+        let rewards_account_notnull: Option<i64> = db
+            .query_row(
+                "SELECT \"notnull\" FROM pragma_table_info('monster_rewards') WHERE name='account_id'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if rewards_account_notnull == Some(1) {
+            // 旧表可能还没有 practice 列（更老的存档）——拷贝按实际列集选择。
+            let legacy_has_practice: bool = db
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('monster_rewards_legacy') WHERE name='practice'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|count| count > 0)
+                .unwrap_or(false);
+            let copy_sql = if legacy_has_practice {
+                "INSERT INTO monster_rewards(monster_id,account_id,request_id,exp_gain,drop_id,practice)
+                 SELECT monster_id,account_id,request_id,exp_gain,drop_id,practice FROM monster_rewards_legacy"
+            } else {
+                "INSERT INTO monster_rewards(monster_id,account_id,request_id,exp_gain,drop_id,practice)
+                 SELECT monster_id,account_id,request_id,exp_gain,drop_id,0 FROM monster_rewards_legacy"
+            };
+            db.execute("ALTER TABLE monster_rewards RENAME TO monster_rewards_legacy", [])?;
+            db.execute(
+                "CREATE TABLE monster_rewards(
+                   monster_id TEXT PRIMARY KEY,
+                   account_id TEXT,
+                   request_id TEXT NOT NULL,
+                   exp_gain INTEGER NOT NULL,
+                   drop_id TEXT,
+                   practice INTEGER NOT NULL DEFAULT 0,
+                   actor_kind TEXT
+                 )",
+                [],
+            )?;
+            db.execute(copy_sql, [])?;
+            db.execute("DROP TABLE monster_rewards_legacy", [])?;
+        }
         for (table, column, definition) in [
             ("inventory", "stats_json", "TEXT NOT NULL DEFAULT '{}'"),
             ("inventory", "upgrade_count", "INTEGER NOT NULL DEFAULT 0"),
@@ -613,6 +659,7 @@ impl Store {
             ("drops", "remaining_slots", "INTEGER NOT NULL DEFAULT 0"),
             ("attack_actions", "map_id", "TEXT NOT NULL DEFAULT ''"),
             ("monster_rewards", "practice", "INTEGER NOT NULL DEFAULT 0"),
+            ("monster_rewards", "actor_kind", "TEXT"),
         ] {
             let exists: Option<String> = db
                 .query_row(

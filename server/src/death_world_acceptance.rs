@@ -207,6 +207,7 @@ fn echo_evolution_is_a_pure_function_of_time_and_mourners() {
         created_unix_ms: 1_000_000,
         expires_unix_ms: 1_000_000 + death_world::TOMBSTONE_RETENTION_MS,
         mourners: BTreeSet::new(),
+        next_strike_unix_ms: 0,
     };
     let created = tombstone.created_unix_ms;
     assert_eq!(tombstone.echo_stage(created + 1), 0, "刚落碑是潜伏");
@@ -337,6 +338,395 @@ fn tombstones_persist_and_survive_a_world_rebuild() {
     let now = unix_now_ms();
     let record = store.load_tombstones().unwrap().pop().unwrap();
     assert!(record.expires_unix_ms > now, "the absolute deadline is preserved, not refreshed");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+// ---------------------------------------------------------------------------
+// D06 试点遭遇：类型化行动者与单一奖励路由。
+// ---------------------------------------------------------------------------
+
+/// 一只默认模板怪（exp=1）。测试用它驱动虚影打击与玩家击杀的路由判据。
+fn echo_gameplay() -> Gameplay {
+    let mut gameplay = Gameplay::default();
+    gameplay.monsters = vec![life_template()];
+    gameplay.spawns = vec![life_spawn("s1", "test", 100.0, 1, 0)];
+    gameplay
+}
+
+/// 把世界里的碑拨到「凝聚」并挪到怪物旁边，节流阀清零。
+fn converge_echo_next_to_monster(world: &mut World, tombstone_id: &str) -> String {
+    let monster_id = world.monsters.keys().next().unwrap().clone();
+    let (mx, my) = {
+        let monster = &world.monsters[&monster_id];
+        (monster.state.x, monster.state.y)
+    };
+    let tombstone = world.death_tombstones.get_mut(tombstone_id).unwrap();
+    tombstone.created_unix_ms =
+        unix_now_ms() - death_world::ECHO_CONVERGE_AFTER_MS - 1;
+    tombstone.x = mx;
+    tombstone.y = my;
+    tombstone.next_strike_unix_ms = 0;
+    world.echo_strike_interval_ms = 0;
+    monster_id
+}
+
+fn drain_events(output: &mut mpsc::Receiver<String>) -> Vec<serde_json::Value> {
+    let mut events = Vec::new();
+    while let Ok(message) = output.try_recv() {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&message) {
+            events.push(value);
+        }
+    }
+    events
+}
+
+#[test]
+fn converged_echo_strikes_unengaged_monsters_and_claims_one_reward() {
+    let path = std::env::temp_dir().join(format!(
+        "maple-echo-strike-{}.sqlite3",
+        auth::random_id()
+    ));
+    let service = auth::start(&path).unwrap();
+    let store = service.store.clone();
+
+    let mut world =
+        World::new_with_store(life_map("test"), 600, echo_gameplay(), store.clone()).unwrap();
+    let mut output = join_test_player(&mut world, "p");
+    while output.try_recv().is_ok() {}
+    assert!(kill(&mut world), "the hit must be lethal");
+    let tombstone_id = world.death_tombstones.keys().next().unwrap().clone();
+    world.handle_revive("p".into(), "r1".into());
+
+    let monster_id = converge_echo_next_to_monster(&mut world, &tombstone_id);
+    let exp_template = world.monsters[&monster_id].template.exp;
+
+    // 推进到怪死：虚影单击 15% max_hp，过量截断；节流阀为 0 ⇒ 连拍可尽。
+    let mut strike_events = Vec::new();
+    for _ in 0..40 {
+        world.step();
+        strike_events.extend(
+            drain_events(&mut output)
+                .into_iter()
+                .filter(|value| value.get("type").and_then(|v| v.as_str()) == Some("echoStrikeEvent")),
+        );
+        if world.monsters[&monster_id].state.hp == 0 {
+            break;
+        }
+    }
+    assert_eq!(
+        world.monsters[&monster_id].state.hp, 0,
+        "the converged echo dispatches the unengaged monster"
+    );
+    assert_eq!(
+        world.monsters[&monster_id].state.action, "die",
+        "the monster dies through the same runtime death path as a player kill"
+    );
+    assert!(
+        strike_events.iter().any(|event| event.get("killed").and_then(|v| v.as_bool()) == Some(true)),
+        "the lethal strike is announced with a typed echoStrikeEvent"
+    );
+
+    // 库层：恰好一行奖励，虚影形状（NULL 账号 + actor_kind='echo'），
+    // 经验 = 怪物模板经验（D08 经验球的根预算，冻结值可对账）。
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let row: (Option<String>, Option<String>, i64) = conn
+        .query_row(
+            "SELECT account_id,actor_kind,exp_gain FROM monster_rewards WHERE monster_id=?1",
+            [&monster_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(row.0, None, "an echo kill never mints an account-shaped row");
+    assert_eq!(row.1, Some("echo".into()), "the reward row carries its actor kind");
+    assert_eq!(row.2, exp_template as i64, "the frozen exp is the monster's authored exp");
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM monster_rewards", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "exactly one reward claim for this life");
+
+    // 世界重建（重启替身）：碑与奖励各归各位——碑还在（期限未到），
+    // 同一条命不补认领、不重复。
+    drop(world);
+    let rebuilt =
+        World::new_with_store(life_map("test"), 600, echo_gameplay(), store.clone()).unwrap();
+    assert_eq!(
+        rebuilt.death_tombstones.len(),
+        1,
+        "the surviving tombstone persists across a rebuild"
+    );
+    let count: i64 = rusqlite::Connection::open(&path)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM monster_rewards", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "a rebuild never duplicates the reward claim");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn echo_spares_lower_stages_engaged_monsters_and_distant_threats() {
+    let path = std::env::temp_dir().join(format!(
+        "maple-echo-spare-{}.sqlite3",
+        auth::random_id()
+    ));
+    let service = auth::start(&path).unwrap();
+
+    let mut world = World::new_with_store(
+        life_map("test"),
+        600,
+        echo_gameplay(),
+        service.store.clone(),
+    )
+    .unwrap();
+    let mut output = join_test_player(&mut world, "p");
+    while output.try_recv().is_ok() {}
+    assert!(kill(&mut world));
+    let tombstone_id = world.death_tombstones.keys().next().unwrap().clone();
+    world.handle_revive("p".into(), "r1".into());
+    let monster_id = converge_echo_next_to_monster(&mut world, &tombstone_id);
+
+    // 1) 潜伏阶段：虚影不动手。
+    world
+        .death_tombstones
+        .get_mut(&tombstone_id)
+        .unwrap()
+        .created_unix_ms = unix_now_ms();
+    for _ in 0..6 {
+        world.step();
+    }
+    drain_events(&mut output);
+    assert!(
+        world.monsters[&monster_id].state.hp > 0,
+        "a latent (stage 0) echo never strikes"
+    );
+
+    // 2) 凝聚但被玩家交战：仇恨窗口内不碰；窗口过后才接手。
+    {
+        let tick = world.tick;
+        let monster = world.monsters.get_mut(&monster_id).unwrap();
+        mark_monster_hit_aggro(monster, "p", tick);
+    }
+    // part 1 把 created 拨回了「现在」——接手判定前重新拨到凝聚。
+    world
+        .death_tombstones
+        .get_mut(&tombstone_id)
+        .unwrap()
+        .created_unix_ms = unix_now_ms() - death_world::ECHO_CONVERGE_AFTER_MS - 1;
+    for _ in 0..4 {
+        world.step();
+    }
+    drain_events(&mut output);
+    let engaged_hp = world.monsters[&monster_id].state.hp;
+    assert!(
+        engaged_hp == world.monsters[&monster_id].state.max_hp,
+        "an engaged monster is never intercepted"
+    );
+    // 玩家停手（仇恨过期）后，虚影才接手这个无人认领的威胁。
+    world.monsters.get_mut(&monster_id).unwrap().aggro_until = 0;
+    for _ in 0..40 {
+        world.step();
+        if world.monsters[&monster_id].state.hp == 0 {
+            break;
+        }
+    }
+    assert_eq!(
+        world.monsters[&monster_id].state.hp, 0,
+        "once the player disengages, the echo takes over the unclaimed threat"
+    );
+    drain_events(&mut output);
+
+    // 3) 凝聚但太远：范围外不打击（用 y 拉开距离——怪不可移动，位置确定）。
+    assert!(kill(&mut world), "second death for a fresh tombstone");
+    let tombstone_id = world
+        .death_tombstones
+        .values()
+        .find(|tombstone| tombstone.death_id == world.players["p"].death_id)
+        .map(|tombstone| tombstone.id.clone())
+        .unwrap();
+    // 收走旧碑（part 2 那座仍凝聚着、贴在怪旁），只留待测的这座远碑。
+    for id in world
+        .death_tombstones
+        .keys()
+        .cloned()
+        .collect::<Vec<String>>()
+    {
+        if id != tombstone_id {
+            world.death_tombstones.remove(&id);
+            let _ = service.store.remove_tombstone(&id);
+        }
+    }
+    {
+        let tombstone = world.death_tombstones.get_mut(&tombstone_id).unwrap();
+        tombstone.created_unix_ms = unix_now_ms() - death_world::ECHO_CONVERGE_AFTER_MS - 1;
+        tombstone.x = 0.0;
+        tombstone.y = 400.0; // 距怪物 y（≈100）远超 ECHO_STRIKE_RANGE_Y
+        tombstone.next_strike_unix_ms = 0;
+    }
+    // part 2 的怪已死且默认玩法不重生——满血复位，用「一滴不掉」证明没被打。
+    {
+        let monster = world.monsters.get_mut(&monster_id).unwrap();
+        monster.state.hp = monster.state.max_hp;
+        monster.state.action = "stand";
+        monster.death_until = None;
+        monster.respawn_at = None;
+    }
+    for _ in 0..6 {
+        world.step();
+    }
+    drain_events(&mut output);
+    assert_eq!(
+        world.monsters[&monster_id].state.hp,
+        world.monsters[&monster_id].state.max_hp,
+        "a distant monster is out of the pilot's reach"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn echo_damage_does_not_dilute_the_player_split_or_mint_accounts() {
+    let path = std::env::temp_dir().join(format!(
+        "maple-echo-route-{}.sqlite3",
+        auth::random_id()
+    ));
+    let service = auth::start(&path).unwrap();
+
+    let mut world = World::new_with_store(
+        life_map("test"),
+        600,
+        echo_gameplay(),
+        service.store.clone(),
+    )
+    .unwrap();
+    let mut output = join_test_player(&mut world, "p");
+    while output.try_recv().is_ok() {}
+    assert!(kill(&mut world));
+    let tombstone_id = world.death_tombstones.keys().next().unwrap().clone();
+    world.handle_revive("p".into(), "r1".into());
+    let monster_id = converge_echo_next_to_monster(&mut world, &tombstone_id);
+
+    // 高血量怪：虚影单击非致命（1000 * 15% = 150）。
+    {
+        let monster = world.monsters.get_mut(&monster_id).unwrap();
+        monster.state.max_hp = 1000;
+        monster.state.hp = 1000;
+    }
+    world.step();
+    let events = drain_events(&mut output);
+    let strike = events
+        .iter()
+        .find(|value| value.get("type").and_then(|v| v.as_str()) == Some("echoStrikeEvent"))
+        .expect("the non-lethal strike is announced");
+    assert_eq!(strike.get("damage").and_then(|v| v.as_i64()), Some(150));
+    assert_eq!(strike.get("killed").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(world.monsters[&monster_id].state.hp, 850);
+
+    // 虚影伤害不写贡献表 ⇒ 玩家补刀的分成按纯玩家贡献算，不被稀释。
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let contributions: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM monster_damage WHERE monster_id=?1",
+            [&monster_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(contributions, 0, "echo damage never enters the contribution ledger");
+
+    // 玩家补刀走既有结算：唯一认领归玩家，经验按 850/1000 份额入账。
+    // （先走既有 claim_attack 登记，结算入口要求先有攻击请求行。）
+    let _ = service
+        .store
+        .claim_attack("p", "test", "req-finish", "action-finish", "attack")
+        .unwrap();
+    let resolution = service
+        .store
+        .resolve_attack_with_party(
+            "p",
+            "test",
+            "req-finish",
+            Some(&monster_id),
+            850,
+            true,
+            100,
+            1000,
+            &[],
+            &[],
+            &["p".to_owned()],
+            &[],
+            &[],
+        )
+        .unwrap();
+    assert_eq!(resolution.exp_gain, 85, "the player share uses only player damage");
+    let row: (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT account_id,actor_kind FROM monster_rewards WHERE monster_id=?1",
+            [&monster_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(row.0, Some("p".into()), "the finishing player claims the single reward");
+    assert_eq!(row.1, None, "a player claim keeps the legacy actor shape");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn monster_rewards_rebuild_preserves_legacy_rows_and_allows_echo_actor() {
+    let path = std::env::temp_dir().join(format!(
+        "maple-echo-schema-{}.sqlite3",
+        auth::random_id()
+    ));
+    // 旧形状的表（account_id NOT NULL、无 actor_kind）+ 一行旧行。
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE monster_rewards(
+               monster_id TEXT PRIMARY KEY,
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               exp_gain INTEGER NOT NULL,
+               drop_id TEXT,
+               practice INTEGER NOT NULL DEFAULT 0
+             );
+             INSERT INTO monster_rewards VALUES('mob-legacy','acc-1','req-1',42,NULL,0);",
+        )
+        .unwrap();
+    }
+    let service = auth::start(&path).unwrap();
+
+    // 旧行原样保留：兼容读不变，actor_kind 为 NULL（= 玩家）。
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let legacy: (String, Option<String>, i64) = conn
+        .query_row(
+            "SELECT account_id,actor_kind,exp_gain FROM monster_rewards WHERE monster_id='mob-legacy'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(legacy.0, "acc-1");
+    assert_eq!(legacy.1, None, "legacy rows read as player claims");
+    assert_eq!(legacy.2, 42);
+
+    // account_id 现在可空：虚影行与旧行共存于同一把主键体系。
+    assert!(service.store.claim_echo_kill("mob-echo", "req-echo", 7).unwrap());
+    assert!(
+        !service
+            .store
+            .claim_echo_kill("mob-echo", "req-echo-replay", 7)
+            .unwrap(),
+        "the same life never claims twice"
+    );
+    let echo_row: (Option<String>, Option<String>, i64) = conn
+        .query_row(
+            "SELECT account_id,actor_kind,exp_gain FROM monster_rewards WHERE monster_id='mob-echo'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(echo_row.0, None);
+    assert_eq!(echo_row.1, Some("echo".into()));
+    assert_eq!(echo_row.2, 7);
 
     let _ = std::fs::remove_file(&path);
 }
