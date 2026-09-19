@@ -67,6 +67,7 @@ fn life_template() -> MonsterTemplate {
         skills: Vec::new(),
         body_disease: None,
         body_disease_level: None,
+        pushed: None,
     }
 }
 
@@ -3075,6 +3076,7 @@ fn monster_respawn_waits_for_cycle_and_death_animation() {
                 skills: Vec::new(),
                 body_disease: None,
                 body_disease_level: None,
+                pushed: None,
             }],
             spawns: vec![MonsterSpawn {
                 id: "s1".into(),
@@ -3265,6 +3267,7 @@ fn monster_hit_state_uses_source_counter_window() {
                 skills: Vec::new(),
                 body_disease: None,
                 body_disease_level: None,
+                pushed: None,
             }],
             spawns: vec![MonsterSpawn {
                 id: "s1".into(),
@@ -3325,6 +3328,7 @@ fn snail_ai_uses_source_stand_and_move_windows() {
                 skills: Vec::new(),
                 body_disease: None,
                 body_disease_level: None,
+                pushed: None,
             }],
             spawns: vec![MonsterSpawn {
                 id: "s1".into(),
@@ -3402,6 +3406,7 @@ fn monster_crosses_contiguous_footholds_and_turns_at_chain_end() {
                 skills: Vec::new(),
                 body_disease: None,
                 body_disease_level: None,
+                pushed: None,
             }],
             spawns: vec![MonsterSpawn {
                 id: "s1".into(),
@@ -3472,6 +3477,7 @@ fn aggro_mob_gameplay(spawn_x: f64) -> Gameplay {
             skills: Vec::new(),
             body_disease: None,
             body_disease_level: None,
+            pushed: None,
         }],
         spawns: vec![MonsterSpawn {
             id: "sa".into(),

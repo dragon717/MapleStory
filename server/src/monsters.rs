@@ -236,6 +236,7 @@ impl World {
                 death_until: None,
                 respawn_at: None,
                 next_skill_tick: 0,
+                knockback_pixels: 0.0,
             },
         );
         Ok(())
@@ -468,6 +469,12 @@ impl World {
             };
             if monster.state.hp <= 0 {
                 continue;
+            }
+            // 击退位移**在任何状态分支之前**结算：命中那一刻只登记了「该退多少」，
+            // 而只有这里同时握着地图与 foothold 链。放在最前面是为了不被后面
+            // 冻结 / 眩晕 / 绑定的 `continue` 吞掉——登记过就该退，退多远由地图决定。
+            if monster.knockback_pixels != 0.0 {
+                step_monster_knockback(&map, monster);
             }
             if monster.bind_until <= self.tick {
                 // Armor melting ends with the bind even when its separate
@@ -1141,6 +1148,56 @@ pub(super) fn mob_skill_disease(
         _ => effect.time.unwrap_or(0).max(0) as u64 * 1_000,
     };
     (duration_ms >= MOB_SKILL_MIN_DISEASE_MS).then_some((disease, duration_ms))
+}
+
+/// 登记一次击退：本次命中的伤害达到了源 `info/pushed` 的阈值时，把怪物标记成
+/// 「该沿远离攻击者的方向退开 `MOB_KNOCKBACK_PIXELS`」。
+///
+/// 只登记、不位移。位移要沿 foothold 走并可能撞墙，那需要地图与段链，只有
+/// `step_monsters` 拿得到；那里在怪物步进的**最开头**结算，早于冻结/眩晕/绑定的
+/// `continue`，所以登记过就一定会退。
+///
+/// 阈值缺失按「推不动」处理——凭空给 0 会造出一条比源更强的规则（源里 `0` 的语义
+/// 恰恰是「任何伤害都能击退」）。已经打死（`hp == 0`）的怪也不再退：它马上要播
+/// 死亡动作，位置不该再动。`from_x` 是攻击者位置，拿不到时同样不登记——宁可少退
+/// 一次，也不凭空挑一个方向。
+pub(super) fn register_monster_knockback(monster: &mut Monster, damage: i64, from_x: Option<f64>) {
+    if damage <= 0 || monster.state.hp <= 0 {
+        return;
+    }
+    let Some(threshold) = monster.template.pushed else {
+        return;
+    };
+    if damage < threshold {
+        return;
+    }
+    let Some(from_x) = from_x else {
+        return;
+    };
+    let direction = if monster.state.x >= from_x { 1.0 } else { -1.0 };
+    monster.knockback_pixels = MOB_KNOCKBACK_PIXELS * direction;
+}
+
+/// 把登记好的击退位移一次走完。
+///
+/// 沿当前 foothold 直线退开：目标点仍在同一段上就整体移动，越出段边界则停在边界
+/// ——**不跨段、不换段**。击退是一步之内的表现，跨段会牵出「掉下平台 / 撞墙掉头」
+/// 一整套决策，那属于常规移动，不该由击退顺带触发。
+fn step_monster_knockback(map: &Map, monster: &mut Monster) {
+    let distance = std::mem::take(&mut monster.knockback_pixels);
+    monster.horizontal_speed = 0.0;
+    let Some(foothold) = map.get(monster.foothold_id) else {
+        monster.state.x = (monster.state.x + distance).clamp(map.bounds.x_min, map.bounds.x_max);
+        return;
+    };
+    let target_x = (monster.state.x + distance).clamp(map.bounds.x_min, map.bounds.x_max);
+    let clamped = if distance > 0.0 {
+        target_x.min(foothold.right())
+    } else {
+        target_x.max(foothold.left())
+    };
+    monster.state.x = clamped;
+    monster.state.y = foothold.at(clamped).unwrap_or(monster.state.y);
 }
 
 pub(super) fn step_monster_with_force(map: &Map, monster: &mut Monster, force: f64) {

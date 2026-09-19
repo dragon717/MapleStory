@@ -70,6 +70,9 @@ impl World {
         let mp_gain = base_max_mp.max(0).saturating_mul(percent) / 100;
         let candidate_hp = state.hp.saturating_add(hp_gain).min(state.max_hp.max(1));
         let candidate_mp = state.mp.saturating_add(mp_gain).min(state.max_mp.max(0));
+        // 跳字用**实际增加量**：`hp_gain`／`mp_gain` 是源里按百分比声明的量，顶到
+        // 上限后真正加进去的会比它小，两者不能混为一谈。
+        let recovered = (candidate_hp - state.hp, candidate_mp - state.mp);
         let mut candidate = state.clone();
         candidate.hp = candidate_hp;
         candidate.mp = candidate_mp;
@@ -95,6 +98,7 @@ impl World {
                 .min(cap.max(player.infinity_damage_bonus));
             player.infinity_next_tick = self.tick.saturating_add((5_000_u64 / TICK_MS).max(1));
         }
+        self.emit_recovery_event(id, recovered.0, recovered.1, "infinity");
     }
 
     pub(super) fn cast_ice_demon(
@@ -1322,8 +1326,11 @@ impl World {
             return Ok(());
         }
         self.freeze_target(target_id, 1);
+        // 同上：攻击者位置要在借走 `monsters` 之前取。
+        let attacker_x = self.players.get(id).map(|player| player.state.x);
         if let Some(monster) = self.monsters.get_mut(target_id) {
             monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+            register_monster_knockback(monster, resolution.damage, attacker_x);
             monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
             monster.state.action_started_tick = self.tick;
             if monster.state.hp == 0 {

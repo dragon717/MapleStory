@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 27;
-export const CONTENT_VERSION = 'tms273-32';
+export const PROTOCOL_VERSION = 28;
+export const CONTENT_VERSION = 'tms273-33';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -495,7 +495,23 @@ export type ServerMessage =
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
-  | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean; skillId?: number; skillLevel?: number; segment?: number; targetCount?: number }
+  /** 一次伤害结算的权威结果。`damage` 是**落在 HP 上**的那一份；开启了魔心防禦
+   *  时，被护罩接下并由 MP 承受的那一份走 `mpDamage`（两者之和不超过这一击的
+   *  实际承伤，见 `server/src/monsters.rs::commit_incoming_damage`）。客户端只
+   *  照这两根数字表现，不自行拆分、不推导。
+   *
+   *  兼容性：`mpDamage` 是**新增的可选字段**，服务端自引入起就在发，这里只是把
+   *  TS 侧对齐到已经存在的事实；不认识它的老客户端会把它当未知字段忽略。 */
+  | { type: 'damageEvent'; eventId: string; serverTick: number; attackerId: string; targetId: string; x: number; y: number; damage: number; killed: boolean; critical?: boolean; skillId?: number; skillLevel?: number; segment?: number; targetCount?: number; mpDamage?: number }
+  /** 一次权威的资源恢复，**只发给当事人**：恢复是私事，同图其他人不该看到你
+   *  喝药水或坐椅子的数字。`hp`／`mp` 是这一 tick 的**实际增加量**，不是技能或
+   *  道具声明的数值——已经顶到上限时它必然小于声明值，跳字要显示的是实际加了多少。
+   *  `source` 只用于追溯与门禁，不参与表现选型：颜色只由 `hp`／`mp` 各自决定
+   *  （绿字回血、蓝字回魔）。
+   *
+   *  刻意**没有**自然恢复（`regeneration_passives_for_job` 的每秒被动回复）这一档：
+   *  原版那条路径不产生跳字，且每秒触发会持续刷屏。 */
+  | { type: 'recoveryEvent'; eventId: string; serverTick: number; playerId: string; x: number; y: number; hp?: number; mp?: number; source: 'potion' | 'recovery' | 'chair' | 'infinity' }
   /** A mob's authored abnormal-status skill cast, broadcast to its map so every
    *  observer can play the source action. `targetId` is the player the cast
    *  resolved against; the authoritative disease application rides the next

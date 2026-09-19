@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { PlayerState, SummonState } from '../../../../shared/protocol';
-import type { AssetFrame, CombatAssets, Manifest } from '../../assets/manifest';
+import type { AssetFrame, CombatAssets, DamageNumberSet, Manifest } from '../../assets/manifest';
 import { assetFrameAlpha } from '../../assets/manifest';
 import { ensureTextures } from '../../assets/lazy-texture';
 import { damageNumberAdvances } from './damage-number';
@@ -41,6 +41,24 @@ export interface AuthoritativeDamageEvent {
   skillLevel?: number;
   segment?: number;
   targetCount?: number;
+  /** 魔心防禦：这一击里由 MP 承受的那一份（`server/src/monsters.rs` 的权威拆分）。 */
+  mpDamage?: number;
+}
+
+/**
+ * 一次**只发给当事人**的权威资源恢复。`hp`／`mp` 是实际增加量；同一次恢复可以
+ * 两者都有（坐椅子、魔力激发），也可以只有一边（喝红药、只回复 HP 的技能）。
+ */
+export interface RecoveryEvent {
+  type: 'recoveryEvent';
+  eventId: string;
+  serverTick: number;
+  playerId: string;
+  x: number;
+  y: number;
+  hp?: number;
+  mp?: number;
+  source?: 'potion' | 'recovery' | 'chair' | 'infinity';
 }
 
 export interface SkillCastEvent {
@@ -662,13 +680,49 @@ export class CombatView {
     const critical = Boolean(event.critical && sets?.critical);
     const set = critical ? sets?.critical : sets?.normal;
     if (!set) return;
-    const digits = String(event.damage);
-    if (!/^\d+$/.test(digits)) return;
+    this.spawnNumber(event.x, event.y, event.damage, set, Boolean(event.critical), Boolean(sets?.critical));
+    // 魔心防禦：被护罩接下、由 MP 承受的那一份是**同一击的第二根数字**，走蓝字，
+    // 下移一点免得与 HP 红字互相盖住。服务端没开魔心时这个字段就是 0，不画。
+    const mpDamage = Math.round(event.mpDamage ?? 0);
+    if (mpDamage > 0 && sets?.recoverMp) {
+      this.spawnNumber(event.x, event.y + 20, mpDamage, sets.recoverMp, false, false);
+    }
+  }
+
+  /**
+   * 一次权威恢复：绿字回血、蓝字回魔，两者可以同时出现（坐椅子、魔力激发）。
+   *
+   * 触发时机与数值全部来自服务端：这里只在收到事件时画，并且画的是事件里那个
+   * **实际增加量**——顶到上限时它小于技能/道具声明值，跳字要跟实际一致。
+   */
+  receiveRecoveryEvent(event: RecoveryEvent) {
+    if (!event.eventId || !event.playerId || !Number.isFinite(event.serverTick) || !validPoint(event.x, event.y)) return;
+    const id = `recovery:${event.eventId}`;
+    if (this.seen.has(id)) return;
+    this.seen.add(id);
+    const sets = this.assets?.damageNumbers;
+    const hp = Math.round(event.hp ?? 0);
+    const mp = Math.round(event.mp ?? 0);
+    if (hp > 0 && sets?.recoverHp) this.spawnNumber(event.x, event.y, hp, sets.recoverHp, false, false);
+    if (mp > 0 && sets?.recoverMp) {
+      this.spawnNumber(event.x, event.y + (hp > 0 ? 20 : 0), mp, sets.recoverMp, false, false);
+    }
+  }
+
+  /**
+   * 画一串源数字。`set` 决定花色（红=伤害/暴击、绿=回血、蓝=回魔/扣魔）；`critical`
+   * 只参与字距计算——暴击的基线是源里加宽过的那一档，与花色无关。
+   *
+   * 全部数字共用同一个容器集合（`damageNumbers`），它们同生共死，清理时一起销毁。
+   */
+  private spawnNumber(x: number, y: number, value: number, set: DamageNumberSet, critical: boolean, hasCriticalSet: boolean) {
+    const digits = String(value);
+    if (!/^\d+$/.test(digits) || value <= 0) return;
 
     const frames = [...digits].map((digit, index) => set[index === 0 ? 'first' : 'rest'][digit]);
     if (frames.some(frame => !validFrame(frame))) return;
-    const advances = damageNumberAdvances(digits, Boolean(event.critical), Boolean(sets?.critical));
-    const container = this.scene.add.container(Math.round(event.x), Math.round(event.y - 8)).setDepth(this.depth + 1);
+    const advances = damageNumberAdvances(digits, critical, hasCriticalSet);
+    const container = this.scene.add.container(Math.round(x), Math.round(y - 8)).setDepth(this.depth + 1);
     let cursor = -advances.reduce((sum, advance) => sum + advance, 0) / 2;
     frames.forEach((frame, index) => {
       const image = this.scene.add.image(0, 0, frame.url).setOrigin(0);

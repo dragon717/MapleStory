@@ -12,7 +12,7 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-32';
+const version = 'tms273-33';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -231,6 +231,11 @@ for (const monster of gameplay.monsters) {
   monster.mdRate = Number(raw.MDRate?._value ?? 0);
   assert(Number.isFinite(monster.mdRate) && monster.mdRate >= 0 && monster.mdRate <= 100);
   assert(Number.isSafeInteger(monster.maxMp) && monster.maxMp >= 0);
+  // 击退阈值只从生成器导入，装配器这边**只断言不自算**（换算口径只许一处定义）。
+  // 缺这一格 = 导出树是旧的：服务端读到的永远是推不动，而且没有任何别的门禁会发现
+  // ——`pushed` 没有参与任何数值，少它不会让任何既有断言变红。
+  assert(raw.pushed?._value !== undefined, `monster ${monster.templateId} 的源有 info/pushed，导出树却少这一格（导出树过期，重跑生成器）`);
+  assert(Number.isSafeInteger(monster.pushed), `monster ${monster.templateId} 的 pushed 必须是整数`);
 }
 // P: temporary runnable level curve while TMS273's source EXP table is unavailable.
 // P: level 200 permits every source Hyper level gate; replace with a verified EXP table.

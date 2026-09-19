@@ -107,7 +107,10 @@ export function buildPreloadPlan(manifest: Manifest): PreloadPlan {
   for (const frame of Object.values(manifest.worldMap?.ui.close ?? {})) images.set(frame.url, frame.url);
   const afterimage = manifest.combat?.attack?.afterimage;
   for (const frame of afterimage?.frames ?? []) images.set(frame.url, frame.url);
-  for (const set of [manifest.combat?.damageNumbers?.normal, manifest.combat?.damageNumbers?.critical]) {
+  // 四套数字集（红=伤害/暴击、绿=回血、蓝=回魔/魔心扣魔）全部进首屏：跳字是
+  // 「收到事件那一帧就要画」的表现，事后再等纹理落地就是空开一炮——魔心防禦
+  // 扣魔与恢复跳字线上不显示、离线检查却全绿，就是只登记了前两套留下的洞。
+  for (const set of Object.values(manifest.combat?.damageNumbers ?? {})) {
     for (const frame of [...Object.values(set?.first ?? {}), ...Object.values(set?.rest ?? {})]) images.set(frame.url, frame.url);
   }
   // 技能特效（`manifest.skillEffects`）改成按需装载：实测整本 1,327 张 / 115.6MB，

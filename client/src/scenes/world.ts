@@ -363,6 +363,12 @@ export class World extends Phaser.Scene {
         }
       }
     }
+    if (message.type === 'recoveryEvent' && this.loaded) {
+      // 恢复跳字**只发给当事人**（服务端定向推送），所以这里画的一定是本地角色
+      // 或本地已加载的视图。锚点与受伤跳字共用同一条头顶偏移：绿字回血、蓝字回魔。
+      const player = this.players.get(message.playerId);
+      if (player) this.combat?.receiveRecoveryEvent({ ...message, y: message.y + player.headAnchorYOffset() });
+    }
     if (message.type === 'monsterSkill' && this.loaded) {
       // A mob cast an abnormal-status skill against a player. The disease
       // itself rides the next snapshot as `abnormalStatus`; here we only

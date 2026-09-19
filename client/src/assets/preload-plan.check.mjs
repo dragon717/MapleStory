@@ -47,7 +47,16 @@ const manifest = {
     stickers: [{ id: '1', icon: { url: 'emo-icon.png' }, frames: [{ url: 'emo-frame.png' }] }],
   },
   worldMap: { ui: { nav: {}, close: {} }, pages: {} },
-  combat: { hit: { sound: 'combat-hit.mp3' }, attack: { afterimage: { frames: [{ url: 'afterimage.png' }] } }, damageNumbers: {} },
+  combat: {
+    hit: { sound: 'combat-hit.mp3' },
+    attack: { afterimage: { frames: [{ url: 'afterimage.png' }] } },
+    damageNumbers: {
+      normal: { first: { 0: { url: 'dmg-red-0.png' } }, rest: {} },
+      critical: { first: { 0: { url: 'dmg-crit-0.png' } }, rest: {} },
+      recoverHp: { first: { 0: { url: 'dmg-green-0.png' } }, rest: {} },
+      recoverMp: { first: { 0: { url: 'dmg-blue-0.png' } }, rest: {} },
+    },
+  },
   skillEffects: { 1000: { attack: [{ url: 'skill-fx.png' }] } },
   skillSounds: { 1000: { use: { url: 'skill-use.mp3' }, hit: { url: 'skill-hit.mp3' } } },
   levelUp: { sound: { url: 'levelup.mp3' } },
@@ -63,6 +72,12 @@ assert.equal(urls[1], 'layer-b.png');
 assert.equal(urls.filter(url => url === 'layer-a.png').length, 1, '重复 url 只入队一次');
 for (const expected of ['layer-b-0.png', 'body-walk.png', 'cap-walk.png', 'afterimage.png']) {
   assert.ok(urls.includes(expected), `首屏缺少 ${expected}`);
+}
+// 四套数字集**全部**进首屏（含绿/蓝）：跳字是「事件那一帧就要画」的表现，蓝字
+// （魔心扣魔/回魔）与绿字（回血）漏进预加载 = 线上永远画不出来、离线检查全绿
+// ——2026-09-19 魔心防禦扣魔不跳字的实锤根因，这里双向钉死。
+for (const expected of ['dmg-red-0.png', 'dmg-crit-0.png', 'dmg-green-0.png', 'dmg-blue-0.png']) {
+  assert.ok(urls.includes(expected), `数字集必须整本进首屏：缺少 ${expected}`);
 }
 assert.ok(!urls.includes('layer-c.png'), '其余地图不得进首屏（切图时 scene.restart 会重新 preload）');
 for (const entry of plan.images) assert.equal(entry.key, entry.url, 'key 与 url 相同（与原实现一致）');

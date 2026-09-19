@@ -70,6 +70,7 @@ impl World {
                         skills: Vec::new(),
                         body_disease: None,
                         body_disease_level: None,
+                        pushed: None,
                     },
                     player.state.x,
                     player.state.y,
@@ -228,6 +229,12 @@ impl World {
                 }
             }
             if let Some(target_id) = resolution.target_id.as_deref() {
+                // 击退方向要「远离攻击者」，所以先把攻击者的 x 取出来：一旦进了
+                // `monsters.get_mut` 就借不到 `players` 了。
+                let attacker_x = self
+                    .players
+                    .get(&attack.player_id)
+                    .map(|player| player.state.x);
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     if resolution.damage > 0 {
                         let contribution = monster
@@ -240,6 +247,9 @@ impl World {
                         mark_monster_hit_aggro(monster, &attack.player_id, self.tick);
                     }
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+                    // 源 `info/pushed` 的阈值判定：伤害达到阈值就登记一次击退，
+                    // 真正的位移由 `step_monsters` 在步进开头走完。
+                    register_monster_knockback(monster, resolution.damage, attacker_x);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
                     monster.state.action_started_tick = self.tick;
                     if monster.state.hp == 0 {

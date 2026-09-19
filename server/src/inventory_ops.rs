@@ -1280,12 +1280,23 @@ impl World {
                 // Percentage recovery (`hpR`/`mpR`) is resolved against this
                 // body's own maxima, so the same potion scales with the
                 // character instead of carrying a baked-in amount.
-                if let Some(player) = self.players.get_mut(&id) {
+                let recovered = if let Some(player) = self.players.get_mut(&id) {
                     let (hp, mp) = effect.resolve(player.state.max_hp, player.state.max_mp);
-                    player.state.hp = (player.state.hp + hp).min(player.state.max_hp);
-                    player.state.mp = (player.state.mp + mp).min(player.state.max_mp);
-                }
-                inventory::remove_items(&mut inventory_items, 2, source_slot, 1).map(|_| ())
+                    let next_hp = (player.state.hp + hp).min(player.state.max_hp);
+                    let next_mp = (player.state.mp + mp).min(player.state.max_mp);
+                    // 跳字要的是**实际增加量**：满血时喝药水不会跳出一个假的数字。
+                    let recovered = (next_hp - player.state.hp, next_mp - player.state.mp);
+                    player.state.hp = next_hp;
+                    player.state.mp = next_mp;
+                    recovered
+                } else {
+                    (0, 0)
+                };
+                inventory::remove_items(&mut inventory_items, 2, source_slot, 1).map(|_| {
+                    // 只在药水真的被消耗掉之后才跳字：恢复已经落库/落状态，而这
+                    // 一步失败时物品还在包里，不该给出「已经喝了」的表现。
+                    self.emit_recovery_event(&id, recovered.0, recovered.1, "potion");
+                })
             } else if inventory::scroll_effect(&item_id).is_some() {
                 // Work on clones until both source consumption and target
                 // validation succeed.  Failed target/category checks must

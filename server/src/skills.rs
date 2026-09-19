@@ -1091,6 +1091,9 @@ impl World {
         } else {
             0
         };
+        // 跳字要的是**实际增加量**：`healed_hp` 已被 `max_hp` 夹过，顶着上限时它
+        // 比 `per_tick` 小。必须在 `state` 被 move 进 `healed_state` 之前算出来。
+        let healed_gain = healed_hp - state.hp;
         if healed_hp != state.hp {
             let mut healed_state = state;
             healed_state.hp = healed_hp;
@@ -1106,6 +1109,7 @@ impl World {
             if let Some(player) = self.players.get_mut(id) {
                 player.state.hp = healed_hp;
             }
+            self.emit_recovery_event(id, healed_gain, 0, "recovery");
         }
         if let Some(player) = self.players.get_mut(id) {
             player.beginner_heal_remaining_ticks = next_remaining_ticks;
@@ -1412,6 +1416,9 @@ impl World {
         if resolution.already_resolved {
             return Ok(());
         }
+        // 击退方向要「远离攻击者」，先把攻击者的 x 取出来（进 `monsters.get_mut`
+        // 之后就借不到 `players` 了）。
+        let attacker_x = self.players.get(id).map(|player| player.state.x);
         if let Some(monster) = self.monsters.get_mut(&target_id) {
             if resolution.damage > 0 {
                 let contribution = monster.damage_by_player.entry(id.to_owned()).or_default();
@@ -1422,6 +1429,7 @@ impl World {
                 mark_monster_hit_aggro(monster, &id, self.tick);
             }
             monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+            register_monster_knockback(monster, resolution.damage, attacker_x);
             monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
             monster.state.action_started_tick = self.tick;
             if monster.state.hp == 0 {
@@ -2612,12 +2620,15 @@ impl World {
                 if resolution.already_resolved {
                     continue;
                 }
+                // 同上：攻击者位置要在借走 `monsters` 之前取。
+                let attacker_x = self.players.get(id).map(|player| player.state.x);
                 if resolution.damage > 0 && is_nonsummon_direct_skill(skill_id) {
                     self.advance_mystic_strike(id, request_id, target_id);
                     successful_direct_targets.insert(target_id.clone());
                 }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+                    register_monster_knockback(monster, resolution.damage, attacker_x);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
                     monster.state.action_started_tick = self.tick;
                     if monster.state.hp == 0 {
@@ -3001,6 +3012,8 @@ impl World {
                 if resolution.already_resolved {
                     continue;
                 }
+                // 同上：攻击者位置要在借走 `monsters` 之前取。
+                let attacker_x = self.players.get(id).map(|player| player.state.x);
                 if resolution.damage > 0 {
                     self.advance_mystic_strike(id, request_id, target_id);
                     successful_direct_targets.insert(target_id.clone());
@@ -3015,6 +3028,7 @@ impl World {
                         mark_monster_hit_aggro(monster, &id, self.tick);
                     }
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
+                    register_monster_knockback(monster, resolution.damage, attacker_x);
                     monster.state.action = if monster.state.hp == 0 { "die" } else { "hit" };
                     monster.state.action_started_tick = self.tick;
                     if monster.state.hp == 0 {

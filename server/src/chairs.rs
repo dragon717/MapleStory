@@ -220,16 +220,25 @@ impl World {
                     }
                 }
             }
-            let Some(player) = self.players.get_mut(&id) else {
-                continue;
+            // 借用的作用域刻意收进块里：恢复跳字要在 `player` 的可变借用结束之后
+            // 再借用 `self`，所以先把「实际加了多少」取出来。
+            let recovered = {
+                let Some(player) = self.players.get_mut(&id) else {
+                    continue;
+                };
+                if let Some(chair) = player.chair.as_mut() {
+                    chair.next_recovery_at = Some(next_recovery_at);
+                }
+                if changed {
+                    let recovered = (hp - player.state.hp, mp - player.state.mp);
+                    player.state.hp = hp;
+                    player.state.mp = mp;
+                    recovered
+                } else {
+                    (0, 0)
+                }
             };
-            if let Some(chair) = player.chair.as_mut() {
-                chair.next_recovery_at = Some(next_recovery_at);
-            }
-            if changed {
-                player.state.hp = hp;
-                player.state.mp = mp;
-            }
+            self.emit_recovery_event(&id, recovered.0, recovered.1, "chair");
         }
     }
 }

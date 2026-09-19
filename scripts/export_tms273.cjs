@@ -462,8 +462,17 @@ async function exportEffects() {
   }
   const maps=JSON.parse(fs.readFileSync(path.join(output,'maps-rendered.json'),'utf8')).maps,bgm={};
   for(const m of maps){const [archive,...rest]=m.bgmSource.split('/');bgm[m.id]=await sound(`Sound/${archive}.img/${rest.join('/')}`);}
+  //  `Effect/BasicEff.img` 下的数字集按用途分档，着色是**帧自身的像素**，不是运行期染色。
+  //  逐档实测（导出 PNG 的主色）：
+  //    NoRed*        橙红→黄   普通伤害：对怪与自身受伤共用，与原版一致
+  //    NoCri*        深红大字   暴击
+  //    NoProduction* 绿色       HP 恢复
+  //    NoBlue*       蓝色       MP 恢复 / 魔心防禦的扣魔
+  //  注意 `NoProduction` / `NoKite` 的 `0` 与 `1` 在源里是同一批字节（UOL 指向同一个
+  //  canvas），也就是**只有一个字号**。这里照实导出两档用于保持 `first`/`rest` 的形状，
+  //  但绝不伪造第二套尺寸——拼数字时两档会自然取到同一帧。
   const damageNumbers={};
-  for(const [kind,prefix] of [['normal','NoRed'],['critical','NoCri']]) {
+  for(const [kind,prefix] of [['normal','NoRed'],['critical','NoCri'],['recoverHp','NoProduction'],['recoverMp','NoBlue']]) {
     const set={};for(const [place,index] of [['first',0],['rest',1]]) {
       set[place]={};for(let i=0;i<10;i++)set[place][String(i)]=await frame(`Effect/BasicEff.img/${prefix}${index}/${i}`);
     }damageNumbers[kind]=set;

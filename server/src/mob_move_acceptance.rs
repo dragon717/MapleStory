@@ -262,3 +262,82 @@ fn no_move_animation_still_means_no_movement() {
     advance(&mut walker, 0, 40);
     assert_eq!(walker.monsters[&id].state.action, "move");
 }
+
+/// 击退的源判据：`info/pushed` 是**击退所需的单次伤害阈值**，不是击退距离。
+///
+/// 用真实 catalog 里的菇菇寶貝模板（它的 `pushed` 直接来自源，不是测试编出来的），
+/// 把四件事钉住：缺阈值按「推不动」处理、源里 `0` 反过来是「任何伤害都能击退」、
+/// 未达阈值不登记、达到阈值才沿背离攻击者的方向退开，并且位移真的落在快照可见的
+/// 权威坐标 `state.x` 上。
+#[test]
+fn knockback_needs_the_source_pushed_threshold_and_moves_away_from_the_attacker() {
+    let mut world = mushroom_world("1210102", Some(-30.0), Some(900));
+    let id = park_in_stand(&mut world);
+    let threshold = world.monsters[&id]
+        .template
+        .pushed
+        .expect("1210102 的源里有 info/pushed");
+    assert!(threshold > 0, "真实怪物的阈值应当是一个正的伤害门槛");
+
+    // 源里没有 `pushed` 的模板按「推不动」处理：凭空给 0 会让任何伤害都击退，
+    // 那是一条比源更强的规则。
+    let monster = world.monsters.get_mut(&id).unwrap();
+    monster.state.hp = monster.state.max_hp;
+    monster.state.action = "hit";
+    monster.state.action_started_tick = world.tick;
+    monster.template.pushed = None;
+    register_monster_knockback(monster, i64::MAX, Some(0.0));
+    assert_eq!(world.monsters[&id].knockback_pixels, 0.0, "缺阈值不得登记击退");
+
+    // 源里 `pushed = 0` 的语义恰恰相反：任何有效伤害都能击退。
+    let monster = world.monsters.get_mut(&id).unwrap();
+    monster.template.pushed = Some(0);
+    register_monster_knockback(monster, 1, Some(0.0));
+    let registered = monster.knockback_pixels;
+    monster.knockback_pixels = 0.0;
+    assert!(registered > 0.0, "源里 0 表示任何伤害都能击退");
+
+    // 未达阈值：放进 hit 硬直（硬直期间本就不会自然走动），确认一步都不退。
+    let monster = world.monsters.get_mut(&id).unwrap();
+    monster.template.pushed = Some(threshold);
+    monster.state.hp = monster.state.max_hp;
+    monster.state.action = "hit";
+    monster.state.action_started_tick = world.tick;
+    register_monster_knockback(monster, threshold - 1, Some(0.0));
+    assert_eq!(world.monsters[&id].knockback_pixels, 0.0, "低于阈值不得登记击退");
+    let before = world.monsters[&id].state.x;
+    let tick = world.tick;
+    advance(&mut world, tick + 1, 1);
+    assert_eq!(world.monsters[&id].state.x, before, "低于阈值不该被推开");
+
+    // 达到阈值：攻击者在左侧 ⇒ 向右退，位移落在权威坐标上，待办清零。
+    let monster = world.monsters.get_mut(&id).unwrap();
+    monster.state.hp = monster.state.max_hp;
+    monster.state.action = "hit";
+    monster.state.action_started_tick = world.tick;
+    register_monster_knockback(monster, threshold, Some(0.0));
+    assert!(
+        world.monsters[&id].knockback_pixels > 0.0,
+        "攻击者在左侧 ⇒ 该向右退"
+    );
+    let before = world.monsters[&id].state.x;
+    let tick = world.tick;
+    advance(&mut world, tick + 1, 1);
+    assert!(
+        world.monsters[&id].state.x > before,
+        "位移要落在快照可见的权威坐标上"
+    );
+    assert_eq!(world.monsters[&id].knockback_pixels, 0.0, "结算后待办清零");
+
+    // 反向：攻击者在右侧 ⇒ 向左退。方向只由攻击者位置决定，与怪物朝向无关。
+    let monster = world.monsters.get_mut(&id).unwrap();
+    monster.state.hp = monster.state.max_hp;
+    monster.state.action = "hit";
+    monster.state.action_started_tick = world.tick;
+    monster.state.x = 100.0;
+    register_monster_knockback(monster, threshold, Some(10_000.0));
+    assert!(
+        world.monsters[&id].knockback_pixels < 0.0,
+        "攻击者在右侧 ⇒ 该向左退"
+    );
+}

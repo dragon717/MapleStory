@@ -64,6 +64,7 @@ fn party_template() -> MonsterTemplate {
         skills: Vec::new(),
         body_disease: None,
         body_disease_level: None,
+        pushed: None,
     }
 }
 

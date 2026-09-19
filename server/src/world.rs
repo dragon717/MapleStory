@@ -118,7 +118,7 @@ pub(crate) mod windbell;
 use self::attribute::*;
 use self::damage::*;
 use self::derived::*;
-use self::monsters::mark_monster_hit_aggro;
+use self::monsters::{mark_monster_hit_aggro, register_monster_knockback};
 use self::movement::*;
 use self::player_status::{Disease, Expiry, PlayerStatus, Release};
 
@@ -430,6 +430,13 @@ const MOB_DEFAULT_SPEED_OFFSET: f64 = 0.0;
 // on the counter gate, so this recovery window is the authoritative state
 // transition used here.
 const MOB_HIT_RECOVERY_MS: u64 = 248;
+
+/// 一次达到源 `info/pushed` 阈值的命中，把怪物沿远离攻击者的方向推开多少像素。
+///
+/// P: 这个**距离**不是源数据。客户端只记录阈值（`pushed`），原版资料
+/// （mapleclassic.wiki/Knockback）明确写着「推开多远」属服务端行为、文件里没有。
+/// 取一个身位量级的值：够看出「被打退了一步」，又不会把怪推出它自己的巡逻段。
+const MOB_KNOCKBACK_PIXELS: f64 = 50.0;
 
 // ---- Monster pursuit / aggro (server-authoritative). ----
 // Being hit marks a mob's attacker as its target.  It then chases that
@@ -877,6 +884,12 @@ pub struct MonsterTemplate {
     pub body_disease: Option<u32>,
     #[serde(default)]
     pub body_disease_level: Option<u32>,
+    /// 原版 `info/pushed`：**击退所需的单次伤害阈值**，不是击退距离。一次命中的
+    /// 伤害达到它，怪物才被打断并被推开；源里 `0` 表示任何伤害都能击退，而巨大值
+    /// （本仓库源里 Boss 到 6868800）自然就是「任何一次命中都推不动」，不需要为
+    /// Boss 另开一条分支。缺失时按「推不动」处理——凭空给 0 会造出一条比源更强的规则。
+    #[serde(default)]
+    pub pushed: Option<i64>,
 }
 
 fn deserialize_boolish<'de, D>(deserializer: D) -> Result<bool, D::Error>
@@ -1683,6 +1696,13 @@ struct Monster {
     /// A mob only casts while it has a live pursuit target, and each cast
     /// advances this by the skill's authored `interval` (seconds).
     next_skill_tick: u64,
+    /// 待结算的击退位移（像素，正 = 向右，0 = 没有待办的击退）。
+    ///
+    /// 命中那一刻只**登记**「该退多少」：真正的移动要沿 foothold 走并可能撞墙，
+    /// 那需要地图与段链，只有 `step_monsters` 拿得到。结算发生在怪物步进的**最开头**
+    /// （任何冻结/眩晕/绑定的 `continue` 之前），所以登记过就一定会退，不会因为
+    /// 同一 tick 还挨了冰冻而把这次击退整段吞掉、留下一个过期的方向。
+    knockback_pixels: f64,
 }
 
 struct PendingAttack {
@@ -2700,6 +2720,41 @@ impl World {
             self.pending_attacks
                 .retain(|_, attack| attack.player_id != id);
         }
+    }
+
+    /// 把一次**资源恢复**定向推给当事人自己。
+    ///
+    /// 恢复是私事：同图其他人不该看到你喝药水、坐椅子或魔力激发的数字。这里刻意
+    /// 不做广播，只走 `output.try_send`——与 `broadcast_to_map` 同一套失败语义：
+    /// 队列满就丢这一条（跳字是表现，不是状态），连接断掉由各自的清理路径收口。
+    ///
+    /// `hp`／`mp` 必须是**实际增加量**（已按当前上限夹过），不是技能或道具声明的
+    /// 数值：已经顶到上限时两者并不相等，而跳字要显示的是「这一拍到底加了多少」。
+    ///
+    /// 唯一刻意**不**调这里的是自然恢复（`regeneration_passives_for_job` 的每秒
+    /// 被动回复）：原版那条路径不产生跳字，每秒触发也只会持续刷屏。
+    pub(crate) fn emit_recovery_event(&mut self, id: &str, hp: i64, mp: i64, source: &str) {
+        if hp <= 0 && mp <= 0 {
+            return;
+        }
+        let tick = self.tick;
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        let message = serde_json::json!({
+            "type": "recoveryEvent",
+            "eventId": format!("recovery-{}-{}-{}", id, tick, source),
+            "serverTick": tick,
+            "playerId": id,
+            "x": player.state.x,
+            "y": player.state.y,
+            "hp": hp.max(0),
+            "mp": mp.max(0),
+            "source": source,
+        })
+        .to_string();
+        // 只发给本人；投递失败不代表状态有问题，快照里的 HP/MP 仍是权威。
+        let _ = player.output.try_send(message);
     }
 
     /// Return used-up reactors to state 0 when their authored timer expires.

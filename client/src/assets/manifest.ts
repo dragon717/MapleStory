@@ -357,7 +357,16 @@ export interface CombatAssets {
   attack?: { afterimage?: AfterimageAsset };
   /** Mob.wz hit1 already contains the source-backed impact slash; this sound is its matching Sound.wz cue. */
   hit?: { sound?: string; soundSource?: string };
-  damageNumbers?: { normal: DamageNumberSet; critical?: DamageNumberSet };
+  damageNumbers?: {
+    normal: DamageNumberSet;
+    critical?: DamageNumberSet;
+    /** HP 恢复用的绿色数字集（源 `Effect/BasicEff.img/NoProduction*`）。
+     *  源里 `NoProduction` 的 `0`/`1` 是同一批字节（只有一个字号），
+     *  所以拼多位数时首位与后续会取到同一帧，这是照实呈现而不是丢了一半。 */
+    recoverHp?: DamageNumberSet;
+    /** MP 恢复与魔心防禦扣魔用的蓝色数字集（源 `Effect/BasicEff.img/NoBlue*`）。 */
+    recoverMp?: DamageNumberSet;
+  };
 }
 // AvatarActionSet 定义在 ./avatar-types（见文件头 re-export）。
 export interface AvatarEquipmentLoadout {

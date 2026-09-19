@@ -111,6 +111,7 @@ fn seal_template() -> MonsterTemplate {
         skills: vec![seal_skill()],
         body_disease: None,
         body_disease_level: None,
+        pushed: None,
     }
 }
 

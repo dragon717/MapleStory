@@ -618,6 +618,10 @@ def convert(args):
             ("PADamage", "paDamage", True),
             ("PDRate", "pdRate", False),
             ("speed", "speed", False),
+            # `pushed` 是原版**击退所需的单次伤害阈值**，不是击退距离：一次命中的
+            # 伤害达到它，怪物才被打断并被推开（源里 0 表示任何伤害都能击退）。
+            # 它只参与表现，不参与任何伤害数值，所以照源导入，不做换算。
+            ("pushed", "pushed", True),
         ):
             value = number(info.get(source_key), integer=integer)
             if value is not None:
@@ -703,6 +707,7 @@ def convert(args):
             "entitySource": entity_mobs.get(runtime, {}).get("source") if entity_mobs else None,
             "PDRate": info.get("PDRate"),
             "MDRate": info.get("MDRate"),
+            "pushed": info.get("pushed"),
             "dropSource": path_text(reward_path, tms_root) if reward_path.exists() else None,
             "bodyDisease": info.get("bodyDisease"),
             "bodyDiseaseLevel": info.get("bodyDiseaseLevel"),
@@ -941,6 +946,68 @@ def convert(args):
     return gameplay, items, quest_text, {"schemaVersion": 1, "kind": "npc-name-zh", "generatedFrom": "TMS273 WZ_JSON_TW/String/Npc.json", "encoding": "UTF-8", "npcs": {item["templateId"]: item["name"] for item in npc_templates}}
 
 
+def backfill_monster_pushed(tms_root, output_dir):
+    """只回填 ``gameplay.json`` 里每个怪物模板的 ``pushed``。
+
+    整跑一次生成器需要 198 张地图的 WZ_JSON_TW 副本，而参考树当前缺其中若干张
+    （例如 ``Map/Map/Map0/001000003.json``），那条路在本机走不通。``pushed`` 只从
+    Mob 源读、与地图无关，所以这里按**同一套 ``unwrap`` / ``number`` 口径**单独回填，
+    不触碰别的字段：生成器将来能整跑时，它产出的 ``pushed`` 与本模式逐条相同。
+
+    ⚠️ 落盘目标只能是 ``--output-dir`` 下的**导出树**产物，不能是 ``shared/gameplay.json``：
+    后者是 ``assemble_tms273.cjs`` 从导出树**派生**出来的副本（连同
+    ``client/public-tms273/assets/gameplay.json``），每次重跑装配器都会用导出树的当前
+    内容重写它。往派生副本里写，下一次装配就静默归零，而且没有任何门禁会说话。
+
+    落盘格式必须与现有形态一致（紧凑、单行、末尾换行），否则一次回填会把这整个文件
+    重排，真实改动被格式噪音淹没。
+    """
+    path = output_dir / "gameplay.json"
+    gameplay = read_json(path)
+    templates = gameplay["monsters"]
+    sources = gameplay.get("sources", {}).get("monsters", {})
+    changed = 0
+    for template in templates:
+        runtime = template["templateId"]
+        source = template.get("source")
+        if not source:
+            raise ValueError("monster %s has no source path" % runtime)
+        mob_path = tms_root / source
+        if not mob_path.exists():
+            raise FileNotFoundError("missing TMS273 monster source JSON: %s" % mob_path)
+        info = unwrap(read_json(mob_path).get("info", {}))
+        info = info if isinstance(info, dict) else {}
+        pushed = number(info.get("pushed"), integer=True)
+        if pushed is None:
+            raise ValueError("monster %s source has no info/pushed" % runtime)
+        if template.get("pushed") != pushed:
+            changed += 1
+            # 位置对齐整跑时的插入点：紧跟在 `speed` 之后。
+            rebuilt = {}
+            for key, value in template.items():
+                if key == "pushed":
+                    continue
+                rebuilt[key] = value
+                if key == "speed":
+                    rebuilt["pushed"] = pushed
+            if "pushed" not in rebuilt:
+                rebuilt["pushed"] = pushed
+            template.clear()
+            template.update(rebuilt)
+        row = sources.get(runtime)
+        if isinstance(row, dict):
+            row["pushed"] = info.get("pushed")
+    path.write_text(
+        json.dumps(gameplay, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    print(
+        "Backfilled info/pushed for %d monster templates (%d changed)"
+        % (len(templates), changed)
+    )
+    return 0
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tms-root", type=Path, default=DEFAULT_TMS_ROOT)
@@ -948,11 +1015,22 @@ def parse_args(argv):
     parser.add_argument("--entities", type=Path, default=DEFAULT_ENTITIES)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--metadata-only", action="store_true", help="write review metadata without activating entity graphics")
+    parser.add_argument(
+        "--backfill-pushed",
+        action="store_true",
+        help="only backfill info/pushed into <output-dir>/gameplay.json (no map reference data needed)",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.backfill_pushed:
+        try:
+            return backfill_monster_pushed(args.tms_root, args.output_dir)
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            print("generate_tms273_gameplay: %s" % error, file=sys.stderr)
+            return 2
     try:
         gameplay, items, quest_text, npc_names = convert(args)
         write_json(args.output_dir / "gameplay.json", gameplay)
