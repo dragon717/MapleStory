@@ -374,6 +374,53 @@
   gap: 4px;
 }
 
+/* 子页签（骑宠页下的「骑宠 / 鞍具」）：同一页签里的第二级导航，所以做成一行
+   分段按钮，与下面竖排的浏览方式区分开。配色沿用索引栏的青色族与纸面色。 */
+.notebook-subtabs {
+  flex: 0 0 auto;
+  display: flex;
+  border: 1px solid var(--nb-frame-2);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--nb-paper);
+}
+
+.notebook-subtab {
+  flex: 1 1 0;
+  padding: 5px 6px;
+  border: 0;
+  border-left: 1px solid var(--nb-frame-2);
+  background: transparent;
+  color: var(--nb-ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebook-subtab:first-child {
+  border-left: 0;
+}
+
+.notebook-subtab:hover {
+  background: var(--nb-teal-soft);
+}
+
+.notebook-subtab[data-active='true'],
+.notebook-subtab[aria-selected='true'] {
+  background: var(--nb-teal);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.notebook-subtab:focus-visible {
+  outline: 2px solid var(--nb-teal-2);
+  outline-offset: -2px;
+}
+
 /* ---------------------------------------------------------------- 内容视口
  * 666x480，按源坐标放；页签条下缘的分隔线在 y110，视口从 y120 起。 */
 .notebook-content {

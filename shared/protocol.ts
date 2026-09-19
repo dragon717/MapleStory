@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 26;
+export const PROTOCOL_VERSION = 27;
 export const CONTENT_VERSION = 'tms273-32';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -348,8 +348,12 @@ export type ClientMessage =
  *  folded into the equipment page's obtainable denominator. `chair` is the same
  *  shape: chairs ship as `shared/chairs.json` (`Item/Install/0301*`, `0302`),
  *  the item tree carries only the couple that a shop really sells, and the rest
- *  of the family lives only on this page. */
-export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'mount' | 'chair' | 'quest';
+ *  of the family lives only on this page. `saddle` is the `Sd` half of
+ *  `shared/mounts.json` — the 26 saddle items that sit on a mount but carry no
+ *  `tamingMob` (so the ride check never treats them as mounts). It is shown as
+ *  a sub-page of the mount tab, and it is a section of its own so that
+ *  membership stays a disjoint cover: one item belongs to exactly one page. */
+export type NotebookSection = 'monster' | 'equipment' | 'use' | 'setup' | 'etc' | 'cash' | 'pet' | 'mount' | 'saddle' | 'chair' | 'quest';
 /** How the server narrows an item page.  It is interpreted **inside** the
  *  server's own set, so no value of it can reveal an un-obtained quest entry:
  *  - `available` (default, and any unknown value): only templates the catalog

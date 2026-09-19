@@ -60,6 +60,8 @@ export class InventoryView {
   private selectedTab = 0;
   private inventory: InventoryPlayer['inventory'] = [];
   private equipped: InventoryItem[] = [];
+  /** 服务器快照里正在骑乘的骑宠 id（缺席＝没在骑）。只用于装备窗的高亮与文案。 */
+  private mountedItemId?: string;
   private mesos = 0;
   /** Server-owned consumable cooldowns (item id -> remaining ms); display only. */
   private potionCooldowns: Record<string, number> = {};
@@ -218,6 +220,7 @@ export class InventoryView {
 
     const equipment = new EquipmentView(this.root, manifest, this.equipmentLayout, {
       equippedItemAt: slot => this.equippedAt(slot),
+      mountedItemId: () => this.mountedItemId,
       selectingTarget: () => this.intents.hasScrollTarget(),
       itemFrame: itemId => this.itemIconFrame(itemId),
       assetImage: (frame, className) => this.assetImage(frame, className),
@@ -305,6 +308,9 @@ export class InventoryView {
     }
     this.inventory = player.inventory.slice();
     this.equipped = (player.equipped ?? []).slice();
+    // 骑乘状态是**快照事实**（`PlayerState.mount`），不是从装备推出来的：
+    // 装备窗只拿它做高亮与文案，判定仍在服务端。
+    this.mountedItemId = player.mount?.itemId;
     this.mesos = Math.max(0, Math.floor(player.mesos));
     this.potionCooldowns = { ...(player.potionCooldowns ?? {}) };
     this.inventorySlots = { ...(player.inventorySlots ?? {}) };
@@ -317,6 +323,7 @@ export class InventoryView {
       equipped: this.equipped,
       potionCooldowns: this.potionCooldowns,
       inventorySlots: this.inventorySlots,
+      mounted: this.mountedItemId ?? '',
     });
     if (signature !== this.slotsSignature) {
       if (!this.keepGatherResultMode) this.sortMode = false;
@@ -397,6 +404,7 @@ export class InventoryView {
   clear() {
     this.inventory = [];
     this.equipped = [];
+    this.mountedItemId = undefined;
     this.mesos = 0;
     this.potionCooldowns = {};
     this.inventorySlots = {};

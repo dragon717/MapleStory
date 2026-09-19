@@ -264,6 +264,10 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   notebookTabUse: { zh: '道具图鉴', en: 'Use items' },
   // 骑宠（源 `Character/TamingMob`）：不在物品树里，因此是独立页签。
   notebookTabMount: { zh: '骑宠', en: 'Mounts' },
+  // 鞍具：与骑宠出自同一张源表（`islot = Sd` 的那 26 件），在骑宠页里作为子页签。
+  // 它**不是**坐骑（源没给 `tamingMob`），所以不跟骑宠混在同一张格架里。
+  notebookSubSaddle: { zh: '鞍具', en: 'Saddles' },
+  notebookSubMount: { zh: '骑宠', en: 'Mounts' },
   // 椅子（源 `Item/Install/0301*`、`0302`）：与骑宠同族，因此也是独立页签。
   notebookTabChair: { zh: '椅子', en: 'Chairs' },
   notebookTabQuest: { zh: '任务道具', en: 'Quest items' },
@@ -295,6 +299,9 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   notebookMountTier: { zh: '坐骑档', en: 'Ride tier' },
   // 源里有坐骑装备但没有 `info.tamingMob`：如实说源没给，不猜一个档位。
   notebookMountTierMissing: { zh: '源未提供', en: 'not authored in source' },
+  // 鞍具不属于坐骑（源不给它 `tamingMob`），所以详情里报的是它自己的佩戴等级；
+  // 等级缺席＝源没写，照实说它源未提供。
+  notebookSaddleReqLevel: { zh: '佩戴等级', en: 'Required level' },
   // 椅子的恢复量（`info.recoveryHP` / `recoveryMP`）与间隔：间隔缺席＝源未核定，
   // 运行时不套默认值，图鉴也照实说未核定。
   notebookChairRecovery: { zh: '恢复', en: 'Recovery' },

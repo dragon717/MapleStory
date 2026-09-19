@@ -54,6 +54,13 @@ const MONSTER_BLOCKED: &str =
 const MOUNT_BLOCKED: &str =
     "本版本没有开放的骑宠获取途径（源 notSale / only，不进掉落与商店）；已发放到手的会如实记录在这里。";
 
+/// 鞍具子页要一并说清的事实：鞍具与骑宠出自同一张表（源同样标 `notSale / only`），
+/// 本版本没有开放的获取途径；而且它们在本构建里**不带任何属性、也不参与骑乘判定**
+/// （源没给它们 `tamingMob`），所以「先装上马鞍才能骑」在这里并不成立——页内把
+/// 这件事写出来，而不是让玩家去猜。
+const SADDLE_BLOCKED: &str =
+    "本版本没有开放的鞍具获取途径（源 notSale / only）；鞍具在本构建里不带属性、也不参与骑乘判定，骑乘与否由骑宠本身决定。已发放到手的会如实记录在这里。";
+
 /// 椅子页要一并说清的事实：源把椅子整族排除在掉落与商店之外（只有个位数真的
 /// 进商店），所以「已获得」基本只可能来自发放。页内写这一句，而不是把 2799 格
 /// 全标成「本版本未开放」（那是噪声，且掩盖了「发放／商店买到的会记录」）。
@@ -75,6 +82,7 @@ fn catalog_section(section: NotebookSection) -> Option<&'static str> {
         NotebookSection::Cash => Some("cash"),
         NotebookSection::Pet => Some("pet"),
         NotebookSection::Mount => Some(facts::MOUNT_SECTION),
+        NotebookSection::Saddle => Some(facts::SADDLE_SECTION),
         NotebookSection::Chair => Some(facts::CHAIR_SECTION),
         NotebookSection::Quest => Some("quest"),
     }
@@ -468,10 +476,13 @@ fn item_rows(
         );
     };
     let is_quest = section == NotebookSection::Quest;
-    // 骑宠与椅子都不在物品树里（源 `Character/TamingMob` 与
+    // 骑宠、鞍具与椅子都不在物品树里（源 `Character/TamingMob` 与
     // `Item/Install/0301*`、`0302`），因此各有自己的口径，见 `MOUNT_BLOCKED` /
-    // `CHAIR_BLOCKED` 与下面的分母。
+    // `SADDLE_BLOCKED` / `CHAIR_BLOCKED` 与下面的分母。
+    // 骑宠与鞍具是**同一张表的两半**（源 `islot` `Tm` / `Sd`），口径一致：
+    // 基集合是整张表，浏览方式只再分「已获得 / 未获得」。
     let is_mount = section == NotebookSection::Mount;
+    let is_saddle = section == NotebookSection::Saddle;
     let is_chair = section == NotebookSection::Chair;
     let all_ids: Vec<String> = catalog
         .section_ids(name)
@@ -491,11 +502,12 @@ fn item_rows(
                 // `unverified` 就被过滤掉，那玩家反而看不到自己做过什么。
                 return true;
             }
-            if is_mount {
-                // 骑宠：基集合是**整张坐骑表**。本版本没有任何开放获取途径，
-                // 按「当前可获得」过滤会得到空页，读起来像「本版本没有坐骑」；
-                // 浏览方式因此只再分「已获得 / 未获得」，`available` 与 `all`
-                // 一样是全集（P：展示口径，页面同时给出 `MOUNT_BLOCKED`）。
+            if is_mount || is_saddle {
+                // 骑宠页与鞍具子页：基集合是**整张表**。本版本没有任何开放获取
+                // 途径，按「当前可获得」过滤会得到空页，读起来像「本版本没有坐骑 /
+                // 没有鞍具」；浏览方式因此只再分「已获得 / 未获得」，`available`
+                // 与 `all` 一样是全集（P：展示口径，页面同时给出
+                // `MOUNT_BLOCKED` / `SADDLE_BLOCKED`）。
                 return match browse {
                     NOTEBOOK_MODE_OBTAINED => records.contains_key(*id),
                     NOTEBOOK_MODE_MISSING => !records.contains_key(*id),
@@ -576,10 +588,10 @@ fn item_rows(
         "total": obtainable,
         "collectable": 0,
     });
-    if is_mount {
-        // 骑宠的分母是**整张坐骑表**（本版本把它的图标与骑行数值全部发布，
-        // 表本身就是全集），不是「当前可获得」——后者为 0，会把「935 件里有
-        // 3 件到手」报成「0 / 0」。P：展示口径，页面同时说明没有开放途径。
+    if is_mount || is_saddle {
+        // 分母是**整张表**（本版本把它们的图标与数值全部发布，表本身就是全集），
+        // 不是「当前可获得」——后者为 0，会把「935 件里有 3 件到手」报成
+        // 「0 / 0」。P：展示口径，页面同时说明没有开放途径。
         summary["total"] = serde_json::json!(catalog.section_ids(name).unwrap_or(&[]).len());
     }
     if is_chair {
@@ -598,6 +610,8 @@ fn item_rows(
         summary,
         if is_mount {
             Some(MOUNT_BLOCKED)
+        } else if is_saddle {
+            Some(SADDLE_BLOCKED)
         } else if is_chair {
             Some(CHAIR_BLOCKED)
         } else {
@@ -961,6 +975,94 @@ mod notebook_query_tests {
             &records,
         );
         assert!(!keys(&missing).contains(&first), "已获得的骑宠不该出现在「未获得」里");
+    }
+
+    /// 鞍具子页：与骑宠出自**同一张**源表（`shared/mounts.json`），是它 `islot = Sd`
+    /// 的那一半，而骑乘判定与它无关——源没给鞍具 `tamingMob`。
+    ///
+    /// 这条测试把三件事钉在一起：
+    ///   * 两个分区**不重叠**、合起来正好是坐骑表的键集（独立重算，不信目录自称）；
+    ///   * 分区边界＝骑乘判定的边界（`inventory::is_mount_item` 对每一件鞍具都 false）；
+    ///   * 这一页的基集合与分母都是整张鞍具表（26 件，没有一条开放途径）。
+    #[test]
+    fn saddle_page_is_the_taming_mob_free_half_of_the_mount_table() {
+        let catalog = facts::catalog();
+        let saddles: Vec<String> = catalog
+            .section_ids(facts::SADDLE_SECTION)
+            .expect("目录里必须有鞍具分区")
+            .to_vec();
+        let mounts: Vec<String> = catalog
+            .section_ids(facts::MOUNT_SECTION)
+            .expect("目录里必须有骑宠分区")
+            .to_vec();
+        assert!(saddles.len() > 1, "鞍具分区必须不止一条，否则这条检查没有意义");
+        assert!(!mounts.is_empty());
+
+        #[derive(serde::Deserialize)]
+        struct MountTable {
+            items: BTreeMap<String, serde_json::Value>,
+        }
+        let shipped: MountTable = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../shared/mounts.json"
+        )))
+        .expect("shared/mounts.json 必须可解析");
+        let mut union: Vec<String> = mounts.iter().chain(saddles.iter()).cloned().collect();
+        union.sort();
+        union.dedup();
+        assert_eq!(
+            union.len(),
+            mounts.len() + saddles.len(),
+            "同一个 id 不能既属于骑宠页又属于鞍具页"
+        );
+        let mut expected: Vec<String> = shipped.items.keys().cloned().collect();
+        expected.sort();
+        assert_eq!(union, expected, "骑宠＋鞍具必须正好是坐骑表的键集");
+
+        for id in &saddles {
+            assert!(
+                !crate::inventory::is_mount_item(id),
+                "鞍具 {id} 被判成了坐骑：源里它不该有 tamingMob"
+            );
+            assert_eq!(catalog.section_of(id), Some(facts::SADDLE_SECTION));
+            assert!(!catalog.is_mount(id), "鞍具 {id} 同时出现在骑宠表里");
+        }
+
+        let empty = BTreeMap::new();
+        for mode in [NOTEBOOK_MODE_AVAILABLE, NOTEBOOK_MODE_ALL, "nonsense"] {
+            let (rows, _, summary, blocked) =
+                item_rows(NotebookSection::Saddle, 0, None, mode, &empty);
+            assert_eq!(
+                rows.len(),
+                std::cmp::min(ITEM_PAGE_SIZE, saddles.len()),
+                "浏览方式 {mode} 把鞍具筛掉了"
+            );
+            assert_eq!(summary["total"], serde_json::json!(saddles.len()));
+            assert_eq!(blocked, Some(SADDLE_BLOCKED));
+            for row in &rows {
+                assert_eq!(row["obtained"], serde_json::json!(false));
+            }
+        }
+        let first = saddles[0].clone();
+        let records = BTreeMap::from([(first.clone(), (Some(11_i64), false))]);
+        let (obtained, _, summary, _) = item_rows(
+            NotebookSection::Saddle,
+            0,
+            None,
+            NOTEBOOK_MODE_OBTAINED,
+            &records,
+        );
+        assert_eq!(keys(&obtained), vec![first.clone()]);
+        assert_eq!(obtained[0]["firstRecordMs"], serde_json::json!(11));
+        assert_eq!(summary["registered"], serde_json::json!(1));
+        let (missing, _, _, _) = item_rows(
+            NotebookSection::Saddle,
+            0,
+            None,
+            NOTEBOOK_MODE_MISSING,
+            &records,
+        );
+        assert!(!keys(&missing).contains(&first), "已获得的鞍具不该出现在「未获得」里");
     }
 
     /// 椅子页：基集合是**整张椅子表**，分母也是它；`available` 只筛出真的进商店的

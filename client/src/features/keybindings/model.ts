@@ -2,7 +2,7 @@ import { shortcutSkill } from '../player/input';
 
 export const ACTIONS = [
   'attack', 'jump', 'pickup', 'talk', 'skills', 'quests', 'inventory', 'equipment',
-  'worldmap', 'keybind', 'character', 'pets', 'left', 'right',
+  'worldmap', 'keybind', 'character', 'pets', 'mount', 'left', 'right',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -21,11 +21,26 @@ export interface KeySlot {
 type StoredSlot = Pick<KeySlot, 'code' | 'shift'>;
 type StoredBindings = Record<string, KeyBinding>;
 interface StoredConfig {
-  version: 1;
+  version: number;
   customized: boolean;
   bindings: StoredBindings;
   slots: StoredSlot[];
+  /** 这次读**补过**上一版没有的默认按键（不是存档里的字段，是迁移标记）。
+   *  调用方据此立刻落盘一次，让迁移只做一遍。 */
+  migrated?: boolean;
 }
+
+/**
+ * 每一版新增的默认按键。  旧档里这些键**根本没出现过**（那一版没有它们），
+ * 所以补上不覆盖任何人的自定义；同理，只有**旧版**存档才补——现行存档里
+ * 一个键缺席就是玩家自己清掉了它，绝不复活。
+ *
+ * key 是 `bindingKey(code, shift)` 的写法，与存档里的键同构。
+ */
+const ADDED_DEFAULT_BINDINGS: Readonly<Record<string, KeyBinding>> = {
+  // 骑宠键（第 33 格之外：源快捷栏只有 32 格，所以它只是一个可绑定按键）。
+  'KeyR:0': { type: 'action', action: 'mount' },
+};
 
 export interface KeyBindingsOptions {
   /** Defaults to the browser's localStorage. Pass null to disable persistence. */
@@ -42,7 +57,12 @@ export interface StorageLike {
   removeItem?(key: string): void;
 }
 
+/** 快捷栏格数。  这是**源美术**的格数（两行 x 16 的槽位底板），不是可绑定键的
+ *  上限：按键本身可以绑在任意 `SUPPORTED_CODES` 上（骑宠键就是这样，它没有格子）。 */
 export const SLOT_COUNT = 32;
+/** 存档 schema 版本。  1 = 骑宠键加入之前；2 = 现行。  读旧档时要补上这一版
+ *  新增的默认按键（见 `ADDED_DEFAULT_BINDINGS`），但**不动**玩家自己的键。 */
+export const STORAGE_VERSION = 2;
 export const STORAGE_PREFIX = 'maplestory:keybindings:';
 
 /** Arrow keys are always movement/talk controls and never occupy a slot. */
@@ -125,7 +145,9 @@ function parseStored(raw: string): StoredConfig | undefined {
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object') return undefined;
     const document = value as Record<string, unknown>;
-    if (document.version !== 1 || typeof document.customized !== 'boolean' || !document.bindings || typeof document.bindings !== 'object' || !Array.isArray(document.slots) || document.slots.length !== SLOT_COUNT) return undefined;
+    // 只认得现行的与上一版两种 schema：别的版本是坏档，不是旧档。
+    const version = document.version;
+    if ((version !== 1 && version !== STORAGE_VERSION) || typeof document.customized !== 'boolean' || !document.bindings || typeof document.bindings !== 'object' || !Array.isArray(document.slots) || document.slots.length !== SLOT_COUNT) return undefined;
     if (!document.slots.every(validSlot)) return undefined;
     const slots = document.slots.map(value => ({ code: value.code, shift: value.shift }));
     for (let index = 0; index < slots.length; index += 1) {
@@ -139,7 +161,18 @@ function parseStored(raw: string): StoredConfig | undefined {
       if (!code || !supportedCodes.has(code) || fixedCodes.has(code) || !['0', '1'].includes(shift) || !validBinding(binding)) return undefined;
       bindings[key] = cloneBinding(binding);
     }
-    return { version: 1, customized: document.customized, bindings, slots };
+    // 旧版存档补默认按键：只补这一版**新增**的那些键（见 `ADDED_DEFAULT_BINDINGS`），
+    // 而且只在存档里这个键根本没绑过时才补。现行存档一个键缺席＝玩家自己清掉的，
+    // 一律不复活；旧档里的自定义绑定也一个都不动。
+    let migrated = false;
+    if (version !== STORAGE_VERSION) {
+      for (const [key, binding] of Object.entries(ADDED_DEFAULT_BINDINGS)) {
+        if (key in bindings) continue;
+        bindings[key] = cloneBinding(binding);
+        migrated = true;
+      }
+    }
+    return { version: STORAGE_VERSION, customized: document.customized, bindings, slots, migrated };
   } catch {
     return undefined;
   }
@@ -160,7 +193,9 @@ function defaultBindings(job: number): StoredBindings {
   const defaultActions: Array<[string, Action]> = [
     ['ControlLeft', 'attack'], ['ControlRight', 'attack'], ['KeyX', 'attack'], ['Space', 'jump'], ['KeyZ', 'pickup'], ['KeyT', 'talk'],
     ['KeyK', 'skills'], ['KeyQ', 'quests'], ['KeyI', 'inventory'], ['KeyE', 'equipment'],
-    ['KeyM', 'worldmap'], ['KeyO', 'keybind'], ['KeyC', 'character'], ['KeyY', 'pets'], ['KeyA', 'left'], ['KeyD', 'right'],
+    ['KeyM', 'worldmap'], ['KeyO', 'keybind'], ['KeyC', 'character'], ['KeyY', 'pets'], ['KeyR', 'mount'],
+    // ↑ 骑宠键只在这里（键盘绑定），不在 `defaultSlots()` 的 32 格里，理由见那边。
+    ['KeyA', 'left'], ['KeyD', 'right'],
   ];
   for (const [code, action] of defaultActions) bindings[bindingKey(code, false)] = { type: 'action', action };
   return bindings;
@@ -174,6 +209,9 @@ function defaultSlots(): StoredSlot[] {
   const defaultActions: Array<[string, Action]> = [
     ['KeyX', 'attack'], ['Space', 'jump'], ['KeyZ', 'pickup'], ['KeyT', 'talk'],
     ['KeyK', 'skills'], ['KeyQ', 'quests'], ['KeyI', 'inventory'], ['KeyE', 'equipment'],
+    // 骑宠键**没有格子**：源的快捷栏底板就只有 32 格（这里是 2 x 16），
+    // 一个键要占一格就得把别人的格子挤掉。它只作为键盘绑定存在，要放进格子
+    // 由玩家在键盘设置里自己拖（动作面板里有「骑宠」）。
     ['KeyM', 'worldmap'], ['KeyO', 'keybind'], ['KeyA', 'left'], ['KeyD', 'right'],
   ];
   for (const [code] of defaultActions) slots.push({ code, shift: false });
@@ -226,6 +264,13 @@ export class KeyBindings {
       this.customized = stored.customized;
       this.bindings = stored.customized ? stored.bindings : defaultBindings(job);
       this.current = stored.customized ? stored.slots : defaultSlots();
+      if (stored.migrated) {
+        // 这份存档是上一版 schema，刚刚在 `parseStored` 里补过默认按键：立刻落盘，
+        // 下一次登录读到的就是现行版本，迁移只做一遍。
+        const saved = this.save();
+        this.notify();
+        return saved;
+      }
     } else {
       this.bindings = defaultBindings(job);
       this.current = defaultSlots();
@@ -317,7 +362,7 @@ export class KeyBindings {
     // denied browser localStorage is a real persistence failure.
     if (!storage) return this.storageOverride === null;
     try {
-      storage.setItem(this.key(this.characterId), JSON.stringify({ version: 1, customized: this.customized, bindings: this.bindings, slots: this.current }));
+      storage.setItem(this.key(this.characterId), JSON.stringify({ version: STORAGE_VERSION, customized: this.customized, bindings: this.bindings, slots: this.current }));
       this._lastSaveError = undefined;
       return true;
     } catch (error) {

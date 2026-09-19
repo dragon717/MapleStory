@@ -84,9 +84,28 @@ export class MountStatusView {
     this.root.append(button);
   }
 
+  /**
+   * 骑宠键入口：与状态标记点击、装备栏里双击骑宠槽走**同一条** `useItem` 通道。
+   *
+   * 目标同样取自权威装备行（`mountToggleTarget`），这里不另算一遍「我在骑哪只」。
+   * 现在没有可切换的坐骑（没装骑宠／装备行与快照对不上）时**如实说一声**，
+   * 不发一个猜出来的请求。返回是否真的提交了意图。
+   */
+  toggleCurrent(): boolean {
+    const target = this.store.toggleTarget();
+    if (!target) {
+      this.status(this.t(
+        '现在没有可骑乘的骑宠：先在装备栏右侧的「骑宠」格装上骑宠，再按这个键。',
+        'No rideable mount right now: equip one in the Mount slot first.',
+      ));
+      return false;
+    }
+    return this.toggle(target);
+  }
+
   /** 上下马：与背包双击走**同一条**既有通道（`useItem` + 负槽号）。
    *  方向不由客户端决定——服务端在回执里点名 `mount_on` / `mount_off`。 */
-  private toggle(target: MountToggleTarget) {
+  private toggle(target: MountToggleTarget): boolean {
     const requestId = this.requestId();
     if (!this.send({
       type: 'useItem',
@@ -96,9 +115,10 @@ export class MountStatusView {
       itemId: target.itemId,
     })) {
       this.status(this.t('骑乘操作需要保持在线。', 'Riding actions require an online connection.'));
-      return;
+      return false;
     }
     this.status(this.t('正在' + (target.riding ? '下马' : '骑乘') + '…', (target.riding ? 'Dismounting' : 'Mounting') + '…'));
+    return true;
   }
 
   private t(zh: string, en: string) {

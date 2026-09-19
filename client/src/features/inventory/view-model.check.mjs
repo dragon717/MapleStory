@@ -75,5 +75,13 @@ assert.notEqual(vm.slotsSignature({ ...base, equipped: [] }), signature, '卸下
 assert.notEqual(vm.slotsSignature({ ...base, inventorySlots: { 2: 48 } }), signature, '扩容改变签名');
 assert.equal(vm.slotsSignature({ ...base, potionCooldowns: { '2000000': 4500 } }), signature, '同秒内毫秒变化不触发重绘');
 assert.notEqual(vm.slotsSignature({ ...base, potionCooldowns: { '2000000': 3500 } }), signature, '冷却秒变化触发重绘');
+// 骑乘状态：上/下马既不改背包也不改装备，却要重画装备窗里骑宠格的高亮，
+// 所以它必须进签名——否则状态变了窗口还是上一张脸。
+assert.notEqual(vm.slotsSignature({ ...base, mounted: '1902000' }), signature, '上马改变签名');
+assert.notEqual(
+  vm.slotsSignature({ ...base, mounted: '1902001' }), vm.slotsSignature({ ...base, mounted: '1902000' }),
+  '换一只坐骑也改变签名',
+);
+assert.equal(vm.slotsSignature({ ...base, mounted: '' }), signature, '未骑乘与缺省同签名（都表示为空）');
 
 console.log('inventory view-model: tab mapping, slot lookups, signature stability passed.');

@@ -43,7 +43,7 @@ const INPUT = path.join(ROOT, 'resources/tms273-export');
 /// Catalogue and rules carry their own versions.  They are *not* the runtime
 /// content version: a catalogue rebuild that changes nothing a running client
 /// can observe must not invalidate live sessions (plan §7.4).
-const CATALOG_VERSION = 'notebook-catalog-3';
+const CATALOG_VERSION = 'notebook-catalog-4';
 const RULES_VERSION = 'notebook-rules-1';
 
 /// Item ids that are provably obtainable through a chain this build really
@@ -201,12 +201,37 @@ function buildCatalog({ notebook, items, mounts = {}, chairs = {}, gameplay, cre
   // the level requirement and the availability derived from the same evidence
   // map the items use.  Name and icon stay references — they already ship in
   // `shared/mount-index.json` and the asset manifest.
+  //
+  // 同一个文件里其实住着**两个槽**的装备，源 `info.islot` 分得
+  // 很清楚：`Tm` = 骑宠本体（带 `tamingMob`，骑着的就是它），`Sd` = 搭在坐骑上的
+  // 鞍具（26 件，**没有** `tamingMob`，所以骑乘判定里它不是坐骑——服务端
+  // `inventory::is_mount_item` 只看 `tamingMob`，同一条口径）。
+  // 这里按槽拆成两张表、两个分区：一件东西只能属于一个页签，否则
+  // 「分区是目录的无重叠全覆盖」这条不变式就没了，而记录归属也会有两个答案。
   const mountDefinitions = {};
+  const saddleDefinitions = {};
   for (const [rawId, mount] of Object.entries(mounts)) {
     const id = canonical(rawId);
     if (!id || id !== rawId) { excluded.push({ itemId: rawId, reason: 'mount-id-not-canonical' }); continue; }
     const info = mount.info ?? {};
     const evidence = [...(obtainable.get(id) ?? [])].sort();
+    const slot = typeof info.islot === 'string' ? info.islot : null;
+    if (slot === 'Sd') {
+      // 鞍具：只记源里有的东西（等级要求、槽位、可获得性）。**没有** `tamingMob`
+      // 这一栏——源没给，编一个 0 或 null 都会被读成「它指向某个坐骑档」。
+      saddleDefinitions[id] = {
+        itemId: id,
+        inventoryType: 1,
+        reqLevel: Number.isFinite(Number(info.reqLevel)) ? Number(info.reqLevel) : null,
+        equipmentSlot: slot,
+        availability: evidence.some(openChain) ? 'obtainable' : 'unverified',
+        obtainEvidence: evidence,
+        nameRef: mount.name ? `mount-index.json:${id}.name` : null,
+        iconRef: `manifest.items:${id}`,
+        sourceRefs: [String(mount.source ?? '')].filter(Boolean),
+      };
+      continue;
+    }
     mountDefinitions[id] = {
       itemId: id,
       inventoryType: 1,
@@ -214,7 +239,7 @@ function buildCatalog({ notebook, items, mounts = {}, chairs = {}, gameplay, cre
       // 缺席（或指向源里没有的档）如实写 null，不猜一个档位。
       tamingMob: Number.isFinite(Number(info.tamingMob)) && info.tamingMob !== undefined ? Number(info.tamingMob) : null,
       reqLevel: Number.isFinite(Number(info.reqLevel)) ? Number(info.reqLevel) : null,
-      equipmentSlot: typeof info.islot === 'string' ? info.islot : null,
+      equipmentSlot: slot,
       availability: evidence.some(openChain) ? 'obtainable' : 'unverified',
       obtainEvidence: evidence,
       // 名与图标归既有目录/素材表：本表只引用，不复制第二份权威。
@@ -265,8 +290,11 @@ function buildCatalog({ notebook, items, mounts = {}, chairs = {}, gameplay, cre
   // reachable from both the equipment page and the quest page — the two pages
   // reference the same acquisition fact, so nothing is stored twice and the
   // four page counts are never summed into one total (plan §2.4.5).
-  const sections = { equipment: [], use: [], setup: [], etc: [], cash: [], pet: [], mount: [], chair: [], quest: [] };
+  const sections = { equipment: [], use: [], setup: [], etc: [], cash: [], pet: [], mount: [], saddle: [], chair: [], quest: [] };
+  // 骑宠分区＝`Tm` 槽那一半，鞍具分区＝`Sd` 槽那一半；两张表加起来仍是
+  // `shared/mounts.json` 的整份键集（`check_tms273_notebook.cjs` 反向核这一条）。
   sections.mount.push(...Object.keys(mountDefinitions));
+  sections.saddle.push(...Object.keys(saddleDefinitions));
   // 椅子分区就是整张椅子表：本版本几乎没有开放获取途径，所以这一页的基集合是全集，
   // 少一件等于这一页少一件。
   sections.chair.push(...Object.keys(chairDefinitions));
@@ -413,6 +441,11 @@ function buildCatalog({ notebook, items, mounts = {}, chairs = {}, gameplay, cre
     // 骑宠是独立表：不在 `items`（那份是可获得分母），只在自己的分区里。
     mounts: mountDefinitions,
     mountCount: Object.keys(mountDefinitions).length,
+    // 鞍具（同文件的 `Sd` 槽 26 件）同理独立成表：它不是坐骑（没有 `tamingMob`），
+    // 却也不属于物品页，所以既不能混进 `mounts` 让「骑宠」页混着不是骑宠的东西，
+    // 也不能落进 `items` 改动可获得分母。
+    saddles: saddleDefinitions,
+    saddleCount: Object.keys(saddleDefinitions).length,
     // 椅子同理（`Item/Install/0301*`、`0302`，`shared/chairs.json`）：独立表 +
     // 独立分区，物品页一件也不留。
     chairs: chairDefinitions,
@@ -556,6 +589,7 @@ function main() {
     rules: write('notebook-rules', rules),
     itemDefinitions: Object.keys(catalog.items).length,
     mountDefinitions: catalog.mountCount,
+    saddleDefinitions: catalog.saddleCount,
     chairDefinitions: catalog.chairCount,
     aliasDedupe: { deduped: aliasDeduped, mergedFromCashShop: mergedFromCashShop.length },
     sections: Object.fromEntries(Object.entries(catalog.sections).map(([key, ids]) => [key, ids.length])),

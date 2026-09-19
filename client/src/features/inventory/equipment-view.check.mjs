@@ -32,7 +32,7 @@ const namesUrl = b64(namesCode);
 const equipCode = compile(await readFile(new URL('./equipment-view.ts', import.meta.url), 'utf8'))
   .replaceAll("from './names'", `from '${namesUrl}'`)
   .replaceAll("from '../mounts/model'", `from '${b64(compile(await readFile(new URL('../mounts/model.ts', import.meta.url), 'utf8')).replaceAll("from '../inventory/names'", `from '${namesUrl}'`))}'`);
-const { EquipmentView } = await import(b64(equipCode));
+const { EquipmentView, MOUNT_FOOTER_HEIGHT } = await import(b64(equipCode));
 
 // ---- DOM stub ----
 const created = [];
@@ -41,7 +41,9 @@ class FakeElement {
     this.tagName = tag.toUpperCase();
     this.children = [];
     this.dataset = {};
-    this.style = {};
+    // 装备窗用 `style.setProperty` 把骑宠行的高度传给样式表
+    // （`--equipment-mount-footer-height`），stub 里也要有这个方法。
+    this.style = { setProperty: (name, value) => { this.style[name] = value; } };
     this.hidden = false;
     this.tabIndex = 0;
     this.title = '';
@@ -100,6 +102,8 @@ globalThis.requestAnimationFrame = () => {};
 // ---- 宿主 stub ----
 const state = {
   equipped: new Map(),
+  /** 服务器快照里正在骑乘的骑宠 id；缺席＝没在骑（装备里装着骑宠 ≠ 在骑）。 */
+  mountedId: undefined,
   selecting: false,
   inventoryOpen: false,
   rootVisible: null,
@@ -131,6 +135,7 @@ const layout = {
 const ui = { backgrnd: { url: 'bg.png', width: 300, height: 400 }, 'main/button:close/normal/0': { url: 'close.png', width: 12, height: 12 }, 'EquipTab/canvas:equip': { url: 'canvas.png', x: 2, y: 2, width: 1, height: 1 } };
 const makeHost = () => ({
   equippedItemAt: slot => state.equipped.get(slot),
+  mountedItemId: () => state.mountedId,
   selectingTarget: () => state.selecting,
   itemFrame: itemId => ({ url: itemId + '.png', width: 32, height: 32 }),
   assetImage: frame => Object.assign(new FakeElement('img'), { srcFrame: frame }),
@@ -259,10 +264,43 @@ const sourceLayout = { ...layout, slots: { 1: layout.slots[1] } };
 const sourceView = new EquipmentView(new FakeElement(), manifest, sourceLayout, makeHost());
 sourceView.render();
 const extra = sourceView.window.querySelectorAll('.equipment-slot');
-assert.deepEqual(extra.map(button => Number(button.dataset.slot)), [1, 18, 19]);
 const mountSlot = extra.find(button => button.dataset.slot === '18');
 assert.equal(mountSlot.children[0].srcFrame.url, mountId + '.png');
 assert.match(mountSlot.getAttribute('aria-label'), /右键卸下/);
 mountSlot.emit('contextmenu');
 assert.equal(state.unequipped.at(-1), mountId);
-assert.equal(sourceView.window.style.height, '460px');
+// 窗口总高＝源装备画布高度 + 骑宠行高度：行高只有一个来源（`MOUNT_FOOTER_HEIGHT`），
+// 检查也对着它算，而不是在测试里再抄一个 460。
+assert.equal(sourceView.window.style.height, `${layout.height + MOUNT_FOOTER_HEIGHT}px`);
+assert.equal(sourceView.window.style['--equipment-mount-footer-height'], `${MOUNT_FOOTER_HEIGHT}px`, '行高传给样式表');
+assert.deepEqual(
+  extra.map(button => Number(button.dataset.slot)), [1, 18, 19],
+  '源画布缺的 Tm/Sd 两格由底部行补上，而不是消失',
+);
+const mountLabels = sourceView.window.querySelectorAll('.equipment-mount-label');
+assert.deepEqual(mountLabels.map(label => label.textContent), ['骑宠', '鞍具'], '未骑乘时标签只说槽名');
+
+// 骑乘状态：同一个装备行，`mount.itemId` 在不在决定高亮与文案——只看图标分不出
+// 「装着骑宠」和「正在骑」，所以这一条必须落在 DOM 上，而不是只在 title 里。
+state.equipped.set(18, item(18, mountId));
+state.mountedId = mountId;
+sourceView.render();
+assert.ok(mountSlot.classList.contains('equipment-slot-riding'), '正在骑的骑宠格加 riding 类');
+assert.match(mountSlot.getAttribute('aria-label'), /骑乘中，双击下马/);
+assert.equal(mountLabels[0].textContent, '骑宠 · 骑乘中', '骑宠格标签说出骑乘状态');
+assert.ok(mountLabels[0].classList.contains('is-riding'));
+assert.equal(mountLabels[1].textContent, '鞍具', '鞍具格不跟着变');
+// 下马（快照里 mount 消失）后高亮必须清掉，不能留着一个"还在骑"的假象。
+state.mountedId = undefined;
+sourceView.render();
+assert.ok(!mountSlot.classList.contains('equipment-slot-riding'), '下马后 riding 类清掉');
+assert.equal(mountLabels[0].textContent, '骑宠');
+assert.ok(!mountLabels[0].classList.contains('is-riding'));
+// 快照与装备行对不上（说在骑，装备里却找不到那一行）时**不做任何高亮**：
+// 客户端只显示服务器给的事实，不在本地补第二套判定把状态圆过去。
+state.mountedId = '1999999';
+sourceView.render();
+assert.ok(!mountSlot.classList.contains('equipment-slot-riding'));
+assert.equal(mountLabels[0].textContent, '骑宠');
+state.mountedId = undefined;
+sourceView.render();

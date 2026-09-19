@@ -16,6 +16,7 @@ import { itemName } from '../inventory/names';
 import { uiLocale, uiText } from '../../app/i18n';
 import type { NotebookRow } from '../../../../shared/protocol';
 import type { SectionContext } from './section-context';
+import { isMountFamily } from './view-model';
 
 /** 一页里格子的列数；与服务端 `ITEM_PAGE_SIZE` 一起决定格架形状。 */
 export const ITEM_GRID_COLUMNS = 6;
@@ -84,11 +85,11 @@ function itemCell(context: SectionContext, row: NotebookRow) {
   idTag.textContent = `#${itemId}`;
   cell.append(idTag);
 
-  // 骑宠页与椅子页不逐格标「本版本未开放」：这两页的基集合是整张表，几乎每一件
-  // 都没有开放获取途径，逐格标是噪声，而且会盖掉真正的事实——页内已经把这件事
-  // 说了一遍（服务端 `blockedReason`）。
+  // 骑宠页（含鞍具子页）与椅子页不逐格标「本版本未开放」：这几页的基集合是整张表，
+  // 几乎每一件都没有开放获取途径，逐格标是噪声，而且会盖掉真正的事实——页内已经
+  // 把这件事说了一遍（服务端 `blockedReason`）。
   if (row.availability && row.availability !== 'obtainable'
-    && context.section !== 'mount' && context.section !== 'chair') {
+    && !isMountFamily(context.section) && context.section !== 'chair') {
     const flag = document.createElement('span');
     flag.className = 'notebook-slot-flag';
     flag.textContent = uiText('notebookUnavailable', '本版本未开放');

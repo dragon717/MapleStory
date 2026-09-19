@@ -7,6 +7,11 @@ import type { DragController } from './drag-controller';
 
 type AssetSet = Record<string, AssetFrame>;
 
+/** 装备窗底部骑宠／鞍具行的高度。  源 `UI/Equip` 的装备画布没有 Tm/Sd 两格，
+ *  所以这一行是界面扩展（P）：高度在这里定一次，窗口总高与样式表都取它。
+ *  导出是为了让离线检查对着这一个数核对窗口总高，不在测试里再抄一个魔数。 */
+export const MOUNT_FOOTER_HEIGHT = 52;
+
 /**
  * 装备窗口宿主回调（plan §8.2：装备窗口 DOM 与受控交互）。
  * 只收窄到装备窗需要的少量查询与意图出口；requestId、协议发送、
@@ -14,6 +19,10 @@ type AssetSet = Record<string, AssetFrame>;
  */
 export interface EquipmentHost {
   equippedItemAt(slot: number): InventoryItem | undefined;
+  /** **正在骑乘**的那件骑宠（服务器快照 `PlayerState.mount` 的 `itemId`）。
+   *  缺席＝没在骑。  装备里装着骑宠**不等于**在骑，所以这是第二个查询，
+   *  不是从 `equippedItemAt` 推出来的。 */
+  mountedItemId(): string | undefined;
   /** 卷轴目标选择进行中（影响槽位渲染与点击分支）。 */
   selectingTarget(): boolean;
   /** 物品图标帧（manifest.items 的只读查询）。 */
@@ -53,6 +62,9 @@ export interface EquipmentHost {
 export class EquipmentView {
   private readonly windowEl?: HTMLDivElement;
   private readonly closeButton?: HTMLButtonElement;
+  /** 底部骑宠／鞍具行的标签（键＝身体槽号）。`render()` 会改写骑宠格的文案，
+   *  因为「装着骑宠」与「正在骑」是两件事，而这个区别只有标签说得清。 */
+  private readonly mountLabels = new Map<number, HTMLSpanElement>();
   private openState = false;
 
   constructor(private readonly root: HTMLElement, manifest: Manifest, private readonly layout: EquipmentLayout, private readonly host: EquipmentHost) {
@@ -98,17 +110,27 @@ export class EquipmentView {
     if (extraSlots.length) {
       const mounts = document.createElement('div');
       mounts.className = 'equipment-mount-slots';
-      mounts.style.top = `${this.layout.height}px`;
+      // 行高与窗口总高只有**一处**数字（`MOUNT_FOOTER_HEIGHT`）：窗口高度加它，
+      // 行的内部布局也从同一个自定义属性取，样式表里不再写第二个 60。
+      equipmentWindow.style.setProperty('--equipment-mount-footer-height', `${MOUNT_FOOTER_HEIGHT}px`);
       for (const slot of extraSlots) {
         const group = document.createElement('div');
+        group.className = 'equipment-mount-group';
+        group.dataset.slot = String(slot);
         const label = document.createElement('span');
-        label.textContent = slot === 18 ? t('骑宠', 'Mount') : t('鞍具', 'Saddle');
+        label.className = 'equipment-mount-label';
+        label.textContent = this.mountSlotLabel(slot, false);
+        // 鞍具在这套数据里没有任何战斗属性（`info` 只有 tuc/reqLevel），而且它
+        // 不带 `tamingMob` —— 骑乘判定只看骑宠本身。这句话是**本构建**的事实，
+        // 不是对别的版本（那些版本里马鞍可能另有作用）的断言。
+        if (slot !== 18) group.title = t('鞍具：装饰件，骑乘状态由骑宠决定', 'Saddle: cosmetic; riding is decided by the mount');
         group.append(label);
+        this.mountLabels.set(slot, label);
         this.createSlot(group, slot);
         mounts.append(group);
       }
       equipmentWindow.append(mounts);
-      equipmentWindow.style.height = `${this.layout.height + 60}px`;
+      equipmentWindow.style.height = `${this.layout.height + MOUNT_FOOTER_HEIGHT}px`;
     }
     const close = this.host.createWindowButton(equipmentWindow, 'close', ui, 'main/button:close/normal/0', () => this.host.onCloseRequest());
     close?.setAttribute('aria-label', t('关闭装备栏', 'Close equip inventory'));
@@ -156,14 +178,24 @@ export class EquipmentView {
     if (!equipmentWindow) return;
     const t = (zh: string, en: string) => this.host.translate(zh, en);
     const selecting = this.host.selectingTarget();
+    // 是否在骑**不从这里推**：服务器快照里的 `mount.itemId` 是唯一口径，
+    // 装备里装着骑宠与真在骑是两件事（同 `mounts/model.ts` 的判据）。
+    const mountedId = this.host.mountedItemId();
     equipmentWindow.classList.toggle('equipment-selecting-target', selecting);
+    for (const [slot, label] of this.mountLabels) {
+      const riding = mountedId !== undefined && this.host.equippedItemAt(slot)?.itemId === mountedId;
+      label.textContent = this.mountSlotLabel(slot, riding);
+      label.classList.toggle('is-riding', riding);
+    }
     equipmentWindow.querySelectorAll<HTMLButtonElement>('.equipment-slot').forEach(button => {
       const slotNumber = Number(button.dataset.slot);
       const item = this.host.equippedItemAt(slotNumber);
+      const riding = mountedId !== undefined && item?.itemId === mountedId;
       button.replaceChildren();
       button.disabled = false;
       button.draggable = Boolean(item);
       button.classList.toggle('equipment-slot-occupied', Boolean(item));
+      button.classList.toggle('equipment-slot-riding', riding);
       button.classList.toggle('equipment-slot-targetable', selecting && Boolean(item));
       if (item) {
         button.dataset.itemId = item.itemId;
@@ -171,7 +203,9 @@ export class EquipmentView {
         button.setAttribute('aria-label', selecting
           ? t('对 ' + itemName(item.itemId) + ' 使用卷轴', 'Use the scroll on ' + itemName(item.itemId))
           : isMountItem(item.itemId)
-            ? t('已装备 ' + itemName(item.itemId) + '（双击骑乘/下马，右键卸下）', itemName(item.itemId) + ' (double-click to ride/dismount, right-click to unequip)')
+            ? riding
+              ? t('已装备 ' + itemName(item.itemId) + '（骑乘中，双击下马，右键卸下）', itemName(item.itemId) + ' (riding; double-click to dismount, right-click to unequip)')
+              : t('已装备 ' + itemName(item.itemId) + '（双击骑乘，右键卸下）', itemName(item.itemId) + ' (double-click to ride, right-click to unequip)')
             : t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
         const frame = this.host.itemFrame(item.itemId);
         if (frame) {
@@ -193,6 +227,14 @@ export class EquipmentView {
         button.setAttribute('aria-label', button.title);
       }
     });
+  }
+
+  /** 底部行的标签：骑宠格还要说清「现在是不是骑着」——源 UI 里没有 Tm/Sd 两格，
+   *  这一行是界面扩展（P），所以这句话得由这里补上。 */
+  private mountSlotLabel(slot: number, riding: boolean): string {
+    const t = (zh: string, en: string) => this.host.translate(zh, en);
+    if (slot !== 18) return t('鞍具', 'Saddle');
+    return riding ? t('骑宠 · 骑乘中', 'Mount · riding') : t('骑宠', 'Mount');
   }
 
   private createSlot(parent: HTMLDivElement, slotNumber: number) {

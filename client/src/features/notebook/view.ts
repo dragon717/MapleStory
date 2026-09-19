@@ -30,11 +30,14 @@ import type {
 import {
   browseModesFor,
   defaultModeFor,
+  isMountFamily,
+  MOUNT_SUBSECTIONS,
   NOTEBOOK_TABS,
   pageWindow,
   progressOf,
   regionList,
   rowDefinition,
+  tabKeyFor,
   type BrowseMode,
 } from './view-model';
 import {
@@ -481,15 +484,19 @@ export class NotebookView {
 
   /** 页眉上那一行「页签名 · 细分」。  全部是已本地化的可见名，不另外造词。 */
   private pageLabel(): string {
-    const tabKey = `notebookTab${this.section[0].toUpperCase()}${this.section.slice(1)}`;
-    const tab = displayText(uiText(tabKey, this.section));
+    // 鞍具不是页签：它的页眉要先说父页签（骑宠），再说子页（鞍具），
+    // 否则页面上是一页看不出归属的条目。
+    const tab = displayText(uiText(tabKeyFor(this.section), this.section));
     if (this.section === 'monster') {
       const region = this.directory ? regionList(this.directory)[this.tab('monster').page] : undefined;
       return region ? `${tab} · ${displayText(region.name)}` : tab;
     }
     const mode = this.tab(this.section).mode;
     const modeKey = `notebookMode${mode[0].toUpperCase()}${mode.slice(1)}`;
-    return `${tab} · ${displayText(uiText(modeKey, mode))}`;
+    const parts = [tab];
+    if (this.section === 'saddle') parts.push(displayText(uiText('notebookSubSaddle', '鞍具')));
+    parts.push(displayText(uiText(modeKey, mode)));
+    return parts.join(' · ');
   }
 
   /** 整窗重绘。  结构（页签／侧栏／分页）与内容都在这里，纯展示。 */
@@ -504,13 +511,16 @@ export class NotebookView {
 
   private renderTabs(): void {
     this.tabStrip.replaceChildren();
+    // 鞍具是骑宠页的子页：顶栏仍是六个页签，子页里的鞍具要把父页签标成选中，
+    // 否则玩家看到的是一页没有归属的条目（映射只在 `tabKeyFor` 里写一次）。
+    const activeKey = tabKeyFor(this.section);
     for (const { section, key } of NOTEBOOK_TABS) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'notebook-tab';
       button.dataset.section = section;
       button.setAttribute('role', 'tab');
-      button.setAttribute('aria-selected', section === this.section ? 'true' : 'false');
+      button.setAttribute('aria-selected', tabKeyFor(section) === activeKey ? 'true' : 'false');
       button.textContent = displayText(uiText(key, section));
       // 底板不贴源图：`Tab/enabled|disabled` 把页签文字**烧在位图里**，贴上去
       // 会与这里画的文案叠字。样式表按源实测配色重画底板，选中态由
@@ -522,6 +532,19 @@ export class NotebookView {
   }
 
   private switchSection(section: NotebookSection): void {
+    if (section === this.section) return;
+    this.section = section;
+    this.element.dataset.section = section;
+    this.snapshot = undefined;
+    this.selection = undefined;
+    this.pending = undefined;
+    void this.refresh();
+  }
+
+  /** 骑宠页的两个子页之间切换（骑宠 ⇄ 鞍具）。  与换页签同一套收尾：丢掉旧快照、
+   *  丢掉选中格、丢掉待答请求，再重新问一次服务器——**自己绝不推测**。
+   *  子页各自持有自己的页码／浏览方式（`tab(section)`），所以切回来还停在原处。 */
+  private switchSubSection(section: NotebookSection): void {
     if (section === this.section) return;
     this.section = section;
     this.element.dataset.section = section;
@@ -614,7 +637,34 @@ export class NotebookView {
     this.side.append(search);
 
     if (this.section === 'monster') this.renderRegionList(directory);
-    else this.renderBrowseModes();
+    else {
+      // 骑宠页先给「骑宠 / 鞍具」子页，再给浏览方式：子页决定看哪半张表，
+      // 浏览方式决定在这半张表里筛什么。
+      if (isMountFamily(this.section)) this.renderSubSections();
+      this.renderBrowseModes();
+    }
+  }
+
+  /** 骑宠页的两个子页按钮。  子页**不是**页签：顶栏仍是六个分区，这里只切这一页
+   *  的查询分区（服务端把鞍具当独立分区，所以切换就是换一种查询，不是本地过滤）。 */
+  private renderSubSections(): void {
+    const group = document.createElement('div');
+    group.className = 'notebook-subtabs';
+    group.setAttribute('role', 'tablist');
+    group.setAttribute('aria-label', uiText('notebookSubMount', '骑宠'));
+    for (const { section, key } of MOUNT_SUBSECTIONS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'notebook-subtab';
+      button.dataset.section = section;
+      button.dataset.active = section === this.section ? 'true' : 'false';
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', section === this.section ? 'true' : 'false');
+      button.textContent = displayText(uiText(key, section));
+      button.addEventListener('click', () => this.switchSubSection(section));
+      group.append(button);
+    }
+    this.side.append(group);
   }
 
   private renderRegionList(directory: NotebookDirectory): void {
@@ -791,6 +841,14 @@ export class NotebookView {
         lines.push(`${uiText('notebookMountTier', '坐骑档')}：${mount.tamingMob === null
           ? uiText('notebookMountTierMissing', '源未提供')
           : mount.tamingMob}`);
+      }
+      // 鞍具额外报出它自己的佩戴等级：**没有**「坐骑档」这一行，因为源不给鞍具
+      // `tamingMob`（骑乘判定也从不把它当坐骑）。等级缺席＝源没写，照实说。
+      const saddle = this.directory?.saddles?.[itemId];
+      if (saddle) {
+        lines.push(`${uiText('notebookSaddleReqLevel', '佩戴等级')}：${saddle.reqLevel === null
+          ? uiText('notebookMountTierMissing', '源未提供')
+          : saddle.reqLevel}`);
       }
       // 椅子额外报出恢复量与间隔：源只在描述里写明「每 N 秒」时才有间隔，
       // 没写就是未核定，不能替源编一个 10 秒出来。

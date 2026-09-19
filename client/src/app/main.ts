@@ -197,6 +197,9 @@ function activateBinding(binding: KeyBinding) {
   if (binding.type === 'skill') { castSkill(binding.skillId); return; }
   if (activateUiAction(binding.action)) return;
   if (escapeBlocked()) return;
+  // 骑宠键是**世界动作**不是窗口开关：它改的是服务端的骑乘状态，所以放在
+  // `escapeBlocked()` 之后（有窗开着时不骑马），并复用状态标记那条 useItem 通道。
+  if (binding.action === 'mount') { mountStatus?.toggleCurrent(); return; }
   if (binding.action === 'attack') {
     const reactorId = world?.nearestReactor()?.id;
     if (reactorId) connection?.send({ type: 'reactorHit', requestId: `keyreactor-${crypto.randomUUID()}`, reactorId });

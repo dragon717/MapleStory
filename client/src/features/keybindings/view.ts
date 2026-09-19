@@ -10,6 +10,9 @@ const ACTION_NAMES: Record<Action, string> = {
   attack: '普通攻击', jump: '跳跃', pickup: '拾取', talk: 'NPC对话', skills: '技能', quests: '任务',
   inventory: '背包', equipment: '装备', worldmap: '世界地图', keybind: '键盘设置', character: '角色信息',
   pets: '宠物', left: '向左', right: '向右',
+  // 骑宠键：装备栏里双击骑宠槽是同一个开关（`MountStatusView::toggleCurrent`），
+  // 这里只是把它也做成一个可绑定、可按的动作。
+  mount: '骑宠',
 };
 // Source keyPos ids are the PC scan codes used by the authored key labels.
 const SOURCE_CODES: Record<number, string> = {

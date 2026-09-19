@@ -26,7 +26,7 @@ export const TAB_INVENTORY_TYPE: Readonly<Record<number, number>> = {
 };
 
 /** The inventory window's display projection of the server player snapshot. */
-export type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos'> & {
+export type InventoryPlayer = Pick<PlayerState, 'inventory' | 'mesos' | 'mount'> & {
   equipped?: InventoryItem[];
   potionCooldowns?: Record<string, number>;
   inventorySlots?: Record<number, number>;
@@ -54,8 +54,11 @@ export function slotsSignature(parts: {
   equipped: InventoryItem[];
   potionCooldowns: Record<string, number>;
   inventorySlots: Record<number, number>;
+  /** 正在骑乘的骑宠 id（服务器快照）。  上/下马不改背包也不改装备，却要重画装备窗
+   *  里骑宠格的高亮与文案，所以它必须进签名，否则状态变了窗口还是旧的。 */
+  mounted?: string;
 }): string {
-  const { inventory, equipped, potionCooldowns, inventorySlots } = parts;
+  const { inventory, equipped, potionCooldowns, inventorySlots, mounted } = parts;
   return inventory
     .slice()
     .sort((left, right) => itemCategoryTab(left.itemId) - itemCategoryTab(right.itemId) || left.slot - right.slot)
@@ -65,6 +68,7 @@ export function slotsSignature(parts: {
       .map(([itemId, ms]) => `cd:${itemId}:${cooldownSeconds(ms)}`))
     .concat(Object.entries(inventorySlots)
       .map(([type, slots]) => `cap:${type}:${slots}`))
+    .concat([`mounted:${mounted ?? ''}`])
     .join('|');
 }
 

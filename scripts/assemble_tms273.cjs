@@ -396,13 +396,14 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
 {
   const notebook = read('notebook');
   const { buildCatalog } = require('./generate_tms273_notebook_catalog.cjs');
+  // 骑宠（`Character/TamingMob/*`）不在 `items` 里——那份是可获得分母，
+  // 塞进去会改动分母（见 `server/src/inventory.rs::shipped_mounts`）。
+  // 它们单独成表，而且**按源 `islot` 再分成两页**：`Tm` = 骑宠、`Sd` = 鞍具。
+  const shippedMounts = JSON.parse(fs.readFileSync(path.join(root, 'shared/mounts.json'), 'utf8')).items;
   const { catalog, rules } = buildCatalog({
     notebook,
     items,
-    // 骑宠（`Character/TamingMob/*`）不在 `items` 里——那份是可获得分母，
-    // 塞进去会改动分母（见 `server/src/inventory.rs::shipped_mounts`）。
-    // 它们单独成表，因此图鉴里也是单独一个分区。
-    mounts: JSON.parse(fs.readFileSync(path.join(root, 'shared/mounts.json'), 'utf8')).items,
+    mounts: shippedMounts,
     // 椅子同族：`shared/chairs.json`（源 `Item/Install/0301*`、`0302`）。物品树里
     // 只带着那一件真的进商店的椅子，剩下的 2798 件只存在于这张表，因此它们也
     // 只归椅子页——留在物品页会让同一件东西属于两个分区。
@@ -410,6 +411,19 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
     gameplay,
     creation: JSON.parse(fs.readFileSync(path.join(root, 'shared/character-creation.json'), 'utf8')),
   });
+  // 骑宠／鞍具的拆分要**双向**核：合起来仍是坐骑表的键集（拆错不会静默丢件），
+  // 而且每一件都落在源字段说的那一侧（只看「加起来对」会让「全塞进骑宠页」也过）。
+  assert.deepEqual(
+    [...Object.keys(catalog.mounts), ...Object.keys(catalog.saddles)].sort(),
+    Object.keys(shippedMounts).sort(),
+    '骑宠与鞍具两个分区合起来必须正好是 shared/mounts.json 的键集');
+  assert(catalog.mountCount > 0 && catalog.saddleCount > 0, '骑宠与鞍具两侧都不能为空');
+  for (const [id, saddle] of Object.entries(catalog.saddles)) {
+    assert.equal(saddle.equipmentSlot, 'Sd', `鞍具 ${id} 的源槽位不是 Sd`);
+  }
+  for (const [id, mount] of Object.entries(catalog.mounts)) {
+    assert.notEqual(mount.equipmentSlot, 'Sd', `骑宠 ${id} 实际是鞍具（源槽位 Sd）`);
+  }
   assert.equal(rules.registration.mode, 'unverified', '正式内容不得携带伪造的登记概率');
   assert.equal(rules.exploration.slotCount, null, '正式内容不得携带未经核定的探险槽位');
   assert.equal(manifest.notebook.menu.type, 22, '图鉴入口必须仍是原「怪物收藏」菜单项');
@@ -452,6 +466,12 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
       tamingMob: mount.tamingMob,
       reqLevel: mount.reqLevel,
       availability: mount.availability,
+    }])),
+    // 鞍具分区：同族但**没有** `tamingMob`（源没给，它不是坐骑），所以这里也不带
+    // 这一栏——客户端只显示服务器与目录都认得的字段，不替源补一个空档位。
+    saddles: Object.fromEntries(Object.entries(catalog.saddles).map(([id, saddle]) => [id, {
+      reqLevel: saddle.reqLevel,
+      availability: saddle.availability,
     }])),
     // 椅子分区：名字与图标归 `chair-names.json` / 素材表，这里只带恢复量与
     // 间隔（间隔缺席＝源未核定，不替源编一个）。
@@ -508,7 +528,7 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
     },
   });
   gameplay.compatibility.notebook = `T: the window shell, its button states, the grid furniture, the grade marks and every vector come from TMS273.7 UI/UIWindow4.img (monsterCollection + itemCollection); the collection's region/page/row/slot structure, per-row recordID/rewardID/exploration cycle and per-slot monster id come from Etc/mobCollection.img; per-monster text, authored spawn maps and authored reward items come from String/MonsterBook.img. ${catalog.itemDefinitionCount} item templates are classified from the assembled item catalogue (${catalog.aliasDedupe.deduped} seven/eight-digit aliases deduped), and the menu entry is source entry ${manifest.notebook.menu.key} (type ${manifest.notebook.menu.type}) renamed only in the localised label. U: the source authors no registration probability, qualification gate, per-slot grade, reward completion condition, exploration slot count or daily limit, so ${rules.registration.mode} stays the production mode and the registration/reward/exploration paths report a blocked reason rather than a made-up number. P: the collection is account-scoped and the item records are character-scoped; the "collectable today" denominator is the deployed monster templates.`;
-  console.log(JSON.stringify({ notebook: { items: catalog.itemDefinitionCount, mounts: catalog.mountCount, chairs: catalog.chairCount, monsterEntries: catalog.monsterEntryCount, rows: Object.keys(catalog.monsterStructure.rows).length, rewards: catalog.rewardItemCount, rewardDefinitionMissing: catalog.definitionMissingRewardCount, registration: rules.registration.mode } }));
+  console.log(JSON.stringify({ notebook: { items: catalog.itemDefinitionCount, mounts: catalog.mountCount, saddles: catalog.saddleCount, chairs: catalog.chairCount, monsterEntries: catalog.monsterEntryCount, rows: Object.keys(catalog.monsterStructure.rows).length, rewards: catalog.rewardItemCount, rewardDefinitionMissing: catalog.definitionMissingRewardCount, registration: rules.registration.mode } }));
 }
 const urls=new Set();
 function collect(value) {

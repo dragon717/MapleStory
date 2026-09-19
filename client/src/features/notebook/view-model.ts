@@ -21,13 +21,28 @@ export const NOTEBOOK_TABS: readonly { section: NotebookSection; key: string }[]
   { section: 'quest', key: 'notebookTabQuest' },
 ] as const;
 
+/** 骑宠页下的两个**子页**。  鞍具与骑宠出自同一张 `shared/mounts.json`（源
+ *  `Character/TamingMob`），是它 `islot = Sd` 的那一半，所以鞍具不进顶栏当第七个
+ *  页签——顶栏是六个分区，子页只切这一页的查询分区。  顺序就是窗口上的顺序。 */
+export const MOUNT_SUBSECTIONS: readonly { section: NotebookSection; key: string }[] = [
+  { section: 'mount', key: 'notebookSubMount' },
+  { section: 'saddle', key: 'notebookSubSaddle' },
+] as const;
+
+/** 骑宠族（骑宠 + 鞍具）。  两半共用一套口径：同出一张表、同样没有开放获取途径、
+ *  同样不逐格标「本版本未开放」。 */
+export function isMountFamily(section: NotebookSection): boolean {
+  return section === 'mount' || section === 'saddle';
+}
+
 /** 物品页的浏览方式。  服务端解释它，这里只负责显示顺序与默认值。 */
 export const BROWSE_MODES = ['available', 'obtained', 'missing', 'all'] as const;
 export type BrowseMode = typeof BROWSE_MODES[number];
 
-/** 骑宠页没有「当前可获得」：源把每件骑宠标成 `notSale / only`，本版本没有一条
- *  开放的获取途径，按它过滤会得到空页——读起来像「本版本没有坐骑」。骑宠页的
- *  基集合是整张坐骑表，浏览方式只在「全部 / 已获得 / 未获得」之间切换。 */
+/** 骑宠页（含它的鞍具子页）没有「当前可获得」：源把整族标成 `notSale / only`，
+ *  本版本没有一条开放的获取途径，按它过滤会得到空页——读起来像「本版本没有
+ *  坐骑」。这一页的基集合是整张表，浏览方式只在「全部 / 已获得 / 未获得」之间
+ *  切换。 */
 export const MOUNT_MODES = ['all', 'obtained', 'missing'] as const;
 
 /** 椅子页同样不给「当前可获得」：源把椅子整族排除在掉落与商店之外，2799 件里
@@ -39,14 +54,22 @@ export const CHAIR_MODES = ['all', 'obtained', 'missing'] as const;
 /** 任务页没有「未获得」开关：未获得的条目根本不在服务器给的行里（计划 §6.3）。 */
 export function browseModesFor(section: NotebookSection): readonly BrowseMode[] {
   if (section === 'quest') return ['all'];
-  if (section === 'mount') return MOUNT_MODES;
+  if (isMountFamily(section)) return MOUNT_MODES;
   return section === 'chair' ? CHAIR_MODES : BROWSE_MODES;
 }
 
 export function defaultModeFor(section: NotebookSection): BrowseMode {
-  // 骑宠页与椅子页默认「全部」：它们的基集合是整张表，而「当前可获得」那
-  // 一档要么为空（骑宠）、要么只有个位数（椅子），默认落在上面等于空页。
-  return section === 'mount' || section === 'chair' ? 'all' : 'available';
+  // 骑宠页（含鞍具子页）与椅子页默认「全部」：它们的基集合是整张表，而
+  // 「当前可获得」那一档要么为空（骑宠／鞍具）、要么只有个位数（椅子），
+  // 默认落在上面等于空页。
+  return isMountFamily(section) || section === 'chair' ? 'all' : 'available';
+}
+
+/** 页签的本地化键。  鞍具不是页签，它是骑宠页的子页，所以映射到父页签的键——
+ *  页眉与顶栏选中态都靠它，映射只写这一处。 */
+export function tabKeyFor(section: NotebookSection): string {
+  const base = section === 'saddle' ? 'mount' : section;
+  return `notebookTab${base[0].toUpperCase()}${base.slice(1)}`;
 }
 
 /** 地区按**数值**地区 id 升序（源的键是字符串，字典序会把 10 排在 2 前面）。 */

@@ -205,6 +205,86 @@ try {
   assert.equal(sent[sent.length - 1].section, 'chair');
   assert.equal(sent[sent.length - 1].mode, 'all', '椅子页默认必须看全部');
 
+  // --- 5b. 骑宠页的子页：骑宠 ⇄ 鞍具 --------------------------------------
+  // 鞍具与骑宠出自同一张 `shared/mounts.json`（源 islot = Sd / Tm），所以它不进顶栏
+  // 当第七个页签，而是骑宠页里的子页；切换子页 = 换一种查询分区，不是本地过滤。
+  const side = host.children[0].children.find(child => child.className === 'notebook-side');
+  const subTabs = () => side.children.find(child => child.className === 'notebook-subtabs');
+  const modes = () => side.children.find(child => child.className === 'notebook-modes');
+  const activeTab = () => strip.children
+    .find(child => child.getAttribute('aria-selected') === 'true')?.dataset.section;
+  // 侧栏内容随服务器回包一起重绘（与换页签同一节奏），所以每次交互后都要喂一份
+  // 快照——不然看到的是上一页的侧栏。
+  const deliver = (section, rows = []) => {
+    const last = sent[sent.length - 1];
+    view.receiveState({
+      type: 'notebookState', requestId: last.requestId, section, catalogVersion: 'v1',
+      scope: 'character', revision: 1, page: last.page, pageCount: 1, rows,
+      summary: { registered: 0, total: rows.length }, serverNowMs: 1,
+    });
+  };
+
+  strip.children[3].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  deliver('mount');
+  const mountGroup = subTabs();
+  assert.ok(mountGroup, '骑宠页必须给出「骑宠 / 鞍具」子页');
+  assert.equal(mountGroup.children.length, 2, '骑宠页只有两个子页');
+  assert.deepEqual(
+    mountGroup.children.map(child => child.dataset.section),
+    ['mount', 'saddle'],
+    '子页顺序必须是「骑宠、鞍具」');
+  assert.deepEqual(
+    mountGroup.children.map(child => child.getAttribute('aria-selected')),
+    ['true', 'false'],
+    '默认停在骑宠子页');
+  for (const child of mountGroup.children) {
+    assert.equal((child.listeners.click ?? []).length, 1, '每个子页都要有 click 监听');
+  }
+  assert.equal(activeTab(), 'mount', '骑宠子页上顶栏选中的是骑宠页签');
+
+  const beforeSaddle = sent.length;
+  mountGroup.children[1].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sent.length, beforeSaddle + 1, '点鞍具子页必须发一次查询');
+  assert.equal(sent[sent.length - 1].section, 'saddle', '鞍具是服务端的独立分区，不是本地过滤');
+  assert.equal(sent[sent.length - 1].mode, 'all', '鞍具默认也必须看全部：源里没有开放获取途径');
+  assert.equal(sent[sent.length - 1].page, 0, '换子页必须从第一页开始');
+  deliver('saddle');
+  // 子页**不是**页签：顶栏仍是六个，且鞍具子页上要把父页签（骑宠）标成选中，
+  // 否则玩家看到的是一页没有归属的条目。
+  assert.equal(strip.children.length, 6, '子页不得挤进顶栏');
+  assert.equal(activeTab(), 'mount', '鞍具子页上顶栏仍要选中骑宠页签');
+  const saddleGroup = subTabs();
+  assert.deepEqual(
+    saddleGroup.children.map(child => child.getAttribute('aria-selected')),
+    ['false', 'true'],
+    '切到鞍具子页后选中态要跟着走');
+  // 鞍具子页的浏览方式与骑宠页同一口径（没有「当前可获得」）。
+  assert.deepEqual(
+    modes().children.map(child => child.textContent),
+    ['all', 'obtained', 'missing'],
+    '鞍具子页的浏览方式必须与骑宠页一致（没有「当前可获得」）');
+  assert.deepEqual(globalThis.__painted.at(-1), ['item', []], '鞍具子页走物品格架');
+
+  // 切回骑宠子页：子页各自持有自己的页码／浏览方式，所以这里必须再问一次。
+  const beforeBack = sent.length;
+  saddleGroup.children[0].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sent.length, beforeBack + 1, '切回骑宠子页必须再问一次');
+  assert.equal(sent[sent.length - 1].section, 'mount');
+  deliver('mount');
+  assert.deepEqual(
+    subTabs().children.map(child => child.getAttribute('aria-selected')),
+    ['true', 'false'],
+    '切回骑宠子页后选中态要跟着走');
+
+  // 别的页签不该出现子页：装备页既没有子页也不该漏出骑宠的。
+  strip.children[1].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  deliver('equipment');
+  assert.equal(subTabs(), undefined, '只有骑宠页才有「骑宠 / 鞍具」子页');
+
   // --- 6. 任务页：不发「未获得」请求，且查询仍不带身份 ---------------------
   view.open('quest');
   await new Promise(resolve => setTimeout(resolve, 0));

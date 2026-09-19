@@ -246,6 +246,27 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     registered: index < 12,
     availability: directory.chairs?.[id]?.availability ?? 'unverified',
   }));
+  // 鞍具子页：骑宠页的子页，`shared/mounts.json` 里 `info.islot = Sd` 的 26 件
+  // （另一张表、另一个分区），名字与图标仍取自同一份 `mount-index.json` 与素材表。
+  const saddleIds = directory.sections.saddle;
+  const shippedMounts = JSON.parse(await fs.readFile(path.join(root, 'shared/mounts.json'), 'utf8')).items;
+  assert.equal(saddleIds.length, 26, '鞍具分区应当是源里的 26 件');
+  assert.deepEqual(
+    [...directory.sections.mount, ...saddleIds].sort(),
+    Object.keys(shippedMounts).sort(),
+    '骑宠与鞍具两个分区合起来就是整张坐骑表');
+  assert.equal(
+    new Set([...directory.sections.mount, ...saddleIds]).size,
+    directory.sections.mount.length + saddleIds.length,
+    '骑宠分区与鞍具分区不得重叠');
+  const saddleRows = saddleIds.map((id, index) => ({
+    key: id,
+    label: mountNames[id]?.name ?? id,
+    itemId: id,
+    obtained: index < 5,
+    registered: index < 5,
+    availability: directory.saddles?.[id]?.availability ?? 'unverified',
+  }));
 
   const itemFrames = {};
   // 清单里同一件装备可能同时有 7 位与 8 位键：两个都留，和真实清单一致。
@@ -273,6 +294,15 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     chairIds.every(id => manifest.items?.[id]),
     '椅子图标没有从清单里取到：椅子帧没有并进 `manifest.items`',
   );
+  for (const id of saddleIds) {
+    for (const key of new Set([id, id.padStart(8, '0')])) {
+      if (manifest.items?.[key]) itemFrames[key] = manifest.items[key];
+    }
+  }
+  assert(
+    saddleIds.every(id => manifest.items?.[id]),
+    '鞍具图标没有从清单里取到：坐骑帧没有并进 `manifest.items`',
+  );
 
   const rel = url => url.replace(/^\//, '');
   for (const monster of Object.values(monsterFrames)) {
@@ -290,6 +320,7 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     sections: directory.sections,
     items: Object.fromEntries(equipmentIds.map(id => [id, directory.items[id]])),
     mounts: Object.fromEntries(mountIds.map(id => [id, directory.mounts?.[id] ?? { tamingMob: null, reqLevel: null, availability: 'unverified' }])),
+    saddles: Object.fromEntries(saddleIds.map(id => [id, directory.saddles?.[id] ?? { reqLevel: null, availability: 'unverified' }])),
     chairs: Object.fromEntries(chairIds.map(id => [id, directory.chairs?.[id] ?? { recoveryHP: null, recoveryMP: null, recoveryIntervalMs: null, availability: 'unverified' }])),
     monsterStructure: {
       regions: directory.monsterStructure.regions,
@@ -308,11 +339,13 @@ const rowNameBacking = hexColor(bandColor(tiles.image, tileRows[0] - 15, tileRow
     monsterRows,
     equipmentRows,
     mountRows,
+    saddleRows,
     chairRows,
     summary: {
       monster: { registered: 0, total: 1550, collectable: 57 },
       equipment: { registered: 12, total: 1738 },
       mount: { registered: 12, total: directory.sections.mount.length },
+      saddle: { registered: 5, total: directory.sections.saddle.length },
       chair: { registered: 12, total: directory.sections.chair.length },
     },
   }));
@@ -350,18 +383,22 @@ const reply = message => {
     : { ...base, ...(message.section === 'mount'
       // 骑宠页：基集合是整张坐骑表，本版本没有开放获取途径（页内如实说明）。
       ? { pageCount: signal.pageCountMount, rows: message.page === 0 ? data.mountRows : [], summary: data.summary.mount, blockedReason: '本版本没有开放的骑宠获取途径（源 notSale / only，不进掉落与商店）；已发放到手的会如实记录在这里。' }
-      : message.section === 'chair'
-        // 椅子页：基集合是整张椅子表（页内如实说明几乎没有开放途径）。
-        ? { pageCount: signal.pageCountChair, rows: message.page === 0 ? data.chairRows : [], summary: data.summary.chair, blockedReason: '本版本几乎没有开放的椅子获取途径（源里只有个位数进商店）；发放到手或买到的会如实记录在这里。' }
-        : { pageCount: signal.pageCount, rows: message.page === 0 ? data.equipmentRows : [], summary: data.summary.equipment }) };
+      : message.section === 'saddle'
+        // 鞍具子页：骑宠页的子页，同样是整张表（26 件）按 60 一页 ⇒ 只有一页。
+        ? { pageCount: signal.pageCountSaddle, rows: message.page === 0 ? data.saddleRows : [], summary: data.summary.saddle, blockedReason: '本版本没有开放的鞍具获取途径（源 notSale / only）；鞍具在本构建里不带属性、也不参与骑乘判定，骑乘与否由骑宠本身决定。已发放到手的会如实记录在这里。' }
+        : message.section === 'chair'
+          // 椅子页：基集合是整张椅子表（页内如实说明几乎没有开放途径）。
+          ? { pageCount: signal.pageCountChair, rows: message.page === 0 ? data.chairRows : [], summary: data.summary.chair, blockedReason: '本版本几乎没有开放的椅子获取途径（源里只有个位数进商店）；发放到手或买到的会如实记录在这里。' }
+          : { pageCount: signal.pageCount, rows: message.page === 0 ? data.equipmentRows : [], summary: data.summary.equipment }) };
   states.push(state);
   window.__sentCount = sent.length;
   setTimeout(() => view.receiveState(state), 0);
 };
-// 骑宠页与椅子页的页数：整张表按服务端 ITEM_PAGE_SIZE = 60 分页。
+// 骑宠页（含鞍具子页）与椅子页的页数：整张表按服务端 ITEM_PAGE_SIZE = 60 分页。
 const signal = {
   pageCount: 29,
   pageCountMount: Math.ceil(data.directory.sections.mount.length / 60),
+  pageCountSaddle: Math.ceil(data.directory.sections.saddle.length / 60),
   pageCountChair: Math.ceil(data.directory.sections.chair.length / 60),
 };
 
@@ -686,6 +723,88 @@ try {
   );
   contrasts.slotId = await ratio('.notebook-item-slot .notebook-slot-id', '#554433', '配置 ID');
   await page.screenshot({ path: path.join(output, 'mount-1440x900.png') });
+
+  // 8b2 — 骑宠页的子页：鞍具是**同一页**里的第二个分区（源 `info.islot = Sd` 的 26 件），
+  //       不是第七个页签。这一节钉三件事：子页真的能切、切的是查询分区而不是本地过滤、
+  //       并且顶栏仍把骑宠页标成选中（否则鞍具页是一页没有归属的条目）。
+  assert.equal(await page.locator('.notebook-tab').count(), 6, '子页不得变成第七个页签');
+  assert.equal(await page.locator('.notebook-subtab').count(), 2, '骑宠页必须有「骑宠 / 鞍具」两个子页');
+  assert.deepEqual(
+    await page.locator('.notebook-subtab').allTextContents(),
+    ['骑宠', '鞍具'],
+    '子页的可见名与顺序必须是「骑宠、鞍具」');
+  assert.equal(
+    await page.locator('.notebook-subtab').nth(0).getAttribute('aria-selected'),
+    'true',
+    '默认停在骑宠子页');
+  contrasts.subtab = await ratio('.notebook-subtab[aria-selected="true"]', '#ffffff', '选中的子页');
+  contrasts.subtabIdle = await ratio('.notebook-subtab[aria-selected="false"]', '#ffffff', '未选中的子页');
+
+  await page.locator('.notebook-subtab').nth(1).click();
+  await page.waitForFunction(() => document.querySelectorAll('.notebook-item-slot').length === 26);
+  const saddleCell = await page.evaluate(() => {
+    const slots = [...document.querySelectorAll('.notebook-item-slot')];
+    return {
+      ids: slots.map(node => node.querySelector('.notebook-slot-id')?.textContent ?? null),
+      labels: slots.slice(0, 3).map(node => node.querySelector('.notebook-slot-label')?.textContent ?? ''),
+      flags: slots.filter(node => node.querySelector('.notebook-slot-flag')).length,
+      icons: slots.filter(node => node.querySelector('.notebook-slot-art')).length,
+      notes: [...document.querySelectorAll('.notebook-note')].map(node => node.textContent ?? ''),
+      head: document.querySelector('.notebook-sheet-head-title')?.textContent ?? '',
+      activeTab: document.querySelector('.notebook-tab[aria-selected="true"]')?.dataset.section,
+      subtabs: [...document.querySelectorAll('.notebook-subtab')].map(node => node.getAttribute('aria-selected')),
+    };
+  });
+  // 子页是**分区**：26 件就是源里 `islot = Sd` 的那一批，一件不多一件不少。
+  assert.equal(saddleCell.ids.length, 26, '鞍具子页一页就是源里的 26 件鞍具');
+  assert.ok(saddleCell.ids.every(id => /^#19\d{5}$/.test(id ?? '')), '鞍具的配置 ID 必须落在 19 号段（TamingMob）');
+  assert.equal(new Set(saddleCell.ids).size, 26, '鞍具配置 ID 不能重复');
+  assert.equal(saddleCell.icons, 26, '每件鞍具都要有自己的图标（清单里按坐骑 id 发布）');
+  assert.equal(saddleCell.flags, 0, '鞍具子页不逐格标「本版本未开放」：整页都没有开放途径，页内已经说了一遍');
+  assert.ok(
+    saddleCell.notes.some(note => note.includes('鞍具获取途径')),
+    '鞍具子页必须说明本版本没有开放获取途径',
+  );
+  assert.ok(
+    saddleCell.notes.some(note => note.includes('不参与骑乘判定')),
+    '鞍具子页必须说清它不参与骑乘判定（源不给 tamingMob），否则玩家会去找「先装马鞍才能骑」',
+  );
+  assert.ok(saddleCell.head.includes('鞍具'), `鞍具子页的页眉必须写明它属于鞍具（got ${saddleCell.head}）`);
+  assert.ok(saddleCell.head.includes('骑宠'), `鞍具子页的页眉必须写明父页签是骑宠（got ${saddleCell.head}）`);
+  assert.equal(saddleCell.activeTab, 'mount', '鞍具子页上顶栏仍要把骑宠页标成选中');
+  assert.deepEqual(saddleCell.subtabs, ['false', 'true'], '切到鞍具子页后选中态要跟着走');
+  assert.ok(
+    saddleCell.labels.every(label => label && !/^\d+$/.test(label)),
+    `鞍具在源里有名字（26 件全有），不该退回配置 id：${JSON.stringify(saddleCell.labels)}`,
+  );
+  // 详情：鞍具**没有**坐骑档（源不给 tamingMob），报的是它自己的佩戴等级。
+  await page.locator('.notebook-item-slot').first().click();
+  await page.waitForFunction(() => document.querySelector('.notebook-detail-title'));
+  const saddleDetail = await page.evaluate(() => [...document.querySelectorAll('.notebook-detail p, .notebook-detail div')]
+    .map(node => node.textContent ?? '')
+    .filter(Boolean)
+    .flatMap(text => text.split('\n')));
+  assert.ok(
+    saddleDetail.some(line => line.startsWith('配置 ID：')),
+    `鞍具详情必须先报配置 ID（got ${JSON.stringify(saddleDetail)}）`,
+  );
+  assert.ok(
+    saddleDetail.some(line => line.startsWith('佩戴等级：')),
+    `鞍具详情必须报佩戴等级（got ${JSON.stringify(saddleDetail)}）`,
+  );
+  assert.ok(
+    !saddleDetail.some(line => line.startsWith('坐骑档：')),
+    '鞍具不得报坐骑档：源没给它 tamingMob，补一栏会被读成「它指向某个坐骑档」',
+  );
+  await page.screenshot({ path: path.join(output, 'saddle-1440x900.png') });
+
+  // 切回骑宠子页：同一次开窗里来回切都要能用（子页各自记着自己的页码与浏览方式）。
+  await page.locator('.notebook-subtab').nth(0).click();
+  await page.waitForFunction(() => document.querySelectorAll('.notebook-item-slot').length === 60);
+  assert.equal(
+    await page.locator('.notebook-tab[aria-selected="true"]').getAttribute('data-section'),
+    'mount',
+    '切回骑宠子页后顶栏选中的仍是骑宠页签');
 
   // 8c — 椅子页签：整张椅子表、每格带配置 ID、整页只说一次「几乎没有开放途径」，
   //      详情里额外报恢复量与间隔（间隔缺席＝源未核定，不许替源编一个）。

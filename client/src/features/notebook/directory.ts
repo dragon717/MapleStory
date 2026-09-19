@@ -52,6 +52,15 @@ export interface NotebookMountDefinition {
   availability: Availability;
 }
 
+/** 一条鞍具。  与骑宠出自**同一张** `shared/mounts.json`，是它 `islot = Sd` 的那
+ *  一半：搭在坐骑上，却**不带** `tamingMob`（所以骑乘判定从不把它当坐骑）。
+ *  这里**没有** `tamingMob` 这一栏，与目录保持一致——源没给，不替它补一个空档位。
+ *  名字与图标仍归 `mount-index.json` 与素材表，本表不复制第二份。 */
+export interface NotebookSaddleDefinition {
+  reqLevel: number | null;
+  availability: Availability;
+}
+
 /** 一条椅子。  椅子与骑宠同族（源 `Item/Install/0301*`、`0302`，整族不进掉落与
  *  商店），所以目录也为它单列一张表。这里只带恢复量与目录自己的可获得性：
  *  名字与图标仍归 `chair-names.json` 与素材表，本表不复制第二份。
@@ -92,6 +101,7 @@ export interface NotebookDirectory {
   sections: Record<Exclude<NotebookSection, 'monster' | 'quest'>, string[]>;
   items: Record<string, NotebookItemDefinition>;
   mounts: Record<string, NotebookMountDefinition>;
+  saddles: Record<string, NotebookSaddleDefinition>;
   chairs: Record<string, NotebookChairDefinition>;
   monsterStructure: {
     regions: Record<string, NotebookRegion>;

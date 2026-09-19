@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 26;
+pub const PROTOCOL_VERSION: u32 = 27;
 pub const CONTENT_VERSION: &str = "tms273-32";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -20,6 +20,13 @@ pub enum NotebookSection {
     /// 骑宠（`Character/TamingMob`，`shared/mounts.json`）。它不在物品树里，
     /// 因此是独立页签而不是装备页的一格——见 `inventory::shipped_mounts`。
     Mount,
+    /// 鞍具：同一张 `shared/mounts.json` 里 `islot = Sd` 的那 26 件。  它们挂在
+    /// 坐骑身上，却**不带** `tamingMob`，所以骑乘判定从不把它们当坐骑
+    /// （`inventory::is_mount_item` 与目录的拆分是同一口径）。
+    /// 界面上它是骑宠页里的一个子页签，但在协议里必须是独立分区：
+    /// 「一个 id 只属于一页」这条不变式靠分区成立，混进 Mount 会让
+    /// 记录归属有两个答案。
+    Saddle,
     /// 椅子（`Item/Install/0301*`、`0302`，`shared/chairs.json`）。同骑宠：源把
     /// 它们整族排除在掉落与商店之外，物品树里只带着那一件真的进商店的椅子，
     /// 所以整族归这一页，物品页一件也不留。

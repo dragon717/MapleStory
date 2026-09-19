@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 142,
-  "edge_count": 323,
+  "edge_count": 324,
   "edge_kind_counts": {
-    "value": 198,
+    "value": 199,
     "dynamic": 4,
     "type": 100,
     "side-effect": 21
@@ -1030,6 +1030,11 @@
       "kind": "type"
     },
     {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "client/src/features/notebook/view-model.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/notebook/monster-section.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -1660,8 +1665,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "ae7d58c87ef1fc132cbb9874c101fcd0a24d08c3",
+  "source_commit": "4fdfbae3f7b1b1debaac8bd25a58b94e61796d1c",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-18T18:46:15.911Z"
+  "generated_at": "2026-09-18T19:55:08.163Z"
 }

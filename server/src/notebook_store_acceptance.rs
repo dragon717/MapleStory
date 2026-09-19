@@ -338,8 +338,8 @@ fn notebook_classification_reads_the_catalog_and_never_guesses() {
     }
     assert_eq!(
         total,
-        catalog.item_count() + catalog.mount_count() + catalog.chair_count(),
-        "页签分区必须覆盖整份目录（物品 + 骑宠 + 椅子）"
+        catalog.item_count() + catalog.mount_count() + catalog.saddle_count() + catalog.chair_count(),
+        "页签分区必须覆盖整份目录（物品 + 骑宠 + 鞍具 + 椅子）"
     );
     assert!(catalog.section_of("99999999").is_none());
 
@@ -364,6 +364,19 @@ fn notebook_classification_reads_the_catalog_and_never_guesses() {
             .all(|id| id != mount),
         "骑宠不得混进装备页"
     );
+
+    // 鞍具：与骑宠同一张源表（`islot = Sd`），但它是**自己的一页**——同一件东西
+    // 不能既属于骑宠页又属于鞍具页，而它跟骑宠一样只能靠发放到手（源 notSale/only）。
+    let saddles = catalog.section_ids("saddle").unwrap();
+    assert!(!saddles.is_empty(), "鞍具分区不能为空");
+    let saddle = &saddles[0];
+    assert_eq!(
+        nb_classify(saddle, catalog).unwrap(),
+        NbScope::Recorded(saddle.clone()),
+        "鞍具必须被留档：{saddle}"
+    );
+    assert_eq!(catalog.section_of(saddle), Some("saddle"));
+    assert!(!mounts.iter().any(|id| id == saddle), "鞍具不得混进骑宠页");
 
     // 椅子同族（`Item/Install/0301*`、`0302`）：整族归自己的一页，发放／买到
     // 时留档，且不得留在物品页的设置分区里（一件东西只能属于一个页签）。

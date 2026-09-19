@@ -56,6 +56,8 @@ try {
  await page.goto('http://keybindings.test');
  await page.waitForSelector('.keybindings-window');
  assert.equal(await page.locator('.keybindings-slot').count(),32);
+ assert.deepEqual(await page.evaluate(()=>bindings.resolve('KeyR',false)),{type:'action',action:'mount'},'骑宠键默认绑在 KeyR 上（它不占快捷栏的 32 格）');
+ assert.equal(await page.evaluate(()=>bindings.slots.some(slot=>slot.code==='KeyR')),false,'骑宠键不挤占源快捷栏的格子');
  assert.equal(await page.locator('.keybindings-choice').count(),3,'learned beginner actives available, passive/unlearned mage skills excluded');
  await page.locator('.keybindings-choice').first().click();
  await page.locator('.keybindings-key[data-code="KeyI"]').click();
@@ -92,5 +94,5 @@ try {
   assert(await page.getByRole('button',{name:'完成',exact:true}).isVisible(),`${name}: footer reachable`);
  }
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({ok:true,checks:['learned beginner palette','bind and replace I/C/M','32 independent bar slots','reload persistence','skill drag to HUD','4 responsive sizes'],evidence:output}));
+ console.log(JSON.stringify({ok:true,checks:['learned beginner palette','bind and replace I/C/M','32 independent bar slots','mount key defaults to KeyR','reload persistence','skill drag to HUD','4 responsive sizes'],evidence:output}));
 } finally { await browser.close(); await fs.rm(path.join(output,'check.js'),{force:true}); await fs.rm(path.join(output,'check.css'),{force:true}); }
