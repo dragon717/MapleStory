@@ -1769,6 +1769,7 @@ struct ShopRebuyOutcome {
 }
 
 struct TeleportPlan {
+    colossus: Option<colossus::motion::Body>,
     map_id: String,
     x: f64,
     y: f64,
@@ -3304,7 +3305,6 @@ impl World {
         self.advance_away_windows();
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
-            if self.step_colossus_player(&id) { continue; }
             self.apply_beginner_heal_tick(&id);
             self.step_infinity_tick(&id);
             self.step_natural_recovery(&id);
@@ -3438,7 +3438,8 @@ impl World {
             player.state.mp = player.state.mp.min(player.state.max_mp);
             let old_x = player.state.x;
             let old_y = player.state.y;
-            step_player(&map, &self.gameplay, player, self.tick);
+            let in_colossus=player.colossus.is_some();
+            if !in_colossus { step_player(&map, &self.gameplay, player, self.tick); }
             // Mirror the authoritative swim flag into the snapshot so clients
             // can tell "swimming" (never grounded) apart from "airborne".
             player.state.swimming = player.swimming;
@@ -3471,7 +3472,8 @@ impl World {
                 && self.store.is_some()
                 && !windbell::is_runtime_instance_map(&player.map_id);
             let _ = player;
-            self.step_windbell_player(&id);
+            if in_colossus { self.step_colossus_player(&id); }
+            else { self.step_windbell_player(&id); }
             if should_persist {
                 let _ = self.persist_player(&id);
             }
@@ -3526,7 +3528,6 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Ok(());
         };
-        if player.colossus.is_some() { return Ok(()); }
         // A Windbell island map exists only for the current visit.  Its
         // coordinates must never leak into the normal profile row; the
         // activity's explicit leave/disconnect path first returns the player

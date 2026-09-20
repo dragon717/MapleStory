@@ -46,9 +46,10 @@ export class ColossusView {
     if (!body) return null;
     return { id: 'colossus-person-'+index, templateId: 'colossus-'+(index===5?'harbor-child':index===6?'netmender':'harbor-worker'), name: index===5?'港口孩子':index===6?'补网人':'船工', x:body.position[0],y:body.position[1],facing:body.facing<0?-1:1 };
   }
-  nearestNpc(): NpcState | null {
+  nearestNpc(preferPassage = false): NpcState | null {
     const state=this.latest?.colossus, self=state?.actors.find(a=>a.id===this.latest?.selfId)?.body;
     if (!state || !self) return null;
+    if (preferPassage && state.passage) return null;
     const nearby=state.people.map((body,index)=>({body,index,d:Math.hypot(...body.position.map((n,i)=>n-self.position[i]))})).filter(n=>n.body.track===self.track&&n.d<=6).sort((a,b)=>a.d-b.d)[0];
     return nearby ? this.npc(nearby.index) : null;
   }
@@ -61,6 +62,8 @@ export class ColossusView {
       case 'leave': this.send('leave'); break;
     }
   }
+  skill(event: Extract<ServerMessage,{type:'skillCast'}>) { this.scene?.skill(event); }
+  direction(raw: -1|0|1): -1|0|1 { return this.scene?.direction(raw) ?? raw; }
   setMuted(muted: boolean) { this.muted = muted; this.scene?.setMuted(muted); }
   receive(s: Snapshot) {
     this.latest = s;

@@ -1553,7 +1553,6 @@ impl World {
             return Err("teleport_no_direction".to_owned());
         }
         let map_id = player.map_id.clone();
-        let map = self.map_for(&map_id).clone();
         let boost = if player.teleport_boost_enabled {
             self.players
                 .get(id)
@@ -1584,6 +1583,16 @@ impl World {
         let horizontal_distance =
             level.x.unwrap_or(0).max(0) as f64 + boost_x as f64 + hyper_distance as f64;
         let vertical_distance_abs = level.y.unwrap_or(0).max(0) as f64 + boost_y as f64;
+        if let Some(rider) = &player.colossus {
+            if rider.arrival_until>self.tick { return Err("teleport_blocked".into()); }
+            let runtime = self.colossus.as_ref().ok_or("teleport_blocked")?;
+            let body = rider.body.teleport(&runtime.config, &runtime.frame, runtime.bridge(),
+                horizontal_distance * f64::from(direction) / 60.0,
+                -vertical_distance_abs * f64::from(vertical) / 60.0).ok_or("teleport_blocked")?;
+            return Ok(TeleportPlan { map_id, x: body.s * 60.0, y: -body.position[1] * 60.0,
+                grounded: body.grounded, foothold_id: 0, colossus: Some(body) });
+        }
+        let map = self.map_for(&map_id).clone();
         let horizontal = horizontal_distance * f64::from(direction);
         let vertical_distance = vertical_distance_abs * f64::from(vertical);
         let mut target_x = (player.state.x + horizontal).clamp(map.bounds.x_min, map.bounds.x_max);
@@ -1626,6 +1635,7 @@ impl World {
             return Err("teleport_blocked".to_owned());
         }
         Ok(TeleportPlan {
+            colossus: None,
             map_id,
             x: target_x,
             y: target_y,
@@ -1638,6 +1648,9 @@ impl World {
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
+        if let Some(body) = plan.colossus {
+            if let Some(rider) = player.colossus.as_mut() { rider.body = body; }
+        }
         player.map_id = plan.map_id;
         player.state.x = plan.x;
         player.state.y = plan.y;
@@ -1677,6 +1690,10 @@ impl World {
             (level.y.unwrap_or(1_200).max(0) as f64 / 1_200.0).clamp(0.75, 1.5)
         };
         player.state.vy = -(JUMP_SPEED * MAGIC_WAVE_LAUNCH_HEIGHT_RATIO.sqrt() * authored);
+        if let Some(rider)=player.colossus.as_mut() {
+            rider.body.vertical_speed=-player.state.vy/60.0;
+            rider.body.grounded=false;
+        }
         player.state.grounded = false;
         player.state.action = "jump";
         player.state.action_started_tick = tick;

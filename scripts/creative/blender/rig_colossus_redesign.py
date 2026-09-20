@@ -130,8 +130,11 @@ for name,pb in rig.pose.bones.items():
  elif name.startswith('hand'):limit=[-.35,.35]
  elif name=='head':limit=[-.22,.22]
  elif name.startswith('upper_arm'):limit=[-.45,.65]
+ elif name.startswith('thigh'):limit=[-.3,1.4]
+ elif name.startswith('shin'):limit=[-1.7,.2]
  else:limit=[-.16,.16]
  pb.bone['flex_min']=limit[0];pb.bone['flex_max']=limit[1]
+ if name=='upper_arm.L':pb.bone['spread_min']=-1.2;pb.bone['spread_max']=.1
 # Save neutral pose, then inspect a limited flex pose and restore it after rendering.
 old_scene=bpy.data.scenes['CR_Colossus_100km']
 SCENE.world=old_scene.world

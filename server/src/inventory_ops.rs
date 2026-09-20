@@ -908,7 +908,7 @@ impl World {
         // Refuse a scroll here rather than moving the profile behind the
         // instance and leaking its map/NPCs; the explicit Windbell `leave`
         // intent performs the canonical return and teardown transaction.
-        if windbell::is_runtime_instance_map(&player.map_id) {
+        if player.colossus.is_some() || windbell::is_runtime_instance_map(&player.map_id) {
             return Err("scroll_blocked");
         }
         // 飞行船航行中不用卷軸：到站由 ship.rs 权威传送，甲板/船舱期间

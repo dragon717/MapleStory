@@ -73,10 +73,14 @@ impl World {
 #[serde(rename_all = "camelCase")]
 pub struct Facts {
     pub started_ms: Option<i64>,
+    #[serde(default)]
+    pub awakening_started_ms: Option<i64>,
     pub bridge_opened_ms: Option<i64>,
     pub opened_by: Option<String>,
     #[serde(default)]
     pub awakened: bool,
+    #[serde(default)]
+    pub discoveries: std::collections::BTreeMap<String,u8>,
 }
 #[derive(Clone)]
 pub struct Rider {
@@ -87,6 +91,7 @@ pub struct Rider {
     pub return_fh: u64,
     pub attack_until: u64,
     pub passage_after: u64,
+    pub arrival_until: u64,
 }
 pub struct Runtime {
     pub config: Config,
@@ -102,10 +107,9 @@ pub struct Runtime {
 impl Runtime {
     fn new(facts: Facts) -> Self {
         let c = Config::shipped();
-        let seconds = facts
-            .started_ms
-            .map_or(0.0, |t| (unix_now_ms() - t).max(0) as f64 / 1000.0)
-            .max(if facts.awakened { 65.0 } else { 0.0 });
+        let seconds = if facts.awakened { 65.0 } else if let Some(t)=facts.awakening_started_ms {
+            30.0+(unix_now_ms()-t).max(0) as f64/1000.0
+        } else { facts.started_ms.map_or(0.0,|t|((unix_now_ms()-t).max(0) as f64/1000.0).min(29.9)) };
         let f = Frame::at(seconds, 0);
         let people = (0..7)
             .map(|i| {
@@ -114,7 +118,7 @@ impl Runtime {
                     "harbor",
                     if i == 6 {
                         100.0
-                    } else if seconds > 120.0 {
+                    } else if facts.awakened || seconds > 120.0 {
                         if facts.bridge_opened_ms.is_some() {
                             90.0 + i as f64 * 2.0
                         } else {
@@ -132,7 +136,7 @@ impl Runtime {
                 let mut b = Body::new(
                     &c,
                     "harbor",
-                    if seconds > 90.0 {
+                    if facts.awakened || seconds > 90.0 {
                         104.0 - i as f64 * 4.0
                     } else {
                         3.0
@@ -155,7 +159,7 @@ impl Runtime {
             stones,
         }
     }
-    fn bridge(&self) -> bool {
+    pub(super) fn bridge(&self) -> bool {
         self.bridge_age.is_some_and(|age| age >= 1.5)
     }
 }
@@ -242,16 +246,18 @@ impl World {
                     facts.started_ms = Some(unix_now_ms());
                     self.commit_colossus(facts)?;
                 }
+                self.persist_player(&id)?;
                 let r = self.colossus.as_ref().unwrap();
                 let p = self.players.get_mut(&id).unwrap();
                 p.colossus = Some(Rider {
-                    body: Body::new(&r.config, "harbor", 2.0, &r.frame),
+                    body: Body::new(&r.config, if r.facts.awakened {"harbor"} else {"arrival"}, if r.facts.awakened {2.0} else {0.0}, &r.frame),
                     return_map: p.map_id.clone(),
                     return_x: p.state.x,
                     return_y: p.state.y,
                     return_fh: p.foothold_id,
                     attack_until: 0,
                     passage_after: 0,
+                    arrival_until: if r.facts.awakened {0} else {self.tick+160},
                 });
                 p.map_id = MAP_ID.into();
                 p.direction = 0;
@@ -284,7 +290,7 @@ impl World {
                 let rider = p.colossus.as_mut().ok_or("请先登岸。")?;
                 match action {
                     Board => {
-                        if runtime.config.tracks[&rider.body.track].frame != "world" {
+                        if runtime.config.tracks[&rider.body.track].anchor.as_deref() != Some("harbor") {
                             return Ok(());
                         }
                         let hand = runtime.frame.world_on(
@@ -300,7 +306,8 @@ impl World {
                         rider.body = Body::new(&runtime.config, "climb", 0.0, &runtime.frame);
                     }
                     Skip => {
-                        if matches!(rider.body.track.as_str(), "harbor" | "lower") {
+                        if matches!(rider.body.track.as_str(), "arrival" | "harbor" | "lower") {
+                            rider.arrival_until=0;
                             rider.body = Body::new(
                                 &runtime.config,
                                 "harbor",
@@ -317,7 +324,7 @@ impl World {
                             .config
                             .passage(&rider.body)
                             .ok_or("走近路口，再沿路牌前行。")?;
-                        if runtime.config.tracks[&passage.to_track].frame != "world"
+                        if runtime.config.tracks[&passage.to_track].anchor.as_deref() != Some("harbor")
                             && runtime.seconds < 65.0
                         {
                             return Err("石壁还在震动，等落脚处稳定后再攀爬。".into());
@@ -356,12 +363,12 @@ impl World {
         let Some(r) = self.players.get(id).and_then(|p| p.colossus.as_ref()) else {
             return false;
         };
-        if self.tick < r.attack_until {
+        if self.tick < r.attack_until || r.arrival_until > self.tick {
             return true;
         }
         let runtime = self.colossus.as_ref().unwrap();
         let hit = runtime.config.tracks[&r.body.track].region == "harbor"
-            && length(sub(r.body.position, runtime.config.vine)) < 4.0
+            && length(sub(r.body.position, runtime.frame.world_on(&runtime.config.tracks["harbor"],runtime.config.vine))) < 4.0
             && runtime.facts.bridge_opened_ms.is_none();
         if hit {
             let mut facts = runtime.facts.clone();
@@ -385,18 +392,31 @@ impl World {
         let Some(start) = r.facts.started_ms else {
             return;
         };
-        if !r.facts.awakened && (unix_now_ms() - start) >= 65_000 {
-            let mut facts = r.facts.clone();
-            facts.awakened = true;
-            // Persist the completed awakening before boarding can be granted.
-            if self.commit_colossus(facts).is_err() {
-                return;
-            }
+        if r.facts.awakening_started_ms.is_none() && !r.facts.awakened
+            && self.players.values().filter_map(|p|p.colossus.as_ref()).any(|r|r.body.track=="harbor"&&r.body.s>88.0) {
+            let mut facts=r.facts.clone();facts.awakening_started_ms=Some(unix_now_ms());
+            if self.commit_colossus(facts).is_err(){return;}
         }
+        let r=self.colossus.as_ref().unwrap();
+        let seconds=if r.facts.awakened {r.seconds.max(65.0)+0.05}
+            else if let Some(t)=r.facts.awakening_started_ms {30.0+(unix_now_ms()-t).max(0) as f64/1000.0}
+            else {((unix_now_ms()-start).max(0) as f64/1000.0).min(29.9)};
+        if !r.facts.awakened && seconds>=65.0 {
+            let mut facts=r.facts.clone();facts.awakened=true;
+            if self.commit_colossus(facts).is_err(){return;}
+        }
+        let r=self.colossus.as_ref().unwrap();
+        let mut facts=r.facts.clone();
+        for (id,p) in &self.players {
+            let Some(rider)=&p.colossus else {continue;};
+            let phase=if matches!(rider.body.track.as_str(),"climb"|"shoulder"|"shoulder-lane"|"gardens"|"gardens-aqueduct") {4}
+                else if seconds>=65.0 && rider.body.track=="harbor" && rider.body.s>88.0 {3}
+                else if rider.body.track!="arrival" && rider.body.s>15.0 {2} else {1};
+            let known=facts.discoveries.entry(id.clone()).or_default();*known=(*known).max(phase);
+        }
+        if facts.discoveries!=r.facts.discoveries && self.commit_colossus(facts).is_err(){return;}
         let r = self.colossus.as_mut().unwrap();
-        r.seconds = r
-            .seconds
-            .max((unix_now_ms() - start).max(0) as f64 / 1000.0);
+        r.seconds=r.seconds.max(seconds);
         // Reconstruct a tick-sized interval even after a wall-clock jump.
         r.previous = Frame::at((r.seconds - 0.05).max(0.0), self.tick.saturating_sub(1));
         r.frame = Frame::at(r.seconds, self.tick);
@@ -405,7 +425,7 @@ impl World {
         }
         let bridge = r.bridge();
         for (i, p) in r.stones.iter_mut().enumerate() {
-            let go = r.seconds > 1.0 + i as f64 * 2.0 && p.s < 108.0;
+            let go = r.seconds > 9.0 + i as f64 * 3.0 && p.s < 108.0;
             let jump = p.grounded && p.track == "harbor" && p.s > 18.0 && p.s < 20.0;
             p.step(
                 &r.config,
@@ -419,7 +439,7 @@ impl World {
         }
         for (i, p) in r.people.iter_mut().enumerate() {
             let go = i < 6
-                && r.seconds > 8.0 + i as f64 * 0.6
+                && r.seconds > 16.0 + i as f64 * 0.6
                 && p.s < 92.0 + i as f64 * 1.4
                 && (bridge || p.s < 44.0 - i as f64 * 1.7 || p.track == "lower");
             let jump = p.track == "harbor" && p.s > 18.0 && p.s < 20.0;
@@ -447,6 +467,16 @@ impl World {
             p.vertical = 0;
             p.jump = false;
         }
+        if rider.arrival_until > self.tick {
+            let fraction=1.0-(rider.arrival_until-self.tick) as f64/160.0;
+            rider.body=Body::new(&r.config,"arrival",r.config.tracks["arrival"].len()*fraction,&r.frame);
+            p.jump=false;
+        } else {
+        if rider.body.track=="arrival" {rider.body=Body::new(&r.config,"harbor",2.0,&r.frame);}
+        let locked=p.state.hp<=0 || p.state.action=="dead" || p.status.locks_controls() || p.channel_until>self.tick;
+        if locked {p.direction=0;p.vertical=0;p.jump=false;rider.body.speed=0.0;}
+        rider.body.pace=5.5*p.move_speed/WALK_SPEED;
+        if p.slow_fall_until>self.tick && rider.body.vertical_speed<0.0 {rider.body.vertical_speed=rider.body.vertical_speed.max(-MAGIC_WAVE_SLOW_FALL_SPEED/60.0+18.0*0.05);}
         rider.body.step(
             &r.config,
             &r.previous,
@@ -460,15 +490,19 @@ impl World {
             p.jump,
             0.05,
         );
+        }
+        if rider.body.grounded {p.magic_wave_used=false;p.magic_wave_float_used=false;}
         p.jump = false;
         let b = &rider.body;
         p.state.x = b.s * 60.0;
         p.state.y = -b.position[1] * 60.0;
         p.state.grounded = b.grounded;
+        p.state.vx = b.speed*60.0;
+        p.state.vy = -b.vertical_speed*60.0;
         p.state.facing = b.facing;
         p.state.climbing = r.config.tracks[&b.track].climb && b.grounded;
         p.state.swimming = false;
-        p.state.action = if rider.attack_until > self.tick {
+        p.state.action = if p.state.hp<=0 || p.state.action=="dead" { "dead" } else if rider.attack_until > self.tick {
             "swingO1"
         } else if !b.grounded {
             "jump"
@@ -499,7 +533,7 @@ impl World {
         let body = &self_player.colossus.as_ref()?.body;
         let region = &r.config.tracks[&body.track].region;
         Some(
-            serde_json::json!({"region":region,"passage":r.config.passage(body),"seconds":r.seconds,"frame":r.frame,"bridgeOpen":r.bridge(),"bridgeAge":r.bridge_age,"helped":r.facts.opened_by.as_deref()==Some(id),"actors":actors,"people":r.people,"stones":r.stones,"seaLevel":r.config.sea_level,"sequence":self_player.colossus_sequence}),
+            serde_json::json!({"mapStage":r.facts.discoveries.get(id).copied().unwrap_or(1),"region":region,"passage":r.config.passage(body),"seconds":r.seconds,"frame":r.frame,"bridgeOpen":r.bridge(),"bridgeAge":r.bridge_age,"helped":r.facts.opened_by.as_deref()==Some(id),"actors":actors,"people":r.people,"stones":r.stones,"seaLevel":r.config.sea_level,"sequence":self_player.colossus_sequence}),
         )
     }
 }

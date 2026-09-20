@@ -1996,10 +1996,11 @@ pub(super) fn write_profile(
     account_id: &str,
     profile: &Profile,
 ) -> Result<(), String> {
+    // Inventory/skill transactions must preserve the same canonical return location as save_profile.
     let skills_json = serialize_skill_map(&profile.skills)?;
     let skill_points_json = serialize_skill_map(&profile.skill_points)?;
     tx.execute(
-        "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,death_id=?11,skills_json=?12,skill_points_json=?13,ability_stats_json=?14,map_id=?15,x=?16,y=?17
+        "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,death_id=?11,skills_json=?12,skill_points_json=?13,ability_stats_json=?14,map_id=CASE WHEN ?15='colossus-harbor' THEN map_id ELSE ?15 END,x=CASE WHEN ?15='colossus-harbor' THEN x ELSE ?16 END,y=CASE WHEN ?15='colossus-harbor' THEN y ELSE ?17 END
          WHERE account_id=?1",
         params![
             account_id,

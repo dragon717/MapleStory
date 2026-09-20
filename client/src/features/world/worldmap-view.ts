@@ -416,6 +416,7 @@ export class WorldMapView {
   }
 
   private renderPage(page: WorldMapPage) {
+    this.root?.setAttribute('data-layout',this.data()?.root==='colossus'?'wide':'source');
     const layer = this.pageLayer;
     const plate = this.plate;
     if (!layer || !plate) return;

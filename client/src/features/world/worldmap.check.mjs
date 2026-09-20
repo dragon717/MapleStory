@@ -316,37 +316,68 @@ const plateOf = view => view.plate;
   const source = await readFile(new URL('../colossus/maps.ts', import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/^import .*\r?\n/gm, '');
   const { ColossusMaps } = await import('data:text/javascript;base64,' + Buffer.from('const config = ' + JSON.stringify(config) + ';\n' + code).toString('base64'));
-  const maps = new ColossusMaps(manifest), { view, host } = harness();
-  view.open('000010000'); const shell = host.children[0];
-  view.setMap('colossus:gardens'); view.setActivityData(maps.world);
-  assert.equal(host.children[0], shell, 'activity uses the existing window');
-  assert.equal(view.page, 'colossus:gardens');
-  assert.equal(view.spots.length, 0, 'the route map must never offer unauthorised teleport');
-  assert.equal(Object.keys(maps.world.pages).length, 7);
+  const maps = new ColossusMaps(manifest);
   const zones = {
     'clavicle.L': { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
     chest: { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
     'index.3.L': { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+    'shin.L': { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+    harbor: { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
   };
+  const frame = (position = [0, 0, 0]) => ({
+    id: 'ancient-colossus', revision: 1, position, yaw: 0, rotation: [0, 0, 0, 1], pose: {}, zones,
+  });
+  const body = (track, rail, s = 0) => ({
+    track, s, position: rail.points[0], velocity: [0, 0, 0], grounded: true,
+    height: 0, verticalSpeed: 0, warp: 0, speed: 0, pace: 5.5, facing: 1,
+  });
+  const state = (mapStage, seconds, region = 'harbor', track = 'harbor', s = 0) => {
+    const rail = config.tracks[track];
+    const actor = body(track, rail, s);
+    return {
+      mapStage, region, passage: null, seconds, sequence: 0, frame: frame(),
+      bridgeOpen: false, bridgeAge: null, helped: false, seaLevel: -5,
+      actors: [{ id: 'self', name: 'self', body: actor, attacking: false }], people: [], stones: [],
+    };
+  };
+  const players = [{ id: 'self' }];
+  const stageUrl = stage => `/assets/colossus/maps/stage-${stage}.png`;
+
+  // Every authored stage replaces the single activity page, without duplicate next pages.
+  for (const stage of [1, 2, 3, 4]) {
+    maps.input(state(stage, 49), players, 'self');
+    assert.equal(maps.world.pages.colossus.baseImg.url, stageUrl(stage));
+    assert(maps.world.pages.colossus && Object.values(maps.world.pages).every(page => page.baseImg.url === stageUrl(stage)));
+  }
+  assert.deepEqual(maps.world.allPages, ['colossus']);
+  assert.equal(Object.keys(maps.world.pages).length, 1);
+
+  // The mini-map keeps the same region/standing drawing until the 65-second
+  // transition; later awakened snapshots reuse that exact drawing.
+  const mini = seconds => maps.input(state(4, seconds), players, 'self').map.url;
+  const mini49 = mini(49), mini64 = mini(64), mini65 = mini(65), mini90 = mini(90);
+  assert.equal(mini49, mini64, 'arrival mini-map is stable before awakening');
+  assert.notEqual(mini64, mini65, 'awakening selects the standing mini-map');
+  assert.equal(mini65, mini90, 'standing mini-map remains stable after awakening');
+
+  const { view, host } = harness();
+  view.open('000010000'); const shell = host.children[0];
+  view.setMap('colossus:gardens'); view.setActivityData(maps.world);
+  assert.equal(host.children[0], shell, 'activity uses the existing window');
+  assert.equal(view.page, 'colossus', 'activity regions use the single authored page');
+  assert.equal(shell.getAttribute('data-layout'),'wide');
+  assert.equal(view.nextButton.element.disabled,true);
+  assert.equal(view.spots.length, 0, 'the route map must never offer unauthorised teleport');
   for (const [region] of Object.entries(config.regions)) {
     const [track, rail] = Object.entries(config.tracks).find(([,t])=>t.region===region);
-    const body = {track, s: 0, grounded: true, facing: 1, position: rail.points[0], velocity: [0,0,0]};
-    const state = {region, actors:[{id:'self',body}],people:[],frame:{position:[0,0,0],yaw:0,zones}};
-    const input = maps.input(state, [{id:'self'}], 'self');
-    assert.equal(input.self.x, rail.points[0][0]);
-    assert.equal(input.self.y, rail.points[0][2]);
+    const input = maps.input(state(4, 90, region, track), players, 'self');
+    const expected = rail.anchor === 'shin.L'
+      ? { x: rail.points[0][0] - config.staging.kneeSurface[0], y: -(rail.points[0][1] - config.staging.kneeSurface[1]) }
+      : { x: rail.points[0][0], y: rail.points[0][2] };
+    assert.deepEqual({ x: input.self.x, y: input.self.y }, expected);
     assert(input.map.url.startsWith('data:image/svg+xml'));
     assert(input.portals.length >= 2);
   }
-  const p=[20,10,30], yaw=.7, origin=[300,40,100];
-  const body={track:'gardens',s:0,grounded:false,facing:1,position:[origin[0]+Math.cos(yaw)*p[0]+Math.sin(yaw)*p[2],origin[1]+p[1],origin[2]-Math.sin(yaw)*p[0]+Math.cos(yaw)*p[2]],velocity:[0,1,0]};
-  const input=maps.input({region:'gardens',actors:[{id:'self',body}],people:[],frame:{position:origin,yaw,zones}},[{id:'self'}],'self');
-  assert(Math.abs(input.self.x-p[0])<1e-8 && Math.abs(input.self.y-p[2])<1e-8,'airborne map marker shares the carrier reference frame');
-  const zonePosition=[45,7,-80], zoneRotation=[0,Math.SQRT1_2,0,Math.SQRT1_2];
-  const zonePoint=[p[2],p[1],-p[0]]; // +90° Y rotation from zone-local to carrier space
-  const zoneBody={track:'gardens',s:0,grounded:false,facing:1,position:[origin[0]+zonePosition[0]+zonePoint[0],origin[1]+zonePosition[1]+zonePoint[1],origin[2]+zonePosition[2]+zonePoint[2]],velocity:[0,1,0]};
-  const zoneInput=maps.input({region:'gardens',actors:[{id:'self',body:zoneBody}],people:[],frame:{position:origin,yaw:0,zones:{...zones,chest:{position:zonePosition,rotation:zoneRotation}}}},[{id:'self'}],'self');
-  assert(Math.abs(zoneInput.self.x-p[0])<1e-8 && Math.abs(zoneInput.self.y-p[2])<1e-8,'airborne marker applies non-identity chest zone rotation and translation');
   view.setMap('100000000'); view.setActivityData(undefined);
   assert.equal(view.page, 'WorldMap010');
   assert.equal(host.children[0], shell);

@@ -46,6 +46,8 @@ struct Bone {
     position: V3,
     rotation: Q4,
     flex: [f64; 2],
+    #[serde(default)]
+    spread: Option<[f64; 2]>,
 }
 #[derive(Deserialize)]
 struct Rig {
@@ -58,12 +60,23 @@ fn rig() -> &'static Rig {
     })
 }
 pub fn sample(seconds: f64) -> (Pose, BTreeMap<String, Transform>) {
-    let awake = ((seconds - 30.0) / 35.0).clamp(0.0, 1.0);
+    let awake = ((seconds - 30.0) / 10.0).clamp(0.0, 1.0);
+    let standing = ((seconds - 55.0) / 10.0).clamp(0.0,1.0);
     let wave = ((seconds - 65.0).max(0.0) / 13.0).sin();
     let mut pose = Pose::new();
     // Tiny torso motion at continental scale still moves occupied districts by metres.
     for (name, angle) in [
-        ("chest", wave * 0.000015),
+        ("chest", (1.0-standing)*0.1 + wave * 0.000015),
+        ("thigh.L", (1.0-standing)*0.95 + wave*0.018*standing),
+        ("thigh.R", (1.0-standing)*0.8 - wave*0.018*standing),
+        ("shin.L", -(1.0-standing)*1.25 - wave.max(0.0)*0.025*standing),
+        ("shin.R", -(1.0-standing)*1.1 - (-wave).max(0.0)*0.025*standing),
+        // Rest the forearm offshore: its full-size cuff must not intersect the port's view.
+        ("upper_arm.L", -0.2-awake*0.05),
+        // The rigid palm's highest vertex still starts 45 m above the sea.
+        ("upper_arm.L.spread", -(1.0-awake)*0.5948254754),
+        ("forearm.L", -0.3-awake*0.3),
+        ("hand.L", awake*0.12),
         ("head", awake * (0.025 + wave * 0.012)),
         ("upper_arm.R", -awake * (0.02 + wave * 0.01)),
         ("forearm.R", -awake * (0.11 + wave * 0.04)),
@@ -87,7 +100,8 @@ pub fn sample(seconds: f64) -> (Pose, BTreeMap<String, Transform>) {
             .copied()
             .unwrap_or(0.0)
             .clamp(b.flex[0], b.flex[1]);
-        let q = [(angle / 2.0).sin(), 0.0, 0.0, (angle / 2.0).cos()];
+        let spread=b.spread.map_or(0.0,|limit|pose.get(&format!("{}.spread",b.name)).copied().unwrap_or(0.0).clamp(limit[0],limit[1]));
+        let q = multiply([(angle / 2.0).sin(), 0.0, 0.0, (angle / 2.0).cos()],[0.0,0.0,(spread/2.0).sin(),(spread/2.0).cos()]);
         let local = Transform {
             position: b.position,
             rotation: b.rotation,
@@ -107,7 +121,7 @@ pub fn sample(seconds: f64) -> (Pose, BTreeMap<String, Transform>) {
         rest.insert(b.name.clone(), r);
         posed.insert(b.name.clone(), p);
     }
-    let zones = ["index.3.L", "clavicle.L", "chest"]
+    let zones = ["index.3.L", "hand.L", "hand.R", "shin.L", "clavicle.L", "chest"]
         .into_iter()
         .map(|name| {
             let r = &rest[name];

@@ -20,6 +20,7 @@ fn colossus_public_bridge_transaction_entry_leave_and_late_arrival() {
         1,
         ColossusAction::Enter,
     );
+    world.players.get_mut("harbor-a").unwrap().colossus.as_mut().unwrap().arrival_until=0;
     assert_eq!(world.players["harbor-a"].map_id, super::colossus::MAP_ID);
     let r = world.colossus.as_ref().unwrap();
     let body = super::colossus::motion::Body::new(&r.config, "harbor", 46.0, &r.frame);
@@ -102,6 +103,8 @@ fn colossus_public_bridge_transaction_entry_leave_and_late_arrival() {
     let backwards = make(service.store.clone()).colossus.unwrap();
     assert_eq!(backwards.seconds, 65.0);
     assert_eq!(backwards.bridge_age, Some(1.5));
+    assert_eq!(backwards.people[0].s,90.0);
+    assert_eq!(backwards.stones[0].s,104.0);
     drop(service);
     let _ = std::fs::remove_file(&path);
 }
@@ -126,7 +129,7 @@ fn colossus_commands_reject_forgery_and_resume_one_resident() {
     world.command(intent("rider-connection", 2, ColossusAction::Board));
     assert_eq!(
         world.players["rider"].colossus.as_ref().unwrap().body.track,
-        "harbor"
+        "arrival"
     );
     let input = |seq, direction| Command::Input {
         id: "rider".into(),
@@ -214,14 +217,22 @@ fn colossus_six_district_passages_preserve_control_and_spiral_height() {
             .unwrap()
             .body
             .track,
-        "harbor"
+        "arrival"
     );
+    world.players.get_mut("walker").unwrap().colossus.as_mut().unwrap().arrival_until=0;
     let mut seq = 2;
     for gate in config
         .passages
         .iter()
         .filter(|g| !(g.track == "climb" && g.to_track == "harbor"))
     {
+        let from=&config.tracks[&gate.track];let to=&config.tracks[&gate.to_track];
+        let town_branch = ["harbor-street", "harbor-roofs", "harbor-skywalk"];
+        if to.anchor==from.anchor && (from.anchor.as_deref()==Some("shin.L") || town_branch.contains(&gate.track.as_str()) || town_branch.contains(&gate.to_track.as_str())) {
+            let a=frame.world_on(from,from.point(gate.s).0);
+            let b=frame.world_on(to,to.point(gate.to_s).0);
+            assert!(super::colossus::motion::length(super::colossus::motion::sub(a,b))<0.01,"disconnected exterior passage: {}",gate.id);
+        }
         let rider = world
             .players
             .get_mut("walker")
@@ -374,6 +385,7 @@ fn colossus_climbing_uses_vertical_input_and_bone_attachment() {
             .track,
         "climb"
     );
+    world.players.get_mut("climber").unwrap().colossus.as_mut().unwrap().arrival_until=0;
     world.players.get_mut("climber").unwrap().vertical = -1;
     let y = world.players["climber"]
         .colossus
@@ -419,4 +431,97 @@ fn colossus_climbing_uses_vertical_input_and_bone_attachment() {
             .track,
         "harbor"
     );
+}
+
+#[test]
+fn colossus_rail_corners_protected_terraces_and_teleport() {
+    use super::colossus::motion::{Body,Config,Frame,length,sub};
+    let mut c=Config::shipped();
+    // Actual highest palm vertex from the unchanged rigid GLB, before and during the hand lift.
+    let palm=[-44866.29296875,28916.294921875,12393.5];
+    let resting=Frame::at(0.0,0);
+    assert!((resting.world(resting.zones["hand.L"].point(palm))[1]-40.0).abs()<0.1);
+    let lifted=Frame::at(35.0,1);
+    assert!(lifted.world(lifted.zones["hand.L"].point(palm))[1]>1000.0);
+    // A sharp horizontal bend must constrain an airborne body just as on the ground.
+    c.tracks.get_mut("quay").unwrap().points=vec![[0.0,5.0,0.0],[3.0,5.0,0.0],[3.0,5.0,10.0]];
+    let start=Frame::at(40.0,0);
+    let mut body=Body::new(&c,"quay",2.8,&start);
+    for i in 1..30 {
+        let old=Frame::at(40.0+(i-1) as f64*0.05,i-1);
+        let frame=Frame::at(40.0+i as f64*0.05,i);
+        body.step(&c,&old,&frame,true,1,i==1,0.05);
+        let local=frame.local_on(&c.tracks["quay"],body.position);
+        let expected=c.tracks["quay"].point(body.s).0;
+        assert!((local[0]-expected[0]).abs()<1e-7 && (local[2]-expected[2]).abs()<1e-7);
+    }
+    assert!(body.s>3.0);
+    for seconds in [0.0,40.0,47.0,55.0,65.0] {
+        let frame=Frame::at(seconds,1);let t=&c.tracks["harbor"];
+        let a=frame.world_on(t,[0.0,0.0,0.0]);let b=frame.world_on(t,[100.0,0.0,0.0]);
+        assert!((b[1]-a[1]).abs()<2.6,"only the designated harbor terrace stays level");
+        let mut idle=Body::new(&c,"harbor",70.0,&frame);
+        idle.speed=4.0;idle.step(&c,&frame,&frame,true,0,true,0.05);
+        assert_eq!(idle.s,70.0,"standing jump must not inherit stale horizontal input");
+    }
+    let frame=Frame::at(65.0,1);
+    assert!((frame.world_on(&c.tracks["harbor"],[0.0,0.0,0.0])[1]-40.0).abs()<1e-7);
+    let b=Body::new(&c,"quay",2.0,&frame);
+    let warped=b.teleport(&c,&frame,true,3.0,0.0).unwrap();
+    assert_eq!(warped.s,5.0);assert_eq!(warped.warp,1);
+    assert!(length(sub(warped.position,frame.world_on(&c.tracks["quay"],[3.0,5.0,2.0])))<1e-7);
+    assert!(b.teleport(&c,&frame,true,f64::NAN,0.0).is_none());
+    let gap=Body::new(&c,"harbor",48.0,&frame);
+    assert!(gap.teleport(&c,&frame,false,3.0,0.0).is_none());
+}
+
+#[test]
+fn colossus_owned_skills_keep_cost_replay_cooldowns_and_canonical_save() {
+    use crate::protocol::ColossusAction;
+    let path=std::env::temp_dir().join(format!("colossus-abilities-{}.sqlite3",auth::random_id()));
+    let service=auth::start(&path).unwrap();
+    let mut world=World::new_with_store(mage_map(),600,mage_gameplay(),service.store.clone()).unwrap().with_mage_skills(MageSkills::bundled()).with_colossus().unwrap();
+    let mut rx=join_test_player(&mut world,"ability-rider");
+    {
+        let p=world.players.get_mut("ability-rider").unwrap();
+        p.state.job=MAGICIAN_JOB;p.state.level=10;p.base_max_mp=150;p.state.mp=150;
+        p.state.skills.insert(SKILL_TELEPORT,1);p.state.skills.insert(SKILL_MAGIC_WAVE,1);
+        refresh_player_derived(&world.gameplay,&world.mage_skills,p);
+    }
+    let p=&world.players["ability-rider"];
+    let home=(p.map_id.clone(),p.state.x,p.state.y);
+    world.handle_colossus("ability-rider".into(),"enter".into(),1,ColossusAction::Enter);
+    let r=world.colossus.as_ref().unwrap();
+    let body=super::colossus::motion::Body::new(&r.config,"harbor",5.0,&r.frame);
+    let p=world.players.get_mut("ability-rider").unwrap();p.colossus.as_mut().unwrap().body=body;p.colossus.as_mut().unwrap().arrival_until=0;
+    let cast=|connection:&str,request:&str,skill_id|Command::Input{id:"ability-rider".into(),connection:connection.into(),message:ClientMessage::CastSkill{request_id:request.into(),skill_id,direction:Some(1),vertical:Some(if skill_id==SKILL_MAGIC_WAVE {-1} else {0})}};
+    let mp=world.players["ability-rider"].state.mp;
+    world.command(cast("forged","forged",SKILL_TELEPORT));
+    assert_eq!(world.players["ability-rider"].state.mp,mp);
+    world.command(cast("ability-rider-connection","tp",SKILL_TELEPORT));
+    let p=&world.players["ability-rider"];let after_mp=p.state.mp;let s=p.colossus.as_ref().unwrap().body.s;
+    assert!(after_mp<mp && s>5.0);
+    world.command(cast("ability-rider-connection","tp",SKILL_TELEPORT));
+    assert_eq!(world.players["ability-rider"].state.mp,after_mp);
+    assert_eq!(world.players["ability-rider"].colossus.as_ref().unwrap().body.s,s);
+    world.players.get_mut("ability-rider").unwrap().skill_cooldowns.insert(999999,100);
+    world.step();world.step();assert!(!world.players["ability-rider"].skill_cooldowns.contains_key(&999999));
+    world.command(cast("ability-rider-connection","wave",SKILL_MAGIC_WAVE));
+    let p=&world.players["ability-rider"];
+    assert!(p.magic_wave_used && !p.colossus.as_ref().unwrap().body.grounded);
+    assert!(p.colossus.as_ref().unwrap().body.vertical_speed>0.0);
+    let wave_mp=p.state.mp;
+    world.step();
+    let height=world.players["ability-rider"].colossus.as_ref().unwrap().body.height;
+    assert!(height>0.0,"owned magic wave must lift the authoritative rail body");
+    world.command(cast("ability-rider-connection","wave",SKILL_MAGIC_WAVE));
+    assert_eq!(world.players["ability-rider"].state.mp,wave_mp);
+    assert_eq!(world.players["ability-rider"].colossus.as_ref().unwrap().body.height,height);
+    let p=&world.players["ability-rider"];
+    let candidate=profile_from_state(&p.state,&p.map_id,&p.death_id,p.base_max_mp);
+    let saved=service.store.load_profile("ability-rider",&candidate).unwrap();
+    assert_eq!((saved.map_id,saved.x,saved.y),home);
+    assert_eq!(saved.mp,world.players["ability-rider"].state.mp);
+    let _=drain_windbell_output(&mut rx);
+    drop(world);drop(service);let _=std::fs::remove_file(path);
 }

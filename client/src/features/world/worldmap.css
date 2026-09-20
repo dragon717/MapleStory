@@ -185,3 +185,9 @@
 .worldmap-all{left:calc(94px * var(--worldmap-scale))!important;top:calc(20px * var(--worldmap-scale))!important}
 .worldmap-before{left:auto!important;top:auto!important;right:76px;bottom:2px}
 .worldmap-next{left:auto!important;top:auto!important;right:10px;bottom:2px}
+
+/* Keep the original top and bottom border pixels around the wide activity art. */
+.worldmap-window[data-layout="wide"]{height:calc(427px * var(--worldmap-scale))}
+.worldmap-window[data-layout="wide"] .worldmap-shell{height:427px}
+.worldmap-window[data-layout="wide"] .worldmap-page{height:360px}
+.worldmap-window[data-layout="wide"] .worldmap-shell::after{content:"";position:absolute;left:0;bottom:0;width:654px;height:27px;background-image:inherit;background-size:654px 537px;background-position:center bottom;pointer-events:none}

@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 33;
+export const PROTOCOL_VERSION = 34;
 export const CONTENT_VERSION = 'tms273-33';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -234,11 +234,12 @@ export interface WindbellState {
 }
 export type ColossusAction = 'enter' | 'leave' | 'board' | 'skip' | 'travel';
 export type Vec3 = [number, number, number];
-export interface ColossusBody { track: string; s: number; position: Vec3; velocity: Vec3; grounded: boolean; speed: number; facing: number }
+export interface ColossusBody { track: string; s: number; position: Vec3; velocity: Vec3; grounded: boolean; height: number; verticalSpeed: number; warp: number; speed: number; facing: number }
 export interface ColossusState {
+  mapStage: number;
   region: string; passage: { id: string; track: string; s: number; toTrack: string; toS: number; label: string } | null;
   seconds: number; sequence: number;
-  frame: { id: string; revision: number; position: Vec3; yaw: number; pose: Record<string, number>; zones: Record<string, { position: Vec3; rotation: [number, number, number, number] }> };
+  frame: { id: string; revision: number; position: Vec3; yaw: number; rotation: [number, number, number, number]; pose: Record<string, number>; zones: Record<string, { position: Vec3; rotation: [number, number, number, number] }> };
   bridgeOpen: boolean; bridgeAge: number | null; helped: boolean; seaLevel: number;
   actors: { id: string; name: string; body: ColossusBody; attacking: boolean }[];
   people: ColossusBody[]; stones: ColossusBody[];

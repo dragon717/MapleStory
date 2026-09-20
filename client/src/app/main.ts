@@ -554,7 +554,8 @@ async function enterGame(session: LoginResponse) {
         colossusView.receive(message);
       } else {
         if (message.type === 'snapshot' && colossusView) {colossusView.destroy();colossusView=undefined;world?.scene?.setVisible(true);world?.scene?.resume();game?.sound.resumeAll();}
-        world?.receive(message);
+        if (colossusView && message.type === 'skillCast') colossusView.skill(message);
+        else world?.receive(message);
       }
       inventory?.receive(message);
       if (message.type === 'chatMessage') {
@@ -886,7 +887,7 @@ async function enterGame(session: LoginResponse) {
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => colossusView ? null : world?.nearestDropId() ?? null,
       enterPortal: () => { if (colossusView) sendColossus('travel'); else world?.enterPortal(); },
-      nearestNpc: () => colossusView ? colossusView.nearestNpc() : world?.nearestNpc() ?? null,
+      nearestNpc: () => colossusView ? colossusView.nearestNpc(true) : world?.nearestNpc() ?? null,
       talkTo: talkToNpc,
       nearestReactor: () => colossusView ? null : world?.nearestReactor()?.id ?? null,
       hitReactor: reactorId => {
@@ -898,7 +899,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
-      basicMovementOnly: () => Boolean(colossusView),
+      mapDirection: raw => colossusView?.direction(raw) ?? raw,
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
       performAction: action => { activateUiAction(action); },
       useItem: useShortcutItem,

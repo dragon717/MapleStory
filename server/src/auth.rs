@@ -842,11 +842,12 @@ impl Store {
     }
 
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {
+        // Keep the canonical return location while persisting stats used inside the activity.
         let skills_json = serialize_skill_map(&profile.skills)?;
         let skill_points_json = serialize_skill_map(&profile.skill_points)?;
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
         db.execute(
-            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,cash=?11,death_id=?12,map_id=?13,x=?14,y=?15,skills_json=?16,skill_points_json=?17,ability_stats_json=?18
+            "UPDATE player_stats SET hp=?2,max_hp=?3,mp=?4,max_mp=?5,level=?6,job=?7,exp=?8,exp_to_next=?9,mesos=?10,cash=?11,death_id=?12,map_id=CASE WHEN ?13='colossus-harbor' THEN map_id ELSE ?13 END,x=CASE WHEN ?13='colossus-harbor' THEN x ELSE ?14 END,y=CASE WHEN ?13='colossus-harbor' THEN y ELSE ?15 END,skills_json=?16,skill_points_json=?17,ability_stats_json=?18
              WHERE account_id=?1",
             params![
                 account_id,

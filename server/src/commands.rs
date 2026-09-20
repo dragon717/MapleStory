@@ -606,11 +606,11 @@ impl World {
                 else {
                     return;
                 };
-                if player.colossus.is_some() && !matches!(&message,
-                    ClientMessage::Input {..} | ClientMessage::Attack {..} |
-                    ClientMessage::Colossus {..} | ClientMessage::NpcTalk {..} | ClientMessage::Lifecycle {..} |
-                    ClientMessage::Logout | ClientMessage::ChatSend {..} | ClientMessage::WhisperSend {..} | ClientMessage::EmoticonSend {..}) {
-                    self.send_reject(&id, "colossus_scope", "这项操作需要返回来处后进行。", None);
+                // Activity geometry replaces movement, not learned skills or inventory rights.
+                // Map-changing intents must leave through the activity's saved return location.
+                if player.colossus.is_some() && matches!(&message,
+                    ClientMessage::Portal {..} | ClientMessage::Windbell {..} | ClientMessage::BossPractice {..} | ClientMessage::WorldMapMove {..}) {
+                    self.send_reject(&id, "colossus_scope", "请先从活动窗口返回来处。", None);
                     return;
                 }
                 match message {

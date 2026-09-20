@@ -47,6 +47,7 @@ DEV_URL="http://127.0.0.1:5173"
 launcher_usage() {
   print -r -- "用法：启动3010.command [模式]"
   print -r -- "  （无参数）  构建候选并启动正式 3010（原发布流程，数据库与 bot 保留）"
+  print -r -- "  preview 端口  前台运行候选，独立数据库；不切换正式版本或启动 bot"
   print -r -- "  dev         源码开发：附着已运行的 3010，启动/复用 Vite 5173 开发页"
   print -r -- "  status      只读查看 3010 与开发页状态（不构建、不启停）"
   print -r -- "  stop dev    仅停止本入口管理的 Vite 开发页；3010 与 bot 不动"
@@ -147,6 +148,18 @@ mode_stop_dev() {
 MODE_DISPATCH=0
 case "${1:-}" in
   "") ;;
+  preview)
+    # Foreground candidate preview: its own database, no release activation or bots.
+    [[ $# -eq 2 && "$2" == <1024-65535> && "$2" != 3010 ]] || mode_die "用法：启动3010.command preview <隔离端口，非3010>"
+    preview_port="$2"
+    preview_candidate="$ROOT/build/tmp"
+    [[ -x "$preview_candidate/server/maplestory-server" && -f "$preview_candidate/client/index.html" ]] || mode_die "请先运行 node scripts/build-release.cjs prepare 生成候选"
+    [[ -z "$(lsof -nP -tiTCP:$preview_port -sTCP:LISTEN 2>/dev/null)" ]] || mode_die "隔离端口已占用；未停止任何进程"
+    preview_data="$ROOT/runtime/preview-$preview_port"
+    mkdir -p "$preview_data"
+    print -r -- "隔离候选：http://127.0.0.1:$preview_port；Ctrl-C 停止。数据：$preview_data"
+    exec env BIND_ADDR="127.0.0.1:$preview_port" ACCOUNT_DB="$preview_data/accounts.sqlite3" CLIENT_DIST="$preview_candidate/client" ASSETS_DIR="$ASSETS" GAMEPLAY_FILE="$GAMEPLAY" MAP_FILE="$MAP" MAP_CATALOG="$MAP_CATALOG" "$preview_candidate/server/maplestory-server"
+    ;;
   dev) mode_dev "$@"; exit 0 ;;
   status) mode_status; exit 0 ;;
   stop)

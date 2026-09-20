@@ -23,6 +23,12 @@ function visit(id,parent) {
 }
 for(const id of gltf.scenes[gltf.scene??0].nodes)visit(id,null);
 assert.equal(bones.length,48);assert.equal(bones.filter(b=>/^(index|middle|ring|little|thumb)\./.test(b.name)).length,30);
+// Program pose limits may evolve without rebuilding the unchanged rest mesh.
+for(const bone of bones) {
+ if(bone.name.startsWith('thigh.'))bone.flex=[-.3,1.4];
+ if(bone.name.startsWith('shin.'))bone.flex=[-1.7,.2];
+ if(bone.name==='upper_arm.L')bone.spread=[-1.2,.1];
+}
 fs.writeFileSync(path.join(root,'shared/colossus-rig.json'),JSON.stringify({version:1,metres:true,sourceSha256:crypto.createHash('sha256').update(file).digest('hex'),bones},null,2)+'\n','utf8');
 const config=JSON.parse(fs.readFileSync(path.join(root,'shared/colossus.json'),'utf8'));
 for(const url of Object.values(config.models)) {

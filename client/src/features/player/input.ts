@@ -37,6 +37,7 @@ export interface Interactable {
   /** Latest authoritative self state, used only to distinguish grounded jump from air float. */
   playerState?: () => PlayerState | undefined;
   basicMovementOnly?: () => boolean;
+  mapDirection?: (raw: -1|0|1) => -1|0|1;
   /** UI-owned modal state; prevents gameplay input from crossing the window boundary. */
   isBlocked?: () => boolean;
   /** Optional per-character key layout. Null means this key is explicitly unbound; absent getter keeps legacy input. */
@@ -84,7 +85,8 @@ export class PlayerInput {
     const legacy = !this.targets.resolveBinding;
     const right = this.held.has('ArrowRight') || (legacy && this.held.has('KeyD')) || this.heldRight.size > 0;
     const left = this.held.has('ArrowLeft') || (legacy && this.held.has('KeyA')) || this.heldLeft.size > 0;
-    return (Number(right) - Number(left)) as -1 | 0 | 1;
+    const raw = (Number(right) - Number(left)) as -1 | 0 | 1;
+    return this.targets.mapDirection?.(raw) ?? raw;
   }
   private vertical(): -1 | 0 | 1 { return (Number(this.held.has('ArrowDown')) - Number(this.held.has('ArrowUp'))) as -1 | 0 | 1; }
   private emit(jump: boolean, force = false) {
