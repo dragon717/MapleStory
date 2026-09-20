@@ -126,12 +126,14 @@ function validate(root = path.resolve(__dirname, '..')) {
     0,
   );
   const windbell = windbellBundle.validate(projectRoot);
+  const colossus = require('./check_colossus_bundle.cjs').validate(projectRoot);
   return {
     protocolVersion: protocol.protocolVersion,
     contentVersion: protocol.contentVersion,
     checkedFiles: REQUIRED_JSON.length,
     checkedAssets,
     windbell,
+    colossus,
     mapCount: mapCatalog.maps.length,
   };
 }

@@ -1425,6 +1425,19 @@ impl Store {
         read_storage_mesos_db(&db, account_id)
     }
 
+    pub fn load_colossus(&self) -> Result<Option<String>, String> {
+        self.db.lock().map_err(|_| "account store unavailable")?
+            .query_row("SELECT state_json FROM colossus_world WHERE singleton=1", [], |r| r.get(0))
+            .optional().map_err(|_| "account persistence failed".to_owned())
+    }
+
+    pub fn save_colossus(&self, json: &str) -> Result<(), String> {
+        self.db.lock().map_err(|_| "account store unavailable")?
+            .execute("INSERT INTO colossus_world(singleton,state_json) VALUES(1,?1) ON CONFLICT(singleton) DO UPDATE SET state_json=excluded.state_json", [json])
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(())
+    }
+
     /// Read the durable public Windbell bridge state.  This is deliberately
     /// separate from `player_stats`: the bridge is one shared world fact, not
     /// an account attribute.

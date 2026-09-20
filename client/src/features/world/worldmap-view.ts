@@ -1,4 +1,5 @@
 import type { AssetFrame, Manifest, WorldMapPage, WorldMapUiData } from '../../assets/manifest';
+import { installWindowDrag, clampIntoHost, bringToFront } from '../ui/window-shell';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
 
 /**
@@ -98,6 +99,8 @@ export class WorldMapView {
   /** Set by the app so the window can report "not browsable" without owning copy. */
   onStatus?: (message: string, error?: boolean) => void;
   private destroyed = false;
+  private disposeDrag?: () => void;
+  onClose?: () => void;
   /** The source keybind default for 世界地圖 is `M`, so the hotkey lives here
    *  with the window rather than in the app shell (same convention as the
    *  character window owning `C`).  Registered for the view's lifetime and
@@ -124,8 +127,16 @@ export class WorldMapView {
     document.addEventListener('keydown', this.handleHotKey, true);
   }
 
+  private activityData?: WorldMapUiData;
+  setActivityData(data?: WorldMapUiData) {
+    if (this.activityData === data) return;
+    this.activityData = data;
+    this.page = this.pageForMap(this.mapId) ?? this.data()?.root;
+    if (this.isOpen()) this.render();
+  }
+
   private data(): WorldMapUiData | undefined {
-    return this.manifest.worldMap;
+    return this.activityData ?? this.manifest.worldMap;
   }
 
   // -------------------------------------------------------------- lifecycle
@@ -208,6 +219,7 @@ export class WorldMapView {
       (window.innerHeight - WORLD_MAP_MARGIN) / WORLD_MAP_HEIGHT,
     );
     root.style.setProperty('--worldmap-scale', String(Math.max(scale, 0.2)));
+    clampIntoHost(this.host, root);
   }
 
   close() {
@@ -215,6 +227,7 @@ export class WorldMapView {
     this.root.hidden = true;
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onKeyDown);
+    this.onClose?.();
   }
 
   toggle(mapId?: string) {
@@ -226,11 +239,13 @@ export class WorldMapView {
   setMap(mapId: string) {
     if (mapId === this.mapId) return;
     this.mapId = mapId;
+    if (this.activityData) this.page = this.pageForMap(mapId) ?? this.activityData.root;
     if (this.isOpen()) this.render();
   }
 
   destroy() {
     this.destroyed = true;
+    this.disposeDrag?.();
     document.removeEventListener('keydown', this.handleHotKey, true);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('resize', this.onResize);
@@ -279,17 +294,19 @@ export class WorldMapView {
 
     this.root = root;
     this.shell = shell;
+    this.disposeDrag = installWindowDrag(this.host, root, { titleHeight: () => 21 * (Number(root.style.getPropertyValue('--worldmap-scale')) || 1), isOpen: () => this.isOpen(), onActivate: () => bringToFront(this.host, root) });
+    root.addEventListener('pointerdown', () => bringToFront(this.host, root));
     const ui = this.data()?.ui;
     if (ui) {
       this.shell.style.backgroundImage = `url("${ui.border.url}")`;
       this.plate.style.backgroundImage = `url("${ui.plate.url}")`;
       this.plate.style.width = `${ui.plate.width}px`;
       this.plate.style.height = `${ui.plate.height}px`;
-      this.closeButton = this.control(shell, 'worldmap-close', ui.close, uiText('worldMapClose'), () => this.close());
+      this.closeButton = this.control(root, 'worldmap-close', ui.close, uiText('worldMapClose'), () => this.close());
       const nav = ui.nav;
-      this.beforeButton = this.control(shell, 'worldmap-before', nav.before, uiText('worldMapBefore'), () => this.step(-1));
-      this.nextButton = this.control(shell, 'worldmap-next', nav.next, uiText('worldMapNext'), () => this.step(1));
-      this.allButton = this.control(shell, 'worldmap-all', nav.all, uiText('worldMapAll'), () => this.goTo(this.data()?.root));
+      this.beforeButton = this.control(root, 'worldmap-before', nav.before, uiText('worldMapBefore'), () => this.step(-1));
+      this.nextButton = this.control(root, 'worldmap-next', nav.next, uiText('worldMapNext'), () => this.step(1));
+      this.allButton = this.control(root, 'worldmap-all', nav.all, uiText('worldMapAll'), () => this.goTo(this.data()?.root));
     }
   }
 
@@ -333,7 +350,8 @@ export class WorldMapView {
     button.addEventListener('pointerenter', () => paint('hover'));
     button.addEventListener('pointerleave', () => paint('normal'));
     button.addEventListener('pointerdown', () => paint('pressed'));
-    button.addEventListener('pointerup', () => paint('hover'));
+    button.addEventListener('pointerup', () => paint('normal'));
+    button.addEventListener('pointercancel', () => paint('normal'));
     button.addEventListener('focus', () => paint('hover'));
     button.addEventListener('blur', () => paint('normal'));
     button.addEventListener('click', onClick);

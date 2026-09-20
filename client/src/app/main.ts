@@ -27,6 +27,7 @@ import '../features/mounts/style.css';
 import { ChairStatusView } from '../features/chairs/view';
 import '../features/chairs/style.css';
 import { MenuView } from '../features/menu/view';
+import { ColossusView } from '../features/colossus/view';
 import { ActivitiesView } from '../features/windbell/activities';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
@@ -129,6 +130,7 @@ function status(message: string, error = false) {
   // once the overlay has been hidden.
   loadingOverlay?.applyStatus(message);
 }
+let colossusView: ColossusView | undefined;
 function focusGame() { requestAnimationFrame(() => el('game').focus({ preventScroll: true })); }
 function openCashShop() {
   input?.reset();
@@ -177,7 +179,7 @@ function activateUiAction(action: string): boolean {
     case 'quests': input?.reset(); questLog?.toggle(); break;
     case 'inventory': input?.reset(); inventory?.toggle(); break;
     case 'equipment': input?.reset(); inventory?.toggleEquipment(); break;
-    case 'worldmap': input?.reset(); if (worldMap?.isOpen()) worldMap.close(); else worldMap?.open(world?.mapId); break;
+    case 'worldmap': input?.reset(); worldMap?.toggle(); break;
     case 'character': toggleCharacterInfo(); break;
     case 'pets': input?.reset(); petPanel?.toggle(); break;
     case 'keybind': openKeybindings(); break;
@@ -191,8 +193,10 @@ function useShortcutItem(itemId: number) {
   if (!item) { status('背包中没有该消耗品。', true); return; }
   connection?.send({ type: 'useItem', requestId: `keyitem-${crypto.randomUUID()}`, inventoryType: 2, sourceSlot: item.slot, itemId: item.itemId });
 }
+let colossusSequence = 0;
+const sendColossus = (action: import('../../../shared/protocol').ColossusAction) => { if(action!=='travel')input?.reset(); connection?.send({type:'colossus',action,sequence:++colossusSequence,requestId:`colossus-${crypto.randomUUID()}`}); };
 function activateBinding(binding: KeyBinding) {
-  if (!binding || !selfState || keybindingsView?.isOpen()) return;
+  if (!binding || !selfState || keybindingsView?.isOpen() || activities?.isOpen()) return;
   if (binding.type === 'item') { useShortcutItem(binding.itemId); return; }
   if (binding.type === 'skill') { castSkill(binding.skillId); return; }
   if (activateUiAction(binding.action)) return;
@@ -201,21 +205,23 @@ function activateBinding(binding: KeyBinding) {
   // `escapeBlocked()` 之后（有窗开着时不骑马），并复用状态标记那条 useItem 通道。
   if (binding.action === 'mount') { mountStatus?.toggleCurrent(); return; }
   if (binding.action === 'attack') {
-    const reactorId = world?.nearestReactor()?.id;
+    const reactorId = colossusView ? undefined : world?.nearestReactor()?.id;
     if (reactorId) connection?.send({ type: 'reactorHit', requestId: `keyreactor-${crypto.randomUUID()}`, reactorId });
     else connection?.send({ type: 'attack', requestId: `keyattack-${crypto.randomUUID()}` });
   } else if (binding.action === 'pickup') {
     const dropId = world?.nearestDropId();
     if (dropId) connection?.send({ type: 'pickup', requestId: `keypickup-${crypto.randomUUID()}`, dropId });
   } else if (binding.action === 'talk') {
+    if (colossusView) { const npc = colossusView.nearestNpc(); if (npc) talkToNpc(npc); else sendColossus('travel'); return; }
     const npc = world?.nearestNpc(); if (npc) talkToNpc(npc); else world?.enterPortal();
   } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
   // 阶段一：点击/按键选中的即时反馈先落地（名牌高亮），服务端的占位或真实
   // 对话随后到达；两路入口（鼠标点击与 ↑ 键）都从这里走，所以选中态只在这一处点亮。
-  world?.selectNpc(npc.id);
+  if (!npc.id.startsWith('colossus-person-')) world?.selectNpc(npc.id);
   if (npc.templateId.startsWith('windbell-')) { input?.reset(); activities?.talk(); return; }
+  input?.reset();
   skills?.close();
   characterInfo?.close();
   petPanel?.close();
@@ -314,7 +320,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -340,7 +346,7 @@ async function enterGame(session: LoginResponse) {
     chairStatus?.destroy();
     chairStatus = new ChairStatusView(el('notices'));
     npcDialogue?.destroy();
-    npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => world?.selectNpc(null));
+    npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => { world?.selectNpc(null); if (selfState) focusGame(); });
     storage?.destroy();
     storage = new StorageView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     party?.destroy();
@@ -365,6 +371,7 @@ async function enterGame(session: LoginResponse) {
     worldMap?.destroy();
     worldMap = new WorldMapView(el('ui-windows'), manifest);
     worldMap.onStatus = message => status(message, true);
+    worldMap.onClose = focusGame;
     // World-map jump: the view only names the clicked spot's map id; the
     // server decides whether that map is assembled and where the body lands.
     worldMap.onJump = mapId => {
@@ -376,7 +383,7 @@ async function enterGame(session: LoginResponse) {
       }
     };
     worldMap.hotkeysEnabled = false;
-    miniMap.onWorldMap = () => worldMap?.open(world?.mapId);
+    miniMap.onWorldMap = () => { input?.reset(); worldMap?.open(); };
     notebook?.destroy();
     notebook = new NotebookView(el('ui-windows'), manifest, {
       send: message => connection?.send(message) ?? false,
@@ -411,7 +418,7 @@ async function enterGame(session: LoginResponse) {
     activities = new ActivitiesView(el('ui-windows'), (action, instanceId) => {
       input?.reset();
       if (!connection?.send({ type: 'windbell', action, instanceId, sequence: ++windbellSequence, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
-    }, focusGame);
+    }, focusGame, () => sendColossus('enter'), action => colossusView?.control(action), () => openKeybindings(), manifest);
     menus = new MenuView(
       el('menus'),
       manifest,
@@ -433,7 +440,7 @@ async function enterGame(session: LoginResponse) {
       () => emoticons?.toggle() ?? false,
       () => { input?.reset(); activities?.show(); },
       // Source UITotalMenu type 19 is the 世界地圖 shortcut.
-      () => worldMap?.open(world?.mapId),
+      () => { input?.reset(); worldMap?.open(); },
       // The 現金商店 operation opens the cash-shop window (source CashShop.img).
       openCashShop,
       () => openKeybindings(),
@@ -460,7 +467,7 @@ async function enterGame(session: LoginResponse) {
     keyRouterDispose?.();
     keyRouterDispose = installKeybindingRouter({
       resolve: (code, shift) => keybindings.resolve(code, shift),
-      blocked: () => !selfState || Boolean(keybindingsView?.isOpen() || news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
+      blocked: () => !selfState || Boolean(activities?.isOpen() || keybindingsView?.isOpen() || news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
       activate: activateUiAction,
     });
     hud?.destroy();
@@ -542,7 +549,13 @@ async function enterGame(session: LoginResponse) {
     layoutObserver.observe(el('hud'));
     let announcedMapId: string | undefined;
     connection = new Connection(session, message => {
-      world?.receive(message);
+      if (message.type === 'snapshot' && message.colossus) {
+        if (!colossusView) { input?.reset(); world?.scene?.setVisible(false); world?.scene?.pause(); game?.sound.pauseAll(); colossusView=new ColossusView(el('game'),manifest,sendColossus,text => { status(text); chat?.appendSystem(text); }, talkToNpc); colossusView.setMuted(muted); }
+        colossusView.receive(message);
+      } else {
+        if (message.type === 'snapshot' && colossusView) {colossusView.destroy();colossusView=undefined;world?.scene?.setVisible(true);world?.scene?.resume();game?.sound.resumeAll();}
+        world?.receive(message);
+      }
       inventory?.receive(message);
       if (message.type === 'chatMessage') {
         chat?.appendChatMessage(message);
@@ -742,6 +755,7 @@ async function enterGame(session: LoginResponse) {
       }
       if (message.type === 'snapshot') {
         windbellSequence = Math.max(windbellSequence, message.windbellSequence ?? 0);
+        colossusSequence = Math.max(colossusSequence, message.colossusSequence ?? 0);
         el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
         const currentMap = world?.getMap(message.mapId);
         if (currentMap && world?.mapId === message.mapId) {
@@ -757,7 +771,7 @@ async function enterGame(session: LoginResponse) {
         // The minimap is a pure view: the server's map id, its own player list
         // and the map's authored portal list are everything it is allowed to
         // draw, and the roster (already authoritative) only tints the dots.
-        miniMap?.update({
+        miniMap?.update(message.colossus && colossusView ? { ...colossusView.maps.input(message.colossus, message.players, message.selfId), partyIds: party?.memberIds() } : {
           mapId: message.mapId,
           self,
           players: message.players,
@@ -767,7 +781,9 @@ async function enterGame(session: LoginResponse) {
         });
         // The world map's `M` hotkey and menu entry open on the region the
         // character stands in, so the view tracks the authoritative map id.
-        worldMap?.setMap(message.mapId);
+        worldMap?.setMap(message.colossus ? `colossus:${message.colossus.region}` : message.mapId);
+        worldMap?.setActivityData(message.colossus ? colossusView?.maps.world : undefined);
+        activities?.updateColossus(Boolean(message.colossus));
         hud?.update(self);
         inventory?.update(self, message.mapId.startsWith('practice:'));
         skills?.update(self);
@@ -800,12 +816,13 @@ async function enterGame(session: LoginResponse) {
           // (the WebSocket handshake takes milliseconds, the texture fetch
           // seconds), so the overlay must NOT come down here — `revealGame`
           // retires it once the world scene reports ready as well.
-          status(`${uiText('enteredMap', '已进入')} ${currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
+          status(`${uiText('enteredMap', '已进入')} ${message.colossus ? '巨石之约' : currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
           revealGame();
         }
       }
       else       if (message.type === 'rejected') {
-        if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
+        if (message.code === 'colossus_action' && uiLocale() !== 'en') status(message.message, true);
+        else if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
         else if (['reactor_unknown', 'reactor_busy', 'reactor_spent', 'reactor_out_of_range'].includes(message.code)) {
           // A reactor rejection is a normal gameplay outcome, not an error:
           // the prop may already have been taken by someone else on the map.
@@ -864,14 +881,14 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
-      nearestDrop: () => world?.nearestDropId() ?? null,
-      enterPortal: () => world?.enterPortal(),
-      nearestNpc: () => world?.nearestNpc() ?? null,
+      nearestDrop: () => colossusView ? null : world?.nearestDropId() ?? null,
+      enterPortal: () => { if (colossusView) sendColossus('travel'); else world?.enterPortal(); },
+      nearestNpc: () => colossusView ? colossusView.nearestNpc() : world?.nearestNpc() ?? null,
       talkTo: talkToNpc,
-      nearestReactor: () => world?.nearestReactor()?.id ?? null,
+      nearestReactor: () => colossusView ? null : world?.nearestReactor()?.id ?? null,
       hitReactor: reactorId => {
         if (!connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId })) {
           status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
@@ -881,10 +898,11 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
+      basicMovementOnly: () => Boolean(colossusView),
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
       performAction: action => { activateUiAction(action); },
       useItem: useShortcutItem,
-      isBlocked: () => Boolean(keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -898,7 +916,7 @@ const clientActions = new ClientActionsView(document.querySelector<HTMLElement>(
 entry.onStageChange = stage => clientActions.setVisible(stage === 'login');
 el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
 el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
-el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); el('sound').textContent = english ? `Sound: ${muted ? 'Off' : 'On'}` : `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
+el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); colossusView?.setMuted(muted); el('sound').textContent = english ? `Sound: ${muted ? 'Off' : 'On'}` : `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
 function leaveGame(logout = false) {
   // Closing the socket is not a logout: the server keeps the character
   // resident so a tab switch or reload can take it over.  Only an explicit
@@ -916,6 +934,7 @@ function leaveGame(logout = false) {
   keyRouterDispose?.(); keyRouterDispose = undefined;
   keybindingsDispose?.(); keybindingsDispose = undefined;
   keybindingsView?.destroy(); keybindingsView = undefined;
+  colossusView?.destroy(); colossusView=undefined;
   generation++; selfState = undefined; characterInfo?.update(undefined); petPanel?.destroy(); petPanel = undefined; mountStatus?.destroy(); mountStatus = undefined; chairStatus?.destroy(); chairStatus = undefined; input?.destroy(); input = undefined; connection?.close(); connection = undefined; game?.destroy(true); game = undefined; world = undefined; chat?.destroy(); chat = undefined; menus?.destroy(); menus = undefined; deathNotice?.destroy(); deathNotice = undefined; awayNotice?.destroy(); awayNotice = undefined; hud?.destroy(); hud = undefined; inventory?.destroy(); inventory = undefined; npcDialogue?.destroy(); npcDialogue = undefined; questLog?.destroy(); questLog = undefined; notebook?.destroy(); notebook = undefined; party?.destroy(); party = undefined; friends?.destroy(); friends = undefined; emoticons?.destroy(); emoticons = undefined; miniMap?.destroy(); miniMap = undefined; worldMap?.destroy(); worldMap = undefined; skills?.destroy(); skills = undefined; characterInfo?.destroy(); characterInfo = undefined;
   muted = false; el('sound').textContent = english ? 'Sound: On' : '声音：开';  el('play').hidden = true; el('connection').textContent = english ? 'Not connected' : '尚未连接'; el('connection').classList.remove('online');
 }

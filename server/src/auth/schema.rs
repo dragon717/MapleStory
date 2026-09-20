@@ -263,6 +263,10 @@ impl Store {
                state_json TEXT NOT NULL,
                revision INTEGER NOT NULL DEFAULT 0
              );
+             CREATE TABLE IF NOT EXISTS colossus_world(
+               singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+               state_json TEXT NOT NULL
+             );
              CREATE TABLE IF NOT EXISTS windbell_player_state(
                account_id TEXT PRIMARY KEY,
                state_json TEXT NOT NULL

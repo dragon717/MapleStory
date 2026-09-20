@@ -11,6 +11,89 @@
 
 use super::*;
 
+#[test]
+fn a16_current_controller_can_resume_without_renewing_passive_absence() {
+    let mut world = away_world();
+    let mut output = join(&mut world, "resume", "old");
+    world.command(Command::Detach {
+        id: "resume".into(),
+        connection: "old".into(),
+        reason: AwayReason::TransportLost,
+    });
+    age_away(&mut world, "resume", 650);
+    let mut rebound = join(&mut world, "resume", "new");
+    let lifecycle = |connection: &str, away| Command::Input {
+        id: "resume".into(),
+        connection: connection.into(),
+        message: ClientMessage::Lifecycle {
+            hidden: false,
+            away,
+            client_now_ms: None,
+        },
+    };
+    world.command(lifecycle("old", Some(false)));
+    world.command(lifecycle("new", None));
+    world.command(Command::Input {
+        id: "resume".into(),
+        connection: "new".into(),
+        message: ClientMessage::Input {
+            seq: 1,
+            direction: 0,
+            vertical: 0,
+            jump: false,
+        },
+    });
+    assert!(
+        world.players["resume"].away.is_some(),
+        "old connection, visibility and idle heartbeats cannot extend absence"
+    );
+    world.command(lifecycle("new", Some(false)));
+    assert!(
+        world.players["resume"].away.is_none(),
+        "Continue Adventure must actually resume the resident"
+    );
+    world.command(Command::Input {
+        id: "resume".into(),
+        connection: "new".into(),
+        message: ClientMessage::Lifecycle {
+            hidden: true,
+            away: None,
+            client_now_ms: None,
+        },
+    });
+    world.command(Command::Input {
+        id: "resume".into(),
+        connection: "new".into(),
+        message: ClientMessage::Input {
+            seq: 2,
+            direction: 1,
+            vertical: 0,
+            jump: false,
+        },
+    });
+    assert!(
+        world.players["resume"].away.is_none(),
+        "fresh movement ends a real return without waiting for a ten-minute notice"
+    );
+    world.command(Command::Input {
+        id: "resume".into(),
+        connection: "new".into(),
+        message: ClientMessage::Lifecycle {
+            hidden: true,
+            away: None,
+            client_now_ms: None,
+        },
+    });
+    age_away(&mut world, "resume", 3700);
+    world.command(lifecycle("new", Some(false)));
+    assert!(
+        !world.players.contains_key("resume"),
+        "an expired resident cannot be revived by a late resume"
+    );
+    while output.try_recv().is_ok() {}
+    while rebound.try_recv().is_ok() {}
+}
+
 fn away_world() -> World {
     World::new(map(), 600)
 }

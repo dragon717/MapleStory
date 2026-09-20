@@ -24,6 +24,7 @@ const outputText = ts.transpileModule(source, {
 // The module's imports are stripped above, so re-supply the three helpers it
 // calls: the locale, the window copy and the map-name lookup.
 const helpers = [
+  "const installWindowDrag = () => () => {}; const clampIntoHost = () => {}; const bringToFront = () => {};",
   "const uiLocale = () => 'en';",
   'const uiText = key => `ui:${key}`;',
   "const mapText = (text, fallback) => text || fallback || '';",
@@ -309,4 +310,36 @@ const plateOf = view => view.plate;
   view.destroy();
 }
 
-console.log('worldmap.check.mjs: 10 checks passed');
+// w11 — activity routes reuse the same shell and restore the original map on exit.
+{
+  const config = JSON.parse(await readFile(new URL('../../../../shared/colossus.json', import.meta.url), 'utf8'));
+  const source = await readFile(new URL('../colossus/maps.ts', import.meta.url), 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/^import .*\r?\n/gm, '');
+  const { ColossusMaps } = await import('data:text/javascript;base64,' + Buffer.from('const config = ' + JSON.stringify(config) + ';\n' + code).toString('base64'));
+  const maps = new ColossusMaps(manifest), { view, host } = harness();
+  view.open('000010000'); const shell = host.children[0];
+  view.setMap('colossus:gardens'); view.setActivityData(maps.world);
+  assert.equal(host.children[0], shell, 'activity uses the existing window');
+  assert.equal(view.page, 'colossus:gardens');
+  assert.equal(view.spots.length, 0, 'the route map must never offer unauthorised teleport');
+  assert.equal(Object.keys(maps.world.pages).length, 7);
+  for (const [region] of Object.entries(config.regions)) {
+    const [track, rail] = Object.entries(config.tracks).find(([,t])=>t.region===region);
+    const body = {track, s: 0, grounded: true, facing: 1, position: rail.points[0], velocity: [0,0,0]};
+    const state = {region, actors:[{id:'self',body}],people:[],frame:{position:[0,0,0],yaw:0}};
+    const input = maps.input(state, [{id:'self'}], 'self');
+    assert.equal(input.self.x, rail.points[0][0]);
+    assert.equal(input.self.y, rail.points[0][2]);
+    assert(input.map.url.startsWith('data:image/svg+xml'));
+    assert(input.portals.length >= 2);
+  }
+  const p=[20,10,30], yaw=.7, origin=[300,40,100];
+  const body={track:'gardens',s:0,grounded:false,facing:1,position:[origin[0]+Math.cos(yaw)*p[0]+Math.sin(yaw)*p[2],origin[1]+p[1],origin[2]-Math.sin(yaw)*p[0]+Math.cos(yaw)*p[2]],velocity:[0,1,0]};
+  const input=maps.input({region:'gardens',actors:[{id:'self',body}],people:[],frame:{position:origin,yaw}},[{id:'self'}],'self');
+  assert(Math.abs(input.self.x-p[0])<1e-8 && Math.abs(input.self.y-p[2])<1e-8,'airborne map marker shares the carrier reference frame');
+  view.setMap('100000000'); view.setActivityData(undefined);
+  assert.equal(view.page, 'WorldMap010');
+  assert.equal(host.children[0], shell);
+  view.destroy();
+}
+console.log('worldmap.check.mjs: 11 checks passed');

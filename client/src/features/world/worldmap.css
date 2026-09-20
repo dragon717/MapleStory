@@ -9,7 +9,8 @@
   top: 50%;
   transform: translate(-50%, -50%);
   pointer-events: auto;
-  z-index: 6;
+  z-index: var(--ui-window-z, 6);
+  touch-action: none;
   filter: drop-shadow(0 10px 14px #000b);
   user-select: none;
   image-rendering: pixelated;
@@ -178,3 +179,9 @@
 .worldmap-empty[hidden] {
   display: none;
 }
+/* Keep authored controls legible and clickable while only the map plate scales. */
+.worldmap-control{min-width:24px;min-height:24px;background-size:auto;background-position:center;z-index:3}
+.worldmap-close{left:auto!important;top:0!important;right:0}
+.worldmap-all{left:calc(94px * var(--worldmap-scale))!important;top:calc(20px * var(--worldmap-scale))!important}
+.worldmap-before{left:auto!important;top:auto!important;right:76px;bottom:2px}
+.worldmap-next{left:auto!important;top:auto!important;right:10px;bottom:2px}

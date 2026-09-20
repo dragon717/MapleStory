@@ -119,6 +119,8 @@ mod trade;
 mod ufo;
 #[path = "windbell.rs"]
 pub(crate) mod windbell;
+#[path = "colossus.rs"]
+pub(crate) mod colossus;
 use self::attribute::*;
 use self::damage::*;
 use self::derived::*;
@@ -1425,6 +1427,8 @@ struct Player {
     /// activity instance itself is transient; this small record survives it
     /// and is persisted by the Windbell module.
     windbell_progress: windbell::WindbellPlayerProgress,
+    colossus: Option<colossus::Rider>,
+    colossus_sequence: u64,
     /// Last server-authored Windbell lines for this observer.  They are
     /// presentation state and are intentionally not treated as facts.
     windbell_dialogue: Vec<String>,
@@ -1983,6 +1987,7 @@ pub struct World {
     /// module owns the state transitions; this option keeps worlds created by
     /// unit tests without the optional activity data fully compatible.
     windbell: Option<windbell::WindbellRuntime>,
+    colossus: Option<colossus::Runtime>,
     /// Bounded request idempotency for BossPractice lifecycle commands.  The
     /// encounter id is part of the key's semantic value so a stale Leave or
     /// Retry cannot mutate a newer private instance.
@@ -2107,6 +2112,7 @@ impl World {
             pending_attacks: BTreeMap::new(),
             reactors: BTreeMap::new(),
             windbell: None,
+            colossus: None,
             boss_practices: BTreeMap::new(),
             boss_requests: BTreeMap::new(),
             boss_request_sequence: 0,
@@ -2559,7 +2565,7 @@ impl World {
         // from anyone's view and never changes its physics or damage rules.
         let now = Instant::now();
         let mut player_rows = Vec::new();
-        for player in self.players.values().filter(|p| p.map_id == map_id) {
+        for player in self.players.values().filter(|p| p.map_id == map_id && self.colossus_relevant(id,p)) {
             let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
             if let Some(away) = player.away.as_ref() {
                 if let Some(object) = row.as_object_mut() {
@@ -2607,6 +2613,7 @@ impl World {
             "type":"snapshot",
             "serverTick":self.tick,
             "windbellSequence":self.players.get(id).map_or(0, |p| p.windbell_progress.command_sequence),
+            "colossusSequence":self.players.get(id).map_or(0, |p| p.colossus_sequence),
             "tickMs":TICK_MS,
             "mapId":map_id,
             "selfId":id,
@@ -2638,6 +2645,7 @@ impl World {
             snapshot["sourceMapId"] = source_map_id.into();
             snapshot["windbell"] = windbell;
         }
+        if let Some(colossus) = self.colossus_snapshot(id) { snapshot["colossus"] = colossus; }
         // 飞行船班次状态只随船图/站台图出去（`ship::ship_snapshot_route_index`，
         // 共用船图 `130090000` 按乘客名单归属），其余地图的快照不带该字段，
         // 避免全量广播膨胀。
@@ -2745,6 +2753,17 @@ impl World {
         }
     }
 
+    fn detach_closed_outputs(&mut self, failed: Vec<String>) {
+        // A closed receiver can beat the network Detach command to the World queue.
+        // Both failures mean transport loss, never an explicit character departure.
+        for id in failed {
+            if let Some(player)=self.players.get(&id) {
+                let connection=player.connection.clone();
+                self.command(Command::Detach{id,connection,reason:AwayReason::TransportLost});
+            }
+        }
+    }
+
     fn broadcast_to_map(&mut self, map_id: &str, message: &str) {
         // A resident character with no controlling socket is skipped entirely:
         // it stays in the world and stays visible to others, it simply has
@@ -2760,16 +2779,7 @@ impl World {
                 },
             )
             .collect();
-        for id in failed {
-            if !self.disconnect_windbell_player(&id) {
-                continue;
-            }
-            self.disconnect_boss_player(&id);
-            self.players.remove(&id);
-            self.end_conversation(&id);
-            self.pending_attacks
-                .retain(|_, attack| attack.player_id != id);
-        }
+        self.detach_closed_outputs(failed);
     }
 
     /// 把一次**资源恢复**定向推给当事人自己。
@@ -3040,6 +3050,7 @@ impl World {
     }
 
     fn handle_attack(&mut self, id: String, request_id: String) {
+        if self.attack_colossus(&id, &request_id) { return; }
         // 骑宠的动作集合（源 `Character/TamingMob/*.img`）里没有任何 `swing*`/`shoot*`
         // 帧，源里也没有「骑乘中攻击」的可执行规则 ⇒ 骑乘中不发普攻。这不是数值
         // 平衡，是源数据不支持该姿态。
@@ -3270,6 +3281,7 @@ impl World {
     pub fn step(&mut self) {
         self.tick += 1;
         self.step_windbell_before_players();
+        self.step_colossus();
         // Drop consumable cooldowns that have expired so the per-player map
         // cannot grow without bound over a long session, and mirror what is
         // left onto the wire state for the client to render.
@@ -3292,6 +3304,7 @@ impl World {
         self.advance_away_windows();
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
+            if self.step_colossus_player(&id) { continue; }
             self.apply_beginner_heal_tick(&id);
             self.step_infinity_tick(&id);
             self.step_natural_recovery(&id);
@@ -3503,16 +3516,7 @@ impl World {
                 Err(TrySendError::Full(_)) | Ok(()) => None,
             })
             .collect();
-        for id in failed {
-            if !self.disconnect_windbell_player(&id) {
-                continue;
-            }
-            self.disconnect_boss_player(&id);
-            self.players.remove(&id);
-            self.end_conversation(&id);
-            self.pending_attacks
-                .retain(|_, attack| attack.player_id != id);
-        }
+        self.detach_closed_outputs(failed);
     }
 
     fn persist_player(&self, id: &str) -> Result<(), String> {
@@ -3522,6 +3526,7 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return Ok(());
         };
+        if player.colossus.is_some() { return Ok(()); }
         // A Windbell island map exists only for the current visit.  Its
         // coordinates must never leak into the normal profile row; the
         // activity's explicit leave/disconnect path first returns the player

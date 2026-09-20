@@ -52,6 +52,6 @@ export default defineConfig(({ command }) => ({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
-    proxy: { '/api': 'http://127.0.0.1:3010', '/ws': { target: 'ws://127.0.0.1:3010', ws: true } },
+    proxy: { '/api': process.env.MAPLE_DEV_SERVER ?? 'http://127.0.0.1:3010', '/ws': { target: process.env.MAPLE_DEV_SERVER ?? 'ws://127.0.0.1:3010', ws: true } },
   },
 }));

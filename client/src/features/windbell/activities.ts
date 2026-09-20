@@ -1,11 +1,18 @@
 import type { WindbellAction, WindbellState, PlayerState, NpcState } from '../../../../shared/protocol';
 import config from '../../../../shared/windbell.json';
+import type { Manifest } from '../../assets/manifest';
+import { createAssetButton, installWindowDrag, bringToFront, clampIntoHost } from '../ui/window-shell';
+import type { ColossusControl } from '../colossus/view';
+import colossus from '../../../../shared/colossus.json';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 
 /** Menus send intentions; the server owns entry, proximity and world facts. */
 export class ActivitiesView {
   private root = document.createElement('section');
+  private content = document.createElement('div');
+  private disposeDrag?: () => void;
+  private resize?: ResizeObserver;
   private dock = document.createElement('section');
   private actions = document.createElement('div');
   private dialogue = document.createElement('p');
@@ -14,20 +21,26 @@ export class ActivitiesView {
   private state?: WindbellState;
   private open = false;
   private signature = '\0';
+  private colossusCard?: HTMLElement;
+  private colossusEnter?: HTMLButtonElement;
+  private colossusControls?: HTMLElement;
+  private inColossus = false;
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
-    if (e.key === 'Tab' && this.open) {
-      const buttons = Array.from(this.root.querySelectorAll('button'));
-      const first=buttons[0], last=buttons[buttons.length-1];
-      if (e.shiftKey && document.activeElement===first) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first?.focus(); }
-    }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
-    this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'true'); this.root.setAttribute('aria-label', '活动清单');
-    const title = document.createElement('h2'); title.textContent = '余途 · 回风原'; this.root.append(title);
-    this.root.append(this.button('关闭', () => this.close()));
+    this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
+    const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
+    // Reuse the existing UtilDlgEx slices and dialog option interaction; no activity-specific skin.
+    for (const name of ['t','c','s']) { const art = manifest?.dialogUi?.[name]; if (art) this.root.style.setProperty('--activity-'+name, 'url("'+art.url+'")'); }
+    const close = createAssetButton({ assets: manifest?.inventoryUi ?? {}, base: 'AutoBuild/button:close', label: '关闭活动', action: () => this.close() });
+    if (close) { close.button.className = 'activity-close'; this.root.append(close.button); }
+    else this.root.append(this.button('关闭', () => this.close()));
+    this.content.className = 'activity-content'; this.root.append(this.content);
+    this.disposeDrag = installWindowDrag(host, this.root, { titleHeight: 28, isOpen: () => this.open, onActivate: () => bringToFront(host, this.root) });
+    this.root.addEventListener('pointerdown', () => bringToFront(host, this.root));
+    this.resize = new ResizeObserver(() => clampIntoHost(host, this.root)); this.resize.observe(host);
     for (const [name, description, action, image] of [
       ['风铃岛', '沿根道攀登、放下树桥，或借热流抵达树梢驿站。', 'enterIsland', 'island-keyart'],
       ['风铃桥渡口', '河谷两岸的来路。桥上运货，桥下读纸；东岸石脊通向风铃岛。↓＋空格可落到桥下。', 'enterBridge', 'bridge-dormant'],
@@ -36,9 +49,25 @@ export class ActivitiesView {
       art.src = resolveAssetUrl(`/assets/windbell/${image}.png`); art.alt = name;
       const heading = document.createElement('h3'); heading.textContent = name;
       const copy = document.createElement('p'); copy.textContent = description;
-      card.append(art, heading, copy, this.button('进入', () => { this.send(action); this.close(); })); this.root.append(card);
+      card.append(art, heading, copy, this.button('进入', () => { this.send(action); this.close(); })); this.content.append(card);
     }
-    const hint = document.createElement('p'); hint.textContent = '每次远行留下来路，每次归来遇见变化。原创世界 · 方向键移动，空格跳跃，↑↓攀绳。可随时返回进入前的位置。'; this.root.append(hint);
+    if (enterColossus) {
+      const card=document.createElement('article'), art=document.createElement('img'), heading=document.createElement('h3'), copy=document.createElement('p');
+      art.src=resolveAssetUrl(colossus.art['activity-cover']);art.alt='蓝旗港口与海中苏醒的巨像';heading.textContent='巨石之约';copy.textContent='沿蓝旗登上高台。脚下的道路、海中的礁石，都还有另一面。';
+      this.colossusEnter = this.button('登岸',()=>{enterColossus();this.close();});
+      this.colossusControls = document.createElement('div');
+      this.colossusControls.className = 'activity-scene-controls';
+      this.colossusControls.hidden = true;
+      const help = document.createElement('p');
+      help.textContent = '沿用冒险岛的移动、跳跃与攻击按键。桥头靠近藤蔓再攻击；路口按 ↑ 通行。小地图、世界地图、聊天和活动都从原有入口打开。失足可走安全坡道；手掌停稳后可从高台登上巨像。演出可跳过，也可回看。';
+      const actions = document.createElement('div');
+      for (const [action, label] of [['replay','回看远景'],['skip','跳过演出'],['orbit','换个视角'],['quality','切换省电画质'],['leave','返回来处']] as const) actions.append(this.button(label, () => { controlColossus?.(action); this.close(); }));
+      actions.append(this.button('键盘设置', () => { this.close(false); openKeys?.(); }));
+      this.colossusControls.append(help, actions);
+      this.colossusCard = card;
+      card.append(art,heading,copy,this.colossusEnter,this.colossusControls);this.content.append(card);
+    }
+    const hint = document.createElement('p'); hint.textContent = '每次远行留下来路，每次归来遇见变化。原创世界 · 方向键移动，空格跳跃，↑↓攀绳。可随时返回进入前的位置。'; this.content.append(hint);
     this.dock.className = 'windbell-dock'; this.dock.hidden = true; this.dock.setAttribute('aria-label', '风铃场景互动');
     this.dialogue.setAttribute('aria-live', 'polite');
     const memories = document.createElement('details');
@@ -48,12 +77,13 @@ export class ActivitiesView {
     host.append(this.root, this.dock); document.addEventListener('keydown', this.escape, true);
   }
   private button(label: string, action: () => void) {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', action); return b;
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.className = 'npc-dlg-opt'; b.addEventListener('click', action); return b;
   }
   isOpen() { return this.open; }
   talk() { this.act('talk'); }
-  show() { this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); }
-  close() { this.open = false; this.root.hidden = true; this.focus(); }
+  show() { this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
+  updateColossus(active: boolean) { this.inColossus = active; if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
+  close(restoreFocus = true) { this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
   private act(action: WindbellAction) { if (this.state) this.send(action, action === 'enterIsland' || action === 'enterBridge' ? undefined : this.state.instanceId); this.focus(); }
   update(state?: WindbellState, player?: PlayerState, npcs: NpcState[] = []) {
     this.state = state; this.dock.hidden = !state;
@@ -98,5 +128,5 @@ export class ActivitiesView {
     const text = state.dialogue?.join('\n') || '';
     if (this.dialogue.textContent !== text) this.dialogue.textContent = text;
   }
-  destroy() { document.removeEventListener('keydown', this.escape, true); this.root.remove(); this.dock.remove(); }
+  destroy() { this.disposeDrag?.(); this.resize?.disconnect(); document.removeEventListener('keydown', this.escape, true); this.root.remove(); this.dock.remove(); }
 }

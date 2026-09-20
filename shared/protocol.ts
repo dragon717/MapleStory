@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 30;
+export const PROTOCOL_VERSION = 32;
 export const CONTENT_VERSION = 'tms273-33';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -232,7 +232,19 @@ export interface WindbellState {
   journey?: { braceCart: boolean; deliveredPlanks: number; deliveredRopes: number; arrived: boolean; arrivalPath: WindbellState['arrivalPath']; lastAttempt: string | null; leafwingLearned: boolean; archiveHelped: boolean; archiveRead: boolean; huaishengMet: boolean };
   cartUpright: boolean; planks: number; ropes: number; dialogue: string[]; revision: number;
 }
+export type ColossusAction = 'enter' | 'leave' | 'board' | 'skip' | 'travel';
+export type Vec3 = [number, number, number];
+export interface ColossusBody { track: string; s: number; position: Vec3; velocity: Vec3; grounded: boolean; speed: number; facing: number }
+export interface ColossusState {
+  region: string; passage: { id: string; track: string; s: number; toTrack: string; toS: number; label: string } | null;
+  seconds: number; sequence: number;
+  frame: { id: string; revision: number; position: Vec3; yaw: number };
+  bridgeOpen: boolean; bridgeAge: number | null; helped: boolean; seaLevel: number;
+  actors: { id: string; name: string; body: ColossusBody; attacking: boolean }[];
+  people: ColossusBody[]; stones: ColossusBody[];
+}
 export type ClientMessage =
+  | { type: 'colossus'; requestId: string; sequence: number; action: ColossusAction }
   | { type: 'windbell'; requestId: string; sequence: number; action: WindbellAction; instanceId?: string }
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
   | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean }
@@ -510,7 +522,7 @@ export interface ShipEventNotice {
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; windbellSequence?: number; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
+  | { type: 'snapshot'; colossus?: ColossusState; colossusSequence?: number; windbellSequence?: number; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }

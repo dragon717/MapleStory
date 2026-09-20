@@ -13,6 +13,9 @@ export type MiniMapArrow = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se';
 export type MiniMapDock = 'left' | 'right';
 
 export interface MiniMapInput {
+  /** Activity geometry projected into this same source-backed minimap. */
+  map?: MiniMapMapAsset;
+  names?: { street: string; map: string };
   mapId: string;
   /** Authoritative self state: the arrow, and the "is this me" test. */
   self?: PlayerState;
@@ -257,11 +260,12 @@ export class MiniMapView {
   }
 
   private mapAsset(mapId: string): MiniMapMapAsset | undefined {
-    return this.data()?.maps[mapId];
+    return this.input?.map ?? this.data()?.maps[mapId];
   }
 
   /** The authored street and map names for a map. */
   private names(mapId: string): { street: string; map: string } {
+    if (this.input?.names) return this.input.names;
     const catalog = this.manifest.mapCatalog?.maps.find(entry => entry.id === mapId);
     const entry = catalog ?? (this.manifest.map.id === mapId ? this.manifest.map : undefined);
     return {

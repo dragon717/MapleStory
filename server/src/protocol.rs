@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 30;
+pub const PROTOCOL_VERSION: u32 = 32;
 pub const CONTENT_VERSION: &str = "tms273-33";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -73,6 +73,10 @@ pub enum WindbellAction {
     Rest,
     DryRecords,
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all="camelCase")]
+pub enum ColossusAction { Enter, Leave, Board, Skip, Travel }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -209,6 +213,12 @@ pub enum ClientMessage {
         action: WindbellAction,
         #[serde(rename = "instanceId", default)]
         instance_id: Option<String>,
+    },
+    Colossus {
+        #[serde(rename="requestId")]
+        request_id:String,
+        sequence:u64,
+        action:ColossusAction,
     },
     ReleaseSkill {
         #[serde(rename = "requestId")]
@@ -656,6 +666,7 @@ impl ClientMessage {
                                 .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
                     })
             }
+            Self::Colossus {request_id,..} => valid_id(request_id),
             Self::Windbell {
                 request_id,
                 instance_id,

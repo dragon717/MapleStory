@@ -1,0 +1,4 @@
+#game.show-colossus>canvas{visibility:hidden}
+.colossus-view{position:absolute;inset:0;background:#b4dadd;overflow:hidden}
+.colossus-canvas{position:absolute;inset:0}
+.colossus-canvas canvas{display:block;width:100%;height:100%}

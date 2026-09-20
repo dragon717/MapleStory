@@ -36,6 +36,7 @@ export interface Interactable {
   castSkill?: (skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1) => string | void;
   /** Latest authoritative self state, used only to distinguish grounded jump from air float. */
   playerState?: () => PlayerState | undefined;
+  basicMovementOnly?: () => boolean;
   /** UI-owned modal state; prevents gameplay input from crossing the window boundary. */
   isBlocked?: () => boolean;
   /** Optional per-character key layout. Null means this key is explicitly unbound; absent getter keeps legacy input. */
@@ -237,6 +238,7 @@ export class PlayerInput {
     this.send({ type: 'attack', requestId: `attack-${Date.now()}-${++this.attackSeq}` });
   }
   private castJumpSkill() {
+    if (this.targets.basicMovementOnly?.()) return false;
     if (!this.targets.castSkill) return false;
     const player = this.targets.playerState?.();
     if (!player || player.job === undefined || !MAGE_JOB_WHITELIST.has(player.job) || !player.skills) return false;

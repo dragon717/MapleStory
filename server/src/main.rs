@@ -190,7 +190,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_npc_dialogue(npc_dialogue)
     .with_npc_scripts(npc_scripts)
     .with_mage_skills(mage_skills)
-    .with_windbell(windbell)?;
+    .with_windbell(windbell)?
+    .with_colossus()?;
     tokio::spawn(world::run(world, rx));
     let state = App {
         auth: auth_service.sender,

@@ -2,6 +2,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
+require('./check_colossus_bundle.cjs').validate(root);
 const read=file=>JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
 const creation = read('shared/character-creation.json');
 assert.deepEqual(read('client/public-tms273/assets/entry/creation.json'), creation, 'Creation choices differ between client and server');

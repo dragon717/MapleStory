@@ -73,6 +73,7 @@ const TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Objec
 });
 
 const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  colossus_action: { zh: '请靠近目标，并确认道路或手掌已停稳。', en: 'Move closer and wait until the passage is stable.' },
   invalid_inventory_type: { zh: '物品栏分类无效', en: 'Invalid inventory category' },
   legendary_spirit_required: { zh: '请先装备目标，再使用卷轴', en: 'Equip the target before using a scroll' },
   mesos_insufficient: { zh: '金币不足', en: 'Not enough mesos' },

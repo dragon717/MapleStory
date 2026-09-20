@@ -379,6 +379,8 @@ impl World {
                         map_id: resolved_map_id,
                         death_id: profile.death_id,
                         windbell_progress,
+                        colossus: None,
+                        colossus_sequence: 0,
                         windbell_dialogue: Vec::new(),
                         connection,
                         output: output.clone(),
@@ -604,6 +606,13 @@ impl World {
                 else {
                     return;
                 };
+                if player.colossus.is_some() && !matches!(&message,
+                    ClientMessage::Input {..} | ClientMessage::Attack {..} |
+                    ClientMessage::Colossus {..} | ClientMessage::NpcTalk {..} | ClientMessage::Lifecycle {..} |
+                    ClientMessage::Logout | ClientMessage::ChatSend {..} | ClientMessage::WhisperSend {..} | ClientMessage::EmoticonSend {..}) {
+                    self.send_reject(&id, "colossus_scope", "这项操作需要返回来处后进行。", None);
+                    return;
+                }
                 match message {
                     // An explicit logout removes the character.  This is the
                     // only client message allowed to do so: a socket that
@@ -628,11 +637,8 @@ impl World {
                             .retain(|(player_id, _), _| player_id != &id);
                     }
                     ClientMessage::Lifecycle { hidden, away, .. } => {
-                        // A lifecycle report is advisory.  It may open an away
-                        // window but it can never close one: only completing a
-                        // real takeover ends an absence.  Re-reporting hidden
-                        // keeps the original start, so flashing the tab cannot
-                        // extend the grace period.
+                        // Visibility reports never renew a window. Only the
+                        // bound, live controller's explicit resume intent does.
                         if hidden || away.unwrap_or(false) {
                             let reason = if away.unwrap_or(false) {
                                 AwayReason::Manual
@@ -655,6 +661,15 @@ impl World {
                             if player.away.is_none() {
                                 player.away = Some(AwayWindow::new(away_id, reason));
                             }
+                        } else if away == Some(false) {
+                            self.advance_away_windows();
+                            if let Some(player) = self.players.get_mut(&id).filter(|p| !p.detached) {
+                                player.away = None;
+                                player.direction = 0;
+                                player.vertical = 0;
+                                player.jump = false;
+                            }
+                            self.send_snapshot(&id);
                         }
                     }
                     ClientMessage::Input {
@@ -666,9 +681,15 @@ impl World {
                         if seq <= player.state.last_input_seq {
                             return;
                         }
+                        if direction != 0 || vertical != 0 || jump {
+                            self.advance_away_windows();
+                        }
                         let Some(player) = self.players.get_mut(&id) else {
                             return;
                         };
+                        if !player.detached && (direction != 0 || vertical != 0 || jump) {
+                            player.away = None;
+                        }
                         let (mut direction, mut vertical, mut jump) = (direction, vertical, jump);
                         player.state.last_input_seq = seq;
                         if player.channel_until > self.tick {
@@ -692,6 +713,7 @@ impl World {
                         player.last_input = Instant::now();
                     }
                     ClientMessage::Attack { request_id } => self.handle_attack(id, request_id),
+                    ClientMessage::Colossus { request_id, sequence, action } => self.handle_colossus(id, request_id, sequence, action),
                     ClientMessage::AllocateAp { request_id, stat } => {
                         self.handle_allocate_ap(id, request_id, stat)
                     }
@@ -811,7 +833,11 @@ impl World {
                         npc_id,
                         step,
                         selection,
-                    } => self.handle_npc_talk(id, request_id, npc_id, step.as_deref(), selection),
+                    } => {
+                        if self.players.get(&id).is_some_and(|p| p.colossus.is_some()) {
+                            self.talk_colossus(&id, &request_id, &npc_id, step.as_deref());
+                        } else { self.handle_npc_talk(id, request_id, npc_id, step.as_deref(), selection); }
+                    },
                     ClientMessage::ShopBuy {
                         request_id,
                         shop_id,
