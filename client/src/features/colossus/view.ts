@@ -29,13 +29,14 @@ export class ColossusView {
     this.root.append(this.canvas);
     host.classList.add('show-colossus');
     host.append(this.root);
-    void import('./scene').then(({ ColossusScene }) => {
+    void import('./scene').then(async ({ ColossusScene }) => {
       if (this.gone) return;
-      this.scene = new ColossusScene(this.canvas, manifest, text => {
+      this.scene = await ColossusScene.create(this.canvas, manifest, text => {
         if (this.caption === text) return;
         this.caption = text;
         this.notify(text);
       }, index => { const npc = this.npc(index); if (npc) this.talk(npc); });
+      if (this.gone) { this.scene.destroy(); return; }
       this.scene.setMuted(this.muted);
       if (this.latest) this.receive(this.latest);
     }).catch(e => { if (!this.gone) this.notify(`港口加载失败：${String(e)}。可从活动窗口返回来处。`); });

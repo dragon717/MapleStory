@@ -217,7 +217,11 @@ fn colossus_six_district_passages_preserve_control_and_spiral_height() {
         "harbor"
     );
     let mut seq = 2;
-    for gate in &config.passages {
+    for gate in config
+        .passages
+        .iter()
+        .filter(|g| !(g.track == "climb" && g.to_track == "harbor"))
+    {
         let rider = world
             .players
             .get_mut("walker")
@@ -298,18 +302,121 @@ fn colossus_npc_uses_existing_dialogue_with_authoritative_proximity() {
     world.handle_colossus("speaker".into(), "enter".into(), 1, ColossusAction::Enter);
     drain_windbell_output(&mut rx);
     world.talk_colossus("speaker", "forged", "10201", Some("start"));
-    assert!(drain_windbell_output(&mut rx).iter().any(|m| m["type"] == "rejected"));
+    assert!(drain_windbell_output(&mut rx)
+        .iter()
+        .any(|m| m["type"] == "rejected"));
     world.talk_colossus("speaker", "remote", "colossus-person-6", Some("start"));
-    assert!(drain_windbell_output(&mut rx).iter().any(|m| m["type"] == "rejected"));
+    assert!(drain_windbell_output(&mut rx)
+        .iter()
+        .any(|m| m["type"] == "rejected"));
     let npc = world.colossus.as_ref().unwrap().people[6].clone();
-    world.players.get_mut("speaker").unwrap().colossus.as_mut().unwrap().body = npc;
+    world
+        .players
+        .get_mut("speaker")
+        .unwrap()
+        .colossus
+        .as_mut()
+        .unwrap()
+        .body = npc;
     world.talk_colossus("speaker", "near", "colossus-person-6", Some("start"));
     let messages = drain_windbell_output(&mut rx);
-    assert!(messages.iter().any(|m| m["type"] == "npcResult" && m["dialog"]["kind"] == "ok"));
+    assert!(messages
+        .iter()
+        .any(|m| m["type"] == "npcResult" && m["dialog"]["kind"] == "ok"));
     world.talk_colossus("speaker", "selection", "colossus-person-6", Some("select"));
-    assert!(drain_windbell_output(&mut rx).iter().any(|m| m["type"] == "rejected"));
-    world.players.get_mut("speaker").unwrap().colossus.as_mut().unwrap().body.position[0] += 100.0;
+    assert!(drain_windbell_output(&mut rx)
+        .iter()
+        .any(|m| m["type"] == "rejected"));
+    world
+        .players
+        .get_mut("speaker")
+        .unwrap()
+        .colossus
+        .as_mut()
+        .unwrap()
+        .body
+        .position[0] += 100.0;
     world.talk_colossus("speaker", "end", "colossus-person-6", Some("end"));
-    assert!(drain_windbell_output(&mut rx).iter().any(|m| m["type"] == "npcResult" && m["ended"] == true));
+    assert!(drain_windbell_output(&mut rx)
+        .iter()
+        .any(|m| m["type"] == "npcResult" && m["ended"] == true));
     assert!(world.colossus.as_ref().unwrap().bridge_age.is_none());
+}
+
+#[test]
+fn colossus_climbing_uses_vertical_input_and_bone_attachment() {
+    use super::colossus::motion::{Body, Frame};
+    use crate::protocol::ColossusAction;
+    let mut world = World::new(life_map("home"), 600).with_colossus().unwrap();
+    let _rx = join_test_player(&mut world, "climber");
+    world.handle_colossus("climber".into(), "enter".into(), 1, ColossusAction::Enter);
+    let runtime = world.colossus.as_mut().unwrap();
+    runtime.seconds = 90.0;
+    runtime.frame = Frame::at(90.0, 1);
+    runtime.previous = Frame::at(89.95, 0);
+    let c = runtime.config.clone();
+    let f = runtime.frame.clone();
+    world
+        .players
+        .get_mut("climber")
+        .unwrap()
+        .colossus
+        .as_mut()
+        .unwrap()
+        .body = Body::new(&c, "harbor", c.tracks["harbor"].len(), &f);
+    world.handle_colossus("climber".into(), "climb".into(), 2, ColossusAction::Board);
+    assert_eq!(
+        world.players["climber"]
+            .colossus
+            .as_ref()
+            .unwrap()
+            .body
+            .track,
+        "climb"
+    );
+    world.players.get_mut("climber").unwrap().vertical = -1;
+    let y = world.players["climber"]
+        .colossus
+        .as_ref()
+        .unwrap()
+        .body
+        .position[1];
+    for _ in 0..20 {
+        world.step_colossus_player("climber");
+    }
+    assert!(world.players["climber"].state.climbing);
+    assert!(
+        world.players["climber"]
+            .colossus
+            .as_ref()
+            .unwrap()
+            .body
+            .position[1]
+            > y + 3.0
+    );
+    world.players.get_mut("climber").unwrap().vertical = 0;
+    for _ in 0..20 {
+        world.step_colossus_player("climber");
+    }
+    let still = world.players["climber"].colossus.as_ref().unwrap().body.s;
+    for _ in 0..20 {
+        world.step_colossus_player("climber");
+    }
+    assert_eq!(
+        world.players["climber"].colossus.as_ref().unwrap().body.s,
+        still
+    );
+    world.players.get_mut("climber").unwrap().vertical = 1;
+    for _ in 0..60 {
+        world.step_colossus_player("climber");
+    }
+    assert_eq!(
+        world.players["climber"]
+            .colossus
+            .as_ref()
+            .unwrap()
+            .body
+            .track,
+        "harbor"
+    );
 }

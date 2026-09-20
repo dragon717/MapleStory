@@ -59,7 +59,7 @@ export class ActivitiesView {
       this.colossusControls.className = 'activity-scene-controls';
       this.colossusControls.hidden = true;
       const help = document.createElement('p');
-      help.textContent = '沿用冒险岛的移动、跳跃与攻击按键。桥头靠近藤蔓再攻击；路口按 ↑ 通行。小地图、世界地图、聊天和活动都从原有入口打开。失足可走安全坡道；手掌停稳后可从高台登上巨像。演出可跳过，也可回看。';
+      help.textContent = '沿用冒险岛的移动、跳跃与攻击按键。桥头靠近藤蔓再攻击；路口按 ↑ 通行。小地图、世界地图、聊天和活动都从原有入口打开。失足可走安全坡道；高台尽头按 ↑ 攀爬石壁，↓ 下行，松键可停住。演出可跳过，也可回看。';
       const actions = document.createElement('div');
       for (const [action, label] of [['replay','回看远景'],['skip','跳过演出'],['orbit','换个视角'],['quality','切换省电画质'],['leave','返回来处']] as const) actions.append(this.button(label, () => { controlColossus?.(action); this.close(); }));
       actions.append(this.button('键盘设置', () => { this.close(false); openKeys?.(); }));

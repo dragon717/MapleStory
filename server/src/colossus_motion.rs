@@ -1,5 +1,6 @@
 //! Metres, right-handed Y-up. Grounded bodies belong to a track; airborne
 //! bodies have a world position and inherit the carrier's point velocity.
+use super::rig::{self, Pose, Transform};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 pub type V3 = [f64; 3];
@@ -29,22 +30,36 @@ pub struct Frame {
     pub revision: u64,
     pub position: V3,
     pub yaw: f64,
+    pub pose: Pose,
+    pub zones: BTreeMap<String, Transform>,
 }
 impl Frame {
     pub fn at(seconds: f64, revision: u64) -> Self {
-        let a = ((seconds - 30.0) / 35.0).clamp(0.0, 1.0);
-        let rise = a * a * (3.0 - 2.0 * a);
         let walking = (seconds - 68.0).max(0.0);
+        let (pose, zones) = rig::sample(seconds);
+        let origin = Config::origin();
         Self {
             id: "ancient-colossus",
             revision,
             position: [
-                320.0 + (walking / 35.0).sin() * 2.0,
-                -150.0 + 186.0 * rise,
-                -60.0 + (walking / 40.0).sin() * 2.0,
+                origin[0] + (walking / 35.0).sin() * 0.4,
+                origin[1],
+                origin[2] + (walking / 40.0).sin() * 0.4,
             ],
-            yaw: (walking / 55.0).sin() * 0.035,
+            yaw: (walking / 55.0).sin() * 0.000002,
+            pose,
+            zones,
         }
+    }
+    pub fn world_on(&self, t: &Track, p: V3) -> V3 {
+        self.world(t.anchor.as_ref().map_or(p, |a| self.zones[a].point(p)))
+    }
+    pub fn local_on(&self, t: &Track, p: V3) -> V3 {
+        let p = self.local(p);
+        t.anchor.as_ref().map_or(p, |a| self.zones[a].local(p))
+    }
+    pub fn velocity_on(&self, old: &Self, t: &Track, p: V3, dt: f64) -> V3 {
+        mul(sub(self.world_on(t, p), old.world_on(t, p)), 1.0 / dt)
     }
     pub fn world(&self, p: V3) -> V3 {
         add(self.position, rotate(p, self.yaw))
@@ -52,14 +67,15 @@ impl Frame {
     pub fn local(&self, p: V3) -> V3 {
         rotate(sub(p, self.position), -self.yaw)
     }
-    pub fn point_velocity(&self, previous: &Self, p: V3, dt: f64) -> V3 {
-        mul(sub(self.world(p), previous.world(p)), 1.0 / dt)
-    }
 }
 #[derive(Clone, Deserialize)]
 pub struct Track {
     pub frame: String,
     pub region: String,
+    #[serde(default)]
+    pub anchor: Option<String>,
+    #[serde(default)]
+    pub climb: bool,
     pub width: f64,
     pub points: Vec<V3>,
 }
@@ -138,6 +154,17 @@ pub struct Config {
     pub sea_level: f64,
 }
 impl Config {
+    fn origin() -> V3 {
+        static ORIGIN: std::sync::OnceLock<V3> = std::sync::OnceLock::new();
+        *ORIGIN.get_or_init(|| {
+            let data: serde_json::Value =
+                serde_json::from_str(include_str!("../../shared/colossus.json"))
+                    .expect("colossus scale");
+            assert_eq!(data["scale"]["colossusHeight"], 100000);
+            assert_eq!(data["scale"]["humanHeight"], 2);
+            serde_json::from_value(data["scale"]["bodyOrigin"].clone()).expect("colossus origin")
+        })
+    }
     pub fn shipped() -> Self {
         let c: Self = serde_json::from_str(include_str!("../../shared/colossus.json"))
             .expect("colossus content");
@@ -198,7 +225,11 @@ impl Body {
         Self {
             track: track.into(),
             s,
-            position: if t.frame == "world" { p } else { f.world(p) },
+            position: if t.frame == "world" {
+                p
+            } else {
+                f.world_on(t, p)
+            },
             velocity: [0.0; 3],
             grounded: true,
             speed: 0.0,
@@ -228,14 +259,19 @@ impl Body {
                 mul(tangent, self.speed)
             } else {
                 add(
-                    frame.point_velocity(previous, local, dt),
-                    rotate(mul(tangent, self.speed), frame.yaw),
+                    frame.velocity_on(previous, t, local, dt),
+                    rotate(
+                        t.anchor.as_ref().map_or(mul(tangent, self.speed), |a| {
+                            rig::turn(frame.zones[a].rotation, mul(tangent, self.speed))
+                        }),
+                        frame.yaw,
+                    ),
                 )
             };
             self.position = if t.frame == "world" {
                 local
             } else {
-                frame.world(local)
+                frame.world_on(t, local)
             };
             if jump {
                 self.grounded = false;
@@ -248,8 +284,16 @@ impl Body {
                     self.position = if t.frame == "world" {
                         p
                     } else {
-                        frame.world(p)
+                        frame.world_on(t, p)
                     };
+                    if self.track == "climb" && next <= 0.0 && direction < 0 {
+                        let (s, q, d) = c.tracks["harbor"].nearest(self.position);
+                        if d < 4.0 && (q[1] - self.position[1]).abs() < 4.0 {
+                            self.track = "harbor".into();
+                            self.s = s;
+                            self.position = q;
+                        }
+                    }
                     if self.track == "lower" && next >= t.len() && direction > 0 {
                         let (s, q, d) = c.tracks["harbor"].nearest(self.position);
                         if d < 0.1 && (q[1] - self.position[1]).abs() < 0.1 {
@@ -267,7 +311,12 @@ impl Body {
         let tangent = if t.frame == "world" {
             tangent
         } else {
-            rotate(tangent, frame.yaw)
+            rotate(
+                t.anchor
+                    .as_ref()
+                    .map_or(tangent, |a| rig::turn(frame.zones[a].rotation, tangent)),
+                frame.yaw,
+            )
         };
         // Air steering is bounded; carrier momentum is not reset to input speed.
         self.velocity = add(self.velocity, mul(tangent, direction as f64 * 3.0 * dt));
@@ -275,21 +324,18 @@ impl Body {
         self.position = add(self.position, mul(self.velocity, dt));
         let mut landing = None;
         for (name, track) in &c.tracks {
-            if track.region != t.region {
+            if track.region != t.region || track.climb {
                 continue;
             }
             let moving = track.frame != "world";
             // The rising palm is a spectacle, not an invisible boarding platform.
-            if moving && frame.position[1] < 36.0 {
-                continue;
-            }
             let p = if moving {
-                frame.local(self.position)
+                frame.local_on(track, self.position)
             } else {
                 self.position
             };
             let old = if moving {
-                previous.local(before)
+                previous.local_on(track, before)
             } else {
                 before
             };
@@ -301,7 +347,7 @@ impl Body {
                     && p[1] < old[1]
                     && c.solid(name, s, bridge)
                 {
-                    let world = if moving { frame.world(q) } else { q };
+                    let world = if moving { frame.world_on(track, q) } else { q };
                     if landing
                         .as_ref()
                         .is_none_or(|(_, _, p): &(String, f64, V3)| world[1] > p[1])
@@ -317,12 +363,18 @@ impl Body {
             let carrier = if track.frame == "world" {
                 [0.0; 3]
             } else {
-                frame.point_velocity(previous, local.0, dt)
+                frame.velocity_on(previous, track, local.0, dt)
             };
             let tangent = if track.frame == "world" {
                 local.1
             } else {
-                rotate(local.1, frame.yaw)
+                rotate(
+                    track
+                        .anchor
+                        .as_ref()
+                        .map_or(local.1, |a| rig::turn(frame.zones[a].rotation, local.1)),
+                    frame.yaw,
+                )
             };
             self.speed = dot(sub(self.velocity, carrier), tangent);
             self.track = name;
@@ -331,7 +383,19 @@ impl Body {
             self.grounded = true;
         }
         // A fall returns to this district's safe path, never to another garden.
-        if self.position[1] < c.sea_level - 4.0 {
+        let floor = t
+            .points
+            .iter()
+            .map(|p| {
+                if t.frame == "world" {
+                    p[1]
+                } else {
+                    frame.world_on(t, *p)[1]
+                }
+            })
+            .fold(f64::INFINITY, f64::min)
+            - 30.0;
+        if self.position[1] < (c.sea_level - 4.0).max(floor) {
             let home = if t.region == "harbor" {
                 "lower"
             } else {
@@ -351,7 +415,7 @@ mod tests {
         let new = Frame::at(90.05, 2);
         let mut b = Body::new(&c, "shoulder", 60.0, &old);
         let local = c.tracks["shoulder"].point(b.s).0;
-        let inherited = new.point_velocity(&old, local, 0.05);
+        let inherited = new.velocity_on(&old, &c.tracks["shoulder"], local, 0.05);
         b.step(&c, &old, &new, true, 0, true, 0.05);
         assert!(!b.grounded);
         assert!((b.velocity[0] - inherited[0]).abs() < 1e-9);
@@ -386,7 +450,7 @@ mod tests {
             assert!(
                 length(sub(
                     idle.position,
-                    f.world(c.tracks["shoulder"].point(70.0).0)
+                    f.world_on(&c.tracks["shoulder"], c.tracks["shoulder"].point(70.0).0)
                 )) < 1e-8
             );
         }

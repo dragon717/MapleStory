@@ -9,6 +9,7 @@ const mapId = (region: string) => `colossus:${region}`;
 const svg = (width: number, height: number, body: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`)}`;
 const text = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]!));
 const frame = (url: string, width: number, height: number, x = 0, y = 0) => ({ url, width, height, x: 0, y: 0, origin: { x, y } }) as AssetFrame;
+const mapPoint = (track: string,p:number[]) => track==='climb' ? p.map((n,i)=>n+config.scale.bodyOrigin[i]) : p;
 function point(track: string, s: number) {
   const points = config.tracks[track as Track].points;
   for (let i = 1; i < points.length; i++) {
@@ -26,7 +27,7 @@ export class ColossusMaps {
   constructor(manifest: Manifest) {
     const pages: WorldMapUiData['pages'] = {};
     for (const [id, region] of Object.entries(config.regions)) {
-      const tracks = Object.values(config.tracks).filter(t => t.region === id);
+      const tracks = Object.entries(config.tracks).filter(([,t]) => t.region === id).map(([key,t])=>({...t,points:t.points.map(p=>mapPoint(key,p))}));
       const points = tracks.flatMap(t => t.points);
       const xs = points.map(p => p[0]), zs = points.map(p => p[2]);
       const world = { xMin: Math.min(...xs) - 15, yMin: Math.min(...zs) - 15, width: Math.max(...xs) - Math.min(...xs) + 30, height: Math.max(...zs) - Math.min(...zs) + 30 };
@@ -50,19 +51,28 @@ export class ColossusMaps {
   }
   input(state: ColossusState, players: PlayerState[], selfId: string): MiniMapInput {
     const project = (body: ColossusBody) => {
-      if (body.grounded) { const p = point(body.track, body.s); return { x: p[0], y: p[2] }; }
-      let [x, , z] = body.position;
-      if (config.tracks[body.track as Track].frame !== 'world') {
-        x -= state.frame.position[0]; z -= state.frame.position[2];
+      if (body.grounded) { const p = mapPoint(body.track,point(body.track, body.s)); return { x: p[0], y: p[2] }; }
+      let [x,y,z] = body.position;
+      const track=config.tracks[body.track as Track];
+      if (track.frame !== 'world') {
+        x -= state.frame.position[0]; y-=state.frame.position[1];z -= state.frame.position[2];
         const c = Math.cos(state.frame.yaw), s = Math.sin(state.frame.yaw);
-        [x, z] = [c * x - s * z, s * x + c * z];
+        [x, z] = [c*x-s*z,s*x+c*z];
+        if ('anchor' in track) {
+          const zone=state.frame.zones[track.anchor];
+          x-=zone.position[0];y-=zone.position[1];z-=zone.position[2];
+          const [qx,qy,qz,qw]=zone.rotation.map((n,i)=>i<3?-n:n);
+          const tx=2*(qy*z-qz*y),ty=2*(qz*x-qx*z),tz=2*(qx*y-qy*x);
+          [x,y,z]=[x+qw*tx+qy*tz-qz*ty,y+qw*ty+qz*tx-qx*tz,z+qw*tz+qx*ty-qy*tx];
+        }
+        [x,y,z]=mapPoint(body.track,[x,y,z]);
       }
       return { x, y: z };
     };
     const projected = players.flatMap(p => { const body = state.actors.find(a => a.id === p.id)?.body; return body ? [{ ...p, ...project(body), grounded: body.grounded, facing: body.facing < 0 ? -1 as const : 1 as const, vy: -body.velocity[1] }] : []; });
     return { mapId: mapId(state.region), map: this.maps.get(state.region), names: { street: '巨石之约', map: config.regions[state.region as Region].name }, self: projected.find(p => p.id === selfId), players: projected,
       npcs: state.people.filter(p => config.tracks[p.track as Track].region === state.region).map((body, i) => ({ id: `colossus-person-${i}`, templateId: 'colossus-person', name: i === 5 ? '港口孩子' : i === 6 ? '补网人' : '船工', facing: 1, ...project(body) })),
-      portals: config.passages.filter(p => config.tracks[p.track as Track].region === state.region).map(p => { const q = point(p.track, p.s); return { name: p.label, type: 2, x: q[0], y: q[2], targetMapId: null, targetPortalName: null }; }),
+      portals: config.passages.filter(p => config.tracks[p.track as Track].region === state.region).map(p => { const q = mapPoint(p.track,point(p.track, p.s)); return { name: p.label, type: 2, x: q[0], y: q[2], targetMapId: null, targetPortalName: null }; }),
     };
   }
 }

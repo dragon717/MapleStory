@@ -5,25 +5,65 @@ use crate::protocol;
 use serde::Serialize;
 #[path = "colossus_motion.rs"]
 pub mod motion;
+#[path = "colossus_rig.rs"]
+pub mod rig;
 use motion::{length, sub, Body, Config, Frame};
 pub const MAP_ID: &str = "colossus-harbor";
 
 impl World {
     // Existing NPC protocol/window; these read-only responses have no quest or reward effects.
     pub(super) fn talk_colossus(&self, id: &str, request: &str, npc_id: &str, step: Option<&str>) {
-        let person = npc_id.strip_prefix("colossus-person-").and_then(|s| s.parse::<usize>().ok());
-        let target = self.colossus.as_ref().and_then(|r| person.and_then(|i| r.people.get(i)));
+        let person = npc_id
+            .strip_prefix("colossus-person-")
+            .and_then(|s| s.parse::<usize>().ok());
+        let target = self
+            .colossus
+            .as_ref()
+            .and_then(|r| person.and_then(|i| r.people.get(i)));
         let player = self.players.get(id).and_then(|p| p.colossus.as_ref());
-        let valid = player.zip(target).is_some_and(|(p, n)| p.body.track == n.track && length(sub(p.body.position, n.position)) <= 6.0);
-        if target.is_none() || (step != Some("end") && !valid) || !matches!(step, None | Some("start" | "end")) {
-            self.send_reject(id, "colossus_action", "请靠近港口人物后交谈。", Some(request));
+        let valid = player.zip(target).is_some_and(|(p, n)| {
+            p.body.track == n.track && length(sub(p.body.position, n.position)) <= 6.0
+        });
+        if target.is_none()
+            || (step != Some("end") && !valid)
+            || !matches!(step, None | Some("start" | "end"))
+        {
+            self.send_reject(
+                id,
+                "colossus_action",
+                "请靠近港口人物后交谈。",
+                Some(request),
+            );
             return;
         }
         let r = self.colossus.as_ref().unwrap();
         let (name, line) = match person.unwrap() {
-            5 => ("港口孩子", if r.seconds >= 65.0 { "那不是礁石。那是一只手！" } else { "小石头人跑上去了！我们也去高台看看吧。" }),
-            6 => ("补网人", if r.seconds >= 65.0 { "我知道。先把网梭捡起来，别掉进海里。" } else { "蓝旗那边是高台。下面的坡道也能上去，慢慢走。" }),
-            _ => ("船工", if r.bridge_age.is_none() { "我把绞盘稳住，你打断那根藤。桥放下来，大家就能过去了。" } else if !r.bridge() { "藤断了。等桥落稳再走。" } else { "桥稳了，沿蓝旗上高台。" }),
+            5 => (
+                "港口孩子",
+                if r.seconds >= 65.0 {
+                    "那不是礁石。那是一只手！"
+                } else {
+                    "小石头人跑上去了！我们也去高台看看吧。"
+                },
+            ),
+            6 => (
+                "补网人",
+                if r.seconds >= 65.0 {
+                    "我知道。先把网梭捡起来，别掉进海里。"
+                } else {
+                    "蓝旗那边是高台。下面的坡道也能上去，慢慢走。"
+                },
+            ),
+            _ => (
+                "船工",
+                if r.bridge_age.is_none() {
+                    "我把绞盘稳住，你打断那根藤。桥放下来，大家就能过去了。"
+                } else if !r.bridge() {
+                    "藤断了。等桥落稳再走。"
+                } else {
+                    "桥稳了，沿蓝旗上高台。"
+                },
+            ),
         };
         let ended = step == Some("end");
         self.send_npc_dialogue(id, serde_json::json!({"type":"npcResult","requestId":request,"success":true,"code":"ok","npcId":npc_id,"name":name,"nameZh":name,"ended":ended,"dialog":if ended { serde_json::Value::Null } else { serde_json::json!({"kind":"ok","text":line}) }}));
@@ -247,16 +287,17 @@ impl World {
                         if runtime.config.tracks[&rider.body.track].frame != "world" {
                             return Ok(());
                         }
-                        let hand = runtime
-                            .frame
-                            .world(runtime.config.tracks["shoulder"].points[0]);
+                        let hand = runtime.frame.world_on(
+                            &runtime.config.tracks["climb"],
+                            runtime.config.tracks["climb"].points[0],
+                        );
                         if rider.body.track != "harbor"
                             || runtime.seconds < 65.0
                             || length(sub(rider.body.position, hand)) > 12.0
                         {
-                            return Err("沿蓝旗到高台尽头，等手掌停稳后登上去。".into());
+                            return Err("沿蓝旗到高台尽头，靠近石壁后攀爬。".into());
                         }
-                        rider.body = Body::new(&runtime.config, "shoulder", 0.0, &runtime.frame);
+                        rider.body = Body::new(&runtime.config, "climb", 0.0, &runtime.frame);
                     }
                     Skip => {
                         if matches!(rider.body.track.as_str(), "harbor" | "lower") {
@@ -279,7 +320,11 @@ impl World {
                         if runtime.config.tracks[&passage.to_track].frame != "world"
                             && runtime.seconds < 65.0
                         {
-                            return Err("手掌还在上升，等它停稳再过去。".into());
+                            return Err("石壁还在震动，等落脚处稳定后再攀爬。".into());
+                        }
+                        // Up on a climbing wall keeps climbing; Down at its foot returns to the pier.
+                        if rider.body.track == "climb" && passage.to_track == "harbor" {
+                            return Ok(());
                         }
                         let speed = rider.body.speed;
                         let facing = rider.body.facing;
@@ -407,7 +452,11 @@ impl World {
             &r.previous,
             &r.frame,
             r.bridge(),
-            p.direction,
+            if r.config.tracks[&rider.body.track].climb {
+                -p.vertical
+            } else {
+                p.direction
+            },
             p.jump,
             0.05,
         );
@@ -417,7 +466,7 @@ impl World {
         p.state.y = -b.position[1] * 60.0;
         p.state.grounded = b.grounded;
         p.state.facing = b.facing;
-        p.state.climbing = false;
+        p.state.climbing = r.config.tracks[&b.track].climb && b.grounded;
         p.state.swimming = false;
         p.state.action = if rider.attack_until > self.tick {
             "swingO1"

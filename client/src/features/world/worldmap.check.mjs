@@ -323,10 +323,15 @@ const plateOf = view => view.plate;
   assert.equal(view.page, 'colossus:gardens');
   assert.equal(view.spots.length, 0, 'the route map must never offer unauthorised teleport');
   assert.equal(Object.keys(maps.world.pages).length, 7);
+  const zones = {
+    'clavicle.L': { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+    chest: { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+    'index.3.L': { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+  };
   for (const [region] of Object.entries(config.regions)) {
     const [track, rail] = Object.entries(config.tracks).find(([,t])=>t.region===region);
     const body = {track, s: 0, grounded: true, facing: 1, position: rail.points[0], velocity: [0,0,0]};
-    const state = {region, actors:[{id:'self',body}],people:[],frame:{position:[0,0,0],yaw:0}};
+    const state = {region, actors:[{id:'self',body}],people:[],frame:{position:[0,0,0],yaw:0,zones}};
     const input = maps.input(state, [{id:'self'}], 'self');
     assert.equal(input.self.x, rail.points[0][0]);
     assert.equal(input.self.y, rail.points[0][2]);
@@ -335,8 +340,13 @@ const plateOf = view => view.plate;
   }
   const p=[20,10,30], yaw=.7, origin=[300,40,100];
   const body={track:'gardens',s:0,grounded:false,facing:1,position:[origin[0]+Math.cos(yaw)*p[0]+Math.sin(yaw)*p[2],origin[1]+p[1],origin[2]-Math.sin(yaw)*p[0]+Math.cos(yaw)*p[2]],velocity:[0,1,0]};
-  const input=maps.input({region:'gardens',actors:[{id:'self',body}],people:[],frame:{position:origin,yaw}},[{id:'self'}],'self');
+  const input=maps.input({region:'gardens',actors:[{id:'self',body}],people:[],frame:{position:origin,yaw,zones}},[{id:'self'}],'self');
   assert(Math.abs(input.self.x-p[0])<1e-8 && Math.abs(input.self.y-p[2])<1e-8,'airborne map marker shares the carrier reference frame');
+  const zonePosition=[45,7,-80], zoneRotation=[0,Math.SQRT1_2,0,Math.SQRT1_2];
+  const zonePoint=[p[2],p[1],-p[0]]; // +90° Y rotation from zone-local to carrier space
+  const zoneBody={track:'gardens',s:0,grounded:false,facing:1,position:[origin[0]+zonePosition[0]+zonePoint[0],origin[1]+zonePosition[1]+zonePoint[1],origin[2]+zonePosition[2]+zonePoint[2]],velocity:[0,1,0]};
+  const zoneInput=maps.input({region:'gardens',actors:[{id:'self',body:zoneBody}],people:[],frame:{position:origin,yaw:0,zones:{...zones,chest:{position:zonePosition,rotation:zoneRotation}}}},[{id:'self'}],'self');
+  assert(Math.abs(zoneInput.self.x-p[0])<1e-8 && Math.abs(zoneInput.self.y-p[2])<1e-8,'airborne marker applies non-identity chest zone rotation and translation');
   view.setMap('100000000'); view.setActivityData(undefined);
   assert.equal(view.page, 'WorldMap010');
   assert.equal(host.children[0], shell);
