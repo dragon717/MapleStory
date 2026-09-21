@@ -34,5 +34,6 @@
 | [2026-09-12/retired-runtime/](2026-09-12/retired-runtime/) | 已退出服务的历史日志与 PID | 原 output/ | 4 |
 | [2026-09-12/refactor-recovery/](2026-09-12/refactor-recovery/) | 一次性重构脚本恢复证据 | 原 artifacts/refactor/ | 1 |
 | [`2026-09-19/notebook-ui/`](2026-09-19/notebook-ui/) | notebook-ui 冒险笔记六页签（骑宠页、椅子页，以及骑宠页下的**鞍具子页**）与配置 ID 标签的离线样张与对比度/命中测试 | `scripts/check_tms273_notebook_ui.mjs`；四尺寸样张含 `mount-1440x900.png`、`saddle-1440x900.png`、`chair-1440x900.png` | 14 |
+| [`2026-09-21/perion-boar-triage/`](2026-09-21/perion-boar-triage/) | 火焰之地（102030000）「野猪打了不死亡」根因核对（死亡链路全库上限判据、70 怪对源、伤害算术复原、地图几何/传送/资源对源）与落地修复（源 `onUserEnter` 入口脚本此前无人消费 → 补上 `warning_MobLevel` 运行时消费者） | 主代理核对；判据含 `server/data/tms273.sqlite3` 查询与 `参考/273/.../WZ_JSON_TW` 逐项比对 | 2 |
 
-本批共归档 3,058 个证据文件；`output/wcr2-Calculator.cs` 与 `output/wcr2-SummaryParser.cs` 是纯源码研究工具，已移至 `scripts/research/`，见迁移映射 [directory-migration/moves.json](2026-09-12/directory-migration/moves.json)。残余旧日志/PID 归入 `2026-09-12/retired-runtime/`，夹具资产链接已按新目录重建；无运行引用的旧研究构建已清理，`output/` 已移除。本批未处理 `bugfix/*.md`，其归档由文档代理负责。运行态与恢复快照由主代理处理，数据库快照未删除。
+本批共归档 3,059 个证据文件；`output/wcr2-Calculator.cs` 与 `output/wcr2-SummaryParser.cs` 是纯源码研究工具，已移至 `scripts/research/`，见迁移映射 [directory-migration/moves.json](2026-09-12/directory-migration/moves.json)。残余旧日志/PID 归入 `2026-09-12/retired-runtime/`，夹具资产链接已按新目录重建；无运行引用的旧研究构建已清理，`output/` 已移除。本批未处理 `bugfix/*.md`，其归档由文档代理负责。运行态与恢复快照由主代理处理，数据库快照未删除。

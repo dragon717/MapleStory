@@ -51,6 +51,7 @@ const checks = [
   ['features/player/levelup.check.mjs', []],
   ['features/world/water.check.mjs', []],
   ['features/world/reactor.check.mjs', []],
+  ['features/world/entry-script.check.mjs', []],
   // 原创扩展「死亡世界」：墓碑视图的呈现契约（快照说话、阶段不自行推进）。
   ['features/notice/tombstone.check.mjs', []],
   ['features/quest/log.check.mjs', []],

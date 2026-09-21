@@ -30,12 +30,20 @@ export interface MapPortal {
   targetMapId: string | null; targetPortalName: string | null;
   script?: string; onlyOnce?: boolean; hideTooltip?: number; delay?: number;
 }
+/**
+ * Source `Map.wz .../info` entry hooks, assembled verbatim by the exporter
+ * (`onFirstUserEnter` → `first`, `onUserEnter` → `each`; absent scripts export
+ * as empty strings).  What each script name *means* at runtime lives in
+ * `features/world/entry-script.ts`, which is the only consumer.
+ */
+export type MapEntryScripts = { first?: string; each?: string };
 export interface MapCatalogEntry {
   id: string; name: string; streetName: string; source: string;
   assetStatus: 'rendered' | 'metadata'; bounds: MapBounds; bgm?: string;
   portals: MapPortal[]; layers?: MapLayer[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
   water?: (MapBounds & { floor?: Point[] })[];
   spawn?: MapSpawn; spawns?: MapSpawn[];
+  entryScripts?: MapEntryScripts;
 }
 export interface MapCatalog {
   birthMapId: string; source: string; maps: MapCatalogEntry[];
@@ -47,6 +55,7 @@ export interface MapDefinition {
   source?: string; portals?: MapPortal[]; ladders?: MapLadder[]; footholds?: MapFoothold[];
   water?: (MapBounds & { floor?: Point[] })[];
   spawn?: MapSpawn; spawns?: MapSpawn[]; bgm?: string;
+  entryScripts?: MapEntryScripts;
 }
 export interface AssetFrame {
   url: string; width: number; height: number; origin: Point; x: number; y: number; delay: number;

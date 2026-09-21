@@ -1,0 +1,1248 @@
+{
+  "sourceVersion": "TMS273.7",
+  "artifact": "holy-fourth-job-source",
+  "status": "source-verified（设计留档，尚未接运行）",
+  "authority": {
+    "primary": "TMS273.7 WZ_JSON_TW 源导出（Skill/<book>.json + String/Skill.json），字段逐条直读，公式按源串独立求值",
+    "crossCheck": "客户端 TMS273.7 Data/Skill（含 _Canvas）与打包 .ms 仅作为后续接运行时的素材来源，本产物未解析其图集",
+    "officialClaim": false,
+    "boundary": "只记录源里确实存在的节点、公式、需求等级与前置；不推断转职脚本、SP 授予规则、服务端时序或官方数值口径。"
+  },
+  "scope": {
+    "bookId": "232",
+    "branch": "僧侶→祭司→主教（Cleric/Holy）",
+    "job": 232,
+    "previousJob": 231,
+    "jobName": {
+      "zh": "主教",
+      "classification": "P",
+      "evidence": "源书名「最頂級神聖魔法」与转职层级；本包无职业名权威表，名号沿用项目既有中文命名"
+    },
+    "bookName": {
+      "value": "最頂級神聖魔法",
+      "source": "String/Skill.img/232/bookName"
+    },
+    "nodeCount": 27,
+    "classificationCounts": {
+      "ordinary": 13,
+      "hyper": 12,
+      "hidden": 2
+    },
+    "classificationRule": "hidden = 源节点 invisible=1；hyper = 源节点 hyper>0（1/2 为两个 Hyper 池）；其余为普通节点。三者互斥，按 hidden > hyper > ordinary 判定。",
+    "skillIds": [
+      "2320011",
+      "2320012",
+      "2320013",
+      "2320043",
+      "2320044",
+      "2320045",
+      "2320046",
+      "2320047",
+      "2320048",
+      "2320049",
+      "2320050",
+      "2320051",
+      "2321000",
+      "2321001",
+      "2321003",
+      "2321004",
+      "2321005",
+      "2321006",
+      "2321007",
+      "2321008",
+      "2321009",
+      "2321015",
+      "2321016",
+      "2321052",
+      "2321053",
+      "2321054",
+      "2321055"
+    ],
+    "ordinaryIds": [
+      "2320011",
+      "2320012",
+      "2320013",
+      "2321000",
+      "2321001",
+      "2321003",
+      "2321004",
+      "2321005",
+      "2321006",
+      "2321007",
+      "2321008",
+      "2321009",
+      "2321015"
+    ],
+    "hyperIds": [
+      "2320043",
+      "2320044",
+      "2320045",
+      "2320046",
+      "2320047",
+      "2320048",
+      "2320049",
+      "2320050",
+      "2320051",
+      "2321052",
+      "2321053",
+      "2321054"
+    ],
+    "hiddenIds": [
+      "2321016",
+      "2321055"
+    ],
+    "fixedLevelIds": [
+      "2320013"
+    ],
+    "formulaPolicy": "commonFormulas 原样保留源公式串；levelValues 仅记 1 级与满级，并按 RUNTIME_INTEGER_FIELDS（与 server/src/mage.rs::MageLevel 双向断言的那张表）在投影处取整，非契约字段原样带出。",
+    "learnabilityPolicy": "本产物**不**声称任何节点可学：普通/超技能/隐藏只是源侧分类，职业归属、SP 花费、转职顺序与等级门槛仍由运行期拥有。",
+    "visualPolicy": "未解析图集。图标/特效帧所在的 _Canvas_XXX.wz、角色动作（bodyAction/avatarAction）需在接运行时按 ice-fourth-job-source.json 的 visualGroups 口径补齐。",
+    "soundPolicy": "未解析音频。Sound/Skill 子节点与 UOL 链接需在接运行时补齐。"
+  },
+  "sourceFiles": [
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/232.json",
+      "bytes": 50430,
+      "sha256": "a790aa693a05989e464a41b32edd7e2e4db96ced8db2d02e8241fc3608af1291"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW/String/Skill.json",
+      "bytes": 6757082,
+      "sha256": "df108f137307d9cd9a034d662b0e89832a7afa7ff8818b4573875875ac70409a"
+    }
+  ],
+  "skills": {
+    "2320011": {
+      "id": "2320011",
+      "name": "神秘狙擊",
+      "description": "攻擊時，可以無視一定程度的怪物防禦率，持續攻擊時所有攻擊的傷害會增加。傷害增加效果會套用機率，最多可以累積5次。",
+      "perLevelDescription": "攻擊時無視怪物的防禦率 #ignoreMobpdpR%，召喚獸攻擊除外的攻擊命中時，以#prop%機率每#time秒增加傷害#x%\\n傷害增加效果最多可套用#y次",
+      "maxLevel": 30,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "prop": "25+5*d(x/2)",
+        "x": "2+d(x/5)",
+        "y": "5",
+        "ignoreMobpdpR": "5+u(x/2)",
+        "time": "5"
+      },
+      "levelValues": {
+        "1": {
+          "prop": 25,
+          "x": 2,
+          "y": 5,
+          "ignoreMobpdpR": 6,
+          "time": 5
+        },
+        "30": {
+          "prop": 100,
+          "x": 8,
+          "y": 5,
+          "ignoreMobpdpR": 20,
+          "time": 5
+        }
+      }
+    },
+    "2320012": {
+      "id": "2320012",
+      "name": "大師魔法",
+      "description": "永久增加魔力和最終傷害，並增加自己身上套用的所有加持的持續時間。\\n額外永久增加格擋。",
+      "perLevelDescription": "永久增加#madX魔力、#mdR%最終傷害、#bufftimeR%加持持續時間\\n格擋增加#stanceProp%",
+      "maxLevel": 10,
+      "infoType": 16,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "10",
+        "madX": "3*x",
+        "bufftimeR": "5*x",
+        "stanceProp": "6*x",
+        "mdR": "3+4*d(x/5)"
+      },
+      "levelValues": {
+        "1": {
+          "madX": 3,
+          "bufftimeR": 5,
+          "stanceProp": 6,
+          "mdR": 3
+        },
+        "10": {
+          "madX": 30,
+          "bufftimeR": 50,
+          "stanceProp": 60,
+          "mdR": 11
+        }
+      }
+    },
+    "2320013": {
+      "id": "2320013",
+      "name": "祝福旋律",
+      "description": "增強祝福合奏的效果。祝福和聲將覆蓋祝福合奏的效果，因祝福合奏而增加的最終傷害增加效果適用相加計算。",
+      "perLevelDescription": "最終傷害增加#y%，每1名得到Buff的隊員可稱加最終傷害#x%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": true,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "x": "2",
+        "maxLevel": "1",
+        "y": "4"
+      },
+      "levelValues": {
+        "1": {
+          "x": 2,
+          "y": 4
+        }
+      }
+    },
+    "2320043": {
+      "id": "2320043",
+      "name": "聖十字魔法盾-額外防禦",
+      "description": "聖十字魔法盾的防禦次數增加。",
+      "perLevelDescription": "防禦次數 #x 增加",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "x": "2"
+      },
+      "levelValues": {
+        "1": {
+          "x": 2
+        }
+      }
+    },
+    "2320044": {
+      "id": "2320044",
+      "name": "聖十字魔法盾-持續防禦",
+      "description": "聖十字魔法盾的持續時間增加。",
+      "perLevelDescription": "持續時間增加#time秒 ",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 150,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "time": "5"
+      },
+      "levelValues": {
+        "1": {
+          "time": 5
+        }
+      }
+    },
+    "2320045": {
+      "id": "2320045",
+      "name": "聖十字魔法盾-效果強化",
+      "description": "受到依最大HP的一定比率造成傷害的攻擊時，增加透過聖十字魔法盾能減少的傷害。",
+      "perLevelDescription": "傷害減少量增加 #w%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 180,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2311009"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "w": "5"
+      },
+      "levelValues": {
+        "1": {
+          "w": 5
+        }
+      }
+    },
+    "2320046": {
+      "id": "2320046",
+      "name": "神聖祈禱-經驗提升",
+      "description": "神聖祈禱使用時自己的經驗值取得量增加。",
+      "perLevelDescription": "經驗值增加#y%。只適用於自己",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "y": "20"
+      },
+      "levelValues": {
+        "1": {
+          "y": 20
+        }
+      }
+    },
+    "2320047": {
+      "id": "2320047",
+      "name": "神聖祈禱-抗性提升",
+      "description": "使用神聖祈禱時，異常狀態耐性以及所有屬性耐性增加。但，施展神聖祈禱的角色離開周圍的話便不會套用。此外，耐性以及所有屬性耐性永久增加。",
+      "perLevelDescription": "狀態異常耐性與所有屬性耐性增加#asrR%\\n[被動效果 : 狀態異常耐性增加10，所有屬性耐性增加10%]",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 165,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2311003"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "asrR": "10",
+        "terR": "10"
+      },
+      "levelValues": {
+        "1": {
+          "asrR": 10,
+          "terR": 10
+        }
+      }
+    },
+    "2320048": {
+      "id": "2320048",
+      "name": "神聖祈禱-掉寶提升",
+      "description": "使用神聖祈禱時掉落率增加。但，施展神聖祈禱的角色離開周圍的話便不會套用。",
+      "perLevelDescription": "掉落率增加 #v%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 180,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "v": "30"
+      },
+      "levelValues": {
+        "1": {
+          "v": 30
+        }
+      }
+    },
+    "2320049": {
+      "id": "2320049",
+      "name": "進階祝福-加碼傷害",
+      "description": "讓藉由進階祝福提升的攻擊力與魔力增加。",
+      "perLevelDescription": "物理攻擊力及魔法攻擊力追加提升#x",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 150,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "x": "20",
+        "y": "20"
+      },
+      "levelValues": {
+        "1": {
+          "x": 20,
+          "y": 20
+        }
+      }
+    },
+    "2320050": {
+      "id": "2320050",
+      "name": "進階祝福-魔王剋星",
+      "description": "使用進階祝福時，攻擊BOSS怪物時的傷害增加。",
+      "perLevelDescription": "攻擊BOSS怪物時傷害增加 #bdR%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 165,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "bdR": "10"
+      },
+      "levelValues": {
+        "1": {
+          "bdR": 10
+        }
+      }
+    },
+    "2320051": {
+      "id": "2320051",
+      "name": "進階祝福-血魔加成",
+      "description": "讓藉由進階祝福提升的最大HP與最大MP增加。",
+      "perLevelDescription": "最大 HP 和 最大 MP #indieMhp額外增加",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 190,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "indieMhp": "1000",
+        "indieMmp": "1000"
+      },
+      "levelValues": {
+        "1": {
+          "indieMhp": 1000,
+          "indieMmp": 1000
+        }
+      }
+    },
+    "2321000": {
+      "id": "2321000",
+      "name": "楓葉祝福",
+      "description": "受到楓之谷世界的女神的庇護，自己的所有能力值增加一定比例。使用技能時，楓之谷世界的女神將暫時現身。",
+      "perLevelDescription": "消耗#mpConMP，使楓之谷世界的女神現身\\n[被動效果：直接投入AP的所有能力值增加#basicStatUp%]",
+      "maxLevel": 30,
+      "infoType": 10,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "mpCon": "10+10*d(x/5)",
+        "maxLevel": "30",
+        "basicStatUp": "u(x/2)"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 10,
+          "basicStatUp": 1
+        },
+        "30": {
+          "mpCon": 70,
+          "basicStatUp": 15
+        }
+      }
+    },
+    "2321001": {
+      "id": "2321001",
+      "name": "核爆術",
+      "description": "使神聖力廣域的擴散後引爆攻擊。聖屬性的攻擊。",
+      "perLevelDescription": "消耗MP#mpCon，對最多#mobCount名的敵人以#damage%的傷害攻擊#attackCount次\\n攻擊一般怪物時傷害增加#nbdR%",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "h",
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2321001"
+      ],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "25+5*d(x/6)",
+        "damage": "300+6*x",
+        "attackCount": "4",
+        "mobCount": "10",
+        "lt": {},
+        "rb": {},
+        "nbdR": "50"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 25,
+          "damage": 306,
+          "attackCount": 4,
+          "mobCount": 10,
+          "lt": {},
+          "rb": {},
+          "nbdR": 50
+        },
+        "30": {
+          "mpCon": 50,
+          "damage": 480,
+          "attackCount": 4,
+          "mobCount": 10,
+          "lt": {},
+          "rb": {},
+          "nbdR": 50
+        }
+      }
+    },
+    "2321003": {
+      "id": "2321003",
+      "name": "召喚聖龍",
+      "description": "在一定時間內召喚聖龍。聖龍就算攻擊，反射攻擊狀態的敵人，也不會受到傷害。",
+      "perLevelDescription": "消耗#mpConMP，召喚聖龍#time秒\\n聖龍可對最多#mobCount名敵人造成#damage%傷害#attackCount次",
+      "maxLevel": 20,
+      "infoType": 33,
+      "elemAttr": "h",
+      "action": {
+        "0": "alert2"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "20",
+        "mpCon": "70+5*d(x/2)",
+        "time": "60+10*x",
+        "damage": "110+3*x",
+        "mobCount": "3",
+        "attackCount": "3"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 70,
+          "time": 70,
+          "damage": 113,
+          "mobCount": 3,
+          "attackCount": 3
+        },
+        "20": {
+          "mpCon": 120,
+          "time": 260,
+          "damage": 170,
+          "mobCount": 3,
+          "attackCount": 3
+        }
+      }
+    },
+    "2321004": {
+      "id": "2321004",
+      "name": "魔力無限",
+      "description": "集中精神並引發出無限的魔力，使自己能在一定的時間內不消耗MP的使用技能。另外能持續的恢復自己的HP和MP，並增加所有的攻擊魔法傷害。\\n不會受到冷卻時間重置的影響。",
+      "perLevelDescription": "消耗MP#mpCon，持續#time秒，每隔一段時間基礎HP和MP#y%\\n增益持續時，最終傷害增加#q%，每隔一段時間最終傷害追加增加#damage%，最多可增加至#w%\\n因無限增加的最終傷害合併套用\\n反映增益持續時間增加量的持續時間基準持續時間剩#w2%時，魔力會圍繞在角色周圍。\\n冷卻時間#cooltime秒",
+      "maxLevel": 30,
+      "infoType": 10,
+      "elemAttr": null,
+      "action": {
+        "0": "alert2"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "40+5*u(x/4)",
+        "time": "10+x",
+        "damage": "3",
+        "x": "1",
+        "y": "u(x/3)",
+        "z": "u(x/3)",
+        "cooltime": "180",
+        "hcHp": "u(x/15)",
+        "w": "115",
+        "q": "40+x",
+        "w2": "30",
+        "u": "360",
+        "s": "1200",
+        "s2": "420"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 45,
+          "time": 11,
+          "damage": 3,
+          "x": 1,
+          "y": 1,
+          "z": 1,
+          "cooltime": 180,
+          "hcHp": 1,
+          "w": 115,
+          "q": 41,
+          "w2": 30,
+          "u": 360,
+          "s": 1200,
+          "s2": 420
+        },
+        "30": {
+          "mpCon": 80,
+          "time": 40,
+          "damage": 3,
+          "x": 1,
+          "y": 10,
+          "z": 10,
+          "cooltime": 180,
+          "hcHp": 2,
+          "w": 115,
+          "q": 70,
+          "w2": 30,
+          "u": 360,
+          "s": 1200,
+          "s2": 420
+        }
+      }
+    },
+    "2321005": {
+      "id": "2321005",
+      "name": "進階祝福",
+      "description": "一定時間內大幅增加周圍隊員的攻擊力、魔力、防禦力、最大HP、最大MP，並減少使用技能時消耗的MP量。可以跟除天使祝福以外的其他所有加持技能重複使用。\\n需要技能 : #c天使祝福10級以上#",
+      "perLevelDescription": "消耗MP#mpCon，#time秒內增加攻擊力#x、魔力#y、防禦力#z、最大HP#indieMhp、最大MP#indieMmp，MP消耗量減少#mpConReduce%。",
+      "maxLevel": 20,
+      "infoType": 10,
+      "elemAttr": null,
+      "action": {
+        "0": "alert2"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {
+        "2301004": 10
+      },
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "20",
+        "mpCon": "40+3*u(x/5)",
+        "time": "240",
+        "x": "10+x",
+        "y": "10+x",
+        "z": "390+8*x",
+        "u": "390+8*x",
+        "v": "220+4*x",
+        "w": "220+4*x",
+        "indieMhp": "250+25*x",
+        "indieMmp": "250+25*x",
+        "mpConReduce": "10+d(x/2)",
+        "lt": {},
+        "rb": {}
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 43,
+          "time": 240,
+          "x": 11,
+          "y": 11,
+          "z": 398,
+          "u": 398,
+          "v": 224,
+          "w": 224,
+          "indieMhp": 275,
+          "indieMmp": 275,
+          "mpConReduce": 10,
+          "lt": {},
+          "rb": {}
+        },
+        "20": {
+          "mpCon": 52,
+          "time": 240,
+          "x": 30,
+          "y": 30,
+          "z": 550,
+          "u": 550,
+          "v": 300,
+          "w": 300,
+          "indieMhp": 750,
+          "indieMmp": 750,
+          "mpConReduce": 20,
+          "lt": {},
+          "rb": {}
+        }
+      }
+    },
+    "2321006": {
+      "id": "2321006",
+      "name": "復甦之光",
+      "description": "用神聖的光芒讓隊員復活。復活後，無敵及傷害增加效果不會套用Buff持續時間增加效果。\\n不受冷卻時間重置的效果影響。",
+      "perLevelDescription": "消耗#mpConMP，復活在範圍內死亡的所有隊員後，獲得#time秒無敵狀態\\n在有死亡倒數的地圖中以復甦之光復活時，#subTime秒內，主教和復活的隊員增加#x%傷害，同時每#y智力可使其傷害增加量增加#w%，最多可增加至#z%\\n不計算因特殊技能戒指而增加的智力\\n冷卻時間為#cooltime秒",
+      "maxLevel": 10,
+      "infoType": 38,
+      "elemAttr": null,
+      "action": {
+        "0": "resurrectionNew"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "10",
+        "lt": {},
+        "rb": {},
+        "cooltime": "1200-90*x",
+        "mpCon": "300-15*x",
+        "time": "3+d(x/2)",
+        "x": "5",
+        "subTime": "30",
+        "y": "2500",
+        "z": "25",
+        "w": "1",
+        "u": "300"
+      },
+      "levelValues": {
+        "1": {
+          "lt": {},
+          "rb": {},
+          "cooltime": 1110,
+          "mpCon": 285,
+          "time": 3,
+          "x": 5,
+          "subTime": 30,
+          "y": 2500,
+          "z": 25,
+          "w": 1,
+          "u": 300
+        },
+        "10": {
+          "lt": {},
+          "rb": {},
+          "cooltime": 300,
+          "mpCon": 150,
+          "time": 8,
+          "x": 5,
+          "subTime": 30,
+          "y": 2500,
+          "z": 25,
+          "w": 1,
+          "u": 300
+        }
+      }
+    },
+    "2321007": {
+      "id": "2321007",
+      "name": "天使之箭",
+      "description": "召喚充滿聖靈氣息的聖劍，並向前方發射。聖劍將朝最大HP最高的敵人飛去。可對不死或惡魔系的怪物造成巨大的傷害，#c隊員則能恢復HP#。可恢復不死狀態的隊員。",
+      "perLevelDescription": "消耗#mpConMP，對最多#mobCount敵人造成#damage%傷害#attackCount次，並使包括自己在內的隊員恢復等同#hp%最大HP量的HP",
+      "maxLevel": 30,
+      "infoType": 2,
+      "elemAttr": "h",
+      "action": {
+        "0": "angelRay"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "26+2*d(x/2)",
+        "damage": "75+5*x",
+        "range": "500",
+        "mobCount": "1",
+        "attackCount": "14",
+        "hp": "5+d(x/6)",
+        "x": "6",
+        "t": "1.0",
+        "y": "30",
+        "u": "240",
+        "w": "240"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 26,
+          "damage": 80,
+          "range": 500,
+          "mobCount": 1,
+          "attackCount": 14,
+          "hp": 5,
+          "x": 6,
+          "t": 1,
+          "y": 30,
+          "u": 240,
+          "w": 240
+        },
+        "30": {
+          "mpCon": 56,
+          "damage": 225,
+          "range": 500,
+          "mobCount": 1,
+          "attackCount": 14,
+          "hp": 10,
+          "x": 6,
+          "t": 1,
+          "y": 30,
+          "u": 240,
+          "w": 240
+        }
+      }
+    },
+    "2321008": {
+      "id": "2321008",
+      "name": "天怒",
+      "description": "從空中降下神聖的光柱，以對敵人造成強大的聖屬性攻擊。",
+      "perLevelDescription": "消耗#mpCon MP，對最多15名敵人造成#damage%傷害#attackCount次，追加爆擊機率：#cr%\\n冷卻時間：#cooltime秒",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "h",
+      "action": {
+        "0": "genesisNew"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2321008"
+      ],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "600-10*x",
+        "damage": "174+5*x",
+        "cr": "5+d(x/2)",
+        "lt": {},
+        "rb": {},
+        "mobCount": "15",
+        "cooltime": "30",
+        "attackCount": "10",
+        "attackDelay": "1080",
+        "u": "0",
+        "y": "600"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 590,
+          "damage": 179,
+          "cr": 5,
+          "lt": {},
+          "rb": {},
+          "mobCount": 15,
+          "cooltime": 30,
+          "attackCount": 10,
+          "attackDelay": 1080,
+          "u": 0,
+          "y": 600
+        },
+        "30": {
+          "mpCon": 300,
+          "damage": 324,
+          "cr": 20,
+          "lt": {},
+          "rb": {},
+          "mobCount": 15,
+          "cooltime": 30,
+          "attackCount": 10,
+          "attackDelay": 1080,
+          "u": 0,
+          "y": 600
+        }
+      }
+    },
+    "2321009": {
+      "id": "2321009",
+      "name": "楓葉淨化　",
+      "description": "集中精神擺脫狀態異常。使用後，3秒間狀態異常免疫。但，不適用部分狀態異常效果與戰鬥命令。",
+      "perLevelDescription": "消耗MP #mpCon，再次使用冷卻時間 #cooltime秒",
+      "maxLevel": 5,
+      "infoType": 35,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "5",
+        "mpCon": "30",
+        "cooltime": "600-60*x",
+        "time": "1"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 30,
+          "cooltime": 540,
+          "time": 1
+        },
+        "5": {
+          "mpCon": 30,
+          "cooltime": 300,
+          "time": 1
+        }
+      }
+    },
+    "2321015": {
+      "id": "2321015",
+      "name": "神聖之水",
+      "description": "#c[慈愛]# 每當天使之箭命中敵人時，皆可獲得能淨化敵人血液的聖水。使用技能時，將在周圍召喚盛滿聖水的聖杯。隊員對聖杯按下「上」方向鍵時，可吸收聖水並恢復HP。",
+      "perLevelDescription": "#c被動效果#：天使之箭命中#u次時可獲得1瓶聖水，聖水最多可累積#w瓶\r\n#c主動效果#：消耗MP#mpCon，消耗所有累積的聖水(聖水最少需有1瓶)並在周圍形成聖水。若空間不足則僅形成部分聖水\\n聖水持續時間:#q秒，智力每累積#s2個，聖水持續時間增加#q2秒\\n隊員在聖水按[上]方向鍵時，可恢復最大HP的#u2%，每#dot個智力，恢復量增加#w2%。恢復量可疊加\\n有剩餘持續時間但是聖水消滅時，獲得相當於消失的聖水個數的#v2%\\n冷卻時間：#cooltime秒",
+      "maxLevel": 10,
+      "infoType": 51,
+      "elemAttr": null,
+      "action": {
+        "0": "holyWater"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "10",
+        "mpCon": "100",
+        "u": "7",
+        "w": "5",
+        "range": "200",
+        "x": "50",
+        "y": "80",
+        "s": "40",
+        "q": "5",
+        "s2": "2500",
+        "q2": "5",
+        "v": "60",
+        "u2": "5",
+        "w2": "5",
+        "cooltime": "10",
+        "lt": {},
+        "rb": {},
+        "dot": "2500",
+        "v2": "50"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 100,
+          "u": 7,
+          "w": 5,
+          "range": 200,
+          "x": 50,
+          "y": 80,
+          "s": 40,
+          "q": 5,
+          "s2": 2500,
+          "q2": 5,
+          "v": 60,
+          "u2": 5,
+          "w2": 5,
+          "cooltime": 10,
+          "lt": {},
+          "rb": {},
+          "dot": 2500,
+          "v2": 50
+        },
+        "10": {
+          "mpCon": 100,
+          "u": 7,
+          "w": 5,
+          "range": 200,
+          "x": 50,
+          "y": 80,
+          "s": 40,
+          "q": 5,
+          "s2": 2500,
+          "q2": 5,
+          "v": 60,
+          "u2": 5,
+          "w2": 5,
+          "cooltime": 10,
+          "lt": {},
+          "rb": {},
+          "dot": 2500,
+          "v2": 50
+        }
+      }
+    },
+    "2321016": {
+      "id": "2321016",
+      "name": "神聖之血",
+      "description": "#c[復仇]# 受身上流淌的神聖之血影響，在發揮超常力量的同時，將暫時無法恢復生命力。再次使用技能即可中斷效果。",
+      "perLevelDescription": "消耗MP#mpCon，持續#time秒內受擊傷害增加#v%，技能造成的HP回復量降低#q%，道具回復不受影響，最終傷害增加#u%\\n冷卻時間 #cooltime秒",
+      "maxLevel": 10,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": {
+        "0": "NAdragonEnchant"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": true,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "10",
+        "mpCon": "300",
+        "time": "10",
+        "u": "15",
+        "q": "99",
+        "v": "15",
+        "cooltime": "120"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 300,
+          "time": 10,
+          "u": 15,
+          "q": 99,
+          "v": 15,
+          "cooltime": 120
+        },
+        "10": {
+          "mpCon": 300,
+          "time": 10,
+          "u": 15,
+          "q": 99,
+          "v": 15,
+          "cooltime": 120
+        }
+      }
+    },
+    "2321052": {
+      "id": "2321052",
+      "name": "天堂之門",
+      "description": "天堂之門開啟，懲罰敵人同時給予我軍生命的祝福。\\n受到效果的隊員一定時間內無法在受到天堂之門的效果。",
+      "perLevelDescription": "消耗#mpCon MP，對最多#mobCount名敵人造成#damage%傷害#attackCount次，同時對周圍的隊員賦予無視HP歸零一次的加持效果\\n冷卻時間：#cooltime秒\\n獲得加持的隊員#time秒內無法再次獲得天堂之門加持效果",
+      "maxLevel": 1,
+      "infoType": 1,
+      "elemAttr": null,
+      "action": {
+        "0": "HY232heavensDoor"
+      },
+      "hyper": 2,
+      "requiredLevel": 160,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "500",
+        "damage": "670",
+        "attackCount": "8",
+        "mobCount": "15",
+        "cooltime": "60",
+        "lt": {},
+        "rb": {},
+        "time": "600"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 500,
+          "damage": 670,
+          "attackCount": 8,
+          "mobCount": 15,
+          "cooltime": 60,
+          "lt": {},
+          "rb": {},
+          "time": 600
+        }
+      }
+    },
+    "2321053": {
+      "id": "2321053",
+      "name": "傳說冒險",
+      "description": "只有遊遍楓之谷世界每個角落的傳說中的冒險家才可使用的加持，可增加傷害。",
+      "perLevelDescription": "消耗MP#mpCon，#time秒內傷害增加#indieDamR%。\\n只對隊員中的冒險家職業群產生效果\\n冷卻時間#cooltime秒",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 2,
+      "requiredLevel": 190,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "100",
+        "time": "60",
+        "cooltime": "120",
+        "indieDamR": "10",
+        "lt": {},
+        "rb": {}
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 100,
+          "time": 60,
+          "cooltime": 120,
+          "indieDamR": 10,
+          "lt": {},
+          "rb": {}
+        }
+      }
+    },
+    "2321054": {
+      "id": "2321054",
+      "name": "復仇天使",
+      "description": "取得天使的純粹的憤怒，當做擊敗敵人的力量。#c慈愛#技能轉變成#c復仇#技能。",
+      "perLevelDescription": "消耗MP #mpCon，群體治癒、淨化、神聖之泉、神聖之水各別轉換成天使之觸、勝利之羽、天使之泉、神聖之血\\n冷卻時間 #cooltimeMS秒\\n#c[被動效果]#魔法攻擊力增加#madX、最終傷害增加#mdR%、無視怪物防禦率增加#ignoreMobpdpR%、攻擊屬性耐性減少#u%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 2,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "100",
+        "cooltimeMS": "500",
+        "ignoreMobpdpR": "20",
+        "mdR": "30",
+        "madX": "50",
+        "x": "-10",
+        "u": "10"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 100,
+          "cooltimeMS": 500,
+          "ignoreMobpdpR": 20,
+          "mdR": 30,
+          "madX": 50,
+          "x": -10,
+          "u": 10
+        }
+      }
+    },
+    "2321055": {
+      "id": "2321055",
+      "name": "天堂之門",
+      "description": "開啟天國之門懲罰敵人，同時對我軍賜予生命的祝福。\\n不會受到冷卻時間初始化的影響。",
+      "perLevelDescription": "消耗MP #mpCon，最多對#mobCount名敵人以#damage% 傷害攻擊#attackCount次，同時賦予周遭的我軍HP不會變成0的加持1次。\\n冷卻時間 : #cooltime秒",
+      "maxLevel": 1,
+      "infoType": 51,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 2,
+      "requiredLevel": 160,
+      "fixLevel": false,
+      "hidden": true,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "damage": "1000",
+        "attackCount": "8",
+        "mobCount": "15",
+        "lt": {},
+        "rb": {},
+        "time": "600"
+      },
+      "levelValues": {
+        "1": {
+          "damage": 1000,
+          "attackCount": 8,
+          "mobCount": 15,
+          "lt": {},
+          "rb": {},
+          "time": 600
+        }
+      }
+    }
+  },
+  "conclusions": {
+    "bookName": "最頂級神聖魔法",
+    "nodeCount": 27,
+    "classificationCounts": {
+      "ordinary": 13,
+      "hyper": 12,
+      "hidden": 2
+    },
+    "fixedLevelSkills": [
+      "2320013"
+    ],
+    "unverified": [
+      "转职脚本（源链 1452/1453、36330–36333 的执行脚本 q1453s/q1453e 等在本包中不存在）",
+      "SP 授予与逐级分档",
+      "各技能的服务端命中时序与结算",
+      "图集/动作/音效的挂载与体积"
+    ]
+  }
+}

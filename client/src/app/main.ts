@@ -10,6 +10,7 @@ import { MiniMapView } from '../features/world/minimap-view';
 import '../features/world/minimap.css';
 import { WorldMapView } from '../features/world/worldmap-view';
 import '../features/world/worldmap.css';
+import { mapEntryWarning } from '../features/world/entry-script';
 import { FriendView } from '../features/world/friend-view';
 import { EmoticonView } from '../features/chat/emoticon-view';
 import { CashShopView } from '../features/cashshop/view';
@@ -819,6 +820,26 @@ async function enterGame(session: LoginResponse) {
           // retires it once the world scene reports ready as well.
           status(`${uiText('enteredMap', '已进入')} ${message.colossus ? '巨石之约' : currentMap ? mapText(currentMap.id, currentMap.name) : mapText(manifest.map.id, manifest.map.name)} · ${session.username}`);
           revealGame();
+          // 源地图入口脚本（`Map.wz/info/onUserEnter` → `manifest…entryScripts`）在
+          // 本次改动前**没有消费者**，地图声明什么都不发生。这里落地其中语义自明的
+          // 一个：`warning_MobLevel`（源的越级警告，全目录只有 `102030000 黑肥肥領土`
+          // 与 `102040000 初期挖掘地區` 两张图声明，恰好是 Perion 片区唯一的越级图）。
+          // 判据全在 `features/world/entry-script.ts`：脚本存在 **且** 图内已刷新的
+          // 最强怪物确实高于玩家等级才出提示，所以提示永远为真。句子只报告事实。
+          const entryScripts = (manifest.mapCatalog?.maps.find(entry => entry.id === message.mapId) ?? (manifest.map.id === message.mapId ? manifest.map : undefined))?.entryScripts;
+          const warning = mapEntryWarning({
+            scripts: entryScripts,
+            playerLevel: self?.level,
+            monsters: message.monsters,
+            monsterLevel: templateId => {
+              const level = manifest.monsters?.[templateId]?.info?.level;
+              if (typeof level === 'number') return level;
+              return typeof level === 'string' && level.trim() !== '' ? Number(level) : undefined;
+            },
+          });
+          if (warning) chat?.appendSystem(english
+            ? `Monsters in this field reach Lv${warning.monsterLevel} — above your Lv${warning.playerLevel}.`
+            : `此地的怪物等級最高 Lv${warning.monsterLevel}，高於你的 Lv${warning.playerLevel}，請小心。`);
         }
       }
       else       if (message.type === 'rejected') {

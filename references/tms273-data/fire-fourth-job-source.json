@@ -1,0 +1,1142 @@
+{
+  "sourceVersion": "TMS273.7",
+  "artifact": "fire-fourth-job-source",
+  "status": "source-verified（设计留档，尚未接运行）",
+  "authority": {
+    "primary": "TMS273.7 WZ_JSON_TW 源导出（Skill/<book>.json + String/Skill.json），字段逐条直读，公式按源串独立求值",
+    "crossCheck": "客户端 TMS273.7 Data/Skill（含 _Canvas）与打包 .ms 仅作为后续接运行时的素材来源，本产物未解析其图集",
+    "officialClaim": false,
+    "boundary": "只记录源里确实存在的节点、公式、需求等级与前置；不推断转职脚本、SP 授予规则、服务端时序或官方数值口径。"
+  },
+  "scope": {
+    "bookId": "212",
+    "branch": "火毒（F/P）",
+    "job": 212,
+    "previousJob": 211,
+    "jobName": {
+      "zh": "火毒大魔導士",
+      "classification": "P",
+      "evidence": "源书名「最頂級火毒魔法」与转职层级；本包无职业名权威表，名号沿用项目既有中文命名"
+    },
+    "bookName": {
+      "value": "最頂級火毒魔法",
+      "source": "String/Skill.img/212/bookName"
+    },
+    "nodeCount": 24,
+    "classificationCounts": {
+      "ordinary": 11,
+      "hyper": 12,
+      "hidden": 1
+    },
+    "classificationRule": "hidden = 源节点 invisible=1；hyper = 源节点 hyper>0（1/2 为两个 Hyper 池）；其余为普通节点。三者互斥，按 hidden > hyper > ordinary 判定。",
+    "skillIds": [
+      "2120010",
+      "2120012",
+      "2120013",
+      "2120014",
+      "2120043",
+      "2120044",
+      "2120045",
+      "2120046",
+      "2120047",
+      "2120048",
+      "2120049",
+      "2120050",
+      "2120051",
+      "2121000",
+      "2121003",
+      "2121004",
+      "2121005",
+      "2121006",
+      "2121007",
+      "2121008",
+      "2121011",
+      "2121052",
+      "2121053",
+      "2121054"
+    ],
+    "ordinaryIds": [
+      "2120010",
+      "2120012",
+      "2120014",
+      "2121000",
+      "2121003",
+      "2121004",
+      "2121005",
+      "2121006",
+      "2121007",
+      "2121008",
+      "2121011"
+    ],
+    "hyperIds": [
+      "2120043",
+      "2120044",
+      "2120045",
+      "2120046",
+      "2120047",
+      "2120048",
+      "2120049",
+      "2120050",
+      "2120051",
+      "2121052",
+      "2121053",
+      "2121054"
+    ],
+    "hiddenIds": [
+      "2120013"
+    ],
+    "fixedLevelIds": [
+      "2120014"
+    ],
+    "formulaPolicy": "commonFormulas 原样保留源公式串；levelValues 仅记 1 级与满级，并按 RUNTIME_INTEGER_FIELDS（与 server/src/mage.rs::MageLevel 双向断言的那张表）在投影处取整，非契约字段原样带出。",
+    "learnabilityPolicy": "本产物**不**声称任何节点可学：普通/超技能/隐藏只是源侧分类，职业归属、SP 花费、转职顺序与等级门槛仍由运行期拥有。",
+    "visualPolicy": "未解析图集。图标/特效帧所在的 _Canvas_XXX.wz、角色动作（bodyAction/avatarAction）需在接运行时按 ice-fourth-job-source.json 的 visualGroups 口径补齐。",
+    "soundPolicy": "未解析音频。Sound/Skill 子节点与 UOL 链接需在接运行时补齐。"
+  },
+  "sourceFiles": [
+    {
+      "path": "参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/212.json",
+      "bytes": 55586,
+      "sha256": "8109f4caddb2997d2c76e34b434677ea589af804a2829fe2c0fae437282379c9"
+    },
+    {
+      "path": "参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW/String/Skill.json",
+      "bytes": 6757082,
+      "sha256": "df108f137307d9cd9a034d662b0e89832a7afa7ff8818b4573875875ac70409a"
+    }
+  ],
+  "skills": {
+    "2120010": {
+      "id": "2120010",
+      "name": "神秘狙擊",
+      "description": "攻擊時，可以無視一定程度的怪物防禦率，持續攻擊時所有攻擊的傷害會增加。傷害增加效果會套用機率，最多可以累積5次。",
+      "perLevelDescription": "攻擊時無視怪物的防禦率 #ignoreMobpdpR%，召喚獸攻擊除外的攻擊命中時，以#prop%機率每#time秒增加傷害#x%\\n傷害增加效果最多可套用#y次",
+      "maxLevel": 30,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "prop": "25+5*d(x/2)",
+        "x": "2+d(x/5)",
+        "y": "5",
+        "ignoreMobpdpR": "5+u(x/2)",
+        "time": "5"
+      },
+      "levelValues": {
+        "1": {
+          "prop": 25,
+          "x": 2,
+          "y": 5,
+          "ignoreMobpdpR": 6,
+          "time": 5
+        },
+        "30": {
+          "prop": 100,
+          "x": 8,
+          "y": 5,
+          "ignoreMobpdpR": 20,
+          "time": 5
+        }
+      }
+    },
+    "2120012": {
+      "id": "2120012",
+      "name": "大師魔法",
+      "description": "魔力增加，自己套用的所有BUFF的持續時間增加，皆為永久性。額外永久增加格擋。",
+      "perLevelDescription": "增加魔力#madX、Buff持續時間#bufftimeR%、格擋#stanceProp%",
+      "maxLevel": 10,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "10",
+        "madX": "3*x",
+        "bufftimeR": "5*x",
+        "stanceProp": "6*x"
+      },
+      "levelValues": {
+        "1": {
+          "madX": 3,
+          "bufftimeR": 5,
+          "stanceProp": 6
+        },
+        "10": {
+          "madX": 30,
+          "bufftimeR": 50,
+          "stanceProp": 60
+        }
+      }
+    },
+    "2120013": {
+      "id": "2120013",
+      "name": "火流星",
+      "description": "從空中召喚出隕石，並對單一的敵人發動攻擊。",
+      "perLevelDescription": "消耗 MP #mpCon，對最多 #mobCount個敵人用 #damage%傷害進行 #attackCount次攻擊，在#dotTime秒間，每 #dotInterval秒造成 #dot%的持續傷害，冷卻時間 #cooltime秒",
+      "maxLevel": 30,
+      "infoType": 53,
+      "elemAttr": "f",
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": true,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "damage": "100+4*x",
+        "prop": "2*x"
+      },
+      "levelValues": {
+        "1": {
+          "damage": 104,
+          "prop": 2
+        },
+        "30": {
+          "damage": 220,
+          "prop": 60
+        }
+      }
+    },
+    "2120014": {
+      "id": "2120014",
+      "name": "元素強化",
+      "description": "增加元素吸收的效果。",
+      "perLevelDescription": "自己的技能來給的持續性傷害來增加最終傷害#x%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": true,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "x": "5"
+      },
+      "levelValues": {
+        "1": {
+          "x": 5
+        }
+      }
+    },
+    "2120043": {
+      "id": "2120043",
+      "name": "致命毒霧-強化傷害",
+      "description": "致命毒霧的傷害增加。",
+      "perLevelDescription": "提高傷害 #damR% ",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2111003",
+        "2141004"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "damR": "20"
+      },
+      "levelValues": {
+        "1": {
+          "damR": 20
+        }
+      }
+    },
+    "2120044": {
+      "id": "2120044",
+      "name": "致命毒霧-持續效果",
+      "description": "致命毒霧的持續性持續時間增加。",
+      "perLevelDescription": "持續性持續時間增加#dotTime秒 ",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 150,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "dotTime": "6"
+      },
+      "levelValues": {
+        "1": {
+          "dotTime": 6
+        }
+      }
+    },
+    "2120045": {
+      "id": "2120045",
+      "name": "致命毒霧-毒性蔓延",
+      "description": "致命毒霧的持續性傷害增加。",
+      "perLevelDescription": "增加 #dot% 傷害",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 180,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "dot": "20"
+      },
+      "levelValues": {
+        "1": {
+          "dot": 20
+        }
+      }
+    },
+    "2120046": {
+      "id": "2120046",
+      "name": "火焰之襲-強化",
+      "description": "增加火焰之襲的傷害。不套用火焰之襲 VI的巨大火焰留下的火種所引起的爆炸。",
+      "perLevelDescription": "提高傷害 #damR% ",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2121006",
+        "2141000",
+        "2141001"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "damR": "10"
+      },
+      "levelValues": {
+        "1": {
+          "damR": 10
+        }
+      }
+    },
+    "2120047": {
+      "id": "2120047",
+      "name": "火焰之襲-持續強化",
+      "description": "增加火焰之襲的持續傷害。不套用火焰之襲 VI的巨大火焰留下的火種所引起的爆炸。",
+      "perLevelDescription": "增加 #dot% 傷害",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 165,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "dot": "20"
+      },
+      "levelValues": {
+        "1": {
+          "dot": 20
+        }
+      }
+    },
+    "2120048": {
+      "id": "2120048",
+      "name": "火焰之襲-額外攻擊",
+      "description": "增加火焰之襲的攻擊次數。不套用火焰之襲 VI的巨大火焰留下的火種所引起的爆炸。",
+      "perLevelDescription": "提高攻擊次數 #attackCount ",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 180,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "attackCount": "1"
+      },
+      "levelValues": {
+        "1": {
+          "attackCount": 1
+        }
+      }
+    },
+    "2120049": {
+      "id": "2120049",
+      "name": "地獄爆發-強化加農",
+      "description": "增加地獄爆發的傷害。",
+      "perLevelDescription": "增加傷害值#damR%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 150,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2121003",
+        "2141005"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "damR": "10"
+      },
+      "levelValues": {
+        "1": {
+          "damR": 10
+        }
+      }
+    },
+    "2120050": {
+      "id": "2120050",
+      "name": "地獄爆發-無視防禦",
+      "description": "地獄爆發的怪物防禦率無視效果額外增加。",
+      "perLevelDescription": "怪物防禦率無視#ignoreMobpdpR% 額外增加",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 165,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2121003",
+        "2141005"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "ignoreMobpdpR": "20"
+      },
+      "levelValues": {
+        "1": {
+          "ignoreMobpdpR": 20
+        }
+      }
+    },
+    "2120051": {
+      "id": "2120051",
+      "name": "地獄爆發-冷卻減免",
+      "description": "減少地獄爆發的再次使用冷卻時間。",
+      "perLevelDescription": "減少冷卻時間#coolTimeR%",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 1,
+      "requiredLevel": 190,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [
+        "2121003",
+        "2141005"
+      ],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "coolTimeR": "50"
+      },
+      "levelValues": {
+        "1": {
+          "coolTimeR": 50
+        }
+      }
+    },
+    "2121000": {
+      "id": "2121000",
+      "name": "楓葉祝福",
+      "description": "受到楓之谷世界的女神的庇護，自己的所有能力值增加一定比例。使用技能時，楓之谷世界的女神將暫時現身。",
+      "perLevelDescription": "消耗#mpConMP，使楓之谷世界的女神現身\\n[被動效果：直接投入AP的所有能力值增加#basicStatUp%]",
+      "maxLevel": 30,
+      "infoType": 10,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "mpCon": "10+10*d(x/5)",
+        "maxLevel": "30",
+        "basicStatUp": "u(x/2)"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 10,
+          "basicStatUp": 1
+        },
+        "30": {
+          "mpCon": 70,
+          "basicStatUp": 15
+        }
+      }
+    },
+    "2121003": {
+      "id": "2121003",
+      "name": "地獄爆發",
+      "description": "可讓致命毒霧的持續傷害擁有增加，使用技能時，能引爆附近的毒霧，並對敵人造成致命的毒屬性傷害。套用在對象的持續傷害數量越多，越能造成更大的傷害，但無法引爆其他人設置的毒霧。\\n不會受到冷卻時間重置的影響，成功引爆毒霧後，可重置炙焰毒火的冷卻時間。\\n需要技能 : #c致命毒霧20級以上#",
+      "perLevelDescription": "消耗MP#mpCon，發動#q次對最多#mobCount名敵人造成#damage%傷害#attackCount次的爆炸攻擊，無視怪物防禦力#ignoreMobpdpR%\\n套用在對象的持續傷害數量為2個時，爆炸的最終傷害增加20%，3個增加45%，4個增加80%，5個增加125%\\n最多可同時引爆#y個毒霧\\n冷卻時間 #cooltime秒\\n對套用了5個以上持續傷害的敵人命中地獄爆發時，地獄爆發的冷卻時間減少2秒，因堆疊5個持續傷害而減少的冷卻時間會比其他冷卻時間減少的功能優先套用\\n[被動效果:使致命毒霧的持續傷害擁有增加#x%]",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "s",
+      "action": {
+        "0": "mistEruption"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {
+        "2111003": 20
+      },
+      "variantGroup": [
+        "2121003"
+      ],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "40+10*d(x/5)",
+        "damage": "95+x",
+        "mobCount": "12",
+        "attackCount": "10",
+        "q": "2",
+        "x": "270+x",
+        "y": "6",
+        "z": "10",
+        "cooltime": "10",
+        "ignoreMobpdpR": "10+x",
+        "lt": {},
+        "rb": {},
+        "w": "5",
+        "s": "5",
+        "s2": "2000",
+        "updatableTime": "900"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 40,
+          "damage": 96,
+          "mobCount": 12,
+          "attackCount": 10,
+          "q": 2,
+          "x": 271,
+          "y": 6,
+          "z": 10,
+          "cooltime": 10,
+          "ignoreMobpdpR": 11,
+          "lt": {},
+          "rb": {},
+          "w": 5,
+          "s": 5,
+          "s2": 2000,
+          "updatableTime": 900
+        },
+        "30": {
+          "mpCon": 100,
+          "damage": 125,
+          "mobCount": 12,
+          "attackCount": 10,
+          "q": 2,
+          "x": 300,
+          "y": 6,
+          "z": 10,
+          "cooltime": 10,
+          "ignoreMobpdpR": 40,
+          "lt": {},
+          "rb": {},
+          "w": 5,
+          "s": 5,
+          "s2": 2000,
+          "updatableTime": 900
+        }
+      }
+    },
+    "2121004": {
+      "id": "2121004",
+      "name": "魔力無限",
+      "description": "集中精神並引發出無限的魔力，使自己能在一定的時間內不消耗MP的使用技能。另外能持續的恢復自己的HP和MP，並增加所有的攻擊魔法傷害。\\n不會受到冷卻時間重置的影響。",
+      "perLevelDescription": "消耗MP#mpCon，持續#time秒，每隔一段時間基礎HP和MP#y%\\n增益持續時，最終傷害增加#q%，每隔一段時間最終傷害追加增加#damage%，最多可增加至#w%\\n因無限增加的最終傷害合併套用\\n反映增益持續時間增加量的持續時間基準持續時間剩#w2%時，魔力會圍繞在角色周圍。\\n冷卻時間#cooltime秒",
+      "maxLevel": 30,
+      "infoType": 10,
+      "elemAttr": null,
+      "action": {
+        "0": "alert2"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "40+5*u(x/4)",
+        "time": "10+x",
+        "damage": "3",
+        "x": "1",
+        "y": "u(x/3)",
+        "z": "u(x/3)",
+        "cooltime": "180",
+        "hcHp": "u(x/15)",
+        "w": "115",
+        "q": "40+x",
+        "w2": "30",
+        "u": "360",
+        "s": "1200",
+        "s2": "420"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 45,
+          "time": 11,
+          "damage": 3,
+          "x": 1,
+          "y": 1,
+          "z": 1,
+          "cooltime": 180,
+          "hcHp": 1,
+          "w": 115,
+          "q": 41,
+          "w2": 30,
+          "u": 360,
+          "s": 1200,
+          "s2": 420
+        },
+        "30": {
+          "mpCon": 80,
+          "time": 40,
+          "damage": 3,
+          "x": 1,
+          "y": 10,
+          "z": 10,
+          "cooltime": 180,
+          "hcHp": 2,
+          "w": 115,
+          "q": 70,
+          "w2": 30,
+          "u": 360,
+          "s": 1200,
+          "s2": 420
+        }
+      }
+    },
+    "2121005": {
+      "id": "2121005",
+      "name": "召喚火魔",
+      "description": "一段時間內召喚出火屬性的火魔神。額外永久增加熟練度。火魔神就算攻擊，反射攻擊狀態的敵人，也不會受到傷害。\\n#c須達30級以上才能學習5轉技能「火炎神之怒號」#",
+      "perLevelDescription": "消耗#mpCon MP，召喚火魔神#time秒\\n火魔神將對最多#mobCount名敵人造成#damage%傷害#attackCount次\\n#dotTime秒內，每#dotInterval秒造成一次#dot%持續傷害\\n[被動效果：熟練度增加量永久增加至#mastery%]",
+      "maxLevel": 30,
+      "infoType": 33,
+      "elemAttr": "f",
+      "action": {
+        "0": "alert2"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "30+3*x",
+        "time": "110+5*x",
+        "damage": "90+2*x",
+        "mastery": "55+u(x/2)",
+        "dot": "50+3*x",
+        "dotInterval": "1",
+        "dotTime": "2",
+        "attackCount": "3",
+        "mobCount": "3"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 33,
+          "time": 115,
+          "damage": 92,
+          "mastery": 56,
+          "dot": 53,
+          "dotInterval": 1,
+          "dotTime": 2,
+          "attackCount": 3,
+          "mobCount": 3
+        },
+        "30": {
+          "mpCon": 120,
+          "time": 260,
+          "damage": 150,
+          "mastery": 70,
+          "dot": 140,
+          "dotInterval": 1,
+          "dotTime": 2,
+          "attackCount": 3,
+          "mobCount": 3
+        }
+      }
+    },
+    "2121006": {
+      "id": "2121006",
+      "name": "火焰之襲",
+      "description": "用強力的火焰掃蕩前方。被火焰掃蕩的敵人會因燒傷而受到持續的傷害。部分怪物會抵抗而不受到燒傷效果。火屬性攻擊。",
+      "perLevelDescription": "消耗MP#mpCon，最多對#mobCount名敵人使用#damage%的傷害攻擊#attackCount次\\n倍攻擊的敵人會受到#time的燒傷，每#dotInterval秒受到#dot%的持續傷害",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "f",
+      "action": {
+        "0": "paralyze"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "16+6*d(x/7)",
+        "damage": "130+3*x",
+        "attackCount": "7",
+        "x": "0",
+        "dot": "120+4*x",
+        "dotTime": "5",
+        "dotInterval": "1",
+        "time": "5",
+        "mobCount": "8",
+        "prop": "100",
+        "lt": {},
+        "rb": {},
+        "hcTime": "u(x/15)",
+        "hcProp": "u(x/6)"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 16,
+          "damage": 133,
+          "attackCount": 7,
+          "x": 0,
+          "dot": 124,
+          "dotTime": 5,
+          "dotInterval": 1,
+          "time": 5,
+          "mobCount": 8,
+          "prop": 100,
+          "lt": {},
+          "rb": {},
+          "hcTime": 1,
+          "hcProp": 1
+        },
+        "30": {
+          "mpCon": 40,
+          "damage": 220,
+          "attackCount": 7,
+          "x": 0,
+          "dot": 240,
+          "dotTime": 5,
+          "dotInterval": 1,
+          "time": 5,
+          "mobCount": 8,
+          "prop": 100,
+          "lt": {},
+          "rb": {},
+          "hcTime": 2,
+          "hcProp": 5
+        }
+      }
+    },
+    "2121007": {
+      "id": "2121007",
+      "name": "火流星",
+      "description": "從天空召喚隕石，以造成猛烈的火焰攻擊。另外，使用火靈結界以外的技能命中時，有#c一定的機率會對敵人召喚隕石，並對其造成傷害#。此效果為永久性。",
+      "perLevelDescription": "消耗#mpCon MP，對最多#mobCount名敵人造成#damage%傷害#attackCount次\\n冷卻時間：#cooltime秒\\n[被動效果：#c[終極攻擊系列技能]#直接攻擊的技能命中時，有#prop%機率召喚將造成#x%傷害的火流星墜落]",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "f",
+      "action": {
+        "0": "meteorNew"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "360-x*2",
+        "mobCount": "15",
+        "damage": "225+3*x",
+        "cooltime": "45",
+        "attackCount": "12",
+        "x": "100+4*x",
+        "lt": {},
+        "rb": {},
+        "hcCooltime": "60-2*d(x/2)",
+        "u": "0",
+        "prop": "2*x",
+        "y": "600"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 358,
+          "mobCount": 15,
+          "damage": 228,
+          "cooltime": 45,
+          "attackCount": 12,
+          "x": 104,
+          "lt": {},
+          "rb": {},
+          "hcCooltime": 60,
+          "u": 0,
+          "prop": 2,
+          "y": 600
+        },
+        "30": {
+          "mpCon": 300,
+          "mobCount": 15,
+          "damage": 315,
+          "cooltime": 45,
+          "attackCount": 12,
+          "x": 220,
+          "lt": {},
+          "rb": {},
+          "hcCooltime": 30,
+          "u": 0,
+          "prop": 60,
+          "y": 600
+        }
+      }
+    },
+    "2121008": {
+      "id": "2121008",
+      "name": "楓葉淨化　",
+      "description": "集中精神擺脫狀態異常。使用後，3秒間狀態異常免疫。但，不適用部分狀態異常效果與戰鬥命令。",
+      "perLevelDescription": "消耗MP #mpCon，再次使用冷卻時間 #cooltime秒",
+      "maxLevel": 5,
+      "infoType": 35,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "5",
+        "mpCon": "30",
+        "cooltime": "600-60*x",
+        "time": "1"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 30,
+          "cooltime": 540,
+          "time": 1
+        },
+        "5": {
+          "mpCon": 30,
+          "cooltime": 300,
+          "time": 1
+        }
+      }
+    },
+    "2121011": {
+      "id": "2121011",
+      "name": "炙焰毒火",
+      "description": "讓敵人被#c毒霧包覆而碰不到敵人的狀態#，並且造成持續傷害及緩速的效果。另外，命中敵人後，會在該位置產生致命毒物。若沒有命中敵人，便會於自己所在的位置上生成致命毒物。",
+      "perLevelDescription": "消耗MP#mpCon，單一敵人以 #damage%傷害攻擊#attackCount次，以#prop%的機率在#dotTime秒內#dot%持續造成傷害，#c在不碰撞的狀態下持續與 #x%減速#，命中敵人時，敵人位置會形成致命毒霧，若是沒有敵人被擊中，自己的位置會形成致命毒霧。\\n再次使用待機時間#cooltime秒",
+      "maxLevel": 30,
+      "infoType": 1,
+      "elemAttr": "f",
+      "action": {
+        "0": "flameHaze"
+      },
+      "hyper": 0,
+      "requiredLevel": 0,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "30",
+        "mpCon": "25+3*u(x/2)",
+        "damage": "112+3*x",
+        "prop": "100",
+        "dot": "110+3*x",
+        "dotTime": "10",
+        "time": "10",
+        "dotInterval": "1",
+        "range": "450",
+        "attackCount": "15",
+        "x": "-20-x",
+        "cooltime": "20-d(x/3)",
+        "s": "10",
+        "q": "0",
+        "u": "180",
+        "v": "67",
+        "s2": "510"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 28,
+          "damage": 115,
+          "prop": 100,
+          "dot": 113,
+          "dotTime": 10,
+          "time": 10,
+          "dotInterval": 1,
+          "range": 450,
+          "attackCount": 15,
+          "x": -21,
+          "cooltime": 20,
+          "s": 10,
+          "q": 0,
+          "u": 180,
+          "v": 67,
+          "s2": 510
+        },
+        "30": {
+          "mpCon": 70,
+          "damage": 202,
+          "prop": 100,
+          "dot": 200,
+          "dotTime": 10,
+          "time": 10,
+          "dotInterval": 1,
+          "range": 450,
+          "attackCount": 15,
+          "x": -50,
+          "cooltime": 10,
+          "s": 10,
+          "q": 0,
+          "u": 180,
+          "v": 67,
+          "s2": 510
+        }
+      }
+    },
+    "2121052": {
+      "id": "2121052",
+      "name": "藍焰斬",
+      "description": "噴射出能燒掉對方靈魂的藍色火花，並加以消滅。藍色火花會在焚燒敵人後，會再次生成到一定的次數為止。火花會優先追蹤範圍內的BOSS怪物，如果有多個BOSS怪物時，會優先追蹤最大HP數值最高的BOSS怪物。可對無視攻擊和攻擊反射狀態的敵人造成傷害。",
+      "perLevelDescription": "消耗#mpCon MP，生成#bulletCount個藍色火花\\n每個火花將造成#damage%傷害#attackCount次，並在命中敵人後分裂，以額外再追加生成#v2個火花。包含最初生成的火花在內，最多可生成#x個火花，當火花達生成數量上限時，即不會再生成火花\\n當單一敵人被火花多次命中時，從第2個火花開始，火花的最終傷害減少#u%\\n被火花燒傷的敵人每#dotInterval秒將遭受#dot%的持續傷害，效果持續#dotTime秒\\n冷卻時間：#cooltime秒",
+      "maxLevel": 1,
+      "infoType": 1,
+      "elemAttr": "f",
+      "action": {
+        "0": "HY212megiddoFlame"
+      },
+      "hyper": 2,
+      "requiredLevel": 160,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": false,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "500",
+        "damage": "380",
+        "attackCount": "4",
+        "mobCount": "1",
+        "bulletCount": "3",
+        "prop": "20",
+        "x": "11",
+        "dot": "700",
+        "dotInterval": "1",
+        "dotTime": "30",
+        "cooltime": "50",
+        "lt": {},
+        "rb": {},
+        "y": "80",
+        "v": "180",
+        "v2": "1",
+        "u2": "5000",
+        "u": "55",
+        "w": "1410",
+        "w2": "900"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 500,
+          "damage": 380,
+          "attackCount": 4,
+          "mobCount": 1,
+          "bulletCount": 3,
+          "prop": 20,
+          "x": 11,
+          "dot": 700,
+          "dotInterval": 1,
+          "dotTime": 30,
+          "cooltime": 50,
+          "lt": {},
+          "rb": {},
+          "y": 80,
+          "v": 180,
+          "v2": 1,
+          "u2": 5000,
+          "u": 55,
+          "w": 1410,
+          "w2": 900
+        }
+      }
+    },
+    "2121053": {
+      "id": "2121053",
+      "name": "傳說冒險",
+      "description": "只有遊遍楓之谷世界每個角落的傳說中的冒險家才可使用的加持，可增加傷害。",
+      "perLevelDescription": "消耗MP#mpCon，#time秒內傷害增加#indieDamR%。\\n只對隊員中的冒險家職業群產生效果\\n冷卻時間#cooltime秒",
+      "maxLevel": 1,
+      "infoType": 50,
+      "elemAttr": null,
+      "action": null,
+      "hyper": 2,
+      "requiredLevel": 190,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "100",
+        "time": "60",
+        "cooltime": "120",
+        "indieDamR": "10",
+        "lt": {},
+        "rb": {}
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 100,
+          "time": 60,
+          "cooltime": 120,
+          "indieDamR": 10,
+          "lt": {},
+          "rb": {}
+        }
+      }
+    },
+    "2121054": {
+      "id": "2121054",
+      "name": "火靈結界",
+      "description": "發動附近燃燒的結界。可無視攻擊以及對反射攻擊狀態的敵人造成傷害。\\n使用技能時啟動效果，再次使用時則關閉效果的#c開關技能#",
+      "perLevelDescription": "每秒消耗MP #mpCon，每#x秒向最多#mobCount名敵人以#damage%的傷害，攻擊#attackCount次\\n遭受攻擊的敵人會受到#dotTime秒內，每#dotInterval秒#dot%的持續傷害",
+      "maxLevel": 1,
+      "infoType": 15,
+      "elemAttr": "f",
+      "action": null,
+      "hyper": 2,
+      "requiredLevel": 140,
+      "fixLevel": false,
+      "hidden": false,
+      "notRemoved": true,
+      "prerequisites": {},
+      "variantGroup": [],
+      "commonFormulas": {
+        "maxLevel": "1",
+        "mpCon": "100",
+        "damage": "400",
+        "attackCount": "2",
+        "mobCount": "10",
+        "subTime": "3000",
+        "lt": {},
+        "rb": {},
+        "x": "3",
+        "dot": "500",
+        "dotInterval": "1",
+        "dotTime": "30"
+      },
+      "levelValues": {
+        "1": {
+          "mpCon": 100,
+          "damage": 400,
+          "attackCount": 2,
+          "mobCount": 10,
+          "subTime": 3000,
+          "lt": {},
+          "rb": {},
+          "x": 3,
+          "dot": 500,
+          "dotInterval": 1,
+          "dotTime": 30
+        }
+      }
+    }
+  },
+  "conclusions": {
+    "bookName": "最頂級火毒魔法",
+    "nodeCount": 24,
+    "classificationCounts": {
+      "ordinary": 11,
+      "hyper": 12,
+      "hidden": 1
+    },
+    "fixedLevelSkills": [
+      "2120014"
+    ],
+    "unverified": [
+      "转职脚本（源链 1452/1453、36330–36333 的执行脚本 q1453s/q1453e 等在本包中不存在）",
+      "SP 授予与逐级分档",
+      "各技能的服务端命中时序与结算",
+      "图集/动作/音效的挂载与体积"
+    ]
+  }
+}
