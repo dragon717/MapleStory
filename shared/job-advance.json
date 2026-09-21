@@ -1,0 +1,181 @@
+{
+  "source": "转职任务配置（手工维护，非 WZ 导出产物）。与 shared/windbell.json 同类：由服务端启动时加载并硬校验。",
+  "ruleVersion": "tms273-job-advance-v1",
+  "provenance": {
+    "T": "同版 WZ 已核字段：转职官 NPC（漢斯 1032001 / 101000003）、一转等级与前置（QuestData/1402.img）、二转技能 2200011（源 fixLevel=1）。",
+    "P": "源 273 包未随附二转/三转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值。"
+  },
+  "quests": [
+    {
+      "questId": "job-220",
+      "title": {
+        "zh": "冰雷法师的试炼",
+        "en": "Trial of the Ice/Lightning Magician"
+      },
+      "provenance": "P",
+      "fromJob": 200,
+      "toJob": 220,
+      "npc": {
+        "templateId": "1032001",
+        "maps": ["101000003"]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1402",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "2130100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 黑斧木妖",
+            "en": "Defeat 30 Dark Axe Stumps"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000215",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 遺失的斧頭",
+            "en": "Collect 10 Lost Axes"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 220,
+            "amount": 5
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2200011,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 100,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為冰雷法師，就先證明你能掌握冰與雷。願意接受試煉嗎？",
+          "en": "To become an Ice/Lightning Magician you must first prove your command of ice and lightning. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成法師之路。",
+          "en": "You are not ready. Reach level 30 and finish the Path of the Magician first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗黑斧木妖，把它們遺失的斧頭帶回來給我。",
+          "en": "Good. Defeat the Dark Axe Stumps and bring me the axes they lost."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是冰雷法師了。",
+          "en": "You have passed the trial. From now on you are an Ice/Lightning Magician."
+        }
+      }
+    },
+    {
+      "questId": "job-221",
+      "title": {
+        "zh": "冰雷大魔導士的試煉",
+        "en": "Trial of the Ice/Lightning Arch Magician"
+      },
+      "provenance": "P",
+      "fromJob": 220,
+      "toJob": 221,
+      "npc": {
+        "templateId": "1032001",
+        "maps": ["101000003"]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-220",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "2230110",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 木面怪人",
+            "en": "Defeat 30 Wooden Mask Men"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000196",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 木板",
+            "en": "Collect 10 Wooden Plates"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 221,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "冰與雷已經在你手中合一。要再往前一步，就得面對更深的黑暗。",
+          "en": "Ice and lightning are one in your hands. To go further you must face a deeper darkness."
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成冰雷法師的試煉。",
+          "en": "You are not ready. Reach level 60 and finish the Ice/Lightning trial first."
+        },
+        "accept": {
+          "zh": "去擊敗木面怪人，取回它們身上的木板作為證明。",
+          "en": "Defeat the Wooden Mask Men and bring back their wooden plates as proof."
+        },
+        "progress": {
+          "zh": "你的試煉尚未完成，繼續努力。",
+          "en": "Your trial is not complete yet. Keep going."
+        },
+        "ready": {
+          "zh": "木板都齊了。交給我，我現在就為你轉職。",
+          "en": "The plates are all here. Hand them over and I will advance you now."
+        },
+        "complete": {
+          "zh": "你已掌握冰雷的最深處。從現在起，你就是冰雷大魔導士。",
+          "en": "You have mastered the depths of ice and lightning. From now on you are an Ice/Lightning Arch Magician."
+        }
+      }
+    }
+  ]
+}

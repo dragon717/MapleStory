@@ -200,6 +200,11 @@ impl World {
                 }
             }
         }
+        // 转职任务的击杀目标走自己的目录（`world::job_advance`），但共用同一张
+        // `quest_kills` 表与同一个「只有 active 才计数」的判据，所以并在这里。
+        for target in self.job_advance_kill_targets(id, template_id) {
+            targets.insert(target);
+        }
         targets.into_iter().collect()
     }
 
@@ -921,7 +926,11 @@ impl World {
         // longer present in the current catalog. They remain display-only;
         // execution still requires an executable catalog entry.
         for (quest_id, status) in &player.quests {
-            if !catalog_ids.contains(quest_id.as_str()) {
+            // 转职任务的 id 也不在通用目录里，但下面有正式条目；这里跳过，
+            // 否则同一条任务会在日志里出现两次（一次只剩 id）。
+            if !catalog_ids.contains(quest_id.as_str())
+                && !self.job_advance.contains_id(quest_id)
+            {
                 entries.push(serde_json::json!({
                     "questId": quest_id,
                     "name": self.quest_text.name(quest_id, player.lang),
@@ -930,6 +939,9 @@ impl World {
                 }));
             }
         }
+        // 转职任务不在通用任务目录里，但共用 `player_quests` 存状态；走自己那份
+        // 正式条目（带目标进度与职业信息），不要退化成上面那支「只剩 id」的遗留行。
+        entries.extend(self.job_advance_log_entries(id));
         entries
     }
 

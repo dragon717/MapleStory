@@ -154,6 +154,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .validate(template_id)
             .map_err(|error| format!("invalid source npc script: {error}"))?;
     }
+    // 转职任务目录（2026-09-21）：手工维护的配置（与 `windbell.json` 同类，非 WZ
+    // 导出产物）。与台词表同一口径：文件在＝内容完整可校验，文件缺＝装配没跑完；
+    // 静默降级的表现恰好是「转職官点了没反应」，所以必须硬失败。
+    let job_advance_path = PathBuf::from(setting(
+        "JOB_ADVANCE_FILE",
+        root.join("shared/job-advance.json").to_str().unwrap(),
+    ));
+    let job_advance = world::job_advance::JobAdvanceCatalog::load(&job_advance_path)
+        .map_err(|error| format!("Cannot load job advance config: {error}"))?;
     let windbell_path = PathBuf::from(setting(
         "WINDBELL_FILE",
         root.join("shared/windbell.json").to_str().unwrap(),
@@ -190,6 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_npc_dialogue(npc_dialogue)
     .with_npc_scripts(npc_scripts)
     .with_mage_skills(mage_skills)
+    .with_job_advance(job_advance)
     .with_windbell(windbell)?
     .with_colossus()?;
     tokio::spawn(world::run(world, rx));

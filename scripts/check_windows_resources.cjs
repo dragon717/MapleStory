@@ -16,6 +16,9 @@ const REQUIRED_JSON = [
   'shared/npc-names.json',
   'shared/npc-dialogue.json',
   'shared/npc-scripts.json',
+  // 转职任务目录（2026-09-21）：服务端启动时**硬校验**（缺文件即启动失败），
+  // 因此它漏进包的后果是 3010 起不来，而不是「转职能用、别的不能用」。
+  'shared/job-advance.json',
   'shared/character-creation.json',
   'shared/items.json',
   'client/public-tms273/assets/manifest.json',

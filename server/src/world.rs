@@ -100,6 +100,10 @@ mod quest;
 /// 任务纯规则（计划 §6 试点）：只做判定与归一化，不依赖整个 World。
 #[path = "quest_rules.rs"]
 mod quest_rules;
+/// 转职任务（`shared/job-advance.json`）：配置与启动校验、纯判定、唯一的写路径。
+/// 与通用任务是两套语义（奖励是职业本身），因此独立成模块。见模块头。
+#[path = "job_advance.rs"]
+pub(crate) mod job_advance;
 #[path = "revive.rs"]
 mod revive;
 #[path = "ship.rs"]
@@ -2011,6 +2015,9 @@ pub struct World {
     /// `template.script` 优先；这张表补的是「源里有脚本实体、但装配管线没接上」
     /// 的那一批（計程車这类传送 NPC）。
     npc_scripts: BTreeMap<String, npc::DialogueScript>,
+    /// 转职任务目录（shared/job-advance.json）。空目录是合法启动状态
+    /// （未配置任何转职路线），但**文件缺失**在启动时就是硬失败——见 main.rs。
+    job_advance: job_advance::JobAdvanceCatalog,
     tick: u64,
     /// Monotonic id source for away windows, so each continuous absence has a
     /// stable identity for prompt de-duplication and logging.
@@ -2132,6 +2139,7 @@ impl World {
             whisper_sequence: 0,
             emoticon_sequence: 0,
             emoticon_ids,
+            job_advance: job_advance::JobAdvanceCatalog::default(),
         };
         if let Some(store) = &world.store {
             for drop in store.load_drops(&world.map.id)? {
@@ -2251,6 +2259,13 @@ impl World {
 
     pub fn with_mage_skills(mut self, mage_skills: MageSkills) -> Self {
         self.mage_skills = mage_skills;
+        self
+    }
+
+    /// 挂上转职任务目录。启动装配的最后一环之一：目录在加载时已校验，
+    /// 这里只做搬运，不再重复判错。
+    pub fn with_job_advance(mut self, catalog: job_advance::JobAdvanceCatalog) -> Self {
+        self.job_advance = catalog;
         self
     }
 

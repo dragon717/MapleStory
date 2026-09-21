@@ -27,6 +27,9 @@ use tokio::sync::{mpsc, oneshot};
 // `auth::X` 路径调用；搬入 db.rs 后 re-export 保住原路径。
 use self::db::*;
 pub(crate) use db::{add_exp, grant_level_sp};
+// 转职：auth 侧自己拥有的事务契约与奖励纯函数。世界侧只认这两个名字，
+// 不认 `shared/job-advance.json` 的字段形状。
+pub(crate) use job_advance::{apply_job_advance_grant, JobAdvancePlan};
 // `only` 冲突的持有位置：`add_inventory_tx` 用它拒绝，GM `/add` 用它把拒绝
 // 说清楚（`auth::OnlyHeld` 供 `gm.rs` 生成回执文案）。
 pub(crate) use db::only_item_holder;
@@ -37,6 +40,9 @@ use self::notebook::{granted_tx, AcquisitionSource, ItemAcquisition};
 
 #[path = "auth/friends.rs"]
 pub(crate) mod friends;
+/// 转职任务的持久化事务（职业切换 + 奖励 + 状态置 completed，同一事务）。见模块头。
+#[path = "auth/job_advance.rs"]
+pub(crate) mod job_advance;
 #[path = "auth/quests.rs"]
 pub(crate) mod quests;
 #[path = "auth/skills.rs"]

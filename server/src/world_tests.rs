@@ -4173,6 +4173,8 @@ include!("npc_click_acceptance.rs");
 include!("npc_teleport_acceptance.rs");
 include!("damage_pipeline_acceptance.rs");
 include!("attribute_acceptance.rs");
+// 转职任务（2026-09-21）：事务层（真实 SQLite）＋ 对话层（store-less World）。
+include!("job_advance_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

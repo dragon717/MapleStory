@@ -218,6 +218,27 @@ impl World {
             self.send_npc_dialogue(&id, value);
             return;
         }
+        // 转职任务（2026-09-21）：原版转職官漢斯（模板 1032001 / 地圖 101000003）
+        // 的完整任务流程——等级与前置校验、收集与击杀目标、进度落盘、交付即转职。
+        //
+        // 分发位置刻意在通用任务菜单**之前**：命中的判据是「当前职业 == fromJob 且
+        // 站对了 NPC」，所以新手（job 0）在这里不命中，照旧由 `handle_quest_npc_menu`
+        // 接去走源 1402 的一转任务；已转职的角色也不会被快捷菜单挡住。
+        // 「選擇岔道」漢斯（10201）不在这条链上，那是有自己判据的用户指定快捷入口。
+        if self.handle_job_advance_talk(
+            &id,
+            &request_id,
+            &npc_id,
+            &template_id,
+            &map_id,
+            &name,
+            name_zh.as_deref(),
+            &lang,
+            step,
+            selection,
+        ) {
+            return;
+        }
         if self.handle_quest_npc_menu(
             &id,
             &request_id,
