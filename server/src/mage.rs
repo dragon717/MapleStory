@@ -161,51 +161,35 @@ impl MageSkills {
     }
 
     pub fn validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        const BEGINNER_IDS: [u32; 3] = [1_000, 1_001, 1_002];
-        const FIRST_JOB_IDS: [u32; 8] = [
-            2_000_006, 2_000_007, 2_000_010, 2_001_002, 2_001_008, 2_001_009, 2_001_011, 2_001_012,
-        ];
-        const SECOND_JOB_IDS: [u32; 9] = [
-            2_200_000, 2_200_006, 2_200_007, 2_200_011, 2_200_012, 2_201_001, 2_201_005, 2_201_008,
-            2_201_009,
-        ];
-        const THIRD_JOB_IDS: [u32; 12] = [
-            2_210_000, 2_210_001, 2_210_009, 2_210_013, 2_210_016, 2_211_002, 2_211_007, 2_211_011,
-            2_211_012, 2_211_014, 2_211_015, 2_211_017,
-        ];
-        const FOURTH_JOB_IDS: [u32; 11] = [
-            2_220_010, 2_220_013, 2_220_015, 2_221_000, 2_221_004, 2_221_005, 2_221_006, 2_221_007,
-            2_221_008, 2_221_011, 2_221_012,
-        ];
-        const HYPER_IDS: [u32; 13] = [
-            2_220_043, 2_220_044, 2_221_045, 2_220_046, 2_220_047, 2_220_048, 2_220_049, 2_220_050,
-            2_220_051, 2_221_052, 2_221_053, 2_221_054, 2_221_055,
-        ];
+        /// 已登记书的书号。**书号就是技能 id 的高位**（`2201005 → 220`、`2311012 → 231`、
+        /// 初学者 `1000 → 0`），所以这里不再手写「技能 id → 书」的清单：手写清单在新增分支
+        /// 时会把整本书判成「未知书」而让**整个**目录被拒（2026-09-21 火毒 / 僧侶 上线时
+        /// 就是这么炸的：一本书缺登记 ⇒ 全部 102 本都读不进来）。
+        const BOOKS: [u32; 9] = [0, 200, 210, 211, 220, 221, 222, 230, 231];
+        /// 源里出现过的元素字母：`i` 冰 / `l` 雷 / `f` 火 / `s` 毒 / `h` 聖。
+        const ELEM_ATTRS: [&str; 5] = ["i", "l", "f", "s", "h"];
+        /// `(mobCount, attackCount)` 的合理性上界，按**转职层**分档：四转（书号末位为 2，
+        /// 即 `212/222/232`）与 Hyper 可到 15 段 15 目标；其余各书的实际上界是
+        /// 10 目标 × 6 段（火毒的 劇毒領域 / 末日烈焰 是 10 目标、毒霧 是 6 段）。
+        /// 上界只用来发现「把 mobCount 与 attackCount 读串」这类投影错误，不是内容规则。
+        const LOWER_LIMITS: (u32, u32) = (10, 6);
+        const FOURTH_LIMITS: (u32, u32) = (15, 15);
         if self.source_version != "TMS273.7"
-            || !matches!(self.skills.len(), 8 | 17 | 29 | 32 | 43 | 56)
+            || !matches!(self.skills.len(), 8 | 17 | 29 | 32 | 43 | 56 | 102)
             || self.skills.len() == 8 && self.book_id != 200
         {
             return Err("invalid TMS273 mage skill catalog".into());
         }
         for (id, skill) in &self.skills {
             let skill_id: u32 = id.parse().map_err(|_| "invalid mage skill id")?;
-            let expected_book = if FIRST_JOB_IDS.contains(&skill_id) {
-                200
-            } else if SECOND_JOB_IDS.contains(&skill_id) {
-                220
-            } else if THIRD_JOB_IDS.contains(&skill_id) {
-                221
-            } else if FOURTH_JOB_IDS.contains(&skill_id) {
-                222
-            } else if HYPER_IDS.contains(&skill_id) {
-                222
-            } else if BEGINNER_IDS.contains(&skill_id) {
-                0
+            let book = skill_id / 10_000;
+            let (mob_limit, attack_limit) = if book >= 210 && book % 10 == 2 || skill.hyper > 0 {
+                FOURTH_LIMITS
             } else {
-                0
+                LOWER_LIMITS
             };
-            if !BEGINNER_IDS.contains(&skill_id) && expected_book == 0
-                || skill.book_id != expected_book
+            if !BOOKS.contains(&book)
+                || skill.book_id != book
                 || skill.max_level == 0
                 || skill.max_level > 100
                 || skill.levels.len() != skill.max_level as usize
@@ -217,7 +201,7 @@ impl MageSkills {
                 || skill
                     .elem_attr
                     .as_deref()
-                    .is_some_and(|value| !matches!(value, "i" | "l"))
+                    .is_some_and(|value| !ELEM_ATTRS.contains(&value))
                 || skill.levels.iter().any(|level| {
                     level.mp_con.is_some_and(|value| value < 0)
                         || level.damage.is_some_and(|value| value < 0)
@@ -261,22 +245,8 @@ impl MageSkills {
                         || level.mob_count.is_some_and(|value| value == 0)
                         || level.attack_count.is_some_and(|value| value == 0)
                         || level.range.is_some_and(|value| value < 0)
-                        || level.mob_count.is_some_and(|value| {
-                            value
-                                > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
-                                    15
-                                } else {
-                                    8
-                                }
-                        })
-                        || level.attack_count.is_some_and(|value| {
-                            value
-                                > if FOURTH_JOB_IDS.contains(&skill_id) || skill.hyper > 0 {
-                                    15
-                                } else {
-                                    4
-                                }
-                        })
+                        || level.mob_count.is_some_and(|value| value > mob_limit)
+                        || level.attack_count.is_some_and(|value| value > attack_limit)
                         || level
                             .lt
                             .is_some_and(|point| !point.x.is_finite() || !point.y.is_finite())
@@ -611,6 +581,386 @@ impl MageSkills {
                         required(level.mob_count.is_some(), "mobCount")?;
                         required(level.u.is_some(), "u")?;
                         required(level.u2.is_some(), "u2")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // ── 火毒（210/211）与僧侶（230/231）分支 ─────────────────────────
+                    // 逐本登记「源里有、运行期模型也认」的字段：源里少了任何一个，投影就会静默
+                    // 丢字段。源里那些**运行期模型没有**的字段（`dot`/`nbdR`/`t` 之类）只原样带出、
+                    // 不消费，写在每本后面；接管这本技能时再把它们归到某一层。
+                    // 2100000 魔力吸收
+                    2_100_000 => {
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    // 2100006 咒語精通
+                    2_100_006 => {
+                        required(level.mastery.is_some(), "mastery")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.cr.is_some(), "cr")?;
+                    }
+                    // 2100007 智慧昇華
+                    2_100_007 => {
+                        required(level.int_x.is_some(), "intX")?;
+                    }
+                    // 2100009 元素吸收
+                    2_100_009 => {
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.range.is_some(), "range")?;
+                    }
+                    // 2100010 燎原之火（源里还有 areaDotCount 未进模型）
+                    2_100_010 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                    }
+                    // 2100011 極速詠唱
+                    2_100_011 => {
+                        required(level.int_x.is_some(), "intX")?;
+                    }
+                    // 2101001 精神強化
+                    2_101_001 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.indie_mad.is_some(), "indieMad")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2101004 魔火焰彈
+                    2_101_004 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2101005 毒霧（源里还有 dot、dotInterval、dotTime 未进模型）
+                    2_101_005 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2101010 燎原之火（源里还有 areaDotCount 未进模型）
+                    2_101_010 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.x.is_some(), "x")?;
+                    }
+                    // 2110000 終極魔法(火，毒)
+                    2_110_000 => {
+                        required(level.x.is_some(), "x")?;
+                        required(level.z.is_some(), "z")?;
+                    }
+                    // 2110001 魔力激發
+                    2_110_001 => {
+                        required(level.costmp_r.is_some(), "costmpR")?;
+                        required(level.dam_r.is_some(), "damR")?;
+                    }
+                    // 2110009 魔法爆擊
+                    2_110_009 => {
+                        required(level.cr.is_some(), "cr")?;
+                        required(level.critical_damage.is_some(), "criticaldamage")?;
+                    }
+                    // 2110015 自然力重置
+                    2_110_015 => {
+                        required(level.x.is_some(), "x")?;
+                        required(level.md_r.is_some(), "mdR")?;
+                        required(level.u.is_some(), "u")?;
+                    }
+                    // 2111002 末日烈焰
+                    2_111_002 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2111003 致命毒霧（源里还有 dot、dotInterval、dotTime、s2、v2 未进模型）
+                    2_111_003 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.s.is_some(), "s")?;
+                        required(level.v.is_some(), "v")?;
+                    }
+                    // 2111007 瞬間移動精通（源里还有 hcSubProp、hcTime、dot、dotInterval、dotTime 未进模型）
+                    2_111_007 => {
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.sub_prop.is_some(), "subProp")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.stance_prop.is_some(), "stanceProp")?;
+                    }
+                    // 2111011 元素適應(火、毒)
+                    2_111_011 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.asr_r.is_some(), "asrR")?;
+                        required(level.ter_r.is_some(), "terR")?;
+                    }
+                    // 2111013 劇毒領域（源里还有 dot、dotInterval、dotTime、t、nbdR 未进模型）
+                    2_111_013 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.sub_time.is_some(), "subTime")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.v.is_some(), "v")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.s.is_some(), "s")?;
+                        required(level.w2.is_some(), "w2")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.u2.is_some(), "u2")?;
+                        required(level.attack_delay.is_some(), "attackDelay")?;
+                    }
+                    // 2111014 劇毒領域
+                    2_111_014 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.mp_con.is_some(), "mpCon")?;
+                    }
+                    // 2111016 瞬間移動爆發
+                    2_111_016 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    // 2300000 魔力吸收
+                    2_300_000 => {
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    // 2300003 神聖之光（源里还有 damAbsorbShieldR 未进模型）
+                    2_300_003 => {}
+                    // 2300006 咒語精通
+                    2_300_006 => {
+                        required(level.mastery.is_some(), "mastery")?;
+                        required(level.x.is_some(), "x")?;
+                    }
+                    // 2300007 智慧昇華
+                    2_300_007 => {
+                        required(level.int_x.is_some(), "intX")?;
+                    }
+                    // 2300009 祝福福音
+                    2_300_009 => {
+                        required(level.x.is_some(), "x")?;
+                    }
+                    // 2300011 極速詠唱
+                    2_300_011 => {
+                        required(level.int_x.is_some(), "intX")?;
+                    }
+                    // 2301002 群體治癒（源里还有 hp、hcCooltime 未进模型）
+                    2_301_002 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.hc_hp.is_some(), "hcHp")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.w.is_some(), "w")?;
+                    }
+                    // 2301004 天使祝福
+                    2_301_004 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.v.is_some(), "v")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2301005 神聖之箭
+                    2_301_005 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2301010 天使之觸
+                    2_301_010 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.u.is_some(), "u")?;
+                    }
+                    // 2310008 神聖集中術（源里还有 ar 未进模型）
+                    2_310_008 => {
+                        required(level.cr.is_some(), "cr")?;
+                        required(level.mastery.is_some(), "mastery")?;
+                    }
+                    // 2310010 魔法爆擊
+                    2_310_010 => {
+                        required(level.cr.is_some(), "cr")?;
+                        required(level.critical_damage.is_some(), "criticaldamage")?;
+                    }
+                    // 2310013 聖十字魔法盾
+                    2_310_013 => {}
+                    // 2311001 淨化（源里还有 hcCooltime、hcProp 未进模型）
+                    2_311_001 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                    }
+                    // 2311002 時空門
+                    2_311_002 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                    }
+                    // 2311003 神聖祈禱（源里还有 lt2、rb2 未进模型）
+                    2_311_003 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                    }
+                    // 2311004 聖光（源里还有 hcTime、hcProp 未进模型）
+                    2_311_004 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2311007 瞬間移動精通（源里还有 hcSubProp、hcTime 未进模型）
+                    2_311_007 => {
+                        required(level.prop.is_some(), "prop")?;
+                        required(level.sub_prop.is_some(), "subProp")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.stance_prop.is_some(), "stanceProp")?;
+                    }
+                    // 2311009 聖十字魔法盾
+                    2_311_009 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.z.is_some(), "z")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                        required(level.hc_hp.is_some(), "hcHp")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.s.is_some(), "s")?;
+                    }
+                    // 2311011 神聖之泉
+                    2_311_011 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2311012 聖靈守護
+                    2_311_012 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.asr_r.is_some(), "asrR")?;
+                        required(level.ter_r.is_some(), "terR")?;
+                        required(level.u.is_some(), "u")?;
+                    }
+                    // 2311014 天使之泉
+                    2_311_014 => {
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.time.is_some(), "time")?;
+                        required(level.attack_delay.is_some(), "attackDelay")?;
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.lt.is_some(), "lt")?;
+                        required(level.rb.is_some(), "rb")?;
+                    }
+                    // 2311015 勝利之羽（源里还有 bulletCount 未进模型）
+                    2_311_015 => {
+                        required(level.time.is_some(), "time")?;
+                        required(level.u.is_some(), "u")?;
+                        required(level.cooltime.is_some(), "cooltime")?;
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.damage.is_some(), "damage")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.w.is_some(), "w")?;
+                        required(level.u2.is_some(), "u2")?;
+                    }
+                    // 2311016 瞬間移動爆發
+                    2_311_016 => {
+                        required(level.mp_con.is_some(), "mpCon")?;
+                        required(level.x.is_some(), "x")?;
+                        required(level.y.is_some(), "y")?;
+                    }
+                    // 2311017 勝利之羽（源里还有 bulletCount 未进模型）
+                    2_311_017 => {
+                        required(level.mob_count.is_some(), "mobCount")?;
+                        required(level.attack_count.is_some(), "attackCount")?;
+                        required(level.damage.is_some(), "damage")?;
                         required(level.lt.is_some(), "lt")?;
                         required(level.rb.is_some(), "rb")?;
                     }

@@ -34,7 +34,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-33');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-34');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 for(const mob of gameplay.monsters) {
@@ -190,7 +190,27 @@ for(const id of ['112','113']) {
 }
 assert.equal(manifest.bossEffects['114'].mob0.reduce((sum,f)=>sum+f.delay,0),2060);
 assert(!manifest.bossEffects['114'].effect,'missing source art must stay absent');
-assert.equal(Object.keys(manifest.skillCatalog).length,56);
+// 技能目录：只钉总数会在「源与清单同时漂移」时放行——清单是自述，投影才是事实。
+// 所以这里做**独立重算 + 逐字段双向比对**：拿导出树现场跑一遍 `skillManifest()`，
+// 已装配的客户端清单必须与它完全一致（多一条/少一条/字段漂移都断）。
+// 数量单独再钉一遍，是为了让启动门禁失败时直接说出「期望 9 本 102 条」而不是只报下标。
+//
+// 2026-09-21 火毒 / 僧侶 / 主教三条分支书上线：6 本 56 条 → **9 本 102 条**（每本分支
+// 各带一份被动槽位，见 world.rs 的具名数组）。加书必须复用同层页签下标
+// （`tms273_skill_manifest.cjs::SKILL_BOOK_TABS`，源 `UIWindow2` 只有 7 组页签图），
+// 客户端 `view.ts::BOOK_JOBS` 是唯一的书准入权威，改书必须同时改这两处；
+// `check_tms273_skill_manifest.cjs` 用同一个投影函数独立重算，两边必须同时绿。
+{
+  const projected=require('./tms273_skill_manifest.cjs')
+    .skillManifest(read('resources/tms273-export/windows-skills.json'),
+                   read('resources/tms273-export/skills.json'));
+  assert.equal(Object.keys(projected.skillBooks).length,9,'the exported skill book count changed');
+  assert.equal(Object.keys(projected.skillCatalog).length,102,'the source-side skill entry count changed');
+  assert.deepEqual(manifest.skillBooks,projected.skillBooks,
+    'the assembled skill book table drifted from the source projection');
+  assert.deepEqual(manifest.skillCatalog,projected.skillCatalog,
+    'the assembled skill catalog disagrees with a fresh projection of the export tree (re-run assemble_tms273.cjs)');
+}
 // 用户指定规则（2026-09-10）：瞬移全等级 10MP + 等级冷却。设置该规则的唯一来源是
 // scripts/tms273_skill_manifest.cjs 的 USER_SPECIFIED_SKILL_RULES；原版 TMS273 为
 // mpCon 28→20 且没有 cooltime，所以这里同时锁定"运行时数值=指定值、rawCommon=源记录"。

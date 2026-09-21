@@ -255,6 +255,14 @@ impl JobAdvanceQuest {
     }
 }
 
+/// 两组地图是否指向同一处（顺序无关）。同一职业的分支候选必须挂在同样的地图上，
+/// 否则「选分支」会变成「跑两张图各说一次话」。
+fn same_placement(left: &[String], right: &[String]) -> bool {
+    let left: BTreeSet<&str> = left.iter().map(String::as_str).collect();
+    let right: BTreeSet<&str> = right.iter().map(String::as_str).collect();
+    left == right
+}
+
 /// 转职任务目录。启动时加载并校验；校验失败直接顶掉进程。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -292,12 +300,34 @@ impl JobAdvanceCatalog {
                     quest.quest_id
                 ));
             }
-            // 同一职业不能挂两条：命中规则是「当前职业 == fromJob」，
-            // 两条就会让接取结果取决于配置顺序。
+            // 一个职业只能由一条任务转出（`to_job` 全局唯一），否则「转到哪」
+            // 会取决于配置顺序。
             for other in &self.quests {
-                if other.quest_id != quest.quest_id && other.from_job == quest.from_job {
+                if other.quest_id != quest.quest_id && other.to_job == quest.to_job {
                     return Err(format!(
-                        "job advance {} and {} both start from job {}",
+                        "job advance {} and {} both advance to job {}",
+                        quest.quest_id, other.quest_id, quest.to_job
+                    ));
+                }
+            }
+            // 同一职业挂多条＝**二转的分支选择**（法师 200 → 火毒 210 / 冰雷 220 /
+            // 主教 230）。原版就是站在同一位转职官面前挑路线，因此这些候选必须挂在
+            // **同一位 NPC 的同一组地图**上：否则「选分支」会散落在两张图里，
+            // 玩家一次会话根本选不全。去向互不相同由上一条保证。
+            for other in &self.quests {
+                if other.quest_id == quest.quest_id || other.from_job != quest.from_job {
+                    continue;
+                }
+                let (Some(left), Some(right)) = (quest.npc.as_ref(), other.npc.as_ref()) else {
+                    return Err(format!(
+                        "job advance {} and {} share from job {} but one of them has no npc",
+                        quest.quest_id, other.quest_id, quest.from_job
+                    ));
+                };
+                if left.template_id != right.template_id || !same_placement(&left.maps, &right.maps)
+                {
+                    return Err(format!(
+                        "job advance {} and {} share from job {} but not the same npc placement",
                         quest.quest_id, other.quest_id, quest.from_job
                     ));
                 }
@@ -347,20 +377,45 @@ impl JobAdvanceCatalog {
     }
 
     /// 命中规则：当前职业必须等于 `from_job`，且说话的 NPC 必须挂在配置的位置上。
-    /// 同时间最多一条命中（由 `validate` 保证），所以返回 `Option` 而不是 `Vec`。
-    pub(super) fn quest_for(
+    ///
+    /// **同一职业可能有多条候选**（二转的火毒／冰雷／主教分支），此时由玩家在菜单里
+    /// 选，所以返回 `Vec`；顺序按 `quest_id` 排定，**不依赖配置书写顺序**——否则
+    /// 菜单项顺序会随配置改动漂移。
+    pub(super) fn candidates(
         &self,
         job: u32,
         template_id: &str,
         map_id: &str,
-    ) -> Option<&JobAdvanceQuest> {
-        self.quests.iter().find(|quest| {
-            quest.from_job == job
-                && quest.npc.as_ref().is_some_and(|npc| {
-                    npc.template_id == template_id
-                        && (npc.maps.is_empty() || npc.maps.iter().any(|map| map == map_id))
-                })
-        })
+    ) -> Vec<&JobAdvanceQuest> {
+        let mut found: Vec<&JobAdvanceQuest> = self
+            .quests
+            .iter()
+            .filter(|quest| {
+                quest.from_job == job
+                    && quest.npc.as_ref().is_some_and(|npc| {
+                        npc.template_id == template_id
+                            && (npc.maps.is_empty() || npc.maps.iter().any(|map| map == map_id))
+                    })
+            })
+            .collect();
+        found.sort_by(|left, right| left.quest_id.cmp(&right.quest_id));
+        found
+    }
+
+    /// 按 id 精确定位。会话中途只认节点里带着的那一条，不重新猜。
+    pub(super) fn by_id(&self, quest_id: &str) -> Option<&JobAdvanceQuest> {
+        self.quests.iter().find(|quest| quest.quest_id == quest_id)
+    }
+
+    /// 玩家手里正在进行的转职任务（目录内至多一条：转职一旦完成职业就变了，
+    /// 而同一职业的分支只可能接一条）。拿到它就**不再出分支菜单**——路已经选过了。
+    pub(super) fn active_quest<'a>(
+        &'a self,
+        quests: &BTreeMap<String, String>,
+    ) -> Option<&'a JobAdvanceQuest> {
+        self.quests
+            .iter()
+            .find(|quest| quests.get(&quest.quest_id).map(String::as_str) == Some("active"))
     }
 
     /// 一次击杀要推进的 `(questId, mobId)`。只对**处于 active** 的任务计数，
@@ -663,119 +718,263 @@ impl World {
         let Some(job) = self.players.get(id).map(|player| player.state.job) else {
             return false;
         };
-        let Some(quest) = self.job_advance.quest_for(job, template_id, map_id).cloned() else {
+        // 同一职业可能有多条候选（二转的火毒／冰雷／主教分支）。克隆出来，
+        // 后面所有 `&mut self` 的发送都不再借用目录。
+        let candidates: Vec<JobAdvanceQuest> = self
+            .job_advance
+            .candidates(job, template_id, map_id)
+            .into_iter()
+            .cloned()
+            .collect();
+        if candidates.is_empty() {
             return false;
-        };
+        }
         let alive = self
             .players
             .get(id)
             .is_some_and(|player| player.state.hp > 0 && player.state.action != "dead");
-        let status = self
+        let quests = self
             .players
             .get(id)
-            .and_then(|player| player.quests.get(&quest.quest_id).cloned());
+            .map(|player| player.quests.clone())
+            .unwrap_or_default();
         let node = self
             .npcs
             .get(npc_id)
             .and_then(|npc| npc.conversation.get(id).cloned());
-        let expected_node = format!("{JOB_ADVANCE_NODE}:{}", quest.quest_id);
+        let branch_node = format!("{JOB_ADVANCE_NODE}-branch");
         let opening = step.is_none_or(|step| step == "start");
-        // 只有会话中途（玩家真的选了选项）才认节点；开场一律重新出菜单，
-        // 免得上一次会话的残留节点把玩家锁在旧状态里。
-        let in_menu = !opening && node.as_deref() == Some(expected_node.as_str());
 
-        if opening {
-            // **通用剧情任务优先**。漢斯（1032001）同时是源一转任务 1402 的接取/交付
-            // NPC，而 1402 的条件里写着职业 0/200/220/221/222——走「選擇岔道」快捷
-            // 转职过来的角色职业已经是 200，若本模块先接手，他们就再也没有入口把
-            // 一转剧情补完（那条支线是用户明确要求保留的原版冒险家剧情）。
-            // 所以只要这位 NPC 此刻还有剧情任务要给，本模块就让路。
-            if !self.quest_menu_choices(id, template_id).is_empty() {
+        // 会话中途（玩家真的选了选项）：**只认节点里带着的那一条**。
+        // 同职业有多个分支，重新「猜一条」会把玩家送到他没选的路上。
+        if !opening {
+            let Some(node) = node.as_deref() else {
                 return false;
+            };
+            if node == branch_node {
+                let Some(index) = selection else {
+                    return false;
+                };
+                let index = index as usize;
+                if step == Some("end") || index >= candidates.len() {
+                    self.end_conversation(id);
+                    self.send_npc_dialogue(
+                        id,
+                        npc::DialogueView::End.to_json(request_id, npc_id, name, name_zh),
+                    );
+                    return true;
+                }
+                let quest = candidates[index].clone();
+                return self.send_job_advance_menu(
+                    id, request_id, npc_id, name, name_zh, lang, &quest,
+                );
             }
-            if !alive {
+            let Some(quest_id) = node
+                .strip_prefix(JOB_ADVANCE_NODE)
+                .and_then(|rest| rest.strip_prefix(':'))
+            else {
+                return false;
+            };
+            // 换了职业或换了 NPC 之后，旧节点指向的任务已经不是候选了：
+            // 如实让玩家重新对话，而不是静默什么都不回。
+            let Some(quest) = candidates
+                .iter()
+                .find(|quest| quest.quest_id == quest_id)
+                .cloned()
+            else {
                 self.end_conversation(id);
                 self.send_reject(
                     id,
-                    "job_advance_unavailable",
+                    "npc_step_invalid",
                     if lang == crate::quest_text::LANG_EN {
-                        "You cannot take a job advancement while dead."
+                        "This conversation option is no longer available."
                     } else {
-                        "死亡角色不能進行轉職。"
+                        "該對話選項已失效，請重新與 NPC 交談。"
                     },
                     Some(request_id),
                 );
                 return true;
-            }
-            let facts = match self.job_advance_facts(id) {
-                Some(facts) => facts,
-                None => return false,
             };
-            let eligible = rules::requirement_matches(&facts, &quest.require);
-            let title = quest.title.pick(lang).to_owned();
-            let rows = self.job_advance_objective_rows(&quest, &facts, lang);
-            // 「已接」优先于「可接」：接了之后等级掉回门槛以下也不能把进度抹掉。
-            let (text, options) = match status.as_deref() {
-                Some("completed") => (
-                    Self::job_advance_line(&quest.dialogue.complete, &title, lang),
-                    Vec::new(),
-                ),
-                Some("active") => {
-                    let complete = rules::objectives_complete(&quest, &facts);
-                    let text = if complete {
-                        Self::job_advance_line(&quest.dialogue.ready, &title, lang)
-                    } else {
-                        Self::job_advance_line(&quest.dialogue.progress, &title, lang)
-                    };
-                    let mut options = Vec::new();
-                    if complete {
-                        options.push((
-                            0u32,
-                            if lang == crate::quest_text::LANG_EN {
-                                "Complete the job advancement"
-                            } else {
-                                "完成轉職"
-                            }
-                            .to_owned(),
-                        ));
-                    }
+            let status = quests.get(&quest.quest_id).cloned();
+            return self.handle_job_advance_selection(
+                id,
+                request_id,
+                npc_id,
+                name,
+                name_zh,
+                lang,
+                &quest,
+                status.as_deref(),
+                step,
+                selection,
+            );
+        }
+
+        // **通用剧情任务优先**。漢斯（1032001）同时是源一转任务 1402 的接取/交付
+        // NPC，而 1402 的条件里写着职业 0/200/220/221/222——走「選擇岔道」快捷
+        // 转职过来的角色职业已经是 200，若本模块先接手，他们就再也没有入口把
+        // 一转剧情补完（那条支线是用户明确要求保留的原版冒险家剧情）。
+        // 所以只要这位 NPC 此刻还有剧情任务要给，本模块就让路。
+        if !self.quest_menu_choices(id, template_id).is_empty() {
+            return false;
+        }
+        if !alive {
+            self.end_conversation(id);
+            self.send_reject(
+                id,
+                "job_advance_unavailable",
+                if lang == crate::quest_text::LANG_EN {
+                    "You cannot take a job advancement while dead."
+                } else {
+                    "死亡角色不能進行轉職。"
+                },
+                Some(request_id),
+            );
+            return true;
+        }
+        // 已经接过的那条优先（分支已经选过了，不能再给一次选择）；
+        // 只有一条候选时不必问；多条 ⇒ 出分支菜单。
+        let picked = candidates
+            .iter()
+            .find(|quest| quests.get(&quest.quest_id).map(String::as_str) == Some("active"))
+            .cloned()
+            .or_else(|| {
+                if candidates.len() == 1 {
+                    candidates.first().cloned()
+                } else {
+                    None
+                }
+            });
+        match picked {
+            Some(quest) => {
+                self.send_job_advance_menu(id, request_id, npc_id, name, name_zh, lang, &quest)
+            }
+            None => self.send_job_advance_branch_menu(
+                id, request_id, npc_id, name, name_zh, lang, &candidates,
+            ),
+        }
+    }
+
+    /// 分支菜单：同一职业有多条路线时（法师二转的火毒／冰雷／主教）让玩家自己挑。
+    /// 选项下标即候选下标，末位是「結束對話」——**让玩家选，不替玩家选**。
+    #[allow(clippy::too_many_arguments)]
+    fn send_job_advance_branch_menu(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        lang: &str,
+        candidates: &[JobAdvanceQuest],
+    ) -> bool {
+        let text = if lang == crate::quest_text::LANG_EN {
+            "Which advancement path will you take?"
+        } else {
+            "要走上哪一條轉職路線？"
+        }
+        .to_owned();
+        let mut options: Vec<(u32, String)> = candidates
+            .iter()
+            .enumerate()
+            .map(|(index, quest)| (index as u32, quest.title.pick(lang).to_owned()))
+            .collect();
+        options.push((
+            candidates.len() as u32,
+            if lang == crate::quest_text::LANG_EN {
+                "End conversation"
+            } else {
+                "結束對話"
+            }
+            .to_owned(),
+        ));
+        if let Some(npc) = self.npcs.get_mut(npc_id) {
+            npc.conversation
+                .insert(id.to_owned(), format!("{JOB_ADVANCE_NODE}-branch"));
+        }
+        let value = npc::DialogueView::Say {
+            text,
+            kind: "simple".to_owned(),
+            options,
+        }
+        .to_json(request_id, npc_id, name, name_zh);
+        self.send_npc_dialogue(id, value);
+        true
+    }
+
+    /// 出一条转职任务的菜单（接取／进行中／已完成／条件不足），并把会话节点
+    /// 钉在这条任务上。开场与「分支菜单选完」共用同一条路径。
+    #[allow(clippy::too_many_arguments)]
+    fn send_job_advance_menu(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        lang: &str,
+        quest: &JobAdvanceQuest,
+    ) -> bool {
+        let status = self
+            .players
+            .get(id)
+            .and_then(|player| player.quests.get(&quest.quest_id).cloned());
+        let facts = match self.job_advance_facts(id) {
+            Some(facts) => facts,
+            None => return false,
+        };
+        let eligible = rules::requirement_matches(&facts, &quest.require);
+        let title = quest.title.pick(lang).to_owned();
+        let rows = self.job_advance_objective_rows(quest, &facts, lang);
+        // 「已接」优先于「可接」：接了之后等级掉回门槛以下也不能把进度抹掉。
+        let (text, options) = match status.as_deref() {
+            Some("completed") => (
+                Self::job_advance_line(&quest.dialogue.complete, &title, lang),
+                Vec::new(),
+            ),
+            Some("active") => {
+                let complete = rules::objectives_complete(quest, &facts);
+                let text = if complete {
+                    Self::job_advance_line(&quest.dialogue.ready, &title, lang)
+                } else {
+                    Self::job_advance_line(&quest.dialogue.progress, &title, lang)
+                };
+                let mut options = Vec::new();
+                if complete {
                     options.push((
-                        1u32,
+                        0u32,
                         if lang == crate::quest_text::LANG_EN {
-                            "End conversation"
+                            "Complete the job advancement"
                         } else {
-                            "結束對話"
+                            "完成轉職"
                         }
                         .to_owned(),
                     ));
-                    (text, options)
                 }
-                _ if eligible => (
-                    Self::job_advance_line(&quest.dialogue.offer, &title, lang),
-                    vec![
-                        (
-                            0u32,
-                            if lang == crate::quest_text::LANG_EN {
-                                "Accept the trial"
-                            } else {
-                                "接受試煉"
-                            }
-                            .to_owned(),
-                        ),
-                        (
-                            1u32,
-                            if lang == crate::quest_text::LANG_EN {
-                                "End conversation"
-                            } else {
-                                "結束對話"
-                            }
-                            .to_owned(),
-                        ),
-                    ],
-                ),
-                _ => (
-                    Self::job_advance_line(&quest.dialogue.locked, &title, lang),
-                    vec![(
+                options.push((
+                    1u32,
+                    if lang == crate::quest_text::LANG_EN {
+                        "End conversation"
+                    } else {
+                        "結束對話"
+                    }
+                    .to_owned(),
+                ));
+                (text, options)
+            }
+            _ if eligible => (
+                Self::job_advance_line(&quest.dialogue.offer, &title, lang),
+                vec![
+                    (
+                        0u32,
+                        if lang == crate::quest_text::LANG_EN {
+                            "Accept the trial"
+                        } else {
+                            "接受試煉"
+                        }
+                        .to_owned(),
+                    ),
+                    (
                         1u32,
                         if lang == crate::quest_text::LANG_EN {
                             "End conversation"
@@ -783,26 +982,53 @@ impl World {
                             "結束對話"
                         }
                         .to_owned(),
-                    )],
-                ),
-            };
-            if let Some(npc) = self.npcs.get_mut(npc_id) {
-                npc.conversation.insert(id.to_owned(), expected_node.clone());
-            }
-            let mut value = npc::DialogueView::Say {
-                text,
-                kind: "simple".to_owned(),
-                options,
-            }
-            .to_json(request_id, npc_id, name, name_zh);
-            value["objectives"] = serde_json::Value::Array(rows);
-            self.send_npc_dialogue(id, value);
-            return true;
+                    ),
+                ],
+            ),
+            _ => (
+                Self::job_advance_line(&quest.dialogue.locked, &title, lang),
+                vec![(
+                    1u32,
+                    if lang == crate::quest_text::LANG_EN {
+                        "End conversation"
+                    } else {
+                        "結束對話"
+                    }
+                    .to_owned(),
+                )],
+            ),
+        };
+        if let Some(npc) = self.npcs.get_mut(npc_id) {
+            npc.conversation
+                .insert(id.to_owned(), format!("{JOB_ADVANCE_NODE}:{}", quest.quest_id));
         }
+        let mut value = npc::DialogueView::Say {
+            text,
+            kind: "simple".to_owned(),
+            options,
+        }
+        .to_json(request_id, npc_id, name, name_zh);
+        value["objectives"] = serde_json::Value::Array(rows);
+        self.send_npc_dialogue(id, value);
+        true
+    }
 
-        if !in_menu {
-            return false;
-        }
+    /// 玩家在转职菜单里按下的那个键。节点已经在调用方被认过，这里只处理动作。
+    #[allow(clippy::too_many_arguments)]
+    fn handle_job_advance_selection(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        npc_id: &str,
+        name: &str,
+        name_zh: Option<&str>,
+        lang: &str,
+        quest: &JobAdvanceQuest,
+        status: Option<&str>,
+        step: Option<&str>,
+        selection: Option<u32>,
+    ) -> bool {
+        // 节点已在调用方认过：能走到这里，玩家面前就是这条任务的菜单。
         match (step, selection) {
             (Some("end"), _) | (Some("select"), Some(1)) => {
                 self.end_conversation(id);
@@ -812,12 +1038,12 @@ impl World {
                 );
                 true
             }
-            (Some("select"), Some(0)) => match status.as_deref() {
+            (Some("select"), Some(0)) => match status {
                 None => {
-                    self.accept_job_advance(id, request_id, npc_id, name, name_zh, lang, &quest)
+                    self.accept_job_advance(id, request_id, npc_id, name, name_zh, lang, quest)
                 }
                 Some("active") => {
-                    self.complete_job_advance(id, request_id, npc_id, name, name_zh, lang, &quest)
+                    self.complete_job_advance(id, request_id, npc_id, name, name_zh, lang, quest)
                 }
                 _ => {
                     self.end_conversation(id);
@@ -1179,15 +1405,35 @@ mod tests {
         }
     }
 
-    const CATALOG: &str = r#"{"quests":[{"questId":"job-220","title":{"zh":"二轉","en":"2nd"},
-        "fromJob":200,"toJob":220,
-        "npc":{"templateId":"1032001","maps":["101000003"]},
-        "require":{"levelAtLeast":30,"quests":[{"questId":"1402","status":"completed"}]},
-        "objectives":[{"kind":"kill","mobId":"2130100","required":30},
-                      {"kind":"collect","itemId":"4000215","required":10}],
-        "consumeItems":true,
-        "reward":{"skillPoints":[{"book":220,"amount":5}],"skills":[{"skillId":2200011,"level":1}],
-                  "maxMpFloor":100,"exp":0,"mesos":0,"items":[]}}]}"#;
+    // 三条二转分支（火毒／冰雷／主教）挂在同一位转职官上 + 一条三转。
+    const CATALOG: &str = r#"{"quests":[
+        {"questId":"job-210","title":{"zh":"火毒法師的試煉","en":"Trial of the Fire/Poison Magician"},
+         "fromJob":200,"toJob":210,
+         "npc":{"templateId":"1032001","maps":["101000003"]},
+         "require":{"levelAtLeast":30,"quests":[{"questId":"1402","status":"completed"}]},
+         "objectives":[{"kind":"kill","mobId":"1130100","required":30}],
+         "reward":{"skillPoints":[{"book":210,"amount":5}]}},
+        {"questId":"job-220","title":{"zh":"冰雷法師的試煉","en":"Trial of the Ice/Lightning Magician"},
+         "fromJob":200,"toJob":220,
+         "npc":{"templateId":"1032001","maps":["101000003"]},
+         "require":{"levelAtLeast":30,"quests":[{"questId":"1402","status":"completed"}]},
+         "objectives":[{"kind":"kill","mobId":"2130100","required":30},
+                       {"kind":"collect","itemId":"4000215","required":10}],
+         "consumeItems":true,
+         "reward":{"skillPoints":[{"book":220,"amount":5}],"skills":[{"skillId":2200011,"level":1}],
+                   "maxMpFloor":100,"exp":0,"mesos":0,"items":[]}},
+        {"questId":"job-230","title":{"zh":"僧侶的試煉","en":"Trial of the Cleric"},
+         "fromJob":200,"toJob":230,
+         "npc":{"templateId":"1032001","maps":["101000003"]},
+         "require":{"levelAtLeast":30,"quests":[{"questId":"1402","status":"completed"}]},
+         "objectives":[{"kind":"kill","mobId":"1140100","required":30}],
+         "reward":{"skillPoints":[{"book":230,"amount":5}]}},
+        {"questId":"job-221","title":{"zh":"冰雷大魔導士的試煉","en":"Trial of the Ice/Lightning Arch Magician"},
+         "fromJob":220,"toJob":221,
+         "npc":{"templateId":"1032001","maps":["101000003"]},
+         "require":{"levelAtLeast":60,"quests":[{"questId":"job-220","status":"completed"}]},
+         "objectives":[{"kind":"kill","mobId":"2230110","required":30}],
+         "reward":{"skillPoints":[{"book":221,"amount":5}]}}]}"#;
 
     fn catalog() -> JobAdvanceCatalog {
         let catalog = serde_json::from_str::<JobAdvanceCatalog>(CATALOG).unwrap();
@@ -1195,70 +1441,105 @@ mod tests {
         catalog
     }
 
+    fn parse(raw: &str) -> Result<JobAdvanceCatalog, String> {
+        let catalog = serde_json::from_str::<JobAdvanceCatalog>(raw).unwrap();
+        catalog.validate()?;
+        Ok(catalog)
+    }
+
     #[test]
     fn validation_rejects_broken_configs() {
-        // 基准配置本身要能通过。
-        assert!(catalog().quests.len() == 1);
+        // 基准配置：三条二转分支 + 一条三转。
+        assert_eq!(catalog().quests.len(), 4);
 
-        // 同一职业挂两条：命中结果会取决于配置顺序。
-        let two = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220,"npc":{"templateId":"1"}},
-                                {"questId":"b","fromJob":200,"toJob":221,"npc":{"templateId":"1"}}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(two)
-            .unwrap()
-            .validate()
-            .is_err());
+        // 同一职业的两条分支挂在**不同的 NPC** 上：玩家一次会话选不全。
+        let other_npc = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":210,"npc":{"templateId":"1"}},
+                                      {"questId":"b","fromJob":200,"toJob":220,"npc":{"templateId":"2"}}]}"#;
+        assert!(parse(other_npc).is_err());
+
+        // 同一职业的两条分支挂在**不同的地图**上：同样选不全。
+        let other_map = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":210,
+                                       "npc":{"templateId":"1","maps":["101000003"]}},
+                                      {"questId":"b","fromJob":200,"toJob":220,
+                                       "npc":{"templateId":"1","maps":["001020000"]}}]}"#;
+        assert!(parse(other_map).is_err());
+
+        // 两条任务转向同一个职业：「转到哪」会取决于配置顺序。
+        let same_target = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220,"npc":{"templateId":"1"}},
+                                        {"questId":"b","fromJob":100,"toJob":220,"npc":{"templateId":"1"}}]}"#;
+        assert!(parse(same_target).is_err());
 
         // 职业没变。
         let noop = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":200,"npc":{"templateId":"1"}}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(noop)
-            .unwrap()
-            .validate()
-            .is_err());
+        assert!(parse(noop).is_err());
 
         // 缺 NPC：没有入口的任务等于死配置。
         let no_npc = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(no_npc)
-            .unwrap()
-            .validate()
-            .is_err());
+        assert!(parse(no_npc).is_err());
 
         // 目标 required 为 0：会变成无条件可交付。
         let bad_kill = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220,"npc":{"templateId":"1"},
             "objectives":[{"kind":"kill","mobId":"1","required":0}]}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(bad_kill)
-            .unwrap()
-            .validate()
-            .is_err());
+        assert!(parse(bad_kill).is_err());
 
         // 未知目标类型：宁可启动失败，也不能静默放过。
         let unknown = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220,"npc":{"templateId":"1"},
             "objectives":[{"kind":"talk","required":1}]}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(unknown)
-            .unwrap()
-            .validate()
-            .is_err());
+        assert!(parse(unknown).is_err());
 
         // 空前置 id。
         let empty_prereq = r#"{"quests":[{"questId":"a","fromJob":200,"toJob":220,"npc":{"templateId":"1"},
             "require":{"quests":[{"questId":""}]}}]}"#;
-        assert!(serde_json::from_str::<JobAdvanceCatalog>(empty_prereq)
-            .unwrap()
-            .validate()
-            .is_err());
+        assert!(parse(empty_prereq).is_err());
     }
 
     #[test]
-    fn quest_for_matches_job_npc_and_map_only() {
+    fn candidates_match_job_npc_map_and_come_back_in_a_stable_order() {
         let catalog = catalog();
-        assert!(catalog.quest_for(200, "1032001", "101000003").is_some());
+        // 二转：三条分支，顺序按 questId 排定（不依赖配置书写顺序）。
+        let branches: Vec<&str> = catalog
+            .candidates(200, "1032001", "101000003")
+            .iter()
+            .map(|quest| quest.quest_id.as_str())
+            .collect();
+        assert_eq!(branches, vec!["job-210", "job-220", "job-230"]);
+        // 三转：已选定分支，只剩一条。
+        let third: Vec<&str> = catalog
+            .candidates(220, "1032001", "101000003")
+            .iter()
+            .map(|quest| quest.quest_id.as_str())
+            .collect();
+        assert_eq!(third, vec!["job-221"]);
         // 职业不对（新手走 1402，不在这里命中）。
-        assert!(catalog.quest_for(0, "1032001", "101000003").is_none());
+        assert!(catalog.candidates(0, "1032001", "101000003").is_empty());
         // NPC 不对（快捷转职的漢斯不接任务）。
-        assert!(catalog.quest_for(200, "10201", "101000003").is_none());
+        assert!(catalog.candidates(200, "10201", "101000003").is_empty());
         // 地图不对。
-        assert!(catalog.quest_for(200, "1032001", "001020000").is_none());
+        assert!(catalog.candidates(200, "1032001", "001020000").is_empty());
         assert!(catalog.contains_id("job-220"));
         assert!(!catalog.contains_id("1402"));
+    }
+
+    #[test]
+    fn active_quest_is_the_branch_the_player_already_picked() {
+        let catalog = catalog();
+        let mut quests = BTreeMap::new();
+        quests.insert("job-230".to_owned(), "active".to_owned());
+        assert_eq!(
+            catalog.active_quest(&quests).map(|quest| quest.quest_id.as_str()),
+            Some("job-230")
+        );
+        // 已完成不算「进行中」：此时该职业的下一段（三转）才是候选。
+        let mut done = BTreeMap::new();
+        done.insert("job-220".to_owned(), "completed".to_owned());
+        assert!(catalog.active_quest(&done).is_none());
+        assert!(catalog.active_quest(&BTreeMap::new()).is_none());
+        // 按 id 精确定位：会话中途只认节点里带着的那一条。
+        assert_eq!(
+            catalog.by_id("job-221").map(|quest| quest.to_job),
+            Some(221)
+        );
+        assert!(catalog.by_id("1402").is_none());
     }
 
     #[test]
@@ -1277,7 +1558,7 @@ mod tests {
     #[test]
     fn objectives_read_persisted_facts_only() {
         let catalog = catalog();
-        let quest = catalog.quests[0].clone();
+        let quest = catalog.by_id("job-220").unwrap().clone();
         let quests = BTreeMap::new();
         let mut kills = BTreeMap::new();
         kills.insert(
@@ -1324,7 +1605,7 @@ mod tests {
     #[test]
     fn requirement_gates_on_level_and_prerequisite() {
         let catalog = catalog();
-        let quest = catalog.quests[0].clone();
+        let quest = catalog.by_id("job-220").unwrap().clone();
         let kills = BTreeMap::new();
         let inventory: Vec<InventoryItem> = Vec::new();
         let done = BTreeMap::from([("1402".to_owned(), "completed".to_owned())]);
@@ -1364,7 +1645,8 @@ mod tests {
     #[test]
     fn consume_items_covers_collect_objectives_only() {
         let catalog = catalog();
-        let mut quest = catalog.quests[0].clone();
+        // 只有冰雷那条带收集目标，按 id 取（`quests[0]` 不再是它）。
+        let mut quest = catalog.by_id("job-220").unwrap().clone();
         assert_eq!(consume_items(&quest), vec![("4000215".to_owned(), 10_u32)]);
         quest.consume_items = false;
         assert!(consume_items(&quest).is_empty());
@@ -1373,7 +1655,7 @@ mod tests {
     #[test]
     fn plan_carries_the_job_transition_contract() {
         let catalog = catalog();
-        let plan = catalog.quests[0].plan();
+        let plan = catalog.by_id("job-220").unwrap().plan();
         assert_eq!(plan.from_job, 200);
         assert_eq!(plan.to_job, 220);
         assert_eq!(plan.level_at_least, 30);

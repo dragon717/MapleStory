@@ -2,14 +2,189 @@
   "source": "转职任务配置（手工维护，非 WZ 导出产物）。与 shared/windbell.json 同类：由服务端启动时加载并硬校验。",
   "ruleVersion": "tms273-job-advance-v1",
   "provenance": {
-    "T": "同版 WZ 已核字段：转职官 NPC（漢斯 1032001 / 101000003）、一转等级与前置（QuestData/1402.img）、二转技能 2200011（源 fixLevel=1）。",
-    "P": "源 273 包未随附二转/三转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值。"
+    "T": "同版 WZ 已核字段：转职官 NPC（漢斯 1032001 / 101000003）、一转等级与前置（QuestData/1402.img）、三条二转分支授予的 fixLevel 技能（源 maxLevel=1：2200011 結冰特效 / 2100009 元素吸收 / 2300009 祝福福音）。",
+    "P": "源 273 包未随附二转/三转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值；二转 30／三转 60 的等级门槛沿用原版法师转职等级，本包无据可核，同样记为 P。技能书 210/211/230/231 的技能本体已进入装配产物（`shared/mage-skills.json` 现有 0/200/210/211/220/221/222/230/231 共 9 本、102 条），因此二转分支按源 fixLevel 事实授予 `reward.skills`，与冰雷 2200011 同构；三转分支源里没有 fixLevel 节点，故不写 reward.skills。"
   },
   "quests": [
     {
+      "questId": "job-210",
+      "title": {
+        "zh": "火毒法師的試煉",
+        "en": "Trial of the Fire/Poison Magician"
+      },
+      "provenance": "P",
+      "fromJob": 200,
+      "toJob": 210,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1402",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1130100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 斧木妖",
+            "en": "Defeat 30 Axe Stumps"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000018",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 木柴",
+            "en": "Collect 10 Firewood"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 210,
+            "amount": 5
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2100009,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 100,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想掌握火與毒，就先學會承受它們。願意接受試煉嗎？",
+          "en": "To command fire and poison you must first endure them. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成法師之路。",
+          "en": "You are not ready. Reach level 30 and finish the Path of the Magician first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗斧木妖，把它們身上的木柴帶回來給我。",
+          "en": "Good. Defeat the Axe Stumps and bring me their Firewood."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是火毒法師的試煉了。",
+          "en": "You have passed the trial. From now on you are the Trial of the Fire/Poison Magician."
+        }
+      }
+    },
+    {
+      "questId": "job-211",
+      "title": {
+        "zh": "火毒大魔導士的試煉",
+        "en": "Trial of the Fire/Poison Arch Magician"
+      },
+      "provenance": "P",
+      "fromJob": 210,
+      "toJob": 211,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-210",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "2230102",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 黑肥肥",
+            "en": "Defeat 30 Dark Ribbon Pigs"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4003004",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 堅硬的羽毛",
+            "en": "Collect 10 Stiff Feathers"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 211,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "火焰與劇毒已在你手中成形。要再往前一步，就得走進更深的黑暗。",
+          "en": "Fire and poison have taken shape in your hands. To go further you must face a deeper darkness."
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成火毒法師的試煉。",
+          "en": "You are not ready. Reach level 60 and finish the Fire/Poison trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗黑肥肥，把它們身上的堅硬的羽毛帶回來給我。",
+          "en": "Good. Defeat the Dark Ribbon Pigs and bring me their Stiff Feathers."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是火毒大魔導士的試煉了。",
+          "en": "You have passed the trial. From now on you are the Trial of the Fire/Poison Arch Magician."
+        }
+      }
+    },
+    {
       "questId": "job-220",
       "title": {
-        "zh": "冰雷法师的试炼",
+        "zh": "冰雷法師的試煉",
         "en": "Trial of the Ice/Lightning Magician"
       },
       "provenance": "P",
@@ -17,7 +192,9 @@
       "toJob": 220,
       "npc": {
         "templateId": "1032001",
-        "maps": ["101000003"]
+        "maps": [
+          "101000003"
+        ]
       },
       "require": {
         "levelAtLeast": 30,
@@ -105,7 +282,9 @@
       "toJob": 221,
       "npc": {
         "templateId": "1032001",
-        "maps": ["101000003"]
+        "maps": [
+          "101000003"
+        ]
       },
       "require": {
         "levelAtLeast": 60,
@@ -174,6 +353,181 @@
         "complete": {
           "zh": "你已掌握冰雷的最深處。從現在起，你就是冰雷大魔導士。",
           "en": "You have mastered the depths of ice and lightning. From now on you are an Ice/Lightning Arch Magician."
+        }
+      }
+    },
+    {
+      "questId": "job-230",
+      "title": {
+        "zh": "僧侶的試煉",
+        "en": "Trial of the Cleric"
+      },
+      "provenance": "P",
+      "fromJob": 200,
+      "toJob": 230,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1402",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1140100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 發芽木妖",
+            "en": "Defeat 30 Sprouting Stumps"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000195",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 苗木",
+            "en": "Collect 10 Saplings"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 230,
+            "amount": 5
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2300009,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 100,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "神聖的魔法不問力量，只問你願不願意承擔。要走上這條路嗎？",
+          "en": "Holy magic asks not for power but for willingness to bear it. Will you take this path?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成法師之路。",
+          "en": "You are not ready. Reach level 30 and finish the Path of the Magician first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗發芽木妖，把它們身上的苗木帶回來給我。",
+          "en": "Good. Defeat the Sprouting Stumps and bring me their Saplings."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是僧侶的試煉了。",
+          "en": "You have passed the trial. From now on you are the Trial of the Cleric."
+        }
+      }
+    },
+    {
+      "questId": "job-231",
+      "title": {
+        "zh": "祭司的試煉",
+        "en": "Trial of the Priest"
+      },
+      "provenance": "P",
+      "fromJob": 230,
+      "toJob": 231,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-230",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "2230112",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 膽小的黑肥肥",
+            "en": "Defeat 30 Timid Dark Ribbon Pigs"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4003004",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 堅硬的羽毛",
+            "en": "Collect 10 Stiff Feathers"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 231,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "你的信仰已經被看見。再往前，就要替更多人承擔。",
+          "en": "Your faith has been seen. To go further you must bear it for more people."
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成僧侶的試煉。",
+          "en": "You are not ready. Reach level 60 and finish the Cleric trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗膽小的黑肥肥，把它們身上的堅硬的羽毛帶回來給我。",
+          "en": "Good. Defeat the Timid Dark Ribbon Pigs and bring me their Stiff Feathers."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是祭司的試煉了。",
+          "en": "You have passed the trial. From now on you are the Trial of the Priest."
         }
       }
     }

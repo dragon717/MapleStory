@@ -4,8 +4,8 @@
 // It intentionally has no dynamic code execution and is not a general formula language.
 // d()/u() follow WzComparerR2 Calculator.cs (fixed evidence commit
 // 4b691cf55695fd13effdd0ba8f3826a8b6b81552): Math.Floor / Math.Ceiling.
-// JS Number is sufficient for these current small-integer expressions only; this does not
-// claim arbitrary-precision decimal parity with WzComparerR2.
+// JS Number 足够覆盖当前这批小整数字面量与一位小数（源里有 `0.4` 这种写法）；
+// 这**不**声称与 WzComparerR2 有任意精度十进制等价（例如 `0.1+0.2` 不保证等于 `0.3`）。
 
 const assert = require('node:assert/strict');
 
@@ -81,7 +81,7 @@ class FormulaParser {
       return value;
     }
 
-    if (character >= '0' && character <= '9') return this.parseInteger();
+    if ((character >= '0' && character <= '9') || character === '.') return this.parseNumber();
 
     if (isIdentifierStart(character)) {
       const name = this.parseIdentifier();
@@ -102,15 +102,25 @@ class FormulaParser {
     this.fail(`unexpected token '${character}' at ${this.index}`);
   }
 
-  parseInteger() {
+  // 数字字面量。源里既有整数（`18+3*x`）也有小数（`0.4`，如 2111013 劇毒領域的 `t`），
+  // 所以按小数接受；只认 `[0-9]+('.'[0-9]+)?` 与 `'.'[0-9]+`。
+  // 刻意**不**接受科学计数法（`1e3` 仍是语法错误）与缺尾数的 `1.`：源里没有这种写法，
+  // 放开只会把真语法错误吞掉。整数仍保留安全整数上界。
+  parseNumber() {
     const start = this.index;
-    while (this.index < this.formula.length) {
-      const character = this.formula[this.index];
-      if (character < '0' || character > '9') break;
+    while (this.index < this.formula.length && isDigit(this.formula[this.index])) this.index += 1;
+    let fractional = false;
+    if (this.formula[this.index] === '.') {
+      fractional = true;
       this.index += 1;
+      const digitsStart = this.index;
+      while (this.index < this.formula.length && isDigit(this.formula[this.index])) this.index += 1;
+      if (this.index === digitsStart) this.fail(`missing fractional digits at ${this.index}`);
     }
+    if (this.index === start) this.fail(`expected number at ${this.index}`);
     const value = Number(this.formula.slice(start, this.index));
-    if (!Number.isSafeInteger(value)) this.fail(`integer out of range at ${start}`);
+    if (!fractional && !Number.isSafeInteger(value)) this.fail(`integer out of range at ${start}`);
+    if (!Number.isFinite(value)) this.fail(`number out of range at ${start}`);
     return value;
   }
 
@@ -156,13 +166,18 @@ function isIdentifierPart(character) {
   return typeof character === 'string' && /^[A-Za-z0-9_]$/.test(character);
 }
 
+function isDigit(character) {
+  return typeof character === 'string' && character >= '0' && character <= '9';
+}
+
 function validateLevel(level) {
   if (!Number.isSafeInteger(level) || level < 0) throw new RangeError('level must be a non-negative safe integer');
 }
 
 /**
  * Evaluate a bounded TMS273 source expression with `x` bound to `level`.
- * Supported grammar: decimal integers, x, + - * /, parentheses, d(expr), u(expr), and unary +/-.
+ * Supported grammar: decimal integers and decimals, x, + - * /, parentheses,
+ * d(expr), u(expr), and unary +/-.
  * Returns a finite number; it does not enforce a skill's maxLevel.
  */
 function evaluate(formula, level) {
@@ -191,6 +206,12 @@ function selfCheck() {
   assert.equal(evaluate('d(-3/2)', 1), -2);
   assert.equal(evaluate('u(-3/2)', 1), -1);
 
+  // 小数：2111013 劇毒領域的 common.t 就是 `0.4`，整段公式里也允许小数参与运算。
+  assert.equal(evaluate('0.4', 1), 0.4);
+  assert.equal(evaluate('.5', 1), 0.5);
+  assert.equal(evaluate('0.4*x', 10), 4);
+  assert.equal(evaluate('1.5+2.25', 1), 3.75);
+
   for (const [formula, level] of [
     ['1/0', 1],
     ['1+', 1],
@@ -204,6 +225,9 @@ function selfCheck() {
     ['1', Number.NaN],
     ['1', Number.POSITIVE_INFINITY],
     ['1', '1'],
+    ['1.', 1],
+    ['.', 1],
+    ['1..2', 1],
   ]) assert.throws(() => evaluate(formula, level));
   assert.throws(() => evaluate('1'.repeat(MAX_FORMULA_LENGTH + 1), 1));
   assert.throws(() => evaluate(`${'('.repeat(MAX_NESTING + 1)}1${')'.repeat(MAX_NESTING + 1)}`, 1));

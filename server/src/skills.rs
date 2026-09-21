@@ -788,14 +788,18 @@ impl World {
         }
         let mut cost = level.mp_con.unwrap_or(0).max(0);
         if is_magic_attack_skill(skill_id) {
-            let amp_level = self
-                .players
-                .get(id)
-                .and_then(|player| player.state.skills.get(&SKILL_ELEMENT_AMP))
-                .copied()
-                .and_then(|level| self.mage_skills.level(SKILL_ELEMENT_AMP, level));
-            if let Some(amp) = amp_level {
-                cost = cost.saturating_mul(100 + amp.costmp_r.unwrap_or(0).max(0)) / 100;
+            // 魔力激發（冰雷 2210001 / 火毒 2110001）的 `costmpR` 减 MP 消耗，各记各的：
+            // 两本都按「先乘 100+costmpR 再整除 100」逐个作用，与改前同一口径。
+            for amp_skill in ELEMENT_AMP_SKILLS {
+                let amp_level = self
+                    .players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(&amp_skill))
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(amp_skill, level));
+                if let Some(amp) = amp_level {
+                    cost = cost.saturating_mul(100 + amp.costmp_r.unwrap_or(0).max(0)) / 100;
+                }
             }
         }
         if skill_id == SKILL_TELEPORT {
@@ -1314,19 +1318,29 @@ impl World {
             .and_then(|level| self.mage_skills.level(SKILL_MAGIC_BOOST, *level))
             .and_then(|level| level.action_speed)
             .unwrap_or(0);
-        let second = player
-            .state
-            .skills
-            .get(&SKILL_BOOSTER)
-            .and_then(|level| self.mage_skills.level(SKILL_BOOSTER, *level))
-            .and_then(|level| level.action_speed)
-            .or_else(|| {
-                self.mage_skills
-                    .get(SKILL_BOOSTER)
-                    .and_then(|skill| skill.booster_action_speed)
-            })
-            .unwrap_or(0);
-        first.min(0).saturating_add(second.min(0))
+        // 極速詠唱：三本分支各一本（冰雷 2200012 / 火毒 2100011 / 僧侶 2300011）。
+        // 源加速值在 `psdWeaponBooster.actionSpeed`（导出成技能条目的 `boosterActionSpeed`），
+        // 等级行本身不带 `actionSpeed`；口径是「**学过哪一本才吃哪一本**」，先查等级行、
+        // 缺则回落到条目值 —— 这正是三本可以各自独立生效的前提（改前只读冰雷那一本，
+        // 且回落链在未学时也会命中，属于链式写法的副作用；这里把闸门提到最前面）。
+        let mut second = 0i64;
+        for booster in BOOSTER_SKILLS {
+            let Some(level) = player.state.skills.get(&booster) else {
+                continue;
+            };
+            let value = self
+                .mage_skills
+                .level(booster, *level)
+                .and_then(|level| level.action_speed)
+                .or_else(|| {
+                    self.mage_skills
+                        .get(booster)
+                        .and_then(|skill| skill.booster_action_speed)
+                })
+                .unwrap_or(0);
+            second = second.saturating_add(value.min(0));
+        }
+        first.min(0).saturating_add(second)
     }
 
     pub(super) fn cast_beginner_throw(
@@ -1996,20 +2010,7 @@ impl World {
         let Some(player) = self.players.get(id) else {
             return 0;
         };
-        let mastery_crit = player
-            .state
-            .skills
-            .get(&SKILL_SPELL_MASTERY)
-            .and_then(|level| self.mage_skills.level(SKILL_SPELL_MASTERY, *level))
-            .and_then(|level| level.cr)
-            .unwrap_or(0);
-        let third_crit = player
-            .state
-            .skills
-            .get(&SKILL_MAGIC_CRITICAL)
-            .and_then(|level| self.mage_skills.level(SKILL_MAGIC_CRITICAL, *level))
-            .and_then(|level| level.cr)
-            .unwrap_or(0);
+        let passive_crit = self.critical_chance_from(id, &CRITICAL_CHANCE_SKILLS);
         let wand_crit = player
             .state
             .skills
@@ -2032,7 +2033,22 @@ impl World {
             .and_then(|level| level.cr)
             .unwrap_or(0)
             .max(0);
-        (mastery_crit + third_crit + hyper_ice_crit + if wand_crit { 5 } else { 0 }).clamp(0, 100)
+        (passive_crit + hyper_ice_crit + if wand_crit { 5 } else { 0 }).clamp(0, 100)
+    }
+
+    /// 把一张「同一格」的技能表逐本读出来再加算：分支互斥时只会命中一本，
+    /// 但**各记各的**让留痕能指认来源，也避免以后新增分支时漏掉某处调用点。
+    fn critical_chance_from(&self, id: &str, skills: &[u32]) -> i64 {
+        skills
+            .iter()
+            .filter_map(|skill_id| {
+                self.players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(skill_id))
+                    .and_then(|level| self.mage_skills.level(*skill_id, *level))
+                    .and_then(|level| level.cr)
+            })
+            .fold(0i64, |total, value| total.saturating_add(value.max(0)))
     }
 
     /// 魔法技能命中一次的**可解释求值**：把该技能的全部玩家侧修正来源收齐，
@@ -2167,42 +2183,49 @@ impl World {
                 );
             }
         }
-        let amp = self
-            .players
-            .get(id)
-            .and_then(|player| player.state.skills.get(&SKILL_ELEMENT_AMP))
-            .copied()
-            .and_then(|level| self.mage_skills.level(SKILL_ELEMENT_AMP, level))
-            .and_then(|level| level.dam_r)
-            .unwrap_or(0)
-            .max(0);
+        // 常駐段：魔力激發（冰雷 2210001 / 火毒 2110001）。分支互斥，但**各记各的**——
+        // 留痕里的 `skill_id` 要能指认是哪一本给的。两本共用同一道「魔法攻击技能」闸门。
         if is_magic_attack_skill(skill_id) {
-            pipeline.add(
-                DamageSource::DamageRate {
-                    skill_id: SKILL_ELEMENT_AMP,
-                },
-                amp,
-            );
+            for amp_skill in ELEMENT_AMP_SKILLS {
+                let amp = self
+                    .players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(&amp_skill))
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(amp_skill, level))
+                    .and_then(|level| level.dam_r)
+                    .unwrap_or(0)
+                    .max(0);
+                pipeline.add(
+                    DamageSource::DamageRate {
+                        skill_id: amp_skill,
+                    },
+                    amp,
+                );
+            }
         }
-        let reset = self
-            .players
-            .get(id)
-            .and_then(|player| player.state.skills.get(&SKILL_ELEMENTAL_RESET))
-            .copied()
-            .and_then(|level| self.mage_skills.level(SKILL_ELEMENTAL_RESET, level))
-            .and_then(|level| level.md_r)
-            .unwrap_or(0)
-            .max(0);
         // P: no current mob export carries an elemental-resistance target, so
         // source `u` is intentionally not applied to mdRate.  mdR is the
         // independent final-damage multiplier and always applies here.
-        pipeline.add(
-            DamageSource::UnmarkedField {
-                skill_id: SKILL_ELEMENTAL_RESET,
-                field: "mdR",
-            },
-            reset,
-        );
+        // 两本（冰雷 2210016 / 火毒 2110015）各记各的；源里 mdR 没有分组标记 ⇒ 独立乘算。
+        for reset_skill in ELEMENTAL_RESET_SKILLS {
+            let reset = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&reset_skill))
+                .copied()
+                .and_then(|level| self.mage_skills.level(reset_skill, level))
+                .and_then(|level| level.md_r)
+                .unwrap_or(0)
+                .max(0);
+            pipeline.add(
+                DamageSource::UnmarkedField {
+                    skill_id: reset_skill,
+                    field: "mdR",
+                },
+                reset,
+            );
+        }
         let extreme = self
             .players
             .get(id)
@@ -2224,22 +2247,25 @@ impl World {
             );
         }
         if critical {
-            let critical_damage = self
-                .players
-                .get(id)
-                .and_then(|player| player.state.skills.get(&SKILL_MAGIC_CRITICAL))
-                .copied()
-                .and_then(|level| self.mage_skills.level(SKILL_MAGIC_CRITICAL, level))
-                .and_then(|level| level.critical_damage)
-                .unwrap_or(0)
-                .max(0);
             // 暴击组的基准是 200：没学 魔法爆擊 时 `criticaldamage = 0`，仍是 ×2。
-            pipeline.add(
-                DamageSource::CriticalDamage {
-                    skill_id: SKILL_MAGIC_CRITICAL,
-                },
-                critical_damage,
-            );
+            // 三本（冰雷 2210009 / 火毒 2110009 / 僧侶 2310010）各记各的。
+            for critical_skill in MAGIC_CRITICAL_SKILLS {
+                let critical_damage = self
+                    .players
+                    .get(id)
+                    .and_then(|player| player.state.skills.get(&critical_skill))
+                    .copied()
+                    .and_then(|level| self.mage_skills.level(critical_skill, level))
+                    .and_then(|level| level.critical_damage)
+                    .unwrap_or(0)
+                    .max(0);
+                pipeline.add(
+                    DamageSource::CriticalDamage {
+                        skill_id: critical_skill,
+                    },
+                    critical_damage,
+                );
+            }
         }
         pipeline.add(
             DamageSource::UnmarkedField {

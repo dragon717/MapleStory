@@ -8,13 +8,13 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 144,
-  "edge_count": 326,
+  "node_count": 150,
+  "edge_count": 360,
   "edge_kind_counts": {
-    "value": 200,
-    "dynamic": 4,
-    "type": 101,
-    "side-effect": 21
+    "value": 219,
+    "dynamic": 5,
+    "type": 114,
+    "side-effect": 22
   },
   "external_specifiers": [
     "esbuild",
@@ -27,6 +27,9 @@
     "node:url",
     "opencc-js/t2cn",
     "phaser",
+    "three",
+    "three/addons/loaders/GLTFLoader.js",
+    "three/addons/utils/BufferGeometryUtils.js",
     "typescript"
   ],
   "unresolved": [],
@@ -192,6 +195,11 @@
     {
       "from": "client/src/app/main.ts",
       "to": "client/src/features/menu/view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/colossus/view.ts",
       "kind": "value"
     },
     {
@@ -543,6 +551,131 @@
       "from": "client/src/features/client-actions/view.ts",
       "to": "client/src/features/client-actions/style.css",
       "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/colossus/maps.ts",
+      "to": "shared/colossus.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/maps.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/maps.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/maps.ts",
+      "to": "client/src/features/world/minimap-view.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "shared/colossus.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "shared/colossus-rig.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/features/entry/appearance.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/features/colossus/sound.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/features/colossus/spatial.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/scene.ts",
+      "to": "client/src/features/colossus/paper.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/sound.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/sound.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/spatial.ts",
+      "to": "shared/colossus.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/spatial.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "client/src/features/colossus/scene.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "client/src/features/colossus/maps.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "shared/colossus.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "client/src/features/colossus/style.css",
+      "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/colossus/view.ts",
+      "to": "client/src/features/colossus/scene.ts",
+      "kind": "dynamic"
     },
     {
       "from": "client/src/features/combat/damage-number.check.ts",
@@ -1150,6 +1283,16 @@
       "kind": "type"
     },
     {
+      "from": "client/src/features/notice/tombstone.ts",
+      "to": "client/src/assets/avatar-types.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/notice/tombstone.ts",
+      "to": "client/src/assets/lazy-texture.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/npc/dialogue.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1381,6 +1524,26 @@
     },
     {
       "from": "client/src/features/windbell/activities.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/windbell/activities.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/windbell/activities.ts",
+      "to": "client/src/features/colossus/view.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/windbell/activities.ts",
+      "to": "shared/colossus.json",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/windbell/activities.ts",
       "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
@@ -1536,6 +1699,11 @@
     },
     {
       "from": "client/src/features/world/worldmap-view.ts",
+      "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/world/worldmap-view.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
     },
@@ -1656,6 +1824,11 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/entry/appearance.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/features/combat/view.ts",
       "kind": "value"
     },
@@ -1675,8 +1848,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "620b2521eda49f003b4816814a26b31c9805551e",
+  "source_commit": "50db44bfdbcbf7802a90cc411291f4acfcf7419b",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-19T13:34:37.027Z"
+  "generated_at": "2026-09-21T06:20:39.638Z"
 }

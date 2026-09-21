@@ -58,13 +58,18 @@ for (const spawn of gameplay.spawns) {
 const mapIds = new Set(catalog.maps.map(entry => String(entry.id)));
 const generalQuestIds = new Set(gameplay.quests.map(entry => String(entry.questId)));
 const itemIds = new Set(Object.keys(items));
+// 转职奖励里的技能必须真的在装配出来的技能表里（下表由 assemble 从导出树派生）。
+// 少了这一条，`reward.skills` 会滑向「发一个玩家看不见也用不了的技能」——只有交付后才发现。
+const mageSkills = readJson('shared/mage-skills.json').skills;
 
 // 1) 形状 --------------------------------------------------------------------
 assert.ok(typeof table.ruleVersion === 'string' && table.ruleVersion, 'job-advance.json ruleVersion');
 assert.ok(Array.isArray(quests) && quests.length > 0, 'job-advance.json quests must be a non-empty array');
 
 const seenIds = new Set();
-const seenFromJobs = new Set();
+// 同一职业可以挂多条（二转的火毒／冰雷／主教分支，由玩家在菜单里选），
+// 但**一个职业只能由一条任务转出**，否则「转到哪」取决于配置顺序。
+const seenToJobs = new Set();
 const dialogueKeys = ['offer', 'locked', 'accept', 'progress', 'ready', 'complete'];
 
 for (const quest of quests) {
@@ -75,8 +80,9 @@ for (const quest of quests) {
 
   assert.ok(Number.isInteger(quest.fromJob) && Number.isInteger(quest.toJob), `${where}: fromJob/toJob`);
   assert.notEqual(quest.fromJob, quest.toJob, `${where}: fromJob 不得等于 toJob`);
-  assert.ok(!seenFromJobs.has(quest.fromJob), `${where}: fromJob ${quest.fromJob} 在本目录内重复（同一时刻必须最多一条命中）`);
-  seenFromJobs.add(quest.fromJob);
+  assert.ok(!seenToJobs.has(quest.toJob),
+    `${where}: toJob ${quest.toJob} 已被另一条任务占用（一个职业只能由一条任务转出）`);
+  seenToJobs.add(quest.toJob);
 
   assert.ok(quest.title && typeof quest.title.zh === 'string' && quest.title.zh, `${where}: title.zh`);
   const npc = quest.npc || {};
@@ -108,6 +114,9 @@ for (const quest of quests) {
   for (const skill of reward.skills) {
     assert.ok(Number.isInteger(skill.skillId) && skill.skillId > 0, `${where}: reward.skills[].skillId`);
     assert.ok(Number.isInteger(skill.level) && skill.level > 0, `${where}: reward.skills[].level`);
+    const granted = mageSkills[String(skill.skillId)];
+    assert.ok(granted, `${where}: reward.skills[].skillId ${skill.skillId} 不在 shared/mage-skills.json 里`);
+    assert.ok(skill.level <= granted.maxLevel, `${where}: reward.skills[].level ${skill.level} 超过源 maxLevel ${granted.maxLevel}`);
   }
 
   const dialogue = quest.dialogue || {};
@@ -117,7 +126,27 @@ for (const quest of quests) {
   }
 }
 
-// 2) 职业链 ------------------------------------------------------------------
+// 2) 职业链 + **分支必须选得全、分得清** -------------------------------------
+// 同一 fromJob 的多条＝二转分支。原版是站在同一位转职官面前挑路线，因此这些候选
+// 必须挂在**同一位 NPC 的同一组地图**上：否则玩家要跑两张图各说一次话才能选完。
+// 标题也必须互不相同——选项长得一样，玩家没法选。
+const byFromJob = new Map();
+for (const quest of quests) {
+  if (!byFromJob.has(quest.fromJob)) byFromJob.set(quest.fromJob, []);
+  byFromJob.get(quest.fromJob).push(quest);
+}
+for (const [fromJob, group] of byFromJob) {
+  if (group.length === 1) continue;
+  const npcIds = new Set(group.map(quest => String(quest.npc.templateId)));
+  const places = new Set(group.map(quest => [...quest.npc.maps].sort().join('|')));
+  const titles = new Set(group.map(quest => `${quest.title.zh}|${quest.title.en}`));
+  assert.equal(npcIds.size, 1,
+    `fromJob ${fromJob} 的 ${group.length} 条分支挂在不同 NPC 上（玩家一次会话选不全）`);
+  assert.equal(places.size, 1,
+    `fromJob ${fromJob} 的 ${group.length} 条分支挂在不同地图上（玩家一次会话选不全）`);
+  assert.equal(titles.size, group.length,
+    `fromJob ${fromJob} 的分支标题重复，菜单里分辨不出来`);
+}
 const byId = new Map(quests.map(quest => [quest.questId, quest]));
 for (const quest of quests) {
   const prerequisites = (quest.require && quest.require.quests) || [];
@@ -182,6 +211,9 @@ const externalPrerequisites = quests.flatMap(quest => (quest.require.quests || [
   .filter(prerequisite => !byId.has(prerequisite.questId));
 assert.ok(externalPrerequisites.length > 0,
   '至少要有一条前置指向通用任务目录，否则整条转职链与一转脱节');
+// 至少要有一个职业是多分支的，否则服务端那段分支菜单是死代码。
+assert.ok([...byFromJob.values()].some(group => group.length > 1),
+  '目录必须含至少一个多分支职业（法师二转的火毒／冰雷／主教），否则分支菜单是死代码');
 assert.ok(checkedPlacements > 0 && checkedMonsters > 0 && checkedItems > 0, '没有任何内容可达性断言被真正执行');
 
 // 5) 接线 --------------------------------------------------------------------
@@ -204,6 +236,12 @@ assert.ok(dispatchAt < dialogueRs.indexOf('handle_quest_npc_menu('),
   'server/src/dialogue.rs：转职分发必须排在通用任务菜单之前');
 assert.ok(questRs.includes('job_advance_kill_targets'), 'server/src/quest.rs 没有把转职击杀目标并入同一张表');
 assert.ok(questRs.includes('job_advance_log_entries'), 'server/src/quest.rs 没有给转职任务正式日志条目');
+// 多分支要靠它才有入口：玩家在转职官面前挑路线，不是由配置顺序替他挑。
+const jobAdvanceRs = readRepo('server/src/job_advance.rs');
+assert.ok(jobAdvanceRs.includes('fn send_job_advance_branch_menu'),
+  'server/src/job_advance.rs 没有分支菜单（多分支职业将无法选择路线）');
+assert.ok(jobAdvanceRs.includes('fn candidates(') && jobAdvanceRs.includes('fn active_quest'),
+  'server/src/job_advance.rs 缺 candidates/active_quest（分支解析）');
 assert.ok(windowsCheck.includes("'shared/job-advance.json'"),
   'scripts/check_windows_resources.cjs 的 REQUIRED_JSON 缺 shared/job-advance.json（Windows 包漏表＝启动硬失败）');
 assert.ok(runner.includes('check_tms273_job_advance.cjs'),

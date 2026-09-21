@@ -45,9 +45,49 @@ const METRICS: ReadonlyArray<readonly [SkillMetric, string, string]> = [
 
 export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012']);
 const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2001002', '2201009', '2211007', '2211017']);
-const FIXED_SKILLS = new Set(['2200011', '2220015']);
+// fixLevel（源里最大等级＝1）的技能无法用 SP 升级，只能由转职 NPC 直接授予：
+// 2200011 結冰特效、2100009 元素吸收、2300009 祝福福音。列表与
+// `shared/job-advance.json` 的 reward.skills 一一对应，增删要一起改。
+const FIXED_SKILLS = new Set(['2200011', '2100009', '2300009', '2220015']);
 const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
 const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
+const FIRE_POISON_JOB_WHITELIST = new Set([210, 211, 212]);
+const CLERIC_JOB_WHITELIST = new Set([230, 231, 232]);
+
+/**
+ * 技能书 → 能持有该书的职业集合；**这是客户端唯一的书准入权威**，
+ * canLearn / castBlockReason / books() 三处都读它，不再各自内联 bookId 判断。
+ *
+ * 页签语义是「转职层级」而不是「技能书」：同层三个分支（火毒 210 / 冰雷 220 / 僧侶 230 的 2 转）
+ * 共用一个页签下标（见 `scripts/tms273_skill_manifest.cjs` 的 SKILL_BOOK_TABS），
+ * 实际进入哪本由职业决定 ⇒ 两张表必须同时维护。
+ *
+ * 表里没有的书沿用「不限制职业」的旧行为（战士书 '100' 依赖这条：它的门控由
+ * derivedStats.regenerationPassives.bookId 决定，不是职业号）。
+ */
+const BOOK_JOBS: Readonly<Record<string, ReadonlySet<number>>> = {
+  '0': new Set([0, ...MAGE_JOB_WHITELIST]),
+  '200': MAGE_JOB_WHITELIST,
+  '210': FIRE_POISON_JOB_WHITELIST,
+  '220': ICE_LIGHTNING_JOB_WHITELIST,
+  '230': CLERIC_JOB_WHITELIST,
+  '211': new Set([211, 212]),
+  '221': new Set([221, 222]),
+  '231': new Set([231, 232]),
+  '222': new Set([222]),
+};
+
+function bookAllowsJob(bookId: string, job: number | undefined): boolean {
+  const allowed = BOOK_JOBS[bookId];
+  return allowed ? allowed.has(job ?? -1) : true;
+}
+
+/** 转职 NPC 直接授予的 fixLevel 技能：等级由职业推断，不走 SP/learnedLevel 落库路径。 */
+const GRANTED_FIXED_SKILLS: ReadonlyArray<readonly [string, ReadonlySet<number>]> = [
+  ['2200011', ICE_LIGHTNING_JOB_WHITELIST],
+  ['2100009', FIRE_POISON_JOB_WHITELIST],
+  ['2300009', CLERIC_JOB_WHITELIST],
+];
 
 /**
  * Source-backed TMS273 skill directory and detail view.
@@ -864,11 +904,7 @@ export class SkillView {
 
   private canLearn(entry: SkillCatalogEntry) {
     if (entry.hidden || FIXED_SKILLS.has(entry.id) || this.player?.job === undefined || !this.player?.skills || entry.bookId !== this.selectedBookId) return false;
-    if (entry.bookId === '0' && this.player.job !== 0 && !MAGE_JOB_WHITELIST.has(this.player.job)) return false;
-    if (entry.bookId === '200' && !MAGE_JOB_WHITELIST.has(this.player.job)) return false;
-    if (entry.bookId === '220' && !ICE_LIGHTNING_JOB_WHITELIST.has(this.player.job)) return false;
-    if (entry.bookId === '222' && this.player.job !== 222) return false;
-    if (entry.bookId === '221' && ![221, 222].includes(this.player.job)) return false;
+    if (!bookAllowsJob(entry.bookId, this.player.job)) return false;
     const level = this.learnedLevel(entry.id);
     if (level === undefined || level >= entry.maxLevel) return false;
     if ((this.player.level ?? 0) < (entry.requiredLevel ?? 0)) return false;
@@ -892,8 +928,7 @@ export class SkillView {
 
   private castBlockReason(entry: SkillCatalogEntry): string | undefined {
     const player = this.player;
-    const jobAllowed = entry.bookId === '222' ? player?.job === 222 : entry.bookId === '0' ? player?.job === 0 || MAGE_JOB_WHITELIST.has(player?.job ?? -1) : entry.bookId === '221' ? [221, 222].includes(player?.job ?? -1)
-      : entry.bookId === '220' ? ICE_LIGHTNING_JOB_WHITELIST.has(player?.job ?? -1) : MAGE_JOB_WHITELIST.has(player?.job ?? -1);
+    const jobAllowed = bookAllowsJob(entry.bookId, player?.job);
     if (entry.hidden || !this.isActiveSkill(entry)) return '此技能不直接施放';
     if (!jobAllowed) return '完成对应转职后可使用';
     if (!player || player.hp <= 0 || player.action === 'dead') return '复活后可使用';
@@ -980,12 +1015,9 @@ export class SkillView {
     return Object.entries({ '0': { name: '初心者', tabIndex: 0 }, ...this.manifest.skillBooks,
       ...(warrior ? { '100': { name: '战士', tabIndex: 1 } } : {}) })
       .filter(([id]) => !warrior || id !== '200')
-      // A 初心者 has not taken the magician job yet; the 法师 pages must stay
-      // out of the window until Hans actually advances the character.
-      .filter(([id]) => id !== '200' || MAGE_JOB_WHITELIST.has(this.player?.job ?? -1))
-      .filter(([id]) => id !== '220' || ICE_LIGHTNING_JOB_WHITELIST.has(this.player?.job ?? -1))
-      .filter(([id]) => id !== '222' || this.player?.job === 222)
-      .filter(([id]) => id !== '221' || [221, 222].includes(this.player?.job ?? -1))
+      // 书准入统一走 BOOK_JOBS：初心者还没转职时法师各页必须留在窗外，
+      // 三个 2 转分支书也只有对应的职业分支才出现。
+      .filter(([id]) => bookAllowsJob(id, this.player?.job))
       .filter(([, book]) => book && Number.isSafeInteger(book.tabIndex))
       .sort(([, left], [, right]) => left.tabIndex - right.tabIndex);
   }
@@ -1002,7 +1034,9 @@ export class SkillView {
   }
 
   private learnedLevel(skillId: string): number | undefined {
-    if (skillId === '2200011' && ICE_LIGHTNING_JOB_WHITELIST.has(this.player?.job ?? -1)) return 1;
+    // 转职 NPC 直接授予的 fixLevel 技能：等级由职业推断，不依赖服务端落库的技能表。
+    const granted = GRANTED_FIXED_SKILLS.find(([id, jobs]) => id === skillId && jobs.has(this.player?.job ?? -1));
+    if (granted) return 1;
     const skills = this.player?.skills;
     if (!skills) return undefined;
     const level = Object.prototype.hasOwnProperty.call(skills, skillId) ? skills[skillId] : 0;

@@ -7,6 +7,35 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ENGLISH_UNITS = new Set(['MP', 'HP', 'ms']);
 const BEGINNER_LEVEL_FIELDS = new Set(['mpCon', 'fixdamage', 'x', 'time', 'speed', 'cooltime']);
 
+/**
+ * 运行期契约的**标量整数字段** —— 与 `server/src/mage.rs::MageLevel` 的 `Option<i64>` /
+ * `Option<u32>` 字段逐字对应（`check_tms273_skill_manifest.cjs` 从 Rust 源码重算这张表并
+ * 双向比对，漏改一边就红）。
+ *
+ * 为什么需要这张表：源公式**可以算出小数**。参考实现 `WzComparerR2.Common/Calculator.cs`
+ * 用 `decimal`，`/` 是精确除法 —— 例如 `2311003 神聖祈禱` 的 `common.x = "20+u(x*3)/2"`
+ * 在奇数级算得 `21.5`。而运行期契约的标量是整数，所以「算出小数怎么办」必须在**投影边界**
+ * 决定，而不是让 JSON 带小数、等到 Rust 反序列化时才炸（2026-09-21 就是这么炸的）。
+ * 决定：**四舍五入（`.5` 远离零）**，源串仍原样留在 `rawCommon`；本模块之外的数值一律原样
+ * 带出（例如 `t`/`ar`/`nbdR` 这些运行期未登记的字段），因为舍入它们只会丢信息。
+ */
+const RUNTIME_INTEGER_FIELDS = new Set([
+  'mpCon', 'z', 'costmpR', 'damR', 'criticaldamage', 'subProp', 'mdR', 'cooltime',
+  'cooldownMs', 'mpSubstitutePercent', 'asrR', 'terR', 'stanceProp', 'madX', 'bufftimeR',
+  'basicStatUp', 'attackDelay', 'ignoreMobpdpR', 'hcHp', 'speed', 'q', 'q2', 'indieDamR',
+  'targetPlus', 'w2', 'u2', 'mmpR', 'lv2mmp', 'actionSpeed', 'mastery', 'cr', 'intX',
+  'indieMad', 'subTime', 's', 'pddX', 'x', 'y', 'prop', 'fixdamage', 'time', 'v', 'w', 'u',
+  'psdSpeed', 'speedMax', 'range', 'mobCount', 'damage', 'attackCount',
+  'maxUseCountInOneJump',
+]);
+
+/** 投影一个标量：运行期契约的整数字段四舍五入，其余字段原样带出。 */
+function projectScalar(field, value) {
+  if (Number.isSafeInteger(value)) return value;
+  if (!RUNTIME_INTEGER_FIELDS.has(field)) return value;
+  return Math.round(value);
+}
+
 // 用户指定规则（2026-09-10）——**不是 TMS273 原版数值**，替换为核定来源前请保留这条记录。
 // 「瞬間移動」2001009：全等级消耗一样都是 10 MP，不同等级的区别在距离和 CD。
 // 原版对照：本地 Skill/200.json#2001009 的 common 为 mpCon "30-2*x"（28/26/24/22/20）、
@@ -115,15 +144,34 @@ function levelDescriptions(entry, maxLevel) {
   return undefined;
 }
 
+// 技能窗的页签是「转职层级」，不是「技能书」：同一层级的多个分支（火毒 210 / 冰雷 220 /
+// 僧侶 230 的 2 转）**共用同一个页签下标**，实际显示哪一本由角色职业决定——门控在
+// `client/src/features/skills/view.ts` 的 BOOK_JOBS 表里，两处必须一起改。
+// 下标上界来自源：`UI/UIWindow2.img/Skill/main/Tab` 只有 7 组页签图
+// （`export_tms273_skill_ui.cjs` 的 TAB_COUNT=7），所以只允许 0..6。
+// 加分支书必须复用同层下标，**不能顺延**，否则会超出页签图范围退化成无美术的占位按钮。
+const SKILL_BOOK_TABS = {
+  '0': 0,
+  '200': 1,
+  '210': 2, '220': 2, '230': 2,
+  '211': 3, '221': 3, '231': 3,
+  '222': 4,
+};
+
 function skillManifest(windowExport, skillExport) {
   assert.equal(windowExport.sourceVersion, 'TMS273.7');
   assert.equal(skillExport.sourceVersion, 'TMS273.7');
   assert(skillExport.catalog, 'skill catalog export is missing');
   const skillBooks = {};
+  // 双向闭包：表里有下标却导不出书、或导出了书却没登记下标，都在这里断掉。
+  assert.deepEqual(
+    Object.keys(skillExport.catalog.books).sort(),
+    Object.keys(SKILL_BOOK_TABS).sort(),
+    'exported skill books and the tab table disagree',
+  );
   for (const [id, book] of Object.entries(skillExport.catalog.books)) {
-    assert(['0', '200', '220', '221', '222'].includes(id), `unmapped skill book: ${id}`);
-    const tabIndex = { '0': 0, '200': 1, '220': 2, '221': 3, '222': 4 }[id];
-    skillBooks[id] = { name: book.name, tabIndex };
+    assert(Object.prototype.hasOwnProperty.call(SKILL_BOOK_TABS, id), `unmapped skill book: ${id}`);
+    skillBooks[id] = { name: book.name, tabIndex: SKILL_BOOK_TABS[id] };
   }
   const skillCatalog = {};
   for (const [id, entry] of Object.entries(skillExport.catalog.skills)) {
@@ -161,7 +209,7 @@ function skillManifest(windowExport, skillExport) {
 function mageRules(skillExport) {
   assert.equal(skillExport.sourceVersion, 'TMS273.7');
   const skills = {};
-  for (const entry of Object.values(skillExport.catalog.skills).filter(entry => ['0', '200', '220', '221', '222'].includes(entry.book))) {
+  for (const entry of Object.values(skillExport.catalog.skills).filter(entry => Object.prototype.hasOwnProperty.call(SKILL_BOOK_TABS, entry.book))) {
     const maxLevel = Number(entry.maxLevel);
     assert(Number.isSafeInteger(maxLevel) && maxLevel > 0 && maxLevel <= 100);
     const common = runtimeCommon(entry);
@@ -173,8 +221,8 @@ function mageRules(skillExport) {
           .filter(([key]) => BEGINNER_LEVEL_FIELDS.has(key))
           .map(([key, value]) => {
           if (value && typeof value === 'object') return [key, value];
-          if (typeof value === 'number') return [key, value];
-          if (typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value.trim())) return [key, Number(value)];
+          if (typeof value === 'number') return [key, projectScalar(key, value)];
+          if (typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value.trim())) return [key, projectScalar(key, Number(value))];
           return [key, value];
         }));
       })
@@ -189,7 +237,7 @@ function mageRules(skillExport) {
           if (typeof value === 'object') return [key, value];
           const result = typeof value === 'number' ? value : evaluate(value, i + 1);
           assert(Number.isFinite(result), `invalid mage field ${entry.id}/${key}`);
-          return [key, result];
+          return [key, projectScalar(key, result)];
         }),
       ));
     const userRule = USER_SPECIFIED_SKILL_RULES[entry.id];
@@ -220,8 +268,10 @@ function mageRules(skillExport) {
     };
   }
   assert.equal(skills['2001009']?.name, '瞬間移動', 'user-specified rule 2001009 no longer maps to 瞬間移動');
-  assert.equal(Object.keys(skills).length, 56);
+  // 分书条数由 `export_tms273_skills.cjs` 的 expectedCatalogCounts 逐书钉住（唯一权威）；
+  // 这里只钉总数，用来发现「整本书静默掉出投影」。
+  assert.equal(Object.keys(skills).length, 102, 'mage skill count changed');
   return { sourceVersion: 'TMS273.7', bookId: 200, skills };
 }
 
-module.exports = { skillManifest, mageRules };
+module.exports = { skillManifest, mageRules, SKILL_BOOK_TABS, RUNTIME_INTEGER_FIELDS };

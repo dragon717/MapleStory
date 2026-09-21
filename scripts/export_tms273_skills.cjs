@@ -267,11 +267,104 @@ for (const [id, groups, bodyAction] of [
   assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', ...groups], missingAssetKinds: [],
   unlockReason: 'T: source hyper/reqLev and hidden flags; independent Hyper points use the documented R/P runtime rule.',
 });
+// ── 火毒（210/211）与僧侶（230/231）分支 ──────────────────────────────────────
+// 口径与冰雷三本一致：**每本书只登记会被服务端执行的施法技能**，其余节点由该书的
+// catalogDefinition 自动展开成图鉴条目（图标 + 名称 + 逐级字段），不重复登记资产。
+// 因此这里每个 job 的第一条同时充当该书的分词定义，`image`/`skillJson` 由它决定。
+//
+// 分卷归属是实测的（2026-09-21 逐卷枚举 `Skill/_Canvas/*.wz` 的顶层映像名）：
+//   000.img → `_Canvas_000.wz`；200/210/211.img → `_Canvas_035.wz`；
+//   220/221/222.img → `_Canvas_040.wz`；230/231.img → `_Canvas_043.wz`
+// 外链解析按卷名排序取**第一个含该映像**的卷，所以列多了不会错、列少了会整块缺图。
+// 跨书引用必须跟着挂：2300000/2301002 的 `effect` 落在 210.img、2300011 的图标即
+// 2100011 的图标、2310010 的图标即 2110011 的图标 ⇒ 230/231 两条**同时**要挂 035。
+// 2311004 的 `mob` 落在 10100.img（`_Canvas_000.wz`）——挂 000 是为了这个，不是 231 本体。
+// 2310013 的图标即 2311009 的、2311017 的图标即 2311015 的，两者都还在 043 里，不用额外挂。
+// 判据出自 `Skill/_Canvas/*.wz` 逐卷枚举，不是从文件名猜的；215 章以后的源树若重新分卷，
+// 这里必须重跑同一枚举，别只改编号。
+const FIRE_POISON_BRANCHES = [
+  {
+    id: '2101004',
+    job: 210,
+    // 210/211 本身归 035；跨书引用也只落在 035 上，所以这一组只需一卷。
+    canvasArchives: ['Skill/_Canvas/_Canvas_035.wz'],
+    bodyAction: 'flameOrb',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'],
+  },
+  {
+    id: '2101005',
+    job: 210,
+    canvasArchives: ['Skill/_Canvas/_Canvas_035.wz'],
+    bodyAction: 'poisonBreath',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'],
+  },
+  {
+    id: '2111002',
+    job: 211,
+    canvasArchives: ['Skill/_Canvas/_Canvas_035.wz'],
+    bodyAction: 'explosion',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'],
+  },
+  {
+    id: '2301002',
+    job: 230,
+    // 本体在 043；`effect` 落在 210.img、图鉴里 2300011 的图标即 2100011 的图标 ⇒ 还要 035。
+    canvasArchives: ['Skill/_Canvas/_Canvas_035.wz', 'Skill/_Canvas/_Canvas_043.wz'],
+    bodyAction: 'alert2',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'affected', 'affected0', 'hit'],
+  },
+  {
+    id: '2301005',
+    job: 230,
+    canvasArchives: ['Skill/_Canvas/_Canvas_035.wz', 'Skill/_Canvas/_Canvas_043.wz'],
+    bodyAction: 'holyArrow',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'],
+  },
+  {
+    id: '2311004',
+    job: 231,
+    // 本体在 043；2311004 的 `mob` 落在 10100.img（`_Canvas_000.wz`）⇒ 还要挂 000。
+    canvasArchives: [
+      'Skill/_Canvas/_Canvas_000.wz',
+      'Skill/_Canvas/_Canvas_035.wz',
+      'Skill/_Canvas/_Canvas_043.wz',
+    ],
+    bodyAction: 'alert5',
+    assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit', 'mob'],
+  },
+];
+for (const entry of FIRE_POISON_BRANCHES) SKILLS.push({
+  ...entry,
+  image: `Skill/${entry.job}.img`,
+  skillJson: `Skill/${entry.job}.json`,
+  missingAssetKinds: [],
+  unlockReason: `Skill/${entry.job}.img has no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.`,
+});
 const SKILL_ID = SKILLS[0].id;
 const SKILL_IMAGE = SKILLS[0].image;
 const SKILL_SOURCE = `Skill/200.img/skill/${SKILL_ID}`;
 const BODY_SOURCE = `Character/00002000.img/${SKILLS[0].bodyAction}`;
-const STRING_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json');
+// 源树里有**两份** WZ_JSON_TW，且不完整的是导出器原先指着的那一份（2026-09-21 实测）：
+//   A = `TMS273/WZ_JSON_TW`            —— 缺 `Skill/220.json`、缺 `String/Skill.json`
+//   B = `手工服务端/tms273/WZ_JSON_TW`  —— `Skill/` 八本齐全，且有 `String/Skill.json`
+//                                        （14480 条技能名/描述，含 210/211/230/231）
+// 两份**同名的** `Skill/*.json` 已逐字节比对过，完全相同 ⇒ 按 A→B 顺序取第一个存在的文件，
+// 对既有产物零影响，只是把 A 缺的那两个补上。写死单一路径会让导出在源树漂移时直接跑不动。
+const WZ_JSON_ROOTS = [
+  path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW'),
+  path.join(ROOT, '参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW'),
+];
+
+/** 在已知的两份源树里找第一个存在的文件；都没有就报出两条候选路径。 */
+function sourceJsonPath(relativePath) {
+  for (const root of WZ_JSON_ROOTS) {
+    const candidate = path.join(root, relativePath);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`${relativePath} 在已知的两份 WZ_JSON_TW 里都不存在：\n${WZ_JSON_ROOTS.join('\n')}`);
+}
+
+const STRING_JSON = sourceJsonPath('String/Skill.json');
 
 function sourceSkillId(definition, id = definition.id) {
   return definition.sourceId || id;
@@ -588,7 +681,7 @@ async function main() {
 
     const skillJsonPaths = new Map();
     for (const skill of SKILLS) {
-      const file = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW', skill.skillJson);
+      const file = sourceJsonPath(skill.skillJson);
       if (!skillJsonPaths.has(skill.skillJson)) skillJsonPaths.set(skill.skillJson, file);
     }
     const skillJsons = new Map([...skillJsonPaths].map(([name, file]) => [name, JSON.parse(fs.readFileSync(file, 'utf8'))]));
@@ -742,7 +835,13 @@ async function main() {
         : Object.keys(skillRoot)
           .filter(id => /^\d+$/.test(id))
           .sort((left, right) => Number(left) - Number(right));
-      const expectedCatalogCounts = { '0': 3, '200': 8, '220': 9, '221': 12, '222': 24 };
+      // 每本书的图鉴节点数＝该书 `Skill/<book>.json` 里全部数字节点的个数（含 invisible 变体），
+      // 与 SKILLS 里登记的施法技能条数无关。**这里是唯一权威**：`tms273_skill_manifest.cjs`
+      // 只断言总数，不再按书重复一遍（避免「书范围」出现第四处硬编码）。
+      const expectedCatalogCounts = {
+        '0': 3, '200': 8, '210': 10, '211': 11, '220': 9, '221': 12, '222': 24, '230': 10, '231': 15,
+      };
+      assert(Object.prototype.hasOwnProperty.call(expectedCatalogCounts, bookId), `skill book ${bookId} has no expected catalog count`);
       assert.equal(skillIds.length, expectedCatalogCounts[bookId], `${bookId} catalog node count changed`);
       for (const sourceId of skillIds) {
         const id = runtimeSkillId(definition, sourceId);
@@ -796,7 +895,7 @@ async function main() {
 
     const sourceArchivePaths = Object.values(extraction.entries).map(entry => path.join(ROOT, entry.archive));
     const sourceFiles = uniqueFiles([
-      ...SKILLS.map(skill => path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW', skill.skillJson)),
+      ...SKILLS.map(skill => sourceJsonPath(skill.skillJson)),
       STRING_JSON,
       path.join(DATA, 'Packs/Skill_00000.ms'),
       path.join(DATA, 'Skill/_Canvas/_Canvas_035.wz'),

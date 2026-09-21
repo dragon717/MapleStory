@@ -190,6 +190,13 @@ const catalogIdsWith = field =>
     .map(([id]) => id)
     .sort();
 
+/** 复合口径：**同时**带全部字段的技能（`mastery`+`x` 就是「咒語精通」这一族的形状）。 */
+const catalogIdsWithAll = fields =>
+  Object.entries(mageSkills.skills)
+    .filter(([, skill]) => fields.every(field => skill.levels.some(level => level[field] !== undefined)))
+    .map(([id]) => id)
+    .sort();
+
 const skillConst = new Map();
 for (const match of worldSrc.matchAll(/const (SKILL_[A-Z0-9_]+): u32 = (\d+);/g)) {
   skillConst.set(match[1], Number(match[2]));
@@ -205,53 +212,105 @@ const constFor = id => {
 };
 
 /**
+ * `const NAME: [u32; N] = [SKILL_A, SKILL_B];` → 成员常量名。
+ *
+ * 「同一格」的被动在三个分支上各有一本（冰雷 / 火毒 / 僧侶），逐本 `Some(CONST)` 留痕会
+ * 写成一大片重复代码；所以消费循环统一写成 `for skill_id in NAME`，而**成员清单留在
+ * `world.rs` 的数据表里**。门禁按这张表的成员逐个重算，源里新增一本而没人登记就红。
+ * 长度标注与实际条目数也会在这里核对——表头写错数字是同一类漂移。
+ */
+const skillArrays = new Map();
+for (const match of worldSrc.matchAll(
+  /const ([A-Z][A-Z0-9_]*): \[u32; (\d+)\] = \[([\s\S]*?)\];/g,
+)) {
+  skillArrays.set(match[1], {
+    declared: Number(match[2]),
+    members: [...match[3].matchAll(/(SKILL_[A-Z0-9_]+)/g)].map(hit => hit[1]),
+  });
+}
+const idsForArray = name => {
+  const entry = skillArrays.get(name);
+  assert.ok(entry, `world.rs 里没有数组常量 ${name}`);
+  assert.equal(
+    entry.declared, entry.members.length,
+    `${name} 的长度标注是 ${entry.declared}，实际条目 ${entry.members.length} 个`,
+  );
+  return entry.members.map(idForConst).sort();
+};
+
+/**
  * 「源字段 → 聚合模块里必须出现的那条消费」。
  * `learned` = 按「学得即生效」读表（learned_level）；`layer` / `op` 是留痕里声明的
  * 层与作用方式——这张表**就是**「哪些加算、哪些取高」在内容侧的完整答案。
- * `loop` = 该来源在 `for skill_id in [...]` 里逐个留痕（两个 `intX` 各记各的），
- * 此时留痕里写的是 `Some(skill_id)`，由「循环头恰好列出这些常量」来绑定。
+ * `consts` = 逐本 `Some(CONST)` 留痕（少量、单本）；`array` = 同一格多本，循环消费，
+ * 成员清单取自 `world.rs` 的具名数组（两种写法都由「源表重算 == 声明集合」绑定）。
  * `fieldVar` = 源字段名以循环变量传入（asrR/terR 的元组表），由元组行单独钉住。
  */
 const CONTENT_RULES = [
-  { field: 'intX', consts: ['SKILL_INTELLIGENCE', 'SKILL_BOOSTER'], loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'Intelligence' },
+  { field: 'intX', array: 'INTELLIGENCE_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'Intelligence' },
+  { field: ['mastery', 'x'], array: 'SPELL_MASTERY_X_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack' },
   { field: 'basicStatUp', consts: ['SKILL_MAPLE_WARRIOR'], layer: 'PassiveSkill', op: 'AdditivePercent', key: null },
   { field: 'pddX', consts: ['SKILL_MAGIC_SHIELD'], layer: 'PassiveSkill', op: 'Flat', key: 'WeaponDefense' },
   { field: 'madX', consts: ['SKILL_MASTER_MAGIC'], layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack' },
   { field: 'mmpR', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'AdditivePercent', key: 'MaxMp' },
   { field: 'lv2mmp', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'Flat', key: 'MaxMp' },
   { field: 'psdSpeed', consts: ['SKILL_TELEPORT'], layer: 'PassiveSkill', op: 'Flat', key: 'MoveSpeed' },
-  { field: 'asrR', consts: ['SKILL_ELEMENTAL_ADAPTING'], layer: 'PassiveSkill', op: 'Flat', key: 'StatusResistance', fieldVar: true },
-  { field: 'terR', consts: ['SKILL_ELEMENTAL_ADAPTING'], layer: 'PassiveSkill', op: 'Flat', key: 'ElementResistance', fieldVar: true },
-  { field: 'mastery', consts: ['SKILL_SPELL_MASTERY', 'SKILL_ICE_DEMON'], layer: 'PassiveSkill', op: 'Highest', key: 'Mastery' },
+  { field: 'asrR', array: 'ELEMENTAL_ADAPTING_SKILLS', loop: true, fieldVar: true, layer: 'PassiveSkill', op: 'Flat', key: 'StatusResistance' },
+  { field: 'terR', array: 'ELEMENTAL_ADAPTING_SKILLS', loop: true, fieldVar: true, layer: 'PassiveSkill', op: 'Flat', key: 'ElementResistance' },
+  { field: 'mastery', array: 'MASTERY_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Highest', key: 'Mastery' },
 ];
 
+/** 一条规则声明的技能 id 集合（常量名 → id；数组 → 成员 id）。 */
+const declaredIds = rule =>
+  (rule.array ? idsForArray(rule.array) : rule.consts.map(idForConst)).sort();
+
+/** 一条规则的源字段名（数组 = 复合口径）。 */
+const ruleFields = rule => (Array.isArray(rule.field) ? rule.field : [rule.field]);
+
 for (const rule of CONTENT_RULES) {
-  const catalogIds = catalogIdsWith(rule.field);
-  assert.ok(catalogIds.length > 0, `源技能表里一个 ${rule.field} 都没有？形状变了`);
-  const declaredIds = rule.consts.map(idForConst).sort();
+  const fields = ruleFields(rule);
+  const catalogIds = fields.length === 1
+    ? catalogIdsWith(fields[0])
+    : catalogIdsWithAll(fields);
+  const label = fields.join('+');
+  assert.ok(catalogIds.length > 0, `源技能表里一个 ${label} 都没有？形状变了`);
+  const declared = declaredIds(rule);
   assert.deepEqual(
-    catalogIds, declaredIds,
-    `源里带 ${rule.field} 的技能是 ${catalogIds.join('/')}，聚合模块声明消费的是 ${declaredIds.join('/')}`
+    catalogIds, declared,
+    `源里带 ${label} 的技能是 ${catalogIds.join('/')}，聚合模块声明消费的是 ${declared.join('/')}`
       + `——源里新增一个带该字段的技能而没人做决定，这里就会红`,
   );
   if (rule.loop) {
-    // 循环消费：循环头必须恰好列出声明的常量，留痕里的层 / 键 / 作用方式是唯一的那条。
-    const header = new RegExp(
-      `for skill_id in \\[${rule.consts.join(', ')}\\]`,
-    );
+    // 循环消费：循环头必须恰好绑定这张表（具名数组或逐字常量清单），
+    // 留痕里的层 / 键 / 作用方式是唯一的那条。
+    const header = rule.array
+      ? new RegExp(`for skill_id in ${rule.array} \\{`)
+      : new RegExp(`for skill_id in \\[${rule.consts.join(', ')}\\]`);
     assert.ok(
       header.test(codeOnly(attributeSrc)),
-      `${rule.field} 的消费循环没有恰好声明 ${rule.consts.join('、')}`,
+      `${label} 的消费循环没有恰好绑定 ${rule.array ?? rule.consts.join('、')}`,
     );
+    // fieldVar（asrR/terR）的**字段名与属性键都来自元组表**，所以这两格是循环变量；
+    // 「哪个字段名配哪个键」由下面的元组行单独钉住。
+    const loopFieldSlot = rule.fieldVar ? '[A-Za-z_]+' : '"[^"]+"';
+    const loopKeySlot = rule.fieldVar ? '[A-Za-z_]+' : `AttributeKey::${rule.key}`;
     const shape = new RegExp(
-      `AttributeLayer::${rule.layer},\\s*Some\\(skill_id\\),\\s*"[^"]+",\\s*`
-        + `AttributeKey::${rule.key},\\s*AttributeOp::${rule.op},`,
+      `AttributeLayer::${rule.layer},\\s*Some\\(skill_id\\),\\s*`
+        + `${loopFieldSlot},\\s*${loopKeySlot},\\s*AttributeOp::${rule.op},`,
     );
     assert.ok(
       shape.test(codeOnly(attributeSrc)),
-      `${rule.field} 没有按 AttributeLayer::${rule.layer} + AttributeOp::${rule.op} `
+      `${label} 没有按 AttributeLayer::${rule.layer} + AttributeOp::${rule.op} `
         + `+ AttributeKey::${rule.key} 留痕（这条声明就是口径，改了必须有人重新决定）`,
     );
+    if (rule.fieldVar) {
+      // 元组表把「源字段名 → 属性键」钉住，防止循环变量让字段名漂移。
+      const tuple = new RegExp(`\\([a-z_]+, "${fields[0]}", AttributeKey::${rule.key}\\)`);
+      assert.ok(
+        tuple.test(codeOnly(attributeSrc)),
+        `${label} 的「源字段名 → 属性键」元组不见了（循环变量必须由这张表钉住）`,
+      );
+    }
     continue;
   }
   for (const constant of rule.consts) {
@@ -332,10 +391,10 @@ for (const constant of intrinsicNames) {
     `${constant}(${id}) 在「带时长却按被动读」的登记表里，但源里没有 time——这是豁免不是登记`,
   );
 }
-// 反向：源里所有带时长且提供了第 2 层字段的技能，必须都被登记（多一个 / 尊少一个都失败）。
+// 反向：源里所有带时长且提供了第 2 层字段的技能，必须都被登记（多一个 / 少一个都失败）。
 const passiveLayerIds = CONTENT_RULES
   .filter(rule => rule.layer === 'PassiveSkill')
-  .flatMap(rule => rule.consts.map(idForConst));
+  .flatMap(declaredIds);
 const needsRegistration = [...new Set(passiveLayerIds)].filter(id => commonOf(id).time !== undefined);
 assert.deepEqual(
   intrinsicNames.map(idForConst).sort(), needsRegistration.sort(),
@@ -424,7 +483,7 @@ console.log(
   `  层序：${layers.join(' → ')}；作用方式：${ops.join('/')}；属性键 ${allKeys.length} 个`,
 );
 console.log(
-  `  源表重算：${CONTENT_RULES.map(rule => `${rule.field}(${rule.op})`).join('、')}`,
+  `  源表重算：${CONTENT_RULES.map(rule => `${ruleFields(rule).join('+')}(${rule.op})`).join('、')}`,
 );
 console.log(
   `  时长事实：学得即生效 ${LEARNED_FOREVER.map(idForConst).join('/')} 均无 time；`

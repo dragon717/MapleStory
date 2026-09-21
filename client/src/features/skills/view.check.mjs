@@ -196,3 +196,30 @@ view.player = mage();
 const magicianBooks = view.books().map(([id]) => id);
 assert.ok(magicianBooks.includes('200'), 'a magician sees the 法师入门 book');
 console.log('PASS: beginner skill window hides every magician book; magician keeps them.');
+
+// 火毒 / 冰雷 / 僧侶三条分支：同层的三本书**共用同一个页签下标**（职业决定进哪一本），
+// 所以「别的分支的书必须留在窗外」是页签正确性的核心判据，不是可选的美化。
+const branchBooks = (job) => {
+  view.player = mage({ job, skills: {}, skillPoints: {} });
+  return view.books().map(([id]) => id);
+};
+const SECOND_JOB_BOOKS = ['210', '220', '230'];
+const THIRD_JOB_BOOKS = ['211', '221', '231'];
+assert.deepEqual(branchBooks(210).filter(id => SECOND_JOB_BOOKS.includes(id)), ['210'], '火毒 2 转只看到火毒书');
+assert.deepEqual(branchBooks(220).filter(id => SECOND_JOB_BOOKS.includes(id)), ['220'], '冰雷 2 转只看到冰雷书');
+assert.deepEqual(branchBooks(230).filter(id => SECOND_JOB_BOOKS.includes(id)), ['230'], '僧侶 2 转只看到僧侶书');
+assert.deepEqual(branchBooks(211).filter(id => THIRD_JOB_BOOKS.includes(id)), ['211'], '火毒 3 转只看到火毒书');
+assert.deepEqual(branchBooks(221).filter(id => THIRD_JOB_BOOKS.includes(id)), ['221'], '冰雷 3 转只看到冰雷书');
+assert.deepEqual(branchBooks(231).filter(id => THIRD_JOB_BOOKS.includes(id)), ['231'], '祭司 3 转只看到祭司书');
+// 授予的 fixLevel 技能（源里 maxLevel＝1）只能由转职 NPC 给，不能用 SP 学；
+// 等级由职业推断，因此既不依赖服务端落库，也不会发给别的分支。
+for (const [job, skillId] of [[210, '2100009'], [220, '2200011'], [230, '2300009']]) {
+  view.player = mage({ job, skills: {}, skillPoints: {} });
+  assert.equal(view.learnedLevel(skillId), 1, `${skillId} 应由 ${job} 转职授予`);
+  assert.equal(view.canLearn(catalog[skillId]), false, `${skillId} 是固定等级技能，不能用 SP 学`);
+}
+view.player = mage({ job: 230, skills: {}, skillPoints: {} });
+// 未学习时 learnedLevel 返回 0（有技能快照但没这一条），不是 undefined。
+assert.equal(view.learnedLevel('2100009'), 0, '僧侶不该持有火毒的授予技能');
+assert.equal(view.learnedLevel('2200011'), 0, '僧侶不该持有冰雷的授予技能');
+console.log('PASS: 火毒/冰雷/僧侶三条分支的书与授予技能都按职业门控。');

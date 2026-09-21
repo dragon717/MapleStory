@@ -542,9 +542,10 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
 
     // ---- 第 2 层：被动技能 ----
     // 智慧昇華 / 極速詠唱：源 `intX`，两者都无 `mpCon`/`time` ⇒ 被动。**各记各的**再求和，
-    // 于是留痕能回答「这 60 点 INT 是谁给的」。
+    // 于是留痕能回答「这 60 点 INT 是谁给的」。三个分支各有一对（冰雷 / 火毒 / 僧侶），
+    // 表里是全部六本；角色只可能持有自己分支的那两本，其余查表得 0、不留痕。
     let mut int_bonus = 0i64;
-    for skill_id in [SKILL_INTELLIGENCE, SKILL_BOOSTER] {
+    for skill_id in INTELLIGENCE_SKILLS {
         let contribution = learned_level(mage_skills, skills, skill_id)
             .and_then(|level| level.int_x)
             .unwrap_or(0);
@@ -662,20 +663,24 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
 
     // ---- 被动层：魔法攻击的分量 ----
     // 咒語精通 `x`（Passive）与 大師魔法 `madX`（Passive）；冥想是**增益**，单列一层。
-    let spell_mastery = learned_level(mage_skills, skills, SKILL_SPELL_MASTERY);
-    let spell_x = spell_mastery
-        .as_ref()
-        .and_then(|level| level.x)
-        .unwrap_or(0)
-        .max(0);
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_SPELL_MASTERY),
-        "x",
-        AttributeKey::MagicAttack,
-        AttributeOp::Flat,
-        spell_x,
-    );
+    // `x` 段是三本 咒語精通（冰雷 / 火毒 / 僧侶）各自的魔攻加成，**各记各的**：留痕能回答
+    // 「这 10 点魔攻是哪一本给的」。神聖集中術不带 `x`（只有 `cr`/`ar`/`mastery`），不在表里。
+    let mut spell_x = 0i64;
+    for skill_id in SPELL_MASTERY_X_SKILLS {
+        let contribution = learned_level(mage_skills, skills, skill_id)
+            .and_then(|level| level.x)
+            .unwrap_or(0)
+            .max(0);
+        rec.note_nonzero(
+            AttributeLayer::PassiveSkill,
+            Some(skill_id),
+            "x",
+            AttributeKey::MagicAttack,
+            AttributeOp::Flat,
+            contribution,
+        );
+        spell_x = spell_x.saturating_add(contribution);
+    }
     let master_magic_mad = learned_level(mage_skills, skills, SKILL_MASTER_MAGIC)
         .and_then(|level| level.mad_x)
         .unwrap_or(0)
@@ -734,36 +739,28 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         .saturating_add(shield_bonus);
     config.weapon_defense = Some(defense);
 
-    // ---- 熟练度：取高者（咒語精通 / 冰龍吐息），底座是配置里的值（默认 0.1）----
+    // ---- 熟练度：取高者（三本 咒語精通 / 神聖集中術 / 冰龍吐息），底座是配置里的值 ----
     // 改前这段算完就丢（`derived.rs` 里一次写了没人读的赋值）⇒ 物理区间下限恒用 0.1。
-    let base_mastery = config.mastery.unwrap_or(0.1).clamp(0.0, 1.0);
-    let spell_mastery_percent = spell_mastery
-        .as_ref()
-        .and_then(|level| level.mastery)
-        .map(|value| value.clamp(0, 100))
-        .unwrap_or((base_mastery * 100.0).round() as i64);
-    let demon_mastery_percent = learned_level(mage_skills, skills, SKILL_ICE_DEMON)
-        .and_then(|level| level.mastery)
-        .map(|value| value.clamp(0, 100))
-        .unwrap_or(0);
-    // 冰龍吐息的源熟练度是「永久覆盖值」：它**替换**较低的咒語精通，不叠加成第二条带。
-    let mastery_percent = spell_mastery_percent.max(demon_mastery_percent);
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_ICE_DEMON),
-        "mastery",
-        AttributeKey::Mastery,
-        AttributeOp::Highest,
-        demon_mastery_percent,
-    );
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_SPELL_MASTERY),
-        "mastery",
-        AttributeKey::Mastery,
-        AttributeOp::Highest,
-        spell_mastery_percent,
-    );
+    // 冰龍吐息的源熟练度是「永久覆盖值」：它以 `Highest` **替换**较低的咒語精通，
+    // 不叠加成第二条带 —— 所以整族用同一个 `max`，各本逐条留痕。
+    let base_mastery_percent =
+        (config.mastery.unwrap_or(0.1).clamp(0.0, 1.0) * 100.0).round() as i64;
+    let mut mastery_percent = base_mastery_percent;
+    for skill_id in MASTERY_SKILLS {
+        let contribution = learned_level(mage_skills, skills, skill_id)
+            .and_then(|level| level.mastery)
+            .map(|value| value.clamp(0, 100))
+            .unwrap_or(0);
+        rec.note_nonzero(
+            AttributeLayer::PassiveSkill,
+            Some(skill_id),
+            "mastery",
+            AttributeKey::Mastery,
+            AttributeOp::Highest,
+            contribution,
+        );
+        mastery_percent = mastery_percent.max(contribution);
+    }
     config.mastery = Some((mastery_percent as f64 / 100.0).clamp(0.0, 1.0));
 
     // ---- 最大 MP：基线 + 装备 + 魔法增幅（被动：`mmpR` 加算% + `lv2mmp` × 等级）----
@@ -862,26 +859,35 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         .clamp(0, 100);
     let move_speed = WALK_SPEED * (1.0 + speed_percent as f64 / 100.0);
 
-    // ---- 状态抗性 / 元素抗性：元素適應（被动）的直通字段；未学则不报 ----
+    // ---- 状态抗性 / 元素抗性：元素適應族的直通字段；未学则不报 ----
     // 抗性是**直通**：源里的值本来就是百分点，不再经过任何合并（`Flat` 只是表述「原样带入」）。
-    let adaptation = learned_level(mage_skills, skills, SKILL_ELEMENTAL_ADAPTING);
-    let status_resistance = adaptation.as_ref().and_then(|level| level.asr_r);
-    let element_resistance = adaptation.as_ref().and_then(|level| level.ter_r);
-    for (value, field, key) in [
-        (status_resistance, "asrR", AttributeKey::StatusResistance),
-        (element_resistance, "terR", AttributeKey::ElementResistance),
-    ] {
-        if let Some(value) = value {
+    // 三条分支各有一本（冰雷 2211012 / 火毒 2111011 / 祭司 2311012），**各记各的**再相加；
+    // 分支互斥，实际只可能命中一本。
+    let mut resistances = [None::<i64>; 2];
+    for skill_id in ELEMENTAL_ADAPTING_SKILLS {
+        let level = learned_level(mage_skills, skills, skill_id);
+        let asr = level.as_ref().and_then(|level| level.asr_r);
+        let ter = level.as_ref().and_then(|level| level.ter_r);
+        for (index, (value, field, key)) in [
+            (asr, "asrR", AttributeKey::StatusResistance),
+            (ter, "terR", AttributeKey::ElementResistance),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let Some(value) = value else { continue };
             rec.note_nonzero(
                 AttributeLayer::PassiveSkill,
-                Some(SKILL_ELEMENTAL_ADAPTING),
+                Some(skill_id),
                 field,
                 key,
                 AttributeOp::Flat,
                 value,
             );
+            resistances[index] = Some(resistances[index].unwrap_or(0).saturating_add(value));
         }
     }
+    let [status_resistance, element_resistance] = resistances;
 
     PlayerAttributes {
         config,

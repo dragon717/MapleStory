@@ -332,6 +332,32 @@ fn job_advance_reject_code(rx: &mut mpsc::Receiver<String>) -> Option<String> {
         .find_map(|message| message["code"].as_str().map(str::to_owned))
 }
 
+/// 二转在同一位转职官面前有**三条**分支（火毒／冰雷／主教），开场先出分支菜单；
+/// 挑中之后才是那条任务自己的菜单。按标题挑，不按下标硬编码——顺序由目录排序决定，
+/// 写死下标会在新增分支时悄悄指到别的路上。
+fn job_advance_pick_branch(
+    world: &mut World,
+    rx: &mut mpsc::Receiver<String>,
+    title_zh: &str,
+) -> serde_json::Value {
+    assert!(job_advance_talk(world, None, None), "转职官必须接话");
+    let menu = job_advance_say(rx);
+    let texts = job_advance_option_texts(&menu);
+    let index = texts
+        .iter()
+        .position(|text| text == title_zh)
+        .unwrap_or_else(|| panic!("分支菜单里没有「{title_zh}」，实际：{texts:?}")) as u32;
+    assert!(job_advance_talk(world, Some("select"), Some(index)));
+    job_advance_say(rx)
+}
+
+fn job_advance_branch_index(menu: &serde_json::Value, title_zh: &str) -> u32 {
+    job_advance_option_texts(menu)
+        .iter()
+        .position(|text| text == title_zh)
+        .unwrap_or_else(|| panic!("分支菜单里没有「{title_zh}」")) as u32
+}
+
 #[test]
 fn job_advance_is_only_offered_to_the_matching_job_and_npc() {
     let (mut world, mut rx) = job_advance_world();
@@ -341,9 +367,20 @@ fn job_advance_is_only_offered_to_the_matching_job_and_npc() {
     world.players.get_mut(MAGE_ID).unwrap().state.job = 0;
     assert!(!job_advance_talk(&mut world, None, None));
 
-    // 二转职业命中，并写下绑定具体任务的会话节点（避免跨任务串台）。
+    // 二转职业命中。法师二转有三条分支 ⇒ 先给**分支菜单**，节点还不绑具体任务。
     world.players.get_mut(MAGE_ID).unwrap().state.job = 200;
     assert!(job_advance_talk(&mut world, None, None));
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance-branch")
+    );
+    // 选了冰雷之后，节点才钉在那一条上（避免跨分支串台）。
+    let menu = job_advance_say(&mut rx);
+    let index = job_advance_branch_index(&menu, "冰雷法師的試煉");
+    assert!(job_advance_talk(&mut world, Some("select"), Some(index)));
     assert_eq!(
         world.npcs[HANS_NPC]
             .conversation
@@ -386,8 +423,7 @@ fn job_advance_dialogue_gates_on_level_then_accepts() {
 
     // ① 等级不足：命中但锁住，只给「結束對話」。
     world.players.get_mut(MAGE_ID).unwrap().state.level = 29;
-    assert!(job_advance_talk(&mut world, None, None));
-    let locked = job_advance_say(&mut rx);
+    let locked = job_advance_pick_branch(&mut world, &mut rx, "冰雷法師的試煉");
     assert!(
         locked["dialog"]["text"]
             .as_str()
@@ -398,8 +434,7 @@ fn job_advance_dialogue_gates_on_level_then_accepts() {
 
     // ② 达标后出现「接受試煉」。
     world.players.get_mut(MAGE_ID).unwrap().state.level = 30;
-    assert!(job_advance_talk(&mut world, None, None));
-    let offer = job_advance_say(&mut rx);
+    let offer = job_advance_pick_branch(&mut world, &mut rx, "冰雷法師的試煉");
     assert_eq!(
         job_advance_option_texts(&offer),
         vec!["接受試煉", "結束對話"]
@@ -425,7 +460,7 @@ fn job_advance_dialogue_gates_on_level_then_accepts() {
 #[test]
 fn job_advance_completion_needs_every_objective_and_consumes_items() {
     let (mut world, mut rx) = job_advance_world();
-    assert!(job_advance_talk(&mut world, None, None));
+    job_advance_pick_branch(&mut world, &mut rx, "冰雷法師的試煉");
     assert!(job_advance_talk(&mut world, Some("select"), Some(0)));
     let _ = job_advance_messages(&mut rx);
 
@@ -568,6 +603,128 @@ fn job_advance_defers_to_the_source_story_quest_at_the_same_npc() {
 }
 
 #[test]
+fn job_advance_second_job_offers_every_branch_and_sticks_to_the_choice() {
+    let (mut world, mut rx) = job_advance_world();
+    let _ = job_advance_messages(&mut rx);
+
+    // 法师二转在同一位转职官面前有三条路 ⇒ 必须让玩家自己挑。
+    assert!(job_advance_talk(&mut world, None, None));
+    let menu = job_advance_say(&mut rx);
+    assert_eq!(
+        job_advance_option_texts(&menu),
+        vec![
+            "火毒法師的試煉",
+            "冰雷法師的試煉",
+            "僧侶的試煉",
+            "結束對話"
+        ],
+        "二转必须给出全部分支，实际：{menu}"
+    );
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance-branch")
+    );
+
+    // 挑火毒 ⇒ 会话钉在那一条上，且只有这一条被接取。
+    let index = job_advance_branch_index(&menu, "火毒法師的試煉");
+    assert!(job_advance_talk(&mut world, Some("select"), Some(index)));
+    let offer = job_advance_say(&mut rx);
+    assert_eq!(
+        job_advance_option_texts(&offer),
+        vec!["接受試煉", "結束對話"]
+    );
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance:job-210")
+    );
+    assert!(job_advance_talk(&mut world, Some("select"), Some(0)));
+    assert_eq!(
+        world.players[MAGE_ID].quests.get("job-210").map(String::as_str),
+        Some("active")
+    );
+    assert_eq!(world.players[MAGE_ID].quests.get("job-220"), None);
+    assert_eq!(world.players[MAGE_ID].quests.get("job-230"), None);
+
+    // 路已经选过 ⇒ 再对话直接进那条，不再给一次「重新挑分支」的机会
+    // （否则玩家能把三条二转任务同时挂在身上）。
+    assert!(job_advance_talk(&mut world, None, None));
+    let progress = job_advance_say(&mut rx);
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance:job-210"),
+        "已接取的分支必须直接续上，不要再出分支菜单"
+    );
+    assert!(
+        !job_advance_option_texts(&progress)
+            .iter()
+            .any(|text| text == "冰雷法師的試煉"),
+        "已选定分支后不得再提供别的分支入口"
+    );
+}
+
+#[test]
+fn job_advance_third_transfer_has_no_branch_menu() {
+    let (mut world, mut rx) = job_advance_world();
+    let _ = job_advance_messages(&mut rx);
+    {
+        let player = world.players.get_mut(MAGE_ID).unwrap();
+        // 火毒二转已完成 ⇒ 此时只有三转这一条路。
+        player.state.job = 210;
+        player.state.level = 60;
+        player.quests.insert("job-210".to_owned(), "completed".to_owned());
+    }
+    assert!(job_advance_talk(&mut world, None, None));
+    let view = job_advance_say(&mut rx);
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance:job-211"),
+        "三转只有一条路，不该再问玩家挑哪条"
+    );
+    assert_eq!(
+        job_advance_option_texts(&view),
+        vec!["接受試煉", "結束對話"]
+    );
+}
+
+#[test]
+fn job_advance_active_trial_hides_the_other_branches() {
+    let (mut world, mut rx) = job_advance_world();
+    let _ = job_advance_messages(&mut rx);
+    world
+        .players
+        .get_mut(MAGE_ID)
+        .unwrap()
+        .quests
+        .insert("job-230".to_owned(), "active".to_owned());
+
+    // 已经走在主教这条路上 ⇒ 开场直接续它，其他分支不再出现。
+    assert!(job_advance_talk(&mut world, None, None));
+    let view = job_advance_say(&mut rx);
+    assert_eq!(
+        world.npcs[HANS_NPC]
+            .conversation
+            .get(MAGE_ID)
+            .map(String::as_str),
+        Some("job-advance:job-230")
+    );
+    let texts = job_advance_option_texts(&view);
+    assert!(!texts.iter().any(|text| text == "火毒法師的試煉"));
+    assert!(!texts.iter().any(|text| text == "冰雷法師的試煉"));
+}
+
+#[test]
 fn job_advance_rejects_while_dead_and_requires_prerequisite() {
     let (mut world, mut rx) = job_advance_world();
 
@@ -587,7 +744,11 @@ fn job_advance_rejects_while_dead_and_requires_prerequisite() {
     player.state.action = "stand";
     player.quests.remove("1402");
     assert!(job_advance_talk(&mut world, None, None));
+    let menu = job_advance_say(&mut rx);
+    let index = job_advance_branch_index(&menu, "冰雷法師的試煉");
+    assert!(job_advance_talk(&mut world, Some("select"), Some(index)));
     let _ = job_advance_messages(&mut rx);
+    // 条件不足 ⇒ 菜单里只有「結束對話」；硬按下标 0 也要被拒。
     assert!(job_advance_talk(&mut world, Some("select"), Some(0)));
     assert_eq!(
         job_advance_reject_code(&mut rx).as_deref(),

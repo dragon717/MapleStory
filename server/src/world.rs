@@ -255,6 +255,82 @@ const HYPER_ACTIVE_IDS: [u32; 3] = [
     SKILL_HYPER_ADVENTURER,
     SKILL_HYPER_VORTEX,
 ];
+// ── 火毒（210/211）与僧侶（230/231）分支的**对称被动** ───────────────────────
+// 三条分支与冰雷共用同一套被动设计，只是书不同。下表把「源字段 → 归哪几本」全部收口成
+// 数据表；冰雷那几本在下面早已登记，这里补上另外两条分支的同一格。
+// **分支互斥**（一个角色只可能持有自己分支的那一本），但每一本都必须能被独立留痕，
+// 所以按常量逐个登记成数组，而不是把两条分支合成一个数。
+const SKILL_SPELL_MASTERY_FP: u32 = 2100006;
+const SKILL_SPELL_MASTERY_CLERIC: u32 = 2300006;
+const SKILL_HOLY_FOCUS: u32 = 2310008;
+const SKILL_INTELLIGENCE_FP: u32 = 2100007;
+const SKILL_INTELLIGENCE_CLERIC: u32 = 2300007;
+const SKILL_BOOSTER_FP: u32 = 2100011;
+const SKILL_BOOSTER_CLERIC: u32 = 2300011;
+const SKILL_ELEMENT_AMP_FP: u32 = 2110001;
+const SKILL_ELEMENTAL_RESET_FP: u32 = 2110015;
+const SKILL_MAGIC_CRITICAL_FP: u32 = 2110009;
+const SKILL_MAGIC_CRITICAL_CLERIC: u32 = 2310010;
+const SKILL_ELEMENTAL_ADAPTING_FP: u32 = 2111011;
+const SKILL_DIVINE_PROTECTION: u32 = 2311012;
+
+/// 熟练度（`mastery`，取**高者** `AttributeOp::Highest`）：三本 咒語精通、神聖集中術，
+/// 外加冰龍吐息 —— 后者的源熟练度是「永久覆盖值」，用 `Highest` 表达正是它替换较低
+/// 咒語精通的语义（不是叠加成第二条带）。
+const MASTERY_SKILLS: [u32; 5] = [
+    SKILL_SPELL_MASTERY,
+    SKILL_SPELL_MASTERY_FP,
+    SKILL_SPELL_MASTERY_CLERIC,
+    SKILL_HOLY_FOCUS,
+    SKILL_ICE_DEMON,
+];
+/// 魔法攻击的 `x` 段：源里**同时**带 `mastery` 与 `x` 的技能恰好是三本 咒語精通，
+/// 它们既是熟练度来源也是魔攻来源（神聖集中術只有 `cr`/`ar`/`mastery`，没有 `x`）。
+const SPELL_MASTERY_X_SKILLS: [u32; 3] = [
+    SKILL_SPELL_MASTERY,
+    SKILL_SPELL_MASTERY_FP,
+    SKILL_SPELL_MASTERY_CLERIC,
+];
+/// 智慧昇華 / 極速詠唱族（`intX`，加算）。门禁按数组**成员**逐个钉住这张表——
+/// 源里新增一本带 `intX` 的技能而没人登记，门禁就红。
+const INTELLIGENCE_SKILLS: [u32; 6] = [
+    SKILL_INTELLIGENCE,
+    SKILL_INTELLIGENCE_FP,
+    SKILL_INTELLIGENCE_CLERIC,
+    SKILL_BOOSTER,
+    SKILL_BOOSTER_FP,
+    SKILL_BOOSTER_CLERIC,
+];
+/// 元素適應族（`asrR` / `terR`，直通加算）：冰雷 2211012、火毒 2111011、祭司 2311012。
+const ELEMENTAL_ADAPTING_SKILLS: [u32; 3] = [
+    SKILL_ELEMENTAL_ADAPTING,
+    SKILL_ELEMENTAL_ADAPTING_FP,
+    SKILL_DIVINE_PROTECTION,
+];
+/// 魔力激發（`damR` 常駐段，加算组）：冰雷 2210001 / 火毒 2110001。
+const ELEMENT_AMP_SKILLS: [u32; 2] = [SKILL_ELEMENT_AMP, SKILL_ELEMENT_AMP_FP];
+/// 自然力重置（`mdR`，源里没有分组标记 ⇒ 独立乘算）：冰雷 2210016 / 火毒 2110015。
+const ELEMENTAL_RESET_SKILLS: [u32; 2] = [SKILL_ELEMENTAL_RESET, SKILL_ELEMENTAL_RESET_FP];
+/// 魔法爆擊（`criticaldamage`，暴击组）：冰雷 2210009 / 火毒 2110009 / 僧侶 2310010。
+const MAGIC_CRITICAL_SKILLS: [u32; 3] = [
+    SKILL_MAGIC_CRITICAL,
+    SKILL_MAGIC_CRITICAL_FP,
+    SKILL_MAGIC_CRITICAL_CLERIC,
+];
+/// 暴击**率**（`cr`，加算）：带 `cr` 的两本 咒語精通、神聖集中術、三本 魔法爆擊。
+/// 源里 `cr` 还出现在攻击技能自身上（`2220051` 冰鋒刃-强化暴击、`2221006` 閃電連擊 等），
+/// 那些是「这一击的暴击」语义，不进这张表 —— 所以按常量登记成一张**决定**，不按字段反推。
+const CRITICAL_CHANCE_SKILLS: [u32; 6] = [
+    SKILL_SPELL_MASTERY,
+    SKILL_SPELL_MASTERY_FP,
+    SKILL_HOLY_FOCUS,
+    SKILL_MAGIC_CRITICAL,
+    SKILL_MAGIC_CRITICAL_FP,
+    SKILL_MAGIC_CRITICAL_CLERIC,
+];
+/// 極速詠唱（攻击速度）：三本分支各一本，源加速值在 `psdWeaponBooster.actionSpeed`。
+const BOOSTER_SKILLS: [u32; 3] = [SKILL_BOOSTER, SKILL_BOOSTER_FP, SKILL_BOOSTER_CLERIC];
+
 const SKILL_THREE_SNAILS: u32 = 1000;
 const SKILL_RECOVERY: u32 = 1001;
 const SKILL_NIMBLE_FEET: u32 = 1002;

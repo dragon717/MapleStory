@@ -173,6 +173,44 @@ const idForConst = name => {
   return String(id);
 };
 
+/**
+ * `const NAME: [u32; N] = [SKILL_A, SKILL_B];` → 成员常量名。
+ *
+ * 火毒 / 僧侶两条分支上线后，「同一格」来源从 1 本变成 2~3 本。逐本 `skill_id: SKILL_…`
+ * 硬编码会写成重复代码块、且新增分支时容易漏掉某一段；所以消费统一写成
+ * `for skill_id in NAME`，**成员清单留在 `world.rs` 的数据表里**，门禁按成员逐个重算。
+ */
+const skillArrays = new Map();
+for (const match of worldSrc.matchAll(
+  /const ([A-Z][A-Z0-9_]*): \[u32; (\d+)\] = \[([\s\S]*?)\];/g,
+)) {
+  skillArrays.set(match[1], {
+    declared: Number(match[2]),
+    members: [...match[3].matchAll(/(SKILL_[A-Z0-9_]+)/g)].map(hit => hit[1]),
+  });
+}
+const idsForArray = name => {
+  const entry = skillArrays.get(name);
+  assert.ok(entry, `world.rs 里没有数组常量 ${name}`);
+  assert.equal(
+    entry.declared, entry.members.length,
+    `${name} 的长度标注是 ${entry.declared}，实际条目 ${entry.members.length} 个`,
+  );
+  return entry.members.map(idForConst).sort();
+};
+/** 「逐本消费」的形状：循环头绑定这张表，体内按同一个 `DamageSource` 变体声明。 */
+const assertLoopedSource = (array, kind, extra = '') => {
+  const looped = new RegExp(`for (?:amp|reset|critical)_skill in ${array} \\{`).test(skillsSrc);
+  assert.ok(looped, `skills.rs 没有按 \`for … in ${array}\` 逐本消费——新增分支会静默漏掉`);
+  const shape = new RegExp(
+    `DamageSource::${kind} \\{\\s*skill_id: [a-z_]+${extra},?\\s*\\}`,
+  );
+  assert.ok(
+    shape.test(skillsSrc),
+    `skills.rs 的 ${array} 消费没有按 DamageSource::${kind} 声明来源`,
+  );
+};
+
 const catalogDamR = catalogIdsWith('damR');
 assert.ok(catalogDamR.length > 0, '源技能表里一个 damR 都没有？形状变了');
 
@@ -181,15 +219,17 @@ assert.ok(catalogDamR.length > 0, '源技能表里一个 damR 都没有？形状
 const ampIds = catalogDamR.filter(id => mageSkills.skills[id].hyper === 0);
 const hyperDamRIds = catalogDamR.filter(id => mageSkills.skills[id].hyper === 1);
 assert.deepEqual(
-  ampIds, ['2210001'],
+  ampIds, ['2110001', '2210001'],
   `源里 damR 的常驻段是 ${ampIds.join('/')}：这一段与 skills.rs 的「常驻被动」分支必须一一对应`,
 );
-for (const id of ampIds) {
-  assert.ok(
-    damageSourceMentions(id, 'DamageRate', skillsSrc),
-    `源里 damR 的常驻段 ${id} 在 skills.rs 里没有 DamageRate 声明`,
-  );
-}
+// 常驻段的两本（冰雷 2210001 / 火毒 2110001）绑在 `ELEMENT_AMP_SKILLS` 上，
+// 由「成员 == 源表重算结果」+「循环头绑定这张表」+「体内按统一变体声明」三件一起钉住。
+assert.deepEqual(
+  idsForArray('ELEMENT_AMP_SKILLS'), ampIds,
+  `world.rs 的 ELEMENT_AMP_SKILLS 成员是 ${idsForArray('ELEMENT_AMP_SKILLS').join('/')}，`
+  + `源里 damR 的常驻段是 ${ampIds.join('/')}——新增一本分支就必须同时改这张表`,
+);
+assertLoopedSource('ELEMENT_AMP_SKILLS', 'DamageRate');
 assert.ok(hyperDamRIds.length > 0, '源里一个 Hyper 强化段的 damR 都没有？形状变了');
 // Hyper 强化段：`match skill_id { SKILL_A => SKILL_HYPER_B, ... }`，逐条要求
 // 「被强化的技能」与「提供 damR 的那本被动」都能在源表里对上。
@@ -222,29 +262,26 @@ assert.ok(
   `源里唯一的 indieDamR 来源 ${indieId} 必须在普通攻击与魔法技能两条路径上都声明为 IndependentDamageRate`,
 );
 
-// 3c. `criticaldamage`：只走暴击组。
+// 3c. `criticaldamage`：只走暴击组。三本（冰雷 2210009 / 火毒 2110009 / 僧侶 2310010）绑表。
 const catalogCrit = catalogIdsWith('criticaldamage');
 assert.ok(catalogCrit.length > 0, '源技能表里一个 criticaldamage 都没有？形状变了');
-for (const id of catalogCrit) {
-  assert.ok(
-    damageSourceMentions(id, 'CriticalDamage', skillsSrc),
-    `源里的 criticaldamage 技能 ${id} 在 skills.rs 里没有 CriticalDamage 声明`,
-  );
-}
+assert.deepEqual(
+  idsForArray('MAGIC_CRITICAL_SKILLS'), catalogCrit,
+  `world.rs 的 MAGIC_CRITICAL_SKILLS 成员是 ${idsForArray('MAGIC_CRITICAL_SKILLS').join('/')}，`
+  + `源里带 criticaldamage 的技能是 ${catalogCrit.join('/')}`,
+);
+assertLoopedSource('MAGIC_CRITICAL_SKILLS', 'CriticalDamage');
 
 // 3d. `mdR`：源里没有分组标记 ⇒ 必须报成 UnmarkedField，且 `field` 逐字写源字段名。
+//     两本自然力重置（冰雷 2210016 / 火毒 2110015）。
 const catalogMdR = catalogIdsWith('mdR');
 assert.ok(catalogMdR.length > 0, '源技能表里一个 mdR 都没有？形状变了');
-for (const id of catalogMdR) {
-  const constant = constFor(Number(id));
-  assert.ok(constant, `源里的 mdR 技能 ${id} 在 world.rs 里没有常量`);
-  assert.ok(
-    new RegExp(
-      `DamageSource::UnmarkedField \\{\\s*skill_id: ${constant},\\s*field: "mdR"`,
-    ).test(skillsSrc),
-    `源里的 mdR 技能 ${id} 必须声明为 UnmarkedField { field: "mdR" }（没有分组标记就不猜）`,
-  );
-}
+assert.deepEqual(
+  idsForArray('ELEMENTAL_RESET_SKILLS'), catalogMdR,
+  `world.rs 的 ELEMENTAL_RESET_SKILLS 成员是 ${idsForArray('ELEMENTAL_RESET_SKILLS').join('/')}，`
+  + `源里带 mdR 的技能是 ${catalogMdR.join('/')}`,
+);
+assertLoopedSource('ELEMENTAL_RESET_SKILLS', 'UnmarkedField', ',\\s*field: "mdR"');
 
 /** 源里带分组标记的三个字段名——它们是「哪些加算、哪些独立乘算」的全部依据。 */
 assert.deepEqual(
