@@ -12,6 +12,26 @@ const require = createRequire(import.meta.url);
 const { skillManifest } = require(path.join(root, 'scripts/tms273_skill_manifest.cjs'));
 const readJson = async name => JSON.parse(await readFile(path.join(root, 'resources/tms273-export', `${name}.json`), 'utf8'));
 
+// `view.ts` 的 import 行在下面会被整段剥掉（原样保留了「页面里 import 什么就
+// 在全局注入什么」的做法），所以共享的书准入权威必须**在导入 view.ts 之前**
+// 落到 globalThis 上：BOOK_JOBS / GRANTED_FIXED_SKILLS 都是模块顶层 const，
+// 导入那一刻就要读这些名字。
+const inputSource = await readFile(new URL('../player/input.ts', import.meta.url), 'utf8');
+const inputJs = ts.transpileModule(inputSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+}).outputText;
+const inputModule = await import(`data:text/javascript;base64,${Buffer.from(inputJs).toString('base64')}`);
+const {
+  PlayerInput, SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
+  MAGE_JOB_WHITELIST, ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
+  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob,
+} = inputModule;
+Object.assign(globalThis, {
+  SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
+  MAGE_JOB_WHITELIST, ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
+  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob,
+});
+
 const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -121,10 +141,6 @@ view.player.skillPoints = { '200': 5 };
 assert.equal(view.canLearn(thunderBolt), false, 'book-200 points cannot impersonate book-220 points');
 console.log('PASS: source text plus book-200 SP, learning gates, unique intents, live-mage casting, and wave direction.');
 
-const inputSource = await readFile(new URL('../player/input.ts', import.meta.url), 'utf8');
-const inputJs = ts.transpileModule(inputSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { PlayerInput, SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS } = await import(`data:text/javascript;base64,${Buffer.from(inputJs).toString('base64')}`);
-globalThis.SHORTCUT_SKILLS = SHORTCUT_SKILLS;
 assert.deepEqual([SHORTCUT_SKILLS.Digit8, SHORTCUT_SKILLS.Digit9, SHORTCUT_SKILLS.Digit0], [2211002, 2211014, 2211011]);
 view.manifest = skillManifest(windowExport, skills);
 view.player = mage({ job: 220, skills: { '2211002': 1 }, skillPoints: { '221': 5 } });
@@ -155,7 +171,6 @@ view.player.job = 220;
 assert.equal(input.canCastShortcut(2211002), false);
 console.log('PASS: third-job book/SP gates, hidden node, cooldown feedback, toggles and shortcut direction.');
 
-globalThis.FOURTH_SHORTCUT_SKILLS = FOURTH_SHORTCUT_SKILLS;
 assert.equal(FOURTH_SHORTCUT_SKILLS.Digit6, 2221011);
 view.player = mage({ job: 221, skills: { '2221011': 1 }, skillPoints: { '222': 3 } });
 assert(!view.books().some(([id]) => id === '222'));
@@ -168,6 +183,28 @@ assert.equal(view.canLearn(catalog['2220015']), false);
 assert.equal(view.canCast(catalog['2220013']), false);
 assert.equal(view.canCast(catalog['2221011']), true);
 assert.equal(input.canCastShortcut(2221011), true);
+// 火毒（210/211/212）与主教（230/231/232）读同一张书准入表，书号从技能 id 派生
+// （`bookIdForSkill` = skillId / 10000，与 server/src/mage.rs 同口径）。
+// 早先按 `skillId >= 2200000` 分段，把 23xxxxx 也划进了冰雷区间，
+// 于是整条主教分支的技能都被判成「职业不可用」。
+assert.deepEqual(
+  [bookIdForSkill(1000), bookIdForSkill(2121006), bookIdForSkill(2321001)],
+  ['0', '212', '232'],
+  '书号由技能 id 高两位派生',
+);
+for (const [job, skillId, allowed] of [
+  [211, 2121006, false], [212, 2121006, true],
+  [220, 2201008, true], [221, 2211002, true], [220, 2211002, false], [220, 2221011, false],
+  [230, 2301005, true], [231, 2321001, false], [232, 2321001, true], [222, 2321001, false],
+]) {
+  view.player = mage({ job, skills: { [String(skillId)]: 1 } });
+  assert.equal(input.canCastShortcut(skillId), allowed, `job ${job} 对 ${skillId} 的快捷栏准入`);
+}
+view.player = mage({ job: 0, skills: { '1000': 1, '2121006': 1 } });
+assert.equal(input.canCastShortcut(1000), true, '初心者可以施放自己的技能');
+assert.equal(input.canCastShortcut(2121006), false, '初心者不能借表施放法师技能');
+// 恢复四转状态：下面几条断言（冷却/持续施放提示）读的是同一个 222 视角。
+view.player = mage({ job: 222, skills: { '2221011': 1 }, skillPoints: { '222': 3 } });
 view.player.derivedStats = { skillCooldowns: { '2221011': 1001 } };
 assert.match(view.castBlockReason(catalog['2221011']), /2 秒/);
 view.player.derivedStats = { skillBuffs: { '2221011': 5000 } };

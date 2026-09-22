@@ -1,7 +1,13 @@
 import type { ClientMessage, PlayerState, RegenerationPassive } from '../../../../shared/protocol';
 import type { SkillArt, SkillCatalogEntry, SkillWindowData, Manifest } from '../../assets/manifest';
 import { displayText } from '../../app/i18n';
-import { SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS } from '../player/input';
+// 书准入（BOOK_JOBS / bookAllowsJob）与三张 Shift 快捷表的**唯一家在**
+// `../player/input`：那边是不引运行期依赖的叶子模块，键盘层与 HUD 也读同一份表。
+import {
+  bookAllowsJob,
+  SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
+  ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
+} from '../player/input';
 import { installWindowDrag } from '../ui/window-shell.ts';
 import './style.css';
 
@@ -43,52 +49,32 @@ const METRICS: ReadonlyArray<readonly [SkillMetric, string, string]> = [
   ['attackCount', '攻击段数', ''],
 ];
 
-export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012']);
+export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054', '1000', '1001', '1002', '2001002', '2001008', '2001009', '2001011', '2001012', '2201001', '2201005', '2201008', '2201009', '2211002', '2211007', '2211011', '2211012', '2211014', '2211017', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008', '2221011', '2221012',
+  // 火毒（210/211/212）与主教（230/231/232）的攻击技能：与服务端
+  // `world.rs::BRANCH_AREA_ATTACKS` 是**同一份名单**，服务端那条范围管线与冰雷共用。
+  // 不在名单里的主动技能（召唤物/治疗/增益窗等，服务端仍是「尚未开放施放」）
+  // 不在这里出现 —— 它们没有施放按钮，也就不会被拖到快捷栏。
+  '2101004', '2101005', '2111002', '2111003', '2121003', '2121006', '2121007', '2121011',
+  '2301005', '2301010', '2311004', '2321001', '2321007', '2321008']);
 const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2001002', '2201009', '2211007', '2211017']);
+// 源里「四转书」＝ 每条分支的第三本（火毒 212 / 冰雷 222 / 主教 232），
+// 与 `server/src/mage.rs::FOURTH_JOB_BOOKS` 同名同义。详情页靠它决定
+// 「战斗状态行」与「Shift 快捷键提示」的适用范围，加分支时要一起改。
+const FOURTH_JOB_BOOKS = new Set(['212', '222', '232']);
+const FOURTH_SHORTCUT_TABLES = [FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS] as const;
 // fixLevel（源里最大等级＝1）的技能无法用 SP 升级，只能由转职 NPC 直接授予：
-// 2200011 結冰特效、2100009 元素吸收、2300009 祝福福音。列表与
+// 2200011 結冰特效、2100009 元素吸收、2300009 祝福福音，以及三条分支四转的
+// 2220015 冰凍效果 / 2120014 元素強化 / 2320013 祝福旋律。列表与
 // `shared/job-advance.json` 的 reward.skills 一一对应，增删要一起改。
-const FIXED_SKILLS = new Set(['2200011', '2100009', '2300009', '2220015']);
-const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
-const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
-const FIRE_POISON_JOB_WHITELIST = new Set([210, 211, 212]);
-const CLERIC_JOB_WHITELIST = new Set([230, 231, 232]);
-
-/**
- * 技能书 → 能持有该书的职业集合；**这是客户端唯一的书准入权威**，
- * canLearn / castBlockReason / books() 三处都读它，不再各自内联 bookId 判断。
- *
- * 页签语义是「转职层级」而不是「技能书」：同层三个分支（火毒 210 / 冰雷 220 / 僧侶 230 的 2 转）
- * 共用一个页签下标（见 `scripts/tms273_skill_manifest.cjs` 的 SKILL_BOOK_TABS），
- * 实际进入哪本由职业决定 ⇒ 两张表必须同时维护。
- *
- * 表里没有的书沿用「不限制职业」的旧行为（战士书 '100' 依赖这条：它的门控由
- * derivedStats.regenerationPassives.bookId 决定，不是职业号）。
- */
-const BOOK_JOBS: Readonly<Record<string, ReadonlySet<number>>> = {
-  '0': new Set([0, ...MAGE_JOB_WHITELIST]),
-  '200': MAGE_JOB_WHITELIST,
-  '210': FIRE_POISON_JOB_WHITELIST,
-  '220': ICE_LIGHTNING_JOB_WHITELIST,
-  '230': CLERIC_JOB_WHITELIST,
-  '211': new Set([211, 212]),
-  '221': new Set([221, 222]),
-  '231': new Set([231, 232]),
-  '212': new Set([212]),
-  '222': new Set([222]),
-  '232': new Set([232]),
-};
-
-function bookAllowsJob(bookId: string, job: number | undefined): boolean {
-  const allowed = BOOK_JOBS[bookId];
-  return allowed ? allowed.has(job ?? -1) : true;
-}
-
+const FIXED_SKILLS = new Set(['2200011', '2100009', '2300009', '2220015', '2120014', '2320013']);
 /** 转职 NPC 直接授予的 fixLevel 技能：等级由职业推断，不走 SP/learnedLevel 落库路径。 */
 const GRANTED_FIXED_SKILLS: ReadonlyArray<readonly [string, ReadonlySet<number>]> = [
   ['2200011', ICE_LIGHTNING_JOB_WHITELIST],
   ['2100009', FIRE_POISON_JOB_WHITELIST],
   ['2300009', CLERIC_JOB_WHITELIST],
+  ['2220015', ICE_LIGHTNING_JOB_WHITELIST],
+  ['2120014', FIRE_POISON_JOB_WHITELIST],
+  ['2320013', CLERIC_JOB_WHITELIST],
 ];
 
 /**
@@ -765,7 +751,10 @@ export class SkillView {
     }
     if (actions.childElementCount) this.detailView.append(actions);
 
-    const fourthKey = Object.entries(FOURTH_SHORTCUT_SKILLS).find(([, id]) => String(id) === entry.id)?.[0];
+    // 三条分支各有自己的 Shift 行；技能 id 带分支前缀，扫三张表不会撞号。
+    const fourthKey = FOURTH_SHORTCUT_TABLES
+      .flatMap(table => Object.entries(table))
+      .find(([, id]) => String(id) === entry.id)?.[0];
     const shortcut = this.options.shortcutLabel ? this.options.shortcutLabel(Number(entry.id)) : fourthKey ? `Shift + ${fourthKey.slice(5)}` : this.player?.job === 0 && ['1000', '1001', '1002'].includes(entry.id) ? String(Number(entry.id) - 999) : Object.entries(SHORTCUT_SKILLS).find(([key, id]) => key.startsWith('Digit') && String(id) === entry.id)?.[0].slice(5);
     if (shortcut) {
       const hint = document.createElement('p');
@@ -774,7 +763,7 @@ export class SkillView {
       this.detailView.append(hint);
     }
 
-    if ((entry.bookId === '0' || entry.bookId === '222') && this.isActiveSkill(entry)) {
+    if ((entry.bookId === '0' || FOURTH_JOB_BOOKS.has(entry.bookId)) && this.isActiveSkill(entry)) {
       const state = document.createElement('p');
       state.className = 'skill-detail-description';
       const remaining = this.player?.derivedStats?.skillBuffs?.[entry.id] ?? 0;

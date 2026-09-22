@@ -227,11 +227,10 @@ assert.ok(catalogDamR.length > 0, '源技能表里一个 damR 都没有？形状
  */
 const NOT_CONSUMED = {
   // Hyper 强化被动：damR 只在「被强化的那一招打出去」时才生效。
-  damR: {
-    '2120043': { boosted: '2111003', why: '致命毒霧-強化傷害' },
-    '2120046': { boosted: '2121006', why: '火焰之襲-強化' },
-    '2120049': { boosted: '2121003', why: '地獄爆發-強化加農' },
-  },
+  // 三本四转书的强化被动现**全部接通**：冰雷 2220043/2220046/2220049 与火毒
+  // 2120043/2120046/2120049 都在 `skills.rs::magic_damage_breakdown` 的
+  // 「被强化技能 → 强化被动」配对表里（`hyperPairs` 会逐条从源码解出并断言）。
+  damR: {},
   // Hyper 主动增益：indieDamR / mdR 是「窗口内」的值，必须先有施法与增益窗。
   indieDamR: {
     '2121053': { boosted: '2121053', why: '傳說冒險（火毒）' },

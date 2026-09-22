@@ -1,6 +1,6 @@
 import type { PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, SkillCatalogEntry } from '../../assets/manifest';
-import { shortcutSkill } from '../player/input.ts';
+import { shortcutSkill, bookAllowsJob, branchFourthJob } from '../player/input.ts';
 import type { KeyBinding } from '../keybindings/model';
 import { BuffBar } from './buff-bar.ts';
 
@@ -33,9 +33,6 @@ const SHORTCUT_BINDINGS = [
   })),
 ] as const;
 
-const MAGE_JOBS = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
-const ICE_LIGHTNING_JOBS = new Set([220, 221, 222]);
-const FOURTH_JOB = 222;
 const SOURCE_SLOT_COLUMNS = 16;
 const SOURCE_SLOT_SIZE = 32;
 const SOURCE_SLOT_STEP = 35;
@@ -503,9 +500,11 @@ export class HudView {
 
   private shortcutId(job: number | undefined, binding: ShortcutBinding): number | undefined {
     // Keep the HUD on the same project mapping as physical keyboard input. A
-    // fourth-job icon remains visible before 222 so the disabled state explains
-    // the reserved Shift row instead of turning it into an unexplained gap.
-    return binding.shift ? shortcutSkill(FOURTH_JOB, binding.code, true) : shortcutSkill(job, binding.code, false);
+    // fourth-job icon remains visible before the fourth job so the disabled
+    // state explains the reserved Shift row instead of turning it into an
+    // unexplained gap — and it is the player's *own* branch row (火毒 212 /
+    // 冰雷 222 / 主教 232), not always the ice/lightning one.
+    return binding.shift ? shortcutSkill(branchFourthJob(job), binding.code, true) : shortcutSkill(job, binding.code, false);
   }
 
   private skillLevel(player: HudPlayer, skillId: number): number {
@@ -544,14 +543,10 @@ export class HudView {
 
   private jobAllows(entry: SkillCatalogEntry, job: number | undefined) {
     if (job === undefined) return false;
-    switch (entry.bookId) {
-      case '0': return job === 0 || MAGE_JOBS.has(job);
-      case '200': return MAGE_JOBS.has(job);
-      case '220': return ICE_LIGHTNING_JOBS.has(job);
-      case '221': return job === 221 || job === 222;
-      case '222': return job === FOURTH_JOB;
-      default: return false;
-    }
+    // 与技能窗 canLearn/castBlockReason 读同一张权威表（`../player/input` 的
+    // BOOK_JOBS）：这里再写一份 switch 就只能在加分支时漏掉一格，
+    // 火毒/主教的书号（210/211/212/230/231/232）就是这么被 default 判成不可用的。
+    return bookAllowsJob(entry.bookId, job);
   }
 
   private shortcutPointerDown(event: PointerEvent, cell: ShortcutCell) {

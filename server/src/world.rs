@@ -293,6 +293,52 @@ const SKILL_MAPLE_WARRIOR_CLERIC: u32 = 2321000;
 // （`SKILL_MASTER_MAGIC`），这里补另外两条分支；2320012 同时提供 `mdR`（见
 // `ELEMENTAL_RESET_SKILLS`），同一本进两张表并不冲突——那是两个不同的源字段。
 const SKILL_MASTER_MAGIC_FP: u32 = 2120012;
+// ── 火毒（210/211/212）与主教（230/231/232）的**主动攻击技能** ────────────────
+// 与冰雷那一套同形：命中盒取源 `common/lt|rb` 绕玩家、伤害与段数取 `level`，走同一条
+// `cast_elemental_area` 管线。元素属性只决定「是否触发冰冻层」——火（`f`）/毒（`s`）/
+// 聖（`h`）三系在源里都没有冻结字段，所以传 `lightning = false`（与冰雷的 `COLD_BEAM`
+// 同一次调用形态）。改前这些技能在 `handle_cast_skill` 落进被动白名单被拒，两条分支的
+// 攻击技能只进目录、打不出去。
+const SKILL_FIRE_BOLT: u32 = 2101004;
+const SKILL_POISON_MIST: u32 = 2101005;
+const SKILL_BLAZING_FLAME: u32 = 2111002;
+const SKILL_POISON_BREATH: u32 = 2111003;
+const SKILL_HELLFIRE: u32 = 2121003;
+const SKILL_FLAME_SWEEP: u32 = 2121006;
+const SKILL_METEOR_SHOWER: u32 = 2121007;
+const SKILL_SEARING_POISON: u32 = 2121011;
+const SKILL_HOLY_ARROW: u32 = 2301005;
+const SKILL_ANGELIC_TOUCH: u32 = 2301010;
+const SKILL_HOLY_LIGHT: u32 = 2311004;
+const SKILL_ANGEL_RAY: u32 = 2321001;
+const SKILL_ANGELIC_ARROW: u32 = 2321007;
+const SKILL_HEAVENLY_WRATH: u32 = 2321008;
+/// 火毒 / 主教的攻击技能（同一道「魔法攻击技能」闸门与同一条范围管线）。
+/// **只登记真正接了执行链的那些**：门禁反向断言「目录里有伤害字段、却不在这张表里」的技能
+/// 必须逐条写明理由（召唤物、治疗、DoT 这类需要独立机制的另有登记）。
+const BRANCH_AREA_ATTACKS: [u32; 14] = [
+    SKILL_FIRE_BOLT,
+    SKILL_POISON_MIST,
+    SKILL_BLAZING_FLAME,
+    SKILL_POISON_BREATH,
+    SKILL_HELLFIRE,
+    SKILL_FLAME_SWEEP,
+    SKILL_METEOR_SHOWER,
+    SKILL_SEARING_POISON,
+    SKILL_HOLY_ARROW,
+    SKILL_ANGELIC_TOUCH,
+    SKILL_HOLY_LIGHT,
+    SKILL_ANGEL_RAY,
+    SKILL_ANGELIC_ARROW,
+    SKILL_HEAVENLY_WRATH,
+];
+// ── 火毒四转的三条 Hyper 强化被动（`damR`，只强化指定的那一招） ───────────────
+// 源里 Hyper「強化」节点只带 `damR` 一个字段，**不写**它强化的是哪一招（没有 `psdSkill`
+// 之类的可用字段），所以配对表只能按技能名人工登记成常量对；配好之后
+// `magic_damage_breakdown` 在「被强化的那一招打出去」时把这份 damR 加进加算组。
+const SKILL_HYPER_POISON_DAMAGE: u32 = 2120043;
+const SKILL_HYPER_FLAME_DAMAGE: u32 = 2120046;
+const SKILL_HYPER_HELLFIRE_DAMAGE: u32 = 2120049;
 
 /// 熟练度（`mastery`，取**高者** `AttributeOp::Highest`）：三本 咒語精通、神聖集中術，
 /// 外加冰龍吐息/火魔神 —— 后者们的源熟练度是「永久覆盖值」，用 `Highest` 表达正是它
@@ -3680,21 +3726,15 @@ impl World {
 }
 
 fn mage_job_allowed(job: u32) -> bool {
-    matches!(
-        job,
-        200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232
-    )
+    // 唯一的法师职业清单在 `mage::MAGE_JOBS`（准入表与客户端 BOOK_JOBS 同源）。
+    crate::mage::is_mage_job(job)
 }
 
 fn skill_job_allowed(job: u32, book_id: u32) -> bool {
-    match book_id {
-        BEGINNER_BOOK => job == BEGINNER_JOB || mage_job_allowed(job),
-        MAGE_BOOK => mage_job_allowed(job),
-        ICE_BOOK => matches!(job, 220 | 221 | 222),
-        THIRD_BOOK => matches!(job, 221 | 222),
-        FOURTH_BOOK => job == ICE_FOURTH_JOB,
-        _ => false,
-    }
+    // 判据只有一份：`mage::book_jobs`（书的编号就是职业号，按分支与转职层级派生）。
+    // 改前这里写死 `ICE_BOOK/THIRD_BOOK/FOURTH_BOOK` 三条臂，另外两条分支落进 `_ => false`
+    // ⇒ 火毒与主教的技能书既学不了也施放不了。
+    crate::mage::skill_job_allowed(job, book_id)
 }
 
 fn regeneration_passives_for_job(job: u32) -> Vec<RegenerationPassive> {
@@ -3744,7 +3784,16 @@ fn is_magic_attack_skill(skill_id: u32) -> bool {
             | SKILL_ICE_DRAGON_BREATH
             | SKILL_FROZEN_ORB
             | SKILL_HYPER_THUNDER
-    )
+    ) || BRANCH_AREA_ATTACKS.contains(&skill_id)
+}
+
+/// 「这一击算作一次直接命中」：`神秘狙擊`（2120010 / 2220010 / 2320011）按命中次数叠层，
+/// 所以三条分支的攻击技能都要算进来。
+///
+/// ⚠️ 这与 `is_nonsummon_direct_skill` **不是同一张表**：后者只服务冰雷暴风雪的隐藏追击节点
+/// （`maybe_cast_blizzard_follow_up`），把三条分支的技能塞进去会凭空多出一次追击。
+fn counts_as_direct_hit(skill_id: u32) -> bool {
+    is_nonsummon_direct_skill(skill_id) || BRANCH_AREA_ATTACKS.contains(&skill_id)
 }
 
 fn is_nonsummon_direct_skill(skill_id: u32) -> bool {

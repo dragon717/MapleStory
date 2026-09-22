@@ -563,13 +563,6 @@ fn fourth_missing_sp(
     )
 }
 
-fn mage_job_allowed(job: u32) -> bool {
-    matches!(
-        job,
-        200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232
-    )
-}
-
 pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

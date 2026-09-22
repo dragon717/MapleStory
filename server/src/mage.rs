@@ -46,6 +46,24 @@ pub struct MageSkill {
     pub levels: Vec<MageLevel>,
 }
 
+impl MageSkill {
+    /// 源里这条技能是**主动**的吗。
+    ///
+    /// 判据只取源数据本身：任一级带 `mpCon`（耗蓝）或 `damage`（伤害）即为主动。
+    /// 用途是施放路径上的**消息分流**——被动技能回「被动技能不能主动施放。」，
+    /// 而源里是主动、本包还没接执行链的（召唤物 / 治疗 / DoT 场 / 增益窗等）
+    /// 回「该技能尚未开放施放。」。改前这两类共用前一句话，火毒与主教的主动技能
+    /// 在补齐准入之后会被误报成被动。
+    ///
+    /// 这不是「可施放白名单」：白名单仍然写在 `world.rs`（`castable` /
+    /// `BRANCH_AREA_ATTACKS`），本方法只说源里的技能是哪一类。
+    pub fn is_active_source_skill(&self) -> bool {
+        self.levels
+            .iter()
+            .any(|level| level.mp_con.is_some() || level.damage.is_some())
+    }
+}
+
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MageLevel {
@@ -140,6 +158,99 @@ pub struct MagePoint {
     pub y: f64,
 }
 
+// ── 技能书 ↔ 职业：**唯一的准入权威** ─────────────────────────────────────────
+//
+// 源里技能书的编号**就是职业号**（`210` 火毒二转 / `211` 火毒三转 / `212` 火毒四转，
+// `220/221/222` 冰雷，`230/231/232` 僧侶→祭司→主教），`200` 是一转书、`0` 是初学者书。
+// 所以「谁能学这本书」「这个职业升级时收到哪本书」都从编号派生，**不逐处写死**。
+//
+// 改前这套判据在三处各写了一份，且三份都只认冰雷那三本：
+//   `world.rs::skill_job_allowed`（施法与学习的职业闸）、`auth/skills.rs`（落库前的
+//   同一道闸）、`auth/db.rs::grant_level_sp`（升级发点）。后果是**火毒与主教分支的
+//   技能书在运行期既学不了、也拿不到升级点**——目录、任务、地图都装好了，玩家却碰不到。
+// 这里收口成一张表；客户端的 `view.ts::BOOK_JOBS` 是同一张表的另一份实现，
+// `scripts/check_tms273_skill_books.cjs` 对两份表逐格**双向断言**。
+// 判据是「转职层级」而不是「某一本书」：同层三条分支各自只认自己那一支，
+// 低转职层级的书对同一分支的高转职职业继续有效（三转书四转照样能学）。
+
+/// 已登记的法师技能书。**书号就是技能 id 的高位**（`2201005 → 220`、`2311012 → 231`）。
+pub const BOOKS: [u32; 11] = [0, 200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
+/// 三条分支的**四转**书号（Hyper 池只在这三本上出现）。
+pub const FOURTH_JOB_BOOKS: [u32; 3] = [212, 222, 232];
+/// 初学者职业号（`0`）；它的书也是 `0`。
+pub const BEGINNER_JOB: u32 = 0;
+pub const BEGINNER_BOOK: u32 = 0;
+/// 一转（法师）书号。
+pub const MAGE_BOOK: u32 = 200;
+/// 法师系全部职业号（初心者单列，见 `BEGINNER_JOB`）。
+pub const MAGE_JOBS: [u32; 10] = [200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
+/// 初学者书 `0` 的持有者：初心者本人 + 任何法师（一转前也要用得到初学者被动）。
+const BEGINNER_JOBS: [u32; 11] = [0, 200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
+
+/// 法师系职业判定（不含初心者）。
+pub fn is_mage_job(job: u32) -> bool {
+    MAGE_JOBS.contains(&job)
+}
+
+/// 书所属的**分支**（十位）：`21x` 火毒 / `22x` 冰雷 / `23x` 僧侶。
+/// `None` = 不是分支书（初心者书 `0` 与一转书 `200`）。
+pub fn book_branch(book: u32) -> Option<u32> {
+    (BOOKS.contains(&book) && book >= 210).then_some(book / 10)
+}
+
+/// 书在分支内的**转职层级**（个位）：`0` 二转 / `1` 三转 / `2` 四转。
+pub fn book_tier(book: u32) -> Option<u32> {
+    book_branch(book).map(|_| book % 10)
+}
+
+// 三条分支各自的三本书，写成常量切片便于 `book_jobs` 直接借用 `'static` 生命周期。
+const BRANCH_FIRE: [u32; 3] = [210, 211, 212];
+const BRANCH_ICE: [u32; 3] = [220, 221, 222];
+const BRANCH_HOLY: [u32; 3] = [230, 231, 232];
+
+/// 技能书 → 可持有它的职业集合。
+///
+/// - 初学者书 `0`：初心者本人 + 任何法师（一转前的法师仍读得到初学者被动）；
+/// - 一转书 `200`：任意法师分支；
+/// - 二转书（`x0`）：该分支三个职业；三转书（`x1`）：该分支的三/四转；四转书（`x2`）：只有四转。
+/// - 未登记的书：空集（拒绝），与改前 `_ => false` 同语义。
+pub fn book_jobs(book: u32) -> &'static [u32] {
+    match book {
+        BEGINNER_BOOK => &BEGINNER_JOBS,
+        MAGE_BOOK => &MAGE_JOBS,
+        _ => match book_branch(book).zip(book_tier(book)) {
+            // 二转：整条分支
+            Some((21, 0)) => &BRANCH_FIRE,
+            Some((22, 0)) => &BRANCH_ICE,
+            Some((23, 0)) => &BRANCH_HOLY,
+            // 三转：本分支的三转与四转
+            Some((21, 1)) => &BRANCH_FIRE[1..],
+            Some((22, 1)) => &BRANCH_ICE[1..],
+            Some((23, 1)) => &BRANCH_HOLY[1..],
+            // 四转：只有本分支的四转
+            Some((21, 2)) => &BRANCH_FIRE[2..],
+            Some((22, 2)) => &BRANCH_ICE[2..],
+            Some((23, 2)) => &BRANCH_HOLY[2..],
+            _ => &[],
+        },
+    }
+}
+
+/// 技能书 → 职业是否匹配（施法、学习的同一道闸）。
+pub fn skill_job_allowed(job: u32, book: u32) -> bool {
+    book_jobs(book).contains(&job)
+}
+
+/// 职业 → 该职业升级时收到的技能书（`0` 初学者书 / `200` 一转书 / 分支书各归各的）。
+/// 未登记的法师职业返回 `None`（不发点，与改前 `_ => return` 同语义）。
+pub fn book_for_job(job: u32) -> Option<u32> {
+    if job == BEGINNER_JOB {
+        Some(BEGINNER_BOOK)
+    } else {
+        is_mage_job(job).then_some(job)
+    }
+}
+
 impl MageSkills {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let skills: Self = serde_json::from_str(&std::fs::read_to_string(path)?)?;
@@ -161,14 +272,8 @@ impl MageSkills {
     }
 
     pub fn validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        /// 已登记书的书号。**书号就是技能 id 的高位**（`2201005 → 220`、`2311012 → 231`、
-        /// 初学者 `1000 → 0`），所以这里不再手写「技能 id → 书」的清单：手写清单在新增分支
-        /// 时会把整本书判成「未知书」而让**整个**目录被拒（2026-09-21 火毒 / 僧侶 上线时
-        /// 就是这么炸的：一本书缺登记 ⇒ 全部 102 本都读不进来）。
-        const BOOKS: [u32; 11] = [0, 200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
-        /// 三条分支的**四转**书号。Hyper 池只在四转书上出现（源里三条分支各 12 条，
-        /// 满级 1、门槛 ≥140），所以这条判据按层级而不是按某一本书写。
-        const FOURTH_JOB_BOOKS: [u32; 3] = [212, 222, 232];
+        // 书号清单与四转书集合是模块级常量（`BOOKS` / `FOURTH_JOB_BOOKS`）——它们同时被
+        // 准入表 `book_jobs` 使用，这里不再各自写一份局部副本。
         /// 源里出现过的元素字母：`i` 冰 / `l` 雷 / `f` 火 / `s` 毒 / `h` 聖。
         const ELEM_ATTRS: [&str; 5] = ["i", "l", "f", "s", "h"];
         /// `(mobCount, attackCount)` 的合理性上界，按**转职层**分档：四转（书号末位为 2，

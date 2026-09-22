@@ -537,27 +537,17 @@ impl Store {
         let mut skill_points = parse_skill_map(&skill_points_json)?;
         let mut success = true;
         let mut code = String::new();
-        let job_allowed = if expected_job == 0 {
-            job == 0 || u32::try_from(job).ok().is_some_and(mage_job_allowed)
-        } else if expected_job == 200 {
-            matches!(
-                job,
-                200 | 210 | 211 | 212 | 220 | 221 | 222 | 230 | 231 | 232
-            )
-        } else if expected_job == 220 {
-            matches!(job, 220 | 221 | 222)
-        } else if expected_job == THIRD_JOB {
-            matches!(job, 221 | 222)
-        } else if expected_job == FOURTH_JOB {
-            job == i64::from(FOURTH_JOB)
-        } else {
-            job == i64::from(expected_job)
-        };
+        // 职业准入只有一份判据：`mage::book_jobs`（书的编号就是职业号，按分支与转职层级派生）。
+        // 改前这里写着一串 `expected_job == ...` 的臂，只认 0/200/220/221/222 五本书
+        // ⇒ 火毒与主教分支**在落库这一层就被拒**（世界侧改好了也学不成）。
+        let job_allowed = u32::try_from(job)
+            .ok()
+            .is_some_and(|job| crate::mage::skill_job_allowed(job, book_id));
         let current_level = skills.get(&skill_id).copied().unwrap_or(0);
         let mut next_level = current_level;
         let mut next_mp = current_mp.max(0);
         if !job_allowed
-            || !matches!(book_id, 0 | 200 | 220 | 221 | FOURTH_MAGE_BOOK)
+            || !crate::mage::BOOKS.contains(&book_id)
             || skill_id / 10_000 != book_id
             || expected_job != book_id
         {

@@ -4,12 +4,17 @@ import ts from 'typescript';
 
 const source = await readFile(new URL('./input.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
-const { PlayerInput, shortcutSkill } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const { PlayerInput, shortcutSkill, branchFourthJob } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 assert.equal(shortcutSkill(0, 'Digit1'), 1000);
 assert.equal(shortcutSkill(0, 'Digit4'), undefined);
 assert.equal(shortcutSkill(200, 'Numpad1'), 2001008);
 assert.equal(shortcutSkill(222, 'Numpad6', true), 2221011);
 assert.equal(shortcutSkill(222, 'Digit9', true), 2221052);
+// 三条分支各有自己的 Shift 行；未转四转时 Shift 行回落到普表（键盘保持旧行为）。
+assert.equal(shortcutSkill(212, 'Digit1', true), 2121006);
+assert.equal(shortcutSkill(232, 'Digit3', true), 2321008);
+assert.equal(shortcutSkill(221, 'Digit6', true), 2201001);
+assert.deepEqual([branchFourthJob(210), branchFourthJob(221), branchFourthJob(231), branchFourthJob(200)], [212, 222, 232, 222]);
 const original = { window: globalThis.window, document: globalThis.document, setInterval, clearInterval };
 const timers = new Map();
 const messages = [];

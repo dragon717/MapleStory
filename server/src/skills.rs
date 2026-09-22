@@ -133,7 +133,13 @@ impl World {
         if direction == 0 && vertical == 0 {
             direction = if player.state.facing < 0 { -1 } else { 1 };
         }
-        if !matches!(
+        // 已接执行链的技能白名单（`castable`）。**不在表里的**分两种，消息要分开说：
+        // 真被动技能（源里只有被动字段）回「被动技能不能主动施放。」；
+        // 源里是主动、但本包还没接执行链的（召唤物/治疗/DoT 场等）回「该技能尚未开放施放。」。
+        // 改前这两类共用前一句话 —— 火毒/主教分支补齐准入之后，他们的主动技能会被
+        // 误报成「被动技能」。判据按源数据派生（`MageSkill::is_active_source_skill`），
+        // 不另写一张人工清单。
+        let castable = matches!(
             skill_id,
             SKILL_MAGIC_GUARD
                 | SKILL_TELEPORT
@@ -165,11 +171,17 @@ impl World {
                 | SKILL_THREE_SNAILS
                 | SKILL_RECOVERY
                 | SKILL_NIMBLE_FEET
-        ) {
+        ) || BRANCH_AREA_ATTACKS.contains(&skill_id);
+        if !castable {
+            let active = skill.is_active_source_skill();
             self.send_reject(
                 &id,
-                "skill_passive",
-                "被动技能不能主动施放。",
+                if active { "skill_unimplemented" } else { "skill_passive" },
+                if active {
+                    "该技能尚未开放施放。"
+                } else {
+                    "被动技能不能主动施放。"
+                },
                 Some(&request_id),
             );
             return;
@@ -288,7 +300,11 @@ impl World {
             level.cooldown_ms.unwrap_or(0).max(0)
         } else if BEGINNER_SKILLS.contains(&skill_id)
             || skill_id == SKILL_ELEMENTAL_ADAPTING
-            || (skill.book_id == FOURTH_BOOK && level.cooltime.is_some())
+            // 四转书（212 火毒 / 222 冰雷 / 232 主教）的 `cooltime` 是秒单位。
+            // 改前判据写死冰雷那一本（`book_id == FOURTH_BOOK`）⇒ 火毒与主教四转技能的
+            // 冷却永远算成 0。判据改成「四转层级的书」，三条分支一起生效。
+            || (crate::mage::FOURTH_JOB_BOOKS.contains(&skill.book_id)
+                && level.cooltime.is_some())
         {
             level.cooltime.unwrap_or(0).max(0).saturating_mul(1_000)
         } else {
@@ -409,6 +425,10 @@ impl World {
             } else {
                 self.skill_duration_ms(&id, skill_id)
             }
+        } else if BRANCH_AREA_ATTACKS.contains(&skill_id) {
+            // 火毒/主教的攻击技能与冰雷同一条动作锁（源里都是 600ms 的攻击动作，
+            // 再按极速詠唱的动作速度加成收敛）。
+            self.skill_duration_ms(&id, skill_id)
         } else {
             0
         };
@@ -681,6 +701,38 @@ impl World {
                 if let Err(error) = self.cast_energy_bolt(&id, &request_id, skill_id, &level) {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
+                }
+            }
+            // 火毒（210/211/212）与主教（230/231/232）的攻击技能：与冰雷走**同一条**
+            // 元素范围管线（`cast_elemental_area`）。命中盒取源 `common/lt|rb` 绕玩家、
+            // 伤害倍率与段数取 `level`；`lightning = false` 表示不触发冰冻层 ——
+            // 火（`f`）/毒（`s`）/聖（`h`）三系在源里没有冻结字段，也不需要那条分支。
+            // 四转火毒的三条 Hyper 强化被动（`damR`）由 `magic_damage_breakdown` 的
+            // 「被强化技能 → 强化被动」配对表消费。
+            SKILL_FIRE_BOLT
+            | SKILL_POISON_MIST
+            | SKILL_BLAZING_FLAME
+            | SKILL_POISON_BREATH
+            | SKILL_HELLFIRE
+            | SKILL_FLAME_SWEEP
+            | SKILL_METEOR_SHOWER
+            | SKILL_SEARING_POISON
+            | SKILL_HOLY_ARROW
+            | SKILL_ANGELIC_TOUCH
+            | SKILL_HOLY_LIGHT
+            | SKILL_ANGEL_RAY
+            | SKILL_ANGELIC_ARROW
+            | SKILL_HEAVENLY_WRATH => {
+                if let Err(error) =
+                    self.cast_elemental_area(&id, &request_id, skill_id, &level, false)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
                 }
             }
             _ => {}
@@ -2154,6 +2206,12 @@ impl World {
             SKILL_TELEPORT_MASTERY => SKILL_HYPER_TELEPORT_DAMAGE,
             SKILL_CHAIN_LIGHTNING => SKILL_HYPER_CHAIN_DAMAGE,
             SKILL_ICE_DEMON => SKILL_HYPER_ICE_DAMAGE,
+            // 火毒四转的三条 Hyper 强化被动：源里只带 `damR`，强化的是哪一招
+            // 只能按技能名配对（见 `world.rs` 的常量注释）。火毒这一组与冰雷那三条
+            // 同形 —— 只有在**被强化的那一招打出去**时才把这份 damR 加进加算组。
+            SKILL_POISON_BREATH => SKILL_HYPER_POISON_DAMAGE,
+            SKILL_FLAME_SWEEP => SKILL_HYPER_FLAME_DAMAGE,
+            SKILL_HELLFIRE => SKILL_HYPER_HELLFIRE_DAMAGE,
             _ => 0,
         };
         if hyper_passive != 0 {
@@ -2665,7 +2723,7 @@ impl World {
                 }
                 // 同上：攻击者位置要在借走 `monsters` 之前取。
                 let attacker_x = self.players.get(id).map(|player| player.state.x);
-                if resolution.damage > 0 && is_nonsummon_direct_skill(skill_id) {
+                if resolution.damage > 0 && counts_as_direct_hit(skill_id) {
                     self.advance_mystic_strike(id, request_id, target_id);
                     successful_direct_targets.insert(target_id.clone());
                 }

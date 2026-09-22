@@ -2031,19 +2031,29 @@ pub(super) fn write_profile(
 /// supported Mage books keep the project's existing 3-SP-per-level rule.
 /// Call only after a real level increase, inside the reward transaction.
 pub(crate) fn grant_level_sp(job: u32, level: u32, points: &mut BTreeMap<u32, u32>) {
-    let (book, amount) = match job {
-        0 if (2..=7).contains(&level) => (0, 1),
-        THIRD_JOB => (THIRD_MAGE_BOOK, 3),
-        220 => (220, 3),
-        FOURTH_JOB => {
-            let amount = fourth_sp_for_level(level);
-            if amount == 0 {
-                return;
-            }
-            (FOURTH_MAGE_BOOK, amount)
+    // 书由职业派生（`mage::book_for_job`：书号就是职业号），不再写死"其余法师一律进 200"。
+    // 改前 `job if mage_job_allowed(job) => (MAGE_BOOK, 3)` 把火毒 210/211/212 与
+    // 僧侶 230/231/232 的升级点**全记到一转书上** ⇒ 这两条分支的玩家永远加不满自己那本书
+    // （书配额按书号分开记，`learn_skill` 只认自己那本）。
+    if job == crate::mage::BEGINNER_JOB {
+        if (2..=7).contains(&level) {
+            let available = points.entry(crate::mage::BEGINNER_BOOK).or_default();
+            *available = available.saturating_add(1);
         }
-        job if mage_job_allowed(job) => (MAGE_BOOK, 3),
-        _ => return,
+        return;
+    }
+    let Some(book) = crate::mage::book_for_job(job) else {
+        return;
+    };
+    let amount = if crate::mage::book_tier(book) == Some(2) {
+        // 四转书按等级分档（第四行的既有规则）。
+        let amount = fourth_sp_for_level(level);
+        if amount == 0 {
+            return;
+        }
+        amount
+    } else {
+        3
     };
     let available = points.entry(book).or_default();
     *available = available.saturating_add(amount);
