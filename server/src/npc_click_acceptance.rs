@@ -201,7 +201,7 @@ fn npd_bypasses_scriptless_dialogue(
     super::ship::route_index_for_inspector(&template.template_id).is_some()
         || super::ship::route_index_for_announcer(&template.template_id).is_some()
         || template.func.contains(STORAGE_KEEPER_FUNC)
-        || is_mage_advance_npc(map_id, npc_id, &template.template_id)
+        || is_crossroad_advance_npc(map_id, npc_id, &template.template_id)
 }
 
 #[test]

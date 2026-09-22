@@ -123,12 +123,12 @@ impl World {
             )
         };
         let (template_id, nx, ny, name, name_zh) = npc_view;
-        let mage_entry = is_mage_advance_npc(&map_id, &npc_id, &template_id);
+        let crossroad_entry = is_crossroad_advance_npc(&map_id, &npc_id, &template_id);
         // The 选择岔道 magician instructor deliberately has no talk range: the
         // player opens Hans from the map shortcut, so a distance rule would
         // only reject a request the client intentionally offers.  Every other
         // npc keeps the shared talk range below.
-        if !mage_entry
+        if !crossroad_entry
             && ((px - nx).abs() > npc::TALK_RANGE_X || (py - ny).abs() > npc::TALK_RANGE_Y)
         {
             self.end_conversation(&id);
@@ -253,7 +253,7 @@ impl World {
             return;
         }
         let opening = step.is_none_or(|step| step == "start");
-        if mage_entry && opening {
+        if crossroad_entry && opening {
             match job {
                 MAGICIAN_JOB | ICE_MAGE_JOB | 221 | 222 => {
                     if !can_advance {
@@ -350,7 +350,9 @@ impl World {
                     self.send_reject(
                         &id,
                         "job_advance_unavailable",
-                        "只有新手可以在汉斯处转职为法师。",
+                        // 「選擇岔道」是**一转**入口（四条探险家线），不是给已转职
+                        // 角色办事的地方；法师另有自己的训练菜单（上面那条臂）。
+                        "只有新手可以在这里转职（剑士/法师/弓箭手/飞侠）。",
                         Some(&request_id),
                     );
                     return;
@@ -361,7 +363,7 @@ impl World {
             .npcs
             .get(&npc_id)
             .and_then(|npc| npc.conversation.get(&id).cloned());
-        if mage_entry && current_node.as_deref() == Some(MAGE_TRAINING_NODE) {
+        if crossroad_entry && current_node.as_deref() == Some(MAGE_TRAINING_NODE) {
             if !can_advance {
                 self.end_conversation(&id);
                 self.send_reject(
@@ -657,13 +659,16 @@ impl World {
                                 Ok(true) => job_advanced = true,
                                 Ok(false) => {
                                     self.end_conversation(&id);
-                                    // A beginner reaching this branch cleared
-                                    // the "is a beginner" gate and failed the
-                                    // level check for the first transfer.
-                                    let message = if job == BEGINNER_JOB {
-                                        "法師一轉需要達到8級。"
+                                    // 新手过了「是新手」那道闸、却没过等级门槛：一转的
+                                    // 等级按线取（法师 8 级例外，物理三线同源 10 级）。
+                                    let message = if from_job == BEGINNER_JOB {
+                                        if job == MAGICIAN_JOB {
+                                            "法師一轉需要達到8級。"
+                                        } else {
+                                            "轉職需要達到10級。"
+                                        }
                                     } else {
-                                        "只有新手可以在汉斯处转职为法师。"
+                                        "只有新手可以在这里转职（剑士/法师/弓箭手/飞侠）。"
                                     };
                                     self.send_reject(
                                         &id,
@@ -886,10 +891,13 @@ impl World {
         from_job: u32,
         job: u32,
     ) -> Result<bool, String> {
-        let first_transfer = from_job == BEGINNER_JOB && job == MAGICIAN_JOB;
+        // 一转（`0 → 100/200/300/400`）：四条探险家线共用「選擇岔道」漢斯这一个入口，
+        // 菜单由 `scripts/assemble_tms273.cjs::FIRST_JOBS` 生成。二/三/四转是法师专属
+        // 快捷线（原版转职官的任务流程在 `world::job_advance`，不走这里）。
+        let first_transfer = from_job == BEGINNER_JOB && crate::mage::is_first_job(job);
         let second_transfer = from_job == MAGICIAN_JOB && job == ICE_MAGE_JOB;
         let third_transfer = from_job == ICE_MAGE_JOB && job == ICE_THIRD_JOB;
-        if !is_mage_advance_npc(map_id, npc_id, template_id)
+        if !is_crossroad_advance_npc(map_id, npc_id, template_id)
             || (!first_transfer && !second_transfer && !third_transfer)
         {
             return Ok(false);
@@ -900,7 +908,7 @@ impl World {
         if player.state.job != from_job
             || player.state.hp <= 0
             || player.state.action == "dead"
-            || (first_transfer && player.state.level < auth::FIRST_MAGE_JOB_LEVEL)
+            || (first_transfer && player.state.level < auth::first_job_level(job))
             || (second_transfer && player.state.level < 30)
             || (third_transfer
                 && (player.state.level < 60 || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
@@ -927,20 +935,18 @@ impl World {
             player.state.job = job;
             if self.store.is_none() {
                 if first_transfer {
-                    player.base_max_mp = player.base_max_mp.max(MAGE_TRANSFER_MIN_MP);
-                    player.state.skill_points.entry(MAGE_BOOK).or_insert(5);
-                    player
-                        .state
-                        .skills
-                        .entry(SKILL_ELEMENTAL_WEAKEN)
-                        .or_insert(1);
-                    player
-                        .state
-                        .skills
-                        .entry(SKILL_MAGIC_WAVE_HIDDEN)
-                        .or_insert(1);
-                    player.state.max_mp = player.base_max_mp;
-                    player.state.mp = player.state.max_mp;
+                    // 与事务路径共用**同一份**发放实现（`auth::grant_first_job_fields`）：
+                    // 测试里发的和线上发的必须一样，不在两处各写一遍。
+                    let mut max_mp = player.base_max_mp;
+                    let mut mp = player.base_max_mp;
+                    let mut skills = std::mem::take(&mut player.state.skills);
+                    let mut points = std::mem::take(&mut player.state.skill_points);
+                    auth::grant_first_job_fields(job, &mut max_mp, &mut mp, &mut skills, &mut points);
+                    player.base_max_mp = max_mp;
+                    player.state.skills = skills;
+                    player.state.skill_points = points;
+                    player.state.max_mp = max_mp;
+                    player.state.mp = max_mp;
                 } else if second_transfer {
                     player.state.skill_points.entry(ICE_BOOK).or_insert(5);
                     player.state.skills.entry(SKILL_ICE_EFFECT).or_insert(1);

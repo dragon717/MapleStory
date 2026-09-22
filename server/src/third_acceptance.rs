@@ -58,7 +58,7 @@ fn third_job_npc_requires_catalog_and_persists_transfer() {
     world.handle_npc_talk(
         "third".into(),
         "third-open".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         None,
         None,
     );
@@ -72,7 +72,7 @@ fn third_job_npc_requires_catalog_and_persists_transfer() {
     world.handle_npc_talk(
         "third".into(),
         "third-select".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(3),
     );
@@ -94,7 +94,7 @@ fn third_job_npc_requires_catalog_and_persists_transfer() {
     world.handle_npc_talk(
         "stale".into(),
         "stale-open".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         None,
         None,
     );

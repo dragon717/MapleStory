@@ -22,6 +22,10 @@
 //      **2b：外部前置必须真的接得到**——它的接取 NPC 得被摆在某张已装配的图上
 //      （1404 挂在未装配的墮落城市 NPC 上，拿它当前置会让职业链静默锁死）；
 //      **2c：二转分支没挂外部前置必须逐条登记理由**（漏写前置 = 玩家绕过剧情直接转职）；
+//      **2d：可达性**——外部前置必须**真的做得完**（`executable` 为假的任务永远变不成
+//      `completed`），且每条转职的 `fromJob` 必须**真的拿得到**（表内 toJob，或
+//      「選擇岔道」菜单/1402 完成发放这类一转发放入口）。形状判据（NPC 摆位、怪有
+//      刷新点、道具在表里）**证明不了这条路走得通**，这两条才是。
 //   3. 内容可达（**从 shared/*.json 独立重算**）：转职官模板存在且**真的摆在**配置
 //      的每张图上、目标怪存在且**真的有刷新点**、收集道具在 `items.json` 里、地图在
 //      `shared/maps.json` 里；
@@ -199,8 +203,21 @@ for (const quest of quests) {
 // 2c) 「没有外部前置」必须逐条登记理由，否则漏写前置是看不出来的 ------------------
 // 一转职业（100/200/300/400）转出去的那几条（＝二转分支）本来都该挂「本线的一转剧情
 // 任务」。允许例外，但**只允许登记过的**——新增一条忘了写前置，这里就会红。
+//
+// 登记的三组理由其实是同一种失败的两个形态：**源里的一转剧情任务在本包跑不起来**。
+//   * 1404（盜賊之路）：NPC 与地图都不在装配内容里（根本没得挂）；
+//   * 1401（劍士之路）／1403（弓箭手之路）：NPC 与地图都在，但任务本身是
+//     `executable:false`（`other-job-route` + `script-counter`）——它永远进不了
+//     任务菜单、永远变不成 `completed`，挂了就是永久锁死（§2d 会把这类拦住）。
+// 三条物理线的一转因此改由「選擇岔道」漢斯的四职业菜单发放（等级 10 = 源
+// 1401/1403/1404 的 `Check.0.lvmin`），二转只按等级与上一段试炼判定。
 const PREREQ_LESS_ALLOWED = new Map([
-  ['job-410', '飞侠一转剧情 1404（盜賊之路）的接取 NPC 1052001 在墮落城市，该图与 NPC 都不在装配内容里 ⇒ 无可用的外部前置，只能按等级与表内链判定'],
+  ['job-110', '战士二转：一转剧情 1401（劍士之路）在装配内容里是 executable=false（other-job-route + script-counter），永远不可能 completed ⇒ 无可用的外部前置，改由「選擇岔道」漢斯的一转菜单发放职业'],
+  ['job-120', '同上：战士二转的三条分支共用这一条理由'],
+  ['job-130', '同上：战士二转的三条分支共用这一条理由'],
+  ['job-310', '弓箭手二转：一转剧情 1403（弓箭手之路）在装配内容里是 executable=false（other-job-route + script-counter），永远不可能 completed ⇒ 无可用的外部前置，改由「選擇岔道」漢斯的一转菜单发放职业'],
+  ['job-320', '同上：弓箭手二转的两条分支共用这一条理由'],
+  ['job-410', '飞侠一转剧情 1404（盜賊之路）的接取 NPC 1052001 在墮落城市，该图与 NPC 都不在装配内容里 ⇒ 无可用的外部前置，改由「選擇岔道」漢斯的一转菜单发放职业'],
   ['job-420', '同上：飞侠二转的两条分支共用这一条理由'],
 ]);
 for (const quest of quests) {
@@ -221,6 +238,106 @@ for (const quest of quests) {
   );
 }
 
+// 2d) 可达性：**形状判据证明不了这条路走得通** ------------------------------------
+// 上面三组查的是「NPC 摆位 / 目标怪有刷新点 / 道具在表里」——都只是**形状**。
+// 2026-09-22 核查发现它们漏掉两种「配置看起来毫无问题、玩家永远走不到」的静默失败：
+//   * 前置任务本身**做不完**：1401/1403 的 NPC 摆位齐全（§2b 因此放行），可它们在
+//     运行期是 `executable:false`（原版脚本计数器未复刻）⇒ 永远进不了任务菜单、
+//     永远变不成 `completed`，挂着它们等于把战士/弓箭手线从二转起永久锁死；
+//   * 起点**根本不存在**：转职的判据是「当前职业 == fromJob」，而三条物理线的一转
+//     此前没有任何发放路径 ⇒ 二/三/四转全是够不着的死代码，配置却完全自洽。
+// 两条都从 `shared/gameplay.json` 与 `shared/job-advance.json` 独立重算。
+let reachability = null;
+{
+  const runtimeQuestById = new Map(
+    gameplay.quests.map(entry => [String(entry.questId), entry]),
+  );
+  let checkedExternalPrerequisites = 0;
+  for (const quest of quests) {
+    for (const prerequisite of (quest.require && quest.require.quests) || []) {
+      const id = String(prerequisite.questId);
+      if (byId.has(id)) continue; // 表内前置由 §2 的 toJob / 等级断言负责
+      const spec = runtimeQuestById.get(id);
+      assert.ok(
+        spec && spec.executable,
+        `${quest.questId}: 外部前置 ${id} 在 shared/gameplay.json 里不是可执行任务`
+          + `（blockedBy=${JSON.stringify(spec ? spec.blockedBy : null)}）——`
+          + '它永远变不成 completed，挂上去只会让整条转职链静默锁死',
+      );
+      checkedExternalPrerequisites += 1;
+    }
+  }
+
+  // 一转发放入口：装配内容里 NPC 对话节点的 `jobAdvance{fromJob:0}`（「選擇岔道」漢斯），
+  // 加代码侧的源任务通道（1402 完成即转职，`server/src/quest.rs::first_mage_transfer`）。
+  const scriptNodeExists = (script, name) => Boolean(script && script.nodes && script.nodes[name]);
+  const scriptFirstJobs = new Set();
+  let checkedScriptTransfers = 0;
+  for (const npc of gameplay.npcs) {
+    const script = npc.script;
+    for (const node of Object.values((script && script.nodes) || {})) {
+      const act = node && node.act;
+      if (!act || act.kind !== 'jobAdvance') continue;
+      checkedScriptTransfers += 1;
+      assert.ok(
+        Number.isInteger(act.job) && act.job > 0,
+        `${npc.templateId}: NPC 脚本的 jobAdvance 必须带正整数 job`,
+      );
+      // 一转过后的成功对话是本脚本自己的节点：断掉它，转职会「生效了但对话没了」。
+      assert.ok(
+        !act.next || scriptNodeExists(script, act.next),
+        `${npc.templateId}: jobAdvance 的 next 指向不存在的节点 ${act.next}`,
+      );
+      if (Number(act.fromJob) === 0) scriptFirstJobs.add(Number(act.job));
+    }
+  }
+  const codeFirstJobs = new Set(
+    readRepo('server/src/quest.rs').includes('first_mage_transfer') ? [200] : [],
+  );
+  const firstJobRoutes = new Set([...scriptFirstJobs, ...codeFirstJobs]);
+
+  // 一转职业集**从目录派生**：有出边、却没有任何入边的那些 fromJob。
+  // 手写一份名单会在同一条链新增分支时悄悄过期，这里让它自己长出来。
+  const roots = [...byFromJob.keys()].filter(job => !seenToJobs.has(job));
+  assert.deepEqual(
+    roots.slice().sort((left, right) => left - right),
+    [100, 200, 300, 400],
+    '没有任何入边的职业必须正好是四条探险家线的一转职业（100/200/300/400）',
+  );
+  const reachableJobs = new Set([...seenToJobs, ...firstJobRoutes]);
+  for (const quest of quests) {
+    assert.ok(
+      reachableJobs.has(quest.fromJob),
+      `${quest.questId}: fromJob ${quest.fromJob} 没有任何可达路径——既不是本目录里`
+        + '某条的 toJob，也没有一转发放入口，这条转职永远触发不了',
+    );
+  }
+  for (const root of roots) {
+    assert.ok(
+      firstJobRoutes.has(root),
+      `一转职业 ${root} 没有任何发放入口（装配的 NPC 脚本或 1402 的完成发放）——`
+        + '它的整条分支链都是够不着的死代码',
+    );
+  }
+  // 反向断言：解析真的看到了东西；且三条物理线**只有**脚本这一条通道
+  // （1401/1403/1404 都不可执行），所以它们必须真的出现在脚本发放集里。
+  assert.ok(
+    scriptFirstJobs.size > 0 && checkedScriptTransfers > 0,
+    '装配内容里没有任何由 NPC 脚本发放的转职（一转没有入口）',
+  );
+  for (const job of roots.filter(root => !codeFirstJobs.has(root))) {
+    assert.ok(
+      scriptFirstJobs.has(job),
+      `一转职业 ${job} 没有源任务通道，必须由装配的 NPC 脚本发放`,
+    );
+  }
+  reachability = {
+    checkedExternalPrerequisites,
+    checkedScriptTransfers,
+    roots: roots.slice().sort((left, right) => left - right),
+    scriptFirstJobs: [...scriptFirstJobs].sort((left, right) => left - right),
+  };
+}
 // 3) 内容可达：转职官真的在、目标真的做得到 ------------------------------------
 let checkedPlacements = 0;
 let checkedMonsters = 0;
@@ -302,9 +419,17 @@ assert.ok(runner.includes('check_tms273_job_advance.cjs'),
 function main() {
   console.log(
     `Job advance catalog: ${quests.length} quests, ${checkedPlacements} npc placements, `
-    + `${checkedMonsters} kill targets and ${checkedItems} collect targets verified against shared/*.json; wiring OK.`,
+    + `${checkedMonsters} kill targets and ${checkedItems} collect targets verified against shared/*.json; `
+    + `reachability: ${reachability.checkedExternalPrerequisites} executable prerequisites, `
+    + `roots [${reachability.roots.join(', ')}] granted by [${reachability.scriptFirstJobs.join(', ')}]; wiring OK.`,
   );
-  return { quests: quests.length, checkedPlacements, checkedMonsters, checkedItems };
+  return {
+    quests: quests.length,
+    checkedPlacements,
+    checkedMonsters,
+    checkedItems,
+    reachability,
+  };
 }
 
 if (require.main === module) main();

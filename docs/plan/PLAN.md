@@ -4,6 +4,48 @@
 > 已完成条目的逐任务归档见 [`INDEX.md`](INDEX.md)，归档目录为 `history/YYYY-MM-DD/`。
 > 当前详细实施方案见 [`topics/`](topics/)；拆分依据 `topics/MapleStory_Repository_Based_Refactoring_Plan.md`。
 
+## 物理线一转四职业岔道菜单 + 转职链可达性断言（2026-09-22 第十一轮）
+
+**用户要求**：先核查战士 / 飞侠 / 弓箭手三个职业的**一转**完成情况（都完成就只回一句「已完成」），
+再继续完成这三个职业的二、三、四转。**核查结论：三条物理线的一转全部未完成**（只有法师有）。
+
+**已交付**（[交付记录](history/2026-09-22/物理线一转四职业岔道菜单与转职链可达性.md)）：
+
+① **一转缺口不是「少一条数据」，而是让二/三/四转 21 条任务运行期永远够不着**——两条互相独立的理由：
+**前置任务本身做不完**（`1401 劍士之路` / `1403 弓箭手之路` 的 `executable` 是 `false`，而
+`job-110/120/130`、`job-310/320` 把它们当前置 ⇒ 战士/弓箭手线从二转起永久锁死）；**起点根本不存在**
+（转职判据是 `durable.job == fromJob`，而职业 `100/300/400` 此前**没有任何发放路径** ⇒ 飞侠线同样进不去）。
+上一轮的 §2b 只覆盖「**表内**任务的下发链」，对这两类**静默失败**都是盲区。
+
+② **用户选定路线：扩 `選擇岔道` 菜单**（不新增 NPC、不复用三条不可执行的源剧情），把法师那条
+已跑通的 P 级适配器**从单选扩为四选**。装配器 `assemble_tms273.cjs` 里菜单选项与
+`advance-*`/`advanced-*` 节点从**一张 `FIRST_JOBS` 表 `flatMap` 生成**（不再四条手写分支）；
+`compatibility.mageTransfer` 换成 `firstJobTransfer`。服务端把「法师硬编码」**收口成按线派生**：
+`mage.rs::FIRST_JOBS`/`is_first_job` 是唯一权威，`auth.rs` 新增 `first_job_level(job)`（法师 8 /
+物理线 10）与 `grant_first_job_fields(job, …)`，`dialogue.rs` 的 `apply_job_advance` 用
+`first_transfer` 统一门槛与发放，**无 Store 路径改为调用同一份实现**；`world.rs` 常量改名
+`CROSSROAD_ADVANCE_*`。`shared/job-advance.json` 去掉两条**永远做不完**的前置（`job-110/120/130`
+的 `1401`、`job-310/320` 的 `1403` → `[]`）。
+
+③ **门禁新增 §2d 可达性断言块**（`check_tms273_job_advance.cjs`），四条断言全部**从源独立重算**：
+表外前置必须 `executable`；无入边职业必须**正好**是 `[100, 200, 300, 400]`（从目录图自己长出来，
+不手写名单）；每条 `fromJob` 必须在可达集里；一转发放入口必须真的存在（脚本解析 + 代码通道派生）。
+`PREREQ_LESS_ALLOWED` 2 → 7 条。**2 组扰动全部被抓**（把 `1402` 标不可执行 / 删掉漢斯的战士发放节点）。
+
+④ **版本 `tms273-37 → tms273-38`**（`job-advance.json` 是服务端启动硬校验的内容契约 ⇒ 按 §690 必须升；
+协议 **34 未变**）。五处手写落点全同步，重跑装配器
+（`{"version":"tms273-38","maps":211,"assets":120556,"cashAppearanceLayers":1754,"npcs":395,"monsters":79}`、
+`missing: []`）。
+
+**验收**：`cargo test` **636 过 / 0 失败**（基线 635 + 新增 1 条）、`cargo test job_advance` 26/0、
+新测试 `crossroad_menu_grants_every_explorer_first_job_at_its_own_level` 单跑 PASS、
+`cargo check --tests` 告警与基线**逐字相同**、`tsc --noEmit` **exit 0**、`run-checks.mjs` **57/63**、
+整链 **6 红 ＝ 基线集合逐项相同**；相关门禁单跑全绿。
+
+- [ ] 统一加载实玩：四条线的一转、以及其二/三/四转的等级门槛（30/60/100）需实际游玩确认。
+- [ ] 三条源剧情任务 `1401`/`1403`/`1404` **仍不可执行**（本轮走菜单旁路，未覆盖它们）；
+      将来要接需先在 `import_tms273.py` 侧补齐 NPC 与脚本，再删 `PREREQ_LESS_ALLOWED` 对应登记。
+
 ## 物理线二转以上主动技能接执行链 + 三条新线转职任务（2026-09-22 第九轮）
 
 **本轮范围**：把第八轮遗留的 ①「三条新线二转以上主动技能全部未接执行链」与 ③「转职任务

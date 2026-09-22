@@ -202,6 +202,19 @@ pub const WARRIOR_BOOK: u32 = 100;
 pub const MAGE_BOOK: u32 = 200;
 pub const BOWMAN_BOOK: u32 = 300;
 pub const THIEF_BOOK: u32 = 400;
+/// 四条探险家线的**一转**职业（＝各自的一转书号，`book == job`）。
+///
+/// 一转没有可执行的源转职脚本（1401/1402/1403/1404 的脚本主体不在本地导出里），
+/// 唯一的发放入口是「選擇岔道」漢斯 `10201` 的对话菜单；二/三/四转才走
+/// `shared/job-advance.json` 的 `fromJob → toJob`。门禁 `check_tms273_job_advance.cjs`
+/// 从目录里**派生**出「没有任何入边的职业」（＝一转职业集）并断言每一个都真的有
+/// 发放入口——否则它的整条分支链是**不可达**的死代码，而配置看起来毫无问题。
+pub const FIRST_JOBS: [u32; 4] = [WARRIOR_BOOK, MAGE_BOOK, BOWMAN_BOOK, THIEF_BOOK];
+
+/// 是否一转职业（`0 → FIRST_JOBS`）。
+pub fn is_first_job(job: u32) -> bool {
+    FIRST_JOBS.contains(&job)
+}
 /// 四条职业线的全部职业号（不含初学者）。**每类的第 0 项是一转**，其后每 3 个
 /// 是一条分支（二转 / 三转 / 四转）——`branch_jobs` 按这个布局切片，改顺序会错位。
 pub const WARRIOR_JOBS: [u32; 10] = [100, 110, 111, 112, 120, 121, 122, 130, 131, 132];

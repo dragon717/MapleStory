@@ -4372,7 +4372,7 @@ fn mage_gameplay() -> Gameplay {
         .unwrap();
     Gameplay {
         npcs: vec![NpcTemplate {
-            template_id: MAGE_ADVANCE_TEMPLATE_ID.into(),
+            template_id: CROSSROAD_ADVANCE_TEMPLATE_ID.into(),
             name: "Grendel".into(),
             func: "Magician instructor".into(),
             shop_id: None,
@@ -4380,12 +4380,12 @@ fn mage_gameplay() -> Gameplay {
             stand: Vec::new(),
         }],
         npc_spawns: vec![NpcSpawn {
-            id: MAGE_ADVANCE_NPC_ID.into(),
-            template_id: MAGE_ADVANCE_TEMPLATE_ID.into(),
+            id: CROSSROAD_ADVANCE_NPC_ID.into(),
+            template_id: CROSSROAD_ADVANCE_TEMPLATE_ID.into(),
             x: 100.0,
             y: 0.0,
             foothold_id: Some(1),
-            map_id: MAGE_ADVANCE_MAP_ID.into(),
+            map_id: CROSSROAD_ADVANCE_MAP_ID.into(),
             facing: -1,
         }],
         ..Gameplay::default()
@@ -4394,7 +4394,7 @@ fn mage_gameplay() -> Gameplay {
 
 fn mage_map() -> Map {
     let mut map = map();
-    map.id = MAGE_ADVANCE_MAP_ID.into();
+    map.id = CROSSROAD_ADVANCE_MAP_ID.into();
     map.spawn = Point { x: 100.0, y: 0.0 };
     map
 }
@@ -4461,7 +4461,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
             .as_array()
             .unwrap()
             .iter()
-            .find(|npc| npc["id"] == MAGE_ADVANCE_NPC_ID)
+            .find(|npc| npc["id"] == CROSSROAD_ADVANCE_NPC_ID)
             .unwrap()
             .get("jobAdvancementAvailable")
             .cloned()
@@ -4486,7 +4486,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "far".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4500,7 +4500,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "no-session".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(0),
     );
@@ -4515,7 +4515,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "dead".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4527,7 +4527,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "open".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4539,7 +4539,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner2".into(),
         "cross-player".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(0),
     );
@@ -4551,7 +4551,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "choose".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(0),
     );
@@ -4576,7 +4576,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "training".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4594,7 +4594,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "beginner".into(),
         "restore".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(1),
     );
@@ -4623,7 +4623,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "magician".into(),
         "already".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4641,7 +4641,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "magician".into(),
         "already-select".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("select"),
         Some(0),
     );
@@ -4658,7 +4658,7 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
     world.handle_npc_talk(
         "other".into(),
         "wrong-job".into(),
-        MAGE_ADVANCE_NPC_ID.into(),
+        CROSSROAD_ADVANCE_NPC_ID.into(),
         Some("start"),
         None,
     );
@@ -4680,6 +4680,183 @@ fn mage_job_advance_is_menu_bound_authorized_and_persisted() {
         marker(&reconnected.to_string()),
         Some(serde_json::Value::Bool(true))
     );
+}
+
+/// 「選擇岔道」漢斯菜单的夹具，与 `scripts/assemble_tms273.cjs::FIRST_JOBS` 同形：
+/// 一个 `choose` 节点带四个选项，各自指向 `advance-<job>`（一转的四个职业）。
+fn first_job_gameplay() -> Gameplay {
+    let mut nodes = serde_json::Map::new();
+    let mut options = Vec::new();
+    for (index, job) in crate::mage::FIRST_JOBS.iter().enumerate() {
+        options.push(serde_json::json!({
+            "index": index,
+            "text": { "zh": job.to_string(), "en": job.to_string() },
+            "next": format!("advance-{job}"),
+        }));
+        nodes.insert(
+            format!("advance-{job}"),
+            serde_json::json!({
+                "act": {
+                    "kind": "jobAdvance",
+                    "fromJob": BEGINNER_JOB,
+                    "job": job,
+                    "next": format!("advanced-{job}"),
+                },
+            }),
+        );
+        nodes.insert(
+            format!("advanced-{job}"),
+            serde_json::json!({
+                "say": {
+                    "text": { "zh": format!("job-{job}"), "en": format!("job-{job}") },
+                    "kind": "ok",
+                },
+            }),
+        );
+    }
+    nodes.insert(
+        "choose".to_owned(),
+        serde_json::json!({
+            "menu": {
+                "text": { "zh": "choose", "en": "choose" },
+                "options": options,
+            },
+        }),
+    );
+    let script: npc::DialogueScript = serde_json::from_value(serde_json::json!({
+        "start": "choose",
+        "nodes": nodes,
+    }))
+    .unwrap();
+    Gameplay {
+        npcs: vec![NpcTemplate {
+            template_id: CROSSROAD_ADVANCE_TEMPLATE_ID.into(),
+            name: "Hans".into(),
+            func: "Explorer instructor".into(),
+            shop_id: None,
+            script: Some(script),
+            stand: Vec::new(),
+        }],
+        npc_spawns: vec![NpcSpawn {
+            id: CROSSROAD_ADVANCE_NPC_ID.into(),
+            template_id: CROSSROAD_ADVANCE_TEMPLATE_ID.into(),
+            x: 100.0,
+            y: 0.0,
+            foothold_id: Some(1),
+            map_id: CROSSROAD_ADVANCE_MAP_ID.into(),
+            facing: -1,
+        }],
+        ..Gameplay::default()
+    }
+}
+
+/// 一转：四条探险家线共用「選擇岔道」漢斯这一个入口。
+///
+/// 三条物理线**只有**这一条通道（源 1401/1403/1404 在本包 `executable:false`，
+/// 永远做不完），所以逐线跑一遍：门槛按线取（法师 8 级例外、物理三线 10 级），
+/// 选谁就是谁，发的是**本线**那本书的起手点，且不凭空补法师专属的 MP 下限与
+/// 隐藏伴随技能（见 `auth::grant_first_job_fields`）。
+#[test]
+fn crossroad_menu_grants_every_explorer_first_job_at_its_own_level() {
+    for (index, job) in crate::mage::FIRST_JOBS.iter().copied().enumerate() {
+        let is_mage = job == MAGICIAN_JOB;
+        let floor = auth::first_job_level(job);
+        assert_eq!(floor, if is_mage { 8 } else { 10 }, "一转门槛按线派生");
+
+        for (suffix, level, granted) in [
+            ("low", floor - 1, false),
+            ("ok", floor, true),
+        ] {
+            let path = std::env::temp_dir().join(format!(
+                "maple-first-job-{job}-{suffix}-{}.sqlite3",
+                auth::random_id()
+            ));
+            let service = auth::start(&path).unwrap();
+            let account = format!("first-job-{job}-{suffix}");
+            let base = Profile {
+                hp: 37,
+                mp: 4,
+                max_mp: 20,
+                level,
+                ..quest_profile()
+            };
+            service.store.load_profile(&account, &base).unwrap();
+            service.store.save_profile(&account, &base).unwrap();
+
+            let mut world = World::new_with_store(
+                mage_map(),
+                600,
+                first_job_gameplay(),
+                service.store.clone(),
+            )
+            .unwrap();
+            let (output, mut rx) = mpsc::channel(128);
+            let (reply, _) = oneshot::channel();
+            world.command(Command::Join {
+                identity: Identity {
+                    id: account.clone(),
+                    username: account.clone(),
+                },
+                connection: format!("{account}-1"),
+                output,
+                reply,
+                lang: "zh".into(),
+            });
+            while rx.try_recv().is_ok() {}
+
+            world.handle_npc_talk(
+                account.clone(),
+                "open".into(),
+                CROSSROAD_ADVANCE_NPC_ID.into(),
+                Some("start"),
+                None,
+            );
+            let menu: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+            assert_eq!(
+                menu["dialog"]["options"].as_array().unwrap().len(),
+                crate::mage::FIRST_JOBS.len(),
+                "菜单必须一次给出四条线"
+            );
+
+            world.handle_npc_talk(
+                account.clone(),
+                "pick".into(),
+                CROSSROAD_ADVANCE_NPC_ID.into(),
+                Some("select"),
+                Some(index as u32),
+            );
+            let reply: serde_json::Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+
+            let persisted = service.store.load_profile(&account, &base).unwrap();
+            if !granted {
+                assert_eq!(
+                    reply["code"], "job_advance_unavailable",
+                    "{job} 在 {level} 级不得转职"
+                );
+                assert_eq!(persisted.job, BEGINNER_JOB, "{job} 未达门槛却转了职");
+                continue;
+            }
+            assert_eq!(reply["dialog"]["kind"], "ok", "{job} 应当转职成功");
+            assert_eq!(persisted.job, job, "转职必须落到选中的那条线");
+            assert_eq!(world.players[&account].state.job, job, "世界侧同步职业");
+            // 起手点发在**本线的一转书**上（书号 == 职业号）。
+            assert_eq!(
+                persisted.skill_points.get(&job).copied(),
+                Some(5),
+                "{job} 应拿到本线一转发起手点"
+            );
+            if is_mage {
+                assert_eq!(persisted.mp, 100, "法师保留 100 MP 下限");
+                assert_eq!(persisted.skills.get(&2_000_007), Some(&1));
+                assert_eq!(persisted.skills.get(&2_001_012), Some(&1));
+            } else {
+                // 物理线不补法师专属的两项：MP 不动，也没有凭空多出来的技能。
+                assert_eq!(persisted.mp, 4, "物理线不设 MP 下限");
+                assert_eq!(persisted.max_mp, 20, "物理线不设 MP 上限");
+                assert!(persisted.skills.is_empty(), "物理线不补伴随技能");
+            }
+        }
+    }
 }
 
 #[test]

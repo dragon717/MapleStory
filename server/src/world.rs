@@ -158,10 +158,13 @@ const FRIEND_REQUEST_WINDOW: usize = 32;
 const AWAY_FULL_RETENTION: Duration = Duration::from_secs(600);
 const AWAY_MAX_TOTAL: Duration = Duration::from_secs(3600);
 
-const MAGE_ADVANCE_MAP_ID: &str = "001020000";
+/// 「選擇岔道」(001020000) 的漢斯 `10201`：**四条探险家线共用的一转入口**，也是
+/// 法师二/三/四转的快捷入口。名字不再叫 mage——2026-09-22 起菜单一次给出
+/// 剑士/法师/弓箭手/飞侠四个选项（`scripts/assemble_tms273.cjs::FIRST_JOBS`）。
+const CROSSROAD_ADVANCE_MAP_ID: &str = "001020000";
 const BOSS_PRACTICE_FALLBACK_MAP_ID: &str = "102020500";
-const MAGE_ADVANCE_NPC_ID: &str = "001020000-life-1";
-const MAGE_ADVANCE_TEMPLATE_ID: &str = "10201";
+const CROSSROAD_ADVANCE_NPC_ID: &str = "001020000-life-1";
+const CROSSROAD_ADVANCE_TEMPLATE_ID: &str = "10201";
 const BEGINNER_JOB: u32 = 0;
 const BEGINNER_BOOK: u32 = 0;
 const MAGICIAN_JOB: u32 = 200;
@@ -728,10 +731,10 @@ fn respawn_deadline(tick: u64, map_respawn_ms: Option<u64>, mob_time: i64) -> Op
     }
 }
 
-fn is_mage_advance_npc(map_id: &str, npc_id: &str, template_id: &str) -> bool {
-    map_id == MAGE_ADVANCE_MAP_ID
-        && npc_id == MAGE_ADVANCE_NPC_ID
-        && template_id == MAGE_ADVANCE_TEMPLATE_ID
+fn is_crossroad_advance_npc(map_id: &str, npc_id: &str, template_id: &str) -> bool {
+    map_id == CROSSROAD_ADVANCE_MAP_ID
+        && npc_id == CROSSROAD_ADVANCE_NPC_ID
+        && template_id == CROSSROAD_ADVANCE_TEMPLATE_ID
 }
 // Mapleweb advances its PhysicsObject in 8 ms steps. Raw Mob.wz `speed` is
 // the per-reference-tick horizontal force after `(speed + 100) * .001`;
@@ -2878,15 +2881,15 @@ impl World {
                         .players
                         .get(id)
                         .is_some_and(|player| player.state.level >= auth::FIRST_MAGE_JOB_LEVEL)
-                    && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
+                    && is_crossroad_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);
                 } else if (observer_can_second_advance || observer_can_third_advance)
-                    && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
+                    && is_crossroad_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);
                 } else if observer_can_use_mage_training
-                    && is_mage_advance_npc(map_id, &npc.state.id, &npc.template_id)
+                    && is_crossroad_advance_npc(map_id, &npc.state.id, &npc.template_id)
                 {
                     state.job_advancement_available = Some(true);
                 }

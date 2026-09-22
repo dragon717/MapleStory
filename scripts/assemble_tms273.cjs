@@ -12,7 +12,7 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-37';
+const version = 'tms273-38';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -248,26 +248,44 @@ gameplay.player={job:0,baseStr:12,baseDex:5,baseInt:4,baseLuk:4,weaponType:130,w
   attackAfterMs:450,contactInvulnerabilityMs:2000,...gameplay.player};
 gameplay.contentVersion=version;
 gameplay.compatibility.bossPractice = 'P: private level25 practice at source map102020500; no EXP, drops, quest credit or formal clear credit. T: source Boss3220000 HP7500, animation and attack timings. R: MobSkill112/113 are defense buffs,114 heals x. P: corresponding damage*85%, heal700 below80%HP, action order/gaps, circle attack2 and visual anchors. Blocked quests2813..2816 remain untouched; official spawn/rewards unknown.';
-// User-requested shortcut (2026-09-08), separate from the missing original quest scripts.
-const mage = gameplay.npcs.find(npc => npc.templateId === '10201');
-assert(mage && gameplay.npcSpawns.some(npc => npc.id === '001020000-life-1' && npc.templateId === '10201' && npc.mapId === '001020000'), 'Mage transfer NPC is missing');
-mage.script = {
-  // T: 1402「法師之路」(Quest.wz/QuestData/1402.img) gates the original first
-  // transfer at `Check.0.lvmin = 10`.  The shortcut sits on the same floor, so
-  // a level-4 beginner never reaches the profession menu — it used to be
-  // offered at level 0 and the server granted the job.
+// User-requested shortcut (2026-09-08), separate from the missing original quest
+// scripts.  Widened from Magician-only to all four Explorer lines (2026-09-22):
+// the source's 1401/1403/1404 are `executable:false` here (their original
+// script counters are not in the export), so before this the three physical
+// lines had no first transfer at all — and a job-advance trial can only fire
+// for a character whose job already equals its `fromJob`, so their whole
+// second/third/fourth chain was unreachable no matter how complete the config
+// looked.  Callers that need the reachability contract: the two "this route
+// can carry you" assertions in `check_tms273_job_advance.cjs`.
+const crossroad = gameplay.npcs.find(npc => npc.templateId === '10201');
+assert(crossroad && gameplay.npcSpawns.some(npc => npc.id === '001020000-life-1' && npc.templateId === '10201' && npc.mapId === '001020000'), 'Crossroad transfer NPC is missing');
+// T: 1401/1402/1403/1404「…之路」(Quest.wz/QuestData) all gate the original
+// first transfer at `Check.0.lvmin = 10`.  The shortcut sits on the same floor,
+// so a level-4 beginner never reaches the profession menu — it used to be
+// offered at level 0 and the server granted the job.  The mage keeps a
+// user-requested level-8 exception through the 1402 quest path only
+// (`auth::FIRST_MAGE_JOB_LEVEL`); this menu is level-10 for every line.
+// Ordering is the menu order the player sees; indices must stay contiguous.
+const FIRST_JOBS = [
+  { job: 100, zh: '剑士', en: 'Warrior' },
+  { job: 200, zh: '法师', en: 'Magician' },
+  { job: 300, zh: '弓箭手', en: 'Bowman' },
+  { job: 400, zh: '飞侠', en: 'Rogue' },
+];
+crossroad.script = {
   start: 'gate',
   nodes: {
     gate: { branch: { cond: { levelAtLeast: 10 }, then: 'choose', else: 'junior' } },
     junior: { say: { text: { zh: '转职需要达到10级。先去提升等级吧。', en: 'Job advancement requires level 10.' }, kind: 'ok' } },
-    choose: { menu: { text: { zh: '请选择你想成为的职业。', en: 'Choose your profession.' }, options: [
-      { index: 0, text: { zh: '法师', en: 'Magician' }, next: 'advance' },
-    ] } },
-    advance: { act: { kind: 'jobAdvance', fromJob: 0, job: 200, next: 'advanced' } },
-    advanced: { say: { text: { zh: '转职成功！你现在是一名法师了。', en: 'Job advancement complete! You are now a Magician.' }, kind: 'ok' } },
+    choose: { menu: { text: { zh: '请选择你想成为的职业。', en: 'Choose your profession.' }, options:
+      FIRST_JOBS.map(({ job, zh, en }, index) => ({ index, text: { zh, en }, next: `advance-${job}` })) } },
+    ...Object.fromEntries(FIRST_JOBS.flatMap(({ job, zh, en }) => [
+      [`advance-${job}`, { act: { kind: 'jobAdvance', fromJob: 0, job, next: `advanced-${job}` } }],
+      [`advanced-${job}`, { say: { text: { zh: `转职成功！你现在是一名${zh}了。`, en: `Job advancement complete! You are now a ${en}.` }, kind: 'ok' } }],
+    ])),
   },
 };
-gameplay.compatibility.mageTransfer = 'User-requested Magician selection at 001020000 / Hans; not the original q1402 quest script. T: the level-10 floor matches 1402 Check.0.lvmin, so the shortcut is not looser than the quest path.';
+gameplay.compatibility.firstJobTransfer = 'User-requested profession selection at 001020000 / Hans for all four Explorer lines (Magician since 2026-09-08; Warrior/Bowman/Rogue since 2026-09-22); not the original q1401/q1402/q1403/q1404 quest scripts, whose executable bodies are absent from the local export. T: the level-10 floor matches Check.0.lvmin of all four source quests, so the shortcut is nowhere looser than the quest path. P: 5 starter points in the new first-job book, mirroring the mage grant; the companion hidden skills and the 100 MP floor stay mage-only because no source field authorizes them for the physical lines, and no physical skill path spends MP today.';
 gameplay.compatibility.iceRuntime = 'P: Hans level30 shortcut 200->220, 5 initial book220 SP and 3 SP per later level; immediate multi-hit timing, five freeze layers with one layer change per cast/target, self-only Meditation and temporary teleport field execution. Source Skill values/art are TMS273.7; original transfer scripts and execution timing remain unverified.';
 gameplay.compatibility.iceThirdRuntime = 'P: Hans level60 shortcut 220->221, 5 initial book221 SP, then 3 SP per level; existing points/story/saves preserved. Immediate ice hits and one movable or stationary sphere per player at 1080ms pulses; eight adaptation charges and persistent source cooldown. Original third-job scripts and execution timing are unavailable; skills, art and source values remain TMS273.7.';
 gameplay.compatibility.beginnerRuntime = 'T: Skill/000.img and String/Skill.img define three beginner skills, max3, per-level MP/fixed damage/heal/speed/duration/cooldown. P: 5-second healing ticks inferred from source total and x; projectile reach/hit timing use the existing combat adapter. Buffs end on death/map exit/disconnect; skill levels, SP and cooldowns persist. Beginner SP follows the existing P 2..7 +1 rule. No shell item cost exists in the local skill source.';

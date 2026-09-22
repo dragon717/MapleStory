@@ -396,8 +396,24 @@ pub(crate) const DROP_PROTECTION_MS: i64 = 60_000;
 
 // P: user-requested TMS273 gameplay rule (2026-09-14). The local Quest.wz
 // export records 1402 lvmin=10; this explicit product rule makes the mage's
-// first transfer the level-8 exception while other first-job routes stay 10.
+// first transfer the level-8 exception while the other three lines keep the
+// source's own floor below.
 pub(crate) const FIRST_MAGE_JOB_LEVEL: u32 = 8;
+
+/// 其余三条线的一转门槛。T: 源 1401/1403/1404 的 `Check.0.lvmin` 都是 10，
+/// 「選擇岔道」菜单也写 10（`scripts/assemble_tms273.cjs::FIRST_JOBS` 的 gate）。
+pub(crate) const FIRST_JOB_LEVEL: u32 = 10;
+
+/// 某个一转职业的等级门槛（法师是用户指定的 8 级例外）。
+///
+/// **唯一**定义处：对话门与事务门都从这里取，不在两处各写一个数。
+pub(crate) fn first_job_level(job: u32) -> u32 {
+    if job == crate::mage::MAGE_BOOK {
+        FIRST_MAGE_JOB_LEVEL
+    } else {
+        FIRST_JOB_LEVEL
+    }
+}
 
 const MAGE_BOOK: u32 = 200;
 const THIRD_MAGE_BOOK: u32 = 221;
@@ -520,6 +536,27 @@ fn grant_first_mage_fields(
     skills.entry(2_001_012).or_insert(1);
     *max_mp = (*max_mp).max(100);
     *mp = *max_mp;
+}
+
+/// 一转的 P 级首发字段（**四条探险家线共用这一份实现**）。
+///
+/// TMS273.7 的导出里没有转职发放脚本，所以每一项都是本项目补齐的最小可玩集：
+/// 本线的一转书 5 点起手 SP（与后三层 +5/+5/+3 的既有阶梯同形）。法师另有两项
+/// 它的运行期所必需的补齐——隐藏伴随技能与 100 MP 下限；三条物理线**没有**同类的
+/// 必需伴随技能、也没有任何技能路径消耗 MP（施法耗 MP 只在法师的元素管线里），
+/// 因此不凭空补，理由登记在 `gameplay.compatibility.firstJobTransfer`。
+pub(crate) fn grant_first_job_fields(
+    job: u32,
+    max_mp: &mut i64,
+    mp: &mut i64,
+    skills: &mut BTreeMap<u32, u32>,
+    skill_points: &mut BTreeMap<u32, u32>,
+) {
+    if job == MAGE_BOOK {
+        grant_first_mage_fields(max_mp, mp, skills, skill_points);
+        return;
+    }
+    skill_points.entry(job).or_insert(5);
 }
 
 fn fourth_sp_for_level(level: u32) -> u32 {
@@ -906,9 +943,10 @@ impl Store {
         }
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
-        let required_level: i64 = if from_job == 0 && matches!(job, 100 | 200 | 300 | 400) {
-            // 四条线的授权捷径共用同一个一转门槛（法师是 8 级，其余线同源等级）。
-            i64::from(FIRST_MAGE_JOB_LEVEL)
+        let required_level: i64 = if from_job == 0 && crate::mage::is_first_job(job) {
+            // 四条线的授权捷径共用「選擇岔道」漢斯这一个一转入口，
+            // 门槛按线取（法师 8 级例外，物理三线同源 10 级）。
+            i64::from(first_job_level(job))
         } else if from_job == 200 && job == 220 {
             30
         } else if from_job == 220 && job == THIRD_JOB {
@@ -918,11 +956,12 @@ impl Store {
         } else {
             0
         };
-        if job == 200 {
-            // P: TMS273.7 export has no transfer grant script. Five book-200
-            // points and hidden companion levels make the authorized shortcut
-            // playable without pretending this is an original q1402 reward.
-            grant_first_mage_fields(&mut max_mp, &mut mp, &mut skills, &mut skill_points);
+        if from_job == 0 && crate::mage::is_first_job(job) {
+            // P: TMS273.7 export has no transfer grant script. The line's
+            // starter points (plus the mage's hidden companions and MP floor)
+            // make the authorized shortcut playable without pretending this is
+            // an original quest reward.
+            grant_first_job_fields(job, &mut max_mp, &mut mp, &mut skills, &mut skill_points);
         }
         if from_job == 200 && job == 220 {
             let level: u32 = tx
