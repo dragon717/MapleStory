@@ -758,6 +758,25 @@ impl World {
                     player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
                 }
             }
+            // 物理线**二转以上**的攻击技能：**从表派生的通用执行臂**，不逐条写常量。
+            // 改前这里只有上面那六条一转技能，26 条分支技能**在 `castable` 里、MP 与冷却
+            // 照扣、castEvent 照发，却没有任何结算**——是「能放但打不到」的静默缺口
+            // （第十三轮核查发现，四支柱落地时一并修掉）。它们走与一转六条**完全相同**
+            // 的一条范围管线：命中盒取源 `common/lt|rb` 绕玩家、段数与目标数取 `level`、
+            // 伤害是普攻攻击区间 × `damage%`；机制层（DoT / 投射物 / 二段命中）由
+            // `mechanics.rs` 从源字段派生，不在这里判技能。
+            other if PHYSICAL_AREA_ATTACKS.contains(&other) => {
+                if let Err(error) = self.cast_elemental_area(&id, &request_id, other, &level, false)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
             _ => {}
         }
         if let Some(player) = self.players.get_mut(&id) {
@@ -1922,6 +1941,31 @@ impl World {
                     Some(adjusted.mob_count.unwrap_or(1).saturating_add(plus).min(15));
             }
         }
+        // 段数的 Hyper 追加与目标数放在**同一处**调整：链锁闪电的 `閃電連擊` 被动加的是
+        // 段数，不是目标数。改前这段逻辑写在段循环的调用点里，机制计划（`AttackPlan`）
+        // 一旦从 `level` 单独派生就会少算这些段 —— 「生效等级」必须只有一份。
+        if skill_id == SKILL_CHAIN_LIGHTNING {
+            let learned = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&SKILL_HYPER_CHAIN_ATTACK))
+                .copied()
+                .unwrap_or(0);
+            if learned > 0 {
+                let extra = self
+                    .mage_skills
+                    .level(SKILL_HYPER_CHAIN_ATTACK, learned)
+                    .and_then(|value| value.attack_count)
+                    .unwrap_or(1);
+                adjusted.attack_count = Some(
+                    adjusted
+                        .attack_count
+                        .unwrap_or(1)
+                        .saturating_add(extra)
+                        .min(12),
+                );
+            }
+        }
         adjusted
     }
 
@@ -2460,37 +2504,93 @@ impl World {
         origin: Option<(f64, f64, i8)>,
         excluded: Option<&BTreeSet<String>>,
     ) -> Result<(), String> {
+        // 支柱③「投射物」的**发射端**（见 `mechanics.rs`）：源里写了段间隔的技能先登记
+        // 成飞行物，本拍只结算立即段；每段落地时再按段重做碰撞判定。
+        // 不带段间隔的技能（本包现在的绝大多数）在这里直接走下方同一条路径，
+        // 行为与本轮之前逐字相同。
+        let plan = AttackPlan::of(&self.hyper_area_level(id, skill_id, level));
+        let flying = plan.flying_segments();
+        if flying.is_empty() {
+            let segments = plan.immediate_segments();
+            return self.settle_area_segments(
+                id, request_id, skill_id, level, lightning, origin, excluded, &segments, true,
+            );
+        }
+        // 发射点必须**冻结**：投射物不会跟着主人走。没有显式原点时取施法拍的位置。
+        let Some(frozen) = origin.or_else(|| {
+            self.players
+                .get(id)
+                .map(|player| (player.state.x, player.state.y, player.state.facing))
+        }) else {
+            return Ok(());
+        };
+        self.launch_projectiles(
+            id, request_id, skill_id, level, lightning, frozen, excluded, &flying,
+        );
+        // 满段都在飞 ⇒ 本拍没有立即结算；收尾交给**最后一段**落地时做（`finalize`）。
+        let immediate = plan.immediate_segments();
+        if immediate.is_empty() {
+            return Ok(());
+        }
+        self.settle_area_segments(
+            id,
+            request_id,
+            skill_id,
+            level,
+            lightning,
+            Some(frozen),
+            excluded,
+            &immediate,
+            false,
+        )
+    }
+
+    /// 一次施法里**一段或多段**命中盒结算。施法链的立即段与投射物的到达段共用这一份实现，
+    /// 所以两条路径的伤害管线、幂等键、播报与经验口径不可能分叉。
+    ///
+    /// `finalize` 为真时收尾做两件事：冰雷暴风雪的隐藏追击（既有行为）与二段命中判定。
+    /// 分段发射时只有**最后一段**带这个标记。
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn settle_area_segments(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+        lightning: bool,
+        origin: Option<(f64, f64, i8)>,
+        excluded: Option<&BTreeSet<String>>,
+        segments: &[u32],
+        finalize: bool,
+    ) -> Result<(), String> {
+        // 段数上界：源 `attackCount` 的最大合法值（雷霆 15、其余 12）。
+        // **超了改上界，不是改技能**；这里只做「本拍要结算的段是否落在上界内」的过滤。
+        let max_segments = if skill_id == SKILL_HYPER_THUNDER { 15 } else { 12 };
+        // 「生效等级」是**唯一**的一份：目标数（`target_plus`）与段数（链锁闪电的 Hyper
+        // 追加段）都在 `hyper_area_level` 里调整。机制计划也从它派生，否则「段计划」与
+        // 「段结算」会各算一套段数。
         let target_level = self.hyper_area_level(id, skill_id, level);
+        let segments = segments
+            .iter()
+            .copied()
+            .filter(|segment| *segment <= max_segments)
+            .collect::<Vec<_>>();
+        // 机制计划：DoT 参数与第二命中盒都从这里取，一次性派生（派生规则见
+        // `mechanics.rs::AttackPlan`），不在循环里逐段重算。
+        let plan = AttackPlan::of(&target_level);
+        // 原点解析成「值」而不是「可选」：`None` 等价于「取施法者当前位置」，
+        // 而 `area_targets_at(当前位置)` 与旧的 `area_targets()` 在同一拍内逐字等价。
+        let origin = origin.or_else(|| {
+            self.players
+                .get(id)
+                .map(|player| (player.state.x, player.state.y, player.state.facing))
+        });
         let targets = origin
             .map(|(x, y, facing)| self.area_targets_at(id, &target_level, x, y, facing))
-            .unwrap_or_else(|| self.area_targets(id, &target_level))
+            .unwrap_or_default()
             .into_iter()
             .filter(|target_id| excluded.is_none_or(|excluded| !excluded.contains(target_id)))
             .collect::<Vec<_>>();
-        let mut attack_count = level.attack_count.unwrap_or(1).clamp(
-            1,
-            if skill_id == SKILL_HYPER_THUNDER {
-                15
-            } else {
-                12
-            },
-        );
-        if skill_id == SKILL_CHAIN_LIGHTNING {
-            let learned = self
-                .players
-                .get(id)
-                .and_then(|player| player.state.skills.get(&SKILL_HYPER_CHAIN_ATTACK))
-                .copied()
-                .unwrap_or(0);
-            if learned > 0 {
-                let extra = self
-                    .mage_skills
-                    .level(SKILL_HYPER_CHAIN_ATTACK, learned)
-                    .and_then(|value| value.attack_count)
-                    .unwrap_or(1);
-                attack_count = attack_count.saturating_add(extra).min(12);
-            }
-        }
         let target_count = targets.len();
         let lightning_effect = lightning || skill_id == SKILL_CHAIN_LIGHTNING;
         // 物理线一转攻击技能：伤害基准是**普攻攻击区间**（`attack_damage_against`，
@@ -2610,7 +2710,7 @@ impl World {
             .mage_skills
             .level(SKILL_ELEMENTAL_WEAKEN, weaken_level)
             .cloned();
-        for segment in 1..=attack_count {
+        for segment in segments {
             for target_id in &targets {
                 if self
                     .monsters
@@ -2786,9 +2886,17 @@ impl World {
                 }
                 // 同上：攻击者位置要在借走 `monsters` 之前取。
                 let attacker_x = self.players.get(id).map(|player| player.state.x);
-                if resolution.damage > 0 && counts_as_direct_hit(skill_id) {
-                    self.advance_mystic_strike(id, request_id, target_id);
+                // 两件事在这里分开了（原本被 `counts_as_direct_hit` 一起门着，效果是
+                // **物理线的二段命中永远凑不出「首段真的打到人」**）：
+                // ① `successful_direct_targets` 是「本次结算里真的打出过伤害的目标」，
+                //    二段命中与暴风雪的隐藏追击都读它 —— 与技能是不是「直接命中类」无关；
+                // ② 神秘狙擊叠层只认 `counts_as_direct_hit`（命中**次数**的语义），
+                //    并进 ① 会让物理线凭空开始叠法师的层。
+                if resolution.damage > 0 {
                     successful_direct_targets.insert(target_id.clone());
+                    if counts_as_direct_hit(skill_id) {
+                        self.advance_mystic_strike(id, request_id, target_id);
+                    }
                 }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
@@ -2835,6 +2943,28 @@ impl World {
                         })
                         .to_string(),
                     );
+                }
+                // 支柱②「持续伤害」的**挂载点**：第 1 段真的打出伤害之后才掷 `prop` 挂载。
+                // 只挂首段而不是每段都挂：段与段之间只差几十毫秒，每段都掷一次骰会让
+                // 「叠层数」变成段数的副产物，而不是源 `prop` 驱动的结果。
+                if segment == 1 && resolution.damage > 0 {
+                    if let Some(dot) = plan.dot {
+                        // 每跳伤害按**目标模板**算定（物理线含等级差与 PDD，与直接命中同基准），
+                        // 之后每跳都是这个数：DoT 是「挂上去就固定」的残余伤害。
+                        let per_tick =
+                            if let Some((attributes, player_level)) = &physical_attributes {
+                                let base = attributes
+                                    .attack_damage_against(*player_level, &target_template);
+                                ((base as f64) * dot.per_tick_percent as f64 / 100.0)
+                                    .floor()
+                                    .max(1.0) as i64
+                            } else {
+                                ((magic_attack as f64) * dot.per_tick_percent as f64 / 100.0)
+                                    .floor()
+                                    .max(1.0) as i64
+                            };
+                        self.apply_dot_hit(id, request_id, skill_id, target_id, &dot, per_tick);
+                    }
                 }
                 if !resolution.profiles.is_empty() {
                     for (participant, profile) in resolution.profiles {
@@ -2913,12 +3043,38 @@ impl World {
                 }
             }
         }
-        if is_nonsummon_direct_skill(skill_id) && skill_id != SKILL_BLIZZARD_HIDDEN {
+        if finalize && is_nonsummon_direct_skill(skill_id) && skill_id != SKILL_BLIZZARD_HIDDEN {
             if !successful_direct_targets.is_empty() {
                 let index = deterministic_percent(&[id, request_id, "blizzard-target"]) as usize
                     % successful_direct_targets.len();
                 if let Some(target_id) = successful_direct_targets.iter().nth(index).cloned() {
                     self.maybe_cast_blizzard_follow_up(id, request_id, &target_id)?;
+                }
+            }
+        }
+        // 支柱④「二段命中」：**首段链收尾时仍有真实命中**才追加。判定用
+        // `successful_direct_targets`（本次结算里真的打出过伤害的目标集合），
+        // 所以空挥、全被闪避、目标已死都不会凭空多出一段。
+        if finalize {
+            if let Some(second) = plan.second {
+                if !successful_direct_targets.is_empty() {
+                    if let Some((origin_x, origin_y, facing)) = origin {
+                        // 二段复用首段的属性快照，不重新聚合：两段之间夹一次属性变更
+                        // （升级 / 增益到期）会让「同一次攻击的两段」用两个面板值。
+                        let basis = match physical_attributes {
+                            Some((attributes, player_level)) => DamageBasis::Physical {
+                                attributes,
+                                player_level,
+                            },
+                            None => DamageBasis::Magic { magic_attack },
+                        };
+                        let second_basis = SecondHitBasis {
+                            origin: (origin_x, origin_y, facing),
+                            level: target_level.clone(),
+                            basis,
+                        };
+                        self.settle_second_hit(id, request_id, skill_id, &second, &second_basis)?;
+                    }
                 }
             }
         }

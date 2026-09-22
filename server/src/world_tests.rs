@@ -4175,6 +4175,9 @@ include!("damage_pipeline_acceptance.rs");
 include!("attribute_acceptance.rs");
 // 转职任务（2026-09-21）：事务层（真实 SQLite）＋ 对话层（store-less World）。
 include!("job_advance_acceptance.rs");
+// 战斗机制纵深（2026-09-22 第十三轮）：召唤物 / DoT / 投射物 / 二段命中，
+// 以及四者在世界拍里的**结算优先级**。
+include!("mechanics_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

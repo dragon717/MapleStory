@@ -150,6 +150,28 @@ pub struct MageLevel {
     pub lt: Option<MagePoint>,
     #[serde(default)]
     pub rb: Option<MagePoint>,
+    // ── 战斗机制纵深（2026-09-22 第十三轮）：四支柱的**源参数**，逐字段对应一条机制 ──
+    /// 每跳伤害%（源 `dot`）。带它才说明这条技能挂了持续伤害。
+    pub dot: Option<i64>,
+    /// DoT 持续秒数（源 `dotTime`）。**刻意不回落源 `time`**：`time` 在召唤 / 持续场
+    /// 那边是「脉冲周期」，同一字段被两条路径各读一次会让判据与行为一起分叉。
+    pub dot_time: Option<i64>,
+    /// DoT 跳伤间隔秒数（源 `dotInterval`）。
+    pub dot_interval: Option<i64>,
+    /// 投射物第 1 段的间隔毫秒（源 `ballDelay`）；`ballDelay1/2/3` 依次是其后各段。
+    /// 源只写前几段是常态，此时后段沿用**最后一个已写明的间隔**（见 `mechanics.rs`）。
+    pub ball_delay: Option<i64>,
+    pub ball_delay1: Option<i64>,
+    pub ball_delay2: Option<i64>,
+    pub ball_delay3: Option<i64>,
+    /// 二段命中的追加伤害%（源 `damPlus`）。
+    pub dam_plus: Option<i64>,
+    /// 第二命中盒（源 `lt2`/`rb2`）。与 `lt`/`rb` 同形（朝左书写、允许小数），
+    /// 所以同样属于**对象字段**，不进整数契约。
+    #[serde(default)]
+    pub lt2: Option<MagePoint>,
+    #[serde(default)]
+    pub rb2: Option<MagePoint>,
 }
 
 #[derive(Clone, Copy, Deserialize)]

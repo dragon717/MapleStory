@@ -71,6 +71,11 @@ mod growth;
 mod helios;
 #[path = "inventory_ops.rs"]
 mod inventory_ops;
+/// 战斗机制纵深（四支柱：召唤物 / 持续伤害 / 投射物 / 二段命中）：机制计划的派生、
+/// 需要跨拍存活的两类状态（怪物侧 DoT 与飞行中的投射物）、以及四者的结算优先级。
+/// 见模块头。
+#[path = "mechanics.rs"]
+mod mechanics;
 #[path = "messaging.rs"]
 mod messaging;
 #[path = "monsters.rs"]
@@ -128,6 +133,7 @@ pub(crate) mod colossus;
 use self::attribute::*;
 use self::damage::*;
 use self::derived::*;
+use self::mechanics::*;
 use self::monsters::{mark_monster_hit_aggro, register_monster_knockback};
 use self::movement::*;
 use self::player_status::{Disease, Expiry, PlayerStatus, Release};
@@ -413,10 +419,16 @@ const SKILL_SAVAGE_BLUNT: u32 = 4001013;
 // 段数 12）——**超出就得改上界，不是改技能**。
 //
 // 准入是**规则派生**的，不是逐条手挑：源里 `damage ∧ mobCount ∧ attackCount ∧ lt ∧ rb`
-// 齐备、且**不带**机制标记（`time` / `dot` / `dotInterval` / `dotTime` / `prop` /
-// `subTime` / `updatableTime` / `ballDelay*` / `lt2`+`rb2` / `maxUseCountInOneJump` /
-// `basicStatUp` / `mastery` / `hcHp` / `hp` / `fixdamage`）、也不是 `hidden` 节点的，
-// 才进这张表。**没进的 31 条**（带机制标记 17 条或 hidden 14 条，逐条由门禁从源表重算并钉住），
+// 齐备、且**不带**机制标记（下表逐字段写明是哪条机制）、也不是 `hidden` 节点的，才进这张表。
+// 判据里「带机制标记」看的是**源里真的有取值**：同组字段在所有等级上都恒为 0 只是源里的
+// 空参数，不是「本包没实现」——`1221009 騎士衝擊波` 的 `common` 里 `time:"0"`、`prop:"0"`
+// 就是这种，它按直接伤害接进来。
+// **机制标记表本身也是判据的产物**：第十三轮从它里面删掉了 `dot`/`dotTime`/`dotInterval`、
+// `ballDelay*`、`lt2`+`rb2` 这九行（**删一行 = 宣布该机制已实现**），对应技能随即被
+// 自动要求进表。删行不是免罪符——`check_tms273_damage_pipeline.cjs::§3f` 会**反向断言**
+// 这九个字段在 Rust 侧真的有读取点（`mechanics.rs` 里的 `level.<字段>`），
+// 没有消费点的「已实现」会被抓出来；`prop` / `subTime` 还要配着见证字段一起出现才算被消费。
+// **没进的 25 条**（带机制标记 11 条或 hidden 14 条，逐条由门禁从源表重算并钉住），
 // 以及「有 `damage` 却无贴身框」的 53 条、纯增益/召唤/治疗的 55 条、纯被动的 162 条，
 // 都由 `scripts/check_tms273_damage_pipeline.cjs` 的「物理线重算段」独立求出并断言
 // ——判据**不读这张表**，表只是被断言的对象。
@@ -426,6 +438,7 @@ const SKILL_RAGING_BLOW: u32 = 1121008;
 const SKILL_HYPER_RAGING_BLOW: u32 = 1121052;
 const SKILL_DIVINE_SWING: u32 = 1201015;
 const SKILL_ULTIMATE_THRUST_PALADIN: u32 = 1211012;
+const SKILL_DIVINE_CHARGE: u32 = 1221009;
 const SKILL_HEAVENS_HAMMER: u32 = 1221011;
 const SKILL_FOCUSED_PIERCE: u32 = 1301012;
 const SKILL_LA_MANCHA_SPEAR: u32 = 1311011;
@@ -445,7 +458,24 @@ const SKILL_HYPER_QUAD_STAR: u32 = 4121052;
 const SKILL_SPIRAL_SLASH: u32 = 4201012;
 const SKILL_EDGE_RUSH: u32 = 4211011;
 const SKILL_CRUEL_STAB: u32 = 4221017;
-const PHYSICAL_AREA_ATTACKS: [u32; 31] = [
+// ── 战斗机制纵深（第十三轮）：四支柱各自接进来的第一批技能 ────────────────────
+// 它们不是「手挑」的，是**机制判据删除对应行之后被门禁自动要求进表**的：
+//   * DoT（`dot`/`dotTime`/`dotInterval`，挂载几率 `prop` 是它的触发骰）：
+//     `4121016` / `4221010 穢土轉生`（dot 94→210、dotTime 5→10 秒、dotInterval 1 秒、prop 100）。
+//   * 投射物逐段落点（`ballDelay*`，同技能同时带 `subTime` 时它是段间隔的第二份书写）：
+//     `1101011 雙連斬`（间隔 0/420ms）、`4221014 致命暗殺`（180ms × 6 段）、
+//     `3111015 閃光幻象`（480ms × 4 段）。
+//   * 二段命中（`lt2`∧`rb2` 第二命中盒 + `damPlus` 二段倍率）：`3111015 閃光幻象`
+//     （第二盒 `{-425,-180}..{0,40}`，倍率 `damPlus` 51→70）。
+// **`4221052 暗影霧殺` 没进**：它的 `subTime` 是**孤立**的（没有 `ballDelay*` 配对），
+// 那是「独立子窗口」语义，本包没有实现点 ⇒ 门禁的配对消费表把它继续挡住。
+// 五条的具体参数、交互与验证见 `docs/plan/history/2026-09-22/四支柱战斗机制纵深.md`。
+const SKILL_DOUBLE_SLASH: u32 = 1101011;
+const SKILL_PHANTOM_ILLUSION: u32 = 3111015;
+const SKILL_ASSASSINATE: u32 = 4221014;
+const SKILL_UNDEAD_REBIRTH_NIGHT_LORD: u32 = 4121016;
+const SKILL_UNDEAD_REBIRTH_SHADOWER: u32 = 4221010;
+const PHYSICAL_AREA_ATTACKS: [u32; 37] = [
     SKILL_SWORD_SLASH,
     SKILL_RUSH_ATTACK,
     SKILL_RISING_DRAGON,
@@ -458,6 +488,7 @@ const PHYSICAL_AREA_ATTACKS: [u32; 31] = [
     SKILL_HYPER_RAGING_BLOW,
     SKILL_DIVINE_SWING,
     SKILL_ULTIMATE_THRUST_PALADIN,
+    SKILL_DIVINE_CHARGE,
     SKILL_HEAVENS_HAMMER,
     SKILL_FOCUSED_PIERCE,
     SKILL_LA_MANCHA_SPEAR,
@@ -465,18 +496,23 @@ const PHYSICAL_AREA_ATTACKS: [u32; 31] = [
     SKILL_DARK_IMPALE,
     SKILL_GUNGNIRS_DESCENT,
     SKILL_HYPER_DARK_SYNTHESIS,
+    SKILL_DOUBLE_SLASH,
     SKILL_GALE_ARROW,
     SKILL_SWIFT_ASSAULT,
     SKILL_ARROW_RAIN,
     SKILL_SWIFT_ASSAULT_CROSSBOW,
     SKILL_SWIFT_SHOT,
     SKILL_HYPER_SNIPE,
+    SKILL_PHANTOM_ILLUSION,
     SKILL_SHURIKEN_BURST,
     SKILL_SHURIKEN_CHALLENGE,
     SKILL_HYPER_QUAD_STAR,
+    SKILL_UNDEAD_REBIRTH_NIGHT_LORD,
     SKILL_SPIRAL_SLASH,
     SKILL_EDGE_RUSH,
     SKILL_CRUEL_STAB,
+    SKILL_UNDEAD_REBIRTH_SHADOWER,
+    SKILL_ASSASSINATE,
 ];
 // `asrR` / `terR`（状态/元素抗性，直通加算）的物理线**纯被动**来源：英雄二转 恢復術
 // `1110011`、黑骑士二转 恢復術 `1310010`、刺客三转 永恆黑暗 `4110008`（还带 `mhpR`）、
@@ -2390,6 +2426,9 @@ pub struct World {
     combat: Combat,
     store: Option<Store>,
     mage_skills: MageSkills,
+    /// 战斗机制纵深里**需要跨拍存活**的两类状态：怪物侧 DoT 与飞行中的投射物。
+    /// 放在 `World` 上而不是 `Player` 上，因为键里既有施法者也有怪物（见 `mechanics.rs`）。
+    mechanics: mechanics::MechanicRegistry,
     next_monster: u64,
     /// Monotonic map-chat message sequence for this node.  Every accepted
     /// ephemeral message gets a unique id; the sequence never resets inside a
@@ -2499,6 +2538,7 @@ impl World {
             combat: Combat::new(duration_ms, hit_after_ms),
             store,
             mage_skills: MageSkills::default(),
+            mechanics: mechanics::MechanicRegistry::default(),
             next_monster: 0,
             chat_sequence: 0,
             whisper_sequence: 0,
@@ -3875,6 +3915,12 @@ impl World {
         self.step_monsters();
         self.step_ice_fields();
         self.step_summons();
+        // 战斗机制纵深（`mechanics.rs`）：非即时链的**结算优先级**就写在顺序里。
+        // 召唤物（主人放出去的「小号」）先打 → 投射物（已发射、正在飞的实体）落地 →
+        // DoT（挂在怪身上的残余）最后跳。越「已确定、越被动」的越靠后，所以 DoT
+        // 看到的血量已经被前两类削过，永远不会抢走投射物的击杀归属。
+        self.step_projectiles();
+        self.step_monster_dots();
         // Inventory-owned companions attach, travel and pick up in the same
         // sequential world tick; no per-pet tasks or independent world locks.
         let pet_ids: Vec<String> = self.players.keys().cloned().collect();

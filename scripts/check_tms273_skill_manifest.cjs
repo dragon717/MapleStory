@@ -57,8 +57,9 @@ const rustObjectFields = [];
   }
 }
 assert.deepEqual(
-  rustObjectFields.sort(), ['lt', 'rb'],
-  'MageLevel 的对象字段变了：只有坐标（lt/rb）允许小数，新增对象字段要重新决定它属不属于整数契约',
+  rustObjectFields.sort(), ['lt', 'lt2', 'rb', 'rb2'],
+  'MageLevel 的对象字段变了：只有坐标（lt/rb 与第二命中盒 lt2/rb2）允许小数，'
+  + '新增对象字段要重新决定它属不属于整数契约',
 );
 assert.deepEqual(
   [...RUNTIME_INTEGER_FIELDS].sort(), [...rustIntegerFields].sort(),

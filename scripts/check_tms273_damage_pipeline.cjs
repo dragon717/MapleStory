@@ -408,25 +408,37 @@ assertLoopedSource('ELEMENTAL_RESET_SKILLS', 'UnmarkedField', ',\\s*field: "mdR"
 //       源里 `damage ∧ mobCount ∧ attackCount ∧ lt ∧ rb` 齐备
 //       ∧ 不是 `hidden` 节点（玩家点不到，`handle_cast_skill` 在施法前就拒了）
 //       ∧ 不含任何「本包还没有这条机制」的字段（下表逐字段写明是哪条机制）。
+//     **机制字段要真的参与才算**：同组字段在所有等级上都恒为 0 ⇒ 源里这条机制对该
+//     技能是**空参数**，不是「本包没实现」，不该挡住它。`1221009 騎士衝擊波` 的源
+//     `common` 就是字面量 `time:"0"` / `prop:"0"`，按「字段在不在」判会把它误判成
+//     「需要窗口与触发骰」——那会用一个它根本不用的机制把它永久锁在表外。
+//     **而且它还要真的被消费**（2026-09-22 第十三轮补上的一半判据）：`prop` 是掷骰、
+//     `subTime` 是子窗口计时，两者都**只在配着另一个已实现的字段一起出现**时才被本包
+//     消费（见 `PHYSICAL_MECHANISM_PAIRED`）。孤立出现的它们说明「要掷 / 要计时的
+//     那件事」本身没实现，仍然挡住——这是「字段在不在」的反面：**有取值 ≠ 有消费点**。
 //     三条物理线的分支书 = 十位 ∈ {11,12,13,31,32,41,42}（即 `book / 10`），
 //     不含四条**一转**书（它们的 6 条单独列在表里，且不在本段的重算范围内）。
 const PHYSICAL_BRANCHES = new Set([11, 12, 13, 31, 32, 41, 42]);
-/** 字段 → 「这条机制本包还没有」的理由。删掉一行 = 宣布该机制已实现，
- *  届时对应技能会自动要求进 `PHYSICAL_AREA_ATTACKS`（而不是继续被静默跳过）。 */
+/** 物理线技能书的**书号**（id 的高四位）：四条一转书加三条线各自的二/三/四转书。
+ *  客户端的 `ACTIVE_SKILLS` 与 `world.rs::PHYSICAL_AREA_ATTACKS` 靠它区分
+ *  「这条 id 属于物理线」还是「属于法师 / 初学者」，从而做逐项双向断言。 */
+const PHYSICAL_BOOKS = new Set([
+  100, 110, 111, 112, 120, 121, 122, 130, 131, 132,
+  300, 310, 311, 312, 320, 321, 322,
+  400, 410, 411, 412, 420, 421, 422,
+]);
+/** 字段 → 「这条机制本包还没有」的理由。**删掉一行 = 宣布该机制已实现**，
+ *  届时对应技能会自动要求进 `PHYSICAL_AREA_ATTACKS`（而不是继续被静默跳过）。
+ *
+ *  第十三轮删掉了这些行（宣布四支柱已实现）：`dot` / `dotTime` / `dotInterval`
+ *  （持续伤害）、`ballDelay` / `ballDelay1` / `ballDelay2` / `ballDelay3`（投射物逐段
+ *  时序）、`lt2` / `rb2`（第二命中盒）。删行不是免罪符：下面 §3f 会**反向断言**这些
+ *  字段在 Rust 侧真的有读取点，没有消费点的「已实现」会被抓出来。 */
 const PHYSICAL_MECHANISM_FIELDS = {
-  time: '增益 / 召唤窗口：物理分支只接了**直接伤害**，没有施放窗与召唤实体',
-  dot: '持续伤害场：本包没有 DoT 结算',
-  dotInterval: '持续伤害场：本包没有 DoT 结算',
-  dotTime: '持续伤害场：本包没有 DoT 结算',
-  prop: '按几率触发（斗气 / 印记 / 挑衅 / 追加）：本包没有触发骰',
-  subTime: '子窗口计时：本包没有窗口状态',
+  time: '增益 / 召唤窗口：`time` 在本包只被召唤与持续场的时间轴消费；攻击技能上的 `time`（眩晕 / 挑衅 / 印记的时长）没有实现点',
   updatableTime: '可刷新窗口计时：本包没有窗口状态',
-  ballDelay: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
-  ballDelay1: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
-  ballDelay2: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
-  ballDelay3: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
-  lt2: '第二命中盒：本包的范围选择只读 `common/lt|rb` 一对',
-  rb2: '第二命中盒：本包的范围选择只读 `common/lt|rb` 一对',
+  prop: '按几率触发（斗气 / 印记 / 挑衅 / 追加）：本包只实现了**持续伤害的挂载骰**',
+  subTime: '独立子窗口计时：本包只在同技能同时带 `ballDelay*` 时把 `subTime` 读作段间隔的第二份书写',
   maxUseCountInOneJump: '跳跃使用次数限制：本包不建模该计数器',
   basicStatUp: '属性增益：走 attribute 槽位，不是攻击',
   mastery: '熟练度被动：走 `MASTERY_SKILLS` 槽位，不是攻击',
@@ -434,6 +446,73 @@ const PHYSICAL_MECHANISM_FIELDS = {
   hp: 'HP 消耗类字段：本包不建模',
   fixdamage: '固定伤害：新手技能路径专用',
 };
+/** 字段 → **机制组**。分组只有一个用途：判断「这条机制到底有没有参与」。
+ *  同组字段里只要有一个在某一级上非零，这条机制就真的参与；整组恒为 0 ⇒ 空参数。
+ *  加字段就要说明它与谁同组（下表不全即失败），否则新字段会绕过整条判据。 */
+const PHYSICAL_MECHANISM_GROUP = {
+  time: 'buff-window',
+  updatableTime: 'buff-window',
+  subTime: 'sub-window',
+  prop: 'trigger-roll',
+  maxUseCountInOneJump: 'jump-counter',
+  basicStatUp: 'attribute-slot',
+  mastery: 'attribute-slot',
+  hcHp: 'hp-cost',
+  hp: 'hp-cost',
+  fixdamage: 'fixed-damage',
+};
+/** **配对消费**：这一行仍然挡住技能，**除非**它配着另一条**已实现**的字段一起出现，
+ *  且那条字段在某一级上真的有取值。
+ *
+ *  为什么需要这张表：`prop` / `subTime` 是**派生的**参数——它们本身不是伤害，而是
+ *  「给另一件事掷骰 / 给另一件事计时」。本包实现的是那件「另一件事」（持续伤害、
+ *  段间隔），所以只有当它确实在场时，这两个字段才真的被消费。孤立出现时它指向的
+ *  机制没实现，挡住才是诚实的结论（`4211002 瞬影殺` 的孤立 `prop`、
+ *  `4221052 暗影霧殺` 的孤立 `subTime` 都仍被挡在表外）。 */
+const PHYSICAL_MECHANISM_PAIRED = {
+  prop: {
+    witness: ['dot', 'dotTime', 'dotInterval'],
+    why: '`prop` 是掷骰；本包实现的是**持续伤害的挂载骰**（`mechanics.rs::apply_dot_hit`）。'
+      + '配着 `dot*` 时它掷的就是这条已实现的机制 ⇒ 不再是「未实现」的证据；'
+      + '孤立的 `prop` 说明它要掷的附带效果本身没实现，仍然挡住。',
+  },
+  subTime: {
+    witness: ['ballDelay', 'ballDelay1', 'ballDelay2', 'ballDelay3'],
+    why: '`subTime` 与 `ballDelay*` 是同一次施法里段间隔的两份书写（`3111015 閃光幻象` 的 '
+      + '500 与 480 只差一拍的取整），`mechanics.rs::segment_delays` 确实读它；'
+      + '孤立的 `subTime`（`3111013 箭座` 的召唤周期、`4221052 暗影霧殺` 的独立子窗口）'
+      + '是另一类语义，仍然挡住。',
+  },
+};
+const physicalMechanismGroups = new Map();
+for (const field of Object.keys(PHYSICAL_MECHANISM_FIELDS)) {
+  const group = PHYSICAL_MECHANISM_GROUP[field];
+  assert.ok(
+    group,
+    `物理线机制字段 \`${field}\` 没有登记所属机制组 —— 加了字段就要说明它和谁同组，`
+      + '否则「整组恒为 0 才算空参数」这条判据对新字段不成立',
+  );
+  if (!physicalMechanismGroups.has(group)) physicalMechanismGroups.set(group, []);
+  physicalMechanismGroups.get(group).push(field);
+}
+assert.deepEqual(
+  [...physicalMechanismGroups.values()].flat().sort(),
+  Object.keys(PHYSICAL_MECHANISM_FIELDS).sort(),
+  '机制分组必须逐字段恰好覆盖字段表（多一个少一个都会让判据与理由表分叉）',
+);
+for (const [field, paired] of Object.entries(PHYSICAL_MECHANISM_PAIRED)) {
+  assert.ok(
+    PHYSICAL_MECHANISM_FIELDS[field],
+    `配对消费表里的 \`${field}\` 不在「未实现」字段表里——它已经实现了，这条豁免没有意义`,
+  );
+  for (const witness of paired.witness) {
+    assert.ok(
+      !PHYSICAL_MECHANISM_FIELDS[witness],
+      `\`${field}\` 的见证字段 \`${witness}\` 自己还在「未实现」表里——`
+        + '用一个同样没实现的字段去豁免另一个字段，等于两边都没实现',
+    );
+  }
+}
 const physicalBranchSkillIds = Object.entries(mageSkills.skills)
   .filter(([id]) => PHYSICAL_BRANCHES.has(Math.floor(Number(id) / 10000 / 10)))
   .map(([id]) => id);
@@ -442,6 +521,9 @@ const physicalAttackExcused = {};
 for (const id of physicalBranchSkillIds) {
   const skill = mageSkills.skills[id];
   const fields = new Set(skill.levels.flatMap(level => Object.keys(level)));
+  /** 「字段在不在」不够：字段在、但所有等级上都是 0 ⇒ 源里的空参数，不挡这条技能。 */
+  const present = field =>
+    fields.has(field) && skill.levels.some(level => Number(level[field] ?? 0) !== 0);
   if (!['damage', 'mobCount', 'attackCount', 'lt', 'rb'].every(field => fields.has(field))) {
     continue; // 不是「带贴身框的直接攻击」，不在本段的判据范围内（另有 53/55/162 条分类统计）
   }
@@ -449,14 +531,55 @@ for (const id of physicalBranchSkillIds) {
     physicalAttackExcused[id] = { why: `${skill.name}：源里是 \`hidden\` 节点（由职业规则自动启用），玩家点不到 —— 施法入口在 \`skill_hidden\` 就拒了，接进范围表没有意义。` };
     continue;
   }
-  const marker = Object.keys(PHYSICAL_MECHANISM_FIELDS).find(field => fields.has(field));
-  if (marker) {
-    physicalAttackExcused[id] = { why: `${skill.name}：带源字段 \`${marker}\` ⇒ ${PHYSICAL_MECHANISM_FIELDS[marker]}。` };
+  // 机制组里**真的有取值、且没有被配对消费豁免掉**的那一组才算挡住。
+  const blocking = [...physicalMechanismGroups.entries()]
+    .map(([group, groupFields]) => [
+      group,
+      groupFields.filter(field => {
+        if (!present(field)) return false;
+        const paired = PHYSICAL_MECHANISM_PAIRED[field];
+        if (!paired) return true;
+        return !paired.witness.some(witness => present(witness));
+      }),
+    ])
+    .find(([, effective]) => effective.length > 0);
+  if (blocking) {
+    const [group, effective] = blocking;
+    const marker = effective[0];
+    const paired = PHYSICAL_MECHANISM_PAIRED[marker];
+    const detail = paired
+      ? `${marker}（机制组 \`${group}\`）孤立出现：见证字段 ${paired.witness.join(' / ')} 都不在场`
+        + ` ⇒ ${paired.why}`
+      : `${marker}（机制组 \`${group}\`）⇒ ${PHYSICAL_MECHANISM_FIELDS[marker]}。`;
+    physicalAttackExcused[id] = { why: `${skill.name}：带源字段 ${detail}` };
     continue;
   }
   physicalAttackExpected.push(id);
 }
 physicalAttackExpected.sort();
+// 判据的**例证**由源自己给出，正反两边都要成立——只成立一边就说明判据退化：
+//   ① 空参数不算机制：`1221009 騎士衝擊波` 的 `time`/`prop` 在源里恒为 0 ⇒ 必须进期望集；
+//   ② 有取值又没消费点仍然挡住：`1201013 騎士密令` 的 `time="1+u(x/4)"` 必须仍被挡住；
+//   ③ 配对消费成立：`4121016` / `4221010 穢土轉生`（`prop` 配 `dot*`）必须进期望集；
+//   ④ 配对消费**不**成立：`4211002 瞬影殺`（孤立 `prop`）、`4221052 暗影霧殺`（孤立
+//      `subTime`）必须仍被挡住——否则「配对」这条判据等于把两个字段一起放过。
+assert.ok(
+  physicalAttackExpected.includes('1221009'),
+  '1221009 騎士衝擊波 的 time/prop 在源里恒为 0，不该被机制标记挡住（判据退回「看字段在不在」）',
+);
+assert.ok(
+  !physicalAttackExpected.includes('1201013'),
+  '1201013 騎士密令 的 time 在源里真的有取值，必须仍被机制标记挡住（判据松成了「整组可为空」）',
+);
+assert.ok(
+  physicalAttackExpected.includes('4121016') && physicalAttackExpected.includes('4221010'),
+  '4121016 / 4221010 穢土轉生 的 `prop` 配着 `dot*`，属于**已被消费**的配对 ⇒ 必须进期望集',
+);
+assert.ok(
+  !physicalAttackExpected.includes('4211002') && !physicalAttackExpected.includes('4221052'),
+  '4211002 瞬影殺（孤立 prop）与 4221052 暗影霧殺（孤立 subTime）必须仍被挡住——'
+    + '「配对消费」不能退化成「见过这个字段就放过」',
+);
 // 反向断言：登记为「进不了表」的每一条都必须**真的没有** `world.rs` 常量——
 // 哪天有人给它起了常量、接了施法分支，这里立刻红，要求同时把它放进范围表。
 for (const [id, entry] of Object.entries(physicalAttackExcused)) {
@@ -497,6 +620,91 @@ for (const id of physicalWired) {
     );
   }
 }
+
+// 3f. 客户端镜像：技能面板的「可放」名单必须与服务端逐项相同。
+//     少一侧＝服务端放得出来但 UI 点不到（技能窗／HUD／键盘层共读这一份）；
+//     多一侧＝界面有按钮但服务端回「尚未开放施放」。两个方向都是玩家可见的缺陷。
+const viewSrc = fs.readFileSync(
+  path.join(ROOT, 'client/src/features/skills/view.ts'), 'utf8',
+);
+const activeSkillsBody = /export const ACTIVE_SKILLS = new Set\(\[([\s\S]*?)\]\);/.exec(viewSrc);
+assert.ok(
+  activeSkillsBody,
+  'client/src/features/skills/view.ts 里读不到 ACTIVE_SKILLS 的形状——镜像断言不再有效',
+);
+const clientPhysicalIds = [...activeSkillsBody[1].matchAll(/'(\d+)'/g)]
+  .map(match => match[1])
+  .filter(id => PHYSICAL_BOOKS.has(Math.floor(Number(id) / 10000)))
+  .sort();
+assert.deepEqual(
+  clientPhysicalIds, physicalWired,
+  `客户端 ACTIVE_SKILLS 里的物理线技能是 ${clientPhysicalIds.join('/')}，`
+    + `服务端 PHYSICAL_AREA_ATTACKS 是 ${physicalWired.join('/')}——两边必须逐项相同`
+    + '（少一侧＝技能能放但 UI 点不到，多一侧＝有按钮但服务端拒绝）',
+);
+
+// 3g. 「删一行 = 宣布已实现」必须有消费点撑腰。四支柱的机制层住在 `mechanics.rs`，
+//     字段名从源 `dotTime` 变成 Rust `dot_time`（serde camelCase ⇒ snake_case），
+//     所以这里按同一份映射双向断言：**宣布已实现的必须真的被读**，
+//     **仍登记为未实现的必须真的没被读**。没有这一层，「删掉门禁里的一行」就只是一个
+//     判据改动，行为可以原地不动——那样门禁会替一个不存在的实现背书。
+const mechanicsSrc = codeOnly(read('mechanics.rs'));
+const IMPLEMENTED_MECHANISM_FIELDS = {
+  dot: 'dot',
+  dotTime: 'dot_time',
+  dotInterval: 'dot_interval',
+  ballDelay: 'ball_delay',
+  ballDelay1: 'ball_delay1',
+  ballDelay2: 'ball_delay2',
+  ballDelay3: 'ball_delay3',
+  lt2: 'lt2',
+  rb2: 'rb2',
+  damPlus: 'dam_plus',
+  prop: 'prop',
+  subTime: 'sub_time',
+};
+for (const [field, snake] of Object.entries(IMPLEMENTED_MECHANISM_FIELDS)) {
+  const readSite = new RegExp(`level\\s*\\.\\s*${snake}\\b`);
+  assert.ok(
+    readSite.test(mechanicsSrc),
+    `\`${field}\` 被登记为「已实现」（或已被配对消费豁免），但 mechanics.rs 里找不到它的读取点 `
+      + `/${readSite.source}/——删掉门禁里的一行只改判据，不改行为；没有消费点的「已实现」是假的`,
+  );
+}
+for (const field of Object.keys(PHYSICAL_MECHANISM_FIELDS)) {
+  if (PHYSICAL_MECHANISM_PAIRED[field]) continue;
+  const snake = field.replace(/[A-Z]/g, ch => `_${ch.toLowerCase()}`);
+  const readSite = new RegExp(`level\\s*\\.\\s*${snake}\\b`);
+  assert.ok(
+    !readSite.test(mechanicsSrc),
+    `\`${field}\` 仍登记为「本包还没有这条机制」，但 mechanics.rs 已经在读 \`level.${snake}\`——`
+      + '要么把它从「未实现」表里删掉（= 宣布已实现），要么把读取点去掉；两边不能同时成立',
+  );
+}
+// 四支柱里需要**跨拍存活**的两条状态必须同时具备「定义」与「在世界拍里被调用」：
+// 只有定义没有调用 = 状态永远不推进（静默失效，配置看起来完全自洽）；
+// 只有调用没有定义则根本编译不过，所以缺的只会是前者。
+const worldCode = codeOnly(worldSrc);
+for (const step of ['step_projectiles', 'step_monster_dots']) {
+  assert.ok(
+    new RegExp(`fn ${step}\\(&mut self\\)`).test(mechanicsSrc),
+    `mechanics.rs 里没有定义 \`fn ${step}\`——跨拍状态没有推进入口`,
+  );
+  assert.ok(
+    new RegExp(`self\\.${step}\\(\\);`).test(worldCode),
+    `world.rs 的 \`step()\` 没有调用 \`self.${step}()\`——状态定义了却永远不推进`,
+  );
+}
+// **结算优先级就写在世界拍的顺序里**：召唤物先打 → 投射物落地 → DoT 最后跳。
+// 越「已确定、越被动」的越靠后，DoT 才不会抢走投射物的击杀归属。换序是多物理状态缺陷，
+// 单元测试（`mechanics_acceptance.rs` 的同拍用例）会红，这里再做一次纯文本兜底。
+const summonCall = worldCode.indexOf('self.step_summons();');
+const projectileCall = worldCode.indexOf('self.step_projectiles();');
+const dotCall = worldCode.indexOf('self.step_monster_dots();');
+assert.ok(
+  summonCall >= 0 && projectileCall > summonCall && dotCall > projectileCall,
+  '非即时链的结算优先级被打乱了：必须是 召唤物 → 投射物 → DoT',
+);
 
 /** 源里带分组标记的三个字段名——它们是「哪些加算、哪些独立乘算」的全部依据。 */
 assert.deepEqual(

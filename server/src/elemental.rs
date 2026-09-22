@@ -145,7 +145,7 @@ impl World {
             return Err("player_unknown".to_owned());
         };
         player.summons.retain(|old| old.skill_id != SKILL_ICE_DEMON);
-        if player.summons.len() >= 2 {
+        if !Self::summon_slots_available(player) {
             return Err("summon_limit".to_owned());
         }
         player.summons.push(summon);
@@ -193,7 +193,7 @@ impl World {
         player
             .summons
             .retain(|old| old.skill_id != SKILL_FROZEN_ORB);
-        if player.summons.len() >= 2 {
+        if !Self::summon_slots_available(player) {
             return Err("summon_limit".to_owned());
         }
         player.summons.push(summon);

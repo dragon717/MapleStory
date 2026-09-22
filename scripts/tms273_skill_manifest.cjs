@@ -27,6 +27,12 @@ const RUNTIME_INTEGER_FIELDS = new Set([
   'indieMad', 'subTime', 's', 'pddX', 'x', 'y', 'prop', 'fixdamage', 'time', 'v', 'w', 'u',
   'psdSpeed', 'speedMax', 'range', 'mobCount', 'damage', 'attackCount',
   'maxUseCountInOneJump',
+  // 战斗机制纵深（第十三轮）：四支柱的源参数标量（`server/src/mage.rs::MageLevel` 同步）。
+  // `dot`/`dotTime`/`dotInterval` 是持续伤害，`ballDelay{,1,2,3}` 是投射物逐段间隔，
+  // `damPlus` 是二段命中倍率。它们都是「算出小数就要在投影边界取整」的那一类。
+  'dot', 'dotTime', 'dotInterval',
+  'ballDelay', 'ballDelay1', 'ballDelay2', 'ballDelay3',
+  'damPlus',
 ]);
 
 /** 投影一个标量：运行期契约的整数字段四舍五入，其余字段原样带出。 */
