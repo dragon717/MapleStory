@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 34;
-export const CONTENT_VERSION = 'tms273-38';
+export const CONTENT_VERSION = 'tms273-39';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }

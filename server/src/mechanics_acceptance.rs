@@ -660,3 +660,129 @@ fn mech_world_tick_settles_summon_then_projectile_then_dot() {
         "目标死亡后 DoT 立刻被拆掉"
     );
 }
+
+// ── ⑥ S1 施放窗（窄口径·自增益）───────────────────────────────
+// 施放 `1221052 神之滅擊` → 施法者身上开出一段自增益窗（源 `time=10` ⇒ 10 000 ms =
+// 200 拍到点），到期由 `world.step()` 里 `player.status.advance()` 的既有清理点精确收回，
+// 不留尾巴。
+//
+// 反面承接门禁的**窄口径**：`time` 还有「负面状态窗 / 召唤存活」两种语义，仍被挡在
+// `PHYSICAL_AREA_ATTACKS` 外。这里用 `1121015 烈焰翔斬`（`time` 是 burn 负面状态窗）
+// 当伪造请求——它既不许被施放成自增益窗，运行时拒绝语义必须与门禁静态挡一致。
+
+#[test]
+fn mech_self_buff_window_opens_and_expires_exactly() {
+    let (mut world, mut rx) = mech_bundled_world(vec![mech_spawn("mob-g", 100.0)]);
+    mech_learn(&mut world, &[(SKILL_GODS_ANNIHILATION, 1)]);
+    // `1221052` 是 Hyper 主动技能（源 requiredLevel=160）：等级必须 ≥ 160 才能施放。
+    mech_place_actor(&mut world, 122, 200, 100.0, 100.0);
+
+    // 真实施法入口：证明这条技能在 `castable` 里且真的接上了物理范围管线。
+    world.handle_cast_skill(
+        MECH_ACTOR.into(),
+        "annihilate-1".into(),
+        SKILL_GODS_ANNIHILATION,
+        Some(1),
+        Some(0),
+    );
+    let cast = chapter_drain(&mut rx);
+    assert!(
+        cast.iter()
+            .any(|m| m["type"] == "skillResult" && m["success"] == true),
+        "施法被拒：{cast:?}"
+    );
+
+    // ① 自增益窗在施放拍就地出现，且 tick 语义到位：time=10 ⇒ 整 10 000 ms、
+    //    `until = now + 200 拍`，剩余毫秒在施放拍就是整 10 000（不是少 1 拍）。
+    let cast_tick = world.tick;
+    assert!(
+        world
+            .players
+            .get(MECH_ACTOR)
+            .unwrap()
+            .status
+            .buff_active(SKILL_GODS_ANNIHILATION),
+        "神之滅擊 施放后应立即出现自增益窗"
+    );
+    assert_eq!(
+        world
+            .players
+            .get(MECH_ACTOR)
+            .unwrap()
+            .status
+            .buff_remaining_ms(SKILL_GODS_ANNIHILATION),
+        Some(10_000),
+        "time=10（秒）×1000 ⇒ 窗 10 000 ms，且在施放拍整到位"
+    );
+
+    // ② 推进 200 拍到截止点：既有清理点精确收回，不泄漏。
+    for _ in 0..200 {
+        world.step();
+    }
+    assert_eq!(world.tick, cast_tick + 200);
+    let player = world.players.get(MECH_ACTOR).expect("joined actor");
+    assert!(
+        !player.status.buff_active(SKILL_GODS_ANNIHILATION),
+        "到点必须收回，不能由逐相减的裸字段停在 0"
+    );
+    assert!(
+        player.status.buff_map().is_empty(),
+        "收回后不留任何增益尾巴（唯一时钟不泄漏）"
+    );
+}
+
+#[test]
+fn mech_recast_refreshes_without_stacking_and_gated_negative_time_opens_no_window() {
+    // ③ 甲：重复施放 = 刷新，不叠加。清掉冷却再放，仍是**单条**窗口、剩余整 10 s。
+    let (mut world, mut rx) = mech_bundled_world(vec![mech_spawn("mob-g", 100.0)]);
+    mech_learn(&mut world, &[(SKILL_GODS_ANNIHILATION, 1)]);
+    mech_place_actor(&mut world, 122, 200, 100.0, 100.0);
+    world.handle_cast_skill(
+        MECH_ACTOR.into(),
+        "annihilate-1".into(),
+        SKILL_GODS_ANNIHILATION,
+        Some(1),
+        Some(0),
+    );
+    while rx.try_recv().is_ok() {}
+    {
+        let player = world.players.get_mut(MECH_ACTOR).unwrap();
+        player.skill_cooldowns.clear();
+    }
+    world.handle_cast_skill(
+        MECH_ACTOR.into(),
+        "annihilate-2".into(),
+        SKILL_GODS_ANNIHILATION,
+        Some(1),
+        Some(0),
+    );
+    while rx.try_recv().is_ok() {}
+    let buff_map = world.players.get(MECH_ACTOR).unwrap().status.buff_map();
+    assert_eq!(
+        buff_map.len(),
+        1,
+        "重复施放不得叠加：同一技能只能有一条窗口"
+    );
+    assert_eq!(
+        buff_map.get(&SKILL_GODS_ANNIHILATION).copied(),
+        Some(10_000),
+        "刷新让它回到整 10 s，而不是在剩余时间上相加（去重，不延长）"
+    );
+
+    // ③ 乙：伪造请求——`1121015 烈焰翔斬` 的 `time` 是 burn 负面状态窗（未接线）。
+    // 施放它不许冒出任何自增益窗；运行时拒绝语义与门禁静态挡在表外一致。
+    let (mut w2, mut rx2) = mech_bundled_world(vec![]);
+    mech_learn(&mut w2, &[(1_121_015, 1)]);
+    mech_place_actor(&mut w2, 112, 120, 100.0, 100.0);
+    w2.handle_cast_skill(MECH_ACTOR.into(), "flame-1".into(), 1_121_015, Some(1), Some(0));
+    let out = chapter_drain(&mut rx2);
+    let player = w2.players.get(MECH_ACTOR).expect("joined actor");
+    assert!(
+        !player.status.buff_active(1_121_015),
+        "负面状态窗的 `time` 不许被误接成自增益窗"
+    );
+    assert!(
+        player.status.buff_map().is_empty(),
+        "伪造的负面窗请求被挡：不得冒出任何自增益窗口：{out:?}"
+    );
+}

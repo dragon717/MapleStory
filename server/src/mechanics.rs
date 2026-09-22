@@ -71,6 +71,11 @@ pub(super) struct AttackPlan {
     pub segment_delay_ms: Vec<u64>,
     pub dot: Option<DotPlan>,
     pub second: Option<SecondHitPlan>,
+    /// 施放时给**施法者自己**开的自增益窗时长（毫秒，源自源 `time` 秒 × 1000）。
+    ///
+    /// 只有带 `time` 的**自增益**技能会消费它（S1 施放窗）；负面状态窗 / 召唤存活时长
+    /// 是 `time` 的另外两种语义，由门禁单独挡在表外，不在这里消费。
+    pub self_buff_window_ms: Option<u64>,
 }
 
 #[derive(Clone, Copy)]
@@ -132,10 +137,17 @@ impl AttackPlan {
             }),
             _ => None,
         };
+        // 自增益施放窗：源 `time`（秒）> 0 才派生。与既有自增益 buff 同一约定
+        // （`activate_hyper_adventurer` 及 DoT 的 `dotTime` 都是秒 × 1000）。
+        let self_buff_window_ms = level
+            .time
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| (seconds as u64).saturating_mul(1_000));
         Self {
             segment_delay_ms: delays,
             dot,
             second,
+            self_buff_window_ms,
         }
     }
 

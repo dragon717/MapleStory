@@ -26,13 +26,13 @@
 
 | 项 | 当前值 | 说明 |
 |---|---|---|
-| 内容版本 | `tms273-38` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。 |
+| 内容版本 | `tms273-39` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。`tms273-38→39`：`time` 机制字段判定从「未实现」收窄为「自增益施放窗已实现」（S1），客户端 `ACTIVE_SKILLS` 补入 1221052。 |
 | 协议版本 | `34` | 与内容版本独立；改 wire 才动。 |
 | 总纲快照口径 | 协议 `24` / 内容 `tms273-31` | 总纲是 2026-09-18 的固定快照，**其版本号不作为当前值**；当前值以本表为准。 |
 | 装机规模 | 211 图 / 120,556 资源 / 395 NPC / 79 怪 | 装配器自报 `maps:211`、`assets:120556`、`cashAppearanceLayers:1754`、`missing:[]`。 |
 | 技能目录 | 35 本 / 504 条（战士 139 + 弓箭手 105 + 飞侠 107 + 法师 153） | 书准入＝四张职业表按布局切片派生。 |
 | 转职任务 | `shared/job-advance.json` 30 条 | 法师三分支 9 + 战士／弓／侠各 7。 |
-| `cargo test` | **642 过 / 0 失败** | 确定性已根修（`deny_persistence` 从进程级改线程级注入）。 |
+| `cargo test` | **644 过 / 0 失败** | 确定性已根修（`deny_persistence` 从进程级改线程级注入）。 |
 | `run-checks.mjs` | **91 项 / 6 红** | 6 红＝既有基线集合，逐项见台账 §5.1。 |
 
 ---
@@ -66,11 +66,18 @@
 ### ② 战斗机制纵深：剩余两个切片（核心玩法最深的洞）
 
 **现状**：四支柱（召唤物 / DoT / 投射物 / 二段命中）已建成**唯一权威** `server/src/mechanics.rs`
-（`AttackPlan::of(level)` 唯一入口、全部从源字段派生、**不写技能名单**），物理线 37 条 + 法师分支 14 条攻击
+（`AttackPlan::of(level)` 唯一入口、全部从源字段派生、**不写技能名单**），物理线 38 条 + 法师分支 14 条攻击
 已接同一条范围管线。
 
-- **缺口 A（S1 施放窗）**：`time` / `updatableTime` **仍未实现**（`time` 还在「未实现」表里）。
-  落点是接上**既有的唯一时钟**——`player_status.rs` 已有穷尽 `Expiry`，**不要再造第二套窗口状态**。
+- **缺口 A（S1 施放窗）**：**已立起自增益施放窗（窄口径，2026-09-22）**——`AttackPlan` 新增
+  `self_buff_window_ms` 并从源 `time`（秒 ×1000）派生，复用 `player_status.rs` 既有唯一时钟
+  （`apply_buff`/`buff_active`/`buff_remaining_ms` + `Release::None` 到期收回），把
+  `1221052 神之滅擊` 端到端接入 `PHYSICAL_AREA_ATTACKS`，对应新增两条验收
+  （开窗 tick 语义 / 到期精确收回不泄漏 / 重复施放刷新不叠加 / 负面窗伪造请求被拒）。
+  门禁把 `time` 的「未实现」语义从**整组**收窄为「自增益窗已实现、负面状态窗/召唤仍未实现」，
+  用 `NEGATIVE_STATUS_TIME_ATTACKS` 人工豁免名单**保持其余 8 条技能仍被挡**
+  （`1121015/3121052/4121017` 是负面/挑衅 `time`；`騎士密令/神聖衝擊/神聖烙印/追隨者衝擊` 因孤立 `prop`；
+  `箭座 3111013` 因 `subTime`）。
 - **缺口 B（S5 召唤通用化）**：`elemental.rs::ThunderSummon` / `step_summons` **仍是冰雷专属**，要收口成
   通用槽位；`Player::summon` **仍是独立单槽**（三转球形闪电「同技能重放即替换」），**未**并入 `SUMMON_BUDGET`
   ——台账里如实登记为待办，**没有**假装已并入。

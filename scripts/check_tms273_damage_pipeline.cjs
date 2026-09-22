@@ -253,7 +253,7 @@ const NOT_CONSUMED = {
         .filter(([id]) => { const book = Math.floor(Number(id) / 10000); return book < 200 || book >= 300; })
         .map(([id, skill]) => [id, {
           boosted: id,
-          why: `${skill.name}（物理线 Hyper 主动）：indieDamR 是施放窗口内的值，必须先有增益窗；本包物理分支只接了直接伤害（PHYSICAL_AREA_ATTACKS），没有窗口状态 ⇒ 消费不了。接增益窗时必须同时补上独立乘算声明。`,
+          why: `${skill.name}（物理线 Hyper 主动）：indieDamR 是施放窗口内的独立乘算；本包自增益窗（S1）只挂时长、**尚未把 indieDamR 当独立乘算消费**（物理分支仍只接直接伤害）。接 indieDamR 时必须同时补上独立乘算声明。`,
         }]),
     ),
   },
@@ -435,8 +435,7 @@ const PHYSICAL_BOOKS = new Set([
  *  时序）、`lt2` / `rb2`（第二命中盒）。删行不是免罪符：下面 §3f 会**反向断言**这些
  *  字段在 Rust 侧真的有读取点，没有消费点的「已实现」会被抓出来。 */
 const PHYSICAL_MECHANISM_FIELDS = {
-  time: '增益 / 召唤窗口：`time` 在本包只被召唤与持续场的时间轴消费；攻击技能上的 `time`（眩晕 / 挑衅 / 印记的时长）没有实现点',
-  updatableTime: '可刷新窗口计时：本包没有窗口状态',
+  updatableTime: '可刷新的子窗口计时：自增益窗由 `time` 实现，可刷新子窗仍未实现',
   prop: '按几率触发（斗气 / 印记 / 挑衅 / 追加）：本包只实现了**持续伤害的挂载骰**',
   subTime: '独立子窗口计时：本包只在同技能同时带 `ballDelay*` 时把 `subTime` 读作段间隔的第二份书写',
   maxUseCountInOneJump: '跳跃使用次数限制：本包不建模该计数器',
@@ -450,7 +449,6 @@ const PHYSICAL_MECHANISM_FIELDS = {
  *  同组字段里只要有一个在某一级上非零，这条机制就真的参与；整组恒为 0 ⇒ 空参数。
  *  加字段就要说明它与谁同组（下表不全即失败），否则新字段会绕过整条判据。 */
 const PHYSICAL_MECHANISM_GROUP = {
-  time: 'buff-window',
   updatableTime: 'buff-window',
   subTime: 'sub-window',
   prop: 'trigger-roll',
@@ -531,6 +529,21 @@ for (const id of physicalBranchSkillIds) {
     physicalAttackExcused[id] = { why: `${skill.name}：源里是 \`hidden\` 节点（由职业规则自动启用），玩家点不到 —— 施法入口在 \`skill_hidden\` 就拒了，接进范围表没有意义。` };
     continue;
   }
+  // S1 自增益窗（`time` 已实现）之后，源里 `time` 还有两种**不能**用同一个 judge 的语义：
+  // 负面状态窗（打中怪后的眩晕 / 烙印 / 挑衅持续时间）与召唤存活时长（归 S5）。
+  // `time` 只是同一字段，源无法仅凭它自动区分三义——沿用 `PHYSICAL_ONE_TURN_ATTACKS`
+  // 的「人工豁免名单」先例，按源的负面/召唤标注字段（s/s2/u2/w2/s/u/w/z/subTime 等）
+  // 逐一登记并给理由；删掉一条 = 宣布对应语义已实现，届时门禁立刻要求它进表。
+  const NEGATIVE_STATUS_TIME_ATTACKS = {
+    '1121015': '烈焰翔斬：time=45 是 burn 窗口（与已实现的 dotTime=45 同一时长、且带 dot*），不是自增益窗',
+    '3121052': '波紋衝擊：time=20 是打中怪后的负面状态窗（带 s=-30 状态字段），不是自增益窗',
+    '4121017': '挑釁契約：time=70 是给怪的挑衅/负向状态窗（带 s2/u2/w2/s/u/w/z 状态字段），不是自增益窗',
+  };
+  const negativeWhy = NEGATIVE_STATUS_TIME_ATTACKS[id];
+  if (negativeWhy) {
+    physicalAttackExcused[id] = { why: `${skill.name}：` + negativeWhy };
+    continue;
+  }
   // 机制组里**真的有取值、且没有被配对消费豁免掉**的那一组才算挡住。
   const blocking = [...physicalMechanismGroups.entries()]
     .map(([group, groupFields]) => [
@@ -559,17 +572,20 @@ for (const id of physicalBranchSkillIds) {
 physicalAttackExpected.sort();
 // 判据的**例证**由源自己给出，正反两边都要成立——只成立一边就说明判据退化：
 //   ① 空参数不算机制：`1221009 騎士衝擊波` 的 `time`/`prop` 在源里恒为 0 ⇒ 必须进期望集；
-//   ② 有取值又没消费点仍然挡住：`1201013 騎士密令` 的 `time="1+u(x/4)"` 必须仍被挡住；
+//   ② 有取值又没消费点仍然挡住：`1201013 騎士密令` 的 `prop="1+u(x/4)"`（无 dot* 见证）
+//      必须仍被挡住——它的 `time` 已是自增益窗，但孤立 `prop` 是触发骰、仍未实现；
 //   ③ 配对消费成立：`4121016` / `4221010 穢土轉生`（`prop` 配 `dot*`）必须进期望集；
 //   ④ 配对消费**不**成立：`4211002 瞬影殺`（孤立 `prop`）、`4221052 暗影霧殺`（孤立
 //      `subTime`）必须仍被挡住——否则「配对」这条判据等于把两个字段一起放过。
+//   ⑤ S1 自增益窗已实现：`1221052 神之滅擊`（唯一纯自增益 `time` 载体）必须进期望集；
+//      `1121015/3121052/4121017`（`time` 是 burn/负面/挑衅状态窗）必须仍被挡在表外。
 assert.ok(
   physicalAttackExpected.includes('1221009'),
   '1221009 騎士衝擊波 的 time/prop 在源里恒为 0，不该被机制标记挡住（判据退回「看字段在不在」）',
 );
 assert.ok(
   !physicalAttackExpected.includes('1201013'),
-  '1201013 騎士密令 的 time 在源里真的有取值，必须仍被机制标记挡住（判据松成了「整组可为空」）',
+  '1201013 騎士密令 的 prop 在源里真的有取值（无 dot* 见证），必须仍被机制标记挡住（孤立触发骰）',
 );
 assert.ok(
   physicalAttackExpected.includes('4121016') && physicalAttackExpected.includes('4221010'),
@@ -580,6 +596,16 @@ assert.ok(
   '4211002 瞬影殺（孤立 prop）与 4221052 暗影霧殺（孤立 subTime）必须仍被挡住——'
     + '「配对消费」不能退化成「见过这个字段就放过」',
 );
+assert.ok(
+  physicalAttackExpected.includes('1221052'),
+  '1221052 神之滅擊 的 `time` 是**自增益窗**（S1 已实现），必须进期望集',
+);
+for (const id of ['1121015', '3121052', '4121017']) {
+  assert.ok(
+    !physicalAttackExpected.includes(id),
+    `${id}（time=burn/负面/挑衅状态窗）在 S1 自增益窗实现后不得被一起放出来`,
+  );
+}
 // 反向断言：登记为「进不了表」的每一条都必须**真的没有** `world.rs` 常量——
 // 哪天有人给它起了常量、接了施法分支，这里立刻红，要求同时把它放进范围表。
 for (const [id, entry] of Object.entries(physicalAttackExcused)) {
@@ -662,6 +688,7 @@ const IMPLEMENTED_MECHANISM_FIELDS = {
   damPlus: 'dam_plus',
   prop: 'prop',
   subTime: 'sub_time',
+  time: 'time',
 };
 for (const [field, snake] of Object.entries(IMPLEMENTED_MECHANISM_FIELDS)) {
   const readSite = new RegExp(`level\\s*\\.\\s*${snake}\\b`);
