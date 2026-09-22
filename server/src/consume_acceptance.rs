@@ -274,3 +274,99 @@ fn percentage_rounding_always_restores_at_least_one_point() {
     let (hp, _) = both.resolve(200, 100);
     assert_eq!(hp, 250, "flat and percentage parts must add");
 }
+
+/// Drive the **SQLite store path** (the one real players hit): a real account,
+/// a potion seeded into the durable inventory, and a `UseItem` that must heal
+/// the in-memory world state so the next tick snapshot / HUD actually rises.
+#[test]
+fn store_path_heals_world_state_and_consumes() {
+    let path = std::env::temp_dir().join(format!(
+        "maple-consume-store-{}.sqlite3",
+        auth::random_id()
+    ));
+    let service = crate::auth::start(&path).unwrap();
+    let store = service.store.clone();
+    let defaults = Profile {
+        hp: 500,
+        max_hp: 1000,
+        mp: 100,
+        max_mp: 1000,
+        level: 5,
+        job: 0,
+        exp: 0,
+        exp_to_next: 15,
+        mesos: 0,
+        cash: 0,
+        death_id: String::new(),
+        map_id: String::new(),
+        x: 0.0,
+        y: 0.0,
+        inventory: Vec::new(),
+        skills: BTreeMap::new(),
+        skill_points: BTreeMap::new(),
+        ability_stats: AbilityStats::default(),
+    };
+    store.load_profile("a", &defaults).unwrap();
+    let grant = store
+        .grant_inventory_item("a", "consume-store-grant", "2009001", 3)
+        .unwrap();
+    let mut world = World::new_with_store(consume_map(), 600, Gameplay::default(), store).unwrap();
+    let (output, mut rx) = mpsc::channel(128);
+    let (reply, _) = oneshot::channel();
+    world.command(Command::Join {
+        identity: Identity {
+            id: "a".into(),
+            username: "alice".into(),
+        },
+        connection: "c".into(),
+        output,
+        reply,
+        lang: "zh".to_owned(),
+    });
+    while rx.try_recv().is_ok() {}
+
+    let before = world.players["a"].state.hp;
+    assert!(before < world.players["a"].state.max_hp, "fixture must be wounded");
+    let max_hp = world.players["a"].state.max_hp;
+
+    world.command(Command::Input {
+        id: "a".into(),
+        message: ClientMessage::UseItem {
+            request_id: "consume-store-use".to_owned(),
+            inventory_type: 2,
+            source_slot: grant.from_slot,
+            item_id: "2009001".to_owned(),
+            target_slot: None,
+            target_item_id: None,
+        },
+        connection: "c".into(),
+    });
+
+    let after = world.players["a"].state.hp;
+    assert!(
+        after > before,
+        "store-path drink must heal world state ({before} -> {after}), not leave hp flat"
+    );
+    assert_eq!(after, (before + 50).min(max_hp), "a hp=50 potion restores 50 via the store");
+    let quantity = world.players["a"]
+        .state
+        .inventory
+        .iter()
+        .find(|item| item.item_id == "2009001")
+        .map(|item| item.quantity)
+        .unwrap_or(0);
+    assert_eq!(quantity, 2, "one unit must be consumed in the store transaction");
+
+    // The store path must also emit the recovery jump (visual feedback) that the
+    // in-memory fallback already sends — this is the part the live client was
+    // missing, so a drink read as "no heal" without it.
+    let mut saw_recovery = false;
+    while let Ok(message) = rx.try_recv() {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&message) {
+            if value["type"] == "recoveryEvent" && value["source"] == "potion" {
+                saw_recovery = true;
+            }
+        }
+    }
+    assert!(saw_recovery, "store-path drink must emit a recoveryEvent");
+}

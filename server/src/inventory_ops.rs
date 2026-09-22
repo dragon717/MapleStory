@@ -1098,13 +1098,24 @@ impl World {
                     if outcome.success {
                         self.arm_potion_cooldown(&id, &item_id, recovery);
                         let defaults = self.default_profile();
+                        let mut recovered = (0i64, 0i64);
                         if let Ok(profile) = store.load_profile(&id, &defaults) {
                             if let Some(player) = self.players.get_mut(&id) {
+                                let old_hp = player.state.hp;
+                                let old_mp = player.state.mp;
                                 apply_profile_to_player(
                                     &self.gameplay,
                                     &self.mage_skills,
                                     player,
                                     profile,
+                                );
+                                // 跳字要的是实际增加量：满血满魔时喝药不该跳出一个假数字。
+                                // 快照每拍（tick）都会广播并把最新 hp/mp 带进 HUD，这里补的
+                                // `recoveryEvent` 是**视觉确认**（绿字回血 / 蓝字回魔），
+                                // 与无 store 的 fallback 路径行为对齐。
+                                recovered = (
+                                    (player.state.hp - old_hp).max(0),
+                                    (player.state.mp - old_mp).max(0),
                                 );
                                 if let Ok(equipped) = store.load_equipped(&id) {
                                     player.state.equipped = equipped;
@@ -1130,6 +1141,14 @@ impl World {
                                     player.state.inventory_slots = slots;
                                 }
                             }
+                        }
+                        // 只把「实际恢复量」作为跳字发出：满血喝药不出字，显示用的
+                        // hp/mp 来自下一拍快照（`apply_profile` 已把恢复落进内存状态）。
+                        // 这里再显式推一版快照，让 HUD 与跳字同拍刷出来，行为与
+                        // `equip`/`unequip` 的成功路径一致。
+                        if recovered.0 > 0 || recovered.1 > 0 {
+                            self.emit_recovery_event(&id, recovered.0, recovered.1, "potion");
+                            self.send_snapshot(&id);
                         }
                     }
                     if outcome.success {
