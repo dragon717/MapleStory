@@ -695,8 +695,8 @@
   },
   "9010010": {
    "source": "kasandra",
-   "reason": "unsupported-pattern",
-   "detail": "缺少「目的地数组 / prompt / askMenu / 两句 say / 确认句 / 换图」中的一环"
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
   },
   "9010022": {
    "source": "unityPortal",
@@ -735,8 +735,8 @@
   },
   "9071003": {
    "source": "mParkShuttle",
-   "reason": "destination-not-rendered",
-   "detail": "stage.changeMap(951000000, …) 的目标不在已装配的地图目录里"
+   "reason": "script-entity-missing",
+   "detail": "源包 script/npc 下没有同名 .js"
   },
   "9072000": {
    "source": "sellContiMoveRiding",

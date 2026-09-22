@@ -99,9 +99,12 @@ const desktopConfigStub = asDataUrl('export const assetBase = "https://content.e
 const original = await read('./resource-url.ts');
 function buildResourceModule(configStub) {
   const before = transpile(original);
+  // 说明符允许带 `.ts` 后缀：本仓库对**直接由 Node 装载**的检查要求显式后缀
+  // （见 resource-url.ts 顶部注释），而本检查只关心「这两个依赖还在、还能被改写」，
+  // 不关心写不写后缀。写死「无后缀」会在依赖保留的情况下误报「依赖被移除」。
   const after = before
-    .replace(/(['"])\.\/asset-index\1/, `'${MAP_STUB}'`)
-    .replace(/(['"])\.\.\/platform\/desktop-config\1/, `'${configStub}'`);
+    .replace(/(['"])\.\/asset-index(?:\.ts)?\1/, `'${MAP_STUB}'`)
+    .replace(/(['"])\.\.\/platform\/desktop-config(?:\.ts)?\1/, `'${configStub}'`);
   assert.notEqual(after, before, 'resource-url.ts 的依赖说明符改写失败（说明 asset-index / desktop-config 依赖被移除）');
   return asDataUrl(after);
 }

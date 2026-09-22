@@ -4,6 +4,15 @@ import ts from 'typescript';
 
 const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
+// `view.ts` 的 import 被整段剥掉（与 skill.check.mjs 同一套做法），所以它依赖的纯函数
+// 只能按全局桩提供。`damageNumberLayers` 是 `damage-number.ts` 的「一次承伤画几根」
+// 判据——`receiveDamageEvent` 拿它当入口闸门，缺了它这里会直接 `ReferenceError`
+// （2026-09-21 实测：本文件当时还没进 `run-checks.mjs` 的清单，所以红了很久没人知道）。
+// 本检查只关心音效，所以按源规则给个非空的桩即可。
+globalThis.damageNumberLayers = (damage, mpDamage = 0) => [
+  ...(Number.isFinite(damage) && damage > 0 ? [{ kind: 'damage', value: damage, offsetY: 0 }] : []),
+  ...(Number.isFinite(mpDamage) && mpDamage > 0 ? [{ kind: 'mp', value: mpDamage, offsetY: damage > 0 ? 20 : 0 }] : []),
+];
 const { CombatView } = await import(`data:text/javascript;base64,${Buffer.from(outputText.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
 const played = [];
 const scene = { sound: { play: key => played.push(key) }, cache: { audio: { exists: key => ['combat-hit', 'mob-hit-100101'].includes(key) } } };

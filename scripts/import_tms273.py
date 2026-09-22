@@ -297,6 +297,50 @@ ADDITIONAL_PORTAL_CLOSURE_MAP_IDS = (
     "120010100", "130000101", "130030006", "310040100", "310040210",
     "310040300",
 )
+# 勇士部落野外簇（2026-09-21，根因修复）：`102030000 火焰之地·黑肥肥領土 west00`
+# 与 `102040000 遺跡發掘地·初期挖掘地區 east00` 两扇静态 pt:2 门的目标一直不在
+# 目录里，玩家走到火焰之地西缘/遺跡發掘地东缘就被「此路线尚未开放」挡住。
+#
+# **根因不是接线错，是判据源树用错。** 2026-09-18 那次补闭包用的是
+# `ADDITIONAL_PORTAL_CLOSURE_MAP_IDS` 上方注释所述的「解包树源」——即
+# `WZ_JSON_TW/Map/Map/MapX/`，而那是**已装配图的解包副本**，天然不含未装配图。
+# 于是上面那两扇门的目标被 `portal_closure_check` 判成 `SOURCE MISSING`（而不是
+# 「该装配」）并 `continue`，不再 BFS ⇒ 背后 11 张同簇图从未被发现。实测该工具报的
+# 38 个「源缺失」**38/38 都能在权威源（客户端打包 WZ，`export_tms273.cjs` 读的
+# `客户端/TMS273.7/Data`）里打开** ⇒ 判据必须落在权威源上，见
+# `scripts/check_tms273_portal_closure.cjs`。
+#
+# 源事实（TMS273.7 WZ + `Graph.json` 全量核对）：勇士部落这一簇按源
+# `String.wz/Map.img/victoria` 的 `streetName` 归簇共 **29 张**
+# （勇士之村 6 / 南部岩山 2 / 北部岩山 6 / 火焰之地 5 / 遺跡發掘地 10），
+# 本次补的是两条断链的闭包（13 张，全静态 pt:2 门，闭包自洽、不再产生悬空 `tm`）：
+#   * 火焰之地：`102030100 野豬領土`（怪 `4230103`）→ `102030200 鐵甲豬領土`
+#     （`4230400`）→ `102030300 燃燒的熱氣`（`4230400`/`3210100`）→
+#     `102030400 碳屑之地`（`3210100`，`onUserEnter=explorationPoint`）。
+#     `102030100` 正是「野猪图」——与 `102030000 黑肥肥領土`（`2230102`，
+#     法師转职试炼图）是两张不同的图。
+#   * 遺跡發掘地：`102040100 挖掘結束地區`（`2230111`）→ `102040200 遺跡發掘團營區`
+#     （纯 NPC 图，7 条 life 行）→ `102040300 挖掘中斷地區`（`4230125`/`4230126`，
+#     `onUserEnter=enter_102040300`）⇄ `102040301 第1軍營` → `102040400 挖掘危險地區`
+#     （`5150001`）⇄ `102040401 第2軍營` → `102040500 封閉地區`（`6230602`）
+#     ⇄ `102040501 第3軍營` → `102040600 未接近地區`（`7130103`）。
+# 13 张的 `info/returnMap` 一律 `102000000`（`export_tms273.cjs` 的 returnMaps
+# 完整性断言可满足）；9 个新怪模板与 18 个新 NPC 的 `WZ_JSON_TW/*.json`
+# 都已在镜像里，无需另行 dump。13 张图的 `Map/Map/Map1/<id>.json` 由
+# `dump_tms273_wz_json.cjs` 从客户端打包 WZ 落树。
+#
+# 不装（逐条给理由，不是漏装）：`102000001 勇士之村武器店`、`102000004`/
+# `102000005 戰士之殿` ×2。这三张在 `Graph.json` 里**入边集合为空**：
+# `102000001` 全图搜不到任何 `targetMap=102000001` 的授权门，镇里的
+# `102000000/in00` 是 pt:1 且源 `tm=999999999`、Graph `portalNum=8` 无授权；
+# 两张 `戰士之殿` 的唯一入口是 `102000003/rank00`（pt:7 脚本 `rankRoom`），
+# Graph 该门授权 `targetMap=999999999`（由脚本裁决），而脚本体不在包内
+# ⇒ 装进来是玩家永远走不到的孤岛。按「不发明目标」的口径保持未装配。
+ADDITIONAL_PERION_MAP_IDS = (
+    "102030100", "102030200", "102030300", "102030400",
+    "102040100", "102040200", "102040300", "102040301",
+    "102040400", "102040401", "102040500", "102040501", "102040600",
+)
 STORY_QUEST_PREFIX = "363"
 # Original adventurer route checkpoints are real prerequisites of 36337
 # (Check.0.QuestOrOption == 1: any one of them unlocks the quest).  All seven
@@ -757,6 +801,31 @@ def build_map_record(
                 "yMax": height - center_y,
             }
             bounds_source = "miniMap.width/height/centerX/centerY"
+    # 信封必须**装得下源自己摆在这张图里的东西**。2026-09-21 野豬領土 `102030100` 暴露了
+    # 这个洞：它的 `info` 里没有 `VRLeft/VRRight/VRTop/VRBottom`，信封退化成 `miniMap` 裁切
+    # （2527×1099 @ center 187,-1155 ⇒ yMin 1155），而源 `life/5` 的 `y` 是 **1147**，比裁切
+    # 上沿高 8px ⇒ 服务端 `validate_spawns_against_maps` 判「越界」，**整份内容加载失败**
+    # （cargo 里 39 条用真实内容建世界的验收全红）。
+    # 注意 `life` 的 `y` **不是站立线**：该怪源 `cy`=1243 与它 `fh`=94 那条落脚点
+    # （x794~806 / y1242~1246）一致，1147 是精灵锚点偏移 ⇒ 该修的不是坐标，而是
+    # 「派生出来的信封没盖住内容」。所以这里把信封扩到装得下 **sp 出生点 + 可见 life 行**。
+    # 只增不减，故对本来就装得下的图是零改动（本包 211 图里只有 3 张需要扩）。
+    if all(value is not None for value in bounds.values()):
+        placed = [
+            item
+            for item in [*spawns, *visible_life]
+            if item.get("x") is not None and item.get("y") is not None
+        ]
+        if placed:
+            widened = {
+                "xMin": min([bounds["xMin"], *(item["x"] for item in placed)]),
+                "xMax": max([bounds["xMax"], *(item["x"] for item in placed)]),
+                "yMin": min([bounds["yMin"], *(item["y"] for item in placed)]),
+                "yMax": max([bounds["yMax"], *(item["y"] for item in placed)]),
+            }
+            if widened != bounds:
+                bounds = widened
+                bounds_source = f"{bounds_source} + sp/life extent"
     entry_scripts = {
         key: info.get(source_key)
         for key, source_key in (
@@ -834,7 +903,7 @@ def build_maps(
         *ADDITIONAL_SHIP2_MAP_IDS, *ADDITIONAL_ELLINEL_MAP_IDS,
         *ADDITIONAL_HELIOS_MAP_IDS, *ADDITIONAL_SHIP3_MAP_IDS,
         *ADDITIONAL_EOS_MAP_IDS, *ADDITIONAL_UFO_MAP_IDS,
-        *ADDITIONAL_EDELSTEIN_MAP_IDS,
+        *ADDITIONAL_EDELSTEIN_MAP_IDS, *ADDITIONAL_PERION_MAP_IDS,
     ]))
     names = source_map_names(wz_root)
     imported: list[dict[str, Any]] = []
@@ -885,6 +954,7 @@ def build_maps(
         "eosMapIds": list(ADDITIONAL_EOS_MAP_IDS),
         "ufoMapIds": list(ADDITIONAL_UFO_MAP_IDS),
         "edelsteinMapIds": list(ADDITIONAL_EDELSTEIN_MAP_IDS),
+        "perionMapIds": list(ADDITIONAL_PERION_MAP_IDS),
         "requestedMapIds": requested,
         "importedMapIds": [item["id"] for item in imported],
         "missingMapIds": missing,

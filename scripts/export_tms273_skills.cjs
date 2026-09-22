@@ -340,6 +340,49 @@ for (const entry of FIRE_POISON_BRANCHES) SKILLS.push({
   missingAssetKinds: [],
   unlockReason: `Skill/${entry.job}.img has no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.`,
 });
+// ── 四转：火毒 212 / 主教 232（与冰雷 222 同一转职层级）─────────────────────
+// 这两本与 222 同形：**只登记图鉴条目**（名称 / 描述 / 逐级字段 / 图标），不导出施法资产。
+// 原因与 210/211/230/231 那一段不同——那四本的施法技能已被服务端执行，所以登记了资产；
+// 212／232 的施法技能本轮**没有服务端执行路径**（源转职链 1452／1453 的目标地图不在源包，
+// 见 `docs/design/法师分支转职设计_火毒与主教.md`），登记资产等于把一批没有消费者的图集
+// 挂进产物。等哪条四转技能真的被服务端接管，再比照 222 的那组为它单独登记。
+// 条目数由 `Skill/<book>.json` 的全部数字节点决定（212 = 24、232 = 27，含 invisible 变体），
+// 由下面的 `expectedCatalogCounts` 逐本钉住。
+//
+// 图集分卷是**实测**的（2026-09-21 逐卷枚举 `Skill/_Canvas/*.wz` 的顶层映像名，与上面
+// 210/211/230/231 那一段同一条判据）：`212.img → _Canvas_038.wz`、`232.img → _Canvas_045.wz`
+// （222.img 在 040）。图标外链必须落在这些卷里才解得开像素——不挂卷会在导出期直接报
+// 「像素分卷缺失」，而不是静默出空图。230/231 的 043 与 210/211 的 035 一并挂上，是因为
+// 四转书的图标与既有分支同源（例如 2120014 元素強化沿用元素吸收族的图标）。
+const FOURTH_JOB_BOOKS = [
+  {
+    id: '2121000',
+    job: 212,
+    canvasArchives: [
+      'Skill/_Canvas/_Canvas_035.wz',
+      'Skill/_Canvas/_Canvas_038.wz',
+    ],
+    unlockReason: 'Skill/212.img carries no verified job/level unlock rule in this export; 火毒四转的转职链与 SP 授予仍由运行期持有。',
+  },
+  {
+    id: '2321000',
+    job: 232,
+    canvasArchives: [
+      'Skill/_Canvas/_Canvas_043.wz',
+      'Skill/_Canvas/_Canvas_045.wz',
+    ],
+    unlockReason: 'Skill/232.img carries no verified job/level unlock rule in this export; 主教四转的转职链与 SP 授予仍由运行期持有。',
+  },
+];
+for (const entry of FOURTH_JOB_BOOKS) SKILLS.push({
+  ...entry,
+  image: `Skill/${entry.job}.img`,
+  skillJson: `Skill/${entry.job}.json`,
+  bodyAction: null,
+  // 只做图鉴条目：图标由 catalog 循环统一导出，这里不额外登记任何资产组。
+  assetKinds: [],
+  missingAssetKinds: [],
+});
 const SKILL_ID = SKILLS[0].id;
 const SKILL_IMAGE = SKILLS[0].image;
 const SKILL_SOURCE = `Skill/200.img/skill/${SKILL_ID}`;
@@ -840,6 +883,7 @@ async function main() {
       // 只断言总数，不再按书重复一遍（避免「书范围」出现第四处硬编码）。
       const expectedCatalogCounts = {
         '0': 3, '200': 8, '210': 10, '211': 11, '220': 9, '221': 12, '222': 24, '230': 10, '231': 15,
+        '212': 24, '232': 27,
       };
       assert(Object.prototype.hasOwnProperty.call(expectedCatalogCounts, bookId), `skill book ${bookId} has no expected catalog count`);
       assert.equal(skillIds.length, expectedCatalogCounts[bookId], `${bookId} catalog node count changed`);

@@ -82,21 +82,25 @@ export interface SkillCastEvent {
 export type CombatEvent = CombatActionStartedEvent | AuthoritativeDamageEvent | SkillCastEvent;
 
 type SummonVisual = {
-  state: SummonState; sprite: Phaser.GameObjects.Image; startedAt: number; updatedAt: number;
+  state: SummonState; startedAt: number; updatedAt: number;
   expiresAt: number; fromX: number; fromY: number; x: number; y: number; attackAt?: number;
+  /** 见 `spriteFor()`：纹理没进缓存前不建对象，所以可能是空的。 */
+  sprite?: Phaser.GameObjects.Image;
 };
 
 type Slash = {
   event: CombatActionStartedEvent;
   startedAtMs: number;
-  sprite: Phaser.GameObjects.Image;
+  /** 同 `SummonVisual.sprite`。 */
+  sprite?: Phaser.GameObjects.Image;
 };
 
 type SkillVisual = {
   event: SkillCastEvent | AuthoritativeDamageEvent;
   frames: AssetFrame[];
   startedAtMs: number;
-  sprite: Phaser.GameObjects.Image;
+  /** 同 `SummonVisual.sprite`。 */
+  sprite?: Phaser.GameObjects.Image;
   loopMs?: number;
   buffSkillId?: number;
   sourceSummonId?: string;
@@ -169,12 +173,14 @@ export class CombatView {
     if (this.seen.has(id)) return;
     this.seen.add(id);
 
+    // 「没有刀光素材就整段不记」这条判据留在入口：`update()` 的刀光循环整块挂在
+    // `if (afterimage)` 下，素材缺失时在这里放行会让 `slashes` 只进不出（永远不画、
+    // 也永远不清）。
     const afterimage = this.assets?.attack?.afterimage;
     if (!afterimage?.frames.length || !afterimage.frames.every(validFrame)) return;
-    const first = afterimage.frames[0];
-    if (!first) return;
-    const sprite = this.scene.add.image(0, 0, first.url).setOrigin(0).setDepth(this.depth).setVisible(false);
-    this.slashes.push({ event, startedAtMs: event.startedAtMs ?? this.clock(), sprite });
+    // 贴图交给 `update()` 在纹理就绪后补建（见 `spriteFor()`）：这里若直接
+    // `add.image(…, afterimage.frames[0].url)`，首屏还没装载完的那一帧就是绿黑格子。
+    this.slashes.push({ event, startedAtMs: event.startedAtMs ?? this.clock() });
   }
 
   /**
@@ -260,7 +266,7 @@ export class CombatView {
       for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
         const visual = this.skillVisuals[i];
         if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId && visual.event.skillId === event.skillId) {
-          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+          visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
         }
       }
       this.stopChannelAudio(event.playerId);
@@ -282,7 +288,7 @@ export class CombatView {
       for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
         const visual = this.skillVisuals[i];
         if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId && visual.event.skillId === event.skillId) {
-          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+          visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
         }
       }
       if (event.durationMs <= 0) {
@@ -322,7 +328,7 @@ export class CombatView {
         const visual = this.skillVisuals[i];
         if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId
           && (!visual.event.requestId || visual.event.requestId === event.requestId) && visual.event.skillId === event.skillId) {
-          visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+          visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
         }
       }
       const end = this.skillEffects?.[String(event.skillId)]?.keydownend;
@@ -413,16 +419,15 @@ export class CombatView {
         current.state = state;
       } else {
         this.summons.set(state.id, { state, startedAt: now, updatedAt: now, expiresAt: now + state.expiresInMs,
-          fromX: state.x, fromY: state.y, x: state.x, y: state.y,
-          sprite: this.scene.add.image(0, 0, frames[0].url).setOrigin(0).setDepth(this.depth).setVisible(false) });
+          fromX: state.x, fromY: state.y, x: state.x, y: state.y });
       }
     }
     for (const id of this.sourceSummons.keys()) if (!present.has(id)) this.finishSourceSummon(id, true);
     for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
       const visual = this.skillVisuals[i];
-      if (visual.sourceSummonId && !present.has(visual.sourceSummonId)) { visual.sprite.destroy(); this.skillVisuals.splice(i, 1); }
+      if (visual.sourceSummonId && !present.has(visual.sourceSummonId)) { visual.sprite?.destroy(); this.skillVisuals.splice(i, 1); }
     }
-    for (const [id, summon] of this.summons) if (!present.has(id)) { summon.sprite.destroy(); this.summons.delete(id); }
+    for (const [id, summon] of this.summons) if (!present.has(id)) { summon.sprite?.destroy(); this.summons.delete(id); }
   }
 
   syncPlayers(players?: PlayerState[]) {
@@ -456,7 +461,7 @@ export class CombatView {
       if (!player || player.hp <= 0 || (visual.buffSkillId === 2221054 ? !player.derivedStats?.hyperBarrierActive : (player.derivedStats?.skillBuffs?.[String(visual.buffSkillId)] ?? 0) <= 0)
         || (visual.buffSkillId === 2221004 && !player.derivedStats?.infinityEnhanced)) {
         if (visual.buffSkillId === 2221054 && player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(player.id);
-        visual.sprite.destroy(); this.skillVisuals.splice(i, 1);
+        visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
       }
     }
     for (const owner of endingAuraOwners) {
@@ -523,7 +528,7 @@ export class CombatView {
       }
     }
     for (const [id, summon] of this.summons) {
-      if (time >= summon.expiresAt) { summon.sprite.destroy(); this.summons.delete(id); continue; }
+      if (time >= summon.expiresAt) { summon.sprite?.destroy(); this.summons.delete(id); continue; }
       const set = this.skillEffects?.[String(summon.state.skillId)];
       const attacking = summon.attackAt !== undefined && time - summon.attackAt < (set?.summonAttack?.reduce((sum, frame) => sum + frame.delay, 0) ?? 0);
       const moving = !summon.state.stationary && Math.hypot(summon.state.x - summon.fromX, summon.state.y - summon.fromY) > 1;
@@ -537,7 +542,12 @@ export class CombatView {
       summon.x = summon.fromX + (summon.state.x - summon.fromX) * progress;
       summon.y = summon.fromY + (summon.state.y - summon.fromY) * progress;
       const left = summon.state.facing === 1 ? summon.x - frame.x - frame.width : summon.x + frame.x;
-      summon.sprite.setTexture(frame.url).setVisible(true).setPosition(Math.round(left), Math.round(summon.y + frame.y)).setFlipX(summon.state.facing === 1);
+      // 纹理没进缓存 ⇒ 这一帧连贴图都不建（`spriteFor` 返回 undefined）。召唤物是
+      // 快照驱动、每帧都会走到这里，所以「晚一两帧出现」是自愈的。
+      const sprite = this.spriteFor(frame.url, summon.sprite);
+      if (!sprite) continue;
+      summon.sprite = sprite;
+      sprite.setTexture(frame.url).setVisible(true).setPosition(Math.round(left), Math.round(summon.y + frame.y)).setFlipX(summon.state.facing === 1);
     }
     const afterimage = this.assets?.attack?.afterimage;
     if (afterimage) {
@@ -545,23 +555,26 @@ export class CombatView {
         const slash = this.slashes[i];
         const elapsed = time - slash.startedAtMs - afterimage.startMs;
         if (elapsed < 0) {
-          slash.sprite.setVisible(false);
+          slash.sprite?.setVisible(false);
           continue;
         }
         const duration = afterimage.frames.reduce((sum, frame) => sum + frame.delay, 0);
         if (elapsed >= duration) {
-          slash.sprite.destroy();
+          slash.sprite?.destroy();
           this.slashes.splice(i, 1);
           continue;
         }
         const index = frameAt(afterimage.frames.map(frame => frame.delay), elapsed, false);
         const frame = afterimage.frames[index];
         if (!frame) continue;
-        slash.sprite.setTexture(frame.url);
+        const sprite = this.spriteFor(frame.url, slash.sprite);
+        if (!sprite) continue;
+        slash.sprite = sprite;
+        sprite.setTexture(frame.url);
         const frameElapsed = elapsed - afterimage.frames.slice(0,index).reduce((sum,frame)=>sum+frame.delay,0);
-        slash.sprite.setAlpha(assetFrameAlpha(frame, frameElapsed));
+        sprite.setAlpha(assetFrameAlpha(frame, frameElapsed));
         const left = slash.event.facing === 1 ? slash.event.x - frame.x - frame.width : slash.event.x + frame.x;
-        slash.sprite.setVisible(true)
+        sprite.setVisible(true)
           .setPosition(Math.round(left), Math.round(slash.event.y + frame.y))
           .setFlipX(slash.event.facing === 1);
       }
@@ -572,7 +585,7 @@ export class CombatView {
       if (elapsed < 0) continue;
       const duration = visual.frames.reduce((sum, frame) => sum + frame.delay, 0);
       if (elapsed >= (visual.loopMs ?? duration)) {
-        visual.sprite.destroy();
+        visual.sprite?.destroy();
         this.skillVisuals.splice(i, 1);
         continue;
       }
@@ -591,7 +604,11 @@ export class CombatView {
         : { x: visual.event.x, y: visual.event.y };
       const facing = owner?.facing ?? ('facing' in visual.event && validFacing(visual.event.facing) ? visual.event.facing : 1);
       const left = facing === 1 ? base.x - frame.x - frame.width : base.x + frame.x;
-      visual.sprite.setTexture(frame.url).setAlpha(assetFrameAlpha(frame, frameElapsed)).setVisible(true)
+      // 首次施法的绿黑格子就出在这里：纹理还在路上时不能把 key 交给 Phaser。
+      const sprite = this.spriteFor(frame.url, visual.sprite);
+      if (!sprite) continue;
+      visual.sprite = sprite;
+      sprite.setTexture(frame.url).setAlpha(assetFrameAlpha(frame, frameElapsed)).setVisible(true)
         .setPosition(Math.round(left), Math.round(base.y + frame.y))
         .setFlipX(facing === 1);
     }
@@ -603,7 +620,7 @@ export class CombatView {
     for (const owner of this.channelAudio.keys()) this.stopChannelAudio(owner);
     for (const id of this.sourceSummons.keys()) this.finishSourceSummon(id, false);
     this.sourceSummons.clear();
-    for (const summon of this.summons.values()) summon.sprite.destroy();
+    for (const summon of this.summons.values()) summon.sprite?.destroy();
     this.summons.clear(); this.summonSnapshot = undefined;
     this.playerStates.clear(); this.playerSnapshot = undefined;
     this.hyperThunderPhases.clear();
@@ -611,9 +628,9 @@ export class CombatView {
     this.pendingBarrierStarts.clear();
     for (const sound of this.skillAudio.keys()) sound.destroy();
     this.skillAudio.clear();
-    for (const slash of this.slashes) slash.sprite.destroy();
+    for (const slash of this.slashes) slash.sprite?.destroy();
     this.slashes.length = 0;
-    for (const visual of this.skillVisuals) visual.sprite.destroy();
+    for (const visual of this.skillVisuals) visual.sprite?.destroy();
     this.skillVisuals.length = 0;
     for (const number of this.damageNumbers) {
       this.scene.tweens.killTweensOf(number);
@@ -632,13 +649,13 @@ export class CombatView {
     this.hyperBarrierCancelled.delete(playerId);
     this.pendingBarrierStarts.delete(playerId);
     for (const [id, summon] of this.sourceSummons) if (summon.playerId === playerId) this.finishSourceSummon(id, false);
-    for (const [id, summon] of this.summons) if (summon.state.playerId === playerId) { summon.sprite.destroy(); this.summons.delete(id); }
+    for (const [id, summon] of this.summons) if (summon.state.playerId === playerId) { summon.sprite?.destroy(); this.summons.delete(id); }
     for (const [sound, owner] of this.skillAudio) if (owner === playerId) { sound.destroy(); this.skillAudio.delete(sound); }
     for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
       const visual = this.skillVisuals[i];
       const owner = 'playerId' in visual.event ? visual.event.playerId : visual.event.attackerId;
       if (owner !== playerId) continue;
-      visual.sprite.destroy();
+      visual.sprite?.destroy();
       this.skillVisuals.splice(i, 1);
     }
   }
@@ -661,7 +678,7 @@ export class CombatView {
     this.sourceSummons.delete(id);
     for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
       if (this.skillVisuals[i].sourceSummonId !== id) continue;
-      this.skillVisuals[i].sprite.destroy();
+      this.skillVisuals[i].sprite?.destroy();
       this.skillVisuals.splice(i, 1);
     }
     const owner = this.playerStates.get(summon.playerId);
@@ -768,14 +785,36 @@ export class CombatView {
     this.spawnSkillVisual(event, frames);
   }
 
+  /**
+   * 贴图工厂：**key 不在纹理缓存里就不建对象**。
+   *
+   * `add.image(0, 0, key)` 与 `setTexture(key)` 拿到一个不存在的 key 时会落到
+   * Phaser 的 `__MISSING` 占位图——那正是「魔灵弹」「首次释放必有奇怪的黑色 绿色框」
+   * 的来源（控制台同时打一条 `Texture key not found: /assets/…png`）。
+   *
+   * 全仓其它按需装载的地方都是**先判就绪再建对象**（`player/view.ts` 的部件过滤、
+   * `notice/tombstone.ts`、`windbell/scene.ts`、`world.ts` 的预装载跳过），只有战斗表现
+   * 这一处漏了。所以判据必须**先于**建对象：拿不到就返回 `undefined`，调用方跳过这一帧
+   * ——这正是 `assets/lazy-texture.ts` 的约定（`false` ＝「这一帧先别画」，下一帧自然重试）。
+   *
+   * 时间轴不受影响：`startedAtMs` 在入队那一刻就定了，纹理晚到只是少画开头几帧，
+   * 不会把整段动画推后，也不会像「整段不画」那样把这次施法吞掉。
+   */
+  private spriteFor(url: string, existing?: Phaser.GameObjects.Image): Phaser.GameObjects.Image | undefined {
+    if (existing) return existing;
+    if (!this.scene.textures.exists(url)) return undefined;
+    return this.scene.add.image(0, 0, url).setOrigin(0).setDepth(this.depth).setVisible(false);
+  }
+
   private spawnSkillVisual(event: SkillCastEvent | AuthoritativeDamageEvent, frames: AssetFrame[], travel?: SkillVisual['travel'], loopMs?: number) {
     const first = frames[0];
     if (!first) return;
     // 兜底：召唤物/硬编码分支直接走到这里，未必经过 `receive()` 的入口入队。
     // 同一条 URL 重复请求是幂等的（lazy-texture 自去重），所以这里可以放心冗余。
     ensureTextures(this.scene, frames.map(frame => frame.url));
-    const sprite = this.scene.add.image(0, 0, first.url).setOrigin(0).setDepth(this.depth).setVisible(false);
-    const visual: SkillVisual = { event, frames, startedAtMs: this.clock(), sprite, travel, loopMs };
+    // 这里**不建贴图**：纹理可能还在路上（`ensureTextures` 刚返回 `false`），
+    // 见 `spriteFor()`。贴图由 `update()` 在纹理落地后的第一帧补建。
+    const visual: SkillVisual = { event, frames, startedAtMs: this.clock(), travel, loopMs };
     this.skillVisuals.push(visual);
     return visual;
   }

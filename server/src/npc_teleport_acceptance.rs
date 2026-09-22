@@ -295,7 +295,11 @@ fn every_shipped_warp_target_is_a_loaded_map() {
     let catalog: MapCatalog =
         serde_json::from_str(include_str!("../../shared/maps.json")).expect("maps.json");
     let loaded: BTreeSet<&str> = catalog.maps.iter().map(|map| map.id.as_str()).collect();
-    assert_eq!(loaded.len(), 198, "目录规模变了，先确认这是有意为之");
+    // 2026-09-21 勇士部落 13 图（火焰之地 4 张 `102030100/200/300/400` +
+    // 遺跡發掘地 9 张 `102040100/200/300/301/400/401/500/501/600`）把
+    // `102030000/east00` 与 `102040000/east00` 两条死门的目标簇装进目录，
+    // 目录规模 198 → 211。
+    assert_eq!(loaded.len(), 211, "目录规模变了，先确认这是有意为之");
 
     let scripts = npt_shipped_scripts();
     let mut checked = 0usize;

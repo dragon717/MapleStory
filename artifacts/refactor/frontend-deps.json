@@ -8,11 +8,11 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 150,
-  "edge_count": 360,
+  "node_count": 156,
+  "edge_count": 369,
   "edge_kind_counts": {
-    "value": 219,
-    "dynamic": 5,
+    "value": 225,
+    "dynamic": 8,
     "type": 114,
     "side-effect": 22
   },
@@ -111,6 +111,11 @@
       "from": "client/src/app/main.ts",
       "to": "client/src/features/world/worldmap.css",
       "kind": "side-effect"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/world/entry-script.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
@@ -528,6 +533,36 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/client-actions/version-heal.check.ts",
+      "to": "client/src/features/client-actions/version-heal.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/version-heal.check.ts",
+      "to": "client/src/features/client-actions/update-service.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/version-heal.check.ts",
+      "to": "shared/protocol.ts",
+      "kind": "dynamic"
+    },
+    {
+      "from": "client/src/features/client-actions/version-heal.ts",
+      "to": "shared/protocol.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/version-heal.ts",
+      "to": "client/src/platform/runtime-config.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/client-actions/version-heal.ts",
+      "to": "client/src/features/client-actions/update-service.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/client-actions/view.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -765,6 +800,11 @@
     {
       "from": "client/src/features/entry/view.ts",
       "to": "client/src/network/auth-api.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/entry/view.ts",
+      "to": "client/src/features/client-actions/version-heal.ts",
       "kind": "value"
     },
     {
@@ -1738,6 +1778,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/platform/runtime-config.ts",
+      "to": "client/src/platform/desktop-config.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/scenes/layer-animation.check.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "value"
@@ -1848,8 +1893,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "4c429ce3779233805faef7529d224075af49bd50",
+  "source_commit": "21b8c2cd2ef34b2874ee1ee5a6d32f45ca118348",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-21T08:38:31.346Z"
+  "generated_at": "2026-09-22T01:39:54.683Z"
 }

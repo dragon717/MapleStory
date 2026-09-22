@@ -6,7 +6,15 @@
  *
  * 硬边界（v3 §6.5）：不清 `localStorage`、不清 Cookie、不动服务端数据；
  * 检查失败**不改当前发布选择、不假装成功**（U02）。兼容性只做**校验**，
- * 不放宽——协议或内容与本页不一致时停在 `blocked`，由界面说明需要更新（U04）。
+ * 不放宽——协议或内容与本页不一致如实报成 `blocked` 并在界面说明（U04）。
+ *
+ * **U04 的修正（2026-09-22）**：报 `blocked` 是**如实说明**，不是**扣着补救手段**。
+ * 描述**就是服务端当前发布**，`entryUrl()` 指向的正是它 ⇒「把这一页换到那份发布上」
+ * 在任何版本组合下都是收敛方向；而 `blocked` 恰恰是**最该重载**的情形（页面陈旧、
+ * 或服务端在页面脚下换了一代）。此前 `apply()` 要求 `verified` 才导航，等于让
+ * 「强制更新」在唯一需要它的场景里失效：用户点它只得到一句「请更新客户端后再登录」，
+ * 而按钮自己的提示写着「重新装载页面」（2026-09-22 用户实测正是如此）。
+ * 现在：`check()` 照旧如实报 `blocked`（校验没放宽），`apply()` 只要拿到描述就导航。
  *
  * 本模块不碰 DOM：导航与取发布描述均由构造时注入，便于离线定向检查。
  */
@@ -104,10 +112,18 @@ export class UpdateService {
     return this.inFlight;
   }
 
-  /** 检查 + 应用。`repair` 为真时同时推进资源修复代数（仅用户明确选择）。 */
+  /**
+   * 检查 + 应用。`repair` 为真时同时推进资源修复代数（仅用户明确选择）。
+   *
+   * **只要拿到了发布描述就导航**（不再要求 `verified` 相位）。理由见文件头
+   * 「U04 的修正」：描述就是服务端当前发布，「换到那份发布上」在任何版本组合下
+   * 都是收敛方向；`blocked` 更是最该重载的现场。校验没有放宽——`check()` 照旧
+   * 把不一致如实报成 `blocked` 并说明，变的只是「报完之后给不给那条路」。
+   * 真正没法收敛的只有「取不到描述」（`failed` / `bad-response`）⇒ 不导航。
+   */
   async apply(repair = false): Promise<UpdateState> {
     const state = await this.check();
-    if (state.phase !== 'verified' || !state.release) return state;
+    if (!state.release) return state;
     const href = this.options.href?.() ?? (typeof location === 'object' ? location.href : '/');
     // 修复代数只在用户明确选择「重新下载所需资源」时推进（v3 §6.4）：
     // 普通刷新绝不改变，避免每次刷新都重新下载全部资源。

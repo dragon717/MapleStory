@@ -21,8 +21,9 @@
 // （绝不补一句默认台词来凑数），调用方据此把“源里就没台词”与“台词还没接”分开。
 //
 // 标记：源台词里极少数行带引用标记（实测去重前 614 行里 3 行，全在
-// `1010100:d0/d1` 与 `2041022:d1`）。`#p<id>#`、`#m<id>#`、`#t<id>#` 在原版客户端会被
-// 替换成对应 NPC / 地图 / 物品的名字，这里照同一语义替换（名字取自同一批源表）；同版表
+// `1010100:d0/d1` 与 `2041022:d1`；2026-09-21 勇士部落的警告牌又带来 `#o<id>#`）。
+// `#p<id>#`、`#m<id>#`、`#t<id>#`、`#o<id>#` 在原版客户端会被替换成对应 NPC / 地图 /
+// 物品 / 怪物的名字，这里照同一语义替换（名字取自同一批源表）；同版表
 // 里查不到对应条目时**整个标记删掉**（不是原样保留，也不是只删前缀——只删前缀会在客户端
 // 留下一截裸 id，见 `resolveMarkers` 的说明）。颜色/样式标记（`#r`/`#k`/`#b`…）一律不动：
 // 那是客户端 `sanitize()` 的职责。
@@ -74,13 +75,26 @@ const nameOfItem = id => {
   return typeof name === 'string' && name.trim() ? name.trim() : undefined;
 };
 
-/** Resolve the `#p#` / `#m#` / `#t#` references the original client renders as names.
+// Same-version monster names, for the `#o<id>#` references the 勇士部落
+// warning signs carry (`出現怪物 : #o4230400#`).  `shared/mob-names.json` is the
+// projection of `String/Mob.json` the notebook and the runtime also read, so a
+// monster is named the same way on both sides — and it is the only table in the
+// project that carries a monster name at all.
+const mobNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'shared/mob-names.json'), 'utf8')).names;
+const nameOfMob = id => {
+  const name = mobNames[String(Number(id))];
+  return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+};
+
+/** Resolve the `#p#` / `#m#` / `#t#` / `#o#` references the original client renders as names.
  *
  *  A reference marker is a *render instruction*, not content.  When the same
  *  version tables cannot resolve one (measured: one `#t1012109#` in the whole
  *  265-template set, and that id is in no item table), the marker is dropped
  *  whole rather than left behind — keeping only `#t` stripped would print a raw
- *  id, and `sanitize()` client-side would leave a dangling `1012109#`.
+ *  id, and `sanitize()` client-side would leave a dangling `1012109#`.  The same
+ *  rule applies to `#o<id>#`, which the 2026-09-21 勇士部落 maps introduced:
+ *  before it was handled the marker survived verbatim into the table.
  *  Colour/style markers (`#r`, `#k`, `#b`…) are deliberately untouched: the
  *  client's own `sanitize()` owns those.
  */
@@ -88,7 +102,8 @@ function resolveMarkers(text) {
   return text
     .replace(/#p(\d+)#/g, (whole, id) => nameOfNpc(id) ?? '')
     .replace(/#m(\d+)#/g, (whole, id) => mapNames.get(String(Number(id))) ?? '')
-    .replace(/#t(\d+)#/g, (whole, id) => nameOfItem(id) ?? '');
+    .replace(/#t(\d+)#/g, (whole, id) => nameOfItem(id) ?? '')
+    .replace(/#o(\d+)#/g, (whole, id) => nameOfMob(id) ?? '');
 }
 
 const lines = id => {
@@ -148,7 +163,7 @@ for (const id of Object.keys(npcs).sort((a, b) => Number(a) - Number(b))) sorted
 fs.writeFileSync(OUTPUT, `${JSON.stringify({
   schemaVersion: 1,
   kind: 'npc-dialogue-zh',
-  generatedFrom: 'TMS273 WZ_JSON_TW/Npc/<id>.img/info/speak (order) + WZ_JSON_TW/String/Npc.json (text); #p#/#m# resolved from the same version tables, #t# and colour markers kept verbatim',
+  generatedFrom: 'TMS273 WZ_JSON_TW/Npc/<id>.img/info/speak (order) + WZ_JSON_TW/String/Npc.json (text); the #p#/#m#/#t#/#o# name references are resolved from the same version tables (String/Npc.json, String/Map.json, shared/items.json, shared/mob-names.json), an unresolvable reference is dropped whole, colour markers are kept verbatim',
   encoding: 'UTF-8',
   npcs: sorted,
 }, null, 1)}\n`);

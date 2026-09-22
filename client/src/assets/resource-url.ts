@@ -16,8 +16,11 @@
  * 代数为 0 且映射表缺失时 resolve 是恒等函数。
  */
 
-import { assetObjectUrl } from './asset-index';
-import { assetBase } from '../platform/desktop-config';
+// 显式 `.ts` 后缀：本模块被 `update-service.check.ts` / `layer-animation.check.ts`
+// 这类**直接由 Node 装载**（`--experimental-strip-types`）的检查引用，而 Node 的 ESM
+// 解析器不给相对导入补后缀 ⇒ 少了后缀整条链装载失败、检查等于没人跑（2026-09-22 修）。
+import { assetObjectUrl } from './asset-index.ts';
+import { assetBase } from '../platform/desktop-config.ts';
 
 const EPOCH_STORAGE_KEY = 'maple-cache-epoch';
 /** 非敏感恢复标记：偏好存储不可用时（无痕/被禁），代数也能跨刷新传递（v3 §6.4）。 */

@@ -214,6 +214,52 @@ const assertLoopedSource = (array, kind, extra = '') => {
 const catalogDamR = catalogIdsWith('damR');
 assert.ok(catalogDamR.length > 0, '源技能表里一个 damR 都没有？形状变了');
 
+/**
+ * 「源里有这个字段、但本包**明确不**接入伤害管线」的技能 —— 逐条登记，并写清理由。
+ *
+ * 共同根因：212 火毒 / 232 主教 这两本**四转**在本包是**目录型**内容——它们的攻击技能
+ * 在 `handle_cast_skill` 的主分发里落到 `_ => {}`（没有施法分支），伤害管线永远不会以
+ * 这些 skill_id 被调用。凡是**依附于施法/增益窗**的字段因此消费不了：不是漏接线，
+ * 是它所依附的那条路径还不存在。
+ *
+ * 反向断言：每条登记都要求「被依附的技能在 world.rs 里**没有**常量」（= 确实没接路径）。
+ * 哪天有人给它起了常量、接了施法分支，这条立刻红，要求同时把消费补上——而不是静默跳过。
+ */
+const NOT_CONSUMED = {
+  // Hyper 强化被动：damR 只在「被强化的那一招打出去」时才生效。
+  damR: {
+    '2120043': { boosted: '2111003', why: '致命毒霧-強化傷害' },
+    '2120046': { boosted: '2121006', why: '火焰之襲-強化' },
+    '2120049': { boosted: '2121003', why: '地獄爆發-強化加農' },
+  },
+  // Hyper 主动增益：indieDamR / mdR 是「窗口内」的值，必须先有施法与增益窗。
+  indieDamR: {
+    '2121053': { boosted: '2121053', why: '傳說冒險（火毒）' },
+    '2321053': { boosted: '2321053', why: '傳說冒險（主教）' },
+  },
+  mdR: {
+    '2321054': { boosted: '2321054', why: '復仇天使' },
+  },
+};
+/** 某个字段里「登记不消费」的 id 集合。 */
+const excusedIds = field => Object.keys(NOT_CONSUMED[field] ?? {}).sort();
+/** 某个字段里真正要被消费的 id 集合（源表重算 − 登记表）。 */
+const consumedIds = field =>
+  catalogIdsWith(field).filter(id => !excusedIds(field).includes(id));
+/** 反向断言：登记表里的每一条都必须「真的没接路径」，且理由非空。 */
+const assertExcused = field => {
+  for (const [id, entry] of Object.entries(NOT_CONSUMED[field] ?? {})) {
+    assert.ok(entry.why, `${field} 的 ${id} 登记为「不消费」却没写理由`);
+    for (const id2 of new Set([id, entry.boosted])) {
+      assert.equal(
+        constFor(Number(id2)), null,
+        `${field} 的 ${id} 登记为「不消费」，但 world.rs 已经给 ${id2} 起了常量 `
+          + `${constFor(Number(id2))}——接了路径就必须同时补上消费，或把这条登记删掉`,
+      );
+    }
+  }
+};
+
 // 3a. `damR` 分两段被消费：非 Hyper 的常驻段（魔力激發）走 `is_magic_attack_skill` 闸门，
 //     Hyper=1 的强化段（三本 Hyper 被动）走「配对 Hyper 强化」分支。两段都由内容独立重算。
 const ampIds = catalogDamR.filter(id => mageSkills.skills[id].hyper === 0);
@@ -237,9 +283,11 @@ const hyperPairs = [...skillsSrc.matchAll(
   /(SKILL_[A-Z0-9_]+) => (SKILL_HYPER_[A-Z0-9_]+),/g,
 )].map(match => [match[1], match[2]]);
 const hyperPassiveIds = hyperPairs.map(([, passive]) => idForConst(passive)).sort();
+assertExcused('damR');
 assert.deepEqual(
-  hyperPassiveIds, [...hyperDamRIds].sort(),
+  [...hyperPassiveIds, ...excusedIds('damR')].sort(), [...hyperDamRIds].sort(),
   `skills.rs 的 Hyper 强化分支覆盖 ${hyperPassiveIds.join('/')}，`
+  + `登记「不消费」的是 ${excusedIds('damR').join('/') || '（无）'}，`
   + `源表里带 damR 的 Hyper 被动是 ${hyperDamRIds.join('/')}——源里新增一本就必须有人做决定`,
 );
 for (const [boosted, passive] of hyperPairs) {
@@ -250,10 +298,12 @@ for (const [boosted, passive] of hyperPairs) {
 }
 
 // 3b. `indieDamR`：唯一来源必须在**两条**伤害路径上都被声明为独立乘算。
-const catalogIndie = catalogIdsWith('indieDamR');
+//     三个四转分支各有一本 傳說冒險，另两本登记在 `NOT_CONSUMED.indieDamR`。
+assertExcused('indieDamR');
+const catalogIndie = consumedIds('indieDamR');
 assert.deepEqual(
   catalogIndie.length, 1,
-  `源里 indieDamR 的来源从 1 个变成了 ${catalogIndie.length} 个：需要有人重新决定分组`,
+  `源里要消费的 indieDamR 从 1 个变成了 ${catalogIndie.length} 个：需要有人重新决定分组`,
 );
 const indieId = catalogIndie[0];
 assert.ok(
@@ -273,13 +323,16 @@ assert.deepEqual(
 assertLoopedSource('MAGIC_CRITICAL_SKILLS', 'CriticalDamage');
 
 // 3d. `mdR`：源里没有分组标记 ⇒ 必须报成 UnmarkedField，且 `field` 逐字写源字段名。
-//     两本自然力重置（冰雷 2210016 / 火毒 2110015）。
-const catalogMdR = catalogIdsWith('mdR');
+//     三本「最终伤害」段：冰雷 2210016 / 火毒 2110015 两本自然力重置，外加主教四转
+//     2320012 大師魔法（源文案同样是「永久增加最終傷害」，与前者同一格）。
+//     復仇天使 2321054 的 mdR 是窗口值，登记在 `NOT_CONSUMED.mdR`。
+assertExcused('mdR');
+const catalogMdR = consumedIds('mdR');
 assert.ok(catalogMdR.length > 0, '源技能表里一个 mdR 都没有？形状变了');
 assert.deepEqual(
   idsForArray('ELEMENTAL_RESET_SKILLS'), catalogMdR,
   `world.rs 的 ELEMENTAL_RESET_SKILLS 成员是 ${idsForArray('ELEMENTAL_RESET_SKILLS').join('/')}，`
-  + `源里带 mdR 的技能是 ${catalogMdR.join('/')}`,
+  + `源里要消费的 mdR 是 ${catalogMdR.join('/')}`,
 );
 assertLoopedSource('ELEMENTAL_RESET_SKILLS', 'UnmarkedField', ',\\s*field: "mdR"');
 

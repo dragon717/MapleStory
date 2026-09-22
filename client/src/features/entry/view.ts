@@ -1,6 +1,7 @@
 import type { LoginResponse } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
-import { authenticate } from '../../network/auth-api';
+import { authenticate, VersionMismatchError } from '../../network/auth-api';
+import { browserHealDeps, healStalePage } from '../client-actions/version-heal';
 import { uiLocale, displayText } from '../../app/i18n';
 import { lobbyRequest, type Appearance, type CharacterList, type CharacterSummary } from './api';
 import { appearanceLayer, appearanceWeaponType, cashAppearanceEntry, composeAppearance, initialEquipment, loadAppearanceLayers, normalizeAppearanceItemId, type AppearanceCatalog } from './appearance';
@@ -47,6 +48,12 @@ export class EntryView {
   constructor(private host: HTMLElement, private enter: (session: LoginResponse) => Promise<void>) {
     this.render();
     void this.loadArt();
+    // 进入首页就**静默核对一次发布**：本页若已经陈旧（服务端在发布时于本页脚下
+    // 换了一代，或这次载入拿到的是被缓存的旧 HTML/旧包），立刻收敛到服务端当前
+    // 发布，不必等玩家点「登录」才把「请刷新页面」摆到脸上。
+    // 与本页同一版时是**空操作**（`describesThisBuild` 一致即不导航），正常加载
+    // 不会多跳；`typeof` 兜底让没有 `location` 的 node 离线检查照旧能装载本模块。
+    if (typeof location === 'object') void healStalePage(browserHealDeps(location.href));
   }
   private async loadArt() {
     try {
@@ -93,8 +100,23 @@ export class EntryView {
     this.setNote('');
     this.setBusy();
     try { await action(); }
-    catch (error) { if (revision === this.revision) this.setNote(error instanceof Error ? error.message : String(error), true); }
+    catch (error) {
+      // 版本不一致不是「登录失败」，而是**这一页已经过期**（服务端在发布时于本页
+      // 脚下换了一代）。先试着导航到服务端当前发布上，把「换一份一致的客户端」
+      // 从「请用户自己按 F5」变成自动的；已经导航走就不必再显示那句文案。
+      if (await this.recoverStalePage(error)) return;
+      if (revision === this.revision) this.setNote(error instanceof Error ? error.message : String(error), true);
+    }
     finally { this.busy = false; this.setBusy(); }
+  }
+  /**
+   * 页面陈旧时自愈：交给 `client-actions` 既有的发布链路（发布描述 + 入口地址）。
+   * 返回真表示**已经在导航**、本页即将被卸载，调用方不应再显示错误。
+   * 取不到描述、或服务端发布与本页同一版时返回假，调用方照旧报原文案。
+   */
+  private async recoverStalePage(error: unknown): Promise<boolean> {
+    if (!(error instanceof VersionMismatchError)) return false;
+    return (await healStalePage(browserHealDeps(location.href))) === 'reloaded';
   }
   private setBusy() {
     this.host.setAttribute('aria-busy', String(this.busy));

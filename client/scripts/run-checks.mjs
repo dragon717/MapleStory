@@ -43,6 +43,9 @@ const checks = [
   ['features/skills/view.check.mjs', []],
   ['features/npc/view.check.mjs', []],
   ['features/combat/skill.check.mjs', []],
+  // 源技能音效判据。2026-09-21 之前它没进这张表、也没跟上 `receiveDamageEvent` 新增的
+  // `damageNumberLayers` 闸门 ⇒ 一直是红的而没人看见（同 line 46 的教训）。
+  ['features/combat/sound.check.mjs', []],
   // 数字集的字距与「一次承伤画几根」此前只写在文件里、没进这张表 ⇒ 等于没人跑
   // （2026-09-19：魔心蓝字被 `damage <= 0` 整条丢弃，离线全绿）。判据必须真的被跑。
   ['features/combat/damage-number.check.ts', ['--experimental-strip-types']],
@@ -58,6 +61,9 @@ const checks = [
   ['features/notebook/view-model.check.mjs', []],
   ['features/notebook/view.check.mjs', ['--experimental-strip-types']],
   ['features/client-actions/update-service.check.ts', ['--experimental-strip-types']],
+  // 页面陈旧自愈（2026-09-22 根因修复）：发布换代后已打开的标签页必须能自己
+  // 收敛到服务端当前发布，而不是只丢一句「请刷新页面」。防重载环的判据在这里。
+  ['features/client-actions/version-heal.check.ts', ['--experimental-strip-types']],
   ['features/client-actions/desktop-downloads.check.ts', ['--experimental-strip-types']],
   ['features/net-motion/motion-interpolator.check.mjs', []],
 ];
@@ -86,7 +92,7 @@ const audit = spawnSync(
 );
 results.push({ label: auditLabel, ok: audit.status === 0, status: audit.status });
 
-for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'check_tms273_npc_scripts.cjs', 'check_tms273_player_status.cjs', 'check_tms273_ride_scenes.cjs', 'check_tms273_damage_pipeline.cjs', 'check_tms273_attributes.cjs', 'check_tms273_job_advance.cjs', 'check_tms273_client_actions.cjs', 'check_tms273_desktop_package.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
+for (const file of ['check_repository_layout.cjs', 'check_protocol_errors.cjs', 'check_inventory_surface.cjs', 'check_tms273_remaster.cjs', 'check_tms273_portal_closure.cjs', 'check_tms273_notebook.cjs', 'check_tms273_npc_dialogue.cjs', 'check_tms273_npc_scripts.cjs', 'check_tms273_player_status.cjs', 'check_tms273_ride_scenes.cjs', 'check_tms273_damage_pipeline.cjs', 'check_tms273_attributes.cjs', 'check_tms273_job_advance.cjs', 'check_tms273_client_actions.cjs', 'check_tms273_desktop_package.cjs', 'build-release.check.cjs', 'publish-package.check.cjs']) {
   const result = spawnSync(process.execPath, [path.join(clientRoot, '..', 'scripts', file)], {
     cwd: path.join(clientRoot, '..'), stdio: 'inherit',
   });

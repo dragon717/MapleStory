@@ -135,6 +135,26 @@ async function framesFrom(resourceReader, source) {
 }
 async function frames(source) { return framesFrom(reader, source); }
 
+// ---------------------------------------------------------------------------
+// 显式登记的源缺像素：为本机客户端**根本没有那一卷**的模板放行「stand 为空」。
+//
+// 成因（2026-09-21 取证，不是猜的）：本机 TMS273.7 客户端的 `Npc/_Canvas` 分卷序列是
+// `_Canvas.wz + _000.._004 + _006.._023` —— **没有 `_Canvas_005.wz`**（那个目录也没有
+// `_Canvas.ini`，所以 `artifacts/tms273_source_volume_audit.json` 算不出「应有分卷数」，
+// 没把它登记成缺口）。把 24 个现存分卷按 ASCII 与 UTF-16LE 两种编码搜 `3001359` 都是 0 命中。
+// 而 `Npc/9040000.img`（遺跡發掘團營區 `102040200` 的门卫）唯一的 `stand/0` 正是
+// **inlink 到 `Npc/_Canvas/3001359.img/stand/0`** ⇒ 这张像素在本机取不到。
+//
+// 于是这里**登记缺失本身**：只放行登记过的模板、只在「像素分卷缺失」这一类错误上放行，
+// 并把理由写进清单（`missingSprite`）好让下游看得见。收尾还有反向断言：登记过却不再缺失
+// （或本来就能解析）的条目必须删掉——否则这张表会烂成垃圾桶。
+// 客户端对空 `stand` 早有约定（`features/npc/view.ts`：没有 stand 帧的 NPC 不画身体、
+// 也不挂名字牌），所以放行的代价只是「这个 NPC 看不见」，不是崩。
+const SOURCE_MISSING_SPRITES = new Map([
+  ['9040000', 'Npc/_Canvas_005.wz 未随本机客户端分发（现存 24 卷 search 无 3001359），而它的 stand/0 inlink 到 Npc/_Canvas/3001359.img/stand/0'],
+]);
+const consumedMissingSprites = new Set();
+
 const bossEffectSpecs = [
   { skillId: '112', level: 1 },
   { skillId: '113', level: 1 },
@@ -286,6 +306,30 @@ function geometry(map, id) {
     assert([w,h,cx,cy].every(Number.isFinite) && w>0 && h>0,`Missing authored bounds: ${id}`);
     bounds={xMin:-cx,xMax:w-cx,yMin:-cy,yMax:h-cy};
   }
+  // 信封还要**装得下源自己摆在这张图里的角色**（`sp` 出生点 + 可见 `life` 行）。
+  // 这是 `scripts/import_tms273.py` 同一处的**镜像实现**：两处派生必须给同一个答案，
+  // 否则 `main()` 里那条 cross-check 会立刻红（该断言正是为此存在的）。
+  // 事实依据（2026-09-21 野豬領土 `102030100`）：它的 `info` 没有 `VRLeft/VRRight/
+  // VRTop/VRBottom`，信封退化成 `miniMap` 裁切（yMin **1155**），而源 `life/5` 的 `y`
+  // 是 **1147** ⇒ 服务端 `validate_spawns_against_maps` 判「越界」，用真实内容建世界的
+  // 39 条 cargo 验收全红。`life` 的 `y` **不是站立线**：该怪源 `cy`=1243 与它 `fh`=94
+  // 那条落脚点（x794~806 / y1242~1246）一致，1147 是精灵锚点偏移 ⇒ 该修的是
+  // 「派生出来的信封没盖住内容」，**不是**坐标。只增不减，故对本来就装得下的图零改动。
+  {
+    const hidden = n => { const h = val(n, 'hide', 0); return h === 1 || h === '1' || h === true; };
+    const placed = [
+      ...spawns,
+      ...numeric(map.at('life')).filter(n => !hidden(n)).map(n => ({ x: val(n, 'x', null), y: val(n, 'y', null) })),
+    ].filter(actor => Number.isFinite(actor.x) && Number.isFinite(actor.y));
+    if (placed.length) {
+      bounds = {
+        xMin: Math.min(bounds.xMin, ...placed.map(a => a.x)),
+        xMax: Math.max(bounds.xMax, ...placed.map(a => a.x)),
+        yMin: Math.min(bounds.yMin, ...placed.map(a => a.y)),
+        yMax: Math.max(bounds.yMax, ...placed.map(a => a.y)),
+      };
+    }
+  }
   // WZ scalar subtraction can preserve a signed zero.  It is the same
   // authored world coordinate, but strict metadata comparison would reject
   // -0 against the JSON source's 0.
@@ -395,7 +439,17 @@ async function exportEntities() {
         const name=val(await get(`String/Npc.img/${id}`),'name',id);
         const hidden=Boolean(val(info,'hide'));
         // Preserve template visibility separately; map life and quest conditions decide placement.
-        result.npcs[id]={name,source,hidden,stand:await frames(sprite+'/stand')};
+        let stand;
+        try {
+          stand=await framesFrom(reader, sprite+'/stand');
+        } catch(error) {
+          const reason=SOURCE_MISSING_SPRITES.get(id);
+          // 只放行「登记过 + 确实是像素分卷缺失」这一种；别的异常照旧炸，不许顺手吞掉。
+          if(!reason||!/像素分卷缺失/.test(String(error.message))) throw error;
+          consumedMissingSprites.add(id);
+          stand=[];
+        }
+        result.npcs[id]={name,source,hidden,stand,...(stand.length?{}:{missingSprite:SOURCE_MISSING_SPRITES.get(id)})};
       } else {
         const actions={};
         // 源里没有该动作节点的怪导出**空表**，不把 `move` 别名成 `stand`：
@@ -438,6 +492,10 @@ async function exportEntities() {
       console.log(`273 ${folder} ${id}`);
     }
   }
+  // 反向断言（防登记腐烂）：登记过的模板必须**就是**这一次真缺像素的那个。
+  // 补上了分卷、或换了能解出像素的模板，这一行就会红，逼着删登记。
+  const staleSprites=[...SOURCE_MISSING_SPRITES.keys()].filter(id=>!consumedMissingSprites.has(id));
+  assert.deepEqual(staleSprites,[],`SOURCE_MISSING_SPRITES 登记了却不再缺像素的模板必须删掉：${staleSprites.join(', ')}`);
   save('entities.json',result);
 }
 async function exportPortals() {
@@ -481,20 +539,37 @@ async function exportEffects() {
 }
 async function exportItems() {
   const data=JSON.parse(fs.readFileSync(path.join(output,'items.json'),'utf8')),items={};
+  // 本机客户端**不携带每件道具的图**：Weapon / Pants 的结构分卷被裁剪，
+  // 少数 id 的 `info/icon` 如今在 WZ 里已解不出来。这些 id 上一轮导出时
+  // 就已落盘，PNG 也仍在 `assets/tms273/` 下——重跑时**复用既有产物**，
+  // 而不是让整批导出在这里中断。缺口逐条汇总打印，不静默；真正没有可
+  // 复用产物（新道具又解不出图）仍然硬失败，闸门不松。
+  const previous=fs.existsSync(path.join(output,'item-images.json'))
+    ? JSON.parse(fs.readFileSync(path.join(output,'item-images.json'),'utf8')) : {};
+  const reused=[];
   for(const [id,item] of Object.entries(data)) {
     assert(item.spriteSource&&!item.spriteSource.includes('*'),`Missing item image source: ${id}`);
     // Split client packs sometimes carry only the base image (0204.img) while
     // the unpacked JSON tree kept an updated `0204 2` sibling; those items
     // link to the base image's canvas, so fall back to it before failing.
+    let frame_;
     try {
-      items[id]=await frame(item.spriteSource);
+      frame_=await frame(item.spriteSource);
     } catch (error) {
       const fallback=item.spriteSource.replace(/(\d+) 2\.img\//,'$1.img/');
-      if(fallback===item.spriteSource) throw error;
-      items[id]=await frame(fallback);
+      if(fallback!==item.spriteSource) {
+        try { frame_=await frame(fallback); } catch { frame_=null; }
+      } else frame_=null;
+      if(!frame_) {
+        assert(previous[id],`Item image unresolved and no cached export: ${id} (${item.spriteSource})`);
+        frame_=previous[id];
+        reused.push(id);
+      }
     }
+    items[id]=frame_;
   }
   items['0']=await frame('Item/Special/0900.img/09000000/iconRaw/0');
+  if(reused.length) console.log(`273 items: 复用 ${reused.length} 个本机 WZ 已解不出的既有图标: ${reused.join(', ')}`);
   save('item-images.json',items);
 }
 async function main() {

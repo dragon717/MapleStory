@@ -74,7 +74,9 @@ const BOOK_JOBS: Readonly<Record<string, ReadonlySet<number>>> = {
   '211': new Set([211, 212]),
   '221': new Set([221, 222]),
   '231': new Set([231, 232]),
+  '212': new Set([212]),
   '222': new Set([222]),
+  '232': new Set([232]),
 };
 
 function bookAllowsJob(bookId: string, job: number | undefined): boolean {

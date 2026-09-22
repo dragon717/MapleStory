@@ -220,6 +220,45 @@ fn attr_maple_warrior_percent_lands_before_equipment_folds_in() {
 }
 
 #[test]
+fn attr_every_fourth_job_branch_has_its_own_blessing_and_master_magic_book() {
+    // 三个四转分支各有一本 楓葉祝福（`basicStatUp`）与 大師魔法（`madX`）：
+    // 冰雷 2221000/2220013、火毒 2121000/2120012、主教 2321000/2320012。
+    // 分支互斥（一个角色只可能持有自己分支的那一本），但**每一本都必须能被独立留痕**——
+    // 少登记一本，那条分支的玩家就凭空少一份四维与魔攻，而门禁的「源表 == 数组成员」
+    // 仍然成立（因为源里那本确实还在表里）。所以这里逐本走一遍聚合，钉住「三本都真的
+    // 有贡献、且留痕里写的是自己那本的 id」。
+    for (blessing, master) in [
+        (SKILL_MAPLE_WARRIOR, SKILL_MASTER_MAGIC),
+        (SKILL_MAPLE_WARRIOR_FP, SKILL_MASTER_MAGIC_FP),
+        (SKILL_MAPLE_WARRIOR_CLERIC, SKILL_MASTER_MAGIC_BISHOP),
+    ] {
+        let fixture = AttrFixture::new()
+            .ability(10, 5, 100, 20)
+            .learn(&[(blessing, 30), (master, 10)]);
+        let percent = fixture.field(blessing, 30, |level| level.basic_stat_up);
+        let mad = fixture.field(master, 10, |level| level.mad_x);
+        let attributes = fixture.attributes(ICE_FOURTH_JOB, 190);
+        // 先乘后加（层序）：(100 × (100+percent) / 100) + 0 装备 incINT
+        assert_eq!(attributes.intelligence(), 100 * (100 + percent) / 100);
+        let bless_trace = attributes
+            .sources
+            .iter()
+            .find(|source| source.field == "basicStatUp")
+            .unwrap_or_else(|| panic!("{blessing} 必须有 basicStatUp 留痕"));
+        assert_eq!(bless_trace.skill_id, Some(blessing), "留痕写的是别那本");
+        assert_eq!(bless_trace.value, percent);
+        let mad_trace = attributes
+            .sources
+            .iter()
+            .filter(|source| source.field == "madX")
+            .find(|source| source.skill_id == Some(master))
+            .unwrap_or_else(|| panic!("{master} 必须有 madX 留痕"));
+        assert_eq!(mad_trace.value, mad);
+        assert_eq!(mad_trace.op, AttributeOp::Flat);
+    }
+}
+
+#[test]
 fn attr_service_percent_adds_up_and_multiplies_the_group_once() {
     // `AdditivePercent` 的语义是「同类百分比先求和、整组只乘一次」。
     // 本版只有楓葉祝福一条来源，所以这条要钉的是：**装备**不参与这一次乘法，

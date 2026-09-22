@@ -124,6 +124,17 @@ fn advance(world: &mut World, from_tick: u64, ticks: u64) {
 /// added 6 authored field species — 150000 芽芽花盆（公園1）、1150000 巡邏機器人
 /// / 1150001 奇怪的里程碑（散步路道 1~2）、2150000 竊水賊（散步路道3）、
 /// 2150001 垃圾桶（散步路道4）、2150003 巡邏機器人S（去礦山的路1）—— to 68.
+/// The 2026-09-21 勇士部落 13 图（火焰之地 + 遺跡發掘地）added 9 authored field
+/// species — 4230103 鋼之肥肥（野豬領土 102030100）、4230400 鋼之黑肥肥（鐵甲豬領土
+/// 102030200 / 燃燒的熱氣 102030300）、3210100 火肥肥（燃燒的熱氣 / 碳屑之地
+/// 102030400）、2230111 石面怪人（挖掘結束地區 102040100）、4230125 骷髏犬 /
+/// 4230126 木乃伊犬（挖掘中斷地區 102040300 / 第1軍營 102040301）、5150001
+/// 骷髏士兵（挖掘危險地區 102040400 / 第2軍營 102040401）、6230602 骷髏士官
+/// （封閉地區 102040500 / 第3軍營 102040501）、7130103 骷髏指揮官（未接近地區
+/// 102040600）.  Names come from `shared/mob-names.json` (the projection of the
+/// source `String/Mob.json`), the same table the runtime's monster captions use —
+/// 鐵甲豬 is the map's name (鐵甲豬領土), not the monster's.  The delta is the net
+/// templateId gain in `git diff HEAD -- shared/gameplay.json` (9 added, none removed).
 #[test]
 fn every_deployed_monster_can_move() {
     let gameplay = mushroom_gameplay();
@@ -134,7 +145,7 @@ fn every_deployed_monster_can_move() {
         .collect();
     assert_eq!(
         deployed.len(),
-        68,
+        77,
         "the deployed monster surface changed: {deployed:?}"
     );
     let mut immobile = Vec::new();

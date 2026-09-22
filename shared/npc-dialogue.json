@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
  "kind": "npc-dialogue-zh",
- "generatedFrom": "TMS273 WZ_JSON_TW/Npc/<id>.img/info/speak (order) + WZ_JSON_TW/String/Npc.json (text); #p#/#m# resolved from the same version tables, #t# and colour markers kept verbatim",
+ "generatedFrom": "TMS273 WZ_JSON_TW/Npc/<id>.img/info/speak (order) + WZ_JSON_TW/String/Npc.json (text); the #p#/#m#/#t#/#o# name references are resolved from the same version tables (String/Npc.json, String/Map.json, shared/items.json, shared/mob-names.json), an unresolvable reference is dropped whole, colour markers are kept verbatim",
  "encoding": "UTF-8",
  "npcs": {
   "2001": {
@@ -413,12 +413,75 @@
     "原來是上次幫過我的那位勇者喔！真的謝謝你喔~"
    ]
   },
+  "1022008": {
+   "origin": "strings",
+   "lines": [
+    "(被熊熊大火包圍的寶劍…)"
+   ]
+  },
   "1022100": {
    "origin": "speak",
    "lines": [
     "開張的準備都好囉～再來就看我的了！",
     "這裡太無聊了～",
     "瑪亞的病～好一些了嗎？"
+   ]
+  },
+  "1022102": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022106": {
+   "origin": "strings",
+   "lines": [
+    "呃，呃… 為了探險時迷路的天才探險家，有沒有人願意幫忙？",
+    "喔喔，為了天才探險家吉米獻身的你。一定會替人類做大事~",
+    "嗯嗯… 天才探險家吉米就這樣消失了…",
+    "嗚， 嗚~"
+   ]
+  },
+  "1022111": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022112": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022113": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022114": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022115": {
+   "origin": "strings",
+   "lines": [
+    "沒有得到遺跡發掘團隊允許，非法在佈告欄上貼上廣告物時， 會有罰金 300萬楓幣。"
+   ]
+  },
+  "1022116": {
+   "origin": "strings",
+   "lines": [
+    "鐵甲豬領土 警告牌 \\r\\n\\r\\n出現怪物 : 鋼之黑肥肥. \\r\\n特殊事項 : 無"
+   ]
+  },
+  "1022117": {
+   "origin": "strings",
+   "lines": [
+    "碳屑之地 警告牌 \\r\\n\\r\\n出現怪物 : 火肥肥. \\r\\n特殊事項 : 火焰之地的末端。已經沒有路。"
    ]
   },
   "1031000": {
@@ -544,6 +607,13 @@
     "呼，我培養的歌手不只一兩位~",
     "想要公演的話，就需要舞台、照明、音響還有超高水準的觀眾…",
     "想成為明星的話請跟我聯絡~"
+   ]
+  },
+  "1072000": {
+   "origin": "speak",
+   "lines": [
+    "時刻不能放鬆警惕。 勇士之村的和平，我還守護。",
+    "這裡的危險地區，要多加小心。"
    ]
   },
   "1082200": {
@@ -1091,6 +1161,13 @@
     "副士官麥丁因為非常嚴格而有名。"
    ]
   },
+  "2050012": {
+   "origin": "speak",
+   "lines": [
+    "你... 見過外星人嗎？",
+    "請不要把見過我的事情告訴別人。"
+   ]
+  },
   "2052006": {
    "origin": "speak",
    "lines": [
@@ -1634,6 +1711,22 @@
    "lines": [
     "總有一天我也能獨立吧…",
     "哎唷…主人，你的行李太重了。"
+   ]
+  },
+  "9040000": {
+   "origin": "strings",
+   "lines": [
+    "這裡是遺跡發掘的現場~",
+    "再一個月，挖掘作業也即將結束了！"
+   ]
+  },
+  "9040002": {
+   "origin": "strings",
+   "lines": [
+    "歡迎來到遺跡發掘隊營地，我是挖掘隊員杉峰。",
+    "看起來平凡的石頭，或許有一個能聯繫過往和現在。",
+    "挖掘作業因受到附近怪物的影響，而速度變得緩慢…",
+    "我之前拜託溫斯頓來打倒怪物，不曉得什麼時候才會結束…"
    ]
   },
   "9063173": {

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
-  skillManifest, mageRules, RUNTIME_INTEGER_FIELDS,
+  skillManifest, mageRules, RUNTIME_INTEGER_FIELDS, SKILL_BOOK_TABS, FOURTH_JOB_BOOKS,
 } = require('./tms273_skill_manifest.cjs');
 const root = path.resolve(__dirname, '..');
 const input = path.join(root, 'resources/tms273-export');
@@ -96,7 +96,54 @@ assert.deepEqual(
 // 运行期未登记的字段**原样带出**（舍入它们只会丢信息）：`2111013 劇毒領域` 的 `common.t` 是 `0.4`。
 assert.equal(rules.skills['2111013'].levels[0].t, 0.4, '非契约字段必须原样带出，不许跟着一起取整');
 
-assert.equal(Object.keys(rules.skills).length, 102);
+assert.equal(Object.keys(rules.skills).length, 153);
+// ── 四转三条分支（212 火毒 / 222 冰雷 / 232 主教）对称 ─────────────────────
+// 判据全部**按层级**写（读 FOURTH_JOB_BOOKS，不复制名单）：下一本四转进来时只要进了
+// 那张表就自动进判据；写成 `book === '222'` 会把火毒／主教整本判成非法（2026-09-21 实测）。
+{
+  const byBook = {};
+  for (const skill of Object.values(rules.skills)) byBook[skill.bookId] = (byBook[skill.bookId] ?? 0) + 1;
+  assert.deepEqual(byBook, { 0: 3, 200: 8, 210: 10, 211: 11, 212: 24, 220: 9, 221: 12, 222: 24, 230: 10, 231: 15, 232: 27 });
+  for (const [bookId, count] of Object.entries(byBook)) {
+    const hyper = Object.values(rules.skills).filter(skill => String(skill.bookId) === bookId && skill.hyper > 0);
+    // 只有四转书带 Hyper 池。源里被动池（hyper=1）三条分支都是 9 条；主动池（hyper=2）
+    // 火毒 3 条、冰雷与主教各 4 条——**源节点数就是这样**，不是按分支对称推出来的
+    // （写成「三条各 12 条」会在 222／232 上直接红）。
+    const passive = hyper.filter(skill => skill.hyper === 1).length;
+    const active = hyper.filter(skill => skill.hyper === 2).length;
+    if (FOURTH_JOB_BOOKS.has(bookId)) {
+      assert.equal(passive, 9, `${bookId} 的 Hyper 被动池不是 9 条`);
+      assert.equal(active, bookId === '212' ? 3 : 4, `${bookId} 的 Hyper 主动池条数变了`);
+    } else {
+      assert.equal(hyper.length, 0, `${bookId} 不是四转书却带 Hyper 池`);
+    }
+    for (const skill of hyper) {
+      assert.equal(skill.maxLevel, 1, `${skill.name} 的 Hyper 满级不是 1`);
+      assert.ok(skill.requiredLevel >= 140, `${skill.name} 的 Hyper 门槛低于 140`);
+    }
+  }
+  // 页签下标是「转职层级」：三条四转**共用**下标 4（源 UIWindow2 只有 7 组页签图）。
+  assert.deepEqual(
+    ['212', '222', '232'].map(book => SKILL_BOOK_TABS[book]),
+    [4, 4, 4],
+    '四转三本书的页签下标必须共用 4，顺延到 5/6 会超出源页签图范围',
+  );
+  // fixLevel：转职任务按它发固定技能（`shared/job-advance.json` 的 reward.skills 依赖这条）。
+  assert.equal(rules.skills['2120014'].fixedLevel, true, '2120014 元素強化 必须是源 fixLevel 技能');
+  assert.equal(rules.skills['2320013'].fixedLevel, true, '2320013 祝福旋律 必须是源 fixLevel 技能');
+  assert.equal(rules.skills['2120014'].maxLevel, 1);
+  assert.equal(rules.skills['2320013'].maxLevel, 1);
+  // 冷却与消耗：四转的这两条是源里**真带 cooltime/mpCon** 的，逐条钉住（数值来自源公式）。
+  // 源串 `600-60*x`（秒）→ 1 级 540 秒、5 级 300 秒；两条分支同式同值。
+  assert.equal(rules.skills['2121008'].levels[0].cooltime, 540, '2121008 楓葉淨化 的冷却变了');
+  assert.equal(rules.skills['2121008'].levels[4].cooltime, 300, '2121008 楓葉淨化 满级冷却变了（600-60*x）');
+  assert.equal(rules.skills['2121008'].levels[0].mpCon, 30);
+  assert.equal(rules.skills['2321009'].levels[0].cooltime, 540);
+  assert.equal(rules.skills['2321009'].levels[4].cooltime, 300);
+  assert.equal(rules.skills['2321009'].levels[0].mpCon, 30);
+  assert.equal(rules.skills['2121052'].levels[0].cooltime, 50, '2121052 藍焰斬 冷却变了');
+  assert.equal(rules.skills['2121052'].levels[0].mpCon, 500);
+}
 assert.equal(rules.skills['2001008'].levels[19].damage, 78);
 assert.equal(rules.skills['2201008'].bookId, 220);
 assert.equal(rules.skills['2201008'].levels[19].damage, 199);
@@ -135,7 +182,7 @@ assert.throws(() => mageRules(invalidRules));
 const windowExport = read('windows-skills');
 const sourceDescription = skills.catalog.skills['2200011'].string.h;
 const projected = skillManifest(windowExport, skills);
-assert.equal(Object.keys(projected.skillCatalog).length, 102);
+assert.equal(Object.keys(projected.skillCatalog).length, 153);
 assert.deepEqual(projected.skillCatalog['2000010'].prerequisites, { '2001002': 3 });
 assert.deepEqual(projected.skillCatalog['2200000'].prerequisites, { '2200006': 5 });
 assert.deepEqual(projected.skillCatalog['2201001'].prerequisites, { '2200000': 3 });
@@ -175,7 +222,7 @@ changed.catalog.skills['2001008'].displayFlags.source.invisible = '1';
 assert.equal(skillManifest(windowExport, changed).skillCatalog['2001008'].hidden, true);
 changed.catalog.skills['2001008'].displayFlags.source.invisible = 'unknown';
 assert.throws(() => skillManifest(windowExport, changed));
-console.log('PASS: 102 source skills, level descriptions, prerequisites, level values, explicit invisible flag values, the user-specified teleport rule, and the runtime-integer contract (projection rounds fractional source formulas).');
+console.log('PASS: 153 source skills, level descriptions, prerequisites, level values, explicit invisible flag values, the user-specified teleport rule, and the runtime-integer contract (projection rounds fractional source formulas).');
 
 if (process.argv.includes('--browser-fixture')) {
   const output = evidencePath('skills-check');

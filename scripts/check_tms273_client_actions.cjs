@@ -214,6 +214,14 @@ assert.ok(/if \(this\.inFlight\) return this\.inFlight;/.test(updateService), '�
 const runtimeConfig = read(path.join(CLIENT_SRC, 'platform/runtime-config.ts'));
 assert.ok(/\/api\/client-release/.test(runtimeConfig), '发布描述必须来自统一端点');
 assert.ok(/no-store/.test(runtimeConfig), '强制更新检查必须绕过缓存副本');
+// 拿到发布描述就必须给出重载入口：`blocked`（协议/内容与本页不一致）是**最该重载**的
+// 情形（页面陈旧 / 服务端在页面脚下换了一代）。若只在 `verified` 时给入口，「强制更新」
+// 就会在唯一需要它的场景里失效——按钮提示写着「重新装载页面」却只回一句「请更新客户端」
+// （2026-09-22 用户实测）。
+const clientActionsView = read(path.join(CLIENT_SRC, 'features/client-actions/view.ts'));
+assert.ok(/if \(state\.release\) this\.confirm\.hidden = false;/.test(clientActionsView), '拿到发布描述就必须给出重载入口（blocked 时也要给）');
+const updateServiceSource = codeOnly(read(path.join(CLIENT_SRC, 'features/client-actions/update-service.ts')));
+assert.ok(/if \(!state\.release\) return state;/.test(updateServiceSource), 'apply 只允许「取不到描述」时不导航，不兼容必须导航');
 group('强制更新：合并点击、校验版本、不清存储、不强制 reload');
 
 // ── 6. 下载入口不给假链接 ──────────────────────────────────────────────────

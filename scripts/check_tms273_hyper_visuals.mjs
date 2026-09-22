@@ -13,17 +13,41 @@ globalThis.frameAt = frameAt;
 globalThis.assetFrameAlpha = () => 1;
 globalThis.damageNumberAdvances = () => [];
 globalThis.actorDepthForLayers = () => 1;
-globalThis.appearanceKey = () => '';
-globalThis.composeAppearance = () => undefined;
+// 按需装载入口 2026-09-2x 从 `preload-plan.ts` 抽到 `assets/lazy-texture.ts` 之后，这张
+// 桩表没跟着补 ⇒ 本文件一直抛 `ensureTextures is not defined`，而它又没进任何 runner
+// （`docs/plan/history` 里只记了「已通过」），于是红了很久没人知道。本检查关心事件时序与
+// 生命周期，不关心纹理就绪时机（那是 skill.check.mjs 的判据），所以一律放行。
+globalThis.ensureTextures = () => true;
+globalThis.damageNumberLayers = (damage, mpDamage = 0) => [
+  ...(damage > 0 ? [{ kind: 'damage', value: damage, offsetY: 0 }] : []),
+  ...(mpDamage > 0 ? [{ kind: 'mp', value: mpDamage, offsetY: damage > 0 ? 20 : 0 }] : []),
+];
 
-async function loadClass(path, name) {
+async function loadModule(path) {
   const source = await readFile(new URL(`../client/src/${path}`, import.meta.url), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-  const stripped = output.replace(/^import .*;\r?\n/gm, '');
-  return (await import(`data:text/javascript;base64,${Buffer.from(stripped).toString('base64')}`))[name];
+  return import(`data:text/javascript;base64,${Buffer.from(output.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
+}
+
+async function loadClass(path, name) {
+  return (await loadModule(path))[name];
 }
 const CombatView = await loadClass('features/combat/view.ts', 'CombatView');
 const PlayerView = await loadClass('features/player/view.ts', 'PlayerView');
+// `player/view.ts` / `combat/view.ts` 的 import 被整段剥掉（`loadModule` 的做法），所以它们
+// 依赖的**纯函数模块**要在这里真加载一遍再挂成全局——**别用桩**：`composeRideFrame` 在
+// 「没有坐骑」时必须回落到角色本体部件，桩写错就直接崩（`sceneParts.filter` 拿到
+// undefined）。这些模块只依赖 `./animation`（已按全局桩提供）与类型，所以能原样加载。
+const rideScene = await loadModule('features/player/ride-scene.ts');
+const appearance = await loadModule('features/entry/appearance.ts');
+for (const name of ['composeRideFrame', 'rideFrame', 'rideFrames']) globalThis[name] = rideScene[name];
+for (const name of ['appearanceKey', 'appearanceAssetUrls', 'appearanceLayer', 'appearanceWeaponType',
+  'cashAppearanceEntry', 'composeAppearance', 'loadAppearanceLayer', 'normalizeAppearanceItemId']) {
+  globalThis[name] = appearance[name];
+}
+// 对象库缺席时代数恒为 0、`resolveAssetUrl` 就是恒等函数（见 `assets/resource-url.ts` 头注），
+// 而本检查不联网，恒等正是它要的语义。
+globalThis.resolveAssetUrl = url => url;
 
 let now = 100;
 function scene() {
@@ -49,6 +73,9 @@ function scene() {
     removeAll() { this.list = []; return this; }, add(child) { this.list.push(child); return this; }, destroy() { this.list = []; } });
   const text = () => ({ setOrigin() { return this; }, setDepth() { return this; }, setPosition() { return this; }, destroy() {} });
   return { sprites, sounds, plays, time: { now }, add: { image, container, text },
+    // 战斗表现的贴图只在 `textures.exists(url)` 为真时才建（`view.ts::spriteFor`），
+    // 假 scene 一律按「就绪」放行，等价于「首屏已装载完」这条正常路径。
+    textures: { exists: () => true },
     sound: { add: soundAdd, play: key => plays.push({ key }) }, cache: { audio: { exists: () => true } },
     tweens: { killTweensOf() {} },
   };
@@ -109,6 +136,9 @@ const alive = playerState();
 const summon = (id, owner = 'p') => ({ id, playerId: owner, skillId: 2221055, x: 10, y: 20, facing: 1, expiresInMs: 1_000, stationary: true });
 summonView.syncPlayers([alive]); summonView.syncSummons([summon('gone')]);
 assert.equal(summonView.skillVisuals.filter(v => v.sourceSummonId === 'gone').length, 6, 'tile/tile0 variants are rendered separately');
+// 贴图是下一帧才建的（纹理就绪判据见 view.ts::spriteFor），所以先驱动一帧再数。
+summonView.update(now);
+assert.equal(summonScene.sprites.length, 6, 'each source variant builds its own sprite on the next frame');
 summonView.syncSummons([]);
 assert.equal(summonScene.plays.filter(play => play.key === '/vortex-end').length, 1);
 assert(summonScene.sprites.filter(sprite => sprite.destroyed).length >= 6, 'snapshot removal destroys every source variant');

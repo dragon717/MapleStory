@@ -273,16 +273,37 @@ const SKILL_MAGIC_CRITICAL_FP: u32 = 2110009;
 const SKILL_MAGIC_CRITICAL_CLERIC: u32 = 2310010;
 const SKILL_ELEMENTAL_ADAPTING_FP: u32 = 2111011;
 const SKILL_DIVINE_PROTECTION: u32 = 2311012;
+// ── 四转（212 火毒 / 232 主教）里**与既有槽位同源**的两条 ──────────────────
+// 2121005 召喚火魔：源文案「額外永久增加熟練度」，与冰雷 2221005 召喚冰魔同一格
+// （`mastery`），所以进 `MASTERY_SKILLS`；它与冰魔一样是「带 `time` 却按已学等级读
+// `mastery`」的技能，所以同样要登记进 `attribute.rs::INTRINSIC_DURATION_SKILLS`
+// （那张表记的是「这条字段按学得即生效读」，不是「召唤实体已实现」——召唤实体
+// 在本包仍无服务端实现，冰魔那套是 `elemental.rs` 里逐条写的）。
+// 2320012 大師魔法：源文案「永久增加…#mdR% 最終傷害」，`mdR` 正是
+// `ELEMENTAL_RESET_SKILLS` 消费的那一格（独立乘算的最终伤害段），语义与 2210016／2110015
+// 一致 ⇒ 按同一数组消费，不另开槽位。
+const SKILL_FIRE_DEMON: u32 = 2121005;
+const SKILL_MASTER_MAGIC_BISHOP: u32 = 2320012;
+// 楓葉祝福（`basicStatUp`，对 AP 四维的百分比）：三个四转分支各有一本，与冰雷那本
+// 同源同格 —— 冰雷的常量早已存在（`SKILL_MAPLE_WARRIOR`），这里补另外两条分支，
+// 一起收进 `MAPLE_WARRIOR_SKILLS` 按「逐本求和」消费。
+const SKILL_MAPLE_WARRIOR_FP: u32 = 2121000;
+const SKILL_MAPLE_WARRIOR_CLERIC: u32 = 2321000;
+// 大師魔法（`madX`，永久魔攻）：三个四转分支各一本，冰雷的常量早已存在
+// （`SKILL_MASTER_MAGIC`），这里补另外两条分支；2320012 同时提供 `mdR`（见
+// `ELEMENTAL_RESET_SKILLS`），同一本进两张表并不冲突——那是两个不同的源字段。
+const SKILL_MASTER_MAGIC_FP: u32 = 2120012;
 
 /// 熟练度（`mastery`，取**高者** `AttributeOp::Highest`）：三本 咒語精通、神聖集中術，
-/// 外加冰龍吐息 —— 后者的源熟练度是「永久覆盖值」，用 `Highest` 表达正是它替换较低
-/// 咒語精通的语义（不是叠加成第二条带）。
-const MASTERY_SKILLS: [u32; 5] = [
+/// 外加冰龍吐息/火魔神 —— 后者们的源熟练度是「永久覆盖值」，用 `Highest` 表达正是它
+/// 们替换较低咒語精通的语义（不是叠加成第二条带）。
+const MASTERY_SKILLS: [u32; 6] = [
     SKILL_SPELL_MASTERY,
     SKILL_SPELL_MASTERY_FP,
     SKILL_SPELL_MASTERY_CLERIC,
     SKILL_HOLY_FOCUS,
     SKILL_ICE_DEMON,
+    SKILL_FIRE_DEMON,
 ];
 /// 魔法攻击的 `x` 段：源里**同时**带 `mastery` 与 `x` 的技能恰好是三本 咒語精通，
 /// 它们既是熟练度来源也是魔攻来源（神聖集中術只有 `cr`/`ar`/`mastery`，没有 `x`）。
@@ -310,7 +331,11 @@ const ELEMENTAL_ADAPTING_SKILLS: [u32; 3] = [
 /// 魔力激發（`damR` 常駐段，加算组）：冰雷 2210001 / 火毒 2110001。
 const ELEMENT_AMP_SKILLS: [u32; 2] = [SKILL_ELEMENT_AMP, SKILL_ELEMENT_AMP_FP];
 /// 自然力重置（`mdR`，源里没有分组标记 ⇒ 独立乘算）：冰雷 2210016 / 火毒 2110015。
-const ELEMENTAL_RESET_SKILLS: [u32; 2] = [SKILL_ELEMENTAL_RESET, SKILL_ELEMENTAL_RESET_FP];
+const ELEMENTAL_RESET_SKILLS: [u32; 3] = [
+    SKILL_ELEMENTAL_RESET,
+    SKILL_ELEMENTAL_RESET_FP,
+    SKILL_MASTER_MAGIC_BISHOP,
+];
 /// 魔法爆擊（`criticaldamage`，暴击组）：冰雷 2210009 / 火毒 2110009 / 僧侶 2310010。
 const MAGIC_CRITICAL_SKILLS: [u32; 3] = [
     SKILL_MAGIC_CRITICAL,
@@ -330,6 +355,22 @@ const CRITICAL_CHANCE_SKILLS: [u32; 6] = [
 ];
 /// 極速詠唱（攻击速度）：三本分支各一本，源加速值在 `psdWeaponBooster.actionSpeed`。
 const BOOSTER_SKILLS: [u32; 3] = [SKILL_BOOSTER, SKILL_BOOSTER_FP, SKILL_BOOSTER_CLERIC];
+/// 楓葉祝福（`basicStatUp`）：冰雷 2221000 / 火毒 2121000 / 主教 2321000。
+/// 分支互斥，角色只可能持有自己分支的那一本，其余查表得 0、不留痕；与 `intX` 同一
+/// 写法（逐本求和）以便留痕能回答「这个百分比是谁给的」。
+const MAPLE_WARRIOR_SKILLS: [u32; 3] = [
+    SKILL_MAPLE_WARRIOR,
+    SKILL_MAPLE_WARRIOR_FP,
+    SKILL_MAPLE_WARRIOR_CLERIC,
+];
+/// 大師魔法（`madX`，加算的永久魔攻）：冰雷 2220013 / 火毒 2120012 / 主教 2320012。
+/// **只有这三本**：Hyper 主动 復仇天使 `2321054` 的 `madX` 是「施放窗口内的临时魔攻」，
+/// 不是学得即生效的被动，本包也没有它的施法分支 ⇒ 不进这张表（门禁里单列登记）。
+const MASTER_MAGIC_SKILLS: [u32; 3] = [
+    SKILL_MASTER_MAGIC,
+    SKILL_MASTER_MAGIC_FP,
+    SKILL_MASTER_MAGIC_BISHOP,
+];
 
 const SKILL_THREE_SNAILS: u32 = 1000;
 const SKILL_RECOVERY: u32 = 1001;

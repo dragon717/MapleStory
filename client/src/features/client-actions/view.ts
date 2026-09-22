@@ -174,7 +174,13 @@ export class ClientActionsView {
     this.confirm.hidden = true;
     this.setStatus(uiText('clientChecking'));
     const state = await this.service.check();
-    if (state.phase === 'verified') this.confirm.hidden = false;
+    // **拿到发布描述就有路可走**：确认面板里的「重新装载页面」把本页换到那份发布上。
+    // `blocked`（协议 / 内容与本页不一致）也必须给这条路——它正是页面陈旧、或服务端
+    // 在页面脚下换了一代的现场。此前只在 `verified` 时才给，于是「强制更新」恰好在
+    // 唯一需要它的场景里失效：用户点完只看到「请更新客户端后再登录」，
+    // 而按钮自己的提示写着「重新装载页面」（2026-09-22 用户实测正是如此）。
+    // 状态区仍照实说明不一致的原因，只是不再扣着补救手段。
+    if (state.release) this.confirm.hidden = false;
     else this.updateButton.disabled = false;
   }
 

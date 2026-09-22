@@ -34,9 +34,44 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-34');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-35');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
+// 道具定义覆盖：源声明的可达集里，凡定义缺失的件都必须在补入工具的留痕里逐条出现。
+//
+// 为什么需要这条：`generate_tms273_gameplay.py` 对定义缺失的件是**静默**处理的——
+// 先丢掉这件道具，再把引用它的商店行与掉落行一起剪掉
+// （`shop["items"] = [item for item in shop["items"] if item["itemId"] in items]`）。
+// 产物看上去完全自洽，缺口只留在 `sources.items[*].status` 里。2026-09-21 参考树被
+// 批量补洞后又回退，正是这样悄悄少了 157 件定义、164 条商店行与 82 条图鉴奖励引用，
+// 而当时没有任何一道门禁说话。
+//
+// 判据取自两份产物、不是手写清单：`sources.items` 是生成器写下的「源声明可达集」，
+// `artifacts/tms273_item_definition_backfill.json` 是补入工具写下的「无源可补」留痕。
+// 两侧必须互为镜像——留痕多一条说明工具没重跑（或参考树被改动过），少一条说明缺口
+// 又出现了。任何一侧对不上都先重跑
+// `python3 scripts/generate_tms273_gameplay.py` 与
+// `node scripts/backfill_tms273_item_definitions.cjs`。
+{
+  const ledger=gameplay.sources?.items;
+  assert(ledger,'gameplay.sources.items ledger is missing; the gameplay generator must run');
+  const declared=Object.keys(ledger);
+  const missing=declared.filter(id=>ledger[id].status==='json-missing').sort();
+  const manifestPath=path.join(root,'artifacts/tms273_item_definition_backfill.json');
+  assert(fs.existsSync(manifestPath),
+    'missing item-definition ledger: run `node scripts/backfill_tms273_item_definitions.cjs`');
+  const backfill=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
+  for(const entry of backfill.unresolved) assert(entry.reason,`无源可补必须带原因: ${entry.id}`);
+  const unresolved=backfill.unresolved.map(entry=>entry.id).sort();
+  assert.deepEqual(missing,unresolved,
+    `item definition gaps drifted: ledger 缺 ${missing.length} 件 ${JSON.stringify(missing.slice(0,8))} / 留痕 ${unresolved.length} 件 ${JSON.stringify(unresolved.slice(0,8))}`);
+  assert.equal(backfill.written+backfill.unresolved.length,backfill.targets,
+    'item-definition backfill manifest does not add up: written + unresolved must equal targets');
+  const items=read('shared/items.json');
+  const undefinedIds=declared.filter(id=>ledger[id].status==='json-present'&&!items[id]&&!items[id.padStart(8,'0')]);
+  assert.deepEqual(undefinedIds,[],`声明有定义、目录里却没有: ${JSON.stringify(undefinedIds)}`);
+  console.log(`TMS273 items: 源声明可达 ${declared.length} 件；无源可补 ${missing.length} 件（逐条留痕于 artifacts/tms273_item_definition_backfill.json）`);
+}
 for(const mob of gameplay.monsters) {
   const raw=read(`参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Mob/${mob.templateId.padStart(7,'0')}.json`).info;
   assert.equal(mob.maxMp,Number(raw.maxMP?._value ?? 0));
@@ -94,7 +129,17 @@ for(const mob of gameplay.monsters) {
   // 2026-09-16 埃德爾斯坦城簇 6 只：150000 芽芽花盆（公園1）、1150000 巡邏機器人
   // / 1150001 奇怪的里程碑（散步路道 1~2）、2150000 竊水賊（散步路道3）、
   // 2150001 垃圾桶（散步路道4）、2150003 巡邏機器人S（去礦山的路1），to 68.
-  assert.equal(deployed.size,68,'the deployed monster surface changed');
+  // 2026-09-21 勇士部落 13 图（火焰之地+遺跡發掘地）再添 9 只场地怪，to **77**：
+  // 4230103 鋼之肥肥（野豬領土 102030100）、4230400 鋼之黑肥肥（鐵甲豬領土
+  // 102030200 / 燃燒的熱氣 102030300）、3210100 火肥肥（燃燒的熱氣 / 碳屑之地
+  // 102030400）、2230111 石面怪人（挖掘結束地區 102040100）、4230125 骷髏犬 /
+  // 4230126 木乃伊犬（挖掘中斷地區 102040300 / 第1軍營 102040301）、5150001
+  // 骷髏士兵（挖掘危險地區 102040400 / 第2軍營 102040401）、6230602 骷髏士官
+  // （封閉地區 102040500 / 第3軍營 102040501）、7130103 骷髏指揮官（未接近地區
+  // 102040600）。怪名逐条取自 `shared/mob-names.json`（＝源 `String/Mob.json` 的
+  // 投影），与前文其余条目同一来源。差集口径＝`git diff HEAD -- shared/gameplay.json`
+  // 的 templateId 集合净增 9，removed 为空。
+  assert.equal(deployed.size,77,'the deployed monster surface changed');
   for(const mob of gameplay.monsters) {
     const own=mobJson(mob.templateId);
     // The export writes exactly the mob's own authored value (and omits it
@@ -141,7 +186,13 @@ for(const mob of gameplay.monsters) {
 // 就已装配却整簇不可达的「去礦山的路2」第一次可达。**步行链到那里为止**：
 // `310040100.east00` 是 pt:7 `enterBlackMine`（脚本体不在本包）、`in00` 指向
 // 未装配的 `310040110` ⇒ 礦山入口 310040200 及整个雷本礦山簇仍无达入边）。
-assert.equal(catalog.maps.length,198);
+// 2026-09-21 勇士部落 13 图（`102030000/west00 → 102030100 野豬領土` 与
+// `102040000/east00 → 102040100 挖掘結束地區` 两条死门的目标簇）⇒ 198 → **211**。
+// 装的是「火焰之地 4 张（`102030100/200/300/400`）+ 遺跡發掘地 9 张
+// （`102040100/200/300/301/400/401/500/501/600`）」；不装的是源里就没有入边的
+// `102000001 武器店` 与 `102000004/102000005 戰士之殿`（`rankRoom` 脚本体不在包内），
+// 逐条落在 `scripts/check_tms273_portal_closure.cjs` 的 `PORTAL_BOUNDARIES`。
+assert.equal(catalog.maps.length,211);
 // 傳送類消耗品 (map-move consumables): the client never names a destination —
 // the server reads `spec.moveTo` off the item and resolves a 回家卷軸 through
 // the sheet's own `Map.wz info/returnMap`.  Both halves are source data, so both
@@ -196,16 +247,18 @@ assert(!manifest.bossEffects['114'].effect,'missing source art must stay absent'
 // 数量单独再钉一遍，是为了让启动门禁失败时直接说出「期望 9 本 102 条」而不是只报下标。
 //
 // 2026-09-21 火毒 / 僧侶 / 主教三条分支书上线：6 本 56 条 → **9 本 102 条**（每本分支
-// 各带一份被动槽位，见 world.rs 的具名数组）。加书必须复用同层页签下标
-// （`tms273_skill_manifest.cjs::SKILL_BOOK_TABS`，源 `UIWindow2` 只有 7 组页签图），
-// 客户端 `view.ts::BOOK_JOBS` 是唯一的书准入权威，改书必须同时改这两处；
-// `check_tms273_skill_manifest.cjs` 用同一个投影函数独立重算，两边必须同时绿。
+// 各带一份被动槽位，见 world.rs 的具名数组）。同日第四轮再补两条**四转**分支
+// （212 火毒 / 232 主教，与冰雷 222 同层级）⇒ **11 本 153 条**。
+// 加书必须复用同层页签下标（`tms273_skill_manifest.cjs::SKILL_BOOK_TABS`，源 `UIWindow2`
+// 只有 7 组页签图，故 212/222/232 共用下标 4），客户端 `view.ts::BOOK_JOBS` 是唯一的书
+// 准入权威，改书必须同时改这两处；`check_tms273_skill_manifest.cjs` 用同一个投影函数
+// 独立重算，两边必须同时绿。
 {
   const projected=require('./tms273_skill_manifest.cjs')
     .skillManifest(read('resources/tms273-export/windows-skills.json'),
                    read('resources/tms273-export/skills.json'));
-  assert.equal(Object.keys(projected.skillBooks).length,9,'the exported skill book count changed');
-  assert.equal(Object.keys(projected.skillCatalog).length,102,'the source-side skill entry count changed');
+  assert.equal(Object.keys(projected.skillBooks).length,11,'the exported skill book count changed');
+  assert.equal(Object.keys(projected.skillCatalog).length,153,'the source-side skill entry count changed');
   assert.deepEqual(manifest.skillBooks,projected.skillBooks,
     'the assembled skill book table drifted from the source projection');
   assert.deepEqual(manifest.skillCatalog,projected.skillCatalog,
@@ -485,7 +538,7 @@ for(const map of catalog.maps) {
   for(const target of ['200000121','200000170']) assert(byId.has(target),
     `station_in authorized target must be assembled: ${target}`);
   // 未装配的五个授权目标必须**没有**目录暴露（暴露了就是送玩家进空图）。
-  assert.equal(byId.size,198,`catalog size drifted: ${byId.size}`);
+  assert.equal(byId.size,211,`catalog size drifted: ${byId.size}`);
   for(const target of ['200000111','200000131','200000141','200000151','200000161']) {
     assert(!byId.has(target),`${target} must stay unassembled so station_in refuses it`);
   }
@@ -752,7 +805,17 @@ for(const spawn of gameplay.spawns) {
   const runtime=gameplay.monsters.find(monster=>String(monster.templateId)===String(spawn.templateId));
   assert.equal(Boolean(template.actions.move.length),Boolean(runtime?.moveDurationMs),`${spawn.id} move 动画与 moveDurationMs 不一致`);
 }
-for(const spawn of gameplay.npcSpawns)assert(manifest.npcs[spawn.templateId]?.stand.length,spawn.id);
+// 刷在图上 NPC 的模板必须有 `stand` 帧——**除非导出期把「本机客户端没分发那张像素」
+// 的理由写进了清单**（`npc.missingSprite`，见 `export_tms273.cjs::SOURCE_MISSING_SPRITES`：
+// `Npc/_Canvas_005.wz` 缺席，`9040000` 的 stand/0 inlink 到取不到的 `3001359`）。
+// 判据读的是清单里的理由，不是在这里另抄一份 id 名单：名单会烂，理由不会——
+// 分卷补齐/换模板之后导出期就不再写 `missingSprite`，这一条自然恢复严格。
+// 客户端对空 stand 的约定是「不画身体、也不挂名字牌」（`features/npc/view.ts`），不会崩。
+for(const spawn of gameplay.npcSpawns) {
+  const npc=manifest.npcs[spawn.templateId];
+  assert(npc?.stand.length||npc?.missingSprite,
+    `${spawn.id} 的模板既没有 stand 帧、也没有登记缺像素理由：${spawn.templateId}`);
+}
 for(const shop of gameplay.shops)for(const entry of shop.items)assert(manifest.items[entry.itemId],entry.itemId);
 for(const id of ['36301','36302','36303','36304','36306','36307'])assert(gameplay.quests.some(q=>q.questId===id));
 const sourceQuests=read('references/tms273-data/quests.json').quests;

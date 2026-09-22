@@ -12,7 +12,7 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-34';
+const version = 'tms273-35';
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');
@@ -558,9 +558,23 @@ const appearance = read('appearance');
 // Canvas——2026-09-15 全目录核验）按设计没有纸娃娃层，导出器与这里
 // 共用同一份豁免。
 const NON_DOLL_ISLOTS = ['Po', 'Tm', 'Ri', 'Pe', 'Me', 'Ba', 'Be'];
+// 源包分卷被裁剪（见 `scripts/audit_tms273_source_volumes.cjs`：`Weapon_000.wz` /
+// `Pants_000.wz` 等 6 个分卷缺席），这些件的像素只剩 `_Canvas` 镜像、结构属性读不出来，
+// **合成不出**纸娃娃层。`export_tms273_avatar_parts.cjs --gap-fill` 逐条带 id/映像/原因
+// 记录在 `cashAppearance.unrenderableEquipment`，这里据此放行——判据来自导出产物，
+// 不是手写清单。件一旦变得可合成，记录就会消失，这里就重新要求它。
+const unrenderable = new Map((appearance.cashAppearance?.unrenderableEquipment ?? [])
+  .map(entry => [String(Number(entry.itemId)), entry]));
+for (const [id, entry] of unrenderable) {
+  assert(items[id], `不可合成件登记了、却不在物品目录里: ${id}`);
+  assert(!appearance.layers[id] && !appearance.cashAppearance?.items?.[id.padStart(8, '0')],
+    `件 ${id} 已经可以合成出外观层，应从 unrenderableEquipment 中移除（${entry.image ?? entry.reason ?? ''}）`);
+  assert(entry.reason, `不可合成件 ${id} 必须带上原因，不能只登记 id`);
+}
 for (const [id, definition] of Object.entries(items)) {
   const info = definition.info;
   if (!info?.islot || info.cash === 1 || NON_DOLL_ISLOTS.includes(info.islot)) continue;
+  if (unrenderable.has(String(Number(id)))) continue;
   const layer = appearance.layers[String(Number(id))];
   const entry = appearance.cashAppearance?.items[String(id).padStart(8, '0')];
   assert(layer || entry, `Missing ordinary equipment appearance: ${id}`);

@@ -155,8 +155,10 @@ const SKILL_BOOK_TABS = {
   '200': 1,
   '210': 2, '220': 2, '230': 2,
   '211': 3, '221': 3, '231': 3,
-  '222': 4,
+  '212': 4, '222': 4, '232': 4,
 };
+/** 四转的三条分支：Hyper 池、`(mobCount, attackCount)` 上界等「按层级分档」的判据都看它。 */
+const FOURTH_JOB_BOOKS = new Set(['212', '222', '232']);
 
 function skillManifest(windowExport, skillExport) {
   assert.equal(windowExport.sourceVersion, 'TMS273.7');
@@ -188,7 +190,10 @@ function skillManifest(windowExport, skillExport) {
     const requiredLevel = Number(entry.sourceFields?.reqLev ?? 0);
     assert([0, 1, 2].includes(hyper), `unknown Hyper pool: ${id}`);
     assert(Number.isSafeInteger(requiredLevel) && requiredLevel >= 0 && requiredLevel <= 200, `invalid skill level gate: ${id}`);
-    assert(!hyper || (entry.book === '222' && maxLevel === 1 && requiredLevel >= 140), `invalid Hyper source: ${id}`);
+    // Hyper 池判据按**层级**：212／222／232 三条四转分支同形（源里各 12 条 Hyper，
+    // 满级 1、门槛 ≥140）。写成 `book === '222'` 会在火毒／主教四转进来时把它们整本
+    // 判成非法 —— 与 `mage.rs` 的同一处判据必须一起改。
+    assert(!hyper || (FOURTH_JOB_BOOKS.has(entry.book) && maxLevel === 1 && requiredLevel >= 140), `invalid Hyper source: ${id}`);
     const invisible = entry.displayFlags.source.invisible;
     assert(invisible === null || ['0', '1'].includes(String(invisible)), `unknown invisible flag: ${id}`);
     const descriptions = levelDescriptions(entry, maxLevel);
@@ -270,8 +275,8 @@ function mageRules(skillExport) {
   assert.equal(skills['2001009']?.name, '瞬間移動', 'user-specified rule 2001009 no longer maps to 瞬間移動');
   // 分书条数由 `export_tms273_skills.cjs` 的 expectedCatalogCounts 逐书钉住（唯一权威）；
   // 这里只钉总数，用来发现「整本书静默掉出投影」。
-  assert.equal(Object.keys(skills).length, 102, 'mage skill count changed');
+  assert.equal(Object.keys(skills).length, 153, 'mage skill count changed');
   return { sourceVersion: 'TMS273.7', bookId: 200, skills };
 }
 
-module.exports = { skillManifest, mageRules, SKILL_BOOK_TABS, RUNTIME_INTEGER_FIELDS };
+module.exports = { skillManifest, mageRules, SKILL_BOOK_TABS, FOURTH_JOB_BOOKS, RUNTIME_INTEGER_FIELDS };

@@ -3,7 +3,7 @@
   "ruleVersion": "tms273-job-advance-v1",
   "provenance": {
     "T": "同版 WZ 已核字段：转职官 NPC（漢斯 1032001 / 101000003）、一转等级与前置（QuestData/1402.img）、三条二转分支授予的 fixLevel 技能（源 maxLevel=1：2200011 結冰特效 / 2100009 元素吸收 / 2300009 祝福福音）。",
-    "P": "源 273 包未随附二转/三转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值；二转 30／三转 60 的等级门槛沿用原版法师转职等级，本包无据可核，同样记为 P。技能书 210/211/230/231 的技能本体已进入装配产物（`shared/mage-skills.json` 现有 0/200/210/211/220/221/222/230/231 共 9 本、102 条），因此二转分支按源 fixLevel 事实授予 `reward.skills`，与冰雷 2200011 同构；三转分支源里没有 fixLevel 节点，故不写 reward.skills。"
+    "P": "源 273 包未随附二转/三转/四转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值；二转 30／三转 60／四转 100 的等级门槛沿用原版法师转职等级，本包无据可核，同样记为 P。技能书 0/200/210/211/220/221/222/230/231/212/232 的技能本体已进入装配产物（`shared/mage-skills.json` 现有 11 本、153 条），因此二转与四转分支按源 fixLevel 事实授予 `reward.skills`（二转 2200011／2100009／2300009，四转 2120014 元素強化／2320013 祝福旋律），与冰雷 2200011 同构；三转分支源里没有 fixLevel 节点，故不写 reward.skills。四转不用源链 1452／1453 作入口：其目标地图 240010501 不在源包也不在装配的 198 张图内，且 q1453s/q1453e 等执行脚本缺失（见 docs/design/法师分支转职设计_火毒与主教.md §5.2），故沿用前两转的同一位转职官与同形状试炼，只把等级门槛与目标怪提到 Lv100 档。"
   },
   "quests": [
     {
@@ -528,6 +528,186 @@
         "complete": {
           "zh": "你通過了試煉。從現在起，你就是祭司的試煉了。",
           "en": "You have passed the trial. From now on you are the Trial of the Priest."
+        }
+      }
+    },
+    {
+      "questId": "job-212",
+      "title": {
+        "zh": "最頂級火毒魔法的試煉",
+        "en": "Trial of the Ultimate Fire/Poison Magic"
+      },
+      "provenance": "P",
+      "fromJob": 211,
+      "toJob": 212,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-211",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4250001",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 遠古木妖",
+            "en": "Defeat 30 Ancient Stumps"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000438",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 藤條",
+            "en": "Collect 10 Vines"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 212,
+            "amount": 3
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2120014,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "火焰燒到盡頭，只剩下灰燼與劇毒。你還要再往前一步嗎？",
+          "en": "The flame burns to its end and only ash and venom remain. Will you take one more step?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成火毒大魔導士的試煉。",
+          "en": "You are not ready. Reach level 100 and finish the Fire/Poison Arch Magician trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗遠古木妖，把它們身上的藤條帶回來給我。",
+          "en": "Good. Defeat the Ancient Stumps and bring me the vines they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到苔蘚森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Finish the goals in the Mossy Forest, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把藤條交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the vines and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是操縱最頂級火毒魔法的人。",
+          "en": "You have passed the trial. From now on you command the ultimate fire and poison magic."
+        }
+      }
+    },
+    {
+      "questId": "job-232",
+      "title": {
+        "zh": "主教的試煉",
+        "en": "Trial of the Bishop"
+      },
+      "provenance": "P",
+      "fromJob": 231,
+      "toJob": 232,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-231",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "5250006",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 光明妖精",
+            "en": "Defeat 30 Bright Fairies"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000676",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 光明妖精的翅膀",
+            "en": "Collect 10 Bright Fairy Wings"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 232,
+            "amount": 3
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2320013,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "替所有人承擔，就是主教要走的路。你已經準備好了嗎？",
+          "en": "To bear it for everyone is the road a bishop walks. Are you ready?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成祭司的試煉。",
+          "en": "You are not ready. Reach level 100 and finish the Priest trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗光明妖精，把它們的翅膀帶回來給我。",
+          "en": "Good. Defeat the Bright Fairies and bring me their wings."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。回到蝴蝶精的森林把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Finish the goals in the Fairy Forest, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把翅膀交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the wings and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是主教。",
+          "en": "You have passed the trial. From now on you are a Bishop."
         }
       }
     }

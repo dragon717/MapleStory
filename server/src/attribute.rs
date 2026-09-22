@@ -494,11 +494,15 @@ pub(super) fn source_has_duration(common: &serde_json::Value) -> bool {
 
 /// 「源 `common` 带时长、但字段取值仍只由已学等级决定」的技能（技能**固有值**）。
 ///
-/// 本版只有 冰龍吐息 `2221005`：它的 `mastery` 是这把技能自己的武器熟练度，随等级固定、
-/// 不随施放窗口变化，所以留在 [`AttributeLayer::PassiveSkill`]。门禁对着源表独立重算
-/// 这张名单——源里新增一个「带时长却提供第 2 层字段」的技能而没人登记，门禁就会红。
+/// 两本召唤系四转：冰龍吐息 `2221005` 与召喚火魔 `2121005`。两者的 `mastery` 都是这把
+/// 技能自带的武器熟练度，随等级固定、不随施放窗口变化，所以留在
+/// [`AttributeLayer::PassiveSkill`]。**注意**：它们的召唤实体与 `time` 持续段在本包
+/// 没有服务端实现（冰魔那套是 `elemental.rs` 里逐条写的），这里登记的只是「那一条
+/// `mastery` 字段按学得即生效读」这个事实，不等于实现了召唤。
+/// 门禁对着源表独立重算这张名单——源里新增一个「带时长却提供第 2 层字段」的技能而没人
+/// 登记，门禁就会红。
 #[cfg_attr(not(test), allow(dead_code))]
-pub(super) const INTRINSIC_DURATION_SKILLS: [u32; 1] = [SKILL_ICE_DEMON];
+pub(super) const INTRINSIC_DURATION_SKILLS: [u32; 2] = [SKILL_ICE_DEMON, SKILL_FIRE_DEMON];
 
 /// 属性聚合的**唯一入口**。
 pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttributes {
@@ -570,24 +574,33 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
     // 写进了注释；本模块**沿用该既有决策**（而不是发明一条时长），并且**两个方向都照此执行**——
     // 改前只有 UI 侧照此执行。门禁里钉着「源里仍无 `time`」这条事实：源一旦补上时长，
     // 门禁失败，要求把它改归 `ActiveBuff` 层。
-    let basic_stat_up = learned_level(mage_skills, skills, SKILL_MAPLE_WARRIOR)
-        .and_then(|level| level.basic_stat_up)
-        .unwrap_or(0)
-        .clamp(0, 100);
+    //
+    // 三个四转分支各有一本（冰雷 2221000 / 火毒 2121000 / 主教 2321000），三本的 `common`
+    // 形状一致（同样没有 `time`），所以与 `intX` 同格处理：逐本求和、各记各的，留痕才能
+    // 回答「这个百分比是谁给的」。分支互斥，角色只可能持有自己分支的那一本，其余查表
+    // 得 0、`note_nonzero` 不留痕。
+    let mut basic_stat_up = 0i64;
+    for skill_id in MAPLE_WARRIOR_SKILLS {
+        let contribution = learned_level(mage_skills, skills, skill_id)
+            .and_then(|level| level.basic_stat_up)
+            .unwrap_or(0)
+            .clamp(0, 100);
+        basic_stat_up = basic_stat_up.saturating_add(contribution);
+        for key in KEYS {
+            rec.note_nonzero(
+                AttributeLayer::PassiveSkill,
+                Some(skill_id),
+                "basicStatUp",
+                key,
+                AttributeOp::AdditivePercent,
+                contribution,
+            );
+        }
+    }
     if basic_stat_up > 0 {
         for value in &mut vals {
             // **全模块唯一一次取整**：整数截断。作用在装备折叠之前。
             *value = value.saturating_mul(100 + basic_stat_up) / 100;
-        }
-        for key in KEYS {
-            rec.note(
-                AttributeLayer::PassiveSkill,
-                Some(SKILL_MAPLE_WARRIOR),
-                "basicStatUp",
-                key,
-                AttributeOp::AdditivePercent,
-                basic_stat_up,
-            );
         }
     }
 
@@ -681,18 +694,24 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         );
         spell_x = spell_x.saturating_add(contribution);
     }
-    let master_magic_mad = learned_level(mage_skills, skills, SKILL_MASTER_MAGIC)
-        .and_then(|level| level.mad_x)
-        .unwrap_or(0)
-        .max(0);
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_MASTER_MAGIC),
-        "madX",
-        AttributeKey::MagicAttack,
-        AttributeOp::Flat,
-        master_magic_mad,
-    );
+    // 大師魔法 `madX`：三个四转分支各一本（冰雷 2220013 / 火毒 2120012 / 主教 2320012），
+    // 与上面几格同一写法 —— 逐本求和、各记各的。分支互斥，角色只可能持有自己分支的那一本。
+    let mut master_magic_mad = 0i64;
+    for skill_id in MASTER_MAGIC_SKILLS {
+        let contribution = learned_level(mage_skills, skills, skill_id)
+            .and_then(|level| level.mad_x)
+            .unwrap_or(0)
+            .max(0);
+        master_magic_mad = master_magic_mad.saturating_add(contribution);
+        rec.note_nonzero(
+            AttributeLayer::PassiveSkill,
+            Some(skill_id),
+            "madX",
+            AttributeKey::MagicAttack,
+            AttributeOp::Flat,
+            contribution,
+        );
+    }
     // 冥想：`meditation_mad` 在到期 / 死亡 / 换图 / 重连时已被收回成 0，
     // 所以「非零即生效中」本身就是那条门（不需要再查一次 buff_active）。
     // 留痕字段写**源字段名** `indieMad`（不是本仓库的内部名 `meditation_mad`）。
@@ -922,7 +941,10 @@ mod tests {
         assert!(!source_has_duration(&serde_json::json!({ "mpCon": 10 })));
         assert!(!source_has_duration(&serde_json::json!({})));
         // 名单是**登记**而不是豁免：必须非空（否则第 2 层就没被这条判据约束住）。
-        assert_eq!(INTRINSIC_DURATION_SKILLS, [SKILL_ICE_DEMON]);
+        assert_eq!(
+            INTRINSIC_DURATION_SKILLS,
+            [SKILL_ICE_DEMON, SKILL_FIRE_DEMON]
+        );
         for id in [
             SKILL_MAPLE_WARRIOR,
             SKILL_INTELLIGENCE,

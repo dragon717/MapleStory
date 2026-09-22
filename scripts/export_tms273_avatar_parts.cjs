@@ -679,11 +679,13 @@ async function exportDefaultAppearanceLayers(bases, layers) {
 
 // All playable equipment is a consumer of the same appearance catalogue.
 // Keep the historical cashAppearance wire name; ordinary layers use cash:false.
-async function exportOrdinaryEquipment(bases, layers, index) {
+async function exportOrdinaryEquipment(bases, layers, index, options = {}) {
   const items = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'items.json'), 'utf8'));
   let count = 0;
   // 目录登记了、但源 WZ 里没有对应映像的件（JSON 树有 `.json`，WZ 无 `.img`）。
   const noImage = [];
+  // 有映像、但源分卷被裁剪致合成不出层的件（逐条带上 id/映像/原因）。
+  const uncomposable = [];
   for (const [id, definition] of Object.entries(items)) {
     const info = definition.info;
     if (!info?.islot || info.cash === 1 || layers[String(Number(id))]) continue;
@@ -700,6 +702,10 @@ async function exportOrdinaryEquipment(bases, layers, index) {
     const shape = cashPart(info.islot);
     assert(shape, `Unsupported ordinary equipment slot ${id}: ${info.islot}`);
     const itemId = canonicalItemId(id);
+    // 增量模式：清单里已经有该件的层，就不再重算。普通装备的层落在 `index.items`
+    // 而不是 `layers`，所以只查 `layers` 判不出来。重算会覆盖已落盘的正确几何
+    // （源包分卷裁剪后读不出 z/origin），因此判据必须压在 `index.items` 上。
+    if (options.skipExisting && index.items[itemId]) continue;
     const image = definition.source.replace(/\.json$/, '.img');
     assert(image.startsWith('Character/'), `Missing Character source for ${id}`);
     // 目录里有这件（JSON 树有 `Character/.../01062002.json`），源 WZ 里却没有对应映像，
@@ -727,29 +733,44 @@ async function exportOrdinaryEquipment(bases, layers, index) {
       ...(shape.part === 'weapon' ? { standAction: info.stand === 2 ? 'stand2' : 'stand', walkAction: info.walk === 2 ? 'walk2' : 'walk' } : {}),
     };
     const combined = {};
-    for (const gender of [0, 1]) {
-      const layer = shape.static
-        ? { ...await exportStaticEquipmentLayer(gender, descriptor, bases[gender]), cash: false }
-        : await exportEquipmentLayer(gender, descriptor, true);
-      addLayer(combined, itemId, layer);
+    // 源包分卷被裁剪的部位（`Weapon_000.wz` / `Pants_000.wz` 等）只有 `_Canvas` 像素，
+    // 结构属性读不出来，合成不出可用的纸娃娃层。`tolerateUncomposable` 之下逐条记录
+    // 并跳过（不写层、不落 JSON），让增量补层能把**其余**件补完；否则整次导出中止。
+    try {
+      for (const gender of [0, 1]) {
+        const layer = shape.static
+          ? { ...await exportStaticEquipmentLayer(gender, descriptor, bases[gender]), cash: false }
+          : await exportEquipmentLayer(gender, descriptor, true);
+        addLayer(combined, itemId, layer);
+      }
+      const layer = compactCashLayer(combined[itemId]);
+      validateCashLayer(layer, itemId);
+      if (noVisual) {
+        // Source-only secondary weapons have info/icon but no actor Canvas.
+        // They must not hide the primary weapon via their inventory vslot.
+        layer.vslot = '';
+        layer.sourceVisibility = 'info-only';
+      } else {
+        assert(layer.actions[descriptor.standAction ?? 'stand'].some(frame => frame.parts.length), `Ordinary equipment has no stand Canvas: ${image}`);
+      }
+      fs.mkdirSync(CASH_APPEARANCE_DIR, { recursive: true });
+      fs.writeFileSync(path.join(CASH_APPEARANCE_DIR, `${itemId}.json`), JSON.stringify(layer) + '\n', 'utf8');
+      index.items[itemId] = cashAppearanceMetadata(layer, itemId);
+      if (++count % 100 === 0) console.log(`Exported ${count} ordinary equipment layers`);
+    } catch (error) {
+      if (!options.tolerateUncomposable) throw error;
+      uncomposable.push({ itemId, image, reason: String(error.message).slice(0, 160) });
+      avatar.sourceGaps.add(`源分卷裁剪、合成不出纸娃娃层，整件跳过: ${itemId} (${image})`);
     }
-    const layer = compactCashLayer(combined[itemId]);
-    validateCashLayer(layer, itemId);
-    if (noVisual) {
-      // Source-only secondary weapons have info/icon but no actor Canvas.
-      // They must not hide the primary weapon via their inventory vslot.
-      layer.vslot = '';
-      layer.sourceVisibility = 'info-only';
-    } else {
-      assert(layer.actions[descriptor.standAction ?? 'stand'].some(frame => frame.parts.length), `Ordinary equipment has no stand Canvas: ${image}`);
-    }
-    fs.mkdirSync(CASH_APPEARANCE_DIR, { recursive: true });
-    fs.writeFileSync(path.join(CASH_APPEARANCE_DIR, `${itemId}.json`), JSON.stringify(layer) + '\n', 'utf8');
-    index.items[itemId] = cashAppearanceMetadata(layer, itemId);
-    if (++count % 100 === 0) console.log(`Exported ${count} ordinary equipment layers`);
   }
   index.source = 'TMS273.7 client WZ / Character equipment; cash and ordinary layers fetched per item';
+  // 逐条落盘「源分卷裁剪致合成不出层」的件；装配的纸娃娃门禁据此放行，判据来自这一份
+  // 导出产物而不是手写清单——件一旦变得可合成，这里会消失，门禁也随之重新要求它。
+  index.unrenderableEquipment = uncomposable;
   fs.writeFileSync(path.join(OUTPUT, 'appearance-cashshop.json'), JSON.stringify(index, null, 2) + '\n', 'utf8');
+  if (uncomposable.length) {
+    console.log(`源分卷裁剪、合成不出层而跳过 ${uncomposable.length} 件：${uncomposable.map(entry => entry.itemId).join(', ')}`);
+  }
   if (noImage.length) {
     for (const id of noImage) avatar.sourceGaps.add(`目录有登记但源 WZ 无映像（连 _Canvas 像素镜像也没有），整件跳过: ${id}`);
     console.log(`源 WZ 无映像、按缺料整件跳过 ${noImage.length} 件：${noImage.slice(0, 12).join(', ')}${noImage.length > 12 ? ' …' : ''}`);
@@ -871,8 +892,63 @@ async function main() {
   }, null, 2));
 }
 
+// 增量补层（`--gap-fill`）：只给**既有清单里还没有层**的装备补层，其余条目一个字节都不动。
+//
+// 为什么需要它：整跑 `main()` 会**重算全部**层。本机源包被裁剪（`Pants_000.wz`、
+// `Weapon_000.wz` 等 6 个分卷缺席，见 `audit_tms273_source_volumes.cjs`），这些部位
+// 的结构属性读不出来，重算只会把 9-17 从**完整源包**导出的正确 z/origin 覆盖成 (0,0)。
+// 而装配新图会带来新的掉落/商店装备（它们没有历史正确值可毁），只需要**补**这些新件。
+//
+// 做法：把既有 `appearance.json` 的 `layers` / `cashAppearance` 当基线喂进去，
+// `exportOrdinaryEquipment` 自带「已在 layers 里就跳过」的判据，于是只补缺口。
+async function gapFill() {
+  const target = path.join(OUTPUT, 'appearance.json');
+  assert(fs.existsSync(target), '--gap-fill 需要既有 appearance.json 作基线');
+  const existing = JSON.parse(fs.readFileSync(target, 'utf8'));
+  await loadSourceTables();
+  registerCatalogSlots(catalogItems());
+  const bases = { 0: await exportBase(0, true), 1: await exportBase(1, true) };
+  const layers = existing.layers ?? {};
+  const index = existing.cashAppearance ?? { contentVersion: 'tms273-cash-appearance', items: {} };
+  index.items ??= {};
+  const before = new Set(Object.keys(index.items));
+  const gapsBefore = new Set(existing.sourceGaps ?? []);
+  await exportOrdinaryEquipment(bases, layers, index, { skipExisting: true, tolerateUncomposable: true });
+  const added = Object.keys(index.items).filter(id => !before.has(id));
+  const newGaps = [...avatar.sourceGaps].filter(gap => !gapsBefore.has(gap));
+  const output = {
+    ...existing,
+    layers,
+    cashAppearance: index,
+    sourceGaps: [...new Set([...(existing.sourceGaps ?? []), ...avatar.sourceGaps])].sort(),
+  };
+  fs.writeFileSync(target, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+  // 仍未补上的件逐条列出：装配的纸娃娃门禁会因此失败，不能静默。
+  // 普通装备的层落在 `index.items`（8 位补零键），不是 `layers`，判据必须查对地方。
+  const stillMissing = Object.entries(catalogItems())
+    .filter(([id, definition]) => {
+      const info = definition.info;
+      if (!info?.islot || info.cash === 1) return false;
+      if (['Po', 'Tm', 'Ri', 'Pe', 'Me', 'Ba', 'Be'].includes(info.islot)) return false;
+      return !layers[String(Number(id))] && !index.items[canonicalItemId(id)];
+    })
+    .map(([id]) => id);
+  console.log(JSON.stringify({
+    mode: 'gap-fill',
+    added: added.length,
+    addedIds: added,
+    stillMissing: stillMissing.length,
+    stillMissingIds: stillMissing,
+    newSourceGaps: newGaps.length,
+    newSourceGapList: newGaps,
+    layers: Object.keys(layers).length,
+    sourceGaps: output.sourceGaps.length,
+  }, null, 2));
+}
+
 if (require.main === module) {
-  main().catch(error => {
+  const task = process.argv.includes('--gap-fill') ? gapFill : main;
+  task().catch(error => {
     console.error(error.stack || error.message || error);
     process.exitCode = 1;
   }).finally(() => reader.close());
@@ -887,5 +963,7 @@ module.exports = {
   imageForPart,
   equipmentDescriptor,
   exportDefaultAppearanceLayers,
+  exportOrdinaryEquipment,
+  gapFill,
   main,
 };

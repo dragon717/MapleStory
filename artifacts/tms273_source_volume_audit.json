@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-18T13:15:58.153Z",
+  "generatedAt": "2026-09-21T15:10:53.413Z",
   "rule": "应有分卷 = <Stem>.wz + <Stem>_000.wz … <Stem>_00N.wz，N 来自同目录 <Stem>.ini 的 LastWzIndex",
   "dataRoot": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data",
   "subtrees": [

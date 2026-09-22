@@ -376,8 +376,8 @@ fn shop_sell_rejects_an_unknown_shop_and_a_distant_merchant() {
 #[test]
 fn shop_sell_refuses_an_item_with_no_shop_value() {
     let (mut world, mut output) = shop_world();
-    // A quest item the source marks tradeBlock: the original never lets it
-    // leave the inventory, so no shop may pay mesos for it.
+    // An Etc item with no authored price: a shop has nothing to pay with, so
+    // the sale is refused rather than paid out at an invented value.
     let restricted = shared_restricted_item();
     give(&mut world, &restricted, 1);
     let before = world.players.get("seller").unwrap().state.mesos;
@@ -403,17 +403,37 @@ fn shop_sell_refuses_an_item_with_no_shop_value() {
     assert_eq!(world.players.get("seller").unwrap().state.mesos, before);
 }
 
-/// Pick an item the catalog marks as unsellable, so the test does not depend
-/// on one hard-coded id surviving a catalog refresh.
+/// Pick an Etc item the catalog gives no shop value at all, so the test drives
+/// the "no price ⇒ no payout" branch instead of depending on one hard-coded id
+/// surviving a catalog refresh.
+///
+/// 为什么不再写死 403xxxx：那些件在源里其实**有** `price: 1`，只是本地参考树
+/// 一度缺它们的定义才显得「无价」。定义补回后它们成了 1 meso 可回收件，写死的
+/// 候选清单就随目录一起失效。判据改为从同一份 `shared/items.json` 现推：Etc 段
+/// 里 `item_price()` 为 None、又不是箭矢（箭矢有 1 meso 定额）也不受
+/// `quest/only/tradeBlock/dropBlock/cash` 限制的件——三个拒绝分支里只命中
+/// 「无价」那一条。
 fn shared_restricted_item() -> String {
-    // 403xxxx quest items have no catalog price at all, so no shop may pay
-    // for them.  Pick whichever survives a catalog refresh.
-    for candidate in ["4030000", "4030001", "4030009"] {
-        if inventory::item_price(candidate).is_none() {
-            return candidate.to_owned();
+    const CATALOG: &str = include_str!("../../shared/items.json");
+    let catalog: serde_json::Value = serde_json::from_str(CATALOG).expect("shared/items.json");
+    let mut candidates: Vec<&String> = catalog
+        .as_object()
+        .expect("item catalog object")
+        .iter()
+        .filter(|(_, entry)| entry.get("inventoryType").and_then(|value| value.as_u64()) == Some(4))
+        .map(|(id, _)| id)
+        .collect();
+    candidates.sort();
+    for candidate in candidates {
+        if inventory::item_price(candidate).is_none()
+            && !inventory::is_arrow(candidate)
+            && !inventory::is_unsellable(candidate)
+            && !inventory::is_cash_item(candidate)
+        {
+            return candidate.clone();
         }
     }
-    panic!("the test catalog must contain at least one unpriced quest item");
+    panic!("the test catalog must contain at least one Etc item with no shop value");
 }
 
 #[test]

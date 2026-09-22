@@ -10,7 +10,7 @@
 // 断言分五组：
 //   1. 表本身的结构与内容（每个条目非空、无重复行、没有未解析的引用标记）；
 //   2. **逐条重算**：`Npc.wz/<id>.img/info/speak` 的顺序 + `String/Npc.json` 的文本
-//      （`#p#`/`#m#`/`#t#` 按同版表还原），去重规则与导出脚本一致；
+//      （`#p#`/`#m#`/`#t#`/`#o#` 按同版表还原），去重规则与导出脚本一致；
 //   3. 反向断言：源里确实有一批模板没有说话内容（否则这张表就是"全给默认值"），
 //      且表里的 id 全部是已摆放模板（不许多余条目）；
 //   4. 接线：服务端真的读它、注入它、在无脚本分支用它；装配链会产出它；Windows
@@ -58,11 +58,20 @@ const nameOfItem = id => {
   const name = typeof entry?.name === 'string' ? entry.name : value(entry?.name);
   return typeof name === 'string' && name.trim() ? name.trim() : undefined;
 };
+// `#o<id>#`（怪物名）取自同一张怪名表：`shared/mob-names.json` 是
+// `String/Mob.json` 的投影，运行期与图鉴用的也是它。2026-09-21 勇士部落的警告牌
+// 带来这个标记，导出侧与这里必须同步加上，否则标记会原样留在表里。
+const mobNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'shared/mob-names.json'), 'utf8')).names;
+const nameOfMob = id => {
+  const name = mobNames[String(Number(id))];
+  return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+};
 function resolveMarkers(text) {
   return text
     .replace(/#p(\d+)#/g, (whole, id) => nameOfNpc(id) ?? '')
     .replace(/#m(\d+)#/g, (whole, id) => mapNames.get(String(Number(id))) ?? '')
-    .replace(/#t(\d+)#/g, (whole, id) => nameOfItem(id) ?? '');
+    .replace(/#t(\d+)#/g, (whole, id) => nameOfItem(id) ?? '')
+    .replace(/#o(\d+)#/g, (whole, id) => nameOfMob(id) ?? '');
 }
 function linesOf(id) {
   const entry = npcStrings[String(Number(id))];

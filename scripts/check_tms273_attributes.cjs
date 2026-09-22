@@ -249,14 +249,56 @@ const idsForArray = name => {
 const CONTENT_RULES = [
   { field: 'intX', array: 'INTELLIGENCE_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'Intelligence' },
   { field: ['mastery', 'x'], array: 'SPELL_MASTERY_X_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack' },
-  { field: 'basicStatUp', consts: ['SKILL_MAPLE_WARRIOR'], layer: 'PassiveSkill', op: 'AdditivePercent', key: null },
+  // 楓葉祝福：三个四转分支各一本（2221000 / 2121000 / 2321000），与 `intX` 同一格
+  // —— 逐本求和、各记各的，成员清单由 `world.rs` 的数组持有。
+  { field: 'basicStatUp', array: 'MAPLE_WARRIOR_SKILLS', loop: true, layer: 'PassiveSkill', op: 'AdditivePercent', key: null },
   { field: 'pddX', consts: ['SKILL_MAGIC_SHIELD'], layer: 'PassiveSkill', op: 'Flat', key: 'WeaponDefense' },
-  { field: 'madX', consts: ['SKILL_MASTER_MAGIC'], layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack' },
+  // 大師魔法 `madX`：三个四转分支各一本（2220013 / 2120012 / 2320012），与 `intX` 同格。
+  // 2321054 復仇天使 也带 `madX`，但它是 Hyper 主动的**窗口内**魔攻（源 `common` 无
+  // `time`、本包也没有它的施法分支）⇒ 不是「学得即生效」的被动，登记为不消费。
+  {
+    field: 'madX',
+    array: 'MASTER_MAGIC_SKILLS',
+    loop: true,
+    layer: 'PassiveSkill',
+    op: 'Flat',
+    key: 'MagicAttack',
+    except: ['2321054'],
+    exceptReasons: {
+      2321054: '復仇天使是 Hyper **主动**技能（hyper=2，maxLevel=1），它的 `madX`=50 是「施放窗口内的临时魔攻」，语义上属于 ActiveBuff 层；源 `common` 没有 `time`、本包也没有它的施法分支 ⇒ 无法构成增益窗，也不能当成学得即生效的被动。哪天接了施法路径，必须改归 ActiveBuff 层并同时补 buff 时长。',
+    },
+  },
   { field: 'mmpR', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'AdditivePercent', key: 'MaxMp' },
   { field: 'lv2mmp', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'Flat', key: 'MaxMp' },
   { field: 'psdSpeed', consts: ['SKILL_TELEPORT'], layer: 'PassiveSkill', op: 'Flat', key: 'MoveSpeed' },
-  { field: 'asrR', array: 'ELEMENTAL_ADAPTING_SKILLS', loop: true, fieldVar: true, layer: 'PassiveSkill', op: 'Flat', key: 'StatusResistance' },
-  { field: 'terR', array: 'ELEMENTAL_ADAPTING_SKILLS', loop: true, fieldVar: true, layer: 'PassiveSkill', op: 'Flat', key: 'ElementResistance' },
+  // 神聖祈禱-抗性提升 `2320047` 也带 asrR / terR，但它强化的是 **2311003 神聖祈禱 的增益窗**
+  // 里的抗性（源里那本带 `time`），本包没有神聖祈禱的施法/增益实现 ⇒ 消费不了，登记在案。
+  {
+    field: 'asrR',
+    array: 'ELEMENTAL_ADAPTING_SKILLS',
+    loop: true,
+    fieldVar: true,
+    layer: 'PassiveSkill',
+    op: 'Flat',
+    key: 'StatusResistance',
+    except: ['2320047'],
+    exceptReasons: {
+      2320047: '神聖祈禱-抗性提升是 Hyper 被动，它加的抗性**依附于 2311003 神聖祈禱 的增益窗**（源里那本带 `time`）；本包没有神聖祈禱的施法与增益实现，也没有 2320047 自己的常量 ⇒ 它不属于「学得即生效」的那一格。哪天接了神聖祈禱，必须按增益窗改归 ActiveBuff 层。',
+    },
+  },
+  {
+    field: 'terR',
+    array: 'ELEMENTAL_ADAPTING_SKILLS',
+    loop: true,
+    fieldVar: true,
+    layer: 'PassiveSkill',
+    op: 'Flat',
+    key: 'ElementResistance',
+    except: ['2320047'],
+    exceptReasons: {
+      2320047: '同上：神聖祈禱-抗性提升的 terR 依附于神聖祈禱的增益窗，不是学得即生效的被动。',
+    },
+  },
   { field: 'mastery', array: 'MASTERY_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Highest', key: 'Mastery' },
 ];
 
@@ -275,11 +317,27 @@ for (const rule of CONTENT_RULES) {
   const label = fields.join('+');
   assert.ok(catalogIds.length > 0, `源技能表里一个 ${label} 都没有？形状变了`);
   const declared = declaredIds(rule);
+  // `except` = 「源里有这个字段、但**明确不**进聚合」的技能，逐条登记（见 CONTENT_RULES
+  // 里的 `exceptReasons`）。它必须被说出来，不能靠改断言静默跳过；反向断言再钉一层：
+  // 一旦 world.rs 给它起了常量（= 有人接了消费路径），这里立刻红，要求重新决定。
+  const excused = (rule.except ?? []).slice().sort();
   assert.deepEqual(
-    catalogIds, declared,
-    `源里带 ${label} 的技能是 ${catalogIds.join('/')}，聚合模块声明消费的是 ${declared.join('/')}`
+    catalogIds, [...declared, ...excused].sort(),
+    `源里带 ${label} 的技能是 ${catalogIds.join('/')}，聚合模块声明消费的是 ${declared.join('/')}，`
+      + `登记「不消费」的是 ${excused.join('/') || '（无）'}`
       + `——源里新增一个带该字段的技能而没人做决定，这里就会红`,
   );
+  for (const id of excused) {
+    assert.ok(
+      rule.exceptReasons?.[id],
+      `${id} 的 ${label} 登记为「不消费」却没写理由——登记表必须能回答「为什么」`,
+    );
+    assert.equal(
+      constFor(Number(id)), null,
+      `${id} 的 ${label} 登记为「不消费」，但 world.rs 已经给它起了常量 `
+        + `${constFor(Number(id))}——要么把它补进消费表，要么把这条登记删掉`,
+    );
+  }
   if (rule.loop) {
     // 循环消费：循环头必须恰好绑定这张表（具名数组或逐字常量清单），
     // 留痕里的层 / 键 / 作用方式是唯一的那条。
@@ -293,7 +351,11 @@ for (const rule of CONTENT_RULES) {
     // fieldVar（asrR/terR）的**字段名与属性键都来自元组表**，所以这两格是循环变量；
     // 「哪个字段名配哪个键」由下面的元组行单独钉住。
     const loopFieldSlot = rule.fieldVar ? '[A-Za-z_]+' : '"[^"]+"';
-    const loopKeySlot = rule.fieldVar ? '[A-Za-z_]+' : `AttributeKey::${rule.key}`;
+    // `key: null` 表示「对四维逐键留痕」，循环体里那一格就是循环变量 `key`
+    // （`basicStatUp` 是唯一这种形状：外层逐本、内层逐键）。
+    const loopKeySlot = rule.fieldVar || !rule.key
+      ? '[A-Za-z_]+'
+      : `AttributeKey::${rule.key}`;
     const shape = new RegExp(
       `AttributeLayer::${rule.layer},\\s*Some\\(skill_id\\),\\s*`
         + `${loopFieldSlot},\\s*${loopKeySlot},\\s*AttributeOp::${rule.op},`,

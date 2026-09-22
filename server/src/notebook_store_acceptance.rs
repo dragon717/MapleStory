@@ -236,9 +236,12 @@ fn notebook_acquisition_is_idempotent_and_bumps_the_revision_once_per_commit() {
     assert_eq!(store.notebook_revision("account", "nb-char").unwrap(), 0);
     // 2026-09-16 埃德爾斯坦城簇 10 图：新内容（3 家商店的在售品与 6 只新怪
     // 的掉落）把装配物品目录从 2588 推到 2624；2026-09-19 椅子整族归椅子页后
-    // 少了那一件真的进商店的椅子（3010001），所以是 2623。变化的从来是内容，
+    // 少了那一件真的进商店的椅子（3010001），所以是 2623。
+    // 2026-09-21 参考树补回 157 件「源仍声明可达、定义却缺失」的道具定义
+    // （见 `scripts/backfill_tms273_item_definitions.cjs`）：目录里属于图鉴
+    // 计数的族（装备/消耗/其他…）随之从 2623 涨到 2707。变化的从来是内容，
     // 下面那条「页签分区必须覆盖整份目录」才是真正的不变式。
-    assert_eq!(catalog.item_count(), 2623);
+    assert_eq!(catalog.item_count(), 2707);
 
     drop(store);
     nb_cleanup(&path);
