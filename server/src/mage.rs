@@ -160,42 +160,79 @@ pub struct MagePoint {
 
 // ── 技能书 ↔ 职业：**唯一的准入权威** ─────────────────────────────────────────
 //
-// 源里技能书的编号**就是职业号**（`210` 火毒二转 / `211` 火毒三转 / `212` 火毒四转，
-// `220/221/222` 冰雷，`230/231/232` 僧侶→祭司→主教），`200` 是一转书、`0` 是初学者书。
+// 源里技能书的编号**就是职业号**（`1001005 → 100` 剑士一转、`110/111/112` 英雄的二三四转、
+// `120/121/122` 聖騎士、`130/131/132` 黑騎士；`210/211/212` 火毒、`220/221/222` 冰雷、
+// `230/231/232` 僧侶→祭司→主教；`310/311/312` 獵人→神射手、`320/321/322` 弩弓手→箭神；
+// `410/411/412` 刺客→夜使者、`420/421/422` 俠盜→暗影神偷），四条一转书是
+// `100/200/300/400`、`0` 是初学者书。
 // 所以「谁能学这本书」「这个职业升级时收到哪本书」都从编号派生，**不逐处写死**。
+//
+// 2026-09-22 起本模块承载**全部四条探险家职业线**（不止法师）：战士 / 弓箭手 / 飞侠
+// 的技能书、数值与准入都从同一张 `BOOKS` 表派生。模块名与类型名沿用 `Mage*` 是历史
+// 名字（先有法师才有的这套模型），改成 `Skill*` 要动 30 多个调用点，收益只有可读性，
+// 没有行为收益——这里用注释把语义钉住，不为此做大规模重命名。
 //
 // 改前这套判据在三处各写了一份，且三份都只认冰雷那三本：
 //   `world.rs::skill_job_allowed`（施法与学习的职业闸）、`auth/skills.rs`（落库前的
 //   同一道闸）、`auth/db.rs::grant_level_sp`（升级发点）。后果是**火毒与主教分支的
 //   技能书在运行期既学不了、也拿不到升级点**——目录、任务、地图都装好了，玩家却碰不到。
-// 这里收口成一张表；客户端的 `view.ts::BOOK_JOBS` 是同一张表的另一份实现，
+// 这里收口成一张表；客户端的 `input.ts::BOOK_JOBS` 是同一张表的另一份实现，
 // `scripts/check_tms273_skill_books.cjs` 对两份表逐格**双向断言**。
-// 判据是「转职层级」而不是「某一本书」：同层三条分支各自只认自己那一支，
+// 判据是「转职层级」而不是「某一本书」：同层各分支各自只认自己那一支，
 // 低转职层级的书对同一分支的高转职职业继续有效（三转书四转照样能学）。
 
-/// 已登记的法师技能书。**书号就是技能 id 的高位**（`2201005 → 220`、`2311012 → 231`）。
-pub const BOOKS: [u32; 11] = [0, 200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
-/// 三条分支的**四转**书号（Hyper 池只在这三本上出现）。
-pub const FOURTH_JOB_BOOKS: [u32; 3] = [212, 222, 232];
+/// 已登记的技能书。**书号就是技能 id 的高位**（`2201005 → 220`、`1001005 → 100`）。
+/// 排列：`0` 初学者、四条一转书、每条分支按「二转 / 三转 / 四转」各排三本。
+/// 总数 35 = 1(初学者) + 4(一转) + 10(战士) + 10(法师) + 7(弓箭手) + 7(飞侠)。
+pub const BOOKS: [u32; 35] = [
+    0,
+    100, 110, 111, 112, 120, 121, 122, 130, 131, 132,
+    200, 210, 211, 212, 220, 221, 222, 230, 231, 232,
+    300, 310, 311, 312, 320, 321, 322,
+    400, 410, 411, 412, 420, 421, 422,
+];
+/// 四转书（分支书的末位为 2）：Hyper 池、`(mobCount, attackCount)` 上界等
+/// 「按层级分档」的判据都看它。**按层级派生，不写死名单**（见 `is_fourth_job_book`）。
+pub const FOURTH_JOB_BOOKS: [u32; 10] = [112, 122, 132, 212, 222, 232, 312, 322, 412, 422];
 /// 初学者职业号（`0`）；它的书也是 `0`。
 pub const BEGINNER_JOB: u32 = 0;
 pub const BEGINNER_BOOK: u32 = 0;
-/// 一转（法师）书号。
+/// 一转书号（书号 = 职业号）。
+pub const WARRIOR_BOOK: u32 = 100;
 pub const MAGE_BOOK: u32 = 200;
-/// 法师系全部职业号（初心者单列，见 `BEGINNER_JOB`）。
+pub const BOWMAN_BOOK: u32 = 300;
+pub const THIEF_BOOK: u32 = 400;
+/// 四条职业线的全部职业号（不含初学者）。**每类的第 0 项是一转**，其后每 3 个
+/// 是一条分支（二转 / 三转 / 四转）——`branch_jobs` 按这个布局切片，改顺序会错位。
+pub const WARRIOR_JOBS: [u32; 10] = [100, 110, 111, 112, 120, 121, 122, 130, 131, 132];
 pub const MAGE_JOBS: [u32; 10] = [200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
-/// 初学者书 `0` 的持有者：初心者本人 + 任何法师（一转前也要用得到初学者被动）。
-const BEGINNER_JOBS: [u32; 11] = [0, 200, 210, 211, 212, 220, 221, 222, 230, 231, 232];
+pub const BOWMAN_JOBS: [u32; 7] = [300, 310, 311, 312, 320, 321, 322];
+pub const THIEF_JOBS: [u32; 7] = [400, 410, 411, 412, 420, 421, 422];
+/// 初学者书 `0` 的持有者：初心者本人 + 任何探险家职业（一转前也要用得到初学者被动）。
+const BEGINNER_JOBS: [u32; 35] = [
+    0,
+    100, 110, 111, 112, 120, 121, 122, 130, 131, 132,
+    200, 210, 211, 212, 220, 221, 222, 230, 231, 232,
+    300, 310, 311, 312, 320, 321, 322,
+    400, 410, 411, 412, 420, 421, 422,
+];
 
-/// 法师系职业判定（不含初心者）。
+/// 法师系职业判定（不含初心者）。法师专属规则（魔力成长、魔心防禦等）仍只认这一张表。
 pub fn is_mage_job(job: u32) -> bool {
     MAGE_JOBS.contains(&job)
 }
 
-/// 书所属的**分支**（十位）：`21x` 火毒 / `22x` 冰雷 / `23x` 僧侶。
-/// `None` = 不是分支书（初心者书 `0` 与一转书 `200`）。
+/// 是否四转书。按**层级**派生（分支书末位为 2），与 `FOURTH_JOB_BOOKS` 常量互为同一张表：
+/// 常量供 `matches!` / 常量上下文使用，本函数供运行期判据使用，门禁对两者断言一致。
+pub fn is_fourth_job_book(book: u32) -> bool {
+    book % 100 >= 10 && book % 10 == 2
+}
+
+/// 书所属的**分支**（十位与百位合成，`book / 10`）：`11` 英雄 / `12` 聖騎士 / `13` 黑騎士、
+/// `21` 火毒 / `22` 冰雷 / `23` 僧侶、`31` 獵人 / `32` 弩弓手、`41` 刺客 / `42` 俠盜。
+/// `None` = 不是分支书（初学者书 `0` 与四条一转书 `100/200/300/400`）。
 pub fn book_branch(book: u32) -> Option<u32> {
-    (BOOKS.contains(&book) && book >= 210).then_some(book / 10)
+    (BOOKS.contains(&book) && book % 100 >= 10).then_some(book / 10)
 }
 
 /// 书在分支内的**转职层级**（个位）：`0` 二转 / `1` 三转 / `2` 四转。
@@ -203,35 +240,40 @@ pub fn book_tier(book: u32) -> Option<u32> {
     book_branch(book).map(|_| book % 10)
 }
 
-// 三条分支各自的三本书，写成常量切片便于 `book_jobs` 直接借用 `'static` 生命周期。
-const BRANCH_FIRE: [u32; 3] = [210, 211, 212];
-const BRANCH_ICE: [u32; 3] = [220, 221, 222];
-const BRANCH_HOLY: [u32; 3] = [230, 231, 232];
+/// 分支 → 该分支三本书的持有者职业片段。
+///
+/// 各类职业表的布局是「一转 + 每 3 个一条分支」，所以第 `branch_index` 条分支
+/// 第 `tier` 层的片段是 `[1 + 3×branch_index + tier, 1 + 3×branch_index + 3)`：
+/// 片段语义 = 「本分支第 tier 本书及其后的转职都能学」（二转书二三四转都能学，
+/// 三转书三四转能学，四转书只有四转能学）。**改 `*_JOBS` 的排列顺序必须同步改这里**。
+fn branch_jobs(branch: u32, tier: u32) -> &'static [u32] {
+    let (jobs, branch_index) = match branch {
+        11 | 12 | 13 => (&WARRIOR_JOBS[..], (branch - 11) as usize),
+        21 | 22 | 23 => (&MAGE_JOBS[..], (branch - 21) as usize),
+        31 | 32 => (&BOWMAN_JOBS[..], (branch - 31) as usize),
+        41 | 42 => (&THIEF_JOBS[..], (branch - 41) as usize),
+        _ => return &[],
+    };
+    let start = 1 + 3 * branch_index + tier as usize;
+    jobs.get(start..1 + 3 * branch_index + 3).unwrap_or(&[])
+}
 
 /// 技能书 → 可持有它的职业集合。
 ///
-/// - 初学者书 `0`：初心者本人 + 任何法师（一转前的法师仍读得到初学者被动）；
-/// - 一转书 `200`：任意法师分支；
-/// - 二转书（`x0`）：该分支三个职业；三转书（`x1`）：该分支的三/四转；四转书（`x2`）：只有四转。
+/// - 初学者书 `0`：初心者本人 + 任何探险家职业；
+/// - 一转书（`100/200/300/400`）：本职业线的全部职业；
+/// - 分支书：按分支与转职层级切片（见 `branch_jobs`）。
 /// - 未登记的书：空集（拒绝），与改前 `_ => false` 同语义。
 pub fn book_jobs(book: u32) -> &'static [u32] {
     match book {
         BEGINNER_BOOK => &BEGINNER_JOBS,
+        WARRIOR_BOOK => &WARRIOR_JOBS,
         MAGE_BOOK => &MAGE_JOBS,
+        BOWMAN_BOOK => &BOWMAN_JOBS,
+        THIEF_BOOK => &THIEF_JOBS,
         _ => match book_branch(book).zip(book_tier(book)) {
-            // 二转：整条分支
-            Some((21, 0)) => &BRANCH_FIRE,
-            Some((22, 0)) => &BRANCH_ICE,
-            Some((23, 0)) => &BRANCH_HOLY,
-            // 三转：本分支的三转与四转
-            Some((21, 1)) => &BRANCH_FIRE[1..],
-            Some((22, 1)) => &BRANCH_ICE[1..],
-            Some((23, 1)) => &BRANCH_HOLY[1..],
-            // 四转：只有本分支的四转
-            Some((21, 2)) => &BRANCH_FIRE[2..],
-            Some((22, 2)) => &BRANCH_ICE[2..],
-            Some((23, 2)) => &BRANCH_HOLY[2..],
-            _ => &[],
+            Some((branch, tier)) => branch_jobs(branch, tier),
+            None => &[],
         },
     }
 }
@@ -241,13 +283,19 @@ pub fn skill_job_allowed(job: u32, book: u32) -> bool {
     book_jobs(book).contains(&job)
 }
 
-/// 职业 → 该职业升级时收到的技能书（`0` 初学者书 / `200` 一转书 / 分支书各归各的）。
-/// 未登记的法师职业返回 `None`（不发点，与改前 `_ => return` 同语义）。
+/// 职业 → 该职业升级时收到的技能书（`0` 初学者书 / 一转书各归各的）。
+/// 未登记的职业返回 `None`（不发点，与改前 `_ => return` 同语义）。
 pub fn book_for_job(job: u32) -> Option<u32> {
     if job == BEGINNER_JOB {
         Some(BEGINNER_BOOK)
+    } else if WARRIOR_JOBS.contains(&job)
+        || MAGE_JOBS.contains(&job)
+        || BOWMAN_JOBS.contains(&job)
+        || THIEF_JOBS.contains(&job)
+    {
+        Some(job)
     } else {
-        is_mage_job(job).then_some(job)
+        None
     }
 }
 
@@ -276,26 +324,53 @@ impl MageSkills {
         // 准入表 `book_jobs` 使用，这里不再各自写一份局部副本。
         /// 源里出现过的元素字母：`i` 冰 / `l` 雷 / `f` 火 / `s` 毒 / `h` 聖。
         const ELEM_ATTRS: [&str; 5] = ["i", "l", "f", "s", "h"];
-        /// `(mobCount, attackCount)` 的合理性上界，按**转职层**分档：四转（书号末位为 2，
-        /// 即 `212/222/232`）与 Hyper 可到 15 段 15 目标；其余各书的实际上界是
-        /// 10 目标 × 6 段（火毒的 劇毒領域 / 末日烈焰 是 10 目标、毒霧 是 6 段）。
-        /// 上界只用来发现「把 mobCount 与 attackCount 读串」这类投影错误，不是内容规则。
-        const LOWER_LIMITS: (u32, u32) = (10, 6);
-        const FOURTH_LIMITS: (u32, u32) = (15, 15);
-        if self.source_version != "TMS273.7"
-            || !matches!(self.skills.len(), 8 | 17 | 29 | 32 | 43 | 56 | 102 | 153)
-            || self.skills.len() == 8 && self.book_id != 200
-        {
+        /// `(mobCount, attackCount)` 的合理性上界，按**转职层级**分档（下标 0..3 =
+        /// 一转 / 二转 / 三转 / 四转与 Hyper）。每档都是该层级的**实测最大值**：
+        /// mob 一转 6（`1001005 劍氣縱橫`）、二转 10（`1301014 追隨者衝擊`）、
+        /// 三转 12（`1111012 究極突刺` 的 `7+d(x/2)` 满级 12——改前只有「四转 / 非四转」
+        /// 两档，非四转一律 10，这本三转书当场把整本目录判成非法）；四转与 Hyper 15。
+        /// atk 一转 4（`2001008 魔靈彈`）、二/三转 6、四转与 Hyper 15。
+        /// 上界只用来发现「把 mobCount 与 attackCount 读串」这类投影错误，不是内容规则；
+        /// 真实源值再涨一档时这里会红，逼人重新量一遍，而不是静默放行。
+        const TIER_LIMITS: [(u32, u32); 4] = [(6, 4), (10, 6), (12, 6), (15, 15)];
+        if self.source_version != "TMS273.7" {
             return Err("invalid TMS273 mage skill catalog".into());
+        }
+        // 书号集合的判据**从 `BOOKS` 派生**，不再写死条数名单：改前这里是
+        // `matches!(len, 8|17|29|32|43|56|102|153)`——一本一本累加出来的硬编码，
+        // 每加一本书都得记得改这里（漏改就是「整本目录静默进不来」）。现在要求
+        // 「目录里出现的每一本书都已登记」，加上「已登记的书至少要有一条技能」，
+        // 两头都钉住：多一本未登记的书、或登记了却整本掉出投影，都在启动时挡下。
+        // 空目录（`MageSkills::default()` 与测试夹具）继续放行。
+        if !self.skills.is_empty() {
+            let mut seen_books = std::collections::BTreeSet::new();
+            for skill in self.skills.values() {
+                seen_books.insert(skill.book_id);
+            }
+            if let Some(book) = seen_books.iter().find(|book| !BOOKS.contains(book)) {
+                return Err(format!("catalog carries unregistered skill book {book}").into());
+            }
+            if seen_books.len() != BOOKS.len() {
+                return Err(format!(
+                    "catalog is partial: {} of {} registered skill books present",
+                    seen_books.len(),
+                    BOOKS.len()
+                )
+                .into());
+            }
         }
         for (id, skill) in &self.skills {
             let skill_id: u32 = id.parse().map_err(|_| "invalid mage skill id")?;
             let book = skill_id / 10_000;
-            let (mob_limit, attack_limit) = if book >= 210 && book % 10 == 2 || skill.hyper > 0 {
-                FOURTH_LIMITS
+            let tier_index = if skill.hyper > 0 {
+                3
             } else {
-                LOWER_LIMITS
+                match book_tier(book) {
+                    Some(tier) => tier as usize + 1,
+                    None => 0,
+                }
             };
+            let (mob_limit, attack_limit) = TIER_LIMITS[tier_index];
             if !BOOKS.contains(&book)
                 || skill.book_id != book
                 || skill.max_level == 0
@@ -321,7 +396,11 @@ impl MageSkills {
                         || level.int_x.is_some_and(|value| value < 0)
                         || level.indie_mad.is_some_and(|value| value < 0)
                         || level.sub_time.is_some_and(|value| value < 0)
-                        || level.z.is_some_and(|value| value < 0)
+                        // `z` 与 `q` 同理是泛用语义字段，**负值是源事实**：
+                        // `4121015 絕對領域` 的 common `x/z/y` 全为负（表减益），
+                        // Hyper 被动 `4120046 絕對領域-強化效果` 是 `x:-10,z:-10,v:10`。
+                        // 法师 153 条里 z 恰好全为非负才让旧判据活到现在；写成 `< 0`
+                        // 会把 412 书整本拒掉。这里不再设符号判据。
                         || level.costmp_r.is_some_and(|value| value < 0)
                         || level.dam_r.is_some_and(|value| value < 0)
                         || level.critical_damage.is_some_and(|value| value < 0)
@@ -1483,7 +1562,17 @@ impl MageSkills {
                         required(level.rb.is_some(), "rb")?;
                         required(level.time.is_some(), "time")?;
                     }
-                    _ => unreachable!(),
+                    // 未接执行链的技能：只做上面的通用范围校验，不要求字段契约。
+                    //
+                    // 这张 `match` 是「**运行期真正消费的技能**」的字段契约（谁消费哪些
+                    // 字段、哪些字段不许缺席）。改前写的是 `_ => unreachable!()`——那在本包
+                    // 只有法师 11 本 / 153 条时成立，因为每个条目都有契约臂。2026-09-22
+                    // 目录扩到四条职业线 35 本 / 504 条后，只有一转主动技能接了执行链
+                    // （见交付记录），其余条目**没有运行期消费者**，不该被要求有契约臂。
+                    // 谁把一条新技能接进执行链，就必须同时在这里给它加臂；
+                    // `scripts/check_tms273_attributes.cjs` / `check_tms273_damage_pipeline.cjs`
+                    // 会按「源里带这个字段」反向要求服务端声明，漏接会在门禁红而不是这里静默。
+                    _ => {}
                 }
             }
         }

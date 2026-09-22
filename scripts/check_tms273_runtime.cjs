@@ -34,7 +34,7 @@ const serverSource=()=>{
 };
 const manifest=read('client/public-tms273/assets/manifest.json');
 const gameplay=read('shared/gameplay.json'),catalog=read('shared/maps.json');
-assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-35');
+assert.equal(manifest.contentVersion,process.argv[2] ?? 'tms273-37');
 assert.deepEqual(gameplay.expTable, Array.from({length:200}, (_, i) => i === 199 ? 0 : 15*(i+1)**2));
 assert(gameplay.compatibility.experience.startsWith('P:'));
 // 道具定义覆盖：源声明的可达集里，凡定义缺失的件都必须在补入工具的留痕里逐条出现。
@@ -249,16 +249,16 @@ assert(!manifest.bossEffects['114'].effect,'missing source art must stay absent'
 // 2026-09-21 火毒 / 僧侶 / 主教三条分支书上线：6 本 56 条 → **9 本 102 条**（每本分支
 // 各带一份被动槽位，见 world.rs 的具名数组）。同日第四轮再补两条**四转**分支
 // （212 火毒 / 232 主教，与冰雷 222 同层级）⇒ **11 本 153 条**。
-// 加书必须复用同层页签下标（`tms273_skill_manifest.cjs::SKILL_BOOK_TABS`，源 `UIWindow2`
-// 只有 7 组页签图，故 212/222/232 共用下标 4），客户端 `view.ts::BOOK_JOBS` 是唯一的书
-// 准入权威，改书必须同时改这两处；`check_tms273_skill_manifest.cjs` 用同一个投影函数
-// 独立重算，两边必须同时绿。
+// 2026-09-22 目录并入战士 / 弓箭手 / 飞侠三条职业线 ⇒ **35 本 504 条**（页签仍按
+// 转职层级共用下标 0..6，源 `UIWindow2` 只有 7 组页签图；客户端 `input.ts::BOOK_JOBS`
+// 是唯一的书准入权威，`check_tms273_skill_manifest.cjs` 用同一个投影函数独立重算，
+// 两边必须同时绿）。
 {
   const projected=require('./tms273_skill_manifest.cjs')
     .skillManifest(read('resources/tms273-export/windows-skills.json'),
                    read('resources/tms273-export/skills.json'));
-  assert.equal(Object.keys(projected.skillBooks).length,11,'the exported skill book count changed');
-  assert.equal(Object.keys(projected.skillCatalog).length,153,'the source-side skill entry count changed');
+  assert.equal(Object.keys(projected.skillBooks).length,35,'the exported skill book count changed');
+  assert.equal(Object.keys(projected.skillCatalog).length,504,'the source-side skill entry count changed');
   assert.deepEqual(manifest.skillBooks,projected.skillBooks,
     'the assembled skill book table drifted from the source projection');
   assert.deepEqual(manifest.skillCatalog,projected.skillCatalog,

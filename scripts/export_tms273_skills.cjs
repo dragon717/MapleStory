@@ -383,6 +383,104 @@ for (const entry of FOURTH_JOB_BOOKS) SKILLS.push({
   assetKinds: [],
   missingAssetKinds: [],
 });
+
+// ── 探险家其余三条职业线：战士 / 弓箭手 / 飞侠（2026-09-22）─────────────────────
+// 形状与上面的 212/232 一致：**只登记图鉴条目**（名称 / 描述 / 逐级字段 / 图标）。
+//
+// 为什么这里不写 `assetKinds`（图标并不会因此缺失）：图标走的是 `exportCatalogIcons`，
+// 它对**每一本**登记进 `catalogDefinitions` 的书都统一跑一遍，与 `assetKinds` 无关；
+// `assetKinds` 管的是 effect / hit / ball 这类施法资产。本包这三条线**只有一转主动技能
+// 接了服务端执行链**（见 `docs/plan/history/2026-09-22/` 的交付记录），二转以上的施法资产
+// 没有消费者，按 212/232 的先例不登记；一转那几条的施法资产由下面的
+// `EXPLORER_FIRST_JOB_ACTIVES` 单独登记。
+//
+// 分卷是**实测**的，不是从编号猜的：`Skill/_Canvas/*.wz` 逐卷枚举顶层映像名，
+// 与既有五条已知映射（210/211→035、212→038、220/221/222→040、230/231→043、232→045）
+// 在本探针结果里**逐条吻合**，以此证明枚举口径没读错。源树若重新分卷，必须重跑同一枚举。
+// 分卷是**实测**的，不是从编号猜的，分两层：
+//   1. **本体卷** —— `Skill/_Canvas/*.wz` 逐卷枚举顶层映像名，得到每本书 `.img` 所在卷；
+//      该枚举与既有五条已知映射（210/211→035、212→038、220/221/222→040、230/231→043、
+//      232→045）逐条吻合，以此证明枚举口径没读错。
+//   2. **外链卷** —— 这批书的图标大量**跨书别名**（例如 2112 的图标落在 2112.img，而
+//      2112.img 在 _Canvas_036.wz）。`Skill/<book>.json` 这份导出**不含 `_outlink`**，
+//      所以外链只能从打包映像里逐节点收集（探针走 `Skill/<book>.img` 递归收集
+//      `_outlink`，再反查目标映像所在卷）。下面每本书的卷清单 = 本体卷 ∪ 它引用的
+//      外部映像所在卷。源树若重新分卷，两步都必须重跑，别只改编号。
+const EXPLORER_CATALOG_BOOKS = {
+  // 战士线
+  100: ['1001005', ['000']],
+  110: ['1100000', ['000', '001']],
+  111: ['1110000', ['001']],
+  112: ['1121000', ['000', '001', '002', '003']],
+  120: ['1200000', ['000', '001', '004']],
+  121: ['1210001', ['000', '001', '004']],
+  122: ['1221000', ['002', '003', '004', '007']],
+  130: ['1300000', ['000', '001', '008']],
+  131: ['1310009', ['000', '001', '008']],
+  132: ['1321000', ['000', '002', '003', '007', '008', '011']],
+  // 弓箭手线
+  300: ['3001004', ['000', '012', '043', '051']],
+  310: ['3100000', ['001', '008', '051']],
+  311: ['3110001', ['000', '001', '003', '051']],
+  312: ['3121000', ['000', '002', '003', '036', '051', '053']],
+  320: ['3200000', ['000', '001', '003', '008', '054']],
+  321: ['3210001', ['000', '001', '051', '054']],
+  322: ['3221000', ['000', '001', '002', '003', '053', '054', '055']],
+  // 飞侠线
+  400: ['4001334', ['000', '047', '062']],
+  410: ['4100000', ['001', '051', '063', '069']],
+  411: ['4110008', ['001', '063', '067', '069']],
+  412: ['4121000', ['002', '003', '063', '067', '071']],
+  420: ['4200000', ['001', '054', '063', '071']],
+  421: ['4210010', ['001', '063', '067', '069', '072']],
+  422: ['4221000', ['002', '003', '007', '063', '067', '071', '072', '075']],
+};
+for (const [job, [id, volumes]] of Object.entries(EXPLORER_CATALOG_BOOKS)) {
+  SKILLS.push({
+    id,
+    job: Number(job),
+    image: `Skill/${job}.img`,
+    skillJson: `Skill/${job}.json`,
+    canvasArchives: volumes.map(volume => `Skill/_Canvas/_Canvas_${volume}.wz`),
+    bodyAction: null,
+    assetKinds: [],
+    missingAssetKinds: [],
+    catalogDefinition: true,
+    unlockReason: `Skill/${job}.img has no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.`,
+  });
+}
+// 三条线的**一转主动技能**：真正接了服务端执行链、客户端要画 effect/hit 的那几条。
+// 与 mage 210/211 那段同一做法——只登记真有消费者的技能，不按书批量挂资产。
+// `bodyAction` 留空：这三条线的源动作在 `Character/00002000.img` 里叫 swingO1/crossbow 等，
+// 是否复用既有 avatar 动作由客户端的动作表决定，不在这里推断（推错会写进产物当事实）。
+const EXPLORER_FIRST_JOB_ACTIVES = [
+  // 战士：剑气纵横（多目标横扫）/ 跃进攻击 / 升龙爆（上挑）
+  { id: '1001005', job: 100, volume: '000', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'] },
+  { id: '1001010', job: 100, volume: '000', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit'] },
+  { id: '1001011', job: 100, volume: '000', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit'] },
+  // 战士：战斗置换（位移）
+  { id: '1001008', job: 100, volume: '000', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect'] },
+  // 弓箭手：断魂箭（单体远程）
+  { id: '3001004', job: 300, volume: '051', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'] },
+  // 弓箭手：连续跳跃（位移）—— 源里**没有** effect，如实登记为缺，不造替代。
+  { id: '3001007', job: 300, volume: '051', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled'], missingAssetKinds: ['effect', 'hit'] },
+  // 飞侠：劈空斩 / 双飞斩 / 狂刃刺击
+  { id: '4001334', job: 400, volume: '062', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'effect0', 'hit'] },
+  { id: '4001344', job: 400, volume: '062', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'] },
+  { id: '4001013', job: 400, volume: '062', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect', 'hit'] },
+  // 飞侠：二段跳（位移）/ 隐身术（增益）
+  { id: '4001011', job: 400, volume: '062', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect'] },
+  { id: '4001003', job: 400, volume: '062', assetKinds: ['icon', 'iconMouseOver', 'iconDisabled', 'effect'] },
+];
+for (const entry of EXPLORER_FIRST_JOB_ACTIVES) SKILLS.push({
+  ...entry,
+  image: `Skill/${entry.job}.img`,
+  skillJson: `Skill/${entry.job}.json`,
+  canvasArchives: [`Skill/_Canvas/_Canvas_${entry.volume}.wz`],
+  bodyAction: null,
+  missingAssetKinds: [],
+  unlockReason: `Skill/${entry.job}.img carries no verified job/level unlock rule in this export; the P job-transfer and SP rule remain runtime-owned.`,
+});
 const SKILL_ID = SKILLS[0].id;
 const SKILL_IMAGE = SKILLS[0].image;
 const SKILL_SOURCE = `Skill/200.img/skill/${SKILL_ID}`;
@@ -884,6 +982,12 @@ async function main() {
       const expectedCatalogCounts = {
         '0': 3, '200': 8, '210': 10, '211': 11, '220': 9, '221': 12, '222': 24, '230': 10, '231': 15,
         '212': 24, '232': 27,
+        // 探险家其余三条职业线（2026-09-22）：数字是 `Skill/<book>.json` 里数字节点的实测个数，
+        // 加书时**必须重新数**，别按「上一本的数 ±N」推。351 = 139(战士) + 105(弓箭手) + 107(飞侠)。
+        '100': 7, '110': 8, '111': 8, '112': 24, '120': 8, '121': 9, '122': 27,
+        '130': 9, '131': 9, '132': 30,
+        '300': 8, '310': 12, '311': 11, '312': 24, '320': 8, '321': 12, '322': 30,
+        '400': 10, '410': 12, '411': 9, '412': 27, '420': 10, '421': 12, '422': 27,
       };
       assert(Object.prototype.hasOwnProperty.call(expectedCatalogCounts, bookId), `skill book ${bookId} has no expected catalog count`);
       assert.equal(skillIds.length, expectedCatalogCounts[bookId], `${bookId} catalog node count changed`);

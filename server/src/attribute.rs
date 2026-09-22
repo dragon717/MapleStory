@@ -56,7 +56,8 @@
 //!   - [`AttributeOp::AdditivePercent`]：同类百分比**先求和、整组只乘一次**。
 //!     目前只有楓葉祝福的 `basicStatUp` 一条（`value = 求和后的百分点`）。
 //!   - [`AttributeOp::Highest`]：**取较高者替换、不相加**。目前只有 `mastery`
-//!     （咒語精通 / 冰龍吐息；改前的注释写明「冰龍吐息替换较低的咒語精通，不叠加成两条带」）。
+//!     （咒語精通 / 冰龍吐息，以及 2026-09-22 起四条职业线的 12 本「武器精通」族；
+//!     改前的注释写明「冰龍吐息替换较低的咒語精通，不叠加成两条带」）。
 //! - **取整只在一步**：`basic_stat_up` 那一次整数截断（`v * (100+p) / 100`）。
 //!   其余全是 `i64` 加算，**没有第二处 `/100`**；`move_speed` 是 `f64`、不取整。
 //! - **上限只在声明处**：`basic_stat_up` 的 `clamp(0,100)`、`mastery` 的 `clamp(0.0,1.0)`、
@@ -576,9 +577,10 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
     // 门禁失败，要求把它改归 `ActiveBuff` 层。
     //
     // 三个四转分支各有一本（冰雷 2221000 / 火毒 2121000 / 主教 2321000），三本的 `common`
-    // 形状一致（同样没有 `time`），所以与 `intX` 同格处理：逐本求和、各记各的，留痕才能
-    // 回答「这个百分比是谁给的」。分支互斥，角色只可能持有自己分支的那一本，其余查表
-    // 得 0、`note_nonzero` 不留痕。
+    // 形状一致（同样没有 `time`）；2026-09-22 起战士/弓/飞侠三条线的四转各一本也并入
+    // 同一张表（共 10 本，源形状逐本核对过），所以与 `intX` 同格处理：逐本求和、各记各的，
+    // 留痕才能回答「这个百分比是谁给的」。分支互斥，角色只可能持有自己分支的那一本，
+    // 其余查表得 0、`note_nonzero` 不留痕。
     let mut basic_stat_up = 0i64;
     for skill_id in MAPLE_WARRIOR_SKILLS {
         let contribution = learned_level(mage_skills, skills, skill_id)
@@ -738,19 +740,26 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         .saturating_add(equipment_mad)
         .max(1);
 
-    // ---- 防御：装备 `incPDD` + 魔力之盾 `pddX`（被动，**改前只进了显示**）----
-    let shield_bonus = learned_level(mage_skills, skills, SKILL_MAGIC_SHIELD)
-        .and_then(|level| level.pdd_x)
-        .unwrap_or(0)
-        .max(0);
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_MAGIC_SHIELD),
-        "pddX",
-        AttributeKey::WeaponDefense,
-        AttributeOp::Flat,
-        shield_bonus,
-    );
+    // ---- 防御：装备 `incPDD` + 各线 `pddX`（魔力之盾 / 自身強化 / 聖騎士精通 / 禦魔陣）----
+    // pddX 的语义跨线一致（物理防御加成百分点，学得即生效），2026-09-22 起收进
+    // `PDDX_SKILLS` 同一槽位逐本求和、各记各的——留痕能回答「这 30 点防御是谁给的」。
+    // 物理线这几本的 `mddX` 等其余字段不在聚合（见门禁的物理线决策块）。
+    let mut shield_bonus = 0i64;
+    for skill_id in PDDX_SKILLS {
+        let contribution = learned_level(mage_skills, skills, skill_id)
+            .and_then(|level| level.pdd_x)
+            .unwrap_or(0)
+            .max(0);
+        shield_bonus = shield_bonus.saturating_add(contribution);
+        rec.note_nonzero(
+            AttributeLayer::PassiveSkill,
+            Some(skill_id),
+            "pddX",
+            AttributeKey::WeaponDefense,
+            AttributeOp::Flat,
+            contribution,
+        );
+    }
     let defense = config
         .weapon_defense
         .unwrap_or(0)
@@ -823,19 +832,39 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
     let max_hp = config.max_hp.unwrap_or(1).max(1);
     config.max_hp = Some(max_hp);
 
-    // ---- 移动速度：装备 `incSpeed` + 傳送的被动 `psdSpeed`（上限取源 `speedMax`），
+    // ---- 移动速度：装备 `incSpeed` + 各线被动 `psdSpeed`（上限取源 `speedMax`），
     //      再并入初學者「迅捷腳步」（增益），合并后 `clamp(0,100)`，最后落到 125 px/s 上 ----
-    let teleport = learned_level(mage_skills, skills, SKILL_TELEPORT);
-    let teleport_speed = teleport
-        .as_ref()
-        .and_then(|level| level.psd_speed)
-        .unwrap_or(0)
-        .max(0);
-    let teleport_speed_max = teleport
-        .as_ref()
-        .and_then(|level| level.speed_max)
-        .unwrap_or(0)
-        .max(0);
+    // psdSpeed 语义跨线一致（学得即生效的被动移速），2026-09-22 起收进
+    // `PSD_SPEED_SKILLS` 同一槽位：逐本求和、各记各的；同一角色最多持有一本
+    // （各线一转书互斥），求和天然退化成单本。上限取**已学来源** `speedMax` 的
+    // 最小非零值（最严的来源说了算），没有已学来源上限时用 100。
+    let mut passive_speed = 0i64;
+    let mut passive_speed_max = 0i64;
+    for skill_id in PSD_SPEED_SKILLS {
+        let level = learned_level(mage_skills, skills, skill_id);
+        let contribution = level.as_ref().and_then(|level| level.psd_speed).unwrap_or(0).max(0);
+        let source_max = level
+            .as_ref()
+            .and_then(|level| level.speed_max)
+            .unwrap_or(0)
+            .max(0);
+        rec.note_nonzero(
+            AttributeLayer::PassiveSkill,
+            Some(skill_id),
+            "psdSpeed",
+            AttributeKey::MoveSpeed,
+            AttributeOp::Flat,
+            contribution,
+        );
+        passive_speed = passive_speed.saturating_add(contribution);
+        if contribution > 0 && source_max > 0 {
+            passive_speed_max = if passive_speed_max == 0 {
+                source_max
+            } else {
+                passive_speed_max.min(source_max)
+            };
+        }
+    }
     let equipment_speed = equipment_field_sum(equipped, "incSpeed");
     rec.note_nonzero(
         AttributeLayer::Equipment,
@@ -845,21 +874,13 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         AttributeOp::Flat,
         equipment_speed,
     );
-    rec.note_nonzero(
-        AttributeLayer::PassiveSkill,
-        Some(SKILL_TELEPORT),
-        "psdSpeed",
-        AttributeKey::MoveSpeed,
-        AttributeOp::Flat,
-        teleport_speed,
-    );
     // P: `psdSpeed` 是被动百分比，`speedMax` 当作它的源上限。
     let source_speed_percent = equipment_speed
-        .saturating_add(teleport_speed)
+        .saturating_add(passive_speed)
         .clamp(
             0,
-            if teleport_speed_max > 0 {
-                teleport_speed_max.min(100)
+            if passive_speed_max > 0 {
+                passive_speed_max.min(100)
             } else {
                 100
             },

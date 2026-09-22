@@ -19,6 +19,9 @@
 //      与数量、奖励与六段台词齐备；
 //   2. 职业链：前置要么是本表内上一段（`toJob == fromJob`），要么真的在通用任务目录
 //      `shared/gameplay.json` 里（一转 1402 走通用任务系统），等级门槛沿链严格递增；
+//      **2b：外部前置必须真的接得到**——它的接取 NPC 得被摆在某张已装配的图上
+//      （1404 挂在未装配的墮落城市 NPC 上，拿它当前置会让职业链静默锁死）；
+//      **2c：二转分支没挂外部前置必须逐条登记理由**（漏写前置 = 玩家绕过剧情直接转职）；
 //   3. 内容可达（**从 shared/*.json 独立重算**）：转职官模板存在且**真的摆在**配置
 //      的每张图上、目标怪存在且**真的有刷新点**、收集道具在 `items.json` 里、地图在
 //      `shared/maps.json` 里；
@@ -167,6 +170,55 @@ for (const quest of quests) {
     assert.ok(!prerequisite.status || ['completed', 'active'].includes(prerequisite.status),
       `${quest.questId}: 前置 status 只支持 completed/active`);
   }
+}
+
+// 2b) 外部前置必须**真的接得到**：它的接取 NPC 得被摆在某张已装配的图上 ------------
+// 只看「id 在通用任务目录里」是不够的。1404（盜賊之路）就挂在 `1052001`（墮落城市）：
+// 那张图不在装配的 211 张图内、那个 NPC 连模板都不在 `gameplay.npcs` 里。拿它当飞侠
+// 二转的前置，玩家到了 30 级点達克魯只会一直听到「你還不夠資格」——失败形态是**静默**的
+// （和「还没接」长得一模一样），所以在这里把它变成一条会响的断言。
+const generalQuestStartNpc = new Map(
+  gameplay.quests.map(entry => [String(entry.questId), String((entry.start || {}).npcId || '')]),
+);
+const npcHasAnyPlacement = npcId =>
+  [...npcPlacements].some(placement => placement.startsWith(`${npcId}@`));
+for (const quest of quests) {
+  for (const prerequisite of (quest.require && quest.require.quests) || []) {
+    const id = String(prerequisite.questId);
+    if (byId.has(id)) continue; // 表内前置由上面那条断言负责（toJob == fromJob）
+    const npcId = generalQuestStartNpc.get(id);
+    assert.ok(npcId, `${quest.questId}: 前置 ${id} 不是通用任务目录 shared/gameplay.json 里的一条任务`);
+    assert.ok(
+      npcHasAnyPlacement(npcId),
+      `${quest.questId}: 前置 ${id} 的接取 NPC ${npcId} 没有被摆在任何已装配的图上——`
+        + '这条前置永远接不到，整条职业链会静默锁死（换一条能接的前置，或把这条任务登记进 PREREQ_LESS_ALLOWED）',
+    );
+  }
+}
+
+// 2c) 「没有外部前置」必须逐条登记理由，否则漏写前置是看不出来的 ------------------
+// 一转职业（100/200/300/400）转出去的那几条（＝二转分支）本来都该挂「本线的一转剧情
+// 任务」。允许例外，但**只允许登记过的**——新增一条忘了写前置，这里就会红。
+const PREREQ_LESS_ALLOWED = new Map([
+  ['job-410', '飞侠一转剧情 1404（盜賊之路）的接取 NPC 1052001 在墮落城市，该图与 NPC 都不在装配内容里 ⇒ 无可用的外部前置，只能按等级与表内链判定'],
+  ['job-420', '同上：飞侠二转的两条分支共用这一条理由'],
+]);
+for (const quest of quests) {
+  if (![100, 200, 300, 400].includes(quest.fromJob)) continue;
+  const external = ((quest.require && quest.require.quests) || [])
+    .some(prerequisite => !byId.has(String(prerequisite.questId)));
+  if (external) {
+    assert.ok(
+      !PREREQ_LESS_ALLOWED.has(quest.questId),
+      `${quest.questId} 已经挂了外部前置，却仍登记在 PREREQ_LESS_ALLOWED 里——把这条登记删掉`,
+    );
+    continue;
+  }
+  assert.ok(
+    PREREQ_LESS_ALLOWED.has(quest.questId),
+    `${quest.questId}（${quest.fromJob} → ${quest.toJob}）没有外部前置，也没登记理由——`
+      + '二转分支应当挂本线的一转剧情任务，漏写会让玩家绕过剧情直接转职',
+  );
 }
 
 // 3) 内容可达：转职官真的在、目标真的做得到 ------------------------------------

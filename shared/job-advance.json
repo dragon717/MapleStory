@@ -2,8 +2,8 @@
   "source": "转职任务配置（手工维护，非 WZ 导出产物）。与 shared/windbell.json 同类：由服务端启动时加载并硬校验。",
   "ruleVersion": "tms273-job-advance-v1",
   "provenance": {
-    "T": "同版 WZ 已核字段：转职官 NPC（漢斯 1032001 / 101000003）、一转等级与前置（QuestData/1402.img）、三条二转分支授予的 fixLevel 技能（源 maxLevel=1：2200011 結冰特效 / 2100009 元素吸收 / 2300009 祝福福音）。",
-    "P": "源 273 包未随附二转/三转/四转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值；二转 30／三转 60／四转 100 的等级门槛沿用原版法师转职等级，本包无据可核，同样记为 P。技能书 0/200/210/211/220/221/222/230/231/212/232 的技能本体已进入装配产物（`shared/mage-skills.json` 现有 11 本、153 条），因此二转与四转分支按源 fixLevel 事实授予 `reward.skills`（二转 2200011／2100009／2300009，四转 2120014 元素強化／2320013 祝福旋律），与冰雷 2200011 同构；三转分支源里没有 fixLevel 节点，故不写 reward.skills。四转不用源链 1452／1453 作入口：其目标地图 240010501 不在源包也不在装配的 198 张图内，且 q1453s/q1453e 等执行脚本缺失（见 docs/design/法师分支转职设计_火毒与主教.md §5.2），故沿用前两转的同一位转职官与同形状试炼，只把等级门槛与目标怪提到 Lv100 档。"
+    "T": "同版 WZ（或源码树）已核字段：三条物理线的转职官与摆位——战士 武術教練 1022000 / 102000003（勇士聖殿）、弓箭手 赫麗娜 1012100 / 100000201（弓箭手培訓中心）、飞侠 達克魯 10203 / 001020000（選擇岔道）；一转剧情前置 1401（劍士之路）/ 1403（弓箭手之路）的 NPC 与门槛；目标怪名取自源 `String/Mob.json`（如 1130100 斧木妖、1110101 黑木妖、130100 木妖）；各分支的转职层级与职业名取自源 `String/Skill.json` 的书名（狂戰士之路 / 十字軍之路 / 終極英雄 / 見習騎士之路 / 騎士之路 / 光之聖騎士 / 槍騎兵之路 / 嗜血狂騎之路 / 黑暗力量的黑騎士 / 獵人指南 / 遊俠之路 / 弓箭達人 / 弩弓手指南 / 狙擊手之路 / 弩弓的達人 / 刺客指南 / 暗殺者之路 / 夜使者的秘笈 / 俠盜指南 / 神偷之路 / 暗影神偷密技）；四转 222 授予的 2220015 冰凍效果（源 maxLevel=1、`fixLevel`）。",
+    "P": "源 273 包未随附二转/三转/四转执行脚本，目标怪物、目标道具与数量是本项目可执行化补齐，不冒充原作数值；二转 30／三转 60／四转 100 的等级门槛沿用原版转职等级，本包无据可核，同样记为 P。2026-09-22 起目录含**探险家四条职业线**：法师 8 条（二转三分支＋三转三分支＋四转火毒/主教），本轮补上 ① 冰雷四转 `job-222`（221→222，与 job-212／job-232 同形，同样授予源 fixLevel 的 2220015 冰凍效果）与 ② 战士／弓箭手／飞侠三条新线各三转共 21 条，合计 30 条。新线的 `reward.skills` **刻意留空**：源里各分支的 `fixLevel` 节点（1101013 鬥氣集中／1200014 神聖凝聚／1301013 追隨者／3101009+3101012+3101013 魔幻箭筒／4100011+4101011 刺客刻印／4200015 盜賊迅捷＋4201016 二段跳／1321020 轉生契約）全都依附本包**尚未实现**的机制（斗气系统 / 召唤实体 / 印记 / 移动技），发放会让技能窗出现「拿到了却放不出、也升不了」的条目；技能书点数照发，等机制落地时再按源事实授予（与 2026-09-21 法师二轮「先发点数、后补技能」同一口径）。飞侠二转**没有**外部前置任务：唯一的一转剧情 1404（盜賊之路）挂的 NPC 是 1052001（墮落城市），该图不在装配的 211 张图内、NPC 也不在装配内容里 ⇒ 拿它当前置会让整条飞侠链永远接不动；改为只按等级与上一段试炼判定，并在此如实登记（门禁已加断言：外部前置任务的接取 NPC 必须真的被摆在某张图上）。"
   },
   "quests": [
     {
@@ -708,6 +708,1869 @@
         "complete": {
           "zh": "你通過了試煉。從現在起，你就是主教。",
           "en": "You have passed the trial. From now on you are a Bishop."
+        }
+      }
+    },
+    {
+      "questId": "job-110",
+      "title": {
+        "zh": "狂戰士的試煉",
+        "en": "Trial of the Berserker"
+      },
+      "provenance": "P",
+      "fromJob": 100,
+      "toJob": 110,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1401",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1110101",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 黑木妖",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000005",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 葉子",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 110,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為狂戰士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Berserker, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 黑木妖，把它們身上的葉子帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是狂戰士了。",
+          "en": "You have passed the trial. From now on you are a Berserker."
+        }
+      }
+    },
+    {
+      "questId": "job-120",
+      "title": {
+        "zh": "見習騎士的試煉",
+        "en": "Trial of the Page"
+      },
+      "provenance": "P",
+      "fromJob": 100,
+      "toJob": 120,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1401",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "130100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 木妖",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000003",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 樹枝",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 120,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為見習騎士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Page, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 木妖，把它們身上的樹枝帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是見習騎士了。",
+          "en": "You have passed the trial. From now on you are a Page."
+        }
+      }
+    },
+    {
+      "questId": "job-130",
+      "title": {
+        "zh": "槍騎兵的試煉",
+        "en": "Trial of the Spearman"
+      },
+      "provenance": "P",
+      "fromJob": 100,
+      "toJob": 130,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1401",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "3230300",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 幼魔精靈",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000067",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 幼魔精靈的角",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 130,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為槍騎兵，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Spearman, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 幼魔精靈，把它們身上的幼魔精靈的角帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是槍騎兵了。",
+          "en": "You have passed the trial. From now on you are a Spearman."
+        }
+      }
+    },
+    {
+      "questId": "job-310",
+      "title": {
+        "zh": "獵人的試煉",
+        "en": "Trial of the Hunter"
+      },
+      "provenance": "P",
+      "fromJob": 300,
+      "toJob": 310,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1403",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1210102",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 菇菇寶貝",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4001354",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 年輕靈魂",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 310,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為獵人，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Hunter, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 菇菇寶貝，把它們身上的年輕靈魂帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是獵人了。",
+          "en": "You have passed the trial. From now on you are a Hunter."
+        }
+      }
+    },
+    {
+      "questId": "job-320",
+      "title": {
+        "zh": "弩弓手的試煉",
+        "en": "Trial of the Crossbowman"
+      },
+      "provenance": "P",
+      "fromJob": 300,
+      "toJob": 320,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30,
+        "quests": [
+          {
+            "questId": "1403",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1110100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 綠菇菇",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000012",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 綠菇菇傘",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 320,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為弩弓手，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Crossbowman, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 綠菇菇，把它們身上的綠菇菇傘帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是弩弓手了。",
+          "en": "You have passed the trial. From now on you are a Crossbowman."
+        }
+      }
+    },
+    {
+      "questId": "job-410",
+      "title": {
+        "zh": "刺客的試煉",
+        "en": "Trial of the Assassin"
+      },
+      "provenance": "P",
+      "fromJob": 400,
+      "toJob": 410,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "1120100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 三眼章魚",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000006",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 章魚腳",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 410,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為刺客，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Assassin, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 三眼章魚，把它們身上的章魚腳帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是刺客了。",
+          "en": "You have passed the trial. From now on you are a Assassin."
+        }
+      }
+    },
+    {
+      "questId": "job-420",
+      "title": {
+        "zh": "俠盜的試煉",
+        "en": "Trial of the Bandit"
+      },
+      "provenance": "P",
+      "fromJob": 400,
+      "toJob": 420,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 30
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "210100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 綠水靈",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000010",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 綠水靈珠",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 420,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為俠盜，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Bandit, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 30 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 30 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 綠水靈，把它們身上的綠水靈珠帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是俠盜了。",
+          "en": "You have passed the trial. From now on you are a Bandit."
+        }
+      }
+    },
+    {
+      "questId": "job-111",
+      "title": {
+        "zh": "十字軍的試煉",
+        "en": "Trial of the Crusader"
+      },
+      "provenance": "P",
+      "fromJob": 110,
+      "toJob": 111,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-110",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4230103",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 鋼之肥肥",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000039",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 鋼之肥肥的鐵蹄子",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 111,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為十字軍，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Crusader, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 鋼之肥肥，把它們身上的鋼之肥肥的鐵蹄子帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是十字軍了。",
+          "en": "You have passed the trial. From now on you are a Crusader."
+        }
+      }
+    },
+    {
+      "questId": "job-121",
+      "title": {
+        "zh": "騎士的試煉",
+        "en": "Trial of the Knight"
+      },
+      "provenance": "P",
+      "fromJob": 120,
+      "toJob": 121,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-120",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4230400",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 鋼之黑肥肥",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000178",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 鋼之黑肥肥的盔甲碎片",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 121,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為騎士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Knight, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 鋼之黑肥肥，把它們身上的鋼之黑肥肥的盔甲碎片帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是騎士了。",
+          "en": "You have passed the trial. From now on you are a Knight."
+        }
+      }
+    },
+    {
+      "questId": "job-131",
+      "title": {
+        "zh": "嗜血狂騎的試煉",
+        "en": "Trial of the Blood Rider"
+      },
+      "provenance": "P",
+      "fromJob": 130,
+      "toJob": 131,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-130",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "3210100",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 火肥肥",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000024",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 火肥肥尖牙",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 131,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為嗜血狂騎，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Blood Rider, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 火肥肥，把它們身上的火肥肥尖牙帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是嗜血狂騎了。",
+          "en": "You have passed the trial. From now on you are a Blood Rider."
+        }
+      }
+    },
+    {
+      "questId": "job-311",
+      "title": {
+        "zh": "遊俠的試煉",
+        "en": "Trial of the Ranger"
+      },
+      "provenance": "P",
+      "fromJob": 310,
+      "toJob": 311,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-310",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "2230111",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 石面怪人",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000197",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 石板",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 311,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為遊俠，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Ranger, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 石面怪人，把它們身上的石板帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是遊俠了。",
+          "en": "You have passed the trial. From now on you are a Ranger."
+        }
+      }
+    },
+    {
+      "questId": "job-321",
+      "title": {
+        "zh": "狙擊手的試煉",
+        "en": "Trial of the Sniper"
+      },
+      "provenance": "P",
+      "fromJob": 320,
+      "toJob": 321,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-320",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4230125",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 骷髏犬",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000204",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 骷髏犬骨頭",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 321,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為狙擊手，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Sniper, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 骷髏犬，把它們身上的骷髏犬骨頭帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是狙擊手了。",
+          "en": "You have passed the trial. From now on you are a Sniper."
+        }
+      }
+    },
+    {
+      "questId": "job-411",
+      "title": {
+        "zh": "暗殺者的試煉",
+        "en": "Trial of the Hermit"
+      },
+      "provenance": "P",
+      "fromJob": 410,
+      "toJob": 411,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-410",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4230126",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 木乃伊犬",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000205",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 繃帶",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 411,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為暗殺者，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Hermit, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 木乃伊犬，把它們身上的繃帶帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是暗殺者了。",
+          "en": "You have passed the trial. From now on you are a Hermit."
+        }
+      }
+    },
+    {
+      "questId": "job-421",
+      "title": {
+        "zh": "神偷的試煉",
+        "en": "Trial of the Chief Bandit"
+      },
+      "provenance": "P",
+      "fromJob": 420,
+      "toJob": 421,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 60,
+        "quests": [
+          {
+            "questId": "job-420",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "5150001",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 骷髏士兵",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000206",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 肋骨",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 421,
+            "amount": 5
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為神偷，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Chief Bandit, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 60 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 60 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 骷髏士兵，把它們身上的肋骨帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是神偷了。",
+          "en": "You have passed the trial. From now on you are a Chief Bandit."
+        }
+      }
+    },
+    {
+      "questId": "job-112",
+      "title": {
+        "zh": "英雄的試煉",
+        "en": "Trial of the Hero"
+      },
+      "provenance": "P",
+      "fromJob": 111,
+      "toJob": 112,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-111",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "3210205",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 黑色發條鼠",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000096",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 堅硬的核桃",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 112,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為英雄，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Hero, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 黑色發條鼠，把它們身上的堅硬的核桃帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是英雄了。",
+          "en": "You have passed the trial. From now on you are a Hero."
+        }
+      }
+    },
+    {
+      "questId": "job-122",
+      "title": {
+        "zh": "聖騎士的試煉",
+        "en": "Trial of the Paladin"
+      },
+      "provenance": "P",
+      "fromJob": 121,
+      "toJob": 122,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-121",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "3230304",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 藍色戰鬥機",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000105",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 飛機操縱桿",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 122,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為聖騎士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Paladin, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 藍色戰鬥機，把它們身上的飛機操縱桿帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是聖騎士了。",
+          "en": "You have passed the trial. From now on you are a Paladin."
+        }
+      }
+    },
+    {
+      "questId": "job-132",
+      "title": {
+        "zh": "黑騎士的試煉",
+        "en": "Trial of the Dark Knight"
+      },
+      "provenance": "P",
+      "fromJob": 131,
+      "toJob": 132,
+      "npc": {
+        "templateId": "1022000",
+        "maps": [
+          "102000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-131",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4230109",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 積木泥人",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000101",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 黃色玩具積木",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 132,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為黑騎士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Dark Knight, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 積木泥人，把它們身上的黃色玩具積木帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是黑騎士了。",
+          "en": "You have passed the trial. From now on you are a Dark Knight."
+        }
+      }
+    },
+    {
+      "questId": "job-312",
+      "title": {
+        "zh": "箭神的試煉",
+        "en": "Trial of the Bow Master"
+      },
+      "provenance": "P",
+      "fromJob": 311,
+      "toJob": 312,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-311",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "3230103",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 機器章魚王",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000100",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 塑膠王冠",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 312,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為箭神，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Bow Master, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 機器章魚王，把它們身上的塑膠王冠帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是箭神了。",
+          "en": "You have passed the trial. From now on you are a Bow Master."
+        }
+      }
+    },
+    {
+      "questId": "job-322",
+      "title": {
+        "zh": "神射手的試煉",
+        "en": "Trial of the Marksman"
+      },
+      "provenance": "P",
+      "fromJob": 321,
+      "toJob": 322,
+      "npc": {
+        "templateId": "1012100",
+        "maps": [
+          "100000201"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-321",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "4130103",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 泥人領導者",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000124",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 泥人領導者記憶卡",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 322,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為神射手，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Marksman, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 泥人領導者，把它們身上的泥人領導者記憶卡帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是神射手了。",
+          "en": "You have passed the trial. From now on you are a Marksman."
+        }
+      }
+    },
+    {
+      "questId": "job-412",
+      "title": {
+        "zh": "夜使者的試煉",
+        "en": "Trial of the Night Lord"
+      },
+      "provenance": "P",
+      "fromJob": 411,
+      "toJob": 412,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-411",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "5250000",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 苔蘚菇菇",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000437",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 黑色芽孢",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 412,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為夜使者，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Night Lord, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 苔蘚菇菇，把它們身上的黑色芽孢帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是夜使者了。",
+          "en": "You have passed the trial. From now on you are a Night Lord."
+        }
+      }
+    },
+    {
+      "questId": "job-422",
+      "title": {
+        "zh": "暗影神偷的試煉",
+        "en": "Trial of the Shadower"
+      },
+      "provenance": "P",
+      "fromJob": 421,
+      "toJob": 422,
+      "npc": {
+        "templateId": "10203",
+        "maps": [
+          "001020000"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-421",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "5250002",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 猿人肥肥",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000440",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 粗糙的皮革",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 422,
+            "amount": 3
+          }
+        ],
+        "skills": [],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為暗影神偷，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Shadower, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 猿人肥肥，把它們身上的粗糙的皮革帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是暗影神偷了。",
+          "en": "You have passed the trial. From now on you are a Shadower."
+        }
+      }
+    },
+    {
+      "questId": "job-222",
+      "title": {
+        "zh": "最頂級冰雷魔法的試煉",
+        "en": "The Ultimate Ice/Lightning Magic"
+      },
+      "provenance": "P",
+      "fromJob": 221,
+      "toJob": 222,
+      "npc": {
+        "templateId": "1032001",
+        "maps": [
+          "101000003"
+        ]
+      },
+      "require": {
+        "levelAtLeast": 100,
+        "quests": [
+          {
+            "questId": "job-221",
+            "status": "completed"
+          }
+        ]
+      },
+      "objectives": [
+        {
+          "kind": "kill",
+          "mobId": "5250003",
+          "required": 30,
+          "text": {
+            "zh": "擊敗 30 隻 狂暴的猿人肥肥",
+            "en": "Defeat 30 of the monsters guarding the trial ground"
+          }
+        },
+        {
+          "kind": "collect",
+          "itemId": "4000673",
+          "required": 10,
+          "text": {
+            "zh": "收集 10 個 長著草的泥巴",
+            "en": "Collect 10 proof items they carry"
+          }
+        }
+      ],
+      "consumeItems": true,
+      "reward": {
+        "skillPoints": [
+          {
+            "book": 222,
+            "amount": 3
+          }
+        ],
+        "skills": [
+          {
+            "skillId": 2220015,
+            "level": 1
+          }
+        ],
+        "maxMpFloor": 0,
+        "exp": 0,
+        "mesos": 0,
+        "items": []
+      },
+      "dialogue": {
+        "offer": {
+          "zh": "想成為冰雷大魔導士，就得先證明自己。願意接受試煉嗎？",
+          "en": "To become a Ice/Lightning Arch Mage, you must first prove yourself. Will you take the trial?"
+        },
+        "locked": {
+          "zh": "你還不夠資格。先達到 100 級，並完成上一段試煉。",
+          "en": "You are not ready. Reach level 100 and finish the previous trial first."
+        },
+        "accept": {
+          "zh": "很好。去擊敗 狂暴的猿人肥肥，把它們身上的長著草的泥巴帶回來給我。",
+          "en": "Good. Defeat them and bring me the proof they carry."
+        },
+        "progress": {
+          "zh": "試煉還沒有完成。把目標做完，再來找我。",
+          "en": "The trial is not finished yet. Complete the goals, then come back to me."
+        },
+        "ready": {
+          "zh": "你做到了。把收集的證明交給我，我現在就為你轉職。",
+          "en": "You did it. Hand me the proof you gathered and I will advance you now."
+        },
+        "complete": {
+          "zh": "你通過了試煉。從現在起，你就是冰雷大魔導士了。",
+          "en": "You have passed the trial. From now on you are a Ice/Lightning Arch Mage."
         }
       }
     }

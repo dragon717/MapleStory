@@ -10,7 +10,7 @@ const protocolSource=readFileSync(root+'/shared/protocol.ts','utf8');
 const expectedProtocol=Number(/PROTOCOL_VERSION\s*=\s*(\d+)/.exec(protocolSource)?.[1]);
 const expectedContent=/CONTENT_VERSION\s*=\s*'([^']+)'/.exec(protocolSource)?.[1];
 assert.equal(expectedProtocol,34,'shared protocol must be 34');
-assert.equal(expectedContent,'tms273-35','shared content must be tms273-35');
+assert.equal(expectedContent,'tms273-37','shared content must be tms273-37');
 const catalog=JSON.parse(readFileSync(root+'/shared/character-creation.json','utf8')),g=catalog.genders[0];
 const config=JSON.parse(readFileSync(root+'/shared/colossus.json','utf8'));
 const trackLength=name=>{

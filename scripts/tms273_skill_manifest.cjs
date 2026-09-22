@@ -144,21 +144,56 @@ function levelDescriptions(entry, maxLevel) {
   return undefined;
 }
 
-// 技能窗的页签是「转职层级」，不是「技能书」：同一层级的多个分支（火毒 210 / 冰雷 220 /
-// 僧侶 230 的 2 转）**共用同一个页签下标**，实际显示哪一本由角色职业决定——门控在
-// `client/src/features/skills/view.ts` 的 BOOK_JOBS 表里，两处必须一起改。
+// 技能窗的页签是「转职层级」，不是「技能书」：同一层级的多本书**共用同一个页签下标**，
+// 实际显示哪一本由角色职业决定——门控在 `client/src/features/player/input.ts` 的
+// BOOK_JOBS 表里，两处必须一起改。
 // 下标上界来自源：`UI/UIWindow2.img/Skill/main/Tab` 只有 7 组页签图
 // （`export_tms273_skill_ui.cjs` 的 TAB_COUNT=7），所以只允许 0..6。
-// 加分支书必须复用同层下标，**不能顺延**，否则会超出页签图范围退化成无美术的占位按钮。
-const SKILL_BOOK_TABS = {
-  '0': 0,
-  '200': 1,
-  '210': 2, '220': 2, '230': 2,
-  '211': 3, '221': 3, '231': 3,
-  '212': 4, '222': 4, '232': 4,
+// **层级由书号派生，不写死书名**（skill §15.1）：一转书是 `100/200/300/400`
+// （`book % 100 === 0`，页签 1），分支书按 `book % 10` 分层——0 二转→页签 2、
+// 1 三转→页签 3、2 四转→页签 4。新分支只会多一本书，不会多一个层级；
+// 反过来，把新分支的下标顺延到 5/6 会超出页签图范围，退化成无美术的占位按钮。
+const BEGINNER_BOOK_ID = 0;
+const FIRST_JOB_BOOKS = [100, 200, 300, 400];
+const BRANCH_BOOKS = [
+  110, 111, 112, 120, 121, 122, 130, 131, 132, // 战士：英雄 / 圣骑士 / 黑骑士
+  210, 211, 212, 220, 221, 222, 230, 231, 232, // 法师：火毒 / 冰雷 / 主教
+  310, 311, 312, 320, 321, 322, // 弓箭手：猎人 / 神射手
+  410, 411, 412, 420, 421, 422, // 飞侠：刺客 / 侠盗
+];
+const ALL_BOOKS = [BEGINNER_BOOK_ID, ...FIRST_JOB_BOOKS, ...BRANCH_BOOKS].sort((a, b) => a - b);
+
+function skillBookTabIndex(book) {
+  if (book === BEGINNER_BOOK_ID) return 0;
+  if (FIRST_JOB_BOOKS.includes(book)) return 1;
+  const tier = book % 10;
+  assert(book % 100 >= 10 && tier >= 0 && tier <= 2, `书 ${book} 解不出转职层级（页签下标）`);
+  return tier + 2;
+}
+
+const SKILL_BOOK_TABS = Object.fromEntries(ALL_BOOKS.map(book => [String(book), skillBookTabIndex(book)]));
+
+/** 四转的十二条分支：Hyper 池、`(mobCount, attackCount)` 上界等「按层级分档」的判据都看它。
+ *  按层级派生（`book % 10 === 2 && book % 100 >= 10`），与 `server/src/mage.rs` 同一口径。 */
+const FOURTH_JOB_BOOKS = new Set(
+  ALL_BOOKS.filter(book => book % 100 >= 10 && book % 10 === 2).map(String),
+);
+assert.equal(FOURTH_JOB_BOOKS.size, 10, '四转书应当是 战士3 + 法师3 + 弓箭手2 + 飞侠2 = 10 本');
+
+// 四转书 → 源里 Hyper **主动池**（hyper=2）的条数。**源事实，不是按分支推的**：
+// 被动池（hyper=1）十二条分支都是 9 条；主动池却有 3 条与 4 条两种
+// （英雄/神射手/箭神/夜使者/暗影神偷/开拓者各 3，圣骑士/黑骑士/火毒/冰雷/主教各 4），
+// 写成「一律 4」或「一律 3」都会在某几本上直接红。键集合必须与 FOURTH_JOB_BOOKS 完全一致。
+const HYPER_ACTIVE_POOL = {
+  112: 4, 122: 4, 132: 3,
+  212: 3, 222: 4, 232: 4,
+  312: 3, 322: 3,
+  412: 3, 422: 3,
 };
-/** 四转的三条分支：Hyper 池、`(mobCount, attackCount)` 上界等「按层级分档」的判据都看它。 */
-const FOURTH_JOB_BOOKS = new Set(['212', '222', '232']);
+assert.deepEqual(
+  Object.keys(HYPER_ACTIVE_POOL).sort(), [...FOURTH_JOB_BOOKS].sort(),
+  'HYPER_ACTIVE_POOL 与四转书集合不一致：加了四转书必须同时登记它的主动池条数',
+);
 
 function skillManifest(windowExport, skillExport) {
   assert.equal(windowExport.sourceVersion, 'TMS273.7');
@@ -274,9 +309,15 @@ function mageRules(skillExport) {
   }
   assert.equal(skills['2001009']?.name, '瞬間移動', 'user-specified rule 2001009 no longer maps to 瞬間移動');
   // 分书条数由 `export_tms273_skills.cjs` 的 expectedCatalogCounts 逐书钉住（唯一权威）；
-  // 这里只钉总数，用来发现「整本书静默掉出投影」。
-  assert.equal(Object.keys(skills).length, 153, 'mage skill count changed');
+  // 这里只钉总数与「书集合 == 页签表」的闭包，用来发现「整本书静默掉出投影」。
+  // 总数 = 153(法师 11 本) + 351(战士 10 + 弓箭手 7 + 飞侠 7 本)，改任何一本都要重新数。
+  assert.equal(Object.keys(skills).length, 504, 'explorer skill count changed');
+  assert.deepEqual(
+    [...new Set(Object.values(skills).map(skill => String(skill.bookId)))].sort(),
+    Object.keys(SKILL_BOOK_TABS).sort(),
+    '投影出去的书集合与页签表不一致',
+  );
   return { sourceVersion: 'TMS273.7', bookId: 200, skills };
 }
 
-module.exports = { skillManifest, mageRules, SKILL_BOOK_TABS, FOURTH_JOB_BOOKS, RUNTIME_INTEGER_FIELDS };
+module.exports = { skillManifest, mageRules, SKILL_BOOK_TABS, FOURTH_JOB_BOOKS, HYPER_ACTIVE_POOL, RUNTIME_INTEGER_FIELDS };

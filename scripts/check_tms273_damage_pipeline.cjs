@@ -230,12 +230,47 @@ const NOT_CONSUMED = {
   // 三本四转书的强化被动现**全部接通**：冰雷 2220043/2220046/2220049 与火毒
   // 2120043/2120046/2120049 都在 `skills.rs::magic_damage_breakdown` 的
   // 「被强化技能 → 强化被动」配对表里（`hyperPairs` 会逐条从源码解出并断言）。
-  damR: {},
+  // 2026-09-22 目录并入四条职业线后，物理线四转书的 Hyper 强化被动（17 本）也带
+  // damR，但它们依附于**物理四转主动技能**的施放——物理执行链未接（如实登记），
+  // 所以逐本登记为不消费；物理执行链落地时这里会红，要求同时补上配对消费。
+  damR: Object.fromEntries(
+    Object.entries(mageSkills.skills)
+      .filter(([, skill]) => skill.hyper === 1 && skill.levels.some(level => level.damR !== undefined))
+      .filter(([id]) => { const book = Math.floor(Number(id) / 10000); return book < 200 || book >= 300; })
+      .map(([id]) => [id, {
+        why: '物理线四转书的 Hyper 强化被动：damR 只在「被强化的那一招打出去」时生效，依附于一条**被强化技能 → 强化被动**的配对表；本包物理分支只接了直接伤害（`PHYSICAL_AREA_ATTACKS`），没有这张配对表 ⇒ 消费不了。接 Hyper 配对消费时必须同时删掉这条登记。',
+      }]),
+  ),
   // Hyper 主动增益：indieDamR / mdR 是「窗口内」的值，必须先有施法与增益窗。
+  // 2026-09-22 起物理线的 傳說冒險（7 本）与 專注弱點/翻轉硬幣 也带窗口内 indieDamR，
+  // 依附于物理四转主动的施放（未接执行链）⇒ 按源表动态登记。
   indieDamR: {
     '2121053': { boosted: '2121053', why: '傳說冒險（火毒）' },
     '2321053': { boosted: '2321053', why: '傳說冒險（主教）' },
+    ...Object.fromEntries(
+      Object.entries(mageSkills.skills)
+        .filter(([, skill]) => skill.hyper === 2 && skill.levels.some(level => level.indieDamR !== undefined))
+        .filter(([id]) => { const book = Math.floor(Number(id) / 10000); return book < 200 || book >= 300; })
+        .map(([id, skill]) => [id, {
+          boosted: id,
+          why: `${skill.name}（物理线 Hyper 主动）：indieDamR 是施放窗口内的值，必须先有增益窗；本包物理分支只接了直接伤害（PHYSICAL_AREA_ATTACKS），没有窗口状态 ⇒ 消费不了。接增益窗时必须同时补上独立乘算声明。`,
+        }]),
+    ),
   },
+  // `criticaldamage`（暴击伤害）的消费管线只在魔法路径（skills.rs 的暴击组，
+  // MAGIC_CRITICAL_SKILLS）。物理线 14 本来源（武器精通族 / 鬥氣爆發 / 轉生 等）的
+  // 暴击伤害没有物理暴击管线 ⇒ 逐本登记不消费；其中若干本（武器精通族）的 mastery
+  // 已由 MASTERY_SKILLS 消费，用 hasConstant 豁免常量反向断言。物理暴击路径落地时
+  // 这里会红，要求重新决定分组。
+  criticaldamage: Object.fromEntries(
+    Object.entries(mageSkills.skills)
+      .filter(([, skill]) => skill.levels.some(level => level.criticaldamage !== undefined))
+      .filter(([id]) => { const book = Math.floor(Number(id) / 10000); return book < 200 || book >= 300; })
+      .map(([id, skill]) => [id, {
+        hasConstant: constFor(Number(id)) !== null,
+        why: `${skill.name}：criticaldamage 是暴击伤害组，消费点只存在于魔法路径（MAGIC_CRITICAL_SKILLS 循环）；物理攻击路径没有暴击管线 ⇒ 这一个字段消费不了。物理暴击路径落地时必须重新决定。`,
+      }]),
+  ),
   mdR: {
     '2321054': { boosted: '2321054', why: '復仇天使' },
   },
@@ -245,10 +280,13 @@ const excusedIds = field => Object.keys(NOT_CONSUMED[field] ?? {}).sort();
 /** 某个字段里真正要被消费的 id 集合（源表重算 − 登记表）。 */
 const consumedIds = field =>
   catalogIdsWith(field).filter(id => !excusedIds(field).includes(id));
-/** 反向断言：登记表里的每一条都必须「真的没接路径」，且理由非空。 */
+/** 反向断言：登记表里的每一条都必须「真的没接路径」，且理由非空。
+ *  `hasConstant: true` 的条目豁免常量反向断言——用于「部分字段消费」的技能
+ *  （其它字段已由别的槽位消费，这一个字段的管线不存在）。 */
 const assertExcused = field => {
   for (const [id, entry] of Object.entries(NOT_CONSUMED[field] ?? {})) {
     assert.ok(entry.why, `${field} 的 ${id} 登记为「不消费」却没写理由`);
+    if (entry.hasConstant) continue;
     for (const id2 of new Set([id, entry.boosted])) {
       assert.equal(
         constFor(Number(id2)), null,
@@ -261,18 +299,46 @@ const assertExcused = field => {
 
 // 3a. `damR` 分两段被消费：非 Hyper 的常驻段（魔力激發）走 `is_magic_attack_skill` 闸门，
 //     Hyper=1 的强化段（三本 Hyper 被动）走「配对 Hyper 强化」分支。两段都由内容独立重算。
+//     2026-09-22 目录并入四条职业线后，常驻段多出三本**物理线**来源：物理攻击路径
+//     （attacks.rs 的普攻区间 + 等级差 + PDD）没有伤害率组，这三本的 damR 消费不了，
+//     逐条登记理由（其中 1120003 的 mastery 已由 MASTERY_SKILLS 消费——「部分字段
+//     消费」用 hasConstant 豁免常量反向断言）。物理伤害率组随物理技能执行链落地时，
+//     这里会要求把消费补上。
+const PERSISTENT_DAMR_NOT_CONSUMED = {
+  '1110013': {
+    why: '英雄三转 鬥氣綜合 的 damR 依附斗气（combo）系统：prop/subProp 是发动几率与叠加层数，damR 是「斗气攒满那一击」的加成；本包未实现斗气 ⇒ 消费不了。',
+  },
+  '1120003': {
+    hasConstant: true,
+    why: '進階鬥氣 的 damR 依附斗气系统（同 1110013），本包未实现 ⇒ 这一个字段消费不了；它的 mastery 已由 MASTERY_SKILLS 消费（world.rs 有常量 SKILL_ADVANCED_COMBO），属于「部分字段消费」——常量反向断言对它豁免。',
+  },
+  '3210015': {
+    why: '弩弓手二转 射擊術 的 damR 是常驻物理攻击伤害率；本包物理攻击路径没有伤害率组（加算组只在魔法路径 magic_damage_breakdown）⇒ 消费不了。它的 ar / ignoreMobpdpR 同样只在魔法路径有消费点。物理技能执行链落地时必须重新决定。',
+  },
+};
 const ampIds = catalogDamR.filter(id => mageSkills.skills[id].hyper === 0);
 const hyperDamRIds = catalogDamR.filter(id => mageSkills.skills[id].hyper === 1);
+for (const [id, entry] of Object.entries(PERSISTENT_DAMR_NOT_CONSUMED)) {
+  assert.ok(entry.why, `damR 常驻段的 ${id} 登记为「不消费」却没写理由`);
+  if (!entry.hasConstant) {
+    assert.equal(
+      constFor(Number(id)), null,
+      `damR 常驻段的 ${id} 登记为「不消费」，但 world.rs 已给它起常量 ${constFor(Number(id))}——接了路径就必须同时补消费`,
+    );
+  }
+}
 assert.deepEqual(
-  ampIds, ['2110001', '2210001'],
-  `源里 damR 的常驻段是 ${ampIds.join('/')}：这一段与 skills.rs 的「常驻被动」分支必须一一对应`,
+  ampIds, ['2110001', '2210001', ...Object.keys(PERSISTENT_DAMR_NOT_CONSUMED)].sort(),
+  `源里 damR 的常驻段是 ${ampIds.join('/')}：与 skills.rs 的「常驻被动」分支 + 登记表必须一一对应`,
 );
-// 常驻段的两本（冰雷 2210001 / 火毒 2110001）绑在 `ELEMENT_AMP_SKILLS` 上，
-// 由「成员 == 源表重算结果」+「循环头绑定这张表」+「体内按统一变体声明」三件一起钉住。
+// 常驻段被消费的两本（冰雷 2210001 / 火毒 2110001）绑在 `ELEMENT_AMP_SKILLS` 上，
+// 由「成员 == 源表重算结果 − 登记表」+「循环头绑定这张表」+「体内按统一变体声明」
+// 三件一起钉住。
 assert.deepEqual(
-  idsForArray('ELEMENT_AMP_SKILLS'), ampIds,
+  idsForArray('ELEMENT_AMP_SKILLS'),
+  ampIds.filter(id => !PERSISTENT_DAMR_NOT_CONSUMED[id]),
   `world.rs 的 ELEMENT_AMP_SKILLS 成员是 ${idsForArray('ELEMENT_AMP_SKILLS').join('/')}，`
-  + `源里 damR 的常驻段是 ${ampIds.join('/')}——新增一本分支就必须同时改这张表`,
+  + `源里 damR 的常驻段（扣除登记表）是 ${ampIds.filter(id => !PERSISTENT_DAMR_NOT_CONSUMED[id]).join('/')}——新增一本分支就必须同时改这张表`,
 );
 assertLoopedSource('ELEMENT_AMP_SKILLS', 'DamageRate');
 assert.ok(hyperDamRIds.length > 0, '源里一个 Hyper 强化段的 damR 都没有？形状变了');
@@ -311,13 +377,15 @@ assert.ok(
   `源里唯一的 indieDamR 来源 ${indieId} 必须在普通攻击与魔法技能两条路径上都声明为 IndependentDamageRate`,
 );
 
-// 3c. `criticaldamage`：只走暴击组。三本（冰雷 2210009 / 火毒 2110009 / 僧侶 2310010）绑表。
-const catalogCrit = catalogIdsWith('criticaldamage');
-assert.ok(catalogCrit.length > 0, '源技能表里一个 criticaldamage 都没有？形状变了');
+// 3c. `criticaldamage`：只走暴击组。被消费的是法师三本 魔法爆擊（冰雷 2210009 /
+//     火毒 2110009 / 僧侶 2310010）；物理线来源登记在 `NOT_CONSUMED.criticaldamage`。
+assertExcused('criticaldamage');
+const catalogCritConsumed = consumedIds('criticaldamage');
+assert.ok(catalogCritConsumed.length > 0, '源技能表里一个要消费的 criticaldamage 都没有？形状变了');
 assert.deepEqual(
-  idsForArray('MAGIC_CRITICAL_SKILLS'), catalogCrit,
+  idsForArray('MAGIC_CRITICAL_SKILLS'), catalogCritConsumed,
   `world.rs 的 MAGIC_CRITICAL_SKILLS 成员是 ${idsForArray('MAGIC_CRITICAL_SKILLS').join('/')}，`
-  + `源里带 criticaldamage 的技能是 ${catalogCrit.join('/')}`,
+  + `源里要消费的 criticaldamage 是 ${catalogCritConsumed.join('/')}`,
 );
 assertLoopedSource('MAGIC_CRITICAL_SKILLS', 'CriticalDamage');
 
@@ -334,6 +402,101 @@ assert.deepEqual(
   + `源里要消费的 mdR 是 ${catalogMdR.join('/')}`,
 );
 assertLoopedSource('ELEMENTAL_RESET_SKILLS', 'UnmarkedField', ',\\s*field: "mdR"');
+
+// 3e. 物理线（战士 / 弓箭手 / 飞侠）**二转以上**的攻击技能：准入是**规则派生**的。
+//     判据与 `world.rs::PHYSICAL_AREA_ATTACKS` 的注释同源，且**不读那张表**：
+//       源里 `damage ∧ mobCount ∧ attackCount ∧ lt ∧ rb` 齐备
+//       ∧ 不是 `hidden` 节点（玩家点不到，`handle_cast_skill` 在施法前就拒了）
+//       ∧ 不含任何「本包还没有这条机制」的字段（下表逐字段写明是哪条机制）。
+//     三条物理线的分支书 = 十位 ∈ {11,12,13,31,32,41,42}（即 `book / 10`），
+//     不含四条**一转**书（它们的 6 条单独列在表里，且不在本段的重算范围内）。
+const PHYSICAL_BRANCHES = new Set([11, 12, 13, 31, 32, 41, 42]);
+/** 字段 → 「这条机制本包还没有」的理由。删掉一行 = 宣布该机制已实现，
+ *  届时对应技能会自动要求进 `PHYSICAL_AREA_ATTACKS`（而不是继续被静默跳过）。 */
+const PHYSICAL_MECHANISM_FIELDS = {
+  time: '增益 / 召唤窗口：物理分支只接了**直接伤害**，没有施放窗与召唤实体',
+  dot: '持续伤害场：本包没有 DoT 结算',
+  dotInterval: '持续伤害场：本包没有 DoT 结算',
+  dotTime: '持续伤害场：本包没有 DoT 结算',
+  prop: '按几率触发（斗气 / 印记 / 挑衅 / 追加）：本包没有触发骰',
+  subTime: '子窗口计时：本包没有窗口状态',
+  updatableTime: '可刷新窗口计时：本包没有窗口状态',
+  ballDelay: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
+  ballDelay1: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
+  ballDelay2: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
+  ballDelay3: '多段投射物的逐段时序：本包按段数一次性结算，不建模飞行时序',
+  lt2: '第二命中盒：本包的范围选择只读 `common/lt|rb` 一对',
+  rb2: '第二命中盒：本包的范围选择只读 `common/lt|rb` 一对',
+  maxUseCountInOneJump: '跳跃使用次数限制：本包不建模该计数器',
+  basicStatUp: '属性增益：走 attribute 槽位，不是攻击',
+  mastery: '熟练度被动：走 `MASTERY_SKILLS` 槽位，不是攻击',
+  hcHp: 'HP 消耗 / 上限类字段：本包不建模',
+  hp: 'HP 消耗类字段：本包不建模',
+  fixdamage: '固定伤害：新手技能路径专用',
+};
+const physicalBranchSkillIds = Object.entries(mageSkills.skills)
+  .filter(([id]) => PHYSICAL_BRANCHES.has(Math.floor(Number(id) / 10000 / 10)))
+  .map(([id]) => id);
+const physicalAttackExpected = [];
+const physicalAttackExcused = {};
+for (const id of physicalBranchSkillIds) {
+  const skill = mageSkills.skills[id];
+  const fields = new Set(skill.levels.flatMap(level => Object.keys(level)));
+  if (!['damage', 'mobCount', 'attackCount', 'lt', 'rb'].every(field => fields.has(field))) {
+    continue; // 不是「带贴身框的直接攻击」，不在本段的判据范围内（另有 53/55/162 条分类统计）
+  }
+  if (skill.hidden) {
+    physicalAttackExcused[id] = { why: `${skill.name}：源里是 \`hidden\` 节点（由职业规则自动启用），玩家点不到 —— 施法入口在 \`skill_hidden\` 就拒了，接进范围表没有意义。` };
+    continue;
+  }
+  const marker = Object.keys(PHYSICAL_MECHANISM_FIELDS).find(field => fields.has(field));
+  if (marker) {
+    physicalAttackExcused[id] = { why: `${skill.name}：带源字段 \`${marker}\` ⇒ ${PHYSICAL_MECHANISM_FIELDS[marker]}。` };
+    continue;
+  }
+  physicalAttackExpected.push(id);
+}
+physicalAttackExpected.sort();
+// 反向断言：登记为「进不了表」的每一条都必须**真的没有** `world.rs` 常量——
+// 哪天有人给它起了常量、接了施法分支，这里立刻红，要求同时把它放进范围表。
+for (const [id, entry] of Object.entries(physicalAttackExcused)) {
+  assert.ok(entry.why, `物理线攻击技能的 ${id} 登记为「不接」却没写理由`);
+  assert.equal(
+    constFor(Number(id)), null,
+    `物理线 ${id} 登记为「不接执行链」，但 world.rs 已给它起常量 ${constFor(Number(id))}——`
+      + '接了路径就必须把它放进 PHYSICAL_AREA_ATTACKS，或把这条登记删掉',
+  );
+}
+// 双向：分支书里的每一条期望成员都必须在表里，且表里**分支书**的成员恰好就是期望集合
+// （一转 6 条是另一段历史，单独豁免给 `PHYSICAL_ONE_TURN_ATTACKS`）。
+const PHYSICAL_ONE_TURN_ATTACKS = ['1001005', '1001010', '1001011', '4001334', '4001344', '4001013'];
+const physicalWired = idsForArray('PHYSICAL_AREA_ATTACKS');
+assert.deepEqual(
+  physicalWired.filter(id => !PHYSICAL_ONE_TURN_ATTACKS.includes(id)), physicalAttackExpected,
+  `world.rs 的 PHYSICAL_AREA_ATTACKS 里（除一转 6 条外）是 `
+    + `${physicalWired.filter(id => !PHYSICAL_ONE_TURN_ATTACKS.includes(id)).join('/')}，`
+    + `源表按「damage+mobCount+attackCount+lt+rb ∧ 非 hidden ∧ 无机制标记」重算出来的是 `
+    + `${physicalAttackExpected.join('/')}`,
+);
+assert.deepEqual(
+  physicalWired.filter(id => PHYSICAL_ONE_TURN_ATTACKS.includes(id))
+    .sort(), [...PHYSICAL_ONE_TURN_ATTACKS].sort(),
+  'PHYSICAL_AREA_ATTACKS 的一转 6 条被改动了',
+);
+// 上界自证：本表成员的 `mobCount` / `attackCount` 必须落在范围管线的既有上界里
+// （目标 15 / 段数 12）。超了要改上界，不是悄悄截断。
+for (const id of physicalWired) {
+  for (const level of mageSkills.skills[id].levels) {
+    assert.ok(
+      (level.mobCount ?? 1) <= 15,
+      `${id} 的 mobCount ${level.mobCount} 超过 area_targets_at 的上界 15`,
+    );
+    assert.ok(
+      (level.attackCount ?? 1) <= 12,
+      `${id} 的 attackCount ${level.attackCount} 超过 cast_elemental_area_at_filtered 的上界 12`,
+    );
+  }
+}
 
 /** 源里带分组标记的三个字段名——它们是「哪些加算、哪些独立乘算」的全部依据。 */
 assert.deepEqual(
@@ -483,10 +646,36 @@ assert.equal(
   (attacksSrc.match(/boss_damage_multiplier\([^)]*\)\s*- 100/g) ?? []).length, 1,
   'attacks.rs 的区域系数必须写成 `boss_damage_multiplier(..) - 100`（百分点，负数表示减伤）',
 );
-assert.equal(
-  (skillsSrc.match(/boss_damage_multiplier\([^)]*\)\s*- 100/g) ?? []).length, 1,
-  'skills.rs 的区域系数必须写成 `boss_damage_multiplier(..) - 100`',
-);
+// skills.rs 有**两处**区域系数，且 `magic` 参数必须跟着伤害种类走：
+//   ① 魔法路径（`magic_damage_breakdown`）⇒ `true`，吃源 `MagicGuard` 113 的魔法护盾；
+//   ② 物理线一转攻击技能（`cast_elemental_area_at_filtered` 的 `if physical` 分支）
+//      ⇒ `false`，与 `attacks.rs` 的普攻同口径，吃源 `PhysicalGuard` 112 的物理护盾。
+// 计数钉死（防止哪天再加第三条伤害路径而忘了带这个系数），并且**逐处钉 `true`/`false`**
+// ——2026-09-22 物理分支初版就写成 `true`，是「物理技能吃魔法护盾、又无视物理护盾」的
+// 双向错误；只钉「写成 `.. - 100`」这种形状是抓不到的（两处的形状一模一样）。
+{
+  const calls = [...skillsSrc.matchAll(/boss_damage_multiplier\(([^)]*)\)\s*- 100/g)];
+  assert.equal(
+    calls.length, 2,
+    `skills.rs 的区域系数出现 ${calls.length} 处，应当是 2 处（魔法路径 + 物理线攻击技能）`,
+  );
+  const flags = calls.map(match => /,\s*(true|false)\s*$/.exec(match[1])?.[1]);
+  assert.deepEqual(
+    flags.slice().sort(), ['false', 'true'],
+    `skills.rs 两处区域系数的伤害种类判据是 ${flags.join('/')}，应当恰好一处 true（魔法）`
+      + '一处 false（物理）——伤害种类写错会让技能吃错护盾，且两个方向都错',
+  );
+  const physicalBranch = /let damage = if physical \{([\s\S]*?)\} else \{/.exec(skillsSrc);
+  assert.ok(
+    physicalBranch,
+    'skills.rs 里读不到 `if physical { … } else {` 这条伤害分野——物理/魔法分支的判据脱钩了',
+  );
+  assert.match(
+    physicalBranch[1], /boss_damage_multiplier\([^)]*,\s*false\)\s*- 100/,
+    '物理分支的区域系数必须取 `false`（物理护盾，与 attacks.rs 的普攻同口径）；'
+      + '写 `true` 会让物理技能去吃魔法护盾',
+  );
+}
 
 const protocolVersion = /pub const PROTOCOL_VERSION: u32 = (\d+);/.exec(protocolSrc);
 const sharedVersion = /PROTOCOL_VERSION\s*=\s*(\d+)/.exec(sharedProtocol);
@@ -511,7 +700,7 @@ console.log(
 );
 console.log(
   `  源表重算：damR=${catalogDamR.join('/')}、indieDamR=${catalogIndie.join('/')}、`
-  + `criticaldamage=${catalogCrit.join('/')}`,
+  + `criticaldamage（消费）=${catalogCritConsumed.join('/')}`,
 );
 console.log(
   `  旧式乘算：0 处（玩家受伤侧按边界正向登记，未纳入管线）`,

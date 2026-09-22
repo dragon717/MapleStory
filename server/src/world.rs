@@ -284,11 +284,20 @@ const SKILL_DIVINE_PROTECTION: u32 = 2311012;
 // 一致 ⇒ 按同一数组消费，不另开槽位。
 const SKILL_FIRE_DEMON: u32 = 2121005;
 const SKILL_MASTER_MAGIC_BISHOP: u32 = 2320012;
-// 楓葉祝福（`basicStatUp`，对 AP 四维的百分比）：三个四转分支各有一本，与冰雷那本
-// 同源同格 —— 冰雷的常量早已存在（`SKILL_MAPLE_WARRIOR`），这里补另外两条分支，
-// 一起收进 `MAPLE_WARRIOR_SKILLS` 按「逐本求和」消费。
+// 楓葉祝福（`basicStatUp`，对 AP 四维的百分比）：**四条职业线的四转各有一本**
+// （2026-09-22 起 10 本：法师 3 + 战士 3 + 弓 2 + 侠 2），与冰雷那本同源同格
+// —— 冰雷的常量早已存在（`SKILL_MAPLE_WARRIOR`）。十本的源 `common` 形状逐本核对过
+// （同样没有 `time`、`basicStatUp = u(x/2)`），一起收进 `MAPLE_WARRIOR_SKILLS`
+// 按「逐本求和」消费。
 const SKILL_MAPLE_WARRIOR_FP: u32 = 2121000;
 const SKILL_MAPLE_WARRIOR_CLERIC: u32 = 2321000;
+const SKILL_MAPLE_WARRIOR_HERO: u32 = 1121000;
+const SKILL_MAPLE_WARRIOR_PALADIN: u32 = 1221000;
+const SKILL_MAPLE_WARRIOR_DARK_KNIGHT: u32 = 1321000;
+const SKILL_MAPLE_WARRIOR_HUNTER: u32 = 3121000;
+const SKILL_MAPLE_WARRIOR_CROSSBOW: u32 = 3221000;
+const SKILL_MAPLE_WARRIOR_NIGHTLORD: u32 = 4121000;
+const SKILL_MAPLE_WARRIOR_BANDIT: u32 = 4221000;
 // 大師魔法（`madX`，永久魔攻）：三个四转分支各一本，冰雷的常量早已存在
 // （`SKILL_MASTER_MAGIC`），这里补另外两条分支；2320012 同时提供 `mdR`（见
 // `ELEMENTAL_RESET_SKILLS`），同一本进两张表并不冲突——那是两个不同的源字段。
@@ -340,16 +349,190 @@ const SKILL_HYPER_POISON_DAMAGE: u32 = 2120043;
 const SKILL_HYPER_FLAME_DAMAGE: u32 = 2120046;
 const SKILL_HYPER_HELLFIRE_DAMAGE: u32 = 2120049;
 
+// ── 战士 / 弓箭手 / 飞侠三条职业线的**熟练度被动** ─────────────────────────
+// 2026-09-22 目录扩到四条职业线后，物理线的「武器精通」族与法师 咒語精通 同格：
+// `mastery` 是武器熟练度（物理伤害区间下限），学得即生效、取**高者**。二转 14→50、
+// 四转 56→70，各线同形（源节点逐本核对过）。它们的其余字段**不进聚合**，理由登记在
+// `scripts/check_tms273_attributes.cjs` 的「物理线决策块」：`x` 是**命中率**（本包战斗
+// 未建模命中/miss）、`cr`/`criticaldamage`/`pdR` 只在法师魔法路径有暴击与伤害率消费、
+// `actionSpeed` 攻速消费只接了法师 booster——物理路径哪天接了对应管线，这些字段要
+// 重新决定。1120003 進階鬥氣 的 `damR`/`prop`/`v` 是斗气系统，本包未实现。
+const SKILL_WEAPON_MASTERY_HERO: u32 = 1100000;
+const SKILL_ADVANCED_COMBO: u32 = 1120003;
+const SKILL_WEAPON_MASTERY_PALADIN: u32 = 1200000;
+const SKILL_WEAPON_MASTERY_DARK_KNIGHT: u32 = 1300000;
+const SKILL_BOW_MASTERY: u32 = 3100000;
+const SKILL_BOW_EXPERT: u32 = 3120005;
+const SKILL_CROSSBOW_MASTERY: u32 = 3200000;
+const SKILL_CROSSBOW_EXPERT: u32 = 3220004;
+const SKILL_CLAW_MASTERY: u32 = 4100000;
+const SKILL_CLAW_EXPERT: u32 = 4120012;
+const SKILL_DAGGER_MASTERY: u32 = 4200000;
+const SKILL_DAGGER_EXPERT: u32 = 4220012;
+// 物理线的 `pddX`（物理防御加成百分点）来源：战士一转书 100 的 自身強化 `1000003`、
+// 聖騎士四转 聖騎士精通 `1220018`、黑騎士三转 禦魔陣 `1300016`。pddX 的语义跨线一致
+// （学得即生效、与法师 魔力之盾 同一格 ⇒ 进 `PDDX_SKILLS` 同一槽位）。
+// 1220018 同时带 `mastery`（55→70，四转精通熟练度），所以也进 `MASTERY_SKILLS`——
+// 一本进两张表不冲突，那是两个不同的源字段（与 大師魔法 `2320012` 同形）。
+// 它们的其余字段（`mddX` 魔防、`damAbsorbShieldR`、`mhpR`、`pdR`、`cr`、
+// `criticaldamage`、`ignoreMobpdpR`）的消费管线只存在于法师路径或尚未建模，
+// 决策理由登记在 `scripts/check_tms273_attributes.cjs`。
+const SKILL_SELF_ENHANCE: u32 = 1000003;
+const SKILL_PALADIN_MASTERY: u32 = 1220018;
+const SKILL_MAGIC_CIRCLE: u32 = 1300016;
+// `psdSpeed`（被动移速加成百分点）的物理线来源：战士一转书 100 的 戰鬥技能 `1000009`
+// 与飞侠二转 速度激發 `4000005`（学得即生效、与法师 瞬間移動 同一格 ⇒ 进
+// `PSD_SPEED_SKILLS` 同一槽位）。黑骑士四转 轉生 `1320016` 也带 `psdSpeed`，但它
+// 带 `time`/`cooltime`，是「施放窗口内」的增益且本包没接它的施放分支 ⇒ 不进这张表
+// （门禁里单列登记）。两本的 `psdJump` / `stanceProp` / `lv2mhp` 不在聚合（无对应
+// 属性键，决策理由登记在 `scripts/check_tms273_attributes.cjs`）。
+const SKILL_BATTLE_SKILLS: u32 = 1000009;
+const SKILL_SPEED_INFUSION: u32 = 4000005;
+// ── 战士 / 飞侠的一转主动**攻击**技能（2026-09-22 接执行链） ────────────────
+// 与法师 BRANCH_AREA_ATTACKS 同形：命中盒取源 `common/lt|rb` 绕玩家、伤害倍率与
+// 段数取 `level`，走同一条范围管线（`cast_elemental_area_at_filtered` 的物理分支：
+// 伤害基准是**普攻攻击区间**（`attack_damage_against`，含等级差与目标 PDD）乘
+// `damage%`，不走魔法攻击与暴击/冰冻层）。弓箭手一转 斷魂箭 `3001004`（无命中盒、
+// 要消耗箭矢）、連續跳躍 `3001007`（纯移动）与 战士 戰鬥置換 `1001008`（HP/MP 互换）、
+// 飞侠 二段跳 `4001011`（纯移动）、隱身術 `4001003`（隐身增益）不在本轮：机制缺席，
+// 理由逐条登记在门禁。
+const SKILL_SWORD_SLASH: u32 = 1001005;
+const SKILL_RUSH_ATTACK: u32 = 1001010;
+const SKILL_RISING_DRAGON: u32 = 1001011;
+const SKILL_TRIPLE_THROW: u32 = 4001334;
+const SKILL_DOUBLE_THROW: u32 = 4001344;
+const SKILL_SAVAGE_BLUNT: u32 = 4001013;
+// ── 战士 / 弓箭手 / 飞侠三条职业线**二转以上**的主动攻击技能（2026-09-22 接执行链） ──
+// 与一转六条**同形**：命中盒取源 `common/lt|rb` 绕玩家、段数与目标数取 `level`、伤害
+// 基准是普攻攻击区间（`attack_damage_against`）乘 `damage%`，不掷暴击、不吃冰冻层、
+// 区域系数取物理护盾（`false`）。本节 `mobCount` 最大 15、`attackCount` 最大 12，
+// 正好落在范围管线的既有上界里（`area_targets_at` 目标 15、`cast_elemental_area_at_filtered`
+// 段数 12）——**超出就得改上界，不是改技能**。
+//
+// 准入是**规则派生**的，不是逐条手挑：源里 `damage ∧ mobCount ∧ attackCount ∧ lt ∧ rb`
+// 齐备、且**不带**机制标记（`time` / `dot` / `dotInterval` / `dotTime` / `prop` /
+// `subTime` / `updatableTime` / `ballDelay*` / `lt2`+`rb2` / `maxUseCountInOneJump` /
+// `basicStatUp` / `mastery` / `hcHp` / `hp` / `fixdamage`）、也不是 `hidden` 节点的，
+// 才进这张表。**没进的 31 条**（带机制标记 17 条或 hidden 14 条，逐条由门禁从源表重算并钉住），
+// 以及「有 `damage` 却无贴身框」的 53 条、纯增益/召唤/治疗的 55 条、纯被动的 162 条，
+// 都由 `scripts/check_tms273_damage_pipeline.cjs` 的「物理线重算段」独立求出并断言
+// ——判据**不读这张表**，表只是被断言的对象。
+const SKILL_BRAVE_SLASH: u32 = 1111010;
+const SKILL_ULTIMATE_THRUST_HERO: u32 = 1111012;
+const SKILL_RAGING_BLOW: u32 = 1121008;
+const SKILL_HYPER_RAGING_BLOW: u32 = 1121052;
+const SKILL_DIVINE_SWING: u32 = 1201015;
+const SKILL_ULTIMATE_THRUST_PALADIN: u32 = 1211012;
+const SKILL_HEAVENS_HAMMER: u32 = 1221011;
+const SKILL_FOCUSED_PIERCE: u32 = 1301012;
+const SKILL_LA_MANCHA_SPEAR: u32 = 1311011;
+const SKILL_ULTIMATE_THRUST_DARK_KNIGHT: u32 = 1311012;
+const SKILL_DARK_IMPALE: u32 = 1321012;
+const SKILL_GUNGNIRS_DESCENT: u32 = 1321013;
+const SKILL_HYPER_DARK_SYNTHESIS: u32 = 1321052;
+const SKILL_GALE_ARROW: u32 = 3101005;
+const SKILL_SWIFT_ASSAULT: u32 = 3101014;
+const SKILL_ARROW_RAIN: u32 = 3121015;
+const SKILL_SWIFT_ASSAULT_CROSSBOW: u32 = 3201015;
+const SKILL_SWIFT_SHOT: u32 = 3211018;
+const SKILL_HYPER_SNIPE: u32 = 3221052;
+const SKILL_SHURIKEN_BURST: u32 = 4101013;
+const SKILL_SHURIKEN_CHALLENGE: u32 = 4111015;
+const SKILL_HYPER_QUAD_STAR: u32 = 4121052;
+const SKILL_SPIRAL_SLASH: u32 = 4201012;
+const SKILL_EDGE_RUSH: u32 = 4211011;
+const SKILL_CRUEL_STAB: u32 = 4221017;
+const PHYSICAL_AREA_ATTACKS: [u32; 31] = [
+    SKILL_SWORD_SLASH,
+    SKILL_RUSH_ATTACK,
+    SKILL_RISING_DRAGON,
+    SKILL_TRIPLE_THROW,
+    SKILL_DOUBLE_THROW,
+    SKILL_SAVAGE_BLUNT,
+    SKILL_BRAVE_SLASH,
+    SKILL_ULTIMATE_THRUST_HERO,
+    SKILL_RAGING_BLOW,
+    SKILL_HYPER_RAGING_BLOW,
+    SKILL_DIVINE_SWING,
+    SKILL_ULTIMATE_THRUST_PALADIN,
+    SKILL_HEAVENS_HAMMER,
+    SKILL_FOCUSED_PIERCE,
+    SKILL_LA_MANCHA_SPEAR,
+    SKILL_ULTIMATE_THRUST_DARK_KNIGHT,
+    SKILL_DARK_IMPALE,
+    SKILL_GUNGNIRS_DESCENT,
+    SKILL_HYPER_DARK_SYNTHESIS,
+    SKILL_GALE_ARROW,
+    SKILL_SWIFT_ASSAULT,
+    SKILL_ARROW_RAIN,
+    SKILL_SWIFT_ASSAULT_CROSSBOW,
+    SKILL_SWIFT_SHOT,
+    SKILL_HYPER_SNIPE,
+    SKILL_SHURIKEN_BURST,
+    SKILL_SHURIKEN_CHALLENGE,
+    SKILL_HYPER_QUAD_STAR,
+    SKILL_SPIRAL_SLASH,
+    SKILL_EDGE_RUSH,
+    SKILL_CRUEL_STAB,
+];
+// `asrR` / `terR`（状态/元素抗性，直通加算）的物理线**纯被动**来源：英雄二转 恢復術
+// `1110011`、黑骑士二转 恢復術 `1310010`、刺客三转 永恆黑暗 `4110008`（还带 `mhpR`）、
+// 侠盗三转 永恆黑暗 `4210013`（同）。语义与法师 元素適應族 同格 ⇒ 进同一张表。
+// 盾牌技能 `1210001`（common 带 time，增益形状）、集中專注 `3110012` 与 止痛藥
+// `3211011`（mpCon+cooltime+time 的主动 buff）⇒ 不进这张表，决策登记在门禁。
+const SKILL_RECOVERY_HERO: u32 = 1110011;
+const SKILL_RECOVERY_DARK_KNIGHT: u32 = 1310010;
+const SKILL_ETERNAL_DARKNESS_ASSASSIN: u32 = 4110008;
+const SKILL_ETERNAL_DARKNESS_BANDIT: u32 = 4210013;
+// 黑骑士四转 進階武器精通 `1320018`：`mastery` 55→70 与 聖騎士精通 `1220018` 同格
+// ⇒ 进 `MASTERY_SKILLS`。它的 `padX` 不在 `MageLevel` 投影契约（serde 忽略该字段）、
+// `criticaldamage` 无物理暴击管线 ⇒ 都不消费（门禁决策块登记）。
+const SKILL_ADVANCED_WEAPON_MASTERY: u32 = 1320018;
+
 /// 熟练度（`mastery`，取**高者** `AttributeOp::Highest`）：三本 咒語精通、神聖集中術，
 /// 外加冰龍吐息/火魔神 —— 后者们的源熟练度是「永久覆盖值」，用 `Highest` 表达正是它
 /// 们替换较低咒語精通的语义（不是叠加成第二条带）。
-const MASTERY_SKILLS: [u32; 6] = [
+/// 2026-09-22 起并入物理线「武器精通」族：mastery+x 复合 12 本 + 聖騎士精通
+/// `1220018` 与黑骑士 進階武器精通 `1320018`（带 mastery 无 x，四转精通熟练度）：
+/// 熟练度语义跨线一致，共用这一个槽位。
+const MASTERY_SKILLS: [u32; 20] = [
     SKILL_SPELL_MASTERY,
     SKILL_SPELL_MASTERY_FP,
     SKILL_SPELL_MASTERY_CLERIC,
     SKILL_HOLY_FOCUS,
     SKILL_ICE_DEMON,
     SKILL_FIRE_DEMON,
+    SKILL_WEAPON_MASTERY_HERO,
+    SKILL_ADVANCED_COMBO,
+    SKILL_WEAPON_MASTERY_PALADIN,
+    SKILL_WEAPON_MASTERY_DARK_KNIGHT,
+    SKILL_PALADIN_MASTERY,
+    SKILL_ADVANCED_WEAPON_MASTERY,
+    SKILL_BOW_MASTERY,
+    SKILL_BOW_EXPERT,
+    SKILL_CROSSBOW_MASTERY,
+    SKILL_CROSSBOW_EXPERT,
+    SKILL_CLAW_MASTERY,
+    SKILL_CLAW_EXPERT,
+    SKILL_DAGGER_MASTERY,
+    SKILL_DAGGER_EXPERT,
+];
+/// `pddX`（物理防御加成百分点，学得即生效，`Flat`）：法师 魔力之盾 `2000010` +
+/// 物理线三本（自身強化 / 聖騎士精通 / 禦魔陣）。语义跨线一致，共用一个槽位；
+/// 逐本求和、各记各的，留痕能回答「这 30 点防御是谁给的」。
+const PDDX_SKILLS: [u32; 4] = [
+    SKILL_MAGIC_SHIELD,
+    SKILL_SELF_ENHANCE,
+    SKILL_PALADIN_MASTERY,
+    SKILL_MAGIC_CIRCLE,
+];
+/// `psdSpeed`（被动移速加成，学得即生效，`Flat`）：法师 瞬間移動 `2001009` +
+/// 物理线两本（戰鬥技能 / 速度激發）。同一角色最多持有其中一本（各线一转书互斥），
+/// 逐本求和天然退化成单本；`speedMax` 上限取已学来源的值（循环里收最小非零）。
+const PSD_SPEED_SKILLS: [u32; 3] = [
+    SKILL_TELEPORT,
+    SKILL_BATTLE_SKILLS,
+    SKILL_SPEED_INFUSION,
 ];
 /// 魔法攻击的 `x` 段：源里**同时**带 `mastery` 与 `x` 的技能恰好是三本 咒語精通，
 /// 它们既是熟练度来源也是魔攻来源（神聖集中術只有 `cr`/`ar`/`mastery`，没有 `x`）。
@@ -368,11 +551,17 @@ const INTELLIGENCE_SKILLS: [u32; 6] = [
     SKILL_BOOSTER_FP,
     SKILL_BOOSTER_CLERIC,
 ];
-/// 元素適應族（`asrR` / `terR`，直通加算）：冰雷 2211012、火毒 2111011、祭司 2311012。
-const ELEMENTAL_ADAPTING_SKILLS: [u32; 3] = [
+/// 元素適應 / 抗性族（`asrR` / `terR`，直通加算）：法师三条分支（冰雷 2211012、
+/// 火毒 2111011、祭司 2311012）+ 物理线四本纯被动（恢复术 ×2、永恆黑暗 ×2）。
+/// common 带 `time` 的三本（盾牌技能 / 集中專注 / 止痛藥）不在表里（门禁登记）。
+const ELEMENTAL_ADAPTING_SKILLS: [u32; 7] = [
     SKILL_ELEMENTAL_ADAPTING,
     SKILL_ELEMENTAL_ADAPTING_FP,
     SKILL_DIVINE_PROTECTION,
+    SKILL_RECOVERY_HERO,
+    SKILL_RECOVERY_DARK_KNIGHT,
+    SKILL_ETERNAL_DARKNESS_ASSASSIN,
+    SKILL_ETERNAL_DARKNESS_BANDIT,
 ];
 /// 魔力激發（`damR` 常駐段，加算组）：冰雷 2210001 / 火毒 2110001。
 const ELEMENT_AMP_SKILLS: [u32; 2] = [SKILL_ELEMENT_AMP, SKILL_ELEMENT_AMP_FP];
@@ -404,10 +593,20 @@ const BOOSTER_SKILLS: [u32; 3] = [SKILL_BOOSTER, SKILL_BOOSTER_FP, SKILL_BOOSTER
 /// 楓葉祝福（`basicStatUp`）：冰雷 2221000 / 火毒 2121000 / 主教 2321000。
 /// 分支互斥，角色只可能持有自己分支的那一本，其余查表得 0、不留痕；与 `intX` 同一
 /// 写法（逐本求和）以便留痕能回答「这个百分比是谁给的」。
-const MAPLE_WARRIOR_SKILLS: [u32; 3] = [
+/// 楓葉祝福（`basicStatUp`）：四条职业线的四转各一本（2026-09-22 起 10 本）。
+/// 分支互斥，角色只可能持有自己分支的那一本，其余查表得 0、不留痕；与 `intX` 同一
+/// 写法（逐本求和）以便留痕能回答「这个百分比是谁给的」。
+const MAPLE_WARRIOR_SKILLS: [u32; 10] = [
     SKILL_MAPLE_WARRIOR,
     SKILL_MAPLE_WARRIOR_FP,
     SKILL_MAPLE_WARRIOR_CLERIC,
+    SKILL_MAPLE_WARRIOR_HERO,
+    SKILL_MAPLE_WARRIOR_PALADIN,
+    SKILL_MAPLE_WARRIOR_DARK_KNIGHT,
+    SKILL_MAPLE_WARRIOR_HUNTER,
+    SKILL_MAPLE_WARRIOR_CROSSBOW,
+    SKILL_MAPLE_WARRIOR_NIGHTLORD,
+    SKILL_MAPLE_WARRIOR_BANDIT,
 ];
 /// 大師魔法（`madX`，加算的永久魔攻）：冰雷 2220013 / 火毒 2120012 / 主教 2320012。
 /// **只有这三本**：Hyper 主动 復仇天使 `2321054` 的 `madX` 是「施放窗口内的临时魔攻」，

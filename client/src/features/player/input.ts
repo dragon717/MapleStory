@@ -2,9 +2,31 @@ import type { ClientMessage, NpcState, PlayerState } from '../../../../shared/pr
 import type { Action, KeyBinding } from '../keybindings/model';
 
 export const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
+export const WARRIOR_JOB_WHITELIST = new Set([100, 110, 111, 112, 120, 121, 122, 130, 131, 132]);
+export const BOWMAN_JOB_WHITELIST = new Set([300, 310, 311, 312, 320, 321, 322]);
+export const THIEF_JOB_WHITELIST = new Set([400, 410, 411, 412, 420, 421, 422]);
 export const ICE_LIGHTNING_JOB_WHITELIST = new Set([220, 221, 222]);
 export const FIRE_POISON_JOB_WHITELIST = new Set([210, 211, 212]);
 export const CLERIC_JOB_WHITELIST = new Set([230, 231, 232]);
+
+/** 一条分支的三本书（二转 / 三转 / 四转）各自的持有者；`secondJob` 是该分支的**二转**号
+ *  （如 110 英雄 / 120 聖騎士）。层级 t 的持有者 = 「二转号 + t」及其后的转职，
+ *  与 `server/src/mage.rs::branch_jobs` 的切片语义逐字一致，由门禁逐格双向断言。 */
+function branchJobs(secondJob: number): [ReadonlySet<number>, ReadonlySet<number>, ReadonlySet<number>] {
+  const tier = (offset: number) => new Set([secondJob + offset, secondJob + offset + 1, secondJob + offset + 2]);
+  return [tier(0), tier(1), tier(2)];
+}
+const WARRIOR_HERO = branchJobs(110);
+const WARRIOR_PALADIN = branchJobs(120);
+const WARRIOR_DARK_KNIGHT = branchJobs(130);
+const MAGE_FIRE_POISON = branchJobs(210);
+const MAGE_ICE_LIGHTNING = branchJobs(220);
+const MAGE_CLERIC = branchJobs(230);
+const BOWMAN_HUNTER = branchJobs(310);
+const BOWMAN_CROSSBOW = branchJobs(320);
+const THIEF_ASSASSIN = branchJobs(410);
+const THIEF_BANDIT = branchJobs(420);
+const EXPLORER_ALL = new Set([0, ...WARRIOR_JOB_WHITELIST, ...MAGE_JOB_WHITELIST, ...BOWMAN_JOB_WHITELIST, ...THIEF_JOB_WHITELIST]);
 
 /**
  * 技能书 → 能持有该书的职业集合；**这是客户端唯一的书准入权威**，
@@ -14,25 +36,52 @@ export const CLERIC_JOB_WHITELIST = new Set([230, 231, 232]);
  * 放在这里是因为本模块是「不引运行期依赖」的叶子模块：技能窗与 HUD 都已经
  * import 它，搬进来不会出现 `skills/view.ts ←→ player/input.ts` 的循环引用。
  *
- * 页签语义是「转职层级」而不是「技能书」：同层三个分支（火毒 210 / 冰雷 220 / 僧侶 230 的 2 转）
- * 共用一个页签下标（见 `scripts/tms273_skill_manifest.cjs` 的 SKILL_BOOK_TABS），
+ * 页签语义是「转职层级」而不是「技能书」：同层的多本书（火毒 210 / 冰雷 220 / 僧侶 230 /
+ * 英雄 110 / 聖騎士 120 / 黑騎士 130 的 2 转）共用一个页签下标
+ * （见 `scripts/tms273_skill_manifest.cjs` 的 SKILL_BOOK_TABS），
  * 实际进入哪本由职业决定 ⇒ 两张表必须同时维护。
  *
- * 表里没有的书沿用「不限制职业」的旧行为（战士书 '100' 依赖这条：它的门控由
- * derivedStats.regenerationPassives.bookId 决定，不是职业号）。
+ * 表里没有的书沿用「不限制职业」的旧行为；2026-09-22 起四条职业线的 35 本书
+ * **全部登记**，未登记的书只剩源里存在但本包没导出的那些（如 2112 影武者）。
+ * 与 `server/src/mage.rs` 的 `book_jobs` 由 `scripts/check_tms273_skill_books.cjs`
+ * 逐格双向断言，改一侧必须同时改另一侧。
  */
 export const BOOK_JOBS: Readonly<Record<string, ReadonlySet<number>>> = {
-  '0': new Set([0, ...MAGE_JOB_WHITELIST]),
+  '0': EXPLORER_ALL,
+  '100': WARRIOR_JOB_WHITELIST,
+  '110': WARRIOR_HERO[0],
+  '111': WARRIOR_HERO[1],
+  '112': WARRIOR_HERO[2],
+  '120': WARRIOR_PALADIN[0],
+  '121': WARRIOR_PALADIN[1],
+  '122': WARRIOR_PALADIN[2],
+  '130': WARRIOR_DARK_KNIGHT[0],
+  '131': WARRIOR_DARK_KNIGHT[1],
+  '132': WARRIOR_DARK_KNIGHT[2],
   '200': MAGE_JOB_WHITELIST,
-  '210': FIRE_POISON_JOB_WHITELIST,
-  '220': ICE_LIGHTNING_JOB_WHITELIST,
-  '230': CLERIC_JOB_WHITELIST,
-  '211': new Set([211, 212]),
-  '221': new Set([221, 222]),
-  '231': new Set([231, 232]),
-  '212': new Set([212]),
-  '222': new Set([222]),
-  '232': new Set([232]),
+  '210': MAGE_FIRE_POISON[0],
+  '211': MAGE_FIRE_POISON[1],
+  '212': MAGE_FIRE_POISON[2],
+  '220': MAGE_ICE_LIGHTNING[0],
+  '221': MAGE_ICE_LIGHTNING[1],
+  '222': MAGE_ICE_LIGHTNING[2],
+  '230': MAGE_CLERIC[0],
+  '231': MAGE_CLERIC[1],
+  '232': MAGE_CLERIC[2],
+  '300': BOWMAN_JOB_WHITELIST,
+  '310': BOWMAN_HUNTER[0],
+  '311': BOWMAN_HUNTER[1],
+  '312': BOWMAN_HUNTER[2],
+  '320': BOWMAN_CROSSBOW[0],
+  '321': BOWMAN_CROSSBOW[1],
+  '322': BOWMAN_CROSSBOW[2],
+  '400': THIEF_JOB_WHITELIST,
+  '410': THIEF_ASSASSIN[0],
+  '411': THIEF_ASSASSIN[1],
+  '412': THIEF_ASSASSIN[2],
+  '420': THIEF_BANDIT[0],
+  '421': THIEF_BANDIT[1],
+  '422': THIEF_BANDIT[2],
 };
 
 export function bookAllowsJob(bookId: string, job: number | undefined): boolean {

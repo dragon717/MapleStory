@@ -171,7 +171,8 @@ impl World {
                 | SKILL_THREE_SNAILS
                 | SKILL_RECOVERY
                 | SKILL_NIMBLE_FEET
-        ) || BRANCH_AREA_ATTACKS.contains(&skill_id);
+        ) || BRANCH_AREA_ATTACKS.contains(&skill_id)
+            || PHYSICAL_AREA_ATTACKS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -425,9 +426,10 @@ impl World {
             } else {
                 self.skill_duration_ms(&id, skill_id)
             }
-        } else if BRANCH_AREA_ATTACKS.contains(&skill_id) {
+        } else if BRANCH_AREA_ATTACKS.contains(&skill_id) || PHYSICAL_AREA_ATTACKS.contains(&skill_id) {
             // 火毒/主教的攻击技能与冰雷同一条动作锁（源里都是 600ms 的攻击动作，
-            // 再按极速詠唱的动作速度加成收敛）。
+            // 再按极速詠唱的动作速度加成收敛）；物理线一转攻击技能同形
+            // （`1001010 躍進攻擊` 自带 `attackDelay`，由 skill_duration_ms 收敛）。
             self.skill_duration_ms(&id, skill_id)
         } else {
             0
@@ -735,6 +737,27 @@ impl World {
                     player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
                 }
             }
+            // 战士 / 飞侠的一转攻击技能：走**同一条**范围管线的物理分支
+            // （`cast_elemental_area_at_filtered` 按 `PHYSICAL_AREA_ATTACKS` 判定）：
+            // 伤害基准是普攻攻击区间 × `damage%`，无暴击/冰冻层参与。
+            SKILL_SWORD_SLASH
+            | SKILL_RUSH_ATTACK
+            | SKILL_RISING_DRAGON
+            | SKILL_TRIPLE_THROW
+            | SKILL_DOUBLE_THROW
+            | SKILL_SAVAGE_BLUNT => {
+                if let Err(error) =
+                    self.cast_elemental_area(&id, &request_id, skill_id, &level, false)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    player.state.action = "attack";
+                    player.state.action_started_tick = self.tick;
+                    player.attack_until = self.tick + duration_ms.div_ceil(TICK_MS).max(1);
+                }
+            }
             _ => {}
         }
         if let Some(player) = self.players.get_mut(&id) {
@@ -1016,7 +1039,8 @@ impl World {
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
                 | SKILL_HYPER_VORTEX
-        ) {
+        ) || PHYSICAL_AREA_ATTACKS.contains(&skill_id)
+        {
             let target_ids = if skill_id == SKILL_THREE_SNAILS {
                 self.beginner_throw_targets(id)
             } else if skill_id == SKILL_ENERGY_BOLT {
@@ -2469,6 +2493,22 @@ impl World {
         }
         let target_count = targets.len();
         let lightning_effect = lightning || skill_id == SKILL_CHAIN_LIGHTNING;
+        // 物理线一转攻击技能：伤害基准是**普攻攻击区间**（`attack_damage_against`，
+        // 含四维聚合、等级差与目标侧 PDD 的既有 P 适配），乘 `damage%` 后不再走
+        // 魔法管线与暴击/冰冻层——与普攻同一口径（普攻也不掷暴击）。
+        let physical = PHYSICAL_AREA_ATTACKS.contains(&skill_id);
+        let physical_attributes = physical.then(|| {
+            self.players.get(id).map(|player| {
+                (
+                    aggregate_attributes(AttributeInput::of(
+                        &self.gameplay,
+                        &self.mage_skills,
+                        player,
+                    )),
+                    player.state.level,
+                )
+            })
+        }).flatten();
         let magic_attack = self
             .players
             .get(id)
@@ -2607,10 +2647,17 @@ impl World {
                     .unwrap_or(1)
                     .max(1)
                     .saturating_add(normal_bonus);
-                let mut damage = (magic_attack as f64 * multiplier as f64 / 100.0)
-                    .floor()
-                    .max(1.0) as i64;
-                if weaken.as_ref().is_some_and(|_| {
+                let damage = if let Some((attributes, player_level)) = &physical_attributes {
+                    // 物理分支：普攻攻击区间 × damage%（基准已含目标侧修正，见上）。
+                    let base = attributes.attack_damage_against(*player_level, &target_template);
+                    (base as f64 * multiplier as f64 / 100.0).floor().max(1.0) as i64
+                } else {
+                    (magic_attack as f64 * multiplier as f64 / 100.0)
+                        .floor()
+                        .max(1.0) as i64
+                };
+                if !physical
+                    && weaken.as_ref().is_some_and(|_| {
                     rand::thread_rng().gen_range(0..100)
                         < weaken
                             .as_ref()
@@ -2629,42 +2676,58 @@ impl World {
                             .saturating_add(seconds.saturating_mul(1_000).div_ceil(TICK_MS));
                     }
                 }
-                let critical = rand::thread_rng().gen_range(0..100) < critical_chance;
-                // 命中携带的前置修正：只交出**来源 + 百分比**，求值仍走同一条管线
-                // （分组、取整层与上限层的口径见 `damage.rs` 模块头）。
-                let mut pre: Vec<(DamageSource, i64)> = Vec::new();
-                if self
-                    .monsters
-                    .get(target_id)
-                    .is_some_and(|monster| monster.elemental_weaken_until > self.tick)
-                {
-                    pre.push((
-                        DamageSource::UnmarkedField {
-                            skill_id: SKILL_ELEMENTAL_WEAKEN,
-                            field: "x",
-                        },
-                        weaken
-                            .as_ref()
-                            .and_then(|level| level.x)
-                            .unwrap_or(20)
-                            .max(0),
-                    ));
-                }
-                if let Some(stacks) = consumed.get(target_id).copied() {
-                    if let Some(skill_id) = freeze_layer_skill {
-                        let layer_bonus = if lightning_effect { fixed_lightning } else { 0 }
-                            .saturating_add(if critical { fixed_crit } else { 0 });
+                // 暴击只在魔法分支掷骰；物理分支恒 false（与普攻同口径），
+                // 但 damageEvent 事件里两分支都要带这个字段。
+                let critical = !physical && rand::thread_rng().gen_range(0..100) < critical_chance;
+                // 物理分支走简单的普攻同款管线（区域系数只保留 Boss 练习场护盾），
+                // 魔法分支走 magic_damage_breakdown（damR 加算组 / 暴击 / 冰冻层）。
+                // 区域系数的 `magic` 参数必须跟着**伤害种类**走：物理技能与普攻同口径
+                // 取 `false`（源 `PhysicalGuard` 112 的 `physical_guard_until`），
+                // 魔法路径取 `true`（`MagicGuard` 113）。写成 `true` 会让战士/飞侠的
+                // 技能去吃魔法护盾、同时无视物理护盾——两个方向都错。
+                let damage = if physical {
+                    let mut pipeline = DamagePipeline::new(damage);
+                    pipeline.add(
+                        DamageSource::RegionGuard,
+                        self.boss_damage_multiplier(&map_id, false) - 100,
+                    );
+                    pipeline.resolve().total()
+                } else {
+                    // 命中携带的前置修正：只交出**来源 + 百分比**，求值仍走同一条管线
+                    // （分组、取整层与上限层的口径见 `damage.rs` 模块头）。
+                    let mut pre: Vec<(DamageSource, i64)> = Vec::new();
+                    if self
+                        .monsters
+                        .get(target_id)
+                        .is_some_and(|monster| monster.elemental_weaken_until > self.tick)
+                    {
                         pre.push((
-                            DamageSource::FreezeLayerBonus { skill_id },
-                            layer_bonus.saturating_mul(i64::from(stacks)),
+                            DamageSource::UnmarkedField {
+                                skill_id: SKILL_ELEMENTAL_WEAKEN,
+                                field: "x",
+                            },
+                            weaken
+                                .as_ref()
+                                .and_then(|level| level.x)
+                                .unwrap_or(20)
+                                .max(0),
                         ));
                     }
-                }
-                damage = self
-                    .magic_damage_breakdown(
+                    if let Some(stacks) = consumed.get(target_id).copied() {
+                        if let Some(skill_id) = freeze_layer_skill {
+                            let layer_bonus = if lightning_effect { fixed_lightning } else { 0 }
+                                .saturating_add(if critical { fixed_crit } else { 0 });
+                            pre.push((
+                                DamageSource::FreezeLayerBonus { skill_id },
+                                layer_bonus.saturating_mul(i64::from(stacks)),
+                            ));
+                        }
+                    }
+                    self.magic_damage_breakdown(
                         id, skill_id, target_id, damage, critical, request_id, segment, &pre,
                     )
-                    .total();
+                    .total()
+                };
                 let killed = damage >= target_hp;
                 let applied_damage = damage.min(target_hp.max(0));
                 let practice = auth::is_practice_map(&map_id);

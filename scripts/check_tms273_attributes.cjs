@@ -248,11 +248,23 @@ const idsForArray = name => {
  */
 const CONTENT_RULES = [
   { field: 'intX', array: 'INTELLIGENCE_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'Intelligence' },
-  { field: ['mastery', 'x'], array: 'SPELL_MASTERY_X_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack' },
+  // `mastery+x` 复合形状在 2026-09-22 目录扩到四条职业线后不再唯一指向 咒語精通：
+  // 法师线（书 200..232）的 `x` 是**魔攻**，物理线（战/弓/侠）的 `x` 是**命中率**。
+  // 这条规则 `scope` 到法师书；物理线 12 本的决策（x 不消费 + 理由）钉在下面的
+  // 「物理线武器精通决策块」。
+  {
+    field: ['mastery', 'x'], array: 'SPELL_MASTERY_X_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'MagicAttack',
+    scope: id => { const book = Math.floor(Number(id) / 10000); return book >= 200 && book < 300; },
+  },
   // 楓葉祝福：三个四转分支各一本（2221000 / 2121000 / 2321000），与 `intX` 同一格
   // —— 逐本求和、各记各的，成员清单由 `world.rs` 的数组持有。
   { field: 'basicStatUp', array: 'MAPLE_WARRIOR_SKILLS', loop: true, layer: 'PassiveSkill', op: 'AdditivePercent', key: null },
-  { field: 'pddX', consts: ['SKILL_MAGIC_SHIELD'], layer: 'PassiveSkill', op: 'Flat', key: 'WeaponDefense' },
+  // `pddX`（物理防御加成百分点）的语义跨线一致：法师 魔力之盾 + 物理线三本
+  // （自身強化 1000003 / 聖騎士精通 1220018 / 禦魔陣 1300016），同一槽位逐本求和。
+  // 物理线这几本的 `mddX` / `damAbsorbShieldR` / `mhpR` / `pdR` / `cr` /
+  // `criticaldamage` / `ignoreMobpdpR` 不进聚合：mddX 无对应属性键，其余的消费管线
+  // 只存在于法师魔法路径（见文件尾「物理线武器精通决策块」的理由登记）。
+  { field: 'pddX', array: 'PDDX_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'WeaponDefense' },
   // 大師魔法 `madX`：三个四转分支各一本（2220013 / 2120012 / 2320012），与 `intX` 同格。
   // 2321054 復仇天使 也带 `madX`，但它是 Hyper 主动的**窗口内**魔攻（源 `common` 无
   // `time`、本包也没有它的施法分支）⇒ 不是「学得即生效」的被动，登记为不消费。
@@ -270,8 +282,23 @@ const CONTENT_RULES = [
   },
   { field: 'mmpR', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'AdditivePercent', key: 'MaxMp' },
   { field: 'lv2mmp', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'Flat', key: 'MaxMp' },
-  { field: 'psdSpeed', consts: ['SKILL_TELEPORT'], layer: 'PassiveSkill', op: 'Flat', key: 'MoveSpeed' },
-  // 神聖祈禱-抗性提升 `2320047` 也带 asrR / terR，但它强化的是 **2311003 神聖祈禱 的增益窗**
+  // `psdSpeed`（被动移速加成）语义跨线一致：法师 瞬間移動 + 战士 戰鬥技能 `1000009`
+  // + 飞侠 速度激發 `4000005`，同一槽位逐本求和（角色最多持有一本）。黑骑士四转
+  // 轉生 `1320016` 也带 psdSpeed，但它带 `time`/`cooltime`、是施放窗口内的增益
+  // 且本包没接它的施放分支 ⇒ 登记为不消费。物理线两本的 `psdJump` / `stanceProp` /
+  // `lv2mhp` 无对应属性键，不进聚合（本条注释即决策登记）。
+  {
+    field: 'psdSpeed',
+    array: 'PSD_SPEED_SKILLS',
+    loop: true,
+    layer: 'PassiveSkill',
+    op: 'Flat',
+    key: 'MoveSpeed',
+    except: ['1320016'],
+    exceptReasons: {
+      1320016: '黑骑士四转 轉生 是带 `time`/`cooltime` 的主动增益技能，它的 psdSpeed 只在施放窗口内生效（第 3 层 ActiveBuff 语义）；本包没有黑骑士 buff 的施放分支 ⇒ 无法构成增益窗，也不能当成学得即生效的被动。哪天接了它的施放路径，必须改归 ActiveBuff 层并同时补 buff 时长。',
+    },
+  },  // 神聖祈禱-抗性提升 `2320047` 也带 asrR / terR，但它强化的是 **2311003 神聖祈禱 的增益窗**
   // 里的抗性（源里那本带 `time`），本包没有神聖祈禱的施法/增益实现 ⇒ 消费不了，登记在案。
   {
     field: 'asrR',
@@ -281,9 +308,12 @@ const CONTENT_RULES = [
     layer: 'PassiveSkill',
     op: 'Flat',
     key: 'StatusResistance',
-    except: ['2320047'],
+    except: ['1210001', '2320047', '3110012', '3211011'],
     exceptReasons: {
       2320047: '神聖祈禱-抗性提升是 Hyper 被动，它加的抗性**依附于 2311003 神聖祈禱 的增益窗**（源里那本带 `time`）；本包没有神聖祈禱的施法与增益实现，也没有 2320047 自己的常量 ⇒ 它不属于「学得即生效」的那一格。哪天接了神聖祈禱，必须按增益窗改归 ActiveBuff 层。',
+      1210001: '聖騎士二转 盾牌技能 的 common 带 `time`（1+u(x/4)）——源把它做成带时长的状态，抗性加成只在窗口内生效（ActiveBuff 语义）；本包没有聖騎士 buff 的施放分支 ⇒ 不按学得即生效读。哪天接了它的施放路径，必须改归 ActiveBuff 层并同时补 buff 时长。',
+      3110012: '獵人二转 集中專注 的 common 带 `time`（30+3*x）——主动增益技能（第 3 层）；本包没有弓手 buff 的施放分支 ⇒ 不按学得即生效读。哪天接了施放路径，必须改归 ActiveBuff 层。',
+      3211011: '弩弓手三转 止痛藥 的 common 带 `mpCon`+`cooltime`+`time` —— 明确的主动增益技能；本包没有弩手 buff 的施放分支 ⇒ 不按学得即生效读。哪天接了施放路径，必须改归 ActiveBuff 层。',
     },
   },
   {
@@ -294,9 +324,12 @@ const CONTENT_RULES = [
     layer: 'PassiveSkill',
     op: 'Flat',
     key: 'ElementResistance',
-    except: ['2320047'],
+    except: ['1210001', '2320047', '3110012', '3211011'],
     exceptReasons: {
       2320047: '同上：神聖祈禱-抗性提升的 terR 依附于神聖祈禱的增益窗，不是学得即生效的被动。',
+      1210001: '同上：盾牌技能 的 common 带 `time`，terR 只在增益窗内生效，不是学得即生效的被动。',
+      3110012: '同上：集中專注 是主动增益技能，terR 只在增益窗内生效。',
+      3211011: '同上：止痛藥 是主动增益技能，terR 只在增益窗内生效。',
     },
   },
   { field: 'mastery', array: 'MASTERY_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Highest', key: 'Mastery' },
@@ -314,16 +347,19 @@ for (const rule of CONTENT_RULES) {
   const catalogIds = fields.length === 1
     ? catalogIdsWith(fields[0])
     : catalogIdsWithAll(fields);
-  const label = fields.join('+');
+  const scoped = rule.scope ? catalogIds.filter(rule.scope) : catalogIds;
+  const label = (rule.scope ? `${fields.join('+')}（scope 内）` : fields.join('+'));
   assert.ok(catalogIds.length > 0, `源技能表里一个 ${label} 都没有？形状变了`);
   const declared = declaredIds(rule);
   // `except` = 「源里有这个字段、但**明确不**进聚合」的技能，逐条登记（见 CONTENT_RULES
   // 里的 `exceptReasons`）。它必须被说出来，不能靠改断言静默跳过；反向断言再钉一层：
   // 一旦 world.rs 给它起了常量（= 有人接了消费路径），这里立刻红，要求重新决定。
+  // 带 `scope` 的规则只对 scope 内的技能作这个「消费/不消费」二选一，
+  // scope 外的成员必须被**别的规则或决策块**接住（不能凭空消失）。
   const excused = (rule.except ?? []).slice().sort();
   assert.deepEqual(
-    catalogIds, [...declared, ...excused].sort(),
-    `源里带 ${label} 的技能是 ${catalogIds.join('/')}，聚合模块声明消费的是 ${declared.join('/')}，`
+    scoped, [...declared, ...excused].sort(),
+    `源里带 ${label} 的技能是 ${scoped.join('/')}，聚合模块声明消费的是 ${declared.join('/')}，`
       + `登记「不消费」的是 ${excused.join('/') || '（无）'}`
       + `——源里新增一个带该字段的技能而没人做决定，这里就会红`,
   );
@@ -413,6 +449,55 @@ for (const rule of CONTENT_RULES) {
   }
 }
 
+// ── 物理线「武器精通」决策块（2026-09-22，目录并入四条职业线）─────────────
+// `mastery+x` 复合形状在物理线（战/弓/侠）是「武器精通」族。它们的**决策**：
+//   - `mastery`（武器熟练度，二转 14→50、四转 56→70）⇒ **消费**，进 `MASTERY_SKILLS`
+//     （与法师 6 本同一格，`Highest`）——熟练度语义跨线一致，直接抬物理伤害区间下限；
+//   - `x` = **命中率** ⇒ 不消费：本包战斗未建模命中/miss；
+//   - `cr` / `criticaldamage` / `pdR` ⇒ 不消费：暴击率、暴击伤害与伤害率组的消费
+//     只存在于法师魔法路径（`skills.rs::magic_critical_chance` / `magic_damage_breakdown`），
+//     物理攻击路径没有这条管线；
+//   - `actionSpeed`（1100000/1200000 的 -1）⇒ 不消费：攻速消费只接了法师 booster
+//     （`psdWeaponBooster` 通道），这两本的攻速在 `levels` 里、通道不同；
+//   - `1120003 進階鬥氣` 的 `damR`/`prop`/`v` ⇒ 不消费：斗气（combo）系统未实现。
+// 这个块把「谁在名单里」钉死：物理 12 本必须**恰好**等于源里 mastery+x 且书不在
+// 法师线的技能，且必须全部出现在 MASTERY_SKILLS 里。哪天物理路径接了暴击/伤害率
+// 管线，这里会红，逼人把 x/cr/criticaldamage/pdR/actionSpeed 逐字段重新决定。
+{
+  const mageScope = id => {
+    const book = Math.floor(Number(id) / 10000);
+    return book >= 200 && book < 300;
+  };
+  const compositeIds = catalogIdsWithAll(['mastery', 'x']);
+  // 物理线的 `mastery` 来源 = mastery+x 复合 12 本（战 4 + 弓 4 + 侠 4）
+  // + 聖騎士精通 `1220018` 与黑骑士 進階武器精通 `1320018`（带 mastery 无 x，
+  // 四转精通熟练度）= 14 本。
+  const physicalMasteryIds = [
+    ...compositeIds.filter(id => !mageScope(id)),
+    '1220018',
+    '1320018',
+  ].sort();
+  const mageMasteryIds = catalogIdsWith('mastery').filter(mageScope).sort();
+  const masteryArray = idsForArray('MASTERY_SKILLS');
+  assert.equal(
+    physicalMasteryIds.length, 14,
+    `物理线 mastery 来源应为 14 本（战 5 + 弓 4 + 侠 4 + 聖騎士精通），实际 ${physicalMasteryIds.length}`,
+  );
+  assert.deepEqual(
+    [...new Set([...physicalMasteryIds, ...mageMasteryIds])].sort(), masteryArray,
+    `MASTERY_SKILLS（${masteryArray.length} 本）必须恰好覆盖 `
+      + `物理线 13 本（${physicalMasteryIds.join('/')}）+ 法师线 mastery 来源（${mageMasteryIds.join('/')}），`
+      + '多一项少一项都要重新决定',
+  );
+  for (const id of physicalMasteryIds) {
+    assert.ok(
+      constFor(Number(id)) !== null,
+      `物理线 mastery 技能 ${id} 没有 world.rs 常量——MASTERY_SKILLS 的成员必须以常量登记`,
+    );
+  }
+}
+
+
 // ---------------------------------------------------------------------------
 // 5. 源侧时长事实（「学得即生效」的依据 + 带时长却按被动读的登记表）
 // ---------------------------------------------------------------------------
@@ -484,10 +569,10 @@ assert.equal(
   (attributeCode.match(/saturating_mul\(100 \+ basic_stat_up\) \/ 100/g) ?? []).length, 1,
   'basicStatUp 的「求和后只乘一次」形状丢了',
 );
-// 上限：传送被动移速用源 speedMax 夹，并入初学者速度后再 clamp(0,100)。
+// 上限：被动移速用源 speedMax（已学来源的最小非零）夹，并入初学者速度后再 clamp(0,100)。
 assert.ok(
-  /teleport_speed_max\.min\(100\)/.test(attributeCode),
-  '传送被动移速的源上限（speedMax）不见了',
+  /passive_speed_max\.min\(100\)/.test(attributeCode),
+  '被动移速的源上限（speedMax）不见了',
 );
 assert.ok(
   /saturating_add\(beginner_speed\)\s*\.clamp\(0, 100\)/.test(attributeCode),
