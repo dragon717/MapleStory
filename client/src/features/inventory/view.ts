@@ -3,7 +3,7 @@ import type { AssetFrame, EquipmentLayout, InventoryLayout, Manifest } from '../
 import { protocolText, uiLocale, uiText } from '../../app/i18n';
 import { itemCategoryTab, itemDetails, itemName } from './names';
 import { TooltipController, tooltipSkin } from './tooltip-view';
-import { DragController } from './drag-controller';
+import { DragController, INVENTORY_DROP_ZONE_ATTRIBUTE } from './drag-controller';
 import { InventoryIntents, type SendClientMessage } from './intents';
 import { EquipmentView } from './equipment-view';
 import {
@@ -127,6 +127,8 @@ export class InventoryView {
       scrollPending: () => this.intents.hasScrollTarget(),
       windowOpen: () => this.openState || Boolean(this.equipment?.isOpen()),
       containsTarget: node => Boolean(this.window?.contains(node) || this.equipment?.window?.contains(node)),
+      // 窗口外的认领落点（HUD 快捷栏）自己处理 drop，document 级不得当拖出丢弃。
+      claimsExternalDrop: node => node instanceof Element && Boolean(node.closest(`[${INVENTORY_DROP_ZONE_ATTRIBUTE}]`)),
       inventoryItemAt: (slot, tab) => this.itemAt(slot, tab),
       equippedItemAt: slot => this.equippedAt(slot),
       isScroll: item => this.isScroll(item),

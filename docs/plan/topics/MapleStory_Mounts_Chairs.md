@@ -22,7 +22,7 @@
 | 骑乘有自己的动作帧 | `Character/TamingMob/01902000.img` 顶层：`info, walk1, walk2, stand1, stand2, tired, jump, prone, ladder, rope, fly`；`stand1` 6 帧 ×180ms、`walk1` 4 帧 ×120ms | 骑乘可移动；**无任何 `swing*`/`shoot*` 帧** ⇒ 骑乘不能施放攻击/技能 |
 | 角色坐姿帧在源里 | `Character/00002000.img/sit`（1 帧，部件 `body/arm/face`，**无 `delay`**）；`00012000/01002067/01040002/01052095/01070000/00030020` 均有 `sit`；`Face/00020000.img` **无** `sit` | 坐姿走角色自身 `sit`，不是椅子贴图 |
 | 椅子是设置栏物品 | `Item/Install/03010/03010001.json`：`inventoryType 3`、`info.price=500, slotMax=1, recoveryHP=35, reqLevel=6`；`03010018`：`recoveryHP=40, recoveryMP=20` | 恢复量用源字段，不估算 |
-| 恢复**间隔**没有源字段 | 584 件 `Item/Install/03010.img/*` 全查过：**无 `sit` 节点**；`info` 无间隔键；只有 `String/Ins.json` 文案写「每N秒」（1192 件写「每10秒」，173 件有恢复字段但文案未写间隔） | 间隔按文案导出；文案没写就**不导出**，运行时按「未核定」处理 |
+| 恢复**间隔**没有源字段 | 584 件 `Item/Install/03010.img/*` 全查过：**无 `sit` 节点**；`info` 无间隔键；只有 `String/Ins.json` 文案写「每N秒」（**写明秒数的 1192 件全是 10 秒，无一例外**） | 10 秒是椅子系统的**固定节拍**，描述只是复述它；凡源 `info` 声明了 `recoveryHP`/`recoveryMP` 的椅子都按 10 秒结算（口径与依据见 §9） |
 | 椅子自身只有图标与特效 | `03010001` 的键是 `info`(`icon,iconRaw,price,slotMax,recoveryHP,reqLevel`) + `effect`(`0,z,pos`) | 表现层不需要椅子坐姿贴图 |
 
 ---
@@ -41,9 +41,14 @@
 实测产出（`node scripts/export_tms273_mounts_chairs.cjs`）：
 
 ```text
-导出坐骑 935 件（887 件带已核定骑行数值，坐骑档 24 个）、椅子 2797 件（1192 件带已核定恢复间隔）。
-未登记：非装备图 1021、无名 840、缺坐骑档 1；椅子间隔未核定 173。
+导出坐骑 935 件（887 件带已核定骑行数值，坐骑档 24 个）、椅子 2799 件（1363 件声明了恢复量，节拍恒为 10000 ms）。
+未登记：非装备图 1021、无名 840、缺坐骑档 1。
 ```
+
+（1363 件 = 源 `info` 里 `recoveryHP` / `recoveryMP` 任一出现的件数，含唯一一件负值扣血椅
+`3015014 陷入絕境!`；`counts` 因此是 `{ total: 2799, withInterval: 1363, recoveryIntervalMs: 10000 }`，
+旧的 `withInterval: 1192` / `intervalUnverified: 173` 已删——那两个数是文案正则的产物，正是
+173 件「声明了恢复量却坐下一动不动」的来源，见 §9。）
 
 **表里 935 件 ≠ 935 件能骑**（逐件重算得出，勿混；`_` 为两个不同判据，别相互代入）：
 
@@ -95,9 +100,9 @@
     "name": "藍色木椅",
     "description": "只有在維多利亞港製作販售的藍色木椅。坐在上面每10秒可恢復HP 35。",
     "recoveryIntervalMs": 10000,
-    "recoveryIntervalSource": "P: String/Ins.json 3010001.desc「每10秒」；源 info 无间隔字段" }
+    "recoveryIntervalSource": "P: 椅子系统固定恢复节拍 10 秒（源 info 无间隔键；写明秒数的 1192 件文案全为 10 秒，无例外）。文案写法不一，不再是判据" }
 },
-"counts": { "total": 2797, "withInterval": 1192, "intervalUnverified": 173 }
+"counts": { "total": 2799, "withInterval": 1363, "recoveryIntervalMs": 10000 }
 ```
 
 自检：`chairs.json["3010001"]` 的 `source` / `spriteSource` / `info` 与既有
@@ -175,8 +180,9 @@ export interface ChairState {
   itemId: string;
   /** 源 `info.recoveryHP` / `recoveryMP`（缺席即 0）。 */
   recoveryHp: number; recoveryMp: number;
-  /** 恢复间隔；**缺席**表示该椅子的间隔未核定（`String/Ins.json` 文案没写「每N秒」），
-   *  此时服务端不恢复，客户端也不得显示倒计时。 */
+  /** 恢复间隔。**缺席**表示源里这把椅子没有声明任何恢复量（`recoveryHP`/`recoveryMP`
+   *  都没有）。声明了恢复量时它**恒为** 10000 ms：源 `info` 没有间隔键，写明秒数的
+   *  1192 件文案全是 10 秒，10 秒是椅子系统的固定节拍，描述只是复述它。 */
   recoveryIntervalMs?: number;
   nextRecoveryInMs?: number;
 }
@@ -309,15 +315,23 @@ pub fn is_chair_item(item_id: &str) -> bool {
     chair_definition(item_id).is_some()
 }
 
+/// 椅子：设置栏里源椅子类别（`Item/Install/0301*`、`0302`）的那一件。
+/// 判定**不看恢复量**——零恢复的经验椅与「只在文案里写恢复量」的椅子都是合法椅子，
+/// 用恢复量筛会把它们挡在坐姿入口外（见 `inventory.rs` 的
+/// `chair_identity_comes_from_source_category_not_recovery_amount`）。
+pub fn is_chair_item(item_id: &str) -> bool {
+    chair_definition(item_id).is_some()
+}
+
 fn chair_definition(item_id: &str) -> Option<&'static ChairItemDefinition> {
     shipped_chairs()
         .get(item_id)
-        .filter(|chair| info_i64_of(&chair.info, "recoveryHP").unwrap_or(0) > 0
-            || info_i64_of(&chair.info, "recoveryMP").unwrap_or(0) > 0)
+        .filter(|chair| is_chair_source(&chair.source))
 }
 
-/// 坐姿的恢复量与间隔。`interval_ms` 为 `None` 表示源文案没写「每N秒」⇒ 间隔未核定，
-/// 调用方必须**不恢复**（见 `B/chairs.rs`）。
+/// 坐姿的恢复量与间隔。三样都来自源：`recoveryHP` / `recoveryMP` 是 `info` 的作者值
+/// （**可为负**：`3015014 陷入絕境!` 就是每 10 秒各扣 1），`interval_ms` 只在源声明了
+/// 恢复量时出现，`None` ＝ 这把椅子没有任何恢复量（`info` 里两个字段都没有）。
 pub fn chair_recovery(item_id: &str) -> Option<(i64, i64, Option<i64>)> {
     let chair = chair_definition(item_id)?;
     Some((
@@ -649,12 +663,17 @@ fn mount_outcome(
 //! 边界：
 //! * **持有复用背包**：椅子一直是设置栏(3)的普通堆叠 1 的物品，本模块不移动它；
 //! * **坐姿是会话状态**：不落库，重连/换图/死亡/受击/移动/攻击一律结束；
-//! * 恢复量与间隔全部来自 `TamingMob` 之外的源表（`D/chairs.json`，源
-//!   `Item/Install/*/info.recoveryHP|recoveryMP` 与 `String/Ins.json` 文案）。
+//! * **恢复量全部来自源字段**：`D/chairs.json` 的 `info.recoveryHP` / `recoveryMP`；
+//!   本模块不估算、不设默认值，也**不**从描述文案里回填。
 //!
-//! 间隔的诚实边界：源 `info` **没有**间隔字段，只有描述文案写「每N秒」。因此
-//! `chairs.json` 只在文案确实写出时给 `recoveryIntervalMs`；缺席（173 件有恢复
-//! 字段但文案没写）时本模块**不恢复**，也不显示倒计时——套一个默认 10 秒就是编规则。
+//! 间隔来自系统节拍，不来自文案：源 `info` **没有**间隔字段，写明秒数的 1192 件文案
+//! **全是 10 秒**，是椅子系统的固定节拍。所以 `chairs.json` 给每一件在源里声明了恢复量
+//! 的椅子都带上 `recoveryIntervalMs`（恒 10000），不再按「每N秒」抠正则——那条判据曾让
+//! 173 件声明了恢复量的椅子（写成「每 10秒」「每坐10秒」「坐下10秒」或压根没写）坐下后
+//! 一点都不涨。
+//!
+//! 取值口径：恢复量只在源字段声明处取一次，上限只在 HP/MP 顶格处取一次；恢复量是**带符号**
+//! 的作者值（`3015014 陷入絕境!` 每 10 秒扣 HP/MP 各 1），因此下限也是规则的一部分。
 
 use super::*;
 
@@ -664,7 +683,7 @@ pub(super) struct ChairRuntime {
     pub item_id: String,
     pub recovery_hp: i64,
     pub recovery_mp: i64,
-    /// `None` = 间隔未核定 ⇒ 只坐不恢复。
+    /// `None` ＝ 源里这把椅子没有声明任何恢复量 ⇒ 只坐、不恢复、不给倒计时。
     pub recovery_interval_ticks: Option<u64>,
     pub next_recovery_at: Option<u64>,
 }
@@ -732,8 +751,8 @@ impl World {
             Decision::Sit => {
                 let (recovery_hp, recovery_mp, interval_ms) =
                     inventory::chair_recovery(item_id).expect("is_chair_item 已证明存在");
-                // 间隔未核定时 `next_recovery_at` 为 `None`：坐姿照常成立，
-                // 只是不恢复、也不给倒计时。
+                // 源里没声明任何恢复量时 `interval_ms` 为 `None`，`next_recovery_at`
+                // 也就为 `None`：坐姿照常成立，只是不恢复、也不给倒计时。
                 let interval_ticks = interval_ms
                     .filter(|ms| *ms > 0)
                     .map(|ms| ms / TICK_MS as i64)
@@ -762,7 +781,8 @@ impl World {
         }
     }
 
-    /// 每拍推进坐椅恢复。恢复量只在源字段声明处取；上限只在 HP/MP 顶格处一次。
+    /// 每拍推进坐椅恢复。恢复量只在源字段声明处取；上限只在 HP/MP 顶格处一次；
+    /// 恢复量是**带符号**的作者值，所以下限（HP ≥ 1、MP ≥ 0）也在规则里。
     pub(super) fn step_chairs(&mut self) {
         let tick = self.tick;
         for player in self.players.values_mut() {
@@ -777,15 +797,19 @@ impl World {
                 continue;
             }
             // 一次只结算一拍，且下一拍**从现在**往后推：世界可能有很长的空档
-            // （驻留角色、卡顿、进程挂起），用 `due + interval` 追赶会让一次停顿
+            // （驻留角色、进程挂起、调试断点），用 `due + interval` 追赶会让一次停顿
             // 补出一叠恢复。这里宁可少给，也不给"离线也回血"的口子。
             chair.next_recovery_at = Some(tick.saturating_add(interval));
-            if chair.recovery_hp > 0 {
-                player.state.hp = (player.state.hp + chair.recovery_hp).min(player.state.max_hp);
-            }
-            if chair.recovery_mp > 0 {
-                player.state.mp = (player.state.mp + chair.recovery_mp).min(player.state.max_mp);
-            }
+            // 带符号结算：`3015014 陷入絕境!` 每 10 秒扣 HP/MP 各 1，旧代码的
+            // `if recovery_hp > 0` 会把负值连同跳字一起吞掉，实际变化成了 0。
+            let hp = (player.state.hp + chair.recovery_hp)
+                .min(player.state.max_hp.max(1))
+                .max(1);
+            let mp = (player.state.mp + chair.recovery_mp)
+                .min(player.state.max_mp)
+                .max(0);
+            player.state.hp = hp;
+            player.state.mp = mp;
         }
     }
 
@@ -1263,9 +1287,10 @@ F/chairs/
 
 ```ts
 //! 坐姿的客户端**只读**投影。
-//! 关键诚实边界：`recoveryIntervalMs` 缺席表示**该椅子的恢复间隔未核定**
-//! （源文案没写「每N秒」），此时**不得**显示倒计时、也不得按默认 10 秒推算——
-//! 那正是"编规则"。
+//! 关键诚实边界：`recoveryIntervalMs` 缺席表示**源里这把椅子没有声明任何恢复量**
+//! （`info` 既无 `recoveryHP` 也无 `recoveryMP`），此时**不得**显示倒计时——没有
+//! 可恢复的东西，倒计时就是一句空话。凡声明了恢复量的椅子都带间隔（椅子系统的固定
+//! 节拍 10 秒），服务端在同一判据下按节拍结算。
 
 import type { ChairState, PlayerState } from '../../../../shared/protocol';
 
@@ -1273,20 +1298,40 @@ export interface ChairReadout {
   itemId: string;
   recoveryHp: number;
   recoveryMp: number;
+  intervalSeconds?: number;
+  /** 距下一拍的整秒（向上取整）。**`undefined` ＝ 源没声明恢复量，不是 0。** */
   secondsToRecovery?: number;
 }
 
 export function chairReadout(player: PlayerState | undefined): ChairReadout | undefined {
   const chair: ChairState | undefined = player?.chair;
   if (!chair) return undefined;
-  const secondsToRecovery = chair.recoveryIntervalMs !== undefined && chair.nextRecoveryInMs !== undefined
-    ? Math.max(0, Math.ceil(chair.nextRecoveryInMs / 1000))
-    : undefined;
-  return { itemId: chair.itemId, recoveryHp: chair.recoveryHp, recoveryMp: chair.recoveryMp, secondsToRecovery };
+  const verified = chair.recoveryIntervalMs !== undefined && chair.nextRecoveryInMs !== undefined;
+  return {
+    itemId: chair.itemId,
+    recoveryHp: chair.recoveryHp,
+    recoveryMp: chair.recoveryMp,
+    intervalSeconds: verified ? Math.round((chair.recoveryIntervalMs ?? 0) / 1000) : undefined,
+    secondsToRecovery: verified ? Math.max(0, Math.ceil((chair.nextRecoveryInMs ?? 0) / 1000)) : undefined,
+  };
 }
 
-export function chairIntervalVerified(readout: ChairReadout): boolean {
-  return readout.secondsToRecovery !== undefined;
+/** 这把椅子是否有可结算的恢复量（正负都算：扣血椅也在每个节拍生效）。 */
+export function chairHasRecovery(readout: ChairReadout): boolean {
+  return readout.recoveryHp !== 0 || readout.recoveryMp !== 0;
+}
+
+/** 是否有扣减（负值）——倒计时文案得说「扣减」而不是「恢复」。 */
+export function chairDrains(readout: ChairReadout): boolean {
+  return readout.recoveryHp < 0 || readout.recoveryMp < 0;
+}
+
+/** 恢复量的显示串（源值原样，带符号：扣血椅写 `HP -1`）；两样都是 0 时 `undefined`。 */
+export function chairRecoveryLabel(readout: ChairReadout): string | undefined {
+  const parts: string[] = [];
+  if (readout.recoveryHp !== 0) parts.push(`HP ${readout.recoveryHp > 0 ? '+' : ''}${readout.recoveryHp}`);
+  if (readout.recoveryMp !== 0) parts.push(`MP ${readout.recoveryMp > 0 ? '+' : ''}${readout.recoveryMp}`);
+  return parts.length ? parts.join(' · ') : undefined;
 }
 ```
 
@@ -1399,11 +1444,16 @@ const ACTIONS = [
 
 ```bash
 node scripts/export_tms273_mounts_chairs.cjs
-# 导出坐骑 935 件（887 件带已核定骑行数值，坐骑档 24 个）、椅子 2797 件（1192 件带已核定恢复间隔）。
+# 导出坐骑 935 件（887 件带已核定骑行数值，坐骑档 24 个）、椅子 2799 件（1363 件声明了恢复量，节拍恒为 10000 ms）。
 shasum shared/mounts.json client/public-tms273/assets/mounts.json   # 两处必须同摘要
 ```
 
-### 6.2 新增 `scripts/check_tms273_mounts_chairs.cjs`（独立重算 + 双向反向断言）
+### 6.2 骑宠／椅子门的落点（**计划中的独立脚本未建**，断言现落在既有门里）
+
+> 原计划新增 `scripts/check_tms273_mounts_chairs.cjs` 统管两族；实际只落了**椅子**
+> 一侧的间隔断言，且落在既有 `scripts/check_tms273_notebook.cjs` 里（椅子归图鉴的
+> 椅子分页，两处共用同一份 `shared/chairs.json`）。骑宠侧的独立重算门**仍未建**，
+> 属 §7 未完成项。
 
 四组断言，全部**不依赖**运行时的判定结果，只重算源：
 
@@ -1411,10 +1461,13 @@ shasum shared/mounts.json client/public-tms273/assets/mounts.json   # 两处必�
    `1932057`），逐字段重读 `WZ_JSON_TW` 比对 `islot`/`tamingMob`/`reqLevel`/`ride.*`；
    椅子的 `3010001` 必须与 `items.json["3010001"]` 的 `source`/`spriteSource`/`info` 逐键相同。
 2. **反向断言（缺一个都要报全）**：`mounts.json` 里每个 `info.islot ∈ {Tm,Sd}` 的 id，
-   在 `equipment_slot` 侧必须解析到 ±18/±19；`chairs.json` 每个 id 的
-   `recoveryIntervalMs` 必须有 `recoveryIntervalSource`，反之亦然。
-3. **不得编规则**：`chairs.json` 中 `recoveryIntervalMs` 缺席而 `recoveryHP/recoveryMP`
-   存在的 id 集合，必须与 `counts.intervalUnverified` 数量相等。
+   在 `equipment_slot` 侧必须解析到 ±18/±19；`chairs.json` 里
+   `recoveryIntervalMs` 与「源 `info` 声明了 `recoveryHP`/`recoveryMP`（含负值）」
+   **同生共死**——一方出现另一方必出现，且值恒等于 `counts.recoveryIntervalMs`
+   （现状 `check_tms273_notebook.cjs` 已在断这一条）。
+3. **不得编规则**：不得出现「源有两个恢复字段却没有间隔」的椅子（现状为 **0 件**）；
+   反过来「有间隔却没有恢复字段」也必须是 **0 件**。断言走
+   `counts.withInterval === 声明恢复量的件数`，不再有 `intervalUnverified` 这个桶。
 4. **跨文件不打架**：`mounts.json`/`chairs.json` 与 `items.json` 的同 id 行（如 `3010001`）
    不得出现 `info` 字段级冲突。
 5. **可骑面锁定（§1.2 那张表就是断言）**：重算四个数——`islot=Tm` 共 909、
@@ -1442,8 +1495,9 @@ cd server && cargo test --offline mounts chairs -- --nocapture
 
 * 设置栏椅子上坐/起立；快照带 `chair`；
 * 移动输入一拍内起立；
-* `recoveryIntervalMs` 核定的椅子（`3010001`）在 `interval` 拍后 HP 增加**恰好**
-  `recoveryHP`，且不会多拍叠加；间隔未核定的椅子 HP **永不**变化；
+* 声明的椅子（`3010001`）在 `interval` 拍后 HP 增加**恰好** `recoveryHP`，且不会多拍叠加；
+  源里没有恢复量的椅子（`3010078`）HP **永不**变化；
+* 扣血椅 `3015014` 每拍 HP/MP 各**减** 1（恢复量是带符号的作者值），且 HP 停在 1、MP 停在 0；
 * HP 顶格时不超过 `maxHp`（上限只在声明处一次）；
 * 非椅子装饰品 → `not_a_chair`；槽位与 id 不符 → `chair_mismatch`；
 * `bag.rs` 防御分支：直接调 `use_item_with_max_mp(inventory_type:3, ...)` 得
@@ -1459,9 +1513,12 @@ node src/features/mounts/model.check.mjs
 node src/features/chairs/model.check.mjs
 ```
 
-`model.check.mjs` 三组断言：`mount` 缺席 ⇒ 无读数（**不**从 `equipped` 推导）；
-`recoveryIntervalMs` 缺席 ⇒ `secondsToRecovery === undefined`（**不**套 10 秒）；
-`mountSpeedLabel` 对 100 显示 `100%`、对 150 显示 `150% (+50)`。
+`model.check.mjs` 五组断言：`mount` 缺席 ⇒ 无读数（**不**从 `equipped` 推导）；
+间隔缺席 ⇒ `secondsToRecovery === undefined`（**不**套 10 秒）；固定节拍下
+`intervalSeconds === 10` 且 7300ms 读作「还剩 8 秒」；恢复量**带符号**透传
+（`HP +35` / 扣血椅 `HP -1 · MP -1`，两样都为 0 ⇒ `chairRecoveryLabel` 为 `undefined`）；
+名字走跨表一致 + `chair-names.json` 回落链。
+`mounts/model.check.mjs` 另有 `mountSpeedLabel` 对 100 显示 `100%`、对 150 显示 `150% (+50)`。
 
 ### 6.5 需要一起改的门禁
 
@@ -1494,7 +1551,10 @@ node src/features/chairs/model.check.mjs
 3. **`fatigue` 只上快照，不参与任何计算**：源只给初始值，没有衰减公式。
 4. **骑乘的开关条件未核定**：源包没有「谁能骑、在哪骑、何时强制下马」的可执行规则，
    本实现的判据是 P 级（见 `mounts.rs` 模块头逐条注明）。
-5. **173 件椅子的恢复间隔未核定**（源文案没写「每N秒」）：坐得下，但不恢复、不显示倒计时。
+5. ~~**173 件椅子的恢复间隔未核定**~~ **已根因修掉（2026-09-23）**：那 173 件不是"源里
+   没写间隔"，而是旧判据（正则 `/每(\d+)秒/` 抠文案）的漏网——62 件写了 10 秒只是写法
+   不同（「每 10秒」「每坐10秒」「坐下10秒」），111 件压根没写。现在凡源 `info` 声明了
+   恢复量的椅子都按固定节拍 10 秒结算。详见 §9。仍未做的：坐姿的实玩验收（第 7 条）。
 6. **`Tm` 槽共用**：源里機械師的引擎/手臂/腳/身軀/電晶體（`Character/Mechanic/*`）
    与骑宠**同用 `islot = Tm`（槽 −18）**。因此 `is_mount_item` 只用 `info.tamingMob` 判定，
    不看 islot；这也意味着機械師整套装备与骑宠在该槽上互斥——这是源的行为，不是本实现的取舍。
@@ -1526,3 +1586,57 @@ node src/features/chairs/model.check.mjs
 | `scripts/export_tms273_avatar.cjs` | 改 | §4.7（`sit` 动作 + 断言的静态单帧放宽） |
 | `app/main.ts` | 改 | §4.9 |
 | 门禁与验收 | 新增/改 | §6 |
+
+---
+
+## 9. 根因修复：椅子 HP/MP 的实际增减（2026-09-23）
+
+### 9.1 症状
+
+坐椅子时**声明有恢复却完全不涨**；扣血椅 `3015014 陷入絕境!` 声明「每10秒 減少 HP和MP 1」
+也**一点不减**。状态卡却能画出「MP +60 / 每 10 秒恢复一次，还剩 6 秒」这样的倒计时。
+
+### 9.2 根因（两处，都在"间隔从哪来"这一条判据上）
+
+1. **间隔用文案正则抠**：导出器用 `/每(\d+)秒/` 从 `String/Ins.json` 描述里取间隔，
+   取不到就不导出 `recoveryIntervalMs`。而源事实是——`info` **没有**间隔键；**写明秒数的
+   1192 件文案全是 10 秒，无一例外**。于是 2799 件里 173 件声明了恢复量（`info` 里确实有
+   `recoveryHP`/`recoveryMP`）的椅子因为**写法不同或压根没写**被判"未核定"，服务端
+   `next_recovery_at` 为 `None` ⇒ 坐下后每拍都 `continue`，HP/MP 一动不动。
+   这 173 件里 62 件写了 10 秒（「每 10秒」「每坐10秒」「坐下10秒」「10秒恢復」），
+   111 件没写。
+2. **结算把符号夹掉**：旧 `step_chairs` 是 `if chair.recovery_hp > 0 { … }`，负值直接跳过，
+   扣血椅的「-1」被吞成 0，跳字也一并没有。
+
+### 9.3 口径（用户确认：「10 秒作为椅子系统固定节拍」）
+
+* **间隔**：`recoveryIntervalMs` 只跟着「源 `info` 声明了恢复量」这件事走，凡声明了
+  （**含负值**）就带 `recoveryIntervalMs = 10000`；源里两个字段都没有的椅子不带间隔
+  （它们本来就没有可恢复的东西，套一个节拍只会画出一个空倒计时）。
+* **恢复量**：仍**严格取自** `info.recoveryHP` / `info.recoveryMP`，**不从文案回落**。
+  因此 4 件「只在描述里写恢复量、`info` 无字段」的椅子（如 `3010078`）不恢复——文案
+  不是数值来源，这一条不因为本次修复而放宽。
+* 端到端的一致性：`counts.withInterval === 声明恢复量的件数 === 1363`，间隔与恢复量
+  **同生共死**。
+
+### 9.4 落地改动
+
+| 文件 | 改动 |
+| --- | --- |
+| `scripts/export_tms273_mounts_chairs.cjs` | 删掉 `INTERVAL_PATTERN` 与 `unverified` 桶；新增常量 `CHAIR_RECOVERY_INTERVAL_MS = 10_000`；`counts` 改为 `{ total, withInterval, recoveryIntervalMs }` |
+| `shared/chairs.json` + 客户端镜像 | 重新生成：1363 件带 `recoveryIntervalMs` |
+| `server/src/inventory.rs` | `chair_recovery` / `recovery_interval_ms` 语义与注释对齐；单测改为断言 1363 口径的样本（含 `3015014` 的 `(-1, -1, Some(10000))`） |
+| `server/src/chairs.rs` | 模块头改「间隔来自系统节拍」；`step_chairs` 改为**带符号**结算（HP 下限 1、MP 下限 0），扣血不发「恢复」跳字 |
+| `client/src/features/chairs/model.ts`、`view.ts` | 删 `chairIntervalVerified`，新增 `chairHasRecovery` / `chairDrains`；标签与倒计时**带符号**，扣血椅文案说「扣减」，无恢复量说「坐下不会恢复」 |
+| `F/notebook/directory.ts`、`F/notebook/view.ts`、`app/i18n.ts` | 详情渲染去掉不可达的「间隔未核定」分支与文案键 |
+| `shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`check_tms273_runtime.cjs`、`check_colossus_live.cjs` | 内容版本 `tms273-39 → tms273-40`（协议 34 不变） |
+| `scripts/check_tms273_notebook.cjs` | 椅子间隔断言改为「与恢复量同生共死 + 节拍等于 `counts.recoveryIntervalMs`」 |
+
+### 9.5 证据
+
+* 源档直读：`Item/Install/03010/03010001.json`（`recoveryHP 35`，**无**间隔键）、
+  `03010025.json`（`recoveryHP 35 / recoveryMP 10`，无间隔键）、`03010078.json`
+  （只有 `price`/`slotMax`，恢复量只写在描述里）、
+  `Item/Install/030150/03015014.json`（`recoveryHP -1 / recoveryMP -1`）。
+* 全表统计：2799 件椅子中 1363 件 `info` 声明了恢复量（含 1 件负值），
+  写明秒数的 1192 件文案**全为 10 秒**。

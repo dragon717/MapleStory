@@ -19,7 +19,8 @@ import { loadManifest, type Manifest } from '../assets/manifest';
 import { mapText, protocolText, hasProtocolError, uiText, uiLocale } from './i18n';
 import { HudView } from '../features/hud/view';
 import { InventoryView } from '../features/inventory/view';
-import { itemName } from '../features/inventory/names';
+import { itemCategoryTab, itemName } from '../features/inventory/names';
+import { inventoryTypeForTab } from '../features/inventory/view-model';
 import { ChatView } from '../features/chat/view';
 import { DeathNoticeView } from '../features/notice/death';
 import { AwayNoticeView } from '../features/notice/away';
@@ -191,8 +192,12 @@ function activateUiAction(action: string): boolean {
 function useShortcutItem(itemId: number) {
   if (!selfState || selfState.hp <= 0 || escapeBlocked()) return;
   const item = selfState.inventory.find(item => Number(item.itemId) === itemId && item.quantity > 0);
-  if (!item) { status('背包中没有该消耗品。', true); return; }
-  connection?.send({ type: 'useItem', requestId: `keyitem-${crypto.randomUUID()}`, inventoryType: 2, sourceSlot: item.slot, itemId: item.itemId });
+  if (!item) { status('背包中没有该道具。', true); return; }
+  // 快捷栏上绑的不只是消耗品：椅子（设置栏）走的是同一条 useItem 通道，服务端
+  // 按**栏位号**分流（`chair_toggle` 只认 3）。因此栏位号必须由 itemId 自己的
+  // 类别算出来，不能写死 2——写死会让椅子落进 InvalidInventoryType。
+  const inventoryType = inventoryTypeForTab(itemCategoryTab(item.itemId));
+  connection?.send({ type: 'useItem', requestId: `keyitem-${crypto.randomUUID()}`, inventoryType, sourceSlot: item.slot, itemId: item.itemId });
 }
 let colossusSequence = 0;
 const sendColossus = (action: import('../../../shared/protocol').ColossusAction) => { if(action!=='travel')input?.reset(); connection?.send({type:'colossus',action,sequence:++colossusSequence,requestId:`colossus-${crypto.randomUUID()}`}); };
@@ -480,6 +485,7 @@ async function enterGame(session: LoginResponse) {
       activateBinding,
       editSlot: slot => { openKeybindings(); keybindingsView?.selectSlot(slot); },
       bindSkill: (slot, skillId) => keybindingsView?.bindSkillToSlot(slot, skillId),
+      bindItem: (slot, itemId) => keybindingsView?.bindItemToSlot(slot, itemId),
       openActivities: () => { input?.reset(); activities?.show(); },
       openPets: () => {
         input?.reset();

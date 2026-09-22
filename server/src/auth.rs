@@ -415,6 +415,18 @@ pub(crate) fn first_job_level(job: u32) -> u32 {
     }
 }
 
+/// 转职层级门槛（二 / 三 / 四转）。**唯一**定义处：`Store::advance_job` 的事务门、
+/// 世界侧对话门与技能点公式都从这里取；`shared/job-advance.json` 的 `levelAtLeast`
+/// 是同一口径的配置副本。
+pub(crate) const SECOND_JOB_LEVEL: u32 = 30;
+pub(crate) const THIRD_JOB_LEVEL: u32 = 60;
+pub(crate) const FOURTH_JOB_LEVEL: u32 = 100;
+/// 四转等级表的末级（`fourth_sp_for_level` 的有效上界）。
+pub(crate) const FOURTH_SP_LAST_LEVEL: u32 = 140;
+/// 一 / 二 / 三转书的起手点数与每级加点（四转是 3 点 + 等级表，见 `fourth_sp_through_level`）。
+const TRANSFER_STARTER_SP: u32 = 5;
+const TRANSFER_SP_PER_LEVEL: u32 = 3;
+
 const MAGE_BOOK: u32 = 200;
 const THIRD_MAGE_BOOK: u32 = 221;
 const THIRD_JOB: u32 = 221;
@@ -424,7 +436,12 @@ const FOURTH_JOB: u32 = 222;
 const FOURTH_FIXED_SKILL: u32 = 2_220_015;
 const FOURTH_PASSIVE_SKILLS: [u32; 2] = [2_220_010, 2_220_013];
 const FOURTH_HIDDEN_SKILLS: [u32; 3] = [2_220_014, 2_221_055, 2_221_056];
-const FOURTH_PAID_SKILLS: [u32; 10] = [
+/// 四转书里**真实消耗 SP** 的技能名单。
+///
+/// 判据是「目录里不为 `hidden` / `fixedLevel` / `hyper`」，与 `mage::MageSkills`
+/// 的 `paid_sp_in_book` 同源；`mage.rs` 的单测用目录派生结果对它**双向断言**，
+/// 因此这份名单不是第二套真相，而是目录在当前包里的离线快照。
+pub(crate) const FOURTH_PAID_SKILLS: [u32; 10] = [
     2_220_010, 2_220_013, 2_221_000, 2_221_004, 2_221_005, 2_221_006, 2_221_007, 2_221_008,
     2_221_011, 2_221_012,
 ];
@@ -517,12 +534,16 @@ pub(crate) fn hyper_reset_cost(reset_count: u8) -> u64 {
 /// skills.
 pub(crate) fn grant_first_mage(profile: &mut Profile) {
     profile.job = 200;
+    let level = profile.level;
     grant_first_mage_fields(
         &mut profile.max_mp,
         &mut profile.mp,
         &mut profile.skills,
         &mut profile.skill_points,
     );
+    // 交付 q1402 时玩家可能已经超过 8 级（剧情线允许），同样按
+    // 「规定转职等级 → 当前等级」补齐起手 5 点之外的差额。
+    top_up_book_sp(MAGE_BOOK, level, &mut profile.skill_points);
 }
 
 fn grant_first_mage_fields(
@@ -531,7 +552,7 @@ fn grant_first_mage_fields(
     skills: &mut BTreeMap<u32, u32>,
     skill_points: &mut BTreeMap<u32, u32>,
 ) {
-    skill_points.entry(MAGE_BOOK).or_insert(5);
+    skill_points.entry(MAGE_BOOK).or_insert(TRANSFER_STARTER_SP);
     skills.entry(2_000_007).or_insert(1);
     skills.entry(2_001_012).or_insert(1);
     *max_mp = (*max_mp).max(100);
@@ -541,12 +562,16 @@ fn grant_first_mage_fields(
 /// 一转的 P 级首发字段（**四条探险家线共用这一份实现**）。
 ///
 /// TMS273.7 的导出里没有转职发放脚本，所以每一项都是本项目补齐的最小可玩集：
-/// 本线的一转书 5 点起手 SP（与后三层 +5/+5/+3 的既有阶梯同形）。法师另有两项
-/// 它的运行期所必需的补齐——隐藏伴随技能与 100 MP 下限；三条物理线**没有**同类的
-/// 必需伴随技能、也没有任何技能路径消耗 MP（施法耗 MP 只在法师的元素管线里），
-/// 因此不凭空补，理由登记在 `gameplay.compatibility.firstJobTransfer`。
+/// 本线的一转书起手 SP（与后三层 +5/+5/+3 的既有阶梯同形，由 `TRANSFER_STARTER_SP`
+/// 给出）、法师另有两项运行期所必需的补齐——隐藏伴随技能与 100 MP 下限；三条物理线
+/// **没有**同类的必需伴随技能、也没有任何技能路径消耗 MP（施法耗 MP 只在法师的元素
+/// 管线里），因此不凭空补，理由登记在 `gameplay.compatibility.firstJobTransfer`。
+///
+/// `level` 用来把起手 5 点之外的差额一次补齐：`30` 级才一转的玩家拿到的不是 5 点，
+/// 而是 `book_sp_through_level(书, 30, true)`（见该函数的公式）。
 pub(crate) fn grant_first_job_fields(
     job: u32,
+    level: u32,
     max_mp: &mut i64,
     mp: &mut i64,
     skills: &mut BTreeMap<u32, u32>,
@@ -554,9 +579,10 @@ pub(crate) fn grant_first_job_fields(
 ) {
     if job == MAGE_BOOK {
         grant_first_mage_fields(max_mp, mp, skills, skill_points);
-        return;
+    } else {
+        skill_points.entry(job).or_insert(TRANSFER_STARTER_SP);
     }
-    skill_points.entry(job).or_insert(5);
+    top_up_book_sp(job, level, skill_points);
 }
 
 fn fourth_sp_for_level(level: u32) -> u32 {
@@ -579,7 +605,7 @@ fn fourth_sp_through_level(level: u32) -> u32 {
         return 0;
     }
     let mut total: u32 = 3;
-    let end = level.min(140);
+    let end = level.min(FOURTH_SP_LAST_LEVEL);
     if end >= 101 {
         for current in 101..=end {
             total = total.saturating_add(fourth_sp_for_level(current));
@@ -594,14 +620,126 @@ fn fourth_learned_sp(skills: &BTreeMap<u32, u32>) -> u32 {
     })
 }
 
+/// 技能书从哪一级开始积累点数：一转书按 `first_job_level`（法师 8 / 其余 10），
+/// 二 / 三 / 四转书按层级门槛 30 / 60 / 100。
+/// 未登记的书（含初学者书 `0`）返回 `None`——它有自己的 1 点/级规则。
+pub(crate) fn book_transfer_level(book: u32) -> Option<u32> {
+    match crate::mage::book_tier(book) {
+        Some(0) => Some(SECOND_JOB_LEVEL),
+        Some(1) => Some(THIRD_JOB_LEVEL),
+        Some(2) => Some(FOURTH_JOB_LEVEL),
+        Some(_) => None,
+        None => crate::mage::is_first_job(book).then(|| first_job_level(book)),
+    }
+}
+
+/// 技能书**停止累积**的等级（出层等级）：一转书到二转门槛 30、二转书到三转门槛 60、
+/// 三转书到四转门槛 100、四转书到等级表末级 140。
+///
+/// 旧书必须截断，否则按时转职的玩家每次对账都会发现「旧书按当前等级算还欠点」而被
+/// 重复补点。当前职业的那本书不截断（玩家还在往上加点）。
+fn book_sp_cap_level(book: u32) -> u32 {
+    match crate::mage::book_tier(book) {
+        Some(0) => THIRD_JOB_LEVEL,
+        Some(1) => FOURTH_JOB_LEVEL,
+        Some(2) => FOURTH_SP_LAST_LEVEL,
+        // 一转书（以及不可能出现的其它层级）：到二转门槛为止。
+        _ => SECOND_JOB_LEVEL,
+    }
+}
+
+/// 一本书在某个等级**应当持有**（已学 + 余量）的技能点总量。
+///
+/// 这是「规定转职等级 → 当前等级」补全的**唯一权威公式**：
+/// `起手 5（四转 3） + 每级 3（四转按 `fourth_sp_for_level` 的等级表）`，
+/// 起点是 `book_transfer_level`，终点是当前等级；旧书按 `book_sp_cap_level` 截断。
+///
+/// 例：二转书在 30 级转职时是 5 点，45 级才转职时同样是 `5 + 3×15 = 50` 点。
+pub(crate) fn book_sp_through_level(book: u32, level: u32, still_current: bool) -> u32 {
+    let Some(start) = book_transfer_level(book) else {
+        return 0;
+    };
+    if level < start {
+        return 0;
+    }
+    let end = if still_current {
+        level
+    } else {
+        level.min(book_sp_cap_level(book))
+    };
+    if crate::mage::book_tier(book) == Some(2) {
+        // 四转书：100 级的 3 点起手 + 101..=140 的等级表。
+        return fourth_sp_through_level(end);
+    }
+    TRANSFER_STARTER_SP
+        .saturating_add(TRANSFER_SP_PER_LEVEL.saturating_mul(end.saturating_sub(start)))
+}
+
+/// 一本书的**欠额**：`应有点数 − 已学（真实消耗） − 余量`，只补不扣。
+pub(crate) fn book_due_sp(
+    book: u32,
+    level: u32,
+    still_current: bool,
+    paid_sp: u32,
+    remaining: u32,
+) -> u32 {
+    book_sp_through_level(book, level, still_current)
+        .saturating_sub(paid_sp.saturating_add(remaining))
+}
+
+/// 把一本书补到「规定转职等级 → 当前等级」的应有点数（只加不减）。
+///
+/// **只对「转职这一刻的新书」使用**：职业 CAS 保证 `from_job` 不可能持有这本新书，
+/// 所以它的已学必然是 0，应有点数就是全额。已有加点的书要用 `book_due_sp` 减去已学，
+/// 否则会把花掉的点再发一遍。
+pub(crate) fn top_up_book_sp(book: u32, level: u32, points: &mut BTreeMap<u32, u32>) {
+    let slot = points.entry(book).or_insert(0);
+    *slot = (*slot).max(book_sp_through_level(book, level, true));
+}
+
+/// 登录自愈：把当前职业**可持有的每一本书**补到按等级应有点数。
+///
+/// 判据是 `book_due_sp`（应有一点数 − 已学 − 余量），所以：
+/// 按时转职且已经加过点的玩家欠额为 0（不重复发），晚转职与存量档一次补齐；
+/// 反复登录幂等（补完欠额即归零）。识别「免单技能」（隐藏 / fixLevel / Hyper
+/// 都不花 SP）要用技能目录，因此这一层放在拥有目录的调用方（`World` 的登录归一化）。
+pub(crate) fn reconcile_job_sp(
+    profile: &mut Profile,
+    mage_skills: &crate::mage::MageSkills,
+) -> bool {
+    let Some(current_book) = crate::mage::book_for_job(profile.job) else {
+        return false;
+    };
+    let mut repaired = false;
+    for book in crate::mage::BOOKS {
+        if !crate::mage::skill_job_allowed(profile.job, book) {
+            continue;
+        }
+        // 初学者书 `0`：`book_transfer_level(0)` 是 `None`（本函数对它恒为 0），
+        // 它的 1 点/级规则由 `load_profile` 的既有 repair 负责，两者不重叠。
+        let remaining = profile.skill_points.get(&book).copied().unwrap_or(0);
+        let paid = mage_skills.paid_sp_in_book(book, &profile.skills);
+        let due = book_due_sp(book, profile.level, book == current_book, paid, remaining);
+        if due > 0 {
+            let slot = profile.skill_points.entry(book).or_default();
+            *slot = slot.saturating_add(due);
+            repaired = true;
+        }
+    }
+    repaired
+}
+
 fn fourth_missing_sp(
     level: u32,
     skills: &BTreeMap<u32, u32>,
     skill_points: &BTreeMap<u32, u32>,
 ) -> u32 {
-    fourth_sp_through_level(level).saturating_sub(
-        fourth_learned_sp(skills)
-            .saturating_add(skill_points.get(&FOURTH_MAGE_BOOK).copied().unwrap_or(0)),
+    book_due_sp(
+        FOURTH_MAGE_BOOK,
+        level,
+        true,
+        fourth_learned_sp(skills),
+        skill_points.get(&FOURTH_MAGE_BOOK).copied().unwrap_or(0),
     )
 }
 
@@ -943,16 +1081,23 @@ impl Store {
         }
         let mut skills = parse_skill_map(&skills_json)?;
         let mut skill_points = parse_skill_map(&skill_points_json)?;
+        let level: u32 = tx
+            .query_row(
+                "SELECT level FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "account persistence failed")?;
         let required_level: i64 = if from_job == 0 && crate::mage::is_first_job(job) {
             // 四条线的授权捷径共用「選擇岔道」漢斯这一个一转入口，
             // 门槛按线取（法师 8 级例外，物理三线同源 10 级）。
             i64::from(first_job_level(job))
         } else if from_job == 200 && job == 220 {
-            30
+            i64::from(SECOND_JOB_LEVEL)
         } else if from_job == 220 && job == THIRD_JOB {
-            60
+            i64::from(THIRD_JOB_LEVEL)
         } else if from_job == THIRD_JOB && job == FOURTH_JOB {
-            100
+            i64::from(FOURTH_JOB_LEVEL)
         } else {
             0
         };
@@ -960,54 +1105,46 @@ impl Store {
             // P: TMS273.7 export has no transfer grant script. The line's
             // starter points (plus the mage's hidden companions and MP floor)
             // make the authorized shortcut playable without pretending this is
-            // an original quest reward.
-            grant_first_job_fields(job, &mut max_mp, &mut mp, &mut skills, &mut skill_points);
+            // an original quest reward. 起手之外的差额由 `grant_first_job_fields`
+            // 按「规定转职等级 → 当前等级」一次补齐。
+            grant_first_job_fields(
+                job,
+                level,
+                &mut max_mp,
+                &mut mp,
+                &mut skills,
+                &mut skill_points,
+            );
         }
         if from_job == 200 && job == 220 {
-            let level: u32 = tx
-                .query_row(
-                    "SELECT level FROM player_stats WHERE account_id=?1",
-                    [account_id],
-                    |row| row.get(0),
-                )
-                .map_err(|_| "account persistence failed")?;
-            if level < 30 {
+            if level < SECOND_JOB_LEVEL {
                 return Ok(false);
             }
-            skill_points.entry(220).or_insert(5); // P: starter second-job SP, not a max-skill grant.
+            // P: starter second-job SP plus the levels the player skipped by
+            // transferring late (45 级才转二转 ⇒ 5 + 3×15 = 50 点)。
+            top_up_book_sp(220, level, &mut skill_points);
             skills.entry(2200011).or_insert(1); // Source fixLevel=1.
         }
         if from_job == 220 && job == THIRD_JOB {
-            let level: u32 = tx
-                .query_row(
-                    "SELECT level FROM player_stats WHERE account_id=?1",
-                    [account_id],
-                    |row| row.get(0),
-                )
-                .map_err(|_| "account persistence failed")?;
-            if level < 60 {
+            if level < THIRD_JOB_LEVEL {
                 return Ok(false);
             }
-            // The first third-job transfer owns the authored five starter SP.
-            // The CAS on player_stats.job above makes this grant one-shot;
-            // no old job-221 row is re-seeded on reconnect.
-            skill_points.entry(THIRD_MAGE_BOOK).or_insert(5);
+            // The first third-job transfer owns the authored starter SP plus
+            // every level from the 60 threshold to the current one.  The CAS on
+            // player_stats.job above makes this grant one-shot; no old job-221
+            // row is re-seeded on reconnect.
+            top_up_book_sp(THIRD_MAGE_BOOK, level, &mut skill_points);
         }
         if from_job == THIRD_JOB && job == FOURTH_JOB {
-            let level: u32 = tx
-                .query_row(
-                    "SELECT level FROM player_stats WHERE account_id=?1",
-                    [account_id],
-                    |row| row.get(0),
-                )
-                .map_err(|_| "account persistence failed")?;
-            if level < 100 {
+            if level < FOURTH_JOB_LEVEL {
                 return Ok(false);
             }
             // The fourth transfer owns the initial three points and the
             // level-101..140 P schedule.  The job CAS below makes this grant
-            // one-shot; existing book-222 balances are preserved and only a
-            // positive authored deficit is added.
+            // one-shot; existing book-222 balances **and already-learned
+            // skills** are preserved, and only a positive authored deficit is
+            // added (`fourth_missing_sp` 就是 `book_due_sp` 的减去已学的形式，
+            // 所以晚转职的差额同样被补齐)。
             if skills.get(&FOURTH_FIXED_SKILL).copied().unwrap_or(0) == 0 {
                 skills.insert(FOURTH_FIXED_SKILL, 1);
             }
@@ -4427,5 +4564,156 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));
         let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    // ---- 技能点按「规定转职等级 → 当前等级」补全 -------------------------------
+
+    fn sp_profile(job: u32, level: u32, skills: BTreeMap<u32, u32>, points: BTreeMap<u32, u32>) -> Profile {
+        Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 50,
+            max_mp: 50,
+            level,
+            job,
+            exp: 0,
+            exp_to_next: 1,
+            mesos: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            cash: 0,
+            inventory: Vec::new(),
+            skills,
+            skill_points: points,
+            ability_stats: AbilityStats::default(),
+        }
+    }
+
+    /// 唯一权威公式：起手 5（四转 3）+ 每级 3（四转按等级表），
+    /// 起点是转职门槛，旧书按出层等级截断。
+    #[test]
+    fn book_sp_formula_matches_the_authored_transfer_ladder() {
+        // 一转书：法师门槛 8、其余三线 10，出层截断在二转门槛 30。
+        assert_eq!(book_sp_through_level(200, 7, true), 0);
+        assert_eq!(book_sp_through_level(200, 8, true), 5);
+        assert_eq!(book_sp_through_level(200, 30, true), 5 + 3 * 22);
+        assert_eq!(book_sp_through_level(200, 45, true), 5 + 3 * 37);
+        assert_eq!(book_sp_through_level(200, 45, false), 5 + 3 * 22);
+        assert_eq!(book_sp_through_level(100, 9, true), 0);
+        assert_eq!(book_sp_through_level(100, 10, true), 5);
+        // 二转书：门槛 30，出层截断在三转门槛 60。
+        assert_eq!(book_sp_through_level(220, 29, true), 0);
+        assert_eq!(book_sp_through_level(220, 30, true), 5);
+        assert_eq!(book_sp_through_level(220, 45, true), 50);
+        assert_eq!(book_sp_through_level(220, 60, true), 5 + 3 * 30);
+        assert_eq!(book_sp_through_level(220, 90, false), 5 + 3 * 30);
+        // 三转书：门槛 60，出层截断在四转门槛 100。
+        assert_eq!(book_sp_through_level(221, 60, true), 5);
+        assert_eq!(book_sp_through_level(221, 90, true), 95);
+        assert_eq!(book_sp_through_level(221, 140, false), 5 + 3 * 40);
+        // 四转书：门槛 100，末级 140，与既有的等级表同源。
+        assert_eq!(book_sp_through_level(222, 99, true), 0);
+        assert_eq!(book_sp_through_level(222, 100, true), 3);
+        assert_eq!(book_sp_through_level(222, 140, true), fourth_sp_through_level(140));
+        // 初学者书 `0` 不在这套公式里（1 点/级另有 repair）。
+        assert_eq!(book_sp_through_level(0, 30, true), 0);
+    }
+
+    /// 转职时刻按等级派生：按时转职与改前**完全一致**，晚转职把差额一次补齐。
+    #[test]
+    fn advance_job_grants_the_skipped_levels_on_a_late_transfer() {
+        let path = std::env::temp_dir().join(format!("maple-late-advance-{}.sqlite3", random_id()));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+
+        // 二转：on-time 30 级 5 点；晚到 45 级则是 5 + 3×15 = 50 点。
+        for (id, level, expected) in [("on-time", 30, 5), ("late", 45, 50)] {
+            let base = sp_profile(200, level, BTreeMap::new(), BTreeMap::new());
+            store.load_profile(id, &base).unwrap();
+            store.save_profile(id, &base).unwrap();
+            assert!(store.advance_job(id, 200, 220).unwrap());
+            let promoted = store.load_profile(id, &base).unwrap();
+            assert_eq!(promoted.job, 220);
+            assert_eq!(promoted.skill_points.get(&220).copied(), Some(expected));
+        }
+        // 三转：60 级 5 点；90 级才转是 5 + 3×30 = 95 点。
+        for (id, level, expected) in [("third-on-time", 60, 5), ("third-late", 90, 95)] {
+            let base = sp_profile(220, level, BTreeMap::new(), BTreeMap::new());
+            store.load_profile(id, &base).unwrap();
+            store.save_profile(id, &base).unwrap();
+            assert!(store.advance_job(id, 220, 221).unwrap());
+            let promoted = store.load_profile(id, &base).unwrap();
+            assert_eq!(promoted.skill_points.get(&221).copied(), Some(expected));
+        }
+        // 四转：100 级 3 点；晚到 110 级则把 101..=110 的等级表一起补上。
+        let late_fourth = 3 + (101..=110).fold(0, |sum, level| sum + fourth_sp_for_level(level));
+        for (id, level, expected) in [("fourth-on-time", 100, 3), ("fourth-late", 110, late_fourth)] {
+            let base = sp_profile(221, level, BTreeMap::new(), BTreeMap::new());
+            store.load_profile(id, &base).unwrap();
+            store.save_profile(id, &base).unwrap();
+            assert!(store.advance_job(id, 221, 222).unwrap());
+            let promoted = store.load_profile(id, &base).unwrap();
+            assert_eq!(promoted.skill_points.get(&222).copied(), Some(expected));
+        }
+
+        drop(store);
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    /// 登录自愈：欠额 = 应有一点数 − 已学 − 余量。按时转职且已经加过点的玩家
+    /// 恒为 0（不重复发），晚转职与存量档补齐；隐藏 / fixLevel 技能不算已学。
+    #[test]
+    fn reconcile_job_sp_heals_legacy_rows_and_never_double_grants() {
+        let catalog = crate::mage::MageSkills::bundled();
+
+        // 按时转职的二转玩家：应有点 50，已学 10 + 余量 40 ⇒ 欠额 0，分文不动。
+        let mut healthy = sp_profile(
+            220,
+            45,
+            BTreeMap::from([(2_201_008, 10)]),
+            BTreeMap::from([(200, 71), (220, 40)]),
+        );
+        let before = healthy.skill_points.clone();
+        assert!(!reconcile_job_sp(&mut healthy, &catalog));
+        assert_eq!(healthy.skill_points, before);
+
+        // 晚转职 / 存量档：转过职但只拿到起手 5 点 ⇒ 补 45。
+        let mut legacy = sp_profile(220, 45, BTreeMap::new(), BTreeMap::from([(220, 5)]));
+        assert!(reconcile_job_sp(&mut legacy, &catalog));
+        assert_eq!(legacy.skill_points.get(&220).copied(), Some(50));
+        // 再登录一次不再发（幂等）。
+        let before = legacy.skill_points.clone();
+        assert!(!reconcile_job_sp(&mut legacy, &catalog));
+        assert_eq!(legacy.skill_points, before);
+
+        // 旧书按出层等级截断：一转书在 45 级只应 71 点，不会按 116 重复补。
+        let mut old_book = sp_profile(220, 45, BTreeMap::new(), BTreeMap::from([(200, 71), (220, 50)]));
+        assert!(!reconcile_job_sp(&mut old_book, &catalog));
+        assert_eq!(old_book.skill_points.get(&200).copied(), Some(71));
+
+        // 免单技能不占 SP：隐藏伴随技能与 fixLevel 技能都不算「已学」。
+        let mut free_skills = sp_profile(
+            220,
+            30,
+            BTreeMap::from([(2_000_007, 1), (2_001_012, 1), (2_200_011, 1)]),
+            BTreeMap::from([(200, 71), (220, 5)]),
+        );
+        assert!(!reconcile_job_sp(&mut free_skills, &catalog));
+        assert_eq!(free_skills.skill_points.get(&220).copied(), Some(5));
+
+        // 四转存量档：100 级只补到起手 3 点（101 级才开等级表）。
+        let mut fourth = sp_profile(222, 100, BTreeMap::new(), BTreeMap::from([(222, 0)]));
+        assert!(reconcile_job_sp(&mut fourth, &catalog));
+        assert_eq!(fourth.skill_points.get(&222).copied(), Some(3));
+
+        // 初心者不在这套自愈里（1 点/级另有 `load_profile` 的 repair）。
+        let mut beginner = sp_profile(0, 6, BTreeMap::new(), BTreeMap::from([(0, 5)]));
+        assert!(!reconcile_job_sp(&mut beginner, &catalog));
+        assert_eq!(beginner.skill_points.get(&0).copied(), Some(5));
     }
 }

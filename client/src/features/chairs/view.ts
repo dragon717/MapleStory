@@ -6,13 +6,16 @@
 //! 客户端不猜。移动输入、跳跃、普攻、技能、受击、死亡、换图也都会起身（服务端收口），
 //! 因此这里**不需要**再放一个「起身」按钮——多一个入口就多一处要和权威状态对齐。
 //!
-//! 这块标记回答的是另一个问题：**坐下了之后还剩几秒恢复**。
-//! 间隔未核定的椅子（源文案没写「每N秒」）不显示倒计时，写明「不会恢复」，
-//! 而不是套一个默认秒数——套了就是编规则。
+//! 这块标记回答的是另一个问题：**坐下了之后还剩几秒结算**。
+//! 源里没声明恢复量的椅子（`info` 两个恢复字段都没有）不显示倒计时，也**明说不会
+//! 恢复**，而不是留空让人以为 0 秒后就来。
+//!
+//! 恢复量是**带符号**的：`3015014 陷入絕境!` 每 10 秒扣 HP/MP 各 1，倒计时那行因此
+//! 说「扣减」而不是「恢复」——同一个节拍，方向由源字段决定。
 
 import type { PlayerState } from '../../../../shared/protocol';
 import { uiLocale } from '../../app/i18n';
-import { chairIntervalVerified, chairRecoveryLabel, type ChairReadout } from './model';
+import { chairDrains, chairHasRecovery, chairRecoveryLabel, type ChairReadout } from './model';
 import { ChairStore } from './store';
 
 export class ChairStatusView {
@@ -76,21 +79,20 @@ export class ChairStatusView {
       card.append(line);
     }
 
-    if (chairIntervalVerified(readout)) {
+    if (chairHasRecovery(readout) && readout.secondsToRecovery !== undefined) {
       const line = document.createElement('span');
       line.className = 'chair-status-countdown';
       const interval = readout.intervalSeconds ?? 0;
       const left = readout.secondsToRecovery ?? 0;
-      line.textContent = t(
-        `每 ${interval} 秒恢复一次，还剩 ${left} 秒`,
-        `Recovers every ${interval}s — ${left}s left`,
-      );
+      line.textContent = chairDrains(readout)
+        ? t(`每 ${interval} 秒扣减一次，还剩 ${left} 秒`, `Drains every ${interval}s — ${left}s left`)
+        : t(`每 ${interval} 秒恢复一次，还剩 ${left} 秒`, `Recovers every ${interval}s — ${left}s left`);
       card.append(line);
     } else {
-      // 未核定：说清"不会恢复"，而不是留空让人以为 0 秒后就来。
+      // 源没声明恢复量：说清"不会恢复"，而不是留空让人以为 0 秒后就来。
       const line = document.createElement('span');
       line.className = 'chair-status-unverified';
-      line.textContent = t('该椅子的恢复间隔未核定，坐下不会恢复', 'No verified recovery interval: this chair restores nothing');
+      line.textContent = t('源里这把椅子没有恢复量，坐下不会恢复', 'No authored recovery: this chair restores nothing');
       card.append(line);
     }
 

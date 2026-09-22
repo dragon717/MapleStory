@@ -807,7 +807,8 @@ try {
     '切回骑宠子页后顶栏选中的仍是骑宠页签');
 
   // 8c — 椅子页签：整张椅子表、每格带配置 ID、整页只说一次「几乎没有开放途径」，
-  //      详情里额外报恢复量与间隔（间隔缺席＝源未核定，不许替源编一个）。
+  //      详情里额外报恢复量与节拍（源声明了恢复量才有那 10 秒的固定节拍，
+  //      两栏一起缺席＝源里没有恢复量，不许替源编一个）。
   await page.locator('.notebook-tab').nth(4).click();
   await page.waitForFunction(() => document.querySelectorAll('.notebook-item-slot').length > 0);
   assert.equal(await page.locator('.notebook-item-slot').count(), 60, '椅子页一页也是 60 格');

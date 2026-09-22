@@ -232,7 +232,13 @@ fn default_consume_items() -> bool {
 impl JobAdvanceQuest {
     /// 交给 `Store` 的事务契约。auth 侧只认这份扁平结构，不认配置 schema，
     /// 因此改配置字段不会牵动持久化层。
-    fn plan(&self) -> JobAdvancePlan {
+    ///
+    /// `level` 是交付瞬间的角色等级：技能点按「**规定转职等级 → 当前等级**」派生
+    /// （`auth::book_sp_through_level`），而不是配置里写死的起手值——晚转职时
+    /// 差额（如 45 级才转二转的 45 点）必须在这里一次补齐。转职这一刻新书必然为空
+    /// （职业 CAS 保证 `from_job` 不能持有它），所以应有点数就是全额；
+    /// 配置里的 `amount` 是「按时转职」的那一份，与 30/60/100 门槛处的派生根值一致。
+    fn plan(&self, level: u32) -> JobAdvancePlan {
         JobAdvancePlan {
             quest_id: self.quest_id.clone(),
             from_job: self.from_job,
@@ -242,7 +248,12 @@ impl JobAdvanceQuest {
                 .reward
                 .skill_points
                 .iter()
-                .map(|point| (point.book, point.amount))
+                .map(|point| {
+                    (
+                        point.book,
+                        auth::book_sp_through_level(point.book, level, true),
+                    )
+                })
                 .collect(),
             skills: self
                 .reward
@@ -1305,7 +1316,8 @@ impl World {
         next_state.mesos = next_state.mesos.saturating_add(quest.reward.mesos);
 
         let mut profile = profile_from_state(&next_state, &map_id, &death_id, base_max_mp);
-        let plan = quest.plan();
+        // 技能点按交付瞬间的等级派生（见 `JobAdvanceQuest::plan`）。
+        let plan = quest.plan(next_state.level);
         auth::apply_job_advance_grant(&mut profile, &plan);
 
         // 4) 落库。事务由 Store 拥有：状态转场 active → completed 是幂等键，
@@ -1655,12 +1667,49 @@ mod tests {
     #[test]
     fn plan_carries_the_job_transition_contract() {
         let catalog = catalog();
-        let plan = catalog.by_id("job-220").unwrap().plan();
+        // 按时转职（正好 30 级）：配置里的起手 5 点就是全部。
+        let plan = catalog.by_id("job-220").unwrap().plan(30);
         assert_eq!(plan.from_job, 200);
         assert_eq!(plan.to_job, 220);
         assert_eq!(plan.level_at_least, 30);
         assert_eq!(plan.skill_points, vec![(220, 5)]);
         assert_eq!(plan.skills, vec![(2200011, 1)]);
         assert_eq!(plan.max_mp_floor, 100);
+        // 晚转职：30→45 这 15 级的点数必须一起补（5 + 3×15 = 50）。
+        let late = catalog.by_id("job-220").unwrap().plan(45);
+        assert_eq!(late.skill_points, vec![(220, 50)]);
+        // 三转同理：按时 5 点，90 级才转则是 5 + 3×30 = 95。
+        let third = catalog.by_id("job-221").unwrap().plan(60);
+        assert_eq!(third.skill_points, vec![(221, 5)]);
+        let late_third = catalog.by_id("job-221").unwrap().plan(90);
+        assert_eq!(late_third.skill_points, vec![(221, 95)]);
+    }
+
+    /// 配置里写的 `amount` 必须就是「按时转职」的那一份，否则派生公式与配置
+    /// 各说各话——把整张表逐条对一遍，漂移在测试里红，而不是在玩家身上。
+    #[test]
+    fn authored_skill_points_match_the_level_derived_floor() {
+        let catalog = JobAdvanceCatalog::load(
+            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join("shared/job-advance.json"),
+        )
+        .expect("bundled job advance catalog");
+        for quest in &catalog.quests {
+            for point in &quest.reward.skill_points {
+                assert_eq!(
+                    point.amount,
+                    crate::auth::book_sp_through_level(
+                        point.book,
+                        quest.require.level_at_least,
+                        true
+                    ),
+                    "{}: book {} 的配置点数与派生根值不一致",
+                    quest.quest_id,
+                    point.book
+                );
+            }
+        }
     }
 }

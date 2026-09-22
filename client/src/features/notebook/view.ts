@@ -850,8 +850,8 @@ export class NotebookView {
           ? uiText('notebookMountTierMissing', '源未提供')
           : saddle.reqLevel}`);
       }
-      // 椅子额外报出恢复量与间隔：源只在描述里写明「每 N 秒」时才有间隔，
-      // 没写就是未核定，不能替源编一个 10 秒出来。
+      // 椅子额外报出恢复量与节拍：源声明了恢复量就有节拍（椅子系统的固定 10 秒），
+      // 两栏一起缺席＝源里这把椅子没有恢复量，照实说"源未提供"。
       const chair = this.directory?.chairs?.[itemId];
       if (chair) {
         const amounts = [
@@ -859,9 +859,7 @@ export class NotebookView {
           chair.recoveryMP === null ? '' : `MP ${chair.recoveryMP}`,
         ].filter(Boolean).join(' / ');
         const recovery = amounts
-          ? (chair.recoveryIntervalMs === null
-            ? `${amounts}（${uiText('notebookChairIntervalUnverified', '间隔未核定')}）`
-            : `${amounts}（每 ${Math.round(chair.recoveryIntervalMs / 1000)} 秒）`)
+          ? `${amounts}（${Math.round((chair.recoveryIntervalMs ?? 0) / 1000)} 秒）`
           : uiText('notebookChairRecoveryMissing', '源未提供');
         lines.push(`${uiText('notebookChairRecovery', '恢复')}：${recovery}`);
       }

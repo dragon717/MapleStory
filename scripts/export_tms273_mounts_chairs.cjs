@@ -18,10 +18,17 @@
 //   String/Ins.json   3010001.name / .desc（「坐在上面每10秒可恢復HP 35」）
 //
 // 刻意**不**发明的东西：
-//   * 椅子恢复间隔：源 `info` 没有间隔字段，只有描述文案里写「每N秒」。因此只在
-//     文案确实写出「每N秒」时导出 `recoveryIntervalMs`，否则该字段缺席并进
-//     `unverified`，由运行时按「无已核定恢复规则」处理，而不是套一个默认 10 秒。
 //   * 缺 `TamingMob/<n>.json` 的坐骑（源引用了不存在的坐骑档）只登记引用，不给数值。
+//
+// 椅子恢复节拍（改动记录）：早先按描述文案里的「每N秒」抠间隔，抠不到就算「未核定 ⇒
+// 坐下不恢复」。那条判据是错的，理由是**源事实**而不是口味：
+//   * `info` 的键集里没有间隔键（`Item/Install/0301*/0302*/030150/*` 逐件核对）；
+//   * 1192 件文案写明秒数的椅子，写出的秒数**全是 10 秒**，无一件例外；
+//   * 文案写法极散（「每10秒」「每 10秒」「每坐10秒」「坐下10秒」「10秒恢復」），
+//     抠正则的后果是 62 件明明写了 10 秒被判「未核定」、另有 111 件压根没写文案，
+//     合计 173 件**声明了恢复量却一点都不涨**。
+// 间隔因此按椅子系统的固定节拍导出（凡 `info` 声明了恢复量的椅子都给），恢复量仍
+// 严格取自 `info`，绝不从文案反推数值。
 //
 // 输出：`shared/mounts.json`、`shared/chairs.json`，并镜像到
 // `client/public-tms273/assets/`（浏览器侧目录查询走同一份表）。
@@ -196,14 +203,13 @@ const CHAIR_INFO_KEYS = Object.freeze([
   'price', 'slotMax', 'recoveryHP', 'recoveryMP', 'reqLevel', 'tradeBlock', 'notSale', 'only', 'sitAction',
 ]);
 
-// 描述里写出的恢复间隔。源 `info` 没有该字段，只有文案；只认「每N秒」这一种写法，
-// 其余一律不导出（运行时按「无已核定恢复规则」处理）。
-const INTERVAL_PATTERN = /每(\d+)秒/;
+// 椅子恢复的**系统节拍**：源 `info` 没有间隔键，描述文案只是复述这一个固定值
+// （1192 件写明秒数的文案全为 10 秒，无一件例外）。见文件头的改动记录。
+const CHAIR_RECOVERY_INTERVAL_MS = 10_000;
 
 function buildChairs() {
   const names = readJson(path.join(SOURCE, 'String/Ins.json'));
   const items = {};
-  const unverified = [];
   let withInterval = 0;
 
   for (const file of listNestedSourceFiles(path.join(SOURCE, 'Item/Install'), /\.json$/)) {
@@ -238,13 +244,14 @@ function buildChairs() {
     };
     if (typeof name === 'string' && name.length) entry.name = name;
     if (typeof description === 'string' && description.length) entry.description = description;
-    const interval = typeof description === 'string' ? INTERVAL_PATTERN.exec(description) : null;
-    if (interval) {
-      entry.recoveryIntervalMs = Number(interval[1]) * 1000;
-      entry.recoveryIntervalSource = `P: String/Ins.json ${itemId}.desc「每${interval[1]}秒」；源 info 无间隔字段`;
+    // 间隔只跟着「源声明了恢复量」这件事走（`recoveryHP` / `recoveryMP` 任一出现，
+    // 负值也算声明——3015014「陷入絕境!」就是 HP/MP 各 -1 的扣血椅）。没有恢复量的
+    // 椅子不带间隔：它们本来就没有可恢复的东西，套一个节拍只会让客户端画倒计时。
+    if (info.recoveryHP !== undefined || info.recoveryMP !== undefined) {
+      entry.recoveryIntervalMs = CHAIR_RECOVERY_INTERVAL_MS;
+      entry.recoveryIntervalSource =
+        'P: 椅子系统固定恢复节拍 10 秒（源 info 无间隔键；写明秒数的 1192 件文案全为 10 秒，无例外）。文案写法不一，不再是判据';
       withInterval += 1;
-    } else if (info.recoveryHP !== undefined || info.recoveryMP !== undefined) {
-      unverified.push(itemId);
     }
     items[itemId] = entry;
   }
@@ -257,14 +264,13 @@ function buildChairs() {
     generatedFrom: 'TMS273.7 WZ_JSON_TW: Item/Install/*/*.json (info) + String/Ins.json (name/desc)',
     contract: {
       items: 'itemId -> 椅子行；inventoryType 3(设置栏)，info.recoveryHP / recoveryMP 为源作者值',
-      recoveryIntervalMs: '仅当描述写明「每N秒」时出现；缺席＝该椅子的恢复间隔未核定，运行时不得套默认值',
+      recoveryIntervalMs: '凡 info 声明了 recoveryHP/recoveryMP（含负值）即出现，值恒为椅子系统固定节拍 10000；没有恢复量的椅子不带该字段',
     },
     items,
     unverified: [
-      `有 recoveryHP/recoveryMP 但描述未写「每N秒」的椅子 ${unverified.length} 件：其恢复间隔未核定，因此未导出 recoveryIntervalMs。`,
       '椅子自身的坐姿贴图：源 Item/Install 只带 info/icon 与 effect（无 sit 节点，584 件全查过），角色坐姿来自 Character/*/sit；椅子图未抽取到 assets。',
     ],
-    counts: { total: Object.keys(items).length, withInterval, intervalUnverified: unverified.length },
+    counts: { total: Object.keys(items).length, withInterval, recoveryIntervalMs: CHAIR_RECOVERY_INTERVAL_MS },
   };
 }
 
@@ -395,8 +401,8 @@ function main() {
   }
   const mountIds = Object.keys(mounts.items);
   const withRide = mountIds.filter(id => mounts.items[id].ride).length;
-  console.log(`导出坐骑 ${mountIds.length} 件（${withRide} 件带已核定骑行数值，坐骑档 ${Object.keys(mounts.mobs).length} 个）、椅子 ${chairs.counts.total} 件（${chairs.counts.withInterval} 件带已核定恢复间隔）。`);
-  console.log(`未登记：非装备图 ${mounts.skipped.nonEquipment}、无名 ${mounts.skipped.unnamed}、缺坐骑档 ${mounts.skipped.missingRideStats.length}；椅子间隔未核定 ${chairs.counts.intervalUnverified}。`);
+  console.log(`导出坐骑 ${mountIds.length} 件（${withRide} 件带已核定骑行数值，坐骑档 ${Object.keys(mounts.mobs).length} 个）、椅子 ${chairs.counts.total} 件（${chairs.counts.withInterval} 件声明了恢复量，节拍恒为 ${chairs.counts.recoveryIntervalMs} ms）。`);
+  console.log(`未登记：非装备图 ${mounts.skipped.nonEquipment}、无名 ${mounts.skipped.unnamed}、缺坐骑档 ${mounts.skipped.missingRideStats.length}。`);
   console.log(`客户端索引：坐骑 ${Object.keys(mountIndex).length} 条（带名字 ${mountIds.filter(id => mountIndex[id].name).length}、带 tamingMob ${mountIds.filter(id => mountIndex[id].tamingMob !== undefined).length}）、椅子名 ${Object.keys(chairNames).length} 条。`);
   console.log(icons.extracted
     ? `骑宠图标：wz-verified ${icons.verified} 件、无产物 ${icons.absent.length} 件（帧表 ${path.relative(ROOT, MOUNT_ICONS)}）。`

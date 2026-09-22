@@ -303,11 +303,10 @@ const NOTEBOOK_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>
   // 鞍具不属于坐骑（源不给它 `tamingMob`），所以详情里报的是它自己的佩戴等级；
   // 等级缺席＝源没写，照实说它源未提供。
   notebookSaddleReqLevel: { zh: '佩戴等级', en: 'Required level' },
-  // 椅子的恢复量（`info.recoveryHP` / `recoveryMP`）与间隔：间隔缺席＝源未核定，
-  // 运行时不套默认值，图鉴也照实说未核定。
+  // 椅子的恢复量（`info.recoveryHP` / `recoveryMP`）与节拍：两者同生共死——源声明了
+  // 恢复量才有那 10 秒的固定节拍，两栏一起缺席就是源里没有恢复量，照实说「源未提供」。
   notebookChairRecovery: { zh: '恢复', en: 'Recovery' },
   notebookChairRecoveryMissing: { zh: '源未提供', en: 'not authored in source' },
-  notebookChairIntervalUnverified: { zh: '间隔未核定', en: 'interval not verified' },
   notebookUnknown: { zh: '未知怪物', en: 'Unknown monster' },
   notebookSpawn: { zh: '出没地图', en: 'Found in' },
   notebookFirstRecord: { zh: '首次记录', en: 'First recorded' },

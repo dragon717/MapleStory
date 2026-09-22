@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // drag-controller.check.mjs — DragController 的意图路由检查（计划 §8.3）。
 // 覆盖：dragstart 抑制条件、drop 意图路由（移动/丢弃/卸下/卷轴上装/装备使用）、
-// 跨页签 drop 忽略、document 级拖出丢弃、destroy 移除 document 监听。
+// 跨页签 drop 忽略、document 级拖出丢弃、**窗口外落点认领（HUD 快捷栏）不得丢弃**、
+// 拖拽载荷读回、destroy 移除 document 监听。
 // 真值经 DragHost 回调注入；names/view-model/i18n/items.json 经 data URL 装载。
 
 import assert from 'node:assert/strict';
@@ -35,11 +36,11 @@ const viewModelUrl = b64(viewModelCode);
 const dragCode = compile(await readFile(new URL('./drag-controller.ts', import.meta.url), 'utf8'))
   .replaceAll("from './names'", `from '${namesUrl}'`)
   .replaceAll("from './view-model'", `from '${viewModelUrl}'`);
-const { DragController } = await import(b64(dragCode));
+const { DragController, readInventoryDrag, hasInventoryDrag } = await import(b64(dragCode));
 
 // ---- document stub（只覆盖 add/removeEventListener）----
 globalThis.Node = class Node {};
-const nodeTarget = insideWindow => Object.assign(new globalThis.Node(), { insideWindow });
+const nodeTarget = (insideWindow, dropZone = false) => Object.assign(new globalThis.Node(), { insideWindow, dropZone });
 const docListeners = new Map();
 globalThis.document = {
   addEventListener(type, fn) {
@@ -58,9 +59,19 @@ const emitDocument = (type, event) => {
 const docListenerCount = () => [...docListeners.values()].reduce((total, list) => total + list.length, 0);
 
 // ---- 事件与元素 stub ----
+const makeTransfer = () => {
+  const data = new Map();
+  return {
+    types: [],
+    setData(type, value) { data.set(type, String(value)); if (!this.types.includes(type)) this.types.push(type); },
+    getData(type) { return data.get(type) ?? ''; },
+    effectAllowed: '',
+    dropEffect: '',
+  };
+};
 const makeEvent = overrides => ({
   target: null,
-  dataTransfer: { setData() {}, effectAllowed: '', dropEffect: '' },
+  dataTransfer: makeTransfer(),
   preventDefaultCalls: 0,
   preventDefault() { this.preventDefaultCalls += 1; },
   ...overrides,
@@ -103,6 +114,8 @@ const host = {
   scrollPending: () => state.scrollPending,
   windowOpen: () => state.windowOpen,
   containsTarget: node => Boolean(node && node.insideWindow),
+  // HUD 快捷栏那类窗口外落点：自报 dropZone 的节点由它自己处理。
+  claimsExternalDrop: node => Boolean(node && node.dropZone),
   inventoryItemAt: (slot, tab) => state.inventory.get(`${tab}:${slot}`),
   equippedItemAt: slot => state.equipped.get(slot),
   isScroll: item => item.itemId.startsWith('204'),
@@ -138,6 +151,13 @@ slot.emit('dragstart', event);
 assert.equal(event.preventDefaultCalls, 0);
 assert.deepEqual(controller.dragSource(), { tab: 0, slot: 3, item: item(3, '2000000') });
 assert.ok(slot.classList.contains('inventory-slot-dragging'));
+// 载荷形状是窗口外落点（HUD 快捷栏）读它绑定的唯一来源：写进去与读出来必须同形。
+assert.ok(hasInventoryDrag(event.dataTransfer), 'dragstart 写出的 MIME 让落点在 dragover 就认得出');
+assert.deepEqual(readInventoryDrag(event.dataTransfer), { inventoryType: 1, sourceSlot: 3, itemId: '2000000' },
+  '拖拽载荷可被落点原样读回（栏位号/槽位/物品）');
+assert.equal(readInventoryDrag(makeTransfer()), undefined, '非背包拖拽读不出载荷');
+const broken = makeTransfer(); broken.setData('application/x-maple-inventory', '{"itemId":"2000000"}');
+assert.equal(readInventoryDrag(broken), undefined, '缺栏位号/槽位的坏载荷按「不是背包拖拽」处理');
 
 // drop 同页签 → moveItem 意图。
 event = makeEvent();
@@ -207,12 +227,29 @@ emitDocument('drop', makeEvent({ target: nodeTarget(false) }));
 assert.equal(intents.filter(intent => intent[0] === 'drop').length, 1, '窗口关闭时拖拽已不起源');
 state.windowOpen = true;
 
+// 窗口外**自报认领**的落点（HUD 快捷栏）：document 级既不放行也不丢弃，交回落点。
+const dropCount = intents.filter(intent => intent[0] === 'drop').length;
+state.selectedTab = 1;
+scrollSlot.emit('dragstart', makeEvent());
+let zoneEvent = makeEvent({ target: nodeTarget(false, true) });
+emitDocument('dragover', zoneEvent);
+assert.equal(zoneEvent.preventDefaultCalls, 0, '认领落点的 dragover 不由 document 替它放行');
+emitDocument('drop', zoneEvent);
+assert.equal(intents.filter(intent => intent[0] === 'drop').length, dropCount, '拖到快捷栏不得变成丢弃');
+assert.ok(controller.dragSource(), '落点自己处理 drop，拖拽来源不被 document 提前清空');
+// 同一拍里，非落点的窗口外目标仍然是丢弃。
+let outEvent = makeEvent({ target: nodeTarget(false) });
+emitDocument('dragover', outEvent);
+assert.equal(outEvent.preventDefaultCalls, 1, '窗口外的空地仍由 document 放行（拖出丢弃）');
+emitDocument('drop', outEvent);
+assert.equal(intents.filter(intent => intent[0] === 'drop').length, dropCount + 1, '没人认领的窗口外 drop 仍是丢弃');
+
 // destroy：document 监听被移除，之后 document 事件不再触发意图。
 const before = docListenerCount();
 controller.destroy();
 assert.ok(docListenerCount() < before, 'destroy 移除 document 监听');
 scrollSlot.emit('dragstart', makeEvent());
 emitDocument('drop', makeEvent({ target: nodeTarget(false) }));
-assert.equal(intents.filter(intent => intent[0] === 'drop').length, 1, 'destroy 后 document drop 失效');
+assert.equal(intents.filter(intent => intent[0] === 'drop').length, dropCount + 1, 'destroy 后 document drop 失效');
 
-console.log('inventory drag-controller: intent routing, scroll-target gates, document drop-out, destroy cleanup passed.');
+console.log('inventory drag-controller: intent routing, scroll-target gates, document drop-out, claimed drop zones, payload round-trip, destroy cleanup passed.');

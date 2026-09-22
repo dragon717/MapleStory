@@ -1236,12 +1236,20 @@ impl World {
         }
     }
 
-    pub(super) fn normalize_profile_progress(profile: &mut Profile, exp_table: &[u64]) {
+    pub(super) fn normalize_profile_progress(
+        profile: &mut Profile,
+        exp_table: &[u64],
+        mage_skills: &MageSkills,
+    ) {
         // Reuse auth's profile-level advancement path so reconnect catch-up
         // and persisted combat/quest rewards award the same AP/SP exactly
         // once.  Zero experience is a normalization pass because auth also
         // refreshes exp_to_next at the current level.
         auth::add_exp(profile, 0, exp_table);
+        // 技能点自愈：把每本书补到「规定转职等级 → 当前等级」的应有点数。
+        // 欠额 = 应有一点数 − 已学 − 余量，所以按时转职且已经加过点的玩家恒为 0
+        // （不会重复发），晚转职与存量档 / GM 造的角色一次补齐；反复登录幂等。
+        auth::reconcile_job_sp(profile, mage_skills);
     }
 
     pub(super) fn apply_quest_effect(&mut self, id: &str, effect: npc::QuestEffect) {

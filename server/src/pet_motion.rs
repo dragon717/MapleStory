@@ -7,6 +7,12 @@
 use super::*;
 
 const PET_OWNER_TELEPORT_DISTANCE: f64 = 1_000.0;
+/// 垂直 leash。宠物自己的一次跳跃（`JUMP_SPEED` / `GRAVITY`，实测峰值约 64px）
+/// 就是它向上能跨过的高度，所以在「一个跳跃高度」以内它还能走或跳回主人那一层，
+/// 超过就说明它落在了另一层授权的平台上（桥上／桥下），只能瞬移回主人身边。
+/// 平面的 `PET_OWNER_TELEPORT_DISTANCE` 对实机地图的上下层平台太松，宠物会
+/// 一直挂在主人头顶或脚下的平台上不动。
+pub(super) const PET_VERTICAL_LEASH: f64 = 64.0;
 const PET_STOP_DISTANCE: f64 = 8.0;
 const PET_RETURN_DISTANCE: f64 = 120.0;
 const PET_BODY_HEIGHT: f64 = 50.0;
@@ -95,6 +101,7 @@ impl PetMotion {
         owner_y: f64,
         owner_facing: i8,
         owner_moving: bool,
+        owner_grounded: bool,
         lead: bool,
         index: usize,
         target: Option<(f64, f64)>,
@@ -112,6 +119,14 @@ impl PetMotion {
         {
             // P: the requested 1000-world-unit leash is a bounded recovery
             // rule, not an authored TMS273 teleport distance.
+            self.reset(owner_x, owner_y, owner_facing);
+            self.mode = "follow";
+            return;
+        }
+
+        // 两侧都必须在地面上才算「分层」：主人起跳 / 上绳 / 游泳时自己不在
+        // 平台上，此时按 y 收宠物会把它拉进半空或水里。
+        if self.grounded && owner_grounded && (owner_y - self.y).abs() > PET_VERTICAL_LEASH {
             self.reset(owner_x, owner_y, owner_facing);
             self.mode = "follow";
             return;
@@ -426,25 +441,79 @@ mod tests {
         }
     }
 
+    /// 两层平台：下层 y=100（全宽），上层 y=20（x 60..240），间距 80 > 一次跳跃。
+    fn stacked_map() -> Map {
+        let mut map = flat_map();
+        map.footholds.push(Foothold {
+            id: 2,
+            x1: 60.0,
+            y1: 20.0,
+            x2: 240.0,
+            y2: 20.0,
+            prev: 0,
+            next: 0,
+            forbid_fall_down: 0,
+        });
+        map
+    }
+
     #[test]
     fn lands_without_copying_owner_y_and_recalls_when_far() {
         let map = flat_map();
         let mut pet = PetMotion::new(0.0, 0.0, 1, 150.0, 7);
-        pet.step(&map, 0.0, 20.0, 1, false, false, 0, None, 0);
+        pet.step(&map, 0.0, 20.0, 1, false, false, false, 0, None, 0);
         assert!(
             (pet.y - 20.0).abs() > 1.0,
             "physics must own y on the first tick"
         );
         for tick in 1..20 {
-            pet.step(&map, 0.0, 100.0, 1, false, false, 0, None, tick);
+            pet.step(&map, 0.0, 100.0, 1, false, true, false, 0, None, tick);
         }
         assert!((pet.y - 100.0).abs() < 0.01);
         assert!((pet.y - 20.0).abs() > 1.0);
 
-        pet.step(&map, 1_200.0, 20.0, -1, false, false, 0, None, 20);
+        pet.step(&map, 1_200.0, 20.0, -1, false, true, false, 0, None, 20);
         assert_eq!(pet.x, 1_200.0);
         assert_eq!(pet.y, 20.0);
         assert_eq!(pet.facing, -1);
+    }
+
+    #[test]
+    fn vertical_leash_returns_a_stranded_pet_and_spares_the_airborne_owner() {
+        let map = stacked_map();
+        // 宠物挂在上层平台（截图里的桥面），主人站在下层平台上。
+        let mut pet = PetMotion::new(120.0, 20.0, 1, 150.0, 7);
+        pet.step(&map, 120.0, 20.0, 1, false, true, false, 0, None, 0);
+        assert!(pet.grounded && (pet.y - 20.0).abs() < 0.01);
+
+        // 主人正从下层起跳（还没落地）：不按 y 收宠物。
+        pet.step(&map, 120.0, 100.0, 1, false, false, false, 0, None, 1);
+        assert!(
+            (pet.y - 20.0).abs() < 0.01,
+            "an airborne owner must not pull the pet"
+        );
+
+        // 主人落地在下层平台：一层之隔超过一次跳跃，宠物瞬移回主人这一层。
+        pet.step(&map, 120.0, 100.0, 1, false, true, false, 0, None, 2);
+        assert_eq!(pet.x, 120.0);
+        assert_eq!(pet.y, 100.0);
+        assert_eq!(pet.mode, "follow");
+    }
+
+    #[test]
+    fn vertical_leash_leaves_a_one_hop_step_to_the_jump() {
+        let mut map = stacked_map();
+        // 上层平台压到一次跳跃以内（差额 40 < 64）：这是「跳上去」，不是瞬移。
+        map.footholds[1].y1 = 60.0;
+        map.footholds[1].y2 = 60.0;
+        let mut pet = PetMotion::new(120.0, 100.0, 1, 150.0, 7);
+        pet.step(&map, 120.0, 100.0, 1, false, true, false, 0, None, 0);
+        assert!((pet.y - 100.0).abs() < 0.01);
+        pet.step(&map, 120.0, 60.0, 1, false, true, false, 0, None, 1);
+        assert!(
+            pet.y > 60.0 && pet.y < 100.0,
+            "a one-hop difference is jumped, not teleported"
+        );
     }
 
     #[test]
@@ -452,12 +521,13 @@ mod tests {
         let map = flat_map();
         let mut follow = PetMotion::new(0.0, 100.0, 1, 150.0, 7);
         let mut loot = follow.clone();
-        follow.step(&map, 200.0, 100.0, 1, true, false, 0, None, 10);
+        follow.step(&map, 200.0, 100.0, 1, true, true, false, 0, None, 10);
         loot.step(
             &map,
             200.0,
             100.0,
             1,
+            true,
             true,
             false,
             0,
@@ -470,7 +540,7 @@ mod tests {
         assert!((loot.x - follow.x * 2.0).abs() < 1e-9);
 
         let mut left = PetMotion::new(200.0, 100.0, 1, 150.0, 7);
-        left.step(&map, 0.0, 100.0, -1, true, false, 0, None, 10);
+        left.step(&map, 0.0, 100.0, -1, true, true, false, 0, None, 10);
         assert_eq!(left.facing, -1);
 
         let first = loot.move_speed;
@@ -479,6 +549,7 @@ mod tests {
             200.0,
             100.0,
             1,
+            true,
             true,
             false,
             0,

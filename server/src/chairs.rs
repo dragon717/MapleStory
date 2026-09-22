@@ -5,17 +5,21 @@
 //!   ——双击只是坐/起立（源里椅子用掉一次就没了的是「一次性椅子」脚本，本仓未接）。
 //! * **坐姿是会话状态**：不落库；重连 / 换图 / 死亡 / 受击 / 任一移动输入 / 施法
 //!   都会结束它（收口点见 `world.rs` 的 tick 与 `monsters.rs`）。
-//! * **恢复量全部来自源**：`D/chairs.json` 的 `info.recoveryHP` / `recoveryMP`
-//!   与 `String/Ins.json` 文案；本模块不估算、不设默认值。
+//! * **恢复量全部来自源字段**：`D/chairs.json` 的 `info.recoveryHP` / `recoveryMP`；
+//!   本模块不估算、不设默认值，也**不**从描述文案里回填（文案只用来核对口径）。
 //!
-//! ## 间隔的诚实边界
-//! 源 `info` **没有**间隔字段，只有描述文案里写「每N秒」。因此 `chairs.json` 只在
-//! 文案确实写出时才给 `recoveryIntervalMs`；缺席（173 件有恢复字段但文案没写）时
-//! 本模块**不恢复**，也不给倒计时——套一个默认 10 秒就是编规则。
+//! ## 间隔来自系统节拍，不来自文案
+//! 源 `info` **没有**间隔字段；写明秒数的 1192 件椅子文案**全是 10 秒**，是椅子系统
+//! 的固定节拍，描述只是复述它。所以 `chairs.json` 给**每一件在源里声明了恢复量的
+//! 椅子**都带上 `recoveryIntervalMs`（恒 10000），不再按「每N秒」抠正则——那条判据
+//! 曾让 173 件声明了恢复量的椅子（写成「每 10秒」「每坐10秒」「坐下10秒」或压根没写）
+//! 坐下后一点都不涨。
 //!
 //! ## 取值口径
 //! 恢复量只在源字段声明处取一次，上限只在 HP/MP 顶格处取一次；下一拍**从现在**往后
-//! 推而不是追赶（`step_chairs` 注释里有理由）。
+//! 推而不是追赶（`step_chairs` 注释里有理由）。恢复量是**带符号**的作者值：
+//! `3015014 陷入絕境!` 每 10 秒扣 HP/MP 各 1，因此下限也是规则的一部分（见
+//! `step_chairs`：坐椅子不会把人坐死，MP 也不会掉到负数）。
 
 use super::*;
 
@@ -25,7 +29,7 @@ pub(super) struct ChairRuntime {
     pub item_id: String,
     pub recovery_hp: i64,
     pub recovery_mp: i64,
-    /// `None` ＝ 间隔未核定 ⇒ 只坐、不恢复、不给倒计时。
+    /// `None` ＝ 源里这把椅子没有声明任何恢复量 ⇒ 只坐、不恢复、不给倒计时。
     pub recovery_interval_ticks: Option<u64>,
     pub next_recovery_at: Option<u64>,
 }
@@ -127,8 +131,8 @@ impl World {
             Decision::Sit => {
                 let (recovery_hp, recovery_mp, interval_ms) =
                     inventory::chair_recovery(item_id).expect("is_chair_item 已证明存在");
-                // 间隔未核定时两个字段都是 `None`：坐姿照常成立，只是不恢复、也不给
-                // 倒计时（`snapshot_field` 因此不会写出那两个字段）。
+                // 间隔缺席（`None`）＝ 源里这把椅子连恢复量都没声明：坐姿照常成立，只是不
+                // 恢复、也不给倒计时（`snapshot_field` 因此不会写出那两个字段）。
                 let interval_ticks = interval_ms
                     .filter(|ms| *ms > 0)
                     .map(|ms| ms as u64 / TICK_MS)
@@ -188,9 +192,15 @@ impl World {
             // （驻留角色、进程挂起、调试断点），用 `due + interval` 追赶会让一次停顿
             // 补出一叠恢复。这里宁可少给，也不给「离线也回血」的口子。
             let next_recovery_at = tick.saturating_add(interval);
-            let (recovery_hp, recovery_mp) = (chair.recovery_hp.max(0), chair.recovery_mp.max(0));
-            let hp = (player.state.hp + recovery_hp).min(player.state.max_hp);
-            let mp = (player.state.mp + recovery_mp).min(player.state.max_mp);
+            // 恢复量是**带符号**的源作者值：`3015014 陷入絕境!` 每 10 秒扣 HP/MP 各 1。
+            // 两个下限是这两条规则写下的：坐椅子不是死因（HP 最低留 1），MP 也不掉到
+            // 负数。上限仍是 HP/MP 顶格处那一次（`max_hp.max(1)` 兜住 max_hp 为 0 的
+            // 极端快照，不让 clamp 的下界高过上界）。
+            let (recovery_hp, recovery_mp) = (chair.recovery_hp, chair.recovery_mp);
+            let hp = (player.state.hp + recovery_hp)
+                .min(player.state.max_hp.max(1))
+                .max(1);
+            let mp = (player.state.mp + recovery_mp).min(player.state.max_mp).max(0);
             let changed = hp != player.state.hp || mp != player.state.mp;
             let (map_id, death_id, base_max_mp) = (
                 player.map_id.clone(),
@@ -238,12 +248,15 @@ impl World {
                     (0, 0)
                 }
             };
+            // `recoveryEvent` 的契约是「实际增加量」，扣血椅（全为负）到不了这里：
+            // `emit_recovery_event` 在两个值都不为正时直接不发。扣血照样落库、进快照，
+            // 只是没有跳字——不给负值编一个「恢复」之外的通道。
             self.emit_recovery_event(&id, recovered.0, recovered.1, "chair");
         }
     }
 }
 
-/// `chair` 快照行。只在坐姿中出现；**间隔未核定时不写那两个字段**——客户端因此
+/// `chair` 快照行。只在坐姿中出现；**没有恢复量的椅子不写那两个字段**——客户端因此
 /// 不会显示一个来源不明的倒计时（`F/chairs/model.ts` 按字段缺席处理）。
 pub(super) fn snapshot_field(player: &Player, tick: u64) -> Option<serde_json::Value> {
     let chair = player.chair.as_ref()?;

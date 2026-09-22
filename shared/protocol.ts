@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
 export const PROTOCOL_VERSION = 34;
-export const CONTENT_VERSION = 'tms273-39';
+export const CONTENT_VERSION = 'tms273-40';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -32,8 +32,10 @@ export interface ChairState {
   itemId: string;
   /** 源 `info.recoveryHP` / `info.recoveryMP`（缺席即 0）。 */
   recoveryHp: number; recoveryMp: number;
-  /** 恢复间隔。**缺席**表示该椅子的间隔未核定（源只看描述文案有没有写「每N秒」），
-   *  此时服务端不恢复，客户端也不得显示倒计时——套一个默认 10 秒就是编规则。 */
+  /** 恢复间隔。**缺席**表示源里这把椅子没有声明任何恢复量（`recoveryHP`/`recoveryMP`
+   *  都没有），自然也没有可恢复的东西。声明了恢复量时它**恒为** 10000 ms：源 `info`
+   *  没有间隔键，写明秒数的 1192 件文案全是 10 秒，10 秒是椅子系统的固定节拍，
+   *  描述只是复述它。 */
   recoveryIntervalMs?: number;
   /** 距下一次恢复的剩余毫秒；与 `recoveryIntervalMs` 同生共死。 */
   nextRecoveryInMs?: number;

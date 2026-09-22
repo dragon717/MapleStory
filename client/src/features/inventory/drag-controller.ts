@@ -12,6 +12,42 @@ export interface DragSource {
   item: InventoryItem;
 }
 
+/** 背包拖拽写进 `dataTransfer` 的唯一 MIME。窗口外的落点（HUD 快捷栏）按它认人。 */
+export const INVENTORY_DRAG_MIME = 'application/x-maple-inventory';
+/**
+ * 窗口外落点自报家门的属性（HUD 快捷栏格子上标一个）。
+ *
+ * 「拖出窗口 = 丢弃」的原版语义只对**没人认领的**落点成立：快捷栏也是合法落点，
+ * 只看「不在背包窗口里」就丢弃，会把「拖到快捷栏绑定」变成真把物品丢在地上。
+ */
+export const INVENTORY_DROP_ZONE_ATTRIBUTE = 'data-inventory-drop-zone';
+
+/** `bindInventorySlot` 的 dragstart 写出的载荷形状（服务端栏位号 + 槽位 + 物品）。 */
+export interface InventoryDragPayload {
+  inventoryType: number;
+  sourceSlot: number;
+  itemId: string;
+}
+
+/** 拖拽途中（dragover）只能看 MIME 类型：`getData` 此刻被浏览器屏蔽。 */
+export function hasInventoryDrag(dataTransfer: DataTransfer | null | undefined): boolean {
+  return Boolean(dataTransfer?.types.includes(INVENTORY_DRAG_MIME));
+}
+
+/** 读回背包拖拽载荷；不是背包拖拽（或载荷坏了）时返回 `undefined`。 */
+export function readInventoryDrag(dataTransfer: DataTransfer | null | undefined): InventoryDragPayload | undefined {
+  const raw = dataTransfer?.getData(INVENTORY_DRAG_MIME);
+  if (!raw) return undefined;
+  try {
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    if (!value || typeof value !== 'object' || typeof value.itemId !== 'string' || !value.itemId) return undefined;
+    if (!Number.isSafeInteger(value.inventoryType) || !Number.isSafeInteger(value.sourceSlot)) return undefined;
+    return { inventoryType: Number(value.inventoryType), sourceSlot: Number(value.sourceSlot), itemId: value.itemId };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * 拖拽域需要的只读查询与意图出口（plan §8.2：输出用户意图）。
  * 真值——背包内容、装备栏、卷轴目标阶段——仍归 `view.ts` 所有；
@@ -26,6 +62,8 @@ export interface DragHost {
   windowOpen(): boolean;
   /** drop 目标落在自己窗口内（窗口内 drop 由槽位自身处理）。 */
   containsTarget(node: Node): boolean;
+  /** drop 目标落在**窗口外、但自报认领**的落点上（HUD 快捷栏）：交给落点，绝不丢弃。 */
+  claimsExternalDrop(node: Node): boolean;
   inventoryItemAt(slot: number, tab: number): InventoryItem | undefined;
   equippedItemAt(slot: number): InventoryItem | undefined;
   isScroll(item: InventoryItem): boolean;
@@ -42,7 +80,8 @@ export interface DragHost {
  * 物品/装备拖放控制器（plan §8.2 的 `drag-controller.ts`）。
  *
  * 拥有：拖拽来源状态（来源槽/来源页签/装备槽）与拖拽高亮类的维护，
- * 以及 document 级 `dragover`/`drop`（拖出窗口即丢弃/卸下）。
+ * 以及 document 级 `dragover`/`drop`（拖到没人认领的地方即丢弃/卸下；
+ * 窗口内的槽位与窗口外自报的落点——HUD 快捷栏——由它们自己处理）。
  * 不拥有：服务端槽位与金币真值、requestId 生成、协议发送。
  * 交互语义逐行来自原 `view.ts`（R7 拆分），包括卷轴阶段抑制拖拽、
  * 装备→背包只允许落回装备页签、卷轴只能落在已装备槽等分支。
@@ -92,7 +131,7 @@ export class DragController {
       this.draggedTab = this.host.selectedTab();
       slot.classList.add('inventory-slot-dragging');
       const payload = JSON.stringify({ inventoryType: TAB_INVENTORY_TYPE[this.host.selectedTab()] ?? this.host.selectedTab() + 1, sourceSlot: slotNumber, itemId: item.itemId });
-      event.dataTransfer?.setData('application/x-maple-inventory', payload);
+      event.dataTransfer?.setData(INVENTORY_DRAG_MIME, payload);
       event.dataTransfer?.setData('text/plain', payload);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
@@ -149,7 +188,7 @@ export class DragController {
       this.draggedEquippedSlot = slotNumber;
       button.classList.add('equipment-slot-dragging');
       const payload = JSON.stringify({ inventoryType: 1, sourceSlot: -Math.abs(item.slot), itemId: item.itemId });
-      event.dataTransfer?.setData('application/x-maple-inventory', payload);
+      event.dataTransfer?.setData(INVENTORY_DRAG_MIME, payload);
       event.dataTransfer?.setData('text/plain', payload);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
@@ -198,22 +237,29 @@ export class DragController {
   private onDocumentDragOver(event: DragEvent) {
     if (!this.host.windowOpen() || !this.isDragging()) return;
     const target = event.target;
-    if (target instanceof Node && this.host.containsTarget(target)) return;
+    // 窗口内的槽位与**窗口外自报的落点**（HUD 快捷栏）各管各的 dragover：
+    // 这里一旦 preventDefault，就等于替它们把 drop 放行了。
+    if (target instanceof Node && this.handledByTarget(target)) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
   }
 
   private onDocumentDrop(event: DragEvent) {
     if (!this.host.windowOpen()) return;
+    const target = event.target;
+    if (target instanceof Node && this.handledByTarget(target)) return;
     const source = this.dragSource();
     const equippedSource = this.draggedEquipped();
     if (!source && !equippedSource) return;
-    const target = event.target;
-    if (target instanceof Node && this.host.containsTarget(target)) return;
     event.preventDefault();
     if (equippedSource) this.host.unequip(equippedSource);
     else if (source) this.host.dropItem(source.tab, source.slot);
     this.clear();
+  }
+
+  /** 目标自己会处理这次 drop：窗口内的槽位，或窗口外声明的落点。 */
+  private handledByTarget(target: Node) {
+    return this.host.containsTarget(target) || this.host.claimsExternalDrop(target);
   }
 
   /** 清空拖拽来源状态并移除全部拖拽高亮（原 `clearDragState`）。 */

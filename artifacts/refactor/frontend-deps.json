@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 156,
-  "edge_count": 369,
+  "edge_count": 371,
   "edge_kind_counts": {
-    "value": 225,
+    "value": 227,
     "dynamic": 8,
     "type": 114,
     "side-effect": 22
@@ -160,6 +160,11 @@
     {
       "from": "client/src/app/main.ts",
       "to": "client/src/features/inventory/names.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/inventory/view-model.ts",
       "kind": "value"
     },
     {
@@ -861,6 +866,11 @@
       "from": "client/src/features/hud/view.ts",
       "to": "client/src/features/keybindings/model.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/hud/view.ts",
+      "to": "client/src/features/inventory/drag-controller.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/hud/view.ts",
@@ -1893,8 +1903,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "054b23256e386d92421cb9701ed78f90e48ac1c8",
+  "source_commit": "fa8c7d143dd8ee24aabc5e0438d1a6c5f1372e0b",
   "working_tree_dirty": true,
-  "node_version": "v22.22.2",
-  "generated_at": "2026-09-22T08:22:50.790Z"
+  "node_version": "v22.17.1",
+  "generated_at": "2026-09-22T17:10:53.753Z"
 }

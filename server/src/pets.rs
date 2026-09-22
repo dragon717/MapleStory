@@ -355,6 +355,10 @@ impl World {
                             || (drop.x - motion.x).hypot(drop.y - motion.y) > SEARCH_RANGE
                             || (drop.x - player.state.x).hypot(drop.y - player.state.y)
                                 > SEARCH_RANGE
+                            // 一次跳跃是宠物自己的极限（见 `PET_VERTICAL_LEASH`）：
+                            // 另一层平台上的掉落不该成为目标，否则宠物会为了它
+                            // 反复下／上层，再被地面 leash 收回来。
+                            || (drop.y - motion.y).abs() > pet_motion::PET_VERTICAL_LEASH
                         {
                             return false;
                         }
@@ -435,6 +439,7 @@ impl World {
                 player.state.y,
                 player.state.facing,
                 player.state.vx.abs() > 0.1,
+                player.state.grounded,
                 is_dog(item),
                 index,
                 targets.get(pet_id).map(|(_, x, y)| (*x, *y)),

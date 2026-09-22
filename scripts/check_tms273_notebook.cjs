@@ -148,7 +148,8 @@ assert.equal(catalog.contentVersion, gameplay.contentVersion, '目录与运行�
 // 唯一的例外是椅子：源 `Item/Install/0301*`、`0302` 整族归椅子表，物品树里
 // 带着的那一两件（真的进商店的）也必须跟着归椅子表，否则同一件东西会同时属于
 // 「设置」与「椅子」两个分区。所以物品目录的覆盖是 `items` ∪（椅子 ∩ items.json）。
-const chairsShipped = JSON.parse(fs.readFileSync('shared/chairs.json', 'utf8')).items;
+const chairsDocument = JSON.parse(fs.readFileSync('shared/chairs.json', 'utf8'));
+const chairsShipped = chairsDocument.items;
 const chairCanonical = new Set(Object.keys(chairsShipped).map(canonical).filter(Boolean));
 const finalCanonical = new Set(Object.keys(finalItems).map(canonical).filter(Boolean));
 const catalogCanonical = new Set(Object.keys(catalog.items));
@@ -208,9 +209,17 @@ for (const [id, definition] of Object.entries(catalog.chairs)) {
   assert(['obtainable', 'unavailable', 'unverified'].includes(definition.availability), `未知的可获得性取值（椅子）: ${id}`);
   assert(!catalog.items[id], `椅子 ${id} 混进了物品定义表：那张表是可获得分母`);
   assert.equal(definition.inventoryType, 3, `椅子的栏位不是设置栏: ${id}`);
-  // 间隔是源描述里写明「每 N 秒」才有的：缺席必须是 null，不许替源编一个。
-  assert(definition.recoveryIntervalMs === null || Number.isInteger(definition.recoveryIntervalMs),
-    `椅子的恢复间隔不是整数或 null: ${id}`);
+  // 间隔与恢复量**同生共死**：源 `info` 声明了恢复量（含负值，扣血椅）才有那 10 秒的
+  // 椅子系统固定节拍，且节拍只能是椅子表里记的那个值；两栏一起缺席＝源里没有恢复量，
+  // 图鉴与运行时都不得替它编一个。
+  const shippedChair = chairsShipped[id];
+  const declaresRecovery = shippedChair.info.recoveryHP !== undefined || shippedChair.info.recoveryMP !== undefined;
+  assert.equal(definition.recoveryIntervalMs === null, !declaresRecovery,
+    `椅子的恢复节拍与恢复量没有同生共死: ${id}`);
+  if (declaresRecovery) {
+    assert.equal(definition.recoveryIntervalMs, chairsDocument.counts.recoveryIntervalMs,
+      `椅子的恢复节拍不是椅子系统的固定节拍: ${id}`);
+  }
 }
 const sectionMembers = new Set();
 for (const [name, ids] of Object.entries(catalog.sections)) {

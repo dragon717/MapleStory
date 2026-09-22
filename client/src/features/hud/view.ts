@@ -2,6 +2,7 @@ import type { PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, SkillCatalogEntry } from '../../assets/manifest';
 import { shortcutSkill, bookAllowsJob, branchFourthJob } from '../player/input.ts';
 import type { KeyBinding } from '../keybindings/model';
+import { INVENTORY_DROP_ZONE_ATTRIBUTE, hasInventoryDrag, readInventoryDrag } from '../inventory/drag-controller';
 import { BuffBar } from './buff-bar.ts';
 
 export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing'>;
@@ -50,6 +51,8 @@ export interface HudViewOptions {
   activateBinding?: (binding: KeyBinding) => void;
   editSlot?: (slot: number) => void;
   bindSkill?: (slot: number, skillId: number) => void;
+  /** 背包拖到快捷栏格子上的道具绑定（消耗品／椅子）。 */
+  bindItem?: (slot: number, itemId: number) => void;
 }
 
 type ShortcutBinding = { code: string; label: string; shift: boolean; sourceSlot: number };
@@ -366,8 +369,19 @@ export class HudView {
     const cell: ShortcutCell = { button, icon, level, cooldown, key, binding };
     if (this.options.editSlot) {
       button.addEventListener('contextmenu', event => { event.preventDefault(); this.options.editSlot?.(binding.sourceSlot); });
-      button.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('application/x-maplestory-skill')) event.preventDefault(); });
+      // 这一格自报为背包拖拽的落点：document 级「拖出窗口 = 丢弃」因此不接管它。
+      button.setAttribute(INVENTORY_DROP_ZONE_ATTRIBUTE, '');
+      button.addEventListener('dragover', event => {
+        if (event.dataTransfer?.types.includes('application/x-maplestory-skill') || hasInventoryDrag(event.dataTransfer)) event.preventDefault();
+      });
       button.addEventListener('drop', event => {
+        const dragged = readInventoryDrag(event.dataTransfer);
+        if (dragged) {
+          event.preventDefault();
+          const itemId = Number(dragged.itemId);
+          if (Number.isSafeInteger(itemId) && itemId > 0) this.options.bindItem?.(binding.sourceSlot, itemId);
+          return;
+        }
         const skillId = Number(event.dataTransfer?.getData('application/x-maplestory-skill'));
         if (!Number.isSafeInteger(skillId) || skillId <= 0) return;
         event.preventDefault(); this.options.bindSkill?.(binding.sourceSlot, skillId);

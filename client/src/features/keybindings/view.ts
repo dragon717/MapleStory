@@ -129,6 +129,11 @@ export class KeybindingsView {
     const slot = this.bindings.slots[index]; if (!slot) return;
     this.persist(this.bindings.bind(slot.code, slot.shift, { type: 'skill', skillId }));
   }
+  bindItemToSlot(index: number, itemId: number) {
+    if (!this.canBindItem(itemId)) { this.message('只能配置背包里的消耗品或椅子。'); return; }
+    const slot = this.bindings.slots[index]; if (!slot) return;
+    this.persist(this.bindings.bind(slot.code, slot.shift, { type: 'item', itemId }));
+  }
   skillKeys(skillId: number) {
     return SUPPORTED_CODES.flatMap(code => [false, true].flatMap(shift => {
       const binding = this.bindings.resolve(code, shift);
@@ -146,10 +151,24 @@ export class KeybindingsView {
     if (binding?.type === 'item') return this.manifest.items?.[String(binding.itemId).padStart(8, '0')];
   }
   private canBindSkill(skillId: number) { return ACTIVE_SKILLS.has(String(skillId)) && (this.player?.skills?.[String(skillId)] ?? 0) > 0; }
+  /**
+   * 快捷栏能绑的道具＝背包里真带着的**消耗品**（类 2）或**设置栏件**（类 3，椅子在
+   * 这一栏）。为什么设置栏整栏放行而不在这里认椅子：椅子的身份只在服务端
+   * （`inventory::is_chair_item` 按源分组 `0301*` / `0302` 判），客户端刻意不打包
+   * `chairs.json`（见 `inventory/names.ts` 的体积说明），而客户端手上两份椅子表
+   * （`chair-names.json`、`manifest.rideScenes.chairs`）都**含非椅子装饰件**——拿它们
+   * 当判据会把"能绑"说成比"能坐"更宽的事。绑错的装饰件在按下时由服务端以具名的
+   * `not_a_chair` 退回，界面照译（`inventory/view.ts`），不在这里猜。
+   */
+  private canBindItem(itemId: number) {
+    const category = Math.floor(itemId / 1e6);
+    if (category !== 2 && category !== 3) return false;
+    return Boolean(this.player?.inventory.some(item => Number(item.itemId) === itemId && item.quantity > 0));
+  }
   private validBinding(binding: KeyBinding) {
     if (binding?.type === 'skill') return this.canBindSkill(binding.skillId);
     if (binding?.type === 'action') return ACTIONS.includes(binding.action);
-    return binding?.type === 'item' && this.player?.inventory.some(item => Number(item.itemId) === binding.itemId && Math.floor(binding.itemId / 1e6) === 2 && item.quantity > 0);
+    return binding?.type === 'item' && this.canBindItem(binding.itemId);
   }
   private chooseKey(code: string, shift: boolean) {
     if (!SUPPORTED_CODES.includes(code)) return;

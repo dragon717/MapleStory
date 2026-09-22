@@ -909,9 +909,10 @@ impl World {
             || player.state.hp <= 0
             || player.state.action == "dead"
             || (first_transfer && player.state.level < auth::first_job_level(job))
-            || (second_transfer && player.state.level < 30)
+            || (second_transfer && player.state.level < auth::SECOND_JOB_LEVEL)
             || (third_transfer
-                && (player.state.level < 60 || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
+                && (player.state.level < auth::THIRD_JOB_LEVEL
+                    || self.mage_skills.get(SKILL_ICE_STORM).is_none()))
         {
             return Ok(false);
         }
@@ -934,6 +935,7 @@ impl World {
         if let Some(player) = self.players.get_mut(id) {
             player.state.job = job;
             if self.store.is_none() {
+                let level = player.state.level;
                 if first_transfer {
                     // 与事务路径共用**同一份**发放实现（`auth::grant_first_job_fields`）：
                     // 测试里发的和线上发的必须一样，不在两处各写一遍。
@@ -941,18 +943,22 @@ impl World {
                     let mut mp = player.base_max_mp;
                     let mut skills = std::mem::take(&mut player.state.skills);
                     let mut points = std::mem::take(&mut player.state.skill_points);
-                    auth::grant_first_job_fields(job, &mut max_mp, &mut mp, &mut skills, &mut points);
+                    auth::grant_first_job_fields(
+                        job, level, &mut max_mp, &mut mp, &mut skills, &mut points,
+                    );
                     player.base_max_mp = max_mp;
                     player.state.skills = skills;
                     player.state.skill_points = points;
                     player.state.max_mp = max_mp;
                     player.state.mp = max_mp;
                 } else if second_transfer {
-                    player.state.skill_points.entry(ICE_BOOK).or_insert(5);
+                    // 起手 5 点之外的差额按「规定转职等级 → 当前等级」补齐，
+                    // 与 `Store::advance_job` 的同一处判据一致。
+                    auth::top_up_book_sp(ICE_BOOK, level, &mut player.state.skill_points);
                     player.state.skills.entry(SKILL_ICE_EFFECT).or_insert(1);
                 }
                 if third_transfer {
-                    player.state.skill_points.entry(THIRD_BOOK).or_insert(5);
+                    auth::top_up_book_sp(THIRD_BOOK, level, &mut player.state.skill_points);
                 }
                 refresh_player_derived(&self.gameplay, &self.mage_skills, player);
             } else {

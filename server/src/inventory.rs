@@ -165,8 +165,10 @@ struct ChairItemDefinition {
     info: BTreeMap<String, Value>,
     #[serde(default)]
     name: Option<String>,
-    /// 恢复间隔；**缺席**表示该椅子的间隔未核定（源 `info` 没有间隔字段，只有
-    /// 描述文案里写「每N秒」），调用方必须按「不恢复」处理（见 `chairs.rs`）。
+    /// 恢复间隔；**缺席**表示该椅子在源里没有声明任何恢复量（`info` 既无
+    /// `recoveryHP` 也无 `recoveryMP`），因此没有可恢复的东西。凡声明了恢复量的
+    /// 椅子都带这一栏，值恒为椅子系统的固定节拍（`shared/chairs.json` 的
+    /// `counts.recoveryIntervalMs`）。见 `chairs.rs`。
     #[serde(default)]
     recovery_interval_ms: Option<i64>,
 }
@@ -253,8 +255,13 @@ fn is_chair_source(source: &str) -> bool {
     group.starts_with("0301") || group == "0302"
 }
 
-/// 坐姿的恢复量与间隔。`interval_ms` 为 `None` ＝ 源文案没写「每N秒」⇒ 间隔未核定，
-/// 调用方必须**不恢复**（见 `chairs.rs`）。
+/// 坐姿的恢复量与间隔。三样都来自源：`recoveryHP` / `recoveryMP` 是 `info` 的作者值
+/// （**可为负**：`3015014 陷入絕境!` 就是每 10 秒各扣 1），`interval_ms` 只在源声明了
+/// 恢复量时出现，`None` ＝ 这把椅子没有任何恢复量（`info` 里两个字段都没有）。
+///
+/// 间隔**不是**从描述文案抠出来的：源 `info` 没有间隔键，写明秒数的 1192 件文案
+/// 全是 10 秒，是椅子系统的固定节拍；抠正则只会让写法不同的椅子（「每 10秒」
+/// 「每坐10秒」）白白不恢复。理由与逐条证据见 `scripts/export_tms273_mounts_chairs.cjs`。
 pub fn chair_recovery(item_id: &str) -> Option<(i64, i64, Option<i64>)> {
     let chair = chair_definition(item_id)?;
     Some((
@@ -1828,13 +1835,23 @@ mod tests {
 
     #[test]
     fn chair_identity_comes_from_source_category_not_recovery_amount() {
-        // 3010078 has no recovery fields in Item/Install, but String/Ins says
-        // it restores MP while seated.  3020000 is an experience chair and
-        // intentionally has neither HP nor MP recovery fields.
+        // 3010078 has no recovery fields in Item/Install even though String/Ins
+        // promises MP 60 while seated: the item data is the authority, so it
+        // carries no recovery rule at all (and therefore no interval either).
         assert!(is_chair_item("3010078"));
-        assert_eq!(chair_recovery("3010078"), Some((0, 0, Some(10_000))));
+        assert_eq!(chair_recovery("3010078"), Some((0, 0, None)));
+        // 3020000 is an experience chair and intentionally has neither field.
         assert!(is_chair_item("3020000"));
         assert_eq!(chair_recovery("3020000"), Some((0, 0, None)));
+
+        // The interval is the chair system's fixed cadence, not a phrase
+        // scraped out of the description: 3010025 authors HP 35 / MP 10 and
+        // writes it as 「每 10秒」, 3010027 as 「坐下10秒」.  Both must recover.
+        assert_eq!(chair_recovery("3010025"), Some((35, 10, Some(10_000))));
+        assert_eq!(chair_recovery("3010027"), Some((20, 20, Some(10_000))));
+        // 3015014 「陷入絕境!」 authors *negative* amounts (a drain chair):
+        // the sign has to survive into the runtime, not be clamped away.
+        assert_eq!(chair_recovery("3015014"), Some((-1, -1, Some(10_000))));
 
         // These are install-tab items, but their source groups are not chair
         // families and must stay on the ordinary use-item path.

@@ -7,8 +7,9 @@
 // 断言清单（每条对着一条"不许编"的边界）：
 //   1. 快照缺席 ⇒ 无读数（不从设置栏里有一个椅子推出"我坐着"）
 //   2. `recoveryIntervalMs` 缺席 ⇒ `secondsToRecovery === undefined`，**不套默认 10 秒**
+//      （缺席＝源没声明恢复量：间隔跟着恢复量走，不跟着文案写法走）
 //   3. 已核定的那一种：间隔与倒计时各自成整数秒，且 0 是"还剩 0 秒"而不是"没有"
-//   4. 恢复量原样透传、不做百分比换算；两样都为 0 时不显示恢复串
+//   4. 恢复量原样透传、不做百分比换算、**带符号**（扣血椅 `HP -1`）；两样都为 0 时不显示
 //   5. 名字来自 `chair-names.json`（椅子不在 items.json 里）
 
 import assert from 'node:assert/strict';
@@ -61,28 +62,32 @@ assert.equal(chairs.chairReadout(undefined), undefined);
 assert.equal(chairs.chairReadout({}), undefined,
   '设置栏里有椅子 ≠ 坐着：chairReadout 只看 player.chair');
 
-// --- 2. 间隔未核定 ⇒ 不给倒计时，也不套默认值 ------------------------------
-const unverified = { chair: { itemId: chairId, recoveryHp: 35, recoveryMp: 0 } };
-const unverifiedReadout = chairs.chairReadout(unverified);
-assert.equal(unverifiedReadout.secondsToRecovery, undefined, '间隔未核定 ⇒ secondsToRecovery 必须是 undefined，不是 0/10');
-assert.equal(unverifiedReadout.intervalSeconds, undefined);
-assert.equal(chairs.chairIntervalVerified(unverifiedReadout), false);
-assert.equal(unverifiedReadout.recoveryHp, 35, '恢复量照旧显示：能坐，只是不恢复');
+// --- 2. 快照没带间隔/倒计时 ⇒ 不给倒计时，也不套默认值 ----------------------
+// 服务端只为「源声明了恢复量的椅子」写出这两个字段（`chairs.rs::snapshot_field`），
+// 所以正常快照里「有恢复量」与「有间隔」是同一个判断的两面。这里刻意喂一个**不完整**
+// 的快照：就算服务端真的漏了间隔，客户端也不许自己填一个 10 秒——间隔缺席就是
+// `undefined`，不是 0、不是 10。
+const noRecovery = { chair: { itemId: chairId, recoveryHp: 35, recoveryMp: 0 } };
+const noRecoveryReadout = chairs.chairReadout(noRecovery);
+assert.equal(noRecoveryReadout.secondsToRecovery, undefined, '缺间隔 ⇒ secondsToRecovery 必须是 undefined，不是 0/10');
+assert.equal(noRecoveryReadout.intervalSeconds, undefined);
+assert.equal(noRecoveryReadout.recoveryHp, 35, '恢复量照旧显示：能坐，只是没有节拍可用');
 
 // --- 3. 已核定：整数秒，0 是"还剩 0 秒" ------------------------------------
 const verified = chairs.chairReadout({
   chair: { itemId: chairId, recoveryHp: 35, recoveryMp: 0, recoveryIntervalMs: 10000, nextRecoveryInMs: 7300 },
 });
-assert.equal(verified.intervalSeconds, 10, '源文案写「每10秒」⇒ 10 秒');
+assert.equal(verified.intervalSeconds, 10, '椅子系统固定节拍 ⇒ 10 秒');
 assert.equal(verified.secondsToRecovery, 8, '7300ms 向上取整为 8 秒');
-assert.equal(chairs.chairIntervalVerified(verified), true);
+assert.equal(chairs.chairHasRecovery(verified), true, '有恢复量才画倒计时');
+assert.equal(chairs.chairDrains(verified), false, '正值不是扣减');
 assert.equal(
   chairs.chairReadout({ chair: { itemId: chairId, recoveryHp: 1, recoveryMp: 0, recoveryIntervalMs: 10000, nextRecoveryInMs: 0 } }).secondsToRecovery,
   0,
   '刚好到点时是"还剩 0 秒"，仍是已核定（不能与 undefined 混为一谈）',
 );
 
-// --- 4. 恢复量原样透传 -----------------------------------------------------
+// --- 4. 恢复量原样透传（带符号） -------------------------------------------
 assert.equal(chairs.chairRecoveryLabel(verified), 'HP +35', 'MP 为 0 时不占位');
 assert.equal(
   chairs.chairRecoveryLabel({ ...verified, recoveryHp: 10, recoveryMp: 5 }),
@@ -93,6 +98,18 @@ assert.equal(
   undefined,
   '两样都是 0 ⇒ 没有恢复量可显示',
 );
+// 3015014「陷入絕境!」在源里是 HP/MP 各 -1：符号必须活到标签上，倒计时也得说扣减。
+const drain = chairs.chairReadout({
+  chair: { itemId: chairId, recoveryHp: -1, recoveryMp: -1, recoveryIntervalMs: 10000, nextRecoveryInMs: 6000 },
+});
+assert.equal(chairs.chairRecoveryLabel(drain), 'HP -1 · MP -1');
+assert.equal(chairs.chairDrains(drain), true);
+assert.equal(chairs.chairHasRecovery(drain), true, '负值也是"每拍真的会有变化"，倒计时照画');
+assert.equal(
+  chairs.chairHasRecovery({ ...verified, recoveryHp: 0, recoveryMp: 0 }),
+  false,
+  '源没声明恢复量 ⇒ 不画倒计时（view.ts 走"坐下不会恢复"那一支）',
+);
 
 // --- 5. 名字：跨表一致 + 回落链 -------------------------------------------
 assert.equal(verified.name, chairNames[chairId], '椅子名必须来自源 String/Ins.json 的索引');
@@ -102,4 +119,4 @@ const fallbackReadout = chairs.chairReadout({ chair: { itemId: fallbackChairId, 
 assert.equal(fallbackReadout.name, chairNames[fallbackChairId], '不在 items.json 的椅子必须回落到 chair-names.json');
 assert.notEqual(fallbackReadout.name, fallbackChairId, '回落链不能停在裸 id 上');
 
-console.log('Chairs projection: no-derivation, unverified-interval honesty and recovery labels passed.');
+console.log('Chairs projection: no-derivation, missing-cadence honesty and signed recovery labels passed.');

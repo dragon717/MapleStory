@@ -1624,6 +1624,25 @@ impl MageSkills {
                 .and_then(|skill| skill.levels.get(index as usize))
         })
     }
+
+    /// 一本书里**真实消耗了 SP** 的技能等级之和。
+    ///
+    /// 免单判据与目录自带的发放口径同源：`hidden`（隐藏伴随技能）、`fixed_level`
+    /// （源里 fixLevel=1 的补齐技能）、`hyper > 0`（Hyper 池按等级表另发）都不占
+    /// 普通 SP，只有三者皆否的技能才真的扣点。`auth::FOURTH_PAID_SKILLS` 是这份
+    /// 判据在四转书上的离线快照，`catalog_paid_skills_match_the_fourth_book_list`
+    /// 对两者双向断言。
+    pub fn paid_sp_in_book(&self, book: u32, learned: &BTreeMap<u32, u32>) -> u32 {
+        learned.iter().fold(0_u32, |total, (skill_id, level)| {
+            let Some(skill) = self.get(*skill_id) else {
+                return total;
+            };
+            if skill.book_id != book || skill.hidden || skill.fixed_level || skill.hyper > 0 {
+                return total;
+            }
+            total.saturating_add(*level)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1669,5 +1688,51 @@ mod tests {
             Some(20)
         );
         assert!(catalog.get(2_211_015).is_some_and(|skill| skill.hidden));
+    }
+
+    /// 「免单技能」（隐藏 / fixLevel / Hyper 都不花 SP）判据与 auth 的四转快照
+    /// `FOURTH_PAID_SKILLS` **双向一致**：目录派生出的付费集合必须逐项相等，
+    /// 不多一条也不少一条。SP 对账（`auth::reconcile_job_sp`）依赖这条等价关系，
+    /// 否则「已学」会被算错，玩家要么被重复补点、要么补不满。
+    #[test]
+    fn catalog_paid_skills_match_the_fourth_book_list() {
+        let catalog = MageSkills::bundled();
+        // 把目录里所有技能都记成 1 级，只有付费技能会被计入。
+        let all: BTreeMap<u32, u32> = catalog
+            .skills
+            .keys()
+            .map(|id| (id.parse::<u32>().expect("numeric skill id"), 1))
+            .collect();
+        let mut derived: Vec<u32> = all
+            .iter()
+            .filter(|(id, _)| {
+                catalog.get(**id).is_some_and(|skill| {
+                    skill.book_id == 222 && !skill.hidden && !skill.fixed_level && skill.hyper == 0
+                })
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        derived.sort_unstable();
+        let mut authored = crate::auth::FOURTH_PAID_SKILLS.to_vec();
+        authored.sort_unstable();
+        assert_eq!(derived, authored);
+        assert_eq!(catalog.paid_sp_in_book(222, &all), authored.len() as u32);
+        // 免单的三类各取一条：隐藏、fixLevel、Hyper，一律不计入。
+        assert_eq!(
+            catalog.paid_sp_in_book(
+                222,
+                &BTreeMap::from([(2_220_014, 1), (2_220_015, 1), (2_221_055, 1)])
+            ),
+            0
+        );
+        // 书号不匹配的技能也不计入（2001008 是书 200 的付费技能）。
+        assert_eq!(
+            catalog.paid_sp_in_book(222, &BTreeMap::from([(2_001_008, 4)])),
+            0
+        );
+        assert_eq!(
+            catalog.paid_sp_in_book(200, &BTreeMap::from([(2_001_008, 4)])),
+            4
+        );
     }
 }

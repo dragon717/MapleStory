@@ -107,7 +107,11 @@ impl World {
                     profile.ability_stats.clone(),
                     profile.skill_points.clone(),
                 );
-                Self::normalize_profile_progress(&mut profile, &self.gameplay.exp_table);
+                Self::normalize_profile_progress(
+                    &mut profile,
+                    &self.gameplay.exp_table,
+                    &self.mage_skills,
+                );
                 if let Some(store) = self.store.as_ref() {
                     let progress_after = (
                         profile.level,

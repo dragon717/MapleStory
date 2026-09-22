@@ -64,7 +64,8 @@ export interface NotebookSaddleDefinition {
 /** 一条椅子。  椅子与骑宠同族（源 `Item/Install/0301*`、`0302`，整族不进掉落与
  *  商店），所以目录也为它单列一张表。这里只带恢复量与目录自己的可获得性：
  *  名字与图标仍归 `chair-names.json` 与素材表，本表不复制第二份。
- *  `recoveryIntervalMs` 为 null 表示**源未核定**，不是「每 10 秒」。 */
+ *  `recoveryIntervalMs` 与恢复量同生共死：源声明了恢复量才有节拍（恒 10000），
+ *  两栏都是 null 表示**源里这把椅子没有恢复量**，不是「间隔未知」。 */
 export interface NotebookChairDefinition {
   recoveryHP: number | null;
   recoveryMP: number | null;
