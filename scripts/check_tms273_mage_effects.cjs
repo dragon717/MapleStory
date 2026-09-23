@@ -19,7 +19,7 @@ const EXPECTED = [
   '2210000', '2211002', '2211007', '2211011', '2211012', '2211014', '2211015', '2211017',
   '2220014', '2221000', '2221004', '2221005', '2221006', '2221007', '2221008',
   '2221011', '2221012', '2221052', '2221053', '2221054', '2221055',
-  '2321000', '2321004', '2321009', '2321053',
+  '2321000', '2321003', '2321004', '2321009', '2321053',
 ];
 const DIRECT_EFFECTS = [
   '2001002', '2001009', '2001011', '2001012', '2201001',
@@ -27,6 +27,8 @@ const DIRECT_EFFECTS = [
   // 不能沿用原来写死的 `Skill/220.img` 前缀，所以走下面的 `SOURCE_IMAGE` 表。
   '2121000', '2121004', '2121005', '2121008', '2121053',
   '2321000', '2321004', '2321009', '2321053',
+  // 召喚聖龍（主教四转召唤，2026-09-23）：效果帧同样来自 `232.img`。
+  '2321003',
 ];
 const PROJECTED = ['2001008', '2201005', '2201008'];
 // 每个技能的特效帧来自哪本 `Skill/<n>.img`。缺省仍是 220.img（一转与冰雷线）。
@@ -37,6 +39,7 @@ const SOURCE_IMAGE = {
   '2121008': '212.img',
   '2121053': '212.img',
   '2321000': '232.img',
+  '2321003': '232.img',
   '2321004': '232.img',
   '2321009': '232.img',
   '2321053': '232.img',
@@ -46,6 +49,14 @@ const GROUP_SOURCE = {
   summonStand: 'summon/stand',
   summonMove: 'summon/move',
   summonAttack: 'summon/attack1',
+};
+// **逐技能**的源节点名覆盖：只有「同一个运行期键在源里换了节点名」时才登记。
+// 召喚聖龍 `2321003` 的位移组在源里叫 `summon/fly`（冰魔／火魔叫 `summon/move`）——
+// 它在 `summon` 下的子节点顺序与那两本**逐位相同**
+// （`summoned / <位移> / stand / attack1 / die`），所以运行期仍走同一个 `summonMove` 键，
+// 客户端一行不用改。下面 `main()` 里有一条断言保证这张表不会变成「登记了却没人用」。
+const GROUP_SOURCE_BY_SKILL = {
+  '2321003': { summonMove: 'summon/fly' },
 };
 const EXTRA_GROUPS = {
   '2201001': { effect: 19 },
@@ -63,6 +74,10 @@ const EXTRA_GROUPS = {
   // 所以下面 `SIBLING_ART_PARITY` 也把它俩钉在冰雷那本上。
   '2121053': { effect: 17, effect0: 22, affected: 11 },
   '2321053': { effect: 17, effect0: 22, affected: 11 },
+  // 召喚聖龍（2026-09-23）：帧数实测自 `Skill/232.img`。它**不**与冰魔／火魔同格
+  // （位移组是 `fly` 12 帧、攻击组 20 帧，那两本是 `move` 12 帧、攻击组 18 帧），
+  // 所以不进 `FIRE_DEMON_SUMMON_PARITY`——那是「同一格副本」的断言，这里不是。
+  '2321003': { effect: 17, hit: 7, summonStand: 12, summonMove: 12, summonAttack: 20 },
 };
 // 「同一格副本」的美术同格性：服务端把这七条与冰雷那三条合进同一张表，前提就是
 // 它们的美术组逐组同形。这里用逐组帧数相等来钉住这个前提——两边一旦分叉，
@@ -79,6 +94,9 @@ const SIBLING_ART_PARITY = [
   ['2121053', '2221053'],
   ['2321053', '2221053'],
 ];
+// 冰魔／火魔是**同一格副本**（源 `common` 与召唤组逐组同帧），所以逐组钉相等。
+// 召喚聖龍 `2321003` **不在**这张表里：它是主教的独立召唤，位移组是 `fly`、攻击组 20 帧，
+// 与那两本不同格（帧数已在 `EXTRA_GROUPS` 里逐组钉死）。
 const FIRE_DEMON_SUMMON_PARITY = ['2121005', '2221005'];
 
 function sha256(file) {
@@ -116,7 +134,7 @@ function checkGroup(id, kind, frames, count) {
   assert(Array.isArray(frames), `${id} ${kind} group is missing`);
   assert.equal(frames.length, count, `${id} ${kind} frame count changed`);
   const image = SOURCE_IMAGE[id] || '220.img';
-  const node = GROUP_SOURCE[kind] || kind;
+  const node = GROUP_SOURCE_BY_SKILL[id]?.[kind] || GROUP_SOURCE[kind] || kind;
   for (const frame of frames) {
     checkFrame(frame);
     assert(frame.source.startsWith(`Skill/${image}/skill/${id}/${node}/`), `wrong ${id} ${kind} source: ${frame.source}`);
@@ -167,6 +185,17 @@ function main() {
   }
   for (const [id, groups] of Object.entries(EXTRA_GROUPS)) {
     for (const [kind, count] of Object.entries(groups)) checkGroup(id, kind, output.skillEffects[id][kind], count);
+  }
+  // 逐技能的源节点覆盖必须**真的被 `EXTRA_GROUPS` 校验到**：登记了却没人用，说明那一组
+  // 已经改回默认节点名，这条覆盖就退化成一段永远不生效的注释。
+  for (const [id, overrides] of Object.entries(GROUP_SOURCE_BY_SKILL)) {
+    for (const kind of Object.keys(overrides)) {
+      assert.ok(
+        EXTRA_GROUPS[id]?.[kind] !== undefined,
+        `GROUP_SOURCE_BY_SKILL 给 ${id} 登记了 ${kind} 的源节点覆盖，`
+          + '但 EXTRA_GROUPS 没有校验这一组——覆盖不会被走到',
+      );
+    }
   }
   for (const [copyId, originalId] of SIBLING_ART_PARITY) {
     assert.deepEqual(

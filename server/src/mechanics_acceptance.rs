@@ -815,7 +815,7 @@ fn mech_summon_slots_are_one_queue_and_pulse_period_comes_from_source() {
         .level(SKILL_THUNDER_SPHERE, 1)
         .cloned()
         .unwrap();
-    world.cast_demon_summon(MECH_ACTOR, "demon-1", SKILL_ICE_DEMON, &demon).unwrap();
+    world.cast_summon(MECH_ACTOR, "demon-1", SKILL_ICE_DEMON, &demon).unwrap();
     world.cast_frozen_orb(MECH_ACTOR, "orb-1", &orb).unwrap();
     world
         .cast_thunder_sphere(MECH_ACTOR, "sphere-1", &sphere, 0)
@@ -926,13 +926,14 @@ fn mech_summon_slots_are_one_queue_and_pulse_period_comes_from_source() {
 }
 
 // ── ⑧ 召唤存活时长：收口成一个源字段派生点（2026-09-23）────────────────────────
-// 收口前的账是**三处各写一份、而且互相不一致**：`cast_demon_summon` 把源 `time` 当秒
+// 收口前的账是**三处各写一份、而且互相不一致**：`cast_summon`（收口前叫
+// `cast_demon_summon`）把源 `time` 当秒
 // （`× 1000`）、`cast_thunder_sphere` 也当秒但默认值另写 20／60 秒、
 // `cast_frozen_orb` **根本不读源**（写死 `4_000`，源改数就静默漂移）。
 // 现在三处都走 `mechanics.rs::summon_lifetime_ms`，单位判据与默认值都只剩那一处。
 //
-// 这条用例钉四件事：① 五本已接线召唤书的派生值逐件等于源值（含全书**唯一**那条按毫秒
-// 书写的 `2221012 冰鋒刃`）；② 兜底分支不可达（五本**逐级**都带 `time`）；
+// 这条用例钉四件事：① 六本已接线召唤书的派生值逐件等于源值（含全书**唯一**那条按毫秒
+// 书写的 `2221012 冰鋒刃`）；② 兜底分支不可达（六本**逐级**都带 `time`）；
 // ③ 派生值真的被消费到到期时刻上；④ 单位判据本身是「按量级认单位」，跨过 1000 就换
 // 单位，且「写明的 0」不许被并进「缺失 ⇒ 兜底值」那一支。
 //
@@ -952,12 +953,14 @@ const MECH_LIFETIME_CATALOG: &str = r#"{
 #[test]
 fn mech_summon_lifetime_comes_from_one_source_derivation() {
     // ① 逐件等于源值。源 `shared/mage-skills.json` 等级 1：
-    //    冰魔／火魔 `time=115`（**秒**）、冰鋒刃 `time=4000`（**毫秒**）、
-    //    閃電球 `2211011` `time=63`（秒）、hidden 的 `2211015` `time=22`（秒）。
+    //    冰魔／火魔 `time=115`（**秒**）、召喚聖龍 `time=70`（**秒**，`60+10*x`）、
+    //    冰鋒刃 `time=4000`（**毫秒**）、閃電球 `2211011` `time=63`（秒）、
+    //    hidden 的 `2211015` `time=22`（秒）。
     let skills = MageSkills::bundled();
-    let wired: [(u32, u64); 5] = [
+    let wired: [(u32, u64); 6] = [
         (SKILL_ICE_DEMON, 115_000),
         (SKILL_FIRE_DEMON, 115_000),
+        (SKILL_HOLY_DRAGON, 70_000),
         (SKILL_FROZEN_ORB, 4_000),
         (SKILL_THUNDER_SPHERE, 63_000),
         (SKILL_THUNDER_SPHERE_HIDDEN, 22_000),
@@ -978,7 +981,7 @@ fn mech_summon_lifetime_comes_from_one_source_derivation() {
         "冰鋒刃的 `time=4000` 本身就是毫秒，再 ×1000 会把 4 秒变成 66 分钟"
     );
 
-    // ② 兜底不可达：五本**逐级**都带 `time`，所以 `SUMMON_LIFETIME_FALLBACK_MS` 在
+    // ② 兜底不可达：六本**逐级**都带 `time`，所以 `SUMMON_LIFETIME_FALLBACK_MS` 在
     //    已接线的召唤上永远走不到。谁把某一级的 `time` 删了，这里先红——那时到期时刻
     //    会静默从「源值」变成「契约值」，实玩上表现为召唤物活得比源里短或长。
     for (skill_id, _) in wired {
@@ -1014,7 +1017,7 @@ fn mech_summon_lifetime_comes_from_one_source_derivation() {
         .unwrap();
     let cast_tick = world.tick;
     world
-        .cast_demon_summon(MECH_ACTOR, "demon-l", SKILL_ICE_DEMON, &demon)
+        .cast_summon(MECH_ACTOR, "demon-l", SKILL_ICE_DEMON, &demon)
         .unwrap();
     world.cast_frozen_orb(MECH_ACTOR, "orb-l", &orb).unwrap();
     world
@@ -1059,5 +1062,169 @@ fn mech_summon_lifetime_comes_from_one_source_derivation() {
         summon_lifetime_ms(&synthetic, 2_001_992, 1),
         SUMMON_LIFETIME_FALLBACK_MS,
         "只有 `time` 真的缺失才落到契约兜底值"
+    );
+}
+
+// ── ⑨ 召喚聖龍 2321003：第三条召唤，走 S5 通用队列（2026-09-23）──────────────
+// 收口前的账：召唤的**接纳名单**是 `DEMON_SUMMON_SKILLS`（冰魔 / 火魔），而施法臂里
+// 召唤实体的 id 按技能名二选一写死前缀（`ice-demon` / `fire-demon`）、位移形态写死
+// `SummonMotion::Anchored`。加第三条召唤就会退化成 if 链。
+// 现在接纳名单收口在 `world.rs::SUMMON_SKILLS`、位移形态收口在 `world.rs::summon_motion`。
+//
+// 这条用例钉四件事：① 圣龙与那两本在**同一张表**里，且它的位移形态是 `Follow`
+// （源 `summon` 带 `fly` 位移组、与球形闪电同形；冰魔／火魔只有 `move`，本包按
+// 「定在施放点」简化）；② 端到端能施放（改前回「该技能尚未开放施放」）；
+// ③ `Follow` 真的跟着主人走（`step_summons` 里没有技能名单，形态在施放时定下）；
+// ④ 存活时长与脉冲周期都只来自那两个派生点。
+#[test]
+fn mech_holy_dragon_shares_the_generic_queue_and_follows() {
+    // ① 判据本身。
+    assert!(
+        SUMMON_SKILLS.contains(&SKILL_HOLY_DRAGON),
+        "召喚聖龍必须与冰魔／火魔在同一张接纳表里"
+    );
+    assert_eq!(SUMMON_SKILLS.len(), 3, "接纳名单只有这三条");
+    assert!(
+        !ANCHORED_SUMMON_SKILLS.contains(&SKILL_HOLY_DRAGON),
+        "圣龙的源 `summon` 带 `fly` 位移组 ⇒ 不许落进 Anchored 那一层"
+    );
+    assert_eq!(summon_motion(SKILL_HOLY_DRAGON), SummonMotion::Follow);
+    assert_eq!(summon_motion(SKILL_FIRE_DEMON), SummonMotion::Anchored);
+
+    // ② 端到端：主教玩家点下去真的能施放，且真的进了通用队列。
+    let (mut world, mut rx) = mech_bundled_world(vec![mech_spawn("mob-h", 100.0)]);
+    mech_learn(&mut world, &[(SKILL_HOLY_DRAGON, 1)]);
+    mech_place_actor(&mut world, 232, 120, 100.0, 100.0);
+    let cast_tick = world.tick;
+    world.handle_cast_skill(
+        MECH_ACTOR.into(),
+        "dragon-1".into(),
+        SKILL_HOLY_DRAGON,
+        Some(1),
+        Some(0),
+    );
+    let mut events = Vec::new();
+    while let Ok(message) = rx.try_recv() {
+        events.push(serde_json::from_str::<serde_json::Value>(&message).unwrap());
+    }
+    assert!(
+        !events
+            .iter()
+            .any(|value| value["type"] == "rejected" && value["code"] == "skill_unimplemented"),
+        "召喚聖龍仍被判「该技能尚未开放施放」：{events:?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|value| value["type"] == "skillCast" && value["skillId"] == SKILL_HOLY_DRAGON),
+        "召喚聖龍没有发出 skillCast：{events:?}"
+    );
+    let dragon = world.players[MECH_ACTOR]
+        .summons
+        .iter()
+        .find(|summon| summon.skill_id == SKILL_HOLY_DRAGON)
+        .cloned()
+        .expect("圣龙没有进通用召唤队列");
+    assert_eq!(dragon.motion, SummonMotion::Follow);
+
+    // ③ `Follow` 真的跟着主人走：把主人挪远一段，`step_summons` 后圣龙的坐标就是主人
+    //    的坐标。冰魔（Anchored）在同类断言里必须原地不动——⑧ 的姊妹用例已钉住那半边，
+    //    这里钉的是「形态在施放时定下、`step_summons` 不按技能名分支」。
+    let owner_before = world.players[MECH_ACTOR].state.x;
+    world.players.get_mut(MECH_ACTOR).unwrap().state.x = owner_before + 320.0;
+    world.step_summons();
+    let owner_now = world.players[MECH_ACTOR].state.x;
+    let dragon_x = world.players[MECH_ACTOR]
+        .summons
+        .iter()
+        .find(|summon| summon.skill_id == SKILL_HOLY_DRAGON)
+        .unwrap()
+        .x;
+    assert_eq!(dragon_x, owner_now, "圣龙必须跟着主人走");
+    assert_ne!(dragon_x, owner_before, "「跟着走」不能是「原地没动」的同义写法");
+
+    // ④ 两个派生点：源 1 级 `time=70`（**秒**）⇒ 存活 70 秒；源里既没有毫秒书写的
+    //    `attackDelay`、`subTime` 也不足一拍 ⇒ 脉冲周期取契约兜底值（与冰魔／火魔同值）。
+    assert_eq!(
+        summon_lifetime_ms(&world.mage_skills, SKILL_HOLY_DRAGON, 1),
+        70_000
+    );
+    assert_eq!(
+        summon_pulse_ms(&world.mage_skills, SKILL_HOLY_DRAGON, 1),
+        SUMMON_PULSE_FALLBACK_MS
+    );
+    assert_eq!(
+        summon_pulse_ms(&world.mage_skills, SKILL_HOLY_DRAGON, 1),
+        summon_pulse_ms(&world.mage_skills, SKILL_FIRE_DEMON, 1),
+        "圣龙与火魔的脉冲周期同值（都取兜底值）"
+    );
+    assert_eq!(
+        dragon.expires_at - cast_tick,
+        70_000_u64.div_ceil(TICK_MS),
+        "到期时刻没有按 `summon_lifetime_ms` 派生"
+    );
+}
+
+// ── ⑩ 召唤物的周期打击**照常挂 DoT**（2026-09-23 更正一条错误的文档结论）──────
+// 收口前 PLAN §1② 与 `world.rs` 的注释都写着「本包 `dot*` 只在直接命中链上有消费点，
+// 召唤物的周期打击不走那条链 ⇒ 火魔的跳伤不接」。复核后确认那是**错的**：
+// `step_summons` 的脉冲走 `cast_elemental_area_at` → `settle_area_segments`，而 DoT
+// 的挂载点就在 `settle_area_segments` 里（首段真的打出伤害之后按 `prop` 掷骰）——
+// 与直接命中**同一个**挂载点，不存在第二条链。
+//
+// 这条用例用真实内容钉住：召喚火魔 `2121005` 的源 `dot=53 / dotInterval=1 / dotTime=2`
+// 在召唤物脉冲之后**确实**挂到了怪身上，并且间隔与时长都按源值换算成拍。
+#[test]
+fn mech_summon_pulse_mounts_the_source_dot() {
+    let (mut world, _rx) = mech_bundled_world(vec![mech_spawn("mob-dot", 100.0)]);
+    mech_learn(&mut world, &[(SKILL_FIRE_DEMON, 1)]);
+    mech_place_actor(&mut world, 212, 120, 100.0, 100.0);
+    let fire = mech_level(&world, SKILL_FIRE_DEMON);
+    // 源里挂在这一组上（`shared/mage-skills.json` 的 2121005 等级 1）：`prop` 缺省 ⇒ 100%。
+    assert_eq!(fire.dot, Some(53));
+    assert_eq!(fire.dot_interval, Some(1));
+    assert_eq!(fire.dot_time, Some(2));
+    let target_id = mech_monster(&world, "mob-dot");
+    assert!(
+        world
+            .mechanics
+            .dot(MECH_ACTOR, SKILL_FIRE_DEMON, &target_id)
+            .is_none(),
+        "施放前不该已经有 DoT，否则下面验不到「脉冲挂上去」这一件事"
+    );
+
+    world
+        .cast_summon(MECH_ACTOR, "fire-dot", SKILL_FIRE_DEMON, &fire)
+        .unwrap();
+    // 把首跳时刻拉到本拍，让 `step_summons` 立刻结算一次脉冲。
+    let pulse_tick = world.tick;
+    for summon in world.players.get_mut(MECH_ACTOR).unwrap().summons.iter_mut() {
+        summon.next_hit_at = pulse_tick;
+    }
+    world.step_summons();
+
+    let mounted = world
+        .mechanics
+        .dot(MECH_ACTOR, SKILL_FIRE_DEMON, &target_id)
+        .expect("召唤物的周期打击没有挂上源里的 DoT —— 文档里「火魔跳伤不接」的结论是错的");
+    assert_eq!(mounted.stacks, 1, "首跳只该挂一层");
+    assert_eq!(
+        mounted.cadence_ticks,
+        1_000 / TICK_MS,
+        "跳伤间隔按源 `dotInterval = 1`（秒）换算成拍"
+    );
+    assert_eq!(
+        mounted.expires_at - pulse_tick,
+        2_000 / TICK_MS,
+        "持续时长按源 `dotTime = 2`（秒）换算成拍，且**不**回落源 `time`（115 秒）"
+    );
+    assert_eq!(
+        mounted.next_tick - pulse_tick,
+        1,
+        "首次跳伤落在下一拍（与疾病同口径：不是「等一个间隔再开始」）"
+    );
+    assert!(
+        mounted.per_tick > 0,
+        "每跳伤害按施法者属性 × 目标模板算定，不该是 0"
     );
 }

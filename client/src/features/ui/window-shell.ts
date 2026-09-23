@@ -1,4 +1,5 @@
 import type { AssetFrame } from '../../assets/manifest';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /**
  * Shared window chrome for the TMS273 panels.
@@ -195,7 +196,7 @@ export function createAssetButton(options: AssetButtonOptions): AssetButton | un
   button.setAttribute('aria-label', options.label);
 
   const image = document.createElement('img');
-  image.src = normal.url;
+  image.src = resolveAssetUrl(normal.url);
   image.width = normal.width;
   image.height = normal.height;
   image.alt = '';
@@ -205,7 +206,7 @@ export function createAssetButton(options: AssetButtonOptions): AssetButton | un
   const setState = (state: AssetButtonState) => {
     const frame = options.assets[keyFor(state)] ?? options.assets[keyFor('normal')] ?? normal;
     button.dataset.state = state;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
   };

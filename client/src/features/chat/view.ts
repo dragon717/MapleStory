@@ -2,6 +2,7 @@ import type { AssetFrame, ChatUi, ChatUiFrameStates, ChatUiNineSlice, Manifest }
 import { installWindowDrag } from '../ui/window-shell.ts';
 import { appendChatLogLine } from './scroll';
 import './style.css';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type ChatButtonState = 'normal' | 'pressed' | 'disabled' | 'mouseOver' | 'checked';
 
@@ -613,7 +614,7 @@ export class ChatView {
   private createImage(frame: AssetFrame, className: string) {
     const image = document.createElement('img');
     image.className = className;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
     image.alt = '';
@@ -635,7 +636,7 @@ export class ChatView {
 
   private applyFrame(image: HTMLImageElement, frame: AssetFrame | undefined) {
     if (!frame) return;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
   }

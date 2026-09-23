@@ -5,6 +5,7 @@ import { itemName } from '../inventory/names';
 import { createAssetButton, installWindowDrag } from '../ui/window-shell';
 import { ACTIONS, SUPPORTED_CODES, keyLabel, type Action, type KeyBinding, KeyBindings } from './model';
 import './style.css';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 const ACTION_NAMES: Record<Action, string> = {
   attack: '普通攻击', jump: '跳跃', pickup: '拾取', talk: 'NPC对话', skills: '技能', quests: '任务',
@@ -204,7 +205,7 @@ export class KeybindingsView {
       const labelArt = this.manifest.keybindingsUi?.keys[key.dataset.sourceId ?? ''];
       if (labelArt) {
         const label = key.querySelector('.keybindings-label')!;
-        const image = document.createElement('img'); image.src = labelArt.url; image.alt = keyLabel(code); image.draggable = false;
+        const image = document.createElement('img'); image.src = resolveAssetUrl(labelArt.url); image.alt = keyLabel(code); image.draggable = false;
         image.style.width = `${labelArt.width}px`; image.style.height = `${labelArt.height}px`;
         label.replaceChildren(image);
       }
@@ -247,7 +248,7 @@ export class KeybindingsView {
   private paint(button: HTMLButtonElement, binding: KeyBinding, label: string) {
     button.replaceChildren();
     const art = this.icon(binding);
-    if (art) { const image = document.createElement('img'); image.src = art.url; image.alt = ''; image.draggable = false; button.append(image); }
+    if (art) { const image = document.createElement('img'); image.src = resolveAssetUrl(art.url); image.alt = ''; image.draggable = false; button.append(image); }
     else if (binding) { const action = document.createElement('span'); action.className = 'keybindings-action'; action.textContent = this.bindingLabel(binding); button.append(action); }
     const key = document.createElement('span'); key.className = 'keybindings-label'; key.textContent = label; button.append(key);
   }

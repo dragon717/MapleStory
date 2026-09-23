@@ -21,7 +21,7 @@ globalThis.damageNumberLayers = (damage, mpDamage = 0) => [
   const inputSource = await readFile(new URL('../player/input.ts', import.meta.url), 'utf8');
   const { outputText: inputOutput } = ts.transpileModule(inputSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
   const inputModule = await import(`data:text/javascript;base64,${Buffer.from(inputOutput.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
-  for (const name of ['INFINITY_SKILLS', 'DEMON_SUMMON_SKILLS', 'CASTER_ANCHORED_BUFFS', 'HYPER_ADVENTURER_SKILLS']) {
+  for (const name of ['INFINITY_SKILLS', 'SUMMON_SKILLS', 'CASTER_ANCHORED_BUFFS', 'HYPER_ADVENTURER_SKILLS']) {
     assert.ok(Array.isArray(inputModule[name]) && inputModule[name].length > 0, `player/input.ts 必须导出非空的 ${name}`);
     globalThis[name] = inputModule[name];
   }
@@ -69,34 +69,45 @@ skills.clear();
 assert(skillInstances[2].destroyed, 'scene cleanup stops remaining audio');
 console.log('PASS: source skill audio, event deduplication, segment policy and lifecycle cleanup.');
 
-// ---- 召喚火魔的周期打击音（2026-09-23）----------------------------------------
+// ---- 召唤物的周期打击音（2026-09-23）--------------------------------------------
 //
 // 「哪些技能算召唤物的周期打击」在 `receiveDamageEvent` 里也是一张镜像名单
-// （`DEMON_SUMMON_SKILLS`）。改前只有 2211011／2211015 两件冰雷召唤，火毒那本打出去
-// 一声不响。这里钉住火魔走同一条路，并配一条反向断言：不在名单里的技能不许借这条路出声。
+// （`player/input.ts::SUMMON_SKILLS`，服务端 `world.rs::SUMMON_SKILLS` 的镜像）。
+// 改前只有 2211011／2211015 两件冰雷召唤，火毒那本打出去一声不响；2026-09-23 召喚聖龍
+// 接入通用召唤队列时，这张名单从 `DEMON_SUMMON_SKILLS`（冰魔 / 火魔）扩成
+// `SUMMON_SKILLS`（+ 聖龍）。这里**逐本**钉住名单里每一本都走同一条路，而不是只挑一本
+// 举例——只挑一本的话，新加的那本漏掉名单也照样绿。反向断言照旧：不在名单里的技能
+// 不许借这条路出声。
 {
-  const fireInstances = [];
-  scene.cache.audio.exists = key => key === '/fire-attack.mp3';
+  const instances = [];
+  scene.cache.audio.exists = key => key.endsWith('-attack.mp3');
   scene.sound.add = key => {
     const sound = { key, destroyed: false, complete: null,
       once(_, fn) { this.complete = fn; }, play() { return true; }, destroy() { this.destroyed = true; } };
-    fireInstances.push(sound);
+    instances.push(sound);
     return sound;
   };
-  // 只给火魔配 `summonAttack`：`2121004` 在 `skillSounds` 里刻意缺席，所以反向用例
-  // 不会因为 `hit` 音而误报。
-  const fire = new CombatView(scene, undefined, 0, undefined, undefined, undefined,
-    { '2121005': { summonAttack: { url: '/fire-attack.mp3' } } });
-  fire.spawnDamageNumber = () => {};
-  const fireHit = { type: 'damageEvent', targetId: 'mob', serverTick: 1, x: 1, y: 1, damage: 3, attackerId: 'p', segment: 1 };
-  fire.receiveDamageEvent({ ...fireHit, eventId: 'fire-1', skillId: 2121005 });
-  assert.equal(fireInstances.length, 1, '召喚火魔的周期打击必须出声');
-  assert.equal(fireInstances[0].key, '/fire-attack.mp3', '火魔周期打击放的是它自己那本的召唤音');
-  fire.receiveDamageEvent({ ...fireHit, eventId: 'fire-2', serverTick: 2, skillId: 2121005 });
-  assert.equal(fireInstances.length, 2, '不同的服务端 tick 是另一次周期打击，各自出声');
-  fireInstances.length = 0;
-  fire.receiveDamageEvent({ ...fireHit, eventId: 'infinity-1', serverTick: 3, skillId: 2121004 });
-  assert.equal(fireInstances.length, 0, '非召唤技能不许走召唤周期打击的出声路径');
-  fire.clear();
-  console.log('PASS: 召喚火魔的周期打击与冰雷召唤同路，非召唤技能仍不出声。');
+  // 逐本配 `summonAttack`（文件名带技能号，这样「放的是哪一本的音」是可判的）；
+  // `2121004` 在 `skillSounds` 里刻意缺席，所以反向用例不会因为 `hit` 音而误报。
+  const summonSounds = {};
+  for (const skillId of SUMMON_SKILLS) {
+    summonSounds[String(skillId)] = { summonAttack: { url: `/${skillId}-attack.mp3` } };
+  }
+  const summons = new CombatView(scene, undefined, 0, undefined, undefined, undefined, summonSounds);
+  summons.spawnDamageNumber = () => {};
+  const summonHit = { type: 'damageEvent', targetId: 'mob', serverTick: 1, x: 1, y: 1, damage: 3, attackerId: 'p', segment: 1 };
+  assert.ok(SUMMON_SKILLS.length >= 3, `通用召唤名单至少三本（冰魔 / 火魔 / 聖龍），实得 ${SUMMON_SKILLS.length}`);
+  for (const skillId of SUMMON_SKILLS) {
+    instances.length = 0;
+    summons.receiveDamageEvent({ ...summonHit, eventId: `summon-${skillId}-1`, skillId });
+    assert.equal(instances.length, 1, `${skillId} 的周期打击必须出声`);
+    assert.equal(instances[0].key, `/${skillId}-attack.mp3`, `${skillId} 放的是它自己那本的召唤音`);
+    summons.receiveDamageEvent({ ...summonHit, eventId: `summon-${skillId}-2`, serverTick: 2, skillId });
+    assert.equal(instances.length, 2, '不同的服务端 tick 是另一次周期打击，各自出声');
+  }
+  instances.length = 0;
+  summons.receiveDamageEvent({ ...summonHit, eventId: 'infinity-1', serverTick: 3, skillId: 2121004 });
+  assert.equal(instances.length, 0, '非召唤技能不许走召唤周期打击的出声路径');
+  summons.clear();
+  console.log(`PASS: 召唤物的周期打击逐本出声（${SUMMON_SKILLS.join('/')}），非召唤技能仍不出声。`);
 }

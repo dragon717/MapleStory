@@ -2,6 +2,7 @@ import type { ClientMessage, PartyMember, PartyState } from '../../../../shared/
 import type { AssetFrame, Manifest, PartyUiData } from '../../assets/manifest';
 import { characterJobName } from '../character/view';
 import { protocolText, uiLocale } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
@@ -276,7 +277,7 @@ export class PartyView {
     if (background) {
       const image = document.createElement('img');
       image.className = 'party-backgrnd';
-      image.src = background.url;
+      image.src = resolveAssetUrl(background.url);
       image.width = background.width;
       image.height = background.height;
       image.draggable = false;
@@ -306,7 +307,7 @@ export class PartyView {
     if (headerFrame) {
       const image = document.createElement('img');
       image.className = 'party-columns-image';
-      image.src = headerFrame.url;
+      image.src = resolveAssetUrl(headerFrame.url);
       image.width = headerFrame.width;
       image.height = headerFrame.height;
       image.draggable = false;
@@ -371,7 +372,7 @@ export class PartyView {
       const hover = this.frame(`${sprite}/mouseOver`) ?? normal;
       const pressed = this.frame(`${sprite}/pressed`) ?? normal;
       const image = document.createElement('img');
-      const show = (frame: AssetFrame) => { image.src = frame.url; };
+      const show = (frame: AssetFrame) => { image.src = resolveAssetUrl(frame.url); };
       show(normal);
       image.width = normal.width;
       image.height = normal.height;
@@ -463,7 +464,7 @@ export class PartyView {
       if (index > 0 && separator) {
         const line = document.createElement('img');
         line.className = 'party-separator';
-        line.src = separator.url;
+        line.src = resolveAssetUrl(separator.url);
         line.width = separator.width;
         line.height = separator.height;
         line.draggable = false;
@@ -488,7 +489,7 @@ export class PartyView {
     marker.className = 'party-row-marker';
     const markerFrame = this.frame(member.leader ? 'icon1' : 'icon0');
     if (markerFrame) {
-      marker.src = markerFrame.url;
+      marker.src = resolveAssetUrl(markerFrame.url);
       marker.width = markerFrame.width;
       marker.height = markerFrame.height;
     }

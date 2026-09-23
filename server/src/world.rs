@@ -338,10 +338,31 @@ const SKILL_HOLY_LIGHT: u32 = 2311004;
 const SKILL_ANGEL_RAY: u32 = 2321001;
 const SKILL_ANGELIC_ARROW: u32 = 2321007;
 const SKILL_HEAVENLY_WRATH: u32 = 2321008;
+/// 藍焰斬 `2121052`（火毒四转 Hyper 主动，`reqLev 160`）。
+///
+/// 源 `info` 是 `type=1` + `areaAttack=1`（与上列 14 条**同类**），`common` 带
+/// `damage/attackCount/mobCount/lt|rb` 与 `dot/dotInterval/dotTime/prop` 四件套。
+///
+/// ⚠️ 收口前 PLAN 与台账把它挡在表外，理由写的是「Hyper 主动，孤立 `prop`」——
+/// **那条理由不成立**：`prop` 是 [`mechanics.rs::AttackPlan`] 里 `DotPlan` 的
+/// 挂载几率，而它**同时**带 `dot=700/dotInterval=1/dotTime=30`，四件套齐全 ⇒
+/// 直接进 DoT 那根支柱，不是孤立的。实测由
+/// `mechanics_acceptance.rs::mech_hyper_area_attacks_mount_their_source_dot` 钉住。
+const SKILL_BLUE_FLAME_SLASH: u32 = 2121052;
+/// 天堂之門 `2321052`（主教四转 Hyper 主动，`reqLev 160`）。
+///
+/// 同样是 `type=1` + `areaAttack=1`，`common` 是
+/// `damage/attackCount/mobCount/cooltime/lt|rb/time`。
+///
+/// **源 `time=600` 本包不消费**：法师范围臂（`skills.rs`）走 `cast_elemental_area`，
+/// 不读 `AttackPlan::self_buff_window_ms`（那条只有物理臂读），所以这 600 秒不会
+/// 变成施法者身上的自增益窗。它是什么语义（门的存在时长？）本轮**不做裁决**，
+/// 只把「不许冒出窗口」钉成验收（同源 `time` 在物理线是另一义，别混）。
+const SKILL_HEAVENS_GATE: u32 = 2321052;
 /// 火毒 / 主教的攻击技能（同一道「魔法攻击技能」闸门与同一条范围管线）。
 /// **只登记真正接了执行链的那些**：门禁反向断言「目录里有伤害字段、却不在这张表里」的技能
 /// 必须逐条写明理由（召唤物、治疗、DoT 这类需要独立机制的另有登记）。
-const BRANCH_AREA_ATTACKS: [u32; 14] = [
+const BRANCH_AREA_ATTACKS: [u32; 16] = [
     SKILL_FIRE_BOLT,
     SKILL_POISON_MIST,
     SKILL_BLAZING_FLAME,
@@ -356,6 +377,8 @@ const BRANCH_AREA_ATTACKS: [u32; 14] = [
     SKILL_ANGEL_RAY,
     SKILL_ANGELIC_ARROW,
     SKILL_HEAVENLY_WRATH,
+    SKILL_BLUE_FLAME_SLASH,
+    SKILL_HEAVENS_GATE,
 ];
 // ── 火毒（212）与主教（232）四转的**同一格副本**主动技能（2026-09-23 接执行链） ──
 // 三条分支的四转书在技能窗里共用同一批槽位：冰雷那本（222）的每条主动，在 212 / 232
@@ -380,8 +403,12 @@ const BRANCH_AREA_ATTACKS: [u32; 14] = [
 //     书写的 `attackDelay`、也没有 ≥ 一拍的 `subTime` ⇒ 取契约兜底值，与冰魔同值。
 //     存活时长同样只剩一个派生点 `mechanics.rs::summon_lifetime_ms`（2026-09-23 收口，
 //     与冰鋒刃／球形闪电共用；`time` 的单位由那条派生点按量级判定）。
-//     **仍未做**：召唤物挂 DoT 这条机制本包没有实现点（`dot*` 只在直接命中链上被消费），
-//     所以火魔的跳伤不接——这与 `attribute.rs::INTRINSIC_DURATION_SKILLS` 的登记口径一致。
+//     **火魔的跳伤是接上的**（2026-09-23 复核更正）：召唤物的周期打击与直接命中走
+//     **同一条**范围管线（`step_summons` → `cast_elemental_area_at` →
+//     `settle_area_segments`），而 DoT 的挂载点就在 `settle_area_segments` 里
+//     （首段真的打出伤害后按 `prop` 掷骰）。收口前这里写着「召唤物的周期打击不走那条链
+//     ⇒ 火魔的跳伤不接」，那是错的——判据被
+//     `mechanics_acceptance.rs::mech_summon_pulse_mounts_the_source_dot` 钉住。
 const SKILL_INFINITY_FP: u32 = 2121004;
 const SKILL_INFINITY_CLERIC: u32 = 2321004;
 const SKILL_MAPLE_CURE_FP: u32 = 2121008;
@@ -395,10 +422,44 @@ const MAPLE_CURE_SKILLS: [u32; 3] = [
     SKILL_MAPLE_CURE_FP,
     SKILL_MAPLE_CURE_CLERIC,
 ];
-/// 召唤系四转：冰魔与火魔。两本的存活时长都写在源 `time`（**秒**）上，
-/// 脉冲周期由 [`mechanics.rs::summon_pulse_ms`] 从源字段派生，存活时长由
+/// 召唤系四转：冰魔与火魔（**同一格副本**，源 `common` 与召唤美术组逐组同形）。
+/// 两本的存活时长都写在源 `time`（**秒**）上，脉冲周期由
+/// [`mechanics.rs::summon_pulse_ms`] 从源字段派生，存活时长由
 /// [`mechanics.rs::summon_lifetime_ms`] 从源字段派生。
 const DEMON_SUMMON_SKILLS: [u32; 2] = [SKILL_ICE_DEMON, SKILL_FIRE_DEMON];
+/// 召喚聖龍 `2321003`（主教四转召唤，2026-09-23 接入 S5 通用召唤队列）。
+///
+/// 它是**第三条召唤**，但不是那两本的「同一格副本」：源 `common` 是
+/// `mpCon/time/damage/mobCount/attackCount`（**没有** `mastery`，所以不进
+/// `MASTERY_SKILLS`，也不进 `INTRINSIC_DURATION_SKILLS`），存活时长同样是源 `time`
+/// 按**秒**书写（`60+10*x`，1 级 70 秒 ⇒ 落进 [`mechanics.rs::summon_lifetime_ms`]
+/// 的秒侧），脉冲周期与那两本一样取契约兜底值（既无毫秒 `attackDelay`、也无 ≥ 一拍
+/// 的 `subTime`）。
+const SKILL_HOLY_DRAGON: u32 = 2321003;
+/// **通用召唤队列**（S5 的 `Player::summons` 一条队列）接纳的全部召唤技能。
+/// **判据只有这一处**：施法白名单、施法臂、位移形态派生、动作时长都读它，
+/// 不再各自写 `if skill_id == …`。
+///
+/// 它与 `DEMON_SUMMON_SKILLS` 的分工：后者是「三条分支共用同一格的那两本」这层
+/// **内容**关系（源形状逐字段同形），前者是「这条技能由召唤实体承担」这层
+/// **机制**关系。圣龙只属于后者。
+const SUMMON_SKILLS: [u32; 3] = [SKILL_ICE_DEMON, SKILL_FIRE_DEMON, SKILL_HOLY_DRAGON];
+/// 「施放点定住」（`SummonMotion::Anchored`）的那几本。
+///
+/// 冰魔／火魔的源 `summon` 节点只有 `move`（没有 `fly`），本包按「定在施放点」简化
+/// 处理；召喚聖龍 的源 `summon` 节点带 **`fly` 位移组**（实测 12 帧，与冰魔／火魔的
+/// `move` 同帧数、在 `summon` 下的子节点位置逐位相同）⇒ 与球形闪电同形，跟着主人走
+/// （`SummonMotion::Follow`）。**位移形态的判据只有这一处。**
+const ANCHORED_SUMMON_SKILLS: [u32; 2] = [SKILL_ICE_DEMON, SKILL_FIRE_DEMON];
+
+/// 一条召唤技能施放后是「定住」还是「跟随施法者」。
+fn summon_motion(skill_id: u32) -> SummonMotion {
+    if ANCHORED_SUMMON_SKILLS.contains(&skill_id) {
+        SummonMotion::Anchored
+    } else {
+        SummonMotion::Follow
+    }
+}
 /// 傳說冒險的三本副本（Hyper 主动，`indieDamR` 的**窗口内**独立乘算）。
 ///
 /// 三本的源 `common` 逐字段同形（`mpCon/time/cooltime/indieDamR/lt/rb`，`maxLevel = 1`），
@@ -2297,7 +2358,10 @@ struct IceField {
 /// 召唤物**在世界上怎么移动**。源里没有统一的运动字段，形态由「施放时怎么放的」定下
 /// （冰魔钉在施放点、球形闪电跟主人走、冰鋒刃沿朝向自行前进），施放时写一次，步进时
 /// 只读——这样 `step_summons` 不必按 `skill_id` 分支。
-#[derive(Clone, Copy)]
+///
+/// `PartialEq` / `Debug` 是给验收用的：判据是「这本技能派生出的形态是哪一种」，
+/// 用 `assert_eq!` 直接比形态而不是比坐标，红的时候才看得出是**哪一档**错了。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum SummonMotion {
     /// 钉在施放点（冰魔；球形闪电的锚定形态）。
     Anchored,
@@ -4151,7 +4215,7 @@ fn is_magic_attack_skill(skill_id: u32) -> bool {
             | SKILL_FROZEN_ORB
             | SKILL_HYPER_THUNDER
     ) || BRANCH_AREA_ATTACKS.contains(&skill_id)
-        || DEMON_SUMMON_SKILLS.contains(&skill_id)
+        || SUMMON_SKILLS.contains(&skill_id)
 }
 
 /// 「这一击算作一次直接命中」：`神秘狙擊`（2120010 / 2220010 / 2320011）按命中次数叠层，

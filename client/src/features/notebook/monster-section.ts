@@ -24,6 +24,7 @@ import { displayText, uiLocale, uiText } from '../../app/i18n';
 import type { NotebookRow, NotebookSlot } from '../../../../shared/protocol';
 import { groupRowsByPage, slotLabel } from './view-model';
 import type { SectionContext } from './section-context';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /** 一个槽位：源收录的怪物图（只有已装配模板才有），否则一个「？」牌。 */
 function slotCell(context: SectionContext, row: NotebookRow, slot: NotebookSlot) {
@@ -46,7 +47,7 @@ function slotCell(context: SectionContext, row: NotebookRow, slot: NotebookSlot)
   if (plate) {
     const plateImage = document.createElement('img');
     plateImage.className = 'notebook-slot-plate';
-    plateImage.src = plate.url;
+    plateImage.src = resolveAssetUrl(plate.url);
     plateImage.alt = '';
     plateImage.draggable = false;
     plateImage.loading = 'lazy';
@@ -58,7 +59,7 @@ function slotCell(context: SectionContext, row: NotebookRow, slot: NotebookSlot)
   if (frame) {
     const image = document.createElement('img');
     image.className = 'notebook-slot-art';
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.alt = '';
     image.draggable = false;
     image.loading = 'lazy';
@@ -125,7 +126,7 @@ function sheet(
   if (board) {
     const image = document.createElement('img');
     image.className = 'notebook-sheet-board';
-    image.src = board.url;
+    image.src = resolveAssetUrl(board.url);
     image.width = board.width;
     image.height = board.height;
     image.alt = '';

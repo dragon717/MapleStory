@@ -11,6 +11,7 @@
 //! 会被采纳，上一页的结果永远不能覆盖当前页（§6.5）。
 
 import { displayText, uiLocale, uiText } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import {
   bringToFront,
   clampIntoHost,
@@ -372,7 +373,7 @@ export class NotebookView {
     const frames = this.manifest.notebook?.frames.monster ?? {};
     const back = frames['backgrnd'];
     if (back) {
-      this.background.src = back.url;
+      this.background.src = resolveAssetUrl(back.url);
       this.background.width = back.width;
       this.background.height = back.height;
       this.element.style.setProperty('--notebook-width', `${back.width}px`);
@@ -388,7 +389,7 @@ export class NotebookView {
     if (rule) {
       const image = document.createElement('img');
       image.className = 'notebook-tab-rule';
-      image.src = rule.url;
+      image.src = resolveAssetUrl(rule.url);
       image.width = rule.width;
       image.height = rule.height;
       image.alt = '';
@@ -415,7 +416,7 @@ export class NotebookView {
     button.title = label;
     button.setAttribute('aria-label', label);
     const image = document.createElement('img');
-    image.src = normal.url;
+    image.src = resolveAssetUrl(normal.url);
     image.width = normal.width;
     image.height = normal.height;
     image.alt = '';
@@ -423,7 +424,7 @@ export class NotebookView {
     button.append(image);
     const setState = (state: AssetButtonState) => {
       const frame = frames[`${base}/${state}`] ?? normal;
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
       image.width = frame.width;
       image.height = frame.height;
     };
@@ -559,7 +560,7 @@ export class NotebookView {
     const frame = this.manifest.notebook?.frames.monster?.[`number/${digit}`];
     if (!frame) return undefined;
     const image = document.createElement('img');
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
     image.alt = '';

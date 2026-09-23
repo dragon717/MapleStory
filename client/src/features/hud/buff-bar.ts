@@ -1,4 +1,5 @@
 import type { Manifest, SkillArt } from '../../assets/manifest';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /**
  * The on-screen buff row.
@@ -66,7 +67,7 @@ export class BuffBar {
       if (!frame) continue;
       const image = document.createElement('img');
       image.className = `tms-buff-slice tms-buff-slice-${slice}`;
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
       image.alt = '';
       image.draggable = false;
       panel.append(image);
@@ -134,7 +135,7 @@ export class BuffBar {
     icon.draggable = false;
     const art = this.iconFor(skillId);
     if (art) {
-      icon.src = art.url;
+      icon.src = resolveAssetUrl(art.url);
       icon.width = art.width;
       icon.height = art.height;
     }

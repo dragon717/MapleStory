@@ -38,6 +38,12 @@ const code = ts.transpileModule(source, {
     "import { loadNotebookDirectory, } from './directory';",
     "const loadNotebookDirectory = () => Promise.reject(new Error('offline'));",
   )
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+  // 第 53 行的反向断言要求**所有**相对导入都被打桩，所以这里必须替换而不是注入全局。
+  .replace(
+    "import { resolveAssetUrl } from '../../assets/resource-url';",
+    "const resolveAssetUrl = url => url;",
+  )
   // 两个 section 渲染器只记录"被要求画了哪些行"——这正是隐私断言要看的。
   .replace(
     "import { renderMonsterPage } from './monster-section';",

@@ -3,6 +3,7 @@ import './style.css';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
 import { displayText, menuEntryText, uiText } from '../../app/i18n';
 import { installWindowDrag } from '../ui/window-shell.ts';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 export type MenuKind = 'game' | 'shortcut';
 type MenuAssets = Record<string, AssetFrame>;
@@ -423,7 +424,7 @@ export class MenuView {
 
   private bindButton(button: HTMLButtonElement, image: HTMLImageElement, assets: MenuAssets, key: string, normal: AssetFrame) {
     const setState = (state: 'normal' | 'pressed' | 'mouseOver') => {
-      image.src = (assets[`${key}/${state}/0`] ?? normal).url;
+      image.src = resolveAssetUrl((assets[`${key}/${state}/0`] ?? normal).url);
       // Renamed entries repaint the plate instead of inheriting it from the
       // art, so the button has to publish the state for the plate to follow.
       button.dataset.menuState = state;
@@ -438,7 +439,7 @@ export class MenuView {
   private createImage(frame: AssetFrame, className: string) {
     const image = document.createElement('img');
     image.className = className;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
     image.alt = '';

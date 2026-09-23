@@ -4,6 +4,7 @@ import { shortcutSkill, bookAllowsJob, branchFourthJob } from '../player/input.t
 import type { KeyBinding } from '../keybindings/model';
 import { INVENTORY_DROP_ZONE_ATTRIBUTE, hasInventoryDrag, readInventoryDrag } from '../inventory/drag-controller';
 import { BuffBar } from './buff-bar.ts';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing'>;
 export function gaugeRatio(value: number, maximum: number): number {
@@ -130,7 +131,7 @@ export class HudView {
       button.type = 'button'; button.title = label; button.setAttribute('aria-label', label);
       const prefix = `mainBar/menu/button:${key}`;
       const image = this.image(`${prefix}/normal/0`, button);
-      const state = (value: string) => { if (this.assets[`${prefix}/${value}/0`]) image.src = this.assets[`${prefix}/${value}/0`].url; };
+      const state = (value: string) => { if (this.assets[`${prefix}/${value}/0`]) image.src = resolveAssetUrl(this.assets[`${prefix}/${value}/0`].url); };
       button.addEventListener('pointerenter', () => state('mouseOver'));
       button.addEventListener('pointerleave', () => state('normal'));
       button.addEventListener('pointerdown', () => state('pressed'));
@@ -238,7 +239,7 @@ export class HudView {
   private image(key: string, parent: HTMLElement, positioned = false): HTMLImageElement {
     const frame = this.assets[key];
     if (!frame) throw new Error(`273 HUD 素材缺失：${key}`);
-    const image = document.createElement('img'); image.src = frame.url; image.alt = ''; image.draggable = false;
+    const image = document.createElement('img'); image.src = resolveAssetUrl(frame.url); image.alt = ''; image.draggable = false;
     image.width = frame.width; image.height = frame.height;
     if (positioned) Object.assign(image.style, { position: 'absolute', left: `${-frame.origin.x}px`, top: `${-frame.origin.y}px` });
     parent.append(image); return image;
@@ -254,7 +255,7 @@ export class HudView {
     button.title = '宠物';
     button.setAttribute('aria-label', '宠物');
     const image = document.createElement('img');
-    image.src = normal.url;
+    image.src = resolveAssetUrl(normal.url);
     image.width = normal.width;
     image.height = normal.height;
     image.alt = '';
@@ -262,7 +263,7 @@ export class HudView {
     button.append(image);
     const state = (name: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
       const frame = states[name] ?? normal;
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
       image.width = frame.width;
       image.height = frame.height;
     };
@@ -442,7 +443,7 @@ export class HudView {
     }
     if (toggle.textContent) toggle.textContent = '';
     if (image) {
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
       image.width = frame.width;
       image.height = frame.height;
     }
@@ -470,7 +471,7 @@ export class HudView {
         cell.button.title = `${cell.binding.label} · ${label} · 右键设置`;
         cell.button.setAttribute('aria-label', cell.button.title);
         const itemArt = action?.type === 'item' ? this.manifest.items?.[String(action.itemId).padStart(8, '0')] : undefined;
-        cell.icon.hidden = !itemArt; if (itemArt) cell.icon.src = itemArt.url;
+        cell.icon.hidden = !itemArt; if (itemArt) cell.icon.src = resolveAssetUrl(itemArt.url);
         cell.level.hidden = false; cell.level.textContent = action?.type === 'item'
           ? String(player.inventory.filter(item => Number(item.itemId) === action.itemId).reduce((sum, item) => sum + item.quantity, 0)) : action ? label.slice(0, 4) : '';
         cell.cooldown.hidden = true;
@@ -492,7 +493,7 @@ export class HudView {
       cell.button.title = entry ? `${cell.binding.label} · ${entry.name}${reason ? ` · ${reason}` : ''}` : `${cell.binding.label} · 尚未配置`;
       cell.button.setAttribute('aria-label', entry ? `${cell.binding.label}：${entry.name}，等级 ${level}${reason ? `，${reason}` : ''}` : `${cell.binding.label}：尚未配置`);
       if (icon) {
-        cell.icon.src = icon.url;
+        cell.icon.src = resolveAssetUrl(icon.url);
         cell.icon.width = icon.width ?? SOURCE_SLOT_SIZE;
         cell.icon.height = icon.height ?? SOURCE_SLOT_SIZE;
         cell.icon.hidden = false;

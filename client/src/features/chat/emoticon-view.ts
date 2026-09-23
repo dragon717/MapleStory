@@ -2,6 +2,7 @@ import type { ClientMessage } from '../../../../shared/protocol';
 import type { AssetFrame, EmoticonData, EmoticonSticker, Manifest } from '../../assets/manifest';
 import { protocolText, uiLocale } from '../../app/i18n';
 import './emoticon.css';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
@@ -127,7 +128,7 @@ export class EmoticonView {
     element.style.width = `${normal.width}px`;
     element.style.height = `${normal.height}px`;
     const image = document.createElement('img');
-    const show = (frame: AssetFrame) => { image.src = frame.url; };
+    const show = (frame: AssetFrame) => { image.src = resolveAssetUrl(frame.url); };
     show(normal);
     image.width = normal.width;
     image.height = normal.height;
@@ -308,7 +309,7 @@ export class EmoticonView {
     if (background) {
       const image = document.createElement('img');
       image.className = 'emoticon-backgrnd';
-      image.src = background.url;
+      image.src = resolveAssetUrl(background.url);
       image.width = background.width;
       image.height = background.height;
       image.draggable = false;
@@ -403,7 +404,7 @@ export class EmoticonView {
       if (plate) {
         const image = document.createElement('img');
         image.className = 'emoticon-slot-plate';
-        image.src = plate.url;
+        image.src = resolveAssetUrl(plate.url);
         image.width = plate.width;
         image.height = plate.height;
         image.draggable = false;
@@ -421,7 +422,7 @@ export class EmoticonView {
       // sticker is centred on, and `name` is the cell's own label strip.
       const icon = document.createElement('img');
       icon.className = 'emoticon-slot-icon';
-      icon.src = sticker.icon.url;
+      icon.src = resolveAssetUrl(sticker.icon.url);
       icon.width = sticker.icon.width;
       icon.height = sticker.icon.height;
       icon.draggable = false;
@@ -474,7 +475,7 @@ export class EmoticonView {
       if (base) {
         const plate = document.createElement('img');
         plate.className = 'emoticon-group-plate';
-        plate.src = base.url;
+        plate.src = resolveAssetUrl(base.url);
         plate.width = base.width;
         plate.height = base.height;
         plate.draggable = false;
@@ -484,7 +485,7 @@ export class EmoticonView {
       if (select && index === this.group) {
         const ring = document.createElement('img');
         ring.className = 'emoticon-group-select';
-        ring.src = select.url;
+        ring.src = resolveAssetUrl(select.url);
         ring.width = select.width;
         ring.height = select.height;
         ring.draggable = false;
@@ -496,7 +497,7 @@ export class EmoticonView {
       }
       const icon = document.createElement('img');
       icon.className = 'emoticon-group-icon';
-      icon.src = group.icon.url;
+      icon.src = resolveAssetUrl(group.icon.url);
       icon.width = group.icon.width;
       icon.height = group.icon.height;
       icon.draggable = false;
@@ -539,7 +540,7 @@ export class EmoticonView {
       if (target === page) dot.setAttribute('aria-current', 'true');
       const image = document.createElement('img');
       image.className = 'emoticon-dot-icon';
-      image.src = (target === page ? on : off).url;
+      image.src = resolveAssetUrl((target === page ? on : off).url);
       image.width = on.width;
       image.height = on.height;
       image.draggable = false;

@@ -6,7 +6,7 @@ import { ensureTextures } from '../../assets/lazy-texture';
 import { damageNumberAdvances, damageNumberLayers } from './damage-number';
 import { frameAt } from '../player/animation';
 // 火毒／主教四转「同一格副本」的镜像名单（与服务端 `world.rs` 的几张表同源）。
-import { CASTER_ANCHORED_BUFFS, DEMON_SUMMON_SKILLS, HYPER_ADVENTURER_SKILLS, INFINITY_SKILLS } from '../player/input';
+import { CASTER_ANCHORED_BUFFS, HYPER_ADVENTURER_SKILLS, INFINITY_SKILLS, SUMMON_SKILLS } from '../player/input';
 
 export type Facing = -1 | 1;
 
@@ -205,7 +205,7 @@ export class CombatView {
     // P: one source Hit cue per target's first authoritative damage segment.
     if ((event.segment ?? 1) === 1 && event.skillId !== undefined) this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.hit?.url);
     this.spawnDamageNumber(event);
-    if ([2211011, 2211015, ...DEMON_SUMMON_SKILLS].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
+    if ([2211011, 2211015, ...SUMMON_SKILLS].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
       for (const summon of this.summons.values()) if (summon.state.playerId === event.attackerId && summon.state.skillId === event.skillId) summon.attackAt = this.clock();
       const soundId = `summon:${event.attackerId}:${event.skillId}:${event.serverTick}`;
       if (!this.seen.has(soundId)) {

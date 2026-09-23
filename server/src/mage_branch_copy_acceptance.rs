@@ -7,7 +7,8 @@
 ///
 /// * **一份判据一张表**：三条分支的四转书在技能窗里共用同一批槽位，副本（212/232）
 ///   与冰雷那本同机制 ⇒ 收进 `INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` /
-///   `DEMON_SUMMON_SKILLS`（楓葉祝福复用早已存在的 `MAPLE_WARRIOR_SKILLS`），
+///   `SUMMON_SKILLS`（楓葉祝福复用早已存在的 `MAPLE_WARRIOR_SKILLS`；召唤那张表
+///   2026-09-23 从 `DEMON_SUMMON_SKILLS` 扩成 `SUMMON_SKILLS`，多了召喚聖龍），
 ///   施法臂改读表。第一条用例直接钉表的内容，并逐条端到端施放一次——改前这七条
 ///   回的是「该技能尚未开放施放」。
 /// * **副本各记各的账**：增益是按技能 id 记剩余时长的，所以「挂哪一本」与
@@ -67,6 +68,19 @@ fn mbc_sibling_copies_share_one_table_and_every_one_is_castable() {
         [SKILL_MAPLE_CURE, SKILL_MAPLE_CURE_FP, SKILL_MAPLE_CURE_CLERIC]
     );
     assert_eq!(DEMON_SUMMON_SKILLS, [SKILL_ICE_DEMON, SKILL_FIRE_DEMON]);
+    // 召唤的**接纳名单**在 2026-09-23 扩成 `SUMMON_SKILLS`（多了召喚聖龍 2321003）：
+    // 上面那两本是「同一格副本」这层内容关系，接纳名单是「由召唤实体承担」这层机制关系。
+    // 副本那两本必须仍在接纳名单里，否则扩表时会漏掉它们。
+    for skill_id in DEMON_SUMMON_SKILLS {
+        assert!(
+            SUMMON_SKILLS.contains(&skill_id),
+            "召唤接纳名单漏掉了同格副本 {skill_id}"
+        );
+    }
+    assert!(
+        SUMMON_SKILLS.contains(&SKILL_HOLY_DRAGON),
+        "召喚聖龍不在召唤接纳名单里"
+    );
     for skill_id in [
         SKILL_MAPLE_WARRIOR,
         SKILL_MAPLE_WARRIOR_FP,
@@ -143,10 +157,10 @@ fn mbc_fire_demon_reuses_the_generic_slot_and_the_derived_pulse() {
     let fire = mech_level(&world, SKILL_FIRE_DEMON);
 
     world
-        .cast_demon_summon(MBC_ACTOR, "ice-1", SKILL_ICE_DEMON, &ice)
+        .cast_summon(MBC_ACTOR, "ice-1", SKILL_ICE_DEMON, &ice)
         .unwrap();
     world
-        .cast_demon_summon(MBC_ACTOR, "fire-1", SKILL_FIRE_DEMON, &fire)
+        .cast_summon(MBC_ACTOR, "fire-1", SKILL_FIRE_DEMON, &fire)
         .unwrap();
 
     let ids = world.players[MBC_ACTOR]
@@ -185,7 +199,7 @@ fn mbc_fire_demon_reuses_the_generic_slot_and_the_derived_pulse() {
 
     // 同技能重放即替换：只有火魔被换掉，冰魔仍在队列里。
     world
-        .cast_demon_summon(MBC_ACTOR, "fire-2", SKILL_FIRE_DEMON, &fire)
+        .cast_summon(MBC_ACTOR, "fire-2", SKILL_FIRE_DEMON, &fire)
         .unwrap();
     let after = world.players[MBC_ACTOR]
         .summons

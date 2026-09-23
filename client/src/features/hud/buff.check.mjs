@@ -87,7 +87,10 @@ class FakeDocument extends FakeElement {
 const source = await readFile(new URL('./buff-bar.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-}).outputText;
+})
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+  // 本检查不剥 import，所以必须**替换**这一行：留着相对说明符会让 `data:` 模块装载失败。
+  .outputText.replace(/import \{[^}]*\} from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;');
 const { BuffBar, buffSeconds } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
 globalThis.document = new FakeDocument();

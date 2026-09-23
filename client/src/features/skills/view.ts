@@ -1,6 +1,7 @@
 import type { ClientMessage, PlayerState, RegenerationPassive } from '../../../../shared/protocol';
 import type { SkillArt, SkillCatalogEntry, SkillWindowData, Manifest } from '../../assets/manifest';
 import { displayText } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 // 书准入（BOOK_JOBS / bookAllowsJob）与三张 Shift 快捷表的**唯一家在**
 // `../player/input`：那边是不引运行期依赖的叶子模块，键盘层与 HUD 也读同一份表。
 import {
@@ -59,10 +60,12 @@ export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054'
   '2301005', '2301010', '2311004', '2321001', '2321007', '2321008',
   // 火毒／主教四转的**同一格副本**（2026-09-23 接执行链）：与冰雷那几条同机制，
   // 服务端已收口成表（`world.rs::INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` /
-  // `DEMON_SUMMON_SKILLS` / `HYPER_ADVENTURER_SKILLS`，楓葉祝福复用 `MAPLE_WARRIOR_SKILLS`）。
+  // `SUMMON_SKILLS` / `HYPER_ADVENTURER_SKILLS`，楓葉祝福复用 `MAPLE_WARRIOR_SKILLS`）。
   // 它们出现在这里才有施放按钮、才能拖进快捷栏。
+  // 2321003 召喚聖龍也走 `SUMMON_SKILLS`（第三条召唤，位移形态是 Follow），
+  // 所以与服务端同一份名单。
   '2121000', '2121004', '2121005', '2121008',
-  '2321000', '2321004', '2321009',
+  '2321000', '2321003', '2321004', '2321009',
   '2121053', '2321053',
   // 战士 / 飞侠一转攻击技能（2026-09-22 接执行链）：与服务端
   // `world.rs::PHYSICAL_AREA_ATTACKS` 是**同一份名单**，走范围管线的物理分支
@@ -330,7 +333,7 @@ export class SkillView {
     const show = (state: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
       const art = states[state] ?? states.normal;
       if (!art) return;
-      image.src = art.url;
+      image.src = resolveAssetUrl(art.url);
       image.width = art.width;
       image.height = art.height;
       button.dataset.state = state;
@@ -438,7 +441,7 @@ export class SkillView {
   private appendArt(parent: HTMLElement, art: SkillArt, className: string, local = false) {
     const image = document.createElement('img');
     image.className = `skill-art ${className}`;
-    image.src = art.url;
+    image.src = resolveAssetUrl(art.url);
     image.alt = '';
     image.width = art.width;
     image.height = art.height;
@@ -648,7 +651,7 @@ export class SkillView {
         return;
       }
       icon.hidden = false;
-      icon.src = art.url;
+      icon.src = resolveAssetUrl(art.url);
       icon.width = art.width;
       icon.height = art.height;
     };
@@ -706,7 +709,7 @@ export class SkillView {
       const image = this.appendArt(button, normal, 'skill-action-art', true);
       const setState = (state: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
         const frame = states?.[state] ?? states?.normal ?? states?.disabled;
-        if (frame) image.src = frame.url;
+        if (frame) image.src = resolveAssetUrl(frame.url);
       };
       setState(enabled ? 'normal' : 'disabled');
       button.addEventListener('pointerenter', () => { if (enabled) setState('mouseOver'); });
@@ -749,7 +752,7 @@ export class SkillView {
     if (iconArt) {
       const icon = document.createElement('img');
       icon.className = 'skill-detail-icon';
-      icon.src = iconArt.url;
+      icon.src = resolveAssetUrl(iconArt.url);
       icon.width = iconArt.width;
       icon.height = iconArt.height;
       icon.alt = '';

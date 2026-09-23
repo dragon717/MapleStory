@@ -13,7 +13,8 @@
 //      不变；且**普通请求不带时间戳**（代数只随明确修复变化）；
 //   4. **资源消费者覆盖如实登记**：已接入的文件逐个钉住；还没接入的 DOM `<img>`
 //      站点必须列在 `UNCOVERED` 名单里并写明理由，名单过期（站点消失或新增文件）
-//      都要失败；
+//      都要失败。**2026-09-23 起该名单为空**（D0 机械迁移把 22 个站点全部接入），
+//      但判据没有取消：新增一个未接入的 DOM 图像站点仍然当场失败；
 //   5. **更新流程不越界**：不清存储、不用 `location.reload(true)`、不放宽
 //      协议/内容校验、不依赖地图资源；
 //   6. **下载入口不给假链接**：未发布就是空列表，地址只接受 http(s)；
@@ -148,6 +149,31 @@ const RESOLVER_CONSUMERS = [
   'features/world/storage-view.ts',// 仓库物品目录（JSON）
   'features/loading/view.ts',  // CSS background-image 底板
   'features/windbell/activities.ts',// DOM <img>
+  // ── D0 机械迁移（2026-09-23）：下面 19 个文件原本登记在 `UNCOVERED` 里 ──────────
+  // 它们是**桌面交付的真实阻塞**：桌面包的 `frontendDist` 只含应用代码、内容走远端
+  // `assetBase`，而裸 `<img>.src = frame.url` 既不会被 `assetBase` 前缀带上远端，
+  // 也不参与「重新下载所需资源」的修复代数 —— Web 下只是少一层强缓存，**桌面下直接
+  // 404**。本轮把 74 处 DOM 图像赋值全部包上 `resolveAssetUrl`（解析器对非
+  // `/assets/**` 地址恒等返回，所以 Web 行为逐字节不变），名单随之下移到这一节。
+  'features/hud/view.ts',          // HUD 图标 / 格子
+  'features/hud/buff-bar.ts',      // 增益图标
+  'features/skills/view.ts',       // 技能图标
+  'features/inventory/view.ts',    // 背包底板与图标
+  'features/chat/view.ts',         // 聊天框底板
+  'features/chat/emoticon-view.ts',// 表情贴纸
+  'features/notebook/view.ts',     // 图鉴底板
+  'features/notebook/item-section.ts',   // 图鉴条目图标
+  'features/notebook/monster-section.ts',// 怪物页图标
+  'features/menu/view.ts',         // 菜单按钮图像
+  'features/ui/window-shell.ts',   // 窗口底板与按钮
+  'features/world/minimap-view.ts',// 小地图切片与角标
+  'features/world/worldmap-view.ts',// 世界地图底图
+  'features/world/party-view.ts',  // 组队窗底板
+  'features/world/friend-view.ts', // 好友窗底板
+  'features/character/view.ts',    // 角色窗图标
+  'features/notice/death.ts',      // 死亡提示图标
+  'features/keybindings/view.ts',  // 键位标签图像
+  'features/pet/panel.ts',         // 宠物面板图像
 ];
 for (const file of RESOLVER_CONSUMERS) {
   const source = read(path.join(CLIENT_SRC, file));
@@ -155,33 +181,15 @@ for (const file of RESOLVER_CONSUMERS) {
 }
 group(`${RESOLVER_CONSUMERS.length} 个真实消费者已接入 resolver`);
 
-// 未接入登记：这些文件直接把 frame.url 赋给 DOM <img>，只享受 HTTP 缓存、
-// 不参与「重新下载所需资源」的修复代数。名单必须**逐条**仍然成立，
-// 站点消失或出现新文件都要失败（v3 §6.4：不许漏掉后仍宣布覆盖全部资源）。
-const UNCOVERED = Object.freeze({
-  'features/hud/view.ts': 'HUD 图标走 frame.url，未迁移',
-  'features/hud/buff-bar.ts': '增益图标走 frame.url，未迁移',
-  'features/skills/view.ts': '技能图标走 frame.url，未迁移',
-  'features/inventory/view.ts': '背包底板与图标走 frame.url，未迁移',
-  'features/chat/view.ts': '聊天框底板走 frame.url，未迁移',
-  'features/chat/emoticon-view.ts': '表情贴纸走 frame.url，未迁移',
-  'features/notebook/view.ts': '图鉴底板走 frame.url，未迁移',
-  'features/notebook/item-section.ts': '图鉴条目图标走 frame.url，未迁移',
-  'features/notebook/monster-section.ts': '怪物页图标走 frame.url，未迁移',
-  'features/menu/view.ts': '菜单按钮图像走 frame.url，未迁移',
-  'features/ui/window-shell.ts': '窗口底板走 frame.url，未迁移',
-  'features/world/minimap-view.ts': '小地图切片走 frame.url，未迁移',
-  'features/world/worldmap-view.ts': '世界地图底图走 frame.url，未迁移',
-  'features/world/party-view.ts': '组队窗底板走 frame.url，未迁移',
-  'features/world/friend-view.ts': '好友窗底板走 frame.url，未迁移',
-  'features/character/view.ts': '角色窗图标走 frame.url，未迁移',
-  'features/notice/death.ts': '死亡提示图标走 frame.url，未迁移',
-  'features/keybindings/view.ts': '键位标签图像走 frame.url，未迁移',
-  'features/pet/panel.ts': '宠物面板图像走 frame.url，未迁移',
-  'features/npc/dialogue.ts': 'NPC 头像走 frame.url（目录 JSON 已接入，图像未接入）',
-  'features/world/storage-view.ts': '仓库物品图标走 frame.url（目录 JSON 已接入，图像未接入）',
-  'features/cashshop/view.ts': '现金商品图标走 asset.url（目录 JSON 已接入，图像未接入）',
-});
+// 未接入登记：直接把 frame.url 赋给 DOM `<img>`、只享受 HTTP 缓存、不参与
+// 「重新下载所需资源」修复代数的站点。名单必须**逐条**仍然成立——站点消失
+// （已迁移）或出现新文件都要失败（v3 §6.4：不许漏掉后仍宣布覆盖全部资源）。
+//
+// **2026-09-23（D0 机械迁移）：名单已清空。** 22 个站点、74 处赋值全部改走
+// `resolveAssetUrl`，逐个并入上面的 `RESOLVER_CONSUMERS`。清空不是取消这道判据：
+// 下面 `offenders` 那段仍是「不在名单里的裸赋值一律失败」，所以**新增**一个
+// 未接入的 DOM 图像站点照样当场红——只是现在没有任何豁免名额。
+const UNCOVERED = Object.freeze({});
 // 未接入＝给 `<img>.src` 赋了资源地址、却**没有**经过 resolver 的那些行。
 const BARE_SRC_LINES = file => read(file).split('\n')
   .map((line, index) => ({ line, number: index + 1 }))
@@ -202,7 +210,11 @@ for (const key of Object.keys(UNCOVERED)) {
   assert.ok(fs.existsSync(file), `登记未接入的文件不存在：${key}`);
   assert.ok(BARE_SRC_LINES(file).length > 0, `登记「未接入」的 ${key} 已不再有裸资源地址赋值，请把名单删掉`);
 }
-group(`${Object.keys(UNCOVERED).length} 个 DOM 图像站点登记为未接入（修复代数不覆盖，HTTP 缓存仍生效）`);
+assert.deepEqual(
+  Object.keys(UNCOVERED), [],
+  'UNCOVERED 只允许在「迁移进行中」非空；D0 迁移已完成，新站点必须直接接 resolver 而不是登记豁免',
+);
+group('DOM 图像站点 0 个未接入（22 个站点 74 处赋值全部走 resolver）');
 
 // ── 5. 更新流程不越界 ──────────────────────────────────────────────────────
 const updateService = codeOnly(read(path.join(CLIENT_SRC, 'features/client-actions/update-service.ts')));

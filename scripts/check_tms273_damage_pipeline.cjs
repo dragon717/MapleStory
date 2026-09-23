@@ -760,23 +760,32 @@ assert.ok(
 );
 
 // 3h. 召唤**存活时长**只允许有一个派生点（2026-09-23 收口）。
-//     收口前的账是**三处各写一份、而且互相不一致**：`cast_demon_summon` 把源 `time`
-//     当秒（`× 1000`）、`cast_thunder_sphere` 也当秒但默认值另写 20／60 秒、
-//     `cast_frozen_orb` **根本不读源**（写死 `4_000`——源里 `2221012` 改数它不会动）。
+//     收口前的账是**三处各写一份、而且互相不一致**：`cast_summon`（当时叫
+//     `cast_demon_summon`）把源 `time` 当秒（`× 1000`）、`cast_thunder_sphere` 也当秒
+//     但默认值另写 20／60 秒、`cast_frozen_orb` **根本不读源**（写死 `4_000`——
+//     源里 `2221012` 改数它不会动）。
 //     现在三处都走 `mechanics.rs::summon_lifetime_ms`，所以断言是双向的：
 //     ① 唯一派生点在 `mechanics.rs`，且它真的读源 `time`、真的按量级分界判单位；
 //     ② 三个施放入口都**经过**它；③ 这三个函数体里不许再出现 `time`——
 //     单位换算只许发生在派生点内部，施放入口自己碰一次就是又长出一份账。
 //     判据本身（`time` 的量级认单位）由**源 JSON 独立重算**，与双录期望值逐项比对；
-//     「兜底分支不可达」也一起证：五本逐级都得有 `time`。
+//     「兜底分支不可达」也一起证：六本逐级都得有 `time`。
+//     ④ **接纳表 == 双录表**（2026-09-23 圣龙接入时补）：`world.rs::SUMMON_SKILLS` 里的
+//     每一条都必须在下面这张双录表里有账，反之双录表里的每一条也必须在接纳表里——
+//     否则「加了新召唤但忘了补存活时长双录」会静默通过。
 const LIFETIME_THRESHOLD = 1_000;
-/** `[技能 id, 名, 源 \`time\`（等级 1）, 期望毫秒]`——**双录**：源侧独立算一遍，再与这里比。 */
+/**
+ * `[技能 id, 名, 源 \`time\`（等级 1）, 期望毫秒, 施放入口]`——**双录**：源侧独立算一遍，
+ * 再与这里比。第 5 项是这本召唤走**哪一个**施放入口（三个入口共用同一个派生点，
+ * 但接纳表只有 `cast_summon` 那一支有——冰鋒刃 / 球形闪电各有自己的入口函数）。
+ */
 const WIRED_SUMMON_LIFETIME = [
-  ['2221005', '召喚冰魔', 115, 115_000],
-  ['2121005', '召喚火魔', 115, 115_000],
-  ['2221012', '冰鋒刃', 4_000, 4_000],
-  ['2211011', '閃電球', 63, 63_000],
-  ['2211015', '閃電球(hidden)', 22, 22_000],
+  ['2221005', '召喚冰魔', 115, 115_000, 'cast_summon'],
+  ['2121005', '召喚火魔', 115, 115_000, 'cast_summon'],
+  ['2321003', '召喚聖龍', 70, 70_000, 'cast_summon'],
+  ['2221012', '冰鋒刃', 4_000, 4_000, 'cast_frozen_orb'],
+  ['2211011', '閃電球', 63, 63_000, 'cast_thunder_sphere'],
+  ['2211015', '閃電球(hidden)', 22, 22_000, 'cast_thunder_sphere'],
 ];
 {
   const rustThreshold = /pub\(super\) const SUMMON_LIFETIME_MS_THRESHOLD: i64 = ([\d_]+);/
@@ -803,7 +812,7 @@ const WIRED_SUMMON_LIFETIME = [
 
   // ② 三个施放入口逐条点名，并在函数体里做反向断言：不许自己碰 `time`。
   const entries = [
-    ['elemental.rs::cast_demon_summon', elementalsSrc, /fn cast_demon_summon\([\s\S]*?\n    \}/],
+    ['elemental.rs::cast_summon', elementalsSrc, /fn cast_summon\([\s\S]*?\n    \}/],
     ['elemental.rs::cast_frozen_orb', elementalsSrc, /fn cast_frozen_orb\([\s\S]*?\n    \}/],
     ['skills.rs::cast_thunder_sphere', skillsSrc, /fn cast_thunder_sphere\([\s\S]*?\n    \}/],
   ];
@@ -846,12 +855,68 @@ const WIRED_SUMMON_LIFETIME = [
   }
   const secondsForm = WIRED_SUMMON_LIFETIME.filter(([, , time]) => time < LIFETIME_THRESHOLD);
   const millisForm = WIRED_SUMMON_LIFETIME.filter(([, , time]) => time >= LIFETIME_THRESHOLD);
-  assert.equal(secondsForm.length, 4, '按**秒**书写的召唤存活时长应当是四本');
+  assert.equal(secondsForm.length, 5, '按**秒**书写的召唤存活时长应当是五本');
   assert.equal(millisForm.length, 1, '按**毫秒**书写的召唤存活时长应当只有冰鋒刃那一本');
   assert.ok(
     Math.max(...secondsForm.map(([, , time]) => time)) < LIFETIME_THRESHOLD
       && Math.min(...millisForm.map(([, , time]) => time)) >= LIFETIME_THRESHOLD,
     '分界两侧在源里出现了重叠——量级判据对这本目录不再成立，必须改成显式登记而不是按量级猜',
+  );
+
+  // ④ 接纳表 == 双录表里走 `cast_summon` 的那一批（**双向**）。
+  //    `SUMMON_SKILLS` 是「这条技能由召唤实体承担」的唯一判据，它对应的是**三个施放
+  //    入口中的哪一个**这件事也必须两边对齐：加了新召唤却忘了补存活时长双录、或从双录
+  //    表里删了一条却忘了从接纳表删，本段都当场红。冰鋒刃 / 球形闪电不走 `cast_summon`
+  //    （各有自己的入口函数），所以它们只出现在双录表里、不出现在接纳表里——这是**设计**，
+  //    不是漏项，下面按入口分组逐组比对。
+  const summonTable = /const SUMMON_SKILLS: \[u32; (\d+)\] = \[([^\]]*)\];/.exec(worldSrc);
+  assert.ok(
+    summonTable,
+    'world.rs 里读不到 `SUMMON_SKILLS`——召唤的接纳名单没有唯一定义处',
+  );
+  const tableIds = summonTable[2]
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+    .map(entry => {
+      const constant = new RegExp(`const ${entry}: u32 = (\\d+);`).exec(worldSrc);
+      assert.ok(constant, `world.rs 里找不到 ${entry} 的常量定义——接纳表引用了不存在的常量`);
+      return constant[1];
+    });
+  assert.equal(
+    Number(summonTable[1]), tableIds.length,
+    `SUMMON_SKILLS 声明的长度是 ${summonTable[1]}，实际列了 ${tableIds.length} 条`,
+  );
+  const byEntry = new Map();
+  for (const [id, , , , entry] of WIRED_SUMMON_LIFETIME) {
+    assert.ok(
+      entries.some(([label]) => label.endsWith(`::${entry}`)),
+      `双录表给 ${id} 登记的施放入口 \`${entry}\` 不在上面点名的三个入口里——`
+        + '要么写错了名字，要么新增了入口却没在这里点名',
+    );
+    byEntry.set(entry, [...(byEntry.get(entry) || []), id]);
+  }
+  for (const [entry, ids] of byEntry) {
+    const expected = entry === 'cast_summon' ? tableIds : null;
+    if (expected) {
+      assert.deepEqual(
+        [...ids].sort(), [...expected].sort(),
+        `召唤接纳表（world.rs::SUMMON_SKILLS）与走 \`${entry}\` 的双录条目不一致：\n`
+          + `  接纳表：${expected.join(', ')}\n`
+          + `  双录表：${ids.join(', ')}\n`
+          + '加了新召唤就必须同时补「源 `time` + 期望毫秒」的双录，并把它放进接纳表；'
+          + '删了也要两边一起删。',
+      );
+    } else {
+      assert.ok(
+        ids.length > 0,
+        `施放入口 \`${entry}\` 在双录表里一条都没有——入口点名了却没有书在它名下`,
+      );
+    }
+  }
+  assert.ok(
+    byEntry.has('cast_summon'),
+    '双录表里没有任何一条登记在 `cast_summon` 名下——接纳表那一段会因此变成空断言',
   );
 }
 
@@ -1064,7 +1129,7 @@ console.log(
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `
-  + `3 个施放入口；源侧重算 ${WIRED_SUMMON_LIFETIME
+  + `3 个施放入口 + 接纳表（world.rs::SUMMON_SKILLS）双向对齐；源侧重算 ${WIRED_SUMMON_LIFETIME
     .map(([id, , time, ms]) => `${id}=${time}${time >= LIFETIME_THRESHOLD ? 'ms' : 's'}→${ms}ms`)
     .join('/')}`,
 );

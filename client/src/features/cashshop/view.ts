@@ -378,7 +378,7 @@ export class CashShopView {
   private safeImage(asset: { url: string; width?: number; height?: number }, className: string, owner?: HTMLElement): HTMLImageElement {
     const image = document.createElement('img');
     image.className = className;
-    image.src = asset.url;
+    image.src = resolveAssetUrl(asset.url);
     if (asset.width && asset.width > 0) image.width = asset.width;
     if (asset.height && asset.height > 0) image.height = asset.height;
     image.alt = '';

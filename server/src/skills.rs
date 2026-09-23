@@ -174,7 +174,8 @@ impl World {
             || MAPLE_WARRIOR_SKILLS.contains(&skill_id)
             || INFINITY_SKILLS.contains(&skill_id)
             || MAPLE_CURE_SKILLS.contains(&skill_id)
-            || DEMON_SUMMON_SKILLS.contains(&skill_id)
+            // 召唤系（冰魔 / 火魔 / 聖龍，2026-09-23 起三条共用同一张表）。
+            || SUMMON_SKILLS.contains(&skill_id)
             || HYPER_ADVENTURER_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
@@ -286,7 +287,7 @@ impl World {
                 | SKILL_ICE_DRAGON_BREATH
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
-        ) || DEMON_SUMMON_SKILLS.contains(&skill_id))
+        ) || SUMMON_SKILLS.contains(&skill_id))
             && player.attack_until > self.tick
         {
             self.send_reject(&id, "skill_busy", "技能动作尚未结束。", Some(&request_id));
@@ -426,7 +427,7 @@ impl World {
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
                 | SKILL_HYPER_VORTEX
-        ) || DEMON_SUMMON_SKILLS.contains(&skill_id)
+        ) || SUMMON_SKILLS.contains(&skill_id)
         {
             if skill_id == SKILL_ENERGY_BOLT {
                 self.energy_duration_ms(&id)
@@ -596,10 +597,11 @@ impl World {
                     return;
                 }
             }
-            // 召唤系四转：召喚冰魔 2221005 与召喚火魔 2121005。实体、存活时长与
-            // 脉冲周期都从源字段派生（S5 建成的通用槽位），本臂不写技能名单以外的分支。
-            other if DEMON_SUMMON_SKILLS.contains(&other) => {
-                if let Err(error) = self.cast_demon_summon(&id, &request_id, other, &level) {
+            // 召唤系：召喚冰魔 2221005、召喚火魔 2121005、召喚聖龍 2321003。实体、
+            // 存活时长、脉冲周期与位移形态都从源字段派生（S5 建成的通用槽位），
+            // 本臂不写技能名单以外的分支。
+            other if SUMMON_SKILLS.contains(&other) => {
+                if let Err(error) = self.cast_summon(&id, &request_id, other, &level) {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
@@ -729,20 +731,12 @@ impl World {
             // 火（`f`）/毒（`s`）/聖（`h`）三系在源里没有冻结字段，也不需要那条分支。
             // 四转火毒的三条 Hyper 强化被动（`damR`）由 `magic_damage_breakdown` 的
             // 「被强化技能 → 强化被动」配对表消费。
-            SKILL_FIRE_BOLT
-            | SKILL_POISON_MIST
-            | SKILL_BLAZING_FLAME
-            | SKILL_POISON_BREATH
-            | SKILL_HELLFIRE
-            | SKILL_FLAME_SWEEP
-            | SKILL_METEOR_SHOWER
-            | SKILL_SEARING_POISON
-            | SKILL_HOLY_ARROW
-            | SKILL_ANGELIC_TOUCH
-            | SKILL_HOLY_LIGHT
-            | SKILL_ANGEL_RAY
-            | SKILL_ANGELIC_ARROW
-            | SKILL_HEAVENLY_WRATH => {
+            //
+            // 2026-09-23 从「逐条写常量」收口成**读表**：`BRANCH_AREA_ATTACKS` 已经是
+            // `castable` 白名单（第 169 行）与动作时长入口（第 437 行）的判据，施法臂
+            // 再抄一遍 14 个常量，等于新接一条要改四处、漏一处就「能施放但打不出」。
+            // 收口后三处共用同一张表，判据只有 `world.rs::BRANCH_AREA_ATTACKS` 那一处。
+            other if BRANCH_AREA_ATTACKS.contains(&other) => {
                 if let Err(error) =
                     self.cast_elemental_area(&id, &request_id, skill_id, &level, false)
                 {
@@ -1087,7 +1081,7 @@ impl World {
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
                 | SKILL_HYPER_VORTEX
-        ) || DEMON_SUMMON_SKILLS.contains(&skill_id)
+        ) || SUMMON_SKILLS.contains(&skill_id)
             || PHYSICAL_AREA_ATTACKS.contains(&skill_id)
         {
             let target_ids = if skill_id == SKILL_THREE_SNAILS {
@@ -1670,9 +1664,9 @@ impl World {
             | SKILL_BLIZZARD
             | SKILL_ICE_DRAGON_BREATH
             | SKILL_FROZEN_ORB => 600,
-            // 召唤系四转（冰魔 / 火魔）与上列同为 600ms 动作；两本同格同形，
-            // 所以判据从常量收口成表。
-            other if DEMON_SUMMON_SKILLS.contains(&other) => 600,
+            // 召唤系（冰魔 / 火魔 / 聖龍）与上列同为 600ms 动作；三条共用同一张
+            // 接纳表，所以判据从常量收口成表。
+            other if SUMMON_SKILLS.contains(&other) => 600,
             _ => SKILL_CAST_DURATION_MS,
         };
         let action_speed = self

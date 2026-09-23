@@ -2,6 +2,7 @@ import type { AbilityStat, ClientMessage, PlayerState, ServerMessage } from '../
 import type { Manifest, SkillArt } from '../../assets/manifest';
 import { installWindowDrag, bringToFront } from '../ui/window-shell.ts';
 import './style.css';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type CharacterField =
   | 'username'
@@ -378,7 +379,7 @@ export class CharacterInfoView {
     if (!art) return undefined;
     const image = document.createElement('img');
     image.className = className;
-    image.src = art.url;
+    image.src = resolveAssetUrl(art.url);
     image.width = art.width;
     image.height = art.height;
     image.alt = '';
@@ -394,7 +395,7 @@ export class CharacterInfoView {
     const base = 'common/main/button:close/';
     const state = (name: 'normal' | 'mouseOver' | 'pressed') => {
       const art = this.manifest.characterUi?.[`${base}${name}/0`];
-      if (art) image.src = art.url;
+      if (art) image.src = resolveAssetUrl(art.url);
     };
     button.addEventListener('pointerover', () => state('mouseOver'));
     button.addEventListener('pointerout', () => state('normal'));
@@ -442,7 +443,7 @@ export class CharacterInfoView {
     if (!image) return;
     const prefix = `local/detailStat/button:lvUp${ABILITY_BUTTON_NAMES[stat]}`;
     const art = this.manifest.characterUi?.[`${prefix}/${state}/0`] ?? this.manifest.characterUi?.[`${prefix}/normal/0`];
-    if (art) image.src = art.url;
+    if (art) image.src = resolveAssetUrl(art.url);
   }
 
   private allocate(stat: AbilityStat) {

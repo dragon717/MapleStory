@@ -87,7 +87,8 @@ const outputText = ts.transpileModule(source, {
 }).outputText.replace(/^import .*;\r?\n/gm, '');
 // The real window-shell is bundled by esbuild; the transpiled check gets a
 // no-op stub (drag geometry itself is covered by window-shell.check.mjs).
-const runnable = `const installWindowDrag = () => () => {};\nconst bringToFront = () => {};\n${outputText}`;
+// 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+const runnable = `const installWindowDrag = () => () => {};\nconst bringToFront = () => {};\nconst resolveAssetUrl = url => url;\n${outputText}`;
 const { CharacterInfoView } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
 
 const original = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame };

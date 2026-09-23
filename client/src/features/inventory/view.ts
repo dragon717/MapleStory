@@ -6,6 +6,7 @@ import { TooltipController, tooltipSkin } from './tooltip-view';
 import { DragController, INVENTORY_DROP_ZONE_ATTRIBUTE } from './drag-controller';
 import { InventoryIntents, type SendClientMessage } from './intents';
 import { EquipmentView } from './equipment-view';
+import { resolveAssetUrl } from '../../assets/resource-url';
 import {
   TAB_COUNT,
   TAB_LABEL_KEYS,
@@ -164,7 +165,7 @@ export class InventoryView {
 
     const background = document.createElement('img');
     background.className = 'inventory-window-background';
-    background.src = this.ui.backgrnd.url;
+    background.src = resolveAssetUrl(this.ui.backgrnd.url);
     background.alt = '';
     background.draggable = false;
     background.setAttribute('aria-hidden', 'true');
@@ -1040,7 +1041,7 @@ export class InventoryView {
       const currentBase = currentPath.length > 2 ? currentPath.slice(0, -2).join('/') : '';
       const frame = assets[(currentBase ? currentBase + '/' : '') + state + '/0'] ?? assets[currentKey] ?? normal;
       button.dataset.state = state;
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
     };
     button.addEventListener('pointerenter', () => setState('mouseOver'));
     button.addEventListener('pointerleave', () => setState('normal'));
@@ -1057,7 +1058,7 @@ export class InventoryView {
     const frame = this.ui[key] ?? this.inventoryFrame('button:sort/normal/0');
     const image = this.gatherButton.querySelector<HTMLImageElement>('img');
     if (frame && image) {
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
       image.width = frame.width;
       image.height = frame.height;
     }
@@ -1080,14 +1081,14 @@ export class InventoryView {
     this.window.style.width = dimensions.width + 'px';
     this.window.style.height = dimensions.height + 'px';
     this.window.dataset.size = this.full ? 'full' : 'small';
-    this.background.src = frame.url;
+    this.background.src = resolveAssetUrl(frame.url);
     this.background.width = frame.width;
     this.background.height = frame.height;
     if (this.sizeButton) {
       const state = this.inventoryButtonFrame('size');
       const image = this.sizeButton.querySelector<HTMLImageElement>('img');
       if (state && image) {
-        image.src = state.url;
+        image.src = resolveAssetUrl(state.url);
         image.width = state.width;
         image.height = state.height;
       }
@@ -1242,7 +1243,7 @@ export class InventoryView {
   private assetImage(frame: AssetFrame, className: string) {
     const image = document.createElement('img');
     image.className = className;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
     image.draggable = false;

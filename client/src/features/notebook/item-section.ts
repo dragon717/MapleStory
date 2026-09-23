@@ -17,6 +17,7 @@ import { uiLocale, uiText } from '../../app/i18n';
 import type { NotebookRow } from '../../../../shared/protocol';
 import type { SectionContext } from './section-context';
 import { isMountFamily } from './view-model';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /** 一页里格子的列数；与服务端 `ITEM_PAGE_SIZE` 一起决定格架形状。 */
 export const ITEM_GRID_COLUMNS = 6;
@@ -27,7 +28,7 @@ function itemIcon(context: SectionContext, itemId: string): HTMLImageElement | u
   if (!frame) return undefined;
   const image = document.createElement('img');
   image.className = 'notebook-slot-art';
-  image.src = frame.url;
+  image.src = resolveAssetUrl(frame.url);
   image.alt = '';
   image.draggable = false;
   image.loading = 'lazy';
@@ -51,7 +52,7 @@ function itemCell(context: SectionContext, row: NotebookRow) {
   if (plate) {
     const plateImage = document.createElement('img');
     plateImage.className = 'notebook-slot-plate';
-    plateImage.src = plate.url;
+    plateImage.src = resolveAssetUrl(plate.url);
     plateImage.alt = '';
     plateImage.draggable = false;
     plateImage.setAttribute('aria-hidden', 'true');
@@ -107,7 +108,7 @@ function sheetHead(context: SectionContext): HTMLElement {
   if (ribbon) {
     const image = document.createElement('img');
     image.className = 'notebook-sheet-head-art';
-    image.src = ribbon.url;
+    image.src = resolveAssetUrl(ribbon.url);
     image.width = ribbon.width;
     image.height = ribbon.height;
     image.alt = '';

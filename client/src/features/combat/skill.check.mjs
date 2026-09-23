@@ -30,7 +30,7 @@ globalThis.damageNumberLayers = (damage, mpDamage = 0) => [
   const inputSource = await readFile(new URL('../player/input.ts', import.meta.url), 'utf8');
   const { outputText: inputOutput } = ts.transpileModule(inputSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
   const inputModule = await import(`data:text/javascript;base64,${Buffer.from(inputOutput.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
-  for (const name of ['INFINITY_SKILLS', 'DEMON_SUMMON_SKILLS', 'CASTER_ANCHORED_BUFFS', 'HYPER_ADVENTURER_SKILLS']) {
+  for (const name of ['INFINITY_SKILLS', 'SUMMON_SKILLS', 'CASTER_ANCHORED_BUFFS', 'HYPER_ADVENTURER_SKILLS']) {
     assert.ok(Array.isArray(inputModule[name]) && inputModule[name].length > 0, `player/input.ts 必须导出非空的 ${name}`);
     globalThis[name] = inputModule[name];
   }
@@ -225,7 +225,7 @@ console.log('PASS: fourth hold layers, stale/current release, observer recovery,
 // ---- 火毒／主教四转「同一格副本」的表现接线（2026-09-23）------------------------
 //
 // 服务端把三条分支的同名技能合进一张表（`world.rs` 的 `INFINITY_SKILLS` /
-// `MAPLE_CURE_SKILLS` / `MAPLE_WARRIOR_SKILLS` / `DEMON_SUMMON_SKILLS`），
+// `MAPLE_CURE_SKILLS` / `MAPLE_WARRIOR_SKILLS` / `SUMMON_SKILLS`），
 // `player/input.ts` 是同一份名单的客户端镜像。改前这三处写死 `222xxxx`：
 // 火毒／主教玩家放同一格技能时**完全没有表现**——無限没有持续特效、召喚火魔的
 // 周期打击不切攻击帧、枫葉祝福不跟随施法者。下面逐条钉住，并各配一条反向断言，
@@ -249,20 +249,37 @@ console.log('PASS: fourth hold layers, stale/current release, observer recovery,
 }
 
 {
-  const demon = new CombatView(scene, undefined, 0, () => now, 'combat-hit', {
-    '2121005': { summonStand: frames, summonAttack: frames },
-  });
+  // 逐本覆盖**通用召唤名单**（`player/input.ts::SUMMON_SKILLS`，与服务端
+  // `world.rs::SUMMON_SKILLS` 同名单）：名单里每一本的周期打击都必须切到 `summonAttack` 帧。
+  // 只挑一本举例的话，新加的那本漏掉名单也照样绿——2026-09-23 召喚聖龍接入时，这条
+  // 从「只钉火魔」改成逐本，并补一条「名单外的召唤不切」的反向断言。
+  const framesBySummon = {};
+  for (const skillId of SUMMON_SKILLS) framesBySummon[String(skillId)] = { summonStand: frames, summonAttack: frames };
+  // 名单外的冰鋒刃：给它 `ball` 组（它自己的表现走那条），好让反向断言只钉「切帧」这件事。
+  framesBySummon['2221012'] = { ball: frames };
+  const summons = new CombatView(scene, undefined, 0, () => now, 'combat-hit', framesBySummon);
   // 只留「周期打击切帧」这一条判据，受击的数字与命中特效不在本检查范围内。
-  demon.spawnDamageNumber = () => {};
-  demon.spawnSkillHit = () => {};
-  demon.syncSummons([{ id: 'demon', playerId: 'p', skillId: 2121005, x: 10, y: 10, facing: 1, expiresInMs: 5000, stationary: true }]);
-  const demonState = demon.summons.get('demon');
-  assert.ok(demonState, '召喚火魔必须按快照建出召唤物');
-  assert.equal(demonState.attackAt, undefined, '未受击前不该是攻击帧');
-  demon.receiveDamageEvent({ type: 'damageEvent', eventId: 'fire-1', targetId: 'mob', serverTick: 1, x: 10, y: 10, damage: 1, attackerId: 'p', skillId: 2121005, segment: 1 });
-  assert.equal(typeof demonState.attackAt, 'number', '召喚火魔的周期打击必须切到 summonAttack 帧');
-  demon.clear();
-  console.log('PASS: 召喚火魔的周期打击与冰魔同路（该名单里不再只有冰雷那两件）。');
+  summons.spawnDamageNumber = () => {};
+  summons.spawnSkillHit = () => {};
+  assert.ok(SUMMON_SKILLS.length >= 3, `通用召唤名单至少三本（冰魔 / 火魔 / 聖龍），实得 ${SUMMON_SKILLS.length}`);
+  for (const skillId of SUMMON_SKILLS) {
+    const id = `summon-${skillId}`;
+    summons.syncSummons([{ id, playerId: 'p', skillId, x: 10, y: 10, facing: 1, expiresInMs: 5000, stationary: true }]);
+    const state = summons.summons.get(id);
+    assert.ok(state, `${skillId} 必须按快照建出召唤物`);
+    assert.equal(state.attackAt, undefined, `${skillId} 未受击前不该是攻击帧`);
+    summons.receiveDamageEvent({ type: 'damageEvent', eventId: `${id}-1`, targetId: 'mob', serverTick: 1, x: 10, y: 10, damage: 1, attackerId: 'p', skillId, segment: 1 });
+    assert.equal(typeof state.attackAt, 'number', `${skillId} 的周期打击必须切到 summonAttack 帧`);
+    summons.clear();
+  }
+  // 反向：不在名单里的召唤（冰鋒刃 2221012）不许借这条路切帧。
+  summons.syncSummons([{ id: 'orb', playerId: 'p', skillId: 2221012, x: 10, y: 10, facing: 1, expiresInMs: 5000, stationary: false }]);
+  const orb = summons.summons.get('orb');
+  assert.ok(orb, '冰鋒刃必须按快照建出召唤物');
+  summons.receiveDamageEvent({ type: 'damageEvent', eventId: 'orb-1', targetId: 'mob', serverTick: 2, x: 10, y: 10, damage: 1, attackerId: 'p', skillId: 2221012, segment: 1 });
+  assert.equal(orb.attackAt, undefined, '冰鋒刃不在通用召唤名单里，不该借周期打击切帧');
+  summons.clear();
+  console.log(`PASS: 通用召唤名单逐本切帧（${SUMMON_SKILLS.join('/')}），名单外的召唤不切。`);
 }
 
 {

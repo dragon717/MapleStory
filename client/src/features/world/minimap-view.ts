@@ -2,6 +2,7 @@ import type { NpcState, PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, MapPortal, MiniMapMapAsset, MiniMapUiData } from '../../assets/manifest';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
 import { installWindowDrag } from '../ui/window-shell.ts';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /** The three states the original window has: the collapsed strip, the compact
  *  window and the full window (which also carries the street and map name). */
@@ -426,10 +427,10 @@ export class MiniMapView {
     const closeImage = document.createElement('img');
     const showClose = (state: string) => {
       const frame = this.data()?.ui[`npcList/button:close/${state}`] ?? closeNormal;
-      if (frame) closeImage.src = frame.url;
+      if (frame) closeImage.src = resolveAssetUrl(frame.url);
     };
     if (closeNormal) {
-      closeImage.src = closeNormal.url;
+      closeImage.src = resolveAssetUrl(closeNormal.url);
       closeImage.width = closeNormal.width;
       closeImage.height = closeNormal.height;
     }
@@ -628,8 +629,8 @@ export class MiniMapView {
       button.setAttribute('aria-label', label(key, textKey));
       if (pressed !== undefined) button.setAttribute('aria-pressed', String(pressed));
       const image = document.createElement('img');
-      const show = (state: string) => { image.src = (this.frame(`${key}/${state}`) ?? normal).url; };
-      image.src = normal.url;
+      const show = (state: string) => { image.src = resolveAssetUrl((this.frame(`${key}/${state}`) ?? normal).url); };
+      image.src = resolveAssetUrl(normal.url);
       image.width = normal.width;
       image.height = normal.height;
       image.alt = '';
@@ -709,8 +710,12 @@ export class MiniMapView {
     root.style.display = '';
     if (this.streetLine) this.streetLine.textContent = this.names(this.input.mapId).street;
     if (this.nameLine) this.nameLine.textContent = this.names(this.input.mapId).map;
-    if (this.canvas && this.canvas.getAttribute('src') !== map.url) {
-      this.canvas.src = map.url;
+    // 「值没变就不碰 DOM」这条守卫要比较**解析后**的地址：`<img>.src` 存的就是传输
+    // 地址，拿逻辑地址去比会永远不相等，于是每次快照都重写一次 src 与宽高。
+    // 解析器是纯函数（内容寻址查表 + 记忆化代数），所以比较与赋值各取一次。
+    const mapArt = resolveAssetUrl(map.url);
+    if (this.canvas && this.canvas.getAttribute('src') !== mapArt) {
+      this.canvas.src = resolveAssetUrl(map.url);
       this.canvas.width = map.width;
       this.canvas.height = map.height;
     }
@@ -738,8 +743,9 @@ export class MiniMapView {
       return;
     }
     icon.style.display = 'block';
-    if (icon.getAttribute('src') !== badge.url) {
-      icon.src = badge.url;
+    const badgeArt = resolveAssetUrl(badge.url);
+    if (icon.getAttribute('src') !== badgeArt) {
+      icon.src = resolveAssetUrl(badge.url);
       icon.width = badge.width;
       icon.height = badge.height;
     }

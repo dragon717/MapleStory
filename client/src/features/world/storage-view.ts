@@ -239,7 +239,7 @@ export class StorageView {
     if (background) {
       const image = document.createElement('img');
       image.className = 'storage-backgrnd';
-      image.src = background.url;
+      image.src = resolveAssetUrl(background.url);
       image.width = background.width;
       image.height = background.height;
       image.draggable = false;
@@ -329,7 +329,7 @@ export class StorageView {
       const hover = this.frame(`${sprite}/mouseOver`) ?? normal;
       const pressed = this.frame(`${sprite}/pressed`) ?? normal;
       const image = document.createElement('img');
-      const show = (frame: AssetFrame) => { image.src = frame.url; };
+      const show = (frame: AssetFrame) => { image.src = resolveAssetUrl(frame.url); };
       show(normal);
       image.width = normal.width;
       image.height = normal.height;
@@ -406,7 +406,7 @@ export class StorageView {
     const icon = document.createElement('img');
     icon.className = 'storage-row-icon';
     const frame = this.manifest.items?.[item.itemId];
-    if (frame?.url) icon.src = frame.url;
+    if (frame?.url) icon.src = resolveAssetUrl(frame.url);
     icon.alt = '';
     icon.draggable = false;
 

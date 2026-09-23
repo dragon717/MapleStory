@@ -1,5 +1,6 @@
 import type { ServerMessage, PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type ReviveResult = Extract<ServerMessage, { type: 'reviveResult' }>;
 type ServerReject = Extract<ServerMessage, { type: 'rejected' }>;
@@ -122,7 +123,7 @@ export class DeathNoticeView {
   private createImage(frame: AssetFrame, className: string) {
     const image = document.createElement('img');
     image.className = className;
-    image.src = frame.url;
+    image.src = resolveAssetUrl(frame.url);
     image.width = frame.width;
     image.height = frame.height;
     image.alt = '';
@@ -133,7 +134,7 @@ export class DeathNoticeView {
   private bindButton(button: HTMLButtonElement, image: HTMLImageElement, assets: Record<string, AssetFrame>, normal: AssetFrame) {
     const setState = (state: 'normal' | 'pressed' | 'mouseOver') => {
       const frame = assets[`${state}/0`] ?? normal;
-      image.src = frame.url;
+      image.src = resolveAssetUrl(frame.url);
     };
     button.addEventListener('pointerover', () => setState('mouseOver'));
     button.addEventListener('pointerout', () => setState('normal'));

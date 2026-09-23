@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 156,
-  "edge_count": 372,
+  "edge_count": 391,
   "edge_kind_counts": {
-    "value": 228,
+    "value": 247,
     "dynamic": 8,
     "type": 114,
     "side-effect": 22
@@ -463,6 +463,11 @@
       "kind": "side-effect"
     },
     {
+      "from": "client/src/features/character/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/chat/emoticon-view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -481,6 +486,11 @@
       "from": "client/src/features/chat/emoticon-view.ts",
       "to": "client/src/features/chat/emoticon.css",
       "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/chat/emoticon-view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/chat/scroll.check.ts",
@@ -506,6 +516,11 @@
       "from": "client/src/features/chat/view.ts",
       "to": "client/src/features/chat/style.css",
       "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/chat/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/client-actions/desktop-downloads.check.ts",
@@ -848,6 +863,11 @@
       "kind": "type"
     },
     {
+      "from": "client/src/features/hud/buff-bar.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/hud/gauge.check.ts",
       "to": "client/src/features/hud/view.ts",
       "kind": "value"
@@ -880,6 +900,11 @@
     {
       "from": "client/src/features/hud/view.ts",
       "to": "client/src/features/hud/buff-bar.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/hud/view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1034,6 +1059,11 @@
     },
     {
       "from": "client/src/features/inventory/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/inventory/view.ts",
       "to": "client/src/features/inventory/view-model.ts",
       "kind": "value"
     },
@@ -1083,6 +1113,11 @@
       "kind": "side-effect"
     },
     {
+      "from": "client/src/features/keybindings/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/loading/view.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -1115,6 +1150,11 @@
     {
       "from": "client/src/features/menu/view.ts",
       "to": "client/src/features/ui/window-shell.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/menu/view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1223,6 +1263,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/notebook/item-section.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/notebook/monster-section.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "value"
@@ -1241,6 +1286,11 @@
       "from": "client/src/features/notebook/monster-section.ts",
       "to": "client/src/features/notebook/section-context.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/notebook/monster-section.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/notebook/section-context.ts",
@@ -1270,6 +1320,11 @@
     {
       "from": "client/src/features/notebook/view.ts",
       "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/notebook/view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1331,6 +1386,11 @@
       "from": "client/src/features/notice/death.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/notice/death.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/notice/tombstone.ts",
@@ -1416,6 +1476,11 @@
       "from": "client/src/features/pet/panel.ts",
       "to": "client/src/features/pet/style.css",
       "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/pet/panel.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/pet/view.ts",
@@ -1549,6 +1614,11 @@
     },
     {
       "from": "client/src/features/skills/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/skills/view.ts",
       "to": "client/src/features/player/input.ts",
       "kind": "value"
     },
@@ -1566,6 +1636,11 @@
       "from": "client/src/features/ui/window-shell.ts",
       "to": "client/src/assets/manifest.ts",
       "kind": "type"
+    },
+    {
+      "from": "client/src/features/ui/window-shell.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/features/windbell/activities.ts",
@@ -1663,6 +1738,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/world/friend-view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/world/minimap-view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1683,6 +1763,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/world/minimap-view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
       "from": "client/src/features/world/party-view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -1700,6 +1785,11 @@
     {
       "from": "client/src/features/world/party-view.ts",
       "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/world/party-view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1760,6 +1850,11 @@
     {
       "from": "client/src/features/world/worldmap-view.ts",
       "to": "client/src/app/i18n.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/world/worldmap-view.ts",
+      "to": "client/src/assets/resource-url.ts",
       "kind": "value"
     },
     {
@@ -1908,8 +2003,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "63b823c2d35146eedd472e541e164b09b6940cf5",
+  "source_commit": "a187f16c24d39dbdaf566d6200a80741f8d3461c",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-23T06:16:18.275Z"
+  "generated_at": "2026-09-23T07:12:22.418Z"
 }

@@ -36,7 +36,8 @@ const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 });
-const runnable = `const displayText = value => value;\n${outputText.replace(/^import .*;\r?\n/gm, '')}`;
+// 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+const runnable = `const displayText = value => value;\nconst resolveAssetUrl = url => url;\n${outputText.replace(/^import .*;\r?\n/gm, '')}`;
 const { SkillView, sourceText } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
 
 const skills = await readJson('skills');

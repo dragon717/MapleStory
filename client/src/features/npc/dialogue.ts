@@ -82,7 +82,7 @@ function sanitize(text: string): string {
 function frame(url?: string, cls?: string, width?: number, height?: number): HTMLImageElement {
   const img = document.createElement('img');
   img.className = cls ?? '';
-  if (url) img.src = url;
+  if (url) img.src = resolveAssetUrl(url);
   if (width) img.width = width;
   if (height) img.height = height;
   img.draggable = false;
@@ -365,7 +365,7 @@ export class NpcDialogueView {
     if (aside) {
       const img = root.querySelector<HTMLImageElement>('.npc-dlg-speaker');
       if (img) {
-        if (portrait) { img.src = portrait.url; img.hidden = false; }
+        if (portrait) { img.src = resolveAssetUrl(portrait.url); img.hidden = false; }
         else { img.removeAttribute('src'); img.hidden = true; }
       }
       aside.style.visibility = portrait ? 'visible' : 'hidden';

@@ -5802,7 +5802,7 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
         player.attack_until = 0;
     }
     world
-        .cast_demon_summon("fourth-runtime", "demon-1", SKILL_ICE_DEMON, &demon)
+        .cast_summon("fourth-runtime", "demon-1", SKILL_ICE_DEMON, &demon)
         .unwrap();
     world
         .cast_frozen_orb("fourth-runtime", "orb-1", &orb)

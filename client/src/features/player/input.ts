@@ -112,7 +112,7 @@ export const FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
 /**
  * 火毒（212）／主教（232）四转的「同一格副本」。三条分支的四转书在技能窗里共用
  * 同一批槽位，副本与冰雷那本**同机制**；服务端的判据只有 `world.rs` 的那几张表
- * （`INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` / `DEMON_SUMMON_SKILLS` /
+ * （`INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` / `SUMMON_SKILLS` /
  * `MAPLE_WARRIOR_SKILLS`），这里是同一份名单的客户端镜像。
  *
  * 客户端只读它们做**呈现**决定（施法者的增益视觉跟不跟人走、無限的持续特效画哪一本），
@@ -121,7 +121,17 @@ export const FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
 export const INFINITY_SKILLS: readonly number[] = [2221004, 2121004, 2321004];
 export const MAPLE_CURE_SKILLS: readonly number[] = [2221008, 2121008, 2321009];
 export const MAPLE_WARRIOR_SKILLS: readonly number[] = [2221000, 2121000, 2321000];
-export const DEMON_SUMMON_SKILLS: readonly number[] = [2221005, 2121005];
+/**
+ * 走**通用召唤队列**的技能（服务端 `world.rs::SUMMON_SKILLS` 的镜像）。
+ *
+ * `combat/view.ts::receiveDamageEvent` 读它决定「这一击是召唤物的周期打击」⇒ 切攻击帧
+ * 并播召唤攻击音。2026-09-23 从 `DEMON_SUMMON_SKILLS`（冰魔 / 火魔）扩成现在这条，
+ * 多了召喚聖龍 `2321003`（第三条召唤，服务端与那两本共用同一张接纳表）。
+ *
+ * **冰鋒刃 `2221012` 不在这里**：它有自己的一条链路（沿朝向自行前进的 `Drift` 形态，
+ * 表现不走「切攻击帧」这条路），与服务端「三个施放入口」的划分一致。
+ */
+export const SUMMON_SKILLS: readonly number[] = [2221005, 2121005, 2321003];
 /** 傳說冒險的三本副本（Hyper 主动，`indieDamR` 窗口）。服务端 `world.rs::HYPER_ADVENTURER_SKILLS` 的镜像。 */
 export const HYPER_ADVENTURER_SKILLS: readonly number[] = [2221053, 2121053, 2321053];
 /** 「施放后跟随施法者」的增益/光环技能：`combat/view.ts` 靠它决定视觉锚点。 */
@@ -144,6 +154,9 @@ export const FIRE_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
 };
 export const HOLY_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
   Digit1: 2321001, Digit2: 2321007, Digit3: 2321008, Digit4: 2321004,
+  // Digit5 对齐冰雷那套的 2221005（召喚冰魔）：主教这一格是召喚聖龍 2321003，
+  // 2026-09-23 接入通用召唤队列后才有执行链，所以现在才摆上键位。
+  Digit5: 2321003,
   Digit7: 2321009, Digit8: 2321000,
   Digit9: 2321053,
 };

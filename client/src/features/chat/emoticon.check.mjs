@@ -15,7 +15,13 @@ const source = (await readFile(new URL('./emoticon-view.ts', import.meta.url), '
   /^import \{ protocolText, uiLocale \} from '\.\.\/\.\.\/app\/i18n';$/m,
   "const uiLocale = () => 'zh';\n" +
   "const protocolText = (code, fallback) => code + ': ' + fallback;",
-);
+)
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+  // 必须在剥 import 之前替换，否则剥完就没有任何定义。
+  .replace(
+    /^import \{ resolveAssetUrl \} from '\.\.\/\.\.\/assets\/resource-url';$/m,
+    'const resolveAssetUrl = url => url;',
+  );
 const outputText = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replace(/^import .*;\r?\n/gm, '');

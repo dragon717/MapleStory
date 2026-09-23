@@ -3,6 +3,7 @@ import type { AssetFrame, Manifest, PetUiData } from '../../assets/manifest';
 import { itemCategoryTab, itemName } from '../inventory/names';
 import { bringToFront, installWindowDrag } from '../ui/window-shell.ts';
 import './style.css';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 const PET_TAB_COUNT = 3;
@@ -349,7 +350,13 @@ export class PetPanel {
       const idleUrl = tab.dataset.disabledUrl;
       const image = tab.querySelector('img');
       const desiredUrl = index === this.selectedSlot ? (selectedUrl ?? idleUrl) : (idleUrl ?? selectedUrl);
-      if (image && desiredUrl && image.getAttribute('src') !== desiredUrl) image.src = desiredUrl;
+      // 「值没变就不碰 DOM」这条守卫要比较**解析后**的地址：`<img>.src` 存的就是传输
+      // 地址，拿逻辑地址去比会永远不相等，于是每帧都重写一次 src。解析器是纯函数，
+      // 所以比较与赋值各取一次。
+      const desiredArt = desiredUrl === undefined ? undefined : resolveAssetUrl(desiredUrl);
+      if (image && desiredUrl && desiredArt && image.getAttribute('src') !== desiredArt) {
+        image.src = resolveAssetUrl(desiredUrl);
+      }
     });
   }
 
@@ -485,7 +492,10 @@ export class PetPanel {
   }
 
   private setArt(element: HTMLElement & { src?: string; width?: number; height?: number }, frame: AssetFrame, position?: { x: number; y: number }) {
-    if (element.getAttribute('src') !== frame.url) element.setAttribute('src', frame.url);
+    // `setAttribute('src', …)` 与 `.src = …` 是同一件事（都写传输地址），
+    // 所以比较也必须拿解析后的值——否则每帧都会重写一次属性。
+    const artUrl = resolveAssetUrl(frame.url);
+    if (element.getAttribute('src') !== artUrl) element.setAttribute('src', artUrl);
     element.setAttribute('width', String(frame.width));
     element.setAttribute('height', String(frame.height));
     Object.assign((element as HTMLElement).style, {

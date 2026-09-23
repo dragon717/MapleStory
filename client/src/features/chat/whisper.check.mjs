@@ -21,6 +21,9 @@ const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');
 const outputText = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+  // 必须在剥 import 之前替换，否则剥完就没有任何定义。
+  .replace(/import \{[^}]*\} from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;')
   .replace(/^import .*\r?\n/gm, '')
   .replace(/\/\*[\s\S]*?\*\//g, '');
 

@@ -17,7 +17,11 @@ const hudSource = fs.readFileSync(path.join(here, '../hud/view.ts'), 'utf8');
 // filter without constructing a browser window or contacting the game server.
 const javascript = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-}).outputText.replace(/^import .*?;\s*$/gm, '');
+})
+  // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
+  // 必须在剥 import 之前替换，否则剥完就没有任何定义。
+  .outputText.replace(/import \{[^}]*\} from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;')
+  .replace(/^import .*?;\s*$/gm, '');
 const module = await import(`data:text/javascript,${encodeURIComponent(javascript)}`);
 
 assert.deepEqual(module.itemIdKeys('2430768'), ['2430768', '02430768']);
@@ -88,7 +92,9 @@ console.log(JSON.stringify({
 // Exercise the actual fitting method with positioned geometry: shrinking or
 // switching layouts must keep the grabbed window inside its current host.
 const shellSource = fs.readFileSync(path.join(here, '../ui/window-shell.ts'), 'utf8');
-const shellJs = ts.transpileModule(shellSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+// 本段不剥 import，所以必须**替换**资源解析这一行：留着相对说明符会让 `data:` 模块装载失败。
+const shellJs = ts.transpileModule(shellSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
+  .replace(/import \{[^}]*\} from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;');
 const shell = await import(`data:text/javascript,${encodeURIComponent(shellJs)}`);
 globalThis.clampIntoHost = shell.clampIntoHost;
 globalThis.window = { innerWidth: 1440, innerHeight: 1000 };

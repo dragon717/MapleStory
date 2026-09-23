@@ -115,20 +115,24 @@ impl World {
         self.emit_recovery_event(id, recovered.0, recovered.1, "infinity");
     }
 
-    /// 召唤系四转的施放入口：召喚冰魔 `2221005` 与召喚火魔 `2121005`。
+    /// 通用召唤队列的施放入口：召喚冰魔 `2221005`、召喚火魔 `2121005`、
+    /// 召喚聖龍 `2321003`（2026-09-23 起三条共用；接纳名单只有 `SUMMON_SKILLS` 一处）。
     ///
-    /// 两条副本的**存活时长**都写在源 `time`（**秒**，逐本核对：冰魔／火魔
-    /// 1→30 级都是 115→260），脉冲周期由 [`summon_pulse_ms`] 从源字段派生（两本都没有
-    /// 毫秒书写的 `attackDelay`、`subTime` 也不足一拍 ⇒ 同取契约兜底值），位移形态取
-    /// `Anchored`——与冰魔同格、同「站桩周期打击」语义。容量判据仍在
-    /// [`World::summon_slots_available`]，这里只负责「同技能重放即替换」。
+    /// **存活时长**都写在源 `time` 上，单位由 [`summon_lifetime_ms`] 一处判定
+    /// （三本都按**秒**书写：1 级 115／115／70 秒）。**脉冲周期**由 [`summon_pulse_ms`]
+    /// 从源字段派生（三本既没有毫秒书写的 `attackDelay`、`subTime` 也不足一拍 ⇒
+    /// 同取契约兜底值）。**位移形态**由 [`summon_motion`] 派生：冰魔／火魔 `Anchored`
+    /// （源 `summon` 只有 `move`，本包按「定在施放点」简化），聖龍 `Follow`
+    /// （源 `summon` 带 `fly` 位移组，与球形闪电同形 ⇒ 跟着主人走）。
+    /// 容量判据仍在 [`World::summon_slots_available`]，这里只负责「同技能重放即替换」。
     ///
-    /// 存活时长本身不再在本函数里换算单位：`time` 是秒还是毫秒由
-    /// [`summon_lifetime_ms`] 一处判定（冰魔／火魔按秒，冰鋒刃按毫秒）。
-    ///
-    /// **仍未做**：火魔源里带 `dot/dotInterval/dotTime`（召唤物的持续伤害），本包没有
-    /// 「召唤物挂 DoT」的实现点（`dot*` 只在直接命中链上被消费）⇒ 火魔的跳伤不接。
-    pub(super) fn cast_demon_summon(
+    /// **召唤物的周期打击走的是与直接命中同一条范围管线**（`cast_elemental_area_at`
+    /// → `settle_area_segments`），所以源里挂在召唤书上的 `dot/dotInterval/dotTime`
+    /// （召喚火魔有这一组）**确实被消费**——首段真的打出伤害后按 `prop` 挂 DoT，
+    /// 与直接命中的挂载点是同一处。改前 PLAN §1② 与本注释都写着「召唤物的周期打击
+    /// 不走那条链 ⇒ 火魔的跳伤不接」，那是错的；现在由
+    /// `mechanics_acceptance.rs::mech_summon_pulse_mounts_the_source_dot` 钉住。
+    pub(super) fn cast_summon(
         &mut self,
         id: &str,
         request_id: &str,
@@ -149,22 +153,21 @@ impl World {
         let duration_ticks = summon_lifetime_ms(&self.mage_skills, skill_id, skill_level)
             .div_ceil(TICK_MS)
             .max(1);
-        let prefix = if skill_id == SKILL_ICE_DEMON {
-            "ice-demon"
-        } else {
-            "fire-demon"
-        };
         let summon = Summon {
-            summon_id: format!("{prefix}-{id}-{request_id}"),
+            // 召唤实体的 id 不再按技能名逐条写死前缀（改前是 `ice-demon`／`fire-demon`
+            // 的二选一，加第三本就会退化成 if 链）。`summon_id` 只用于客户端按 id 去重
+            // 与留痕，形态差异由 `motion` 承担；前缀里带 skill_id 让排错时一眼看得出是
+            // 哪一个召唤。
+            summon_id: format!("summon-{skill_id}-{id}-{request_id}"),
             skill_id,
             level: skill_level,
             map_id,
             x,
             y,
             facing,
-            motion: SummonMotion::Anchored,
+            motion: summon_motion(skill_id),
             expires_at: self.tick.saturating_add(duration_ticks),
-            // 首跳时刻沿用既有写法（`/ TICK_MS` 向下取整，不是 `div_ceil`）：两本的
+            // 首跳时刻沿用既有写法（`/ TICK_MS` 向下取整，不是 `div_ceil`）：三本的
             // 源契约都落到 `summon_pulse_ms` 的兜底值，与冰魔的 1080ms 同源。
             next_hit_at: self
                 .tick

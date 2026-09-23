@@ -231,6 +231,19 @@ const FOURTH_JOB_SOURCES = {
     effect0: 'Skill/232.img/skill/2321053/effect0',
     affected: 'Skill/232.img/skill/2321053/affected',
   },
+  // 召喚聖龍（主教四转召唤，2026-09-23 接入 S5 通用召唤队列）：`summon` 节点的
+  // 子节点顺序与冰魔／火魔**逐位相同**（`summoned / <位移> / stand / attack1 / die`），
+  // 差别只在位移组叫 `fly` 而不叫 `move`——所以这里把它映射到运行期同一个
+  // `summonMove` 键，客户端一行不用改（`combat/view.ts` 只认 stand/move/attack 三键）。
+  // 帧数实测自 `Skill/232.img`（不是 JSON dump，`.img` 才是美术权威）：
+  // effect 17 / hit 7 / summoned 10 / fly 12 / stand 12 / attack1 20 / die 11。
+  '2321003': {
+    effect: 'Skill/232.img/skill/2321003/effect',
+    hit: 'Skill/232.img/skill/2321003/hit',
+    summonStand: 'Skill/232.img/skill/2321003/summon/stand',
+    summonMove: 'Skill/232.img/skill/2321003/summon/fly',
+    summonAttack: 'Skill/232.img/skill/2321003/summon/attack1',
+  },
 };
 const FOURTH_JOB_SUMMON_SOURCES = {
   '2221005': {
@@ -243,6 +256,11 @@ const FOURTH_JOB_SUMMON_SOURCES = {
   '2121005': {
     summonSpawn: 'Skill/212.img/skill/2121005/summon/summoned',
     summonDie: 'Skill/212.img/skill/2121005/summon/die',
+  },
+  // 召喚聖龍：与冰魔／火魔同一条「施放光环只留源证据、`die` 是到期收尾」的口径。
+  '2321003': {
+    summonSpawn: 'Skill/232.img/skill/2321003/summon/summoned',
+    summonDie: 'Skill/232.img/skill/2321003/summon/die',
   },
 };
 // Beginner projectile frames are authored separately for each level.  Keep

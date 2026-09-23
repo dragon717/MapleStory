@@ -2,6 +2,7 @@ import type { ClientMessage, FriendEntry } from '../../../../shared/protocol';
 import type { AssetFrame, FriendUiData, Manifest } from '../../assets/manifest';
 import { characterJobName } from '../character/view';
 import { mapText, protocolText, uiLocale } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 type SendClientMessage = (message: ClientMessage) => boolean;
 
@@ -255,7 +256,7 @@ export class FriendView {
     if (background) {
       const image = document.createElement('img');
       image.className = 'friend-backgrnd';
-      image.src = background.url;
+      image.src = resolveAssetUrl(background.url);
       image.width = background.width;
       image.height = background.height;
       image.draggable = false;
@@ -331,7 +332,7 @@ export class FriendView {
       const hover = this.frame(`${sprite}/mouseOver`) ?? normal;
       const pressed = this.frame(`${sprite}/pressed`) ?? normal;
       const image = document.createElement('img');
-      const show = (frame: AssetFrame) => { image.src = frame.url; };
+      const show = (frame: AssetFrame) => { image.src = resolveAssetUrl(frame.url); };
       show(normal);
       image.width = normal.width;
       image.height = normal.height;
@@ -406,7 +407,7 @@ export class FriendView {
       if (plate) {
         const image = document.createElement('img');
         image.className = 'friend-tab-image';
-        image.src = plate.url;
+        image.src = resolveAssetUrl(plate.url);
         image.width = plate.width;
         image.height = plate.height;
         image.draggable = false;

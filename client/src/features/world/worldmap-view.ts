@@ -1,6 +1,7 @@
 import type { AssetFrame, Manifest, WorldMapPage, WorldMapUiData } from '../../assets/manifest';
 import { installWindowDrag, clampIntoHost, bringToFront } from '../ui/window-shell';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
+import { resolveAssetUrl } from '../../assets/resource-url';
 
 /**
  * Where the authored page art sits inside the 654x537 window plate.
@@ -422,7 +423,7 @@ export class WorldMapView {
     if (!layer || !plate) return;
     const reference = page.baseImg.origin;
     if (this.base) {
-      this.base.src = page.baseImg.url;
+      this.base.src = resolveAssetUrl(page.baseImg.url);
       this.base.width = page.baseImg.width;
       this.base.height = page.baseImg.height;
     }

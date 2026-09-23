@@ -42,11 +42,16 @@
 //!   主盒吃 `damage%` × N 段，第二盒再吃一次 `damPlus%`。二段**要求首段链真的打到人**，
 //!   空挥不会凭空多一段。
 //! - **召唤物 × 主人**：脉冲复用主人**当拍**的属性快照（走同一条 `cast_elemental_area_at`），
-//!   所以主人的增益、武器、等级差修正对召唤物同样生效；三件召唤（冰魔 / 冰鋒刃 / 三转球形
-//!   闪电）共用 `Player::summons` 一条队列，容量判据收口在 [`World::summon_slots_available`]，
+//!   所以主人的增益、武器、等级差修正对召唤物同样生效；召唤系（冰魔 / 火魔 / 聖龍）与
+//!   冰鋒刃 / 三转球形闪电共用 `Player::summons` 一条队列，容量判据收口在
+//!   [`World::summon_slots_available`]，位移形态收口在 [`summon_motion`]（2026-09-23
+//!   圣龙接入时从「按 `skill_id` 写死前缀 + 写死 `Anchored`」收口成表），
 //!   脉冲周期收口在 [`summon_pulse_ms`]（2026-09-23 前球形闪电另走一个单槽，已并入），
 //!   存活时长收口在 [`summon_lifetime_ms`]（同日收口：改前三处各写一份，其中冰鋒刃
 //!   那处根本不读源）。
+//! - **召唤物 × DoT**：召唤物的周期打击**就是**范围管线的一次结算，所以源里挂在召唤书
+//!   上的 `dot/dotInterval/dotTime`（召喚火魔有这一组）在召唤物这边**照常被消费**——
+//!   不存在「召唤物的跳伤不接」这回事（收口前的 PLAN 与注释都这么写，是错的）。
 
 use super::*;
 
@@ -69,9 +74,10 @@ pub(super) const SUMMON_PULSE_FALLBACK_MS: u64 = 1_080;
 /// 召唤物**存活时长**的契约兜底值（毫秒）：源里没有 `time` 时用它
 /// （见 [`summon_lifetime_ms`]）。
 ///
-/// 它取代的是收口前**两处互相矛盾的静默默认**：`cast_demon_summon` 的
+/// 它取代的是收口前**两处互相矛盾的静默默认**：`cast_summon`（收口前叫
+/// `cast_demon_summon`）的
 /// `unwrap_or(0)` 会算出 1 拍（≈ 立刻到期），而 `cast_thunder_sphere` 自己另写
-/// 20 秒／60 秒。现在默认值只剩这一处。当前五本已接线的召唤书**逐级都带 `time`**，
+/// 20 秒／60 秒。现在默认值只剩这一处。当前已接线的召唤书**逐级都带 `time`**，
 /// 兜底分支在验收里被证明不可达（`mech_summon_lifetime_comes_from_one_source_derivation`）。
 pub(super) const SUMMON_LIFETIME_FALLBACK_MS: u64 = 60_000;
 /// 源 `time` 的**单位分界**：`>=` 本值 ⇒ 源里写的就是毫秒，否则按秒 ×1000。
@@ -279,7 +285,7 @@ pub(super) fn summon_pulse_ms(skills: &MageSkills, skill_id: u32, level: u32) ->
 ///
 /// 收口前这笔账写了**三处**，而且互相不一致：
 ///
-/// * `elemental.rs::cast_demon_summon` 把 `time` 当秒（`× 1000`）；
+/// * `elemental.rs::cast_summon`（收口前叫 `cast_demon_summon`）把 `time` 当秒（`× 1000`）；
 /// * `skills.rs::cast_thunder_sphere` 也当秒，但**默认值另写** 20 秒／60 秒；
 /// * `elemental.rs::cast_frozen_orb` **根本不读源**，直接写死 `4_000`——
 ///   源里 `2221012` 的 `time` 一旦改数，这条召唤的存活时长会静默漂移。
@@ -291,7 +297,8 @@ pub(super) fn summon_pulse_ms(skills: &MageSkills, skill_id: u32, level: u32) ->
 /// * 否则按秒 ×1000。
 ///
 /// **写明的 0 不等于没写**：`time = Some(0)` 走第三支得到 0，调用方照旧
-/// `.max(1)` 收敛成「1 拍即到期」——与收口前 `cast_demon_summon` 的语义逐字相同，
+/// `.max(1)` 收敛成「1 拍即到期」——与收口前 `cast_summon`（当时名为
+/// `cast_demon_summon`）的语义逐字相同，
 /// 不许把它并进「缺失 ⇒ 兜底值」那一支。
 pub(super) fn summon_lifetime_ms(skills: &MageSkills, skill_id: u32, level: u32) -> u64 {
     let Some(time) = skills.level(skill_id, level).and_then(|row| row.time) else {
