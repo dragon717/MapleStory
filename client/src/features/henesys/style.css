@@ -1,0 +1,4 @@
+#game.show-henesys>canvas{opacity:0;pointer-events:none}
+.henesys-view{position:absolute;inset:0;overflow:hidden;background:#b6d5df}
+.henesys-view canvas{display:block;width:100%;height:100%;touch-action:none}
+#game.show-colossus .henesys-view{visibility:hidden}

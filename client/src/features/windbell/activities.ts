@@ -25,10 +25,12 @@ export class ActivitiesView {
   private colossusEnter?: HTMLButtonElement;
   private colossusControls?: HTMLElement;
   private inColossus = false;
+  private sceneToggle?: HTMLButtonElement;
+  private sceneReset?: HTMLButtonElement;
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void }) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
     const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
@@ -41,6 +43,16 @@ export class ActivitiesView {
     this.disposeDrag = installWindowDrag(host, this.root, { titleHeight: 28, isOpen: () => this.open, onActivate: () => bringToFront(host, this.root) });
     this.root.addEventListener('pointerdown', () => bringToFront(host, this.root));
     this.resize = new ResizeObserver(() => clampIntoHost(host, this.root)); this.resize.observe(host);
+    if (sceneDisplay) {
+      const card = document.createElement('article'), heading = document.createElement('h3'), copy = document.createElement('p');
+      heading.textContent = '射手村';
+      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/overview.png'); art.alt = '三维射手村';
+      copy.textContent = '三维场景沿用角色、任务与战斗进度。右键拖动转动镜头，滚轮缩放；可随时切回原版 2D。';
+      this.sceneToggle = this.button('返回原版 2D', () => { if (sceneDisplay.available()) { sceneDisplay.setEnabled(!sceneDisplay.enabled()); this.close(); } });
+      this.sceneReset = this.button('恢复镜头', () => { sceneDisplay.resetCamera(); this.close(); });
+      card.append(art, heading, copy, this.sceneToggle, this.sceneReset);
+      this.content.append(card);
+    }
     for (const [name, description, action, image] of [
       ['风铃岛', '沿根道攀登、放下树桥，或借热流抵达树梢驿站。', 'enterIsland', 'island-keyart'],
       ['风铃桥渡口', '河谷两岸的来路。桥上运货，桥下读纸；东岸石脊通向风铃岛。↓＋空格可落到桥下。', 'enterBridge', 'bridge-dormant'],
@@ -81,8 +93,15 @@ export class ActivitiesView {
   }
   isOpen() { return this.open; }
   talk() { this.act('talk'); }
-  show() { this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
-  updateColossus(active: boolean) { this.inColossus = active; if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
+  show() { this.refreshSceneDisplay(); this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
+  private refreshSceneDisplay() {
+    if (!this.sceneToggle || !this.sceneDisplay) return;
+    const available = this.sceneDisplay.available() && !this.inColossus;
+    this.sceneToggle.disabled = !available;
+    this.sceneToggle.textContent = !available ? '回到射手村后可切换' : this.sceneDisplay.enabled() ? '返回原版 2D' : '启用三维射手村';
+    if (this.sceneReset) this.sceneReset.disabled = !available || !this.sceneDisplay.enabled();
+  }
+  updateColossus(active: boolean) { this.inColossus = active; this.refreshSceneDisplay(); if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
   close(restoreFocus = true) { this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
   private act(action: WindbellAction) { if (this.state) this.send(action, action === 'enterIsland' || action === 'enterBridge' ? undefined : this.state.instanceId); this.focus(); }
   update(state?: WindbellState, player?: PlayerState, npcs: NpcState[] = []) {
