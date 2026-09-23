@@ -890,7 +890,8 @@ export class World extends Phaser.Scene {
         const asset = this.manifest.pets?.[pet.itemId];
         if (!asset) continue;
         // 宠物纹理按需装载（首屏不再装载整本宠物图鉴）；没就绪就下一帧再画。
-        if (!ensureTextures(this, [asset.icon.url, ...asset.stand.map(frame => frame.url), ...asset.move.map(frame => frame.url), ...asset.jump.map(frame => frame.url)])) continue;
+        // hungry 也要装：weak 宠物会切到源饥饿动画，漏装会画出 Phaser 缺失占位（绿框）。
+        if (!ensureTextures(this, [asset.icon.url, ...asset.stand.map(frame => frame.url), ...asset.move.map(frame => frame.url), ...asset.jump.map(frame => frame.url), ...(asset.hungry ?? []).map(frame => frame.url)])) continue;
         visiblePets.add(key);
         let view = this.pets.get(key);
         if (!view) { view = new PetView(this, asset, actorDepth - 1); this.pets.set(key, view); }
