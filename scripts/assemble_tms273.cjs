@@ -12,7 +12,15 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-44';
+const version = 'tms273-45';
+// Authored 3D presentation; source maps still own collision, NPCs and monsters.
+const henesysModel = path.join(root, 'resources/scenes/henesys/models/henesys.glb');
+assert(fs.existsSync(henesysModel), 'Missing Henesys GLB: run scripts/creative/blender/export_henesys.py in Blender');
+fs.mkdirSync(path.join(publicRoot, 'assets/henesys'), {recursive:true});
+fs.copyFileSync(henesysModel, path.join(publicRoot, 'assets/henesys/henesys.glb'));
+fs.copyFileSync(path.join(root, 'resources/scenes/henesys/previews/overview-refined.png'), path.join(publicRoot, 'assets/henesys/overview.png'));
+for (const file of ['henesys.glb', 'overview.png']) invalidateCompressed(path.join(publicRoot, 'assets/henesys', file));
+
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
 const cashshop = read('cashshop');

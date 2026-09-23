@@ -1,3 +1,4 @@
+import { HENESYS_MAP_ID } from '../features/henesys/coordinates';
 import Phaser from 'phaser';
 import type { LoginResponse, NpcState, PlayerState, BossPracticeState } from '../../../shared/protocol';
 import { Connection } from '../network/session';
@@ -145,11 +146,11 @@ function characterInfoIsOpen() {
   return Boolean((characterInfo as unknown as { isOpen?: () => boolean } | undefined)?.isOpen?.());
 }
 /**
- * Panels that own their own Escape handling.  While any of them is showing the
+ * Panels that own gameplay focus and their own Escape handling.  While any of them is showing the
  * router leaves the key alone so that panel closes itself; when none is open,
  * Escape raises the menu bar (`docs/technical/UI_WINDOW_SYSTEM.md` R5).
  */
-function escapeBlocked() {
+function gameplayUiBlocked() {
   return Boolean(
     keybindingsView?.isOpen() || activities?.isOpen() ||
     news.open
@@ -190,7 +191,7 @@ function activateUiAction(action: string): boolean {
   return true;
 }
 function useShortcutItem(itemId: number) {
-  if (!selfState || selfState.hp <= 0 || escapeBlocked()) return;
+  if (!selfState || selfState.hp <= 0 || gameplayUiBlocked()) return;
   const item = selfState.inventory.find(item => Number(item.itemId) === itemId && item.quantity > 0);
   if (!item) { status('背包中没有该道具。', true); return; }
   // 快捷栏上绑的不只是消耗品：椅子（设置栏）走的是同一条 useItem 通道，服务端
@@ -206,9 +207,9 @@ function activateBinding(binding: KeyBinding) {
   if (binding.type === 'item') { useShortcutItem(binding.itemId); return; }
   if (binding.type === 'skill') { castSkill(binding.skillId); return; }
   if (activateUiAction(binding.action)) return;
-  if (escapeBlocked()) return;
+  if (gameplayUiBlocked()) return;
   // 骑宠键是**世界动作**不是窗口开关：它改的是服务端的骑乘状态，所以放在
-  // `escapeBlocked()` 之后（有窗开着时不骑马），并复用状态标记那条 useItem 通道。
+  // `gameplayUiBlocked()` 之后（有窗开着时不骑马），并复用状态标记那条 useItem 通道。
   if (binding.action === 'mount') { mountStatus?.toggleCurrent(); return; }
   if (binding.action === 'attack') {
     const reactorId = colossusView ? undefined : world?.nearestReactor()?.id;
@@ -223,6 +224,7 @@ function activateBinding(binding: KeyBinding) {
   } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
+  if (gameplayUiBlocked()) return;
   // 阶段一：点击/按键选中的即时反馈先落地（名牌高亮），服务端的占位或真实
   // 对话随后到达；两路入口（鼠标点击与 ↑ 键）都从这里走，所以选中态只在这一处点亮。
   if (!npc.id.startsWith('colossus-person-')) world?.selectNpc(npc.id);
@@ -424,7 +426,12 @@ async function enterGame(session: LoginResponse) {
     activities = new ActivitiesView(el('ui-windows'), (action, instanceId) => {
       input?.reset();
       if (!connection?.send({ type: 'windbell', action, instanceId, sequence: ++windbellSequence, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
-    }, focusGame, () => sendColossus('enter'), action => colossusView?.control(action), () => openKeybindings(), manifest);
+    }, focusGame, () => sendColossus('enter'), action => colossusView?.control(action), () => openKeybindings(), manifest, {
+      enabled: () => world?.isThreeActive ?? false,
+      available: () => Boolean(world?.isLoaded && world.mapId === HENESYS_MAP_ID && !colossusView),
+      setEnabled: enabled => { if (colossusView || world?.mapId !== HENESYS_MAP_ID) return; input?.reset(); world.setThreeEnabled(enabled); },
+      resetCamera: () => world?.resetThreeCamera(),
+    });
     menus = new MenuView(
       el('menus'),
       manifest,
@@ -459,7 +466,7 @@ async function enterGame(session: LoginResponse) {
     // listener, so the router only ever handles the "nothing is open" case.
     escapeRouterDispose?.();
     escapeRouterDispose = installEscapeRouter({
-      blocked: escapeBlocked,
+      blocked: gameplayUiBlocked,
       menuOpen: () => Boolean(menus?.isOpen()),
       toggleMenu: () => { menus?.toggle('game'); },
     });
@@ -526,17 +533,17 @@ async function enterGame(session: LoginResponse) {
         status(english ? `Portal request: ${request.sourceMapId}/${request.portalName} → ${request.targetMapId}` : `传送请求：${request.sourceMapId}/${request.portalName} → ${request.targetMapId}`);
       }
     }, talkToNpc, questId => {
-      if (news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+      if (gameplayUiBlocked()) return;
       input?.reset();
       connection?.send({ type: 'questInteract', requestId: `quest-${Date.now()}-${++skillRequestSequence}`, questId });
     }, reactorId => {
-      if (news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+      if (gameplayUiBlocked()) return;
       input?.reset();
       connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId });
     }, tombstoneId => {
       // 原创扩展「死亡世界」：点击墓碑 = 悼念一次。服务器裁决一切（存在、
       // 距离、到期、去重），这里只上报意图。
-      if (news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || menus?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+      if (gameplayUiBlocked()) return;
       input?.reset();
       if (!connection?.send({ type: 'tombstoneMourn', requestId: `tombstone-${Date.now()}-${++skillRequestSequence}`, tombstoneId })) {
         status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
@@ -909,7 +916,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.clear(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.disconnect(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => colossusView ? null : world?.nearestDropId() ?? null,

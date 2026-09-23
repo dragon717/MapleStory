@@ -1,5 +1,7 @@
 # 当前工作计划
 
+本轮隔离实装已完成：射手村默认三维入口与活动列表 2D 切换。实现、定向验证及上线前边界见 [2026-09-24 交付记录](history/2026-09-24/射手村三维场景与主世界实装.md)。当前按用户授权提交并合并 main，使本地 3010 可测试：Astra 主代理负责提交、合并、资源同步与统一启动入口；Luna / max 只读核对两工作区的忽略资源差异。保留 main 已有未跟踪文件、账号数据库与 bot 凭据；验收为合并记录、资源检查和 3010 同版健康状态。
+
 > **本文件只写一件事：未完成、且最重要的三件事。**
 > 完整台账（总纲 40 模块逐模块现状与**全部待办**、原创扩展、跨模块台账）已移至
 > [`topics/总纲40模块现状与待办台账_2026-09-22.md`](topics/总纲40模块现状与待办台账_2026-09-22.md)；
@@ -26,7 +28,7 @@
 
 | 项 | 当前值 | 说明 |
 |---|---|---|
-| 内容版本 | `tms273-44` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。`tms273-38→39`：`time` 机制字段判定从「未实现」收窄为「自增益施放窗已实现」（S1），客户端 `ACTIVE_SKILLS` 补入 1221052。`tms273-39→40`：椅子恢复间隔改为系统固定节拍（`CHAIR_RECOVERY_INTERVAL_MS = 10_000`，判据「凡 `info` 声明了恢复量即带间隔」，含负值）。**S5 召唤通用化（2026-09-23）零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-40→41`：法师 212／232 四转的七条「同一格副本」接执行链——清单新增 7 条 `skillEffects`（含召喚火魔的召唤动画）与对应 PNG，属内容资源变化。`tms273-41→42`：同一格副本再补两条 傳說冒險 `2121053`／`2321053`（新增 2 条 `skillEffects` 与 50 张 PNG）。**2026-09-23 第三轮（召唤存活时长收口）与第四轮（桌面 D0 机械迁移）均零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-42→43`：召喚聖龍 `2321003` 接入通用召唤队列（同日第五轮）——新增 1 条 `skillEffects`（五组：`effect 17 / hit 7 / summonStand 12 / summonMove 12 / summonAttack 20`）与 68 张 PNG，属内容资源变化。`tms273-43→44`：進階祝福 `2321005` 接增益窗与属性层（同日第六轮）——新增 1 条 `skillEffects`（四组：`effect 12 / effect0 17 / affected 16 / affected0 16`）与 61 张 PNG。⚠️ 升版与重建**必须同窗口**：在线服务仍是旧版发布时，刷新页面会报「资源版本不一致」（`manifest.ts:722` 硬抛错且自愈路径此时不导航）。 |
+| 内容版本 | `tms273-45` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。本轮 `44→45`：加入射手村 GLB 与活动封面，装配完成。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。`tms273-38→39`：`time` 机制字段判定从「未实现」收窄为「自增益施放窗已实现」（S1），客户端 `ACTIVE_SKILLS` 补入 1221052。`tms273-39→40`：椅子恢复间隔改为系统固定节拍（`CHAIR_RECOVERY_INTERVAL_MS = 10_000`，判据「凡 `info` 声明了恢复量即带间隔」，含负值）。**S5 召唤通用化（2026-09-23）零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-40→41`：法师 212／232 四转的七条「同一格副本」接执行链——清单新增 7 条 `skillEffects`（含召喚火魔的召唤动画）与对应 PNG，属内容资源变化。`tms273-41→42`：同一格副本再补两条 傳說冒險 `2121053`／`2321053`（新增 2 条 `skillEffects` 与 50 张 PNG）。**2026-09-23 第三轮（召唤存活时长收口）与第四轮（桌面 D0 机械迁移）均零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-42→43`：召喚聖龍 `2321003` 接入通用召唤队列（同日第五轮）——新增 1 条 `skillEffects`（五组：`effect 17 / hit 7 / summonStand 12 / summonMove 12 / summonAttack 20`）与 68 张 PNG，属内容资源变化。`tms273-43→44`：進階祝福 `2321005` 接增益窗与属性层（同日第六轮）——新增 1 条 `skillEffects`（四组：`effect 12 / effect0 17 / affected 16 / affected0 16`）与 61 张 PNG。⚠️ 升版与重建**必须同窗口**：在线服务仍是旧版发布时，刷新页面会报「资源版本不一致」（`manifest.ts:722` 硬抛错且自愈路径此时不导航）。 |
 | 协议版本 | `34` | 与内容版本独立；改 wire 才动。 |
 | 总纲快照口径 | 协议 `24` / 内容 `tms273-31` | 总纲是 2026-09-18 的固定快照，**其版本号不作为当前值**；当前值以本表为准。 |
 | 装机规模 | 211 图 / 120,754 资源 / 395 NPC / 79 怪 | 装配器 `tms273-44` 自报 `maps:211`、`assets:120754`、`cashAppearanceLayers:1754`、`missing:[]`（`120693 → 120754` 即進階祝福那 61 张 PNG，逐张对得上）。客户端清单同版：`skillCatalog` 504、`skillEffects` **48**（`47 → 48`）、`npcs` 395、`monsters` 79。 |

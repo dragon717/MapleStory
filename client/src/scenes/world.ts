@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { HENESYS_MAP_ID } from '../features/henesys/coordinates';
+import type { HenesysView } from '../features/henesys/view';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
 import type { NpcState, PlayerState, ServerMessage } from '../../../shared/protocol';
@@ -31,6 +33,10 @@ export interface PortalRequest {
 }
 type PortalHandler = (request: PortalRequest) => void;
 export class World extends Phaser.Scene {
+  private henesys?: HenesysView;
+  private threeEnabled = true;
+  private threeLoading = false;
+  private threeGeneration = 0;
   private players = new Map<string, PlayerView>();
   private pets = new Map<string, PetView>();
   private petClock = 0;
@@ -83,12 +89,40 @@ export class World extends Phaser.Scene {
     private onReactorHit?: (reactorId: string) => void,
     private onTombstoneMourn?: (tombstoneId: string) => void,
   ) { super('world'); }
+  init(data?: { snapshot?: Snapshot }) {
+    this.pendingSnapshot = data?.snapshot;
+  }
   get mapId() { return this.manifest.map.id; }
   /** True once `create()` finished for the current map; `switchMap` flips it
    *  back to false while a map switch rebuilds the scene.  The boot overlay
    *  in `main.ts` waits for this alongside the first snapshot, because the
    *  server starts pushing snapshots while Phaser is still preloading. */
-  get isLoaded() { return this.loaded; }
+  get isLoaded() { return this.loaded && !this.threeLoading; }
+  get isThreeEnabled() { return this.threeEnabled; }
+  get isThreeActive() { return this.mapId === HENESYS_MAP_ID && this.threeEnabled; }
+  setThreeEnabled(enabled: boolean) {
+    if (this.threeEnabled === enabled) return;
+    this.threeEnabled = enabled;
+    if (this.mapId === HENESYS_MAP_ID) this.switchMap(this.mapId, this.manifest.map, this.snapshot);
+  }
+  resetThreeCamera() { this.henesys?.resetCamera(); }
+  private startThree() {
+    if (!this.isThreeActive || this.henesys || this.threeLoading) return;
+    const generation = ++this.threeGeneration;
+    this.threeLoading = true;
+    const map = this.manifest.map;
+    void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => this.snapshot?.players.find(p => p.id === this.snapshot?.selfId), () => generation === this.threeGeneration)).then(view => {
+      if (!view) return;
+      if (generation !== this.threeGeneration) { view.destroy(); return; }
+      this.henesys = view; this.threeLoading = false;
+      this.status('三维射手村已就绪，任务与战斗沿用原版。');
+    }).catch(error => {
+      if (generation !== this.threeGeneration) return;
+      this.threeLoading = false;
+      this.status(`三维场景未加载，已返回原版 2D：${String(error)}`);
+      this.setThreeEnabled(false);
+    });
+  }
   getMap(mapId = this.mapId, sourceMapId?: string): MapDefinition | MapCatalogEntry | undefined {
     if (mapId === this.mapId) return this.manifest.map;
     const source = this.manifest.mapCatalog?.maps.find(map => map.id === (sourceMapId ?? mapId));
@@ -108,12 +142,12 @@ export class World extends Phaser.Scene {
     this.manifest = { ...this.manifest, map: next as MapDefinition };
     this.clear();
     this.motionReset();
-    this.pendingSnapshot = snapshot;
     this.loaded = false;
     this.failed = false;
     this.bgm?.destroy();
     this.bgm = undefined;
-    this.scene.restart();
+    // Restart data is installed by init after shutdown clears the previous map.
+    this.scene.restart({ snapshot });
     return true;
   }
   findPortal(portalName: string): MapPortal | undefined {
@@ -242,8 +276,9 @@ export class World extends Phaser.Scene {
     this.combat = new CombatView(this, this.manifest.combat, Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 3, undefined, 'combat-hit', this.manifest.skillEffects, this.manifest.skillSounds);
     const b = this.manifest.map.bounds;
     const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
-    this.cameras.main.setBackgroundColor(windbellKind ? '#d4e6eb' : '#b4dfe0');
-    for (const layer of windbellKind ? [] : this.manifest.map.layers) {
+    this.cameras.main.setBackgroundColor(this.isThreeActive ? 'rgba(0,0,0,0)' : windbellKind ? '#d4e6eb' : '#b4dfe0');
+    this.cameras.main.setZoom(this.isThreeActive ? .75 : 1);
+    for (const layer of windbellKind || this.isThreeActive ? [] : this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
       else if (layer.frames?.length) this.createAnimatedLayer(layer);
       else {
@@ -253,7 +288,8 @@ export class World extends Phaser.Scene {
         if (layer.crop) image.setCrop(layer.crop.x, layer.crop.y, layer.crop.width, layer.crop.height);
       }
     }
-    this.createWater();
+    if (!this.isThreeActive) this.createWater();
+    this.startThree();
     if (windbellKind) {
       this.loaded = false;
       try { this.windbellScene = new WindbellScene(this, windbellKind, () => {
@@ -334,6 +370,7 @@ export class World extends Phaser.Scene {
         return;
       }
       this.snapshot = message;
+      if (this.loaded) this.startThree();
       if (!this.loaded) this.pendingSnapshot = message;
       this.receivedAt = performance.now();
       if (this.loaded && this.bgm && !this.bgm.isPlaying) this.bgm.play();
@@ -408,7 +445,17 @@ export class World extends Phaser.Scene {
       }
     }
   }
+  disconnect() {
+    this.clear();
+    // A live scene lost its static views too; preload/create must rebuild them.
+    if (this.sys.isActive()) this.scene.restart();
+  }
   clear() {
+    this.loaded = false;
+    this.pendingSnapshot = undefined;
+    this.pendingEmoticons = [];
+    this.threeGeneration++; this.threeLoading = false;
+    this.henesys?.destroy(); this.henesys = undefined;
     this.windbellScene?.destroy(); this.windbellScene = undefined;
     this.bossWarning?.destroy(); this.bossWarning = undefined;
     this.snapshot = undefined;

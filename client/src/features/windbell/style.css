@@ -17,3 +17,4 @@
 .activity-scene-controls p{margin:0 0 6px}.activity-scene-controls>div{display:flex;flex-wrap:wrap;gap:4px 12px}
 .activity-content>p{margin:10px 4px 0;font-size:11px}
 @media(max-width:380px){.windbell-activities article{grid-template-columns:86px minmax(0,1fr);gap:4px 8px}.windbell-activities article img{width:86px}}
+.windbell-activities button:disabled{opacity:.5;cursor:default;border-bottom-color:transparent}

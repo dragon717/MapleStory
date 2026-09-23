@@ -9,6 +9,44 @@
 
 use super::*;
 
+const DEFAULT_LOGIN_MAP_ID: &str = "100000000";
+
+/// Resolve the map and landing point for a newly materialized player.
+///
+/// The resident-player branch in `World::command` returns before this helper,
+/// so a connection takeover never changes a live character's location.  Once
+/// the catalog contains Henesys, a fresh login starts there while a valid
+/// saved Henesys point remains stable.  Catalogs from before that map was
+/// exported retain the previous persisted-map behavior.
+fn resolve_join_map_position(
+    maps: &BTreeMap<String, Map>,
+    birth_map: &Map,
+    profile: &Profile,
+) -> (Map, f64, f64) {
+    let persisted_map = maps.get(profile.map_id.as_str()).cloned();
+    let henesys = maps.get(DEFAULT_LOGIN_MAP_ID).cloned();
+    let (resolved_map, keep_saved_position) = match henesys {
+        Some(map) => (map, profile.map_id == DEFAULT_LOGIN_MAP_ID),
+        None => (
+            persisted_map.clone().unwrap_or_else(|| birth_map.clone()),
+            persisted_map.is_some(),
+        ),
+    };
+    let saved_position_is_valid = keep_saved_position
+        && profile.x.is_finite()
+        && profile.y.is_finite()
+        && resolved_map.bounds.x_min <= profile.x
+        && profile.x <= resolved_map.bounds.x_max
+        && resolved_map.bounds.y_min <= profile.y
+        && profile.y <= resolved_map.bounds.y_max;
+    let (x, y) = if saved_position_is_valid {
+        (profile.x, profile.y)
+    } else {
+        (resolved_map.spawn.x, resolved_map.spawn.y)
+    };
+    (resolved_map, x, y)
+}
+
 impl World {
     pub fn command(&mut self, command: Command) {
         match command {
@@ -224,27 +262,12 @@ impl World {
                     // the private-map canonicalization was installed.
                     profile.map_id = BOSS_PRACTICE_FALLBACK_MAP_ID.to_owned();
                 }
-                // Restore the player's last map + coordinates from the
-                // persisted profile.  The map must still exist in the runtime
-                // catalog and the persisted point must land inside the map
-                // bounds; otherwise fall back to the birth map's authored
-                // spawn so the join site never drops a player outside the
-                // playable area.
-                let persisted_map = self.maps.get(profile.map_id.as_str()).cloned();
-                let resolved_map = persisted_map.clone().unwrap_or_else(|| self.map.clone());
+                // A fresh login uses Henesys when the catalog exports it;
+                // only a valid saved Henesys point is retained.  Older
+                // catalogs fall back to the historical persisted-map rule.
+                let (resolved_map, resolved_x, resolved_y) =
+                    resolve_join_map_position(&self.maps, &self.map, &profile);
                 let resolved_map_id = resolved_map.id.clone();
-                let (resolved_x, resolved_y) = if persisted_map.is_some()
-                    && profile.x.is_finite()
-                    && profile.y.is_finite()
-                    && resolved_map.bounds.x_min <= profile.x
-                    && profile.x <= resolved_map.bounds.x_max
-                    && resolved_map.bounds.y_min <= profile.y
-                    && profile.y <= resolved_map.bounds.y_max
-                {
-                    (profile.x, profile.y)
-                } else {
-                    (resolved_map.spawn.x, resolved_map.spawn.y)
-                };
                 let foothold_id = resolved_map
                     .ground_near(resolved_x, resolved_y)
                     .map(|(id, _)| id)
@@ -1041,5 +1064,172 @@ impl World {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn join_map(id: &str, spawn_x: f64) -> Map {
+        Map {
+            id: id.to_owned(),
+            bounds: Bounds {
+                x_min: 0.0,
+                x_max: 500.0,
+                y_min: -100.0,
+                y_max: 500.0,
+            },
+            spawn: Point {
+                x: spawn_x,
+                y: 100.0,
+            },
+            footholds: vec![Foothold {
+                id: 1,
+                x1: 0.0,
+                y1: 100.0,
+                x2: 500.0,
+                y2: 100.0,
+                prev: 0,
+                next: 0,
+                forbid_fall_down: 0,
+            }],
+            ladders: Vec::new(),
+            portals: Vec::new(),
+            water: Vec::new(),
+            reactors: Vec::new(),
+        }
+    }
+
+    fn join_profile(map_id: &str, x: f64) -> Profile {
+        Profile {
+            hp: 40,
+            max_hp: 80,
+            mp: 11,
+            max_mp: 20,
+            level: 9,
+            job: 0,
+            exp: 7,
+            exp_to_next: 100,
+            mesos: 1234,
+            cash: 56,
+            death_id: "death-preserved".into(),
+            map_id: map_id.into(),
+            x,
+            y: 100.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        }
+    }
+
+    fn join(world: &mut World, id: &str, connection: &str) {
+        let (output, _messages) = mpsc::channel(4096);
+        let (reply, _reply_result) = oneshot::channel();
+        world.command(Command::Join {
+            identity: Identity {
+                id: id.to_owned(),
+                username: id.to_owned(),
+            },
+            connection: connection.to_owned(),
+            output,
+            reply,
+            lang: "zh".to_owned(),
+        });
+    }
+
+    #[test]
+    fn fresh_join_defaults_to_henesys_without_migrating_resident() {
+        let birth = join_map("birth", 10.0);
+        let henesys = join_map(DEFAULT_LOGIN_MAP_ID, 200.0);
+        let other = join_map("other", 60.0);
+        let maps = BTreeMap::from([
+            (birth.id.clone(), birth.clone()),
+            (henesys.id.clone(), henesys.clone()),
+            (other.id.clone(), other.clone()),
+        ]);
+        let profile = join_profile("other", 321.0);
+
+        // The pre-Henesys catalog path remains the old persisted-map rule.
+        let old_maps = BTreeMap::from([
+            (birth.id.clone(), birth.clone()),
+            (other.id.clone(), other.clone()),
+        ]);
+        let (old_map, old_x, old_y) = resolve_join_map_position(&old_maps, &birth, &profile);
+        assert_eq!(old_map.id, "other");
+        assert_eq!((old_x, old_y), (321.0, 100.0));
+
+        let path =
+            std::env::temp_dir().join(format!("maple-join-henesys-{}.sqlite3", auth::random_id()));
+        let service = auth::start(&path).unwrap();
+        service.store.load_profile("wanderer", &profile).unwrap();
+        service.store.save_profile("wanderer", &profile).unwrap();
+        service
+            .store
+            .grant_inventory_item("wanderer", "join-seed", "2000000", 3)
+            .unwrap();
+        service
+            .store
+            .save_quest("wanderer", "fixture-quest", "active")
+            .unwrap();
+
+        let mut world = World::new_with_store_and_catalog(
+            birth.clone(),
+            600,
+            Gameplay::default(),
+            service.store.clone(),
+            MapCatalog {
+                birth_map_id: birth.id.clone(),
+                return_maps: BTreeMap::new(),
+                maps: maps.into_values().collect(),
+            },
+        )
+        .unwrap();
+        join(&mut world, "wanderer", "fresh-connection");
+
+        let player = &world.players["wanderer"];
+        assert_eq!(player.map_id, DEFAULT_LOGIN_MAP_ID);
+        assert_eq!((player.state.x, player.state.y), (200.0, 100.0));
+        assert_eq!(player.state.level, profile.level);
+        assert_eq!(player.state.exp, profile.exp);
+        assert_eq!(player.state.mesos, profile.mesos);
+        assert_eq!(player.death_id, profile.death_id);
+        assert_eq!(
+            player.quests.get("fixture-quest").map(String::as_str),
+            Some("active")
+        );
+        assert!(player
+            .state
+            .inventory
+            .iter()
+            .any(|item| item.item_id == "2000000" && item.quantity == 3));
+
+        let saved_henesys = join_profile(DEFAULT_LOGIN_MAP_ID, 321.0);
+        service
+            .store
+            .load_profile("henesys", &saved_henesys)
+            .unwrap();
+        service
+            .store
+            .save_profile("henesys", &saved_henesys)
+            .unwrap();
+        join(&mut world, "henesys", "henesys-connection");
+        assert_eq!(world.players["henesys"].map_id, DEFAULT_LOGIN_MAP_ID);
+        assert_eq!(world.players["henesys"].state.x, 321.0);
+
+        // A resident takeover returns before profile resolution and therefore
+        // keeps the live position, even when it is outside the default map.
+        {
+            let resident = world.players.get_mut("wanderer").unwrap();
+            resident.map_id = "other".into();
+            resident.state.x = 111.0;
+            resident.state.y = 100.0;
+        }
+        join(&mut world, "wanderer", "takeover-connection");
+        assert_eq!(world.players["wanderer"].map_id, "other");
+        assert_eq!(world.players["wanderer"].state.x, 111.0);
+
+        let _ = std::fs::remove_file(&path);
     }
 }

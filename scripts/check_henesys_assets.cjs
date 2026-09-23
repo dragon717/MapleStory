@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'), fs=require('node:fs'), path=require('node:path');
+const root=path.resolve(__dirname,'..'), read=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
+const file=fs.readFileSync(path.join(root,'resources/scenes/henesys/models/henesys.glb'));
+assert.equal(file.toString('ascii',0,4),'glTF'); assert.equal(file.readUInt32LE(4),2); assert.equal(file.readUInt32LE(8),file.length);
+const gltf=JSON.parse(file.toString('utf8',20,20+file.readUInt32LE(12)));
+for(const district of ['Terrain','West','Market','Park','East','Windmill','Hall','Nature']) assert(gltf.nodes.some(n=>n.name===`HN_${district}`),`missing ${district}`);
+assert(gltf.images.length>0);assert(gltf.images.every(image=>Number.isInteger(image.bufferView)),'textures must be embedded');
+assert(gltf.nodes.filter(n=>n.mesh!==undefined).every(n=>n.extras?.role==='visual_only'),'source footholds, not model triangles, own collision');
+assert.equal(Buffer.compare(file,fs.readFileSync(path.join(root,'client/public-tms273/assets/henesys/henesys.glb'))),0);
+const manifest=read('client/public-tms273/assets/manifest.json'), gameplay=read('shared/gameplay.json');
+assert.equal(manifest.contentVersion,'tms273-45');assert.equal(gameplay.contentVersion,manifest.contentVersion);
+const source=read('shared/maps.json').maps.find(m=>m.id==='100000000'), map=manifest.mapCatalog.maps.find(m=>m.id===source.id);
+assert.deepEqual(map.footholds,source.footholds);assert.deepEqual(map.ladders,source.ladders);assert.deepEqual(map.portals,source.portals);
+console.log(`PASS: embedded GLB (${file.length} bytes), 8 districts, identical published asset; ${source.footholds.length} source footholds, ladders and portals preserved; content ${manifest.contentVersion}.`);
