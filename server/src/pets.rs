@@ -466,7 +466,12 @@ impl World {
             .filter_map(|(item, instance)| {
                 let expired =
                     inventory::pet_lifespan_end(item).is_some_and(|end| end <= now_seconds);
-                let starved = inventory::pet_fullness(item, now_seconds) <= 0;
+                // 饥饿退休只在显示值真实跨越零点时触发。stored 检查点已经是 0
+                // 的宠物(离线耗尽后冻结、或一直没喂)保持召唤状态挂饥饿等喂
+                // 食——否则每次召唤后下一个 tick 就会把它立刻收回,召唤位永远
+                // 挂不住。
+                let starved = inventory::pet_stored_fullness(item) > 0
+                    && inventory::pet_fullness(item, now_seconds) <= 0;
                 (expired || starved).then(|| (instance, item.slot, item.item_id.clone(), expired))
             })
             .collect();
@@ -540,6 +545,44 @@ impl World {
                 stats.insert(inventory::PET_ACTIVE_KEY.to_owned(), 0);
                 self.send_snapshot(id);
             }
+        }
+    }
+
+    /// 离场冻结:角色移出世界前,把每只召唤宠物的显示饱食度写回检查点并
+    /// 持久化。与下次登录的锚点重置(`rebase_active_pet_hunger`)配对,离线
+    /// 时长从此完全不参与饥饿推导——登出、掉线、宕机都不再把宠物饿回收。
+    pub(crate) fn freeze_leaving_pet_hunger(&mut self, id: &str) {
+        let Some(player) = self.players.get(id) else {
+            return;
+        };
+        if !player
+            .state
+            .inventory
+            .iter()
+            .any(|item| inventory::pet_active(item))
+        {
+            return;
+        }
+        let Some(store) = self.store.clone() else {
+            // In-memory branch (acceptance worlds without a store): freeze
+            // the resident rows in place so bag time still stays free.
+            let now_seconds = auth::now_ms() / 1000;
+            let player = self.players.get_mut(id).unwrap();
+            for item in player
+                .state
+                .inventory
+                .iter_mut()
+                .filter(|item| inventory::pet_active(item))
+            {
+                let fullness = inventory::pet_fullness(item, now_seconds);
+                inventory::set_pet_fullness(item, fullness, now_seconds);
+            }
+            return;
+        };
+        // 角色已在离场路径上,失败只能降级为旧行为(离线继续衰减);把错误
+        // 发给还在线的连接,其余交给下次登录的锚点重置兜底。
+        if let Err(error) = store.freeze_active_pet_hunger(id) {
+            self.send_reject(id, "persistence", &error, None);
         }
     }
 

@@ -175,8 +175,12 @@ fn pet_starvation_returns_the_pet_to_the_bag_with_penalty() {
     pet_give(&mut world, "alice", "5000000");
     pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");
     world.step_pet("alice");
-    // Drive the checkpoint to exactly zero in the past; the sweep must retire
-    // the pet (active bit off) and take one point of closeness.
+    // Drive the pet across the starvation boundary for real: a stored
+    // checkpoint of 2 with two paces elapsed (5000000 = 2 minutes per point)
+    // displays 0, and the sweep must retire the pet (active bit off) and
+    // take one point of closeness.  A pet whose stored checkpoint is already
+    // 0 never retires — it stays summoned and hungry until fed (covered by
+    // the zero-checkpoint test below).
     let player = world.players.get_mut("alice").unwrap();
     let row = player
         .state
@@ -184,7 +188,7 @@ fn pet_starvation_returns_the_pet_to_the_bag_with_penalty() {
         .iter_mut()
         .find(|item| item.item_id == "5000000")
         .unwrap();
-    inventory::set_pet_fullness(row, 0, auth::now_ms() / 1000 - 120);
+    inventory::set_pet_fullness(row, 2, auth::now_ms() / 1000 - 2 * 120);
     inventory::add_pet_closeness(row, 3);
     world.step_pet_growth("alice");
     assert!(pet_in_snapshot(&world, "alice").is_none());
@@ -404,6 +408,120 @@ fn pet_growth_store_feed_retire_and_dead_gate_persist() {
     assert!(!dead.success);
     assert_eq!(dead.code, "pet_dead");
     drop(store);
+    drop(service);
+    let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+    let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+}
+
+#[test]
+fn pet_summoned_at_zero_checkpoint_stays_summoned_and_hungry() {
+    let mut world = World::new_with_gameplay(life_map("test"), 600, Gameplay::default());
+    let _alice = join_test_player(&mut world, "alice");
+    pet_give(&mut world, "alice", "5000000");
+    pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");
+    // A pet saved with an empty stored checkpoint (starved while its owner
+    // was away, then frozen by the departure/logout freeze) must summon and
+    // stay summoned: every tick used to bounce it straight back into the
+    // bag with a closeness penalty, so the summon status never held.
+    let player = world.players.get_mut("alice").unwrap();
+    let row = player
+        .state
+        .inventory
+        .iter_mut()
+        .find(|item| item.item_id == "5000000")
+        .unwrap();
+    inventory::set_pet_fullness(row, 0, auth::now_ms() / 1000 - 600);
+    world.step_pet_growth("alice");
+    world.step_pet_growth("alice");
+    let pet = pet_in_snapshot(&world, "alice").unwrap();
+    assert_eq!(pet["fullness"], 0);
+    assert_eq!(pet["weak"], true);
+    let stats = pet_row_stats(&world, "alice", "5000000");
+    assert_eq!(stats.get(inventory::PET_ACTIVE_KEY), Some(&1));
+    let player = world.players.get("alice").unwrap();
+    let row = player
+        .state
+        .inventory
+        .iter()
+        .find(|item| item.item_id == "5000000")
+        .unwrap();
+    assert_eq!(inventory::pet_closeness(row), 0);
+}
+
+#[test]
+fn pet_summon_status_and_fullness_survive_logout_login_cycle() {
+    fn cycle_defaults() -> Profile {
+        Profile {
+            hp: 50, max_hp: 50, mp: 5, max_mp: 5, level: 1, job: 0,
+            exp: 0, exp_to_next: 15, mesos: 0, death_id: String::new(),
+            cash: 0,
+            map_id: String::new(), x: 0.0, y: 0.0, inventory: Vec::new(),
+            skills: BTreeMap::new(), skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        }
+    }
+    let path = std::env::temp_dir()
+        .join(format!("pet-growth-logout-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).unwrap();
+    let mut world = World::new_with_store(
+        life_map("test"),
+        600,
+        Gameplay::default(),
+        service.store.clone(),
+    )
+    .unwrap();
+    let _alice = join_test_player(&mut world, "alice");
+    pet_give(&mut world, "alice", "5000000");
+    pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");
+    let pet_anchor = |service: &auth::AuthService| -> (i64, i64, bool) {
+        let defaults = cycle_defaults();
+        let row = service
+            .store
+            .load_profile("alice", &defaults)
+            .unwrap()
+            .inventory
+            .into_iter()
+            .find(|item| item.item_id == "5000000")
+            .unwrap();
+        let at = row
+            .stats
+            .as_ref()
+            .and_then(|stats| stats.get(inventory::PET_FULLNESS_AT_KEY))
+            .copied()
+            .unwrap_or(0);
+        (at, inventory::pet_stored_fullness(&row), inventory::pet_active(&row))
+    };
+    let anchor_after_summon = pet_anchor(&service);
+
+    // Two seconds of wall clock: enough to move the unix-second hunger
+    // anchor so the departure freeze is observable, far too little to burn
+    // a fullness point (5000000 = 2 minutes per point).
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    // Explicit logout: the summon status freezes into the checkpoint on the
+    // way out — the stored anchor must move past the summon-time anchor.
+    world.command(Command::Input {
+        id: "alice".to_owned(),
+        connection: "alice-connection".to_owned(),
+        message: ClientMessage::Logout,
+    });
+    assert!(world.players.get("alice").is_none());
+    let (frozen_at, frozen_stored, frozen_active) = pet_anchor(&service);
+    assert!(frozen_at > anchor_after_summon.0);
+    assert_eq!(frozen_stored, 100);
+    assert!(frozen_active);
+
+    // Logging back in: the anchor rebases to now, so the offline gap is
+    // exempt and the pet returns summoned at exactly the frozen fullness.
+    let _alice_again = join_test_player(&mut world, "alice");
+    let pet = pet_in_snapshot(&world, "alice").unwrap();
+    assert_eq!(pet["fullness"], 100);
+    assert_eq!(pet["weak"], false);
+    let stats = pet_row_stats(&world, "alice", "5000000");
+    assert_eq!(stats.get(inventory::PET_ACTIVE_KEY), Some(&1));
+
+    drop(world);
     drop(service);
     let _ = std::fs::remove_file(&path);
     let _ = std::fs::remove_file(format!("{}-wal", path.display()));

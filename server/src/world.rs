@@ -3181,6 +3181,7 @@ impl World {
                 continue;
             }
             self.disconnect_boss_player(&id);
+            self.freeze_leaving_pet_hunger(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
             self.pending_attacks

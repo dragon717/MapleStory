@@ -4225,6 +4225,114 @@ mod tests {
     }
 
     #[test]
+    fn pet_hunger_freezes_on_departure_and_rebases_on_login() {
+        let path = std::env::temp_dir()
+            .join(format!("maple-pet-hunger-cycle-{}.sqlite3", random_id()));
+        let auth = start(&path).unwrap();
+        let store = auth.store.clone();
+        let defaults = Profile {
+            hp: 50,
+            max_hp: 50,
+            mp: 5,
+            max_mp: 5,
+            level: 1,
+            job: 0,
+            exp: 0,
+            exp_to_next: 15,
+            mesos: 0,
+            cash: 0,
+            death_id: String::new(),
+            map_id: String::new(),
+            x: 0.0,
+            y: 0.0,
+            inventory: Vec::new(),
+            skills: BTreeMap::new(),
+            skill_points: BTreeMap::new(),
+            ability_stats: AbilityStats::default(),
+        };
+        store.load_profile("a", &defaults).unwrap();
+        assert!(store
+            .grant_inventory_item("a", "pet-grant", "5000000", 1)
+            .unwrap()
+            .success);
+        let pet = store
+            .load_profile("a", &defaults)
+            .unwrap()
+            .inventory
+            .iter()
+            .find(|item| item.item_id == "5000000")
+            .unwrap()
+            .clone();
+        assert!(store
+            .toggle_pet("a", "pet-toggle-1", pet.slot as i16, "5000000")
+            .unwrap()
+            .success);
+
+        // Rewrite only the hunger anchor, exactly what the wall clock does
+        // between sessions.  5000000 = 2 minutes per point.
+        let set_anchor = |at_seconds: i64| {
+            let inventory = store.load_profile("a", &defaults).unwrap().inventory;
+            let mut row = inventory
+                .iter()
+                .find(|item| item.item_id == "5000000")
+                .unwrap()
+                .clone();
+            inventory::set_pet_stat(&mut row, inventory::PET_FULLNESS_AT_KEY, at_seconds);
+            let stats_json = serde_json::to_string(&row.stats).unwrap();
+            let mut db = store.db.lock().unwrap();
+            db.execute(
+                "UPDATE inventory SET stats_json=?1 WHERE account_id=?2 AND item_id=?3 AND slot=?4",
+                params![stats_json, "a", "5000000", i64::from(row.slot)],
+            )
+            .unwrap();
+        };
+        let read_pet = || {
+            store
+                .load_profile("a", &defaults)
+                .unwrap()
+                .inventory
+                .into_iter()
+                .find(|item| item.item_id == "5000000")
+                .unwrap()
+        };
+        let pace_seconds = 2 * 60;
+
+        // Twenty paces online burn 20 points; the departure freeze must turn
+        // that displayed value into the stored checkpoint.
+        set_anchor(now_ms() / 1000 - 20 * pace_seconds);
+        store.freeze_active_pet_hunger("a").unwrap();
+        let frozen = read_pet();
+        assert!(inventory::pet_active(&frozen));
+        assert_eq!(inventory::pet_stored_fullness(&frozen), 80);
+
+        // An overnight gap on the frozen row would derive fullness 0 from
+        // the stale anchor; the login rebase must exempt it entirely and
+        // keep the pet summoned at exactly 80.
+        set_anchor(now_ms() / 1000 - 3 * 86_400);
+        let rebased = store.rebase_active_pet_hunger("a").unwrap();
+        assert_eq!(rebased.len(), 1);
+        assert_eq!(rebased[0].0, frozen.slot);
+        assert_eq!(rebased[0].1, "5000000");
+        let revived = read_pet();
+        assert!(inventory::pet_active(&revived));
+        assert_eq!(inventory::pet_stored_fullness(&revived), 80);
+        assert_eq!(inventory::pet_fullness(&revived, now_ms() / 1000), 80);
+        // Freezing with nothing summoned is a harmless no-op.
+        store
+            .retire_pet("a", "retire-1", frozen.slot as i16, "5000000", false)
+            .unwrap()
+            .success;
+        store.freeze_active_pet_hunger("a").unwrap();
+        assert_eq!(store.rebase_active_pet_hunger("a").unwrap().len(), 0);
+
+        drop(store);
+        drop(auth);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
     fn pet_instance_and_active_state_survive_store_round_trip() {
         let path =
             std::env::temp_dir().join(format!("maple-pet-persistence-{}.sqlite3", random_id()));

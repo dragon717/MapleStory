@@ -100,6 +100,33 @@ impl World {
                     }
                     None => self.default_profile(),
                 };
+                // 登录愈合:召唤宠物的饥饿锚点重置到现在。离场冻结已把显示
+                // 饱食度存进检查点,宕机则检查点停在召唤/喂食时刻——这里把
+                // 离线空档整个豁免,宠物保住召唤状态与离场时的饱食度。上面的
+                // 驻留重连分支不走这里:角色没离场,锚点连续,重锚反而会把
+                // 在线衰减回滚。
+                if let Some(store) = self.store.as_ref() {
+                    match store.rebase_active_pet_hunger(&identity.id) {
+                        Ok(rebased) => {
+                            for (slot, item_id, anchor) in rebased {
+                                if let Some(item) = profile.inventory.iter_mut().find(|item| {
+                                    item.slot == slot && item.item_id == item_id
+                                }) {
+                                    inventory::set_pet_stat(
+                                        item,
+                                        inventory::PET_FULLNESS_AT_KEY,
+                                        anchor,
+                                    );
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    }
+                }
                 let progress_before = (
                     profile.level,
                     profile.exp,
@@ -551,6 +578,7 @@ impl World {
                     return;
                 }
                 self.disconnect_boss_player(&id);
+                self.freeze_leaving_pet_hunger(&id);
                 self.players.remove(&id);
                 self.end_conversation(&id);
                 self.pending_attacks
@@ -580,6 +608,7 @@ impl World {
                         return;
                     }
                     self.disconnect_boss_player(&id);
+                    self.freeze_leaving_pet_hunger(&id);
                     self.players.remove(&id);
                     self.end_conversation(&id);
                     self.pending_attacks
@@ -626,6 +655,7 @@ impl World {
                             return;
                         }
                         self.disconnect_boss_player(&id);
+                        self.freeze_leaving_pet_hunger(&id);
                         self.players.remove(&id);
                         self.end_conversation(&id);
                         self.pending_attacks

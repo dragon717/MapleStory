@@ -252,6 +252,77 @@ impl Store {
         Ok(outcome)
     }
 
+    /// Freeze the hunger of every summoned pet when its owner leaves the
+    /// world: the displayed fullness becomes the stored checkpoint at the
+    /// same instant.  Paired with `rebase_active_pet_hunger` on the next
+    /// login this keeps offline time out of the hunger math entirely, so a
+    /// logout, a dropped socket or a server restart never starves the pet
+    /// out of its summon status.  A pure system call: no client request id,
+    /// naturally idempotent.
+    pub fn freeze_active_pet_hunger(&self, account_id: &str) -> Result<(), String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        let mut inventory = read_inventory_tx(&tx, account_id)?;
+        let now_seconds = now_ms() / 1000;
+        let mut touched = false;
+        for item in inventory
+            .iter_mut()
+            .filter(|item| inventory::pet_active(item))
+        {
+            let fullness = inventory::pet_fullness(item, now_seconds);
+            inventory::set_pet_fullness(item, fullness, now_seconds);
+            touched = true;
+        }
+        if touched {
+            write_inventory_tx(&tx, account_id, &inventory)?;
+        }
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())
+    }
+
+    /// Rebase the hunger anchor of every summoned pet to now on a fresh
+    /// login: the stored checkpoint keeps its value, the decay clock
+    /// restarts from the login instant.  This is what exempts the offline
+    /// gap — a clean logout already froze the checkpoint at departure, and
+    /// a crash or restart never gets the chance to decay the pet at all.
+    /// Returns `(slot, item_id, anchor)` for every rebased row so the world
+    /// can apply the same rebasing to its freshly loaded copy.
+    pub fn rebase_active_pet_hunger(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<(u16, String, i64)>, String> {
+        let mut db = self
+            .db
+            .lock()
+            .map_err(|_| "account store unavailable".to_owned())?;
+        let tx = db
+            .transaction()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        normalize_inventory_tx(&tx)?;
+        let mut inventory = read_inventory_tx(&tx, account_id)?;
+        let now_seconds = now_ms() / 1000;
+        let mut rebased = Vec::new();
+        for item in inventory
+            .iter_mut()
+            .filter(|item| inventory::pet_active(item))
+        {
+            inventory::set_pet_stat(item, inventory::PET_FULLNESS_AT_KEY, now_seconds);
+            rebased.push((item.slot, item.item_id.clone(), now_seconds));
+        }
+        if !rebased.is_empty() {
+            write_inventory_tx(&tx, account_id, &inventory)?;
+        }
+        tx.commit()
+            .map_err(|_| "account persistence failed".to_owned())?;
+        Ok(rebased)
+    }
+
     /// 唯一道具（`info.only`）现在在哪儿。
     ///
     /// 只读，且与 `add_inventory_tx` 的拒绝共用 `only_item_holder` 一条判据：
