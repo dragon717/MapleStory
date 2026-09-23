@@ -136,6 +136,7 @@ impl AttrFixture {
             equipped: &self.equipped,
             meditation_mad,
             beginner_speed_percent,
+            blessing: None,
         })
     }
 }

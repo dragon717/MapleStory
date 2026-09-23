@@ -451,6 +451,8 @@ impl World {
                         slow_fall_until: 0,
                         meditation_until: 0,
                         meditation_mad: 0,
+                        // 進階祝福：新连接没有队伍增益窗（它是会话状态，不落库）。
+                        advanced_blessing: None,
                         ice_teleport_enabled: false,
                         ice_fields: Vec::new(),
                         teleport_mastery_enabled: false,

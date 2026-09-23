@@ -131,6 +131,7 @@ fn derived_for(job: u32, level: u32, skills: &BTreeMap<u32, u32>) -> DerivedStat
         equipped: &equipped,
         meditation_mad: 0,
         beginner_speed_percent: 0,
+        blessing: None,
     });
     compute_derived_stats(
         &mage_skills,
@@ -4181,6 +4182,9 @@ include!("mechanics_acceptance.rs");
 // 火毒／主教四转「同一格副本」接线（2026-09-23）：楓葉祝福 / 魔力無限 / 楓葉淨化 /
 // 召喚火魔 与冰雷那几条同机制，收口成表之后副本也必须真的能放出来。
 include!("mage_branch_copy_acceptance.rs");
+// 進階祝福 `2321005`（2026-09-23）：主教四转的**队伍增益窗**——窗口时长从源 `time`
+// 派生、三格加算随身带（队伍里没学这一本的人也要生效）、到期与会话清理都要收回。
+include!("advanced_blessing_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

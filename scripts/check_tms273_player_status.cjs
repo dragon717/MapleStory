@@ -309,10 +309,20 @@ assert.ok(
   'world.rs 的 tick 块不再调用 player.status.advance(self.tick)：限时状态没有推进点',
 );
 // 到期清理必须穷尽 `Release`——编译器已经保证，这里再钉一次「没有人把清理块删成 _ => {}」。
-for (const variant of ['None', 'BeginnerRecovery', 'BeginnerSpeed', 'Infinity', 'StatusImmunity']) {
+// `AdvancedBlessing`（進階祝福，2026-09-23）：这条增益**随身带数值**（攻击力/魔力/
+// 防御力三格加算），所以它不只是「不再生效」——漏掉这条清理，玩家会一直带着一个
+// 已经看不见的增益面板。
+// ⚠️ 判据必须是**真实的 match 臂形状**，不能只是「这个变体名出现过」：
+// `Release::X` 也会出现在 doc 注释的 intra-doc 链接里（`[`Release::X`]`），
+// 实测删掉 `Release::AdvancedBlessing` 那一条收回臂后，旧的
+// `/Release::X\b/` 正则照样通过——它命中的是注释。
+// 真正的保证是 Rust 的穷尽 match（删臂会 `error[E0004]`），这里只负责把这条艰辛再钉一遍。
+for (const variant of [
+  'None', 'BeginnerRecovery', 'BeginnerSpeed', 'Infinity', 'StatusImmunity', 'AdvancedBlessing',
+]) {
   assert.ok(
-    new RegExp(`Release::${variant}\\b`).test(worldSrc),
-    `world.rs 的清理 match 里没有 Release::${variant}：到期时它的附属状态会留在身上`,
+    new RegExp(`Release::${variant}\\s*=>\\s*\\{`).test(worldSrc),
+    `world.rs 的清理 match 里没有 Release::${variant} 的收回臂：到期时它的附属状态会留在身上`,
   );
 }
 // 疾病脉冲也要走到。

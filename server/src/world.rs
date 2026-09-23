@@ -474,6 +474,51 @@ const HYPER_ADVENTURER_SKILLS: [u32; 3] = [
     SKILL_HYPER_ADVENTURER_CLERIC,
 ];
 
+// ── 進階祝福 `2321005`（主教四转队伍增益窗，2026-09-23 接执行链） ──────────────
+/// 源 `common`：`mpCon/time/x/y/z/u/v/w/indieMhp/indieMmp/mpConReduce/lt/rb`，
+/// `info` 是 `type=10 + massSpell=1 + magicSteal=1`（与楓葉祝福同一族：
+/// **队伍增益**，不是攻击），`action` 是 `alert2`，`req` 是 `2301004 天使祝福 10 级`。
+///
+/// 逐字段的口径（源文案 `perLevel`：「#time秒內增加攻擊力#x、魔力#y、防禦力#z、
+/// 最大HP#indieMhp、最大MP#indieMmp，MP消耗量減少#mpConReduce%」）：
+///   * `x`（攻击力）/ `y`（魔力）/ `z`（防御力）⇒ **消费**：窗口内
+///     [`AttributeLayer::ActiveBuff`] 层的三格加算（见 `attribute.rs`）。
+///   * `indieMhp` / `indieMmp` ⇒ **不消费**：它们是「窗口内抬高上限」，本包的
+///     `max_hp` / `max_mp` 由持久化基线与装备折叠算出，**没有**「窗口内上限」这条
+///     管线（冥想也只消费了 `indieMad`）。理由登记在
+///     `scripts/check_tms273_attributes.cjs` 的「進階祝福决策块」。
+///   * `mpConReduce` ⇒ **不消费**：本包没有「施法耗蓝按百分比折减」的消费点
+///     （`mp_con` 是逐级的绝对值，`costmpR` 那一路只被 2001002 魔心防禦用过），
+///     同上登记在案。
+///   * `u` / `v` / `w` ⇒ 源 perLevel 文案里没有出现（它们是源内部配方系数），
+///     本包不建模。
+///
+/// ⚠️ 它是**增益窗**（源 `time=240` 秒）而不是「学得即生效」的被动，也不是
+/// 開關技能（開關技能那批——復仇天使 `2321054`／火靈結界 `2121054`——的源
+/// `common` 里**没有** `time`，本包也没有開關态，仍挡在表外）。
+const SKILL_ADVANCED_BLESSING: u32 = 2321005;
+/// 進階祝福的接纳表。**判据只有这一处**：施法白名单、施法臂、动作时长与属性层
+/// 的三格留痕都读它。当前只有主教这一本（火毒／冰雷两线没有对应格），
+/// 与 `HYPER_ADVENTURER_SKILLS` 三本成表的写法同形——多一本就往这里加，
+/// 不写 `if skill_id == …`。
+const ADVANCED_BLESSING_SKILLS: [u32; 1] = [SKILL_ADVANCED_BLESSING];
+
+/// 進階祝福窗口内**真正生效**的三格加算（源 `x` / `y` / `z`）。
+///
+/// 为什么把数值**随身带**而不在属性聚合时按「学到了几级」去查表：这条增益是
+/// **队伍增益**——收到它的人未必学得这一本（甚至不是主教），窗口内的加成来自
+/// **施法者那一本**的等级。冥想（`meditation_mad`）早就是同一条口径：施放时算定
+/// 数值挂到玩家身上，窗口结束由 [`Release::AdvancedBlessing`] 收回。
+///
+/// 三个字段都写**源字段名**对应的量：`pad` = `x` 攻击力、`mad` = `y` 魔力、
+/// `pdd` = `z` 防御力。
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub(super) struct BlessingBonus {
+    pub pad: i64,
+    pub mad: i64,
+    pub pdd: i64,
+}
+
 /// 玩家身上正在计时的魔力無限**是哪一本**（三本互斥：一个角色只可能持有自己分支的
 /// 那一本）。MP 免费判定、5 秒跳段、客户端强化快照三处都读它——改前各自写
 /// `SKILL_INFINITY`（2221004），火毒／主教放了無限之后那三处全都读不到。
@@ -2048,6 +2093,9 @@ struct Player {
     slow_fall_until: u64,
     meditation_until: u64,
     meditation_mad: i64,
+    /// 進階祝福窗口内的三格加算。**窗口结束由 [`Release::AdvancedBlessing`] 收回**，
+    /// 不是靠这里再存一份截止点（限时状态的截止点只有 `PlayerStatus` 那一份）。
+    advanced_blessing: Option<BlessingBonus>,
     ice_teleport_enabled: bool,
     ice_fields: Vec<IceField>,
     /// Third-job ON/OFF skills are world state.  Learned levels remain in the
@@ -2192,6 +2240,9 @@ fn clear_beginner_buffs(player: &mut Player) {
     player.hyper_teleport_enabled = false;
     player.infinity_next_tick = 0;
     player.infinity_damage_bonus = 0;
+    // 進階祝福：窗口由 `PlayerStatus` 收掉，这里收它随身带的那三格加算
+    // （与 `infinity_damage_bonus` 同一条「限时状态的附属数值」纪律）。
+    player.advanced_blessing = None;
     player.mystic_strike_stacks = 0;
     player.mystic_strike_until = 0;
     // Consumable cooldowns share the session-scoped lifetime of every other
@@ -3966,6 +4017,11 @@ impl World {
                         // 免疫窗的截止点由 `PlayerStatus` 自己持有：`advance()` 已让它
                         // 失效（`is_immune()` 随之为假），这里没有第二份状态要收回。
                         Release::StatusImmunity => {}
+                        // 進階祝福：窗口结束即收回那三格加算，否则面板与战斗会一直
+                        // 带着一个已经看不见的增益。
+                        Release::AdvancedBlessing => {
+                            player.advanced_blessing = None;
+                        }
                     },
                     // 疾病到期就是「不再影响玩家」，没有附属字段要收回。
                     Expiry::Disease(_) => {}

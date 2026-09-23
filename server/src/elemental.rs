@@ -590,6 +590,44 @@ impl World {
     /// 火毒 2121053 / 主教 2321053），增益按它挂出——伤害管线的
     /// [`active_adventurer_skill`] 靠这条增益认出「是哪一本在计时」，所以这里
     /// **不能**再写死 `SKILL_HYPER_ADVENTURER`，否则副本的窗口加成不到伤害。
+    /// 進階祝福 `2321005`（主教四转队伍增益窗）的施放入口。
+    ///
+    /// 与 傳說冒險 同一条「队伍窗」路径：增益挂给**施法者所在图的队友**
+    /// （`party_members_on_map` 在没有队伍时只返回施法者本人，所以独行行为不变）。
+    /// 差别是它**随身带数值**——窗口内的 `x`/`y`/`z` 三格加算来自**施法者那一本**
+    /// 的等级，收到的人未必学得这一本，所以不能在属性聚合时按「学到了几级」回表查。
+    ///
+    /// 时长取源 `time`（**秒**）× 1000，与 冥想 / 魔力無限 一样过一遍
+    /// `buff_duration_ms`（大師魔法的增益时长加成对它同样成立）。
+    /// 到期由 [`Release::AdvancedBlessing`] 收回那三格加算——不收回的话，
+    /// 面板与战斗会一直带着一个已经看不见的增益。
+    pub(super) fn activate_advanced_blessing(&mut self, id: &str, skill_id: u32, level: &MageLevel) {
+        let base_ms = u64::try_from(level.time.unwrap_or(0).max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000);
+        let duration_ms = self.buff_duration_ms(id, level, base_ms);
+        if duration_ms == 0 {
+            return;
+        }
+        let bonus = BlessingBonus {
+            pad: level.x.unwrap_or(0).max(0),
+            mad: level.y.unwrap_or(0).max(0),
+            pdd: level.z.unwrap_or(0).max(0),
+        };
+        for target in self.party_members_on_map(id) {
+            let Some(player) = self.players.get_mut(&target) else {
+                continue;
+            };
+            player.advanced_blessing = Some(bonus);
+            player.status.apply_buff(
+                skill_id,
+                duration_ms,
+                self.tick,
+                Release::AdvancedBlessing,
+            );
+        }
+    }
+
     pub(super) fn activate_hyper_adventurer(&mut self, id: &str, skill_id: u32, level: &MageLevel) {
         // The source describes an adventurer-wide damage buff.  It now reaches
         // the party members standing on the caster's map; a caster without a

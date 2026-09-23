@@ -176,6 +176,9 @@ pub(super) enum Release {
     Infinity,
     /// 楓葉淨化：收回異常狀態免疫窗（`immune_until`）。
     StatusImmunity,
+    /// 進階祝福 `2321005`：收回 `advanced_blessing`（窗口内的攻击力 / 魔力 / 防御力
+    /// 三格加算）。与 `Infinity` 同形——增益**随身带了数值**，到期不只是「不再生效」。
+    AdvancedBlessing,
 }
 
 /// `advance()` 的返回项。穷尽 match 是清理不漏的前提。

@@ -38,7 +38,7 @@ const { outputText } = ts.transpileModule(source, {
 });
 // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
 const runnable = `const displayText = value => value;\nconst resolveAssetUrl = url => url;\n${outputText.replace(/^import .*;\r?\n/gm, '')}`;
-const { SkillView, sourceText } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
+const { SkillView, sourceText, ACTIVE_SKILLS } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
 
 const skills = await readJson('skills');
 const windowExport = await readJson('windows-skills');
@@ -173,6 +173,19 @@ assert.equal(input.canCastShortcut(2211002), false);
 console.log('PASS: third-job book/SP gates, hidden node, cooldown feedback, toggles and shortcut direction.');
 
 assert.equal(FOURTH_SHORTCUT_SKILLS.Digit6, 2221011);
+// 進階祝福 `2321005`（2026-09-23 接增益窗与属性层）：主教四转这一格现在有执行链了，
+// 所以才摆上键位。**反向断言**：三张四转表里的每一个 id 都必须在 `ACTIVE_SKILLS` 里
+// ——否则玩家会得到一个「按下去只回尚未开放施放」的坏按钮（这正是过去几轮给冰雷
+// 那本之外的分支留的坑）。
+assert.equal(HOLY_FOURTH_SHORTCUT_SKILLS.Digit6, 2321005, '主教四转 Digit6 是進階祝福');
+for (const table of [FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS]) {
+  for (const skillId of Object.values(table)) {
+    assert.ok(
+      ACTIVE_SKILLS.has(String(skillId)),
+      `四转快捷栏摆了 ${skillId}，但它不在 ACTIVE_SKILLS 里（没有施放按钮）`,
+    );
+  }
+}
 view.player = mage({ job: 221, skills: { '2221011': 1 }, skillPoints: { '222': 3 } });
 assert(!view.books().some(([id]) => id === '222'));
 assert.equal(view.canCast(catalog['2221011']), false);

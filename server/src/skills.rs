@@ -176,7 +176,10 @@ impl World {
             || MAPLE_CURE_SKILLS.contains(&skill_id)
             // 召唤系（冰魔 / 火魔 / 聖龍，2026-09-23 起三条共用同一张表）。
             || SUMMON_SKILLS.contains(&skill_id)
-            || HYPER_ADVENTURER_SKILLS.contains(&skill_id);
+            || HYPER_ADVENTURER_SKILLS.contains(&skill_id)
+            // 進階祝福 `2321005`（2026-09-23）：源 `common` 带 `time` 的队伍增益窗，
+            // 与上面几张表同形 ⇒ 同样由 `world.rs` 的那一张表决定准入。
+            || ADVANCED_BLESSING_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -407,6 +410,11 @@ impl World {
             // of weapon action speed; the actual buff duration is tracked
             // separately by activate_infinity.  三本副本（222/212/232）同形，
             // 所以这条判据也从常量收口成表。
+            600
+        } else if ADVANCED_BLESSING_SKILLS.contains(&skill_id) {
+            // 進階祝福：源 `action` 是 `alert2`，同样**没有**施法时长字段 ⇒
+            // 与上面两条增益同取本包既有的 600ms 施法动作（窗口时长另由
+            // `activate_advanced_blessing` 按源 `time` 挂）。
             600
         } else if skill_id == SKILL_ICE_DRAGON_BREATH {
             // q is the held-key maximum from String.h.  Master Magic
@@ -657,6 +665,12 @@ impl World {
             // 所以火毒／主教那两本不再落到 `_ => {}`（「尚未开放施放」）。
             adventurer if HYPER_ADVENTURER_SKILLS.contains(&adventurer) => {
                 self.activate_hyper_adventurer(&id, adventurer, &level);
+            }
+            // 進階祝福 `2321005`：源 `common` 带 `time`（240 秒）的队伍增益窗，
+            // 三格加算（`x`/`y`/`z`）随窗口挂给同图队友，到期由
+            // `Release::AdvancedBlessing` 收回。
+            blessing if ADVANCED_BLESSING_SKILLS.contains(&blessing) => {
+                self.activate_advanced_blessing(&id, blessing, &level);
             }
             SKILL_HYPER_VORTEX => {
                 if let Err(error) = self.activate_hyper_vortex(&id, &request_id, &level, vertical) {

@@ -141,7 +141,10 @@ export class PlayerView {
       // 施法动作同样是 600ms，所以一起摆进来。
       2121000, 2121004, 2121005, 2121008, 2321000, 2321003, 2321004, 2321009,
       // 傳說冒險三本：服务端给同一个 600ms 施法时长，姿势同样是 `skill<id>`。
-      2221053, 2121053, 2321053].includes(skillId)
+      2221053, 2121053, 2321053,
+      // 進階祝福 `2321005`（2026-09-23）：服务端同样给 600ms 施法时长
+      // （源 `action` 是 `alert2`、没有时长字段），姿势命名同套。
+      2321005].includes(skillId)
       || !Number.isFinite(durationMs) || durationMs <= 0) return;
     // Older skillCast envelopes omit phase; CombatView treats that as the
     // held/sustain stage, so the actor and VFX remain on the same timeline.

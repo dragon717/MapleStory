@@ -219,6 +219,16 @@ const FOURTH_JOB_SOURCES = {
     effect: 'Skill/232.img/skill/2321009/effect',
     effect0: 'Skill/232.img/skill/2321009/effect0',
   },
+  // 進階祝福（2026-09-23 接增益窗与属性层）：源美术组是
+  // `effect` / `effect0` / `affected` / `affected0` —— 比 楓葉祝福
+  // （只有 `effect`/`effect0`）多一组「被加持者」的表现，与它 `massSpell=1`
+  // 的队伍增益身份一致。
+  '2321005': {
+    effect: 'Skill/232.img/skill/2321005/effect',
+    effect0: 'Skill/232.img/skill/2321005/effect0',
+    affected: 'Skill/232.img/skill/2321005/affected',
+    affected0: 'Skill/232.img/skill/2321005/affected0',
+  },
   // 傳說冒險：Hyper 主动的窗口增益，三本（2221053 / 2121053 / 2321053）源组名逐组同形
   // （`effect` / `effect0` / `affected`），实测帧数也逐组相同（17 / 22 / 11）。
   '2121053': {

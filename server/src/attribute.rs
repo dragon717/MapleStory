@@ -422,6 +422,13 @@ pub(super) struct AttributeInput<'a> {
     pub(super) meditation_mad: i64,
     /// 迅捷腳步生效中的移速百分比。同上，失效时已被收回成 0。
     pub(super) beginner_speed_percent: i64,
+    /// 進階祝福生效中的三格加算（`x` 攻击力 / `y` 魔力 / `z` 防御力）。
+    ///
+    /// 与 `meditation_mad` 同形：数值**在施放时算定并挂在玩家身上**，窗口结束由
+    /// `Release::AdvancedBlessing` 收回成 `None`。所以「有值即生效中」本身就是
+    /// 那条门（不需要再查一次 `buff_active`）—— 而且**必须**这样：这条增益是
+    /// 队伍增益，收到它的人未必学得这一本，按「学到了几级」回表查是查不到的。
+    pub(super) blessing: Option<BlessingBonus>,
 }
 
 impl<'a> AttributeInput<'a> {
@@ -442,6 +449,7 @@ impl<'a> AttributeInput<'a> {
             equipped: &player.state.equipped,
             meditation_mad: player.meditation_mad,
             beginner_speed_percent: player.beginner_speed_percent,
+            blessing: player.advanced_blessing,
         }
     }
 
@@ -465,6 +473,7 @@ impl<'a> AttributeInput<'a> {
             equipped,
             meditation_mad: 0,
             beginner_speed_percent: 0,
+            blessing: None,
         }
     }
 }
@@ -518,6 +527,7 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         equipped,
         meditation_mad,
         beginner_speed_percent,
+        blessing,
     } = input;
     let mut rec = Recorder::default();
 
@@ -727,6 +737,43 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         meditation_mad,
     );
 
+    // ---- 進階祝福：窗口内的 攻击力`x` / 魔力`y` / 防御力`z` 三格加算 ----
+    // 与冥想同一条纪律：数值在施放时算定并挂在玩家身上（`BlessingBonus`），
+    // 窗口结束由 `Release::AdvancedBlessing` 收回成 `None` ⇒ 「有值即生效中」
+    // 本身就是那条门，不需要再查一次 `buff_active`。
+    // **必须**随身带而不是回表查：它是队伍增益，收到的人未必学得这一本，
+    // 按「学到了几级」查（`learned_level`）会查不到，按自己的等级查又会用错等级
+    // ——加成来自**施法者那一本**的等级。
+    // 三格**各记各的**（与 `pddX` / `madX` 同写法），留痕能回答
+    // 「这 30 点魔攻是谁给的」；源字段名逐字写 `x` / `y` / `z`。
+    let blessing_pad = blessing.map(|bonus| bonus.pad).unwrap_or(0).max(0);
+    let blessing_mad = blessing.map(|bonus| bonus.mad).unwrap_or(0).max(0);
+    let blessing_pdd = blessing.map(|bonus| bonus.pdd).unwrap_or(0).max(0);
+    rec.note_nonzero(
+        AttributeLayer::ActiveBuff,
+        Some(SKILL_ADVANCED_BLESSING),
+        "x",
+        AttributeKey::WeaponAttack,
+        AttributeOp::Flat,
+        blessing_pad,
+    );
+    rec.note_nonzero(
+        AttributeLayer::ActiveBuff,
+        Some(SKILL_ADVANCED_BLESSING),
+        "y",
+        AttributeKey::MagicAttack,
+        AttributeOp::Flat,
+        blessing_mad,
+    );
+    rec.note_nonzero(
+        AttributeLayer::ActiveBuff,
+        Some(SKILL_ADVANCED_BLESSING),
+        "z",
+        AttributeKey::WeaponDefense,
+        AttributeOp::Flat,
+        blessing_pdd,
+    );
+
     // ---- 魔法攻击：四维派生 + 各分量，末端一次 `max(1)` ----
     let int = config.base_int.unwrap_or(0).max(0);
     let luk = config.base_luk.unwrap_or(0).max(0);
@@ -736,9 +783,19 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         .saturating_add(i64::from(character_level.max(1)))
         .saturating_add(spell_x)
         .saturating_add(meditation_mad)
+        .saturating_add(blessing_mad)
         .saturating_add(master_magic_mad)
         .saturating_add(equipment_mad)
         .max(1);
+    // 攻击力：装备折叠后的 `incPAD` + 進階祝福的 `x`。**窗口内**才加，
+    // 所以这里是「折叠完再加」，而不是把它塞进装备那一层。
+    config.weapon_watk = Some(
+        config
+            .weapon_watk
+            .unwrap_or(0)
+            .max(0)
+            .saturating_add(blessing_pad),
+    );
 
     // ---- 防御：装备 `incPDD` + 各线 `pddX`（魔力之盾 / 自身強化 / 聖騎士精通 / 禦魔陣）----
     // pddX 的语义跨线一致（物理防御加成百分点，学得即生效），2026-09-22 起收进
@@ -764,7 +821,10 @@ pub(super) fn aggregate_attributes(input: AttributeInput<'_>) -> PlayerAttribute
         .weapon_defense
         .unwrap_or(0)
         .max(0)
-        .saturating_add(shield_bonus);
+        .saturating_add(shield_bonus)
+        // 進階祝福的 `z`：与 `x`/`y` 同一条「窗口内才加」的口径
+        // （它不在 `PDDX_SKILLS` 里——那张表是「学得即生效」的被动）。
+        .saturating_add(blessing_pdd);
     config.weapon_defense = Some(defense);
 
     // ---- 熟练度：取高者（三本 咒語精通 / 神聖集中術 / 冰龍吐息），底座是配置里的值 ----
