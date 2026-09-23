@@ -666,9 +666,13 @@ fn mech_world_tick_settles_summon_then_projectile_then_dot() {
 // 200 拍到点），到期由 `world.step()` 里 `player.status.advance()` 的既有清理点精确收回，
 // 不留尾巴。
 //
-// 反面承接门禁的**窄口径**：`time` 还有「负面状态窗 / 召唤存活」两种语义，仍被挡在
-// `PHYSICAL_AREA_ATTACKS` 外。这里用 `1121015 烈焰翔斬`（`time` 是 burn 负面状态窗）
-// 当伪造请求——它既不许被施放成自增益窗，运行时拒绝语义必须与门禁静态挡一致。
+// 反面承接源 `time` 的**三义分级**（2026-09-24 收口）：`1121015 烈焰翔斬` 的 `time`
+// **逐级等于 `dotTime`** ⇒ 它是 burn 窗（＝同一条 DoT 时长的第二份书写），不是自增益窗。
+// 它现在**就接在 `PHYSICAL_AREA_ATTACKS` 里**，所以这一支走的是**真实施法路径**：
+// 施法成功、DoT 照挂，但**不许**冒出自增益窗。改前这里靠「它不可施放」蒙对结论，
+// 判据是空的；现在同一个用例同时钉住「判据放行」与「窗没被误接」。
+//
+// 真正还挡在表外的只剩 `3121052 波紋衝擊` / `4121017 挑釁契約`（`time` 语义未核定）。
 
 #[test]
 fn mech_self_buff_window_opens_and_expires_exactly() {
@@ -732,7 +736,7 @@ fn mech_self_buff_window_opens_and_expires_exactly() {
 }
 
 #[test]
-fn mech_recast_refreshes_without_stacking_and_gated_negative_time_opens_no_window() {
+fn mech_recast_refreshes_without_stacking_and_burn_window_opens_no_self_buff() {
     // ③ 甲：重复施放 = 刷新，不叠加。清掉冷却再放，仍是**单条**窗口、剩余整 10 s。
     let (mut world, mut rx) = mech_bundled_world(vec![mech_spawn("mob-g", 100.0)]);
     mech_learn(&mut world, &[(SKILL_GODS_ANNIHILATION, 1)]);
@@ -769,22 +773,84 @@ fn mech_recast_refreshes_without_stacking_and_gated_negative_time_opens_no_windo
         "刷新让它回到整 10 s，而不是在剩余时间上相加（去重，不延长）"
     );
 
-    // ③ 乙：伪造请求——`1121015 烈焰翔斬` 的 `time` 是 burn 负面状态窗（未接线）。
-    // 施放它不许冒出任何自增益窗；运行时拒绝语义与门禁静态挡在表外一致。
-    let (mut w2, mut rx2) = mech_bundled_world(vec![]);
-    mech_learn(&mut w2, &[(1_121_015, 1)]);
-    mech_place_actor(&mut w2, 112, 120, 100.0, 100.0);
-    w2.handle_cast_skill(MECH_ACTOR.into(), "flame-1".into(), 1_121_015, Some(1), Some(0));
+    // ③ 乙：**burn 窗不给自增益窗**。`1121015 烈焰翔斬` 已接进
+    // `PHYSICAL_AREA_ATTACKS`（2026-09-24），所以这里走的是**真实施法路径**：
+    // 施法必须成功、DoT 必须真的挂上，而 `time=45/60`（＝`dotTime` 的第二份书写）
+    // **不许**变成任何自增益窗。
+    let (mut w2, mut rx2) = mech_bundled_world(vec![mech_spawn("mob-burn", 100.0)]);
+    // 满级 `prop=100`（1 级只有 42）⇒ DoT 真挂上不是靠掷骰蒙对。
+    mech_learn(&mut w2, &[(1_121_015, 30)]);
+    mech_place_actor(&mut w2, 112, 200, 100.0, 100.0);
+    w2.handle_cast_skill(MECH_ACTOR.into(), "flame-1".into(), 1_121_015, Some(30), Some(0));
     let out = chapter_drain(&mut rx2);
+    assert!(
+        out.iter()
+            .any(|m| m["type"] == "skillResult" && m["success"] == true),
+        "1121015 已在范围表里，施法不该被拒：{out:?}"
+    );
     let player = w2.players.get(MECH_ACTOR).expect("joined actor");
     assert!(
         !player.status.buff_active(1_121_015),
-        "负面状态窗的 `time` 不许被误接成自增益窗"
+        "`time` 逐级等于 `dotTime` 是 burn 窗，不许被误接成自增益窗"
     );
     assert!(
         player.status.buff_map().is_empty(),
-        "伪造的负面窗请求被挡：不得冒出任何自增益窗口：{out:?}"
+        "burn 窗不许冒出任何自增益窗口：{out:?}"
     );
+    let target = mech_monster(&w2, "mob-burn");
+    assert_eq!(
+        w2.mechanics.dot_count(),
+        1,
+        "burn 窗那条 DoT 必须真的挂上去（`dot`/`dotInterval`/`dotTime`/`prop` 四件套齐备）"
+    );
+    assert!(
+        w2.mechanics.dot(MECH_ACTOR, 1_121_015, &target).is_some(),
+        "DoT 挂在 1121015 这条技能上，不是别的"
+    );
+}
+
+// ── ⑥′ 源 `time` 一字段三语义，分级只有**一个**派生点（2026-09-24 收口）────────
+// 收口前「有没有 `time`」＝「有没有自增益窗」，那句判据内联在 `AttackPlan::of` 里。
+// 它有一条现成的反例就在目录里：`1121015 烈焰翔斬` 的 `time` 逐级等于 `dotTime`
+// （源里写的是同一个表达式 `45+d(x/2)`），那是 **burn 窗**，不是自增益窗——一接进
+// 范围表就会凭空开出 45 秒（满级 60 秒）的窗。
+//
+// 这条用例钉三件事，缺一件「收口」就只是改了一句注释：
+//   ① burn 窗的三条**都不派生**自增益窗，而它们的 DoT 参数照旧只认 `dotTime`；
+//   ② 唯一纯自增益载体 `1221052 神之滅擊` 的值逐字不变（S1 行为零回归）；
+//   ③ 没有 `time` 的技能照旧不给窗。
+// 「三条是哪些」不写死在这里——由门禁从源表独立重算（`dotWindowIds`）并双向断言，
+// 这里只验**行为**：判据写在门禁，消费点写在 `mechanics.rs`，两处任缺其一当场红。
+#[test]
+fn mech_source_time_has_three_meanings_with_one_derivation_point() {
+    let window =
+        |skill_id: u32| super::mechanics::self_buff_window_ms(&mech_level_bundled(skill_id));
+
+    // ① burn 窗：`time` 与 `dotTime` 逐级相等 ⇒ 那个数是 DoT 时长的第二份书写。
+    for skill_id in [1_121_015_u32, 212_1006, 212_1011] {
+        let level = mech_level_bundled(skill_id);
+        assert_eq!(
+            level.time, level.dot_time,
+            "{skill_id} 的 `time` 与 `dotTime` 不再是同一个数——burn 窗判据的前提变了"
+        );
+        assert!(
+            level.dot.unwrap_or(0) > 0,
+            "{skill_id} 得带 `dot` 才谈得上 burn 窗（否则 `time` 另有语义）"
+        );
+        assert_eq!(
+            window(skill_id),
+            None,
+            "{skill_id} 的 `time` 是 burn 窗（＝`dotTime` 的第二份书写）⇒ 不许派生自增益窗"
+        );
+    }
+    // ② 自增益窗：既不是 burn 窗、源里也只有 `time`（无 `dot*`）⇒ 照 S1 派生，值不变。
+    assert_eq!(
+        window(122_1052),
+        Some(10_000),
+        "1221052 神之滅擊 是唯一纯自增益 `time` 载体，S1 的行为必须逐字不变"
+    );
+    // ③ 没有 `time` 的技能照旧不给窗（这一层是「字段在不在」，与上面的语义层分开）。
+    assert_eq!(window(1_121_008), None);
 }
 
 // ── ⑦ S5 召唤通用化（一条队列服务三件召唤）──────────────────────

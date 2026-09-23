@@ -625,13 +625,25 @@ const SKILL_SAVAGE_BLUNT: u32 = 4001013;
 // 自动要求进表。删行不是免罪符——`check_tms273_damage_pipeline.cjs::§3f` 会**反向断言**
 // 这九个字段在 Rust 侧真的有读取点（`mechanics.rs` 里的 `level.<字段>`），
 // 没有消费点的「已实现」会被抓出来；`prop` / `subTime` 还要配着见证字段一起出现才算被消费。
-// **没进的 25 条**（带机制标记 11 条或 hidden 14 条，逐条由门禁从源表重算并钉住），
+// **没进的 23 条**（带机制标记 9 条或 hidden 14 条，逐条由门禁从源表重算并钉住），
 // 以及「有 `damage` 却无贴身框」的 53 条、纯增益/召唤/治疗的 55 条、纯被动的 162 条，
 // 都由 `scripts/check_tms273_damage_pipeline.cjs` 的「物理线重算段」独立求出并断言
 // ——判据**不读这张表**，表只是被断言的对象。
+// ⚠️ 这里原先写「25 条（11 + 14）」是**注释计数与源不符**（实测 10 + 14 = 24）：
+// 计数注释也是判据，改判据时必须从源重算一遍。现由门禁的
+// `PHYSICAL_UNWIRED_MECHANISM` / `PHYSICAL_UNWIRED_HIDDEN` 两张清单双向钉住
+// （每条豁免项都必须在清单里，清单里每一条都必须真被豁免），计数由此可复核。
 const SKILL_BRAVE_SLASH: u32 = 1111010;
 const SKILL_ULTIMATE_THRUST_HERO: u32 = 1111012;
 const SKILL_RAGING_BLOW: u32 = 1121008;
+// 英雄四转 `1121015 烈焰翔斬`：源 `common` 是 damage/mobCount/attackCount/lt|rb +
+// DoT 三件套（`dot` 75+3x、`dotInterval` 2、`dotTime` 45+d(x/2)）+ `prop` 40+2x，
+// 再加一个 `time`——而那个 `time` **逐级等于 `dotTime`**（源码写的是同一个表达式），
+// 即它是同一条 DoT 时长的第二份书写（burn 窗），不是自增益窗。
+// 它因此曾被门禁的「`time` 是 burn/负面/挑衅状态窗」人工名单挡住；2026-09-24 把
+// 「`time` 与 `dotTime` 逐级相等」立成**可从源独立重算**的判据后，它按直接伤害 + DoT 接。
+// 派生点只有一处：`mechanics.rs::self_buff_window_ms`（不许再内联读 `level.time`）。
+const SKILL_INCISING_FLAME: u32 = 1121015;
 const SKILL_HYPER_RAGING_BLOW: u32 = 1121052;
 const SKILL_DIVINE_SWING: u32 = 1201015;
 const SKILL_ULTIMATE_THRUST_PALADIN: u32 = 1211012;
@@ -673,7 +685,7 @@ const SKILL_PHANTOM_ILLUSION: u32 = 3111015;
 const SKILL_ASSASSINATE: u32 = 4221014;
 const SKILL_UNDEAD_REBIRTH_NIGHT_LORD: u32 = 4121016;
 const SKILL_UNDEAD_REBIRTH_SHADOWER: u32 = 4221010;
-const PHYSICAL_AREA_ATTACKS: [u32; 38] = [
+const PHYSICAL_AREA_ATTACKS: [u32; 39] = [
     SKILL_SWORD_SLASH,
     SKILL_RUSH_ATTACK,
     SKILL_RISING_DRAGON,
@@ -683,6 +695,7 @@ const PHYSICAL_AREA_ATTACKS: [u32; 38] = [
     SKILL_BRAVE_SLASH,
     SKILL_ULTIMATE_THRUST_HERO,
     SKILL_RAGING_BLOW,
+    SKILL_INCISING_FLAME,
     SKILL_HYPER_RAGING_BLOW,
     SKILL_DIVINE_SWING,
     SKILL_ULTIMATE_THRUST_PALADIN,

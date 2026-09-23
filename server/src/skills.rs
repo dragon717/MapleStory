@@ -797,11 +797,12 @@ impl World {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
-                // S1 施放窗：自增益技能（物理线唯一带 `time` 非零的当前是
+                // S1 施放窗：自增益技能（物理线唯一带**自增益** `time` 的是
                 // `1221052 神之滅擊`）施放时给施法者自己开一段 buff 窗，复用
                 // `player_status` 既有唯一时钟，到期由既有清理点自动收回。
-                // 负面状态窗 / 召唤存活时长是 `time` 的另外两种语义，仍被门禁挡在表外，
-                // 不会走到这里。
+                // **`time` 的三义分级只此一处**（`mechanics.rs::self_buff_window_ms`）：
+                // burn 窗（`time` 逐级等于 `dotTime`，如 `1121015 烈焰翔斬`）返回 `None`，
+                // 负面状态窗 / 召唤存活时长仍被门禁挡在表外 ⇒ 都不会走到这里。
                 if let Some(window_ms) = AttackPlan::of(&level).self_buff_window_ms {
                     if let Some(player) = self.players.get_mut(&id) {
                         player.status.apply_buff(other, window_ms, self.tick, Release::None);

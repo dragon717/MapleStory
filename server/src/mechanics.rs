@@ -52,6 +52,11 @@
 //! - **召唤物 × DoT**：召唤物的周期打击**就是**范围管线的一次结算，所以源里挂在召唤书
 //!   上的 `dot/dotInterval/dotTime`（召喚火魔有这一组）在召唤物这边**照常被消费**——
 //!   不存在「召唤物的跳伤不接」这回事（收口前的 PLAN 与注释都这么写，是错的）。
+//! - **源 `time` 一字段三语义**（2026-09-24 收口）：自增益窗（S1）/ burn 窗
+//!   （＝同一条 DoT 时长的第二份书写）/ 负面状态窗与召唤存活时长。三义的分级只有一处
+//!   ——[`self_buff_window_ms`]；改前它内联在 [`AttackPlan::of`] 里且只看「有没有 `time`」
+//!   ⇒ 一旦把 `1121015 烈焰翔斬`（`time == dotTime`）接进范围表，它会凭空开出 45 秒
+//!   自增益窗。别在别处再读一次 `level.time` 做窗口：那会立刻长出第二份账。
 
 use super::*;
 
@@ -94,6 +99,49 @@ pub(super) const SUMMON_LIFETIME_FALLBACK_MS: u64 = 60_000;
 /// `4000`（`2221012 冰鋒刃`）／`10000`（`1121055`）——中间**没有重叠区**。
 pub(super) const SUMMON_LIFETIME_MS_THRESHOLD: i64 = 1_000;
 
+/// 施放时给**施法者自己**开的自增益窗时长（毫秒）——**唯一派生点**。
+///
+/// 源 `time` 是**一个字段三种语义**，而它只有一处能定下来，就是这里：
+///
+/// * **burn 窗** ⇒ [`is_dot_window`] 为真时**不派生**（返回 `None`）。同一条技能里
+///   `time` 与 `dotTime` 逐级相等、且 `dot` 有取值 ⇒ 那个数就是同一条 DoT 时长的
+///   第二份书写，源里没有第二个「窗」可言。本包实现的是 DoT 本身，时长只认
+///   `dotTime`；再按 `time` 开一个自增益窗就是把同一件事记两遍。
+///   （`1121015 烈焰翔斬` 是这条规则解出来的物理线唯一一条；法师侧的
+///   `2121006 火焰之襲` / `2121011 炙焰毒火` 同形。）
+/// * **自增益窗**（S1，2026-09-22）⇒ `time > 0` 且不是 burn 窗。当前唯一载体是
+///   `1221052 神之滅擊`。
+/// * **负面状态窗 / 召唤存活时长** ⇒ 由门禁挡在攻击表外（`NEGATIVE_STATUS_TIME_ATTACKS`）
+///   或由 [`summon_lifetime_ms`] 读，**都走不到这里**；本函数对它们给不出正确答案，
+///   所以门禁必须继续挡着——这也是判据与行为必须同源的原因。
+///
+/// 改前这里是 `AttackPlan::of` 里**内联**的 `level.time.filter(> 0).map(× 1000)`，
+/// 即「有 `time` 就有窗」；`1121015` 接进范围表后它会凭空开出 45 秒（满级 60 秒）的
+/// 自增益窗，而源里那是 burn 窗。
+pub(super) fn self_buff_window_ms(level: &MageLevel) -> Option<u64> {
+    let seconds = level.time.filter(|seconds| *seconds > 0)?;
+    if is_dot_window(level) {
+        return None;
+    }
+    Some((seconds as u64).saturating_mul(1_000))
+}
+
+/// 源 `time` 是不是**同一条 DoT 时长的第二份书写**（＝ burn 窗）。
+///
+/// 判据是**数值的逐级恒等**，不是「见过 `dotTime` 这个字段」：
+/// `dot > 0` ∧ `dotTime` 在场 ∧ `time` 在场 ∧ **两者同一个数**。
+/// 逐级相等是巧合解释不了的（`1121015` 从 45 长到 60 时 `dotTime` 同步长到 60，
+/// 而 `2111003 致命毒霧` 的 `time=5/6` 配 `dotTime=4/4` 就**不**相等 ⇒ 另有所指，
+/// 本函数对它维持收口前的行为，不替源编一个语义）。
+///
+/// 全书 504 条里满足它的**恰好 3 条**（门禁从源独立重算并双向断言这个集合）。
+fn is_dot_window(level: &MageLevel) -> bool {
+    let Some(dot_time) = level.dot_time else {
+        return false;
+    };
+    level.dot.map(|dot| dot > 0).unwrap_or(false) && level.time == Some(dot_time)
+}
+
 /// 一次施法需要经过哪几层机制，以及每层的参数。**全部从源字段派生**：
 /// 字段在不在、值是多少决定计划长什么样，没有按技能 id 写死的分支。
 #[derive(Clone, Default)]
@@ -105,8 +153,9 @@ pub(super) struct AttackPlan {
     pub second: Option<SecondHitPlan>,
     /// 施放时给**施法者自己**开的自增益窗时长（毫秒，源自源 `time` 秒 × 1000）。
     ///
-    /// 只有带 `time` 的**自增益**技能会消费它（S1 施放窗）；负面状态窗 / 召唤存活时长
-    /// 是 `time` 的另外两种语义，由门禁单独挡在表外，不在这里消费。
+    /// 只有带 `time` 的**自增益**技能会消费它（S1 施放窗）；`time` 的另外两种语义
+    /// （burn 窗＝`dotTime` 的第二份书写、负面状态窗 / 召唤存活时长）都不在这里消费，
+    /// 分级写在唯一派生点 [`self_buff_window_ms`] 里。
     pub self_buff_window_ms: Option<u64>,
 }
 
@@ -169,17 +218,17 @@ impl AttackPlan {
             }),
             _ => None,
         };
-        // 自增益施放窗：源 `time`（秒）> 0 才派生。与既有自增益 buff 同一约定
-        // （`activate_hyper_adventurer` 及 DoT 的 `dotTime` 都是秒 × 1000）。
-        let self_buff_window_ms = level
-            .time
-            .filter(|seconds| *seconds > 0)
-            .map(|seconds| (seconds as u64).saturating_mul(1_000));
+        // 自增益施放窗：源 `time`（秒）> 0 才派生，且**同一份派生只此一处**——
+        // `time` 的三义分级写在 [`self_buff_window_ms`] 里，这里不许再读一次
+        // （再读一次就又长出一份账，burn 窗会被误接成自增益窗）。
+        // 秒 × 1000 的约定与既有自增益 buff（`activate_hyper_adventurer`）及
+        // DoT 的 `dotTime` 一致。
+        let window_ms = self_buff_window_ms(level);
         Self {
             segment_delay_ms: delays,
             dot,
             second,
-            self_buff_window_ms,
+            self_buff_window_ms: window_ms,
         }
     }
 

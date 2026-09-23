@@ -537,11 +537,52 @@ for (const [field, paired] of Object.entries(PHYSICAL_MECHANISM_PAIRED)) {
     );
   }
 }
+/**
+ * 源 `time` 是**一字段三语义**，而它的分级必须是**可从源独立重算**的判据，不能靠人工名单
+ * （人工名单只能登记「本包给不出语义」的那一类）。三义：
+ *
+ * 1. **burn 窗** —— 同一技能里 `time` 与 `dotTime` **逐级都非空、都 > 0、且相等**
+ *    且 `dot` 有取值。那个数就是同一条 DoT 时长的第二份书写（本包实现的是 DoT 本身，
+ *    时长只认 `dotTime`，见 `mechanics.rs::AttackPlan::of`）⇒ **不挡**，而且**不许**被
+ *    派生成自增益窗（`mechanics.rs::self_buff_window_ms` 的 `is_dot_window` 分支）。
+ *    **逐级恒等**是巧合解释不了的：`time` 从 45 长到 60 时 `dotTime` 同步长到 60，
+ *    而全目录里带 `time` ∧ 带 `dotTime` 的另外 6 条**没有一条**有任何一级相等
+ *    （`2111003 致命毒霧` 是 `time=5/6` 配 `dotTime=4/4`）⇒ 判据没有灰带。
+ * 2. **自增益窗**（S1，2026-09-22 已实现）—— 既不是 burn 窗、也不在下表 ⇒ 不挡。
+ * 3. **负面状态窗** —— `time` 既不等于 `dotTime`、源里又看不出是自增益 ⇒ 本包**给不出
+ *    它的语义** ⇒ 按人工登记挡住（删掉一行 = 宣布该语义已实现，届时门禁立刻要求它进表）。
+ */
+const dotWindowIds = Object.entries(mageSkills.skills)
+  .filter(([, skill]) => {
+    const levels = skill.levels ?? [];
+    return levels.length > 0 && levels.every(level =>
+      (level.dot ?? 0) > 0
+      && level.dotTime !== undefined && level.time !== undefined
+      && (level.time ?? 0) > 0
+      && level.time === level.dotTime);
+  })
+  .map(([id]) => id)
+  .sort();
 const physicalBranchSkillIds = Object.entries(mageSkills.skills)
   .filter(([id]) => PHYSICAL_BRANCHES.has(Math.floor(Number(id) / 10000 / 10)))
   .map(([id]) => id);
 const physicalAttackExpected = [];
 const physicalAttackExcused = {};
+/** 「没接执行链」的两张清单（从源重算得到，逐条双向断言）。
+ *  它们是**注释里那两句计数**（`world.rs` 与客户端 `view.ts` 的「没进的 N 条」）的
+ *  可复核来源——计数注释也是判据，写的时候必须能从源重算。 */
+const physicalUnwiredMechanism = [];
+const physicalUnwiredHidden = [];
+/**
+ * `time` 的**第三种语义**：既不等于 `dotTime`（不是 burn 窗），源里又看不出它是自增益窗。
+ * 源只给出「有这么一个窗口」，给不出它是什么（负面状态 / 减速 / 挑衅 / 独立子窗口…）
+ * ⇒ 本包不接，人工登记「哪一条语义没核定」。**删掉一条 = 宣布该语义已实现**，
+ * 届时门禁立刻要求它进表。`1121015 烈焰翔斬` 曾在此列，2026-09-24 由 burn 窗判据接走。
+ */
+const NEGATIVE_STATUS_TIME_ATTACKS = {
+  '3121052': '波紋衝擊：time=20 既不是 burn 窗（源里没有 `dotTime` 与它相等，也没有 `dot*`），也不是自增益窗（带 `s=-30` 状态字段）⇒ 语义未核定，本包不接',
+  '4121017': '挑釁契約：time=70+d(x/4) 同上（带 `s2/u2/w2` 状态字段、无 `dot*`），是给怪的负向窗口 ⇒ 语义未核定，本包不接',
+};
 for (const id of physicalBranchSkillIds) {
   const skill = mageSkills.skills[id];
   const fields = new Set(skill.levels.flatMap(level => Object.keys(level)));
@@ -552,21 +593,18 @@ for (const id of physicalBranchSkillIds) {
     continue; // 不是「带贴身框的直接攻击」，不在本段的判据范围内（另有 53/55/162 条分类统计）
   }
   if (skill.hidden) {
+    physicalUnwiredHidden.push(id);
     physicalAttackExcused[id] = { why: `${skill.name}：源里是 \`hidden\` 节点（由职业规则自动启用），玩家点不到 —— 施法入口在 \`skill_hidden\` 就拒了，接进范围表没有意义。` };
     continue;
   }
-  // S1 自增益窗（`time` 已实现）之后，源里 `time` 还有两种**不能**用同一个 judge 的语义：
-  // 负面状态窗（打中怪后的眩晕 / 烙印 / 挑衅持续时间）与召唤存活时长（归 S5）。
-  // `time` 只是同一字段，源无法仅凭它自动区分三义——沿用 `PHYSICAL_ONE_TURN_ATTACKS`
-  // 的「人工豁免名单」先例，按源的负面/召唤标注字段（s/s2/u2/w2/s/u/w/z/subTime 等）
-  // 逐一登记并给理由；删掉一条 = 宣布对应语义已实现，届时门禁立刻要求它进表。
-  const NEGATIVE_STATUS_TIME_ATTACKS = {
-    '1121015': '烈焰翔斬：time=45 是 burn 窗口（与已实现的 dotTime=45 同一时长、且带 dot*），不是自增益窗',
-    '3121052': '波紋衝擊：time=20 是打中怪后的负面状态窗（带 s=-30 状态字段），不是自增益窗',
-    '4121017': '挑釁契約：time=70 是给怪的挑衅/负向状态窗（带 s2/u2/w2/s/u/w/z 状态字段），不是自增益窗',
-  };
-  const negativeWhy = NEGATIVE_STATUS_TIME_ATTACKS[id];
+  // 语义 ①：`time` 是 **burn 窗**（＝同一条 DoT 时长的第二份书写）⇒ 不挡，继续往下走
+  // 机制组判据。`1121015 烈焰翔斬` 就是这一支——它原先被人工名单按住，收了判据才进来。
+  // 注意这里是「不挡」而**不是** `continue`：`continue` 会把它同时挡在期望集之外，
+  // 判据就成了「换个名字继续挡」。
+  const isDotWindow = dotWindowIds.includes(id);
+  const negativeWhy = isDotWindow ? undefined : NEGATIVE_STATUS_TIME_ATTACKS[id];
   if (negativeWhy) {
+    physicalUnwiredMechanism.push(id);
     physicalAttackExcused[id] = { why: `${skill.name}：` + negativeWhy };
     continue;
   }
@@ -590,6 +628,7 @@ for (const id of physicalBranchSkillIds) {
       ? `${marker}（机制组 \`${group}\`）孤立出现：见证字段 ${paired.witness.join(' / ')} 都不在场`
         + ` ⇒ ${paired.why}`
       : `${marker}（机制组 \`${group}\`）⇒ ${PHYSICAL_MECHANISM_FIELDS[marker]}。`;
+    physicalUnwiredMechanism.push(id);
     physicalAttackExcused[id] = { why: `${skill.name}：带源字段 ${detail}` };
     continue;
   }
@@ -603,8 +642,11 @@ physicalAttackExpected.sort();
 //   ③ 配对消费成立：`4121016` / `4221010 穢土轉生`（`prop` 配 `dot*`）必须进期望集；
 //   ④ 配对消费**不**成立：`4211002 瞬影殺`（孤立 `prop`）、`4221052 暗影霧殺`（孤立
 //      `subTime`）必须仍被挡住——否则「配对」这条判据等于把两个字段一起放过。
-//   ⑤ S1 自增益窗已实现：`1221052 神之滅擊`（唯一纯自增益 `time` 载体）必须进期望集；
-//      `1121015/3121052/4121017`（`time` 是 burn/负面/挑衅状态窗）必须仍被挡在表外。
+//   ⑤ S1 自增益窗已实现：`1221052 神之滅擊`（唯一纯自增益 `time` 载体）必须进期望集。
+//   ⑥ **burn 窗（2026-09-24 收口）**：`1121015 烈焰翔斬`（`time` 逐级等于 `dotTime`）
+//      必须进期望集——它此前被人工名单按住，靠的正是「字段在不在」的反面判据；
+//      而 `3121052/4121052…` 那两条 `time` **给不出语义**的必须仍被挡在表外。
+//      `dotWindowIds` 的成员集合本身也双向断言（既不许漏、也不许多）。
 assert.ok(
   physicalAttackExpected.includes('1221009'),
   '1221009 騎士衝擊波 的 time/prop 在源里恒为 0，不该被机制标记挡住（判据退回「看字段在不在」）',
@@ -626,10 +668,45 @@ assert.ok(
   physicalAttackExpected.includes('1221052'),
   '1221052 神之滅擊 的 `time` 是**自增益窗**（S1 已实现），必须进期望集',
 );
-for (const id of ['1121015', '3121052', '4121017']) {
+assert.deepEqual(
+  dotWindowIds, ['1121015', '2121006', '2121011'],
+  '源里「`time` 与 `dotTime` 逐级非空、> 0 且相等」的技能集合变了——这一组是 burn 窗判据的'
+    + '唯一例证，改动它必须同时改 `mechanics.rs::is_dot_window` 的行为与 Rust 侧验收'
+    + '（多一条 ≙ 新技能会被静默接进来；少一条 ≙ 已接的技能会被静默误派生成自增益窗）',
+);
+assert.ok(
+  physicalAttackExpected.includes('1121015'),
+  '1121015 烈焰翔斬 的 `time` 逐级等于 `dotTime`（源里是同一个表达式）⇒ 它是 burn 窗、'
+    + '即已实现的 DoT 时长的第二份书写，不该再被挡住',
+);
+for (const id of ['3121052', '4121017']) {
   assert.ok(
     !physicalAttackExpected.includes(id),
-    `${id}（time=burn/负面/挑衅状态窗）在 S1 自增益窗实现后不得被一起放出来`,
+    `${id} 的 \`time\` 既不是 burn 窗也不是自增益窗（语义未核定）⇒ 不得被一起放出来`,
+  );
+}
+// **两侧判据不许同时命中同一条**：burn 窗分支在循环里先判（它是源派生的、优先级更高），
+// 人工登记若也收了同一条，登记就会被**静默 precedence 掉**——改判据的人以为自己在挡，
+// 实际上没挡。这不是「冗余」，是两条判据给出了相反的结论。
+for (const id of Object.keys(NEGATIVE_STATUS_TIME_ATTACKS)) {
+  assert.ok(
+    !dotWindowIds.includes(id),
+    `${id} 同时被「burn 窗（源派生）」与「语义未核定（人工登记）」命中——`
+      + '源派生的那一支在循环里先判，人工登记会被静默忽略',
+  );
+}
+// 反向断言：`time` 是 burn 窗的每一条都必须**真的接在某张攻击表里**（物理线进
+// `PHYSICAL_AREA_ATTACKS`、法师分支进 `BRANCH_AREA_ATTACKS`）。
+// 「判据放行」与「真的接线」是两件事：只放行不接线 = 判据替一个不存在的实现背书。
+const branchWired = idsForArray('BRANCH_AREA_ATTACKS');
+for (const id of dotWindowIds) {
+  const wired = PHYSICAL_BOOKS.has(Math.floor(Number(id) / 10000))
+    ? idsForArray('PHYSICAL_AREA_ATTACKS').includes(id)
+    : branchWired.includes(id);
+  assert.ok(
+    wired,
+    `${id} 的 \`time\` 已被判为 burn 窗（＝DoT 时长的第二份书写），但它不在任何攻击表里`
+      + '——判据放行了却没人接线，等于用一个不存在的实现换掉了一条人工豁免',
   );
 }
 // 反向断言：登记为「进不了表」的每一条都必须**真的没有** `world.rs` 常量——
@@ -642,6 +719,33 @@ for (const [id, entry] of Object.entries(physicalAttackExcused)) {
       + '接了路径就必须把它放进 PHYSICAL_AREA_ATTACKS，或把这条登记删掉',
   );
 }
+// 「没接执行链」的两张清单（从源重算）——它们是 `world.rs` 与客户端 `view.ts` 注释里
+// 那两句「没进的 N 条」的唯一可复核来源。**计数注释也是判据**：写的时候必须能从源重算，
+// 这里就把两份清单钉住，注释里的数再漂移就会与它们对不上（实测曾写「25 条（11 + 14）」，
+// 而源算出来是 24 条（10 + 14））。
+const PHYSICAL_UNWIRED_MECHANISM = [
+  // 孤立 `prop`（触发骰没有已实现的见证字段）
+  '1201013', '1211018', '1221019', '1301014', '4211002',
+  // 孤立 `subTime`（独立子窗口 / 召唤周期，本包没有第二个消费点）
+  '3111013', '4221052',
+  // `time` 语义未核定（既非 burn 窗也非自增益窗）
+  '3121052', '4121017',
+];
+const PHYSICAL_UNWIRED_HIDDEN = [
+  '1120017', '1221020', '1221021', '1311019', '1321024', '3111016', '3211017',
+  '3221019', '3221023', '3221024', '4101014', '4121020', '4121021', '4221016',
+];
+assert.deepEqual(
+  [...physicalUnwiredMechanism].sort(), [...PHYSICAL_UNWIRED_MECHANISM].sort(),
+  `带机制标记而没接执行链的是 ${[...physicalUnwiredMechanism].sort().join('/')}，`
+    + `清单里登记的是 ${[...PHYSICAL_UNWIRED_MECHANISM].sort().join('/')}——`
+    + '接线／新机制落地时两边必须一起改（注释里的「9 条」由此可复核）',
+);
+assert.deepEqual(
+  [...physicalUnwiredHidden].sort(), [...PHYSICAL_UNWIRED_HIDDEN].sort(),
+  `源里 \`hidden\` 的攻击技能是 ${[...physicalUnwiredHidden].sort().join('/')}，`
+    + `清单里登记的是 ${[...PHYSICAL_UNWIRED_HIDDEN].sort().join('/')}`,
+);
 // 双向：分支书里的每一条期望成员都必须在表里，且表里**分支书**的成员恰好就是期望集合
 // （一转 6 条是另一段历史，单独豁免给 `PHYSICAL_ONE_TURN_ATTACKS`）。
 const PHYSICAL_ONE_TURN_ATTACKS = ['1001005', '1001010', '1001011', '4001334', '4001344', '4001013'];
@@ -734,6 +838,51 @@ for (const field of Object.keys(PHYSICAL_MECHANISM_FIELDS)) {
       + '要么把它从「未实现」表里删掉（= 宣布已实现），要么把读取点去掉；两边不能同时成立',
   );
 }
+// 3g′. 源 `time` 的**三义分级只有一个派生点**（2026-09-24 收口）。
+//      收口前它是 `AttackPlan::of` 里内联的一行「有 `time` 就有窗」，于是
+//      `1121015 烈焰翔斬` 一接进范围表就会凭空开出 45 秒自增益窗——而源里那是 burn 窗。
+//      断言分三层，缺一层都会让「收口」退化成「改了一句注释」：
+//      ① 唯一派生点 `mechanics.rs::self_buff_window_ms` 存在，且**真的按 burn 窗分级**
+//         （函数体里出现 `is_dot_window(level)`）；
+//      ② 分级函数 `is_dot_window` 真的读源三件套（`dot` / `dotTime` / `time`）；
+//      ③ `AttackPlan::of` **经过**派生点，且自己不再读一次 `level.time`。
+//      第 ③ 条是「同一份账不许写两遍」在文本层的落点：`of` 里再读一次，行为就会与
+//      派生点分叉（burn 窗被误接成自增益窗，而派生点算出来的值恰好是对的）。
+const windowFn = /fn self_buff_window_ms\(level: &MageLevel\) -> Option<u64> \{([\s\S]*?)\n\}/
+  .exec(mechanicsSrc);
+assert.ok(
+  windowFn,
+  'mechanics.rs 里读不到唯一派生点 `fn self_buff_window_ms(level: &MageLevel) -> Option<u64>`'
+    + '——`time` 的三义分级又散回调用点了',
+);
+assert.ok(
+  /is_dot_window\(level\)/.test(windowFn[1]),
+  '唯一派生点没有按 burn 窗分级：函数体里没有 `is_dot_window(level)` ⇒ `time` 一有值就会'
+    + '被派生成自增益窗（`1121015` 会凭空开出 45 秒窗）',
+);
+const dotWindowFn = /fn is_dot_window\(level: &MageLevel\) -> bool \{([\s\S]*?)\n\}/.exec(mechanicsSrc);
+assert.ok(dotWindowFn, 'mechanics.rs 里读不到 `fn is_dot_window`——burn 窗判据没有实现点');
+for (const snake of ['dot', 'dot_time', 'time']) {
+  assert.ok(
+    new RegExp(`level\\s*\\.\\s*${snake}\\b`).test(dotWindowFn[1]),
+    `burn 窗判据没有读源字段 \`level.${snake}\`——判据必须从源独立成立，不是照抄技能名单`,
+  );
+}
+const ofStart = mechanicsSrc.indexOf('pub(super) fn of(level: &MageLevel) -> Self {');
+const ofEnd = mechanicsSrc.indexOf('pub(super) fn flying_segments');
+assert.ok(
+  ofStart >= 0 && ofEnd > ofStart,
+  'mechanics.rs 里读不到 `AttackPlan::of` 的形状——「经过唯一派生点」这条断言不再有效',
+);
+const ofBody = mechanicsSrc.slice(ofStart, ofEnd);
+assert.ok(
+  /self_buff_window_ms\(level\)/.test(ofBody),
+  '`AttackPlan::of` 没有经过唯一派生点 `self_buff_window_ms(level)`',
+);
+assert.ok(
+  !/level\s*\.\s*time\b/.test(ofBody),
+  '`AttackPlan::of` 自己又读了一次 `level.time`——同一份账写两遍，burn 窗会被误接成自增益窗',
+);
 // 四支柱里需要**跨拍存活**的两条状态必须同时具备「定义」与「在世界拍里被调用」：
 // 只有定义没有调用 = 状态永远不推进（静默失效，配置看起来完全自洽）；
 // 只有调用没有定义则根本编译不过，所以缺的只会是前者。
@@ -1126,6 +1275,16 @@ console.log(
 );
 console.log(
   `  旧式乘算：0 处（玩家受伤侧按边界正向登记，未纳入管线）`,
+);
+console.log(
+  `  源 \`time\` 三义：burn 窗（\`time\` 逐级等于 \`dotTime\`，不派生自增益窗）=`
+  + `${dotWindowIds.join('/')}；自增益窗 =${physicalAttackExpected.includes('1221052') ? '1221052' : '—'}`
+  + `；语义未核定（仍挡）=${Object.keys(NEGATIVE_STATUS_TIME_ATTACKS).join('/')}`,
+);
+console.log(
+  `  物理线未接执行链：带机制标记 ${physicalUnwiredMechanism.length} 条（`
+  + `${physicalUnwiredMechanism.sort().join('/')}）+ hidden ${physicalUnwiredHidden.length} 条`
+  + ` ＝ 合计 ${physicalUnwiredMechanism.length + physicalUnwiredHidden.length} 条`,
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `
