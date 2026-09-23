@@ -146,7 +146,7 @@ impl World {
         player.teleport_boost_enabled = false;
         player.adaptation_active = false;
         player.adaptation_charges = 0;
-        player.summon = None;
+        player.summons.clear();
         refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         self.send_portal_result(
             &id,
@@ -341,7 +341,7 @@ impl World {
         candidate.teleport_boost_enabled = false;
         candidate.adaptation_active = false;
         candidate.adaptation_charges = 0;
-        candidate.summon = None;
+        candidate.summons.clear();
         refresh_player_derived(&self.gameplay, &self.mage_skills, &mut candidate);
 
         let profile = profile_from_state(

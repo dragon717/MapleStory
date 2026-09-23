@@ -107,6 +107,21 @@ fn third_job_npc_requires_catalog_and_persists_transfer() {
         .is_some_and(|options| options.iter().any(|option| option["index"] == 3)));
 }
 
+/// 球形闪电在通用召唤队列里的实例。2026-09-23（S5 通用化）前它独占 `Player::summon`
+/// 单槽，所以用例直接读那个字段；现在按技能从同一条队列里筛出来，断言真值一字未改。
+fn sphere(world: &World) -> Option<Summon> {
+    world.players["third"]
+        .summons
+        .iter()
+        .find(|summon| {
+            matches!(
+                summon.skill_id,
+                SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+            )
+        })
+        .cloned()
+}
+
 #[test]
 fn third_sphere_and_adaptation_are_idempotent_and_bounded() {
     let path = std::env::temp_dir().join(format!("maple-third-skill-{}.sqlite3", auth::random_id()));
@@ -123,7 +138,7 @@ fn third_sphere_and_adaptation_are_idempotent_and_bounded() {
     world.handle_cast_skill("third".into(), "sphere".into(), SKILL_THUNDER_SPHERE, Some(1), Some(0));
     let first = chapter_drain(&mut rx);
     assert!(first.iter().any(|message| message["type"] == "skillResult" && message["success"] == true));
-    let moving = world.players["third"].summon.clone().expect("moving sphere");
+    let moving = sphere(&world).expect("moving sphere");
     let target_id = world.monsters.keys().next().unwrap().clone();
     { let target = world.monsters.get_mut(&target_id).unwrap();
       target.state.hp = 100_000; target.state.max_hp = 100_000;
@@ -135,20 +150,20 @@ fn third_sphere_and_adaptation_are_idempotent_and_bounded() {
     assert_eq!(100_000 - hp_after_pulse, 3 * (magic_attack * 331 / 100).max(1), "level1 normal mob: (256+75)% x3");
     world.step_summons();
     assert_eq!(world.monsters[&target_id].state.hp, hp_after_pulse, "same tick cannot pulse twice");
-    let moving = world.players["third"].summon.clone().unwrap();
+    let moving = sphere(&world).unwrap();
     let mp_after_first = world.players["third"].state.mp;
     world.handle_cast_skill("third".into(), "sphere".into(), SKILL_THUNDER_SPHERE, Some(1), Some(0));
     let replay = chapter_drain(&mut rx);
     assert!(replay.iter().any(|message| message["type"] == "skillResult" && message["success"] == true));
     assert_eq!(world.players["third"].state.mp, mp_after_first);
-    assert_eq!(world.players["third"].summon.as_ref().unwrap().summon_id, moving.summon_id);
+    assert_eq!(sphere(&world).unwrap().summon_id, moving.summon_id);
 
     world.players.get_mut("third").unwrap().attack_until = 0;
     world.handle_cast_skill("third".into(), "anchor".into(), SKILL_THUNDER_SPHERE, Some(1), Some(1));
     chapter_drain(&mut rx);
-    let anchored = world.players["third"].summon.clone().expect("anchored sphere");
+    let anchored = sphere(&world).expect("anchored sphere");
     assert_eq!(anchored.skill_id, SKILL_THUNDER_SPHERE_HIDDEN);
-    assert!(anchored.anchored);
+    assert!(matches!(anchored.motion, SummonMotion::Anchored));
     assert_eq!(anchored.next_hit_at, moving.next_hit_at);
     let snapshot: serde_json::Value = serde_json::from_str(&world.snapshot("third")).unwrap();
     assert_eq!(snapshot["summons"][0]["skillId"], SKILL_THUNDER_SPHERE_HIDDEN);
@@ -161,12 +176,12 @@ fn third_sphere_and_adaptation_are_idempotent_and_bounded() {
     assert!(world.monsters[&target_id].state.hp < hp_after_pulse, "fixed sphere attacks from its own origin");
     world.monsters.get_mut(&target_id).unwrap().template.boss = true;
     let boss_hp = world.monsters[&target_id].state.hp;
-    world.tick = world.players["third"].summon.as_ref().unwrap().next_hit_at;
+    world.tick = sphere(&world).unwrap().next_hit_at;
     world.step_summons();
     assert_eq!(boss_hp - world.monsters[&target_id].state.hp, 3 * (magic_attack * 256 / 100).max(1), "boss does not receive normal-mob bonus");
     world.tick = anchored.expires_at;
     world.step_summons();
-    assert!(world.players["third"].summon.is_none());
+    assert!(sphere(&world).is_none());
 
     world.handle_cast_skill("third".into(), "adapt".into(), SKILL_ELEMENTAL_ADAPTING, Some(0), Some(0));
     let activated = chapter_drain(&mut rx);

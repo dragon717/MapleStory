@@ -1086,7 +1086,6 @@ fn clear_practice_player_effects(player: &mut Player) {
     player.teleport_boost_enabled = false;
     player.adaptation_active = false;
     player.adaptation_charges = 0;
-    player.summon = None;
     player.summons.clear();
     player.state.action_id = None;
     player.state.climbing = false;

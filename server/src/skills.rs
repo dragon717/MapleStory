@@ -933,7 +933,7 @@ impl World {
         } else if skill_id == SKILL_THUNDER_SPHERE
             && vertical > 0
             && self.players.get(id).is_some_and(|player| {
-                player.summon.as_ref().is_some_and(|summon| {
+                player.summons.iter().any(|summon| {
                     matches!(
                         summon.skill_id,
                         SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
@@ -3104,12 +3104,17 @@ impl World {
                 player.state.x,
                 player.state.y,
                 player.state.facing,
-                player.summon.clone(),
+                player.summons.iter().position(|summon| {
+                    matches!(
+                        summon.skill_id,
+                        SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+                    )
+                }),
             )
         }) else {
             return Err("player_unknown".to_owned());
         };
-        let (map_id, x, y, facing, existing) = player_snapshot;
+        let (map_id, x, y, facing, existing_index) = player_snapshot;
         let hidden_level = self
             .mage_skills
             .level(
@@ -3133,30 +3138,25 @@ impl World {
             .saturating_mul(1_000)
             .div_ceil(TICK_MS)
             .max(1);
-        if let Some(existing) = existing
-            .clone()
-            .filter(|summon| {
-                summon.skill_id == SKILL_THUNDER_SPHERE
-                    || summon.skill_id == SKILL_THUNDER_SPHERE_HIDDEN
-            })
-            .filter(|_| anchor)
-        {
+        if let Some(index) = existing_index.filter(|_| anchor) {
+            // 重新锚定既有球形闪电：只改形态与到期（保留 `summon_id` / `next_hit_at` /
+            // `pulse_index`，所以锚定不会重置它的打击节拍），并把到期收紧为
+            // `min(旧, 现在 + 锚定形态时长)`。这是「同技能重放即替换」在通用队列上的写法。
             if let Some(player) = self.players.get_mut(id) {
-                player.summon = Some(ThunderSummon {
-                    x,
-                    y,
-                    facing,
-                    anchored: true,
-                    skill_id: SKILL_THUNDER_SPHERE_HIDDEN,
-                    expires_at: existing
+                if let Some(existing) = player.summons.get_mut(index) {
+                    existing.x = x;
+                    existing.y = y;
+                    existing.facing = facing;
+                    existing.motion = SummonMotion::Anchored;
+                    existing.skill_id = SKILL_THUNDER_SPHERE_HIDDEN;
+                    existing.expires_at = existing
                         .expires_at
-                        .min(self.tick.saturating_add(duration_ticks)),
-                    ..existing
-                });
+                        .min(self.tick.saturating_add(duration_ticks));
+                }
             }
             return Ok(());
         }
-        let summon = ThunderSummon {
+        let summon = Summon {
             summon_id: format!("thunder-sphere-{id}-{request_id}"),
             skill_id: if anchor {
                 SKILL_THUNDER_SPHERE_HIDDEN
@@ -3173,14 +3173,28 @@ impl World {
             x,
             y,
             facing,
-            anchored: anchor,
+            motion: if anchor {
+                SummonMotion::Anchored
+            } else {
+                SummonMotion::Follow
+            },
             expires_at: self.tick.saturating_add(duration_ticks),
             next_hit_at: self.tick,
             pulse_index: 0,
         };
-        if let Some(player) = self.players.get_mut(id) {
-            player.summon = Some(summon);
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        player.summons.retain(|old| {
+            !matches!(
+                old.skill_id,
+                SKILL_THUNDER_SPHERE | SKILL_THUNDER_SPHERE_HIDDEN
+            )
+        });
+        if !Self::summon_slots_available(player) {
+            return Err("summon_limit".to_owned());
         }
+        player.summons.push(summon);
         Ok(())
     }
 

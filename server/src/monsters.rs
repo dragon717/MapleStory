@@ -858,7 +858,7 @@ impl World {
             player.teleport_boost_enabled = false;
             player.adaptation_active = false;
             player.adaptation_charges = 0;
-            player.summon = None;
+            player.summons.clear();
             player.knockback_vx = 0.0;
             player.knockback_until = 0;
             // 死亡即下马、即起立（这里是唯一能当场收口的地方：`player` 已经是

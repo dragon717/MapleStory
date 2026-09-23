@@ -966,7 +966,7 @@ impl World {
         player.teleport_boost_enabled = false;
         player.adaptation_active = false;
         player.adaptation_charges = 0;
-        player.summon = None;
+        player.summons.clear();
         player.state.action_id = None;
         refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         self.send_snapshot(id);

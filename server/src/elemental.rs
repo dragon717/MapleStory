@@ -128,7 +128,7 @@ impl World {
             .saturating_mul(1_000)
             .div_ceil(TICK_MS)
             .max(1);
-        let summon = ThunderSummon {
+        let summon = Summon {
             summon_id: format!("ice-demon-{id}-{request_id}"),
             skill_id: SKILL_ICE_DEMON,
             level: skill_level,
@@ -136,9 +136,13 @@ impl World {
             x,
             y,
             facing,
-            anchored: true,
+            motion: SummonMotion::Anchored,
             expires_at: self.tick.saturating_add(duration_ticks),
-            next_hit_at: self.tick.saturating_add((1_080_u64 / TICK_MS).max(1)),
+            // 首跳时刻沿用既有写法（`/ TICK_MS` 向下取整，不是 `div_ceil`）：冰魔的源
+            // 契约为 1080ms，与 `summon_pulse_ms` 的兜底值同源。
+            next_hit_at: self.tick.saturating_add(
+                (summon_pulse_ms(&self.mage_skills, SKILL_ICE_DEMON, skill_level) / TICK_MS).max(1),
+            ),
             pulse_index: 0,
         };
         let Some(player) = self.players.get_mut(id) else {
@@ -174,7 +178,7 @@ impl World {
         }) else {
             return Err("player_unknown".to_owned());
         };
-        let summon = ThunderSummon {
+        let summon = Summon {
             summon_id: format!("frozen-orb-{id}-{request_id}"),
             skill_id: SKILL_FROZEN_ORB,
             level: skill_level,
@@ -182,9 +186,12 @@ impl World {
             x,
             y,
             facing,
-            anchored: false,
+            motion: SummonMotion::Drift,
             expires_at: self.tick.saturating_add(4_000_u64.div_ceil(TICK_MS)),
-            next_hit_at: self.tick.saturating_add((210_u64 / TICK_MS).max(1)),
+            next_hit_at: self.tick.saturating_add(
+                (summon_pulse_ms(&self.mage_skills, SKILL_FROZEN_ORB, skill_level) / TICK_MS)
+                    .max(1),
+            ),
             pulse_index: 0,
         };
         let Some(player) = self.players.get_mut(id) else {
@@ -898,62 +905,36 @@ impl World {
                 continue;
             };
             if player.state.action == "dead" {
-                player.summon = None;
                 player.summons.clear();
                 continue;
             }
-            if let Some(mut summon) = player.summon.take() {
-                if summon.expires_at > self.tick && summon.map_id == player.map_id {
-                    if !summon.anchored {
-                        summon.x = player.state.x;
-                        summon.y = player.state.y;
-                        summon.facing = player.state.facing;
-                    }
-                    if summon.next_hit_at <= self.tick {
-                        due.push((id.clone(), summon.clone()));
-                        let pulse_skill = if summon.skill_id == SKILL_THUNDER_SPHERE_HIDDEN {
-                            SKILL_THUNDER_SPHERE_HIDDEN
-                        } else {
-                            SKILL_THUNDER_SPHERE
-                        };
-                        let pulse_ms = self
-                            .mage_skills
-                            .level(pulse_skill, summon.level)
-                            .and_then(|level| level.sub_time)
-                            .unwrap_or(1_080)
-                            .max(1) as u64;
-                        summon.next_hit_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
-                        summon.pulse_index = summon.pulse_index.saturating_add(1);
-                    }
-                    player.summon = Some(summon);
-                }
-            }
+            // 一条队列服务全部三件召唤（2026-09-23 S5 通用化前，三转球形闪电走的是
+            // 另一个单槽 `Player::summon`，于是同一份「到期 / 换图收回 + 周期打击」
+            // 判据写了两遍）。位移形态在施放时定下（见 `SummonMotion`），这里不再按
+            // `skill_id` 分支；脉冲周期同样只剩一个派生点（`summon_pulse_ms`）。
             let mut retained = Vec::with_capacity(player.summons.len());
             for mut summon in std::mem::take(&mut player.summons) {
                 if summon.expires_at <= self.tick || summon.map_id != player.map_id {
                     continue;
                 }
-                if summon.skill_id == SKILL_FROZEN_ORB {
-                    let direction = if summon.facing < 0 { -1.0 } else { 1.0 };
-                    summon.x = (summon.x + direction * 180.0 * TICK_MS as f64 / 1_000.0)
-                        .clamp(map.bounds.x_min, map.bounds.x_max);
+                match summon.motion {
+                    SummonMotion::Anchored => {}
+                    SummonMotion::Follow => {
+                        summon.x = player.state.x;
+                        summon.y = player.state.y;
+                        summon.facing = player.state.facing;
+                    }
+                    SummonMotion::Drift => {
+                        let direction = if summon.facing < 0 { -1.0 } else { 1.0 };
+                        summon.x = (summon.x
+                            + direction * SUMMON_DRIFT_PX_PER_SEC * TICK_MS as f64 / 1_000.0)
+                            .clamp(map.bounds.x_min, map.bounds.x_max);
+                    }
                 }
                 if summon.next_hit_at <= self.tick {
                     due.push((id.clone(), summon.clone()));
-                    let pulse_ms = match summon.skill_id {
-                        // The exported subTime is a source-side delay field,
-                        // while this P implementation's periodic demon hit
-                        // is explicitly 1080ms.  Do not interpret source 8
-                        // as eight milliseconds.
-                        SKILL_ICE_DEMON => 1_080,
-                        SKILL_FROZEN_ORB => self
-                            .mage_skills
-                            .level(SKILL_FROZEN_ORB, summon.level)
-                            .and_then(|level| level.attack_delay)
-                            .unwrap_or(210)
-                            .max(1) as u64,
-                        _ => 1_080,
-                    };
+                    let pulse_ms =
+                        summon_pulse_ms(&self.mage_skills, summon.skill_id, summon.level).max(1);
                     summon.next_hit_at = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
                     summon.pulse_index = summon.pulse_index.saturating_add(1);
                 }

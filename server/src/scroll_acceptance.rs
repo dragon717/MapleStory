@@ -464,7 +464,7 @@ fn landing_clears_the_scene_state_the_gate_path_clears() {
         player.ice_fields.is_empty(),
         "an ice field must not follow the caster"
     );
-    assert!(player.summon.is_none());
+    assert!(player.summons.is_empty());
 }
 
 #[test]

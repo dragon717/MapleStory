@@ -1930,11 +1930,10 @@ struct Player {
     beginner_heal_remaining_ticks: u32,
     beginner_heal_per_tick: i64,
     beginner_speed_percent: i64,
-    /// The third-job sphere keeps its old single-slot state for compatibility;
-    /// fourth-job summons use this bounded list so the ice demon and frozen
-    /// orb can coexist with that sphere.
-    summon: Option<ThunderSummon>,
-    summons: Vec<ThunderSummon>,
+    /// 已放出的召唤物队列（冰魔 / 冰鋒刃 / 三转球形闪电共用）。容量判据只有
+    /// `World::summon_slots_available`（`SUMMON_BUDGET`）一处；2026-09-23 起球形闪电的
+    /// 独立单槽 `summon` 已并入这里，不再有第二套账。
+    summons: Vec<Summon>,
     /// Companion instance index. Inventory owns identity/summon persistence;
     /// the pet module owns each companion's simulation and map attachment.
     pets: BTreeMap<i64, pets::PetRuntime>,
@@ -2200,8 +2199,30 @@ struct IceField {
     sub_time_ms: u64,
 }
 
+/// 召唤物**在世界上怎么移动**。源里没有统一的运动字段，形态由「施放时怎么放的」定下
+/// （冰魔钉在施放点、球形闪电跟主人走、冰鋒刃沿朝向自行前进），施放时写一次，步进时
+/// 只读——这样 `step_summons` 不必按 `skill_id` 分支。
+#[derive(Clone, Copy)]
+enum SummonMotion {
+    /// 钉在施放点（冰魔；球形闪电的锚定形态）。
+    Anchored,
+    /// 跟着主人走（球形闪电的移动形态）。
+    Follow,
+    /// 沿朝向自行前进（冰鋒刃）。
+    Drift,
+}
+
+/// 冰鋒刃自行前进的速度（像素 / 秒）。源里 `x=1800` 是打击范围、不是速度，
+/// 这里沿用既有的 P 实现值，只为让冰鋒刃「在飞」而不是瞬移。
+const SUMMON_DRIFT_PX_PER_SEC: f64 = 180.0;
+
+/// 一个已放出的召唤物（通用槽位实体）。
+///
+/// 2026-09-23（S5 召唤通用化）前它叫 `ThunderSummon` 并只服务三转球形闪电，现在冰魔 /
+/// 冰鋒刃 / 球形闪电共用它，字段本身是通用的：到期时刻、运动形态、周期打击时刻。
+/// **脉冲周期不在这里**——它是源字段派生，唯一入口是 `mechanics.rs::summon_pulse_ms`。
 #[derive(Clone)]
-struct ThunderSummon {
+struct Summon {
     summon_id: String,
     skill_id: u32,
     level: u32,
@@ -2209,7 +2230,7 @@ struct ThunderSummon {
     x: f64,
     y: f64,
     facing: i8,
-    anchored: bool,
+    motion: SummonMotion,
     expires_at: u64,
     next_hit_at: u64,
     pulse_index: u64,
@@ -2947,9 +2968,8 @@ impl World {
             .iter()
             .flat_map(|(player_id, player)| {
                 player
-                    .summon
+                    .summons
                     .iter()
-                    .chain(player.summons.iter())
                     .filter(move |summon| summon.map_id == map_id && summon.expires_at > self.tick)
                     .map(move |summon| {
                         serde_json::json!({
@@ -2960,7 +2980,7 @@ impl World {
                             "y": summon.y,
                             "facing": summon.facing,
                             "expiresInMs": (summon.expires_at - self.tick).saturating_mul(TICK_MS),
-                            "stationary": summon.anchored,
+                            "stationary": matches!(summon.motion, SummonMotion::Anchored),
                         })
                     })
             })

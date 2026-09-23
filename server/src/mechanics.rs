@@ -42,9 +42,9 @@
 //!   主盒吃 `damage%` × N 段，第二盒再吃一次 `damPlus%`。二段**要求首段链真的打到人**，
 //!   空挥不会凭空多一段。
 //! - **召唤物 × 主人**：脉冲复用主人**当拍**的属性快照（走同一条 `cast_elemental_area_at`），
-//!   所以主人的增益、武器、等级差修正对召唤物同样生效；`summons` 队列的容量判据收口在
-//!   [`World::summon_slots_available`]（三转球形闪电的单槽仍按「重放即替换」处理，
-//!   并入同一预算是待办）。
+//!   所以主人的增益、武器、等级差修正对召唤物同样生效；三件召唤（冰魔 / 冰鋒刃 / 三转球形
+//!   闪电）共用 `Player::summons` 一条队列，容量判据收口在 [`World::summon_slots_available`]，
+//!   脉冲周期收口在 [`summon_pulse_ms`]（2026-09-23 前球形闪电另走一个单槽，已并入）。
 
 use super::*;
 
@@ -55,12 +55,15 @@ pub(super) const DOT_MAX_STACKS: u32 = 5;
 /// 一个投射物在空中最多待多久（毫秒）。源里的 `ballDelay*` 都是百毫秒级，这个值只是
 /// 「施法者掉线 / 卡住时不会永久堆积」的兜底，不是源参数。
 pub(super) const PROJECTILE_MAX_FLIGHT_MS: u64 = 10_000;
-/// 共用召唤槽位（`Player::summons`：冰魔 / 冰凤凰 / 冰冻球）的容量预算。
+/// 共用召唤槽位（`Player::summons`）的容量预算，**唯一**的容量判据。
 ///
-/// ⚠️ 这**不是**「一个玩家最多同时有几个召唤物」的完整答案：三转球形闪电走的是另一个
-/// 单槽 `Player::summon`，仍按「同技能重放即替换」处理，尚未并入这份预算（待办）。
-/// 这里收口的是 `summons` 这条队列上原本散在两个调用点里的字面量 `2`。
-pub(super) const SUMMON_BUDGET: usize = 2;
+/// 2026-09-23（S5 召唤通用化）起它是完整答案：三转球形闪电原先走另一个单槽
+/// `Player::summon`（「同技能重放即替换」），现已并入这条队列，所以不再有
+/// 「队列 + 单槽」两套账。值取 3 = 合并前的「队列 2 + 单槽 1」，**零行为回归**。
+pub(super) const SUMMON_BUDGET: usize = 3;
+/// 召唤物脉冲周期的**契约兜底值**（毫秒）：源里既没有毫秒书写的 `attackDelay`、也没有
+/// 毫秒书写的 `subTime` 时用它（见 [`World::summon_pulse_ms`]）。
+pub(super) const SUMMON_PULSE_FALLBACK_MS: u64 = 1_080;
 
 /// 一次施法需要经过哪几层机制，以及每层的参数。**全部从源字段派生**：
 /// 字段在不在、值是多少决定计划长什么样，没有按技能 id 写死的分支。
@@ -221,6 +224,33 @@ fn segment_delays(level: &MageLevel, total: u32) -> Vec<u64> {
         .collect()
 }
 
+/// 召唤物**脉冲周期**（毫秒）的唯一派生点。原先这段判据散在两处：三转球形闪电在单槽
+/// 分支里读自己的 `subTime`，四转冰魔 / 冰鋒刃在队列分支里按 `skill_id` 各写一个字面量
+/// （`SKILL_ICE_DEMON => 1_080`、`SKILL_FROZEN_ORB => attack_delay`）。
+///
+/// 源里**没有**统一的「召唤物攻击间隔」字段，三件召唤各写在不同槽上（逐条核对
+/// `shared/mage-skills.json`）：`attackDelay`（冰鋒刃 2221012 = 210）已经按毫秒书写；
+/// `subTime` 也有按毫秒书写的（閃電球 2211011 / 2211015 = 1080）；而召喚冰魔 2221005 的
+/// `subTime=8` 小于一拍、不是毫秒书写的间隔（既有注释已警告过别把它读成 8ms）。
+///
+/// ⇒ 判据是「**毫秒槽优先**」：`attackDelay` > `subTime`（仅当其不小于一拍）>
+/// 契约值 [`SUMMON_PULSE_FALLBACK_MS`]。逐件复现合并前的现行为：210 / 1080 / 1080。
+///
+/// 取 `&MageSkills` 而不是 `&self`：调用点（`step_summons`）正同时持有 `player` 的
+/// 可变借用，经 `self.方法()` 会被借用检查器挡下，直接借用 `self.mage_skills` 字段才行。
+pub(super) fn summon_pulse_ms(skills: &MageSkills, skill_id: u32, level: u32) -> u64 {
+    let Some(row) = skills.level(skill_id, level) else {
+        return SUMMON_PULSE_FALLBACK_MS;
+    };
+    if let Some(delay) = row.attack_delay.filter(|value| *value > 0) {
+        return delay as u64;
+    }
+    if let Some(sub) = row.sub_time.filter(|value| *value as u64 >= TICK_MS) {
+        return sub as u64;
+    }
+    SUMMON_PULSE_FALLBACK_MS
+}
+
 /// 怪物侧持续伤害的一个实例。键是 `(施法者, 技能, 目标)`，所以它天然是
 /// 「谁给谁挂的哪一跳」，而不是一张全局伤害表。
 #[derive(Clone)]
@@ -299,7 +329,7 @@ pub(super) type DamageApplied = bool;
 
 impl World {
     /// 共用召唤槽位的**唯一**容量判据。调用方先 `retain` 掉「同技能重放要替换的那一个」，
-    /// 再问这里还装不装得下 —— 两个写入点（冰魔 / 冰冻球）都不许再写 `2`。
+    /// 再问这里还装不装得下 —— 三个写入点（冰魔 / 冰鋒刃 / 球形闪电）都不许再写字面量。
     pub(super) fn summon_slots_available(player: &Player) -> bool {
         player.summons.len() < SUMMON_BUDGET
     }

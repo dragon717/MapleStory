@@ -786,3 +786,141 @@ fn mech_recast_refreshes_without_stacking_and_gated_negative_time_opens_no_windo
         "伪造的负面窗请求被挡：不得冒出任何自增益窗口：{out:?}"
     );
 }
+
+// ── ⑦ S5 召唤通用化（一条队列服务三件召唤）──────────────────────
+// 收口前的账是「队列 `summons` 限 2（冰魔 / 冰鋒刃）+ 单槽 `summon` 1（三转球形闪电）」，
+// 于是同一份「到期 / 换图收回 + 周期打击」判据写了两遍、位移形态按 `skill_id` 分支。
+// 现在三件共用一条队列、容量判据只剩 `SUMMON_BUDGET = 3`（= 合并前的 2 + 1），
+// 且**脉冲周期**只剩一个源字段派生点 `summon_pulse_ms`。
+//
+// 这条用例钉的就是「收口没有改动行为」：三件共存、各自的位移形态、以及三件的周期
+// 逐件等于收口前硬编码的值（冰魔 1080 / 冰鋒刃 210 / 閃電球 1080）。
+#[test]
+fn mech_summon_slots_are_one_queue_and_pulse_period_comes_from_source() {
+    let (mut world, _rx) = mech_bundled_world(vec![mech_spawn("mob-s", 100.0)]);
+    mech_learn(
+        &mut world,
+        &[
+            (SKILL_ICE_DEMON, 1),
+            (SKILL_FROZEN_ORB, 1),
+            (SKILL_THUNDER_SPHERE, 1),
+        ],
+    );
+    mech_place_actor(&mut world, 222, 120, 100.0, 100.0);
+
+    let demon = world.mage_skills.level(SKILL_ICE_DEMON, 1).cloned().unwrap();
+    let orb = world.mage_skills.level(SKILL_FROZEN_ORB, 1).cloned().unwrap();
+    let sphere = world
+        .mage_skills
+        .level(SKILL_THUNDER_SPHERE, 1)
+        .cloned()
+        .unwrap();
+    world.cast_ice_demon(MECH_ACTOR, "demon-1", &demon).unwrap();
+    world.cast_frozen_orb(MECH_ACTOR, "orb-1", &orb).unwrap();
+    world
+        .cast_thunder_sphere(MECH_ACTOR, "sphere-1", &sphere, 0)
+        .unwrap();
+
+    // ① 三件共存于同一条队列：这正是收口前「队列 2 + 单槽 1」的等价形态。
+    let player = world.players.get(MECH_ACTOR).unwrap();
+    let ids = player
+        .summons
+        .iter()
+        .map(|summon| summon.skill_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids.len(),
+        3,
+        "冰魔 / 冰鋒刃 / 球形闪电必须能同时在场：{ids:?}"
+    );
+    for skill_id in [SKILL_ICE_DEMON, SKILL_FROZEN_ORB, SKILL_THUNDER_SPHERE] {
+        assert!(ids.contains(&skill_id), "缺了 {skill_id}：{ids:?}");
+    }
+
+    // ② 容量判据就这么一条：3 槽用满即「装不下」，收口前那两套账（`2` 与单槽）已不存在。
+    assert!(
+        !World::summon_slots_available(world.players.get(MECH_ACTOR).unwrap()),
+        "三件都在场时必须报「装不下」，否则上限已悄悄抬高"
+    );
+
+    // ③ 位移形态在施放时定下，`step_summons` 不再按 `skill_id` 分支：
+    //    冰魔钉在施放点、冰鋒刃沿朝向自行前进、球形闪电跟着主人走。
+    let owner_before = world.players[MECH_ACTOR].state.x;
+    {
+        let player = world.players.get_mut(MECH_ACTOR).unwrap();
+        player.state.x = owner_before + 300.0;
+    }
+    let before: Vec<(u32, f64)> = world.players[MECH_ACTOR]
+        .summons
+        .iter()
+        .map(|summon| (summon.skill_id, summon.x))
+        .collect();
+    world.step_summons();
+    let owner_now = world.players[MECH_ACTOR].state.x;
+    let after = |skill_id: u32| {
+        world.players[MECH_ACTOR]
+            .summons
+            .iter()
+            .find(|summon| summon.skill_id == skill_id)
+            .map(|summon| summon.x)
+            .unwrap()
+    };
+    let x_before = |skill_id: u32| {
+        before
+            .iter()
+            .find(|(id, _)| *id == skill_id)
+            .map(|(_, x)| *x)
+            .unwrap()
+    };
+    assert_eq!(
+        after(SKILL_ICE_DEMON),
+        x_before(SKILL_ICE_DEMON),
+        "冰魔锚定在施放点，不跟主人走"
+    );
+    assert_eq!(
+        after(SKILL_THUNDER_SPHERE),
+        owner_now,
+        "球形闪电的移动形态跟主人走"
+    );
+    assert!(
+        after(SKILL_FROZEN_ORB) > x_before(SKILL_FROZEN_ORB),
+        "冰鋒刃沿朝向自行前进（既有的 P 运动学，收口不该把它变成跟随）"
+    );
+
+    // ④ 脉冲周期是源字段派生，且**逐件等于收口前的硬编码值**（零行为漂移）。
+    assert_eq!(
+        summon_pulse_ms(&world.mage_skills, SKILL_FROZEN_ORB, 1),
+        210,
+        "冰鋒刃：源 `attackDelay = 210`（毫秒槽）"
+    );
+    assert_eq!(
+        summon_pulse_ms(&world.mage_skills, SKILL_THUNDER_SPHERE, 1),
+        1_080,
+        "閃電球：源 `subTime = 1080`（本身就是毫秒）"
+    );
+    assert_eq!(
+        summon_pulse_ms(&world.mage_skills, SKILL_ICE_DEMON, 1),
+        1_080,
+        "召喚冰魔：源 `subTime = 8` 小于一拍、不是毫秒 ⇒ 回落契约值 1080"
+    );
+
+    // ⑤ 派生值真的被消费：脉冲后 `next_hit_at` 恰好推进「周期 ÷ 一拍」向上取整。
+    let pulse_tick = world.tick;
+    {
+        let player = world.players.get_mut(MECH_ACTOR).unwrap();
+        for summon in player.summons.iter_mut() {
+            summon.next_hit_at = pulse_tick;
+        }
+    }
+    world.step_summons();
+    for summon in world.players[MECH_ACTOR].summons.iter() {
+        let expected = summon_pulse_ms(&world.mage_skills, summon.skill_id, summon.level)
+            .div_ceil(TICK_MS);
+        assert_eq!(
+            summon.next_hit_at - pulse_tick,
+            expected,
+            "{} 的下一跳没有按派生周期推进",
+            summon.skill_id
+        );
+    }
+}

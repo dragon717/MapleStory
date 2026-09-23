@@ -436,7 +436,6 @@ impl World {
                         beginner_heal_remaining_ticks: 0,
                         beginner_heal_per_tick: 0,
                         beginner_speed_percent: 0,
-                        summon: None,
                         summons: Vec::new(),
                         pets: BTreeMap::new(),
                         pet_growth_next_tick: 0,
