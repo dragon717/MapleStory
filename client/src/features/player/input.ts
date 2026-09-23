@@ -110,16 +110,42 @@ export const FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
   Digit5: 2221005, Digit6: 2221011, Digit7: 2221008, Digit8: 2221000, Digit9: 2221052, Digit0: 2221054,
 };
 /**
+ * 火毒（212）／主教（232）四转的「同一格副本」。三条分支的四转书在技能窗里共用
+ * 同一批槽位，副本与冰雷那本**同机制**；服务端的判据只有 `world.rs` 的那几张表
+ * （`INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` / `DEMON_SUMMON_SKILLS` /
+ * `MAPLE_WARRIOR_SKILLS`），这里是同一份名单的客户端镜像。
+ *
+ * 客户端只读它们做**呈现**决定（施法者的增益视觉跟不跟人走、無限的持续特效画哪一本），
+ * 不据此判可施放 —— 能不能放由服务端白名单说话。
+ */
+export const INFINITY_SKILLS: readonly number[] = [2221004, 2121004, 2321004];
+export const MAPLE_CURE_SKILLS: readonly number[] = [2221008, 2121008, 2321009];
+export const MAPLE_WARRIOR_SKILLS: readonly number[] = [2221000, 2121000, 2321000];
+export const DEMON_SUMMON_SKILLS: readonly number[] = [2221005, 2121005];
+/** 傳說冒險的三本副本（Hyper 主动，`indieDamR` 窗口）。服务端 `world.rs::HYPER_ADVENTURER_SKILLS` 的镜像。 */
+export const HYPER_ADVENTURER_SKILLS: readonly number[] = [2221053, 2121053, 2321053];
+/** 「施放后跟随施法者」的增益/光环技能：`combat/view.ts` 靠它决定视觉锚点。 */
+export const CASTER_ANCHORED_BUFFS: readonly number[] = [
+  ...MAPLE_WARRIOR_SKILLS,
+  ...INFINITY_SKILLS,
+  ...MAPLE_CURE_SKILLS,
+];
+
+/**
  * 另外两条分支的四转快捷栏。**只放「服务端已接执行链」的技能**（与
  * `skills/view.ts::ACTIVE_SKILLS` 同一纪律）：快捷键按下去一定要有反应，
  * 摆一个只回「尚未开放施放」的键位等于给玩家一个坏按钮。
  * 火毒 212 与主教 232 各一套，键位与冰雷那套对齐（1..0）。
  */
 export const FIRE_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
-  Digit1: 2121006, Digit2: 2121011, Digit3: 2121007, Digit4: 2121003,
+  Digit1: 2121006, Digit2: 2121011, Digit3: 2121007, Digit4: 2121004,
+  Digit5: 2121005, Digit6: 2121003, Digit7: 2121008, Digit8: 2121000,
+  Digit9: 2121053,
 };
 export const HOLY_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
-  Digit1: 2321001, Digit2: 2321007, Digit3: 2321008,
+  Digit1: 2321001, Digit2: 2321007, Digit3: 2321008, Digit4: 2321004,
+  Digit7: 2321009, Digit8: 2321000,
+  Digit9: 2321053,
 };
 
 /** 按分支取四转快捷栏（未转四转/其它职业返回 undefined）。 */

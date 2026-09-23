@@ -7,6 +7,7 @@ import {
   bookAllowsJob,
   SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
   ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
+  HYPER_ADVENTURER_SKILLS,
 } from '../player/input';
 import { installWindowDrag } from '../ui/window-shell.ts';
 import './style.css';
@@ -56,6 +57,13 @@ export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054'
   // 不在这里出现 —— 它们没有施放按钮，也就不会被拖到快捷栏。
   '2101004', '2101005', '2111002', '2111003', '2121003', '2121006', '2121007', '2121011',
   '2301005', '2301010', '2311004', '2321001', '2321007', '2321008',
+  // 火毒／主教四转的**同一格副本**（2026-09-23 接执行链）：与冰雷那几条同机制，
+  // 服务端已收口成表（`world.rs::INFINITY_SKILLS` / `MAPLE_CURE_SKILLS` /
+  // `DEMON_SUMMON_SKILLS` / `HYPER_ADVENTURER_SKILLS`，楓葉祝福复用 `MAPLE_WARRIOR_SKILLS`）。
+  // 它们出现在这里才有施放按钮、才能拖进快捷栏。
+  '2121000', '2121004', '2121005', '2121008',
+  '2321000', '2321004', '2321009',
+  '2121053', '2321053',
   // 战士 / 飞侠一转攻击技能（2026-09-22 接执行链）：与服务端
   // `world.rs::PHYSICAL_AREA_ATTACKS` 是**同一份名单**，走范围管线的物理分支
   // （普攻攻击区间 × damage%）。弓箭手 斷魂箭/連續跳躍 与 战士 戰鬥置換、飞侠
@@ -808,7 +816,8 @@ export class SkillView {
       hint.className = 'skill-detail-description';
       hint.textContent = `需要角色等级 ${entry.requiredLevel} · 使用独立${entry.hyper === 1 ? '强化' : '主动'}点数。`;
       if (entry.id === '2221052') hint.textContent += '按住施放，松开触发最后一击。';
-      if (entry.id === '2221053') hint.textContent += '当前队伍机制未开放，效果只作用于自身。';
+      // 傳說冒險三本（2221053 / 2121053 / 2321053）同一句提示：增益只走施法者所在图的队伍。
+      if (HYPER_ADVENTURER_SKILLS.includes(Number(entry.id))) hint.textContent += '当前队伍机制未开放，效果只作用于自身。';
       if (entry.id === '2221054') {
         hint.textContent += '开启后每秒消耗60 MP；生成漩涡后，站在范围内获得结界效果。';
         const vortex = this.createTextActionButton('生成漩涡', '向下施放冰雪结界', () => this.castSkill(entry, undefined, 1), 'skill-detail-cast');

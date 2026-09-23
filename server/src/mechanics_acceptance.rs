@@ -815,7 +815,7 @@ fn mech_summon_slots_are_one_queue_and_pulse_period_comes_from_source() {
         .level(SKILL_THUNDER_SPHERE, 1)
         .cloned()
         .unwrap();
-    world.cast_ice_demon(MECH_ACTOR, "demon-1", &demon).unwrap();
+    world.cast_demon_summon(MECH_ACTOR, "demon-1", SKILL_ICE_DEMON, &demon).unwrap();
     world.cast_frozen_orb(MECH_ACTOR, "orb-1", &orb).unwrap();
     world
         .cast_thunder_sphere(MECH_ACTOR, "sphere-1", &sphere, 0)
@@ -923,4 +923,141 @@ fn mech_summon_slots_are_one_queue_and_pulse_period_comes_from_source() {
             summon.skill_id
         );
     }
+}
+
+// ── ⑧ 召唤存活时长：收口成一个源字段派生点（2026-09-23）────────────────────────
+// 收口前的账是**三处各写一份、而且互相不一致**：`cast_demon_summon` 把源 `time` 当秒
+// （`× 1000`）、`cast_thunder_sphere` 也当秒但默认值另写 20／60 秒、
+// `cast_frozen_orb` **根本不读源**（写死 `4_000`，源改数就静默漂移）。
+// 现在三处都走 `mechanics.rs::summon_lifetime_ms`，单位判据与默认值都只剩那一处。
+//
+// 这条用例钉四件事：① 五本已接线召唤书的派生值逐件等于源值（含全书**唯一**那条按毫秒
+// 书写的 `2221012 冰鋒刃`）；② 兜底分支不可达（五本**逐级**都带 `time`）；
+// ③ 派生值真的被消费到到期时刻上；④ 单位判据本身是「按量级认单位」，跨过 1000 就换
+// 单位，且「写明的 0」不许被并进「缺失 ⇒ 兜底值」那一支。
+//
+// ④ 用合成目录钉，理由与 ② 的合成目录同：真实内容的 `time` 是源给的定值，**扰动不了**，
+// 而这条判据最容易写错的地方恰恰是分界两侧。
+const MECH_LIFETIME_CATALOG: &str = r#"{
+  "sourceVersion": "mech-synthetic",
+  "bookId": 200,
+  "skills": {
+    "2001995": { "name": "mech-seconds", "maxLevel": 1, "levels": [{ "time": 999 }] },
+    "2001994": { "name": "mech-millis", "maxLevel": 1, "levels": [{ "time": 1000 }] },
+    "2001993": { "name": "mech-zero", "maxLevel": 1, "levels": [{ "time": 0 }] },
+    "2001992": { "name": "mech-missing", "maxLevel": 1, "levels": [{ "damage": 1 }] }
+  }
+}"#;
+
+#[test]
+fn mech_summon_lifetime_comes_from_one_source_derivation() {
+    // ① 逐件等于源值。源 `shared/mage-skills.json` 等级 1：
+    //    冰魔／火魔 `time=115`（**秒**）、冰鋒刃 `time=4000`（**毫秒**）、
+    //    閃電球 `2211011` `time=63`（秒）、hidden 的 `2211015` `time=22`（秒）。
+    let skills = MageSkills::bundled();
+    let wired: [(u32, u64); 5] = [
+        (SKILL_ICE_DEMON, 115_000),
+        (SKILL_FIRE_DEMON, 115_000),
+        (SKILL_FROZEN_ORB, 4_000),
+        (SKILL_THUNDER_SPHERE, 63_000),
+        (SKILL_THUNDER_SPHERE_HIDDEN, 22_000),
+    ];
+    for (skill_id, want) in wired {
+        assert_eq!(
+            summon_lifetime_ms(&skills, skill_id, 1),
+            want,
+            "{skill_id} 的存活时长没有按源 `time` 派生"
+        );
+    }
+    // 反向断言：唯一按毫秒书写的那本**不许**被当成秒。改前 `cast_frozen_orb` 写死
+    // 4000 恰好是对的，所以这里钉的不是「数值变了」而是「数值的来源变了」——
+    // 谁把分界判据去掉、一律 ×1000，本条当场红。
+    assert_ne!(
+        summon_lifetime_ms(&skills, SKILL_FROZEN_ORB, 1),
+        4_000_000,
+        "冰鋒刃的 `time=4000` 本身就是毫秒，再 ×1000 会把 4 秒变成 66 分钟"
+    );
+
+    // ② 兜底不可达：五本**逐级**都带 `time`，所以 `SUMMON_LIFETIME_FALLBACK_MS` 在
+    //    已接线的召唤上永远走不到。谁把某一级的 `time` 删了，这里先红——那时到期时刻
+    //    会静默从「源值」变成「契约值」，实玩上表现为召唤物活得比源里短或长。
+    for (skill_id, _) in wired {
+        let max_level = skills.get(skill_id).expect("wired summon book").max_level;
+        for level in 1..=max_level {
+            assert!(
+                skills
+                    .level(skill_id, level)
+                    .and_then(|row| row.time)
+                    .is_some(),
+                "{skill_id} 的 {level} 级没有 `time` ⇒ 存活时长会落到契约兜底值"
+            );
+        }
+    }
+
+    // ③ 派生值真被消费：三件召唤各放一次，到期时刻恰好是「派生值 ÷ 一拍向上取整」。
+    let (mut world, _rx) = mech_bundled_world(vec![mech_spawn("mob-l", 100.0)]);
+    mech_learn(
+        &mut world,
+        &[
+            (SKILL_ICE_DEMON, 1),
+            (SKILL_FROZEN_ORB, 1),
+            (SKILL_THUNDER_SPHERE, 1),
+        ],
+    );
+    mech_place_actor(&mut world, 222, 120, 100.0, 100.0);
+    let demon = world.mage_skills.level(SKILL_ICE_DEMON, 1).cloned().unwrap();
+    let orb = world.mage_skills.level(SKILL_FROZEN_ORB, 1).cloned().unwrap();
+    let sphere = world
+        .mage_skills
+        .level(SKILL_THUNDER_SPHERE, 1)
+        .cloned()
+        .unwrap();
+    let cast_tick = world.tick;
+    world
+        .cast_demon_summon(MECH_ACTOR, "demon-l", SKILL_ICE_DEMON, &demon)
+        .unwrap();
+    world.cast_frozen_orb(MECH_ACTOR, "orb-l", &orb).unwrap();
+    world
+        .cast_thunder_sphere(MECH_ACTOR, "sphere-l", &sphere, 0)
+        .unwrap();
+    assert_eq!(
+        world.players[MECH_ACTOR].summons.len(),
+        3,
+        "三件召唤都该在场，否则下面只验到了一部分"
+    );
+    for summon in world.players[MECH_ACTOR].summons.iter() {
+        let expected_ticks = summon_lifetime_ms(&world.mage_skills, summon.skill_id, summon.level)
+            .div_ceil(TICK_MS)
+            .max(1);
+        assert_eq!(
+            summon.expires_at - cast_tick,
+            expected_ticks,
+            "{} 的到期时刻没有按派生时长设置",
+            summon.skill_id
+        );
+    }
+
+    // ④ 单位判据的扰动验证：三本合成技能同形，只差 `time` 一个字段。
+    let synthetic: MageSkills =
+        serde_json::from_str(MECH_LIFETIME_CATALOG).expect("synthetic lifetime catalog");
+    assert_eq!(
+        summon_lifetime_ms(&synthetic, 2_001_995, 1),
+        999_000,
+        "999 在分界下方 ⇒ 按秒 ×1000"
+    );
+    assert_eq!(
+        summon_lifetime_ms(&synthetic, 2_001_994, 1),
+        1_000,
+        "1000 落在分界上 ⇒ 源里写的就是毫秒，不再 ×1000"
+    );
+    assert_eq!(
+        summon_lifetime_ms(&synthetic, 2_001_993, 1),
+        0,
+        "写明的 0 是「写明的 0」，不许并进「缺失 ⇒ 兜底值」那一支"
+    );
+    assert_eq!(
+        summon_lifetime_ms(&synthetic, 2_001_992, 1),
+        SUMMON_LIFETIME_FALLBACK_MS,
+        "只有 `time` 真的缺失才落到契约兜底值"
+    );
 }

@@ -244,9 +244,9 @@ const NOT_CONSUMED = {
   // Hyper 主动增益：indieDamR / mdR 是「窗口内」的值，必须先有施法与增益窗。
   // 2026-09-22 起物理线的 傳說冒險（7 本）与 專注弱點/翻轉硬幣 也带窗口内 indieDamR，
   // 依附于物理四转主动的施放（未接执行链）⇒ 按源表动态登记。
+  // **法师线的两本 2121053 / 2321053 曾在此逐条登记**；2026-09-23 接执行链后移出
+  // （登记表的反向断言要求「world.rs 里没有常量」，接上那一刻就会红）。
   indieDamR: {
-    '2121053': { boosted: '2121053', why: '傳說冒險（火毒）' },
-    '2321053': { boosted: '2321053', why: '傳說冒險（主教）' },
     ...Object.fromEntries(
       Object.entries(mageSkills.skills)
         .filter(([, skill]) => skill.hyper === 2 && skill.levels.some(level => level.indieDamR !== undefined))
@@ -362,19 +362,45 @@ for (const [boosted, passive] of hyperPairs) {
   );
 }
 
-// 3b. `indieDamR`：唯一来源必须在**两条**伤害路径上都被声明为独立乘算。
-//     三个四转分支各有一本 傳說冒險，另两本登记在 `NOT_CONSUMED.indieDamR`。
+// 3b. `indieDamR`：傳說冒險**三个四转分支各有一本**（冰雷 2221053 / 火毒 2121053 /
+//     主教 2321053），三本必须在**两条**伤害路径上都被声明为独立乘算。
+//
+//     改前只认冰雷那本，另两本登记在 `NOT_CONSUMED.indieDamR`——登记表的反向断言
+//     要求「world.rs 里没有常量」，所以给副本接上执行链的那一刻这条就会红，逼着把
+//     消费一起补上（2026-09-23 接执行链，两本从登记表移出，登记数 1 → 3）。
+//
+//     消费形状与 `ELEMENT_AMP_SKILLS` 那种 `for … in 表` 不同：窗口是**一本一本**挂的，
+//     所以两条路径都从同一个访问器（`world.rs::active_adventurer_skill`）取「真正在
+//     计时的那一本」，留痕的 `skill_id` 就是它。这里钉三件：**访问器读表**、
+//     **两条路径都按访问器取到的那一本声明来源**（不是写死某一本）、
+//     **施放臂按施放的那一本挂增益**。
 assertExcused('indieDamR');
 const catalogIndie = consumedIds('indieDamR');
+const adventurerTable = idsForArray('HYPER_ADVENTURER_SKILLS');
 assert.deepEqual(
-  catalogIndie.length, 1,
-  `源里要消费的 indieDamR 从 1 个变成了 ${catalogIndie.length} 个：需要有人重新决定分组`,
+  catalogIndie, adventurerTable,
+  `源里要消费的 indieDamR 是 ${catalogIndie.join('/')}，`
+  + `world.rs 的 HYPER_ADVENTURER_SKILLS 是 ${adventurerTable.join('/')}`
+  + '——三个四转分支各一本 傳說冒險，源表与数据表必须逐项相同',
 );
-const indieId = catalogIndie[0];
 assert.ok(
-  damageSourceMentions(indieId, 'IndependentDamageRate', skillsSrc)
-  && damageSourceMentions(indieId, 'IndependentDamageRate', attacksSrc),
-  `源里唯一的 indieDamR 来源 ${indieId} 必须在普通攻击与魔法技能两条路径上都声明为 IndependentDamageRate`,
+  /fn active_adventurer_skill\(player: &Player\) -> Option<u32> \{[\s\S]{0,200}?HYPER_ADVENTURER_SKILLS/
+    .test(worldSrc),
+  'active_adventurer_skill 没有从 HYPER_ADVENTURER_SKILLS 取「在计时的那一本」'
+    + '——写死 2221053 会让火毒／主教那两本的窗口加成不到伤害',
+);
+for (const [name, source] of [['skills.rs', skillsSrc], ['attacks.rs', attacksSrc]]) {
+  assert.ok(
+    /if let Some\((\w+)\) = active_adventurer_skill\(player\) \{[\s\S]{0,200}?DamageSource::IndependentDamageRate\s*\{\s*skill_id: \1,/.test(source),
+    `${name} 没有按「访问器取到的那一本」声明 IndependentDamageRate 来源`
+      + '——两条伤害路径都必须读同一个访问器，留痕才会指认真正生效的那一本',
+  );
+}
+assert.ok(
+  /fn activate_hyper_adventurer\(&mut self, id: &str, (\w+): u32, level: &MageLevel\) \{[\s\S]{0,700}?apply_buff\(\s*\1,/
+    .test(elementalsSrc),
+  'activate_hyper_adventurer 没有按**施放的那一本**挂增益'
+    + '——挂错本 ⇒ 访问器认不出是哪一本在计时',
 );
 
 // 3c. `criticaldamage`：只走暴击组。被消费的是法师三本 魔法爆擊（冰雷 2210009 /
@@ -733,6 +759,102 @@ assert.ok(
   '非即时链的结算优先级被打乱了：必须是 召唤物 → 投射物 → DoT',
 );
 
+// 3h. 召唤**存活时长**只允许有一个派生点（2026-09-23 收口）。
+//     收口前的账是**三处各写一份、而且互相不一致**：`cast_demon_summon` 把源 `time`
+//     当秒（`× 1000`）、`cast_thunder_sphere` 也当秒但默认值另写 20／60 秒、
+//     `cast_frozen_orb` **根本不读源**（写死 `4_000`——源里 `2221012` 改数它不会动）。
+//     现在三处都走 `mechanics.rs::summon_lifetime_ms`，所以断言是双向的：
+//     ① 唯一派生点在 `mechanics.rs`，且它真的读源 `time`、真的按量级分界判单位；
+//     ② 三个施放入口都**经过**它；③ 这三个函数体里不许再出现 `time`——
+//     单位换算只许发生在派生点内部，施放入口自己碰一次就是又长出一份账。
+//     判据本身（`time` 的量级认单位）由**源 JSON 独立重算**，与双录期望值逐项比对；
+//     「兜底分支不可达」也一起证：五本逐级都得有 `time`。
+const LIFETIME_THRESHOLD = 1_000;
+/** `[技能 id, 名, 源 \`time\`（等级 1）, 期望毫秒]`——**双录**：源侧独立算一遍，再与这里比。 */
+const WIRED_SUMMON_LIFETIME = [
+  ['2221005', '召喚冰魔', 115, 115_000],
+  ['2121005', '召喚火魔', 115, 115_000],
+  ['2221012', '冰鋒刃', 4_000, 4_000],
+  ['2211011', '閃電球', 63, 63_000],
+  ['2211015', '閃電球(hidden)', 22, 22_000],
+];
+{
+  const rustThreshold = /pub\(super\) const SUMMON_LIFETIME_MS_THRESHOLD: i64 = ([\d_]+);/
+    .exec(mechanicsSrc);
+  assert.ok(
+    rustThreshold,
+    'mechanics.rs 里读不到 SUMMON_LIFETIME_MS_THRESHOLD——单位分界没有唯一定义处',
+  );
+  assert.equal(
+    Number(rustThreshold[1].replace(/_/g, '')), LIFETIME_THRESHOLD,
+    `mechanics.rs 的单位分界是 ${rustThreshold[1]}，本门禁算的是 ${LIFETIME_THRESHOLD}——`
+      + '两处必须同值，否则门禁替一个不存在的判据背书',
+  );
+  assert.ok(
+    /pub\(super\) fn summon_lifetime_ms\(skills: &MageSkills, skill_id: u32, level: u32\) -> u64 \{[\s\S]{0,400}?skills\s*\.\s*level\(skill_id, level\)[\s\S]{0,200}?row\.time/
+      .test(mechanicsSrc),
+    'mechanics.rs 里读不到 `summon_lifetime_ms`（或它没有从源 `time` 派生）——'
+      + '召唤存活时长又回到了「每处各写一份」',
+  );
+  assert.ok(
+    /time >= SUMMON_LIFETIME_MS_THRESHOLD/.test(mechanicsSrc),
+    '`summon_lifetime_ms` 没有按量级分界判单位——一律 ×1000 会把冰鋒刃的 4 秒变成 66 分钟',
+  );
+
+  // ② 三个施放入口逐条点名，并在函数体里做反向断言：不许自己碰 `time`。
+  const entries = [
+    ['elemental.rs::cast_demon_summon', elementalsSrc, /fn cast_demon_summon\([\s\S]*?\n    \}/],
+    ['elemental.rs::cast_frozen_orb', elementalsSrc, /fn cast_frozen_orb\([\s\S]*?\n    \}/],
+    ['skills.rs::cast_thunder_sphere', skillsSrc, /fn cast_thunder_sphere\([\s\S]*?\n    \}/],
+  ];
+  for (const [label, source, bodyPattern] of entries) {
+    const body = bodyPattern.exec(source);
+    assert.ok(body, `${label} 的函数体解不出来——形状变了，本段判据失效`);
+    assert.ok(
+      /summon_lifetime_ms\(/.test(body[0]),
+      `${label} 没有经过唯一派生点 \`summon_lifetime_ms\`——存活时长又长出一份自己的账`,
+    );
+    assert.ok(
+      !/\.time\b/.test(body[0]),
+      `${label} 的函数体里又出现了 \`.time\`——单位换算只许发生在唯一派生点内部，`
+        + '施放入口自己读一次 `time` 就说明它又在自算存活时长',
+    );
+  }
+
+  // ③ 源侧独立重算 + 兜底不可达。
+  for (const [id, name, sourceTime, expectedMs] of WIRED_SUMMON_LIFETIME) {
+    const skill = mageSkills.skills[id];
+    assert.ok(skill, `源目录里没有 ${id}（${name}）——已接线的召唤书被改名或删掉了`);
+    for (const [index, level] of skill.levels.entries()) {
+      const time = Number(level.time);
+      assert.ok(
+        Number.isFinite(time) && time > 0,
+        `${id}（${name}）的 ${index + 1} 级没有源 \`time\`——`
+          + '存活时长会静默落到契约兜底值，实玩上表现为召唤物活得和源里不一样长',
+      );
+    }
+    const level1 = Number(skill.levels[0].time);
+    assert.equal(
+      level1, sourceTime,
+      `${id}（${name}）的源 \`time\` 变了（${level1} ≠ ${sourceTime}）——存活时长是按它派生的，`
+        + '改数必须连同这段双录期望一起复核',
+    );
+    assert.equal(
+      level1 >= LIFETIME_THRESHOLD ? level1 : level1 * 1_000, expectedMs,
+      `${id}（${name}）按分界算出的毫秒与双录期望不符`,
+    );
+  }
+  const secondsForm = WIRED_SUMMON_LIFETIME.filter(([, , time]) => time < LIFETIME_THRESHOLD);
+  const millisForm = WIRED_SUMMON_LIFETIME.filter(([, , time]) => time >= LIFETIME_THRESHOLD);
+  assert.equal(secondsForm.length, 4, '按**秒**书写的召唤存活时长应当是四本');
+  assert.equal(millisForm.length, 1, '按**毫秒**书写的召唤存活时长应当只有冰鋒刃那一本');
+  assert.ok(
+    Math.max(...secondsForm.map(([, , time]) => time)) < LIFETIME_THRESHOLD
+      && Math.min(...millisForm.map(([, , time]) => time)) >= LIFETIME_THRESHOLD,
+    '分界两侧在源里出现了重叠——量级判据对这本目录不再成立，必须改成显式登记而不是按量级猜',
+  );
+}
+
 /** 源里带分组标记的三个字段名——它们是「哪些加算、哪些独立乘算」的全部依据。 */
 assert.deepEqual(
   ['damR', 'indieDamR', 'criticaldamage'].every(field => catalogIdsWith(field).length > 0),
@@ -939,4 +1061,10 @@ console.log(
 );
 console.log(
   `  旧式乘算：0 处（玩家受伤侧按边界正向登记，未纳入管线）`,
+);
+console.log(
+  `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `
+  + `3 个施放入口；源侧重算 ${WIRED_SUMMON_LIFETIME
+    .map(([id, , time, ms]) => `${id}=${time}${time >= LIFETIME_THRESHOLD ? 'ms' : 's'}→${ms}ms`)
+    .join('/')}`,
 );

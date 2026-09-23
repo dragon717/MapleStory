@@ -95,14 +95,20 @@ pub(super) fn compute_derived_stats(
 ) -> DerivedStats {
     // 无限：增益生效中、且剩余时长已进入源 `w2` 的加强段时才上报「已强化」。
     // 阈值 = 全时长 × w2%，全时长 = 源 time × (100 + 大師魔法 bufftimeR)%。
-    let infinity_enhanced = if runtime.skill_buffs.contains_key(&SKILL_INFINITY) {
+    // 「哪一本在生效」取自 `INFINITY_SKILLS`（2221004 / 2121004 / 2321004），
+    // 不再写死冰雷那一本——火毒／主教玩家的 `infinityEnhanced` 改前永远是 false。
+    let active_infinity = INFINITY_SKILLS
+        .iter()
+        .copied()
+        .find(|skill_id| runtime.skill_buffs.contains_key(skill_id));
+    let infinity_enhanced = if let Some(infinity_skill) = active_infinity {
         let level = skills
-            .get(&SKILL_INFINITY)
-            .and_then(|level| mage_skills.level(SKILL_INFINITY, *level));
+            .get(&infinity_skill)
+            .and_then(|level| mage_skills.level(infinity_skill, *level));
         match level {
             None => false,
             Some(infinity_level) => {
-                let remaining = runtime.skill_buffs[&SKILL_INFINITY];
+                let remaining = runtime.skill_buffs[&infinity_skill];
                 let source_time_ms = u64::try_from(infinity_level.time.unwrap_or(0).max(0))
                     .unwrap_or(0)
                     .saturating_mul(1_000);

@@ -104,10 +104,11 @@ impl World {
             ));
             let base_damage = attributes.attack_damage_against(player.state.level, &target_template);
             let mut pipeline = DamagePipeline::new(base_damage);
-            if player.status.buff_active(SKILL_INFINITY) {
+            if infinity_buff_active(player) {
                 pipeline.add(
                     DamageSource::UnmarkedField {
-                        skill_id: SKILL_INFINITY,
+                        // 留痕写真正生效的那一本（2221004 / 2121004 / 2321004）。
+                        skill_id: active_infinity_skill(player).unwrap_or(SKILL_INFINITY),
                         field: "damage",
                     },
                     player.infinity_damage_bonus,
@@ -134,12 +135,14 @@ impl World {
                         .saturating_mul(i64::from(player.mystic_strike_stacks)),
                 );
             }
-            if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
+            // 傳說冒險：三本副本（2221053 / 2121053 / 2321053）走同一条窗口，
+            // 留痕里的 `skill_id` 指认**真正在计时的那一本**。
+            if let Some(adventurer) = active_adventurer_skill(player) {
                 pipeline.add(
                     DamageSource::IndependentDamageRate {
-                        skill_id: SKILL_HYPER_ADVENTURER,
+                        skill_id: adventurer,
                     },
-                    hyper_adventurer_damage_percent(&self.mage_skills, player),
+                    hyper_adventurer_damage_percent(&self.mage_skills, player, adventurer),
                 );
             }
             // 区域系数（Boss 练习场地护盾）是减伤，源里没有它，`percent` 为负。

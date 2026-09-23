@@ -4178,6 +4178,9 @@ include!("job_advance_acceptance.rs");
 // 战斗机制纵深（2026-09-22 第十三轮）：召唤物 / DoT / 投射物 / 二段命中，
 // 以及四者在世界拍里的**结算优先级**。
 include!("mechanics_acceptance.rs");
+// 火毒／主教四转「同一格副本」接线（2026-09-23）：楓葉祝福 / 魔力無限 / 楓葉淨化 /
+// 召喚火魔 与冰雷那几条同机制，收口成表之后副本也必须真的能放出来。
+include!("mage_branch_copy_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {
@@ -5799,7 +5802,7 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
         player.attack_until = 0;
     }
     world
-        .cast_ice_demon("fourth-runtime", "demon-1", &demon)
+        .cast_demon_summon("fourth-runtime", "demon-1", SKILL_ICE_DEMON, &demon)
         .unwrap();
     world
         .cast_frozen_orb("fourth-runtime", "orb-1", &orb)
@@ -5824,7 +5827,7 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
     }
     let infinity = world.mage_skills.level(SKILL_INFINITY, 1).cloned().unwrap();
     world
-        .activate_infinity("fourth-runtime", &infinity)
+        .activate_infinity("fourth-runtime", SKILL_INFINITY, &infinity)
         .unwrap();
     {
         let player = world.players.get_mut("fourth-runtime").unwrap();

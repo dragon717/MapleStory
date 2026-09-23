@@ -134,7 +134,12 @@ export class PlayerView {
       return;
     }
     if (![1000, 2001008, 2001011, 2001012, 2201008, 2201005, 2201001, 2211002, 2211007, 2211011, 2211012, 2211014,
-      2221000, 2221004, 2221005, 2221006, 2221007, 2221008, 2221011, 2221012, 2221052].includes(skillId)
+      2221000, 2221004, 2221005, 2221006, 2221007, 2221008, 2221011, 2221012, 2221052,
+      // 火毒／主教四转的同一格副本（2026-09-23）：源里同样是 600ms 的攻击动作，
+      // 姿势走同一套 `skill<id>` 命名，所以必须一起进来，否则副本施放没有施法姿势。
+      2121000, 2121004, 2121005, 2121008, 2321000, 2321004, 2321009,
+      // 傳說冒險三本：服务端给同一个 600ms 施法时长，姿势同样是 `skill<id>`。
+      2221053, 2121053, 2321053].includes(skillId)
       || !Number.isFinite(durationMs) || durationMs <= 0) return;
     // Older skillCast envelopes omit phase; CombatView treats that as the
     // held/sustain stage, so the actor and VFX remain on the same timeline.

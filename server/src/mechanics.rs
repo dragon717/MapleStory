@@ -44,7 +44,9 @@
 //! - **召唤物 × 主人**：脉冲复用主人**当拍**的属性快照（走同一条 `cast_elemental_area_at`），
 //!   所以主人的增益、武器、等级差修正对召唤物同样生效；三件召唤（冰魔 / 冰鋒刃 / 三转球形
 //!   闪电）共用 `Player::summons` 一条队列，容量判据收口在 [`World::summon_slots_available`]，
-//!   脉冲周期收口在 [`summon_pulse_ms`]（2026-09-23 前球形闪电另走一个单槽，已并入）。
+//!   脉冲周期收口在 [`summon_pulse_ms`]（2026-09-23 前球形闪电另走一个单槽，已并入），
+//!   存活时长收口在 [`summon_lifetime_ms`]（同日收口：改前三处各写一份，其中冰鋒刃
+//!   那处根本不读源）。
 
 use super::*;
 
@@ -64,6 +66,27 @@ pub(super) const SUMMON_BUDGET: usize = 3;
 /// 召唤物脉冲周期的**契约兜底值**（毫秒）：源里既没有毫秒书写的 `attackDelay`、也没有
 /// 毫秒书写的 `subTime` 时用它（见 [`World::summon_pulse_ms`]）。
 pub(super) const SUMMON_PULSE_FALLBACK_MS: u64 = 1_080;
+/// 召唤物**存活时长**的契约兜底值（毫秒）：源里没有 `time` 时用它
+/// （见 [`summon_lifetime_ms`]）。
+///
+/// 它取代的是收口前**两处互相矛盾的静默默认**：`cast_demon_summon` 的
+/// `unwrap_or(0)` 会算出 1 拍（≈ 立刻到期），而 `cast_thunder_sphere` 自己另写
+/// 20 秒／60 秒。现在默认值只剩这一处。当前五本已接线的召唤书**逐级都带 `time`**，
+/// 兜底分支在验收里被证明不可达（`mech_summon_lifetime_comes_from_one_source_derivation`）。
+pub(super) const SUMMON_LIFETIME_FALLBACK_MS: u64 = 60_000;
+/// 源 `time` 的**单位分界**：`>=` 本值 ⇒ 源里写的就是毫秒，否则按秒 ×1000。
+///
+/// 判据形状与 [`summon_pulse_ms`] 的 `subTime >= 一拍` 同源——都是「按量级认单位」，
+/// 因为源里**没有任何结构字段**能定下 `time` 的单位（逐项核对过：`summon` 节点在不在
+/// 都不成立——`1121055` 有 `summon` 节点却写 `time=10000`，`2100010` 没有 `summon`
+/// 节点却写 `time=4+d(x/4)`；`attackDelay` 在场也不成立——`1301014` 带
+/// `attackDelay=360` 却写 `time=5`）。
+///
+/// 量级判据的依据是全书 148 条带 `time` 的技能逐条核对的结果：按秒书写的召唤存活时长
+/// 最大只到 `260`（冰魔／火魔 `110+5*x`、閃電球 `2211011` `60+3*x`、hidden `2211015`
+/// `20+2*x`、主教召唤 `40+2*x`／`60+16*x`），而按毫秒书写的三条是 `3000`（`3111013 箭座`）／
+/// `4000`（`2221012 冰鋒刃`）／`10000`（`1121055`）——中间**没有重叠区**。
+pub(super) const SUMMON_LIFETIME_MS_THRESHOLD: i64 = 1_000;
 
 /// 一次施法需要经过哪几层机制，以及每层的参数。**全部从源字段派生**：
 /// 字段在不在、值是多少决定计划长什么样，没有按技能 id 写死的分支。
@@ -249,6 +272,38 @@ pub(super) fn summon_pulse_ms(skills: &MageSkills, skill_id: u32, level: u32) ->
         return sub as u64;
     }
     SUMMON_PULSE_FALLBACK_MS
+}
+
+/// 召唤物**存活时长**的唯一派生点（毫秒）。与 [`summon_pulse_ms`] 同形同责：
+/// 一个 `&MageSkills` + 技能 id + 等级进、一个毫秒值出，中间没有技能名单。
+///
+/// 收口前这笔账写了**三处**，而且互相不一致：
+///
+/// * `elemental.rs::cast_demon_summon` 把 `time` 当秒（`× 1000`）；
+/// * `skills.rs::cast_thunder_sphere` 也当秒，但**默认值另写** 20 秒／60 秒；
+/// * `elemental.rs::cast_frozen_orb` **根本不读源**，直接写死 `4_000`——
+///   源里 `2221012` 的 `time` 一旦改数，这条召唤的存活时长会静默漂移。
+///
+/// 现在三处都走这里，判据只剩「`time` 的量级认单位」一条：
+///
+/// * `time` 缺 → [`SUMMON_LIFETIME_FALLBACK_MS`]；
+/// * `time >= ` [`SUMMON_LIFETIME_MS_THRESHOLD`] → 源里写的就是毫秒，原样返回；
+/// * 否则按秒 ×1000。
+///
+/// **写明的 0 不等于没写**：`time = Some(0)` 走第三支得到 0，调用方照旧
+/// `.max(1)` 收敛成「1 拍即到期」——与收口前 `cast_demon_summon` 的语义逐字相同，
+/// 不许把它并进「缺失 ⇒ 兜底值」那一支。
+pub(super) fn summon_lifetime_ms(skills: &MageSkills, skill_id: u32, level: u32) -> u64 {
+    let Some(time) = skills.level(skill_id, level).and_then(|row| row.time) else {
+        return SUMMON_LIFETIME_FALLBACK_MS;
+    };
+    if time >= SUMMON_LIFETIME_MS_THRESHOLD {
+        time as u64
+    } else {
+        u64::try_from(time.max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000)
+    }
 }
 
 /// 怪物侧持续伤害的一个实例。键是 `(施法者, 技能, 目标)`，所以它天然是

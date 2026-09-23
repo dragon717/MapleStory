@@ -356,20 +356,23 @@ fn damage_trace_enabled() -> bool {
     })
 }
 
-/// 源 `indieDamR` 的一个来源（傳說冒險 2221053，`maxLevel = 1`）在**两条伤害路径上的同一个取值**。
+/// 源 `indieDamR` 的一个来源（傳說冒險，`maxLevel = 1`）在**两条伤害路径上的同一个取值**。
 ///
 /// 改前普通攻击路径取「已学等级」（再 clamp 到 0..100），魔法技能路径固定取 1 级且不 clamp：
 /// 该技能 `maxLevel = 1`，所以今天两个口径的数值相同，但**形状不同** ⇒ 源码把 `maxLevel`
 /// 调大时两条路径会静默分叉。收成一处，取值口径只有这一个定义。
-pub(super) fn hyper_adventurer_damage_percent(mage_skills: &MageSkills, player: &Player) -> i64 {
-    let level = player
-        .state
-        .skills
-        .get(&SKILL_HYPER_ADVENTURER)
-        .copied()
-        .unwrap_or(1);
+///
+/// `skill_id` 是**真正在计时的那一本**（冰雷 2221053 / 火毒 2121053 / 主教 2321053，
+/// 由 [`active_adventurer_skill`] 从增益里认出）。改前这里写死冰雷那本 ⇒ 副本的窗口
+/// 读的是别人书的等级。
+pub(super) fn hyper_adventurer_damage_percent(
+    mage_skills: &MageSkills,
+    player: &Player,
+    skill_id: u32,
+) -> i64 {
+    let level = player.state.skills.get(&skill_id).copied().unwrap_or(1);
     mage_skills
-        .level(SKILL_HYPER_ADVENTURER, level)
+        .level(skill_id, level)
         .and_then(|level| level.indie_dam_r)
         .unwrap_or(10)
         .clamp(0, 100)

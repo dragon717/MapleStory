@@ -314,7 +314,7 @@ fn maple_cure_clears_all_diseases_and_rearms_immunity() {
     }
     // 楓葉淨化 clears every modelled disease and re-arms the immunity window.
     let level = crate::mage::MageLevel::default();
-    world.activate_status_cleanse("victim", &level);
+    world.activate_status_cleanse("victim", SKILL_MAPLE_CURE, &level);
     let player = &world.players["victim"];
     for disease in Disease::ALL {
         assert!(!player.status.disease_active(disease), "{disease:?} 应已解除");
@@ -335,7 +335,7 @@ fn the_cure_buff_owns_the_immunity_window_until_it_expires() {
     let (mut world, _rx) = status_world();
     world.tick = 10;
     let level = crate::mage::MageLevel::default();
-    world.activate_status_cleanse("victim", &level);
+    world.activate_status_cleanse("victim", SKILL_MAPLE_CURE, &level);
     // 3000 ms = 60 拍。
     while world.tick < 69 {
         world.step();

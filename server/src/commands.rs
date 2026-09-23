@@ -306,7 +306,16 @@ impl World {
                         SKILL_FROZEN_ORB,
                         SKILL_HYPER_THUNDER,
                         SKILL_HYPER_ADVENTURER,
+                        SKILL_HYPER_ADVENTURER_FP,
+                        SKILL_HYPER_ADVENTURER_CLERIC,
                         SKILL_HYPER_VORTEX_HIDDEN,
+                        // 火毒／主教四转的「同一格副本」（2026-09-23）：这两条带
+                        // `cooltime`，重连后必须与冰雷那两本一样把剩余冷却读回来，
+                        // 否则换条分支的玩家重登就能白嫖一发。
+                        SKILL_INFINITY_FP,
+                        SKILL_INFINITY_CLERIC,
+                        SKILL_MAPLE_CURE_FP,
+                        SKILL_MAPLE_CURE_CLERIC,
                     ] {
                         let remaining = match store.skill_cooldown_remaining_ms(&id, skill_id) {
                             Ok(remaining) => remaining,

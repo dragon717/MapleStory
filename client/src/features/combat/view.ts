@@ -5,6 +5,8 @@ import { assetFrameAlpha } from '../../assets/manifest';
 import { ensureTextures } from '../../assets/lazy-texture';
 import { damageNumberAdvances, damageNumberLayers } from './damage-number';
 import { frameAt } from '../player/animation';
+// 火毒／主教四转「同一格副本」的镜像名单（与服务端 `world.rs` 的几张表同源）。
+import { CASTER_ANCHORED_BUFFS, DEMON_SUMMON_SKILLS, HYPER_ADVENTURER_SKILLS, INFINITY_SKILLS } from '../player/input';
 
 export type Facing = -1 | 1;
 
@@ -203,7 +205,7 @@ export class CombatView {
     // P: one source Hit cue per target's first authoritative damage segment.
     if ((event.segment ?? 1) === 1 && event.skillId !== undefined) this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.hit?.url);
     this.spawnDamageNumber(event);
-    if ([2211011, 2211015, 2221005].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
+    if ([2211011, 2211015, ...DEMON_SUMMON_SKILLS].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
       for (const summon of this.summons.values()) if (summon.state.playerId === event.attackerId && summon.state.skillId === event.skillId) summon.attackAt = this.clock();
       const soundId = `summon:${event.attackerId}:${event.skillId}:${event.serverTick}`;
       if (!this.seen.has(soundId)) {
@@ -459,7 +461,7 @@ export class CombatView {
       if (!visual.buffSkillId || visual.event.type !== 'skillCast') continue;
       const player = this.playerStates.get(visual.event.playerId);
       if (!player || player.hp <= 0 || (visual.buffSkillId === 2221054 ? !player.derivedStats?.hyperBarrierActive : (player.derivedStats?.skillBuffs?.[String(visual.buffSkillId)] ?? 0) <= 0)
-        || (visual.buffSkillId === 2221004 && !player.derivedStats?.infinityEnhanced)) {
+        || (INFINITY_SKILLS.includes(visual.buffSkillId) && !player.derivedStats?.infinityEnhanced)) {
         if (visual.buffSkillId === 2221054 && player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(player.id);
         visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
       }
@@ -503,16 +505,21 @@ export class CombatView {
         requestId: '', startAt: this.clock(), expiresAt: this.clock() + remaining,
       });
     }
-    const frames = this.skillEffects?.['2221004']?.special;
-    if (!frames?.length || !frames.every(validFrame)) return;
-    for (const player of players ?? []) {
-      const remaining = player.derivedStats?.skillBuffs?.['2221004'] ?? 0;
-      if (player.hp <= 0 || !player.derivedStats?.infinityEnhanced || remaining <= 0
-        || this.skillVisuals.some(visual => visual.buffSkillId === 2221004 && visual.event.type === 'skillCast' && visual.event.playerId === player.id)) continue;
-      const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `infinity-${player.id}`, requestId: '',
-        playerId: player.id, skillId: 2221004, serverTick: 0, x: player.x, y: player.y, facing: player.facing,
-        durationMs: remaining }, frames, undefined, remaining);
-      if (visual) visual.buffSkillId = 2221004;
+    // 無限的持续特效逐本查：三条分支各有一本（2221004 / 2121004 / 2321004），
+    // 一个角色只可能有一本在计时，所以「哪一本的 `special` 有帧、且它的增益在册」
+    // 就是唯一判据。改前写死 2221004 ⇒ 火毒／主教玩家的無限完全没有持续特效。
+    for (const infinitySkillId of INFINITY_SKILLS) {
+      const frames = this.skillEffects?.[String(infinitySkillId)]?.special;
+      if (!frames?.length || !frames.every(validFrame)) continue;
+      for (const player of players ?? []) {
+        const remaining = player.derivedStats?.skillBuffs?.[String(infinitySkillId)] ?? 0;
+        if (player.hp <= 0 || !player.derivedStats?.infinityEnhanced || remaining <= 0
+          || this.skillVisuals.some(visual => visual.buffSkillId === infinitySkillId && visual.event.type === 'skillCast' && visual.event.playerId === player.id)) continue;
+        const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `infinity-${player.id}`, requestId: '',
+          playerId: player.id, skillId: infinitySkillId, serverTick: 0, x: player.x, y: player.y, facing: player.facing,
+          durationMs: remaining }, frames, undefined, remaining);
+        if (visual) visual.buffSkillId = infinitySkillId;
+      }
     }
   }
 
@@ -594,7 +601,9 @@ export class CombatView {
       const frame = visual.frames[index];
       if (!frame) continue;
       const frameElapsed = frameTime - visual.frames.slice(0, index).reduce((sum, current) => sum + current.delay, 0);
-      const owner = visual.event.type === 'skillCast' && (visual.buffSkillId || [2221000, 2221004, 2221008, 2221053, 2221054].includes(visual.event.skillId))
+      // 傳說冒險三本（2221053 / 2121053 / 2321053）的施法视觉都跟施法者走，
+      // 判据从写死 2221053 收口成表；2221054 冰雪结界是另一条技能，留在表外。
+      const owner = visual.event.type === 'skillCast' && (visual.buffSkillId || [...CASTER_ANCHORED_BUFFS, ...HYPER_ADVENTURER_SKILLS, 2221054].includes(visual.event.skillId))
         ? this.playerStates.get(visual.event.playerId) : undefined;
       const base = owner ? { x: owner.x, y: owner.y } : visual.travel
         ? {

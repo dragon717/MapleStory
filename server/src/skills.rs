@@ -157,22 +157,25 @@ impl World {
                 | SKILL_TELEPORT_MASTERY
                 | SKILL_TELEPORT_BOOST
                 | SKILL_HYPER_TELEPORT_DISTANCE
-                | SKILL_MAPLE_WARRIOR
-                | SKILL_INFINITY
-                | SKILL_ICE_DEMON
                 | SKILL_CHAIN_LIGHTNING
                 | SKILL_BLIZZARD
-                | SKILL_MAPLE_CURE
                 | SKILL_ICE_DRAGON_BREATH
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
-                | SKILL_HYPER_ADVENTURER
                 | SKILL_HYPER_VORTEX
                 | SKILL_THREE_SNAILS
                 | SKILL_RECOVERY
                 | SKILL_NIMBLE_FEET
         ) || BRANCH_AREA_ATTACKS.contains(&skill_id)
-            || PHYSICAL_AREA_ATTACKS.contains(&skill_id);
+            || PHYSICAL_AREA_ATTACKS.contains(&skill_id)
+            // 火毒／主教四转的「同一格副本」（2026-09-23）：楓葉祝福 / 魔力無限 /
+            // 楓葉淨化 / 召喚火魔 / 傳說冒險 与冰雷那几条同机制，收进同一张表后一起进
+            // 白名单。表定义在 `world.rs`，判据只有那一处。
+            || MAPLE_WARRIOR_SKILLS.contains(&skill_id)
+            || INFINITY_SKILLS.contains(&skill_id)
+            || MAPLE_CURE_SKILLS.contains(&skill_id)
+            || DEMON_SUMMON_SKILLS.contains(&skill_id)
+            || HYPER_ADVENTURER_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -269,7 +272,7 @@ impl World {
             );
             return;
         }
-        if matches!(
+        if (matches!(
             skill_id,
             SKILL_ENERGY_BOLT
                 | SKILL_THREE_SNAILS
@@ -278,13 +281,13 @@ impl World {
                 | SKILL_ICE_STORM
                 | SKILL_GLACIAL_WALL
                 | SKILL_THUNDER_SPHERE
-                | SKILL_ICE_DEMON
                 | SKILL_CHAIN_LIGHTNING
                 | SKILL_BLIZZARD
                 | SKILL_ICE_DRAGON_BREATH
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
-        ) && player.attack_until > self.tick
+        ) || DEMON_SUMMON_SKILLS.contains(&skill_id))
+            && player.attack_until > self.tick
         {
             self.send_reject(&id, "skill_busy", "技能动作尚未结束。", Some(&request_id));
             return;
@@ -390,15 +393,19 @@ impl World {
             SKILL_CAST_DURATION_MS
         } else if skill_id == SKILL_HYPER_THUNDER {
             780
-        } else if matches!(skill_id, SKILL_HYPER_ADVENTURER | SKILL_HYPER_VORTEX) {
+        } else if HYPER_ADVENTURER_SKILLS.contains(&skill_id) || skill_id == SKILL_HYPER_VORTEX {
+            // 傳說冒險三本与冰雪结界：源里都没有施法时长字段，600ms 是本包与
+            // 2221053 一致的施法动作时长。判据从「写死 2221053」收口成表，
+            // 所以火毒／主教那两本拿到同一个值。
             600
         } else if skill_id == SKILL_MAGIC_WAVE_HIDDEN {
             level.time.unwrap_or(5).max(0).try_into().unwrap_or(5_000) * 1_000
-        } else if skill_id == SKILL_INFINITY {
+        } else if INFINITY_SKILLS.contains(&skill_id) {
             // The source has an alert/activation action but no authored
             // duration field.  Keep the visual cast finite and independent
             // of weapon action speed; the actual buff duration is tracked
-            // separately by activate_infinity.
+            // separately by activate_infinity.  三本副本（222/212/232）同形，
+            // 所以这条判据也从常量收口成表。
             600
         } else if skill_id == SKILL_ICE_DRAGON_BREATH {
             // q is the held-key maximum from String.h.  Master Magic
@@ -413,14 +420,14 @@ impl World {
                 | SKILL_ICE_STORM
                 | SKILL_GLACIAL_WALL
                 | SKILL_THUNDER_SPHERE
-                | SKILL_ICE_DEMON
                 | SKILL_CHAIN_LIGHTNING
                 | SKILL_BLIZZARD
                 | SKILL_ICE_DRAGON_BREATH
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
                 | SKILL_HYPER_VORTEX
-        ) {
+        ) || DEMON_SUMMON_SKILLS.contains(&skill_id)
+        {
             if skill_id == SKILL_ENERGY_BOLT {
                 self.energy_duration_ms(&id)
             } else {
@@ -565,29 +572,34 @@ impl World {
                     player.adaptation_cooldown_ms = u64::try_from(cooldown_ms).unwrap_or(0);
                 }
             }
-            SKILL_MAPLE_WARRIOR => {
+            // 楓葉祝福：三条分支的四转各一本（2221000 / 2121000 / 2321000）。源里三本
+            // 都**没有** `time`，所以 `buff_duration_ms` 的基数恒为 0——真正的
+            // `basicStatUp` 早已按 `MAPLE_WARRIOR_SKILLS` 数组「学得即生效」消费
+            // （`attribute.rs` 第 3 层），这里只保留冰雷既有的「施放即挂一个空窗」行为，
+            // 不因为副本就凭空补一个源里没有的时长。
+            other if MAPLE_WARRIOR_SKILLS.contains(&other) => {
                 let duration_ms = self.buff_duration_ms(
                     &id,
                     &level,
                     level.time.unwrap_or(0).max(0) as u64 * 1_000,
                 );
                 if let Some(player) = self.players.get_mut(&id) {
-                    player.status.apply_buff(
-                        SKILL_MAPLE_WARRIOR,
-                        duration_ms,
-                        self.tick,
-                        Release::None,
-                    );
+                    player
+                        .status
+                        .apply_buff(other, duration_ms, self.tick, Release::None);
                 }
             }
-            SKILL_INFINITY => {
-                if let Err(error) = self.activate_infinity(&id, &level) {
+            // 魔力無限：2221004 / 2121004 / 2321004，三本源 `common` 逐字段同形。
+            other if INFINITY_SKILLS.contains(&other) => {
+                if let Err(error) = self.activate_infinity(&id, other, &level) {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
             }
-            SKILL_ICE_DEMON => {
-                if let Err(error) = self.cast_ice_demon(&id, &request_id, &level) {
+            // 召唤系四转：召喚冰魔 2221005 与召喚火魔 2121005。实体、存活时长与
+            // 脉冲周期都从源字段派生（S5 建成的通用槽位），本臂不写技能名单以外的分支。
+            other if DEMON_SUMMON_SKILLS.contains(&other) => {
+                if let Err(error) = self.cast_demon_summon(&id, &request_id, other, &level) {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
@@ -617,7 +629,11 @@ impl World {
                     self.apply_chain_stun(&id, &request_id, &level);
                 }
             }
-            SKILL_MAPLE_CURE => self.activate_status_cleanse(&id, &level),
+            // 楓葉淨化：2221008 / 2121008 / 2321009，三本源 `common` 逐字段同形
+            // （`mpCon,cooltime,time`），走同一条「清疾病 + 3 秒免疫窗」。
+            other if MAPLE_CURE_SKILLS.contains(&other) => {
+                self.activate_status_cleanse(&id, other, &level)
+            }
             SKILL_ICE_DRAGON_BREATH => {
                 if let Err(error) = self.cast_ice_dragon_breath(&id, &request_id, &level) {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
@@ -635,8 +651,10 @@ impl World {
                     return;
                 }
             }
-            SKILL_HYPER_ADVENTURER => {
-                self.activate_hyper_adventurer(&id, &level);
+            // 傳說冒險三本共用同一条施法臂：增益按**施放的那一本**挂出，
+            // 所以火毒／主教那两本不再落到 `_ => {}`（「尚未开放施放」）。
+            adventurer if HYPER_ADVENTURER_SKILLS.contains(&adventurer) => {
+                self.activate_hyper_adventurer(&id, adventurer, &level);
             }
             SKILL_HYPER_VORTEX => {
                 if let Err(error) = self.activate_hyper_vortex(&id, &request_id, &level, vertical) {
@@ -948,11 +966,13 @@ impl World {
         // Infinity is an authoritative active buff.  Its no-MP rule applies
         // to every other accepted skill, including skills whose source value
         // is zero or whose Elemental Amp adjustment was already calculated.
-        if skill_id != SKILL_INFINITY
+        // 三本副本（2221004 / 2121004 / 2321004）共用这条判据：改前只认冰雷那一本，
+        // 火毒／主教放了無限之后仍然照扣 MP。
+        if !INFINITY_SKILLS.contains(&skill_id)
             && self
                 .players
                 .get(id)
-                .is_some_and(|player| player.status.buff_active(SKILL_INFINITY))
+                .is_some_and(infinity_buff_active)
         {
             cost = 0;
         }
@@ -1061,14 +1081,14 @@ impl World {
                 | SKILL_GLACIAL_WALL
                 | SKILL_TELEPORT_MASTERY
                 | SKILL_THUNDER_SPHERE
-                | SKILL_ICE_DEMON
                 | SKILL_CHAIN_LIGHTNING
                 | SKILL_BLIZZARD
                 | SKILL_ICE_DRAGON_BREATH
                 | SKILL_FROZEN_ORB
                 | SKILL_HYPER_THUNDER
                 | SKILL_HYPER_VORTEX
-        ) || PHYSICAL_AREA_ATTACKS.contains(&skill_id)
+        ) || DEMON_SUMMON_SKILLS.contains(&skill_id)
+            || PHYSICAL_AREA_ATTACKS.contains(&skill_id)
         {
             let target_ids = if skill_id == SKILL_THREE_SNAILS {
                 self.beginner_throw_targets(id)
@@ -1321,7 +1341,7 @@ impl World {
         base_ms.saturating_mul(100 + bufftime) / 100
     }
 
-    pub(super) fn activate_status_cleanse(&mut self, id: &str, _level: &MageLevel) {
+    pub(super) fn activate_status_cleanse(&mut self, id: &str, skill_id: u32, _level: &MageLevel) {
         let Some(player) = self.players.get_mut(id) else {
             return;
         };
@@ -1334,10 +1354,14 @@ impl World {
         // 两件事都收在 `PlayerStatus` 里：`cleanse()` 一次清空全部疾病**并**盖章
         // 免疫窗；增益记录自带 `Release::StatusImmunity`，所以它到期时不需要第二处
         // 去清那个窗口（窗口自己按截止点失效）。
+        //
+        // 免疫窗挂在**施放的那一本**上（2221008 / 2121008 / 2321009）：
+        // `buff_remaining_ms` 是按技能 id 查的，写死冰雷那一本会让火毒／主教玩家
+        // 的免疫窗读不到（净化本身仍然生效，但窗口的到期回收会漏）。
         player.status.cleanse(self.tick, 3_000);
         player
             .status
-            .apply_buff(SKILL_MAPLE_CURE, 3_000, self.tick, Release::StatusImmunity);
+            .apply_buff(skill_id, 3_000, self.tick, Release::StatusImmunity);
     }
 
     /// Resolve the player-side defenses against one monster disease, returning
@@ -1642,11 +1666,13 @@ impl World {
             | SKILL_ICE_STORM
             | SKILL_GLACIAL_WALL
             | SKILL_THUNDER_SPHERE
-            | SKILL_ICE_DEMON
             | SKILL_CHAIN_LIGHTNING
             | SKILL_BLIZZARD
             | SKILL_ICE_DRAGON_BREATH
             | SKILL_FROZEN_ORB => 600,
+            // 召唤系四转（冰魔 / 火魔）与上列同为 600ms 动作；两本同格同形，
+            // 所以判据从常量收口成表。
+            other if DEMON_SUMMON_SKILLS.contains(&other) => 600,
             _ => SKILL_CAST_DURATION_MS,
         };
         let action_speed = self
@@ -2234,7 +2260,7 @@ impl World {
                 }
             }
         }
-        let (mystic_ignore, mystic_bonus, infinity_bonus) = self
+        let (mystic_ignore, mystic_bonus, infinity_bonus, infinity_source) = self
             .players
             .get(id)
             .map(|player| {
@@ -2258,14 +2284,17 @@ impl World {
                     } else {
                         0
                     },
-                    if player.status.buff_active(SKILL_INFINITY) {
+                    if infinity_buff_active(player) {
                         player.infinity_damage_bonus.max(0)
                     } else {
                         0
                     },
+                    // 留痕要写**真正生效的那一本**（2221004 / 2121004 / 2321004），
+                    // 不能永远写冰雷那一本：三本互斥，但账本必须对得上玩家手里的书。
+                    active_infinity_skill(player).unwrap_or(SKILL_INFINITY),
                 )
             })
-            .unwrap_or((0, 0, 0));
+            .unwrap_or((0, 0, 0, SKILL_INFINITY));
         ignored_md_rate = ignored_md_rate.saturating_add(mystic_ignore);
         let bind_md_rate = (target.bind_until > self.tick)
             .then_some(target.bind_md_rate_reduction)
@@ -2310,12 +2339,14 @@ impl World {
             );
         }
         if let Some(player) = self.players.get(id) {
-            if player.status.buff_active(SKILL_HYPER_ADVENTURER) {
+            // 傳說冒險：同 `attacks.rs` 的普攻路径，两条路径读同一个访问器、
+            // 留痕同一个 `skill_id`（真正在计时的那一本）。
+            if let Some(adventurer) = active_adventurer_skill(player) {
                 pipeline.add(
                     DamageSource::IndependentDamageRate {
-                        skill_id: SKILL_HYPER_ADVENTURER,
+                        skill_id: adventurer,
                     },
-                    hyper_adventurer_damage_percent(&self.mage_skills, player),
+                    hyper_adventurer_damage_percent(&self.mage_skills, player, adventurer),
                 );
             }
         }
@@ -2412,7 +2443,7 @@ impl World {
         );
         pipeline.add(
             DamageSource::UnmarkedField {
-                skill_id: SKILL_INFINITY,
+                skill_id: infinity_source,
                 field: "damage",
             },
             infinity_bonus,
@@ -3095,7 +3126,7 @@ impl World {
         &mut self,
         id: &str,
         request_id: &str,
-        level: &MageLevel,
+        _level: &MageLevel,
         vertical: i8,
     ) -> Result<(), String> {
         let Some(player_snapshot) = self.players.get(id).map(|player| {
@@ -3115,29 +3146,28 @@ impl World {
             return Err("player_unknown".to_owned());
         };
         let (map_id, x, y, facing, existing_index) = player_snapshot;
-        let hidden_level = self
-            .mage_skills
-            .level(
-                SKILL_THUNDER_SPHERE_HIDDEN,
-                self.players
-                    .get(id)
-                    .and_then(|player| player.state.skills.get(&SKILL_THUNDER_SPHERE))
-                    .copied()
-                    .unwrap_or(1),
-            )
-            .cloned()
-            .unwrap_or_else(|| level.clone());
+        let learned = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_THUNDER_SPHERE))
+            .copied()
+            .unwrap_or(1);
         let anchor = vertical > 0;
-        let duration_source = if anchor {
-            hidden_level.time.unwrap_or(20)
-        } else {
-            level.time.unwrap_or(60)
-        };
-        let duration_ticks = u64::try_from(duration_source.max(0))
-            .unwrap_or(if anchor { 20 } else { 60 })
-            .saturating_mul(1_000)
-            .div_ceil(TICK_MS)
-            .max(1);
+        // 存活时长走唯一派生点（`mechanics.rs::summon_lifetime_ms`）：本函数收口前
+        // 自己把 `time` 当秒换算、还另写了 20／60 两个默认值，与冰魔／冰鋒刃那两处
+        // 各写一份。现在单位判据（秒 vs 毫秒）与默认值都只剩那一处。
+        // 锚定形态读**隐藏那本** `2211015` 的 `time`（与改前同源），非锚定读 `2211011`。
+        let duration_ticks = summon_lifetime_ms(
+            &self.mage_skills,
+            if anchor {
+                SKILL_THUNDER_SPHERE_HIDDEN
+            } else {
+                SKILL_THUNDER_SPHERE
+            },
+            learned,
+        )
+        .div_ceil(TICK_MS)
+        .max(1);
         if let Some(index) = existing_index.filter(|_| anchor) {
             // 重新锚定既有球形闪电：只改形态与到期（保留 `summon_id` / `next_hit_at` /
             // `pulse_index`，所以锚定不会重置它的打击节拍），并把到期收紧为

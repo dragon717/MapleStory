@@ -7,7 +7,16 @@
 use super::*;
 
 impl World {
-    pub(super) fn activate_infinity(&mut self, id: &str, level: &MageLevel) -> Result<(), String> {
+    /// 魔力無限（三本副本 2221004 / 2121004 / 2321004）。`skill_id` 由调用方从
+    /// `INFINITY_SKILLS` 带进来——增益要挂在**施放的那一本**上，因为
+    /// `player_status` 是按技能 id 记剩余时长的；后续所有读取点都走
+    /// `active_infinity_skill`，所以「挂哪一本」与「读哪一本」是同一份判据。
+    pub(super) fn activate_infinity(
+        &mut self,
+        id: &str,
+        skill_id: u32,
+        level: &MageLevel,
+    ) -> Result<(), String> {
         let base_ms = u64::try_from(level.time.unwrap_or(0).max(0))
             .map_err(|_| "infinity_duration_invalid".to_owned())?
             .saturating_mul(1_000);
@@ -24,7 +33,7 @@ impl World {
         // 让 tick 块的清理 `match` 必须收回 `infinity_next_tick`/`_damage_bonus`。
         player
             .status
-            .apply_buff(SKILL_INFINITY, duration_ms, self.tick, Release::Infinity);
+            .apply_buff(skill_id, duration_ms, self.tick, Release::Infinity);
         player.infinity_next_tick = next_tick;
         player.infinity_damage_bonus = initial_bonus.min(level.w.unwrap_or(0).max(0));
         Ok(())
@@ -35,27 +44,32 @@ impl World {
     /// same successful interval; a failed write leaves both stages retryable.
     pub(super) fn step_infinity_tick(&mut self, id: &str) {
         let Some(snapshot) = self.players.get(id).map(|player| {
+            // 「哪一本在计时」与「读到哪一级」必须来自同一个判据：三本互斥，
+            // 但按技能 id 查剩余时长时，用错 id 会读到 `None`（旧写法写死 2221004）。
+            let active = active_infinity_skill(player);
             (
                 player.state.clone(),
                 player.map_id.clone(),
                 player.death_id.clone(),
                 player.base_max_mp,
                 player.infinity_next_tick,
-                player
-                    .status
-                    .buff_remaining_ms(SKILL_INFINITY)
-                    .unwrap_or(0),
-                player
-                    .state
-                    .skills
-                    .get(&SKILL_INFINITY)
-                    .copied()
-                    .and_then(|level| self.mage_skills.level(SKILL_INFINITY, level).cloned()),
+                active.and_then(|skill_id| player.status.buff_remaining_ms(skill_id)),
+                active.and_then(|skill_id| {
+                    player
+                        .state
+                        .skills
+                        .get(&skill_id)
+                        .copied()
+                        .and_then(|level| self.mage_skills.level(skill_id, level).cloned())
+                }),
             )
         }) else {
             return;
         };
         let (state, map_id, death_id, base_max_mp, next_tick, remaining, level) = snapshot;
+        let Some(remaining) = remaining else {
+            return;
+        };
         if remaining == 0 || next_tick > self.tick || state.hp <= 0 {
             return;
         }
@@ -101,11 +115,25 @@ impl World {
         self.emit_recovery_event(id, recovered.0, recovered.1, "infinity");
     }
 
-    pub(super) fn cast_ice_demon(
+    /// 召唤系四转的施放入口：召喚冰魔 `2221005` 与召喚火魔 `2121005`。
+    ///
+    /// 两条副本的**存活时长**都写在源 `time`（**秒**，逐本核对：冰魔／火魔
+    /// 1→30 级都是 115→260），脉冲周期由 [`summon_pulse_ms`] 从源字段派生（两本都没有
+    /// 毫秒书写的 `attackDelay`、`subTime` 也不足一拍 ⇒ 同取契约兜底值），位移形态取
+    /// `Anchored`——与冰魔同格、同「站桩周期打击」语义。容量判据仍在
+    /// [`World::summon_slots_available`]，这里只负责「同技能重放即替换」。
+    ///
+    /// 存活时长本身不再在本函数里换算单位：`time` 是秒还是毫秒由
+    /// [`summon_lifetime_ms`] 一处判定（冰魔／火魔按秒，冰鋒刃按毫秒）。
+    ///
+    /// **仍未做**：火魔源里带 `dot/dotInterval/dotTime`（召唤物的持续伤害），本包没有
+    /// 「召唤物挂 DoT」的实现点（`dot*` 只在直接命中链上被消费）⇒ 火魔的跳伤不接。
+    pub(super) fn cast_demon_summon(
         &mut self,
         id: &str,
         request_id: &str,
-        level: &MageLevel,
+        skill_id: u32,
+        _level: &MageLevel,
     ) -> Result<(), String> {
         let Some((map_id, x, y, facing, skill_level)) = self.players.get(id).map(|player| {
             (
@@ -113,24 +141,22 @@ impl World {
                 player.state.x,
                 player.state.y,
                 player.state.facing,
-                player
-                    .state
-                    .skills
-                    .get(&SKILL_ICE_DEMON)
-                    .copied()
-                    .unwrap_or(1),
+                player.state.skills.get(&skill_id).copied().unwrap_or(1),
             )
         }) else {
             return Err("player_unknown".to_owned());
         };
-        let duration_ticks = u64::try_from(level.time.unwrap_or(0).max(0))
-            .unwrap_or(0)
-            .saturating_mul(1_000)
+        let duration_ticks = summon_lifetime_ms(&self.mage_skills, skill_id, skill_level)
             .div_ceil(TICK_MS)
             .max(1);
+        let prefix = if skill_id == SKILL_ICE_DEMON {
+            "ice-demon"
+        } else {
+            "fire-demon"
+        };
         let summon = Summon {
-            summon_id: format!("ice-demon-{id}-{request_id}"),
-            skill_id: SKILL_ICE_DEMON,
+            summon_id: format!("{prefix}-{id}-{request_id}"),
+            skill_id,
             level: skill_level,
             map_id,
             x,
@@ -138,17 +164,17 @@ impl World {
             facing,
             motion: SummonMotion::Anchored,
             expires_at: self.tick.saturating_add(duration_ticks),
-            // 首跳时刻沿用既有写法（`/ TICK_MS` 向下取整，不是 `div_ceil`）：冰魔的源
-            // 契约为 1080ms，与 `summon_pulse_ms` 的兜底值同源。
-            next_hit_at: self.tick.saturating_add(
-                (summon_pulse_ms(&self.mage_skills, SKILL_ICE_DEMON, skill_level) / TICK_MS).max(1),
-            ),
+            // 首跳时刻沿用既有写法（`/ TICK_MS` 向下取整，不是 `div_ceil`）：两本的
+            // 源契约都落到 `summon_pulse_ms` 的兜底值，与冰魔的 1080ms 同源。
+            next_hit_at: self
+                .tick
+                .saturating_add((summon_pulse_ms(&self.mage_skills, skill_id, skill_level) / TICK_MS).max(1)),
             pulse_index: 0,
         };
         let Some(player) = self.players.get_mut(id) else {
             return Err("player_unknown".to_owned());
         };
-        player.summons.retain(|old| old.skill_id != SKILL_ICE_DEMON);
+        player.summons.retain(|old| old.skill_id != skill_id);
         if !Self::summon_slots_available(player) {
             return Err("summon_limit".to_owned());
         }
@@ -156,6 +182,13 @@ impl World {
         Ok(())
     }
 
+    /// 冰鋒刃 `2221012` 的施放入口：沿朝向自行前进（`SummonMotion::Drift`）的移动型
+    /// 召唤物。
+    ///
+    /// **存活时长改读源**（2026-09-23）：收口前这里是写死的 `4_000`，源 `time` 改数
+    /// 不会跟着动。现在与冰魔／火魔／球形闪电同走 [`summon_lifetime_ms`]——`2221012`
+    /// 是全书里少数**按毫秒**书写 `time` 的技能（`time=4000`），单位由那条派生点的
+    /// 量级判据认出来，本函数不再自己决定。
     pub(super) fn cast_frozen_orb(
         &mut self,
         id: &str,
@@ -187,7 +220,11 @@ impl World {
             y,
             facing,
             motion: SummonMotion::Drift,
-            expires_at: self.tick.saturating_add(4_000_u64.div_ceil(TICK_MS)),
+            expires_at: self.tick.saturating_add(
+                summon_lifetime_ms(&self.mage_skills, SKILL_FROZEN_ORB, skill_level)
+                    .div_ceil(TICK_MS)
+                    .max(1),
+            ),
             next_hit_at: self.tick.saturating_add(
                 (summon_pulse_ms(&self.mage_skills, SKILL_FROZEN_ORB, skill_level) / TICK_MS)
                     .max(1),
@@ -546,7 +583,11 @@ impl World {
         Ok(())
     }
 
-    pub(super) fn activate_hyper_adventurer(&mut self, id: &str, level: &MageLevel) {
+    /// 傳說冒險的施放入口。`skill_id` 是**施放的那一本**（三本互斥：冰雷 2221053 /
+    /// 火毒 2121053 / 主教 2321053），增益按它挂出——伤害管线的
+    /// [`active_adventurer_skill`] 靠这条增益认出「是哪一本在计时」，所以这里
+    /// **不能**再写死 `SKILL_HYPER_ADVENTURER`，否则副本的窗口加成不到伤害。
+    pub(super) fn activate_hyper_adventurer(&mut self, id: &str, skill_id: u32, level: &MageLevel) {
         // The source describes an adventurer-wide damage buff.  It now reaches
         // the party members standing on the caster's map; a caster without a
         // party still gets exactly the old self-only behaviour.  Its duration
@@ -560,7 +601,7 @@ impl World {
         for target in self.party_members_on_map(id) {
             if let Some(player) = self.players.get_mut(&target) {
                 player.status.apply_buff(
-                    SKILL_HYPER_ADVENTURER,
+                    skill_id,
                     duration_ms,
                     self.tick,
                     Release::None,
@@ -675,7 +716,7 @@ impl World {
                 let cost = if self
                     .players
                     .get(&id)
-                    .is_some_and(|player| player.status.buff_active(SKILL_INFINITY))
+                    .is_some_and(infinity_buff_active)
                 {
                     0
                 } else {

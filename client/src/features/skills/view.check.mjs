@@ -24,12 +24,12 @@ const inputModule = await import(`data:text/javascript;base64,${Buffer.from(inpu
 const {
   PlayerInput, SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
   MAGE_JOB_WHITELIST, ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
-  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob,
+  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob, HYPER_ADVENTURER_SKILLS,
 } = inputModule;
 Object.assign(globalThis, {
   SHORTCUT_SKILLS, FOURTH_SHORTCUT_SKILLS, FIRE_FOURTH_SHORTCUT_SKILLS, HOLY_FOURTH_SHORTCUT_SKILLS,
   MAGE_JOB_WHITELIST, ICE_LIGHTNING_JOB_WHITELIST, FIRE_POISON_JOB_WHITELIST, CLERIC_JOB_WHITELIST,
-  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob,
+  BOOK_JOBS, bookAllowsJob, bookIdForSkill, branchFourthJob, HYPER_ADVENTURER_SKILLS,
 });
 
 const source = await readFile(new URL('./view.ts', import.meta.url), 'utf8');

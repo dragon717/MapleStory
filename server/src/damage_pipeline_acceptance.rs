@@ -211,7 +211,11 @@ fn dmg_independent_damage_rate_stays_its_own_factor_and_matches_the_shared_acces
     // `scripts/check_tms273_damage_pipeline.cjs` 静态钉住。
     assert_eq!(
         percent,
-        hyper_adventurer_damage_percent(&world.mage_skills, &world.players["dmg-independent"])
+        hyper_adventurer_damage_percent(
+            &world.mage_skills,
+            &world.players["dmg-independent"],
+            SKILL_HYPER_ADVENTURER,
+        )
     );
     assert_eq!(source.group(), ModifierGroup::IndependentPercent);
     // 它必须是**自己一条**：与加算组不混（改前 1053 被并进 damR 那一步里）。

@@ -9,9 +9,9 @@
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
   "node_count": 156,
-  "edge_count": 371,
+  "edge_count": 372,
   "edge_kind_counts": {
-    "value": 227,
+    "value": 228,
     "dynamic": 8,
     "type": 114,
     "side-effect": 22
@@ -750,6 +750,11 @@
     {
       "from": "client/src/features/combat/view.ts",
       "to": "client/src/features/player/animation.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/combat/view.ts",
+      "to": "client/src/features/player/input.ts",
       "kind": "value"
     },
     {
@@ -1903,8 +1908,8 @@
       "kind": "value"
     }
   ],
-  "source_commit": "2a1768806b6fe8a4fb98cc46ee8caac1d81a6524",
+  "source_commit": "63b823c2d35146eedd472e541e164b09b6940cf5",
   "working_tree_dirty": true,
-  "node_version": "v22.17.1",
-  "generated_at": "2026-09-23T02:23:28.232Z"
+  "node_version": "v22.22.2",
+  "generated_at": "2026-09-23T06:16:18.275Z"
 }

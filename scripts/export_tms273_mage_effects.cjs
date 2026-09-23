@@ -175,11 +175,74 @@ const FOURTH_JOB_SOURCES = {
     tile: 'Skill/222.img/skill/2221055/tile',
     tile0: 'Skill/222.img/skill/2221055/tile0',
   },
+  // ── 火毒（212）与主教（232）四转的「同一格副本」（2026-09-23） ──────────────
+  // 与服务端 `world.rs::{INFINITY_SKILLS, MAPLE_CURE_SKILLS, DEMON_SUMMON_SKILLS}`
+  // 逐条对应：只有**接了执行链**的那几条才登记，否则界面上会多出「能放但看不见」的按钮。
+  // 源组名与冰雷那本逐组同形（`effect`/`effect0`、無限的 `special*`、召唤的
+  // `summon/{stand,move,attack1}`），所以这里是同一套导出规则换个书号。
+  '2121000': {
+    effect: 'Skill/212.img/skill/2121000/effect',
+    effect0: 'Skill/212.img/skill/2121000/effect0',
+  },
+  '2121004': {
+    effect: 'Skill/212.img/skill/2121004/effect',
+    effect0: 'Skill/212.img/skill/2121004/effect0',
+    special: 'Skill/212.img/skill/2121004/special',
+    special0: 'Skill/212.img/skill/2121004/special0',
+    specialAffected: 'Skill/212.img/skill/2121004/specialAffected',
+    specialAffected0: 'Skill/212.img/skill/2121004/specialAffected0',
+  },
+  '2121005': {
+    effect: 'Skill/212.img/skill/2121005/effect',
+    hit: 'Skill/212.img/skill/2121005/hit',
+    summonStand: 'Skill/212.img/skill/2121005/summon/stand',
+    summonMove: 'Skill/212.img/skill/2121005/summon/move',
+    summonAttack: 'Skill/212.img/skill/2121005/summon/attack1',
+  },
+  '2121008': {
+    effect: 'Skill/212.img/skill/2121008/effect',
+    effect0: 'Skill/212.img/skill/2121008/effect0',
+  },
+  '2321000': {
+    effect: 'Skill/232.img/skill/2321000/effect',
+    effect0: 'Skill/232.img/skill/2321000/effect0',
+  },
+  '2321004': {
+    effect: 'Skill/232.img/skill/2321004/effect',
+    effect0: 'Skill/232.img/skill/2321004/effect0',
+    special: 'Skill/232.img/skill/2321004/special',
+    special0: 'Skill/232.img/skill/2321004/special0',
+    specialAffected: 'Skill/232.img/skill/2321004/specialAffected',
+    specialAffected0: 'Skill/232.img/skill/2321004/specialAffected0',
+  },
+  '2321009': {
+    effect: 'Skill/232.img/skill/2321009/effect',
+    effect0: 'Skill/232.img/skill/2321009/effect0',
+  },
+  // 傳說冒險：Hyper 主动的窗口增益，三本（2221053 / 2121053 / 2321053）源组名逐组同形
+  // （`effect` / `effect0` / `affected`），实测帧数也逐组相同（17 / 22 / 11）。
+  '2121053': {
+    effect: 'Skill/212.img/skill/2121053/effect',
+    effect0: 'Skill/212.img/skill/2121053/effect0',
+    affected: 'Skill/212.img/skill/2121053/affected',
+  },
+  '2321053': {
+    effect: 'Skill/232.img/skill/2321053/effect',
+    effect0: 'Skill/232.img/skill/2321053/effect0',
+    affected: 'Skill/232.img/skill/2321053/affected',
+  },
 };
 const FOURTH_JOB_SUMMON_SOURCES = {
   '2221005': {
     summonSpawn: 'Skill/222.img/skill/2221005/summon/summoned',
     summonDie: 'Skill/222.img/skill/2221005/summon/die',
+  },
+  // 召喚火魔：与冰魔同格，召唤物的生命周期组逐组同形（`summoned` 是施放光环，
+  // 只留作源证据；`die` 是到期收尾）。它们的帧不进 `summonStand`，因为客户端
+  // 是从快照渲染持续召唤物的。
+  '2121005': {
+    summonSpawn: 'Skill/212.img/skill/2121005/summon/summoned',
+    summonDie: 'Skill/212.img/skill/2121005/summon/die',
   },
 };
 // Beginner projectile frames are authored separately for each level.  Keep
@@ -210,11 +273,37 @@ const BEGINNER_SOURCES = {
 };
 const PROJECTED_SKILLS = ['2001008', '2201008', '2201005'];
 const PROJECTED_SKILL = PROJECTED_SKILLS[0];
-const SKILL_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/200.json');
-const SKILL_220_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/220.json');
-const SKILL_221_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/221.json');
-const SKILL_222_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/222.json');
-const STRING_SOURCE_JSON = path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/String/Skill.json');
+// 两份 `WZ_JSON_TW` 不是等价备份：权威树（少爷一键端）缺 `Skill/220.json`，也缺
+// `String/Skill.json`，这两个都只在「手工服务端」那份里。`repair_tms273_export_gaps.cjs`
+// 的注释早已标注这个前置条件。所以这里按「权威优先、手工兜底」查找，并额外断言两份都有的
+// 文件必须逐字节一致——参考数据分叉属于必须当场暴露的问题，不能靠「先命中哪个算哪个」蒙过去。
+const WZ_JSON_ROOTS = [
+  path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW'),
+  path.join(ROOT, '参考/273/TMS273少爷一键端/手工服务端/tms273/WZ_JSON_TW'),
+];
+
+function wzJson(relativePath) {
+  const candidates = WZ_JSON_ROOTS.map((root) => path.join(root, relativePath)).filter((candidate) =>
+    fs.existsSync(candidate),
+  );
+  assert(candidates.length > 0, `missing source file: WZ_JSON_TW/${relativePath}（两份 WZ_JSON_TW 都没有）`);
+  if (candidates.length > 1) {
+    const [authoritative, manual] = candidates;
+    assert(
+      sha256(authoritative) === sha256(manual),
+      `WZ_JSON_TW/${relativePath} 在两份树里内容不一致：${relative(authoritative)} vs ${relative(manual)}`,
+    );
+  }
+  return candidates[0];
+}
+
+const SKILL_SOURCE_JSON = wzJson('Skill/200.json');
+const SKILL_220_SOURCE_JSON = wzJson('Skill/220.json');
+const SKILL_221_SOURCE_JSON = wzJson('Skill/221.json');
+const SKILL_222_SOURCE_JSON = wzJson('Skill/222.json');
+const SKILL_212_SOURCE_JSON = wzJson('Skill/212.json');
+const SKILL_232_SOURCE_JSON = wzJson('Skill/232.json');
+const STRING_SOURCE_JSON = wzJson('String/Skill.json');
 const PACK_SOURCE = path.join(DATA, 'Packs/Skill_00000.ms');
 const PACK_220_SOURCE = path.join(DATA, 'Packs/Skill_00001.ms');
 const PACK_222_SOURCE = path.join(DATA, 'Packs/Skill_00002.ms');
@@ -222,7 +311,10 @@ const CANVAS_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_035.wz');
 const CANVAS_220_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_040.wz');
 const CANVAS_COMMON_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_000.wz');
 const CANVAS_112_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_003.wz');
+// 212.img 与 232.img 的 Canvas 分卷（`_probe_canvas_volumes.json` 的实测结论：
+// 038 装 212.img、045 装 232.img）。缺一卷就会在导出时报 outlink 解析失败。
 const CANVAS_212_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_038.wz');
+const CANVAS_232_SOURCE = path.join(DATA, 'Skill/_Canvas/_Canvas_045.wz');
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -285,6 +377,7 @@ function linkCanvasArchives(tempRoot) {
     CANVAS_COMMON_SOURCE,
     CANVAS_112_SOURCE,
     CANVAS_212_SOURCE,
+    CANVAS_232_SOURCE,
   ]) {
     assert(fs.existsSync(source), `missing Canvas source: ${source}`);
     fs.symlinkSync(source, path.join(targetDir, path.basename(source)));
@@ -293,7 +386,7 @@ function linkCanvasArchives(tempRoot) {
 
 function unpackSkillImages(tempRoot) {
   assert(fs.existsSync(UNPACKER), `missing Rust MS unpacker: ${UNPACKER}`);
-  const images = ['Skill/000.img', 'Skill/200.img', 'Skill/220.img', 'Skill/221.img', 'Skill/222.img'];
+  const images = ['Skill/000.img', 'Skill/200.img', 'Skill/212.img', 'Skill/220.img', 'Skill/221.img', 'Skill/222.img', 'Skill/232.img'];
   const result = spawnSync(UNPACKER, [
     '--packs', path.join(DATA, 'Packs'),
     '--out', tempRoot,
@@ -509,11 +602,13 @@ async function main() {
       contentVersion: 'tms273-mage-effects',
       sourceVersion: 'TMS273.7',
       sourceFiles: [
-        sourceFile(path.join(ROOT, '参考/273/TMS273少爷一键端/TMS273/WZ_JSON_TW/Skill/000.json')),
+        sourceFile(wzJson('Skill/000.json')),
         sourceFile(SKILL_SOURCE_JSON),
         sourceFile(SKILL_220_SOURCE_JSON),
         sourceFile(SKILL_221_SOURCE_JSON),
         sourceFile(SKILL_222_SOURCE_JSON),
+        sourceFile(SKILL_212_SOURCE_JSON),
+        sourceFile(SKILL_232_SOURCE_JSON),
         sourceFile(STRING_SOURCE_JSON),
         sourceFile(PACK_SOURCE),
         sourceFile(PACK_220_SOURCE),
@@ -523,6 +618,7 @@ async function main() {
         sourceFile(CANVAS_COMMON_SOURCE),
         sourceFile(CANVAS_112_SOURCE),
         sourceFile(CANVAS_212_SOURCE),
+        sourceFile(CANVAS_232_SOURCE),
         sourceFile(SKILL_EXPORT),
       ],
       extraction: {
@@ -542,6 +638,7 @@ async function main() {
           [relative(CANVAS_220_SOURCE)]: relative(CANVAS_220_SOURCE),
           [relative(CANVAS_112_SOURCE)]: relative(CANVAS_112_SOURCE),
           [relative(CANVAS_212_SOURCE)]: relative(CANVAS_212_SOURCE),
+          [relative(CANVAS_232_SOURCE)]: relative(CANVAS_232_SOURCE),
         },
       },
       skillEffects,

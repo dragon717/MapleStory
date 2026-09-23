@@ -708,7 +708,7 @@ fn p14_party_buffs_reach_the_members_on_the_map_and_nobody_else() {
     // The adventurer-wide damage buff follows the same rule.
     rig.world.players.get_mut("b").expect("member").map_id = PARTY_MAP_ID.into();
     rig.world
-        .activate_hyper_adventurer("a", &MageLevel {
+        .activate_hyper_adventurer("a", SKILL_HYPER_ADVENTURER, &MageLevel {
             time: Some(60),
             ..MageLevel::default()
         });

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const PROTOCOL_VERSION: u32 = 34;
-pub const CONTENT_VERSION: &str = "tms273-40";
+pub const CONTENT_VERSION: &str = "tms273-42";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
 /// 也不能用「先拿全量再隐藏」的方式绕过任务页的私有过滤（计划 §12.2）。

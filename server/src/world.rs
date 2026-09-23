@@ -246,6 +246,8 @@ const SKILL_HYPER_ICE_TARGET: u32 = 2220050;
 const SKILL_HYPER_ICE_CRIT: u32 = 2220051;
 const SKILL_HYPER_THUNDER: u32 = 2221052;
 const SKILL_HYPER_ADVENTURER: u32 = 2221053;
+const SKILL_HYPER_ADVENTURER_FP: u32 = 2121053;
+const SKILL_HYPER_ADVENTURER_CLERIC: u32 = 2321053;
 const SKILL_HYPER_VORTEX: u32 = 2221054;
 const SKILL_HYPER_VORTEX_HIDDEN: u32 = 2221055;
 const HYPER_PASSIVE_IDS: [u32; 9] = [
@@ -259,9 +261,14 @@ const HYPER_PASSIVE_IDS: [u32; 9] = [
     SKILL_HYPER_ICE_TARGET,
     SKILL_HYPER_ICE_CRIT,
 ];
-const HYPER_ACTIVE_IDS: [u32; 3] = [
+/// 四转 Hyper 主动。冰雷 3 条 + 火毒／主教各一本 傳說冒險 副本（2026-09-23）——
+/// 副本的源 `common` 与 2221053 逐字段同形、美术组逐组同帧，所以走同一条施法与
+/// 增益窗路径；**判据只有 `HYPER_ADVENTURER_SKILLS` 一处**。
+const HYPER_ACTIVE_IDS: [u32; 5] = [
     SKILL_HYPER_THUNDER,
     SKILL_HYPER_ADVENTURER,
+    SKILL_HYPER_ADVENTURER_FP,
+    SKILL_HYPER_ADVENTURER_CLERIC,
     SKILL_HYPER_VORTEX,
 ];
 // ── 火毒（210/211）与僧侶（230/231）分支的**对称被动** ───────────────────────
@@ -350,6 +357,90 @@ const BRANCH_AREA_ATTACKS: [u32; 14] = [
     SKILL_ANGELIC_ARROW,
     SKILL_HEAVENLY_WRATH,
 ];
+// ── 火毒（212）与主教（232）四转的**同一格副本**主动技能（2026-09-23 接执行链） ──
+// 三条分支的四转书在技能窗里共用同一批槽位：冰雷那本（222）的每条主动，在 212 / 232
+// 里都有一份**同机制、不同元素**的副本。冰雷那几条早已接线，而施法臂按 `222xxxx`
+// 逐条写死 ⇒ 副本点下去回「该技能尚未开放施放」。本轮把副本收进**同一张表**，
+// 施法臂改读表，不再按书号逐条写常量（与 `MAPLE_WARRIOR_SKILLS` / `MASTERY_SKILLS`
+// 的收口口径一致）。
+//
+// 准入是**源字段形状**核对过的，不是「名字像就接」：
+//   * 楓葉祝福 `2121000` / `2321000`：源 `common` 与 `2221000` 逐字段同形
+//     （只有 `mpCon` + `basicStatUp`，**没有** `time`）⇒ 复用既有的
+//     `MAPLE_WARRIOR_SKILLS`（`basicStatUp` 早已按数组消费），施法臂只补一个空增益窗。
+//   * 魔力無限 `2121004` / `2321004`：源 `common` 与 `2221004` 逐字段同形
+//     （`mpCon,time,damage,x,y,z,cooltime,hcHp,w,q,w2,u,s,s2`）⇒ 走同一条 `activate_infinity`。
+//     三本的 `s2` 都不在运行期模型里，三条一致，不是副本独有缺口。
+//   * 楓葉淨化 `2121008` / `2321009`：源 `common` 与 `2221008` 逐字段同形
+//     （`mpCon,cooltime,time`）⇒ 走同一条 `activate_status_cleanse`。
+//   * 召喚火魔 `2121005`：与 召喚冰魔 `2221005` 同格、同机制（`time` 按**秒**书写的
+//     存活时长 + `damage`/`attackCount`/`mobCount` 的周期打击 + `mastery`），
+//     差别是它有 `dot/dotInterval/dotTime`（召唤物的持续伤害）而冰魔有 `s/v/subTime`。
+//     脉冲周期走 S5 建成的唯一派生点 `mechanics.rs::summon_pulse_ms`：火魔既没有毫秒
+//     书写的 `attackDelay`、也没有 ≥ 一拍的 `subTime` ⇒ 取契约兜底值，与冰魔同值。
+//     存活时长同样只剩一个派生点 `mechanics.rs::summon_lifetime_ms`（2026-09-23 收口，
+//     与冰鋒刃／球形闪电共用；`time` 的单位由那条派生点按量级判定）。
+//     **仍未做**：召唤物挂 DoT 这条机制本包没有实现点（`dot*` 只在直接命中链上被消费），
+//     所以火魔的跳伤不接——这与 `attribute.rs::INTRINSIC_DURATION_SKILLS` 的登记口径一致。
+const SKILL_INFINITY_FP: u32 = 2121004;
+const SKILL_INFINITY_CLERIC: u32 = 2321004;
+const SKILL_MAPLE_CURE_FP: u32 = 2121008;
+const SKILL_MAPLE_CURE_CLERIC: u32 = 2321009;
+/// 魔力無限的三本副本。**判据只有这一处**：施法臂、MP 免费判定、5 秒跳段的
+/// 属性加成、以及 `derived.rs` 的强化快照都读它，不再各自写 `2221004`。
+const INFINITY_SKILLS: [u32; 3] = [SKILL_INFINITY, SKILL_INFINITY_FP, SKILL_INFINITY_CLERIC];
+/// 楓葉淨化的三本副本（净化疾病 + 3 秒免疫窗）。
+const MAPLE_CURE_SKILLS: [u32; 3] = [
+    SKILL_MAPLE_CURE,
+    SKILL_MAPLE_CURE_FP,
+    SKILL_MAPLE_CURE_CLERIC,
+];
+/// 召唤系四转：冰魔与火魔。两本的存活时长都写在源 `time`（**秒**）上，
+/// 脉冲周期由 [`mechanics.rs::summon_pulse_ms`] 从源字段派生，存活时长由
+/// [`mechanics.rs::summon_lifetime_ms`] 从源字段派生。
+const DEMON_SUMMON_SKILLS: [u32; 2] = [SKILL_ICE_DEMON, SKILL_FIRE_DEMON];
+/// 傳說冒險的三本副本（Hyper 主动，`indieDamR` 的**窗口内**独立乘算）。
+///
+/// 三本的源 `common` 逐字段同形（`mpCon/time/cooltime/indieDamR/lt/rb`，`maxLevel = 1`），
+/// 美术组也逐组同帧（`effect` 17 / `effect0` 22 / `affected` 11），所以**复用同一条机制**：
+/// 施放时给施法者所在图的队友挂一本同名增益窗，窗口内伤害多乘一次独立伤害率。
+/// 改前三处都写死 `SKILL_HYPER_ADVENTURER`（2221053）——火毒／主教玩家放了副本之后
+/// 窗口开得出来（施法臂只认那一个 id，副本本身进不了施法分支），所以副本当时是
+/// 「尚未开放施放」；即便放得出来，伤害加成也会读冰雷那本，只有视觉、没有数值。
+const HYPER_ADVENTURER_SKILLS: [u32; 3] = [
+    SKILL_HYPER_ADVENTURER,
+    SKILL_HYPER_ADVENTURER_FP,
+    SKILL_HYPER_ADVENTURER_CLERIC,
+];
+
+/// 玩家身上正在计时的魔力無限**是哪一本**（三本互斥：一个角色只可能持有自己分支的
+/// 那一本）。MP 免费判定、5 秒跳段、客户端强化快照三处都读它——改前各自写
+/// `SKILL_INFINITY`（2221004），火毒／主教放了無限之后那三处全都读不到。
+fn active_infinity_skill(player: &Player) -> Option<u32> {
+    INFINITY_SKILLS
+        .iter()
+        .copied()
+        .find(|skill_id| player.status.buff_active(*skill_id))
+}
+
+/// 「有没有无限在计时」的布尔投影，供不需要知道是哪一本的调用点使用。
+fn infinity_buff_active(player: &Player) -> bool {
+    active_infinity_skill(player).is_some()
+}
+
+/// 玩家身上正在计时的傳說冒險**是哪一本**（三本互斥：一个角色只可能持有自己分支的
+/// 那一本，且增益只由施法者那一本挂出）。伤害管线的两条路径都读它——改前各自写
+/// `SKILL_HYPER_ADVENTURER`，火毒／主教那两本的窗口因此永远加成不到伤害。
+///
+/// 返回值同时充当 [`DamageSource::IndependentDamageRate`] 的 `skill_id`，所以留痕里
+/// 指认的是**真正生效的那一本**，而不是冰雷那本。
+fn active_adventurer_skill(player: &Player) -> Option<u32> {
+    HYPER_ADVENTURER_SKILLS
+        .iter()
+        .copied()
+        .find(|skill_id| player.status.buff_active(*skill_id))
+}
+
 // ── 火毒四转的三条 Hyper 强化被动（`damR`，只强化指定的那一招） ───────────────
 // 源里 Hyper「強化」节点只带 `damR` 一个字段，**不写**它强化的是哪一招（没有 `psdSkill`
 // 之类的可用字段），所以配对表只能按技能名人工登记成常量对；配好之后
@@ -2052,7 +2143,11 @@ fn clear_beginner_buffs(player: &mut Player) {
 
 fn clear_hyper_runtime(player: &mut Player) {
     player.status.remove_buff(SKILL_HYPER_THUNDER);
-    player.status.remove_buff(SKILL_HYPER_ADVENTURER);
+    // 傳說冒險逐本清：三条分支各有一本，分支互斥但清理点不能只认冰雷那本，
+    // 否则火毒／主教玩家换图／死亡／重连后窗口会残留。
+    for adventurer in HYPER_ADVENTURER_SKILLS {
+        player.status.remove_buff(adventurer);
+    }
     player.status.remove_buff(SKILL_HYPER_VORTEX);
     if player.channel_skill_id == Some(SKILL_HYPER_THUNDER) {
         player.channel_request_id = None;
@@ -2220,7 +2315,8 @@ const SUMMON_DRIFT_PX_PER_SEC: f64 = 180.0;
 ///
 /// 2026-09-23（S5 召唤通用化）前它叫 `ThunderSummon` 并只服务三转球形闪电，现在冰魔 /
 /// 冰鋒刃 / 球形闪电共用它，字段本身是通用的：到期时刻、运动形态、周期打击时刻。
-/// **脉冲周期不在这里**——它是源字段派生，唯一入口是 `mechanics.rs::summon_pulse_ms`。
+/// **脉冲周期不在这里**——它是源字段派生，唯一入口是 `mechanics.rs::summon_pulse_ms`；
+/// **存活时长同样不在这里**——唯一入口是 `mechanics.rs::summon_lifetime_ms`。
 #[derive(Clone)]
 struct Summon {
     summon_id: String,
@@ -4051,11 +4147,11 @@ fn is_magic_attack_skill(skill_id: u32) -> bool {
             | SKILL_CHAIN_LIGHTNING
             | SKILL_BLIZZARD
             | SKILL_BLIZZARD_HIDDEN
-            | SKILL_ICE_DEMON
             | SKILL_ICE_DRAGON_BREATH
             | SKILL_FROZEN_ORB
             | SKILL_HYPER_THUNDER
     ) || BRANCH_AREA_ATTACKS.contains(&skill_id)
+        || DEMON_SUMMON_SKILLS.contains(&skill_id)
 }
 
 /// 「这一击算作一次直接命中」：`神秘狙擊`（2120010 / 2220010 / 2320011）按命中次数叠层，
