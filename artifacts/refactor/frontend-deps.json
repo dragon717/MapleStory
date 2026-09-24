@@ -8,13 +8,13 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 156,
-  "edge_count": 391,
+  "node_count": 159,
+  "edge_count": 404,
   "edge_kind_counts": {
-    "value": 247,
-    "dynamic": 8,
-    "type": 114,
-    "side-effect": 22
+    "value": 255,
+    "dynamic": 9,
+    "type": 117,
+    "side-effect": 23
   },
   "external_specifiers": [
     "esbuild",
@@ -42,9 +42,24 @@
     "asset-manifest-not-imported-by-network",
     "scene-layer-not-imported-by-features"
   ],
-  "violations": [],
+  "violations": [
+    {
+      "rule": "scene-layer-not-imported-by-features",
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/scenes/world.ts",
+      "kind": "value"
+    }
+  ],
   "known_debt": [],
-  "fresh_violations": [],
+  "fresh_violations": [
+    {
+      "id": "scene-layer-not-imported-by-features: client/src/features/henesys/preview.ts -> client/src/scenes/world.ts",
+      "rule": "scene-layer-not-imported-by-features",
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/scenes/world.ts",
+      "kind": "value"
+    }
+  ],
   "debt_register": "artifacts/refactor/debt-register.json",
   "edges": [
     {
@@ -56,6 +71,11 @@
       "from": "client/src/app/i18n.check.ts",
       "to": "client/src/app/i18n.ts",
       "kind": "dynamic"
+    },
+    {
+      "from": "client/src/app/main.ts",
+      "to": "client/src/features/henesys/coordinates.ts",
+      "kind": "value"
     },
     {
       "from": "client/src/app/main.ts",
@@ -855,6 +875,51 @@
     {
       "from": "client/src/features/entry/view.ts",
       "to": "client/src/features/entry/style.css",
+      "kind": "side-effect"
+    },
+    {
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/scenes/world.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/features/windbell/activities.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "shared/protocol.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/henesys/preview.ts",
+      "to": "client/src/features/henesys/coordinates.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/features/henesys/view.ts",
+      "to": "client/src/assets/resource-url.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/view.ts",
+      "to": "client/src/features/henesys/coordinates.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/features/henesys/view.ts",
+      "to": "client/src/features/henesys/style.css",
       "kind": "side-effect"
     },
     {
@@ -1899,6 +1964,16 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/henesys/coordinates.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/henesys/view.ts",
+      "kind": "type"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/features/player/pickup.ts",
       "kind": "value"
     },
@@ -2001,10 +2076,15 @@
       "from": "client/src/scenes/world.ts",
       "to": "client/src/features/net-motion/motion-interpolator.ts",
       "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/henesys/view.ts",
+      "kind": "dynamic"
     }
   ],
-  "source_commit": "73eeb32f121b1d86ec79499b6dbae53bf559c0c9",
+  "source_commit": "4782f2e92ee49caa1c2750806154569823d7d485",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-23T11:27:31.640Z"
+  "generated_at": "2026-09-24T01:30:43.219Z"
 }

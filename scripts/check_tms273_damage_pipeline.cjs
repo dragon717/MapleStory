@@ -241,7 +241,8 @@ const NOT_CONSUMED = {
         why: '物理线四转书的 Hyper 强化被动：damR 只在「被强化的那一招打出去」时生效，依附于一条**被强化技能 → 强化被动**的配对表；本包物理分支只接了直接伤害（`PHYSICAL_AREA_ATTACKS`），没有这张配对表 ⇒ 消费不了。接 Hyper 配对消费时必须同时删掉这条登记。',
       }]),
   ),
-  // Hyper 主动增益：indieDamR / mdR 是「窗口内」的值，必须先有施法与增益窗。
+  // Hyper 主动增益：indieDamR 是「窗口内」的值，必须先有施法与增益窗。
+  // （`mdR` 不适用这句：它下面那一本的 `mdR` 是**被動效果**而非窗口值，理由见该条。）
   // 2026-09-22 起物理线的 傳說冒險（7 本）与 專注弱點/翻轉硬幣 也带窗口内 indieDamR，
   // 依附于物理四转主动的施放（未接执行链）⇒ 按源表动态登记。
   // **法师线的两本 2121053 / 2321053 曾在此逐条登记**；2026-09-23 接执行链后移出
@@ -272,7 +273,20 @@ const NOT_CONSUMED = {
       }]),
   ),
   mdR: {
-    '2321054': { boosted: '2321054', why: '復仇天使' },
+    // ⚠️ 这一条的旧理由是「Hyper 主动增益：`mdR` 是窗口内的值」——**与源不符**：
+    // `2321054 復仇天使` 的源 `perLevel` 把 `mdR` 写在 `#c[被動效果]#` 一组里
+    // （与 `madX`／`ignoreMobpdpR`／攻擊屬性耐性同组），是**被动效果**而不是窗口值。
+    // 它真正依附的是同一本技能那次「慈愛→復仇」**技能轉換**，而本包还没有这本的施法
+    // 分支（被转换的 `2321016 神聖之血` 等也没有）。源里既没给期限、也没写清
+    // `[被動效果]` 与那次轉換的前后关系 ⇒ **不替源编语义**，仍登记为不消费。
+    '2321054': {
+      boosted: '2321054',
+      why: '復仇天使：源 `perLevel` 的 `#c[被動效果]#` 是「魔法攻擊力增加#madX、最終傷害增加'
+        + '#mdR%、無視怪物防禦率增加#ignoreMobpdpR%、攻擊屬性耐性減少#u%」——`mdR` 属**被動效果**，'
+        + '**不是**窗口内的值；它依附的是同一本技能那次「慈愛→復仇」**技能轉換**，'
+        + '而本包还没有这本的施法分支。源里没有给出它的期限，也没有写清它与那次轉換的前后关系，'
+        + '故**不做推断**、仍不消费。',
+    },
   },
 };
 /** 某个字段里「登记不消费」的 id 集合。 */
@@ -296,6 +310,137 @@ const assertExcused = field => {
     }
   }
 };
+
+/**
+ * 法师 `212`／`232` 两条四转分支书里**仍未开放施放**的那四条 —— 理由以**权威源文案**为准。
+ *
+ * 为什么要有这张表：这四条原先只在散文里被描述（`world.rs` 的一段注释、`PLAN.md` 与台账），
+ * 而散文里的理由**已经漂过一次**——那段注释把 `2321054 復仇天使` 与 `2121054 火靈結界`
+ * 并成「開關技能那批」，可源文案里写「**開關技能**」的只有 `2121054`；`2321054` 的文案是
+ * 「**慈愛**技能轉變成**復仇**技能」＋`#c[被動效果]#`，是**技能轉換**，不是開關。
+ * 散文漂了没人发现，判据不会。
+ *
+ * 三条一起才成立：
+ *   ① **集合从源独立重算**：`212`／`232` 书里「带 `mpCon`（＝可施放）、非 `hidden`、
+ *      `world.rs` 里没有常量」的技能**恰好等于**这张表的键集 —— 少一条（有人接了执行链
+ *      却忘了删登记）或多一条（冒出一条新的未接线可施放技能）都当场红。
+ *   ② **理由钉在源文案上**：每条理由登记 `keywords`，这些词必须**真的出现在**那份权威
+ *      源文件的 `description`／`perLevelDescription` 里。改理由≠改文案，漂了就红。
+ *   ③ `world.rs` **不许**给它们起常量（起了＝接了路径 ⇒ 逼着同时补机制、删登记）。
+ *
+ * ⚠️ 不带 `mpCon` 的那一批（20 本 Hyper 强化被动 + `神秘狙擊`／`元素強化`／`祝福旋律`）
+ * **不在这里**：它们不是「可施放但没有分支」，而是被动/强化，由 `NOT_CONSUMED.damR` 与
+ * `attribute.rs` 的被动槽位各自记账 —— 用 `mpCon` 做判据正是为了把这两类分开。
+ */
+const MAGE_BRANCH_PENDING = {
+  '2121054': {
+    why: '火靈結界＝**開關技能**：源 `description` 写「發動附近燃燒的結界…使用技能時啟動效果，'
+      + '再次使用時則關閉效果的開關技能」，源 `common` 里**没有** `time`；`perLevel` 是'
+      + '「每秒消耗MP #mpCon，每 #x 秒（＝`subTime` 3000 ms）向最多 #mobCount 名敵人以 '
+      + '#damage% 的傷害，攻擊 #attackCount 次」＋`dotTime` 秒 DoT。缺的是**開關态**：'
+      + '本包没有「再次使用即关闭」的持久开关位，也没有「每秒消耗 MP」的结算点'
+      + '（DoT 与范围攻击本身已有，不在这条缺口里）。',
+    keywords: ['開關技能', '每秒消耗MP'],
+  },
+  '2321054': {
+    why: '復仇天使＝**技能轉換**＋`[被動效果]`，**不是**開關技能：源 `description` 写'
+      + '「取得天使的純粹的憤怒…#c慈愛#技能轉變成#c復仇#技能」；`perLevel` 的'
+      + '`#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／攻擊屬性耐性，'
+      + '`mpCon` 与 `cooltimeMS` 是那次「慈愛→復仇」轉換的价格。缺的是**技能轉換**：'
+      + '被转换的四本复仇副本（`神聖之水`→`神聖之血` 等）在本包同样没有施法分支。',
+    keywords: ['慈愛', '復仇', '[被動效果]'],
+  },
+  '2321006': {
+    why: '復甦之光＝**队伍复活**：源 `description` 写「用神聖的光芒讓隊員復活」，`action` 是 '
+      + '`resurrectionNew`。缺的是「复活范围内的队友」这条路径：本包 `revive.rs` 处理的是'
+      + '玩家自己的死亡与回城，没有「复活他人」的入口；另有两个搭在复活上的窗口——'
+      + '`time` 秒**無敵**状态与 `subTime` 秒「主教和復活的隊員增加 x% 傷害」（源 perLevel'
+      + '「每 #y 智力…最多可增加至 #z%」）。',
+    keywords: ['讓隊員復活', '無敵'],
+  },
+  '2321015': {
+    why: '神聖之水＝**可累积的场景实体 + 方向键交互**：源 `description` 写「使用技能時，將在'
+      + '周圍召喚盛滿聖水的聖杯。隊員對聖杯按下「上」方向鍵時，可吸收聖水並恢復HP」；'
+      + '`perLevel` 的 `[被動效果]` 是「天使之箭命中 #u 次時可獲得 1 瓶聖水，聖水最多可'
+      + '累積 #w 瓶」的**计数器**，`[主動效果]` 消耗全部累积并形成圣水（持续 `q` 秒）。'
+      + '缺的是计数器 + 可交互实体 + 上键拾取三件。',
+    keywords: ['聖杯', '方向鍵'],
+  },
+};
+/** 这两条分支各自的权威 `perLevel` 文案所在处（`id → 文案` 从它现读，不落第二份表）。 */
+const MAGE_BRANCH_SOURCE_FILES = [
+  'references/tms273-data/fire-fourth-job-source.json',
+  'references/tms273-data/holy-fourth-job-source.json',
+];
+const mageBranchSourceText = {};
+for (const relative of MAGE_BRANCH_SOURCE_FILES) {
+  const absolute = path.join(ROOT, relative);
+  assert.ok(fs.existsSync(absolute), `缺权威源文案：${relative}`);
+  const parsed = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  for (const [id, skill] of Object.entries(parsed.skills ?? {})) {
+    mageBranchSourceText[id] =
+      `${skill.description ?? ''}\n${skill.perLevelDescription ?? ''}`;
+  }
+}
+
+/** ① 集合从源独立重算：`world.rs` 常量表 + `shared/mage-skills.json`，都不拿本表当输入。 */
+const mageBranchBookOf = id => Math.floor(Number(id) / 10000);
+const mageBranchIn212Or232 = ([id]) => [212, 232].includes(mageBranchBookOf(id));
+const mageBranchCastable = ([, skill]) =>
+  skill.levels.some(level => level.mpCon !== undefined);
+const mageBranchCastableUnwired = Object.entries(mageSkills.skills)
+  .filter(mageBranchIn212Or232)
+  .filter(mageBranchCastable)
+  .filter(([id, skill]) => !skill.hidden && constFor(Number(id)) === null)
+  .map(([id]) => id)
+  .sort();
+assert.deepEqual(
+  mageBranchCastableUnwired,
+  Object.keys(MAGE_BRANCH_PENDING).sort(),
+  '212／232 里「带 mpCon、非 hidden、world.rs 没有常量」的技能集合变了：'
+    + '少一条＝有人把某条接了执行链却忘了删登记（或给它起了无关常量），'
+    + '多一条＝冒出一条新的未接线可施放技能 —— 两种都必须先在这张表里逐条写清理由',
+);
+
+/** ② 理由必须钉在**权威源文案**上（改理由≠改文案，理由漂了就红）。 */
+for (const [id, entry] of Object.entries(MAGE_BRANCH_PENDING)) {
+  const text = mageBranchSourceText[id];
+  assert.ok(text, `${id} 在 ${MAGE_BRANCH_SOURCE_FILES.join(' / ')} 里都查不到权威源文案`);
+  assert.ok(entry.why, `${id} 登记为「尚未开放施放」却没写理由`);
+  assert.ok(
+    Array.isArray(entry.keywords) && entry.keywords.length > 0,
+    `${id} 的理由没有登记 keywords —— 没有锚点的理由迟早会漂成与源不符`,
+  );
+  for (const keyword of entry.keywords) {
+    assert.ok(
+      text.includes(keyword),
+      `${id} 的理由引用了权威源文案里不存在的词 \`${keyword}\` —— 理由与源文案分叉了`,
+    );
+  }
+}
+
+/** ③ 登记表里的每条都必须**真的**没有施法分支（与 `assertExcused` 同一条判据）。 */
+for (const id of Object.keys(MAGE_BRANCH_PENDING)) {
+  assert.equal(
+    constFor(Number(id)), null,
+    `${id} 登记为「尚未开放施放」，但 world.rs 已经给它起了常量 ${constFor(Number(id))}`
+      + '——接了路径就必须同时把机制补上、把这条登记删掉',
+  );
+}
+
+// 附带把「带 `mpCon` 且 `hidden`」的那一条钉住：`2321016 神聖之血` 是 `2321054 復仇天使`
+// 那次「慈愛→復仇」轉換的产物（源 perLevel：`神聖之水`→`神聖之血`），由职业规则自动启用、
+// 玩家点不到，所以不在上表里。哪天它不再 `hidden`，说明**技能轉換**被接进来了。
+const mageBranchHiddenCastable = Object.entries(mageSkills.skills)
+  .filter(mageBranchIn212Or232)
+  .filter(mageBranchCastable)
+  .filter(([, skill]) => skill.hidden)
+  .map(([id]) => id)
+  .sort();
+assert.deepEqual(
+  mageBranchHiddenCastable, ['2321016'],
+  '212／232 里「带 mpCon 且 hidden」的技能变了：它应当恰好是復仇天使轉換出来的 `2321016 神聖之血`',
+);
 
 // 3a. `damR` 分两段被消费：非 Hyper 的常驻段（魔力激發）走 `is_magic_attack_skill` 闸门，
 //     Hyper=1 的强化段（三本 Hyper 被动）走「配对 Hyper 强化」分支。两段都由内容独立重算。
@@ -1285,6 +1430,11 @@ console.log(
   `  物理线未接执行链：带机制标记 ${physicalUnwiredMechanism.length} 条（`
   + `${physicalUnwiredMechanism.sort().join('/')}）+ hidden ${physicalUnwiredHidden.length} 条`
   + ` ＝ 合计 ${physicalUnwiredMechanism.length + physicalUnwiredHidden.length} 条`,
+);
+console.log(
+  `  法师 212／232 未接执行链（带 mpCon、非 hidden，理由钉在源文案上）=`
+  + `${mageBranchCastableUnwired.join('/')}；其 hidden 可施放副本 =${mageBranchHiddenCastable.join('/')}`
+  + `（＝復仇天使那次「慈愛→復仇」轉換的产物）`,
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `

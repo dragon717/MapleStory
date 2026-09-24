@@ -268,8 +268,11 @@ const CONTENT_RULES = [
   // 只存在于法师魔法路径（见文件尾「物理线武器精通决策块」的理由登记）。
   { field: 'pddX', array: 'PDDX_SKILLS', loop: true, layer: 'PassiveSkill', op: 'Flat', key: 'WeaponDefense' },
   // 大師魔法 `madX`：三个四转分支各一本（2220013 / 2120012 / 2320012），与 `intX` 同格。
-  // 2321054 復仇天使 也带 `madX`，但它是 Hyper 主动的**窗口内**魔攻（源 `common` 无
-  // `time`、本包也没有它的施法分支）⇒ 不是「学得即生效」的被动，登记为不消费。
+  // `2321054 復仇天使` 也带 `madX`，但源 `perLevel` 把它写在 `#c[被動效果]#` 一组里
+  // （「#c[被動效果]#魔法攻擊力增加#madX、最終傷害增加#mdR%、無視怪物防禦率增加
+  // #ignoreMobpdpR%、攻擊屬性耐性減少#u%」），**不是**窗口内的值；它依附的是同一本技能
+  // 那次「慈愛→復仇」**技能轉換**，而本包还没有这本的施法分支。源里既没给期限、也没写清
+  // `[被動效果]` 与那次轉換的前后关系 ⇒ **不替源编语义**，登记为不消费。
   {
     field: 'madX',
     array: 'MASTER_MAGIC_SKILLS',
@@ -279,7 +282,7 @@ const CONTENT_RULES = [
     key: 'MagicAttack',
     except: ['2321054'],
     exceptReasons: {
-      2321054: '復仇天使是 Hyper **主动**技能（hyper=2，maxLevel=1），它的 `madX`=50 是「施放窗口内的临时魔攻」，语义上属于 ActiveBuff 层；源 `common` 没有 `time`、本包也没有它的施法分支 ⇒ 无法构成增益窗，也不能当成学得即生效的被动。哪天接了施法路径，必须改归 ActiveBuff 层并同时补 buff 时长。',
+      2321054: '復仇天使的 `madX`=50 在源 `perLevel` 里属 `#c[被動效果]#` 一组（与 `mdR`／`ignoreMobpdpR`／攻擊屬性耐性同组），**不是**「施放窗口内的临时魔攻」——它依附的是同一本技能那次「慈愛→復仇」**技能轉換**（`mpCon`＋`cooltimeMS` 是轉換的价格），而本包还没有这本的施法分支。源里没有给出 `[被動效果]` 的期限，也没写清它与那次轉換的前后关系 ⇒ **不替源编语义**：既不当窗口、也不当学得即生效的被动，登记为不消费。哪天接了这条路径，必须按那时的口径重新决定归属层。',
     },
   },
   { field: 'mmpR', consts: ['SKILL_MAGIC_BOOST'], layer: 'PassiveSkill', op: 'AdditivePercent', key: 'MaxMp' },
