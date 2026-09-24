@@ -93,7 +93,10 @@ fn xform_acceptance_table_covers_the_four_source_pairs() {
     }
     // 施放者本身不属于任何一侧：若它被判成某一侧，准入反转会把自己也拒掉。
     assert_eq!(transform_form(SKILL_AVENGING_ANGEL), None);
-    assert_eq!(transform_form(2321006), None, "未接的技能不该落进转换表");
+    // `2321006 復甦之光` 是**另一条机制**（队伍复活，2026-09-24 接执行链），不是转换
+    // 出来的復仇副本 ⇒ 不该落进这张配对表。它自己的接纳表由 `revival_light_acceptance.rs`
+    // 与门禁 §3j 钉住。
+    assert_eq!(transform_form(2321006), None, "復甦之光不是转换表的成员");
 }
 
 // ── ② 施放＝执行转换：按慈愛一侧的等级授予四本復仇副本，并落持久层 ─────────────

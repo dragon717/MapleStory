@@ -4190,6 +4190,7 @@ include!("advanced_blessing_acceptance.rs");
 // 准入按形态**反转**（转换前復仇侧被 `skill_hidden` 拒、转换后慈愛侧被
 // `skill_transformed` 拒）—— 两个方向都必须有断言。
 include!("transform_acceptance.rs");
+include!("revive_light_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

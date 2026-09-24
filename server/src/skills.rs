@@ -204,6 +204,10 @@ impl World {
             // 進階祝福 `2321005`（2026-09-23）：源 `common` 带 `time` 的队伍增益窗，
             // 与上面几张表同形 ⇒ 同样由 `world.rs` 的那一张表决定准入。
             || ADVANCED_BLESSING_SKILLS.contains(&skill_id)
+            // 復甦之光 `2321006`（2026-09-24）：主教四转的**队伍复活** —— 主动、带
+            // `mpCon`，源 `action` 是 `resurrectionNew`。与上面几张表同形 ⇒ 同样由
+            // `world.rs` 的那一张表决定准入，不在这里写 `if skill_id == …`。
+            || REVIVAL_LIGHT_SKILLS.contains(&skill_id)
             // 開關技能（源 `info.type=15`：「使用時啟動、再次使用時關閉」）：冰雷
             // `2221054 冰雪結界` 与火毒 `2121054 火靈結界` 是**同一格**（2026-09-24 收口）。
             // 改前这里写死 `SKILL_HYPER_VORTEX`（它是上方 `matches!` 里的一个字面量），
@@ -473,6 +477,13 @@ impl World {
             // q is the held-key maximum from String.h.  Master Magic
             // buff-time does not extend this channel ceiling.
             u64::try_from(level.q.unwrap_or(0).max(0)).unwrap_or(0) * 1_000
+        } else if REVIVAL_LIGHT_SKILLS.contains(&skill_id) {
+            // 復甦之光：源 `action` 是 `resurrectionNew`（起手动作），同样**没有**
+            // 施法时长字段 ⇒ 与 傳說冒險 / 開關技能 / 進階祝福 取同一个本包既有的
+            // 600ms 施法动作（它随 `skillCast` 广播的 `durationMs` 下发给客户端）。
+            // 無敵窗口是另一件事（源 `time` 秒），由 `activate_revive_light` 按它叠到
+            // `contact_invulnerable_until` 上，与这里的动作时长无关。
+            600
         } else if matches!(
             skill_id,
             SKILL_ENERGY_BOLT
@@ -747,6 +758,13 @@ impl World {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
+            }
+            // 復甦之光 `2321006`（2026-09-24）：施放＝复活**同图死亡队员**，再给施法者
+            // 自己叠源 `time` 秒無敵。目标集合与無敵归属的理由都写在
+            // `world.rs::SKILL_REVIVAL_LIGHT`；这半句只记「它落在这条臂上」。
+            // 复活走既有的唯一写路径（`complete_revive`），所以不销碑、不换图。
+            revival if REVIVAL_LIGHT_SKILLS.contains(&revival) => {
+                self.activate_revive_light(&id, revival, &level);
             }
             SKILL_FROZEN_ORB => {
                 if let Err(error) = self.cast_frozen_orb(&id, &request_id, &level) {
@@ -2082,6 +2100,30 @@ impl World {
             }
         }
         adjusted
+    }
+
+    /// 源 `common/lt|rb` 围成的矩形是否包住某点。**绕施法者**，与
+    /// [`Self::area_targets_at`] 同一套坐标口径（`local = 目标 − origin`）。
+    ///
+    /// ⚠️ 与攻击盒那一路**唯一**的分歧是朝向镜像：`area_targets_at` 要为「源把攻击盒写成
+    /// 朝左」补一次 x 镜像；而复甦之光的框是**支援**技能的框（不是朝向攻击盒），所以这里
+    /// 按源矩形原样判。`2321006` 的框左右对称（`lt.x = -400` / `rb.x = 400`）⇒ 在这条
+    /// 技能上两种读法数值完全一致；把差别写出来是为了将来接别的支援技能时不会照抄错那一半。
+    ///
+    /// `lt`／`rb` 缺一即**不命中**：没有框就没有「範圍內」可言，替源补一个默认框
+    /// 等于替源编语义。
+    pub(super) fn inside_source_box(
+        &self,
+        level: &MageLevel,
+        origin: (f64, f64),
+        point: (f64, f64),
+    ) -> bool {
+        let (Some(lt), Some(rb)) = (level.lt.as_ref(), level.rb.as_ref()) else {
+            return false;
+        };
+        let local_x = point.0 - origin.0;
+        let local_y = point.1 - origin.1;
+        local_x >= lt.x && local_x <= rb.x && local_y >= lt.y && local_y <= rb.y
     }
 
     pub(super) fn area_targets_at(

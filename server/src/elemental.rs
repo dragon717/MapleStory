@@ -628,6 +628,94 @@ impl World {
         }
     }
 
+    /// 復甦之光 `2321006`（主教四转队伍复活）的施放入口。
+    ///
+    /// 源 `perLevel`：「消耗#mpConMP，**復活在範圍內死亡的所有隊員**後，獲得#time秒
+    /// 無敵狀態」。落点分两半，第三半（`subTime`）在本包**没有前提**、显式不消费
+    /// （理由带源文案锚点见 `world.rs::SKILL_REVIVAL_LIGHT` 与门禁 §3j）：
+    ///
+    /// ① **同图 ∩ 源矩形内的死亡队员**逐个走**既有的复活写路径**。[`World::complete_revive`]
+    ///    是「复活一个玩家」唯一的那份实现（落点、状态清理、`refresh_player_derived`、
+    ///    持久化都在那里），这里**不另写一份**；与自复活的差别只在**目标从哪来**
+    ///    （那里是 death_id 绑定的自己，这里是同图死亡队员里落在源框内的那批）。⚠️ 因此：
+    ///      * **不销碑**：`complete_revive` 本来就不碰 `death_tombstones`（自复活
+    ///        也不销碑，见 `windbell_acceptance.rs`），所以这里不需要、也**不许**
+    ///        额外加销碑或另动死亡世界；
+    ///      * **不改存档落点**：复活的队员仍留在**同一张图**（`complete_revive` 只用
+    ///        这张图的 `spawn`，不换 `map_id`）。
+    ///    练习图必须先按 [`World::handle_revive`] 的既有顺序把私有对局结算掉
+    ///    （`finish_boss_practice(.., Failed, ..)`），否则被复活的人会留在一张
+    ///    已被删除的练习图里 —— 判据是 `auth::is_practice_map`，与自复活同一条。
+    ///
+    ///    ⚠️ **「範圍內」是真的有一个框**：源 `common/lt|rb` 是一对 `vector`
+    ///    （`lt=(-400,-350)`、`rb=(400,250)`，绕施法者）。框判定复用
+    ///    [`World::inside_source_box`]，这里**不写死任何数值**。判据的逐条理由（含
+    ///    「别用 `references/tms273-data/*-source.json` 判 `lt`/`rb`」那个坑）写在
+    ///    `world.rs::SKILL_REVIVAL_LIGHT`。
+    ///
+    /// ② **`time` 秒無敵只给施法者自己**：源那句话的主语是主教（「…後，獲得#time秒
+    ///    無敵狀態」承前省略）；同一段里要带上队员时作者会**显式**写「主教和復活的
+    ///    隊員」（那是 `subTime` 那半）⇒ 没列出来＝只有主教。窗口叠在本包**唯一**的无敌
+    ///    字段 `contact_invulnerable_until` 上（单位是**拍**，与 `monsters.rs` 里
+    ///    受击后的置位同一套换算：`time 秒 × 1000 ÷ TICK_MS`，向上取整）。
+    ///
+    /// 冷却与 MP 消耗**不在这里**：前者走 `skills.rs` 既有的四转书 `cooltime`（秒）
+    /// 那一支，后者走通用的 `mp_con` 扣除。一次都没复活到人（没有队员／同图没死人／
+    /// 死人都在框外）也**不是失败**：源没有「必须复活到人才生效」的文案，無敵照给。
+    pub(super) fn activate_revive_light(&mut self, id: &str, _skill_id: u32, level: &MageLevel) {
+        let Some(origin) = self
+            .players
+            .get(id)
+            .map(|player| (player.state.x, player.state.y))
+        else {
+            return;
+        };
+        for target in self.downed_party_members_on_map(id) {
+            // 「範圍內」＝落在这个绕施法者的源矩形里（不是「同图就收」）。
+            let Some(point) = self
+                .players
+                .get(&target)
+                .map(|player| (player.state.x, player.state.y))
+            else {
+                continue;
+            };
+            if !self.inside_source_box(level, origin, point) {
+                continue;
+            }
+            if self
+                .players
+                .get(&target)
+                .is_some_and(|player| auth::is_practice_map(&player.map_id))
+                && !self.finish_boss_practice(
+                    &target,
+                    Some(boss::BossPracticeStatus::Failed),
+                    true,
+                    true,
+                )
+            {
+                // 与 `handle_revive` 同一顺序：结算没成功就先别复活，
+                // 否则被复活的人会留在一张已被删除的练习图里。
+                continue;
+            }
+            let Some(death_id) = self.players.get(&target).map(|player| player.death_id.clone())
+            else {
+                continue;
+            };
+            self.complete_revive(&target, &death_id);
+        }
+        let invulnerable_ticks = u64::try_from(level.time.unwrap_or(0).max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000)
+            .div_ceil(TICK_MS);
+        if invulnerable_ticks == 0 {
+            return;
+        }
+        let until = self.tick.saturating_add(invulnerable_ticks);
+        if let Some(player) = self.players.get_mut(id) {
+            player.contact_invulnerable_until = until;
+        }
+    }
+
     /// 技能轉換 `2321054 復仇天使` 的施放入口：**施放＝执行那次转换**。
     ///
     /// 源 `description`：「取得天使的純粹的憤怒，當做擊敗敵人的力量。慈愛技能轉變成

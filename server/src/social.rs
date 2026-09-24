@@ -97,6 +97,46 @@ impl World {
         }
     }
 
+    /// Party members **dead on the same map** as `id` — the 復甦之光 `2321006`
+    /// target set（源 perLevel：「**復活在範圍內死亡的所有隊員**」，而 `lt`／`rb`
+    /// 都是空对象 ⇒ 范围就是「同图」）。
+    ///
+    /// 与 [`Self::party_members_on_map`] **刻意分开、不共用那条过滤链**：那个访问器
+    /// 带 `player.state.hp > 0`（它服务的是「分享增益与击杀」），所以对「范围内的
+    /// 死亡队员」这件事**结构上看不见目标** —— 复用了它的人会把「同图队友」当成
+    /// 「同图活着的队友」，于是復甦之光永远救不到人，而代码看起来完全合理。
+    ///
+    /// 判据与复活写路径（`revive.rs::complete_revive`）**同源**：那里真正核对的是
+    /// `state.action == "dead"`（外加 `death_id` 相符），所以这里也按 `action` 收集，
+    /// 而不是按 `hp <= 0` —— 两者在死亡那一刻同时成立，但只有 `action` 是写路径
+    /// 会去核对的那一个，用另一个会收进一批「血量为 0、却没进入死亡态」的角色，
+    /// 它们的 `complete_revive` 会静默早退。
+    ///
+    /// 没有队伍时返回**空表**（不是 `vec![id]`）：施法者自己必须活着才放得出这本
+    /// 技能（`skills.rs` 的准入拒掉 `hp <= 0` / `action == "dead"`），所以「同图死亡
+    /// 队员」在没有队伍时**必然是空的** —— 兜底成自己会凭空造出一个死人。
+    pub(super) fn downed_party_members_on_map(&self, id: &str) -> Vec<String> {
+        let Some(party_id) = self.party_id_of(id) else {
+            return Vec::new();
+        };
+        let Some(party) = self.parties.get(&party_id) else {
+            return Vec::new();
+        };
+        let Some(map_id) = self.players.get(id).map(|player| player.map_id.clone()) else {
+            return Vec::new();
+        };
+        party
+            .members
+            .iter()
+            .filter(|member| {
+                self.players.get(*member).is_some_and(|player| {
+                    player.map_id == map_id && player.state.action == "dead"
+                })
+            })
+            .cloned()
+            .collect()
+    }
+
     /// Members that take part in a kill's EXP bonus.  Empty for a solo kill,
     /// which leaves every existing solo EXP number exactly as it is.
     pub(super) fn party_exp_members(&self, id: &str) -> Vec<String> {

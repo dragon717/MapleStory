@@ -50,6 +50,24 @@ const codeOnly = source =>
     .split('\n')
     .filter(line => !line.trimStart().startsWith('//'))
     .join('\n');
+/**
+ * 从 `open`（某段文本里 `{` 的下标）开始做花括号配对，返回括号内文本。
+ *
+ * §3j 要判「某个串落在哪个**作用域**里」（無敵不许写进遍历队员的循环里），
+ * 而全文正则只回答「这个串出现过」—— 同一个常量在文件里出现 N 次时，全文断言
+ * 会让 N−1 个删除静默通过。所以按括号把作用域切出来再判。
+ */
+const braceBody = (text, open) => {
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    if (text[index] === '{') depth += 1;
+    else if (text[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(open + 1, index);
+    }
+  }
+  return null;
+};
 const damageSrc = read('damage.rs');
 const skillsSrc = read('skills.rs');
 const attacksSrc = read('attacks.rs');
@@ -337,19 +355,19 @@ const assertExcused = field => {
  * 登记在下面 §3i 的名单里 —— 注意那三本分属书 `231`／`232`，**不在**本表 `212`／`232`
  * 的 `mpCon` 判据范围内，所以本表不会因为它们而变。
  *
+ * ⚠️ **2026-09-24 第四次变动：走掉的是 `2321006 復甦之光`**。它原先的理由（「缺的是
+ * 『复活范围内的队友』这条路径」）也已不成立——復甦之光已接执行链（施放＝把**同图死亡
+ * 队员**逐个走既有的**唯一**复活写路径 `revive.rs::complete_revive`，再给施法者自己叠源
+ * `time` 秒無敵；范围判据是源 `lt`／`rb` 都是**空对象** ⇒ 不替源编一个框），于是
+ * `world.rs` 给它起了常量 ⇒ 同样按 ③ 移出。它的 `subTime` 那半**刻意不消费**（前提
+ * 「**在有死亡倒數的地圖中**」在本包不存在），理由带源文案锚点登记在下面 §3j。
+ * 于是本表**只剩 `2321015 神聖之水`**一条。
+ *
  * ⚠️ 不带 `mpCon` 的那一批（20 本 Hyper 强化被动 + `神秘狙擊`／`元素強化`／`祝福旋律`）
  * **不在这里**：它们不是「可施放但没有分支」，而是被动/强化，由 `NOT_CONSUMED.damR` 与
  * `attribute.rs` 的被动槽位各自记账 —— 用 `mpCon` 做判据正是为了把这两类分开。
  */
 const MAGE_BRANCH_PENDING = {
-  '2321006': {
-    why: '復甦之光＝**队伍复活**：源 `description` 写「用神聖的光芒讓隊員復活」，`action` 是 '
-      + '`resurrectionNew`。缺的是「复活范围内的队友」这条路径：本包 `revive.rs` 处理的是'
-      + '玩家自己的死亡与回城，没有「复活他人」的入口；另有两个搭在复活上的窗口——'
-      + '`time` 秒**無敵**状态与 `subTime` 秒「主教和復活的隊員增加 x% 傷害」（源 perLevel'
-      + '「每 #y 智力…最多可增加至 #z%」）。',
-    keywords: ['讓隊員復活', '無敵'],
-  },
   '2321015': {
     why: '神聖之水＝**可累积的场景实体 + 方向键交互**：源 `description` 写「使用技能時，將在'
       + '周圍召喚盛滿聖水的聖杯。隊員對聖杯按下「上」方向鍵時，可吸收聖水並恢復HP」；'
@@ -1702,6 +1720,358 @@ for (const [id, entry] of Object.entries(TRANSFORM_UNWIRED)) {
       `${id} 的登记理由引用了源文案里不存在的词 \`${keyword}\` —— 理由与源文案分叉了`,
     );
   }
+}
+
+/**
+ * 3j. **復甦之光**（`2321006`，2026-09-24 接执行链）的接纳表与**目标集合**必须与源一致。
+ *
+ * 源 `perLevel`：「消耗#mpConMP，**復活在範圍內死亡的所有隊員**後，獲得#time秒無敵狀態
+ * ⏎**在有死亡倒數的地圖中**以復甦之光復活時，#subTime秒內，主教和復活的隊員增加#x%傷害…」。
+ *
+ * ⚠️ 这条判据**第一版建立在错误的输入上**，所以下面把「输入本身」也钉住：
+ * `references/tms273-data/{fire,holy}-fourth-job-source.json` 把 WZ 的 **`vector` 节点
+ * 整类丢成 `{}`**（`holy` 那份名下 8 条带框技能**全**是 `{}`，连框早就在跑的
+ * `2321005 進階祝福`／`2321008 天怒` 也一样）⇒ 照它读会得出「源没给框」这个**假结论**，
+ * 而真源里 `common.lt|rb` 是一对 `vector`。`lt`／`rb` 的唯一可信输入是**导出树的
+ * `rawWz`**（逐节点投影，`_dirType: "vector"`）。下面的 ⓪ 把两份输入同时读出来并把这
+ * 处差异当成**事实**记录 —— 谁再拿那份参考文件判框，这条会红。
+ *
+ * 从源独立重算（都不拿 `world.rs::REVIVAL_LIGHT_SKILLS` 当输入）：
+ *   ① **范围 ＝ 同图 ∩ 源矩形**：目标要**同时**满足「同一张地图」与「落在框内」。
+ *      两条都必须判：只判框，跨图的人会因为坐标巧合被复活；只判同图，半张图外的
+ *      队员也会被收进来（这正是第一版按丢字段的输入做出的错误设计）。
+ *   ② **`time` 秒無敵只给施法者**：源那句话的主语是主教；同一段里要带上队员时作者
+ *      **显式**写「主教和復活的隊員」。所以断言 `contact_invulnerable_until` 的赋值落在
+ *      `activate_revive_light` 体内、且**不在**遍历队员的 `for` 里（「串出现过」不够，
+ *      要看它落在哪个作用域）。
+ *   ③ **`subTime` 不消费，但要证明它值得登记**：源里 `subTime` **非零**（30），所以理由
+ *      不能写成「源里没有值」，必须是「前提不存在」——「在有死亡倒數的地圖中」这个前提
+ *      在本包没有对应概念。锚点必须真的在源文案里；且断言要**收窄到作用域**：
+ *      `sub_time` 是冰雪結界 / 冰砾 / 冰瞬移力场**共用**的一格，按全文判两边都会错
+ *      （既会把别处的合法读取当成復甦之光的消费，也会让「復甦之光自己少读一次」溜过去）。
+ *
+ * 另四条反向判据：
+ *   ④ 接纳表恰好是 `[2321006]`，模型里 `hidden === false`；三处消费
+ *      （准入白名单 / 动作时长 / 施法臂）都读同一张表。
+ *   ⑤ **它不是 Hyper 技能**：源 `hyper === 0` ＆ `maxLevel === 10`；并拿真 Hyper
+ *      （`2321054`：`hyper === 2` ＆ `maxLevel === 1`）做**反向对照** —— 没有对照，
+ *      「hyper 0 就不是 Hyper」只是一句没有反例的口号。
+ *   ⑥ **目标集合不能复用 `party_members_on_map`**：它带 `hp > 0` 过滤（服务「分享增益与
+ *      击杀」），**结构上看不见死人**，而复活的恰恰是死人。这条同时反向钉住那个访问器
+ *      不许被「顺手修掉」—— 去掉过滤会静默改变增益与击杀的语义。
+ *   ⑦ **复活只有一份实现**：`complete_revive` 的定义全仓恰好一处，施法臂真的调它；
+ *      `activate_revive_light` **不许动** `death_tombstones`（自复活也不销碑）；
+ *      框判定必须走 `inside_source_box`，**不许写死数值**。
+ */
+const REVIVAL_LIGHT_ID = '2321006';
+/** 参考文件（**不是源**）：只用它的文案与「它把 vector 丢成 {}」这个事实。 */
+const REVIVAL_LIGHT_REFERENCE_PATH = path.join(
+  ROOT,
+  'references/tms273-data/holy-fourth-job-source.json',
+);
+assert.ok(
+  fs.existsSync(REVIVAL_LIGHT_REFERENCE_PATH),
+  `缺参考文件 ${REVIVAL_LIGHT_REFERENCE_PATH} —— §3j 的对照事实要从它现读`,
+);
+const revivalLightSkillExport = skillExportCatalog[REVIVAL_LIGHT_ID];
+assert.ok(
+  revivalLightSkillExport,
+  `导出树里读不到 ${REVIVAL_LIGHT_ID} —— 技能被改名或删掉了？`,
+);
+const revivalLightReference = JSON.parse(
+  fs.readFileSync(REVIVAL_LIGHT_REFERENCE_PATH, 'utf8'),
+).skills[REVIVAL_LIGHT_ID];
+assert.ok(revivalLightReference, `参考文件里读不到 ${REVIVAL_LIGHT_ID}`);
+
+// ⓪ 输入自证：`lt`／`rb` 只认导出树的 `rawWz`；参考文件的空对象是**已知的丢字段**。
+const revivalRawCommon = revivalLightSkillExport.rawWz?.skill?.common ?? {};
+const revivalRawScalar = node =>
+  node && typeof node === 'object' && '_value' in node ? node._value : node;
+const revivalRawVector = corner => {
+  const node = revivalRawCommon[corner];
+  assert.ok(
+    node && node._dirType === 'vector',
+    `导出树 rawWz 里 ${REVIVAL_LIGHT_ID} 的 ${corner} 不是 vector（读到 ${JSON.stringify(node)}）`
+      + ' —— 「範圍內」这条判据的唯一可信输入没了',
+  );
+  return { x: Number(node._x), y: Number(node._y) };
+};
+const REVIVAL_LIGHT_BOX = { lt: revivalRawVector('lt'), rb: revivalRawVector('rb') };
+assert.deepEqual(
+  REVIVAL_LIGHT_BOX,
+  { lt: { x: -400, y: -350 }, rb: { x: 400, y: 250 } },
+  '源 2321006 的框变了 —— 目标集合的判据必须跟着源重算，而不是退回「同图就收」',
+);
+for (const corner of ['lt', 'rb']) {
+  assert.deepEqual(
+    Object.keys(revivalLightReference.commonFormulas?.[corner] ?? {}),
+    [],
+    `参考文件 ${path.basename(REVIVAL_LIGHT_REFERENCE_PATH)} 的 commonFormulas.${corner} 不再是空对象`
+      + ' —— 它向来把 WZ 的 vector 丢成 {}；哪天它开始保留向量，这条「两份输入不一致」的'
+      + '记录就要更新（判据本身仍以导出树的 rawWz 为准）',
+  );
+}
+// 反过来钉住：没有框的技能在模型里**没有** `lt` 键 —— 所以「模型里有 lt」＝源真的给了框，
+// 不是导出器补的默认值。判据是这套投影的形状，不是某个数字。
+{
+  const withoutBox = Object.values(mageSkills.skills).filter(
+    skill => skill.levels.every(level => level.lt === undefined && level.rb === undefined),
+  );
+  assert.ok(
+    withoutBox.length > 100,
+    `模型里没有 lt/rb 的技能只剩 ${withoutBox.length} 条 —— 投影形状变了，`
+      + '「有 lt ＝ 源给了框」这个反推不再成立',
+  );
+}
+
+// ③ 源里 `subTime` 非零 ⇒ 「不消费」是有理由的结论，不是「源里没有值」。
+{
+  const subTime = revivalRawScalar(revivalRawCommon.subTime);
+  assert.ok(
+    Number(subTime) > 0,
+    `源 ${REVIVAL_LIGHT_ID} 的 common.subTime = ${JSON.stringify(revivalRawCommon.subTime)}`
+      + ' —— 源里它是非零的（30）；若源真的清成 0，「不消费」的理由要改写成「源里没有值」',
+  );
+  const timeFormula = String(revivalRawScalar(revivalRawCommon.time) ?? '');
+  assert.ok(
+    timeFormula.length > 0,
+    `源 ${REVIVAL_LIGHT_ID} 的 common.time 不见了 —— 無敵窗口的时长失去依据`,
+  );
+}
+// 理由的锚点必须真的在**源文案**里（导出树的 description + string.h，改理由≠改文案）。
+const revivalLightText = `${revivalLightSkillExport.description ?? ''}\n${
+  revivalLightSkillExport.string?.h ?? ''
+}`;
+for (const anchor of [
+  '在有死亡倒數的地圖中',
+  '復活在範圍內死亡的所有隊員',
+  '獲得#time秒無敵狀態',
+  '主教和復活的隊員',
+]) {
+  assert.ok(
+    revivalLightText.includes(anchor),
+    `復甦之光的判据/理由引用了源文案里不存在的锚点「${anchor}」—— 理由与源分叉了`,
+  );
+}
+
+{
+  const socialSrc = read('social.rs');
+  const revivalSkillsCode = codeOnly(skillsSrc);
+  const revivalFnHead =
+    /pub\(super\) fn activate_revive_light\([^)]*\)[^{]*\{/.exec(codeOnly(elementalsSrc));
+  assert.ok(
+    revivalFnHead,
+    'elemental.rs 里读不到 activate_revive_light —— 復甦之光的施放入口被改写或删掉了',
+  );
+  const revivalBody = braceBody(
+    codeOnly(elementalsSrc),
+    revivalFnHead.index + revivalFnHead[0].length - 1,
+  );
+  assert.ok(revivalBody, 'activate_revive_light 的花括号不配对 —— 读不出函数体');
+
+  // ① 框判定必须真的走源矩形，且不许写死数值。
+  assert.match(
+    revivalBody,
+    /self\.inside_source_box\(/,
+    'activate_revive_light 没有做框判定 —— 目标集合退回「同图就收」，半张图外的队员也会被复活',
+  );
+  const boxFnHead = /pub\(super\) fn inside_source_box\([^)]*\)[^{]*\{/.exec(revivalSkillsCode);
+  assert.ok(
+    boxFnHead,
+    'skills.rs 里读不到 inside_source_box —— 源 `lt`/`rb` 的框判定没有落点',
+  );
+  const boxBody = braceBody(
+    revivalSkillsCode,
+    boxFnHead.index + boxFnHead[0].length - 1,
+  );
+  assert.ok(boxBody, 'inside_source_box 的花括号不配对');
+  assert.match(
+    boxBody,
+    /level\.lt|level\.rb/,
+    'inside_source_box 不读源 `lt`/`rb` —— 框不是从源派生的',
+  );
+  assert.ok(
+    !/-?\d+\.\d+/.test(boxBody),
+    'inside_source_box 里出现了小数常量 —— 框的数值必须来自源，不许写死'
+      + `（读到的是 ${boxBody.match(/-?\d+\.\d+/g)?.join('/')}）`,
+  );
+  assert.ok(
+    !/\b(?:400|350|250|300|(?:4|2)_?000)\b/.test(revivalBody),
+    'activate_revive_light 里出现了框的数值 —— 框必须来自源，不许写死',
+  );
+
+  // ③ `subTime` 不消费：判据**收窄到復甦之光自己的执行路径**（全文判两边都会错）。
+  assert.ok(
+    !/sub_time/.test(revivalBody),
+    'activate_revive_light 读了 sub_time —— subTime 那半**刻意不消费**：源的前提是'
+      + '「在有死亡倒數的地圖中」，而本包没有「死亡倒数地图」这个概念',
+  );
+  const revivalArmHead = /revival if REVIVAL_LIGHT_SKILLS\.contains\(&revival\) => \{/.exec(
+    revivalSkillsCode,
+  );
+  assert.ok(revivalArmHead, 'skills.rs 里读不到復甦之光的施法臂 —— 判据的作用域丢了');
+  const revivalArm = braceBody(
+    revivalSkillsCode,
+    revivalArmHead.index + revivalArmHead[0].length - 1,
+  );
+  assert.ok(revivalArm, '復甦之光施法臂的花括号不配对');
+  assert.ok(
+    !/sub_time/.test(revivalArm),
+    '復甦之光施法臂读了 sub_time —— subTime 那半刻意不消费（同上）',
+  );
+
+  // ④ 接纳表 + 模型可见性。
+  assert.deepEqual(
+    idsForArray('REVIVAL_LIGHT_SKILLS'),
+    [REVIVAL_LIGHT_ID],
+    `world.rs::REVIVAL_LIGHT_SKILLS =${idsForArray('REVIVAL_LIGHT_SKILLS').join('/')}，`
+      + `应当恰好是 ${REVIVAL_LIGHT_ID} —— 多一本意味着有别的技能被当成了「队伍复活」`,
+  );
+  assert.equal(
+    mageSkills.skills[REVIVAL_LIGHT_ID]?.hidden,
+    false,
+    '2321006 復甦之光 在模型里是 hidden —— 它是可见的主动技能，玩家点不到就没法施放',
+  );
+
+  // 三处消费都读同一张表（逐处钉作用域，不看全文计数）。
+  const castableStmt = /let castable = ([\s\S]*?);\n/.exec(revivalSkillsCode);
+  assert.ok(castableStmt, 'skills.rs 里读不到 `let castable = …` —— 准入判据被改写');
+  assert.ok(
+    castableStmt[1].includes('REVIVAL_LIGHT_SKILLS.contains(&skill_id)'),
+    '復甦之光 不在 `castable` 白名单里 —— 施放会以「该技能尚未开放施放」被拒',
+  );
+  const durationStmt = /let duration_ms = ([\s\S]*?)\n        \};/.exec(revivalSkillsCode);
+  assert.ok(durationStmt, 'skills.rs 里读不到 `let duration_ms = …;` —— 动作时长判据被改写');
+  assert.ok(
+    durationStmt[1].includes('REVIVAL_LIGHT_SKILLS.contains(&skill_id)'),
+    '復甦之光 没有动作时长分支 —— `skillCast` 广播的 durationMs 会是 0，客户端没有起手动作',
+  );
+  assert.match(
+    revivalSkillsCode,
+    /revival if REVIVAL_LIGHT_SKILLS\.contains\(&revival\) => \{[\s\S]*?activate_revive_light\(/,
+    'skills.rs 没有接到 activate_revive_light 的施法臂 —— 復甦之光会静默落进 `_ => {}`'
+      + '（能施放、扣 MP、扣冷却，但什么都不发生）',
+  );
+
+  // ⑤ 形状：不是 Hyper（带反向对照）。
+  // ⚠️ `hyper` 在源里是**逐技能出现或缺席**的：普通技能**根本没有这个键**（不是 `"0"`），
+  // 只有真 Hyper 才有 `hyper: "2"`。所以判据写「缺席 或 恰为 0」，且**不能**用一个固定
+  // 的对照 id —— 真 Hyper 是一整族（34 条），集合里第一本是 `1121052` 而不是 `2321054`，
+  // 「取第一本、断言它是 2321054」会随技能表顺序变化误红。
+  const revivalHyper = revivalLightSkillExport.sourceFields?.hyper;
+  assert.ok(
+    revivalHyper === undefined || Number(revivalHyper) === 0,
+    `源 ${REVIVAL_LIGHT_ID} 的 hyper = ${JSON.stringify(revivalHyper)} —— 若变成 2 它才真是`
+      + 'Hyper 技能，那时「普通四转」这个判定与文档都要跟着改',
+  );
+  assert.equal(
+    Number(revivalLightSkillExport.maxLevel),
+    10,
+    `源 ${REVIVAL_LIGHT_ID} 的 maxLevel 不是 10 —— 真 Hyper 是 1；这一条与上一条互证`,
+  );
+  assert.equal(
+    revivalLightSkillExport.displayFlags?.hasInvisible,
+    false,
+    `${REVIVAL_LIGHT_ID} 在源里被标了 invisible —— 那它就不是玩家点得到的主动技能`,
+  );
+  const hyperEntries = Object.entries(skillExportCatalog).filter(
+    ([, entry]) => Number(entry.sourceFields?.hyper ?? 0) === 2,
+  );
+  assert.ok(
+    hyperEntries.length > 0,
+    '反向对照失守：导出树里找不到任何 hyper=2 的真 Hyper —— '
+      + '「hyper 缺席就不是 Hyper」变成一句没有反例的口号',
+  );
+  assert.ok(
+    hyperEntries.every(
+      ([, entry]) => Number(entry.maxLevel) === 1 && Boolean(entry.sourceFields?.reqLev),
+    ),
+    '真 Hyper 的形状不再是「maxLevel 1 ＋ 带 reqLev」—— 形状判据失效，对照也就没有意义了',
+  );
+  assert.ok(
+    hyperEntries.some(([id]) => id === '2321054'),
+    '对照点漂了：2321054 不再是 hyper=2 的真 Hyper（它是 §3i 技能轉換的那一条）',
+  );
+  assert.ok(
+    !hyperEntries.some(([id]) => id === REVIVAL_LIGHT_ID),
+    `${REVIVAL_LIGHT_ID} 落进了真 Hyper 集合 —— 「普通四转」这个判定要跟着改`,
+  );
+
+  // ⑥ 目标集合：两个访问器**分工**，两边都要钉住。
+  const partyMembersFn = /pub\(super\) fn party_members_on_map[\s\S]*?\n    \}/.exec(
+    codeOnly(socialSrc),
+  );
+  assert.ok(partyMembersFn, 'social.rs 里读不到 party_members_on_map —— 判据的对照点丢了');
+  assert.ok(
+    /state\.hp > 0/.test(partyMembersFn[0]),
+    'party_members_on_map 的 `hp > 0` 过滤被去掉了 —— 它服务的是「分享增益与击杀」，'
+      + '去掉会静默改变那些语义；復甦之光要的「同图死亡队员」必须是**另一个**访问器',
+  );
+  const downedFn = /pub\(super\) fn downed_party_members_on_map[\s\S]*?\n    \}/.exec(
+    codeOnly(socialSrc),
+  );
+  assert.ok(
+    downedFn,
+    'social.rs 里读不到 downed_party_members_on_map —— 復甦之光的目标集合没有独立实现'
+      + '（多半是有人把它「合并」进了 party_members_on_map）',
+  );
+  assert.match(
+    downedFn[0],
+    /player\.state\.action == "dead"/,
+    'downed_party_members_on_map 不按 `action == "dead"` 收人 —— 与复活写路径'
+      + '（`complete_revive` 真正核对的那一个条件）不同源，会收进一批'
+      + '「血量为 0、却没进入死亡态」的角色，它们的复活会静默早退',
+  );
+  // 分工：收集器只判「同图 + 死了」，框由施法臂判 —— 两边都不许越界。
+  assert.ok(
+    !/inside_source_box|state\.x/.test(downedFn[0]),
+    'downed_party_members_on_map 里出现了框判定或坐标 —— 框属于施法臂那一侧，'
+      + '收集器只管「同图 + 已死亡」，否则同一个判据会分居两处',
+  );
+
+  // ⑦ 唯一写路径 + 不销碑。
+  assert.match(
+    revivalBody,
+    /self\.complete_revive\(/,
+    'activate_revive_light 没有走唯一的复活写路径 `complete_revive` —— 复活会被写成第二份实现',
+  );
+  const completeReviveDefs = fs
+    .readdirSync(SERVER_SRC)
+    .filter(name => name.endsWith('.rs'))
+    .filter(name =>
+      /fn complete_revive\b/.test(fs.readFileSync(path.join(SERVER_SRC, name), 'utf8')),
+    );
+  assert.deepEqual(
+    completeReviveDefs,
+    ['revive.rs'],
+    `complete_revive 的定义出现在 ${completeReviveDefs.join('/')} —— `
+      + '「复活一个玩家」只能有一份实现',
+  );
+  assert.ok(
+    !/death_tombstone/.test(revivalBody),
+    'activate_revive_light 动了 death_tombstones —— 复活**不销碑**'
+      + '（自复活也不销碑，见 windbell_acceptance.rs），改掉它会同时改掉死亡世界的语义',
+  );
+  const revivalLoopHead = /for [^{]*\{/.exec(revivalBody);
+  assert.ok(
+    revivalLoopHead,
+    'activate_revive_light 里没有遍历队员的 for —— 不遍历就没法复活他们',
+  );
+  const revivalLoopBody = braceBody(
+    revivalBody,
+    revivalLoopHead.index + revivalLoopHead[0].length - 1,
+  );
+  assert.ok(revivalLoopBody, 'activate_revive_light 的 for 花括号不配对');
+  assert.ok(
+    !/contact_invulnerable_until/.test(revivalLoopBody),
+    '無敵被写进了遍历队员的循环里 —— 源那句话的主语是主教（同一段里要带上队员时，'
+      + '作者显式写「主教和復活的隊員」，那属于 subTime 那半）⇒ 無敵只给施法者',
+  );
+  assert.match(
+    revivalBody,
+    /player\.contact_invulnerable_until\s*=/,
+    'activate_revive_light 没有给施法者叠無敵 —— 源「獲得#time秒無敵狀態」没人消费',
+  );
 }
 
 const protocolVersion = /pub const PROTOCOL_VERSION: u32 = (\d+);/.exec(protocolSrc);
