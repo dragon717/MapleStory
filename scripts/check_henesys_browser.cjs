@@ -5,13 +5,21 @@ const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 (async () => {
   const browser = process.env.HENESYS_CDP ? await chromium.connectOverCDP(process.env.HENESYS_CDP) : await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE}:{})});
-  const context = await browser.newContext({viewport:{width:1440,height:900}});
+  const context = await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:2});
   const page = await context.newPage(), errors = [];
   page.on('pageerror', error => { errors.push(String(error)); console.error(String(error)); });
   try {
     await page.goto((process.env.HENESYS_URL || 'http://127.0.0.1:5187')+'/henesys-preview.html');
     await page.waitForFunction(() => window.henesysPreview?.world.isLoaded && document.querySelector('.henesys-view canvas'), null, {timeout:90000});
     await page.waitForFunction(() => window.henesysPreview.world.players.size === 1);
+    // A source pixel must survive rasterization before projection; supersampling
+    // the final canvas cannot recover strokes lost by shrinking the source first.
+    const clarity = await page.evaluate(() => {
+      const world=window.henesysPreview.world, view=world.henesys, camera=world.cameras.main;
+      return {sourceDensity:camera.width/camera.worldView.width, outputDensity:view.renderer.domElement.width/view.width, deviceDensity:devicePixelRatio};
+    });
+    assert(clarity.sourceDensity>=1,'2D pixels and text strokes must not be downsampled before 3D projection');
+    assert.equal(clarity.outputDensity,Math.min(clarity.deviceDensity,2),'Retina output must preserve its pixel density');
     const out = path.resolve('artifacts/henesys'); fs.mkdirSync(out,{recursive:true});
     await page.screenshot({path:path.join(out,'login-3d.png')});
     await page.evaluate(() => {
@@ -47,6 +55,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     assert.equal(await page.locator('.henesys-view').count(),1);
     await page.mouse.move(720,400); await page.mouse.down({button:'right'}); await page.mouse.move(820,440); await page.mouse.up({button:'right'});
     assert.notEqual(await page.evaluate(()=>window.henesysPreview.world.henesys.yaw),0);
+    const rotatedPoint=await page.evaluate(()=>{const v=window.henesysPreview.world.henesys,p=v.camera.position.clone().set((790-3285)/45,(450-253)/45,4.2).project(v.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};});
+    await page.evaluate(()=>document.querySelector('output').textContent='等待旋转后点击');
+    await page.mouse.click(rotatedPoint.x,rotatedPoint.y);
+    await page.getByText('NPC 点击：npc-test',{exact:true}).waitFor();
     await page.setViewportSize({width:1024,height:768});
     await page.waitForFunction(()=>window.henesysPreview.world.henesys.width===1024);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),1024);

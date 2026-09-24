@@ -42,7 +42,6 @@ export class HenesysView {
     this.root.className = 'henesys-view';
     this.root.setAttribute('aria-label', '三维射手村，沿用原版移动、任务与战斗操作');
     this.renderer = new T.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
@@ -76,10 +75,11 @@ export class HenesysView {
     this.addSourcePaths(map);
     this.texture = new T.CanvasTexture(world.game.canvas);
     this.texture.colorSpace = T.SRGBColorSpace;
-    this.texture.minFilter = T.LinearFilter;
-    this.texture.magFilter = T.LinearFilter;
+    // This is already rasterized pixel art and text; a second blur loses strokes.
+    this.texture.minFilter = T.NearestFilter;
+    this.texture.magFilter = T.NearestFilter;
     this.texture.generateMipmaps = false;
-    this.paper = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: this.texture, transparent: true, alphaTest: .005, depthWrite: false, depthTest: false, side: T.DoubleSide, toneMapped: false }));
+    this.paper = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: this.texture, transparent: true, alphaTest: .005, depthWrite: false, depthTest: false, side: T.DoubleSide, toneMapped: false, fog: false }));
     // ponytail: actors share the original XY plane; keep orbit bounded until maps have authored depth lanes.
     // Nameplates and quest markers must remain readable over decorative terrain.
     this.paper.renderOrder = 10;
@@ -130,14 +130,16 @@ export class HenesysView {
     if (this.disposed || !this.world.sys.isActive() || !this.world.sys.isVisible()) return;
     const source = this.world.cameras.main, parent = this.root.parentElement!;
     if (!parent.clientWidth || !parent.clientHeight) return;
-    if (this.width !== parent.clientWidth || this.height !== parent.clientHeight) {
+    const pixelRatio = Math.min(devicePixelRatio, 2);
+    if (this.width !== parent.clientWidth || this.height !== parent.clientHeight || this.renderer.getPixelRatio() !== pixelRatio) {
       this.width = parent.clientWidth; this.height = parent.clientHeight;
+      this.renderer.setPixelRatio(pixelRatio);
       this.renderer.setSize(this.width, this.height, false); this.camera.aspect = this.width / this.height; this.camera.updateProjectionMatrix();
     }
     const view = source.worldView;
     const target = new T.Vector3(...point3d(view.centerX, view.centerY));
     this.paper.position.copy(target); this.paper.scale.set(view.width / PIXELS_PER_METRE, view.height / PIXELS_PER_METRE, 1);
-    // Phaser renders an overscan area at .75 zoom. Keep original on-screen character scale.
+    // One source pixel per world pixel at the default camera distance.
     const distance = (source.height / PIXELS_PER_METRE) / (2 * Math.tan(T.MathUtils.degToRad(this.camera.fov / 2))) * this.zoom;
     this.camera.position.copy(target).add(new T.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch)).multiplyScalar(distance));
     this.camera.lookAt(target); this.camera.updateMatrixWorld();

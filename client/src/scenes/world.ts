@@ -277,7 +277,8 @@ export class World extends Phaser.Scene {
     const b = this.manifest.map.bounds;
     const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
     this.cameras.main.setBackgroundColor(this.isThreeActive ? 'rgba(0,0,0,0)' : windbellKind ? '#d4e6eb' : '#b4dfe0');
-    this.cameras.main.setZoom(this.isThreeActive ? .75 : 1);
+    // Keep source sprites and text at native resolution before 3D projection.
+    this.cameras.main.setZoom(1);
     for (const layer of windbellKind || this.isThreeActive ? [] : this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
       else if (layer.frames?.length) this.createAnimatedLayer(layer);

@@ -1,6 +1,7 @@
 # MapleStory 工作入口
 
 - 开始工作先读 `docs/technical/BUSINESS_DEVELOPMENT.md`（长期规范）和 `docs/plan/PLAN.md`（当前目标）；仅相关追溯时读 `docs/plan/INDEX.md`，不复制第四份台账。
+- 文档别名「3d建模」（大小写不敏感）指向 `docs/technical/3D场景开发通用指南.md`；用户提到该别名时先读取并应用，技术索引为 `docs/technical/INDEX.md`。通用方法与本项目特例分开采用。
 - 当前复刻版本、模型分工与验收政策以这两份文件的最新条目及当前用户指令为准；README和旧架构文档中的83记录是历史，不是273迁移完成证据。
 - 按 UTF-8 处理文件、日志与中文路径。限定当前工作区，不套用 Pink_House/ItemManager 的技能、路径或 memory。
 - 保留已有修改、在线服务、用户数据库和陪测机器人。只执行实际改动必要的定向验证；未验证项明确交待，不重复启动已取消的独立QA。
