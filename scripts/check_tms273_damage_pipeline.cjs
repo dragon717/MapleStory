@@ -312,13 +312,21 @@ const assertExcused = field => {
 };
 
 /**
- * 法师 `212`／`232` 两条四转分支书里**仍未开放施放**的那四条 —— 理由以**权威源文案**为准。
+ * 法师 `212`／`232` 两条四转分支书里**仍未开放施放**的那几条 —— 理由以**权威源文案**为准。
  *
- * 为什么要有这张表：这四条原先只在散文里被描述（`world.rs` 的一段注释、`PLAN.md` 与台账），
+ * 为什么要有这张表：这些条目原先只在散文里被描述（`world.rs` 的一段注释、`PLAN.md` 与台账），
  * 而散文里的理由**已经漂过一次**——那段注释把 `2321054 復仇天使` 与 `2121054 火靈結界`
  * 并成「開關技能那批」，可源文案里写「**開關技能**」的只有 `2121054`；`2321054` 的文案是
  * 「**慈愛**技能轉變成**復仇**技能」＋`#c[被動效果]#`，是**技能轉換**，不是開關。
  * 散文漂了没人发现，判据不会。
+ *
+ * ⚠️ **2026-09-24 又漂过一次，这次是 `2121054` 自己**：它原先登记的理由是「本包**没有**
+ * 『再次使用即关闭』的持久开关位」。取证发现那条理由**不成立**——開關态在本包早已存在，
+ * 而且最贴切的先例就是**同一格**的冰雷 `2221054 冰雪結界`（源里同为 `info.type=15`、
+ * 同为「再次使用時移除效果」）。真实缺口只是「那套机制当时按 `SKILL_HYPER_VORTEX`
+ * 一个 id 写死」。收口成 `world.rs::TOGGLE_FIELD_SKILLS` 后这本就接上了，于是从本表移出；
+ * 新接纳表由下面 §3h **从源独立重算**并双向钉住（两路取值：火毒／主教的 `infoType === 15`、
+ * 冰雷的 `classification.role === 'hyper-toggle-field'`）。
  *
  * 三条一起才成立：
  *   ① **集合从源独立重算**：`212`／`232` 书里「带 `mpCon`（＝可施放）、非 `hidden`、
@@ -333,15 +341,6 @@ const assertExcused = field => {
  * `attribute.rs` 的被动槽位各自记账 —— 用 `mpCon` 做判据正是为了把这两类分开。
  */
 const MAGE_BRANCH_PENDING = {
-  '2121054': {
-    why: '火靈結界＝**開關技能**：源 `description` 写「發動附近燃燒的結界…使用技能時啟動效果，'
-      + '再次使用時則關閉效果的開關技能」，源 `common` 里**没有** `time`；`perLevel` 是'
-      + '「每秒消耗MP #mpCon，每 #x 秒（＝`subTime` 3000 ms）向最多 #mobCount 名敵人以 '
-      + '#damage% 的傷害，攻擊 #attackCount 次」＋`dotTime` 秒 DoT。缺的是**開關态**：'
-      + '本包没有「再次使用即关闭」的持久开关位，也没有「每秒消耗 MP」的结算点'
-      + '（DoT 与范围攻击本身已有，不在这条缺口里）。',
-    keywords: ['開關技能', '每秒消耗MP'],
-  },
   '2321054': {
     why: '復仇天使＝**技能轉換**＋`[被動效果]`，**不是**開關技能：源 `description` 写'
       + '「取得天使的純粹的憤怒…#c慈愛#技能轉變成#c復仇#技能」；`perLevel` 的'
@@ -441,6 +440,81 @@ assert.deepEqual(
   mageBranchHiddenCastable, ['2321016'],
   '212／232 里「带 mpCon 且 hidden」的技能变了：它应当恰好是復仇天使轉換出来的 `2321016 神聖之血`',
 );
+
+/**
+ * 3h. **開關技能**（源 `info.type=15`：「使用技能時啟動效果，再次使用時則關閉」）的接纳表
+ * 必须与源一致。两本：冰雷 `2221054 冰雪結界`、火毒 `2121054 火靈結界`。
+ *
+ * 判据**分两路**独立取值，都不读 `world.rs` 那张表，也都不拿对方的结论当输入：
+ *   ① **火毒／主教的权威源文案**里 `infoType === 15` 的技能。这两份文案是 `generate_*`
+ *      产出、只记源 `info.type` 的**原始值**（没有第二层分类字段）⇒ 这里用它当「源直说
+ *      了这是開關技能」的那一路。
+ *   ② **冰雷的权威源文案**里 `classification.role === 'hyper-toggle-field'` 的技能。
+ *      冰雷那份是分析产物，分类是**它自己**给的 ⇒ 与 ① 是同一个语义的两份独立书写。
+ *
+ * 两者并集必须**逐条等于** `world.rs::TOGGLE_FIELD_SKILLS`：
+ *   少一条 ⇒ 表里有一本在源文案里找不到依据（凭空多出来的開關技能）；
+ *   多一条 ⇒ 源里的開關技能没接进来 —— **那正是 `2121054` 收口前的状态**。
+ *
+ * 顺带钉住每本的**源文案锚点**：`description`／`desc` 里必须真的出现「開關技能」四个字，
+ * 否则「它是開關技能」这句话就只剩本包自己的说法了（改理由≠改文案）。
+ */
+const TOGGLE_FIELD_SOURCE_ANCHOR = '開關技能';
+const FireHolyToggleSourceFiles = [
+  'references/tms273-data/fire-fourth-job-source.json',
+  'references/tms273-data/holy-fourth-job-source.json',
+];
+const toggleFieldSourceIds = new Set();
+const toggleFieldSourceText = {};
+for (const relative of FireHolyToggleSourceFiles) {
+  const parsed = JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));
+  for (const [id, skill] of Object.entries(parsed.skills ?? {})) {
+    if (Number(skill.infoType) !== 15) continue;
+    toggleFieldSourceIds.add(id);
+    toggleFieldSourceText[id] = `${skill.description ?? ''}\n${skill.perLevelDescription ?? ''}`;
+  }
+}
+const iceHyperToggle = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'references/tms273-data/ice-fourth-job-source.json'), 'utf8'),
+);
+for (const [id, skill] of Object.entries(iceHyperToggle.skills ?? {})) {
+  if (skill.classification?.role !== 'hyper-toggle-field') continue;
+  toggleFieldSourceIds.add(id);
+  // 冰雷那份的文案落在 `string.json.desc`／`string.binary.desc`（不是 `string.desc`）。
+  // 两处都取并拼起来：锚点词在哪一处都得算数（json 与 binary 在源里本就成对留痕）。
+  toggleFieldSourceText[id] =
+    `${skill.string?.json?.desc ?? ''}\n${skill.string?.binary?.desc ?? ''}`;
+}
+assert.ok(
+  toggleFieldSourceIds.size >= 2,
+  '两路取值都没读到開關技能：源文案的形状变了，这条判据不再有效（别把它改成「总是通过」）',
+);
+const toggleFieldWired = idsForArray('TOGGLE_FIELD_SKILLS');
+const toggleFieldSourceIdsSorted = [...toggleFieldSourceIds].sort();
+assert.deepEqual(
+  toggleFieldWired, toggleFieldSourceIdsSorted,
+  `world.rs::TOGGLE_FIELD_SKILLS 是 ${toggleFieldWired.join('/')}，源文案里 `
+    + `\`infoType === 15\`（火毒／主教）或 \`role === 'hyper-toggle-field'\`（冰雷）的是 `
+    + `${toggleFieldSourceIdsSorted.join('/')}——少一条＝表里多了一本没有源依据的開關技能，`
+    + '多一条＝源里的開關技能还没接进来（收口前 2121054 就卡在这里）',
+);
+for (const id of toggleFieldWired) {
+  assert.ok(
+    (toggleFieldSourceText[id] ?? '').includes(TOGGLE_FIELD_SOURCE_ANCHOR),
+    `${id} 被登记为開關技能，但它的权威源文案里找不到「${TOGGLE_FIELD_SOURCE_ANCHOR}」`
+      + '——「它是開關技能」这句话就只剩本包自己的说法了',
+  );
+}
+// 反向：開關技能**不许**同时出现在 `BRANCH_AREA_ATTACKS` 里。后者的语义是「玩家直接
+// 施放、当拍结算的范围攻击」（施法臂在那里直接走 `cast_elemental_area`），而開關技能的
+// 那一拍只翻转开关、不结算伤害（伤害由周期脉冲产生，与召唤物脉冲同一条路）。
+for (const id of toggleFieldWired) {
+  assert.ok(
+    !idsForArray('BRANCH_AREA_ATTACKS').includes(id),
+    `${id} 同时进了 BRANCH_AREA_ATTACKS：開關技能的施放拍只翻转开关，`
+      + '伤害走周期脉冲，两条路径不能叠在同一张表上',
+  );
+}
 
 // 3a. `damR` 分两段被消费：非 Hyper 的常驻段（魔力激發）走 `is_magic_attack_skill` 闸门，
 //     Hyper=1 的强化段（三本 Hyper 被动）走「配对 Hyper 强化」分支。两段都由内容独立重算。
@@ -1435,6 +1509,11 @@ console.log(
   `  法师 212／232 未接执行链（带 mpCon、非 hidden，理由钉在源文案上）=`
   + `${mageBranchCastableUnwired.join('/')}；其 hidden 可施放副本 =${mageBranchHiddenCastable.join('/')}`
   + `（＝復仇天使那次「慈愛→復仇」轉換的产物）`,
+);
+console.log(
+  `  開關技能接纳表：world.rs::TOGGLE_FIELD_SKILLS =${toggleFieldWired.join('/')}；`
+  + `源侧两路独立取值（火毒/主教 \`infoType === 15\`、冰雷 \`role === 'hyper-toggle-field'\`）`
+  + `并集 =${toggleFieldSourceIdsSorted.join('/')}（逐条相等 + 每本源文案含「${TOGGLE_FIELD_SOURCE_ANCHOR}」）`,
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `

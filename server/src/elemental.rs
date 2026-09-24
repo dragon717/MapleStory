@@ -651,25 +651,39 @@ impl World {
         }
     }
 
-    pub(super) fn activate_hyper_vortex(
+    /// 開關技能的施法臂（源 `info.type=15`：「使用技能時啟動效果，再次使用時則關閉」）。
+    ///
+    /// **一张表驱动**（`TOGGLE_FIELD_SKILLS`）：冰雷 `2221054 冰雪結界` 与火毒
+    /// `2121054 火靈結界` 是同一格（源 `info.type` 与「再次使用即關閉」的文案逐条同形），
+    /// 所以走同一条翻转路径。改前这里按 `SKILL_HYPER_VORTEX` 一个 id 写死，
+    /// 火毒那本连白名单都进不去 ⇒ 一直是「尚未开放施放」。
+    ///
+    /// `vertical > 0`（↓ 方向键）只有冰雷那本有：它是**另一个**区域对象
+    /// （源隐藏节点 `2221055`），与開關位无关。火毒那本源里没有 ↓ 变体 ⇒ 显式拒绝，
+    /// 不静默当成「打开」。
+    pub(super) fn activate_toggle_field(
         &mut self,
         id: &str,
         request_id: &str,
+        skill_id: u32,
         level: &MageLevel,
         vertical: i8,
     ) -> Result<(), String> {
-        let Some((map_id, x, y, facing, barrier_enabled)) = self.players.get(id).map(|player| {
+        let Some((map_id, x, y, facing, enabled)) = self.players.get(id).map(|player| {
             (
                 player.map_id.clone(),
                 player.state.x,
                 player.state.y,
                 player.state.facing,
-                player.hyper_barrier_enabled,
+                toggle_field_enabled(player, skill_id),
             )
         }) else {
             return Err("player_unknown".to_owned());
         };
         if vertical > 0 {
+            if skill_id != SKILL_HYPER_VORTEX {
+                return Err("invalid_toggle_field_variant".to_owned());
+            }
             let hidden_level = self
                 .mage_skills
                 .level(SKILL_HYPER_VORTEX_HIDDEN, 1)
@@ -712,23 +726,192 @@ impl World {
             })
             .to_string();
             self.broadcast_to_map(&map_id, &event);
-        } else {
-            let Some(player) = self.players.get_mut(id) else {
-                return Err("player_unknown".to_owned());
-            };
-            player.hyper_barrier_enabled = !barrier_enabled;
-            if player.hyper_barrier_enabled {
-                player.hyper_barrier_next_mp =
-                    self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
-                player.hyper_barrier_next_pulse = self.tick;
-            } else {
-                player.hyper_barrier_next_mp = 0;
-                player.hyper_barrier_next_pulse = 0;
-            }
+            return Ok(());
         }
+        let now = self.tick;
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        set_toggle_field(player, skill_id, !enabled, now);
         Ok(())
     }
 
+    /// 開關技能的每秒 upkeep 与周期作用。**一张表驱动**（`TOGGLE_FIELD_SKILLS`）。
+    ///
+    /// 改前这段整块按 `SKILL_HYPER_VORTEX` 写死（连每秒 60 MP、周期 2400 ms 都是字面量），
+    /// 所以同一格的火毒副本既进不来、也没有第二条路径可走。收口后每本開關技能各走一遍，
+    /// 两个数都从**源**派生：每秒扣 [`toggle_field_upkeep_mp`]（源 `mpCon`）、
+    /// 周期 [`toggle_field_pulse_ms`]（源 `subTime`，源没给数字时用契约兜底值）。
+    ///
+    /// 周期作用的**形态**由 [`toggle_field_pulse`] 决定：冰雷那本是冻结叠层，
+    /// 火毒那本是范围伤害 + DoT。后者与召唤物脉冲走**同一条**管线
+    /// （`cast_elemental_area_at` → `settle_area_segments`），所以
+    /// `damage`/`attackCount`/`mobCount` 与挂在同一本源行上的 `dot*` 都由
+    /// `mechanics.rs::AttackPlan` 照常消费，不另写一份。
+    pub(super) fn step_toggle_fields(&mut self) {
+        let ids: Vec<String> = self.players.keys().cloned().collect();
+        for id in ids {
+            let Some((hp, open)) = self.players.get(&id).map(|player| {
+                (
+                    player.state.hp,
+                    player.toggle_fields.keys().copied().collect::<Vec<_>>(),
+                )
+            }) else {
+                continue;
+            };
+            if hp <= 0 {
+                if let Some(player) = self.players.get_mut(&id) {
+                    if !player.toggle_fields.is_empty() {
+                        player.toggle_fields.clear();
+                        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+                    }
+                }
+                continue;
+            }
+            for skill_id in open {
+                // 「生效等级」＝玩家**学到的**等级。两本開關技能的 `maxLevel` 都是 1，
+                // 所以这与改前写死的 `level(SKILL_HYPER_VORTEX, 1)` 逐值相同；
+                // 但判据不再写死一个数，技能变多级也自动跟上。
+                let level = self
+                    .players
+                    .get(&id)
+                    .and_then(|player| player.state.skills.get(&skill_id).copied())
+                    .and_then(|learned| self.mage_skills.level(skill_id, learned.max(1)))
+                    .cloned();
+                let (Some(level), Some(skill)) = (level, self.mage_skills.get(skill_id).cloned())
+                else {
+                    continue;
+                };
+
+                // ---- ① 每秒扣 MP ------------------------------------------------
+                // 无限生效期间免费（与改前逐字相同）。
+                let due_mp = self
+                    .players
+                    .get(&id)
+                    .and_then(|player| player.toggle_fields.get(&skill_id))
+                    .map(|state| state.next_mp);
+                if due_mp.is_some_and(|next_mp| next_mp <= self.tick) {
+                    let cost = if self.players.get(&id).is_some_and(infinity_buff_active) {
+                        0
+                    } else {
+                        toggle_field_upkeep_mp(&level)
+                    };
+                    let upkeep_request = format!("toggle-field:{id}:{skill_id}:{}", self.tick);
+                    let outcome = match self.store.as_ref() {
+                        Some(store) => store.cast_skill(
+                            &id,
+                            &upkeep_request,
+                            skill_id,
+                            skill.book_id,
+                            skill.book_id,
+                            skill.max_level,
+                            cost,
+                        ),
+                        None => Ok(self.local_cast_skill(
+                            &id,
+                            &upkeep_request,
+                            skill_id,
+                            skill.book_id,
+                            cost,
+                        )),
+                    };
+                    match outcome {
+                        Ok(outcome) if outcome.success => {
+                            if let Some(player) = self.players.get_mut(&id) {
+                                player.state.mp = outcome.mp;
+                                if let Some(state) = player.toggle_fields.get_mut(&skill_id) {
+                                    state.next_mp =
+                                        self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
+                                }
+                            }
+                        }
+                        Ok(_) | Err(_) => {
+                            self.toggle_field_off(&id, skill_id);
+                            // 文案必须是**调用点上的字面量**：`check_protocol_errors.cjs`
+                            // 把 `&format!(…)` 这类表达式判成「message 是变量 ⇒ 必须有
+                            // 客户端文案」，而客户端表一旦有条目就会盖掉服务端这句、
+                            // 把 `skill.name` 连同一起丢掉。两本開關技能共用这条码，
+                            // 所以用源文案里的族名（「開關技能」），不写死某一本的名字。
+                            self.send_reject(
+                                &id,
+                                "toggle_field_stopped",
+                                "MP不足，開關技能已结束。",
+                                None,
+                            );
+                            self.send_snapshot(&id);
+                            continue;
+                        }
+                    }
+                }
+
+                // ---- ② 周期作用 --------------------------------------------------
+                // upkeep 事务可能就在本拍把它关掉（MP 或持久化失败）。**重新读一次**
+                // 已提交的状态位再决定要不要给效果：收费前的快照不许白送最后一次
+                // （改前那句注释说的就是这件事，收口后这条纪律按技能逐条成立）。
+                if !self
+                    .players
+                    .get(&id)
+                    .is_some_and(|player| toggle_field_enabled(player, skill_id))
+                {
+                    continue;
+                }
+                let due_pulse = self
+                    .players
+                    .get(&id)
+                    .and_then(|player| player.toggle_fields.get(&skill_id))
+                    .map(|state| state.next_pulse);
+                if !due_pulse.is_some_and(|next_pulse| next_pulse <= self.tick) {
+                    continue;
+                }
+                let pulse_ms = toggle_field_pulse_ms(&level).max(1);
+                match toggle_field_pulse(skill_id) {
+                    ToggleFieldPulse::Freeze => {
+                        // 冰雷那本：对范围内每名敌人叠一层冻结。周期取自本包既有取值
+                        // （源 `perLevel` 只写「每隔一定週期」，没有数字）。
+                        let targets = self.area_targets(&id, &level);
+                        for target_id in targets {
+                            self.freeze_target(&target_id, 1);
+                        }
+                    }
+                    ToggleFieldPulse::Damage => {
+                        // 火毒那本：范围伤害 + DoT。探原点取 `None` ⇒ 用**当拍**施法者位置，
+                        // 与冰雷那条 `area_targets(&id, &level)` 同一份贴身框口径
+                        //（源 `common/lt|rb` 就是绕施法者的）。
+                        let request_id = format!("fire-ward-pulse:{id}:{}", self.tick);
+                        if let Err(error) = self.cast_elemental_area_at(
+                            &id,
+                            &request_id,
+                            skill_id,
+                            &level,
+                            false,
+                            None,
+                        ) {
+                            self.handle_accepted_effect_error(&id, &request_id, &error);
+                        }
+                    }
+                }
+                if let Some(player) = self.players.get_mut(&id) {
+                    if let Some(state) = player.toggle_fields.get_mut(&skill_id) {
+                        state.next_pulse = self.tick.saturating_add(pulse_ms.div_ceil(TICK_MS));
+                    }
+                }
+            }
+        }
+    }
+
+    /// 关掉一条開關技能并把属性快照重算一次（属性层的 `hyperBarrierActive` 等投影读它）。
+    fn toggle_field_off(&mut self, id: &str, skill_id: u32) {
+        let now = self.tick;
+        if let Some(player) = self.players.get_mut(id) {
+            set_toggle_field(player, skill_id, false, now);
+            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        }
+    }
+
+    /// 冰雪結界 ↓ 变体（隐藏节点 `2221055`）的那个区域对象。
+    ///
+    /// 它与開關位是两件事，所以从 `step_toggle_fields` 里剥出来单独走：開關技能那张表
+    /// 只管「哪几本有 ON/OFF 状态」，而这个对象只有冰雷那本有、且不翻转開關位。
     pub(super) fn step_hyper_effects(&mut self) {
         let ids: Vec<String> = self.players.keys().cloned().collect();
         for id in ids {
@@ -736,9 +919,6 @@ impl World {
                 (
                     player.state.hp,
                     player.map_id.clone(),
-                    player.hyper_barrier_enabled,
-                    player.hyper_barrier_next_mp,
-                    player.hyper_barrier_next_pulse,
                     player.hyper_vortex.clone(),
                 )
             }) else {
@@ -752,84 +932,7 @@ impl World {
                 continue;
             }
 
-            if snapshot.2 && snapshot.3 <= self.tick {
-                let upkeep_request = format!("hyper-barrier:{id}:{}", self.tick);
-                let cost = if self
-                    .players
-                    .get(&id)
-                    .is_some_and(infinity_buff_active)
-                {
-                    0
-                } else {
-                    60
-                };
-                let outcome = match self.store.as_ref() {
-                    Some(store) => store.cast_skill(
-                        &id,
-                        &upkeep_request,
-                        SKILL_HYPER_VORTEX,
-                        ICE_FOURTH_JOB,
-                        FOURTH_BOOK,
-                        1,
-                        cost,
-                    ),
-                    None => Ok(self.local_cast_skill(
-                        &id,
-                        &upkeep_request,
-                        SKILL_HYPER_VORTEX,
-                        FOURTH_BOOK,
-                        cost,
-                    )),
-                };
-                match outcome {
-                    Ok(outcome) if outcome.success => {
-                        if let Some(player) = self.players.get_mut(&id) {
-                            player.state.mp = outcome.mp;
-                            player.hyper_barrier_next_mp =
-                                self.tick.saturating_add(1_000_u64.div_ceil(TICK_MS));
-                        }
-                    }
-                    Ok(_) | Err(_) => {
-                        if let Some(player) = self.players.get_mut(&id) {
-                            player.hyper_barrier_enabled = false;
-                            player.hyper_barrier_next_mp = 0;
-                            player.hyper_barrier_next_pulse = 0;
-                            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
-                        }
-                        self.send_reject(
-                            &id,
-                            "hyper_barrier_stopped",
-                            "MP不足，冰雪結界已结束。",
-                            None,
-                        );
-                        self.send_snapshot(&id);
-                    }
-                }
-            }
-
-            // The upkeep transaction may turn the barrier off in this same
-            // tick.  Read the committed runtime flag again before applying
-            // its freeze pulse; the pre-charge snapshot must not grant one
-            // last free effect after an MP/persistence failure.
-            let barrier_enabled = self
-                .players
-                .get(&id)
-                .is_some_and(|player| player.hyper_barrier_enabled);
-            if barrier_enabled && snapshot.4 <= self.tick {
-                let Some(level) = self.mage_skills.level(SKILL_HYPER_VORTEX, 1).cloned() else {
-                    continue;
-                };
-                let targets = self.area_targets(&id, &level);
-                for target_id in targets {
-                    self.freeze_target(&target_id, 1);
-                }
-                if let Some(player) = self.players.get_mut(&id) {
-                    player.hyper_barrier_next_pulse =
-                        self.tick.saturating_add(2_400_u64.div_ceil(TICK_MS));
-                }
-            }
-
-            let Some(vortex) = snapshot.5 else {
+            let Some(vortex) = snapshot.2 else {
                 continue;
             };
             if vortex.map_id != snapshot.1 || vortex.expires_at <= self.tick {

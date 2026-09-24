@@ -8,7 +8,7 @@ assert(gltf.images.length>0);assert(gltf.images.every(image=>Number.isInteger(im
 assert(gltf.nodes.filter(n=>n.mesh!==undefined).every(n=>n.extras?.role==='visual_only'),'source footholds, not model triangles, own collision');
 assert.equal(Buffer.compare(file,fs.readFileSync(path.join(root,'client/public-tms273/assets/henesys/henesys.glb'))),0);
 const manifest=read('client/public-tms273/assets/manifest.json'), gameplay=read('shared/gameplay.json');
-assert.equal(manifest.contentVersion,'tms273-45');assert.equal(gameplay.contentVersion,manifest.contentVersion);
+assert.equal(manifest.contentVersion,'tms273-46');assert.equal(gameplay.contentVersion,manifest.contentVersion);
 const source=read('shared/maps.json').maps.find(m=>m.id==='100000000'), map=manifest.mapCatalog.maps.find(m=>m.id===source.id);
 assert.deepEqual(map.footholds,source.footholds);assert.deepEqual(map.ladders,source.ladders);assert.deepEqual(map.portals,source.portals);
 console.log(`PASS: embedded GLB (${file.length} bytes), 8 districts, identical published asset; ${source.footholds.length} source footholds, ladders and portals preserved; content ${manifest.contentVersion}.`);

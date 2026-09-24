@@ -28,6 +28,10 @@ pub(super) struct DerivedRuntime<'a> {
     pub(super) teleport_mastery: bool,
     pub(super) teleport_boost: bool,
     pub(super) hyper_barrier_active: bool,
+    /// 火毒 火靈結界 `2121054` 的開關位。与 `hyper_barrier_active` 同源（都从
+    /// [`toggle_field_enabled`] 投影），但**不是同一个槽位**：冰雷那本还给 20% 减伤，
+    /// 火毒这本只做范围伤害 ⇒ 两者不能合成一个布尔。
+    pub(super) fire_ward_active: bool,
     pub(super) hyper_teleport_enabled: bool,
     pub(super) adaptation_charges: u32,
     pub(super) adaptation_cooldown_ms: Option<u64>,
@@ -48,6 +52,7 @@ impl<'a> DerivedRuntime<'a> {
             teleport_mastery: player.teleport_mastery_enabled,
             teleport_boost: player.teleport_boost_enabled,
             hyper_barrier_active: hyper_barrier_active(player),
+            fire_ward_active: toggle_field_enabled(player, SKILL_FIRE_WARD),
             hyper_teleport_enabled: player.hyper_teleport_enabled,
             adaptation_charges: if player.adaptation_active {
                 player.adaptation_charges
@@ -76,6 +81,7 @@ impl<'a> DerivedRuntime<'a> {
             teleport_mastery: false,
             teleport_boost: false,
             hyper_barrier_active: false,
+            fire_ward_active: false,
             hyper_teleport_enabled: false,
             adaptation_charges: 0,
             adaptation_cooldown_ms: (adaptation_cooldown_ms > 0).then_some(adaptation_cooldown_ms),
@@ -133,6 +139,7 @@ pub(super) fn compute_derived_stats(
         move_speed: attributes.move_speed,
         magic_guard: runtime.magic_guard && skills.get(&SKILL_MAGIC_GUARD).copied().unwrap_or(0) > 0,
         hyper_barrier_active: runtime.hyper_barrier_active,
+        fire_ward_active: runtime.fire_ward_active,
         hyper_teleport_enabled: runtime.hyper_teleport_enabled,
         damage_reduction_percent: if runtime.hyper_barrier_active { 20 } else { 0 },
         regeneration_passives: regeneration_passives_for_job(job),

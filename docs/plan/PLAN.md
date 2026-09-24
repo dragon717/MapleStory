@@ -1,5 +1,7 @@
 # 当前工作计划
 
+**開關技能收口 + 火靈結界 `2121054` 接执行链**已落地（内容 `tms273-45 → 46`、协议 `34 → 35`，装配完成 `211 图 / 120,783 资源 / skillEffects 49`；`cargo test` 669 过 4 失败与基线逐项相同、`run-checks` 8 红与基线逐项相同、9 组扰动全部按下预期）。**本地未提交、未部署、未重启在线服务**，观感与实玩待你验收。[本轮记录](history/2026-09-24/開關技能收口与2121054接执行链.md)。
+
 射手村 2D 前景与文字清晰度修复已更新到本地 3010：取消源预缩小、保留像素采样、修正高分屏输出；定向浏览器与构建通过，实际观感待用户确认。[通用指南](../technical/3D场景开发通用指南.md) 已登记别名「3d建模」，提到别名先读取并应用。[本轮记录](history/2026-09-24/射手村前景清晰度与3D建模指南.md)。
 
 射手村默认三维入口与活动列表 2D 切换已提交并合并 main（实现 `9b489e4`，合并 `7875ca5`），主目录 3010 已通过统一入口运行 `tms273-45` / 协议 34。Astra 完成合并、场景资源恢复、构建和健康核对；Luna / max 辅助只读资源核查。账号数据库保留，模型及封面 HTTP 200；完整登录与任务战斗实玩待用户测试。详见 [2026-09-24 交付记录](history/2026-09-24/射手村三维场景与主世界实装.md)。
@@ -30,14 +32,14 @@
 
 | 项 | 当前值 | 说明 |
 |---|---|---|
-| 内容版本 | `tms273-45` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。本轮 `44→45`：加入射手村 GLB 与活动封面，装配完成。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。`tms273-38→39`：`time` 机制字段判定从「未实现」收窄为「自增益施放窗已实现」（S1），客户端 `ACTIVE_SKILLS` 补入 1221052。`tms273-39→40`：椅子恢复间隔改为系统固定节拍（`CHAIR_RECOVERY_INTERVAL_MS = 10_000`，判据「凡 `info` 声明了恢复量即带间隔」，含负值）。**S5 召唤通用化（2026-09-23）零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-40→41`：法师 212／232 四转的七条「同一格副本」接执行链——清单新增 7 条 `skillEffects`（含召喚火魔的召唤动画）与对应 PNG，属内容资源变化。`tms273-41→42`：同一格副本再补两条 傳說冒險 `2121053`／`2321053`（新增 2 条 `skillEffects` 与 50 张 PNG）。**2026-09-23 第三轮（召唤存活时长收口）与第四轮（桌面 D0 机械迁移）均零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-42→43`：召喚聖龍 `2321003` 接入通用召唤队列（同日第五轮）——新增 1 条 `skillEffects`（五组：`effect 17 / hit 7 / summonStand 12 / summonMove 12 / summonAttack 20`）与 68 张 PNG，属内容资源变化。`tms273-43→44`：進階祝福 `2321005` 接增益窗与属性层（同日第六轮）——新增 1 条 `skillEffects`（四组：`effect 12 / effect0 17 / affected 16 / affected0 16`）与 61 张 PNG。⚠️ 升版与重建**必须同窗口**：在线服务仍是旧版发布时，刷新页面会报「资源版本不一致」（`manifest.ts:722` 硬抛错且自愈路径此时不导航）。 |
-| 协议版本 | `34` | 与内容版本独立；改 wire 才动。 |
+| 内容版本 | `tms273-46` | 五处手写落点：`shared/protocol.ts`、`server/src/protocol.rs`、`scripts/assemble_tms273.cjs`、`scripts/check_tms273_runtime.cjs`、`scripts/check_colossus_live.cjs`。本轮 `44→45`：加入射手村 GLB 与活动封面，装配完成。**只有内容资源／数据契约真的变才升**（纯代码搬移不升）；升完必须重跑装配器，否则派生 `shared/*.json` 与 `client/public-tms273/assets/manifest.json` 落后。`tms273-38→39`：`time` 机制字段判定从「未实现」收窄为「自增益施放窗已实现」（S1），客户端 `ACTIVE_SKILLS` 补入 1221052。`tms273-39→40`：椅子恢复间隔改为系统固定节拍（`CHAIR_RECOVERY_INTERVAL_MS = 10_000`，判据「凡 `info` 声明了恢复量即带间隔」，含负值）。**S5 召唤通用化（2026-09-23）零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-40→41`：法师 212／232 四转的七条「同一格副本」接执行链——清单新增 7 条 `skillEffects`（含召喚火魔的召唤动画）与对应 PNG，属内容资源变化。`tms273-41→42`：同一格副本再补两条 傳說冒險 `2121053`／`2321053`（新增 2 条 `skillEffects` 与 50 张 PNG）。**2026-09-23 第三轮（召唤存活时长收口）与第四轮（桌面 D0 机械迁移）均零 `shared/**` 字节 ⇒ 不动版本、不重跑装配器。**`tms273-42→43`：召喚聖龍 `2321003` 接入通用召唤队列（同日第五轮）——新增 1 条 `skillEffects`（五组：`effect 17 / hit 7 / summonStand 12 / summonMove 12 / summonAttack 20`）与 68 张 PNG，属内容资源变化。`tms273-43→44`：進階祝福 `2321005` 接增益窗与属性层（同日第六轮）——新增 1 条 `skillEffects`（四组：`effect 12 / effect0 17 / affected 16 / affected0 16`）与 61 张 PNG。`tms273-45→46`：**開關技能收口 + 火靈結界 `2121054` 接执行链**（2026-09-24 第七轮）——把原先「按一个 id 写死的開關技能」收口成接纳表 `world.rs::TOGGLE_FIELD_SKILLS`（`2221054` 冰雷／`2121054` 火毒）＋三个派生点（形态表 `ToggleFieldPulse`／每秒耗蓝 `MageLevel.mpCon`／周期 `subTime` ＋ 契约兜底 `TOGGLE_FIELD_PULSE_FALLBACK_MS = 2400` ＝改前写死值）；火毒那本是**同一格机制、不同形态**（源里**没有** `effect` 节点、**没有** `Loop` 音效、**没有** `time`、**没有** `cooltime`、**没有** ↓ 变体），新增 1 条 `skillEffects`（三组 `start 6 / repeat 16 / end 8`）与 29 张 PNG，属内容资源变化。⚠️ 升版与重建**必须同窗口**：在线服务仍是旧版发布时，刷新页面会报「资源版本不一致」（`manifest.ts:722` 硬抛错且自愈路径此时不导航）。 |
+| 协议版本 | `35` | 与内容版本独立；改 wire 才动。`34→35`：快照 `derivedStats` 新增 `fireWardActive`（開關态**逐本上报**，客户端 HUD／技能窗／光环锚点读它；改前 `hyperBarrierActive` 只服务冰雷那一本）。 |
 | 总纲快照口径 | 协议 `24` / 内容 `tms273-31` | 总纲是 2026-09-18 的固定快照，**其版本号不作为当前值**；当前值以本表为准。 |
-| 装机规模 | 211 图 / 120,754 资源 / 395 NPC / 79 怪 | 装配器 `tms273-44` 自报 `maps:211`、`assets:120754`、`cashAppearanceLayers:1754`、`missing:[]`（`120693 → 120754` 即進階祝福那 61 张 PNG，逐张对得上）。客户端清单同版：`skillCatalog` 504、`skillEffects` **48**（`47 → 48`）、`npcs` 395、`monsters` 79。 |
+| 装机规模 | 211 图 / 120,783 资源 / 395 NPC / 79 怪 | 装配器 `tms273-46` 自报 `maps:211`、`assets:120783`、`cashAppearanceLayers:1754`、`npcs:395`、`monsters:79`、`missing:[]`（`120754 → 120783` 即火靈結界那 29 张 PNG，逐张对得上；`artifacts/tms273_assemble_missing.json` 记 `checked:120783`／`missing:[]`／`zeroByte:[]`）。客户端清单同版：`skillBooks` 35、`skillCatalog` 504、`skillEffects` **49**（`48 → 49`，新增 `2121054` 三组 `start 6 / repeat 16 / end 8`）、`npcs` 395、`monsters` 79。 |
 | 技能目录 | 35 本 / 504 条（战士 139 + 弓箭手 105 + 飞侠 107 + 法师 153） | 书准入＝四张职业表按布局切片派生。 |
 | 转职任务 | `shared/job-advance.json` 30 条 | 法师三分支 9 + 战士／弓／侠各 7。 |
-| `cargo test` | **668 过 / 4 失败**（HEAD `a14883f` 基线 **667 过 / 4 失败**；本轮 +1 过） | 确定性已根修（`deny_persistence` 从进程级改线程级注入）。**⚠️ 2026-09-24 更正：原记「670 过 / 0 失败」与实测不符。** 4 个失败用**独立 worktree 检出 HEAD**（不用 `git stash`）复跑确认**逐字既有**、非本轮引入：`boss_practice_*` ×3（`boss_acceptance.rs:36`／`:104` 报 `boss_practice_map`）与 `tms273_chapter_first_six_acceptance`（`chapter_acceptance.rs:184` 期望 `001020000` 得 `100000000`）。**根因已定位**：`commands.rs::resolve_join_map_position` 只要目录里有射手村就**把任何 join 无条件解析到 `100000000`**、丢弃持久化落点（`DEFAULT_LOGIN_MAP_ID` 由 `9b489e4`「登录默认进入三维射手村」引入）——是**有意为之的产品行为**，而这 4 条验收断言的是**改动前的契约**；上一轮只跑了单条定向用例 `fresh_join_defaults_to_henesys_without_migrating_resident`，**没跑全量**故未发现。处置待你决策（台账 §3）。本轮新增用例：S5 1 条 + 法师副本 6 条 + 召唤存活时长 1 条 + 召喚聖龍 2 条 + 進階祝福 4 条 + **burn 窗三义 1 条**。 |
-| `run-checks.mjs` | **65 项 / 57 过 / 8 红**（2026-09-24 实测更正；原记「63 项 / 56 过 / 7 红」） | 8 红＝既有基线集合（逐项见台账 §5.1）**加 1 项**：`features/hud/gauge.check.ts` 的无扩展名导入（`hud/view.ts` → `inventory/drag-controller`），由提交 `2a17688`（椅子／快捷栏 DnD）引入，与 S5 无关、未修。**2026-09-24 另多 1 项红**：`refactor_audit.cjs --deps --check`（违规项 `scene-layer-not-imported-by-features: client/src/features/henesys/preview.ts -> client/src/scenes/world.ts`），已用 `git show HEAD:…preview.ts` 证明 **HEAD 就存在**、非本轮引入。法师副本那轮（2026-09-23）一度多出 2 项新红（`combat/skill.check.mjs`、`combat/sound.check.mjs` 的未定义全局），**已在同轮修掉并补上正向覆盖**，失败集合回到这 7 项。**召唤存活时长收口那轮（同日第三轮）零 TS 改动，失败集合逐项相同；桌面 D0 机械迁移那轮（同日第四轮）改了 22 个客户端源码文件 + 14 个离线检查，失败集合仍逐项相同（改过的 14 个检查全 PASS）；召喚聖龍那轮（同日第五轮）改了 6 个客户端源码文件 + 2 个离线检查（`combat/skill.check.mjs`、`combat/sound.check.mjs` 逐本化），失败集合仍逐项相同。**進階祝福那轮（同日第六轮）改了 3 个客户端源码文件 + 1 个离线检查（`features/skills/view.check.mjs` 补四转快捷栏的反向断言），失败集合仍逐项相同。** ⚠️ 升版后、装配器跑完之前会短暂多出 `check_tms273_notebook.cjs` 一红（notebook 已 44 / manifest 仍 43），装配完成即消失。 |
+| `cargo test` | **669 过 / 4 失败**（HEAD `a14883f` 基线 **667 过 / 4 失败**；本轮（開關技能那轮）**+1 过**） | 确定性已根修（`deny_persistence` 从进程级改线程级注入）。**⚠️ 2026-09-24 更正：原记「670 过 / 0 失败」与实测不符。** 4 个失败用**独立 worktree 检出 HEAD**（不用 `git stash`）复跑确认**逐字既有**、非本轮引入：`boss_practice_*` ×3（`boss_acceptance.rs:36`／`:104` 报 `boss_practice_map`）与 `tms273_chapter_first_six_acceptance`（`chapter_acceptance.rs:184` 期望 `001020000` 得 `100000000`）。**根因已定位**：`commands.rs::resolve_join_map_position` 只要目录里有射手村就**把任何 join 无条件解析到 `100000000`**、丢弃持久化落点（`DEFAULT_LOGIN_MAP_ID` 由 `9b489e4`「登录默认进入三维射手村」引入）——是**有意为之的产品行为**，而这 4 条验收断言的是**改动前的契约**；上一轮只跑了单条定向用例 `fresh_join_defaults_to_henesys_without_migrating_resident`，**没跑全量**故未发现。处置待你决策（台账 §3）。本轮新增用例：S5 1 条 + 法师副本 6 条 + 召唤存活时长 1 条 + 召喚聖龍 2 条 + 進階祝福 4 条 + **burn 窗三义 1 条** + **開關技能 1 条**。 |
+| `run-checks.mjs` | **63 项 / 55 过 / 8 红**（2026-09-24 第七轮实测；⚠️ 原记「65 项 / 57 过 / 8 红」的**总数与过数都记错了**，红集合一致 ⇒ 别拿总数当判据，判据是**失败集合逐项相同**） | 8 红＝既有基线集合（逐项见台账 §5.1）**加 1 项**：`features/hud/gauge.check.ts` 的无扩展名导入（`hud/view.ts` → `inventory/drag-controller`），由提交 `2a17688`（椅子／快捷栏 DnD）引入，与 S5 无关、未修。**2026-09-24 另多 1 项红**：`refactor_audit.cjs --deps --check`（违规项 `scene-layer-not-imported-by-features: client/src/features/henesys/preview.ts -> client/src/scenes/world.ts`），已用 `git show HEAD:…preview.ts` 证明 **HEAD 就存在**、非本轮引入。法师副本那轮（2026-09-23）一度多出 2 项新红（`combat/skill.check.mjs`、`combat/sound.check.mjs` 的未定义全局），**已在同轮修掉并补上正向覆盖**，失败集合回到这 7 项。**召唤存活时长收口那轮（同日第三轮）零 TS 改动，失败集合逐项相同；桌面 D0 机械迁移那轮（同日第四轮）改了 22 个客户端源码文件 + 14 个离线检查，失败集合仍逐项相同（改过的 14 个检查全 PASS）；召喚聖龍那轮（同日第五轮）改了 6 个客户端源码文件 + 2 个离线检查（`combat/skill.check.mjs`、`combat/sound.check.mjs` 逐本化），失败集合仍逐项相同。**進階祝福那轮（同日第六轮）改了 3 个客户端源码文件 + 1 个离线检查（`features/skills/view.check.mjs` 补四转快捷栏的反向断言），失败集合仍逐项相同。**開關技能那轮（2026-09-24 第七轮）改了 4 个客户端源码文件 + 4 个离线检查（`combat/skill.check.mjs`／`combat/sound.check.mjs` 的注入名单从手抄改为**从 `view.ts` 的 import 派生**，`skill_manifest`／`client_actions` 未动），失败集合仍逐项相同（8 红逐条＝`layer-animation.check.ts`、`gauge.check.ts`、`refactor_audit.cjs --deps --check`、`check_repository_layout.cjs`、`check_inventory_surface.cjs`、`check_tms273_player_status.cjs`、`check_tms273_desktop_package.cjs`、`build-release.check.cjs`；改过的门禁全 PASS）。** ⚠️ 升版后、装配器跑完之前会短暂多出 `check_tms273_notebook.cjs` 一红（notebook 已新版 / manifest 仍旧版），装配完成即消失。 |
 
 ---
 
@@ -68,7 +70,7 @@
 - 判据：逐条按台账里该条的验收句过。**观感类只有实玩能给答案**（跳字位置与上浮节奏、绿蓝是否与原版一致、
   击退 50px 是否合适、虚影三阶段的差异是否可读），代码侧一律**不宣称通过**。
 
-### ② 战斗机制纵深：三处缺口已收口，剩法师 212／232 的 7 条（核心玩法最深的洞）
+### ② 战斗机制纵深：三处缺口已收口，剩法师 212／232 的 3 条（核心玩法最深的洞）
 
 **现状**：四支柱（召唤物 / DoT / 投射物 / 二段命中）已建成**唯一权威** `server/src/mechanics.rs`
 （`AttackPlan::of(level)` 唯一入口、全部从源字段派生、**不写技能名单**），物理线 39 条 + 法师分支 14 条攻击
@@ -113,7 +115,7 @@
   与施放臂、`clear_hyper_runtime`、重连冷却名单）全部改为读表；
   伤害留痕改为写**真正生效的那一本**（改前火毒／主教的無限加成会挂在冰雷书号上，
   傳說冒險的窗口加成会读冰雷那本的等级）。
-  门禁 `check_tms273_mage_effects.cjs` 从「开工前就是红的」修成真门禁并扩到 **44 条**（第六轮再 +1 ⇒ **45 条**），
+  门禁 `check_tms273_mage_effects.cjs` 从「开工前就是红的」修成真门禁并扩到 **44 条**（第六轮再 +1 ⇒ **45 条**；第七轮火靈結界再 +1 ⇒ **46 条**），
   新增 **`SIBLING_ART_PARITY`**——九条副本的美术组必须与冰雷那本逐组帧数相等，
   把「同一格」从文字变成可从源独立重算的断言；`check_tms273_damage_pipeline.cjs` 的
   `NOT_CONSUMED.indieDamR` 从 3 条降到 1 条（只剩物理线），并把「哪一本在计时」的判据
@@ -159,19 +161,42 @@
   验收侧**修掉一个空判据**：原用例靠「`1121015` 不可施放」**蒙对**结论，现改真实施法路径
   （满级 `prop=100` 施放须成功 + DoT 须真挂上 + 不许冒出自增益窗），并新增三义用例（含 S1 零回归断言）。
   详见 [`history/2026-09-24/burn窗收口与1121015接执行链.md`](history/2026-09-24/burn窗收口与1121015接执行链.md)。
-- **缺口 C 仍未做（口径内刻意保持）**：`2121054 火靈結界`、`2321054 復仇天使`、
-  `2321006 復甦之光`、`2321015 神聖之水` —— 共 **4 条**仍「尚未开放施放」，四条**都要先立新机制**，
-  不在「复用既有机制」的口径内。
-  **2026-09-24 补：这「四条」与逐条理由已从散文变成判据**（`check_tms273_damage_pipeline.cjs`
+- **缺口 C 又立起一条（2026-09-24 第七轮，内容 `tms273-45→46`／协议 `34→35`）**：**火靈結界 `2121054`**（火毒四转 Hyper **開關技能**）——
+  与 `2221054 冰雪結界` 是**同一格机制、不同形态**，所以既不新增机制、也不新增技能分支，只把「按一个 id 写死」收口：
+  ① 接纳表 `world.rs::TOGGLE_FIELD_SKILLS`（`2221054`／`2121054`）＋形态表 `ToggleFieldPulse{Freeze,Damage}`；
+  ② 每秒耗蓝 `toggle_field_upkeep_mp(level) = level.mp_con`（火毒那本＝源 `mpCon` 100；改前写死 60 ⇒ 冰雷零回归）；
+  ③ 周期 `toggle_field_pulse_ms(level) = level.subTime`（≥一拍才算，且 `<1000` 不是毫秒量级 ⇒ 回落契约值 `TOGGLE_FIELD_PULSE_FALLBACK_MS = 2400` ＝改前写死值）；
+  ④ `Player` 的 `hyper_barrier_enabled/_next_mp/_next_pulse` 三字段合并成 `toggle_fields: BTreeMap<u32, ToggleFieldRuntime>`（開關态**逐本**），
+  `hyper_barrier_active(player)` 改成 `toggle_field_enabled(player, SKILL_HYPER_VORTEX)`；世界拍新增 `step_toggle_fields()`。
+  **形态差异全部按源落地并显式钉住**（不是「接线缺口」）：火毒那本源里**没有** `effect` 节点、**没有** `Loop` 音效、**没有** `time`、**没有** `cooltime`、**没有** ↓ 变体（隐藏节点 `2221055` 只属冰雷，对火毒**显式拒绝** `invalid_toggle_field_variant`）。
+  客户端：`TOGGLE_FIELD_SKILLS` **镜像表**（含 `active(stats)` 取值函数）取代散落的按 id 写死，`combat/view.ts` 的循环音／收尾／常驻循环／光环锚点全部逐本取值（火毒无循环音、起手 `Use` 照放）。
+  门禁 `check_tms273_damage_pipeline.cjs` 新增 **§3h**：接纳表与源侧**两路独立取值**（火毒／主教读 `infoType === 15` 的 `skill.description`；冰雷读 `classification.role === 'hyper-toggle-field'` 的源文案，落在 **`string.json.desc`／`string.binary.desc`**）必须**逐条相等**，且每条源文案必须含锚点词 `開關技能`，外加「開關技能不许同时进 `BRANCH_AREA_ATTACKS`」反向断言。
+  `MAGE_BRANCH_PENDING` 里 `2121054` 一条**删除**（＝宣布该机制已实现），法师 212／232「未接执行链」由 **4 条降到 3 条**。
+  详见 [`history/2026-09-24/開關技能收口与2121054接执行链.md`](history/2026-09-24/開關技能收口与2121054接执行链.md)。
+- **缺口 C 仍未做（口径内刻意保持）**：`2321054 復仇天使`（技能轉換）、
+  `2321006 復甦之光`（队伍复活）、`2321015 神聖之水`（计数器＋可交互实体＋上键拾取）—— 共 **3 条**仍「尚未开放施放」，
+  三条**都要先立新机制**，不在「复用既有机制」的口径内。
+  **2026-09-24 补：这三条与逐条理由已从散文变成判据**（`check_tms273_damage_pipeline.cjs`
   的 `MAGE_BRANCH_PENDING`）——判据是「`212`／`232` 书里**带 `mpCon`（＝可施放）、非 `hidden`、
-  `world.rs` 里没有常量**」，从源**独立重算**得**恰好这四条**，双向钉住；每条理由必须含
+  `world.rs` 里没有常量**」，从源**独立重算**得**恰好这三条**（`2121054` 于同日第七轮接线后**已移出**，
+  判据自动从四条降到三条 ⇒ 它同时是这条判据生效的证据），双向钉住；每条理由必须含
   `keywords`，而这些词必须真的出现在权威源文案（`references/tms273-data/{fire,holy}-fourth-job-source.json`）
   里。逐条的真实机制缺口（**都以源文案为准**）：
-  - `2121054 火靈結界` ⇒ **開關态**（源 `description`「使用技能時啟動效果，再次使用時則關閉效果的
-    **開關技能**」；`perLevel`「每秒消耗MP、每 `x` 秒（＝`subTime` 3000 ms）攻击 `attackCount` 段」
-    ＋`dotTime` 秒 DoT）。DoT 与范围攻击本身**已有**，缺的只是「再次使用即关闭的持久开关位」
-    与「每秒扣 MP 的结算点」。
   - `2321054 復仇天使` ⇒ **技能轉換**（源「**慈愛**技能轉變成**復仇**技能」；`perLevel` 的
+    `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／攻擊屬性耐性，`mpCon`＋`cooltimeMS`
+    是那次轉換的价格）。被转换的四本复仇副本（`神聖之水`→`神聖之血` 等）同样没有施法分支。
+    ⚠️ **更正**：它**不是**開關技能（旧记录把它与 `2121054` 并成「開關技能那批」，源文案不支持；
+    `2121054` 才是真開關技能，已于第七轮接线），
+    它的 `madX`／`mdR` 也**不是**「窗口内的值」（源把这两项写在 `[被動效果]` 一组里）——
+    `world.rs` 的注释与 `check_tms273_attributes.cjs`／`check_tms273_damage_pipeline.cjs` 的
+    登记理由已一并更正。
+  - `2321006 復甦之光` ⇒ **队伍复活**（源「用神聖的光芒讓隊員復活」，`action` `resurrectionNew`）。
+    本包 `revive.rs` 只处理玩家自己的死亡与回城，没有「复活他人」入口。
+  - `2321015 神聖之水` ⇒ **可累积场景实体 + 方向键交互**（源「召喚盛滿聖水的聖杯。隊員對聖杯
+    按下「上」方向鍵時，可吸收聖水並恢復HP」）。
+  ~~`2121054 火靈結界` ⇒ 開關态~~ ⇒ **已于 2026-09-24 第七轮接线**（`TOGGLE_FIELD_SKILLS` 接纳表 ＋
+  三个派生点；它原来那句「缺的是持久开关位与每秒扣 MP 的结算点」**只有后半句成立**——開關位本来就有，
+  最贴切的先例是**同一格**的 `2221054`，真实缺口只是按一个 id 写死；这处理由已当场改正，见本节上条）。
     `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／攻擊屬性耐性，`mpCon`＋`cooltimeMS`
     是那次轉換的价格）。被转换的四本复仇副本（`神聖之水`→`神聖之血` 等）同样没有施法分支。
     ⚠️ **更正**：它**不是**開關技能（旧记录把它与 `2121054` 并成「開關技能那批」，源文案不支持），
@@ -221,7 +246,7 @@
 
 - **完整台账**：[`topics/总纲40模块现状与待办台账_2026-09-22.md`](topics/总纲40模块现状与待办台账_2026-09-22.md)
   ——§1 四十模块进度速览、§2 §01–§40 逐模块现状与**全部待办**、§3 待你确认或操作、§4 原创扩展、§5 跨模块台账。
-- **逐日期交付记录**：[`INDEX.md`](INDEX.md)（**253 份**，**100% 可从台账抵达，0 孤记录**）。
+- **逐日期交付记录**：[`INDEX.md`](INDEX.md)（**259 份**，**100% 可从台账抵达，0 孤记录**；本行计数 2026-09-24 第七轮实测刷新——`history/**/*.md` 实测 259 份、`PLAN`＋`INDEX`＋台账三份文档里指向 `history/` 的链接**去重后也是 259**、全部相对链接 `os.path.exists` **0 断链**）。
 - **待你决策的四项**（在台账 §3）：世界地图两条口径；§12 增量 5 与 §16–18 的立项决策；
   第 24 条图鉴奖励块源树漂移（9 条两棵树都没有）；iCloud 隔离区去留。
 - **未立项模块**（台账 §1 末尾）：16／17／18／20／25／26／28／29／32／33／34／35／36 —— 总纲判定「未接入」，

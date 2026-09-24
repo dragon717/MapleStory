@@ -494,17 +494,13 @@ const HYPER_ADVENTURER_SKILLS: [u32; 3] = [
 ///     本包不建模。
 ///
 /// ⚠️ 它是**增益窗**（源 `time=240` 秒）而不是「学得即生效」的被动。火毒／主教四转
-/// 里另有两本同样**没有 `time`**、本包同样**还没有施法分支**（仍挡在表外），但它们的
-/// 理由**不是同一条**，别并成一句：
-///   * `2121054 火靈結界` ⇒ 源 `description` 明写「使用技能時啟動效果，再次使用時則關閉
-///     效果的**開關技能**」，`perLevel` 是「每秒消耗 MP、每 `x` 秒（＝`subTime` 3000 ms）
-///     对最多 `mobCount` 名敌人攻击 `attackCount` 段」⇒ 缺的是**開關态**（本包没有
-///     「再次使用即关闭」的持久开关位）。
+/// 里另有一本同样**没有 `time`**、本包同样**还没有施法分支**（仍挡在表外），但它的
+/// 理由与下面那本開關技能**不是同一条**，别并成一句：
 ///   * `2321054 復仇天使` ⇒ **不是**開關技能：源 `description` 是「**慈愛**技能轉變成
 ///     **復仇**技能」，`perLevel` 的 `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／
 ///     攻擊屬性耐性，`mpCon`＋`cooltimeMS` 是那次轉換的价格 ⇒ 缺的是**技能轉換**
 ///     （被转换的复仇副本 `2321016 神聖之血` 等在本包同样没有施法分支）。
-/// 这两条与另两条未接可施放技能（`2321006 復甦之光`／`2321015 神聖之水`）的登记与理由
+/// 它与另两条未接可施放技能（`2321006 復甦之光`／`2321015 神聖之水`）的登记与理由
 /// 由 `check_tms273_damage_pipeline.cjs::MAGE_BRANCH_PENDING` 从**权威源文案**独立重算
 /// 并双向钉住——`world.rs` 里一给它们起常量，那条登记立刻红。
 const SKILL_ADVANCED_BLESSING: u32 = 2321005;
@@ -513,6 +509,124 @@ const SKILL_ADVANCED_BLESSING: u32 = 2321005;
 /// 与 `HYPER_ADVENTURER_SKILLS` 三本成表的写法同形——多一本就往这里加，
 /// 不写 `if skill_id == …`。
 const ADVANCED_BLESSING_SKILLS: [u32; 1] = [SKILL_ADVANCED_BLESSING];
+
+// ── 開關技能（源 `info.type=15`：「使用技能時啟動效果，再次使用時則關閉」） ─────────
+/// 火靈結界 `2121054`（火毒四转 Hyper 主动，`reqLev 140`、`maxLevel 1`、`hyper=2`）。
+///
+/// 源 `info` 是 **`type=15` + `massSpell=1`**，与冰雷的 `2221054 冰雪結界` **同一格**：
+///   * 同 `info.type=15`、同 `hyper=2`／`reqLev=140`／`notRemoved=1`／`maxLevel=1`；
+///   * `description` 都写「使用技能時…再次使用時則關閉／移除效果的 `#c開關技能#`」；
+///   * `perLevel` 都以「**每秒消耗MP** #mpCon」开头（冰雷 `mpCon=60`、火毒 `mpCon=100`）；
+///   * `lt|rb` 都是**绕施法者**的贴身框（`area_targets` 那条路径）。
+/// 差别全在**内容**上，不在机制上：冰雷那本的周期作用是队伍增伤／减伤＋冻结叠层
+/// （`y/z/w/s/v/time/u/q`）并另有一个下键隐藏漩涡 `2221055`，**没有** `damage`/`attackCount`；
+/// 火毒这本的周期作用是**范围伤害 + DoT**（`damage`/`attackCount`/`mobCount` 与
+/// `dot`/`dotInterval`/`dotTime` 四件套），周期写在源 `subTime=3000`
+/// ——正是 `perLevel` 里的「每 #x 秒」，`x=3`。它**没有** `time`、**没有**隐藏副本。
+///
+/// ⚠️ 收口前上一轮把这条的缺口写成「本包**没有**『再次使用即关闭』的持久开关位」——
+/// **那条理由不成立**，是本轮取证纠偏的三处之一：開關态在本包早已存在
+/// （`SKILL_MAGIC_GUARD` / `SKILL_TELEPORT_MASTERY` / `SKILL_TELEPORT_BOOST` 那批
+/// 按钮式 `player.x = !player.x`，以及**最贴切的** `2221054` 自己——同一个 `type=15`、
+/// 同一条「每秒扣 MP + 周期作用」）。真实缺口只是「这套机制当时按 `SKILL_HYPER_VORTEX`
+/// 一个 id 写死」，于是**同一格的副本自然接不上**。收口成 [`TOGGLE_FIELD_SKILLS`] 之后
+/// 两条一起由同一张表驱动。这也解释了为什么冰雷那本一直在跑、火毒这本一直「尚未开放
+/// 施放」：不是机制没有，是准入只认一个 id。
+const SKILL_FIRE_WARD: u32 = 2121054;
+
+/// 開關技能的**接纳表**。**判据只有这一处**：施法白名单、施法臂、開關翻转、每秒 upkeep、
+/// 周期作用形态与到期清理都读它，不再写 `if skill_id == SKILL_HYPER_VORTEX`。
+/// 写法与 `HYPER_ADVENTURER_SKILLS` / `SUMMON_SKILLS` 同形——多一本就往这里加。
+const TOGGLE_FIELD_SKILLS: [u32; 2] = [SKILL_HYPER_VORTEX, SKILL_FIRE_WARD];
+
+/// 開關技能的**周期作用形态**。表里定内容关系，函数只读表
+/// （与 `ANCHORED_SUMMON_SKILLS` / `summon_motion` 同一写法）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ToggleFieldPulse {
+    /// 对范围内每名敌人叠一层冻结（`2221054 冰雪結界`，源 `s/v` 那一路）。
+    Freeze,
+    /// 对范围内最多 `mobCount` 名敵人结算 `damage%` × `attackCount` 段；
+    /// 挂在同一本源行上的 `dot*` 由范围管线照常消费
+    /// （`mechanics.rs::AttackPlan`，与召唤物脉冲走同一条路）。
+    Damage,
+}
+
+fn toggle_field_pulse(skill_id: u32) -> ToggleFieldPulse {
+    if skill_id == SKILL_FIRE_WARD {
+        ToggleFieldPulse::Damage
+    } else {
+        ToggleFieldPulse::Freeze
+    }
+}
+
+/// 開關技能**每秒**扣的 MP（源 `mpCon`）。**唯一派生点**。
+///
+/// 改前冰雷那本在 `elemental.rs::step_hyper_effects` 里写死 `60`，而源 `2221054` 的
+/// `mpCon` 正是 `60` ⇒ 派生口径与改前**逐值相同**（零行为回归）；火毒那本源里是 `100`，
+/// 于是这本不需要第二个写死的数。
+pub(super) fn toggle_field_upkeep_mp(level: &MageLevel) -> i64 {
+    level.mp_con.unwrap_or(0).max(0)
+}
+
+/// 開關技能**周期作用**的间隔（毫秒）。**唯一派生点**：毫秒量级的源 `subTime` 优先
+/// （`2121054` 的 `3000`，与 `perLevel` 的「每 #x 秒」`x=3` 一致），
+/// 源里没给数字的（`2221054` 的 `perLevel` 只写「每隔一定週期」，`common` 里没有 `subTime`）
+/// 取 [`TOGGLE_FIELD_PULSE_FALLBACK_MS`]。
+///
+/// ⚠️ 与 `mechanics.rs::summon_pulse_ms` 同一条「**按量级认单位**」判据（`>=` 一拍才是毫秒），
+/// 但**不是同一个语义**：`subTime` 在召唤那边是召唤物的脉冲周期、在这里是開關技能的周期，
+/// 两边各自派生、互不代读。同一本技能不会同时被两处读到——召唤与開關技能的接纳表不相交
+/// （门禁 `check_tms273_damage_pipeline.cjs` 的配对消费表记着这条）。
+pub(super) fn toggle_field_pulse_ms(level: &MageLevel) -> u64 {
+    level
+        .sub_time
+        .map(|value| value.max(0) as u64)
+        .filter(|value| *value >= TICK_MS)
+        .unwrap_or(TOGGLE_FIELD_PULSE_FALLBACK_MS)
+}
+
+/// 開關技能周期作用的**契约兜底值**（毫秒）：源里没有毫秒量级 `subTime` 时用它。
+///
+/// 值取改前 `step_hyper_effects` 里写死的 `2_400`，所以冰雷那本零行为回归；
+/// 这个数源里没写（`perLevel` 只说「每隔一定週期」），是本包的既有取值，不冒充源值。
+pub(super) const TOGGLE_FIELD_PULSE_FALLBACK_MS: u64 = 2_400;
+
+/// 一条開關技能的运行期状态。
+///
+/// 「开着没有」＝**这本技能在不在 `Player::toggle_fields` 里**，不另设 `enabled` 位——
+/// 于是不存在「开关位说开着、两个节拍点却已经清零」的中间态（改前那是三个独立字段，
+/// 只能靠三条赋值语句保持一致）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) struct ToggleFieldRuntime {
+    /// 下一次「每秒扣 MP」的拍。
+    pub next_mp: u64,
+    /// 下一次周期作用的拍。
+    pub next_pulse: u64,
+}
+
+/// 打开 / 关闭一条開關技能，并把两个节拍点定好。
+///
+/// 打开时 `next_pulse = now`（**当拍就打第一次**，与改前冰雷那本一致）、
+/// `next_mp = now + 1 秒`（第一秒的 upkeep 在下一秒才收）；关闭时整条移出表。
+/// 调用点只有两处：`elemental.rs` 的施法臂与開關翻转，清理走两个既有清理点。
+pub(super) fn set_toggle_field(player: &mut Player, skill_id: u32, on: bool, now: u64) {
+    if on {
+        player.toggle_fields.insert(
+            skill_id,
+            ToggleFieldRuntime {
+                next_mp: now.saturating_add(1_000_u64.div_ceil(TICK_MS)),
+                next_pulse: now,
+            },
+        );
+    } else {
+        player.toggle_fields.remove(&skill_id);
+    }
+}
+
+/// 「这条開關技能开着吗」。**判据只有这一处**（`derived.rs` 的投影也读它）。
+pub(super) fn toggle_field_enabled(player: &Player, skill_id: u32) -> bool {
+    player.toggle_fields.contains_key(&skill_id)
+}
 
 /// 進階祝福窗口内**真正生效**的三格加算（源 `x` / `y` / `z`）。
 ///
@@ -2176,9 +2290,10 @@ struct Player {
     hyper_channel_next_pulse: u64,
     hyper_channel_pulse_index: u32,
     hyper_vortex: Option<HyperVortex>,
-    hyper_barrier_enabled: bool,
-    hyper_barrier_next_mp: u64,
-    hyper_barrier_next_pulse: u64,
+    /// 開關技能的运行期状态（skill id → 两个节拍点）。**开着的技能才在表里**
+    /// （见 [`set_toggle_field`]）。表里的技能 id 一律来自 [`TOGGLE_FIELD_SKILLS`]，
+    /// 所以「表里冒出一条不该有的技能」＝施法臂接错了准入。
+    toggle_fields: BTreeMap<u32, ToggleFieldRuntime>,
     hyper_teleport_enabled: bool,
     hyper_reset_count: u8,
     infinity_next_tick: u64,
@@ -2258,9 +2373,8 @@ fn clear_beginner_buffs(player: &mut Player) {
     player.hyper_channel_next_pulse = 0;
     player.hyper_channel_pulse_index = 0;
     player.hyper_vortex = None;
-    player.hyper_barrier_enabled = false;
-    player.hyper_barrier_next_mp = 0;
-    player.hyper_barrier_next_pulse = 0;
+    // 開關技能：整条清掉（「在不在表里」就是「开着没有」，所以没有第二个位要对齐）。
+    player.toggle_fields.clear();
     player.hyper_teleport_enabled = false;
     player.infinity_next_tick = 0;
     player.infinity_damage_bonus = 0;
@@ -2296,9 +2410,7 @@ fn clear_hyper_runtime(player: &mut Player) {
         player.attack_until = 0;
     }
     player.hyper_vortex = None;
-    player.hyper_barrier_enabled = false;
-    player.hyper_barrier_next_mp = 0;
-    player.hyper_barrier_next_pulse = 0;
+    player.toggle_fields.clear();
     player.hyper_teleport_enabled = false;
 }
 
@@ -4165,6 +4277,10 @@ impl World {
         // 坐椅恢复：全部玩家一趟，挂在既有的顺序 tick 上（理由见 `chairs::step_chairs`）。
         self.step_chairs();
         self.step_hyper_channels();
+        // 開關技能（冰雷 冰雪結界 / 火毒 火靈結界）：每秒 upkeep 与周期作用。
+        // 先于 `step_hyper_effects`（那只管冰雷 ↓ 变体那个区域对象）——開關位可能在本拍
+        // 被 upkeep 关掉，区域对象的存活判据不依赖它，两者互不读对方的状态。
+        self.step_toggle_fields();
         self.step_hyper_effects();
         self.resolve_pending_attacks();
         self.step_reactors();
@@ -4369,7 +4485,7 @@ fn hyper_vortex_contains(player: &Player, vortex: &HyperVortex) -> bool {
 }
 
 fn hyper_barrier_active(player: &Player) -> bool {
-    player.hyper_barrier_enabled
+    toggle_field_enabled(player, SKILL_HYPER_VORTEX)
         || player
             .hyper_vortex
             .as_ref()

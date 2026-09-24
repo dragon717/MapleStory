@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 34;
-pub const CONTENT_VERSION: &str = "tms273-45";
+pub const PROTOCOL_VERSION: u32 = 35;
+pub const CONTENT_VERSION: &str = "tms273-46";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
 /// 也不能用「先拿全量再隐藏」的方式绕过任务页的私有过滤（计划 §12.2）。
@@ -1063,6 +1063,12 @@ pub struct DerivedStats {
     pub move_speed: f64,
     pub magic_guard: bool,
     pub hyper_barrier_active: bool,
+    /// 火毒 火靈結界 `2121054` 的開關位（协议 35 的加法字段）。
+    ///
+    /// 它与 `hyper_barrier_active` 是**同一套開關机制的另一个槽位**，不是它的别名：
+    /// 冰雷那本还给 20% 减伤（`damage_reduction_percent`），火毒这本只做范围伤害。
+    /// 客户端靠它决定技能窗那个按钮写「开启」还是「关闭」、以及 HUD 要不要点亮图标。
+    pub fire_ward_active: bool,
     pub hyper_teleport_enabled: bool,
     pub damage_reduction_percent: i64,
     pub regeneration_passives: Vec<RegenerationPassive>,

@@ -539,8 +539,12 @@ export class HudView {
       : skillId === 2201009 ? Boolean(stats?.iceTeleport)
         : skillId === 2211007 ? Boolean(stats?.teleportMastery)
           : skillId === 2221054 ? Boolean(stats?.hyperBarrierActive)
-          : skillId === 2211017 ? Boolean(stats?.teleportBoost)
-            : false;
+            // 火毒 火靈結界 2121054：与冰雷那本是同一套開關机制的另一格
+            // （服务端 `world.rs::TOGGLE_FIELD_SKILLS`），但状态位是各自的
+            // ——冰雷那本还给 20% 减伤，这本只做范围伤害。
+            : skillId === 2121054 ? Boolean(stats?.fireWardActive)
+              : skillId === 2211017 ? Boolean(stats?.teleportBoost)
+                : false;
   }
 
   private shortcutBlockReason(player: HudPlayer, skillId: number | undefined, entry: SkillCatalogEntry | undefined, level: number, cooldownMs: number) {

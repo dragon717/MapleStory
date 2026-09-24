@@ -67,6 +67,11 @@ export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054'
   '2121000', '2121004', '2121005', '2121008',
   '2321000', '2321003', '2321004', '2321009',
   '2121053', '2321053',
+  // 開關技能的火毒那一格 `2121054 火靈結界`（2026-09-24 接执行链）：与服务端
+  // `world.rs::TOGGLE_FIELD_SKILLS` 同一份名单（冰雷那格是 `2221054 冰雪結界`，
+  // 早已在这个集合里）。它是「再次使用即关闭」的开关技能 ⇒ 也必须进 `TOGGLE_SKILLS`，
+  // 否则按钮写「施放」而不是「开启／关闭」，玩家看不出自己在开关什么。
+  '2121054',
   // 進階祝福 `2321005`（2026-09-23 接增益窗与属性层）：与服务端
   // `world.rs::ADVANCED_BLESSING_SKILLS` 同一份名单。它是队伍增益窗（源 `time`=240 秒），
   // 有按钮才能拖进快捷栏施放。
@@ -98,7 +103,7 @@ export const ACTIVE_SKILLS = new Set(['2221045', '2221052', '2221053', '2221054'
   '3101005', '3101014', '3111015', '3121015', '3201015', '3211018', '3221052',
   '4101013', '4111015', '4121016', '4121052', '4201012', '4211011', '4221010', '4221014',
   '4221017']);
-const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2001002', '2201009', '2211007', '2211017']);
+const TOGGLE_SKILLS = new Set(['2221045', '2221054', '2121054', '2001002', '2201009', '2211007', '2211017']);
 // 源里「四转书」＝ 每条分支的第三本（火毒 212 / 冰雷 222 / 主教 232），
 // 与 `server/src/mage.rs::FOURTH_JOB_BOOKS` 同名同义。详情页靠它决定
 // 「战斗状态行」与「Shift 快捷键提示」的适用范围，加分支时要一起改。
@@ -836,6 +841,14 @@ export class SkillView {
         vortex.title = cooldown > 0 ? `漩涡冷却剩余 ${Math.ceil(cooldown / 1000)} 秒` : '生成30秒漩涡';
         this.detailView.append(vortex);
       }
+      // 火毒 火靈結界 `2121054`（2026-09-24 接执行链）：与冰雷那格 `2221054` 是同一套
+      // 開關机制（服务端 `world.rs::TOGGLE_FIELD_SKILLS` 一张表），但周期作用是
+      // **范围伤害 + 持续伤害**，不是冰雷那本的队伍增益 + 下沉漩涡 ⇒ 提示句不照抄。
+      // 也**不复述源数值**（每秒 MP / 周期 / 段数已由下方「技能数值」段从目录渲染，
+      // 写第二遍迟早与源分叉）。
+      if (entry.id === '2121054') {
+        hint.textContent += '开启后每秒消耗 MP，并每隔一段时间自动攻击周围敌人、附加持续伤害；再次使用可关闭。';
+      }
       this.detailView.append(hint);
     }
 
@@ -953,7 +966,7 @@ export class SkillView {
   private castUiKey(player?: PlayerState): string {
     const stats = player?.derivedStats;
     return [Boolean(player && player.hp > 0 && player.action !== 'dead'), player?.climbing, stats?.magicGuard, stats?.iceTeleport,
-      stats?.teleportMastery, stats?.teleportBoost, stats?.hyperBarrierActive, stats?.hyperTeleportEnabled, stats?.adaptationCharges,
+      stats?.teleportMastery, stats?.teleportBoost, stats?.hyperBarrierActive, stats?.fireWardActive, stats?.hyperTeleportEnabled, stats?.adaptationCharges,
       JSON.stringify(stats?.regenerationPassives ?? []),
       Object.entries(stats?.skillCooldowns ?? {}).map(([id, ms]) => `${id}:${Math.ceil(ms / 1000)}`).join(','),
       Object.entries(stats?.skillBuffs ?? {}).map(([id, ms]) => `${id}:${Math.ceil(ms / 1000)}`).join(','),
@@ -983,6 +996,7 @@ export class SkillView {
     const state = this.player?.derivedStats;
     const enabled = entry.id === '2001002' ? state?.magicGuard : entry.id === '2201009' ? state?.iceTeleport
       : entry.id === '2221045' ? state?.hyperTeleportEnabled : entry.id === '2221054' ? state?.hyperBarrierActive
+      : entry.id === '2121054' ? state?.fireWardActive
       : entry.id === '2211007' ? state?.teleportMastery : state?.teleportBoost;
     const channel = entry.id === '2221011' || entry.id === '2221052';
     const label = channel ? '按住施放' : this.isToggleSkill(entry) ? (enabled ? '关闭' : '开启') : '施放';

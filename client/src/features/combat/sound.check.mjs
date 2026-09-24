@@ -17,13 +17,23 @@ globalThis.damageNumberLayers = (damage, mpDamage = 0) => [
 // 未定义全局（2026-09-23 之前本文件只碰过 2201008，没走到那些分支）。这里把
 // `player/input.ts` 按同一套「转译 + 剥 import」求值注入**真值**，而不是手抄一份桩
 // ——手抄的桩会在名单改动时静默说谎。
+//
+// 注入的**名字**也从 `view.ts` 的 import **派生**、不再手抄：2026-09-24 新增
+// `TOGGLE_FIELD_SKILLS`（開關技能的客户端镜像表）时，手抄的名单漏了它 ⇒ `view.ts`
+// 顶层 `new Map(...)` 直接 `ReferenceError`、整份检查红。派生 + 「导出的值不能是
+// `undefined`」把这类漏项变成**当场指名**的失败，而不是靠人记得回来补名单。
 {
   const inputSource = await readFile(new URL('../player/input.ts', import.meta.url), 'utf8');
   const { outputText: inputOutput } = ts.transpileModule(inputSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
   const inputModule = await import(`data:text/javascript;base64,${Buffer.from(inputOutput.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);
-  for (const name of ['INFINITY_SKILLS', 'SUMMON_SKILLS', 'CASTER_ANCHORED_BUFFS', 'HYPER_ADVENTURER_SKILLS']) {
-    assert.ok(Array.isArray(inputModule[name]) && inputModule[name].length > 0, `player/input.ts 必须导出非空的 ${name}`);
-    globalThis[name] = inputModule[name];
+  const imported = /import\s*\{([^}]*)\}\s*from\s*'\.\.\/player\/input'/.exec(source)?.[1]
+    ?.split(',').map(name => name.trim()).filter(Boolean) ?? [];
+  assert.ok(imported.length > 0, 'view.ts 不再从 player/input.ts 取镜像名单：本检查的注入清单要靠它派生');
+  for (const name of imported) {
+    const value = inputModule[name];
+    assert.ok(value !== undefined, `player/input.ts 没有导出 ${name}，但 view.ts 在用它`);
+    if (Array.isArray(value)) assert.ok(value.length > 0, `player/input.ts 必须导出非空的 ${name}`);
+    globalThis[name] = value;
   }
 }
 const { CombatView } = await import(`data:text/javascript;base64,${Buffer.from(outputText.replace(/^import .*;\r?\n/gm, '')).toString('base64')}`);

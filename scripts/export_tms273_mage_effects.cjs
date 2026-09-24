@@ -254,6 +254,18 @@ const FOURTH_JOB_SOURCES = {
     summonMove: 'Skill/232.img/skill/2321003/summon/fly',
     summonAttack: 'Skill/232.img/skill/2321003/summon/attack1',
   },
+  // 火靈結界（火毒四转 Hyper 開關技能，2026-09-24 接执行链）：它是**同一格机制、
+  // 不同形态**的那一档。冰雷 `2221054 冰雪結界` 的可见主体是一颗**围绕队员飞的光团**
+  // （`effect` 组），所以它的美术源里 `effect / start / repeat / end` 四组齐全；
+  // 火靈結界是**脚下的地面结界**，源里**根本没有 `effect` 节点**——子节点是
+  // `icon / start / start0 / repeat / repeat0 / end / end0 / special / special0 / hit`。
+  // 因此 `SIBLING_ART_PARITY` 不把它与冰雷那本对比（那是「同一格副本」的同格性断言，
+  // 这两本是源里就不同的形态）。只导出运行期真正消费的三组：起手 / 常驻循环 / 收尾。
+  '2121054': {
+    start: 'Skill/212.img/skill/2121054/start',
+    repeat: 'Skill/212.img/skill/2121054/repeat',
+    end: 'Skill/212.img/skill/2121054/end',
+  },
 };
 const FOURTH_JOB_SUMMON_SOURCES = {
   '2221005': {

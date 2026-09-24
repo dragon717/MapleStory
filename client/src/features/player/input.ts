@@ -134,6 +134,23 @@ export const MAPLE_WARRIOR_SKILLS: readonly number[] = [2221000, 2121000, 232100
 export const SUMMON_SKILLS: readonly number[] = [2221005, 2121005, 2321003];
 /** 傳說冒險的三本副本（Hyper 主动，`indieDamR` 窗口）。服务端 `world.rs::HYPER_ADVENTURER_SKILLS` 的镜像。 */
 export const HYPER_ADVENTURER_SKILLS: readonly number[] = [2221053, 2121053, 2321053];
+/**
+ * 開關技能（源 `info.type=15`：「使用技能時啟動效果，再次使用時則關閉」）的两格，
+ * 与服务端 `world.rs::TOGGLE_FIELD_SKILLS` 同源。
+ *
+ * 冰雷 `2221054 冰雪結界`（开关位 `hyperBarrierActive`）与火毒 `2121054 火靈結界`
+ * （`fireWardActive`）是**同一格机制、不同形态**：机制由服务端一份代码承担，美术与音效
+ * 各按源来（冰雷有 `effect` 光团组与 `Loop` 循环音，火毒两样都没有，只有脚下的地面结界）。
+ * `combat/view.ts` 靠它画**世界空间的光环**（起手帧 / 常驻循环 / 收尾）——改前那里五处
+ * 写死 `2221054`，火毒那一格接上执行链后就成了「放得出、看不见」。
+ */
+export const TOGGLE_FIELD_SKILLS: ReadonlyArray<{
+  id: number;
+  active: (stats: PlayerState['derivedStats']) => boolean;
+}> = [
+  { id: 2221054, active: stats => Boolean(stats?.hyperBarrierActive) },
+  { id: 2121054, active: stats => Boolean(stats?.fireWardActive) },
+];
 /** 「施放后跟随施法者」的增益/光环技能：`combat/view.ts` 靠它决定视觉锚点。 */
 export const CASTER_ANCHORED_BUFFS: readonly number[] = [
   ...MAPLE_WARRIOR_SKILLS,
@@ -151,6 +168,10 @@ export const FIRE_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
   Digit1: 2121006, Digit2: 2121011, Digit3: 2121007, Digit4: 2121004,
   Digit5: 2121005, Digit6: 2121003, Digit7: 2121008, Digit8: 2121000,
   Digit9: 2121053,
+  // Digit0 对齐冰雷那套的 2221054（冰雪結界）：火毒这一格是火靈結界 2121054，
+  // **同一套開關机制**（服务端 `world.rs::TOGGLE_FIELD_SKILLS` 一张表），
+  // 2026-09-24 收口后才能施放，所以现在才摆上键位。
+  Digit0: 2121054,
 };
 export const HOLY_FOURTH_SHORTCUT_SKILLS: Readonly<Record<string, number>> = {
   Digit1: 2321001, Digit2: 2321007, Digit3: 2321008, Digit4: 2321004,

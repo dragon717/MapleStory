@@ -6,7 +6,19 @@ import { ensureTextures } from '../../assets/lazy-texture';
 import { damageNumberAdvances, damageNumberLayers } from './damage-number';
 import { frameAt } from '../player/animation';
 // 火毒／主教四转「同一格副本」的镜像名单（与服务端 `world.rs` 的几张表同源）。
-import { CASTER_ANCHORED_BUFFS, HYPER_ADVENTURER_SKILLS, INFINITY_SKILLS, SUMMON_SKILLS } from '../player/input';
+import { CASTER_ANCHORED_BUFFS, HYPER_ADVENTURER_SKILLS, INFINITY_SKILLS, SUMMON_SKILLS, TOGGLE_FIELD_SKILLS } from '../player/input';
+
+/**
+ * 開關技能的**世界空间光环**（与服务端 `world.rs::TOGGLE_FIELD_SKILLS` 同源）。改前这个
+ * 文件里**五处**写死 `2221054`，所以火毒那一格 `2121054 火靈結界` 接上执行链后完全没有
+ * 光环——玩家放得出、看不见。`active` 从权威派生状态读各自的开关位：服务端把开关关掉
+ * 的那一拍会把开关位置零，这里的光环随即走收尾帧（而不是等快照里那个 60 秒窗口到期）。
+ */
+const TOGGLE_FIELD_BY_ID = new Map(TOGGLE_FIELD_SKILLS.map(entry => [entry.id, entry]));
+const TOGGLE_FIELD_IDS = TOGGLE_FIELD_SKILLS.map(entry => entry.id);
+function toggleFieldActive(skillId: number, stats: PlayerState['derivedStats']): boolean {
+  return TOGGLE_FIELD_BY_ID.get(skillId)?.active(stats) ?? false;
+}
 
 export type Facing = -1 | 1;
 
@@ -149,12 +161,18 @@ export class CombatView {
   private playerStates = new Map<string, PlayerState>();
   private readonly skillVisuals: SkillVisual[] = [];
   private readonly hyperThunderPhases = new Map<string, HyperThunderPhase>();
-  private readonly hyperBarrierCancelled = new Map<string, string>();
-  private readonly pendingBarrierStarts = new Set<string>();
+  // 開關技能（`world.rs::TOGGLE_FIELD_SKILLS`）的客户端表现状态。名字里不再带
+  // `barrier`：这两个槽位对冰雷 `2221054 冰雪結界` 与火毒 `2121054 火靈結界` **一格一份**，
+  // 一个角色身上只会有一格。`x` = 「关掉的那一拍」的 requestId，`y` = 等权威快照确认开关
+  // 真的开了再放起手音（服务端的关闭报文与开启报文同形，不能凭报文本身判方向）。
+  private readonly toggleFieldCancelled = new Map<string, string>();
+  private readonly pendingToggleStarts = new Set<string>();
   private readonly damageNumbers = new Set<Phaser.GameObjects.Container>();
   private readonly seen = new Set<string>();
   private readonly skillAudio = new Map<Phaser.Sound.BaseSound, string>();
-  private readonly auraAudio = new Map<string, Phaser.Sound.BaseSound>();
+  // 常驻循环音按「哪一格開關技能的」记，所以值里带 `skillId`：收尾时要按**那一本**取
+  // `end`／`use`（冰雷有 `Loop`、火毒没有，两本的音效表不同形）。
+  private readonly auraAudio = new Map<string, { sound: Phaser.Sound.BaseSound; skillId: number }>();
   private readonly channelAudio = new Map<string, { skillId?: number; requestId: string; startAt: number; expiresAt: number; sound?: Phaser.Sound.BaseSound }>();
 
   /** `hitSoundKey` must be the key used by World.preload for manifest.combat.hit.sound. */
@@ -285,8 +303,9 @@ export class CombatView {
       }
       return true;
     }
-    if (event.skillId === 2221054) {
-      const set = this.skillEffects?.['2221054'];
+    if (TOGGLE_FIELD_BY_ID.has(event.skillId)) {
+      const sound = this.skillSounds?.[String(event.skillId)];
+      const set = this.skillEffects?.[String(event.skillId)];
       for (let i = this.skillVisuals.length - 1; i >= 0; i--) {
         const visual = this.skillVisuals[i];
         if (visual.event.type === 'skillCast' && visual.event.playerId === event.playerId && visual.event.skillId === event.skillId) {
@@ -294,27 +313,27 @@ export class CombatView {
         }
       }
       if (event.durationMs <= 0) {
-        this.hyperBarrierCancelled.set(event.playerId, event.requestId);
+        this.toggleFieldCancelled.set(event.playerId, event.requestId);
         this.stopAuraAudio(event.playerId);
         const end = set?.end;
         if (end?.length && end.every(validFrame)) this.spawnSkillVisual(event, end);
-        this.playSkillSound(event.playerId, this.skillSounds?.['2221054']?.end?.url);
+        this.playSkillSound(event.playerId, sound?.end?.url);
         return true;
       }
-      this.hyperBarrierCancelled.delete(event.playerId);
+      this.toggleFieldCancelled.delete(event.playerId);
       // The server emits the same positive cast envelope when the toggle is
       // turned off. Wait for the authoritative player snapshot before playing
       // Use, so a rejected/off transition cannot sound like activation.
-      this.pendingBarrierStarts.add(event.playerId);
+      this.pendingToggleStarts.add(event.playerId);
       const start = set?.start;
       if (start?.length && start.every(validFrame)) {
         const visual = this.spawnSkillVisual(event, start);
-        if (visual) visual.buffSkillId = 2221054;
+        if (visual) visual.buffSkillId = event.skillId;
       }
       const repeat = set?.repeat;
       if (repeat?.length && repeat.every(validFrame)) {
         const visual = this.spawnSkillVisual(event, repeat, undefined, event.durationMs);
-        if (visual) visual.buffSkillId = 2221054;
+        if (visual) visual.buffSkillId = event.skillId;
       }
       return true;
     }
@@ -436,22 +455,33 @@ export class CombatView {
     if (this.playerSnapshot === players) return;
     this.playerSnapshot = players;
     this.playerStates = new Map((players ?? []).map(player => [player.id, player]));
-    const endingAuraOwners = new Set<string>();
-    for (const [owner, sound] of this.auraAudio) {
+    const endingAuraOwners = new Map<string, number>();
+    for (const [owner, aura] of this.auraAudio) {
       const player = this.playerStates.get(owner);
-      if (player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(owner);
-      if (!player || player.hp <= 0 || !player.derivedStats?.hyperBarrierActive) {
-        sound.destroy(); this.auraAudio.delete(owner);
+      const stillOn = Boolean(player && player.hp > 0 && toggleFieldActive(aura.skillId, player.derivedStats));
+      if (player && player.hp > 0 && !stillOn) endingAuraOwners.set(owner, aura.skillId);
+      if (!stillOn) { aura.sound.destroy(); this.auraAudio.delete(owner); }
+    }
+    // 開關技能的常驻循环音按**各自那一本**的源取：冰雷 `2221054` 有 `Loop`（持续的寒气
+    // 嗡鸣），火毒 `2121054` 的源里只有 `Use`/`Hit`/`special`、**没有 `Loop`**（它脚下是
+    // 地面结界，不是围绕队员飞的光团）⇒ 这一格没有循环音可放。那是源里的形态差异，
+    // 不是接线缺口；起手的 `Use` 仍然照放。
+    for (const player of players ?? []) {
+      if (player.hp <= 0 || this.auraAudio.has(player.id)) continue;
+      for (const field of TOGGLE_FIELD_SKILLS) {
+        if (!field.active(player.derivedStats)) continue;
+        if (this.toggleFieldCancelled.has(player.id)) break;
+        if (this.pendingToggleStarts.delete(player.id)) this.playSkillSound(player.id, this.skillSounds?.[String(field.id)]?.use?.url);
+        const key = this.skillSounds?.[String(field.id)]?.loop?.url;
+        if (!key || !this.scene.cache.audio.exists(key)) break;
+        const sound = this.scene.sound.add(key);
+        if (sound.play({ loop: true, volume: 0.2 })) this.auraAudio.set(player.id, { sound, skillId: field.id }); else sound.destroy();
+        break;
       }
     }
-    const auraKey = this.skillSounds?.['2221054']?.loop?.url;
-    if (auraKey && this.scene.cache.audio.exists(auraKey)) for (const player of players ?? []) {
-      if (player.hp <= 0 || !player.derivedStats?.hyperBarrierActive || this.hyperBarrierCancelled.has(player.id) || this.auraAudio.has(player.id)) continue;
-      if (this.pendingBarrierStarts.delete(player.id)) this.playSkillSound(player.id, this.skillSounds?.['2221054']?.use?.url);
-      const sound = this.scene.sound.add(auraKey);
-      if (sound.play({ loop: true, volume: 0.2 })) this.auraAudio.set(player.id, sound); else sound.destroy();
+    for (const player of players ?? []) {
+      if (player.hp <= 0 || !TOGGLE_FIELD_IDS.some(id => toggleFieldActive(id, player.derivedStats))) this.pendingToggleStarts.delete(player.id);
     }
-    for (const player of players ?? []) if (player.hp <= 0 || !player.derivedStats?.hyperBarrierActive) this.pendingBarrierStarts.delete(player.id);
     for (const owner of this.channelAudio.keys()) {
       const player = this.playerStates.get(owner);
       if (!player || player.hp <= 0 || (player.derivedStats?.skillBuffs?.[String(this.channelAudio.get(owner)?.skillId ?? 2221011)] ?? 0) <= 0) this.stopChannelAudio(owner);
@@ -460,25 +490,30 @@ export class CombatView {
       const visual = this.skillVisuals[i];
       if (!visual.buffSkillId || visual.event.type !== 'skillCast') continue;
       const player = this.playerStates.get(visual.event.playerId);
-      if (!player || player.hp <= 0 || (visual.buffSkillId === 2221054 ? !player.derivedStats?.hyperBarrierActive : (player.derivedStats?.skillBuffs?.[String(visual.buffSkillId)] ?? 0) <= 0)
+      const toggleField = TOGGLE_FIELD_BY_ID.get(visual.buffSkillId);
+      const live = toggleField
+        ? toggleFieldActive(visual.buffSkillId, player?.derivedStats)
+        : (player?.derivedStats?.skillBuffs?.[String(visual.buffSkillId)] ?? 0) > 0;
+      if (!player || player.hp <= 0 || !live
         || (INFINITY_SKILLS.includes(visual.buffSkillId) && !player.derivedStats?.infinityEnhanced)) {
-        if (visual.buffSkillId === 2221054 && player && player.hp > 0 && !player.derivedStats?.hyperBarrierActive) endingAuraOwners.add(player.id);
+        if (toggleField && player && player.hp > 0) endingAuraOwners.set(player.id, visual.buffSkillId);
         visual.sprite?.destroy(); this.skillVisuals.splice(i, 1);
       }
     }
-    for (const owner of endingAuraOwners) {
+    for (const [owner, skillId] of endingAuraOwners) {
       const player = this.playerStates.get(owner);
-      const end = this.skillEffects?.['2221054']?.end;
+      const end = this.skillEffects?.[String(skillId)]?.end;
       if (player && end?.length && end.every(validFrame)) this.spawnSkillVisual({ type: 'skillCast', eventId: `hyper-barrier-end-${owner}-${this.clock()}`, requestId: '',
-        playerId: owner, skillId: 2221054, serverTick: 0, x: player.x, y: player.y, facing: player.facing, durationMs: 0 }, end);
-      this.playSkillSound(owner, this.skillSounds?.['2221054']?.end?.url);
+        playerId: owner, skillId, serverTick: 0, x: player.x, y: player.y, facing: player.facing, durationMs: 0 }, end);
+      this.playSkillSound(owner, this.skillSounds?.[String(skillId)]?.end?.url);
     }
-    for (const player of players ?? []) for (const skillId of [2221052, 2221054]) {
-      const remaining = skillId === 2221054 ? (player.derivedStats?.hyperBarrierActive ? 60_000 : 0) : player.derivedStats?.skillBuffs?.['2221052'] ?? 0;
-      const frames = skillId === 2221054 ? this.skillEffects?.['2221054']?.repeat : this.skillEffects?.['2221052']?.keydown;
+    for (const player of players ?? []) for (const skillId of [2221052, ...TOGGLE_FIELD_IDS]) {
+      const toggleField = TOGGLE_FIELD_BY_ID.get(skillId);
+      const remaining = toggleField ? (toggleFieldActive(skillId, player.derivedStats) ? 60_000 : 0) : player.derivedStats?.skillBuffs?.['2221052'] ?? 0;
+      const frames = toggleField ? this.skillEffects?.[String(skillId)]?.repeat : this.skillEffects?.['2221052']?.keydown;
       const phase = skillId === 2221052 ? this.hyperThunderPhases.get(`${player.id}:2221052`) : undefined;
       if (player.hp <= 0 || remaining <= 0 || !frames?.length || !frames.every(validFrame)
-        || (skillId === 2221054 && this.hyperBarrierCancelled.has(player.id))
+        || (toggleField && this.toggleFieldCancelled.has(player.id))
         || phase?.cancelled || phase?.phase === 'prepare' || phase?.phase === 'final'
         || this.skillVisuals.some(visual => visual.buffSkillId === skillId && visual.event.type === 'skillCast' && visual.event.playerId === player.id)) continue;
       const visual = this.spawnSkillVisual({ type: 'skillCast', eventId: `hyper-${player.id}-${skillId}`, requestId: '',
@@ -602,8 +637,8 @@ export class CombatView {
       if (!frame) continue;
       const frameElapsed = frameTime - visual.frames.slice(0, index).reduce((sum, current) => sum + current.delay, 0);
       // 傳說冒險三本（2221053 / 2121053 / 2321053）的施法视觉都跟施法者走，
-      // 判据从写死 2221053 收口成表；2221054 冰雪结界是另一条技能，留在表外。
-      const owner = visual.event.type === 'skillCast' && (visual.buffSkillId || [...CASTER_ANCHORED_BUFFS, ...HYPER_ADVENTURER_SKILLS, 2221054].includes(visual.event.skillId))
+      // 判据从写死 2221053 收口成表；開關技能那两格（2221054 / 2121054）也跟人走。
+      const owner = visual.event.type === 'skillCast' && (visual.buffSkillId || [...CASTER_ANCHORED_BUFFS, ...HYPER_ADVENTURER_SKILLS, ...TOGGLE_FIELD_IDS].includes(visual.event.skillId))
         ? this.playerStates.get(visual.event.playerId) : undefined;
       const base = owner ? { x: owner.x, y: owner.y } : visual.travel
         ? {
@@ -624,7 +659,7 @@ export class CombatView {
   }
 
   clear() {
-    for (const sound of this.auraAudio.values()) sound.destroy();
+    for (const aura of this.auraAudio.values()) aura.sound.destroy();
     this.auraAudio.clear();
     for (const owner of this.channelAudio.keys()) this.stopChannelAudio(owner);
     for (const id of this.sourceSummons.keys()) this.finishSourceSummon(id, false);
@@ -633,8 +668,8 @@ export class CombatView {
     this.summons.clear(); this.summonSnapshot = undefined;
     this.playerStates.clear(); this.playerSnapshot = undefined;
     this.hyperThunderPhases.clear();
-    this.hyperBarrierCancelled.clear();
-    this.pendingBarrierStarts.clear();
+    this.toggleFieldCancelled.clear();
+    this.pendingToggleStarts.clear();
     for (const sound of this.skillAudio.keys()) sound.destroy();
     this.skillAudio.clear();
     for (const slash of this.slashes) slash.sprite?.destroy();
@@ -655,8 +690,8 @@ export class CombatView {
     this.stopChannelAudio(playerId);
     this.stopAuraAudio(playerId);
     this.hyperThunderPhases.delete(`${playerId}:2221052`);
-    this.hyperBarrierCancelled.delete(playerId);
-    this.pendingBarrierStarts.delete(playerId);
+    this.toggleFieldCancelled.delete(playerId);
+    this.pendingToggleStarts.delete(playerId);
     for (const [id, summon] of this.sourceSummons) if (summon.playerId === playerId) this.finishSourceSummon(id, false);
     for (const [id, summon] of this.summons) if (summon.state.playerId === playerId) { summon.sprite?.destroy(); this.summons.delete(id); }
     for (const [sound, owner] of this.skillAudio) if (owner === playerId) { sound.destroy(); this.skillAudio.delete(sound); }
@@ -677,7 +712,7 @@ export class CombatView {
   }
 
   private stopAuraAudio(owner: string) {
-    this.auraAudio.get(owner)?.destroy();
+    this.auraAudio.get(owner)?.sound.destroy();
     this.auraAudio.delete(owner);
   }
 

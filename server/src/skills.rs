@@ -179,7 +179,12 @@ impl World {
             || HYPER_ADVENTURER_SKILLS.contains(&skill_id)
             // 進階祝福 `2321005`（2026-09-23）：源 `common` 带 `time` 的队伍增益窗，
             // 与上面几张表同形 ⇒ 同样由 `world.rs` 的那一张表决定准入。
-            || ADVANCED_BLESSING_SKILLS.contains(&skill_id);
+            || ADVANCED_BLESSING_SKILLS.contains(&skill_id)
+            // 開關技能（源 `info.type=15`：「使用時啟動、再次使用時關閉」）：冰雷
+            // `2221054 冰雪結界` 与火毒 `2121054 火靈結界` 是**同一格**（2026-09-24 收口）。
+            // 改前这里写死 `SKILL_HYPER_VORTEX`（它是上方 `matches!` 里的一个字面量），
+            // 于是同一格的火毒副本连白名单都进不来。
+            || TOGGLE_FIELD_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -297,8 +302,16 @@ impl World {
             return;
         }
         let mut mp_cost = self.skill_mp_cost(&id, skill_id, &level, vertical);
-        if skill_id == SKILL_HYPER_VORTEX && player.hyper_barrier_enabled && vertical <= 0 {
-            // Turning the barrier off does not charge the next second.
+        // 開關技能的两条规则（2026-09-24 从「写死 `SKILL_HYPER_VORTEX`」收口成读表）：
+        //   * **开启**那一拍付源 `mpCon`——它就是源文案里「每秒消耗MP #mpCon」的**第一秒**
+        //     （`set_toggle_field` 把下一次 upkeep 定在 `now + 1 秒`，所以不会重复收）；
+        //   * **关闭**那一拍免费（`vertical <= 0` 排除掉冰雷的下键漩涡，那是另一件事）。
+        // 与 `SKILL_TELEPORT_BOOST` 那条「Turning the toggle off has no source MP cost.」
+        // 同一条口径。
+        if TOGGLE_FIELD_SKILLS.contains(&skill_id)
+            && toggle_field_enabled(player, skill_id)
+            && vertical <= 0
+        {
             mp_cost = 0;
         }
         // 用户指定规则（2026-09-10）：瞬移全等级固定 10 MP，等级差异体现在距离与冷却。
@@ -397,10 +410,12 @@ impl World {
             SKILL_CAST_DURATION_MS
         } else if skill_id == SKILL_HYPER_THUNDER {
             780
-        } else if HYPER_ADVENTURER_SKILLS.contains(&skill_id) || skill_id == SKILL_HYPER_VORTEX {
-            // 傳說冒險三本与冰雪结界：源里都没有施法时长字段，600ms 是本包与
-            // 2221053 一致的施法动作时长。判据从「写死 2221053」收口成表，
-            // 所以火毒／主教那两本拿到同一个值。
+        } else if HYPER_ADVENTURER_SKILLS.contains(&skill_id)
+            || TOGGLE_FIELD_SKILLS.contains(&skill_id)
+        {
+            // 傳說冒險三本与開關技能（冰雷 冰雪结界 / 火毒 火靈結界）：源里都没有
+            // 施法时长字段，600ms 是本包与 2221053 一致的施法动作时长。
+            // 判据从「写死 2221053」收口成表，所以开關技能那一格的两本拿到同一个值。
             600
         } else if skill_id == SKILL_MAGIC_WAVE_HIDDEN {
             level.time.unwrap_or(5).max(0).try_into().unwrap_or(5_000) * 1_000
@@ -672,8 +687,13 @@ impl World {
             blessing if ADVANCED_BLESSING_SKILLS.contains(&blessing) => {
                 self.activate_advanced_blessing(&id, blessing, &level);
             }
-            SKILL_HYPER_VORTEX => {
-                if let Err(error) = self.activate_hyper_vortex(&id, &request_id, &level, vertical) {
+            // 開關技能（源 `info.type=15`）：冰雷 `2221054 冰雪結界` 与火毒
+            // `2121054 火靈結界` 是同一格 ⇒ 共用同一条臂（改前只认 `SKILL_HYPER_VORTEX`）。
+            // `vertical > 0` 的 ↓ 变体只有冰雷那本有，由 `activate_toggle_field` 内部拒绝。
+            toggle if TOGGLE_FIELD_SKILLS.contains(&toggle) => {
+                if let Err(error) =
+                    self.activate_toggle_field(&id, &request_id, toggle, &level, vertical)
+                {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
                 }
