@@ -8,7 +8,70 @@
 
 use super::*;
 
+/// 一次技能轉換（`2321054 復仇天使`）要落库的全部内容。
+///
+/// 与 [`JobAdvancePlan`] 同形：auth 侧自己拥有的扁平结构，**不依赖世界侧的表形状**
+/// （改 `world.rs::TRANSFORM_PAIRS` 的配对写法不会牵动持久化层）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SkillTransformPlan {
+    /// `(復仇技能 id, 等级)`。**只补不覆盖** —— 与 `JobAdvancePlan::skills` 同一条纪律。
+    pub(crate) grants: Vec<(u32, u32)>,
+}
+
+/// 把转换写进权威档案。纯函数（不碰 World / Store），所以事务路径、世界候选路径
+/// 与单测共用同一份实现 —— 不存在「测试里发的和线上发的不一样」。
+///
+/// 等级来自**慈愛那一侧的已学等级**（源 perLevel：「…各別轉換成…」＝同一个槽位换内容），
+/// 由世界侧算好放进 `grants`；本函数只负责落进档案。
+pub(crate) fn apply_skill_transform_grant(profile: &mut Profile, plan: &SkillTransformPlan) {
+    for (skill_id, level) in &plan.grants {
+        if *level == 0 {
+            continue;
+        }
+        profile.skills.entry(*skill_id).or_insert(*level);
+    }
+}
+
 impl Store {
+    /// 提交一次技能轉換：把四本復仇技能按慈愛那一侧的已学等级写进权威档案。
+    ///
+    /// 返回 `Ok(false)` 表示这次提交**不该发生**（本次要授予的技能里已经有一本在
+    /// 档案里了 ⇒ 转换早已执行过），调用方按幂等重放处理——不报错、不重复写。
+    ///
+    /// 转换是**不可逆的一次性动作**（源里既没有 `time`、也没有「再次使用即中斷」
+    /// 那类文案），所以幂等闸取「本次 grants 的每一本在权威档案里都还没有值」；
+    /// 它同时是 CAS：世界侧给的那份 `profile` 必须恰好等于「档案 + 本次授予」。
+    pub fn commit_skill_transform(
+        &self,
+        account_id: &str,
+        plan: &SkillTransformPlan,
+        profile: &Profile,
+    ) -> Result<bool, String> {
+        if plan.grants.is_empty() {
+            return Err("empty skill transform".to_owned());
+        }
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        // 权威档案是判据来源；世界给的 `profile` 只是候选。
+        let durable = read_profile(&tx, account_id)?;
+        if plan
+            .grants
+            .iter()
+            .any(|(skill_id, _)| durable.skills.contains_key(skill_id))
+        {
+            tx.rollback().map_err(|_| "account persistence failed")?;
+            return Ok(false);
+        }
+        let mut expected = durable.clone();
+        apply_skill_transform_grant(&mut expected, plan);
+        if profile.skills != expected.skills {
+            return Err("invalid skill transform candidate".to_owned());
+        }
+        write_profile(&tx, account_id, profile)?;
+        tx.commit().map_err(|_| "account persistence failed")?;
+        Ok(true)
+    }
+
     pub fn cast_skill(
         &self,
         account_id: &str,

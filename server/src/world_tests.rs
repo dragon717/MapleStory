@@ -4185,6 +4185,11 @@ include!("mage_branch_copy_acceptance.rs");
 // 進階祝福 `2321005`（2026-09-23）：主教四转的**队伍增益窗**——窗口时长从源 `time`
 // 派生、三格加算随身带（队伍里没学这一本的人也要生效）、到期与会话清理都要收回。
 include!("advanced_blessing_acceptance.rs");
+// 技能轉換 `2321054 復仇天使`（2026-09-24）：施放＝把四本復仇技能按慈愛那一侧的
+// 已学等级授予进技能存档；转换态从技能表派生（零新状态位、随存档持久）；
+// 准入按形态**反转**（转换前復仇侧被 `skill_hidden` 拒、转换后慈愛侧被
+// `skill_transformed` 拒）—— 两个方向都必须有断言。
+include!("transform_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

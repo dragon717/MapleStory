@@ -494,21 +494,109 @@ const HYPER_ADVENTURER_SKILLS: [u32; 3] = [
 ///     本包不建模。
 ///
 /// ⚠️ 它是**增益窗**（源 `time=240` 秒）而不是「学得即生效」的被动。火毒／主教四转
-/// 里另有一本同样**没有 `time`**、本包同样**还没有施法分支**（仍挡在表外），但它的
-/// 理由与下面那本開關技能**不是同一条**，别并成一句：
+/// 里另有一本同样**没有 `time`** 的主动技能 `2321054 復仇天使`（2026-09-24 接执行链，
+/// 见下面的「技能轉換」块），但它与開關技能**不是同一条机制**，别并成一句：
 ///   * `2321054 復仇天使` ⇒ **不是**開關技能：源 `description` 是「**慈愛**技能轉變成
 ///     **復仇**技能」，`perLevel` 的 `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／
-///     攻擊屬性耐性，`mpCon`＋`cooltimeMS` 是那次轉換的价格 ⇒ 缺的是**技能轉換**
-///     （被转换的复仇副本 `2321016 神聖之血` 等在本包同样没有施法分支）。
-/// 它与另两条未接可施放技能（`2321006 復甦之光`／`2321015 神聖之水`）的登记与理由
+///     攻擊屬性耐性，`mpCon`＋`cooltimeMS` 是那次轉換的价格 ⇒ 缺的是**技能轉換**。
+/// 另两条未接可施放技能（`2321006 復甦之光`／`2321015 神聖之水`）的登记与理由
 /// 由 `check_tms273_damage_pipeline.cjs::MAGE_BRANCH_PENDING` 从**权威源文案**独立重算
-/// 并双向钉住——`world.rs` 里一给它们起常量，那条登记立刻红。
+/// 并双向钉住——`world.rs` 里一给它们起 `SKILL_*` 常量，那条登记立刻红。
 const SKILL_ADVANCED_BLESSING: u32 = 2321005;
 /// 進階祝福的接纳表。**判据只有这一处**：施法白名单、施法臂、动作时长与属性层
 /// 的三格留痕都读它。当前只有主教这一本（火毒／冰雷两线没有对应格），
 /// 与 `HYPER_ADVENTURER_SKILLS` 三本成表的写法同形——多一本就往这里加，
 /// 不写 `if skill_id == …`。
 const ADVANCED_BLESSING_SKILLS: [u32; 1] = [SKILL_ADVANCED_BLESSING];
+
+// ── 技能轉換（`2321054 復仇天使`，源 `info.type=50`） ────────────────────────────
+/// 復仇天使 `2321054`（主教四转 Hyper 主动，`reqLev 140`、`maxLevel 1`、`hyper 2`、
+/// `notRemoved 1`）。
+///
+/// 源 `description`：「取得天使的純粹的憤怒，當做擊敗敵人的力量。**#c慈愛#**技能轉變成
+/// **#c復仇#**技能。」——它的机制是**技能轉換**，不是開關技能、也不是增益窗：
+///   * 没有 `time`（⇒ 没有窗口、也就没有期限）；
+///   * 没有 `開關技能` 文案、也没有「再次使用即中斷／關閉」的说法（⇒ 不可解除）；
+///   * 源帮助文本（`String/Skill.img` 的 `h`，导出树里是 `string.h`）逐字列出**四对四**：
+///     「消耗MP #mpCon，**群體治癒、淨化、神聖之泉、神聖之水**各別轉換成
+///     **天使之觸、勝利之羽、天使之泉、神聖之血**」；
+///   * `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／攻擊屬性耐性 —— 标记是「被動」，
+///     所以按本仓对 `[被動效果]` 的既有口径**学得即生效**
+///     （见 [`MASTER_MAGIC_SKILLS`] / [`ELEMENTAL_RESET_SKILLS`] / 无视防御那一支）。
+///
+/// 「转换持续多久 / 怎么解除」源里**没有任何表达**；本包按 2026-09-24 的用户裁决取
+/// **常驻**：转换不可逆、不消、没有窗口。这条裁决的落点是「转换态从技能表派生」
+/// （见 [`transform_done`]），**不新增任何状态位**。
+const SKILL_AVENGING_ANGEL: u32 = 2321054;
+
+/// 技能轉換的**接纳表**。**判据只有这一处**：施法白名单、施法臂、动作时长、
+/// 准入反转与 `[被動效果]` 的归属都读它。
+pub(super) const TRANSFORM_SKILLS: [u32; 1] = [SKILL_AVENGING_ANGEL];
+
+/// 四对「慈愛 → 復仇」。**配对与顺序都从源独立重算**，不是人工配出来的：
+/// ① 两批 id 各自由 `description` 开头的 `#c[慈愛]#` / `#c[復仇]#` 标记圈出
+/// （全目录 504 条各**恰好 4 条**；`1310018`／`1311019`／`1320011`／`1320043` 那批
+/// 「闇靈復仇／追隨者」虽然正文里有「復仇」二字，**不含该标记**，不误伤）；
+/// ② 配对与**顺序**取自 `2321054` 自己的帮助文本（那张按名写死的对应句）。
+/// ⚠️ 别改成「目录键顺序按位配对」：导出树的键对整数样 id 是**数字升序**，復仇侧会排成
+/// `天使之觸/天使之泉/勝利之羽/神聖之血`，与源写的顺序不同 ⇒ 会配错两对。
+/// 门禁 `check_tms273_damage_pipeline.cjs` 的「技能轉換」段就是这么重算并双向断言这张表的。
+///
+/// ⚠️ **七本刻意写裸 id、不起 `SKILL_*` 常量**：`world.rs` 里出现
+/// `const SKILL_X: u32 = <id>;` 在本仓的口径是「这条技能已接执行链」，而这七本都还没有
+/// （`2301010 天使之觸` 是唯一例外——它在 [`BRANCH_AREA_ATTACKS`] 里，常量早就存在）。
+/// 逐条缺什么由门禁的「技能轉換」段从源文案登记并反查：**给其中任何一本补常量都会让那条
+/// 登记当场红**——那是它该有的行为，不是这里的写法有问题。
+pub(super) const TRANSFORM_PAIRS: [(u32, u32); 4] = [
+    (2301002, SKILL_ANGELIC_TOUCH),
+    (2311001, 2311015),
+    (2311011, 2311014),
+    (2321015, 2321016),
+];
+
+/// 一条技能在技能轉換表里属于哪一侧。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum TransformForm {
+    /// 慈愛侧：源里技能窗可见，转换之后不再可施放。
+    Love,
+    /// 復仇侧：源 `invisible: 1`（技能窗不列），只能由那次转换授予。
+    Avenge,
+}
+
+/// 某条技能属于哪一侧；不在转换表里的返回 `None`。
+pub(super) fn transform_form(skill_id: u32) -> Option<TransformForm> {
+    for (love, avenge) in TRANSFORM_PAIRS {
+        if skill_id == love {
+            return Some(TransformForm::Love);
+        }
+        if skill_id == avenge {
+            return Some(TransformForm::Avenge);
+        }
+    }
+    None
+}
+
+/// 「转换**已经执行过**」——技能表里已经有復仇那一侧的任何一本。
+///
+/// 判据选它而不是另立一个布尔位，是因为它**就是**那次转换的产物：`2321054` 的施放臂
+/// 把四本復仇技能按慈愛那一侧的已学等级写进存档（`Store::commit_skill_transform`），
+/// 写进去的东西自然随存档持久；而它又是「转换只需发生一次」的天然幂等键
+/// （持久层用同一条件做 CAS，见 `auth/skills.rs`）。
+pub(super) fn transform_done(player: &Player) -> bool {
+    TRANSFORM_PAIRS
+        .iter()
+        .any(|(_, avenge)| player.state.skills.contains_key(avenge))
+}
+
+/// 某条**復仇**技能在该玩家身上是否可施放。
+///
+/// 源里它的 `invisible: 1` 是**刻意**的（技能窗不列，玩家点不到），唯一的授予路径
+/// 就是那次转换 ⇒ 判据就是「它真的在这条玩家的技能表里」。这条同时是
+/// `skills.rs::handle_cast_skill` 里 `skill_hidden` 闸门的**唯一例外**。
+pub(super) fn transform_grants(player: &Player, skill_id: u32) -> bool {
+    transform_form(skill_id) == Some(TransformForm::Avenge)
+        && player.state.skills.contains_key(&skill_id)
+}
 
 // ── 開關技能（源 `info.type=15`：「使用技能時啟動效果，再次使用時則關閉」） ─────────
 /// 火靈結界 `2121054`（火毒四转 Hyper 主动，`reqLev 140`、`maxLevel 1`、`hyper=2`）。
@@ -941,11 +1029,19 @@ const ELEMENTAL_ADAPTING_SKILLS: [u32; 7] = [
 ];
 /// 魔力激發（`damR` 常駐段，加算组）：冰雷 2210001 / 火毒 2110001。
 const ELEMENT_AMP_SKILLS: [u32; 2] = [SKILL_ELEMENT_AMP, SKILL_ELEMENT_AMP_FP];
-/// 自然力重置（`mdR`，源里没有分组标记 ⇒ 独立乘算）：冰雷 2210016 / 火毒 2110015。
-const ELEMENTAL_RESET_SKILLS: [u32; 3] = [
+/// `mdR`（源里没有分组标记 ⇒ 独立乘算）的**槽位表**：自然力重置 冰雷 2210016 /
+/// 火毒 2110015 + 主教四转 大師魔法 2320012 的「最終傷害增加#mdR%」段
+/// （源文案「永久增加…#mdR% 最終傷害」）+ 復仇天使 `2321054` 的 `#c[被動效果]#`
+/// 里的「最終傷害增加#mdR%」（2026-09-24 接：源把它标成 `被動效果`，按学得即生效读）。
+///
+/// 名字沿用「自然力重置」是历史包袱（这张表早就承担了 2320012 的 `mdR`）；
+/// 门禁按**成员**逐个从源重算（`check_tms273_damage_pipeline.cjs` 的 §3d：
+/// 源里带 `mdR` 的技能扣除 `NOT_CONSUMED.mdR` 之后必须恰好等于这张表的成员）。
+const ELEMENTAL_RESET_SKILLS: [u32; 4] = [
     SKILL_ELEMENTAL_RESET,
     SKILL_ELEMENTAL_RESET_FP,
     SKILL_MASTER_MAGIC_BISHOP,
+    SKILL_AVENGING_ANGEL,
 ];
 /// 魔法爆擊（`criticaldamage`，暴击组）：冰雷 2210009 / 火毒 2110009 / 僧侶 2310010。
 const MAGIC_CRITICAL_SKILLS: [u32; 3] = [
@@ -984,13 +1080,22 @@ const MAPLE_WARRIOR_SKILLS: [u32; 10] = [
     SKILL_MAPLE_WARRIOR_NIGHTLORD,
     SKILL_MAPLE_WARRIOR_BANDIT,
 ];
-/// 大師魔法（`madX`，加算的永久魔攻）：冰雷 2220013 / 火毒 2120012 / 主教 2320012。
-/// **只有这三本**：Hyper 主动 復仇天使 `2321054` 的 `madX` 是「施放窗口内的临时魔攻」，
-/// 不是学得即生效的被动，本包也没有它的施法分支 ⇒ 不进这张表（门禁里单列登记）。
-const MASTER_MAGIC_SKILLS: [u32; 3] = [
+/// `madX`（加算的永久魔攻）的**槽位表**：大師魔法 冰雷 2220013 / 火毒 2120012 /
+/// 主教 2320012，以及復仇天使 `2321054`。
+///
+/// ⚠️ 收口前这里写着「**只有这三本**：復仇天使 `2321054` 的 `madX` 是『施放窗口内的
+/// 临时魔攻』，不是学得即生效的被动」——**那条理由与源不符**，是本轮取证纠偏的一处：
+/// 源 `perLevel` 把 `2321054` 的 `madX` 写在 `#c[被動效果]#` 一组里
+/// （「#c[被動效果]#魔法攻擊力增加#madX、最終傷害增加#mdR%、無視怪物防禦率增加
+/// #ignoreMobpdpR%、攻擊屬性耐性減少#u%」），那是**被動**，不是窗口值；而且源里
+/// 根本没有 `time`（连窗口都开不出来）。按本仓对 `[被動效果]` 的既有口径
+/// （拥有即生效 ⇒ 按已学等级读）进这张表，逐本求和、各记各的——
+/// 留痕能回答「这 50 点魔攻是復仇天使给的」。
+const MASTER_MAGIC_SKILLS: [u32; 4] = [
     SKILL_MASTER_MAGIC,
     SKILL_MASTER_MAGIC_FP,
     SKILL_MASTER_MAGIC_BISHOP,
+    SKILL_AVENGING_ANGEL,
 ];
 
 const SKILL_THREE_SNAILS: u32 = 1000;

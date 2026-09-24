@@ -30,6 +30,9 @@ pub(crate) use db::{add_exp, grant_level_sp};
 // 转职：auth 侧自己拥有的事务契约与奖励纯函数。世界侧只认这两个名字，
 // 不认 `shared/job-advance.json` 的字段形状。
 pub(crate) use job_advance::{apply_job_advance_grant, JobAdvancePlan};
+// 技能轉換（`2321054 復仇天使`）：同样由 auth 侧拥有事务契约与奖励纯函数，
+// 世界侧只认这两个名字，不认 `TRANSFORM_PAIRS` 的配对形状。
+pub(crate) use skills::{apply_skill_transform_grant, SkillTransformPlan};
 // `only` 冲突的持有位置：`add_inventory_tx` 用它拒绝，GM `/add` 用它把拒绝
 // 说清楚（`auth::OnlyHeld` 供 `gm.rs` 生成回执文案）。
 pub(crate) use db::only_item_holder;

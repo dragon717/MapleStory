@@ -242,7 +242,8 @@ const NOT_CONSUMED = {
       }]),
   ),
   // Hyper 主动增益：indieDamR 是「窗口内」的值，必须先有施法与增益窗。
-  // （`mdR` 不适用这句：它下面那一本的 `mdR` 是**被動效果**而非窗口值，理由见该条。）
+  // （`mdR` 不在这一类：2026-09-24 起 `2321054` 的 `mdR` 按源 `#c[被動效果]#` 口径
+  //   进 `world.rs::ELEMENTAL_RESET_SKILLS` 消费，`NOT_CONSUMED.mdR` 已清空。）
   // 2026-09-22 起物理线的 傳說冒險（7 本）与 專注弱點/翻轉硬幣 也带窗口内 indieDamR，
   // 依附于物理四转主动的施放（未接执行链）⇒ 按源表动态登记。
   // **法师线的两本 2121053 / 2321053 曾在此逐条登记**；2026-09-23 接执行链后移出
@@ -272,22 +273,13 @@ const NOT_CONSUMED = {
         why: `${skill.name}：criticaldamage 是暴击伤害组，消费点只存在于魔法路径（MAGIC_CRITICAL_SKILLS 循环）；物理攻击路径没有暴击管线 ⇒ 这一个字段消费不了。物理暴击路径落地时必须重新决定。`,
       }]),
   ),
-  mdR: {
-    // ⚠️ 这一条的旧理由是「Hyper 主动增益：`mdR` 是窗口内的值」——**与源不符**：
-    // `2321054 復仇天使` 的源 `perLevel` 把 `mdR` 写在 `#c[被動效果]#` 一组里
-    // （与 `madX`／`ignoreMobpdpR`／攻擊屬性耐性同组），是**被动效果**而不是窗口值。
-    // 它真正依附的是同一本技能那次「慈愛→復仇」**技能轉換**，而本包还没有这本的施法
-    // 分支（被转换的 `2321016 神聖之血` 等也没有）。源里既没给期限、也没写清
-    // `[被動效果]` 与那次轉換的前后关系 ⇒ **不替源编语义**，仍登记为不消费。
-    '2321054': {
-      boosted: '2321054',
-      why: '復仇天使：源 `perLevel` 的 `#c[被動效果]#` 是「魔法攻擊力增加#madX、最終傷害增加'
-        + '#mdR%、無視怪物防禦率增加#ignoreMobpdpR%、攻擊屬性耐性減少#u%」——`mdR` 属**被動效果**，'
-        + '**不是**窗口内的值；它依附的是同一本技能那次「慈愛→復仇」**技能轉換**，'
-        + '而本包还没有这本的施法分支。源里没有给出它的期限，也没有写清它与那次轉換的前后关系，'
-        + '故**不做推断**、仍不消费。',
-    },
-  },
+  // `mdR`：2026-09-24 起 `2321054 復仇天使` 已接执行链 ⇒ 旧登记（下面这条）被推翻。
+  // 源 `perLevel` 把 `mdR` 写在 `#c[被動效果]#` 一组里（与 `madX`／`ignoreMobpdpR` 同组），
+  // 且源里**没有 `time`** ⇒ 它开不出窗口，只能按本仓既有口径「學得即生效」消费：
+  // `2321054` 进 `world.rs::ELEMENTAL_RESET_SKILLS`（`mdR` 的槽位表），
+  // 由 `skills.rs::magic_damage_breakdown` 的 `DamageSource::UnmarkedField{field:"mdR"}`
+  // 独立乘算。旧理由「它是施放窗口内的值」**与源不符**，已删除。
+  mdR: {},
 };
 /** 某个字段里「登记不消费」的 id 集合。 */
 const excusedIds = field => Object.keys(NOT_CONSUMED[field] ?? {}).sort();
@@ -336,19 +328,20 @@ const assertExcused = field => {
  *      源文件的 `description`／`perLevelDescription` 里。改理由≠改文案，漂了就红。
  *   ③ `world.rs` **不许**给它们起常量（起了＝接了路径 ⇒ 逼着同时补机制、删登记）。
  *
+ * ⚠️ **2026-09-24 第三次变动：走掉的是 `2321054`**。它原先登记的理由（「缺的是**技能轉換**」）
+ * 本身没错，变的是「本包没有」这件事——技能轉換已接（施放＝把四本復仇技能按慈愛对应等级
+ * 授予进技能存档；转换态**从技能表派生**、零新状态位、随 `skills_json` 持久），于是
+ * `world.rs` 给它起了常量 ⇒ 本条按 ③ 移出。被转换的四本復仇副本里只有 `2301010 天使之觸`
+ * 本来就在 `BRANCH_AREA_ATTACKS`（缺的只是准入，现由转换态解开 `hidden` 闸），另三本
+ * `2311015 勝利之羽`／`2311014 天使之泉`／`2321016 神聖之血` **缺机制**，本轮显式拒绝并
+ * 登记在下面 §3i 的名单里 —— 注意那三本分属书 `231`／`232`，**不在**本表 `212`／`232`
+ * 的 `mpCon` 判据范围内，所以本表不会因为它们而变。
+ *
  * ⚠️ 不带 `mpCon` 的那一批（20 本 Hyper 强化被动 + `神秘狙擊`／`元素強化`／`祝福旋律`）
  * **不在这里**：它们不是「可施放但没有分支」，而是被动/强化，由 `NOT_CONSUMED.damR` 与
  * `attribute.rs` 的被动槽位各自记账 —— 用 `mpCon` 做判据正是为了把这两类分开。
  */
 const MAGE_BRANCH_PENDING = {
-  '2321054': {
-    why: '復仇天使＝**技能轉換**＋`[被動效果]`，**不是**開關技能：源 `description` 写'
-      + '「取得天使的純粹的憤怒…#c慈愛#技能轉變成#c復仇#技能」；`perLevel` 的'
-      + '`#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／攻擊屬性耐性，'
-      + '`mpCon` 与 `cooltimeMS` 是那次「慈愛→復仇」轉換的价格。缺的是**技能轉換**：'
-      + '被转换的四本复仇副本（`神聖之水`→`神聖之血` 等）在本包同样没有施法分支。',
-    keywords: ['慈愛', '復仇', '[被動效果]'],
-  },
   '2321006': {
     why: '復甦之光＝**队伍复活**：源 `description` 写「用神聖的光芒讓隊員復活」，`action` 是 '
       + '`resurrectionNew`。缺的是「复活范围内的队友」这条路径：本包 `revive.rs` 处理的是'
@@ -635,9 +628,10 @@ assert.deepEqual(
 assertLoopedSource('MAGIC_CRITICAL_SKILLS', 'CriticalDamage');
 
 // 3d. `mdR`：源里没有分组标记 ⇒ 必须报成 UnmarkedField，且 `field` 逐字写源字段名。
-//     三本「最终伤害」段：冰雷 2210016 / 火毒 2110015 两本自然力重置，外加主教四转
-//     2320012 大師魔法（源文案同样是「永久增加最終傷害」，与前者同一格）。
-//     復仇天使 2321054 的 mdR 是窗口值，登记在 `NOT_CONSUMED.mdR`。
+//     四本：冰雷 2210016 / 火毒 2110015 两本自然力重置，外加主教四转 2320012 大師魔法
+//     （源文案同样是「永久增加最終傷害」，与前者同一格），以及 2026-09-24 接上执行链的
+//     **2321054 復仇天使**（源 `#c[被動效果]#` 一组里的 `mdR`，源里没有 `time`）。
+//     `NOT_CONSUMED.mdR` 现为空——旧登记把它写成「窗口值」是与源不符的。
 assertExcused('mdR');
 const catalogMdR = consumedIds('mdR');
 assert.ok(catalogMdR.length > 0, '源技能表里一个 mdR 都没有？形状变了');
@@ -1467,6 +1461,249 @@ assert.equal(
   );
 }
 
+/**
+ * 3i. **技能轉換**（`2321054 復仇天使`：源 `description` 写「取得天使的純粹的憤怒，當做擊敗
+ * 敵人的力量。#c慈愛#技能轉變成#c復仇#技能。」）的接纳表必须与源一致。
+ *
+ * 判据**不拿 `world.rs::TRANSFORM_PAIRS` 当输入**，而是从导出树的技能目录
+ * （`resources/tms273-export/skills.json`，504 条、带源 `description`／`string.h`）
+ * 做**两路独立重算，且两路必须互相吻合**：
+ *
+ *   ① **配对与顺序来自 `2321054` 自己的帮助文本**（源 `string.h`，逐字）：
+ *      「消耗MP #mpCon，**群體治癒、淨化、神聖之泉、神聖之水**各別轉換成**天使之觸、勝利之羽、
+ *      天使之泉、神聖之血**」——它把四组对应关系**按名写死**，这就是顺序的唯一依据。
+ *      ⚠️ 不要用「目录键顺序按位配对」：`Object.keys` 对整数样键是**数字升序**，
+ *      復仇侧会排成 `天使之觸/天使之泉/勝利之羽/神聖之血`，与源写的顺序不同 ⇒ 配错两对。
+ *   ② **成员资格来自形态标记**：`description` 含 `#c[慈愛]#` 的是慈愛侧、含 `#c[復仇]#` 的是
+ *      復仇侧，各自**恰好 4 条**。①按名取到的 id 集合必须与 ② 的标记集合**逐条相等**
+ *      ——两份独立书写对不上就说明其中一处漂了。
+ *      ⚠️ 标记必须带**方括号**：`2321054` 自己的文案写的是 `#c慈愛#`／`#c復仇#`（无括号），
+ *      拿掉方括号会把这本技能自己也卷成一侧。
+ *   ③ **不误伤「闇靈復仇／追隨者」那族**（`1310018`／`1311019`／`1320011`／`1320043`）：
+ *      它们的文案里**没有**这个方括号标记。判据写成「含『復仇』二字」就会把它们卷进来。
+ *
+ * 另两条**反向**判据：
+ *   ④ 復仇侧在模型里必须 `hidden === true`（玩家点不到、由转换授予），慈愛侧 `hidden === false`
+ *      —— 哪天有人把復仇副本改成可见，技能窗会同时列出八本，「轉換」在界面上就不成立。
+ *   ⑤ `2321054` 自己 `hidden === false`，且 `world.rs::TRANSFORM_SKILLS` 恰好只有它一本。
+ *
+ * 最后钉住**本轮显式拒绝**的三本（缺机制，故没接执行链）：必须是復仇侧成员、
+ * 且 `world.rs` 里**没有常量**（起了常量＝宣布已实现 ⇒ 这里会红，逼着同时补机制）。
+ */
+const TRANSFORM_LOVE_MARK = '#c[慈愛]#';
+const TRANSFORM_AVENGE_MARK = '#c[復仇]#';
+const SKILL_EXPORT_PATH = path.join(ROOT, 'resources/tms273-export/skills.json');
+assert.ok(
+  fs.existsSync(SKILL_EXPORT_PATH),
+  `缺技能导出树 ${SKILL_EXPORT_PATH} —— §3i 的技能轉換配对判据要从它独立重算`,
+);
+const skillExportCatalog = (() => {
+  const parsed = JSON.parse(fs.readFileSync(SKILL_EXPORT_PATH, 'utf8'));
+  return parsed.catalog?.skills ?? parsed.skills ?? {};
+})();
+const skillExportIds = Object.keys(skillExportCatalog);
+assert.ok(
+  skillExportIds.length > 400,
+  `技能导出树只有 ${skillExportIds.length} 条 —— 形状变了，配对重算的输入不可信`,
+);
+const skillExportDesc = id => skillExportCatalog[id]?.description ?? '';
+
+const transformLoveFromSource = skillExportIds
+  .filter(id => skillExportDesc(id).includes(TRANSFORM_LOVE_MARK));
+const transformAvengeFromSource = skillExportIds
+  .filter(id => skillExportDesc(id).includes(TRANSFORM_AVENGE_MARK));
+assert.equal(
+  transformLoveFromSource.length, 4,
+  `导出树里带 ${TRANSFORM_LOVE_MARK} 的技能 =${transformLoveFromSource.join('/')}，应当恰好 4 条`
+    + '——多一条会把无关技能卷进轉換，少一条说明復仇侧的配对不全',
+);
+assert.equal(
+  transformAvengeFromSource.length, 4,
+  `导出树里带 ${TRANSFORM_AVENGE_MARK} 的技能 =${transformAvengeFromSource.join('/')}，应当恰好 4 条`,
+);
+for (const id of ['1310018', '1311019', '1320011', '1320043']) {
+  assert.ok(
+    !transformAvengeFromSource.includes(id),
+    `${id}（闇靈復仇／追隨者族）被当成了復仇侧 —— 它的文案里没有 ${TRANSFORM_AVENGE_MARK}，`
+      + '判据一定是把「復仇」二字当成了标记',
+  );
+}
+const transformPairsFromSource = (() => {
+  // ① 配对与顺序：读 `2321054` 帮助文本里「A、B、C、D 各別轉換成 E、F、G、H」这句。
+  const help = skillExportCatalog['2321054']?.string?.h ?? '';
+  assert.ok(
+    help.includes('各別轉換成'),
+    '2321054 的帮助文本里读不到「各別轉換成」——技能轉換的配对顺序失去唯一依据；'
+      + '源帮助文本是 `string.h`，改的是文案不是判据',
+  );
+  const [beforeSplit, afterSplit] = help.split('各別轉換成');
+  const loveNames = beforeSplit.replace(/^[\s\S]*?，/, '').split('、').map(name => name.trim());
+  const avengeNames = afterSplit.split('\\n')[0].split('、').map(name => name.trim());
+  assert.equal(
+    loveNames.length, 4,
+    `帮助文本里慈愛侧列了 ${loveNames.length} 本（${loveNames.join('/')}），源侧是 4 本`,
+  );
+  assert.equal(
+    avengeNames.length, 4,
+    `帮助文本里復仇侧列了 ${avengeNames.length} 本（${avengeNames.join('/')}），源侧是 4 本`,
+  );
+  // 名字 → id：只在**标记集合内**建表，避免别职业的同名技能把配对引偏。
+  const nameToId = new Map();
+  for (const id of [...transformLoveFromSource, ...transformAvengeFromSource]) {
+    nameToId.set(skillExportCatalog[id].name, id);
+  }
+  const resolveNames = (names, side) => names.map(name => {
+    const id = nameToId.get(name);
+    assert.ok(
+      id,
+      `帮助文本里的${side}技能「${name}」在带形态标记的技能里找不到 —— `
+        + '说明帮助文案与技能描述形态标记分叉了（改了文案没改标记，或反过来）',
+    );
+    return id;
+  });
+  // ② 成员资格：帮助文本取到的 id 集合必须与形态标记集合逐条相等（两路独立取值互证）。
+  const loveIds = resolveNames(loveNames, '慈愛');
+  const avengeIds = resolveNames(avengeNames, '復仇');
+  assert.deepEqual(
+    loveIds.slice().sort(), transformLoveFromSource.slice(),
+    `帮助文本的慈愛侧 =${loveIds.join('/')}，形态标记 ${TRANSFORM_LOVE_MARK} 的 =`
+      + `${transformLoveFromSource.join('/')} —— 两份源侧书写对不上`,
+  );
+  assert.deepEqual(
+    avengeIds.slice().sort(), transformAvengeFromSource.slice(),
+    `帮助文本的復仇侧 =${avengeIds.join('/')}，形态标记 ${TRANSFORM_AVENGE_MARK} 的 =`
+      + `${transformAvengeFromSource.join('/')} —— 两份源侧书写对不上`,
+  );
+  return loveIds.map((love, index) => [love, avengeIds[index]]);
+})();
+
+const transformPairsWiredBody =
+  /pub\(super\) const TRANSFORM_PAIRS: \[\(u32, u32\); (\d+)\] = \[([\s\S]*?)\n\];/.exec(worldSrc);
+assert.ok(
+  transformPairsWiredBody,
+  'world.rs 里读不到 `TRANSFORM_PAIRS` —— 技能轉換的配对表被改写或删掉了',
+);
+assert.equal(
+  Number(transformPairsWiredBody[1]), 4,
+  `TRANSFORM_PAIRS 的长度标注是 ${transformPairsWiredBody[1]}，源侧重算是 4 对`,
+);
+const transformPairsWired = [...transformPairsWiredBody[2].matchAll(/\(([^()]*)\)/g)]
+  .map(match => match[1].split(',').map(side => {
+    const token = side.trim();
+    return /^\d+$/.test(token) ? String(Number(token)) : idForConst(token);
+  }));
+assert.equal(
+  transformPairsWired.length, 4,
+  `world.rs::TRANSFORM_PAIRS 里解出 ${transformPairsWired.length} 对，应当是 4 对`,
+);
+assert.deepEqual(
+  transformPairsWired,
+  transformPairsFromSource.map(pair => pair.map(id => String(Number(id)))),
+  'world.rs::TRANSFORM_PAIRS 与源描述标记重算的配对不一致：'
+    + `源侧重算 =${transformPairsFromSource.map(pair => pair.join('→')).join('、')}、`
+    + `world.rs =${transformPairsWired.map(pair => pair.join('→')).join('、')}`,
+);
+
+// ④ 復仇侧 = 玩家点不到的 `hidden` 副本；慈愛侧可见。
+for (const [love, avenge] of transformPairsFromSource) {
+  assert.equal(
+    mageSkills.skills[love]?.hidden, false,
+    `慈愛侧 ${love} 在模型里是 hidden —— 慈愛技能本来就该由玩家自己学`,
+  );
+  assert.equal(
+    mageSkills.skills[avenge]?.hidden, true,
+    `復仇侧 ${avenge} 在模型里不是 hidden —— 转换副本若可见，技能窗会同时列出八本，`
+      + '「慈愛技能轉變成復仇技能」在界面上就不成立',
+  );
+}
+// ⑤ `2321054` 自己可见，且接纳表恰好是它一本。
+assert.equal(
+  mageSkills.skills['2321054']?.hidden, false,
+  '2321054 復仇天使 在模型里是 hidden —— 它是可见的 Hyper 技能，玩家点不到就没法施放',
+);
+assert.deepEqual(
+  idsForArray('TRANSFORM_SKILLS'), ['2321054'],
+  `world.rs::TRANSFORM_SKILLS =${idsForArray('TRANSFORM_SKILLS').join('/')}，应当恰好是 2321054`
+    + '——多一本意味着有别的技能被当成了「施放即转换」',
+);
+
+// ⑥ 转换表里**尚未接执行链**的那几本：由 `TRANSFORM_PAIRS` 的成员减去「已有常量」的得出，
+//    必须逐条等于下面这张登记表。规则与 `MAGE_BRANCH_PENDING` 同源 ——
+//    `world.rs` 里出现 `const SKILL_X: u32 = <id>;` ＝「这条技能已接执行链」，
+//    所以「有常量」与「登记为未接」互斥：接了却忘删登记、或凭空多一本未接技能，都会红。
+const TRANSFORM_MEMBER_IDS = [...new Set(transformPairsWired.flat())].sort();
+const TRANSFORM_WIRED_DERIVED = TRANSFORM_MEMBER_IDS.filter(id => constFor(Number(id)) !== null);
+const TRANSFORM_UNWIRED_DERIVED = TRANSFORM_MEMBER_IDS.filter(id => constFor(Number(id)) === null);
+assert.deepEqual(
+  TRANSFORM_WIRED_DERIVED, ['2301010'],
+  `转换表的八本里有常量（＝已接执行链）的是 ${TRANSFORM_WIRED_DERIVED.join('/')}，`
+    + '应当恰好只有 `2301010 天使之觸`（它早已在 `BRANCH_AREA_ATTACKS` 里）——'
+    + '多一本说明有人没接就起了常量，少一本说明有人把 `BRANCH_AREA_ATTACKS` 里的那条删了。'
+    + '（施放者 `2321054` 自己的常量由上面的 `TRANSFORM_SKILLS` 段单独钉住，它不是配对成员。）',
+);
+const TRANSFORM_UNWIRED = {
+  2301002: {
+    why: '群體治癒（慈愛侧）：回复类，本包没有「按队员数回复并结算」的治疗链'
+      + '（源 `common` 里另有 `hp`／`hcCooltime`，都没进运行期模型）。',
+    keywords: ['恢復包含自己的周圍所有隊員的HP'],
+  },
+  2311001: {
+    why: '淨化（慈愛侧）：解除异常状态，本包没有状态解除链（源里另有 `hcCooltime`／`hcProp`）。',
+    keywords: ['異常狀態'],
+  },
+  2311011: {
+    why: '神聖之泉（慈愛侧）：**可交互的回复实体** —— 源 `description` 要求「走到噴泉旁並'
+      + '點擊上方向鍵」，缺的是可交互实体 + 上键拾取，本包没有这条交互面。',
+    keywords: ['噴泉', '上方向鍵'],
+  },
+  2321015: {
+    why: '神聖之水（慈愛侧）：同上，是可累积的场景实体（「聖杯」）+ 方向键拾取；'
+      + '另有 `[主動效果]` 的计数器与 `[被動效果]`（天使之箭命中 #u 次得 1 瓶，上限 #w 瓶）。',
+    keywords: ['聖杯'],
+  },
+  2311015: {
+    why: '勝利之羽（復仇侧）：缺**自增益窗**（源 `time`）＋「命中时自动生成翼羽」的触发环'
+      + '（源里另有 `bulletCount`／`type=51`／`info2.ignoreCounter`／`skillList`）。',
+    keywords: ['勝利力量', '天使翼羽'],
+  },
+  2311014: {
+    why: '天使之泉（復仇侧）：**静态炮台型召唤物**（源 `skill.summon` 带 `attackDelay` 与'
+      + '`time`，没有位移节点）——接它要同时走召唤队列并补美术帧导出，成本高于本轮范围。',
+    keywords: ['物體', '每隔一定時間'],
+  },
+  2321016: {
+    why: '神聖之血（復仇侧）：缺**「再次使用即中斷」的可取消增益**（源里另有 '
+      + '`isCancelableBuff`／`isSequenceOn`／`special.repeat`）＋两个减益项（`v` 受击伤害 +15%、'
+      + '`q` HP 回复 −99%）与 `u` 最终伤害 +15%。',
+    keywords: ['再次使用技能即可中斷'],
+  },
+};
+assert.deepEqual(
+  TRANSFORM_UNWIRED_DERIVED, Object.keys(TRANSFORM_UNWIRED).sort(),
+  `转换表里没有常量（＝未接执行链）的是 ${TRANSFORM_UNWIRED_DERIVED.join('/')}，`
+    + `登记表写的是 ${Object.keys(TRANSFORM_UNWIRED).sort().join('/')} —— `
+    + '少一条＝有人接了执行链却忘了删登记，多一条＝冒出一本新的未接技能',
+);
+for (const [id, entry] of Object.entries(TRANSFORM_UNWIRED)) {
+  assert.ok(
+    transformAvengeFromSource.includes(id) || transformLoveFromSource.includes(id),
+    `${id} 登记在转换表里，但源描述的形态标记（${TRANSFORM_LOVE_MARK}／`
+      + `${TRANSFORM_AVENGE_MARK}）都没圈到它`,
+  );
+  assert.equal(
+    constFor(Number(id)), null,
+    `${id} 登记为「未接执行链」，但 world.rs 已经给它起了常量 ${constFor(Number(id))}`
+      + '——接了路径就必须同时把机制补上、把这条登记删掉',
+  );
+  const description = skillExportDesc(id);
+  for (const keyword of entry.keywords) {
+    assert.ok(
+      description.includes(keyword),
+      `${id} 的登记理由引用了源文案里不存在的词 \`${keyword}\` —— 理由与源文案分叉了`,
+    );
+  }
+}
+
 const protocolVersion = /pub const PROTOCOL_VERSION: u32 = (\d+);/.exec(protocolSrc);
 const sharedVersion = /PROTOCOL_VERSION\s*=\s*(\d+)/.exec(sharedProtocol);
 assert.ok(protocolVersion && sharedVersion, '读不到协议版本常量——两处硬编码的规则被改写了');
@@ -1514,6 +1751,13 @@ console.log(
   `  開關技能接纳表：world.rs::TOGGLE_FIELD_SKILLS =${toggleFieldWired.join('/')}；`
   + `源侧两路独立取值（火毒/主教 \`infoType === 15\`、冰雷 \`role === 'hyper-toggle-field'\`）`
   + `并集 =${toggleFieldSourceIdsSorted.join('/')}（逐条相等 + 每本源文案含「${TOGGLE_FIELD_SOURCE_ANCHOR}」）`,
+);
+console.log(
+  `  技能轉換接纳表：world.rs::TRANSFORM_SKILLS =${idsForArray('TRANSFORM_SKILLS').join('/')}；`
+  + `源侧按描述形态标记独立重算 ${transformPairsFromSource.map(pair => pair.join('→')).join('、')}`
+  + `（每侧恰好 ${transformLoveFromSource.length} 条、并反向钉住復仇侧 hidden）；`
+  + `已接执行链 ${TRANSFORM_WIRED_DERIVED.join('/')}、`
+  + `本轮显式登记未接 ${TRANSFORM_UNWIRED_DERIVED.join('/')}`,
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `

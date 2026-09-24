@@ -73,11 +73,35 @@ impl World {
             self.send_reject(&id, "skill_unknown", "未知法师技能。", Some(&request_id));
             return;
         };
-        if (skill.hidden || skill.fixed_level) && skill_id != SKILL_MAGIC_WAVE_HIDDEN {
+        // 技能轉換（`2321054 復仇天使`）是这条闸门的**唯一例外**：被转换出来的「復仇」
+        // 形态在源里刻意 `invisible: 1`（技能窗不列、玩家点不到），唯一的授予路径就是
+        // 那次转换 —— 所以判据是「这本復仇技能真的在这条玩家的技能表里」
+        // （`transform_grants`），而不是另立一个布尔位。没转换过的玩家点它照旧被拒。
+        let transform_granted = self
+            .players
+            .get(&id)
+            .is_some_and(|player| transform_grants(player, skill_id));
+        if (skill.hidden || skill.fixed_level)
+            && skill_id != SKILL_MAGIC_WAVE_HIDDEN
+            && !transform_granted
+        {
             self.send_reject(
                 &id,
                 "skill_hidden",
                 "该技能由职业规则自动启用。",
+                Some(&request_id),
+            );
+            return;
+        }
+        // 转换的另一半：执行过转换之后，「慈愛」那一侧不再可施放（源：「各別轉換成」）。
+        // 落点与上面那条同一处早退位置 —— 冷却与 MP 消耗之前，所以被拒的技能不扣 MP。
+        if self.players.get(&id).is_some_and(|player| {
+            transform_form(skill_id) == Some(TransformForm::Love) && transform_done(player)
+        }) {
+            self.send_reject(
+                &id,
+                "skill_transformed",
+                "該技能已轉換為復仇技能。",
                 Some(&request_id),
             );
             return;
@@ -184,7 +208,10 @@ impl World {
             // `2221054 冰雪結界` 与火毒 `2121054 火靈結界` 是**同一格**（2026-09-24 收口）。
             // 改前这里写死 `SKILL_HYPER_VORTEX`（它是上方 `matches!` 里的一个字面量），
             // 于是同一格的火毒副本连白名单都进不来。
-            || TOGGLE_FIELD_SKILLS.contains(&skill_id);
+            || TOGGLE_FIELD_SKILLS.contains(&skill_id)
+            // 技能轉換 `2321054 復仇天使`（源 `info.type=50`）：主动、带 `mpCon`，
+            // 那次「慈愛→復仇」的转换就是它的效果。
+            || TRANSFORM_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -328,6 +355,15 @@ impl World {
                 && level.cooltime.is_some())
         {
             level.cooltime.unwrap_or(0).max(0).saturating_mul(1_000)
+        } else if TRANSFORM_SKILLS.contains(&skill_id) {
+            // 技能轉換 `2321054 復仇天使`：源 `common` 用的是 **`cooltimeMS`** 而不是
+            // `cooltime`（值 500），而**全目录只有这一条**用这个字段名。`MageLevel` 的
+            // `cooltime` 带 `serde(rename = "cooltime")`、投影器 `RUNTIME_INTEGER_FIELDS`
+            // 也只出 `cooltime` ⇒ `cooltimeMS` 进不了运行期模型（给它加字段会立刻要求
+            // 同步改投影器与 `check_tms273_skill_manifest.cjs` 的双向断言）。
+            // 所以冷却按**调用点字面量**写。单位是毫秒：源帮助文本写的是
+            // 「冷卻時間 #cooltimeMS秒」—— 那个 500 是**秒**，不是毫秒。
+            500_000
         } else {
             0
         };
@@ -412,10 +448,12 @@ impl World {
             780
         } else if HYPER_ADVENTURER_SKILLS.contains(&skill_id)
             || TOGGLE_FIELD_SKILLS.contains(&skill_id)
+            || TRANSFORM_SKILLS.contains(&skill_id)
         {
-            // 傳說冒險三本与開關技能（冰雷 冰雪结界 / 火毒 火靈結界）：源里都没有
-            // 施法时长字段，600ms 是本包与 2221053 一致的施法动作时长。
-            // 判据从「写死 2221053」收口成表，所以开關技能那一格的两本拿到同一个值。
+            // 傳說冒險三本、開關技能（冰雷 冰雪结界 / 火毒 火靈結界）与技能轉換
+            // （復仇天使 `2321054`）：源里都没有施法时长字段（`2321054` 连 `action`
+            // 都是 null），600ms 是本包与 2221053 一致的施法动作时长。
+            // 判据从「写死 2221053」收口成表，所以这三格拿到同一个值。
             600
         } else if skill_id == SKILL_MAGIC_WAVE_HIDDEN {
             level.time.unwrap_or(5).max(0).try_into().unwrap_or(5_000) * 1_000
@@ -693,6 +731,18 @@ impl World {
             toggle if TOGGLE_FIELD_SKILLS.contains(&toggle) => {
                 if let Err(error) =
                     self.activate_toggle_field(&id, &request_id, toggle, &level, vertical)
+                {
+                    self.handle_accepted_effect_error(&id, &request_id, &error);
+                    return;
+                }
+            }
+            // 技能轉換 `2321054 復仇天使`：施放＝**执行那次转换** —— 把四本復仇技能按
+            // 慈愛那一侧的已学等级写进技能存档（源 perLevel：「…各別轉換成…」）。
+            // 转换态本身从技能表派生（`transform_done`），所以这条臂不另立状态位；
+            // `[被動效果]` 三项早已按「学得即生效」在属性层与伤害管线里消费。
+            avenging if TRANSFORM_SKILLS.contains(&avenging) => {
+                if let Err(error) =
+                    self.activate_skill_transform(&id, &request_id, avenging, &level)
                 {
                     self.handle_accepted_effect_error(&id, &request_id, &error);
                     return;
@@ -2325,6 +2375,22 @@ impl World {
             })
             .unwrap_or((0, 0, 0, SKILL_INFINITY));
         ignored_md_rate = ignored_md_rate.saturating_add(mystic_ignore);
+        // 技能轉換 `2321054 復仇天使` 的 `#c[被動效果]#` 之一：
+        // 「無視怪物防禦率增加 #ignoreMobpdpR%」。与上一条（神秘狙擊）同一条累加口径 ——
+        // 都进 `ignored_md_rate`、末端一次作用于目标侧减免；差别是它**没有叠层**，
+        // 按已学等级直读（源把它标成 `被動效果`，拥有即生效）。
+        for ignore_skill in TRANSFORM_SKILLS {
+            let passive_ignore = self
+                .players
+                .get(id)
+                .and_then(|player| player.state.skills.get(&ignore_skill))
+                .copied()
+                .and_then(|level| self.mage_skills.level(ignore_skill, level))
+                .and_then(|level| level.ignore_mob_pdp_r)
+                .unwrap_or(0)
+                .clamp(0, 100);
+            ignored_md_rate = ignored_md_rate.saturating_add(passive_ignore);
+        }
         let bind_md_rate = (target.bind_until > self.tick)
             .then_some(target.bind_md_rate_reduction)
             .unwrap_or(0)

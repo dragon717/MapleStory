@@ -628,6 +628,85 @@ impl World {
         }
     }
 
+    /// 技能轉換 `2321054 復仇天使` 的施放入口：**施放＝执行那次转换**。
+    ///
+    /// 源 `description`：「取得天使的純粹的憤怒，當做擊敗敵人的力量。慈愛技能轉變成
+    /// 復仇技能。」`perLevel` 把转换对象逐条写明（「群體治癒、淨化、神聖之泉、神聖之水
+    /// 各別轉換成天使之觸、勝利之羽、天使之泉、神聖之血」），所以这里按
+    /// [`TRANSFORM_PAIRS`] 逐对**把慈愛那一侧的已学等级搬到復仇那一侧**。
+    ///
+    /// 转换态**不另立状态位**：它就是「復仇那几本在技能表里」（[`transform_done`]）。
+    /// 这样它随存档自动持久，也天然给出「转换只需发生一次」的幂等键 ——
+    /// 持久层用同一条件做 CAS（`Store::commit_skill_transform`）。
+    ///
+    /// 源里一本慈愛都没学（四对全 0 级）时**没有可转换的对象**，这不是失败：
+    /// 返回 `Ok(())`、不落库，与源「各別轉換成」的字面语义一致。
+    ///
+    /// 「转换持续多久 / 怎么解除」源里没有任何表达；本包按 2026-09-24 的用户裁决取
+    /// **常驻**（不可逆、不消、没有窗口），所以这里既不读 `time`、也没有到期清理。
+    /// `[被動效果]`（`madX`／`mdR`／`ignoreMobpdpR`）**不在这里消费** ——
+    /// 源把它标成 `#c[被動效果]#`，按本仓既有口径**学得即生效**：
+    /// 消费点在 `attribute.rs::aggregate_attributes` 与
+    /// `skills.rs::magic_damage_breakdown`。
+    pub(super) fn activate_skill_transform(
+        &mut self,
+        id: &str,
+        _request_id: &str,
+        _skill_id: u32,
+        _level: &MageLevel,
+    ) -> Result<(), String> {
+        let Some((state, map_id, death_id, base_max_mp)) = self.players.get(id).map(|player| {
+            (
+                player.state.clone(),
+                player.map_id.clone(),
+                player.death_id.clone(),
+                player.base_max_mp,
+            )
+        }) else {
+            return Err("player_unknown".to_owned());
+        };
+        if TRANSFORM_PAIRS
+            .iter()
+            .any(|(_, avenge)| state.skills.contains_key(avenge))
+        {
+            // 转换发生过一次就不再发生（源里没有「再次使用即中斷」那类文案）。
+            return Ok(());
+        }
+        let grants: Vec<(u32, u32)> = TRANSFORM_PAIRS
+            .iter()
+            .filter_map(|(love, avenge)| {
+                let level = state.skills.get(love).copied().unwrap_or(0);
+                (level > 0).then_some((*avenge, level))
+            })
+            .collect();
+        if grants.is_empty() {
+            return Ok(());
+        }
+        let plan = auth::SkillTransformPlan {
+            grants: grants.clone(),
+        };
+        // 候选档案：世界侧只把「档案 + 本次授予」算出来，真正算数的是事务里那一行。
+        let mut profile = profile_from_state(&state, &map_id, &death_id, base_max_mp);
+        auth::apply_skill_transform_grant(&mut profile, &plan);
+        if let Some(store) = self.store.as_ref() {
+            match store.commit_skill_transform(id, &plan, &profile) {
+                Ok(true) => {}
+                // 已转换过（幂等重放）：不重复写、不报错。
+                Ok(false) => return Ok(()),
+                Err(error) => return Err(error),
+            }
+        }
+        // 成功后才写回内存。
+        let Some(player) = self.players.get_mut(id) else {
+            return Err("player_unknown".to_owned());
+        };
+        for (skill_id, level) in &grants {
+            player.state.skills.insert(*skill_id, *level);
+        }
+        refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        Ok(())
+    }
+
     pub(super) fn activate_hyper_adventurer(&mut self, id: &str, skill_id: u32, level: &MageLevel) {
         // The source describes an adventurer-wide damage buff.  It now reaches
         // the party members standing on the caster's map; a caster without a
