@@ -5,6 +5,7 @@ import { createAssetButton, installWindowDrag, bringToFront, clampIntoHost } fro
 import type { ColossusControl } from '../colossus/view';
 import colossus from '../../../../shared/colossus.json';
 import { resolveAssetUrl } from '../../assets/resource-url';
+import { CHUXIAN_NAME } from '../../app/i18n';
 import './style.css';
 
 /** Menus send intentions; the server owns entry, proximity and world facts. */
@@ -30,7 +31,7 @@ export class ActivitiesView {
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void }) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void }) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
     const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
@@ -45,12 +46,14 @@ export class ActivitiesView {
     this.resize = new ResizeObserver(() => clampIntoHost(host, this.root)); this.resize.observe(host);
     if (sceneDisplay) {
       const card = document.createElement('article'), heading = document.createElement('h3'), copy = document.createElement('p');
-      heading.textContent = '射手村';
-      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/overview.png'); art.alt = '三维射手村';
-      copy.textContent = '三维场景沿用角色、任务与战斗进度。右键拖动转动镜头，滚轮缩放；可随时切回原版 2D。';
-      this.sceneToggle = this.button('返回原版 2D', () => { if (sceneDisplay.available()) { sceneDisplay.setEnabled(!sceneDisplay.enabled()); this.close(); } });
+      heading.textContent = CHUXIAN_NAME;
+      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/rail-overview.png'); art.alt = CHUXIAN_NAME;
+      copy.textContent = '蘑菇屋、市场与弓箭手大厅沿村路展开，暖阳穿过树冠，天空映亮林间阴影。沿用移动、跳跃、攻击、NPC对话与全部原版界面。右键微调视角，滚轮缩放。';
+      this.sceneToggle = this.button('切换 2D 视图', () => { if (sceneDisplay.available()) { sceneDisplay.setEnabled(!sceneDisplay.enabled()); this.close(); } });
       this.sceneReset = this.button('恢复镜头', () => { sceneDisplay.resetCamera(); this.close(); });
       card.append(art, heading, copy, this.sceneToggle, this.sceneReset);
+      if (sceneDisplay.toggleQuality) card.append(this.button('切换省电画质', () => { if (sceneDisplay.available()) sceneDisplay.toggleQuality?.(); this.close(); }));
+      if (openKeys) card.append(this.button('键盘设置', () => { this.close(false); openKeys(); }));
       this.content.append(card);
     }
     for (const [name, description, action, image] of [
@@ -98,7 +101,7 @@ export class ActivitiesView {
     if (!this.sceneToggle || !this.sceneDisplay) return;
     const available = this.sceneDisplay.available() && !this.inColossus;
     this.sceneToggle.disabled = !available;
-    this.sceneToggle.textContent = !available ? '回到射手村后可切换' : this.sceneDisplay.enabled() ? '返回原版 2D' : '启用三维射手村';
+    this.sceneToggle.textContent = !available ? `回到${CHUXIAN_NAME}后可切换` : this.sceneDisplay.enabled() ? '切换 2D 视图' : `启用三维${CHUXIAN_NAME}`;
     if (this.sceneReset) this.sceneReset.disabled = !available || !this.sceneDisplay.enabled();
   }
   updateColossus(active: boolean) { this.inColossus = active; this.refreshSceneDisplay(); if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }

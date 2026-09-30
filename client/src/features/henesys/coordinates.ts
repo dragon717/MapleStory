@@ -1,6 +1,16 @@
-/** TMS273 map coordinates remain authoritative; Blender/glTF are metre-scaled views. */
-export const HENESYS_MAP_ID = '100000000';
-export const PIXELS_PER_METRE = 45;
-export const PAPER_DEPTH = 4.2;
-export const point3d = (x: number, y: number): [number, number, number] => [(x - 3285) / PIXELS_PER_METRE, (450 - y) / PIXELS_PER_METRE, PAPER_DEPTH];
-export const sourcePoint = (x: number, y: number) => ({ x: x * PIXELS_PER_METRE + 3285, y: 450 - y * PIXELS_PER_METRE });
+/** x is distance along the rail, y is height in source pixels. No client prediction. */
+import rail from '../../../../shared/henesys-rail.json';
+export const HENESYS_MAP_ID = rail.mapId;
+export const PIXELS_PER_METRE = rail.pixelsPerMetre;
+export const PAPER_DEPTH = rail.paperDepth;
+export const RAIL_RADIUS = rail.radius;
+export const platformThickness = (id: number) => rail.decks.some(d => d.id === id) ? rail.deckThickness : rail.platformThickness;
+export const railAngle = (x: number) => (x - rail.originX) / (PIXELS_PER_METRE * RAIL_RADIUS);
+export const point3d = (x: number, y: number, depth = 0): [number, number, number] => {
+  const angle = railAngle(x), radius = RAIL_RADIUS - depth;
+  return [radius * Math.sin(angle), (rail.originY - y) / PIXELS_PER_METRE, PAPER_DEPTH + RAIL_RADIUS - radius * Math.cos(angle)];
+};
+export const sourcePoint = (x: number, y: number, z: number) => ({
+  x: Math.atan2(x, RAIL_RADIUS + PAPER_DEPTH - z) * RAIL_RADIUS * PIXELS_PER_METRE + rail.originX,
+  y: rail.originY - y * PIXELS_PER_METRE,
+});

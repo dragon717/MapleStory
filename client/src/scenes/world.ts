@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HENESYS_MAP_ID } from '../features/henesys/coordinates';
+import { HENESYS_MAP_ID, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
@@ -61,6 +61,7 @@ export class World extends Phaser.Scene {
   private tombstones = new Map<string, TombstoneWorldView>();
   private animatedLayers: MapLayerView[] = [];
   private backgrounds: BackgroundView[] = [];
+  private railTerrain?: Phaser.GameObjects.Graphics;
   private snapshot?: Snapshot;
   private pendingSnapshot?: Snapshot;
   private receivedAt = 0;
@@ -112,6 +113,7 @@ export class World extends Phaser.Scene {
     if (this.mapId === HENESYS_MAP_ID) this.switchMap(this.mapId, this.manifest.map, this.snapshot);
   }
   resetThreeCamera() { this.henesys?.resetCamera(); }
+  toggleThreeQuality() { this.henesys?.toggleQuality(); }
   private startThree() {
     if (!this.isThreeActive || this.henesys || this.threeLoading) return;
     const generation = ++this.threeGeneration;
@@ -121,7 +123,7 @@ export class World extends Phaser.Scene {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
-      this.status('三维射手村已就绪，任务与战斗沿用原版。');
+      this.status('初弦地已就绪：左右移动、跳上平台，镜头沿路线转向。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
       this.threeLoading = false;
@@ -285,7 +287,7 @@ export class World extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(this.isThreeActive ? 'rgba(0,0,0,0)' : windbellKind ? '#d4e6eb' : '#b4dfe0');
     // Keep source sprites and text at native resolution before 3D projection.
     this.cameras.main.setZoom(1);
-    for (const layer of windbellKind || this.isThreeActive ? [] : this.manifest.map.layers) {
+    for (const layer of windbellKind || this.isThreeActive || this.manifest.map.id === HENESYS_MAP_ID ? [] : this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
       else if (layer.frames?.length) this.createAnimatedLayer(layer);
       else {
@@ -295,7 +297,18 @@ export class World extends Phaser.Scene {
         if (layer.crop) image.setCrop(layer.crop.x, layer.crop.y, layer.crop.width, layer.crop.height);
       }
     }
-    if (!this.isThreeActive) this.createWater();
+    if (!this.isThreeActive && this.manifest.map.id === HENESYS_MAP_ID) {
+      this.railTerrain = this.add.graphics().setDepth(-100);
+      for (const f of this.manifest.map.footholds ?? []) {
+        this.railTerrain.fillStyle(0x79694b).fillRect(f.x1, f.y1, f.x2-f.x1, platformThickness(f.id));
+        this.railTerrain.fillStyle(0x729443).fillRect(f.x1, f.y1, f.x2-f.x1, 8);
+      }
+      this.railTerrain.lineStyle(3, 0x865e32);
+      for (const ladder of this.manifest.map.ladders ?? []) {
+        for (const dx of [-11,11]) this.railTerrain.lineBetween(ladder.x+dx,ladder.y1,ladder.x+dx,ladder.y2);
+        for (let y=ladder.y1; y<=ladder.y2; y+=17) this.railTerrain.lineBetween(ladder.x-11,y,ladder.x+11,y);
+      }
+    } else if (!this.isThreeActive) this.createWater();
     this.startThree();
     if (windbellKind) {
       this.loaded = false;
@@ -459,6 +472,7 @@ export class World extends Phaser.Scene {
   }
   clear() {
     this.loaded = false;
+    this.railTerrain?.destroy(); this.railTerrain = undefined;
     this.pendingSnapshot = undefined;
     this.pendingEmoticons = [];
     this.threeGeneration++; this.threeLoading = false;

@@ -436,6 +436,7 @@ async function enterGame(session: LoginResponse) {
       available: () => Boolean(world?.isLoaded && world.mapId === HENESYS_MAP_ID && !colossusView),
       setEnabled: enabled => { if (colossusView || world?.mapId !== HENESYS_MAP_ID) return; input?.reset(); world.setThreeEnabled(enabled); },
       resetCamera: () => world?.resetThreeCamera(),
+      toggleQuality: () => world?.toggleThreeQuality(),
     });
     menus = new MenuView(
       el('menus'),

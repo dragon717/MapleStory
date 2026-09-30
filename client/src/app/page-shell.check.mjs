@@ -24,6 +24,9 @@ const shellCode = ts.transpileModule(await readFile(new URL('./page-shell.ts', i
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replaceAll("from './i18n'", `from 'data:text/javascript;base64,${Buffer.from(i18nCode).toString('base64')}'`);
 const { PageShell } = await import(`data:text/javascript;base64,${Buffer.from(shellCode).toString('base64')}`);
+const { mapText } = await import(`data:text/javascript;base64,${Buffer.from(i18nCode).toString('base64')}`);
+assert.equal(mapText('100000000', '弓箭手村'), '初弦地');
+assert.equal(mapText('101000000', '魔法森林'), '魔法森林');
 
 class FakeNode {
   constructor(tag = 'div') {

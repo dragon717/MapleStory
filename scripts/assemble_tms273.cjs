@@ -6,20 +6,22 @@ const { skillManifest, mageRules } = require('./tms273_skill_manifest.cjs');
 const { assertNoConflictCopyName } = require('./check_icloud_conflict_copies.cjs');
 const root = path.resolve(__dirname, '..');
 const input = path.join(root, 'resources/tms273-export');
-const publicRoot = path.join(root, 'client/public-tms273');
+// A complete candidate can be prepared without changing a running service's assets.
+const outputRoot = process.env.MAPLE_ASSEMBLY_OUTPUT_ROOT ? path.resolve(process.env.MAPLE_ASSEMBLY_OUTPUT_ROOT) : root;
+const publicRoot = path.join(outputRoot, 'client/public-tms273');
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 // ServeDir chooses a compressed sibling without checking its freshness. Never
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-47';
-// Authored 3D presentation; source maps still own collision, NPCs and monsters.
-const henesysModel = path.join(root, 'resources/scenes/henesys/models/henesys.glb');
-assert(fs.existsSync(henesysModel), 'Missing Henesys GLB: run scripts/creative/blender/export_henesys.py in Blender');
+const version = 'tms273-49';
+// Curved rail: source footholds plus shared/henesys-rail.json own solid collision.
+const henesysModel = path.join(root, 'resources/scenes/henesys/rail-v1/models/rail-v1.glb');
+assert(fs.existsSync(henesysModel), 'Missing Henesys rail GLB: build_henesys_rail.py must run through Blender MCP');
 fs.mkdirSync(path.join(publicRoot, 'assets/henesys'), {recursive:true});
-fs.copyFileSync(henesysModel, path.join(publicRoot, 'assets/henesys/henesys.glb'));
-fs.copyFileSync(path.join(root, 'resources/scenes/henesys/previews/overview-refined.png'), path.join(publicRoot, 'assets/henesys/overview.png'));
-for (const file of ['henesys.glb', 'overview.png']) invalidateCompressed(path.join(publicRoot, 'assets/henesys', file));
+fs.copyFileSync(henesysModel, path.join(publicRoot, 'assets/henesys/rail-v1.glb'));
+fs.copyFileSync(path.join(root, 'resources/scenes/henesys/rail-v1/previews/overview.png'), path.join(publicRoot, 'assets/henesys/rail-overview.png'));
+for (const file of ['rail-v1.glb', 'rail-overview.png']) invalidateCompressed(path.join(publicRoot, 'assets/henesys', file));
 
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
@@ -86,6 +88,7 @@ maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
   assert(maps.reduce((sum,map)=>sum+map.reactors.length,0) === reactor.placements.length, 'Reactor placement export is stale');
 }
 const birth = maps.find(map => map.id === catalog.birthMapId);
+require('./henesys_layout.cjs').applyHenesysLayout(maps, gameplay);
 assert(birth, 'Birth map absent');
 assert(maps.length === JSON.parse(fs.readFileSync(path.join(root,'references/tms273-data/maps.json'),'utf8')).maps.length, 'Map export is stale');
 // `returnMaps` is the per-map `info/returnMap` lookup a 回家卷軸 resolves
@@ -473,8 +476,8 @@ assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致'
       reward.definitionStatus === 'json-present',
       `奖励物品 ${reward.itemId} 与物品目录不一致（源定义 ${reward.definitionStatus}，目录内 ${reward.inItemIndex}）：请检查 scripts/backfill_tms273_notebook_rewards.py 的执行顺序`);
   }
-  write(path.join(root, 'shared/notebook-catalog.json'), catalog);
-  write(path.join(root, 'shared/monster-collection-rules.json'), rules);
+  write(path.join(outputRoot, 'shared/notebook-catalog.json'), catalog);
+  write(path.join(outputRoot, 'shared/monster-collection-rules.json'), rules);
   // The client projection is the *public* half of the catalogue only.  The
   // quest section is deliberately withheld: the task page is computed on the
   // server from what the character actually obtained, so shipping the static
@@ -674,7 +677,7 @@ const cashAppearanceLayers = (() => {
 for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'npc-names':npcNames,map:birth,maps:{birthMapId:birth.id,returnMaps,maps}})) {
   // Rendering layers belong to the client manifest, not the server's map catalog.
   const serverData=name==='map'?(({layers,...map})=>map)(data):name==='maps'?{...data,maps:data.maps.map(({layers,...map})=>map)}:data;
-  write(path.join(root,'shared',name+'.json'),serverData);
+  write(path.join(outputRoot,'shared',name+'.json'),serverData);
   if(name==='gameplay'||name==='items')write(path.join(publicRoot,'assets',name+'.json'),data);
 }
 // Client cash-shop catalog: same commodities as gameplay.cashShop plus the zh
@@ -688,6 +691,18 @@ for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'
     itemNames: cashshop.itemNames,
   });
 }
+// The authored terrain needs its own minimap; source actor markers use this transform.
+{
+  const rail = require('../shared/henesys-rail.json'), b = rail.bounds;
+  const width = 364, height = 80, sx = width/(b.xMax-b.xMin), sy = height/(b.yMax-b.yMin);
+  const rects = rail.platforms.map(f => `<rect x="${(f.x1-b.xMin)*sx}" y="${(f.y1-b.yMin)*sy}" width="${(f.x2-f.x1)*sx}" height="${(b.yMax-f.y1)*sy}" fill="#69864b" stroke="#c2dc80" stroke-width="1"/>`).join('');
+  const decks = rail.decks.map(f => `<path d="M${(f.x1-b.xMin)*sx},${(f.y1-b.yMin)*sy}h${(f.x2-f.x1)*sx}" stroke="#eddfa4" stroke-width="2"/>`).join('');
+  const ladders = rail.ladders.map(l => `<path d="M${(l.x-b.xMin)*sx},${(l.y1-b.yMin)*sy}v${(l.y2-l.y1)*sy}" stroke="#b58543" stroke-width="1"/>`).join('');
+  const url = '/assets/henesys/rail-minimap.svg';
+  fs.writeFileSync(path.join(publicRoot,url.slice(1)), `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${rects}${decks}${ladders}</svg>`, 'utf8');
+  manifest.miniMap.maps[rail.mapId] = {...manifest.miniMap.maps[rail.mapId], url, width, height,
+    world:{xMin:b.xMin,yMin:b.yMin,width:b.xMax-b.xMin,height:b.yMax-b.yMin}, source:'shared/henesys-rail.json',resolvedSource:'shared/henesys-rail.json'};
+}
 write(path.join(publicRoot,'assets/manifest.json'),manifest);
-write(path.join(root,'shared/mage-skills.json'),mageRules(read('skills')));
+write(path.join(outputRoot,'shared/mage-skills.json'),mageRules(read('skills')));
 console.log(JSON.stringify({version,maps:maps.length,assets:urls.size,cashAppearanceLayers,npcs:Object.keys(entities.npcs).length,monsters:Object.keys(entities.monsters).length}));

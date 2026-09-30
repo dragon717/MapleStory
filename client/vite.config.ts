@@ -31,7 +31,7 @@ export default defineConfig(({ command }) => ({
   // dev 需要 vite 自己服务它；生产构建不再把它复制进 outDir。
   // 此前每次构建都拷一份，实测占掉「构建打包」这一步 95% 以上的时间（50.6s → 3.4s），
   // 而拷出来的内容与源目录逐字节相同。
-  publicDir: command === 'serve' ? 'public-tms273' : false,
+  publicDir: command === 'serve' ? (process.env.MAPLE_PREVIEW_ASSETS ?? 'public-tms273') : false,
   // Phaser's full runtime is bundled locally; retain a 1.6 MB warning budget.
   //
   // 桌面包（v3 §10.2）用**独立暂存区**：由 scripts/build-desktop.cjs 经

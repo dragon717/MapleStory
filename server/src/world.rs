@@ -123,6 +123,8 @@ mod ship;
 mod ship_event;
 #[path = "skills.rs"]
 mod skills;
+#[path = "henesys.rs"]
+mod henesys;
 #[path = "social.rs"]
 mod social;
 #[path = "trade.rs"]

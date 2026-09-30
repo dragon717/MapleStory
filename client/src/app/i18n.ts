@@ -371,4 +371,5 @@ export function uiText(key: string, fallback = key): string { return TEXT[key]?.
  *  result is still authored text, so callers pass it through `displayText`. */
 export function menuEntryText(key: string, sourceLabel: string): string { return MENU_ENTRY_TEXT[key]?.[locale] ?? sourceLabel; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
-export function mapText(id: string, sourceName: string): string { return displayText(sourceName || id); }
+export const CHUXIAN_NAME = '初弦地';
+export function mapText(id: string, sourceName: string): string { return id === '100000000' ? CHUXIAN_NAME : displayText(sourceName || id); }

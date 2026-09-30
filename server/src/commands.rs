@@ -39,11 +39,16 @@ fn resolve_join_map_position(
         && profile.x <= resolved_map.bounds.x_max
         && resolved_map.bounds.y_min <= profile.y
         && profile.y <= resolved_map.bounds.y_max;
-    let (x, y) = if saved_position_is_valid {
+    let (x, mut y) = if saved_position_is_valid {
         (profile.x, profile.y)
     } else {
         (resolved_map.spawn.x, resolved_map.spawn.y)
     };
+    // Preserve the saved along-route position when the authored rail replaces
+    // the old village; an old roof height must not leave a body inside a ledge.
+    if resolved_map.id == DEFAULT_LOGIN_MAP_ID && resolved_map.footholds.iter().any(|f| f.id == 900001) {
+        if let Some(ground) = resolved_map.footholds.iter().filter(|f| x >= f.x1 && (x < f.x2 || x == resolved_map.bounds.x_max && x == f.x2)).find_map(|f| f.at(x)) { y = ground; }
+    }
     (resolved_map, x, y)
 }
 

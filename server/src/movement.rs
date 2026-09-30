@@ -275,7 +275,7 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
     let mut ignored_fh = player.drop_fh;
     if player.state.grounded {
         let down_jump_intent = player.vertical > 0 && player.jump;
-        let down_jump = down_jump_intent
+        let down_jump = down_jump_intent && !henesys::solid(map)
             && (map
                 .downjump_target(player.foothold_id, player.state.x)
                 .is_some()
@@ -386,6 +386,11 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
         player.state.x = intended_x;
     }
     player.state.x = player.state.x.clamp(map.bounds.x_min, map.bounds.x_max);
+    let solid_y = if player.state.grounded {
+        map.get(player.foothold_id).and_then(|f| f.at(player.state.x)).unwrap_or(old_y)
+    } else { swept_y };
+    let solid_x = henesys::side(map, old_x, old_y, player.state.x, solid_y);
+    if solid_x != player.state.x { player.state.x = solid_x; player.state.vx = 0.0; }
 
     if player.state.grounded {
         let current = map.get(player.foothold_id);
@@ -477,7 +482,12 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
                 player.state.y = next_y;
             }
         } else {
-            player.state.y = next_y;
+            if let Some(ceiling) = henesys::ceiling(map, old_x, player.state.y, player.state.x, next_y) {
+                player.state.y = ceiling;
+                player.state.vy = 0.0;
+            } else {
+                player.state.y = next_y;
+            }
         }
         if !player.swimming && player.state.vy >= 0.0 && player.state.y > map.fall_boundary() {
             recover_at_fall_boundary(map, player, tick);
