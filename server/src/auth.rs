@@ -914,6 +914,48 @@ impl Store {
         Ok(u8::try_from(count.clamp(0, 4)).unwrap_or(0))
     }
 
+    /// 神聖之水 `2321015` 的**被动计数**（累积瓶数、还没凑成一瓶的命中余数）。
+    ///
+    /// 与 [`Self::hyper_reset_count`] 同一个理由直读列而不走 `Profile` 快照：
+    /// `Profile` 是一次登录时的整体投影，而这两个值在会话里会被反复改写
+    /// （每 `u` 次命中一次、每次施放一次），塞进 `Profile` 只会多出一个必须同步的副本。
+    /// 旧库/手工修过的行读到负数时夹到 0，不当作损坏。
+    pub fn holy_water_state(&self, account_id: &str) -> Result<(u32, u32), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let (charges, hits): (i64, i64) = db
+            .query_row(
+                "SELECT holy_water_charges,holy_water_hits FROM player_stats WHERE account_id=?1",
+                [account_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|_| "account persistence failed")?;
+        Ok((
+            u32::try_from(charges.max(0)).unwrap_or(0),
+            u32::try_from(hits.max(0)).unwrap_or(0),
+        ))
+    }
+
+    /// 把这两个计数写回存档。**写的是绝对值，不是增量**。
+    ///
+    /// 写绝对值是刻意的：调用点只有「任一计数变化」与「施放清空」两处，所以一次偶发失败
+    /// 会被下一次全量覆盖、自我修复 —— 这也是调用方敢只把 `Err` 丢掉、不打断战斗
+    /// 结算的理由。两个计数的**定义**分别在 `world.rs::Player` 与 `holy_water.rs`。
+    /// ⚠️ 是「任一计数变化」而**不是**「瓶数变化」——余数（`holy_water_hits`）也是持久进度。
+    pub fn commit_holy_water_state(
+        &self,
+        account_id: &str,
+        charges: u32,
+        hits: u32,
+    ) -> Result<(), String> {
+        let db = self.db.lock().map_err(|_| "account store unavailable")?;
+        db.execute(
+            "UPDATE player_stats SET holy_water_charges=?2,holy_water_hits=?3 WHERE account_id=?1",
+            params![account_id, i64::from(charges), i64::from(hits)],
+        )
+        .map_err(|_| "account persistence failed")?;
+        Ok(())
+    }
+
     /// Seed the starter backpack coupon on the first join after a beginner
     /// account is created.  Idempotent through `starter_backpack_seeded`.
     /// Returns the freshly granted items so callers can merge them into the

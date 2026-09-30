@@ -2,8 +2,8 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 35;
-pub const CONTENT_VERSION: &str = "tms273-46";
+pub const PROTOCOL_VERSION: u32 = 36;
+pub const CONTENT_VERSION: &str = "tms273-47";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
 /// 也不能用「先拿全量再隐藏」的方式绕过任务页的私有过滤（计划 §12.2）。
@@ -503,6 +503,15 @@ pub enum ClientMessage {
         #[serde(rename = "reactorId")]
         reactor_id: String,
     },
+    /// 神聖之水 `2321015`：对一只圣杯按上键吸收（源：「隊員在聖水按[上]方向鍵時，
+    /// 可恢復最大HP的`#u2`%…」）。客户端只命名杯子；**是否存在、是否到期、是否同图、
+    /// 距离、以及「是不是施放者的队员」全部由服务器裁决**，客户端拿不到也改不了恢复量。
+    HolyWaterAbsorb {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "holyWaterId")]
+        holy_water_id: String,
+    },
     /// Map-chat intent.  The client only supplies text; the authoritative map
     /// room, sender identity and display name are all resolved server-side.
     ChatSend {
@@ -652,6 +661,10 @@ impl ClientMessage {
                 request_id,
                 reactor_id,
             } => valid_id(request_id) && valid_id(reactor_id),
+            Self::HolyWaterAbsorb {
+                request_id,
+                holy_water_id,
+            } => valid_id(request_id) && valid_id(holy_water_id),
             Self::BossPractice {
                 request_id,
                 encounter_id,

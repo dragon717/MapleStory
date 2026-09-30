@@ -365,6 +365,21 @@ impl World {
                     },
                     None => 0,
                 };
+                // 神聖之水 `2321015` 的被动计数（累积瓶数 / 未成瓶的命中余数）与 Hyper
+                // 重置档位同一档：直读列而不走 `Profile` 快照（理由见
+                // `auth.rs::holy_water_state`）。读失败与上面几处一样直接拒登录 ——
+                // 拿不到这两个值就没法保证「攒到一半的瓶数不会丢」。
+                let (holy_water_charges, holy_water_hits) = match self.store.as_ref() {
+                    Some(store) => match store.holy_water_state(&id) {
+                        Ok(state) => state,
+                        Err(error) => {
+                            let _ = output.try_send(reject("persistence", &error, None));
+                            let _ = reply.send(false);
+                            return;
+                        }
+                    },
+                    None => (0, 0),
+                };
                 let attributes = aggregate_attributes(AttributeInput::joining(
                     &self.gameplay,
                     &self.mage_skills,
@@ -515,6 +530,8 @@ impl World {
                         infinity_damage_bonus: 0,
                         mystic_strike_stacks: 0,
                         mystic_strike_until: 0,
+                        holy_water_charges,
+                        holy_water_hits,
                         quests,
                         quest_kills,
                         lang: crate::quest_text::normalize_lang(Some(&lang)),
@@ -818,6 +835,10 @@ impl World {
                         request_id,
                         reactor_id,
                     } => self.handle_reactor_hit(id, request_id, reactor_id),
+                    ClientMessage::HolyWaterAbsorb {
+                        request_id,
+                        holy_water_id,
+                    } => self.handle_holy_water_absorb(id, request_id, holy_water_id),
                     ClientMessage::Portal {
                         request_id,
                         portal_name,

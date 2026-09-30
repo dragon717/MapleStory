@@ -266,6 +266,27 @@ const FOURTH_JOB_SOURCES = {
     repeat: 'Skill/212.img/skill/2121054/repeat',
     end: 'Skill/212.img/skill/2121054/end',
   },
+  // 神聖之水（主教四转，2026-09-24 接执行链）：它是**放一个可交互场景实体**的技能，
+  // 所以美术分两层——施法瞬间的 `effect`/`effect0`，以及**留在地面上的圣杯**。
+  //
+  // ⚠️ 圣杯不是一组，而是源里 `tile` 下的**三层**（`tile/0` / `tile/1` / `tile/2`），
+  // 三层同时叠在同一个锚点上渲染。运行期键名逐字照源节点名去斜杠命名（`tile0`/`tile1`/`tile2`），
+  // 不替源编「哪层是待机、哪层是吸收」这种它没写的状态机。
+  // ⚠️ **帧数必须取自打包结构**：`Data/Skill/Skill.wz` 那份是被裁剪过的 edition，它的
+  // `tile` 三层都缺下标 0、`_outlink` 也是 0 条；真值在 `Packs/Skill_00000.ms` 解包结果里
+  // （实测 `tile/0` 16 帧、`tile/1` 8 帧、`tile/2` 8 帧，三层**都从下标 0 起**）。
+  // `collectFrameSources` 按数字升序取，所以帧数等于源里的**帧个数**。
+  //
+  // ⚠️ 三层的像素**不互斥**，这是源自己写死的 `_outlink`：`tile/1/0` → `tile/0/8`、
+  // `tile/2/0|1|2` → `tile/0/8|9|10`；`tile/0/0` 是真帧但**只有 `delay` 没有画布**，
+  // 会导出成 1×1 空帧。这不是导出去重 bug，所以三层照原样各自成组。
+  '2321015': {
+    effect: 'Skill/232.img/skill/2321015/effect',
+    effect0: 'Skill/232.img/skill/2321015/effect0',
+    tile0: 'Skill/232.img/skill/2321015/tile/0',
+    tile1: 'Skill/232.img/skill/2321015/tile/1',
+    tile2: 'Skill/232.img/skill/2321015/tile/2',
+  },
 };
 const FOURTH_JOB_SUMMON_SOURCES = {
   '2221005': {

@@ -69,6 +69,10 @@ mod growth;
 /// 赫爾奧斯塔电梯脚本门 P 级路由（99樓 ⇄ 2樓，源到站门见模块头）。
 #[path = "helios.rs"]
 mod helios;
+/// 神聖之水 `2321015` 的**纯规则**（计数、时长/恢复量的智力分档、生成位置候选点）。
+/// 实体状态与副作用在世界这边（见 `SKILL_HOLY_WATER` 块）。模块头有逐字段消费表。
+#[path = "holy_water.rs"]
+mod holy_water;
 #[path = "inventory_ops.rs"]
 mod inventory_ops;
 /// 战斗机制纵深（四支柱：召唤物 / 持续伤害 / 投射物 / 二段命中）：机制计划的派生、
@@ -500,9 +504,13 @@ const HYPER_ADVENTURER_SKILLS: [u32; 3] = [
 ///     **復仇**技能」，`perLevel` 的 `#c[被動效果]#` 是 `madX`／`mdR`／`ignoreMobpdpR`／
 ///     攻擊屬性耐性，`mpCon`＋`cooltimeMS` 是那次轉換的价格 ⇒ 缺的是**技能轉換**。
 /// 另一条未接可施放技能（`2321015 神聖之水`）的登记与理由
-/// 由 `check_tms273_damage_pipeline.cjs::MAGE_BRANCH_PENDING` 从**权威源文案**独立重算
-/// 并双向钉住——`world.rs` 里一给它起 `SKILL_*` 常量，那条登记立刻红。
+/// 由 `check_tms273_damage_pipeline.cjs` 的那条判据从**权威源文案**独立重算
+/// 并双向钉住——`world.rs` 里一给它起 `SKILL_*` 常量，那条判据立刻红。
 /// （同批的 `2321006 復甦之光` 已于 2026-09-24 接执行链 ⇒ 见下面的復甦之光块。）
+/// ⚠️ **2026-09-24 第十轮（`2321015` 接执行链）**：那条判据原本是一张登记表
+/// （`MAGE_BRANCH_PENDING`），四条接线后**整张删掉、改成空集断言**
+/// （变量 `mageBranchCastableUnwired`，语义＝「`212`／`232` 里带 `mpCon`、非 `hidden`、
+/// `world.rs` 里没有常量」的技能**必须为空**）。**旧名字已不存在**，别再按它去找表。
 const SKILL_ADVANCED_BLESSING: u32 = 2321005;
 /// 進階祝福的接纳表。**判据只有这一处**：施法白名单、施法臂、动作时长与属性层
 /// 的三格留痕都读它。当前只有主教这一本（火毒／冰雷两线没有对应格），
@@ -561,6 +569,73 @@ const SKILL_REVIVAL_LIGHT: u32 = 2321006;
 /// 与 [`ADVANCED_BLESSING_SKILLS`]／[`TOGGLE_FIELD_SKILLS`] 同形——多一本就往这里加，
 /// 不写 `if skill_id == …`。
 const REVIVAL_LIGHT_SKILLS: [u32; 1] = [SKILL_REVIVAL_LIGHT];
+
+// ── 神聖之水 `2321015`（主教四转「场景实体」技能，2026-09-24 接执行链） ────────────
+/// 源 `common`：`lt/rb/range/mpCon/u/w/q/s2/q2/x/y/s/v/u2/w2/cooltime/dot/v2`，
+/// `action` 是 `holyWater`，`info` 是 `type=51`（**摆一个可交互场景实体**，既不是攻击
+/// 也不是增益），`info2.ignoreCounter=1`，`prerequisites` 是空的，`hyper: 0`、
+/// `maxLevel: 10`、`requiredLevel: 0`。逐级的 `common` **完全相同**。
+///
+/// 源 `perLevelDescription`：
+/// 「`#c被動效果#`：天使之箭命中`#u`次時可獲得1瓶聖水，聖水最多可累積`#w`瓶 /
+/// `#c主動效果#`：消耗MP`#mpCon`，消耗所有累積的聖水(聖水最少需有1瓶)並在周圍形成聖水。
+/// 若空間不足則僅形成部分聖水 / 聖水持續時間:`#q`秒，智力每累積`#s2`個，聖水持續時間
+/// 增加`#q2`秒 / 隊員在聖水按[上]方向鍵時，可恢復最大HP的`#u2`%，每`#dot`個智力，
+/// 恢復量增加`#w2`%。恢復量可疊加 / 有剩餘持續時間但是聖水消滅時，獲得相當於消失的
+/// 聖水個數的`#v2`% / 冷卻時間：`#cooltime`秒」
+///
+/// 逐字段的口径（**派生点只有 `holy_water.rs` 那一个模块**，本包不写死任何数值）：
+///   * `u` / `w` ⇒ **消费**：被动计数（命中 `u` 次成 1 瓶、最多累积 `w` 瓶），
+///     派生点 [`holy_water::advance_charge`]。
+///   * `q` / `s2` / `q2` ⇒ **消费**：圣杯存活时长（基础 `q` 秒 ＋ 每 `s2` 智力加 `q2` 秒），
+///     派生点 [`holy_water::HolyWaterRules::lifetime_ms`]。
+///   * `u2` / `dot` / `w2` ⇒ **消费**：吸收一次恢复最大 HP 的 `u2`% ＋ 每 `dot` 智力加 `w2`%，
+///     派生点 [`holy_water::HolyWaterRules::heal_permille`]。⚠️ 那句里的「智力」按
+///     **施法者**的智力读 —— 技能威力来自施法者，且同一段文案里**持续性**那半的 `s2`
+///     也按施法者智力分档，两处共用一个智力输入才不会出现「时长按我的、恢复量按你的」。
+///     因此在**施放那一刻**算定、随圣杯存下来（`HolyWater::heal_permille`），整批同值。
+///   * `lt` / `rb` ⇒ **消费**：圣杯**生成位置**的框（绕施法者，`lt=(-40,-100)`、
+///     `rb=(40,20)`）。⚠️ 它是「生成在哪」的框，**不是**「谁能吸收」的框：交互判据是
+///     「玩家自己站在圣杯旁按上键」，见 [`World::handle_holy_water_absorb`]。
+///   * `v2` ⇒ **消费**：圣水在**仍有剩余持续时间**时被清除，施法者每个补最大 HP 的 `v2`%。
+///     源文案这一句的**宾语缺失**（没说恢复 HP、MP 还是伤害）；本包按**最大 HP** 读、
+///     只结算给**施法者**，触发点是 [`World::step_holy_waters`] 的第二条清除点。
+///     这是 2026-09-24 用户裁决的「源没给前提 ⇒ 按最可能语义实现」。
+///   * `mpCon` ⇒ 既有 MP 管道；`cooltime`（**秒**，L1 10 / L10 10）⇒ 既有四转书那一支
+///     （[`crate::mage::FOURTH_JOB_BOOKS`] 成员的 `cooltime` 按秒算）⇒ 本技能**不新增**
+///     冷却分支。
+///   * `range`（200）⇒ **不消费**：它是源「召喚範圍」的半径，而本包的位置判据已经由
+///     `lt`/`rb` 框逐点决定（[`holy_water::candidate_offsets`] ＋ `Map::ground_below`）。
+///     两套判据并存只会凭空造出「框内但超出半径」这种源里不存在的状态，多一个待裁决项。
+///   * `x` / `y` / `s` ⇒ 源里是美术/配方系数（`x`=50、`y`=80、`s`=40 都没有出现在上面
+///     任何一句 player-facing 文案里），本包不建模。
+///
+/// ⚠️ **它不是 Hyper 技能**：源 `hyper: 0` ＋ `maxLevel: 10` ＋ `requiredLevel: 0`
+/// （真 Hyper 是 `hyper: 2` ＋ `maxLevel: 1` ＋ `reqLev 140/160/190`）。判据是这三个
+/// 字段，不是名字。
+/// ⚠️ 它在 [`TRANSFORM_PAIRS`] 里是**慈愛侧**（`2321054 復仇天使` 的帮助文本把
+/// 「神聖之水」列为被转换成「神聖之血」`2321016` 的那一本）。技能轉換只把復仇那四本
+/// 写进技能存档，**不改写本技能自己的行**，所以这里接上它不影响转换表那侧的判据。
+/// ⚠️ 它的累积瓶数**落库**（`player_stats.holy_water_charges` / `holy_water_hits`）：
+/// 源把它写成跨施放的累积资源，攒到一半掉线再回来余数不该消失、瓶数更不该被重放一次。
+const SKILL_HOLY_WATER: u32 = 2321015;
+/// 神聖之水的接纳表。**判据只有这一处**：施法白名单、施法臂、动作时长、MP 与冷却管道
+/// 都读它。与 [`ADVANCED_BLESSING_SKILLS`] / [`REVIVAL_LIGHT_SKILLS`] 同形 —— 多一本
+/// 就往这里加，不写 `if skill_id == …`。
+const HOLY_WATER_SKILLS: [u32; 1] = [SKILL_HOLY_WATER];
+/// **攒瓶数的那条被动**：源「天使之箭命中`#u`次時可獲得1瓶聖水」。
+/// 判据只有这一处（[`World::advance_holy_water_charge`] 读它），所以「换成别的技能攒瓶」
+/// 只需要改这张表，不必翻命中钩子。
+/// ⚠️ 这里引用的 `SKILL_ANGELIC_ARROW` 是**早已存在**的常量（它在
+/// [`BRANCH_AREA_ATTACKS`] 里、执行链已接），本表没有给任何技能新起常量。
+const HOLY_WATER_CHARGE_SKILLS: [u32; 1] = [SKILL_ANGELIC_ARROW];
+/// 吸收圣水时「站得够近」的判据（像素）：水平差 / 垂直差。
+///
+/// ⚠️ **这不是源字段**：源只写「隊員對聖杯按下「上」方向鍵時」，没有给任何距离或框。
+/// 取 48 / 64 与 `portals.rs` 判「够近」的口径**逐值相同**，理由是两者都是「按一个键
+/// 跟一个场景点交互」——共用同一套 reach 才不会出现「传送门够得着、圣杯够不着」这种
+/// 玩家看不出理由的差别。门禁把这个共用写成断言（两个文件各自的字面量必须相等）。
+const HOLY_WATER_ABSORB_REACH: (f64, f64) = (48.0, 64.0);
 
 // ── 技能轉換（`2321054 復仇天使`，源 `info.type=50`） ────────────────────────────
 /// 復仇天使 `2321054`（主教四转 Hyper 主动，`reqLev 140`、`maxLevel 1`、`hyper 2`、
@@ -2458,6 +2533,17 @@ struct Player {
     infinity_damage_bonus: i64,
     mystic_strike_stacks: u32,
     mystic_strike_until: u64,
+    /// 神聖之水 `2321015` 的**被动计数**（源 `u` / `w`）：`holy_water_hits` 是
+    /// 「还没凑成一瓶的命中数」（0..`u`），`holy_water_charges` 是已攒瓶数（0..`w`）。
+    ///
+    /// ⚠️ 与 `mystic_strike_stacks`（纯内存）不同，**这两个落库**：
+    /// 源把它写成跨施放的累积资源（「聖水最多可累積`#w`瓶」），攒到一半掉线再回来
+    /// 余数不该凭空消失，瓶数更不该被重放一次。刷新点只有两处，都在
+    /// [`World::commit_holy_water_charges`]：**两个计数里任一变化时**（不是每次命中；
+    /// ⚠️ 只按「瓶数变化」写会漏掉余数——攒 3 瓶 + 2/7 重登会退回 0/7，
+    /// 验收 `hw_charges_and_the_partial_hit_survive_a_relogin` 钉住这一条）与施放清空时。
+    holy_water_charges: u32,
+    holy_water_hits: u32,
     /// quest id -> "active" | "completed".  Authored quest dialog branches on
     /// these rows and the complete effect grants the configured reward.
     quests: BTreeMap<String, String>,
@@ -2917,6 +3003,12 @@ pub struct World {
     /// world fact: a used-up prop returns on the source timer, and a restart
     /// legitimately resets it.
     reactors: BTreeMap<String, ReactorInstance>,
+    /// 神聖之水 `2321015` 摆在地上的圣杯，键是单调 id（`holy-water-<n>`）。
+    /// **会话态**：它是「此刻这张图上摆着几只杯子」这一事实，重启即失——与
+    /// [`Self::reactors`] 同一档内存状态边界。（**被动攒的瓶数**是另一回事，
+    /// 那个落库，见 `Player::holy_water_charges`。）
+    holy_waters: BTreeMap<String, holy_water::HolyWater>,
+    holy_water_sequence: u64,
     /// Windbell's public bridge state and private island instances.  The
     /// module owns the state transitions; this option keeps worlds created by
     /// unit tests without the optional activity data fully compatible.
@@ -3051,6 +3143,8 @@ impl World {
             ability_requests: BTreeMap::new(),
             pending_attacks: BTreeMap::new(),
             reactors: BTreeMap::new(),
+            holy_waters: BTreeMap::new(),
+            holy_water_sequence: 0,
             windbell: None,
             colossus: None,
             boss_practices: BTreeMap::new(),
@@ -3583,6 +3677,15 @@ impl World {
                 "hitting": reactor.hit_until > self.tick,
                 "respawnInMs": reactor.respawn_at.map(|tick| (tick.saturating_sub(self.tick)).saturating_mul(TICK_MS)),
             })).collect::<Vec<_>>(),
+            // 神聖之水 `2321015` 摆在地上的圣杯。与 `reactors` 同一档会话状态，
+            // 所以也在**同一处**投影：客户端据此渲染杯子与「上键」提示。
+            "holyWaters":self.holy_waters.values().filter(|water| water.map_id == map_id).map(|water| serde_json::json!({
+                "id": water.id,
+                "ownerId": water.owner_id,
+                "x": water.x,
+                "y": water.y,
+                "expiresInMs": water.expires_at.saturating_sub(self.tick).saturating_mul(TICK_MS),
+            })).collect::<Vec<_>>(),
             "drops":self.drops.iter().filter(|(drop_id, _)| self.drop_maps.get(*drop_id).is_some_and(|drop_map| drop_map == map_id)).map(|(_, drop)| drop).collect::<Vec<_>>()
         });
         if let Some((source_map_id, boss_practice)) = self.boss_snapshot_fields(id, map_id) {
@@ -3778,6 +3881,301 @@ impl World {
                 reactor.hit_until = 0;
             }
         }
+    }
+
+    // ── 神聖之水 `2321015`：攒瓶 → 生成 → 吸收 / 清除 ─────────────────────────────
+    // 四处落点（第五处不存在）：本文件这一块（计数、生成、清除、吸收）、
+    // `skills.rs` 的准入/动作时长/施法臂、命中钩子（同一个 `resolution.damage > 0`
+    // 分支）与持久化两列。数值一个都不写死，全走 `holy_water.rs`。
+
+    /// 天使之箭命中一次：把被动计数推进一格（源「天使之箭命中`#u`次時可獲得1瓶聖水」）。
+    ///
+    /// 命中钩子按**每个真的打出伤害的目标**调一次，与源「每當天使之箭命中敵人時」
+    /// 同粒度。⚠️ **只要两个计数里有一个动了就落库**（见
+    /// [`Self::commit_holy_water_charges`]）—— 包括「只推进了余数、还没成瓶」的那种。
+    pub(super) fn advance_holy_water_charge(&mut self, id: &str) {
+        let Some(level) = self
+            .players
+            .get(id)
+            .and_then(|player| player.state.skills.get(&SKILL_HOLY_WATER))
+            .copied()
+            .and_then(|level| self.mage_skills.level(SKILL_HOLY_WATER, level).cloned())
+        else {
+            // 没学这本就不攒瓶：源把它写成 `2321015` 自己的被动效果。
+            return;
+        };
+        let Some(rules) = holy_water::HolyWaterRules::from_level(&level) else {
+            return;
+        };
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        let (hits, charges) =
+            holy_water::advance_charge(rules, player.holy_water_hits, player.holy_water_charges);
+        let changed = hits != player.holy_water_hits || charges != player.holy_water_charges;
+        player.holy_water_hits = hits;
+        player.holy_water_charges = charges;
+        if changed {
+            self.commit_holy_water_charges(id);
+        }
+    }
+
+    /// 把两个计数写回存档。**唯一的落库点**（另一个调用点是施放时的清空）。
+    ///
+    /// ⚠️ **每次命中只要有一个计数动了就写**，不是「瓶数变了才写」。这两者的差别是
+    /// 「余数算不算持久状态」：余数是 0..`u` 的进度，按瓶数变化去写就等于把它当成
+    /// 可丢弃的中间量 —— 攒到 4/7 掉线再回来会退回 0/7，而源把它写成**跨施放、也跨
+    /// 登录的累积资源**（验收 `holy_water_acceptance.rs::hw_charges_and_the_partial_hit_survive_a_relogin`
+    /// 就是为这条写的）。真正不该写的是**到顶之后**那种「什么都没变」的命中（`advance_charge`
+    /// 在 `charges >= cap` 时原样返回）—— 那种一眼可见，不会写成事务。
+    /// 写的是**绝对值** ⇒ 中间偶发失败会被下一次全量覆盖、自我修复（这也是它敢 `let _ =` 的理由）。
+    /// ⚠️ 失败**不**回滚内存、也**不**打断攻击结算：余数与瓶数都不是战斗判据
+    /// （伤害、击杀、掉落没有一条读它），为它拒一次攻击是本末倒置。
+    fn commit_holy_water_charges(&mut self, id: &str) {
+        let Some((charges, hits)) = self
+            .players
+            .get(id)
+            .map(|player| (player.holy_water_charges, player.holy_water_hits))
+        else {
+            return;
+        };
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let _ = store.commit_holy_water_state(id, charges, hits);
+    }
+
+    /// 施放 `2321015` 时**消耗所有累积的圣水**（源：「消耗所有累積的聖水」）。
+    ///
+    /// 清空两个计数并**立刻归档**——这一次写是必须的：不归档的话重登之后瓶数还在，
+    /// 同一批攒出来的圣水能再放一次（双花）。与 [`Self::commit_holy_water_charges`]
+    /// 共用同一条写路径，所以「这两个计数怎么写回存档」仍然只有一处。
+    pub(super) fn clear_holy_water_charges(&mut self, id: &str) {
+        let Some(player) = self.players.get_mut(id) else {
+            return;
+        };
+        player.holy_water_charges = 0;
+        player.holy_water_hits = 0;
+        self.commit_holy_water_charges(id);
+    }
+
+    /// 摆下一批圣杯（施放 `2321015` 的落点）。返回**真正生成的数量**。
+    ///
+    /// 位置来自源框 `lt`/`rb`（绕施法者）内的 `bottles` 个候选点
+    /// （[`holy_water::candidate_offsets`]），再逐点问地面：**框自己覆盖到的那一层
+    /// 地面**才算站得住一只杯子。这正是源里那句「若空間不足則僅形成部分聖水」的判据。
+    /// ⚠️ **返回值可以小于 `bottles`，而且这不是失败**：源把「装不下」写成一个正常
+    /// 分支（「僅形成部分聖水」），不是错误，所以调用方不该因为它小而回滚那次施放。
+    /// ⚠️ 判据**从框派生**，不引入新的容差常量：搜索起点取**框顶**（`y + lt.y`），
+    /// 接受条件取**框底**（`y + rb.y`）—— 也就是「地面必须落在这个框自己的纵向跨度里」。
+    /// 站在平台边缘施放时，框外那几点的脚下地面会掉到框底之下 ⇒ 自动落空；
+    /// 若改成「从框底往下找、找到就算」，那么平台下方几百像素的地面也会被当成落点，
+    /// 杯子会摆到玩家看不见的地方，「空间不足」这条就永远触发不了。
+    pub(super) fn spawn_holy_waters(&mut self, id: &str, level: &MageLevel, bottles: u32) -> usize {
+        if bottles == 0 {
+            return 0;
+        }
+        let Some(rules) = holy_water::HolyWaterRules::from_level(level) else {
+            return 0;
+        };
+        let Some((lo, hi)) = holy_water::HolyWaterRules::placement_box(level) else {
+            // 源里没有框 ⇒ 没有「在周圍形成」的位置依据。**不替源补一个默认框**：
+            // 补框会让「源没给框」与「框是一片空」变成同一件事。
+            return 0;
+        };
+        let Some(player) = self.players.get(id) else {
+            return 0;
+        };
+        let map_id = player.map_id.clone();
+        let (x, y, facing) = (player.state.x, player.state.y, player.state.facing);
+        let intelligence = player.state.derived_stats.intelligence.unwrap_or(0);
+        // 时长与恢复量都在**施放这一刻**按施法者智力算定、随杯子存下来，整批同值
+        // （理由见 `SKILL_HOLY_WATER` 与 `holy_water::HolyWater` 的字段注释）。
+        let lifetime_ticks = rules.lifetime_ms(intelligence).div_ceil(TICK_MS).max(1);
+        let heal_permille = rules.heal_permille(intelligence);
+        let burst_permille = rules.burst_permille();
+        let search_from = y + lo.1;
+        let box_floor = y + hi.1;
+        let positions: Vec<(f64, f64)> = {
+            let map = self.map_for(&map_id);
+            holy_water::candidate_offsets(lo, hi, bottles, facing)
+                .into_iter()
+                .filter_map(|(dx, _)| {
+                    let candidate_x = x + dx;
+                    map.ground_below(candidate_x, search_from)
+                        .filter(|(_, ground)| *ground <= box_floor)
+                        .map(|(_, ground)| (candidate_x, ground))
+                })
+                .collect()
+        };
+        let expires_at = self.tick.saturating_add(lifetime_ticks);
+        let mut placed = 0usize;
+        for (water_x, water_y) in positions {
+            self.holy_water_sequence = self.holy_water_sequence.saturating_add(1);
+            let water_id = format!("holy-water-{}", self.holy_water_sequence);
+            self.holy_waters.insert(
+                water_id.clone(),
+                holy_water::HolyWater {
+                    id: water_id,
+                    owner_id: id.to_owned(),
+                    map_id: map_id.clone(),
+                    x: water_x,
+                    y: water_y,
+                    expires_at,
+                    heal_permille,
+                    burst_permille,
+                },
+            );
+            placed += 1;
+        }
+        placed
+    }
+
+    /// 圣杯的两条清除点。**判据只有这一处**（`holy_water::HolyWater` 的字段注释与
+    /// `SKILL_HOLY_WATER` 的 `v2` 条目都指向这里）。
+    ///
+    /// ① **自然到期**（`expires_at <= tick`）⇒ 移除、**不补偿**。源那句 `v2` 的前提是
+    ///    「**有剩餘持續時間**但是聖水消滅時」，自然到期不在其中——按它补偿等于把
+    ///    「有时长的资源」变成一句「到点就送血」。
+    /// ② **施法者不在这张图上了**（换图 / 传送 / 下线后被移出）⇒ 移除，并按 `v2` 给
+    ///    **施法者**补「相当于消失的圣水个数」的最大 HP 百分比。
+    ///    ⚠️ 这是「有剩余持续时间却消灭」在本包里**唯一**的实现路径，理由两条：
+    ///    ① 圣杯是施法者放出来的场景实体，与 `summons` / `ice_fields` 这些会话态实体
+    ///    同一条收尾口径（主人离场即失效）；② 源专门写了 `v2` 这一句，正说明「提前
+    ///    消失」是它预期会发生的事 —— 没有触发条件那句话就永远读不出来。
+    ///    ⚠️ **死亡不算**：源里没说死了就收，而队员此时恰恰还需要它（那半句的主语是
+    ///    「隊員」）。判据只看「还在不在**这张图**」，不看生死。
+    ///
+    /// 补偿按「一个施法者 × 一次清除」聚合跳一次字（[`Self::emit_recovery_event`]），
+    /// 不是每只杯子一条；千分比先按只数求和再乘最大 HP，避免逐只取整。
+    fn step_holy_waters(&mut self) {
+        let tick = self.tick;
+        let mut gone: Vec<String> = Vec::new();
+        // owner -> 本次清除的 `v2` 千分比之和（每只杯子各加一次）。
+        let mut compensation: BTreeMap<String, i64> = BTreeMap::new();
+        for (water_id, water) in &self.holy_waters {
+            if !water.has_remaining_time(tick) {
+                gone.push(water_id.clone());
+                continue;
+            }
+            let owner_on_map = self
+                .players
+                .get(&water.owner_id)
+                .is_some_and(|player| player.map_id == water.map_id);
+            if owner_on_map {
+                continue;
+            }
+            gone.push(water_id.clone());
+            let entry = compensation.entry(water.owner_id.clone()).or_insert(0);
+            *entry = entry.saturating_add(water.burst_permille);
+        }
+        if gone.is_empty() {
+            return;
+        }
+        for water_id in gone {
+            self.holy_waters.remove(&water_id);
+        }
+        for (owner_id, permille) in compensation {
+            if permille <= 0 {
+                continue;
+            }
+            let Some(max_hp) = self
+                .players
+                .get(&owner_id)
+                .map(|player| player.state.max_hp.max(0))
+            else {
+                continue;
+            };
+            let grant = max_hp.saturating_mul(permille) / 1000;
+            if grant <= 0 {
+                continue;
+            }
+            let Some(player) = self.players.get_mut(&owner_id) else {
+                continue;
+            };
+            let gained = grant.min((player.state.max_hp - player.state.hp).max(0));
+            player.state.hp = player.state.hp.saturating_add(gained);
+            self.emit_recovery_event(&owner_id, gained, 0, "holyWaterBurst");
+        }
+    }
+
+    /// 按上键吸收一只圣杯（源：「隊員在聖水按[上]方向鍵時，可恢復最大HP的`#u2`%…」）。
+    ///
+    /// 客户端只报它按了哪一只；**距离、归属、是否还在**全部在这里裁决——与
+    /// [`Self::handle_reactor_hit`] 同一条口径。每个理由有自己的拒绝码与句子
+    /// （共用一句会把「还没走近」和「不是队里的人」压成同一声敷衍）。
+    ///
+    /// ⚠️ 「隊員」按 2026-09-24 用户裁决读作**同队队员，含施法者自己**：源没写
+    /// 「除了自己」，而本仓本来就认「施法者是自己队伍的一员」
+    /// （[`Self::party_members_on_map`] 含自己，无队伍时退化成 `[自己]`）。
+    /// ⚠️ 一次吸收**一只**杯子（带 id）：这条形态与 `nearestNpc` / `enterPortal` /
+    /// `hitReactor` 逐条相同——客户端挑最近的那一个、服务端按 id 复核距离。源那句
+    /// 「恢復量可疊加」在本包读作**多次吸收逐个叠加**（既不取最大值、也没有额外折扣），
+    /// 所以这里只结算这一只，叠不叠加交给玩家按几次。
+    /// ⚠️ 被吸收**不是**源的「消灭」：它被用掉了、也给了血，`v2` 那半不参与。
+    fn handle_holy_water_absorb(&mut self, id: String, request_id: String, holy_water_id: String) {
+        let Some(player) = self.players.get(&id) else {
+            return;
+        };
+        let map_id = player.map_id.clone();
+        let (x, y) = (player.state.x, player.state.y);
+        let dead = player.state.action == "dead" || player.state.hp <= 0;
+        let busy = player.channel_until > self.tick || player.state.climbing;
+        let output = player.output.clone();
+        let reject_with = |code: &'static str, message: &str, output: &mpsc::Sender<String>| {
+            let _ = output.try_send(reject(code, message, Some(&request_id)));
+        };
+        if dead || busy {
+            reject_with("invalid_state", "现在无法互动。", &output);
+            return;
+        }
+        let Some(water) = self.holy_waters.get(&holy_water_id) else {
+            reject_with("holy_water_unknown", "这里没有可以吸收的聖水。", &output);
+            return;
+        };
+        // 圣杯属于一张图。报别的图的 id 不是过期（走过传送门）就是伪造。
+        if water.map_id != map_id {
+            reject_with("holy_water_unknown", "这里没有可以吸收的聖水。", &output);
+            return;
+        }
+        let (owner_id, water_x, water_y, heal_permille, expires_at) = (
+            water.owner_id.clone(),
+            water.x,
+            water.y,
+            water.heal_permille,
+            water.expires_at,
+        );
+        if expires_at <= self.tick {
+            // 到期归 [`Self::step_holy_waters`] 收；这里再挡一次，因为两者之间还有
+            // 一个「本拍尚未 step」的窗口。
+            reject_with("holy_water_spent", "这瓶聖水已经消失了。", &output);
+            return;
+        }
+        let (reach_x, reach_y) = HOLY_WATER_ABSORB_REACH;
+        if (water_x - x).abs() > reach_x || (water_y - y).abs() > reach_y {
+            reject_with(
+                "holy_water_out_of_range",
+                "再靠近一些才能吸收聖水。",
+                &output,
+            );
+            return;
+        }
+        if !self.party_members_on_map(&owner_id).contains(&id) {
+            reject_with(
+                "holy_water_not_party",
+                "只有施放者的队员才能吸收聖水。",
+                &output,
+            );
+            return;
+        }
+        self.holy_waters.remove(&holy_water_id);
+        let Some(player) = self.players.get_mut(&id) else {
+            return;
+        };
+        let grant = player.state.max_hp.max(0).saturating_mul(heal_permille) / 1000;
+        let gained = grant.min((player.state.max_hp - player.state.hp).max(0));
+        player.state.hp = player.state.hp.saturating_add(gained);
+        self.emit_recovery_event(&id, gained, 0, "holyWater");
     }
 
     /// Authoritative reactor hit: advance one state, or reject the attempt.
@@ -4442,6 +4840,10 @@ impl World {
         self.step_hyper_effects();
         self.resolve_pending_attacks();
         self.step_reactors();
+        // 神聖之水 `2321015`：两条清除点（自然到期 / 施法者换图）在这里收口，
+        // 后者连带按源 `v2` 给施法者补偿。挂在 reactor 之后同一段——
+        // 两者都是「场景里摆着的会话态实体」，谁也不读对方的状态。
+        self.step_holy_waters();
         // 飞行船到站传送在怪物/宠物步进之前落位，被传送角色当拍即以到站
         // 站台身份参与后续模拟。
         self.step_ship();

@@ -4191,6 +4191,10 @@ include!("advanced_blessing_acceptance.rs");
 // `skill_transformed` 拒）—— 两个方向都必须有断言。
 include!("transform_acceptance.rs");
 include!("revive_light_acceptance.rs");
+// 神聖之水 `2321015`（2026-09-24）：主教四转**主动** —— 天使之箭命中攒瓶、施放把瓶
+// 全摆成地上的圣杯、队员按「上」吸收回血；「空間不足則僅形成部分聖水」按源框逐点问
+// 地面实现，`v2` 的两条清除点（提前清除补、自然到期不补）分开钉。
+include!("holy_water_acceptance.rs");
 
 #[test]
 fn quest_list_on_join_is_localized_to_player_language() {

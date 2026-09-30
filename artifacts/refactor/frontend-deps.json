@@ -8,12 +8,12 @@
     "混合导入（含至少一个非 type 绑定）按 value 边处理，偏保守。",
     "resolution 只覆盖本仓库实际使用的无别名相对导入。"
   ],
-  "node_count": 159,
-  "edge_count": 404,
+  "node_count": 160,
+  "edge_count": 406,
   "edge_kind_counts": {
-    "value": 255,
+    "value": 256,
     "dynamic": 9,
-    "type": 117,
+    "type": 118,
     "side-effect": 23
   },
   "external_specifiers": [
@@ -1808,6 +1808,11 @@
       "kind": "value"
     },
     {
+      "from": "client/src/features/world/holy-water-view.ts",
+      "to": "client/src/assets/manifest.ts",
+      "kind": "type"
+    },
+    {
       "from": "client/src/features/world/minimap-view.ts",
       "to": "shared/protocol.ts",
       "kind": "type"
@@ -2044,6 +2049,11 @@
     },
     {
       "from": "client/src/scenes/world.ts",
+      "to": "client/src/features/world/holy-water-view.ts",
+      "kind": "value"
+    },
+    {
+      "from": "client/src/scenes/world.ts",
       "to": "client/src/features/world/water.ts",
       "kind": "value"
     },
@@ -2083,8 +2093,8 @@
       "kind": "dynamic"
     }
   ],
-  "source_commit": "e47d6074ff8b01ba46fe05ca12ddff0311775839",
+  "source_commit": "206733e165c7f404291c1480f9bb2730cfcdf065",
   "working_tree_dirty": true,
   "node_version": "v22.22.2",
-  "generated_at": "2026-09-24T08:34:13.568Z"
+  "generated_at": "2026-09-24T16:20:21.461Z"
 }

@@ -1,6 +1,6 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 35;
-export const CONTENT_VERSION = 'tms273-46';
+export const PROTOCOL_VERSION = 36;
+export const CONTENT_VERSION = 'tms273-47';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
 export interface AbilityStats { strength: number; dexterity: number; intelligence: number; luck: number; availableAp: number; }
@@ -165,6 +165,17 @@ export interface ReactorState {
   hitType?: number;
   state: number; spent: boolean; hitting: boolean; respawnInMs?: number;
 }
+/** 神聖之水 `2321015` 摆在地上的一只圣杯。**会话态**：服务端只说「此刻这张图上
+ *  摆着几只杯子」，重启即失。杯子由施法者离开这张图或自然到期而消失，两条都由
+ *  服务端裁决——客户端从自行决定一只杯子在不在。 */
+export interface HolyWaterState {
+  id: string;
+  /** 施放者。只有他的队员（含他自己）能按上键吸收。 */
+  ownerId: string;
+  x: number; y: number;
+  /** 剩余存活时间；到 0 即由服务端移除。 */
+  expiresInMs: number;
+}
 /** Direction of one warehouse move. The client only names the direction, the
  *  tab and the slot; the server resolves the item and its quantity. */
 export type StorageDirection = 'deposit' | 'withdraw';
@@ -266,6 +277,9 @@ export type ClientMessage =
   /** Intent to strike one authored map reactor. The client only names the prop;
    *  the server decides range, whether it is still usable, and the next state. */
   | { type: 'reactorHit'; requestId: string; reactorId: string }
+  /** 神聖之水 `2321015`：对一只圣杯按上键吸收。客户端只命名杯子；距离、是否到期、
+   *  是否同图和归属（施放者的队员）全部由服务端裁决。 */
+  | { type: 'holyWaterAbsorb'; requestId: string; holyWaterId: string }
   | { type: 'portal'; requestId: string; portalName: string }
   /** Intent to jump to one map through the world map (大地图).  The client
    *  only names the map id of the clicked spot; the server decides whether
@@ -525,7 +539,7 @@ export interface ShipEventNotice {
 export type ServerMessage =
   | { type: 'worldMapMoveResult'; requestId: string; success: boolean; code: string; mapId: string }
   | { type: 'abilityResult'; requestId: string; success: boolean; code: string; abilityStats: AbilityStats }
-  | { type: 'snapshot'; colossus?: ColossusState; colossusSequence?: number; windbellSequence?: number; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
+  | { type: 'snapshot'; colossus?: ColossusState; colossusSequence?: number; windbellSequence?: number; serverTick: number; tickMs: number; mapId: string; sourceMapId?: string; bossPractice?: BossPracticeState; windbell?: WindbellState; ship?: ShipSnapshotState; selfId: string; players: PlayerState[]; monsters: MonsterState[]; npcs?: NpcState[]; questInteractions?: QuestInteraction[]; summons?: SummonState[]; reactors?: ReactorState[]; holyWaters?: HolyWaterState[]; tombstones?: TombstoneSnapshot[]; drops: DropState[] }
   | { type: 'actionStarted'; serverTick: number; playerId: string; actionId: string; requestId: string; durationMs: number; eventId: string; x: number; y: number; facing: Facing }
   | { type: 'skillCast'; phase?: 'prepare' | 'sustain' | 'final'; eventId: string; serverTick: number; playerId: string; skillId: number; skillLevel?: number; requestId: string; x: number; y: number; facing: Facing; durationMs: number; targetId?: string; targetX?: number; targetY?: number }
   | { type: 'skillResult'; requestId: string; skillId: number; operation: 'learn' | 'cast' | 'hyper_reset'; success: boolean; code: string }
@@ -545,7 +559,7 @@ export type ServerMessage =
    *
    *  刻意**没有**自然恢复（`regeneration_passives_for_job` 的每秒被动回复）这一档：
    *  原版那条路径不产生跳字，且每秒触发会持续刷屏。 */
-  | { type: 'recoveryEvent'; eventId: string; serverTick: number; playerId: string; x: number; y: number; hp?: number; mp?: number; source: 'potion' | 'recovery' | 'chair' | 'infinity' | 'windbell' }
+  | { type: 'recoveryEvent'; eventId: string; serverTick: number; playerId: string; x: number; y: number; hp?: number; mp?: number; source: 'potion' | 'recovery' | 'chair' | 'infinity' | 'windbell' | 'holyWater' | 'holyWaterBurst' }
   /** A mob's authored abnormal-status skill cast, broadcast to its map so every
    *  observer can play the source action. `targetId` is the player the cast
    *  resolved against; the authoritative disease application rides the next

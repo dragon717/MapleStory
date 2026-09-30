@@ -39,7 +39,9 @@ impl Store {
                ability_stats_json TEXT NOT NULL DEFAULT '',
                mage_support_granted INTEGER NOT NULL DEFAULT 0,
                hyper_reset_count INTEGER NOT NULL DEFAULT 0,
-               inventory_slots_json TEXT NOT NULL DEFAULT ''
+               inventory_slots_json TEXT NOT NULL DEFAULT '',
+               holy_water_charges INTEGER NOT NULL DEFAULT 0,
+               holy_water_hits INTEGER NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS inventory(
                account_id TEXT NOT NULL,
@@ -465,6 +467,28 @@ impl Store {
         if has_hyper_reset_count.is_none() {
             db.execute(
                 "ALTER TABLE player_stats ADD COLUMN hyper_reset_count INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+        // 神聖之水 `2321015` 的被动计数（累积瓶数 / 未成瓶的命中余数）。
+        // 这两列是**跨登录**的累积资源：源把「最多可累積 `w` 瓶」写成一个会留下来的
+        // 量，攒到一半掉线再回来余数不该消失、瓶数更不该被重放一次。
+        // 旧库的行读作 0（= 一瓶都没攒），也就是回到技能的初始状态，不重置任何别的进度。
+        // 判据与读点：`auth.rs::{holy_water_state, commit_holy_water_state}`。
+        let has_holy_water: Option<String> = db
+            .query_row(
+                "SELECT name FROM pragma_table_info('player_stats') WHERE name='holy_water_charges'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if has_holy_water.is_none() {
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN holy_water_charges INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+            db.execute(
+                "ALTER TABLE player_stats ADD COLUMN holy_water_hits INTEGER NOT NULL DEFAULT 0",
                 [],
             )?;
         }

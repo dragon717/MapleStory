@@ -220,7 +220,12 @@ function activateBinding(binding: KeyBinding) {
     if (dropId) connection?.send({ type: 'pickup', requestId: `keypickup-${crypto.randomUUID()}`, dropId });
   } else if (binding.action === 'talk') {
     if (colossusView) { const npc = colossusView.nearestNpc(); if (npc) talkToNpc(npc); else sendColossus('travel'); return; }
-    const npc = world?.nearestNpc(); if (npc) talkToNpc(npc); else world?.enterPortal();
+    // 与 `PlayerInput.interactUp` 同一条优先级：NPC → 圣杯 → 传送门。
+    const npc = world?.nearestNpc();
+    if (npc) { talkToNpc(npc); return; }
+    const holyWaterId = world?.nearestHolyWater()?.id;
+    if (holyWaterId) { connection?.send({ type: 'holyWaterAbsorb', requestId: `holywater-${crypto.randomUUID()}`, holyWaterId }); return; }
+    world?.enterPortal();
   } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
@@ -546,6 +551,14 @@ async function enterGame(session: LoginResponse) {
       if (gameplayUiBlocked()) return;
       input?.reset();
       if (!connection?.send({ type: 'tombstoneMourn', requestId: `tombstone-${Date.now()}-${++skillRequestSequence}`, tombstoneId })) {
+        status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
+      }
+    }, holyWaterId => {
+      // 神聖之水 `2321015`：对一只圣杯按上键吸收。服务器裁决距离、是否到期、
+      // 是否同图以及「是不是施放者的队员」，这里只上报意图。
+      if (gameplayUiBlocked()) return;
+      input?.reset();
+      if (!connection?.send({ type: 'holyWaterAbsorb', requestId: `holywater-${Date.now()}-${++skillRequestSequence}`, holyWaterId })) {
         status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
       }
     });
@@ -926,6 +939,12 @@ async function enterGame(session: LoginResponse) {
       nearestReactor: () => colossusView ? null : world?.nearestReactor()?.id ?? null,
       hitReactor: reactorId => {
         if (!connection?.send({ type: 'reactorHit', requestId: `reactor-${Date.now()}-${++skillRequestSequence}`, reactorId })) {
+          status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
+        }
+      },
+      nearestHolyWater: () => colossusView ? null : world?.nearestHolyWater()?.id ?? null,
+      absorbHolyWater: holyWaterId => {
+        if (!connection?.send({ type: 'holyWaterAbsorb', requestId: `holywater-${Date.now()}-${++skillRequestSequence}`, holyWaterId })) {
           status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
         }
       },

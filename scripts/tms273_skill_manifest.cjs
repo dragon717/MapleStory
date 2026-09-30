@@ -25,6 +25,10 @@ const RUNTIME_INTEGER_FIELDS = new Set([
   'basicStatUp', 'attackDelay', 'ignoreMobpdpR', 'hcHp', 'speed', 'q', 'q2', 'indieDamR',
   'targetPlus', 'w2', 'u2', 'mmpR', 'lv2mmp', 'actionSpeed', 'mastery', 'cr', 'intX',
   'indieMad', 'subTime', 's', 'pddX', 'x', 'y', 'prop', 'fixdamage', 'time', 'v', 'w', 'u',
+  // 神聖之水 `2321015`（2026-09-24 接执行链）：`s2` 是持续时间的智力分档、`v2` 是
+  // 非到期清除的补偿百分比。它们在源里本来就是整数，登记进契约只是为了让它
+  // **能进 `MageLevel`**——那张表是双向断言的一半，漏登记就会在门禁里红。
+  's2', 'v2',
   'psdSpeed', 'speedMax', 'range', 'mobCount', 'damage', 'attackCount',
   'maxUseCountInOneJump',
   // 战斗机制纵深（第十三轮）：四支柱的源参数标量（`server/src/mage.rs::MageLevel` 同步）。

@@ -215,7 +215,12 @@ impl World {
             || TOGGLE_FIELD_SKILLS.contains(&skill_id)
             // 技能轉換 `2321054 復仇天使`（源 `info.type=50`）：主动、带 `mpCon`，
             // 那次「慈愛→復仇」的转换就是它的效果。
-            || TRANSFORM_SKILLS.contains(&skill_id);
+            || TRANSFORM_SKILLS.contains(&skill_id)
+            // 神聖之水 `2321015`（源 `info.type=51`）：主动、带 `mpCon` 与 `cooltime`，
+            // 效果是**在周围摆一批可交互的圣杯**（既不是攻击也不是增益）。
+            // 「至少要有 1 瓶」那条额外前提**不在这张表里**——这张表的语义是「这条技能
+            // 接没接执行链」，而瓶数是一个**运行期的前置条件**，闸门在下面单独一道。
+            || HOLY_WATER_SKILLS.contains(&skill_id);
         if !castable {
             let active = skill.is_active_source_skill();
             self.send_reject(
@@ -260,6 +265,19 @@ impl World {
                 &id,
                 "skill_cooldown",
                 "漩涡生成尚在冷却中。",
+                Some(&request_id),
+            );
+            return;
+        }
+        // 神聖之水 `2321015` 的**运行期前置条件**：源写「消耗所有累積的聖水(聖水最少需有
+        // 1瓶)」，所以一瓶都没有的时候**不能施放**（不是「放得出来但没效果」）。
+        // 闸门放在扣 MP 之前：源那半句是消耗的**前提**，先扣蓝再拒绝等于白扣一次蓝。
+        // ⚠️ 判据只看**累积瓶数**，不看命中余数——源的门槛是「1瓶」，不是一个整数 tick。
+        if HOLY_WATER_SKILLS.contains(&skill_id) && player.holy_water_charges == 0 {
+            self.send_reject(
+                &id,
+                "skill_requirement",
+                "至少需要 1 瓶聖水才能施放。",
                 Some(&request_id),
             );
             return;
@@ -483,6 +501,12 @@ impl World {
             // 600ms 施法动作（它随 `skillCast` 广播的 `durationMs` 下发给客户端）。
             // 無敵窗口是另一件事（源 `time` 秒），由 `activate_revive_light` 按它叠到
             // `contact_invulnerable_until` 上，与这里的动作时长无关。
+            600
+        } else if HOLY_WATER_SKILLS.contains(&skill_id) {
+            // 神聖之水：源 `action` 是 `holyWater`（起手动作），同样**没有**施法时长
+            // 字段 ⇒ 与 復甦之光 / 進階祝福 / 傳說冒險 取同一个本包既有的 600ms 施法
+            // 动作。圣杯的**存活时长**是另一件事（源 `q`/`s2`/`q2`），由
+            // `spawn_holy_waters` 在施放那一刻算定，与这里的动作时长无关。
             600
         } else if matches!(
             skill_id,
@@ -765,6 +789,13 @@ impl World {
             // 复活走既有的唯一写路径（`complete_revive`），所以不销碑、不换图。
             revival if REVIVAL_LIGHT_SKILLS.contains(&revival) => {
                 self.activate_revive_light(&id, revival, &level);
+            }
+            // 神聖之水 `2321015`（2026-09-24）：施放＝把攒着的瓶数**全部**摆成地上的
+            // 圣杯，再清空累积。位置、「空间不足」的判据与 `v2` 那两条清除点分别写在
+            // `world.rs::{spawn_holy_waters, step_holy_waters}`；这半句只记
+            // 「它落在这条臂上」。
+            holy_water if HOLY_WATER_SKILLS.contains(&holy_water) => {
+                self.activate_holy_water(&id, holy_water, &level);
             }
             SKILL_FROZEN_ORB => {
                 if let Err(error) = self.cast_frozen_orb(&id, &request_id, &level) {
@@ -3075,6 +3106,13 @@ impl World {
                     if counts_as_direct_hit(skill_id) {
                         self.advance_mystic_strike(id, request_id, target_id);
                     }
+                    // 神聖之水 `2321015` 的**被动攒瓶**：源「天使之箭命中`#u`次時可獲得
+                    // 1瓶聖水」。按**每个真的打出伤害的目标**调一次，与源「每當天使之箭
+                    // 命中敵人時」同粒度。攒瓶的表（哪些技能算命中）、上限与「任一计数
+                    // 变化才落库」都在 `world.rs::{HOLY_WATER_CHARGE_SKILLS, advance_holy_water_charge}`。
+                    if HOLY_WATER_CHARGE_SKILLS.contains(&skill_id) {
+                        self.advance_holy_water_charge(id);
+                    }
                 }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     monster.state.hp = (monster.state.hp - resolution.damage).max(0);
@@ -3528,6 +3566,12 @@ impl World {
                 if resolution.damage > 0 {
                     self.advance_mystic_strike(id, request_id, target_id);
                     successful_direct_targets.insert(target_id.clone());
+                    // 神聖之水的攒瓶钩子与上面那条**同形、同判据**：物理线与魔法线是
+                    // 两条 settle 路径，两张表各自决定谁参与，所以两条路径都挂同一个
+                    // 钩子（与 `advance_mystic_strike` 在两条路径上各有一处完全一致）。
+                    if HOLY_WATER_CHARGE_SKILLS.contains(&skill_id) {
+                        self.advance_holy_water_charge(id);
+                    }
                 }
                 if let Some(monster) = self.monsters.get_mut(target_id) {
                     if resolution.damage > 0 {

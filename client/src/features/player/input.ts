@@ -224,6 +224,10 @@ export interface Interactable {
   nearestReactor?: () => string | null;
   /** Send a server-owned reactor intent; range and state are decided there. */
   hitReactor?: (reactorId: string) => string | void;
+  /** Nearest 聖杯 (神聖之水 `2321015`) the local player could absorb with `↑`. */
+  nearestHolyWater?: () => string | null;
+  /** Send a server-owned absorb intent; distance **and** party ownership are decided there. */
+  absorbHolyWater?: (holyWaterId: string) => string | void;
   toggleQuestLog: () => void;
   toggleSkills?: () => void;
   /** Send a server-owned skill intent; this input layer never applies damage or MP. */
@@ -357,18 +361,38 @@ export class PlayerInput {
       return;
     }
     this.held.add(event.code);
-    if (event.code === 'ArrowUp') {
-      // `↑` tries the closest npc first, then falls back to portal entry.
-      const npc = this.targets.nearestNpc();
-      if (npc) {
-        this.targets.talkTo(npc);
-      } else {
-        this.targets.enterPortal();
-      }
-    }
+    if (event.code === 'ArrowUp') this.interactUp();
     if (['ControlLeft', 'ControlRight', 'KeyX'].includes(event.code)) this.sendAttack();
     else this.emit(event.code === 'Space');
   };
+  /**
+   * `↑`（以及绑到 `talk` 的键）的交互优先级：最近的 NPC → 最近的圣杯 → 走传送门。
+   *
+   * 三个落点都由**同一个键**触发，所以顺序要写下来、也只写在这里（改前 `↑` 与
+   * `talk` 绑定各抄了一份「先 NPC 再传送门」，加第三个落点时必然漏一处）。
+   *
+   * 圣杯（神聖之水 `2321015`）排在 NPC 之后：源把「隊員對聖杯按下「上」方向鍵」
+   * 写成一次对**场景点**的交互，与 NPC 对话是同一种按键 —— 地图上真有 NPC 站在圣杯
+   * 旁边时，先跟人说话是原始行为，也是改前就有的行为。
+   * 排在传送门之前：三者都是「按上键」，但传送门是**离开这张图**，把「够得着的圣杯」
+   * 让给传送门会让玩家在自家圣杯旁被传走（而源里圣杯就是给站着按的）。
+   *
+   * ⚠️ 这里选出来的只是**意图**：距离、归属（施放者的队员）与是否还在都由服务端
+   * 重新裁决（见 `world.rs::handle_holy_water_absorb`），客户端拿不到也改不了恢复量。
+   */
+  private interactUp() {
+    const npc = this.targets.nearestNpc();
+    if (npc) {
+      this.targets.talkTo(npc);
+      return;
+    }
+    const holyWater = this.targets.nearestHolyWater?.();
+    if (holyWater && this.targets.absorbHolyWater) {
+      this.targets.absorbHolyWater(holyWater);
+      return;
+    }
+    this.targets.enterPortal();
+  }
   private handleBinding(binding: KeyBinding, event: KeyboardEvent) {
     if (!binding) return;
     if (binding.type === 'skill') {
@@ -397,12 +421,7 @@ export class PlayerInput {
         this.pickup();
         this.pickupTimer = setInterval(this.pickup, 200);
         return;
-      case 'talk': {
-        const npc = this.targets.nearestNpc();
-        if (npc) this.targets.talkTo(npc);
-        else this.targets.enterPortal();
-        return;
-      }
+      case 'talk': this.interactUp(); return;
       case 'skills': this.targets.toggleSkills?.(); return;
       case 'quests': this.targets.toggleQuestLog(); return;
       case 'left':

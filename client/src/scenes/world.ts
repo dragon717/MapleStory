@@ -15,6 +15,7 @@ import { DropView, MonsterView, type DropSnapshot, type MonsterSnapshot } from '
 import { NpcView, type NpcSnapshot } from '../features/npc/view';
 import { PortalView } from '../features/world/portal-view';
 import { ReactorView, reactorStateAsset } from '../features/world/reactor-view';
+import { HolyWaterView } from '../features/world/holy-water-view';
 import { WaterView } from '../features/world/water';
 import { TombstoneWorldView } from '../features/notice/tombstone';
 import { composeAppearance } from '../features/entry/appearance';
@@ -26,6 +27,7 @@ type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
 type TombstoneSnapshot = NonNullable<Snapshot['tombstones']>[number];
+type HolyWaterSnapshot = NonNullable<Snapshot['holyWaters']>[number];
 type MapLayerView = { layer: MapLayer; frames: AssetFrame[]; images: Phaser.GameObjects.Image[]; elapsed: number; frameIndex: number };
 type BackgroundView = MapLayerView & { motionX: number; motionY: number };
 export interface PortalRequest {
@@ -51,6 +53,9 @@ export class World extends Phaser.Scene {
   private pendingSkillCasts = new Map<string, SkillCastEvent>();
   private waters: WaterView[] = [];
   private reactors = new Map<string, ReactorView>();
+  /** 神聖之水 `2321015` 摆在地上的圣杯。生命周期与反应器同构——快照在即渲染、
+   *  快照撤走即销毁，本视图从不自行决定一只杯子在不在。 */
+  private holyWaters = new Map<string, HolyWaterView>();
   /** 原创扩展「死亡世界」：本图的墓碑视图。生命周期与反应器同构——快照在
    *  即渲染，快照撤走即销毁，本视图从不自行决定一座碑的存在与否。 */
   private tombstones = new Map<string, TombstoneWorldView>();
@@ -88,6 +93,7 @@ export class World extends Phaser.Scene {
     private onQuestInteract?: (questId: string) => void,
     private onReactorHit?: (reactorId: string) => void,
     private onTombstoneMourn?: (tombstoneId: string) => void,
+    private onHolyWaterAbsorb?: (holyWaterId: string) => void,
   ) { super('world'); }
   init(data?: { snapshot?: Snapshot }) {
     this.pendingSnapshot = data?.snapshot;
@@ -844,6 +850,58 @@ export class World extends Phaser.Scene {
   }
 
   /**
+   * 同步神聖之水 `2321015` 摆在地上的圣杯。
+   *
+   * 与 `updateReactors` / `updateTombstones` 同一条口径：**存在与否只由权威快照
+   * 决定**（快照里没有就销毁），本地从不推算到期。
+   *
+   * 圣杯的三层（`tile/0` / `tile/1` / `tile/2`）由服务端已经装配好的
+   * `manifest.skillEffects['2321015']` 提供，本视图把三层叠在同一个锚点上，不解释
+   * 哪层是什么——源没写。
+   */
+  private updateHolyWaters(snapshot: GameplaySnapshot, actorDepth: number, delta: number) {
+    const waters = (snapshot as { holyWaters?: HolyWaterSnapshot[] }).holyWaters ?? [];
+    const ids = new Set(waters.map(water => water.id));
+    for (const [id, view] of this.holyWaters) {
+      if (!ids.has(id)) { view.destroy(); this.holyWaters.delete(id); }
+    }
+    const effects = this.manifest.skillEffects?.['2321015'];
+    if (!waters.length || !effects) return;
+    const groups = [effects.tile0, effects.tile1, effects.tile2];
+    // 技能特效整本按需装载（占首屏字节的 90%），圣杯这三层也一样：贴图没就绪就
+    // 下一帧再画，否则会画出 Phaser 的缺失占位绿框。
+    if (!ensureTextures(this, groups.flatMap(group => (group ?? []).map(frame => frame.url)))) return;
+    for (const water of waters) {
+      let view = this.holyWaters.get(water.id);
+      if (!view) {
+        view = new HolyWaterView(this, groups, water.x, water.y, actorDepth + 1);
+        this.holyWaters.set(water.id, view);
+      }
+      view.update(delta);
+    }
+  }
+
+  /** The nearest 聖杯 the local player could absorb (hint only; the server
+   *  re-checks distance **and** ownership authoritatively). */
+  nearestHolyWater(): HolyWaterSnapshot | null {
+    const snapshot = this.snapshot as (GameplaySnapshot & { holyWaters?: HolyWaterSnapshot[] }) | undefined;
+    if (!snapshot) return null;
+    const player = snapshot.players.find(candidate => candidate.id === snapshot.selfId);
+    if (!player) return null;
+    const candidates = (snapshot.holyWaters ?? [])
+      .map(water => ({ water, dx: water.x - player.x, dy: water.y - player.y }))
+      .filter(({ dx, dy }) => Math.abs(dx) <= World.HOLY_WATER_RANGE_X && Math.abs(dy) <= World.HOLY_WATER_RANGE_Y)
+      .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy));
+    return candidates[0]?.water ?? null;
+  }
+
+  /** 与服务端 `world.rs::HOLY_WATER_ABSORB_REACH` 对齐的上键提示半径；
+   *  ⚠️ 这两个数与 `portals.rs` 判「够近」的口径刻意同值（门禁断言两处相等），
+   *  免得出现「传送门够得着、圣杯够不着」这种玩家看不出理由的差别。 */
+  private static readonly HOLY_WATER_RANGE_X = 48;
+  private static readonly HOLY_WATER_RANGE_Y = 64;
+
+  /**
    * Sync the death-world tombstones with the authoritative snapshot.
    *
    * 快照里有就出现、快照撤走就销毁：一座碑是否存在永远是服务端的裁决。
@@ -1024,6 +1082,7 @@ export class World extends Phaser.Scene {
     }
     this.updateTombstones(snapshot, actorDepth, delta);
     this.updateReactors(snapshot, actorDepth, delta);
+    this.updateHolyWaters(snapshot, actorDepth, delta);
 
     const npcs = snapshot.npcs ?? [];
     const npcIds = new Set(npcs.map(npc => npc.id));

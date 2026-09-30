@@ -127,6 +127,15 @@ pub struct MageLevel {
     pub int_x: Option<i64>,
     pub indie_mad: Option<i64>,
     pub sub_time: Option<i64>,
+    /// 神聖之水 `2321015` 的**持续时间智力分档**（源 `s2`）：每累积这么多智力，
+    /// 圣杯的持续时间增加 `q2` 秒。源里 `s2`/`v2` 早就写在 `shared/mage-skills.json`
+    /// 的等级行里，是 `MageLevel` 缺字段把它们**静默丢掉**（serde 忽略未知键），
+    /// 所以 2026-09-24 接执行链时把两条补进来。
+    pub s2: Option<i64>,
+    /// 神聖之水 `2321015` 的**非到期清除补偿**（源 `v2`，%）：圣杯在仍有剩余时长时
+    /// 被清除，每个按最大 HP 的这个百分比结算给施法者。源文案的宾语缺失，
+    /// 逐字与裁决都写在 `holy_water.rs` 的模块头。
+    pub v2: Option<i64>,
     #[allow(dead_code)] // Parsed source field; movement semantics remain a P adapter.
     pub s: Option<i64>,
     pub pdd_x: Option<i64>,

@@ -322,78 +322,26 @@ const assertExcused = field => {
 };
 
 /**
- * 法师 `212`／`232` 两条四转分支书里**仍未开放施放**的那几条 —— 理由以**权威源文案**为准。
+ * 法师 `212`／`232` 两条四转分支书里**还有没有**未开放施放的可施放技能。
  *
- * 为什么要有这张表：这些条目原先只在散文里被描述（`world.rs` 的一段注释、`PLAN.md` 与台账），
- * 而散文里的理由**已经漂过一次**——那段注释把 `2321054 復仇天使` 与 `2121054 火靈結界`
- * 并成「開關技能那批」，可源文案里写「**開關技能**」的只有 `2121054`；`2321054` 的文案是
- * 「**慈愛**技能轉變成**復仇**技能」＋`#c[被動效果]#`，是**技能轉換**，不是開關。
- * 散文漂了没人发现，判据不会。
+ * 这条判据从 2026-09-24 起**不再是一张登记表，而是一条空集断言**：那两条书里
+ * 「带 `mpCon`（＝可施放）、非 `hidden`、`world.rs` 里没有常量」的技能**必须为空**。
  *
- * ⚠️ **2026-09-24 又漂过一次，这次是 `2121054` 自己**：它原先登记的理由是「本包**没有**
- * 『再次使用即关闭』的持久开关位」。取证发现那条理由**不成立**——開關态在本包早已存在，
- * 而且最贴切的先例就是**同一格**的冰雷 `2221054 冰雪結界`（源里同为 `info.type=15`、
- * 同为「再次使用時移除效果」）。真实缺口只是「那套机制当时按 `SKILL_HYPER_VORTEX`
- * 一个 id 写死」。收口成 `world.rs::TOGGLE_FIELD_SKILLS` 后这本就接上了，于是从本表移出；
- * 新接纳表由下面 §3h **从源独立重算**并双向钉住（两路取值：火毒／主教的 `infoType === 15`、
- * 冰雷的 `classification.role === 'hyper-toggle-field'`）。
- *
- * 三条一起才成立：
- *   ① **集合从源独立重算**：`212`／`232` 书里「带 `mpCon`（＝可施放）、非 `hidden`、
- *      `world.rs` 里没有常量」的技能**恰好等于**这张表的键集 —— 少一条（有人接了执行链
- *      却忘了删登记）或多一条（冒出一条新的未接线可施放技能）都当场红。
- *   ② **理由钉在源文案上**：每条理由登记 `keywords`，这些词必须**真的出现在**那份权威
- *      源文件的 `description`／`perLevelDescription` 里。改理由≠改文案，漂了就红。
- *   ③ `world.rs` **不许**给它们起常量（起了＝接了路径 ⇒ 逼着同时补机制、删登记）。
- *
- * ⚠️ **2026-09-24 第三次变动：走掉的是 `2321054`**。它原先登记的理由（「缺的是**技能轉換**」）
- * 本身没错，变的是「本包没有」这件事——技能轉換已接（施放＝把四本復仇技能按慈愛对应等级
- * 授予进技能存档；转换态**从技能表派生**、零新状态位、随 `skills_json` 持久），于是
- * `world.rs` 给它起了常量 ⇒ 本条按 ③ 移出。被转换的四本復仇副本里只有 `2301010 天使之觸`
- * 本来就在 `BRANCH_AREA_ATTACKS`（缺的只是准入，现由转换态解开 `hidden` 闸），另三本
- * `2311015 勝利之羽`／`2311014 天使之泉`／`2321016 神聖之血` **缺机制**，本轮显式拒绝并
- * 登记在下面 §3i 的名单里 —— 注意那三本分属书 `231`／`232`，**不在**本表 `212`／`232`
- * 的 `mpCon` 判据范围内，所以本表不会因为它们而变。
- *
- * ⚠️ **2026-09-24 第四次变动：走掉的是 `2321006 復甦之光`**。它原先的理由（「缺的是
- * 『复活范围内的队友』这条路径」）也已不成立——復甦之光已接执行链（施放＝把**同图死亡
- * 队员**逐个走既有的**唯一**复活写路径 `revive.rs::complete_revive`，再给施法者自己叠源
- * `time` 秒無敵；范围判据是源 `lt`／`rb` 都是**空对象** ⇒ 不替源编一个框），于是
- * `world.rs` 给它起了常量 ⇒ 同样按 ③ 移出。它的 `subTime` 那半**刻意不消费**（前提
- * 「**在有死亡倒數的地圖中**」在本包不存在），理由带源文案锚点登记在下面 §3j。
- * 于是本表**只剩 `2321015 神聖之水`**一条。
+ * 为什么把表删掉：登记表这种形式的价值全在「它迟早会空」，而前面每一条都确实带着
+ * 「缺什么、为什么」的理由被逐条接掉了 —— `2121054 火靈結界`（開關位当时按单个 id
+ * 写死）、`2321054 復仇天使`（缺技能轉換）、`2321006 復甦之光`（缺「复活范围内死亡
+ * 队员」这条路径；当时把参考文件里 `lt`/`rb` 的 `{}` 当成了「源没给框」——**那是假结论**，
+ * 真源里是一对 `vector`，范围＝同图 ∩ 源矩形，见 §3j ⓪）、`2321015 神聖之水`（缺计数器 +
+ * 可交互实体 + 上键拾取三件，本轮接完，数值由 §3k 独立钉住）。
+ * 留着空表只会让**下一条**技能默认落进登记表（写一段散文就能让门禁变绿）；空集断言
+ * 逼着下一条也必须先接执行链，再由 §3k 那样的段落把数值从源重算一遍。
+ * ⚠️ 判据本身（从源重算 + 反向查 `world.rs` 常量）**没有削弱**，只是把「预期值」
+ * 从一张会漂的表换成了 `[]`。
  *
  * ⚠️ 不带 `mpCon` 的那一批（20 本 Hyper 强化被动 + `神秘狙擊`／`元素強化`／`祝福旋律`）
  * **不在这里**：它们不是「可施放但没有分支」，而是被动/强化，由 `NOT_CONSUMED.damR` 与
  * `attribute.rs` 的被动槽位各自记账 —— 用 `mpCon` 做判据正是为了把这两类分开。
  */
-const MAGE_BRANCH_PENDING = {
-  '2321015': {
-    why: '神聖之水＝**可累积的场景实体 + 方向键交互**：源 `description` 写「使用技能時，將在'
-      + '周圍召喚盛滿聖水的聖杯。隊員對聖杯按下「上」方向鍵時，可吸收聖水並恢復HP」；'
-      + '`perLevel` 的 `[被動效果]` 是「天使之箭命中 #u 次時可獲得 1 瓶聖水，聖水最多可'
-      + '累積 #w 瓶」的**计数器**，`[主動效果]` 消耗全部累积并形成圣水（持续 `q` 秒）。'
-      + '缺的是计数器 + 可交互实体 + 上键拾取三件。',
-    keywords: ['聖杯', '方向鍵'],
-  },
-};
-/** 这两条分支各自的权威 `perLevel` 文案所在处（`id → 文案` 从它现读，不落第二份表）。 */
-const MAGE_BRANCH_SOURCE_FILES = [
-  'references/tms273-data/fire-fourth-job-source.json',
-  'references/tms273-data/holy-fourth-job-source.json',
-];
-const mageBranchSourceText = {};
-for (const relative of MAGE_BRANCH_SOURCE_FILES) {
-  const absolute = path.join(ROOT, relative);
-  assert.ok(fs.existsSync(absolute), `缺权威源文案：${relative}`);
-  const parsed = JSON.parse(fs.readFileSync(absolute, 'utf8'));
-  for (const [id, skill] of Object.entries(parsed.skills ?? {})) {
-    mageBranchSourceText[id] =
-      `${skill.description ?? ''}\n${skill.perLevelDescription ?? ''}`;
-  }
-}
-
-/** ① 集合从源独立重算：`world.rs` 常量表 + `shared/mage-skills.json`，都不拿本表当输入。 */
 const mageBranchBookOf = id => Math.floor(Number(id) / 10000);
 const mageBranchIn212Or232 = ([id]) => [212, 232].includes(mageBranchBookOf(id));
 const mageBranchCastable = ([, skill]) =>
@@ -406,41 +354,17 @@ const mageBranchCastableUnwired = Object.entries(mageSkills.skills)
   .sort();
 assert.deepEqual(
   mageBranchCastableUnwired,
-  Object.keys(MAGE_BRANCH_PENDING).sort(),
-  '212／232 里「带 mpCon、非 hidden、world.rs 没有常量」的技能集合变了：'
-    + '少一条＝有人把某条接了执行链却忘了删登记（或给它起了无关常量），'
-    + '多一条＝冒出一条新的未接线可施放技能 —— 两种都必须先在这张表里逐条写清理由',
+  [],
+  '212／232 里还有「带 mpCon、非 hidden、world.rs 没有常量」的技能：'
+    + `${mageBranchCastableUnwired.join('/')} —— 按本仓口径「没有常量＝没接执行链」，`
+    + '所以这要么是有人接了路径却漏起常量，要么是冒出一条新的未接线可施放技能；'
+    + '两种都必须先接执行链（并像 §3k 那样把数值独立钉住），**不许**把登记表加回来当出口',
 );
-
-/** ② 理由必须钉在**权威源文案**上（改理由≠改文案，理由漂了就红）。 */
-for (const [id, entry] of Object.entries(MAGE_BRANCH_PENDING)) {
-  const text = mageBranchSourceText[id];
-  assert.ok(text, `${id} 在 ${MAGE_BRANCH_SOURCE_FILES.join(' / ')} 里都查不到权威源文案`);
-  assert.ok(entry.why, `${id} 登记为「尚未开放施放」却没写理由`);
-  assert.ok(
-    Array.isArray(entry.keywords) && entry.keywords.length > 0,
-    `${id} 的理由没有登记 keywords —— 没有锚点的理由迟早会漂成与源不符`,
-  );
-  for (const keyword of entry.keywords) {
-    assert.ok(
-      text.includes(keyword),
-      `${id} 的理由引用了权威源文案里不存在的词 \`${keyword}\` —— 理由与源文案分叉了`,
-    );
-  }
-}
-
-/** ③ 登记表里的每条都必须**真的**没有施法分支（与 `assertExcused` 同一条判据）。 */
-for (const id of Object.keys(MAGE_BRANCH_PENDING)) {
-  assert.equal(
-    constFor(Number(id)), null,
-    `${id} 登记为「尚未开放施放」，但 world.rs 已经给它起了常量 ${constFor(Number(id))}`
-      + '——接了路径就必须同时把机制补上、把这条登记删掉',
-  );
-}
 
 // 附带把「带 `mpCon` 且 `hidden`」的那一条钉住：`2321016 神聖之血` 是 `2321054 復仇天使`
 // 那次「慈愛→復仇」轉換的产物（源 perLevel：`神聖之水`→`神聖之血`），由职业规则自动启用、
-// 玩家点不到，所以不在上表里。哪天它不再 `hidden`，说明**技能轉換**被接进来了。
+// 玩家点不到，所以不在上面的空集判据里（那个集合排除了 hidden）。
+// 哪天它不再 `hidden`，说明**技能轉換**的形态变了。
 const mageBranchHiddenCastable = Object.entries(mageSkills.skills)
   .filter(mageBranchIn212Or232)
   .filter(mageBranchCastable)
@@ -448,7 +372,8 @@ const mageBranchHiddenCastable = Object.entries(mageSkills.skills)
   .map(([id]) => id)
   .sort();
 assert.deepEqual(
-  mageBranchHiddenCastable, ['2321016'],
+  mageBranchHiddenCastable,
+  ['2321016'],
   '212／232 里「带 mpCon 且 hidden」的技能变了：它应当恰好是復仇天使轉換出来的 `2321016 神聖之血`',
 );
 
@@ -1646,17 +1571,22 @@ assert.deepEqual(
 );
 
 // ⑥ 转换表里**尚未接执行链**的那几本：由 `TRANSFORM_PAIRS` 的成员减去「已有常量」的得出，
-//    必须逐条等于下面这张登记表。规则与 `MAGE_BRANCH_PENDING` 同源 ——
+//    必须逐条等于下面这张登记表。规则与 §3k 的「空集断言」同源 ——
 //    `world.rs` 里出现 `const SKILL_X: u32 = <id>;` ＝「这条技能已接执行链」，
 //    所以「有常量」与「登记为未接」互斥：接了却忘删登记、或凭空多一本未接技能，都会红。
+//    ⚠️ 2026-09-24：`2321015 神聖之水`（慈愛侧）本轮接上执行链（§3k）⇒ 从「未接」移到
+//    「已接」。**注意它走的是自己的 `HOLY_WATER_SKILLS`，不是这里的转换表** ——
+//    技能轉換只把復仇那四本写进技能存档，不改写慈愛那四本自己的行，所以两条判据互不干涉。
+//    它的可交互实体（聖杯）+ 上键吸收 + 计数器，正是 `2311011 神聖之泉` 缺的同一套东西。
 const TRANSFORM_MEMBER_IDS = [...new Set(transformPairsWired.flat())].sort();
 const TRANSFORM_WIRED_DERIVED = TRANSFORM_MEMBER_IDS.filter(id => constFor(Number(id)) !== null);
 const TRANSFORM_UNWIRED_DERIVED = TRANSFORM_MEMBER_IDS.filter(id => constFor(Number(id)) === null);
 assert.deepEqual(
-  TRANSFORM_WIRED_DERIVED, ['2301010'],
+  TRANSFORM_WIRED_DERIVED, ['2301010', '2321015'],
   `转换表的八本里有常量（＝已接执行链）的是 ${TRANSFORM_WIRED_DERIVED.join('/')}，`
-    + '应当恰好只有 `2301010 天使之觸`（它早已在 `BRANCH_AREA_ATTACKS` 里）——'
-    + '多一本说明有人没接就起了常量，少一本说明有人把 `BRANCH_AREA_ATTACKS` 里的那条删了。'
+    + '应当是 `2301010 天使之觸`（它早已在 `BRANCH_AREA_ATTACKS` 里）与'
+    + ' `2321015 神聖之水`（2026-09-24 §3k 接的场景实体）——'
+    + '多一本说明有人没接就起了常量，少一本说明有人把已接的那条常量删了。'
     + '（施放者 `2321054` 自己的常量由上面的 `TRANSFORM_SKILLS` 段单独钉住，它不是配对成员。）',
 );
 const TRANSFORM_UNWIRED = {
@@ -1671,13 +1601,10 @@ const TRANSFORM_UNWIRED = {
   },
   2311011: {
     why: '神聖之泉（慈愛侧）：**可交互的回复实体** —— 源 `description` 要求「走到噴泉旁並'
-      + '點擊上方向鍵」，缺的是可交互实体 + 上键拾取，本包没有这条交互面。',
+      + '點擊上方向鍵」。⚠️ 同族的 `2321015 神聖之水` 已于 2026-09-24 用同一套'
+      + '（可交互实体 + 上键吸收）接上（§3k），所以本条的缺口不再是「本包没有这条交互面」，'
+      + '而是「神聖之泉自己的回复量/次数表没有从源核定」（源 `common` 另有 `hp`／`x`／`y`）。',
     keywords: ['噴泉', '上方向鍵'],
-  },
-  2321015: {
-    why: '神聖之水（慈愛侧）：同上，是可累积的场景实体（「聖杯」）+ 方向键拾取；'
-      + '另有 `[主動效果]` 的计数器与 `[被動效果]`（天使之箭命中 #u 次得 1 瓶，上限 #w 瓶）。',
-    keywords: ['聖杯'],
   },
   2311015: {
     why: '勝利之羽（復仇侧）：缺**自增益窗**（源 `time`）＋「命中时自动生成翼羽」的触发环'
@@ -2074,6 +2001,422 @@ for (const anchor of [
   );
 }
 
+/**
+ * 3k. **神聖之水**（`2321015`，2026-09-24 接执行链）：计数器 ＋ 可交互实体 ＋ 上键吸收。
+ *
+ * 源 `perLevel`：「`#c被動效果#`：天使之箭命中`#u`次時可獲得1瓶聖水，聖水最多可累積
+ * `#w`瓶 / `#c主動效果#`：消耗MP`#mpCon`，消耗所有累積的聖水(聖水最少需有1瓶)並在周圍
+ * 形成聖水。若空間不足則僅形成部分聖水 / 聖水持續時間:`#q`秒，智力每累積`#s2`個，聖水
+ * 持續時間增加`#q2`秒 / 隊員在聖水按[上]方向鍵時，可恢復最大HP的`#u2`%，每`#dot`個
+ * 智力，恢復量增加`#w2`%。恢復量可疊加 / 有剩餘持續時間但是聖水消滅時，獲得相當於消失
+ * 的聖水個數的`#v2`% / 冷卻時間：`#cooltime`秒」。
+ *
+ * 四段正判据，**每一段都从源重算，都不拿 `world.rs::HOLY_WATER_SKILLS` 当输入**：
+ *   ① **数值链**：源 `u/w/q/s2/q2/u2/dot/w2/v2` 逐级**恒定**（不是逐级递进的公式），
+ *      所以本包把它们读成常量；断言 `holy_water.rs::from_level` **逐字段各读一次**，
+ *      且两处换算在文本上可见（`%`→千分比、秒→毫秒）。
+ *   ② **单测夹具 == 源数值 → 本包单位**。夹具与源脱钩是这类数值模块最常见的漂法：
+ *      源改了值、派生函数跟着变、夹具还是老数 ⇒ 单测替一个错的公式背书，而门禁全绿。
+ *   ③ **生成位置的框只认导出树的 `rawWz`**（`references/tms273-data/*-source.json` 把 WZ 的
+ *      `vector` 整类丢成 `{}` —— 与 §3j 记录的是同一个事实，这里对 `2321015` 再钉一次），
+ *      且断言「空間不足」的判据落在 `spawn_holy_waters` 里、用的是**框自己的顶与底**，
+ *      不是写死的容差；候选点由框派生（`candidate_offsets`）。
+ *   ④ **`v2` 的触发点是两条，且自然到期不在其中**：源那句的前提是「**有剩餘持續時間**
+ *      但是聖水消滅時」⇒ `step_holy_waters` 必须**先**判剩余时间、**再**判施法者还在不在
+ *      这张图，补偿只在后一条分支里发。判据是**文本先后**（`indexOf` 比大小），
+ *      「两件事都做了」不够 —— 顺序反了就是「到点送血」。
+ *
+ * 五条反向判据（少一条都可能「配置看起来自洽、其实什么也没接」）：
+ *   ⑤ 接纳表恰好 `[2321015]`；模型里 `hidden === false`；**不是 Hyper**
+ *      （源 `hyper === 0` ＆ `maxLevel === 10`，拿真 Hyper `2321054` 做反向对照）；
+ *      四处消费（准入 / 运行期前置条件 / 动作时长 / 施法臂）**逐处**读同一张表。
+ *   ⑥ **攒瓶的判据只有一处**：`HOLY_WATER_CHARGE_SKILLS === [2321007]`，两条 settle 路径
+ *      （魔法 / 物理）各挂一个钩子，且**逐处**断言钩子落在 `resolution.damage > 0` 的块内
+ *      ——「串出现过」不算，要看它落在哪个块里。
+ *   ⑦ **「至少 1 瓶」是运行期前置条件**，不是准入：断言它在 `handle_cast_skill` 里**先于**
+ *      MP 扣除（`store.cast_skill` 那个调用点之前），否则会先扣蓝再拒绝。
+ *   ⑧ **吸收的距离判据与 `portals.rs` 同值**（两处字面量必须相等——也是「这不是源字段」
+ *      这件事唯一的落点）；归属判据读 `party_members_on_map(施法者)`（含施法者自己）。
+ *   ⑨ **两个计数落库 + 客户端镜像齐**：`player_stats` 两列 ＋ 迁移 ＋ 读写函数；
+ *      `ACTIVE_SKILLS` 有它、`holyWaterAbsorb` 意图两侧都在、快照键两端都在。
+ */
+const HOLY_WATER_ID = '2321015';
+const holyWaterModel = mageSkills.skills[HOLY_WATER_ID];
+assert.ok(holyWaterModel, `shared/mage-skills.json 里读不到 ${HOLY_WATER_ID}`);
+const holyWaterExport = skillExportCatalog[HOLY_WATER_ID];
+assert.ok(holyWaterExport, `导出树里读不到 ${HOLY_WATER_ID} —— 技能被改名或删掉了？`);
+
+// ① 数值链：十一个字段逐级恒定，值从源现读。
+const HOLY_WATER_SOURCE_VALUES = {
+  u: 7,
+  w: 5,
+  q: 5,
+  s2: 2500,
+  q2: 5,
+  u2: 5,
+  dot: 2500,
+  w2: 5,
+  v2: 50,
+  mpCon: 100,
+  cooltime: 10,
+};
+for (const [field, value] of Object.entries(HOLY_WATER_SOURCE_VALUES)) {
+  assert.deepEqual(
+    [...new Set(holyWaterModel.levels.map(level => level[field] ?? null))].sort((a, b) => a - b),
+    [value],
+    `源 ${HOLY_WATER_ID} 的 ${field} 不再是逐级恒定的 ${value} —— 本包把它读成常量`
+      + '（`holy_water.rs::HolyWaterRules::from_level`），一旦逐级变化，那里必须改成按级取值',
+  );
+}
+
+const holyWaterSrc = read('holy_water.rs');
+const holyWaterCode = codeOnly(holyWaterSrc);
+const holyWaterFnHead = /pub\(super\) fn from_level\([^)]*\)[^{]*\{/.exec(holyWaterCode);
+assert.ok(
+  holyWaterFnHead,
+  'holy_water.rs 里读不到 from_level —— 数值派生点被改写或删掉了',
+);
+const holyWaterDerive = braceBody(
+  holyWaterCode,
+  holyWaterFnHead.index + holyWaterFnHead[0].length - 1,
+);
+assert.ok(holyWaterDerive, 'from_level 的花括号不配对 —— 读不出派生体');
+for (const field of ['u', 'w', 'q', 'q2', 's2', 'u2', 'dot', 'w2', 'v2']) {
+  assert.equal(
+    (holyWaterDerive.match(new RegExp(`level\\.${field}\\b`, 'g')) ?? []).length,
+    1,
+    `from_level 没有恰好读一次 \`level.${field}\` —— 源字段 ${field} 的消费点丢了或读重了`,
+  );
+}
+assert.equal(
+  (holyWaterDerive.match(/saturating_mul\(10\)/g) ?? []).length,
+  3,
+  'from_level 的「百分比 → 千分比」换算不再是 3 处（u2 / w2 / v2）—— 单位口径被改动了',
+);
+assert.equal(
+  (holyWaterDerive.match(/saturating_mul\(1_000\)/g) ?? []).length,
+  2,
+  'from_level 的「秒 → 毫秒」换算不再是 2 处（q / q2）—— 单位口径被改动了',
+);
+
+// ② 单测夹具必须等于「源值 → 本包单位」的换算结果（夹具脱钩＝单测替错的公式背书）。
+const holyWaterFixtureHead =
+  /fn rules\(\) -> HolyWaterRules \{/.exec(holyWaterCode);
+assert.ok(holyWaterFixtureHead, 'holy_water.rs 里读不到单测夹具 `fn rules()`');
+const holyWaterFixture = braceBody(
+  holyWaterCode,
+  holyWaterFixtureHead.index + holyWaterFixtureHead[0].length - 1,
+);
+assert.ok(holyWaterFixture, '单测夹具的花括号不配对');
+const expectedFixture = {
+  hits_per_bottle: HOLY_WATER_SOURCE_VALUES.u,
+  charges_cap: HOLY_WATER_SOURCE_VALUES.w,
+  base_lifetime_ms: HOLY_WATER_SOURCE_VALUES.q * 1000,
+  intelligence_per_lifetime_step: HOLY_WATER_SOURCE_VALUES.s2,
+  lifetime_step_ms: HOLY_WATER_SOURCE_VALUES.q2 * 1000,
+  base_heal_permille: HOLY_WATER_SOURCE_VALUES.u2 * 10,
+  intelligence_per_heal_step: HOLY_WATER_SOURCE_VALUES.dot,
+  heal_step_permille: HOLY_WATER_SOURCE_VALUES.w2 * 10,
+  burst_permille: HOLY_WATER_SOURCE_VALUES.v2 * 10,
+};
+for (const [field, value] of Object.entries(expectedFixture)) {
+  const found = new RegExp(`${field}:\\s*([0-9_]+)`).exec(holyWaterFixture);
+  assert.ok(found, `单测夹具里没有 ${field} —— 夹具被改写或删掉了`);
+  assert.equal(
+    Number(found[1].replaceAll('_', '')),
+    value,
+    `单测夹具的 ${field} = ${found[1]}，与「源值 → 本包单位」算出来的 ${value} 不符`
+      + ' —— 夹具与源脱钩之后，单测会替一个错的公式背书',
+  );
+}
+
+// ③ 生成位置的框：只认导出树的 rawWz（与 §3j 同一个事实，对 `2321015` 再钉一次）。
+const holyWaterRawCommon = holyWaterExport.rawWz?.skill?.common ?? {};
+const holyWaterRawScalar = node =>
+  node && typeof node === 'object' && '_value' in node ? node._value : node;
+const holyWaterRawVector = (corner, common) => {
+  const node = common[corner];
+  assert.ok(
+    node && node._dirType === 'vector',
+    `导出树 rawWz 里 ${HOLY_WATER_ID} 的 ${corner} 不是 vector（读到 ${JSON.stringify(node)}）`
+      + ' —— 「在周圍形成聖水」的位置判据失去唯一可信输入',
+  );
+  return { x: Number(node._x), y: Number(node._y) };
+};
+const HOLY_WATER_BOX = {
+  lt: holyWaterRawVector('lt', holyWaterRawCommon),
+  rb: holyWaterRawVector('rb', holyWaterRawCommon),
+};
+assert.deepEqual(
+  HOLY_WATER_BOX,
+  { lt: { x: -40, y: -100 }, rb: { x: 40, y: 20 } },
+  `源 ${HOLY_WATER_ID} 的框变了 —— 生成位置的判据必须跟着源重算，而不是写死数值`,
+);
+{
+  const reference = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'references/tms273-data/holy-fourth-job-source.json'), 'utf8'),
+  ).skills[HOLY_WATER_ID];
+  assert.ok(reference, `参考文件里读不到 ${HOLY_WATER_ID}`);
+  for (const corner of ['lt', 'rb']) {
+    assert.deepEqual(
+      Object.keys(reference.commonFormulas?.[corner] ?? {}),
+      [],
+      `参考文件的 commonFormulas.${corner} 不再是空对象 —— 它向来把 WZ 的 vector 丢成 {}；`
+        + '哪天它开始保留向量，这条「两份输入不一致」的记录就要更新（判据仍以导出树为准）',
+    );
+  }
+}
+
+const holyWorldCode = codeOnly(worldSrc);
+const spawnHead = /pub\(super\) fn spawn_holy_waters\([^)]*\)[^{]*\{/.exec(holyWorldCode);
+assert.ok(spawnHead, 'world.rs 里读不到 spawn_holy_waters —— 圣杯的生成点丢了');
+const spawnBody = braceBody(holyWorldCode, spawnHead.index + spawnHead[0].length - 1);
+assert.ok(spawnBody, 'spawn_holy_waters 的花括号不配对');
+assert.match(
+  spawnBody,
+  /holy_water::HolyWaterRules::placement_box\(level\)/,
+  'spawn_holy_waters 没有读源框 —— 生成位置不是从源派生的',
+);
+assert.match(
+  spawnBody,
+  /holy_water::candidate_offsets\(/,
+  'spawn_holy_waters 的候选点不是从源框派生的（`candidate_offsets` 没了）',
+);
+assert.match(
+  spawnBody,
+  /search_from = y \+ lo\.1/,
+  '「空间不足」的搜索起点不是**框顶** —— 从框底往下找会把平台下方几百像素的地面当成落点，'
+    + '杯子会摆到玩家看不见的地方，「空間不足」这条就永远触发不了',
+);
+assert.match(
+  spawnBody,
+  /box_floor = y \+ hi\.1/,
+  '「空间不足」的接受条件不是**框底** —— 判据必须从框派生，不许写死容差',
+);
+assert.match(
+  spawnBody,
+  /ground_below\(/,
+  'spawn_holy_waters 没有做地面查询 —— 「只形成部分聖水」的判据没有落点',
+);
+assert.ok(
+  !/\b(?:40|100|20|200|2500)\b/.test(spawnBody),
+  'spawn_holy_waters 里出现了源框/半径的数值 —— 框必须来自源，不许写死'
+    + `（读到的是 ${spawnBody.match(/\b(?:40|100|20|200|2500)\b/g)?.join('/')}）`,
+);
+
+// ④ 两条清除点、且顺序是「先判剩余时间、再判施法者还在不在图」。
+const stepHead = /fn step_holy_waters\(&mut self\)[^{]*\{/.exec(holyWorldCode);
+assert.ok(stepHead, 'world.rs 里读不到 step_holy_waters —— 圣杯的两条清除点丢了');
+const stepBody = braceBody(holyWorldCode, stepHead.index + stepHead[0].length - 1);
+assert.ok(stepBody, 'step_holy_waters 的花括号不配对');
+const remainingAt = stepBody.indexOf('has_remaining_time(tick)');
+const ownerAt = stepBody.indexOf('owner_on_map');
+assert.ok(remainingAt >= 0, 'step_holy_waters 不判剩余持续时间 —— `v2` 的前提没了');
+assert.ok(ownerAt >= 0, 'step_holy_waters 不判施法者还在不在图 —— 第二条清除点没了');
+assert.ok(
+  remainingAt < ownerAt,
+  'step_holy_waters 把「施法者在不在图」判在「还有没有剩余时间」之前 —— 顺序反了就是'
+    + '「到点送血」：源那句 `v2` 的前提是「**有剩餘持續時間**但是聖水消滅時」',
+);
+assert.match(
+  stepBody,
+  /burst_permille/,
+  'step_holy_waters 的补偿没有读源 `v2` 的派生值 —— 数值来源不明',
+);
+assert.match(
+  stepBody,
+  /emit_recovery_event\(/,
+  'step_holy_waters 的补偿没有跳字 —— 玩家看不到这次「提前消失」的补偿',
+);
+
+// ⑤ 接纳表 + 模型可见性 + 不是 Hyper + 四处消费读同一张表。
+assert.deepEqual(
+  idsForArray('HOLY_WATER_SKILLS'),
+  [HOLY_WATER_ID],
+  `world.rs::HOLY_WATER_SKILLS =${idsForArray('HOLY_WATER_SKILLS').join('/')}，`
+    + `应当恰好是 ${HOLY_WATER_ID} —— 多一本意味着有别的技能被当成了场景实体技能`,
+);
+assert.equal(
+  constFor(Number(HOLY_WATER_ID)),
+  'SKILL_HOLY_WATER',
+  `world.rs 没有给 ${HOLY_WATER_ID} 起常量 —— 按本仓口径「没有常量＝没接执行链」`,
+);
+assert.equal(holyWaterModel.hidden, false, `${HOLY_WATER_ID} 在模型里是 hidden —— 玩家点不到`);
+assert.equal(holyWaterModel.hyper, 0, `${HOLY_WATER_ID} 的 hyper 不再是 0`);
+assert.equal(holyWaterModel.maxLevel, 10, `${HOLY_WATER_ID} 的 maxLevel 不再是 10`);
+{
+  const trueHyper = mageSkills.skills['2321054'];
+  assert.ok(trueHyper, '对照点漂了：读不到 2321054（§3i 技能轉換的那一条）');
+  assert.equal(
+    trueHyper.hyper,
+    2,
+    '对照点漂了：2321054 不再是 hyper=2 的真 Hyper ——「hyper 0 就不是 Hyper」失去反例',
+  );
+  assert.equal(trueHyper.maxLevel, 1, '对照点漂了：2321054 的 maxLevel 不再是 1');
+}
+for (const [label, pattern] of [
+  ['准入白名单', /\|\| HOLY_WATER_SKILLS\.contains\(&skill_id\);/],
+  [
+    '运行期前置条件（≥1 瓶）',
+    /HOLY_WATER_SKILLS\.contains\(&skill_id\) && player\.holy_water_charges == 0/,
+  ],
+  ['动作时长', /\} else if HOLY_WATER_SKILLS\.contains\(&skill_id\) \{/],
+  ['施法臂', /holy_water if HOLY_WATER_SKILLS\.contains\(&holy_water\) => \{/],
+]) {
+  assert.match(
+    codeOnly(skillsSrc),
+    pattern,
+    `skills.rs 的「${label}」不再读 HOLY_WATER_SKILLS —— 收口被拆开了（多一处手写就多一处漏）`,
+  );
+}
+
+// ⑥ 攒瓶的表只有一处 + 两个钩子都落在 `resolution.damage > 0` 的块里。
+assert.deepEqual(
+  idsForArray('HOLY_WATER_CHARGE_SKILLS'),
+  ['2321007'],
+  `world.rs::HOLY_WATER_CHARGE_SKILLS =${idsForArray('HOLY_WATER_CHARGE_SKILLS').join('/')}，`
+    + '应当恰好是 天使之箭 `2321007`（源：「天使之箭命中`#u`次時可獲得1瓶聖水」）',
+);
+{
+  const settleCode = codeOnly(skillsSrc);
+  const damageBlocks = [];
+  for (const match of settleCode.matchAll(/if resolution\.damage > 0 \{/g)) {
+    const body = braceBody(settleCode, match.index + match[0].length - 1);
+    assert.ok(body, 'skills.rs 里 `if resolution.damage > 0 {` 的花括号不配对');
+    damageBlocks.push([match.index, match.index + match[0].length + body.length]);
+  }
+  assert.ok(damageBlocks.length >= 2, 'skills.rs 里 `resolution.damage > 0` 的块少到只剩一个');
+  const hooks = [...settleCode.matchAll(/self\.advance_holy_water_charge\(id\);/g)];
+  assert.equal(
+    hooks.length,
+    2,
+    `攒瓶钩子的调用点是 ${hooks.length} 处，应当是 2 处（魔法线 / 物理线各一，`
+      + '与 `advance_mystic_strike` 在两条 settle 路径上各有一处同形）',
+  );
+  for (const hook of hooks) {
+    assert.ok(
+      damageBlocks.some(([from, to]) => hook.index > from && hook.index < to),
+      '攒瓶钩子不在任何 `resolution.damage > 0` 的块里 —— 它会为「没打出伤害的命中」攒瓶',
+    );
+    assert.match(
+      settleCode.slice(Math.max(0, hook.index - 120), hook.index),
+      /if HOLY_WATER_CHARGE_SKILLS\.contains\(&skill_id\) \{/,
+      '攒瓶钩子没有被 HOLY_WATER_CHARGE_SKILLS 门住 —— 全目录的技能都会开始攒瓶',
+    );
+  }
+}
+
+// ⑦ 「至少 1 瓶」必须在扣 MP 之前。
+{
+  const castCode = codeOnly(skillsSrc);
+  const gateAt = castCode.indexOf('player.holy_water_charges == 0');
+  const mpAt = castCode.indexOf('store.cast_skill(');
+  assert.ok(gateAt >= 0, 'skills.rs 里读不到「至少 1 瓶」的闸门 —— 源「聖水最少需有1瓶」没人消费');
+  assert.ok(mpAt > gateAt, '「至少 1 瓶」的闸门落在扣 MP 之后 —— 源那半句是消耗的前提，先扣蓝再拒绝等于白扣一次蓝');
+}
+
+// ⑧ 吸收的 reach 与 `portals.rs` 同值；归属判据读「施法者的队员」（含自己）。
+assert.match(
+  holyWorldCode,
+  /const HOLY_WATER_ABSORB_REACH: \(f64, f64\) = \(48\.0, 64\.0\);/,
+  'world.rs 的 HOLY_WATER_ABSORB_REACH 变了 —— 它与 portals.rs 的 reach 刻意同值（下方断言两处相等）',
+);
+{
+  const portalReach =
+    /\(source_x - portal\.x\)\.abs\(\) > (\d+\.\d+)[\s\S]{0,80}?\.abs\(\) > (\d+\.\d+)/.exec(
+      codeOnly(read('portals.rs')),
+    );
+  assert.ok(portalReach, 'portals.rs 里读不到「够近」的判据 —— 两处 reach 的对照点丢了');
+  const holyWaterReach = /HOLY_WATER_ABSORB_REACH: \(f64, f64\) = \((\d+\.\d+), (\d+\.\d+)\);/.exec(
+    holyWorldCode,
+  );
+  assert.ok(holyWaterReach, 'world.rs 里读不到 HOLY_WATER_ABSORB_REACH 的两个数');
+  assert.deepEqual(
+    [holyWaterReach[1], holyWaterReach[2]],
+    [portalReach[1], portalReach[2]],
+    '圣杯的吸收 reach 与 portals.rs 的「够近」判据不再同值 —— 两者都是「按一个键跟一个场景点'
+      + '交互」，不同值会造出「传送门够得着、圣杯够不着」这种玩家看不出理由的差别',
+  );
+}
+{
+  const absorbHead = /fn handle_holy_water_absorb\([^)]*\)[^{]*\{/.exec(holyWorldCode);
+  assert.ok(absorbHead, 'world.rs 里读不到 handle_holy_water_absorb —— 上键吸收没有落点');
+  const absorbBody = braceBody(holyWorldCode, absorbHead.index + absorbHead[0].length - 1);
+  assert.ok(absorbBody, 'handle_holy_water_absorb 的花括号不配对');
+  assert.match(
+    absorbBody,
+    /self\.party_members_on_map\(&owner_id\)\.contains\(&id\)/,
+    'handle_holy_water_absorb 的归属判据不是「施放者的队员」—— 源写的是「隊員」，'
+      + '而 `party_members_on_map` 含施放者自己（2026-09-24 用户裁决：同队含自己）',
+  );
+  assert.match(
+    absorbBody,
+    /emit_recovery_event\(/,
+    'handle_holy_water_absorb 没有跳字 —— 恢复量是私事，必须只发给当事人',
+  );
+  assert.ok(
+    !/expires_at\s*=/.test(absorbBody),
+    'handle_holy_water_absorb 改了圣杯的到期拍 —— 吸收是「用掉」，不该延长存活时间',
+  );
+}
+
+// ⑨ 两个计数落库 + 客户端镜像。
+{
+  const schemaSrc = read('auth/schema.rs');
+  assert.match(
+    schemaSrc,
+    /holy_water_charges INTEGER NOT NULL DEFAULT 0/,
+    'player_stats 没有 holy_water_charges 列 —— 累积瓶数没落库（重登即可再放一次同一批）',
+  );
+  assert.match(
+    schemaSrc,
+    /holy_water_hits INTEGER NOT NULL DEFAULT 0/,
+    'player_stats 没有 holy_water_hits 列 —— 命中余数没落库',
+  );
+  const authSrc = read('auth.rs');
+  assert.match(authSrc, /pub fn holy_water_state\(/, 'auth.rs 没有 holy_water_state —— 登录时读不回瓶数');
+  assert.match(
+    authSrc,
+    /pub fn commit_holy_water_state\(/,
+    'auth.rs 没有 commit_holy_water_state —— 瓶数没有写路径',
+  );
+  const worldSnapshotKey = /"holyWaters":self\.holy_waters\.values\(\)/.test(worldSrc);
+  assert.ok(
+    worldSnapshotKey,
+    'world.rs 的快照里没有 holyWaters —— 客户端拿不到地上的杯子，也就没有「上键」提示',
+  );
+  for (const [name, pattern] of [
+    ['client/src/features/skills/view.ts', /'2321015'/],
+    ['client/src/scenes/world.ts', /nearestHolyWater\(\)/],
+    ['client/src/features/player/input.ts', /absorbHolyWater/],
+    ['client/src/assets/manifest.ts', /tile1\?: AssetFrame\[\]/],
+  ]) {
+    assert.match(
+      fs.readFileSync(path.join(ROOT, name), 'utf8'),
+      pattern,
+      `${name} 里读不到神聖之水的客户端落点 —— 服务端接了、客户端看不见/按不了`,
+    );
+  }
+  assert.match(worldSrc, /"holyWaters":/, 'world.rs 快照缺 holyWaters');
+  assert.match(protocolSrc, /HolyWaterAbsorb \{/, 'protocol.rs 没有 HolyWaterAbsorb 意图');
+  assert.match(
+    sharedProtocol,
+    /type: 'holyWaterAbsorb'/,
+    'shared/protocol.ts 没有 holyWaterAbsorb 意图 —— 两端的协议对不上',
+  );
+  assert.match(sharedProtocol, /holyWaters\?: HolyWaterState\[\]/, 'shared/protocol.ts 快照缺 holyWaters');
+  assert.match(
+    codeOnly(read('commands.rs')),
+    /ClientMessage::HolyWaterAbsorb \{/,
+    'commands.rs 没有分发 HolyWaterAbsorb —— 意图会静默落进兜底分支',
+  );
+  assert.match(
+    codeOnly(protocolSrc),
+    /Self::HolyWaterAbsorb \{[\s\S]{0,120}?valid_id\(holy_water_id\)/,
+    'protocol.rs 的 `valid()` 没有校验 holy_water_id —— 未校验的 id 会直达世界层',
+  );
+}
+
 const protocolVersion = /pub const PROTOCOL_VERSION: u32 = (\d+);/.exec(protocolSrc);
 const sharedVersion = /PROTOCOL_VERSION\s*=\s*(\d+)/.exec(sharedProtocol);
 assert.ok(protocolVersion && sharedVersion, '读不到协议版本常量——两处硬编码的规则被改写了');
@@ -2113,9 +2456,17 @@ console.log(
   + ` ＝ 合计 ${physicalUnwiredMechanism.length + physicalUnwiredHidden.length} 条`,
 );
 console.log(
-  `  法师 212／232 未接执行链（带 mpCon、非 hidden，理由钉在源文案上）=`
-  + `${mageBranchCastableUnwired.join('/')}；其 hidden 可施放副本 =${mageBranchHiddenCastable.join('/')}`
+  `  法师 212／232 未接执行链（带 mpCon、非 hidden，空集断言）=${mageBranchCastableUnwired.join('/') || '— 已清空'}；`
+  + `其 hidden 可施放副本 =${mageBranchHiddenCastable.join('/')}`
   + `（＝復仇天使那次「慈愛→復仇」轉換的产物）`,
+);
+console.log(
+  `  神聖之水 ${HOLY_WATER_ID}：接纳表 =${idsForArray('HOLY_WATER_SKILLS').join('/')}；`
+  + `攒瓶表 =${idsForArray('HOLY_WATER_CHARGE_SKILLS').join('/')}（源 u=${HOLY_WATER_SOURCE_VALUES.u} 次 1 瓶、`
+  + `上限 w=${HOLY_WATER_SOURCE_VALUES.w}；q=${HOLY_WATER_SOURCE_VALUES.q}s ＋ 每 s2=${HOLY_WATER_SOURCE_VALUES.s2} 智力 `
+  + `+q2=${HOLY_WATER_SOURCE_VALUES.q2}s；u2=${HOLY_WATER_SOURCE_VALUES.u2}% ＋ 每 dot=${HOLY_WATER_SOURCE_VALUES.dot} 智力 `
+  + `+w2=${HOLY_WATER_SOURCE_VALUES.w2}%；v2=${HOLY_WATER_SOURCE_VALUES.v2}%）；`
+  + `生成框 lt=${JSON.stringify(HOLY_WATER_BOX.lt)}/rb=${JSON.stringify(HOLY_WATER_BOX.rb)}（只认导出树 rawWz）`,
 );
 console.log(
   `  開關技能接纳表：world.rs::TOGGLE_FIELD_SKILLS =${toggleFieldWired.join('/')}；`
@@ -2127,7 +2478,7 @@ console.log(
   + `源侧按描述形态标记独立重算 ${transformPairsFromSource.map(pair => pair.join('→')).join('、')}`
   + `（每侧恰好 ${transformLoveFromSource.length} 条、并反向钉住復仇侧 hidden）；`
   + `已接执行链 ${TRANSFORM_WIRED_DERIVED.join('/')}、`
-  + `本轮显式登记未接 ${TRANSFORM_UNWIRED_DERIVED.join('/')}`,
+  + `登记表里仍未接（＝宣布「未接」而不是「不存在」）${TRANSFORM_UNWIRED_DERIVED.join('/')}`,
 );
 console.log(
   `  召唤存活时长：1 个派生点（mechanics.rs::summon_lifetime_ms，分界 ${LIFETIME_THRESHOLD}）+ `
