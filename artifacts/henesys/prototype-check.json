@@ -1,0 +1,36 @@
+{
+  "geometry": {
+    "players": 12,
+    "npcs": 7,
+    "zones": 5,
+    "bridges": 5,
+    "error": 2.3437142008433856e-13
+  },
+  "dragged": {
+    "x": -300.0000552642692,
+    "z": 170.00013566970347
+  },
+  "density": [
+    12,
+    32,
+    64
+  ],
+  "views": 3,
+  "export": "PNG",
+  "sizes": [
+    {
+      "width": 1024,
+      "scroll": 1024,
+      "canvas": 738,
+      "exportVisible": true
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "canvas": 390,
+      "exportVisible": true
+    }
+  ],
+  "errors": [],
+  "network": []
+}

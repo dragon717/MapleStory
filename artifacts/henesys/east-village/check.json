@@ -1,0 +1,33 @@
+{
+  "geometry": {
+    "players": 32,
+    "npcs": 7,
+    "routes": 10,
+    "loops": 3,
+    "nodes": 54,
+    "roundTrip": 2.2020077939303312e-13,
+    "pathError": 2.2020077939303312e-13,
+    "minGap": 37.38287625667918,
+    "maxFootError": 5.945606859120758
+  },
+  "mobile": {
+    "width": 390,
+    "scroll": 390,
+    "buttonsFit": true,
+    "statsClear": true,
+    "collapsed": true
+  },
+  "checks": [
+    "graph connectivity and walkable legs",
+    "mouse walking and road-snapped drag",
+    "player/NPC placement and dialogue",
+    "density 12/32/64",
+    "roaming pause",
+    "three views and landmark camera",
+    "zoom/pan/minimap",
+    "PNG export",
+    "fresh mobile layout"
+  ],
+  "errors": [],
+  "network": []
+}

@@ -1,5 +1,7 @@
 # MapleStory 工作入口
 
+- 模型指派（2026-09-30）：今后本项目原由 `gpt-5.6-luna` 承担的任务统一改用 `gpt-6-luna`，`reasoning_effort` 保持 `max`；核心与辅助职责边界遵循长期规范。若工具未提供该模型，先明确说明限制，不静默回退旧模型。历史交付记录保留当时实际模型，不作为后续指派依据。
+
 - 开始工作先读 `docs/technical/BUSINESS_DEVELOPMENT.md`（长期规范）和 `docs/plan/PLAN.md`（当前目标）；仅相关追溯时读 `docs/plan/INDEX.md`，不复制第四份台账。
 - 文档别名「3d建模」（大小写不敏感）指向 `docs/technical/3D场景开发通用指南.md`；用户提到该别名时先读取并应用，技术索引为 `docs/technical/INDEX.md`。通用方法与本项目特例分开采用。
 - 当前复刻版本、模型分工与验收政策以这两份文件的最新条目及当前用户指令为准；README和旧架构文档中的83记录是历史，不是273迁移完成证据。

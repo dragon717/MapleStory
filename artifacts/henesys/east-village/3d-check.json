@@ -1,0 +1,103 @@
+{
+  "geometry": {
+    "webgl2": true,
+    "perspective": true,
+    "sourceObjects": 421,
+    "layers": {
+      "buildings": 11,
+      "roads": 10,
+      "terrain": 30,
+      "props": 51,
+      "vegetation": 318,
+      "water": 1
+    },
+    "nodes": 213,
+    "routes": 16,
+    "players": 32,
+    "npcs": 7,
+    "footError": 0.007999420166012072,
+    "legError": 2.220446049250313e-16
+  },
+  "fixedView": {
+    "fov": 38,
+    "mainRise": 6.199999999999999,
+    "riverDrop": 6.2,
+    "guildRise": 16,
+    "totalRise": 25.2,
+    "flowerEntry": {
+      "source": "central",
+      "target": "gardenW",
+      "hiddenByTerrain": false,
+      "pitch": 0.23999999999999985,
+      "screen": {
+        "x": 979.6816551219,
+        "y": 371.4540403300742,
+        "z": 0.9936844134218878
+      }
+    },
+    "flowerHidden": {
+      "source": "central",
+      "target": "gardenN",
+      "hiddenByTerrain": true,
+      "firstBlocker": "CE_RollingVillageGround003",
+      "pitch": 0.23999999999999985,
+      "screen": {
+        "x": 1507.5382949871423,
+        "y": 300.3112280131425,
+        "z": 0.9956350305146884
+      }
+    },
+    "rootEntry": {
+      "source": "groveMid",
+      "target": "rootHollow",
+      "hiddenByTerrain": false,
+      "pitch": 0.23999999999999985,
+      "screen": {
+        "x": 763.2256561476617,
+        "y": 478.9056767820649,
+        "z": 0.992178485533041
+      }
+    },
+    "rootHidden": {
+      "source": "groveCross",
+      "target": "rootHollow",
+      "hiddenByTerrain": true,
+      "firstBlocker": "CE_RollingVillageGround003",
+      "pitch": 0.23999999999999985,
+      "screen": {
+        "x": 239.24970079118125,
+        "y": 534.084012855673,
+        "z": 0.9940335205616463
+      }
+    }
+  },
+  "mobile": {
+    "width": 390,
+    "scroll": 390,
+    "buttonsFit": true,
+    "statsClear": true
+  },
+  "checks": [
+    "graded roads and low fixed camera",
+    "visible branch entries, terrain-hidden lanes, revealed on approach",
+    "solid walkable curves and connected 3D navigation",
+    "real perspective rotation and zoom",
+    "depth-tested 2D sprite placement/drag/walk",
+    "NPC dialogue",
+    "explode and exact restore",
+    "12/32/64 players and pause",
+    "landmarks and stroll",
+    "PNG export and mobile",
+    "zero external assets"
+  ],
+  "errors": [],
+  "network": [],
+  "renderer": "isolated Chromium SwiftShader; no native GPU performance claim",
+  "cameraRefinement": {
+    "focusZoomRange": true,
+    "fixedZoomAngle": true,
+    "zoomedHiddenLaneFootVisible": true,
+    "mobileGameView": true,
+    "errors": []
+  }
+}

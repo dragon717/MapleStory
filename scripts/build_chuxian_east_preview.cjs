@@ -1,0 +1,25 @@
+// Rebuild the one-file 3D preview from Blender's embedded GLB and existing local Three.js.
+const fs=require('node:fs'),path=require('node:path'),esbuild=require('../client/node_modules/esbuild');
+const source=fs.readFileSync('docs/design/prototypes/chuxian-east-image-study.html','utf8');
+const art=source.split('const ART=',2)[1].split(';\nconst PHOTO=',1)[0];
+let html=source.split('<script>',1)[0];
+html=html.replace('· 可交互原型','· 3D可交互原型').replace('空间原型 / 02','真实3D / 03');
+html=html.replace('<button data-view="east" aria-pressed="true">', '<button data-view="game" aria-pressed="true">游戏视角</button><button data-view="east" aria-pressed="false">');
+html=html.replace('道路点击行走 · 人物拖放 · 空白拖动镜头 · 滚轮缩放','游戏视角锁定角度 · 点击道路行走 · 切换全景可自由观察');
+html=html.replace('看清道路与岔路','路网检查（含隐藏路）');
+html=html.replace('<button id="reset-layout">' ,'<button id="explode" aria-pressed="false">拆分查看</button><button id="reset-layout">');
+html=html.replace('沿大道入村，循石阶上山，再到溪边歇脚。','沿坡行走，在转弯后发现村落。');
+html=html.replace('东村场景：点击道路行走，拖动人物布置，空白处拖动镜头，滚轮缩放','真实3D东村：游戏视角固定角度，点击道路行走，拖放人物；全景视角可旋转');
+html=html.replace('山坡上的日常','走进东边村落').replace('弓手大厅 · 花坡街坊 · 东溪渡口','独立3D对象 · 可旋转镜头 · 2D人物的真实遮挡');
+html=html.replace('等你走进村落','2米人物 · 真实纵深').replace('</span> 位 NPC<i class="dot"></i>','</span> 位 NPC<i class="dot"></i><span id="object-count">…</span> 个立体对象<i class="dot"></i>');
+html=html.replace('<div class="zoomrow">','<label class="check"><input type="checkbox" id="rays" checked>清晨丁达尔光束</label><div class="row"><label for="sunlight">暖阳强度</label><input id="sunlight" type="range" min="1" max="5" step=".1" value="3.0" aria-label="暖阳强度" style="width:115px;accent-color:#829b68"></div><div class="zoomrow">');
+html=html.replace('点击道路行走；拖动人物调整落脚点。','点击道路行走；拖动人物调整落脚点。');
+html=html.replace('道路点击行走 · 人物拖放 · 空白拖动镜头 · 滚轮缩放','拖动旋转 · 右键平移 · 滚轮拉近 · 道路点击行走');
+html=html.replace('独立设计原型 · 场景依据全景概念图，角色与行走为模拟','独立3D预览 · Blender模型与道路分层 · 正式地图实装前的空间稿');
+html=html.replace('平移镜头</span>','平移镜头</span>').replace('</main>','<div id="loading" class="loading" role="status">正在打开立体东村…</div></main>');
+html=html.replace('</style>',`.person-name{position:absolute;transform:translateX(-50%);font-size:10px;line-height:18px;padding:0 7px;background:#3d6248e8;color:#fff5d9;border-radius:3px;pointer-events:none}.person-name[hidden]{display:none}.loading{position:absolute;inset:0;display:grid;place-items:center;background:#e2e9de;color:#6a7d60;letter-spacing:2px}.stats{font-size:9px}.header-actions{gap:6px}@media(max-width:650px){.brand small,.seal{display:none}h1{font-size:15px;letter-spacing:0}.brand{gap:0}.header-actions{gap:4px}.header-actions button{font-size:9px;padding:5px}.title h2{font-size:21px}.stats{font-size:8px;max-width:365px}.stats .dot{margin:0 4px 2px 5px}.panel{max-height:calc(100% - 190px);overflow:auto}}`+'</style>');
+const result=esbuild.buildSync({entryPoints:['scripts/creative/chuxian_east_preview.ts'],bundle:true,write:false,minify:true,format:'iife',platform:'browser',target:'es2022',nodePaths:[path.resolve('client/node_modules')]});
+const model=fs.readFileSync('resources/scenes/chuxian-east-v1/models/chuxian-east.glb').toString('base64');
+html+='<script>const ART='+art+';const MODEL='+JSON.stringify(model)+';'+result.outputFiles[0].text.replace(/<\/script/gi,'<\\/script')+'</script></body></html>';
+fs.writeFileSync('docs/design/prototypes/chuxian-east-village.html',html,'utf8');
+console.log('Built offline 3D HTML:',Buffer.byteLength(html),'bytes');
