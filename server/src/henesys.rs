@@ -1,86 +1,256 @@
-//! Authored solid ledges on the curved rail. x remains arc distance, y height.
-//! The same source footholds and thickness are used by the Blender exporter.
+//! 初弦地 uses isolated 2D arc-distance rails so existing gameplay range checks
+//! stay authoritative. Junctions join only spatially identical Blender nodes.
 use super::*;
 use std::sync::OnceLock;
-
-fn thickness(map: &Map, id: u64) -> Option<f64> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Deck { id: u64 }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Rail { map_id: String, platform_thickness: f64, deck_thickness: f64, decks: Vec<Deck> }
-    static RAIL: OnceLock<Rail> = OnceLock::new();
-    let rail = RAIL.get_or_init(|| {
-        let rail: Rail = serde_json::from_str(include_str!("../../shared/henesys-rail.json")).expect("rail config");
-        assert!(rail.platform_thickness.is_finite() && rail.platform_thickness > 0.0);
-        assert!(rail.deck_thickness.is_finite() && rail.deck_thickness > 0.0);
-        rail
-    });
-    (map.id == rail.map_id).then_some(if rail.decks.iter().any(|d| d.id == id) { rail.deck_thickness } else { rail.platform_thickness })
+#[derive(Deserialize)]
+struct Node {
+    x: f64,
+    y: f64,
+    position: [f64; 3],
 }
-
-pub(super) fn solid(map: &Map) -> bool { thickness(map, 0).is_some() }
-
-/// Sweep side faces at the actual crossing height; no tick-end tunnelling.
-pub(super) fn side(map: &Map, x: f64, y: f64, next_x: f64, next_y: f64) -> f64 {
-    if !solid(map) { return next_x; }
-    if x == next_x { return next_x; }
-    let mut result = next_x;
-    for f in map.footholds.iter().filter(|f| f.x2 > f.x1) {
-        let depth = thickness(map, f.id).unwrap();
-        let wall = if next_x > x { f.x1 } else { f.x2 };
-        let t = (wall - x) / (next_x - x);
-        if !(0.0..=1.0).contains(&t) { continue; }
-        let top = if next_x > x { f.y1 } else { f.y2 };
-        let foot = y + (next_y - y) * t;
-        if foot > top + 0.001 && foot - BODY_HEIGHT_PX < top + depth - 0.001 {
-            result = if next_x > x { result.min(wall) } else { result.max(wall) };
+#[derive(Deserialize)]
+struct Route {
+    start: f64,
+    end: f64,
+    #[serde(rename = "loop")]
+    closed: bool,
+    nodes: Vec<Node>,
+}
+#[derive(Deserialize)]
+struct Entry {
+    route: usize,
+    x: f64,
+    y: f64,
+}
+#[derive(Deserialize)]
+struct Junction {
+    entries: Vec<Entry>,
+}
+#[derive(Deserialize)]
+struct Layout {
+    routes: Vec<Route>,
+    junctions: Vec<Junction>,
+}
+fn layout() -> &'static Layout {
+    static DATA: OnceLock<Layout> = OnceLock::new();
+    DATA.get_or_init(|| {
+        serde_json::from_str(include_str!("../../shared/chuxian-east.json"))
+            .expect("east village authority")
+    })
+}
+pub(super) fn active(map: &Map) -> bool {
+    map.id == "100000000" && map.footholds.iter().any(|f| f.id == 920001)
+}
+fn route_at(x: f64) -> Option<usize> {
+    layout()
+        .routes
+        .iter()
+        .position(|r| x >= r.start && x <= r.end)
+}
+fn segment(r: &Route, x: f64) -> (&Node, &Node) {
+    let i = r
+        .nodes
+        .iter()
+        .skip(1)
+        .position(|n| x <= n.x)
+        .unwrap_or(r.nodes.len() - 2);
+    (&r.nodes[i], &r.nodes[i + 1])
+}
+fn ground(r: &Route, x: f64) -> f64 {
+    let (a, b) = segment(r, x);
+    a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
+}
+fn tangent(a: &Node, b: &Node) -> [f64; 2] {
+    let dx = b.position[0] - a.position[0];
+    let dz = b.position[2] - a.position[2];
+    let len = dx.hypot(dz);
+    [dx / len, dz / len]
+}
+/// Only server input chooses a branch; no target, coordinates or route id arrive from the client.
+fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<(usize, f64, f64)> {
+    let mut best = None;
+    let mut score = 0.25;
+    for j in &layout().junctions {
+        if !j
+            .entries
+            .iter()
+            .any(|e| e.route == route && (e.x - x).abs() <= 55.0)
+        {
+            continue;
+        }
+        for e in &j.entries {
+            let r = &layout().routes[e.route];
+            for (i, n) in r
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| (n.x - e.x).abs() < 0.01)
+            {
+                for side in [-1.0, 1.0] {
+                    let neighbor = if side < 0.0 {
+                        i.checked_sub(1).map(|k| &r.nodes[k])
+                    } else {
+                        r.nodes.get(i + 1)
+                    };
+                    let Some(other) = neighbor else { continue };
+                    let t = tangent(n, other);
+                    let s = t[0] * input[0] + t[1] * input[1];
+                    if s > score + 0.001 {
+                        score = s;
+                        best = Some((e.route, e.x + side * 0.1, e.y));
+                    }
+                }
+            }
         }
     }
-    result
+    best.filter(|(next, _, _)| *next != route)
 }
-
-/// Rising head versus sloped underside. Returns contact foot height.
-pub(super) fn ceiling(map: &Map, x: f64, y: f64, next_x: f64, next_y: f64) -> Option<f64> {
-    thickness(map, 0)?;
-    let mut hit: Option<(f64, f64)> = None;
-    for f in map.footholds.iter().filter(|f| f.x2 > f.x1) {
-        let depth = thickness(map, f.id).unwrap();
-        let slope = (f.y2 - f.y1) / (f.x2 - f.x1);
-        let bottom = |px: f64| f.y1 + (px - f.x1) * slope + depth + BODY_HEIGHT_PX;
-        let before = y - bottom(x);
-        let after = next_y - bottom(next_x);
-        if before < -0.001 || after >= 0.0 || before <= after { continue; }
-        let t = before / (before - after);
-        let px = x + (next_x - x) * t;
-        if px >= f.x1 && px <= f.x2 && hit.is_none_or(|(old, _)| t < old) {
-            // Stay below the underside at the final horizontal position too.
-            hit = Some((t, bottom(px).max(bottom(next_x))));
+pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
+    if !active(map) {
+        return (x, y);
+    }
+    if let Some(i) = route_at(x) {
+        (x, ground(&layout().routes[i], x))
+    } else {
+        (map.spawn.x, map.spawn.y)
+    }
+}
+pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
+    let data = layout();
+    let mut ri = route_at(player.state.x).unwrap_or(0);
+    if route_at(player.state.x).is_none() {
+        player.state.x = map.spawn.x;
+        player.state.y = map.spawn.y;
+        player.state.grounded = true;
+    }
+    let input = [player.direction as f64, player.vertical as f64];
+    if player.state.grounded
+        && player.chair.is_none()
+        && tick >= player.east_turn_until
+        && tick >= player.knockback_until
+    {
+        if let Some((next, x, y)) = turn(ri, player.state.x, input) {
+            ri = next;
+            player.state.x = x;
+            player.state.y = y;
+            player.east_turn_until = tick + 6;
         }
     }
-    hit.map(|(_, y)| y)
+    let r = &data.routes[ri];
+    let old_ground = ground(r, player.state.x);
+    let (a, b) = segment(r, player.state.x);
+    let t = tangent(a, b);
+    let alignment = t[0] * input[0] + t[1] * input[1];
+    let sign = if alignment.abs() > 0.18 {
+        alignment.signum()
+    } else {
+        0.0
+    };
+    let slow = if player.status.slows_walk() { 0.5 } else { 1.0 };
+    player.state.vx = if tick < player.knockback_until {
+        player.knockback_vx
+    } else if player.chair.is_some() {
+        0.0
+    } else {
+        sign * mounts::walk_speed(player, player.move_speed) * slow
+    };
+    if player.state.vx != 0.0 {
+        player.state.facing = if t[0] * player.state.vx < 0.0 { -1 } else { 1 };
+    }
+    if player.jump && player.state.grounded && player.chair.is_none() {
+        player.state.vy = -mounts::jump_speed(player, JUMP_SPEED);
+        player.state.grounded = false;
+        player.drop_fh = 0;
+    }
+    player.jump = false;
+    let intended = player.state.x + player.state.vx * TICK_MS as f64 / 1000.0;
+    player.state.x = if r.closed {
+        r.start + (intended - r.start).rem_euclid(r.end - r.start)
+    } else {
+        intended.clamp(r.start, r.end)
+    };
+    let new_ground = ground(r, player.state.x);
+    // A hop retains its height above this road; parallel roads cannot catch it through their depth.
+    if player.state.grounded {
+        player.state.y = new_ground;
+        player.state.vy = 0.0;
+    } else {
+        let cap = if tick < player.slow_fall_until {
+            MAGIC_WAVE_SLOW_FALL_SPEED
+        } else {
+            FALL_SPEED
+        };
+        player.state.vy = (player.state.vy + GRAVITY * TICK_MS as f64 / 1000.0).min(cap);
+        player.state.y += new_ground - old_ground + player.state.vy * TICK_MS as f64 / 1000.0;
+        if player.state.vy >= 0.0 && player.state.y >= new_ground {
+            player.state.y = new_ground;
+            player.state.vy = 0.0;
+            player.state.grounded = true;
+        }
+    }
+    let fh = map
+        .footholds
+        .iter()
+        .find(|f| player.state.x >= f.x1 && player.state.x <= f.x2)
+        .expect("east route foothold");
+    player.foothold_id = if player.state.grounded { fh.id } else { 0 };
+    player.last_foothold_id = fh.id;
+    player.state.climbing = false;
+    player.state.ladder_id = None;
+    player.swimming = false;
+    player.fall_boundary_hold = false;
+    if tick >= player.attack_until {
+        player.state.action_id = None;
+        let action = if player.chair.is_some() {
+            "sit"
+        } else if !player.state.grounded {
+            "jump"
+        } else if player.state.vx != 0.0 {
+            "walk"
+        } else {
+            "stand"
+        };
+        if player.state.action != action {
+            player.state.action_started_tick = tick;
+        }
+        player.state.action = action;
+    }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn solid_ledge_blocks_sides_and_head_but_allows_jump_over_top() {
-        let map: Map = serde_json::from_value(serde_json::json!({
-            "id":"100000000", "bounds":{"xMin":-200,"xMax":300,"yMin":-200,"yMax":500},
-            "spawn":{"x":0,"y":100},
-            "footholds":[{"id":1,"x1":40,"x2":100,"y1":0,"y2":0}]
-        })).unwrap();
-        assert_eq!(side(&map, 0.0, 40.0, 160.0, 40.0), 40.0);
-        assert_eq!(side(&map, 160.0, 40.0, 0.0, 40.0), 100.0);
-        assert_eq!(side(&map, 0.0, -10.0, 80.0, -10.0), 80.0);
-        assert_eq!(side(&map, 0.0, 830.0, 80.0, 830.0), 80.0);
-        assert_eq!(ceiling(&map, 60.0, 800.0, 60.0, 730.0), Some(770.0));
-        assert_eq!(ceiling(&map, 0.0, 100.0, 0.0, -30.0), None);
-        assert!(map.landing_on_sweep(60.0, 60.0, -40.0, 20.0, 0).is_some());
-        let mut other = map.clone(); other.id = "other".into();
-        assert_eq!(side(&other, 0.0, 40.0, 160.0, 40.0), 160.0);
-        assert_eq!(ceiling(&other, 60.0, 100.0, 60.0, -30.0), None);
+    fn east_routes_and_turns_are_authoritative() {
+        let d = layout();
+        assert_eq!(d.routes.len(), 16);
+        for (i, r) in d.routes.iter().enumerate() {
+            assert_eq!(route_at((r.start + r.end) / 2.0), Some(i));
+            for n in &r.nodes {
+                assert!((ground(r, n.x) - n.y).abs() < 1e-6);
+            }
+        }
+        let mut reached = std::collections::BTreeSet::from([0]);
+        loop {
+            let before = reached.len();
+            for j in &d.junctions {
+                if j.entries.iter().any(|e| reached.contains(&e.route)) {
+                    reached.extend(j.entries.iter().map(|e| e.route));
+                }
+            }
+            if before == reached.len() {
+                break;
+            }
+        }
+        assert_eq!(reached.len(), 16, "all roads reachable from main street");
+        let junction = d
+            .junctions
+            .iter()
+            .find(|j| {
+                j.entries.iter().any(|e| e.route == 0) && j.entries.iter().any(|e| e.route == 1)
+            })
+            .unwrap();
+        let x = junction.entries.iter().find(|e| e.route == 0).unwrap().x;
+        assert!(turn(0, x, [0.0, -1.0]).is_some());
+        assert!(turn(0, x + 100.0, [0.0, -1.0]).is_none());
     }
 }

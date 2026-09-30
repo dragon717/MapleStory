@@ -14,14 +14,16 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-49';
-// Curved rail: source footholds plus shared/henesys-rail.json own solid collision.
-const henesysModel = path.join(root, 'resources/scenes/henesys/rail-v1/models/rail-v1.glb');
-assert(fs.existsSync(henesysModel), 'Missing Henesys rail GLB: build_henesys_rail.py must run through Blender MCP');
-fs.mkdirSync(path.join(publicRoot, 'assets/henesys'), {recursive:true});
-fs.copyFileSync(henesysModel, path.join(publicRoot, 'assets/henesys/rail-v1.glb'));
-fs.copyFileSync(path.join(root, 'resources/scenes/henesys/rail-v1/previews/overview.png'), path.join(publicRoot, 'assets/henesys/rail-overview.png'));
-for (const file of ['rail-v1.glb', 'rail-overview.png']) invalidateCompressed(path.join(publicRoot, 'assets/henesys', file));
+const version = 'tms273-50';
+// The reviewed east-village GLB and licensed dawn environment replace the old rail runtime.
+const eastRoot=path.join(root,'resources/scenes/chuxian-east-v1');
+fs.mkdirSync(path.join(publicRoot,'assets/henesys'),{recursive:true});
+for(const [source,target] of [['models/chuxian-east.glb','chuxian-east.glb'],['vendor/lighting/qwantani_dawn_puresky_1k.exr','dawn.exr'],['vendor/lighting/source.json','lighting-source.json']]){
+  const file=path.join(publicRoot,'assets/henesys',target);fs.copyFileSync(path.join(eastRoot,source),file);invalidateCompressed(file);
+}
+
+// Only retire superseded published files; editable historical source remains intact.
+for(const name of ['rail-v1.glb','rail-overview.png','rail-minimap.svg']){const file=path.join(publicRoot,'assets/henesys',name);fs.rmSync(file,{force:true});invalidateCompressed(file);}
 
 const catalog = read('maps-rendered'), effects = read('effects'), entities = read('entities');
 const avatar = read('avatar').avatar, gameplay = read('gameplay'), items = read('items');
@@ -691,17 +693,13 @@ for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'
     itemNames: cashshop.itemNames,
   });
 }
-// The authored terrain needs its own minimap; source actor markers use this transform.
+// Spatial minimap: markers use the same arc -> glTF transform as the renderer.
 {
-  const rail = require('../shared/henesys-rail.json'), b = rail.bounds;
-  const width = 364, height = 80, sx = width/(b.xMax-b.xMin), sy = height/(b.yMax-b.yMin);
-  const rects = rail.platforms.map(f => `<rect x="${(f.x1-b.xMin)*sx}" y="${(f.y1-b.yMin)*sy}" width="${(f.x2-f.x1)*sx}" height="${(b.yMax-f.y1)*sy}" fill="#69864b" stroke="#c2dc80" stroke-width="1"/>`).join('');
-  const decks = rail.decks.map(f => `<path d="M${(f.x1-b.xMin)*sx},${(f.y1-b.yMin)*sy}h${(f.x2-f.x1)*sx}" stroke="#eddfa4" stroke-width="2"/>`).join('');
-  const ladders = rail.ladders.map(l => `<path d="M${(l.x-b.xMin)*sx},${(l.y1-b.yMin)*sy}v${(l.y2-l.y1)*sy}" stroke="#b58543" stroke-width="1"/>`).join('');
-  const url = '/assets/henesys/rail-minimap.svg';
-  fs.writeFileSync(path.join(publicRoot,url.slice(1)), `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${rects}${decks}${ladders}</svg>`, 'utf8');
-  manifest.miniMap.maps[rail.mapId] = {...manifest.miniMap.maps[rail.mapId], url, width, height,
-    world:{xMin:b.xMin,yMin:b.yMin,width:b.xMax-b.xMin,height:b.yMax-b.yMin}, source:'shared/henesys-rail.json',resolvedSource:'shared/henesys-rail.json'};
+ const east=require('../shared/chuxian-east.json'),b=east.miniBounds,width=230,height=128;
+ const paths=east.routes.map(r=>`<polyline points="${r.nodes.map(n=>`${(n.position[0]-b.xMin)/b.width*width},${(n.position[2]-b.yMin)/b.height*height}`).join(' ')}"/>`).join('');
+ const url='/assets/henesys/east-minimap.svg';
+ fs.writeFileSync(path.join(publicRoot,url.slice(1)),`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#b6c99c"/><g fill="none" stroke="#eee0b6" stroke-width="3" stroke-linejoin="round">${paths}</g></svg>`,'utf8');
+ manifest.miniMap.maps[east.mapId]={...manifest.miniMap.maps[east.mapId],url,width,height,world:b,source:'shared/chuxian-east.json',resolvedSource:'shared/chuxian-east.json'};
 }
 write(path.join(publicRoot,'assets/manifest.json'),manifest);
 write(path.join(outputRoot,'shared/mage-skills.json'),mageRules(read('skills')));

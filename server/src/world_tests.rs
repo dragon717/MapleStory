@@ -5903,72 +5903,18 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
 }
 
 #[test]
-fn henesys_solid_platform_walk_jump_and_head_contact() {
-    let map: Map = serde_json::from_str(r#"{"id":"100000000","bounds":{"xMin":0,"xMax":300,"yMin":-200,"yMax":1000},"spawn":{"x":30,"y":100},"footholds":[{"id":1,"x1":0,"x2":80,"y1":100,"y2":100},{"id":2,"x1":80,"x2":180,"y1":50,"y2":50},{"id":3,"x1":80,"x2":300,"y1":850,"y2":850}]}"#).unwrap();
-    let mut world = World::new(map.clone(), 600);
-    let _rx = join_test_player(&mut world, "rail");
-    let gameplay = world.gameplay.clone();
-    let p = world.players.get_mut("rail").unwrap();
-    p.state.x = 30.0; p.state.y = 100.0; p.state.grounded = true;
-    p.foothold_id = 1; p.direction = 1; p.move_speed = 160.0;
-    for tick in 1..12 { step_player(&map, &gameplay, p, tick); }
-    assert_eq!(p.state.x, 80.0, "walking cannot climb through the side");
-    p.state.x = 30.0; p.state.y = 100.0; p.foothold_id = 1;
-    p.state.grounded = true; p.jump = true;
-    for tick in 12..22 { step_player(&map, &gameplay, p, tick); }
-    assert_eq!(p.foothold_id, 2, "jump from the side lands on the upper surface");
-    assert_eq!(p.state.y, 50.0);
-    p.direction = 0; p.vertical = 1; p.jump = true;
-    step_player(&map, &gameplay, p, 22);
-    assert!(p.state.grounded, "down-jump cannot pass through a solid slab");
-    p.state.x = 120.0; p.state.y = 850.0; p.foothold_id = 3;
-    p.vertical = 0; p.jump = true; p.state.vy = 0.0;
-    step_player(&map, &gameplay, p, 23);
-    step_player(&map, &gameplay, p, 24);
-    assert_eq!(p.state.y, 820.0, "head stops at underside");
-    assert_eq!(p.state.vy, 0.0);
-}
-
-#[test]
-fn henesys_ladders_exit_onto_thin_decks_without_blocking_street() {
-    let rail: serde_json::Value = serde_json::from_str(include_str!("../../shared/henesys-rail.json")).unwrap();
-    let mut floors = rail["platforms"].as_array().unwrap().clone();
-    floors.extend(rail["decks"].as_array().unwrap().clone());
-    let map: Map = serde_json::from_value(serde_json::json!({"id":rail["mapId"],"bounds":rail["bounds"],"spawn":rail["spawn"],"footholds":floors,"ladders":rail["ladders"]})).unwrap();
-    let mut world = World::new(map.clone(), 600);
-    let _rx = join_test_player(&mut world, "climb");
-    let mut gameplay = world.gameplay.clone();
-    gameplay.player.climb_speed = Some(125.0);
-    let p = world.players.get_mut("climb").unwrap();
-    for ladder in &map.ladders {
-        let (id, ground) = map.ladder_top_ground(ladder).expect("ladder must reach an upper deck");
-        assert_eq!(ground, ladder.top());
-        p.state.x = ladder.x; p.state.y = ladder.bottom(); p.state.grounded = true;
-        p.state.climbing = false; p.state.ladder_id = None; p.vertical = -1; p.direction = 0;
-        p.foothold_id = map.ground_near(ladder.x, ladder.bottom()).unwrap().0;
-        for tick in 0..80 { step_player(&map, &gameplay, p, tick); }
-        assert_eq!(p.foothold_id, id);
-        assert!(p.state.grounded && !p.state.climbing);
-        assert_eq!(p.state.y, ladder.top());
-        assert_eq!(henesys::side(&map, ladder.x - 35.0, ladder.bottom(), ladder.x - 25.0, ladder.bottom()), ladder.x - 25.0, "deck underside leaves the street open");
-    }
-}
-
-#[test]
-fn henesys_authored_route_is_traversable_in_both_directions() {
-    let rail: serde_json::Value = serde_json::from_str(include_str!("../../shared/henesys-rail.json")).unwrap();
-    let map: Map = serde_json::from_value(serde_json::json!({"id":rail["mapId"],"bounds":rail["bounds"],"spawn":rail["spawn"],"footholds":rail["platforms"]})).unwrap();
-    let mut world = World::new(map.clone(), 600);
-    let _rx = join_test_player(&mut world, "route");
-    let gameplay = world.gameplay.clone();
-    let p = world.players.get_mut("route").unwrap();
-    p.state.x=370.0; p.state.y=297.0; p.foothold_id=900001; p.state.grounded=true; p.move_speed=160.0;
-    for direction in [1,-1] {
-        p.direction=direction;
-        for tick in 0..1600 {
-            p.jump=p.state.grounded;
-            step_player(&map,&gameplay,p,tick);
-        }
-        assert!((p.state.x - if direction==1 {6200.0} else {370.0}).abs()<1.0,"all steps must be reachable: {}",p.state.x);
-    }
+fn henesys_east_walk_jump_branch_and_saved_position() {
+    let east: serde_json::Value = serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
+    let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
+    let mut world=World::new(map.clone(),600);let _rx=join_test_player(&mut world,"east");
+    let gameplay=world.gameplay.clone();let p=world.players.get_mut("east").unwrap();
+    p.state.x=map.spawn.x;p.state.y=map.spawn.y;p.state.grounded=true;p.foothold_id=920002;p.last_foothold_id=920002;p.direction=1;p.vertical=0;p.move_speed=160.0;
+    let start=p.state.x;step_player(&map,&gameplay,p,1);assert!(p.state.x>start);assert!(p.state.y<map.spawn.y,"ascending slope changes real foot height");
+    p.direction=0;p.jump=true;step_player(&map,&gameplay,p,2);assert!(!p.state.grounded);assert!(p.state.y<map.ground_near(p.state.x,map.spawn.y).unwrap().1);
+    for tick in 3..25{step_player(&map,&gameplay,p,tick)}assert!(p.state.grounded,"hop lands on its own road");
+    let cross=east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
+    let (_,ground)=henesys::repair_position(&map,cross,0.0);p.state.x=cross;p.state.y=ground;p.state.grounded=true;p.vertical=-1;
+    step_player(&map,&gameplay,p,30);let market_start=east["routes"][1]["start"].as_f64().unwrap();let market_end=east["routes"][1]["end"].as_f64().unwrap();assert!(p.state.x>=market_start&&p.state.x<=market_end,"north input enters the actual market branch");
+    let (x,y)=henesys::repair_position(&map,698.0,297.0);assert_eq!((x,y),(map.spawn.x,map.spawn.y),"old rail saves migrate safely");
+    let (x,y)=henesys::repair_position(&map,p.state.x,-9999.0);assert_eq!(x,p.state.x);assert!(y.is_finite()&&y<0.0,"new-road saved positions survive reconnect");
 }

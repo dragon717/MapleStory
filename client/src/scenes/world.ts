@@ -63,6 +63,8 @@ export class World extends Phaser.Scene {
   private backgrounds: BackgroundView[] = [];
   private railTerrain?: Phaser.GameObjects.Graphics;
   private snapshot?: Snapshot;
+  // Both actors and the 3D camera use this frame's display sample, never raw 20 Hz positions.
+  private renderedSelf?: PlayerState;
   private pendingSnapshot?: Snapshot;
   private receivedAt = 0;
   private loaded = false;
@@ -119,11 +121,11 @@ export class World extends Phaser.Scene {
     const generation = ++this.threeGeneration;
     this.threeLoading = true;
     const map = this.manifest.map;
-    void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => this.snapshot?.players.find(p => p.id === this.snapshot?.selfId), () => generation === this.threeGeneration)).then(view => {
+    void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => this.renderedSelf, () => generation === this.threeGeneration)).then(view => {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
-      this.status('初弦地已就绪：左右移动、跳上平台，镜头沿路线转向。');
+      this.status('初弦地东边村落已就绪：方向键沿路行走与选择岔路，跳跃；右键调整视角。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
       this.threeLoading = false;
@@ -480,6 +482,7 @@ export class World extends Phaser.Scene {
     this.windbellScene?.destroy(); this.windbellScene = undefined;
     this.bossWarning?.destroy(); this.bossWarning = undefined;
     this.snapshot = undefined;
+    this.renderedSelf = undefined;
     for (const player of this.players.values()) player.destroy();
     for (const monster of this.monsters.values()) monster.destroy();
     for (const pet of this.pets.values()) pet.destroy();
@@ -632,6 +635,7 @@ export class World extends Phaser.Scene {
     this.updateBackgrounds(delta);
     for (const water of this.waters) water.update(delta);
     const drawn = this.snapshot ? this.interpolate(this.snapshot as GameplaySnapshot, delta) : undefined;
+    this.renderedSelf = drawn?.players.find(p => p.id === drawn.selfId);
     this.combat?.syncPlayers(drawn?.players);
     this.combat?.syncSummons(this.snapshot?.summons);
     this.combat?.update();
@@ -774,8 +778,11 @@ export class World extends Phaser.Scene {
         const top = npc.y + frame.y;
         const right = left + frame.width;
         const bottom = top + frame.height;
-        const markerHit = this.npcs.get(npc.id)?.containsMarker(worldX, worldY);
-        if (!markerHit && (worldX < left - 8 || worldX > right + 8 || worldY < top - 16 || worldY > bottom + 24)) continue;
+        const markerHit = !this.henesys && this.npcs.get(npc.id)?.containsMarker(worldX, worldY);
+        if(this.henesys){
+          const corners=[[left-8,top-40],[right+8,top-40],[left-8,bottom+24],[right+8,bottom+24]].map(([x,y])=>this.henesys!.project(x,y));
+          if(corners.some(p=>p.z<0||p.z>1)||pointer.x<Math.min(...corners.map(p=>p.x))||pointer.x>Math.max(...corners.map(p=>p.x))||pointer.y<Math.min(...corners.map(p=>p.y))||pointer.y>Math.max(...corners.map(p=>p.y)))continue;
+        }else if (!markerHit && (worldX < left - 8 || worldX > right + 8 || worldY < top - 16 || worldY > bottom + 24)) continue;
         const dx = npc.x - worldX;
         const dy = npc.y - worldY;
         const dist = dx * dx + dy * dy;
@@ -789,7 +796,8 @@ export class World extends Phaser.Scene {
 
     // 2) Fallback to the nearest reactor hotspot for click-based interaction
     // (the server still validates final range/state, this only selects intent).
-    const reactor = this.nearestReactorAt(worldX, worldY);
+    const clickedReactor=this.henesys?snapshot?.reactors?.filter(r=>(r.hitType??0)===9&&!r.spent).find(r=>{const p=this.henesys!.project(r.x,r.y);return Math.abs(p.x-pointer.x)<36&&Math.abs(p.y-pointer.y)<56;}):undefined;
+    const reactor = this.henesys?clickedReactor:this.nearestReactorAt(worldX, worldY);
     if (reactor) {
       this.onReactorHit?.(reactor.id);
     }

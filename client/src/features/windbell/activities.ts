@@ -47,7 +47,7 @@ export class ActivitiesView {
     if (sceneDisplay) {
       const card = document.createElement('article'), heading = document.createElement('h3'), copy = document.createElement('p');
       heading.textContent = CHUXIAN_NAME;
-      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/rail-overview.png'); art.alt = CHUXIAN_NAME;
+      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/east-minimap.svg'); art.alt = CHUXIAN_NAME;
       copy.textContent = '蘑菇屋、市场与弓箭手大厅沿村路展开，暖阳穿过树冠，天空映亮林间阴影。沿用移动、跳跃、攻击、NPC对话与全部原版界面。右键微调视角，滚轮缩放。';
       this.sceneToggle = this.button('切换 2D 视图', () => { if (sceneDisplay.available()) { sceneDisplay.setEnabled(!sceneDisplay.enabled()); this.close(); } });
       this.sceneReset = this.button('恢复镜头', () => { sceneDisplay.resetCamera(); this.close(); });

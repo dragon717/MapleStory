@@ -2445,6 +2445,7 @@ struct Player {
     // This is server-internal state; the wire contract still exposes only
     // the authoritative PlayerState.
     last_foothold_id: u64,
+    east_turn_until: u64,
     // A lower-border recovery clamps the player back to an authored edge.
     // Hold that source boundary until a neutral input arrives so the client
     // input heartbeat cannot immediately walk the player off and repeat the

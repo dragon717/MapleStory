@@ -44,11 +44,8 @@ fn resolve_join_map_position(
     } else {
         (resolved_map.spawn.x, resolved_map.spawn.y)
     };
-    // Preserve the saved along-route position when the authored rail replaces
-    // the old village; an old roof height must not leave a body inside a ledge.
-    if resolved_map.id == DEFAULT_LOGIN_MAP_ID && resolved_map.footholds.iter().any(|f| f.id == 900001) {
-        if let Some(ground) = resolved_map.footholds.iter().filter(|f| x >= f.x1 && (x < f.x2 || x == resolved_map.bounds.x_max && x == f.x2)).find_map(|f| f.at(x)) { y = ground; }
-    }
+    let (x, repaired_y) = henesys::repair_position(&resolved_map, x, y);
+    y = repaired_y;
     (resolved_map, x, y)
 }
 
@@ -480,6 +477,7 @@ impl World {
                         windbell_arrival_origin_foothold: 0,
                         foothold_id,
                         last_foothold_id: foothold_id,
+                        east_turn_until: 0,
                         fall_boundary_hold: false,
                         drop_fh: 0,
                         last_input: Instant::now(),

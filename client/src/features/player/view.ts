@@ -254,8 +254,8 @@ export class PlayerView {
       this.headOffsetY = Math.round(Math.min(top, -1) - 2);
     }
     this.body.list.forEach((child, i) => (child as Phaser.GameObjects.Image).setAlpha((parts[i] as { opacity?: number })?.opacity ?? 1));
-    this.body.setPosition(Math.round(player.x), Math.round(player.y)).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
-    this.name.setPosition(Math.round(player.x), Math.round(player.y + 8));
+    this.body.setPosition(player.x, player.y).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
+    this.name.setPosition(player.x, player.y + 8).setData('projectionY', player.y + this.headOffsetY - 24);
     this.updateBubble(player);
     this.updateEmoticon(player);
     this.updateFlash();
