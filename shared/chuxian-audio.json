@@ -1,0 +1,130 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "sources": [
+    {
+      "author": "GboxMikeFozzy",
+      "page": "https://opengameart.org/content/footsteps-0",
+      "surface": "stone",
+      "recording": "Author recorded himself walking through a subway; individual hard-floor footfalls."
+    },
+    {
+      "author": "TinyWorlds / pdsounds.org",
+      "page": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+      "surface": "wood / grass",
+      "recording": "Uploader identifies edited recordings from pdsounds.org; grass uses recorded leaves on the forest-root path."
+    }
+  ],
+  "processing": "Original OGG bytes copied unchanged. Per-sample playback gain balances measured mono peak to 0.20; no synthesis, pitch changes or re-encoding. Landing reuses the current surface recording at a higher level.",
+  "downloads": [
+    {
+      "url": "https://opengameart.org/sites/default/files/01-footstep_0.ogg",
+      "input": "sources/gboxmikefozzy/01-footstep_0.ogg",
+      "sha256": "33c9bef5e8aeb1069455699a34a0c5e1ef1787fd3f61594b0859d7e6bb9f9dec"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/02-footstep.ogg",
+      "input": "sources/gboxmikefozzy/02-footstep.ogg",
+      "sha256": "f05396c807eb8eaecffb2a1ead611ec971c5a7914d1d081c91d7796e852692a2"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/03-footstep.ogg",
+      "input": "sources/gboxmikefozzy/03-footstep.ogg",
+      "sha256": "9817cc93897ed1de5da87675b26be4196bfda3daa6f1de9dc4398a68d250cdb9"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/04-footstep.ogg",
+      "input": "sources/gboxmikefozzy/04-footstep.ogg",
+      "sha256": "b373ff981e44d6f7ba2291225a4803078771029615ed81606136fdb9599906d5"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/05-footstep.ogg",
+      "input": "sources/gboxmikefozzy/05-footstep.ogg",
+      "sha256": "f1b4893dd3cebe23438567a0dcaf047848a52b594e7eb03e5c212d99e83d2298"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/06-footstep.ogg",
+      "input": "sources/gboxmikefozzy/06-footstep.ogg",
+      "sha256": "39147cc1b98abb4b5378ad07b15d50d18f2aa0f0fd2f5514f078c1e574d14773"
+    },
+    {
+      "url": "https://opengameart.org/sites/default/files/%5Bkdd%5DDifferentSteps_0.zip",
+      "input": "sources/different-steps.zip",
+      "sha256": "987d072b7deaa65177e005ddd8185f2351be7c9a76cd7575dea560549c39b33b"
+    }
+  ],
+  "sounds": {
+    "stone": [
+      {
+        "url": "/assets/chuxian/audio/stone-1.ogg",
+        "input": "sources/gboxmikefozzy/01-footstep_0.ogg",
+        "sha256": "33c9bef5e8aeb1069455699a34a0c5e1ef1787fd3f61594b0859d7e6bb9f9dec",
+        "gain": 2.5195
+      },
+      {
+        "url": "/assets/chuxian/audio/stone-2.ogg",
+        "input": "sources/gboxmikefozzy/02-footstep.ogg",
+        "sha256": "f05396c807eb8eaecffb2a1ead611ec971c5a7914d1d081c91d7796e852692a2",
+        "gain": 2.2518
+      },
+      {
+        "url": "/assets/chuxian/audio/stone-3.ogg",
+        "input": "sources/gboxmikefozzy/03-footstep.ogg",
+        "sha256": "9817cc93897ed1de5da87675b26be4196bfda3daa6f1de9dc4398a68d250cdb9",
+        "gain": 2.5061
+      },
+      {
+        "url": "/assets/chuxian/audio/stone-4.ogg",
+        "input": "sources/gboxmikefozzy/04-footstep.ogg",
+        "sha256": "b373ff981e44d6f7ba2291225a4803078771029615ed81606136fdb9599906d5",
+        "gain": 1.3587
+      },
+      {
+        "url": "/assets/chuxian/audio/stone-5.ogg",
+        "input": "sources/gboxmikefozzy/05-footstep.ogg",
+        "sha256": "f1b4893dd3cebe23438567a0dcaf047848a52b594e7eb03e5c212d99e83d2298",
+        "gain": 2.6336
+      },
+      {
+        "url": "/assets/chuxian/audio/stone-6.ogg",
+        "input": "sources/gboxmikefozzy/06-footstep.ogg",
+        "sha256": "39147cc1b98abb4b5378ad07b15d50d18f2aa0f0fd2f5514f078c1e574d14773",
+        "gain": 2.2941
+      }
+    ],
+    "wood": [
+      {
+        "url": "/assets/chuxian/audio/wood-1.ogg",
+        "input": "sources/tinyworlds/wood01.ogg",
+        "sha256": "482d97c5e1e6eb7b239be46f25d093ebebb94cefb56eedb04807b6a5dc68e972",
+        "gain": 1.6529
+      },
+      {
+        "url": "/assets/chuxian/audio/wood-2.ogg",
+        "input": "sources/tinyworlds/wood02.ogg",
+        "sha256": "588bb121bd3db005b4c2a5b55c1cf39b8ec620f820c2123ac1f62748d132dac2",
+        "gain": 2.8931
+      },
+      {
+        "url": "/assets/chuxian/audio/wood-3.ogg",
+        "input": "sources/tinyworlds/wood03.ogg",
+        "sha256": "9b677c284389163f132b94e1323ea713a4c7ac9d5fba849cf7cbf8b53a1627e2",
+        "gain": 0.6333
+      }
+    ],
+    "grass": [
+      {
+        "url": "/assets/chuxian/audio/grass-1.ogg",
+        "input": "sources/tinyworlds/leaves01.ogg",
+        "sha256": "93b3bbcd06380eec54335d1869924db6ff2cc6c1cb103502133d78484c5ca836",
+        "gain": 1.9829
+      },
+      {
+        "url": "/assets/chuxian/audio/grass-2.ogg",
+        "input": "sources/tinyworlds/leaves02.ogg",
+        "sha256": "477c35bfd3f740915b24f93cb66364523217692d2749057f9b8be162eb8209f4",
+        "gain": 4.5729
+      }
+    ]
+  }
+}

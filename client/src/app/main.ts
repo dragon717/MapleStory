@@ -1,5 +1,6 @@
 import { HENESYS_MAP_ID } from '../features/henesys/coordinates';
 import Phaser from 'phaser';
+import { installGameAudio } from '../features/world/game-audio';
 import type { LoginResponse, NpcState, PlayerState, BossPracticeState } from '../../../shared/protocol';
 import { Connection } from '../network/session';
 import { PlayerInput } from '../features/player/input';
@@ -431,6 +432,7 @@ async function enterGame(session: LoginResponse) {
       setEnabled: enabled => { if (colossusView || world?.mapId !== HENESYS_MAP_ID) return; input?.reset(); world.setThreeEnabled(enabled); },
       resetCamera: () => world?.resetThreeCamera(),
       toggleQuality: () => world?.toggleThreeQuality(),
+      audio:{spatial:()=>world?.spatialAudioEnabled??true,setSpatial:enabled=>world?.setSpatialAudio(enabled),volume:()=>world?.soundVolume??1,setVolume:volume=>world?.setSoundVolume(volume)},
     });
     menus = new MenuView(
       el('menus'),
@@ -565,7 +567,8 @@ async function enterGame(session: LoginResponse) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('webgl2', { alpha: true, stencil: true, depth: true, antialias: false, powerPreference: 'high-performance' });
     // Phaser accepts an external GL context; its GameConfig declaration only lists the Canvas2D variant.
-    game = new Phaser.Game({ canvas, context: context as unknown as CanvasRenderingContext2D, type: Phaser.WEBGL, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, banner: false, loader: { imageLoadType: 'HTMLImageElement' } });
+    game = new Phaser.Game({ canvas, context: context as unknown as CanvasRenderingContext2D, type: Phaser.WEBGL, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, audio: {context:gameAudio.context()}, banner: false, loader: { imageLoadType: 'HTMLImageElement' } });
+    gameAudio.bind(game);
     layoutObserver = new ResizeObserver(() => {
       const { clientWidth: width, clientHeight: height } = el('game');
       if (width && height && game && (game.scale.width !== width || game.scale.height !== height)) game.scale.resize(width, height);
@@ -964,6 +967,7 @@ async function enterGame(session: LoginResponse) {
     el('game').focus({ preventScroll: true });
   } catch (error) { leaveGame(); throw error; }
 }
+const gameAudio = installGameAudio(el('welcome'), () => game);
 const entry = new EntryView(el('welcome'), enterGame);
 // 首页右下角的更新/下载区（v3 §6.1）：挂在 `#app` 下，与 PageShell 会搬进
 // 消息窗的 header/footer/#message 是兄弟节点，因此不会被那段逻辑带走；

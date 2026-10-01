@@ -2,6 +2,12 @@ import type { MovementView } from '../../../../shared/protocol';
 import east from '../../../../shared/chuxian-east.json';
 export const HENESYS_MAP_ID = east.mapId;
 export const PIXELS_PER_METRE = east.pixelsPerMetre;
+// Shared physical positions: a sound source can never drift away from its prop.
+export const MUSIC_SPOTS = [
+  {name:'集市竖琴',kind:'harp',position:[-34,3.62,25],frequency:520,type:'lowpass'},
+  {name:'大厅木琴',kind:'marimba',position:[30,23.85,-18],frequency:1200,type:'bandpass'},
+  {name:'溪畔风铃',kind:'chimes',position:[12,1.8,43],frequency:3200,type:'highpass'},
+] as const;
 export const platformThickness = (_id: number) => 20;
 export function segmentAt(x: number) {
   const route=east.routes.find(r=>x>=r.start-200&&x<=r.end+200)??east.routes[0];

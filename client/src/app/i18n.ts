@@ -372,4 +372,5 @@ export function uiText(key: string, fallback = key): string { return TEXT[key]?.
 export function menuEntryText(key: string, sourceLabel: string): string { return MENU_ENTRY_TEXT[key]?.[locale] ?? sourceLabel; }
 export function protocolText(code: string, fallback: string): string { return PROTOCOL_ERRORS[code]?.[locale] ?? fallback; }
 export const CHUXIAN_NAME = '初弦地';
-export function mapText(id: string, sourceName: string): string { return id === '100000000' ? CHUXIAN_NAME : displayText(sourceName || id); }
+export const CHUXIAN_MAP_NAME = '初弦地东边村落';
+export function mapText(id: string, sourceName: string, kind:'map'|'area'='map'): string { return id === '100000000' ? (kind==='area'?CHUXIAN_NAME:CHUXIAN_MAP_NAME) : displayText(sourceName || id); }

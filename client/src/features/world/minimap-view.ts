@@ -271,7 +271,7 @@ export class MiniMapView {
     const catalog = this.manifest.mapCatalog?.maps.find(entry => entry.id === mapId);
     const entry = catalog ?? (this.manifest.map.id === mapId ? this.manifest.map : undefined);
     return {
-      street: catalog?.streetName ? mapText(mapId, catalog.streetName) : '',
+      street: catalog?.streetName ? mapText(mapId, catalog.streetName, 'area') : '',
       map: mapText(mapId, entry?.name ?? mapId),
     };
   }

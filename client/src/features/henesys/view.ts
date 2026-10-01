@@ -8,6 +8,7 @@ import { resolveAssetUrl } from '../../assets/resource-url';
 import { PIXELS_PER_METRE, point3d, segmentAt } from './coordinates';
 import { Sunlight } from './sunlight';
 import { LocalReveal } from './local-reveal';
+import { villageInstruments } from './instruments';
 import './style.css';
 
 type Display = Phaser.GameObjects.GameObject & {x:number;y:number;scaleX:number;scaleY:number;depth:number;visible:boolean;setPosition(x:number,y:number):Display;setScale(x:number,y:number):Display;setDepth(n:number):Display;getBounds():Phaser.Geom.Rectangle};
@@ -54,7 +55,7 @@ export class HenesysView {
   try{return new HenesysView(world,map,gltf.scene,hdr,self);}catch(e){HenesysView.disposeModel(gltf.scene);hdr.dispose();throw e;}
  }
  constructor(private world:Phaser.Scene,_map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>ActorFoot|undefined){
-  this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角');
+  model.add(villageInstruments());this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角');
   this.roadLabel.className='henesys-road-label';this.root.append(this.roadLabel);
   this.phaser=world.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
   if(!(this.phaser.gl instanceof WebGL2RenderingContext))throw new Error('初弦地需要WebGL2');

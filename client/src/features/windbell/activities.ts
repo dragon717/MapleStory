@@ -31,7 +31,7 @@ export class ActivitiesView {
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void }) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void; audio?: {spatial:()=>boolean;setSpatial:(enabled:boolean)=>void;volume:()=>number;setVolume:(volume:number)=>void} }) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
     const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
@@ -53,7 +53,18 @@ export class ActivitiesView {
       this.sceneReset = this.button('恢复镜头', () => { sceneDisplay.resetCamera(); this.close(); });
       card.append(art, heading, copy, this.sceneToggle, this.sceneReset);
       if (sceneDisplay.toggleQuality) card.append(this.button('切换省电画质', () => { if (sceneDisplay.available()) sceneDisplay.toggleQuality?.(); this.close(); }));
-      if (openKeys) card.append(this.button('键盘设置', () => { this.close(false); openKeys(); }));
+      if(sceneDisplay.audio){
+        const audio=sceneDisplay.audio,details=document.createElement('details'),title=document.createElement('summary');title.textContent='声音设置';details.append(title);
+        const space=document.createElement('input');space.type='checkbox';space.checked=audio.spatial();space.disabled=!sceneDisplay.enabled();
+        const spaceLabel=document.createElement('label');spaceLabel.append(space,' 村落空间听感（关闭恢复原版）');
+        space.onchange=()=>audio.setSpatial(space.checked);
+        const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='.05';volume.value=String(audio.volume());
+        volume.oninput=()=>audio.setVolume(Number(volume.value));
+        const volumeLabel=document.createElement('label');volumeLabel.append('总音量 ',volume);
+        details.ontoggle=()=>{if(details.open){space.checked=audio.spatial();space.disabled=!sceneDisplay.enabled();volume.value=String(audio.volume());}};
+        details.append(spaceLabel,document.createElement('br'),volumeLabel);card.append(details);
+      }
+      if (openKeys) card.append(this.button('键盘设置' , () => { this.close(false); openKeys(); }));
       this.content.append(card);
     }
     for (const [name, description, action, image] of [

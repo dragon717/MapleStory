@@ -37,7 +37,14 @@ function validate(root=path.resolve(__dirname,'..')) {
  if(fs.existsSync(path.join(root,originalFile)))assert.deepEqual(npcs.map(n=>n.id),read(root,originalFile).npcSpawns.filter(n=>n.mapId===east.mapId).map(n=>n.id),'NPC identity changed');
  for(const n of npcs)assert(east.platforms.some(f=>n.footholdId===f.id&&n.x>=f.x1&&n.x<=f.x2&&Math.abs(n.y-(f.y1+(f.y2-f.y1)*(n.x-f.x1)/(f.x2-f.x1)))<1e-5),'NPC foot off road');
  assert.equal(manifest.contentVersion,gameplay.contentVersion);assert.equal(manifest.miniMap.maps[east.mapId].url,'/assets/henesys/east-minimap.svg');
- return {ok:true,routes:east.routes.length,junctions:east.junctions.length,segments:east.platforms.length,npcs:npcs.length,glbBytes:buffer.length,hdriBytes:hdr.length,sha256:hash,content:manifest.contentVersion};
+ const audio=read(root,'shared/chuxian-audio.json');assert.equal(audio.license,'CC0-1.0');assert(audio.sources.every(s=>s.page.startsWith('https://opengameart.org/content/')));
+ assert.deepEqual(read(publicRoot,'assets/chuxian/audio/sources.json'),audio,'recorded audio provenance differs');
+ const sounds=Object.values(audio.sounds).flat();assert.equal(sounds.length,11);
+ for(const sound of sounds){
+  assert.match(sound.url,/^\/assets\/chuxian\/audio\/[a-z]+-\d\.ogg$/);assert(sound.gain>0&&sound.gain*.21<=1);
+  const bytes=fs.readFileSync(path.join(publicRoot,sound.url));assert.equal(bytes.toString('ascii',0,4),'OggS');assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),sound.sha256,'recording changed: '+sound.url);
+ }
+ return {ok:true,routes:east.routes.length,junctions:east.junctions.length,segments:east.platforms.length,npcs:npcs.length,glbBytes:buffer.length,hdriBytes:hdr.length,sha256:hash,recordedFootsteps:sounds.length,content:manifest.contentVersion};
 }
 if(require.main===module)console.log(JSON.stringify(validate()));
 module.exports={validate};

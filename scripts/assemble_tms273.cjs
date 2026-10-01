@@ -9,12 +9,13 @@ const input = path.join(root, 'resources/tms273-export');
 // A complete candidate can be prepared without changing a running service's assets.
 const outputRoot = process.env.MAPLE_ASSEMBLY_OUTPUT_ROOT ? path.resolve(process.env.MAPLE_ASSEMBLY_OUTPUT_ROOT) : root;
 const publicRoot = path.join(outputRoot, 'client/public-tms273');
+require('./assemble_chuxian_audio.cjs').assemble(outputRoot);
 const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json'), 'utf8'));
 // ServeDir chooses a compressed sibling without checking its freshness. Never
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-50';
+const version = 'tms273-51';
 // The reviewed east-village GLB and licensed dawn environment replace the old rail runtime.
 const eastRoot=path.join(root,'resources/scenes/chuxian-east-v1');
 fs.mkdirSync(path.join(publicRoot,'assets/henesys'),{recursive:true});

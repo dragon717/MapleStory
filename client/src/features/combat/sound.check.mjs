@@ -59,8 +59,9 @@ scene.sound.add = key => {
   skillInstances.push(sound);
   return sound;
 };
+const positions=[];
 const skills = new CombatView(scene, undefined, 0, undefined, undefined, undefined,
-  { '2201008': { use: { url: '/use.mp3' }, hit: { url: '/hit.mp3' } } });
+  { '2201008': { use: { url: '/use.mp3' }, hit: { url: '/hit.mp3' } } },(sound,owner,point)=>positions.push({key:sound.key,owner,point}));
 skills.spawnDamageNumber = () => {};
 const cast = { type: 'skillCast', eventId: 'skill-use', serverTick: 1, playerId: 'a', skillId: 2201008, requestId: 'cast', x: 0, y: 0, facing: 1, durationMs: 500 };
 skills.receiveSkillCast(cast);
@@ -70,6 +71,9 @@ skills.receiveDamageEvent({ ...event, eventId: 'skill-hit', skillId: 2201008, at
 skills.receiveDamageEvent({ ...event, eventId: 'skill-hit', skillId: 2201008, attackerId: 'a', segment: 1 });
 skills.receiveDamageEvent({ ...event, eventId: 'skill-hit-2', skillId: 2201008, attackerId: 'a', segment: 2 });
 assert.equal(skillInstances.length, 2, 'first segment hit sound is not duplicated by later segments');
+assert.equal(positions.length,2,'accepted casts/hits attach spatial audio exactly once');
+assert.equal(positions[0].owner,'a');assert.equal(positions[0].point.x,cast.x);
+assert.equal(positions[1].point.x,event.x);
 skillInstances[1].complete();
 assert(skillInstances[1].destroyed, 'completed audio releases itself');
 skills.clearSkillPlayer('a');

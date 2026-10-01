@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
+import { VillageAudio, FOOT_SOUNDS } from '../features/henesys/audio';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
 import type { NpcState, PlayerState, ServerMessage } from '../../../shared/protocol';
@@ -70,6 +71,7 @@ export class World extends Phaser.Scene {
   private loaded = false;
   private failed = false;
   private bgm?: Phaser.Sound.BaseSound;
+  private villageAudio?: VillageAudio;
   private bossWarning?: Phaser.GameObjects.Graphics;
   private windbellScene?: WindbellScene;
   private combat?: CombatView;
@@ -121,6 +123,10 @@ export class World extends Phaser.Scene {
   movementView() { return this.isThreeActive ? this.henesys?.movementView() : undefined; }
   resetThreeCamera() { this.henesys?.resetCamera(); }
   toggleThreeQuality() { this.henesys?.toggleQuality(); }
+  get spatialAudioEnabled() { return this.villageAudio?.spatialEnabled ?? true; }
+  setSpatialAudio(enabled:boolean) { this.villageAudio?.setSpatial(enabled); }
+  get soundVolume() { return this.sound?.volume ?? 1; }
+  setSoundVolume(volume:number) { if(this.sound&&Number.isFinite(volume))this.sound.volume=Math.max(0,Math.min(1,volume)); }
   private startThree() {
     if (!this.isThreeActive || this.henesys || this.threeLoading) return;
     const generation = ++this.threeGeneration;
@@ -262,6 +268,9 @@ export class World extends Phaser.Scene {
       if (entry.skipIfCached && this.cache.audio.exists(entry.url)) continue;
       this.load.audio(entry.key, resolveAssetUrl(entry.url));
     }
+    if(this.isThreeActive)for(const url of FOOT_SOUNDS){
+      if(!this.cache.audio.exists(url))this.load.audio(url,resolveAssetUrl(url));
+    }
     if (this.manifest.map.source?.includes('windbell.json')) {
       const kind = this.manifest.map.id.includes('island') ? 'island' : 'bridge';
       WindbellScene.preload(this, kind);
@@ -293,7 +302,7 @@ export class World extends Phaser.Scene {
     // Phaser clears input listeners on `shutdown`, so a fresh attach here is
     // safe across `scene.restart()` triggered by map switches.
     this.input.on('pointerdown', this.handlePointerDown);
-    this.combat = new CombatView(this, this.manifest.combat, Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 3, undefined, 'combat-hit', this.manifest.skillEffects, this.manifest.skillSounds);
+    this.combat = new CombatView(this, this.manifest.combat, Math.max(...this.manifest.map.layers.map(layer => layer.depth)) + 3, undefined, 'combat-hit', this.manifest.skillEffects, this.manifest.skillSounds, (sound,owner,point) => this.villageAudio?.attach(sound,owner,point));
     const b = this.manifest.map.bounds;
     const windbellKind = this.manifest.map.source?.includes('windbell.json') ? (this.manifest.map.id.includes('island') ? 'island' : 'bridge') : undefined;
     this.cameras.main.setBackgroundColor(this.isThreeActive ? 'rgba(0,0,0,0)' : windbellKind ? '#d4e6eb' : '#b4dfe0');
@@ -359,7 +368,11 @@ export class World extends Phaser.Scene {
       const view = new PortalView(this, asset.frames, asset.frameDelay ?? 100, portal.x, portal.y, portalDepth);
       this.portals.set(`${this.manifest.map.id}/${portal.name}`, view);
     }
-    if (this.manifest.map.bgm) { this.bgm = this.sound.add(this.manifest.map.bgm, { loop: true, volume: 0.25 }); this.bgm.play(); }
+    if (this.manifest.map.bgm) {
+      this.bgm = this.sound.add(this.manifest.map.bgm, { loop:true, volume:.25 });
+      if(this.isThreeActive && this.bgm instanceof Phaser.Sound.WebAudioSound)this.villageAudio=new VillageAudio(this,this.bgm);
+      this.bgm.play();
+    }
     this.status('地图已就绪，等待服务器快照…');
     this.events.once('shutdown', () => { this.clear(); this.bgm?.destroy(); });
   }
@@ -411,7 +424,9 @@ export class World extends Phaser.Scene {
     if (message.type === 'actionStarted' && this.loaded) {
       if (this.playerHasStarterSword(message.playerId)) {
         this.combat?.receiveActionStarted({ ...message, startedAtMs: performance.now() });
-        if (this.manifest.avatar.attackSound && consumeAction(this.actions, message.playerId, message.actionId, message.serverTick)) this.sound.play('attack', { volume: 0.35 });
+        if (this.manifest.avatar.attackSound && consumeAction(this.actions, message.playerId, message.actionId, message.serverTick)) {
+          if(this.villageAudio)this.villageAudio.play('attack',.35,message.playerId);else this.sound.play('attack',{volume:.35});
+        }
       }
     }
     if (message.type === 'skillCast' && this.loaded) {
@@ -486,6 +501,7 @@ export class World extends Phaser.Scene {
     if (this.sys.isActive()) this.scene.restart();
   }
   clear() {
+    this.villageAudio?.destroy();this.villageAudio=undefined;
     this.loaded = false;
     this.railTerrain?.destroy(); this.railTerrain = undefined;
     this.pendingSnapshot = undefined;
@@ -649,6 +665,7 @@ export class World extends Phaser.Scene {
     for (const water of this.waters) water.update(delta);
     const drawn = this.snapshot ? this.interpolate(this.snapshot as GameplaySnapshot, delta) : undefined;
     this.renderedSelf = drawn?.players.find(p => p.id === drawn.selfId);
+    if(drawn)this.villageAudio?.update(drawn.players,drawn.selfId,this.movementView());
     this.combat?.syncPlayers(drawn?.players);
     this.combat?.syncSummons(this.snapshot?.summons);
     this.combat?.update();

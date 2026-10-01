@@ -184,6 +184,7 @@ export class CombatView {
     private readonly hitSoundKey = 'combat-hit',
     private readonly skillEffects: Manifest['skillEffects'],
     private readonly skillSounds?: Manifest['skillSounds'],
+    private readonly positionSound?: (sound:Phaser.Sound.BaseSound,owner?:string,point?:{x:number;y:number})=>void,
   ) {}
 
   /** Feed an already accepted action from the server's actionStarted message. */
@@ -219,9 +220,15 @@ export class CombatView {
     this.spawnSkillHit(event);
     // A null hitSoundKey silences the cue: players taking monster contact
     // damage have no source-backed hit cue, so do not reuse the mob-hit cue.
-    if (hitSoundKey && this.scene.sound && this.scene.cache.audio.exists(hitSoundKey)) this.scene.sound.play(hitSoundKey, { volume: 0.28 });
+    if (hitSoundKey && this.scene.sound && this.scene.cache.audio.exists(hitSoundKey)) {
+      if(this.positionSound){
+        const sound=this.scene.sound.add(hitSoundKey);this.positionSound(sound,undefined,event);
+        this.skillAudio.set(sound,event.attackerId??'');sound.once('destroy',()=>this.skillAudio.delete(sound));
+        sound.once('complete',()=>sound.destroy());if(!sound.play({volume:.28}))sound.destroy();
+      }else this.scene.sound.play(hitSoundKey,{volume:.28});
+    }
     // P: one source Hit cue per target's first authoritative damage segment.
-    if ((event.segment ?? 1) === 1 && event.skillId !== undefined) this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.hit?.url);
+    if ((event.segment ?? 1) === 1 && event.skillId !== undefined) this.playSkillSound(event.attackerId, this.skillSounds?.[String(event.skillId)]?.hit?.url,event);
     this.spawnDamageNumber(event);
     if ([2211011, 2211015, ...SUMMON_SKILLS].includes(event.skillId ?? 0) && (event.segment ?? 1) === 1) {
       for (const summon of this.summons.values()) if (summon.state.playerId === event.attackerId && summon.state.skillId === event.skillId) summon.attackAt = this.clock();
@@ -357,7 +364,7 @@ export class CombatView {
       return true;
     }
     // A generated ice field reuses skillCast but is not another player cast.
-    if (!(event.skillId === 2201009 && event.targetX !== undefined)) this.playSkillSound(event.playerId, this.skillSounds?.[String(event.skillId)]?.use?.url);
+    if (!(event.skillId === 2201009 && event.targetX !== undefined)) this.playSkillSound(event.playerId, this.skillSounds?.[String(event.skillId)]?.use?.url,event);
     const set = this.skillEffects?.[String(event.skillId)];
     if (event.skillId === 2221011) {
       const prepare = set?.prepare;
@@ -475,6 +482,7 @@ export class CombatView {
         const key = this.skillSounds?.[String(field.id)]?.loop?.url;
         if (!key || !this.scene.cache.audio.exists(key)) break;
         const sound = this.scene.sound.add(key);
+        this.positionSound?.(sound, player.id);
         if (sound.play({ loop: true, volume: 0.2 })) this.auraAudio.set(player.id, { sound, skillId: field.id }); else sound.destroy();
         break;
       }
@@ -566,6 +574,7 @@ export class CombatView {
       const key = this.skillSounds?.[String(audio.skillId ?? 2221011)]?.loop?.url;
       if (!audio.sound && time >= audio.startAt && key && this.scene.cache.audio.exists(key)) {
         audio.sound = this.scene.sound.add(key);
+        this.positionSound?.(audio.sound,owner);
         if (!audio.sound.play({ loop: true, volume: 0.28 })) this.stopChannelAudio(owner);
       }
     }
@@ -731,9 +740,10 @@ export class CombatView {
     }
   }
 
-  private playSkillSound(owner: string | undefined, key: string | undefined) {
+  private playSkillSound(owner: string | undefined, key: string | undefined, point?:{x:number;y:number}) {
     if (!owner || !key || !this.scene.cache.audio.exists(key)) return;
     const sound = this.scene.sound.add(key);
+    this.positionSound?.(sound, owner,point);
     this.skillAudio.set(sound, owner);
     const remove = () => { this.skillAudio.delete(sound); sound.destroy(); };
     sound.once('complete', remove);

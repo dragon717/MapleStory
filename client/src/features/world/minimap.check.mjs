@@ -110,6 +110,7 @@ const documentStub = {
 };
 
 const windowStub = {
+  location:{search:'?lang=zh'},
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
 };
 
@@ -127,7 +128,10 @@ globalThis.uiText = key => ({
   minimapWorld: '世界地图',
   minimapSelf: '你的位置',
 }[key] ?? key);
-globalThis.mapText = (_mapId, text) => text;
+// Exercise the actual name mapping; the pixel fixture supplies its own flat coordinates.
+const i18nCode=ts.transpileModule(await readFile(new URL('../../app/i18n.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace("import OpenCC from 'opencc-js/t2cn';",'const OpenCC={Converter:()=>text=>text};');
+globalThis.mapText=(await import(`data:text/javascript;base64,${Buffer.from(i18nCode).toString('base64')}`)).mapText;
+globalThis.HENESYS_MAP_ID='100000000';globalThis.miniPoint=(x,y)=>({x,y});
 globalThis.installWindowDrag = () => () => {};
 
 const { MiniMapView, miniMapArrow, miniMapPixel, miniMapContains, miniMapBox } =
@@ -294,8 +298,8 @@ view.update(input);
 }
 
 // 2. Names: street from the catalog, map from the catalog entry.
-assert.equal(findIn(root, 'tms-minimap-street').textContent, '弓箭手村');
-assert.equal(findIn(root, 'tms-minimap-name').textContent, '弓箭手村射箭场');
+assert.equal(findIn(root, 'tms-minimap-street').textContent, '初弦地');
+assert.equal(findIn(root, 'tms-minimap-name').textContent, '初弦地东边村落');
 
 // 3. BtNpc opens the authored NPC 目录; the zh tooltip is the source string.
 {
