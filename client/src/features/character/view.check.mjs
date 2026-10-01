@@ -91,9 +91,13 @@ const outputText = ts.transpileModule(source, {
 const runnable = `const installWindowDrag = () => () => {};\nconst bringToFront = () => {};\nconst resolveAssetUrl = url => url;\n${outputText}`;
 const { CharacterInfoView } = await import(`data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`);
 
-const original = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame };
+const original = { document: globalThis.document, window: globalThis.window, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame };
+globalThis.window = new FakeDocument();
+globalThis.cancelAnimationFrame = () => {};
 const document = new FakeDocument();
 globalThis.document = document;
+document.body = document.createElement('body');
+document.append(document.body);
 globalThis.requestAnimationFrame = callback => { callback(); return 1; };
 
 const game = document.createElement('main');
@@ -146,7 +150,7 @@ assert.equal(root.querySelector('[data-field="luck"]').textContent, '6');
 assert.equal(root.querySelector('[data-derived-field="strength"]').textContent, '总 12');
 assert.equal(root.querySelector('[data-field="exp"]').children.at(-1).textContent, '345 / 500 · 69.00%');
 assert.equal(root.querySelector('[data-field="availableAp"]').children.at(-1).textContent, '3');
-assert.match(root.querySelector('.character-growth-note').textContent, /^P：临时成长规则/);
+assert.match(root.querySelector('.character-growth-note').textContent, /升级获得 5 AP/);
 view.update({ ...player, exp: 123, expToNext: 0 });
 assert.equal(root.querySelector('[data-field="exp"]').children.at(-1).textContent, '123 / MAX · 100%', 'Zero next-level EXP is shown as capped');
 view.update(player);

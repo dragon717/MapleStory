@@ -11,6 +11,13 @@
 
 use super::*;
 
+/// Allowed walking speed, independent of held input; snapshots and movement share this rule.
+pub(super) fn current_walk_speed(player: &Player) -> f64 {
+    // P: existing slow adapter keeps 50%; use source x when placed slow skills support it.
+    let slow = if player.status.slows_walk() { 0.5 } else { 1.0 };
+    mounts::walk_speed(player, player.move_speed) * slow
+}
+
 pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, tick: u64) {
     if player.last_input.elapsed() > Duration::from_millis(500) {
         player.direction = 0;
@@ -305,18 +312,6 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
         }
     }
     player.jump = false;
-    // Slow (缓速) scales the walk speed while it lasts.  MobSkill `x` carries
-    // the authored move percent (e.g. 85 keeps 85% of normal speed); the
-    // runtime folds it into the walk so a slowed body genuinely lags rather
-    // than only displaying a marker.
-    let slow_factor = if player.status.slows_walk() {
-        // P: no per-source slow percent is re-read here; 50% is the adapter
-        // stand-in for the unmodelled `x` denominator until a slow skill is
-        // actually wired onto a placed mob.
-        0.5
-    } else {
-        1.0
-    };
     player.state.vx = if knockback_active {
         // Body-hit slide: keep the authoritative push even when the player
         // holds the opposite direction key.
@@ -326,9 +321,8 @@ pub(super) fn step_player(map: &Map, gameplay: &Gameplay, player: &mut Player, t
         // 所以走到这里只可能是**同一拍刚坐下**——姿态交给下面的动作选择，位移为 0。
         0.0
     } else {
-        // 骑乘时基础速度乘坐骑的源 `speed`（百分比，100 = 常规）。倍率只在
-        // `mounts::walk_speed` 一处出现，慢速 `slow_factor` 照旧相乘。
-        player.direction as f64 * mounts::walk_speed(player, player.move_speed) * slow_factor
+        // 与属性窗口快照共用 current_walk_speed，骑乘百分比和缓速只折算一次。
+        player.direction as f64 * current_walk_speed(player)
     };
     if player.direction != 0 {
         player.state.facing = player.direction;

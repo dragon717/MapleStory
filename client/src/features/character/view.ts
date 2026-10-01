@@ -16,6 +16,7 @@ type CharacterField =
   | 'magicAttack'
   | 'defense'
   | 'moveSpeed'
+  | 'movementNote'
   | 'magicGuard'
   | 'strength'
   | 'dexterity'
@@ -70,6 +71,40 @@ export class CharacterInfoView {
   private destroyed = false;
   private requestSequence = 0;
   private readonly dragDispose: () => void;
+  private readonly holdRing = document.createElement('div');
+  private hold?: { stat: AbilityStat; pointerId: number; started: number; last: number; active: boolean };
+  private holdFrame = 0;
+  private suppressClick = false;
+  private readonly cancelHold = () => this.stopHold(true);
+  private readonly moveHold = (event: PointerEvent) => {
+    if (!this.hold || event.pointerId !== this.hold.pointerId) return;
+    this.positionHoldRing(event);
+    const button = this.abilityButtons.get(this.hold.stat)!;
+    const rect = button.getBoundingClientRect();
+    if (!event.buttons || event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) this.stopHold(true);
+  };
+  private readonly releaseHold = (event: PointerEvent) => {
+    if (this.hold?.pointerId === event.pointerId) this.stopHold(this.hold.active);
+  };
+  private readonly visibilityHold = () => { if (document.hidden) this.stopHold(true); };
+  private readonly tickHold = (now: number) => {
+    const hold = this.hold;
+    if (!hold) return;
+    if (!this.openState || !this.player || this.player.hp <= 0 || !this.player.abilityStats?.availableAp) { this.stopHold(true); return; }
+    const elapsed = now - hold.started;
+    this.holdRing.style.setProperty('--hold-progress', String(Math.min(1, elapsed / 3000)));
+    const label = elapsed >= 3000 ? '+' : String(Math.ceil((3000 - elapsed) / 1000));
+    if (this.holdRing.textContent !== label) this.holdRing.textContent = label;
+    if (elapsed >= 3000) {
+      hold.active = true;
+      this.suppressClick = true;
+      if (!this.pendingAllocations.size && now - hold.last >= 120) {
+        hold.last = now;
+        this.allocate(hold.stat);
+      }
+    }
+    if (this.hold) this.holdFrame = requestAnimationFrame(this.tickHold);
+  };
 
   private readonly handleKeyDown = (event: KeyboardEvent) => {
     if (this.destroyed || event.defaultPrevented || event.repeat || event.isComposing) return;
@@ -132,13 +167,23 @@ export class CharacterInfoView {
     if (!manifest.characterUi?.['common/main/backgrnd'] || !manifest.characterUi?.['local/detail/backgrnd']) {
       this.status('角色信息底图未加载，窗口将保留可用数据。');
     }
+    this.holdRing.className = 'character-hold-ring';
+    this.holdRing.hidden = true;
+    this.holdRing.setAttribute('aria-label', '长按三秒后连续加点');
+    document.body.append(this.holdRing);
+    document.addEventListener('pointermove', this.moveHold, true);
+    document.addEventListener('pointerup', this.releaseHold, true);
+    document.addEventListener('pointercancel', this.cancelHold, true);
+    document.addEventListener('visibilitychange', this.visibilityHold);
+    window.addEventListener('blur', this.cancelHold);
     this.update(undefined);
   }
 
   update(player?: PlayerState) {
     if (this.destroyed) return;
+    if (player?.id !== this.player?.id || !player) this.pendingAllocations.clear();
+    if (player?.id !== this.player?.id || !player || player.hp <= 0 || !player.abilityStats?.availableAp) this.stopHold(true);
     this.player = player;
-    if (!player) this.pendingAllocations.clear();
     const derived = player?.derivedStats as CharacterDerivedStats | undefined;
     const ability = player?.abilityStats;
     this.setField('username', player?.username ?? '—');
@@ -151,7 +196,12 @@ export class CharacterInfoView {
     this.setField('mesos', player ? this.formatNumber(player.mesos) : '—');
     this.setField('magicAttack', this.numberOrDash(derived?.magicAttack));
     this.setField('defense', this.numberOrDash(derived?.defense));
-    this.setField('moveSpeed', this.speedOrDash(derived?.moveSpeed));
+    this.setField('moveSpeed', this.speedOrDash(derived?.currentMoveSpeed ?? (player?.mount || player?.abnormalStatus?.slowMs ? undefined : derived?.moveSpeed)));
+    const movement = [
+      player?.mount && `骑乘 ${player.mount.speed}%（临时）`,
+      player?.abnormalStatus?.slowMs && `缓速 ${Math.ceil(player.abnormalStatus.slowMs / 1000)} 秒`,
+    ].filter(Boolean);
+    this.setField('movementNote', movement.length ? `属性速度 ${this.speedOrDash(derived?.moveSpeed)} · ${movement.join(' · ')}` : '当前步行速度，包含装备与技能影响');
     this.setField('magicGuard', derived ? (derived.magicGuard ? '开启' : '关闭') : '—');
     this.setField('meditation', this.remainingText(derived?.meditationRemainingMs));
     this.setField('iceTeleport', derived?.iceTeleport === undefined ? '—' : (derived.iceTeleport ? '开启' : '关闭'));
@@ -165,9 +215,14 @@ export class CharacterInfoView {
 
   receiveAbilityResult(result: AbilityResult) {
     if (this.destroyed) return;
-    this.pendingAllocations.delete(result.requestId);
+    if (!this.pendingAllocations.delete(result.requestId)) return;
+    // The acknowledgement carries the new AP balance before the following world snapshot.
+    if (this.player) this.update({ ...this.player, abilityStats: result.abilityStats });
+    if (!result.success) this.stopHold(true);
     this.refreshAbilityButtons();
   }
+
+  isOpen() { return this.openState; }
 
   toggle(): boolean {
     if (this.destroyed) return false;
@@ -190,6 +245,7 @@ export class CharacterInfoView {
   }
 
   close() {
+    this.stopHold(true);
     const wasOpen = this.openState;
     this.openState = false;
     this.root.hidden = true;
@@ -200,7 +256,14 @@ export class CharacterInfoView {
 
   destroy() {
     if (this.destroyed) return;
+    this.stopHold(true);
     this.destroyed = true;
+    document.removeEventListener('pointermove', this.moveHold, true);
+    document.removeEventListener('pointerup', this.releaseHold, true);
+    document.removeEventListener('pointercancel', this.cancelHold, true);
+    document.removeEventListener('visibilitychange', this.visibilityHold);
+    window.removeEventListener('blur', this.cancelHold);
+    this.holdRing.remove();
     this.dragDispose();
     document.removeEventListener('keydown', this.handleKeyDown, true);
     this.root.remove();
@@ -210,12 +273,9 @@ export class CharacterInfoView {
     const card = document.createElement('section');
     card.className = 'character-main-card';
     this.appendArt(card, this.manifest.characterUi?.['common/main/backgrnd'], 'character-main-background');
-    const level = this.appendField(card, 'level', 'character-field character-level', '等级');
-    const job = this.appendField(card, 'job', 'character-field character-job', '职业');
-    const username = this.appendField(card, 'username', 'character-field character-name', '名称');
-    this.place(level, 'common/main/vector:lvPos', { x: 244, y: 33 });
-    this.place(job, 'common/main/vector:jobPos', { x: 76, y: 42 });
-    this.place(username, 'common/main/vector:namePos', { x: 237, y: 173 });
+    this.appendField(card, 'level', 'character-field character-level', '等级');
+    this.appendField(card, 'job', 'character-field character-job', '职业');
+    this.appendField(card, 'username', 'character-field character-name', '名称');
 
     const vitals = document.createElement('div');
     vitals.className = 'character-main-vitals';
@@ -225,7 +285,7 @@ export class CharacterInfoView {
     this.appendField(vitals, 'availableAp', 'character-field character-main-vital character-ap', '可用AP');
     const growthNote = document.createElement('small');
     growthNote.className = 'character-growth-note';
-    growthNote.textContent = 'P：临时成长规则（曲线至60级，每级 +5 AP）';
+    growthNote.textContent = '升级获得 5 AP · 当前成长至 60 级';
     vitals.append(growthNote);
     card.append(vitals);
 
@@ -246,25 +306,14 @@ export class CharacterInfoView {
   private createDetailCard() {
     const detail = document.createElement('section');
     detail.className = 'character-detail-card';
-    // Chrome only: back canvases stay, the four source *Font label layers are
-    // dropped because the HTML rows below replace their (traditional-Chinese)
-    // labels — keeping both printed every stat twice, misaligned (P note).
+    // Reuse the source frame; a single flow of DOM labels replaces baked stat plates.
     this.appendArt(detail, this.manifest.characterUi?.['local/detail/backgrnd'], 'character-detail-background');
-    this.appendArt(detail, this.manifest.characterUi?.['local/detail/layer:stat'], 'character-detail-stat-layer');
-    // attackBack bakes its own 戰鬥力 header strip into the top 33 px, which
-    // overlaps the window title strip; clipped so only the gray stat panel shows.
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:attackBack'], 'character-detail-attack-back');
-    this.appendArt(detail, this.manifest.characterUi?.['common/detailStat/canvas:utilityBack'], 'character-detail-utility-back');
-    this.appendArt(detail, this.manifest.characterUi?.['local/detailStat/canvas:mainStatBack'], 'character-detail-main-stat-back');
 
     const title = document.createElement('h2');
     title.className = 'character-detail-title';
     title.textContent = '角色属性';
     detail.append(title);
 
-    // Rows sit on the source gray canvases: mainStatBack (y38..119) for the
-    // ability rows, attackBack's panel (y123..300) for combat stats,
-    // utilityBack (y314..406) for buff status — spec R6 alignment.
     const abilityStats = document.createElement('dl');
     abilityStats.className = 'character-live-stats character-ability-stats';
     this.appendStat(abilityStats, 'availableAp', '可用AP');
@@ -273,22 +322,34 @@ export class CharacterInfoView {
     this.appendAbilityStat(abilityStats, 'dexterity', '敏捷');
     this.appendAbilityStat(abilityStats, 'intelligence', '智力');
     this.appendAbilityStat(abilityStats, 'luck', '运气');
-    detail.append(abilityStats);
+    const hint = document.createElement('p');
+    hint.className = 'character-allocation-hint';
+    hint.textContent = '点击 + 加 1 点；按住 3 秒，圆环满后连续加点，松开停止。';
+    detail.append(this.groupTitle('能力与加点'), abilityStats, hint);
 
     const combatStats = document.createElement('dl');
     combatStats.className = 'character-live-stats character-combat-stats';
     this.appendStat(combatStats, 'magicAttack', '魔法攻击');
     this.appendStat(combatStats, 'defense', '防御');
-    this.appendStat(combatStats, 'moveSpeed', '移动速度');
+    this.appendStat(combatStats, 'moveSpeed', '当前移动速度');
+    const movementNote = this.appendField(combatStats, 'movementNote', 'character-movement-note', '速度说明');
+    movementNote.querySelector('.character-field-label')?.remove();
     this.appendStat(combatStats, 'magicGuard', '魔心防御');
-    detail.append(combatStats);
+    detail.append(this.groupTitle('战斗与移动'), combatStats);
 
     const statusStats = document.createElement('dl');
     statusStats.className = 'character-live-stats character-status-stats';
     this.appendStat(statusStats, 'meditation', '精神强化');
     this.appendStat(statusStats, 'iceTeleport', '寒冰迅移');
-    detail.append(statusStats);
+    detail.append(this.groupTitle('当前状态'), statusStats);
     return detail;
+  }
+
+  private groupTitle(text: string) {
+    const heading = document.createElement('h3');
+    heading.className = 'character-group-title';
+    heading.textContent = text;
+    return heading;
   }
 
   private appendStat(parent: HTMLElement, field: CharacterField, label: string) {
@@ -325,9 +386,14 @@ export class CharacterInfoView {
     button.type = 'button';
     button.className = 'character-ap-button';
     button.textContent = '+1';
-    button.title = `增加${label}`;
+    button.title = `增加${label}；长按 3 秒连续加点`;
+    button.dataset.stat = stat;
     button.setAttribute('aria-label', `增加${label}`);
-    button.addEventListener('click', () => this.allocate(stat));
+    button.addEventListener('pointerdown', event => this.startHold(stat, event));
+    button.addEventListener('click', event => {
+      if (event.detail !== 0 && this.suppressClick) { this.suppressClick = false; return; }
+      this.allocate(stat);
+    });
     this.abilityButtons.set(stat, button);
     const prefix = `local/detailStat/button:lvUp${ABILITY_BUTTON_NAMES[stat]}`;
     const normal = this.manifest.characterUi?.[`${prefix}/normal/0`];
@@ -403,12 +469,6 @@ export class CharacterInfoView {
     button.addEventListener('pointerup', () => state('normal'));
   }
 
-  private place(node: HTMLElement, key: string, fallback: { x: number; y: number }) {
-    const position = this.manifest.characterLayout?.[key] ?? fallback;
-    node.style.left = `${position.x}px`;
-    node.style.top = `${position.y}px`;
-  }
-
   private setField(field: CharacterField, value: string) {
     for (const node of this.fields.get(field) ?? []) node.textContent = value;
   }
@@ -423,8 +483,8 @@ export class CharacterInfoView {
     for (const stat of ABILITY_STATS) {
       const button = this.abilityButtons.get(stat);
       if (!button) continue;
-      const pending = [...this.pendingAllocations.values()].includes(stat);
-      button.disabled = !enabled || pending;
+      const pending = this.pendingAllocations.size > 0;
+      button.disabled = !enabled || (pending && this.hold?.stat !== stat);
       button.setAttribute('aria-busy', pending ? 'true' : 'false');
       this.setAbilityButtonImage(stat, button.disabled ? 'disabled' : 'normal');
     }
@@ -446,9 +506,40 @@ export class CharacterInfoView {
     if (art) image.src = resolveAssetUrl(art.url);
   }
 
+  private positionHoldRing(event: PointerEvent) {
+    this.holdRing.style.left = `${event.clientX}px`;
+    this.holdRing.style.top = `${event.clientY}px`;
+  }
+
+  private startHold(stat: AbilityStat, event: PointerEvent) {
+    if (event.button !== 0 || !event.isPrimary || !this.openState || this.abilityButtons.get(stat)?.disabled) return;
+    this.stopHold(true);
+    this.suppressClick = false;
+    this.hold = { stat, pointerId: event.pointerId, started: performance.now(), last: -Infinity, active: false };
+    this.holdRing.style.setProperty('--hold-progress', '0');
+    this.holdRing.textContent = '3';
+    this.holdRing.hidden = false;
+    this.positionHoldRing(event);
+    this.holdFrame = requestAnimationFrame(this.tickHold);
+  }
+
+  private stopHold(suppressClick: boolean) {
+    if (this.hold) this.suppressClick = suppressClick;
+    this.hold = undefined;
+    cancelAnimationFrame(this.holdFrame);
+    this.holdFrame = 0;
+    this.holdRing.hidden = true;
+    this.refreshAbilityButtons();
+  }
+
+  /** Rejected commands are terminal for a held gesture, including persistence failures. */
+  receiveReject(requestId?: string) {
+    if (requestId && this.pendingAllocations.delete(requestId)) { this.stopHold(true); this.refreshAbilityButtons(); }
+  }
+
   private allocate(stat: AbilityStat) {
     const ability = this.player?.abilityStats;
-    if (!this.player || this.player.hp <= 0 || !ability || ability.availableAp <= 0 || !this.send || [...this.pendingAllocations.values()].includes(stat)) return;
+    if (!this.player || this.player.hp <= 0 || !ability || ability.availableAp <= 0 || !this.send || this.pendingAllocations.size) return;
     const requestId = `ap-${Date.now()}-${++this.requestSequence}`;
     this.pendingAllocations.set(requestId, stat);
     if (this.send({ type: 'allocateAp', requestId, stat })) {
@@ -457,6 +548,7 @@ export class CharacterInfoView {
     }
     this.pendingAllocations.delete(requestId);
     this.refreshAbilityButtons();
+    this.stopHold(true);
     this.status('连接已断开，无法分配属性点。');
   }
 
@@ -490,7 +582,7 @@ export class CharacterInfoView {
   }
 
   private speedOrDash(value: number | undefined) {
-    return value !== undefined && Number.isFinite(value) ? `${value} px/s` : '—';
+    return value !== undefined && Number.isFinite(value) ? `${Number(value.toFixed(1))} px/s` : '—';
   }
 
   private remainingText(value: number | undefined) {

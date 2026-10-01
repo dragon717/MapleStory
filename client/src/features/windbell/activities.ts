@@ -30,6 +30,7 @@ export class ActivitiesView {
   private sceneToggle?: HTMLButtonElement;
   private sceneReset?: HTMLButtonElement;
   private environmentRefresh?:()=>void;
+  private environmentDetails?: HTMLDetailsElement;
   private skyPreview=false;
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
@@ -83,7 +84,7 @@ export class ActivitiesView {
         const hint=document.createElement('p');hint.textContent='太阳从东侧升起、西侧落下；星光和极光在夜间出现。设置保存在本机，雨天会浸湿路面。可仰望太阳与星空，关闭设置返回行走镜头。';fields.append(hint,this.button('恢复晴朗上午',()=>change({...DEFAULT_ENVIRONMENT})));
         if(sceneDisplay.previewSky)fields.append(this.button('仰望天空 / 回到村路',()=>{if(sceneDisplay.enabled()){this.skyPreview=!this.skyPreview;sceneDisplay.previewSky?.(this.skyPreview);}}));
         const refresh=()=>{const s=environment.get();for(const key of ['hour','weather','season','moisture','grade'] as const)controls[key].value=String(s[key]);controls.preset.value=TIMES.find(t=>Math.abs(t[1]-s.hour)<.01)?.[1].toString()??'';const hour=s.hour%24;clock.textContent=`${String(Math.floor(hour)).padStart(2,'0')}:${String(Math.round((hour%1)*60)).padStart(2,'0')} · ${s.moisture>=.5?'湿润':'干燥'}`;fields.disabled=!sceneDisplay.available();};
-        this.environmentRefresh=refresh;details.ontoggle=()=>{if(details.open)refresh();};refresh();card.append(details);
+        this.environmentDetails=details;this.environmentRefresh=refresh;details.ontoggle=()=>{if(details.open)refresh();};refresh();card.append(details);
       }
       if (openKeys) card.append(this.button('键盘设置' , () => { this.close(false); openKeys(); }));
       this.content.append(card);
@@ -129,6 +130,14 @@ export class ActivitiesView {
   isOpen() { return this.open; }
   talk() { this.act('talk'); }
   show() { this.refreshSceneDisplay(); this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
+  showEnvironment() {
+    this.show();
+    if (this.environmentDetails) {
+      this.environmentDetails.open = true;
+      this.environmentDetails.scrollIntoView({ block: 'nearest' });
+      this.environmentDetails.querySelector<HTMLElement>('select')?.focus();
+    }
+  }
   private refreshSceneDisplay() {
     this.environmentRefresh?.();
     if (!this.sceneToggle || !this.sceneDisplay) return;

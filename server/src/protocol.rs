@@ -1095,6 +1095,9 @@ pub struct DerivedStats {
     pub magic_attack: i64,
     pub defense: i64,
     pub move_speed: f64,
+    /// Runtime walk capacity including riding and slow; not measured vx or persisted stats.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_move_speed: Option<f64>,
     pub magic_guard: bool,
     pub hyper_barrier_active: bool,
     /// 火毒 火靈結界 `2121054` 的開關位（协议 35 的加法字段）。

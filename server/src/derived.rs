@@ -137,6 +137,7 @@ pub(super) fn compute_derived_stats(
         magic_attack: attributes.magic_attack,
         defense: attributes.defense(),
         move_speed: attributes.move_speed,
+        current_move_speed: None,
         magic_guard: runtime.magic_guard && skills.get(&SKILL_MAGIC_GUARD).copied().unwrap_or(0) > 0,
         hyper_barrier_active: runtime.hyper_barrier_active,
         fire_ward_active: runtime.fire_ward_active,

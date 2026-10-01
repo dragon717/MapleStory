@@ -1,428 +1,68 @@
-.tms273-character-host {
-  position: absolute;
-  inset: 0;
-  z-index: 9;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.tms273-character-host[hidden],
-.character-window[hidden] {
-  display: none !important;
-}
-
+.tms273-character-host { position: absolute; inset: 0; z-index: 9; pointer-events: none; }
+.tms273-character-host[hidden], .character-window[hidden], .character-hold-ring[hidden] { display: none !important; }
 .character-window {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: min(472px, calc(100% - 12px));
-  height: min(709px, calc(100% - 12px));
-  transform: translate(-50%, -50%);
-  overflow: hidden;
-  pointer-events: auto;
-  z-index: var(--ui-window-z, 1);
-  color: #eef3f5;
-  font: 11px/1.3 Verdana, "Microsoft YaHei", sans-serif;
-  filter: drop-shadow(0 5px 5px #000b);
-  image-rendering: pixelated;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(472px, calc(100% - 12px)); max-height: calc(100% - 12px);
+  overflow: hidden; pointer-events: auto; z-index: var(--ui-window-z, 1);
+  color: #35424d; font: 12px/1.5 Verdana, "Microsoft YaHei", sans-serif;
+  border: 1px solid #47555e; border-radius: 5px; box-sizing: border-box;
+  background: #ecf0ed; box-shadow: 0 5px 15px #0008;
 }
-
-/* Drag hit strip (spec R2): the source frame band above the white card.
-   The close button (z-index 8) stays above it and clickable. */
-.character-titlebar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  height: 26px;
-  z-index: 7;
-  cursor: move;
-  touch-action: none;
-  user-select: none;
-}
-
-.character-scroll {
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-color: #7e8e96 #222b33;
-  scrollbar-width: thin;
-  overscroll-behavior: contain;
-}
-
-.character-scroll-content {
-  position: relative;
-  width: 100%;
-  max-width: 472px;
-  min-width: 0;
-  min-height: 709px;
-}
-
-.character-main-card,
-.character-detail-card {
-  position: relative;
-  width: 100%;
-  overflow: hidden;
-}
-
-.character-main-card { height: 230px; }
-.character-detail-card { height: 479px; }
-
-.character-main-background,
-.character-detail-background,
-.character-detail-stat-layer,
-.character-detail-attack-back,
-.character-detail-utility-back,
-.character-detail-main-stat-back {
-  position: absolute;
-  display: block;
-  max-width: none;
-  pointer-events: none;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-}
-
-.character-main-background { inset: 0; width: 472px; height: 230px; }
-.character-detail-background { inset: 0; width: 472px; height: 479px; }
-.character-detail-stat-layer { left: 11px; top: 11px; }
-/* attackBack bakes a 戰鬥力 header strip into its top 33 px; clip it so the
-   strip neither overlaps the window title nor doubles the header row. */
-.character-detail-attack-back { left: 0; top: 0; clip-path: inset(33px 0 0 0); }
-.character-detail-utility-back { left: 0; top: 314px; }
-.character-detail-main-stat-back { left: 0; top: 38px; }
-
-.character-field {
-  position: absolute;
-  z-index: 5;
-  display: block;
-  overflow: hidden;
-  color: #35424d;
-  font-weight: 700;
-  text-shadow: 0 1px #fff;
-  white-space: nowrap;
-}
-
-.character-field-value {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.character-field-label { display: none; }
-.character-level { width: 100px; height: 18px; font-size: 12px; }
-.character-job { width: 140px; height: 18px; font-size: 11px; }
-.character-name { width: 105px; height: 17px; font-size: 11px; }
-
-/* HP/MP/EXP/AP live in the free white card zone (source art y32..122);
-   the baked gray slots (公会/联盟/人气度…) start at y124 and must stay clear. */
-.character-main-vitals {
-  position: absolute;
-  z-index: 5;
-  left: 24px;
-  top: 62px;
-  width: 424px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 8px;
-}
-
-.character-main-vitals .character-field {
-  position: relative;
-  left: auto !important;
-  top: auto !important;
-  width: auto;
-  height: 18px;
-  padding: 1px 6px;
-  color: #29404d;
-  font-size: 11px;
-  line-height: 16px;
-  background: rgb(224 232 235 / 78%);
-  border: 1px solid rgb(104 119 130 / 55%);
-  border-radius: 2px;
-}
-
-.character-main-vitals .character-field-label,
-.character-main-vitals .character-field-value { display: inline; }
-.character-main-vitals .character-field-value { margin-left: 3px; }
-.character-growth-note {
-  grid-column: 1 / -1;
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  color: #52646e;
-  font-size: 9px;
-  line-height: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.character-window-close {
-  position: absolute;
-  z-index: 8;
-  top: 9px;
-  right: 9px;
-  width: 18px;
-  height: 18px;
-  padding: 3px;
-  border: 0;
-  border-radius: 2px;
-  background: #27313a;
-  color: #f0f4f4;
-  cursor: pointer;
-  line-height: 0;
-}
-
-.character-window-close-art {
-  position: static !important;
-  display: block;
-  width: 11px;
-  height: 11px;
-  margin: auto;
-  image-rendering: pixelated;
-}
-
-.character-window-close:focus-visible { outline: 2px solid #f5c967; outline-offset: 1px; }
-
-.character-detail-title {
-  position: absolute;
-  z-index: 6;
-  left: 24px;
-  top: 14px;
-  margin: 0;
-  color: #eef3f5;
-  font: 700 11px/20px "Microsoft YaHei", sans-serif;
-  text-shadow: 1px 1px #1d2a31;
-}
-
-/* Stat rows sit on the source gray canvases (spec R6):
-   - mainStatBack  y38..119  → 可用AP/金币 + 力量/敏捷/智力/运气（AP 分配）
-   - attackBack 灰板 y123..300 → 魔法攻击/防御/移动速度/魔心防御
-   - utilityBack   y314..406 → 精神强化/寒冰迅移 */
-.character-live-stats {
-  position: absolute;
-  z-index: 6;
-  left: 24px;
-  width: 424px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 8px;
-  margin: 0;
-  box-sizing: border-box;
-  color: #f4f7f8;
-  font: 11px/22px "Microsoft YaHei", sans-serif;
-}
-
-.character-ability-stats { top: 42px; grid-auto-rows: 22px; }
-.character-combat-stats { top: 130px; grid-auto-rows: 26px; }
-.character-status-stats { top: 322px; grid-auto-rows: 26px; }
-
-.character-live-stat {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  padding: 0 8px;
-  background: rgb(27 35 43 / 79%);
-  border: 1px solid rgb(143 155 167 / 68%);
-  box-shadow: inset 0 1px rgb(195 204 211 / 13%);
-  border-radius: 2px;
-}
-
-.character-live-stat dt,
-.character-live-stat dd { margin: 0; }
-.character-live-stat dt { color: #e8edf0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.character-live-stat dd { min-width: 58px; color: #fff; font-weight: 700; text-align: right; }
-.character-ability-stat dd { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
-.character-ability-base { min-width: 18px; }
-.character-ability-total { min-width: 28px; color: #c6d2d8; font-size: 9px; font-weight: 400; white-space: nowrap; }
-.character-ap-button { width: 16px; height: 16px; min-width: 16px; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff3b8; font: 700 10px/16px Verdana, "Microsoft YaHei", sans-serif; cursor: pointer; }
-.character-ap-button-fallback { width: 28px; min-width: 28px; height: 22px; border: 1px solid #91a8b3; border-radius: 2px; background: #354c58; line-height: 19px; }
-.character-ap-button:hover:not(:disabled) { background: #4d6d7c; }
-.character-ap-button-art { position: static !important; display: block; width: 16px; height: 16px; max-width: none; image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; }
-.character-ap-button:focus-visible { outline: 2px solid #f5c967; outline-offset: 1px; }
-.character-ap-button:disabled { cursor: not-allowed; opacity: .45; }
-
-@media (max-height: 720px) {
-  .character-window { top: 6px; height: calc(100% - 12px); transform: translateX(-50%); }
-}
-
-@media (max-width: 479px) {
-  .character-window { left: 6px; right: 6px; top: 6px; width: calc(100% - 12px); transform: none; }
-}
-
-/* Keep the source canvas native-size on desktop; reflow live data on phones. */
+.character-titlebar { position: absolute; inset: 0 0 auto; height: 26px; z-index: 7; cursor: move; touch-action: none; user-select: none; }
+.character-scroll { width: 100%; max-height: calc(100vh - 12px); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #8faaa3 #e3e9e4; overscroll-behavior: contain; }
+.character-scroll-content { position: relative; width: 100%; min-width: 0; }
+.character-main-card, .character-detail-card { position: relative; overflow: hidden; box-sizing: border-box; padding: 36px 14px 12px; }
+/* Keep the native source title strip; empty guild/fame slots no longer dictate the data layout. */
+.character-main-background, .character-detail-background { position: absolute; left: 0 !important; top: 0 !important; width: 472px; height: auto; max-width: none; clip-path: inset(0 0 calc(100% - 26px) 0); pointer-events: none; image-rendering: pixelated; }
+.character-detail-card { background: #2e363e; color: #eef3f5; }
+.character-main-card { display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "name level" "job job" "vitals vitals"; gap: 4px 10px; }
+.character-field { position: relative; min-width: 0; left: auto !important; top: auto !important; }
+.character-field-value { overflow: hidden; text-overflow: ellipsis; }
+.character-field-label { margin-right: 6px; color: #687d7d; font-size: 11px; }
+.character-name { grid-area: name; font-weight: 700; font-size: 14px; }
+.character-level { grid-area: level; text-align: right; font-weight: 700; }
+.character-job { grid-area: job; }
+.character-name .character-field-label, .character-level .character-field-label { display: none; }
+.character-main-vitals { grid-area: vitals; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 8px; margin-top: 6px; }
+.character-main-vital { padding: 4px 8px; border: 1px solid #becac4; border-radius: 2px; background: #f8faf8; }
+.character-hp .character-field-value { color: #9b4045; }
+.character-mp .character-field-value { color: #376fa0; }
+.character-exp { grid-column: 1 / -1; }
+.character-ap { font-weight: 700; }
+.character-growth-note { grid-column: 1 / -1; color: #6c7a78; font-size: 10px; }
+.character-window-close { position: absolute; z-index: 8; top: 5px; right: 7px; width: 18px; height: 18px; padding: 3px; border: 0; background: #27313a; color: white; cursor: pointer; border-radius: 2px; }
+.character-window-close-art { position: static !important; display: block; width: 11px; height: 11px; image-rendering: pixelated; }
+.character-detail-title { position: absolute; top: 3px; left: 14px; z-index: 6; margin: 0; color: #eef3f5; font: 700 12px/20px "Microsoft YaHei", sans-serif; text-shadow: 1px 1px #1d2a31; }
+.character-group-title { margin: 10px 0 6px; color: #b8c9ce; font: 700 12px/1.5 "Microsoft YaHei", sans-serif; }
+.character-group-title:first-of-type { margin-top: 0; }
+.character-live-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; margin: 0; }
+.character-live-stat { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 30px; padding: 2px 8px; border: 1px solid #bdc9c3; border-radius: 2px; background: #f8faf8; box-sizing: border-box; }
+.character-live-stat dt, .character-live-stat dd { margin: 0; }
+.character-live-stat dt { color: #61736b; font-size: 11px; white-space: nowrap; }
+.character-live-stat dd { min-width: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.character-ability-stat dd { display: flex; align-items: center; gap: 5px; }
+.character-ability-total { color: #bdcdd3; font-size: 10px; font-weight: 400; white-space: nowrap; }
+.character-combat-stats .character-live-stat:has([data-field="moveSpeed"]) { grid-column: 1 / -1; border-color: #99b8a4; background: #e3f0e4; }
+.character-detail-card .character-live-stat { border-color: #586b76; background: #39444e; }
+.character-detail-card .character-live-stat dt { color: #ced9dc; }
+.character-detail-card .character-combat-stats .character-live-stat:has([data-field="moveSpeed"]) { border-color: #8aada1; background: #344e48; }
+.character-movement-note { grid-column: 1 / -1; color: #b8cbc6; font-size: 11px; }
+.character-allocation-hint { margin: 7px 0 10px; color: #b6c4c3; font-size: 11px; }
+.character-ap-button { display: grid; place-items: center; width: 24px; height: 26px; min-width: 24px; padding: 0; border: 1px solid #9bad9e; border-radius: 2px; background: #e6eee3; color: #466843; cursor: pointer; touch-action: none; user-select: none; }
+.character-ap-button-art { position: static !important; width: 16px; height: 16px; image-rendering: pixelated; pointer-events: none; }
+.character-ap-button:hover:not(:disabled) { background: #d5e6ca; }
+.character-ap-button:disabled { opacity: .4; cursor: not-allowed; }
+.character-ap-button[aria-busy="true"] { opacity: .55; }
+.character-ap-button:focus-visible, .character-window-close:focus-visible { outline: 2px solid #d69327; outline-offset: 2px; }
+.character-hold-ring { position: fixed; z-index: 10000; pointer-events: none; width: 42px; height: 42px; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; color: white; font: 700 14px/1 sans-serif; background: conic-gradient(#f9d475 calc(var(--hold-progress, 0) * 1turn), #33453ed9 0); box-shadow: 0 0 0 1px #182a25, 0 2px 8px #0008; }
+.character-hold-ring::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: #23352feb; z-index: -1; }
+@media (max-height: 600px) { .character-window { top: 6px; transform: translateX(-50%); } }
 @media (max-width: 483px) {
-  .character-window {
-    top: 6px;
-    width: calc(100% - 12px);
-    height: calc(100% - 12px);
-  }
-
-  .character-scroll-content {
-    min-height: 0;
-  }
-
-  .character-titlebar { height: 34px; }
-
-  .character-main-card,
-  .character-detail-card {
-    box-sizing: border-box;
-    height: auto;
-    min-height: 0;
-    padding: 42px 14px 16px;
-    background: linear-gradient(150deg, #35424d 0%, #29343e 100%);
-    border: 1px solid #73828d;
-    box-shadow: inset 0 1px #a6b2ba, inset 0 0 0 1px #1e2931;
-  }
-
-  .character-main-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "job level"
-      "name name"
-      "vitals vitals";
-    gap: 8px 10px;
-  }
-
-  .character-main-card::before,
-  .character-detail-card::before {
-    position: absolute;
-    left: 14px;
-    top: 10px;
-    color: #edf2f4;
-    font: 700 12px/18px "Microsoft YaHei", sans-serif;
-    letter-spacing: 0.04em;
-    text-shadow: 1px 1px #1a242b;
-  }
-
-  .character-main-card::before { content: "CHARACTER INFO"; }
-  .character-detail-card::before { content: "角色属性"; }
-
-  .character-main-card > .character-main-background,
-  .character-detail-card > .character-detail-background,
-  .character-detail-card > .character-detail-stat-layer,
-  .character-detail-card > .character-detail-attack-back,
-  .character-detail-card > .character-detail-utility-back,
-  .character-detail-card > .character-detail-main-stat-back {
-    display: none;
-  }
-
-  .character-main-card > .character-field {
-    position: relative;
-    left: auto !important;
-    top: auto !important;
-    width: auto;
-    height: auto;
-    min-width: 0;
-    color: #f0f4f5;
-    font-size: 11px;
-    line-height: 20px;
-    text-shadow: 1px 1px #1e2931;
-  }
-
-  .character-main-card > .character-job { grid-area: job; }
-  .character-main-card > .character-level { grid-area: level; text-align: right; }
-  .character-main-card > .character-name { grid-area: name; }
-
-  .character-main-card > .character-name .character-field-value {
-    display: inline;
-  }
-
-  .character-main-vitals {
-    position: relative;
-    left: auto;
-    top: auto;
-    grid-area: vitals;
-    width: 100%;
-    min-width: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .character-main-vitals .character-exp,
-  .character-growth-note { grid-column: 1 / -1; }
-
-  .character-growth-note {
-    color: #d8e4e8;
-    font-size: 10px;
-    line-height: 18px;
-  }
-
-  .character-main-vitals .character-field {
-    width: auto;
-    min-width: 0;
-    height: auto;
-    min-height: 22px;
-    box-sizing: border-box;
-    padding: 2px 6px;
-    color: #eef3f5;
-    font-size: 11px;
-    line-height: 17px;
-    background: rgb(71 88 101 / 84%);
-    border-color: #8c9ba5;
-    text-shadow: 1px 1px #1c2730;
-  }
-
-  .character-window-close {
-    top: 9px;
-    right: 9px;
-  }
-
-  .character-detail-title {
-    position: relative;
-    left: auto;
-    top: auto;
-    height: 0;
-    margin: 0;
-    overflow: hidden;
-    color: transparent;
-  }
-
-  .character-live-stats {
-    position: relative;
-    left: auto;
-    top: auto;
-    width: 100%;
-    min-width: 0;
-    margin-top: 8px;
-    grid-auto-rows: minmax(34px, auto);
-    gap: 6px;
-  }
-
-  .character-status-stats { top: auto; }
-
-  .character-live-stat {
-    min-height: 34px;
-    padding: 0 8px;
-    font-size: 11px;
-    line-height: 32px;
-  }
-
-  .character-live-stat dd { min-width: 64px; }
+  .character-window { left: 6px; top: 6px; transform: none; }
+  .character-main-card, .character-detail-card { padding-left: 10px; padding-right: 10px; }
+  .character-live-stats { grid-template-columns: minmax(0, 1fr); }
+  .character-ability-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .character-ability-stat { flex-direction: column; align-items: stretch; gap: 0; }
+  .character-ability-stat dd { justify-content: flex-end; }
 }
-
-@media (max-width: 360px) {
-  .character-main-card {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "job"
-      "level"
-      "name"
-      "vitals";
-  }
-
-  .character-main-card > .character-level { text-align: left; }
-
-  .character-main-vitals,
-  .character-live-stats {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .character-main-vitals .character-field,
-  .character-live-stat {
-    width: 100%;
-  }
-}
+@media (max-width: 330px) { .character-ability-stats, .character-main-vitals { grid-template-columns: minmax(0, 1fr); } }

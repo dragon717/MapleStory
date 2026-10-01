@@ -3526,6 +3526,7 @@ impl World {
         let mut player_rows = Vec::new();
         for player in self.players.values().filter(|p| p.map_id == map_id && self.colossus_relevant(id,p)) {
             let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
+            row["derivedStats"]["currentMoveSpeed"] = serde_json::json!(current_walk_speed(player));
             if let Some(away) = player.away.as_ref() {
                 if let Some(object) = row.as_object_mut() {
                     object.insert(

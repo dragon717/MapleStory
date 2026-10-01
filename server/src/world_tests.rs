@@ -6295,3 +6295,38 @@ fn east_screen_direction_and_held_curve_use_one_rule() {
     world.command(Command::Input {id: "east-view".into(), connection: "east-view-connection".into(), message: ClientMessage::CastSkill {request_id: "fresh-view".into(), skill_id: 0, direction: Some(1), vertical: Some(0), view: Some(MovementView {yaw: 0.45, pitch: 0.6})}});
     assert_eq!(world.players["east-view"].east_view.unwrap().yaw, 0.45);
 }
+
+#[test]
+fn character_current_speed_matches_riding_slow_and_movement() {
+    let mut world = World::new(life_map("speed-readout"), 600);
+    let (output, _) = mpsc::channel(128);
+    let (reply, _) = oneshot::channel();
+    world.command(Command::Join {
+        identity: Identity { id: "speed".into(), username: "speed".into() },
+        connection: "speed-connection".into(), output, reply, lang: "zh".into(),
+    });
+    for phase in 0..4 {
+        let player = world.players.get_mut("speed").unwrap();
+        player.move_speed = 150.0;
+        player.state.derived_stats.move_speed = 150.0;
+        player.state.vx = 0.0; // Capacity remains visible while standing still.
+        player.state.x = 30.0;
+        player.state.y = 100.0;
+        player.state.grounded = true;
+        player.foothold_id = 1;
+        player.direction = 1;
+        player.mount = (phase == 1 || phase == 2).then(|| mounts::MountRuntime {
+            item_id: "1902000".into(), taming_mob: 1902000,
+            ride: inventory::RideStats { speed: 150, jump: 100, fs: 100, swim: 100, fatigue: 0 },
+        });
+        player.status.clear();
+        if phase == 2 { player.status.apply_disease(Disease::Slow, 1000, world.tick); }
+        let expected = [150.0, 225.0, 112.5, 150.0][phase];
+        let rows: serde_json::Value = serde_json::from_str(&world.snapshot_players("speed")).unwrap();
+        assert_eq!(rows[0]["derivedStats"]["currentMoveSpeed"], expected);
+        assert_eq!(rows[0]["derivedStats"]["moveSpeed"], 150.0);
+        let player = world.players.get_mut("speed").unwrap();
+        step_player(&world.map, &world.gameplay, player, world.tick);
+        assert_eq!(player.state.vx, expected, "snapshot and actual walk disagree in phase {phase}");
+    }
+}

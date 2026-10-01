@@ -55,6 +55,7 @@ MapleStory-运行资源-*.tar.gz
 # Recomputable reports. Keep handwritten sources, curated baselines and gate inputs.
 /artifacts/**/*.log
 /artifacts/henesys/
+/artifacts/character-hold/
 /artifacts/windbell/
 /artifacts/asset-index-report.json
 /artifacts/refactor/frontend-deps.json

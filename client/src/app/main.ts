@@ -145,7 +145,7 @@ function openCashShop() {
   cashShop?.open();
 }
 function characterInfoIsOpen() {
-  return Boolean((characterInfo as unknown as { isOpen?: () => boolean } | undefined)?.isOpen?.());
+  return characterInfo?.isOpen() ?? false;
 }
 /**
  * Panels that own gameplay focus and their own Escape handling.  While any of them is showing the
@@ -449,7 +449,7 @@ async function enterGame(session: LoginResponse) {
       toggleCharacterInfo,
       () => returnToEntry('channel'),
       () => returnToEntry('characters'),
-      showNews,
+      () => { input?.reset(); activities?.showEnvironment(); },
       showNews,
       () => party?.toggle() ?? false,
       // Source UITotalMenu type 24 is the 好友&黑名單 shortcut.
@@ -875,6 +875,7 @@ async function enterGame(session: LoginResponse) {
         }
       }
       else       if (message.type === 'rejected') {
+        characterInfo?.receiveReject(message.requestId);
         if (message.code === 'colossus_action' && uiLocale() !== 'en') status(message.message, true);
         else if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
         else if (['reactor_unknown', 'reactor_busy', 'reactor_spent', 'reactor_out_of_range'].includes(message.code)) {
