@@ -16,6 +16,7 @@ const clientRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const checks = [
   ['features/henesys/coordinates.check.mjs', []],
+  ['features/henesys/local-reveal.check.mjs', []],
   ['features/player/animation.check.ts', ['--experimental-strip-types']],
   ['features/player/ride-scene.check.mjs', []],
   ['scenes/layer-animation.check.ts', ['--experimental-strip-types']],

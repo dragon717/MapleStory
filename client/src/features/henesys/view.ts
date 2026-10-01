@@ -7,10 +7,12 @@ import type { MapDefinition } from '../../assets/manifest';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import { PIXELS_PER_METRE, point3d, segmentAt } from './coordinates';
 import { Sunlight } from './sunlight';
+import { LocalReveal } from './local-reveal';
 import './style.css';
 
 type Display = Phaser.GameObjects.GameObject & {x:number;y:number;scaleX:number;scaleY:number;depth:number;visible:boolean;setPosition(x:number,y:number):Display;setScale(x:number,y:number):Display;setDepth(n:number):Display;getBounds():Phaser.Geom.Rectangle};
 type Saved={o:Display;x:number;y:number;sx:number;sy:number;depth:number;z:number};
+type ActorFoot={x:number;y:number;revealHeight?:number;revealWidth?:number};
 /** World retains every actor, animation, interaction and input. Only drawing coordinates
  * are projected for one render, then restored before any gameplay callback runs. */
 export class HenesysView {
@@ -37,23 +39,21 @@ export class HenesysView {
  private rasterCamera?:Pick<Phaser.Cameras.Scene2D.Camera,'x'|'y'|'width'|'height'|'scrollX'|'scrollY'|'zoomX'|'zoomY'|'roundPixels'|'useBounds'>;
  private model:T.Group;
  private surfaces:T.Object3D[]=[];
- private occluders:{mesh:T.Mesh;bounds:T.Box3}[]=[];
+ private reveal:LocalReveal;
  private shadowCell=new T.Vector3(Infinity,Infinity,Infinity);
- private faded=new Map<T.Mesh,T.Material|T.Material[]>();private fadeAt=0;
  private footShadow=new T.Mesh(new T.CircleGeometry(.55,24),new T.MeshBasicMaterial({color:0x22382b,transparent:true,opacity:.18,depthWrite:false}));
- private ray=new T.Raycaster();
  private sun=new T.DirectionalLight(0xffe6c2,3.1);
  private sunlight=new Sunlight();
  private environment:T.WebGLRenderTarget;
  private sourceMaterials=new Set<T.Material>();
  private width=0;private height=0;private pitch=.24;private yaw=0;private zoom=1.2;
  private disposed=false;private quality=true;private drag?:{id:number;x:number;y:number};
- static async create(world:Phaser.Scene,map:MapDefinition,self:()=>{x:number;y:number}|undefined,current:()=>boolean){
+ static async create(world:Phaser.Scene,map:MapDefinition,self:()=>ActorFoot|undefined,current:()=>boolean){
   const [gltf,hdr]=await Promise.all([new GLTFLoader().loadAsync(resolveAssetUrl('/assets/henesys/chuxian-east.glb')),new EXRLoader().loadAsync(resolveAssetUrl('/assets/henesys/dawn.exr'))]);
   if(!current()){HenesysView.disposeModel(gltf.scene);hdr.dispose();return undefined;}
   try{return new HenesysView(world,map,gltf.scene,hdr,self);}catch(e){HenesysView.disposeModel(gltf.scene);hdr.dispose();throw e;}
  }
- constructor(private world:Phaser.Scene,_map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>{x:number;y:number}|undefined){
+ constructor(private world:Phaser.Scene,_map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>ActorFoot|undefined){
   this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角');
   this.roadLabel.className='henesys-road-label';this.root.append(this.roadLabel);
   this.phaser=world.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
@@ -76,16 +76,15 @@ export class HenesysView {
   model.traverse(o=>{
    if(o.userData.layer==='vegetation')vegetation.push(o);
    if(!(o instanceof T.Mesh))return;o.castShadow=true;o.receiveShadow=true;this.surfaces.push(o);
-   const layer=o.userData.layer??o.parent?.userData.layer;
-   if(layer==='props'||layer==='buildings')this.occluders.push({mesh:o,bounds:new T.Box3().setFromObject(o)});
    for(const m of Array.isArray(o.material)?o.material:[o.material]){this.sourceMaterials.add(m);const p=m as T.MeshStandardMaterial;if(p.map)p.map.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());}
    if((o.userData.layer??o.parent?.userData.layer)==='water'){o.material=new T.MeshPhysicalMaterial({color:0x69aaa1,roughness:.22,metalness:.15,transparent:true,opacity:.92});o.castShadow=false;}
   });
   // Native Three instancing of the existing CC0 trees; source objects remain in Blender.
   const batches=new Map<string,{geometry:T.BufferGeometry;material:T.Material;objects:T.Mesh[]}>();
   for(const v of vegetation)v.traverse(o=>{if(!(o instanceof T.Mesh)||Array.isArray(o.material))return;const key=o.geometry.uuid+o.material.uuid,b=batches.get(key)??{geometry:o.geometry,material:o.material,objects:[] as T.Mesh[]};b.objects.push(o);batches.set(key,b);});
-  const forest=new T.Group();model.add(forest);
+  const forest=new T.Group();forest.userData.layer='vegetation';model.add(forest);
   for(const b of batches.values()){if(b.objects.length<2)continue;const inst=new T.InstancedMesh(b.geometry,b.material,b.objects.length);inst.castShadow=true;inst.receiveShadow=true;b.objects.forEach((o,i)=>{inst.setMatrixAt(i,o.matrixWorld);o.visible=false;});inst.computeBoundingSphere();forest.add(inst);}
+  this.reveal=new LocalReveal(model);
   this.texture=new T.ExternalTexture(this.actors.texture.webGLTexture);
   const material=new T.ShaderMaterial({glslVersion:T.GLSL3,transparent:true,premultipliedAlpha:true,depthTest:true,depthWrite:true,toneMapped:false,uniforms:{image:{value:this.texture},actorDepth:{value:this.depthTarget.texture}},vertexShader:`out vec2 screenUv;void main(){screenUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,fragmentShader:`uniform sampler2D image,actorDepth;in vec2 screenUv;out vec4 outColor;
 #define gl_FragColor outColor
@@ -124,17 +123,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const ground=segmentAt(actor.x),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
   const roadName=`初弦地 · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
   this.footShadow.position.set(foot.x,groundY+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
-  if(performance.now()-this.fadeAt>180){
-   this.fadeAt=performance.now();const blocked=new Set<T.Mesh>();
-   const nearby=this.occluders.filter(o=>o.bounds.distanceToPoint(foot)<6).map(o=>o.mesh);
-   for(const height of [.15,1.15]){const p=foot.clone().add(new T.Vector3(0,height,0));this.ray.set(this.camera.position,p.clone().sub(this.camera.position).normalize());this.ray.far=this.camera.position.distanceTo(p)-.05;
-    for(const hit of this.ray.intersectObjects(nearby,false)){const mesh=hit.object as T.Mesh;
-     if(hit.point.distanceTo(foot)<5)blocked.add(mesh);
-    }
-   }
-   for(const mesh of blocked)if(!this.faded.has(mesh)){this.faded.set(mesh,mesh.material);mesh.material=Array.isArray(mesh.material)?mesh.material.map(m=>m.clone()):mesh.material.clone();}
-   for(const [mesh] of this.faded)for(const m of Array.isArray(mesh.material)?mesh.material:[mesh.material]){const on=blocked.has(mesh);m.transparent=true;m.opacity=on ? .18 : 1;m.depthWrite=!on;}
-  }
+  this.reveal.update(foot,this.camera,this.width,this.height,ratio,delta,performance.now(),actor.revealHeight,actor.revealWidth);
   // Rasterize at final physical resolution before any detail can be lost.
   this.resizeSource(this.depthTarget.width,this.depthTarget.height);
   this.rasterCamera={x:source.x,y:source.y,width:source.width,height:source.height,scrollX:source.scrollX,scrollY:source.scrollY,zoomX:source.zoomX,zoomY:source.zoomY,roundPixels:source.roundPixels,useBounds:source.useBounds};
@@ -181,5 +170,5 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  private context=(e:Event)=>e.preventDefault();
  private wheel=(e:WheelEvent)=>{e.preventDefault();this.zoom=T.MathUtils.clamp(this.zoom*Math.exp(T.MathUtils.clamp(e.deltaY,-100,100)*.002),.9,1.7);};
  private static disposeModel(root:T.Object3D){const textures=new Set<T.Texture>(),materials=new Set<T.Material>(),geometries=new Set<T.BufferGeometry>();root.traverse(o=>{if(!(o instanceof T.Mesh))return;geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material]){materials.add(m);for(const v of Object.values(m))if(v instanceof T.Texture)textures.add(v);}});textures.forEach(t=>t.dispose());materials.forEach(m=>m.dispose());geometries.forEach(g=>g.dispose());}
- destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);for(const material of this.faded.values())for(const m of Array.isArray(material)?material:[material])m.dispose();this.faded.clear();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.sun.shadow.dispose();this.environment.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
+ destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);this.reveal.destroy();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.sun.shadow.dispose();this.environment.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
 }

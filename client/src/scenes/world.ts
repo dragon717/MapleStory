@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, platformThickness } from '../features/henesys/coordinates';
+import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
@@ -126,7 +126,11 @@ export class World extends Phaser.Scene {
     const generation = ++this.threeGeneration;
     this.threeLoading = true;
     const map = this.manifest.map;
-    void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => this.renderedSelf, () => generation === this.threeGeneration)).then(view => {
+    void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => {
+      const self = this.renderedSelf;if (!self) return;
+      const bounds = this.players.get(self.id)?.body.getBounds();
+      return {x:self.x,y:self.y,revealHeight:bounds ? Math.max(2.2,(self.y-bounds.top)/PIXELS_PER_METRE+.5) : 2.2,revealWidth:(bounds?.width ?? 0)/PIXELS_PER_METRE};
+    }, () => generation === this.threeGeneration)).then(view => {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
