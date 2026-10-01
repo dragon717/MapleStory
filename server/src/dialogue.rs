@@ -140,6 +140,7 @@ impl World {
             self.send_reject(&id, code, message, Some(&request_id));
             return;
         }
+        if self.talk_town_lamp_guard(&id,&request_id,&npc_id,step) { return; }
         let Some(template) = self
             .gameplay
             .npcs

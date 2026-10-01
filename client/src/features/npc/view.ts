@@ -92,6 +92,9 @@ export class NpcView {
     return this.label;
   }
 
+  /** Only authored actor art receives environment light; names and markers remain clear. */
+  get lightingArt() { return this.sprite; }
+
   update(npc: NpcSnapshot, elapsed: number) {
     const sprite = this.sprite;
     if (!sprite) return;

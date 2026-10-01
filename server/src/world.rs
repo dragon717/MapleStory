@@ -125,6 +125,8 @@ mod ship_event;
 mod skills;
 #[path = "henesys.rs"]
 mod henesys;
+#[path = "town_lamps.rs"]
+mod town_lamps;
 #[path = "social.rs"]
 mod social;
 #[path = "trade.rs"]
@@ -2389,6 +2391,7 @@ fn unix_now_ms() -> i64 {
 #[derive(Clone)]
 struct Player {
     state: PlayerState,
+    town_lamp: crate::protocol::TownLampState,
     /// Durable per-tab inventory slot capacities live in `state
     /// .inventory_slots` (the wire copy every snapshot serializes).  Loaded
     /// from auth at join, grown by the slot-expansion coupon in memory
@@ -2954,6 +2957,8 @@ pub struct World {
     /// so a replayed `ShopBuy` re-sends the original result instead of spending
     /// mesos and granting the same stack a second time.
     shop_buy_requests: BTreeMap<(String, String), ShopBuyOutcome>,
+    /// Store-less simulation worlds only; production receipts live in SQLite.
+    town_lamp_requests: BTreeMap<(String, String), (town_lamps::LampIntent,town_lamps::LampReceipt)>,
     /// Authoritative outcome of the last shop sell-back per (player, request),
     /// so a replayed `ShopSell` re-sends the original result instead of paying
     /// mesos a second time for the same stack.
@@ -3135,6 +3140,7 @@ impl World {
             echo_strike_interval_ms: death_world::ECHO_STRIKE_INTERVAL_MS,
             inventory_requests: BTreeMap::new(),
             shop_buy_requests: BTreeMap::new(),
+            town_lamp_requests: BTreeMap::new(),
             shop_sell_requests: BTreeMap::new(),
             shop_rebuy_requests: BTreeMap::new(),
             open_storage: BTreeMap::new(),
@@ -3463,7 +3469,7 @@ impl World {
             };
             self.spawn_npc_on_map(map_id, spawn)?;
         }
-        Ok(())
+        self.spawn_town_lamp_guard()
     }
 
     fn spawn_npc_on_map(&mut self, map_id: String, spawn: NpcSpawn) -> Result<(), String> {
@@ -3526,6 +3532,7 @@ impl World {
         let mut player_rows = Vec::new();
         for player in self.players.values().filter(|p| p.map_id == map_id && self.colossus_relevant(id,p)) {
             let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
+            if player.town_lamp.issued { row["townLamp"] = serde_json::to_value(&player.town_lamp).expect("town lamp snapshot"); }
             row["derivedStats"]["currentMoveSpeed"] = serde_json::json!(current_walk_speed(player));
             if let Some(away) = player.away.as_ref() {
                 if let Some(object) = row.as_object_mut() {
@@ -3628,7 +3635,9 @@ impl World {
                 if !self.quest_menu_choices(id, &npc.template_id).is_empty() {
                     state.quest_available = Some(true);
                 }
-                state
+                let mut row = serde_json::to_value(state).expect("npc snapshot");
+                if let Some(lamp) = self.town_npc_lamp(map_id,&npc.state.id) { row["townLamp"] = lamp; }
+                row
             })
             .collect::<Vec<_>>();
         let quest_interactions = self.quest_interactions_for(id, map_id);

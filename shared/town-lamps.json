@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "sourceClass": "P",
+  "sourceNotes": "初弦地原创灯具规则；TMS273当前物品目录无可用灯具，以下档位、持灯方式、距离、光强、等级及价格不是原版数值。灯具保存在SQLite独立专表中的角色JSON状态，不占用或改写原版装备与背包。",
+  "art": {
+    "lantern": {
+      "sourceClass": "T",
+      "source": "Map/Obj/house.img/grassySoil/lamp/2",
+      "url": "/assets/tms273/Map_Obj__Canvas_house.img_grassySoil_lamp_2_0-b5c6b50cb8.png",
+      "width": 39,
+      "height": 47,
+      "origin": { "x": 19, "y": 23 },
+      "reuseNotes": "已装配且已核看原图的TMS273地图挂灯；作为持灯显示为P，不声称原版可装备灯具。原图不裁切、不重绘。"
+    }
+  },
+  "mapId": "100000000",
+  "guard": {
+    "npcId": "chuxian-lamp-guard",
+    "templateId": "3003614",
+    "spawnOffsetPixels": 45,
+    "interactionRangeMetres": 3,
+    "verticalRangeMetres": 2,
+    "name": "初弦地守卫"
+  },
+  "tiers": [
+    { "tier": 1, "name": "近行提灯", "rangeMetres": 3, "intensityCandela": 8, "decay": 2, "requiredLevel": 1, "buyPrice": 100, "upgradePrice": 0 },
+    { "tier": 2, "name": "暖铜提灯", "rangeMetres": 5, "intensityCandela": 18, "decay": 2, "requiredLevel": 5, "buyPrice": 600, "upgradePrice": 500 },
+    { "tier": 3, "name": "远行晶灯", "rangeMetres": 7, "intensityCandela": 35, "decay": 2, "requiredLevel": 10, "buyPrice": 1600, "upgradePrice": 1000 }
+  ]
+}

@@ -34,6 +34,7 @@ import { MenuView } from '../features/menu/view';
 import { ColossusView } from '../features/colossus/view';
 import { ActivitiesView } from '../features/windbell/activities';
 import { DEFAULT_ENVIRONMENT } from '../features/henesys/environment-settings';
+import { TownLampPanel } from '../features/henesys/town-lamp-view';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
 import { NotebookView } from '../features/notebook/view';
@@ -71,6 +72,7 @@ let chat: ChatView | undefined;
 let deathNotice: DeathNoticeView | undefined;
 let awayNotice: AwayNoticeView | undefined;
 let mountStatus: MountStatusView | undefined;
+let townLampPanel: TownLampPanel | undefined;
 let chairStatus: ChairStatusView | undefined;
 let menus: MenuView | undefined;
 let activities: ActivitiesView | undefined;
@@ -157,7 +159,7 @@ function gameplayUiBlocked() {
     keybindingsView?.isOpen() || activities?.isOpen() ||
     news.open
     || menus?.isOpen()
-    || npcDialogue?.isOpen()
+    || (npcDialogue?.isOpen() || townLampPanel?.isOpen())
     || cashShop?.isOpen()
     || storage?.isOpen()
     || deathNotice?.isOpen()
@@ -237,14 +239,14 @@ function talkToNpc(npc: NpcState) {
   return npcDialogue?.startTalk(npc);
 }
 function toggleSkills() {
-  if (npcDialogue?.isOpen() || deathNotice?.isOpen()) return false;
+  if ((npcDialogue?.isOpen() || townLampPanel?.isOpen()) || deathNotice?.isOpen()) return false;
   input?.reset();
   characterInfo?.close();
   petPanel?.close();
   return skills?.toggle() ?? false;
 }
 function toggleCharacterInfo() {
-  if (npcDialogue?.isOpen() || deathNotice?.isOpen()) return false;
+  if ((npcDialogue?.isOpen() || townLampPanel?.isOpen()) || deathNotice?.isOpen()) return false;
   input?.reset();
   skills?.close();
   petPanel?.close();
@@ -329,7 +331,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -356,6 +358,8 @@ async function enterGame(session: LoginResponse) {
     chairStatus = new ChairStatusView(el('notices'));
     npcDialogue?.destroy();
     npcDialogue = new NpcDialogueView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false, () => { world?.selectNpc(null); if (selfState) focusGame(); });
+    townLampPanel?.destroy();
+    townLampPanel = new TownLampPanel(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     storage?.destroy();
     storage = new StorageView(el('ui-windows'), manifest, message => status(message, true), request => connection?.send(request) ?? false);
     party?.destroy();
@@ -485,7 +489,7 @@ async function enterGame(session: LoginResponse) {
     keyRouterDispose?.();
     keyRouterDispose = installKeybindingRouter({
       resolve: (code, shift) => keybindings.resolve(code, shift),
-      blocked: () => !selfState || Boolean(activities?.isOpen() || keybindingsView?.isOpen() || news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
+      blocked: () => !selfState || Boolean(activities?.isOpen() || keybindingsView?.isOpen() || news.open || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
       hasInteraction: (code, shift) => !gameplayUiBlocked() && keybindings.interacts(code, shift),
       activate: activateUiAction,
     });
@@ -507,7 +511,7 @@ async function enterGame(session: LoginResponse) {
         petPanel?.toggle();
       },
       castSkill: skillId => {
-        if (!selfState || keybindingsView?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
+        if (!selfState || keybindingsView?.isOpen() || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()) return;
         return castSkill(skillId);
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
@@ -532,7 +536,7 @@ async function enterGame(session: LoginResponse) {
       // `isLoaded` flipped true; when the snapshot beat the textures, this
       // is the side that finishes last and performs the reveal.
       if (!error) revealGame();
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); townLampPanel?.update(undefined); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
@@ -602,8 +606,10 @@ async function enterGame(session: LoginResponse) {
         chat?.appendGmResult(message);
         return;
       }
+      if (message.type === 'townLampResult') townLampPanel?.handle(message);
       if (message.type === 'npcResult') {
         npcDialogue?.receive(message);
+        if (message.openTownLamp) { npcDialogue?.clear(); input?.reset(); townLampPanel?.open(message.npcId); }
         if (message.openSkills) {
           npcDialogue?.clear();
           skills?.open();
@@ -828,6 +834,7 @@ async function enterGame(session: LoginResponse) {
         // 骑乘/坐姿标记紧邻 petPanel：两者都是「快照里有没有那个字段」的投影，
         // 不参与任何窗口生命周期，也不需要开合状态。
         mountStatus?.update(self);
+        townLampPanel?.update(self,message.mapId);
         chairStatus?.update(self);
         if (self) npcDialogue?.syncPlayer(self);
         // The cash shop's readout mirrors the authoritative wallet between
@@ -876,6 +883,7 @@ async function enterGame(session: LoginResponse) {
       }
       else       if (message.type === 'rejected') {
         characterInfo?.receiveReject(message.requestId);
+        townLampPanel?.reject(message.requestId,message.code);
         if (message.code === 'colossus_action' && uiLocale() !== 'en') status(message.message, true);
         else if (message.code === 'drop_owned') chat?.appendSystem(protocolText(message.code, message.message), `pickup-rejected:${message.requestId}`);
         else if (['reactor_unknown', 'reactor_busy', 'reactor_spent', 'reactor_out_of_range'].includes(message.code)) {
@@ -936,7 +944,7 @@ async function enterGame(session: LoginResponse) {
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
-      if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.disconnect(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
+      if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.disconnect(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); townLampPanel?.update(undefined); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); chairStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); townLampPanel?.close(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
     });
     input = new PlayerInput(message => connection?.send(message), {
       nearestDrop: () => colossusView ? null : world?.nearestDropId() ?? null,
@@ -965,7 +973,7 @@ async function enterGame(session: LoginResponse) {
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
       performAction: action => { activateUiAction(action); },
       useItem: useShortcutItem,
-      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -994,6 +1002,7 @@ function leaveGame(logout = false) {
   loadingOverlay?.hide(); loadingOverlay = undefined;
   setPlayLayout(false);
   activities?.destroy(); activities = undefined;
+  townLampPanel?.destroy(); townLampPanel = undefined;
   cashShop?.destroy(); cashShop = undefined;
   keyRouterDispose?.(); keyRouterDispose = undefined;
   keybindingsDispose?.(); keybindingsDispose = undefined;

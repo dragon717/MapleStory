@@ -37,7 +37,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||path.join(os.homedir(),'
    weather.push(await page.evaluate(()=>{const v=window.henesysPreview.world.henesys,c=v.climate;return {settings:window.henesysPreview.world.environment,sun:v.sun.intensity,night:c.stars.material.uniforms.night.value,particles:c.precipitation.visible,amount:c.precipitation.material.uniforms.amount.value,fog:v.sunlight.material.uniforms.fogDensity.value,aurora:v.sunlight.material.uniforms.aurora.value,snow:c.uniforms.winterSnow.value};}));
    await page.screenshot({path:path.join(out,name+'.png')});
   }
-  assert(weather[0].fog>math.east.fog);assert(weather[1].particles&&weather[2].amount>weather[1].amount);assert(weather[3].snow>.5);assert(weather[4].sun===0&&weather[4].night>0&&weather[4].aurora>0);
+  assert(weather[0].fog>math.east.fog);assert(weather[1].particles&&weather[2].amount>weather[1].amount);assert(weather[3].snow>0&&weather[3].snow<.1,'snow accumulates gradually rather than painting winter white instantly');assert(weather[4].sun===0&&weather[4].night>0&&weather[4].aurora>0);
   // Use the same sky-preview button as players. Hide only the settings window for the capture.
   await page.getByRole('button',{name:'活动',exact:true}).click();await page.getByRole('button',{name:'仰望天空 / 回到村路',exact:true}).click();
   await page.evaluate(()=>document.querySelector('.windbell-activities').style.visibility='hidden');await page.waitForTimeout(200);await page.screenshot({path:path.join(out,'aurora-sky.png')});

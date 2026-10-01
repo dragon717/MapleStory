@@ -10,6 +10,11 @@ import { LocalReveal } from './local-reveal';
 import { villageInstruments } from './instruments';
 import { VillageEnvironment } from './environment';
 import type { EnvironmentSettings } from './environment-settings';
+import type { PlayerState, NpcState, MonsterState } from '../../../../shared/protocol';
+import { GroundFeedback, type GroundActor } from './ground-feedback';
+import { SnowSurface, type SnowCover } from './ground-snow';
+import { TownLamps, type LampActor } from './town-lamps';
+import { sampleActorLight, multiplyArtTint } from './actor-lighting';
 import './style.css';
 
 type Display = Phaser.GameObjects.GameObject & {x:number;y:number;scaleX:number;scaleY:number;depth:number;visible:boolean;setPosition(x:number,y:number):Display;setScale(x:number,y:number):Display;setDepth(n:number):Display;getBounds():Phaser.Geom.Rectangle};
@@ -51,6 +56,16 @@ export class HenesysView {
  private pmrem:T.PMREMGenerator;
  private climate:VillageEnvironment;
  private sourceMaterials=new Set<T.Material>();
+ private snow:SnowSurface;
+ private groundFeedback:GroundFeedback;
+ private townLamps:TownLamps;
+ private groundActors:GroundActor[]=[];
+ private lampActors:LampActor[]=[];
+ private selfId='';
+ private actorArt:{art:Phaser.GameObjects.GameObject;point:readonly number[]}[]=[];
+ private lightTints:{image:Phaser.GameObjects.Image;tl:number;tr:number;bl:number;br:number;fill:boolean}[]=[];
+ private lightTintCount=0;
+ private artLight={r:1,g:1,b:1};
  private width=0;private height=0;private pitch=.24;private yaw=0;private zoom=1.2;
  private disposed=false;private quality=true;private drag?:{id:number;x:number;y:number};
  private skyPreview=false;
@@ -88,6 +103,9 @@ export class HenesysView {
   for(const b of batches.values()){if(b.objects.length<2)continue;const inst=new T.InstancedMesh(b.geometry,b.material,b.objects.length);inst.castShadow=true;inst.receiveShadow=true;b.objects.forEach((o,i)=>{inst.setMatrixAt(i,o.matrixWorld);o.visible=false;});inst.computeBoundingSphere();forest.add(inst);}
   this.reveal=new LocalReveal(model);
   this.climate=new VillageEnvironment(this.scene,this.sun,model);
+  this.snow=new SnowSurface(model);
+  this.groundFeedback=new GroundFeedback(this.scene,step=>this.snow.stamp({x:step.point[0],y:step.point[1],z:step.point[2]},{x:step.direction[0],z:step.direction[2]},step.mount));
+  this.townLamps=new TownLamps(this.scene);
   this.texture=new T.ExternalTexture(this.actors.texture.webGLTexture);
   const material=new T.ShaderMaterial({glslVersion:T.GLSL3,transparent:true,premultipliedAlpha:true,depthTest:true,depthWrite:true,toneMapped:false,uniforms:{image:{value:this.texture},actorDepth:{value:this.depthTarget.texture}},vertexShader:`out vec2 screenUv;void main(){screenUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,fragmentShader:`uniform sampler2D image,actorDepth;in vec2 screenUv;out vec4 outColor;
 #define gl_FragColor outColor
@@ -106,7 +124,36 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   return {yaw:this.yaw,pitch:Math.atan2(distance*Math.sin(this.pitch)+Math.min(270,source.height*.3)/PIXELS_PER_METRE,distance*Math.cos(this.pitch))};
  }
  resetCamera(){this.yaw=0;this.pitch=.24;this.zoom=1.2;}
- toggleQuality(){this.quality=!this.quality;this.sunlight.resize(this.depthTarget.width,this.depthTarget.height,this.quality);}
+ get snowCover():SnowCover{return {...this.snow.cover};}
+ setSnowCover(cover:SnowCover){this.snow.cover={...cover};}
+ toggleQuality(){this.quality=!this.quality;this.townLamps.setQuality(this.quality);this.sunlight.resize(this.depthTarget.width,this.depthTarget.height,this.quality);}
+ /** Same interpolated positions as the authored art, not another movement simulation. */
+ syncActors(players:readonly PlayerState[],npcs:readonly NpcState[],monsters:readonly MonsterState[],selfId:string,art:Map<string,Phaser.GameObjects.GameObject>,teleported:ReadonlySet<string>){
+  this.selfId=selfId;this.groundActors.length=0;this.lampActors.length=0;this.actorArt.length=0;
+  for(const player of players){
+   this.groundActors.push(teleported.has(player.id)?{...player,teleported:true}:player);
+   const point=point3d(player.x,player.y),body=art.get(player.id);
+   this.lampActors.push({id:player.id,kind:'player',point,facing:player.facing,townLamp:player.townLamp,heightMetres:body?(body as Display).getBounds().height/PIXELS_PER_METRE:undefined});
+   if(body)this.actorArt.push({art:body,point});
+  }
+  for(const npc of npcs){
+   const id='npc:'+npc.id,point=point3d(npc.x,npc.y),body=art.get(id);
+   this.groundActors.push({id,x:npc.x,y:npc.y,grounded:true,point});
+   this.lampActors.push({id,kind:'npc',point,facing:npc.facing,townLamp:npc.townLamp,heightMetres:body?(body as Display).getBounds().height/PIXELS_PER_METRE:undefined});
+   if(body)this.actorArt.push({art:body,point});
+  }
+  for(const mob of monsters){const id='mob:'+mob.id,point=point3d(mob.x,mob.y),body=art.get(id);if(mob.emissive)this.lampActors.push({id,kind:'monster',point,emissive:mob.emissive});if(body)this.actorArt.push({art:body,point});}
+ }
+ private shadeArt(root:Phaser.GameObjects.GameObject){
+  if(root.type==='Container'){for(const child of (root as Phaser.GameObjects.Container).list)this.shadeArt(child);return;}
+  if(root.type!=='Image'&&root.type!=='Sprite')return;
+  const image=root as Phaser.GameObjects.Image;
+  const saved=this.lightTints[this.lightTintCount]??{image,tl:0,tr:0,bl:0,br:0,fill:false};
+  saved.image=image;saved.tl=image.tintTopLeft;saved.tr=image.tintTopRight;saved.bl=image.tintBottomLeft;saved.br=image.tintBottomRight;saved.fill=image.tintFill;
+  this.lightTints[this.lightTintCount++]=saved;
+  const tl=multiplyArtTint(saved.tl,this.artLight),tr=multiplyArtTint(saved.tr,this.artLight),bl=multiplyArtTint(saved.bl,this.artLight),br=multiplyArtTint(saved.br,this.artLight);
+  if(saved.fill)image.setTintFill(tl,tr,bl,br);else image.setTint(tl,tr,bl,br);
+ }
  setEnvironment(value:EnvironmentSettings){this.climate.set(value);}
  previewSky(enabled:boolean){this.skyPreview=enabled;}
  project(x:number,y:number){const p=new T.Vector3(...point3d(x,y)).project(this.camera);return {x:(p.x+1)*this.width/2,y:(1-p.y)*this.height/2,z:(p.z+1)/2};}
@@ -127,7 +174,13 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const cell=new T.Vector3(Math.floor(base.x/8)*8,Math.floor(base.y/8)*8,Math.floor(base.z/8)*8);
   if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.shadow.needsUpdate=true;}
   this.sun.target.position.copy(cell);this.sun.position.copy(cell).addScaledVector(this.climate.uniforms.solarDirection.value,150);
-  this.climate.update(base,performance.now()/1000,ratio);
+  const now=performance.now(),seconds=now/1000;
+  this.climate.update(base,seconds,ratio);
+  if(this.snow.update(this.climate.settings,Math.min(delta/1000,.1),seconds))this.sun.shadow.needsUpdate=true;
+  this.climate.uniforms.winterSnow.value=this.snow.amount;
+  this.groundFeedback.update(this.groundActors,{moisture:this.climate.light.wet,snow:this.snow.amount,daylight:this.climate.light.daylight},now,foot.toArray(),ratio,this.height);
+  const samples=this.townLamps.update(this.lampActors,this.selfId,seconds,{right:[Math.cos(this.yaw),0,-Math.sin(this.yaw)],strength:.15+.85*(1-this.climate.light.daylight)});
+  for(const actor of this.actorArt){sampleActorLight(actor.point,this.climate.light.daylight,samples,this.artLight);this.shadeArt(actor.art);}
   if(this.climate.consumeSkyChange()){
    this.renderer.resetState();
    if(this.environment!==this.dawnEnvironment)this.environment.dispose();
@@ -171,6 +224,8 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  };
  private resizeSource(width:number,height:number){const canvas=this.world.game.canvas;if(canvas.width===width&&canvas.height===height&&this.phaser.width===width&&this.phaser.height===height)return;canvas.width=width;canvas.height=height;this.phaser.resize(width,height);}
  private restore(){
+  for(let i=0;i<this.lightTintCount;i++){const s=this.lightTints[i],image=s.image;if(!image.scene)continue;if(s.fill)image.setTintFill(s.tl,s.tr,s.bl,s.br);else image.setTint(s.tl,s.tr,s.bl,s.br);}
+  this.lightTintCount=0;
   for(const s of this.saved){if(s.o.scene)s.o.setPosition(s.x,s.y).setScale(s.sx,s.sy).setDepth(s.depth);}this.saved=[];
   if(this.rasterCamera){const c=this.world.cameras.main,s=this.rasterCamera;c.setViewport(s.x,s.y,s.width,s.height).setZoom(s.zoomX,s.zoomY).setScroll(s.scrollX,s.scrollY);c.roundPixels=s.roundPixels;c.useBounds=s.useBounds;c.preRender();this.rasterCamera=undefined;}
  }
@@ -186,5 +241,5 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  private context=(e:Event)=>e.preventDefault();
  private wheel=(e:WheelEvent)=>{e.preventDefault();this.zoom=T.MathUtils.clamp(this.zoom*Math.exp(T.MathUtils.clamp(e.deltaY,-100,100)*.002),.9,1.7);};
  private static disposeModel(root:T.Object3D){const textures=new Set<T.Texture>(),materials=new Set<T.Material>(),geometries=new Set<T.BufferGeometry>();root.traverse(o=>{if(!(o instanceof T.Mesh))return;geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material]){materials.add(m);for(const v of Object.values(m))if(v instanceof T.Texture)textures.add(v);}});textures.forEach(t=>t.dispose());materials.forEach(m=>m.dispose());geometries.forEach(g=>g.dispose());}
- destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);this.reveal.destroy();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.climate.destroy();this.sun.shadow.dispose();if(this.environment!==this.dawnEnvironment)this.environment.dispose();this.dawnEnvironment.dispose();this.pmrem.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
+ destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);this.groundFeedback.destroy();this.snow.destroy();this.townLamps.destroy();HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);this.reveal.destroy();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.climate.destroy();this.sun.shadow.dispose();if(this.environment!==this.dawnEnvironment)this.environment.dispose();this.dawnEnvironment.dispose();this.pmrem.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
 }

@@ -280,6 +280,18 @@ impl Store {
                result_json TEXT NOT NULL,
                PRIMARY KEY(account_id,request_id)
              );
+             -- P: independent character JSON; no original inventory or profile migration.
+             CREATE TABLE IF NOT EXISTS town_lamp_state(
+               account_id TEXT PRIMARY KEY,
+               state_json TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS town_lamp_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               intent_json TEXT NOT NULL,
+               result_json TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
+             );
              -- Account-scoped social graph (friend + blacklist).  Membership is
              -- symmetric: a friend row is inserted in both directions, so a
              -- friend is a fact about two characters at once and a single

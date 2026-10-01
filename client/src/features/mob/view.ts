@@ -33,6 +33,9 @@ export class MonsterView {
     if (freezeFirst) this.freezeSprite = scene.add.image(0, 0, freezeFirst.url).setOrigin(0).setDepth(depth + 1).setVisible(false);
   }
 
+  /** Only authored actor art receives environment light; names and markers remain clear. */
+  get lightingArt() { return this.sprite; }
+
   update(monster: MonsterSnapshot, elapsed: number) {
     // The server's freeze action is a state, not a source mob action. Keep
     // the monster's stand pose and layer the source-backed freeze effect over

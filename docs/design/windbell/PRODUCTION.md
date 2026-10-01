@@ -53,6 +53,8 @@ NPC立绘用于对话窗口；若只有单姿立绘，不冒称已完成走路/�
 
 ## 交付阅读入口
 
+当前元素/物理与实际目录统一见[新活动资料索引](../../technical/活动场景物理与重制资料索引.md)。本制作规格保留素材制作方法，历史候选版本/加载状态不代替当前运行事实。
+
 [素材浏览与音频播放](../../../resources/ui/windbell/index.html) · [叙事规则与人物](narrative/WIND_BELL_NARRATIVE.md) · [完整分支图册](BRANCH_ATLAS.md) · [声音说明](AUDIO.md) · [Blender MCP 与模型](../../technical/creative/BLENDER_MCP.md)。
 
 Blender 交付为可编辑低多边形结构稿，含桥前后与岛屿场景、状态模块和动画研究；精细外观以独立场景插画为方向。人物与道具原图保留，9张透明终稿已按场景与人物分类并用 Pillow 清理、在白底和深底核看；运行缩图另存 `/assets/windbell/`。贴图版模型作为源资产与必要贴图保留，运行时进展见当前计划。

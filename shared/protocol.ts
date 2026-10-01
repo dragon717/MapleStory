@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 37;
+export const PROTOCOL_VERSION = 38;
 export const CONTENT_VERSION = 'tms273-51';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -40,6 +40,15 @@ export interface ChairState {
   /** 距下一次恢复的剩余毫秒；与 `recoveryIntervalMs` 同生共死。 */
   nextRecoveryInMs?: number;
 }
+/** P: original town-lamp state, independent of the TMS273 equipment inventory.
+ *  Tier 0 means no lamp; issued remains true after discarding the guard's gift. */
+export interface TownLampState { tier: 0 | 1 | 2 | 3; issued: boolean; revision: number; }
+export interface NpcTownLampState { tier: 1 | 2 | 3; kind: 'lantern' | 'torch'; }
+export type TownLampAction = 'buy' | 'upgrade' | 'discard';
+export interface TownLampResult {
+  type: 'townLampResult'; requestId: string; action: TownLampAction | 'issued';
+  success: boolean; code: string; townLamp: TownLampState; mesos: number; mesosSpent: number;
+}
 export interface PlayerState {
   id: string; username: string; appearance?: Appearance; x: number; y: number; vx: number; vy: number;
   facing: Facing; grounded: boolean;
@@ -54,6 +63,8 @@ export interface PlayerState {
   mount?: MountState;
   /** 坐在椅子上才有；服务端从设置栏的实物导出（缺席即未坐下）。 */
   chair?: ChairState;
+  /** Present once the character has visited the original town; server-owned and durable. */
+  townLamp?: TownLampState;
   /** Server-owned persisted job ID; absent on older protocol 6 servers. */
   job?: number;
   /** Server-owned learned levels by skill ID; missing entries mean level 0, absent map means unknown. */
@@ -126,7 +137,10 @@ export interface MonsterState {
   id: string; templateId: string; x: number; y: number; facing: Facing;
   freezeStacks?: number;
   hp: number; maxHp: number; action: 'stand' | 'move' | 'hit' | 'freeze' | 'die' | 'attack1' | 'attack2' | 'skill1'; actionStartedTick: number;
+  /** Explicit server identity/state only; ordinary monsters omit it. Linear RGB, cd and metres. */
+  emissive?: MonsterEmission;
 }
+export interface MonsterEmission { color: Vec3; intensityCandela: number; rangeMetres: number; }
 export interface SummonState {
   id: string; playerId: string; skillId: number; x: number; y: number;
   facing: Facing; expiresInMs: number; stationary: boolean;
@@ -142,6 +156,8 @@ export interface NpcState {
   facing: Facing; shopId?: string;
   jobAdvancementAvailable?: boolean;
   questAvailable?: boolean;
+  /** Display lamp only; a lamp does not grant the NPC a business service. */
+  townLamp?: NpcTownLampState;
 }
 export interface DropState { id: string; itemId: string; quantity: number; x: number; y: number; }
 /** 原创扩展「死亡世界」：一座墓碑的权威快照。虚影演化阶段（0 潜伏 → 1 游荡 →
@@ -261,6 +277,7 @@ export interface ColossusState {
 /** Camera intent only; positions and route choices remain server-authoritative. */
 export type MovementView = { yaw: number; pitch: number };
 export type ClientMessage =
+  | { type: 'townLamp'; requestId: string; action: TownLampAction; tier: 0 | 1 | 2 | 3; expectedCost: number; npcId?: string }
   | { type: 'colossus'; requestId: string; sequence: number; action: ColossusAction }
   | { type: 'windbell'; requestId: string; sequence: number; action: WindbellAction; instanceId?: string }
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
@@ -592,7 +609,8 @@ export type ServerMessage =
   source?: 'placeholder' }; shop?: { shopId: string }; warp?: { mapId: string }; ended?: boolean; openSkills?: boolean;
   /** Set when the npc is an account warehouse keeper, so the client opens the
    *  storage window instead of rendering a dialogue tree. */
-  openStorage?: boolean }
+  openStorage?: boolean; openTownLamp?: boolean }
+  | TownLampResult
   | { type: 'shopResult'; requestId: string; success: boolean; code: string; shopId: string; itemId: string; quantity: number; mesosSpent: number }
   /** Authoritative result of selling one stack to an NPC shop. `mesosGained`
    *  is 0 for every refusal; `mesos` is the fresh authoritative balance. */

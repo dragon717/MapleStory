@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
+import type { SnowCover } from '../features/henesys/ground-snow';
 import type { HenesysView } from '../features/henesys/view';
 import { VillageAudio, FOOT_SOUNDS } from '../features/henesys/audio';
 import { environmentSettings, loadEnvironment, saveEnvironment, type EnvironmentSettings } from '../features/henesys/environment-settings';
@@ -41,6 +42,8 @@ export class World extends Phaser.Scene {
   get environment(){return {...this.climateSettings};}
   setEnvironment(value:Partial<EnvironmentSettings>){this.climateSettings=environmentSettings({...this.climateSettings,...value});saveEnvironment(this.climateSettings);this.henesys?.setEnvironment(this.climateSettings);}
   private henesys?: HenesysView;
+  private snowCover?:SnowCover;
+  private groundTeleports=new Set<string>();
   private threeEnabled = true;
   private threeLoading = false;
   private threeGeneration = 0;
@@ -70,6 +73,7 @@ export class World extends Phaser.Scene {
   private snapshot?: Snapshot;
   // Both actors and the 3D camera use this frame's display sample, never raw 20 Hz positions.
   private renderedSelf?: PlayerState;
+  private actorArt=new Map<string,Phaser.GameObjects.GameObject>();
   private pendingSnapshot?: Snapshot;
   private receivedAt = 0;
   private loaded = false;
@@ -146,6 +150,7 @@ export class World extends Phaser.Scene {
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
       view.setEnvironment(this.climateSettings);
+      if(this.snowCover)view.setSnowCover(this.snowCover);
       this.status('初弦地东边村落已就绪：方向键按画面选路，按住沿弯路继续前进，松开再按重新选方向；交互与跳跃可在键盘设置中共键；右键调整视角。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
@@ -439,7 +444,7 @@ export class World extends Phaser.Scene {
       const event: SkillCastEvent = message;
       const accepted = this.combat?.receiveSkillCast(event) ?? true;
       if (!accepted) return;
-      if (event.skillId === 2001009) { this.selfMotion.snap(event.playerId); this.peerMotion.snap(event.playerId); }
+      if (event.skillId === 2001009) { this.groundTeleports.add(event.playerId); this.selfMotion.snap(event.playerId); this.peerMotion.snap(event.playerId); }
       const view = this.players.get(event.playerId);
       if (view) view.startSkill(event.skillId, event.durationMs, event.phase);
       else this.pendingSkillCasts.set(event.playerId, event);
@@ -491,7 +496,7 @@ export class World extends Phaser.Scene {
     }
     if (message.type === 'pickupResult') this.status(`已拾取 ${message.itemId} × ${message.quantity}`);
     if (message.type === 'portalResult') {
-      if (message.success && this.snapshot) this.selfMotion.snap(this.snapshot.selfId);
+      if (message.success && this.snapshot) { this.groundTeleports.add(this.snapshot.selfId); this.selfMotion.snap(this.snapshot.selfId); }
       this.portalCooldownUntil = performance.now() + (message.success ? 1200 : 300);
       // A rejected gameplay request is recoverable; the error callback tears down the resource session.
       // The code is developer diagnostics; the player gets the reason.
@@ -507,13 +512,15 @@ export class World extends Phaser.Scene {
     if (this.sys.isActive()) this.scene.restart();
   }
   clear() {
-    this.villageAudio?.destroy();this.villageAudio=undefined;
+    this.villageAudio?.destroy();this.villageAudio=undefined;this.actorArt.clear();
     this.loaded = false;
     this.railTerrain?.destroy(); this.railTerrain = undefined;
     this.pendingSnapshot = undefined;
     this.pendingEmoticons = [];
     this.threeGeneration++; this.threeLoading = false;
+    if(this.henesys)this.snowCover=this.henesys.snowCover;
     this.henesys?.destroy(); this.henesys = undefined;
+    this.groundTeleports.clear();
     this.windbellScene?.destroy(); this.windbellScene = undefined;
     this.bossWarning?.destroy(); this.bossWarning = undefined;
     this.snapshot = undefined;
@@ -703,6 +710,14 @@ export class World extends Phaser.Scene {
       }
     }
     this.updateGameplayEntities(snapshot as GameplaySnapshot, delta);
+    if(this.henesys){
+      this.actorArt.clear();
+      for(const [id,view] of this.players)this.actorArt.set(id,view.body);
+      for(const [id,view] of this.npcs)if(view.lightingArt)this.actorArt.set('npc:'+id,view.lightingArt);
+      for(const [id,view] of this.monsters)this.actorArt.set('mob:'+id,view.lightingArt);
+      this.henesys.syncActors(snapshot.players,snapshot.npcs??[],snapshot.monsters??[],snapshot.selfId,this.actorArt,this.groundTeleports);
+      this.groundTeleports.clear();
+    }
   }
 
   /**

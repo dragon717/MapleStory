@@ -72,7 +72,7 @@ export class VillageEnvironment {
  }
  set(value:Partial<EnvironmentSettings>){this.settings=environmentSettings({...this.settings,...value});saveEnvironment(this.settings);this.light=environmentLight(this.settings);this.apply();this.dirty=true;}
  private apply(){
-  const l=this.light,u=this.uniforms,night=1-l.daylight;u.solarDirection.value.set(...l.direction);u.cloudCover.value=l.cover;u.wetness.value=l.wet;u.winterSnow.value=this.settings.season==='winter'?.68:l.snow*.35;
+  const l=this.light,u=this.uniforms,night=1-l.daylight;u.solarDirection.value.set(...l.direction);u.cloudCover.value=l.cover;u.wetness.value=l.wet;// SnowSurface supplies the same accumulated coverage used by geometry and footsteps.
   const warmth=1-T.MathUtils.smoothstep(l.direction[1],0,.5);
   this.sun.color.set(0xfff3df).lerp(new T.Color(0xff8a3c),warmth*.72);this.sun.intensity=l.sunlight*4.5*(1-l.cover*.55);
   this.hemisphere.color.set(0xa1c6f4).lerp(new T.Color(0xffbb95),warmth*.28);this.hemisphere.groundColor.set(0x45482c);this.hemisphere.intensity=.08+l.daylight*.50;

@@ -31,9 +31,12 @@ struct Junction {
 }
 #[derive(Deserialize)]
 struct Layout {
+    #[serde(rename = "pixelsPerMetre")]
+    pixels_per_metre: f64,
     routes: Vec<Route>,
     junctions: Vec<Junction>,
 }
+pub(super) fn pixels_per_metre() -> f64 { layout().pixels_per_metre }
 fn layout() -> &'static Layout {
     static DATA: OnceLock<Layout> = OnceLock::new();
     DATA.get_or_init(|| {

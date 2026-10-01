@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 37;
+pub const PROTOCOL_VERSION: u32 = 38;
 pub const CONTENT_VERSION: &str = "tms273-51";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -164,6 +164,17 @@ impl AbilityStats {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum ClientMessage {
+    /// P: the guard's original town-lamp service; clients cannot supply a balance or a position.
+    TownLamp {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        action: TownLampAction,
+        tier: u8,
+        #[serde(rename = "expectedCost")]
+        expected_cost: u64,
+        #[serde(rename = "npcId")]
+        npc_id: Option<String>,
+    },
     Hello {
         token: String,
         #[serde(rename = "protocolVersion")]
@@ -639,6 +650,15 @@ pub enum ClientMessage {
 impl ClientMessage {
     pub fn valid(&self) -> bool {
         match self {
+            Self::TownLamp { request_id, action, tier, expected_cost, npc_id } => {
+                valid_id(request_id)
+                    && *expected_cost <= 9_007_199_254_740_991
+                    && npc_id.as_deref().is_none_or(valid_id)
+                    && match action {
+                        TownLampAction::Discard => *tier == 0 && *expected_cost == 0,
+                        TownLampAction::Buy | TownLampAction::Upgrade => (1..=3).contains(tier),
+                    }
+            }
             Self::Hello {
                 token,
                 protocol_version,
@@ -1064,6 +1084,20 @@ fn valid_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TownLampAction { Buy, Upgrade, Discard }
+
+/// P: a separate character fact, independent of WZ equipment and inventory.
+/// `issued` survives tier 0, so discarding never re-arms the one-time guard gift.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TownLampState {
+    pub tier: u8,
+    pub issued: bool,
+    pub revision: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]

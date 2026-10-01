@@ -13,7 +13,7 @@
 | [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md) | 前端技术方案（审查草案） |
 | [REFERENCE_PROJECTS.md](REFERENCE_PROJECTS.md) | 参考项目分级与去重 |
 | [SHARED_ARCHITECTURE.md](SHARED_ARCHITECTURE.md) | 前后端通用技术方案（审查草案） |
-| [2.5D轨道巨像世界技术基建规范.md](2.5D轨道巨像世界技术基建规范.md) | 2.5D 轨道空间、巨像参考系、网络与水云基建入口 |
+| [活动场景物理与重制资料索引.md](活动场景物理与重制资料索引.md) | 风铃岛/桥的元素与物理入口、巨石之约重制资料；区分现有规则与后续需求 |
 | [UI_WINDOW_SYSTEM.md](UI_WINDOW_SYSTEM.md) | UI 窗口系统规范与架构（TMS273 前端） |
 | [NOTEBOOK_VISUAL_SPEC.md](NOTEBOOK_VISUAL_SPEC.md) | 冒险笔记（图鉴）视觉规范：布局结构、字体与配色、关键界面呈现方案 |
 | [large-file-audit.md](architecture/large-file-audit.md) | 超大文件审计（P0） |
@@ -24,4 +24,4 @@
 
 ## 历史文档
 
-当前无已确认被替代的文档；不将仍有效的方案擅自标为废弃。
+巨像早期技术草案不再作为现状/开工索引，后续统一从[活动场景物理与重制资料索引](活动场景物理与重制资料索引.md)进入。已有设计正文和历史记录按需追溯，不把协议30、尚无Three接入等旧基线当当前事实。

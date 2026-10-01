@@ -270,6 +270,14 @@ impl World {
                 let (resolved_map, resolved_x, resolved_y) =
                     resolve_join_map_position(&self.maps, &self.map, &profile);
                 let resolved_map_id = resolved_map.id.clone();
+                let (town_lamp,town_lamp_issued_now) = match self.load_or_issue_town_lamp(&id,&resolved_map) {
+                    Ok(state) => state,
+                    Err(error) => {
+                        let _ = output.try_send(reject("persistence",&error,None));
+                        let _ = reply.send(false);
+                        return;
+                    }
+                };
                 let foothold_id = resolved_map
                     .ground_near(resolved_x, resolved_y)
                     .map(|(id, _)| id)
@@ -411,6 +419,7 @@ impl World {
                 self.players.insert(
                     id.clone(),
                     Player {
+                        town_lamp,
                         state: PlayerState {
                             id: id.clone(),
                             username: identity.username,
@@ -555,6 +564,7 @@ impl World {
                     },
                 );
                 let _ = output.try_send(self.snapshot(&id));
+                if town_lamp_issued_now { self.send_town_lamp_welcome(&id); }
                 // Authoritative quest log push follows the join snapshot so a
                 // fresh client window always reflects the persisted rows and
                 // the client never needs a client-side translation table.
@@ -703,6 +713,7 @@ impl World {
                     return;
                 }
                 match message {
+                    ClientMessage::TownLamp { request_id,action,tier,expected_cost,npc_id } => self.handle_town_lamp(id,request_id,town_lamps::LampIntent { action,tier,expected_cost,npc_id }),
                     // An explicit logout removes the character.  This is the
                     // only client message allowed to do so: a socket that
                     // merely closes is a tab switch or a reload, not a

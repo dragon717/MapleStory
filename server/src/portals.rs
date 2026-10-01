@@ -149,6 +149,7 @@ impl World {
         player.adaptation_charges = 0;
         player.summons.clear();
         refresh_player_derived(&self.gameplay, &self.mage_skills, player);
+        if let Err(error) = self.ensure_town_lamp_on_entry(&id) { self.send_reject(&id,"persistence",&error,Some(&request_id)); }
         self.send_portal_result(
             &id,
             &request_id,
@@ -362,6 +363,7 @@ impl World {
             return false;
         };
         *player = candidate;
+        if let Err(error) = self.ensure_town_lamp_on_entry(player_id) { self.send_reject(player_id,"persistence",&error,None); }
         // Drops for the destination map arrive via the next snapshot.
         self.send_snapshot(player_id);
         true
