@@ -44,6 +44,7 @@ export function installEscapeRouter(options: EscapeRouterOptions): () => void {
 export function installKeybindingRouter(options: {
   resolve: (code: string, shift: boolean) => { type: string; action?: string } | null;
   blocked: () => boolean;
+  hasInteraction?: (code: string, shift: boolean) => boolean;
   activate: (action: string) => boolean;
 }): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
@@ -52,6 +53,8 @@ export function installKeybindingRouter(options: {
     if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input,textarea,select,[contenteditable="true"]'))) return;
     const binding = options.resolve(event.code, event.shiftKey);
     if (binding?.type !== 'action' || !binding.action) return;
+    // The gameplay dispatcher owns co-bound interaction and the ordinary action together.
+    if (options.hasInteraction?.(event.code, event.shiftKey)) return;
     if (options.activate(binding.action)) event.preventDefault();
   };
   document.addEventListener('keydown', onKeyDown, true);

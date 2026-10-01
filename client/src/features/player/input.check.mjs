@@ -5,6 +5,9 @@ import ts from 'typescript';
 const source = await readFile(new URL('./input.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
 const { PlayerInput, shortcutSkill, branchFourthJob } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const routerSource = await readFile(new URL('../../app/ui-router.ts', import.meta.url), 'utf8');
+const { outputText: routerJs } = ts.transpileModule(routerSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
+const { installKeybindingRouter } = await import(`data:text/javascript;base64,${Buffer.from(routerJs).toString('base64')}`);
 assert.equal(shortcutSkill(0, 'Digit1'), 1000);
 assert.equal(shortcutSkill(0, 'Digit4'), undefined);
 assert.equal(shortcutSkill(200, 'Numpad1'), 2001008);
@@ -15,12 +18,13 @@ assert.equal(shortcutSkill(212, 'Digit1', true), 2121006);
 assert.equal(shortcutSkill(232, 'Digit3', true), 2321008);
 assert.equal(shortcutSkill(221, 'Digit6', true), 2201001);
 assert.deepEqual([branchFourthJob(210), branchFourthJob(221), branchFourthJob(231), branchFourthJob(200)], [212, 222, 232, 222]);
-const original = { window: globalThis.window, document: globalThis.document, setInterval, clearInterval };
+const original = { window: globalThis.window, document: globalThis.document, HTMLElement: globalThis.HTMLElement, setInterval, clearInterval };
 const timers = new Map();
 const messages = [];
 let nextTimer = 0;
 let input;
 try {
+  globalThis.HTMLElement = class {};
   globalThis.window = new EventTarget();
   globalThis.document = Object.assign(new EventTarget(), { hidden: false, activeElement: null });
   globalThis.setInterval = (callback, delay) => { timers.set(++nextTimer, { callback, delay }); return nextTimer; };
@@ -53,26 +57,26 @@ try {
   const key = (type, repeat = false) => window.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { code: 'KeyZ', repeat }));
   const upKey = (type, repeat = false) => window.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { code: 'ArrowUp', repeat }));
   upKey('keydown');
-  assert.equal(portals, 1, 'Up requests a portal');
+  assert.equal(portals, 0, 'Up is movement only, never portal interaction');
   assert.equal(messages.at(-1).vertical, -1, 'Up still climbs ladders');
   upKey('keydown', true);
   [...timers.values()].find(timer => timer.delay === 150).callback();
-  assert.equal(portals, 1, 'Repeat/heartbeat cannot bounce through portals');
+  assert.equal(portals, 0, 'Repeat/heartbeat cannot bounce through portals');
   upKey('keyup');
   document.activeElement = { matches: () => true };
   upKey('keydown');
-  assert.equal(portals, 1, 'Typing in UI cannot enter a portal');
+  assert.equal(portals, 0, 'Typing in UI cannot enter a portal');
   window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyQ', repeat: false }));
   assert.equal(questLogToggles, 0, 'Typing Q in UI cannot toggle the quest log');
   window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyK', repeat: false }));
   assert.equal(skillToggles, 0, 'Typing K in UI cannot open skills');
   document.activeElement = { matches: () => false, closest: () => null, isContentEditable: true };
   upKey('keydown');
-  assert.equal(portals, 1, 'Contenteditable UI cannot enter a portal');
+  assert.equal(portals, 0, 'Contenteditable UI cannot enter a portal');
   document.activeElement = null;
   input.setReady(false);
   upKey('keydown');
-  assert.equal(portals, 1, 'Disconnected input cannot enter a portal');
+  assert.equal(portals, 0, 'Disconnected input cannot enter a portal');
   input.setReady(true);
   for (const repeat of [false, true]) window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyK', repeat }));
   assert.equal(skillToggles, 1, 'K opens skills once and ignores OS repeat');
@@ -202,6 +206,74 @@ try {
   const beforeConsumedJump = messages.length;
   dispatchCode('Space');
   assert.equal(messages.length, beforeConsumedJump, 'an explicitly empty custom binding consumes the key');
+  // Only the special interaction can coexist with the ordinary binding.
+  let interactionCode = 'Space';
+  input.targets.hasInteraction = (code, shift) => code === interactionCode && !shift;
+  grounded = true;
+  const beforeShared = portals;
+  customBindings.set('Space:0', { type: 'action', action: 'jump' });
+  dispatchCode('Space');
+  assert.equal(portals, beforeShared + 1, 'shared Space also requests interaction');
+  assert.equal(messages.at(-1).jump, true, 'shared Space preserves jump');
+  dispatchCode('Space', true);
+  [...timers.values()].find(timer => timer.delay === 150).callback();
+  assert.equal(portals, beforeShared + 1, 'repeat/heartbeat cannot repeat interaction');
+  window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'Space' }));
+  interactionCode = 'KeyB';
+  const castsBeforeShared = skillCasts.length;
+  dispatchCode('KeyB');
+  assert.equal(portals, beforeShared + 2, 'interaction can share a learned skill key');
+  assert.equal(skillCasts.length, castsBeforeShared + 1, 'shared ordinary skill still casts');
+  customBindings.set('KeyB:0', null);
+  dispatchCode('KeyB');
+  assert.equal(portals, beforeShared + 3, 'interaction can be bound without an ordinary action');
+  dispatchCode('ArrowUp');
+  assert.equal(portals, beforeShared + 3, 'Up does not interact in customized mode');
+  window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
+  modalBlocked = true;
+  dispatchCode('KeyB');
+  assert.equal(portals, beforeShared + 3, 'modal blocks co-bound interaction');
+  modalBlocked = false;
+  let talked = 0, absorbed = 0;
+  input.targets.nearestNpc = () => ({ id: 'npc' });
+  input.targets.talkTo = () => talked++;
+  input.targets.nearestHolyWater = () => 'cup';
+  input.targets.absorbHolyWater = () => absorbed++;
+  const beforePriority = portals;
+  dispatchCode('KeyB');
+  assert.equal(talked, 1);
+  assert.equal(absorbed, 0);
+  assert.equal(portals, beforePriority, 'NPC wins over cup and portal');
+  dispatchCode('ArrowUp');
+  assert.equal(talked, 1, 'Up never starts NPC dialogue');
+  window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'ArrowUp' }));
+  input.targets.nearestNpc = () => null;
+  dispatchCode('KeyB');
+  assert.equal(absorbed, 1);
+  assert.equal(portals, beforePriority, 'cup wins over portal');
+  input.targets.nearestHolyWater = () => null;
+  // The document-level UI router must defer shared keys to the gameplay dispatcher.
+  customBindings.set('KeyB:0', { type: 'action', action: 'inventory' });
+  const disposeRouter = installKeybindingRouter({
+    resolve: input.targets.resolveBinding, blocked: () => false,
+    hasInteraction: input.targets.hasInteraction,
+    activate: action => { uiActions.push(action); return true; },
+  });
+  try {
+    const beforeUi = portals, uiCount = uiActions.length;
+    const pressThroughRouter = () => {
+      const event = Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyB', repeat: false });
+      document.dispatchEvent(event); window.dispatchEvent(event);
+    };
+    pressThroughRouter();
+    assert.equal(portals, beforeUi + 1, 'co-bound UI action does not swallow interaction');
+    assert.equal(uiActions.length, uiCount + 1, 'ordinary UI action runs once');
+    interactionCode = 'KeyL';
+    pressThroughRouter();
+    assert.equal(portals, beforeUi + 1, 'ordinary UI key alone does not interact');
+    assert.equal(uiActions.length, uiCount + 2, 'capture prevents a second UI dispatch');
+  } finally { disposeRouter(); }
+  delete input.targets.hasInteraction;
   const nativeTab = Object.assign(new Event('keydown', { cancelable: true }), { code: 'Tab', repeat: false });
   window.dispatchEvent(nativeTab);
   assert.equal(nativeTab.defaultPrevented, false, 'unbound browser controls keep their native behavior');
@@ -268,7 +340,7 @@ try {
     assert.equal(repeat(), undefined, 'Release/focus loss/disconnect/destroy stops pickup');
   }
   assert.equal(timers.size, 0);
-  console.log('PASS: immediate pickup, 200 ms repeats, fresh targets, and all stop conditions.');
+  console.log('PASS: interaction + jump/skill/UI, Up movement only, priorities, modal/repeat guards; pickup and all stop conditions.');
 } finally {
   input?.destroy();
   Object.assign(globalThis, original);

@@ -953,6 +953,7 @@ impl World {
             return;
         };
         player.map_id = target_map_id.to_owned();
+        henesys::reset(player);
         player.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         reset_player_to_spawn(&target_map, player, self.tick);

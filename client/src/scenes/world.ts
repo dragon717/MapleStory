@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HENESYS_MAP_ID, platformThickness } from '../features/henesys/coordinates';
+import { HENESYS_MAP_ID, junctionDirections, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
@@ -125,7 +125,7 @@ export class World extends Phaser.Scene {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
-      this.status('初弦地东边村落已就绪：方向键沿路行走与选择岔路，跳跃；右键调整视角。');
+      this.status('初弦地东边村落已就绪：左右键沿路行走，上下键沿路行走并选择岔路；交互与跳跃可在键盘设置中共键；右键调整视角。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
       this.threeLoading = false;
@@ -275,6 +275,7 @@ export class World extends Phaser.Scene {
     this.loaded = true;
     if (this.pendingSnapshot) {
       this.snapshot = this.pendingSnapshot;
+      this.observeMotion(this.pendingSnapshot as GameplaySnapshot);
       this.pendingSnapshot = undefined;
       this.receivedAt = performance.now();
     }
@@ -392,6 +393,7 @@ export class World extends Phaser.Scene {
         return;
       }
       this.snapshot = message;
+      this.observeMotion(message as GameplaySnapshot);
       if (this.loaded) this.startThree();
       if (!this.loaded) this.pendingSnapshot = message;
       this.receivedAt = performance.now();
@@ -407,6 +409,7 @@ export class World extends Phaser.Scene {
       const event: SkillCastEvent = message;
       const accepted = this.combat?.receiveSkillCast(event) ?? true;
       if (!accepted) return;
+      if (event.skillId === 2001009) { this.selfMotion.snap(event.playerId); this.peerMotion.snap(event.playerId); }
       const view = this.players.get(event.playerId);
       if (view) view.startSkill(event.skillId, event.durationMs, event.phase);
       else this.pendingSkillCasts.set(event.playerId, event);
@@ -458,6 +461,7 @@ export class World extends Phaser.Scene {
     }
     if (message.type === 'pickupResult') this.status(`已拾取 ${message.itemId} × ${message.quantity}`);
     if (message.type === 'portalResult') {
+      if (message.success && this.snapshot) this.selfMotion.snap(this.snapshot.selfId);
       this.portalCooldownUntil = performance.now() + (message.success ? 1200 : 300);
       // A rejected gameplay request is recoverable; the error callback tears down the resource session.
       // The code is developer diagnostics; the player gets the reason.
@@ -642,6 +646,8 @@ export class World extends Phaser.Scene {
     this.drawBossWarning();
     if (!drawn) return;
     const snapshot = drawn;
+    const self = this.snapshot?.players.find(player => player.id === snapshot.selfId);
+    const junction = this.mapId === HENESYS_MAP_ID && self ? junctionDirections(self.x) : [];
     const ids = new Set(snapshot.players.map(player => player.id));
     for (const [id, view] of this.players) if (!ids.has(id)) { this.combat?.clearSkillPlayer(id); view.destroy(); this.players.delete(id); this.actions.delete(id); }
     for (const player of snapshot.players) {
@@ -654,7 +660,7 @@ export class World extends Phaser.Scene {
       }
       if (player.hp <= 0 || player.action === 'dead') this.combat?.clearSkillPlayer(player.id);
       const elapsed = (snapshot.serverTick - player.actionStartedTick) * snapshot.tickMs + Math.min(performance.now() - this.receivedAt, 250);
-      view.update(player, elapsed);
+      view.update(player, elapsed, player.id === snapshot.selfId ? junction : []);
       // P: ripples and the entry splash are display-only; the server owns the
       // swim position and the water column the player is actually inside.
       for (const water of this.waters) water.noteActor(player.id, player.x, player.y, player.vx, performance.now());
@@ -672,7 +678,7 @@ export class World extends Phaser.Scene {
    * 一律取最新样本。返回值**只用于绘制**——门、采集、拾取的判定仍然读
    * `this.snapshot` 的权威坐标，插值不得参与任何判定。
    */
-  private interpolate(snapshot: GameplaySnapshot, delta: number): GameplaySnapshot {
+  private observeMotion(snapshot: GameplaySnapshot) {
     const tick = snapshot.serverTick;
     const tickMs = snapshot.tickMs;
     const self = snapshot.players.filter(player => player.id === snapshot.selfId);
@@ -686,6 +692,8 @@ export class World extends Phaser.Scene {
     this.peerMotion.observe(peers, tick, tickMs);
     this.monsterMotion.observe(snapshot.monsters ?? [], tick, tickMs);
     this.petMotion.observe(pets, tick, tickMs);
+  }
+  private interpolate(snapshot: GameplaySnapshot, delta: number): GameplaySnapshot {
     this.selfMotion.advance(delta);
     this.peerMotion.advance(delta);
     this.monsterMotion.advance(delta);

@@ -95,9 +95,9 @@ export class Sunlight {
   constructor() { this.scene.add(this.quad); }
   resize(width: number, height: number) {
     this.target.setSize(width, height);
-    this.bloom.setSize(width, height);
-    // Half each dimension for scattering only; scene depth and pixel art stay full size.
-    this.scattering.setSize(Math.ceil(width / 2), Math.ceil(height / 2));
+    this.bloom.setSize(Math.ceil(width / 2), Math.ceil(height / 2));
+    // Smooth atmospheric light is low frequency; terrain/depth and pixel art retain full DPR.
+    this.scattering.setSize(Math.ceil(width / 4), Math.ceil(height / 4));
   }
   render(renderer: T.WebGLRenderer, scene: T.Scene, camera: T.PerspectiveCamera, sun: T.DirectionalLight) {
     renderer.setRenderTarget(this.target);

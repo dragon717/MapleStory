@@ -5,6 +5,7 @@ import type { AssetFrame, AvatarActionSet, Manifest } from '../../assets/manifes
 import { frameAt } from './animation';
 import { ensureTextures } from '../../assets/lazy-texture';
 import { resolveAssetUrl } from '../../assets/resource-url';
+import type { JunctionDirection } from '../henesys/coordinates';
 import { composeRideFrame, rideFrame, rideFrames, type RideScene } from './ride-scene';
 import {
   appearanceKey,
@@ -80,6 +81,7 @@ export class PlayerView {
   private skillActionUntil = 0;
   /** Feet-to-head offset of the current rendered frame, for damage numbers. */
   private headOffsetY = -40;
+  private junctionHint?: Phaser.GameObjects.Container;
   /** Live map-chat bubble above the head. The server only forwards chatMessage
    *  to the same-map members, so bubbles never replay history and never
    *  reposition across a map switch (this view is destroyed with the scene).
@@ -155,7 +157,7 @@ export class PlayerView {
     this.skillActionUntil = this.skillActionStartedAt + durationMs;
     this.signature = '';
   }
-  update(player: PlayerState, elapsed: number) {
+  update(player: PlayerState, elapsed: number, junction: readonly JunctionDirection[] = []) {
     if (player.hp <= 0 || player.action === 'dead' || player.mount || player.chair) this.skillAction = undefined;
     this.updateRideScene(player);
     const rideElapsed = Math.max(0, this.scene.time.now - this.rideStartedAt);
@@ -239,13 +241,15 @@ export class PlayerView {
     const signature = `${loadout.key}:${renderAction}:${index}:${this.rideKey}:${parts.map(part => `${part.url},${part.x},${part.y},${part.z},${(part as { flipX?: boolean }).flipX ?? false}`).join(';')}`;
     if (signature !== this.signature) {
       this.signature = signature;
-      this.body.removeAll(true);
-      for (const part of parts) {
-        const image = this.scene.add.image(part.x, part.y, part.url).setOrigin(0).setFlipX(Boolean((part as { flipX?: boolean }).flipX));
-        // A rebuild mid-flash must re-apply the white tint to the fresh
-        // children; updateFlash() only runs on state changes.
+      while (this.body.list.length > parts.length) this.body.removeAt(this.body.list.length - 1, true);
+      for (const [i, part] of parts.entries()) {
+        let image = this.body.list[i] as Phaser.GameObjects.Image | undefined;
+        if (!image) { image = this.scene.add.image(0, 0, part.url).setOrigin(0); this.body.add(image); }
+        image.setTexture(part.url).setPosition(part.x, part.y).setFlipX(Boolean((part as { flipX?: boolean }).flipX));
+        // Reused/new children must inherit the current tint; flash changes only update once.
         if (this.flashWhite) image.setTintFill(0xffffff);
-        this.body.add(image);
+        else if (this.abnormalTint !== undefined) image.setTint(this.abnormalTint);
+        else image.clearTint();
       }
       // Source frames anchor the feet at y=0 and grow upward (negative y),
       // so the sprite top is the smallest part y. Present damage numbers just
@@ -256,11 +260,35 @@ export class PlayerView {
     this.body.list.forEach((child, i) => (child as Phaser.GameObjects.Image).setAlpha((parts[i] as { opacity?: number })?.opacity ?? 1));
     this.body.setPosition(player.x, player.y).setScale(player.facing === this.manifest.avatar.defaultFacing ? 1 : -1, 1);
     this.name.setPosition(player.x, player.y + 8).setData('projectionY', player.y + this.headOffsetY - 24);
+    this.updateJunctionHint(player, junction);
     this.updateBubble(player);
     this.updateEmoticon(player);
     this.updateFlash();
     this.updateAbnormalStatus(player);
     this.updateLevelFeedback(player);
+  }
+
+  private updateJunctionHint(player: PlayerState, directions: readonly JunctionDirection[]) {
+    this.junctionHint?.setVisible(false);
+    if (!this.self || !directions.length || !player.grounded || player.hp <= 0 || player.action === 'dead' || player.chair) return;
+    const art = this.manifest.miniMap?.icons.direction;
+    const frames = [art?.n, art?.s];
+    if (frames.some(frame => !frame) || !ensureTextures(this.scene, frames.map(frame => frame?.url))) return;
+    if (frames.some(frame => !this.scene.textures.exists(frame!.url))) return;
+    if (!this.junctionHint) {
+      this.junctionHint = this.scene.add.container(0, 0).setDepth(this.body.depth + 2);
+      this.junctionHint.add(frames.map(frame => this.scene.add.image(0, 0, frame!.url).setOrigin(.5, 1)));
+    }
+    // The TMS273 n/s frames share static Canvas art; animate the hint anchor, not the pixels.
+    const bob = Math.sin(this.scene.time.now / 180) * 3;
+    this.junctionHint.setPosition(player.x, player.y + this.headOffsetY - 34 - bob).setVisible(true);
+    let index = 0;
+    this.junctionHint.list.forEach((child, i) => {
+      const image = child as Phaser.GameObjects.Image;
+      const visible = directions.includes(i === 0 ? 'up' : 'down');
+      image.setVisible(visible);
+      if (visible) image.setPosition((index++ - (directions.length - 1) / 2) * 26, 0);
+    });
   }
 
   private updateRideScene(player: PlayerState) {
@@ -669,5 +697,6 @@ export class PlayerView {
     this.skillAction = undefined;
     this.body.destroy();
     this.name.destroy();
+    this.junctionHint?.destroy();
   }
 }

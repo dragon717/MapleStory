@@ -260,6 +260,7 @@ impl World {
                     arrival_until: if r.facts.awakened {0} else {self.tick+160},
                 });
                 p.map_id = MAP_ID.into();
+                henesys::reset(p);
                 p.direction = 0;
                 p.vertical = 0;
                 p.jump = false;
@@ -274,6 +275,7 @@ impl World {
                 let p = self.players.get_mut(&id).unwrap();
                 if let Some(r) = p.colossus.take() {
                     p.map_id = r.return_map;
+                    henesys::reset(p);
                     p.state.x = r.return_x;
                     p.state.y = r.return_y;
                     p.foothold_id = r.return_fh;

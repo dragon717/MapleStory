@@ -112,6 +112,7 @@ impl World {
             return;
         };
         player.map_id = target_map_id.clone();
+        henesys::reset(player);
         player.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         player.state.x = target_x;
@@ -303,6 +304,7 @@ impl World {
             return false;
         };
         candidate.map_id = map_id.clone();
+        henesys::reset(&mut candidate);
         candidate.natural_recovery_next_tick =
             self.tick.saturating_add(NATURAL_RECOVERY_INTERVAL_TICKS);
         candidate.state.x = x;

@@ -188,3 +188,5 @@
     height: 43px;
   }
 }
+
+.tms-shortcut-cell[data-interaction=true]::after{content:'交';position:absolute;right:0;top:10px;z-index:2;font:700 9px/12px sans-serif;background:#285d48;color:#fff7b3;padding:0 1px;pointer-events:none}

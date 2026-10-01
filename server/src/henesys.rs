@@ -67,10 +67,17 @@ fn tangent(a: &Node, b: &Node) -> [f64; 2] {
     [dx / len, dz / len]
 }
 /// Only server input chooses a branch; no target, coordinates or route id arrive from the client.
-fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<(usize, f64, f64)> {
+struct Turn {
+    route: usize,
+    x: f64,
+    y: f64,
+    direction: i8,
+    junction: usize,
+}
+fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<Turn> {
     let mut best = None;
     let mut score = 0.25;
-    for j in &layout().junctions {
+    for (junction, j) in layout().junctions.iter().enumerate() {
         if !j
             .entries
             .iter()
@@ -97,13 +104,98 @@ fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<(usize, f64, f64)> {
                     let s = t[0] * input[0] + t[1] * input[1];
                     if s > score + 0.001 {
                         score = s;
-                        best = Some((e.route, e.x + side * 0.1, e.y));
+                        best = Some(Turn {
+                            route: e.route,
+                            x: e.x + side * 0.1,
+                            y: e.y,
+                            direction: side as i8,
+                            junction,
+                        });
                     }
                 }
             }
         }
     }
-    best.filter(|(next, _, _)| *next != route)
+    best.filter(|choice| choice.route != route)
+}
+fn vertical_direction(r: &Route, x: f64, vertical: i8) -> i8 {
+    let (a, b) = segment(r, x);
+    let depth = tangent(a, b)[1];
+    if depth.abs() > 0.25 {
+        (depth * vertical as f64).signum() as i8
+    } else {
+        -vertical
+    }
+}
+
+pub(super) fn teleport(
+    map: &Map,
+    player: &Player,
+    horizontal: f64,
+    vertical_distance: f64,
+    direction: i8,
+    vertical: i8,
+) -> Result<TeleportPlan, String> {
+    let data = layout();
+    let old_route = route_at(player.state.x).ok_or("teleport_blocked")?;
+    let mut route = old_route;
+    let mut x = player.state.x;
+    let mut junction = player.east_junction;
+    let mut sign = if direction != 0 {
+        direction
+    } else if player.east_vertical == vertical && player.east_walk != 0 {
+        player.east_walk
+    } else {
+        vertical_direction(&data.routes[route], x, vertical)
+    };
+    if vertical != 0 && player.state.grounded {
+        if let Some(choice) = turn(route, x, [0., vertical as f64])
+            .filter(|c| player.east_vertical != vertical || Some(c.junction) != junction)
+        {
+            route = choice.route;
+            x = choice.x;
+            junction = Some(choice.junction);
+            if direction == 0 {
+                sign = choice.direction;
+            }
+        }
+    }
+    let r = &data.routes[route];
+    let intended = x + sign as f64
+        * if direction != 0 {
+            horizontal
+        } else {
+            vertical_distance
+        };
+    let x = if r.closed {
+        r.start + (intended - r.start).rem_euclid(r.end - r.start)
+    } else {
+        intended.clamp(r.start, r.end)
+    };
+    let hop = if player.state.grounded {
+        0.
+    } else {
+        player.state.y - ground(&data.routes[old_route], player.state.x)
+    };
+    let y = ground(r, x) + hop;
+    if (x - player.state.x).abs() < 0.001 && (y - player.state.y).abs() < 0.001 {
+        return Err("teleport_blocked".into());
+    }
+    let foothold_id = map
+        .footholds
+        .iter()
+        .find(|f| x >= f.x1 && x <= f.x2)
+        .ok_or("teleport_blocked")?
+        .id;
+    Ok(TeleportPlan {
+        colossus: None,
+        east: Some((sign, vertical, junction)),
+        map_id: map.id.clone(),
+        x,
+        y,
+        grounded: player.state.grounded,
+        foothold_id,
+    })
 }
 pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
     if !active(map) {
@@ -115,6 +207,12 @@ pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
         (map.spawn.x, map.spawn.y)
     }
 }
+pub(super) fn reset(player: &mut Player) {
+    player.east_turn_until = 0;
+    player.east_vertical = 0;
+    player.east_walk = 0;
+    player.east_junction = None;
+}
 pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
     let data = layout();
     let mut ri = route_at(player.state.x).unwrap_or(0);
@@ -123,16 +221,36 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
         player.state.y = map.spawn.y;
         player.state.grounded = true;
     }
-    let input = [player.direction as f64, player.vertical as f64];
-    if player.state.grounded
+    if player.vertical != player.east_vertical {
+        player.east_vertical = player.vertical;
+        player.east_walk = 0;
+        player.east_junction = None;
+    }
+    if let Some(junction) = player.east_junction {
+        if !data.junctions[junction]
+            .entries
+            .iter()
+            .any(|e| e.route == ri && (e.x - player.state.x).abs() <= 55.)
+        {
+            player.east_junction = None;
+        }
+    }
+    // Left/right travel the arc; held up/down keep the arc direction chosen at entry through curves.
+    let input = [0.0, player.vertical as f64];
+    if player.vertical != 0
+        && player.state.grounded
         && player.chair.is_none()
         && tick >= player.east_turn_until
         && tick >= player.knockback_until
     {
-        if let Some((next, x, y)) = turn(ri, player.state.x, input) {
-            ri = next;
-            player.state.x = x;
-            player.state.y = y;
+        if let Some(choice) =
+            turn(ri, player.state.x, input).filter(|c| Some(c.junction) != player.east_junction)
+        {
+            ri = choice.route;
+            player.state.x = choice.x;
+            player.state.y = choice.y;
+            player.east_walk = choice.direction;
+            player.east_junction = Some(choice.junction);
             player.east_turn_until = tick + 6;
         }
     }
@@ -140,12 +258,16 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
     let old_ground = ground(r, player.state.x);
     let (a, b) = segment(r, player.state.x);
     let t = tangent(a, b);
-    let alignment = t[0] * input[0] + t[1] * input[1];
-    let sign = if alignment.abs() > 0.18 {
-        alignment.signum()
+    if player.vertical != 0 && player.east_walk == 0 {
+        player.east_walk = vertical_direction(r, player.state.x, player.vertical);
+    }
+    let sign = if player.direction != 0 {
+        player.direction
+    } else if player.vertical != 0 {
+        player.east_walk
     } else {
-        0.0
-    };
+        0
+    } as f64;
     let slow = if player.status.slows_walk() { 0.5 } else { 1.0 };
     player.state.vx = if tick < player.knockback_until {
         player.knockback_vx
@@ -219,6 +341,37 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn east_junction_hint_parity() {
+        let mut positions = vec![0.0, layout().routes[0].start];
+        for junction in &layout().junctions {
+            for entry in &junction.entries {
+                for offset in [
+                    -56.0, -55.0001, -55.0, -54.9999, -0.1, 0.0, 0.1, 54.9999, 55.0, 55.0001, 56.0,
+                ] {
+                    positions.push(entry.x + offset);
+                }
+            }
+        }
+        let samples: Vec<_> = positions
+            .into_iter()
+            .map(|x| {
+                let choices: Vec<_> = [-1.0, 1.0]
+                    .into_iter()
+                    .filter_map(|vertical| {
+                        route_at(x)
+                            .and_then(|route| turn(route, x, [0.0, vertical]))
+                            .map(|_| if vertical < 0.0 { "up" } else { "down" })
+                    })
+                    .collect();
+                serde_json::json!({ "x": x, "choices": choices })
+            })
+            .collect();
+        println!(
+            "JUNCTION_CHOICES={}",
+            serde_json::to_string(&samples).unwrap()
+        );
+    }
     #[test]
     fn east_routes_and_turns_are_authoritative() {
         let d = layout();

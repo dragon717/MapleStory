@@ -363,6 +363,7 @@ impl World {
         };
         clear_practice_player_effects(player);
         player.map_id = instance_map_id.to_owned();
+        henesys::reset(player);
         player.state.x = x.clamp(map.bounds.x_min, map.bounds.x_max);
         player.state.y = y;
         player.state.grounded = true;
@@ -517,6 +518,7 @@ impl World {
         let mut candidate = player.clone();
         clear_practice_player_effects(&mut candidate);
         candidate.map_id = practice.source_map_id.clone();
+        henesys::reset(&mut candidate);
         candidate.state.x = x;
         candidate.state.y = y;
         candidate.state.vx = 0.0;

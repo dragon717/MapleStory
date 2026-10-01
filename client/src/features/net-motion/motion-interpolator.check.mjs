@@ -173,6 +173,19 @@ function run(motion, { ticks = 30, framesPerTick = 3, x0 = 0 } = {}) {
   assert.equal(motion.render({ id: 'a', x: 4242, y: 0 }).x, 4242);
 }
 
+{
+  const motion = new MotionInterpolator();
+  run(motion);
+  motion.snap('a'); // An accepted teleport is shorter than the generic 600px discontinuity threshold.
+  motion.observe([{id:'a',x:480,y:-100}],31,TICK_MS);
+  motion.advance(FRAME_MS);
+  assert.deepEqual(motion.render({id:'a',x:480,y:-100}), {id:'a',x:480,y:-100});
+  motion.observe([{id:'a',x:490,y:-100}],32,TICK_MS);
+  motion.advance(FRAME_MS);
+  assert.ok(motion.render({id:'a',x:490,y:-100}).x >= 480);
+  assert.ok(motion.render({id:'a',x:490,y:-100}).x <= 490);
+}
+
 // --- 3) 接线组 ---------------------------------------------------------------
 
 {

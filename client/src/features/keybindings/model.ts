@@ -16,6 +16,7 @@ export interface KeySlot {
   code: string;
   shift: boolean;
   binding: KeyBinding;
+  interaction: boolean;
 }
 
 type StoredSlot = Pick<KeySlot, 'code' | 'shift'>;
@@ -25,6 +26,7 @@ interface StoredConfig {
   customized: boolean;
   bindings: StoredBindings;
   slots: StoredSlot[];
+  interaction: StoredSlot | null;
   /** 这次读**补过**上一版没有的默认按键（不是存档里的字段，是迁移标记）。
    *  调用方据此立刻落盘一次，让迁移只做一遍。 */
   migrated?: boolean;
@@ -60,12 +62,12 @@ export interface StorageLike {
 /** 快捷栏格数。  这是**源美术**的格数（两行 x 16 的槽位底板），不是可绑定键的
  *  上限：按键本身可以绑在任意 `SUPPORTED_CODES` 上（骑宠键就是这样，它没有格子）。 */
 export const SLOT_COUNT = 32;
-/** 存档 schema 版本。  1 = 骑宠键加入之前；2 = 现行。  读旧档时要补上这一版
+/** 存档 schema 版本。  1 = 骑宠键加入之前；2 = 单动作；3 = 独立交互叠加。  读旧档时要补上这一版
  *  新增的默认按键（见 `ADDED_DEFAULT_BINDINGS`），但**不动**玩家自己的键。 */
-export const STORAGE_VERSION = 2;
+export const STORAGE_VERSION = 3;
 export const STORAGE_PREFIX = 'maplestory:keybindings:';
 
-/** Arrow keys are always movement/talk controls and never occupy a slot. */
+/** Arrow keys are always movement controls and never occupy a slot. */
 export const FIXED_CODES = Object.freeze(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'] as const);
 
 const LETTER_CODES = Array.from({ length: 26 }, (_, index) => `Key${String.fromCharCode(65 + index)}`);
@@ -115,10 +117,6 @@ function cloneBinding(binding: KeyBinding): KeyBinding {
   return binding && { ...binding };
 }
 
-function cloneSlot(slot: KeySlot): KeySlot {
-  return { code: slot.code, shift: slot.shift, binding: cloneBinding(slot.binding) };
-}
-
 function sameKey(left: Pick<KeySlot, 'code' | 'shift'>, right: Pick<KeySlot, 'code' | 'shift'>) {
   return left.code === right.code && left.shift === right.shift;
 }
@@ -145,9 +143,9 @@ function parseStored(raw: string): StoredConfig | undefined {
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object') return undefined;
     const document = value as Record<string, unknown>;
-    // 只认得现行的与上一版两种 schema：别的版本是坏档，不是旧档。
+    // 只接纳已支持的 v1/v2/v3 schema；未知版本按损坏配置处理。
     const version = document.version;
-    if ((version !== 1 && version !== STORAGE_VERSION) || typeof document.customized !== 'boolean' || !document.bindings || typeof document.bindings !== 'object' || !Array.isArray(document.slots) || document.slots.length !== SLOT_COUNT) return undefined;
+    if ((version !== 1 && version !== 2 && version !== STORAGE_VERSION) || typeof document.customized !== 'boolean' || !document.bindings || typeof document.bindings !== 'object' || !Array.isArray(document.slots) || document.slots.length !== SLOT_COUNT) return undefined;
     if (!document.slots.every(validSlot)) return undefined;
     const slots = document.slots.map(value => ({ code: value.code, shift: value.shift }));
     for (let index = 0; index < slots.length; index += 1) {
@@ -165,14 +163,20 @@ function parseStored(raw: string): StoredConfig | undefined {
     // 而且只在存档里这个键根本没绑过时才补。现行存档一个键缺席＝玩家自己清掉的，
     // 一律不复活；旧档里的自定义绑定也一个都不动。
     let migrated = false;
-    if (version !== STORAGE_VERSION) {
+    if (version === 1) {
       for (const [key, binding] of Object.entries(ADDED_DEFAULT_BINDINGS)) {
         if (key in bindings) continue;
         bindings[key] = cloneBinding(binding);
         migrated = true;
       }
     }
-    return { version: STORAGE_VERSION, customized: document.customized, bindings, slots, migrated };
+    // v1/v2 gain the new default interaction without replacing Space's custom action.
+    const interaction = version === STORAGE_VERSION ? document.interaction : { code: 'Space', shift: false };
+    if (interaction !== null && !validSlot(interaction)) return undefined;
+    for (const [key, binding] of Object.entries(bindings)) {
+      if (binding?.type === 'action' && binding.action === 'talk') delete bindings[key];
+    }
+    return { version: STORAGE_VERSION, customized: document.customized, bindings, slots, interaction: interaction as StoredSlot | null, migrated: migrated || version !== STORAGE_VERSION };
   } catch {
     return undefined;
   }
@@ -191,7 +195,7 @@ function defaultBindings(job: number): StoredBindings {
     }
   }
   const defaultActions: Array<[string, Action]> = [
-    ['ControlLeft', 'attack'], ['ControlRight', 'attack'], ['KeyX', 'attack'], ['Space', 'jump'], ['KeyZ', 'pickup'], ['KeyT', 'talk'],
+    ['ControlLeft', 'attack'], ['ControlRight', 'attack'], ['KeyX', 'attack'], ['Space', 'jump'], ['KeyZ', 'pickup'],
     ['KeyK', 'skills'], ['KeyQ', 'quests'], ['KeyI', 'inventory'], ['KeyE', 'equipment'],
     ['KeyM', 'worldmap'], ['KeyO', 'keybind'], ['KeyC', 'character'], ['KeyY', 'pets'], ['KeyR', 'mount'],
     // ↑ 骑宠键只在这里（键盘绑定），不在 `defaultSlots()` 的 32 格里，理由见那边。
@@ -223,6 +227,7 @@ export class KeyBindings {
   private job = 0;
   private bindings: StoredBindings = defaultBindings(0);
   private current: StoredSlot[] = defaultSlots();
+  private interaction: StoredSlot | null = { code: 'Space', shift: false };
   private customized = false;
   private readonly listeners = new Set<(slots: readonly KeySlot[]) => void>();
   private readonly storageOverride: StorageLike | null | undefined;
@@ -248,6 +253,7 @@ export class KeyBindings {
         this.job = job;
         this.bindings = defaultBindings(job);
         this.current = defaultSlots();
+        this.interaction = { code: 'Space', shift: false };
         const saved = this.save();
         this.notify();
         return saved;
@@ -259,9 +265,11 @@ export class KeyBindings {
     this.characterId = id;
     this.job = job;
     this.customized = false;
+    this.interaction = { code: 'Space', shift: false };
     const stored = this.read(id);
     if (stored) {
       this.customized = stored.customized;
+      this.interaction = stored.interaction;
       this.bindings = stored.customized ? stored.bindings : defaultBindings(job);
       this.current = stored.customized ? stored.slots : defaultSlots();
       if (stored.migrated) {
@@ -286,8 +294,22 @@ export class KeyBindings {
     return cloneBinding(this.bindings[bindingKey(code, Boolean(shift))] ?? null);
   }
 
+  interacts(code: string, shift = false): boolean {
+    return !!this.interaction && sameKey(this.interaction, { code, shift: Boolean(shift) });
+  }
+
+  get interactionLabel(): string {
+    return this.interaction ? keyLabel(this.interaction.code, this.interaction.shift) : '未配置';
+  }
+
   get slots(): readonly KeySlot[] {
-    return this.current.map(slot => ({ ...slot, binding: this.resolve(slot.code, slot.shift) }));
+    return this.current.map(slot => ({ ...slot, binding: this.resolve(slot.code, slot.shift), interaction: this.interacts(slot.code, slot.shift) }));
+  }
+
+  clearInteraction(): boolean {
+    this.interaction = null;
+    this.customized = true;
+    return this.commit();
   }
 
   slotList(): readonly KeySlot[] { return this.slots; }
@@ -295,8 +317,12 @@ export class KeyBindings {
   bind(code: string, shift: boolean, binding: KeyBinding): boolean {
     if (!this.validKey(code) || !validBinding(binding)) return false;
     const key = bindingKey(code, Boolean(shift));
-    if (binding === null) delete this.bindings[key];
-    else this.bindings[key] = cloneBinding(binding);
+    if (binding?.type === 'action' && binding.action === 'talk') {
+      this.interaction = { code, shift: Boolean(shift) };
+    } else if (binding === null) {
+      delete this.bindings[key];
+      if (this.interacts(code, shift)) this.interaction = null;
+    } else this.bindings[key] = cloneBinding(binding);
     this.customized = true;
     return this.commit();
   }
@@ -318,6 +344,7 @@ export class KeyBindings {
   resetDefaults(): boolean {
     this.bindings = defaultBindings(this.job);
     this.current = defaultSlots();
+    this.interaction = { code: 'Space', shift: false };
     this.customized = false;
     return this.commit();
   }
@@ -362,7 +389,7 @@ export class KeyBindings {
     // denied browser localStorage is a real persistence failure.
     if (!storage) return this.storageOverride === null;
     try {
-      storage.setItem(this.key(this.characterId), JSON.stringify({ version: STORAGE_VERSION, customized: this.customized, bindings: this.bindings, slots: this.current }));
+      storage.setItem(this.key(this.characterId), JSON.stringify({ version: STORAGE_VERSION, customized: this.customized, bindings: this.bindings, slots: this.current, interaction: this.interaction }));
       this._lastSaveError = undefined;
       return true;
     } catch (error) {

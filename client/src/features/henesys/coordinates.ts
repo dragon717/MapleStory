@@ -12,3 +12,30 @@ export function point3d(x: number,y: number): [number,number,number] {
   return [a.position[0]+(b.position[0]-a.position[0])*t,-y/PIXELS_PER_METRE,a.position[2]+(b.position[2]-a.position[2])*t];
 }
 export function miniPoint(x:number,y:number){const p=point3d(x,y);return {x:p[0],y:p[2]};}
+export type JunctionDirection = 'up' | 'down';
+/** Display-only mirror of server/src/henesys.rs::turn: same range, score and tie order. */
+export function junctionDirections(x:number): JunctionDirection[] {
+  // Rust JSON decoding and snapshot serialization can differ by one ULP at a road end.
+  const epsilon=1e-7,route=east.routes.findIndex(r=>x>=r.start-epsilon&&x<=r.end+epsilon);
+  if(route<0)return [];
+  return (['up','down'] as const).filter(direction=>{
+    const vertical=direction==='up'?-1:1;
+    let best:number|undefined,score=.25;
+    for(const junction of east.junctions){
+      if(!junction.entries.some(e=>e.route===route&&Math.abs(e.x-x)<=55+epsilon))continue;
+      for(const entry of junction.entries){
+        const nodes=east.routes[entry.route].nodes;
+        nodes.forEach((node,i)=>{
+          if(Math.abs(node.x-entry.x)>=.01)return;
+          for(const side of [-1,1]){
+            const other=nodes[i+side];if(!other)continue;
+            const dx=other.position[0]-node.position[0],dz=other.position[2]-node.position[2];
+            const alignment=dz/Math.hypot(dx,dz)*vertical;
+            if(alignment>score+.001){score=alignment;best=entry.route;}
+          }
+        });
+      }
+    }
+    return best!==undefined&&best!==route;
+  });
+}

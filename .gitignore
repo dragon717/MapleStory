@@ -40,6 +40,8 @@ resources/
 references/tms273-data/maps.json
 
 # Evidence media and other binary art/audio are not source commits.
+# Live render/performance probes are generated locally; checks and summaries live in scripts/ and docs/.
+/artifacts/henesys/east-village/live/
 *.png
 *.jpg
 *.jpeg

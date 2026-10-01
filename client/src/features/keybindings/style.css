@@ -51,3 +51,5 @@
 }
 
 .keybindings-key .keybindings-label img{display:block;max-width:28px;object-fit:contain}
+
+.keybindings-key[data-interaction=true]::after,.keybindings-slot[data-interaction=true]::after{content:'交';position:absolute;right:0;top:9px;font:700 9px/12px sans-serif;background:#285d48;color:#fff7b3;padding:0 1px;pointer-events:none}

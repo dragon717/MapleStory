@@ -1667,6 +1667,7 @@ impl World {
         }
         if let Some(player) = self.players.get_mut(id) {
             player.map_id = next_map_id;
+            henesys::reset(player);
             player.state = next_state;
             player.quests = next_quests;
             if first_mage_transfer {

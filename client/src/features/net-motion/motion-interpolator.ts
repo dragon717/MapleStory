@@ -195,6 +195,9 @@ export class MotionInterpolator<T extends MotionEntity> {
     this.started = false;
   }
 
+  /** An accepted displacement event must not glide through the space between roads. */
+  snap(id: string): void { this.tracks.delete(id); }
+
   /** 当前渲染时钟（单位＝服务端 tick，浮点）。仅供诊断与门禁断言使用。 */
   get renderTick(): number {
     return this.clock;

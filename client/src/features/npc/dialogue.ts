@@ -248,7 +248,7 @@ export class NpcDialogueView {
   /** npc instance id -> template id, learned when the player initiates a talk. */
   private readonly npcTemplates = new Map<string, string>();
 
-  /** Begin a conversation from a player-initiated request (↑ key). */
+  /** Begin a conversation from a player-initiated request (configured interaction key). */
   startTalk(npc: NpcState) {
     if (this.isOpen()) return;
     const requestId = `npc-${++this.requestSequence}-${Date.now().toString(36)}`;
@@ -258,7 +258,7 @@ export class NpcDialogueView {
     this.send({ type: 'npcTalk', requestId, npcId: npc.id, step: 'start' });
   }
 
-  /** Find the nearest npc the player is standing next to.  Used by the ↑ key. */
+  /** Find the nearest npc the player is standing next to.  Used by the configured interaction key. */
   nearestNpc(snapshot: Extract<ServerMessage, { type: 'snapshot' }>, selfId: string): NpcState | null {
     const player = snapshot.players.find(candidate => candidate.id === selfId);
     if (!player || !snapshot.npcs?.length) return null;

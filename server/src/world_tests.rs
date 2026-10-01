@@ -5915,6 +5915,244 @@ fn henesys_east_walk_jump_branch_and_saved_position() {
     let cross=east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
     let (_,ground)=henesys::repair_position(&map,cross,0.0);p.state.x=cross;p.state.y=ground;p.state.grounded=true;p.vertical=-1;
     step_player(&map,&gameplay,p,30);let market_start=east["routes"][1]["start"].as_f64().unwrap();let market_end=east["routes"][1]["end"].as_f64().unwrap();assert!(p.state.x>=market_start&&p.state.x<=market_end,"north input enters the actual market branch");
+    // Every curved/vertical segment accepts both arc directions without auto-changing roads.
+    for route in east["routes"].as_array().unwrap() {
+        let nodes = route["nodes"].as_array().unwrap();
+        for pair in nodes.windows(2) {
+            let start = (pair[0]["x"].as_f64().unwrap() + pair[1]["x"].as_f64().unwrap()) / 2.0;
+            let (_, y) = henesys::repair_position(&map, start, 0.0);
+            p.state.x = start; p.state.y = y; p.state.grounded = true; p.state.vy = 0.0;
+            p.direction = 1; p.vertical = 0;
+            step_player(&map, &gameplay, p, 100);
+            assert!(p.state.x > start, "right must advance every road segment");
+            p.direction = -1;
+            step_player(&map, &gameplay, p, 101);
+            assert!((p.state.x - start).abs() < 1e-6, "left retraces the same road, including vertical/returning curves");
+        }
+    }
     let (x,y)=henesys::repair_position(&map,698.0,297.0);assert_eq!((x,y),(map.spawn.x,map.spawn.y),"old rail saves migrate safely");
     let (x,y)=henesys::repair_position(&map,p.state.x,-9999.0);assert_eq!(x,p.state.x);assert!(y.is_finite()&&y<0.0,"new-road saved positions survive reconnect");
+}
+
+#[test]
+fn east_movement_pipeline_profile() {
+    let east: serde_json::Value =
+        serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
+    let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
+    let path = std::env::temp_dir().join(format!(
+        "maple-east-performance-{}.sqlite3",
+        auth::random_id()
+    ));
+    let service = auth::start(&path).unwrap();
+    let mut world =
+        World::new_with_store(map.clone(), 600, Gameplay::default(), service.store.clone())
+            .unwrap();
+    let mut outputs = Vec::new();
+    for i in 0..32 {
+        let id = format!("east-perf-{i}");
+        outputs.push(join_test_player(&mut world, &id));
+        let p = world.players.get_mut(&id).unwrap();
+        p.direction = 1;
+        p.state.x = map.spawn.x;
+        p.state.y = map.spawn.y;
+        p.state.grounded = true;
+    }
+    let mut timings = Vec::new();
+    for _ in 0..40 {
+        for p in world.players.values_mut() {
+            p.last_input = Instant::now();
+        }
+        let start = Instant::now();
+        world.step();
+        timings.push(start.elapsed().as_secs_f64() * 1000.);
+        for rx in &mut outputs {
+            while rx.try_recv().is_ok() {}
+        }
+    }
+    let profile = service
+        .store
+        .load_profile("east-perf-0", &quest_profile())
+        .unwrap();
+    assert!(
+        (profile.x - world.players["east-perf-0"].state.x).abs() < 1e-6,
+        "latest tick position remains durable"
+    );
+    timings.sort_by(f64::total_cmp);
+    println!(
+        "EAST_PIPELINE_MS players=32 ticks=40 mean={:.3} p95={:.3} max={:.3}",
+        timings.iter().sum::<f64>() / 40.,
+        timings[38],
+        timings[39]
+    );
+    drop(world);
+    drop(service);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn east_held_vertical_teleport_and_cached_snapshot() {
+    let east: serde_json::Value =
+        serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
+    let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
+    let mut world = World::new(map.clone(), 600);
+    let _rx = join_test_player(&mut world, "east");
+    let _other = join_test_player(&mut world, "中文\"玩家");
+    let gameplay = world.gameplay.clone();
+    let cross = east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
+    let p = world.players.get_mut("east").unwrap();
+    let (_, y) = henesys::repair_position(&map, cross, 0.);
+    p.state.x = cross;
+    p.state.y = y;
+    p.state.grounded = true;
+    p.direction = 0;
+    p.vertical = -1;
+    step_player(&map, &gameplay, p, 1);
+    let entered = p.state.x;
+    let sign = p.east_walk as f64;
+    assert_ne!(sign, 0.);
+    for tick in 2..24 {
+        let old = p.state.x;
+        step_player(&map, &gameplay, p, tick);
+        assert!(
+            (p.state.x - old) * sign > 0.,
+            "held up keeps walking after the junction cooldown without bouncing"
+        );
+    }
+    assert!((p.state.x - entered) * sign > 55.);
+    p.vertical = 0;
+    let old = p.state.x;
+    step_player(&map, &gameplay, p, 24);
+    assert_eq!(p.state.x, old);
+    p.vertical = 1;
+    step_player(&map, &gameplay, p, 25);
+    assert!(
+        (p.state.x - old) * sign < 0.,
+        "down reverses the depth path"
+    );
+    let route = &east["routes"][0];
+    let end = route["end"].as_f64().unwrap();
+    p.state.x = end - 1.;
+    p.state.y = henesys::repair_position(&map, end - 1., 0.).1;
+    p.state.grounded = true;
+    p.vertical = 0;
+    p.direction = 1;
+    let level = MageLevel {
+        x: Some(190),
+        y: Some(295),
+        ..Default::default()
+    };
+    let plan = world.plan_teleport("east", &level, 1, 0).unwrap();
+    assert_eq!(
+        plan.x, end,
+        "teleport clamps to the current open road instead of entering a disconnected arc interval"
+    );
+    world.apply_teleport("east", plan);
+    let p = world.players.get_mut("east").unwrap();
+    step_player(&map, &gameplay, p, 26);
+    assert_eq!(
+        p.state.x, end,
+        "next tick does not reset a teleport to spawn"
+    );
+    assert!(
+        world.plan_teleport("east", &level, 1, 0).is_err(),
+        "blocked endpoint fails before charging MP"
+    );
+    let p = world.players.get_mut("east").unwrap();
+    p.state.x = cross;
+    p.state.y = henesys::repair_position(&map, cross, 0.).1;
+    p.vertical = -1;
+    p.east_vertical = 0;
+    p.east_junction = None;
+    let plan = world.plan_teleport("east", &level, 0, -1).unwrap();
+    let target = plan.x;
+    assert!(
+        target >= east["routes"][1]["start"].as_f64().unwrap()
+            && target <= east["routes"][1]["end"].as_f64().unwrap()
+    );
+    world.apply_teleport("east", plan);
+    let p = world.players.get_mut("east").unwrap();
+    let sign = p.east_walk as f64;
+    step_player(&map, &gameplay, p, 27);
+    assert!(
+        (p.state.x - target) * sign > 0.,
+        "held up continues along the branch after teleport"
+    );
+    p.state.grounded = false;
+    p.state.y -= 37.;
+    let plan = world.plan_teleport("east", &level, 1, 0).unwrap();
+    assert!(!plan.grounded);
+    assert!(
+        (plan.y - henesys::repair_position(&map, plan.x, 0.).1 + 37.).abs() < 1e-6,
+        "airborne teleport retains height over the chosen road"
+    );
+    let p=world.players.get_mut("east").unwrap();p.state.x=cross;p.state.y=henesys::repair_position(&map,cross,0.).1-37.;p.state.grounded=false;p.east_junction=None;p.east_vertical=0;
+    let plan=world.plan_teleport("east",&level,0,-1).unwrap();assert!(plan.x>=route["start"].as_f64().unwrap()&&plan.x<=end,"airborne vertical teleport stays on its current road");
+    let p=world.players.get_mut("east").unwrap();p.state.grounded=true;p.state.y+=37.;p.vertical=1;
+    let plan=world.plan_teleport("east",&level,0,-1).unwrap();world.apply_teleport("east",plan);assert_eq!(world.players["east"].east_vertical,-1,"request direction is retained independently of the latest movement input");
+    let p=world.players.get_mut("east").unwrap();henesys::reset(p);assert_eq!((p.east_turn_until,p.east_vertical,p.east_walk,p.east_junction),(0,0,0,None));
+    let rows = world.snapshot_players("east");
+    for id in ["east", "中文\"玩家"] {
+        let cached: serde_json::Value =
+            serde_json::from_str(&world.snapshot_with_players(id, &rows)).unwrap();
+        let fresh: serde_json::Value = serde_json::from_str(&world.snapshot(id)).unwrap();
+        assert_eq!(
+            cached, fresh,
+            "shared player rows preserve each observer's own metadata"
+        );
+        assert_eq!(cached["selfId"], id);
+        assert_eq!(cached["players"].as_array().unwrap().len(), 2);
+    }
+}
+
+#[test]
+fn east_position_batch_is_atomic_and_keeps_stats() {
+    let path =
+        std::env::temp_dir().join(format!("maple-east-position-{}.sqlite3", auth::random_id()));
+    let service = auth::start(&path).unwrap();
+    let before = service.store.load_profile("a", &quest_profile()).unwrap();
+    let _ = service.store.load_profile("b", &quest_profile()).unwrap();
+    assert!(service
+        .store
+        .save_positions([
+            ("a", "100000000", 10., 20.),
+            ("missing", "100000000", 30., 40.)
+        ])
+        .is_err());
+    assert_eq!(
+        service.store.load_profile("a", &quest_profile()).unwrap().x,
+        before.x,
+        "invalid later row rolls back earlier writes"
+    );
+    assert!(service
+        .store
+        .save_positions([
+            ("a", "100000000", 10., 20.),
+            ("b", "100000000", f64::NAN, 40.)
+        ])
+        .is_err());
+    assert_eq!(
+        service.store.load_profile("a", &quest_profile()).unwrap().x,
+        before.x
+    );
+    service
+        .store
+        .save_positions([("a", "100000000", 10., 20.), ("b", "100000000", 30., 40.)])
+        .unwrap();
+    let after = service.store.load_profile("a", &quest_profile()).unwrap();
+    assert_eq!((after.x, after.y), (10., 20.));
+    assert_eq!(
+        (after.hp, after.mp, after.mesos, after.skills),
+        (before.hp, before.mp, before.mesos, before.skills)
+    );
+    service
+        .store
+        .save_positions([("a", "colossus-harbor", 500., 600.)])
+        .unwrap();
+    assert_eq!(
+        service.store.load_profile("a", &quest_profile()).unwrap().x,
+        10.,
+        "temporary activity preserves the saved return point"
+    );
+    drop(service);
+    let _ = std::fs::remove_file(path);
 }

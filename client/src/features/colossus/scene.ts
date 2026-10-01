@@ -524,7 +524,7 @@ float edge=smoothstep(0.,.15,tex.x)*smoothstep(0.,.15,1.-tex.x);float ribbon=.5+
             ctx.font = '600 39px system-ui';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(passage.label + ' ↑', 256, 65, 470);
+            ctx.fillText(passage.label + ' · 交互键', 256, 65, 470);
             const texture = new T.CanvasTexture(canvas);
             texture.colorSpace = T.SRGBColorSpace;
             if (passage.track === 'climb') this.assets.push(texture); else labels.push(texture);
@@ -912,7 +912,7 @@ float mist=1.-exp(-distance(w,cameraPosition)/max(1300.,cameraPosition.y*14.));g
             else if (crowdNear && elapsed < this.revealLength + 6)
                 line = '补网人：“我知道。”';
             else if (latest.passage)
-                line = `↑ ${latest.passage.label} · 沿路口继续`;
+                line = `交互键 ${latest.passage.label} · 沿路口继续`;
             else if (region !== 'harbor')
                 line = config.regions[region].subtitle + '。路牌连接邻近街道，沿途可以随时折返。';
             else if (selfBody.track === 'lower')

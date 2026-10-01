@@ -21,7 +21,12 @@ Object.assign(globalThis, {
   loadAppearanceLayer: appearance.loadAppearanceLayer,
   normalizeAppearanceItemId: appearance.normalizeAppearanceItemId,
 });
+globalThis.resolveAssetUrl = url => url;
 globalThis.actorDepthForLayers = () => 0;
+globalThis.rideFrames = () => undefined;
+globalThis.rideFrame = () => undefined;
+globalThis.composeRideFrame = (_scene, _ride, avatar) => avatar.parts;
+globalThis.ensureTextures = () => true;
 globalThis.frameAt = (delays, elapsed, loop) => {
   const duration = delays.reduce((sum, delay) => sum + delay, 0);
   let cursor = loop && duration > 0 ? Math.max(0, elapsed) % duration : Math.min(Math.max(0, elapsed), duration - 0.001);
@@ -34,7 +39,7 @@ globalThis.frameAt = (delays, elapsed, loop) => {
 const { PlayerView } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 let now = 100;
-const textures = new Set();
+const textures = new Set(['stand','jump','skill','starter',...['stand','walk','skill2001008'].flatMap(action=>[`${action}-body`,`${action}-face`,`${action}-hair`])]);
 const queuedTextures = new Set();
 const completeListeners = [];
 const loader = {
@@ -56,6 +61,11 @@ const loader = {
 };
 const makeImage = (texture) => ({
   texture,
+  setTexture(texture) { this.texture = texture; return this; },
+  setPosition() { return this; },
+  setFlipX() { return this; },
+  setAlpha() { return this; },
+  setTint() { return this; },
   setOrigin() { return this; },
   setTintFill() { return this; },
   clearTint() { return this; },
@@ -69,6 +79,7 @@ const scene = {
       return {
         list: [],
         setDepth() { return this; },
+        removeAt(index) { this.list.splice(index, 1); return this; },
         removeAll() { this.list = []; return this; },
         add(image) { this.list.push(image); return this; },
         setPosition() { return this; },
@@ -76,7 +87,7 @@ const scene = {
         destroy() { this.list = []; },
       };
     },
-    text() { return { setOrigin() { return this; }, setDepth() { return this; }, setPosition() { return this; }, destroy() {} }; },
+    text() { return { setOrigin() { return this; }, setDepth() { return this; }, setPosition() { return this; }, setData() { return this; }, destroy() {} }; },
     image(_x, _y, texture) { return makeImage(texture); },
   },
 };
@@ -99,9 +110,11 @@ view.startSkill(2001008, 1000);
 view.update(player, 0);
 assert.equal(view.body.list[0].texture, 'skill', 'accepted cast starts the skill pose');
 
+const originalImage = view.body.list[0];
 now = 110;
 view.hitFeedback();
 view.update({ ...player, action: 'jump', vy: -1 }, 0);
+assert.equal(view.body.list[0], originalImage, 'animation reuses its Image instead of allocating/destroying each frame');
 assert.equal(view.body.list[0].texture, 'jump', 'hurt feedback cancels the skill pose for authoritative jump');
 now = 200;
 view.update({ ...player, action: 'jump', vy: -1 }, 0);

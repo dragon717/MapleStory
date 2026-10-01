@@ -2446,6 +2446,9 @@ struct Player {
     // the authoritative PlayerState.
     last_foothold_id: u64,
     east_turn_until: u64,
+    east_vertical: i8,
+    east_walk: i8,
+    east_junction: Option<usize>,
     // A lower-border recovery clamps the player back to an authored edge.
     // Hold that source boundary until a neutral input arrives so the client
     // input heartbeat cannot immediately walk the player off and repeat the
@@ -2766,6 +2769,7 @@ struct ShopRebuyOutcome {
 
 struct TeleportPlan {
     colossus: Option<colossus::motion::Body>,
+    east: Option<(i8, i8, Option<usize>)>,
     map_id: String,
     x: f64,
     y: f64,
@@ -3506,6 +3510,64 @@ impl World {
     }
 
     fn snapshot(&self, id: &str) -> String {
+        self.snapshot_with_players(id, &self.snapshot_players(id))
+    }
+
+    fn snapshot_players(&self, id: &str) -> String {
+        let map_id = self.players.get(id).map(|p| p.map_id.as_str()).unwrap_or(self.map.id.as_str());
+        // Away state is attached per observer row so every client that can see
+        // the character also sees the marker.  It never removes the character
+        // from anyone's view and never changes its physics or damage rules.
+        let now = Instant::now();
+        let mut player_rows = Vec::new();
+        for player in self.players.values().filter(|p| p.map_id == map_id && self.colossus_relevant(id,p)) {
+            let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
+            if let Some(away) = player.away.as_ref() {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert(
+                        "away".to_owned(),
+                        serde_json::json!({
+                            "residency": away.phase(now) != AwayPhase::Grace,
+                            "remainingMs": away.remaining_until_exit_ms(now),
+                        }),
+                    );
+                }
+            }
+            // Monster-inflicted abnormal statuses ride the same per-row block;
+            // only active diseases are serialized so a healthy player never
+            // carries an empty object.  投影在 `PlayerStatus::abnormal()` 里，
+            // 字段名 / 单位 / `None` 语义与拆分前逐字相同（客户端零改动）。
+            let abnormal = player.status.abnormal();
+            if !abnormal.is_empty() {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert(
+                        "abnormalStatus".to_owned(),
+                        serde_json::to_value(&abnormal).unwrap(),
+                    );
+                }
+            }
+            if let Some(object) = row.as_object_mut() {
+                object.insert("pets".to_owned(), pets::snapshots(player));
+            }
+            // 骑乘与坐姿是**状态**（不是 `away` / `abnormalStatus` 那种由别处时钟算出的
+            // 投影），但权威值只留在 `Player` 上，快照在这里投影一次：缺席即「无此事」，
+            // 未骑乘/未坐下的玩家行因此不变形。
+            if let Some(mount) = mounts::snapshot_field(player) {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert("mount".to_owned(), mount);
+                }
+            }
+            if let Some(chair) = chairs::snapshot_field(player, self.tick) {
+                if let Some(object) = row.as_object_mut() {
+                    object.insert("chair".to_owned(), chair);
+                }
+            }
+            player_rows.push(row);
+        }
+        serde_json::to_string(&player_rows).expect("player snapshot")
+    }
+
+    fn snapshot_with_players(&self, id: &str, player_rows: &str) -> String {
         let map_id = self
             .players
             .get(id)
@@ -3605,55 +3667,6 @@ impl World {
                 }));
             }
         }
-        // Away state is attached per observer row so every client that can see
-        // the character also sees the marker.  It never removes the character
-        // from anyone's view and never changes its physics or damage rules.
-        let now = Instant::now();
-        let mut player_rows = Vec::new();
-        for player in self.players.values().filter(|p| p.map_id == map_id && self.colossus_relevant(id,p)) {
-            let mut row = serde_json::to_value(&player.state).unwrap_or(serde_json::Value::Null);
-            if let Some(away) = player.away.as_ref() {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert(
-                        "away".to_owned(),
-                        serde_json::json!({
-                            "residency": away.phase(now) != AwayPhase::Grace,
-                            "remainingMs": away.remaining_until_exit_ms(now),
-                        }),
-                    );
-                }
-            }
-            // Monster-inflicted abnormal statuses ride the same per-row block;
-            // only active diseases are serialized so a healthy player never
-            // carries an empty object.  投影在 `PlayerStatus::abnormal()` 里，
-            // 字段名 / 单位 / `None` 语义与拆分前逐字相同（客户端零改动）。
-            let abnormal = player.status.abnormal();
-            if !abnormal.is_empty() {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert(
-                        "abnormalStatus".to_owned(),
-                        serde_json::to_value(&abnormal).unwrap(),
-                    );
-                }
-            }
-            if let Some(object) = row.as_object_mut() {
-                object.insert("pets".to_owned(), pets::snapshots(player));
-            }
-            // 骑乘与坐姿是**状态**（不是 `away` / `abnormalStatus` 那种由别处时钟算出的
-            // 投影），但权威值只留在 `Player` 上，快照在这里投影一次：缺席即「无此事」，
-            // 未骑乘/未坐下的玩家行因此不变形。
-            if let Some(mount) = mounts::snapshot_field(player) {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert("mount".to_owned(), mount);
-                }
-            }
-            if let Some(chair) = chairs::snapshot_field(player, self.tick) {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert("chair".to_owned(), chair);
-                }
-            }
-            player_rows.push(row);
-        }
         let mut snapshot = serde_json::json!({
             "type":"snapshot",
             "serverTick":self.tick,
@@ -3662,7 +3675,6 @@ impl World {
             "tickMs":TICK_MS,
             "mapId":map_id,
             "selfId":id,
-            "players":player_rows,
             "monsters":self.monsters.values().filter(|m| m.map_id == map_id).map(|m| &m.state).collect::<Vec<_>>(),
             "npcs":npcs,
             "questInteractions":quest_interactions,
@@ -3712,7 +3724,13 @@ impl World {
             }
             snapshot["ship"] = ship_field;
         }
-        snapshot.to_string()
+        // Only append arrays serialized by serde_json, never client-supplied text.
+        let mut wire = snapshot.to_string();
+        wire.pop();
+        wire.push_str(",\"players\":");
+        wire.push_str(player_rows);
+        wire.push('}');
+        wire
     }
 
     fn next_away_id(&mut self) -> u64 {
@@ -4653,6 +4671,7 @@ impl World {
         // no branch below can act on a stage that has already expired.
         self.advance_away_windows();
         let ids: Vec<String> = self.players.keys().cloned().collect();
+        let mut movement_saves = Vec::new();
         for id in ids {
             self.apply_beginner_heal_tick(&id);
             self.step_infinity_tick(&id);
@@ -4817,21 +4836,28 @@ impl World {
                 player.magic_wave_float_used = false;
                 player.slow_fall_until = 0;
             }
-            let should_persist = (player.state.hp != old_hp
+            let stats_changed = player.state.hp != old_hp
                 || player.state.mp != old_mp
                 || player.state.max_hp != old_max_hp
-                || player.state.max_mp != old_max_mp
-                || (player.state.x - old_x).abs() > 0.001
-                || (player.state.y - old_y).abs() > 0.001)
+                || player.state.max_mp != old_max_mp;
+            let moved = (player.state.x - old_x).abs() > 0.001 || (player.state.y - old_y).abs() > 0.001;
+            let should_persist = (stats_changed || moved)
                 && self.store.is_some()
                 && !windbell::is_runtime_instance_map(&player.map_id);
             let _ = player;
             if in_colossus { self.step_colossus_player(&id); }
             else { self.step_windbell_player(&id); }
             if should_persist {
-                let _ = self.persist_player(&id);
+                if stats_changed { let _ = self.persist_player(&id); }
+                else { movement_saves.push(id.clone()); }
             }
             self.step_area_reactor_interactions(&id);
+        }
+        if !movement_saves.is_empty() {
+            if let Some(store) = &self.store {
+                let _ = store.save_positions(movement_saves.iter().filter_map(|id| self.players.get(id).map(|p|
+                    (id.as_str(), profile_map_id(&p.map_id), p.state.x, p.state.y))));
+            }
         }
         // 坐椅恢复：全部玩家一趟，挂在既有的顺序 tick 上（理由见 `chairs::step_chairs`）。
         self.step_chairs();
@@ -4877,13 +4903,23 @@ impl World {
         // every observer's snapshot, but nothing is pushed to a dead channel.
         // A full queue only drops this tick's snapshot, it never deletes the
         // character, so a slow or frozen client cannot lose its role.
+        let mut player_rows = BTreeMap::<&str, String>::new();
         let failed: Vec<_> = self
             .players
             .iter()
             .filter(|(_, p)| !p.detached)
-            .filter_map(|(id, p)| match p.output.try_send(self.snapshot(id)) {
-                Err(TrySendError::Closed(_)) => Some(id.clone()),
-                Err(TrySendError::Full(_)) | Ok(()) => None,
+            .filter_map(|(id, p)| {
+                if p.output.is_closed() { return Some(id.clone()); }
+                if p.output.capacity() == 0 { return None; }
+                // Ordinary maps share actor rows; activity distance relevance remains observer-specific.
+                let wire = if p.colossus.is_some() { self.snapshot(id) } else {
+                    let rows = player_rows.entry(p.map_id.as_str()).or_insert_with(|| self.snapshot_players(id));
+                    self.snapshot_with_players(id, rows)
+                };
+                match p.output.try_send(wire) {
+                    Err(TrySendError::Closed(_)) => Some(id.clone()),
+                    Err(TrySendError::Full(_)) | Ok(()) => None,
+                }
             })
             .collect();
         self.detach_closed_outputs(failed);
@@ -5061,20 +5097,7 @@ fn profile_from_state(
     death_id: &str,
     base_max_mp: i64,
 ) -> Profile {
-    let persisted_map_id = if auth::is_practice_map(map_id) {
-        // Private Boss maps are runtime-only.  Persist the authored source
-        // map so a reconnect can never resurrect an instance id that was
-        // already torn down.
-        map_id
-            .split(':')
-            .nth(1)
-            .filter(|source| *source == BOSS_PRACTICE_FALLBACK_MAP_ID)
-            .unwrap_or(BOSS_PRACTICE_FALLBACK_MAP_ID)
-    } else if let Some(canonical) = windbell::canonical_map_id(map_id) {
-        canonical
-    } else {
-        map_id
-    };
+    let persisted_map_id = profile_map_id(map_id);
     Profile {
         hp: state.hp,
         max_hp: state.max_hp,
@@ -5094,6 +5117,23 @@ fn profile_from_state(
         skills: state.skills.clone(),
         skill_points: state.skill_points.clone(),
         ability_stats: state.ability_stats.clone(),
+    }
+}
+
+fn profile_map_id(map_id: &str) -> &str {
+    if auth::is_practice_map(map_id) {
+        // Private Boss maps are runtime-only.  Persist the authored source
+        // map so a reconnect can never resurrect an instance id that was
+        // already torn down.
+        map_id
+            .split(':')
+            .nth(1)
+            .filter(|source| *source == BOSS_PRACTICE_FALLBACK_MAP_ID)
+            .unwrap_or(BOSS_PRACTICE_FALLBACK_MAP_ID)
+    } else if let Some(canonical) = windbell::canonical_map_id(map_id) {
+        canonical
+    } else {
+        map_id
     }
 }
 

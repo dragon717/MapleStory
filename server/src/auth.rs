@@ -1058,6 +1058,24 @@ impl Store {
         Ok(slots)
     }
 
+    /// Positions share one durable transaction per world tick; stats/items keep their own immediate writes.
+    pub fn save_positions<'a>(&self, positions: impl IntoIterator<Item = (&'a str, &'a str, f64, f64)>) -> Result<(), String> {
+        let mut db = self.db.lock().map_err(|_| "account store unavailable")?;
+        let tx = db.transaction().map_err(|_| "account persistence failed")?;
+        {
+            let mut stmt = tx.prepare_cached("UPDATE player_stats SET map_id=?2,x=?3,y=?4 WHERE account_id=?1")
+                .map_err(|_| "account persistence failed")?;
+            for (id, map, x, y) in positions {
+                if !x.is_finite() || !y.is_finite() { return Err("invalid saved position".into()); }
+                if map == "colossus-harbor" { continue; }
+                if stmt.execute(params![id, map, x, y]).map_err(|_| "account persistence failed")? != 1 {
+                    return Err("account persistence failed".into());
+                }
+            }
+        }
+        tx.commit().map_err(|_| "account persistence failed".into())
+    }
+
     pub fn save_profile(&self, account_id: &str, profile: &Profile) -> Result<(), String> {
         // Keep the canonical return location while persisting stats used inside the activity.
         let skills_json = serialize_skill_map(&profile.skills)?;

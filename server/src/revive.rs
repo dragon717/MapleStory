@@ -194,6 +194,7 @@ impl World {
         player.summons.clear();
         refresh_player_derived(&self.gameplay, &self.mage_skills, player);
         player.contact_invulnerable_until = 0;
+        henesys::reset(player);
         player.direction = 0;
         player.vertical = 0;
         player.jump = false;

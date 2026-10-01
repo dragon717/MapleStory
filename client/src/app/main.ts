@@ -219,19 +219,13 @@ function activateBinding(binding: KeyBinding) {
     const dropId = world?.nearestDropId();
     if (dropId) connection?.send({ type: 'pickup', requestId: `keypickup-${crypto.randomUUID()}`, dropId });
   } else if (binding.action === 'talk') {
-    if (colossusView) { const npc = colossusView.nearestNpc(); if (npc) talkToNpc(npc); else sendColossus('travel'); return; }
-    // 与 `PlayerInput.interactUp` 同一条优先级：NPC → 圣杯 → 传送门。
-    const npc = world?.nearestNpc();
-    if (npc) { talkToNpc(npc); return; }
-    const holyWaterId = world?.nearestHolyWater()?.id;
-    if (holyWaterId) { connection?.send({ type: 'holyWaterAbsorb', requestId: `holywater-${crypto.randomUUID()}`, holyWaterId }); return; }
-    world?.enterPortal();
+    input?.interact();
   } else { status('请使用已配置的键盘按键执行此动作。'); }
 }
 function talkToNpc(npc: NpcState) {
   if (gameplayUiBlocked()) return;
   // 阶段一：点击/按键选中的即时反馈先落地（名牌高亮），服务端的占位或真实
-  // 对话随后到达；两路入口（鼠标点击与 ↑ 键）都从这里走，所以选中态只在这一处点亮。
+  // 对话随后到达；两路入口（鼠标点击与交互键）都从这里走，所以选中态只在这一处点亮。
   if (!npc.id.startsWith('colossus-person-')) world?.selectNpc(npc.id);
   if (npc.templateId.startsWith('windbell-')) { input?.reset(); activities?.talk(); return; }
   input?.reset();
@@ -292,7 +286,7 @@ function renderMapRoute(manifest: Manifest) {
       return map ? mapText(map.id, map.name) : undefined;
     })
     .filter((name): name is string => Boolean(name)))];
-  route.textContent = names.length ? `${english ? '↑ Enter portal: ' : '↑ 进入传送门：'}${names.join(english ? ', ' : '、')}` : '';
+  route.textContent = names.length ? `${keybindings.interactionLabel} ${english ? 'Enter portal: ' : '进入传送门：'}${names.join(english ? ', ' : '、')}` : '';
   route.hidden = names.length === 0;
 }
 async function enterGame(session: LoginResponse) {
@@ -482,18 +476,19 @@ async function enterGame(session: LoginResponse) {
     keybindingsView?.destroy();
     keybindingsView = new KeybindingsView(el('ui-windows'), manifest, keybindings, status);
     keybindingsDispose?.();
-    keybindingsDispose = keybindings.subscribe(() => { input?.reset(); hud?.releaseChannel(); hud?.update(selfState); });
+    keybindingsDispose = keybindings.subscribe(() => { input?.reset(); hud?.releaseChannel(); hud?.update(selfState); renderMapRoute({ ...manifest, map: (manifest.mapCatalog?.maps.find(map => map.id === world?.mapId) as Manifest['map']) ?? manifest.map }); });
     keyRouterDispose?.();
     keyRouterDispose = installKeybindingRouter({
       resolve: (code, shift) => keybindings.resolve(code, shift),
       blocked: () => !selfState || Boolean(activities?.isOpen() || keybindingsView?.isOpen() || news.open || npcDialogue?.isOpen() || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
+      hasInteraction: (code, shift) => !gameplayUiBlocked() && keybindings.interacts(code, shift),
       activate: activateUiAction,
     });
     hud?.destroy();
     hud = new HudView(el('hud'), manifest, message => status(message), () => inventory?.toggle(), trigger => menus?.toggle('game', trigger), undefined, {
       openCashShop,
       keySlots: () => keybindings.slots,
-      resolveBinding: (code, shift) => keybindings.resolve(code, shift),
+      resolveBinding: (code, shift) => keybindings.resolve(code, shift) ?? (keybindings.interacts(code, shift) ? { type: 'action', action: 'talk' } : null),
       bindingLabel: binding => keybindingsView?.bindingLabel(binding) ?? '',
       activateBinding,
       editSlot: slot => { openKeybindings(); keybindingsView?.selectSlot(slot); },
@@ -555,7 +550,7 @@ async function enterGame(session: LoginResponse) {
         status(english ? 'Reconnect before interacting.' : '请重新连接后再操作。', true);
       }
     }, holyWaterId => {
-      // 神聖之水 `2321015`：对一只圣杯按上键吸收。服务器裁决距离、是否到期、
+      // 神聖之水 `2321015`：用交互键吸收一只圣杯。服务器裁决距离、是否到期、
       // 是否同图以及「是不是施放者的队员」，这里只上报意图。
       if (gameplayUiBlocked()) return;
       input?.reset();
@@ -567,7 +562,10 @@ async function enterGame(session: LoginResponse) {
     // 四步，23.5k 张图时这一层开销就是「装载地图与角色」的主要成本（实测服务端能到
     // 6000 req/s、而客户端 1.1ms/张）。'HTMLImageElement' 直接 <img src>，省掉 blob
     // 中转，也让浏览器自己的解码/缓存路径生效。
-    game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, banner: false, loader: { imageLoadType: 'HTMLImageElement' } });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('webgl2', { alpha: true, stencil: true, depth: true, antialias: false, powerPreference: 'high-performance' });
+    // Phaser accepts an external GL context; its GameConfig declaration only lists the Canvas2D variant.
+    game = new Phaser.Game({ canvas, context: context as unknown as CanvasRenderingContext2D, type: Phaser.WEBGL, parent: 'game', width: el('game').clientWidth, height: el('game').clientHeight, backgroundColor: '#b4dfe0', transparent: true, pixelArt: true, roundPixels: true, scene: [world], scale: { mode: Phaser.Scale.RESIZE }, input: { keyboard: false }, banner: false, loader: { imageLoadType: 'HTMLImageElement' } });
     layoutObserver = new ResizeObserver(() => {
       const { clientWidth: width, clientHeight: height } = el('game');
       if (width && height && game && (game.scale.width !== width || game.scale.height !== height)) game.scale.resize(width, height);
@@ -785,9 +783,10 @@ async function enterGame(session: LoginResponse) {
       if (message.type === 'snapshot') {
         windbellSequence = Math.max(windbellSequence, message.windbellSequence ?? 0);
         colossusSequence = Math.max(colossusSequence, message.colossusSequence ?? 0);
-        el('population').textContent = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
+        const population = `${message.players.length} ${english ? 'adventurers' : '位冒险者'}`;
+        if (el('population').textContent !== population) el('population').textContent = population;
         const currentMap = world?.getMap(message.mapId);
-        if (currentMap && world?.mapId === message.mapId) {
+        if (currentMap && world?.mapId === message.mapId && announcedMapId !== message.mapId) {
           el('map-name').textContent = mapText(currentMap.id, currentMap.name);
           renderMapRoute({ ...manifest, map: currentMap as Manifest['map'] });
         }
@@ -954,6 +953,7 @@ async function enterGame(session: LoginResponse) {
       castSkill,
       playerState: () => selfState,
       mapDirection: raw => colossusView?.direction(raw) ?? raw,
+      hasInteraction: (code, shift) => keybindings.interacts(code, shift),
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
       performAction: action => { activateUiAction(action); },
       useItem: useShortcutItem,

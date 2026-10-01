@@ -8,7 +8,7 @@ import './style.css';
 import { resolveAssetUrl } from '../../assets/resource-url';
 
 const ACTION_NAMES: Record<Action, string> = {
-  attack: '普通攻击', jump: '跳跃', pickup: '拾取', talk: 'NPC对话', skills: '技能', quests: '任务',
+  attack: '普通攻击', jump: '跳跃', pickup: '拾取', talk: '交互', skills: '技能', quests: '任务',
   inventory: '背包', equipment: '装备', worldmap: '世界地图', keybind: '键盘设置', character: '角色信息',
   pets: '宠物', left: '向左', right: '向右',
   // 骑宠键：装备栏里双击骑宠槽是同一个开关（`MountStatusView::toggleCurrent`），
@@ -87,6 +87,7 @@ export class KeybindingsView {
       if (this.selectedKey) this.clearKey(this.selectedKey.code, this.selectedKey.shift);
       else this.message('先点击键盘上的按键。');
     }));
+    controls.append(this.button('移除交互绑定', () => this.persist(this.bindings.clearInteraction())));
     const tabs = document.createElement('nav'); tabs.className = 'keybindings-tabs';
     for (const [value, label] of [['skill', '已学技能'], ['action', '基本动作'], ['item', '消耗品']] as const) {
       const button = this.button(label, () => { this.filter = value; this.selected = null; this.paletteSignature = ''; this.render(); });
@@ -98,7 +99,7 @@ export class KeybindingsView {
     const footer = document.createElement('footer'); footer.className = 'keybindings-footer';
     this.hint.setAttribute('role', 'status'); this.hint.textContent = '选择技能或动作，再点键盘；也可将技能拖到按键或快捷栏。';
     footer.append(this.hint, this.button('恢复默认', () => { this.selected = null; this.selectedSlot = undefined; this.persist(this.bindings.resetDefaults()); }), this.button('完成', () => this.close()));
-    const note = document.createElement('small'); note.textContent = '修改即时生效，按角色保存在当前浏览器。右键按键可清除；方向键和 Esc 保留。'; footer.append(note);
+    const note = document.createElement('small'); note.textContent = '修改即时生效，按角色保存在当前浏览器。只有交互可与一个普通动作共键；移除交互保留原动作。右键清空该键；方向键和 Esc 保留。'; footer.append(note);
     const toolbar = document.createElement('div'); toolbar.className = 'keybindings-toolbar'; toolbar.append(controls, tabs);
     this.panel.append(header, this.keyboard, toolbar, this.palette, quickLabel, this.quick, footer);
     this.root.append(this.panel); host.append(this.root);
@@ -180,12 +181,12 @@ export class KeybindingsView {
     }
     if (this.selected) {
       if (!this.validBinding(this.selected)) { this.message('该技能或道具目前不可配置。'); return; }
-      const replaced = this.bindings.resolve(code, shift);
+      const replaced = this.selected.type === 'action' && this.selected.action === 'talk' ? null : this.bindings.resolve(code, shift);
       const name = this.bindingLabel(this.selected);
       if (this.bindings.bind(code, shift, this.selected)) this.message(`${keyLabel(code, shift)} → ${name}${replaced ? `（已替换 ${this.bindingLabel(replaced)}）` : ''}`);
       else this.persist(false);
       this.selected = null;
-    } else this.message(`${keyLabel(code, shift)}：${this.bindingLabel(this.bindings.resolve(code, shift) ?? null)}。选择下方技能后再点此键可替换。`);
+    } else this.message(`${keyLabel(code, shift)}：${this.describeKey(code, shift)}。交互会叠加，其他动作会替换原动作。`);
     this.render();
   }
   private clearKey(code: string, shift: boolean) { this.selected = null; this.persist(this.bindings.bind(code, shift, null)); }
@@ -201,7 +202,7 @@ export class KeybindingsView {
   private render() {
     for (const [code, key] of this.keys) {
       const binding = this.bindings.resolve(code, this.shiftToggle.checked) ?? null;
-      this.paint(key, binding, keyLabel(code));
+      this.paint(key, binding ?? (this.bindings.interacts(code, this.shiftToggle.checked) ? { type: 'action', action: 'talk' } : null), keyLabel(code), this.bindings.interacts(code, this.shiftToggle.checked));
       const labelArt = this.manifest.keybindingsUi?.keys[key.dataset.sourceId ?? ''];
       if (labelArt) {
         const label = key.querySelector('.keybindings-label')!;
@@ -209,7 +210,7 @@ export class KeybindingsView {
         image.style.width = `${labelArt.width}px`; image.style.height = `${labelArt.height}px`;
         label.replaceChildren(image);
       }
-      key.title = `${keyLabel(code, this.shiftToggle.checked)} · ${this.bindingLabel(binding)}`;
+      key.title = `${keyLabel(code, this.shiftToggle.checked)} · ${this.describeKey(code, this.shiftToggle.checked)}`;
       key.setAttribute('aria-label', key.title); key.draggable = Boolean(binding);
       key.classList.toggle('is-selected', this.selectedKey?.code === code && this.selectedKey.shift === this.shiftToggle.checked);
     }
@@ -221,8 +222,8 @@ export class KeybindingsView {
         } else this.selectSlot(index);
       });
       button.className = 'keybindings-slot'; button.dataset.slot = String(index);
-      this.paint(button, this.bindings.resolve(slot.code, slot.shift) ?? null, keyLabel(slot.code, slot.shift));
-      button.title = `第 ${index + 1} 格 · ${keyLabel(slot.code, slot.shift)} · ${this.bindingLabel(this.bindings.resolve(slot.code, slot.shift) ?? null)}`;
+      this.paint(button, slot.binding ?? (slot.interaction ? { type: 'action', action: 'talk' } : null), keyLabel(slot.code, slot.shift), slot.interaction);
+      button.title = `第 ${index + 1} 格 · ${keyLabel(slot.code, slot.shift)} · ${this.describeKey(slot.code, slot.shift)}`;
       button.setAttribute('aria-label', button.title); button.classList.toggle('is-selected', this.selectedSlot === index);
       this.acceptDrop(button, skillId => this.bindSkillToSlot(index, skillId), binding => this.persist(this.bindings.bind(slot.code, slot.shift, binding)));
       this.quick.append(button);
@@ -245,7 +246,12 @@ export class KeybindingsView {
     }
     if (!choices.length) { const empty = document.createElement('p'); empty.textContent = this.filter === 'skill' ? '尚无已学主动技能。可在技能窗先分配技能点。' : '背包中没有消耗品。'; this.palette.append(empty); }
   }
-  private paint(button: HTMLButtonElement, binding: KeyBinding, label: string) {
+  private describeKey(code: string, shift: boolean) {
+    const binding = this.bindings.resolve(code, shift);
+    return [binding ? this.bindingLabel(binding) : '', this.bindings.interacts(code, shift) ? '交互' : ''].filter(Boolean).join(' + ') || '未配置';
+  }
+  private paint(button: HTMLButtonElement, binding: KeyBinding, label: string, interaction = false) {
+    button.dataset.interaction = String(interaction);
     button.replaceChildren();
     const art = this.icon(binding);
     if (art) { const image = document.createElement('img'); image.src = resolveAssetUrl(art.url); image.alt = ''; image.draggable = false; button.append(image); }

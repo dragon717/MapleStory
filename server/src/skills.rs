@@ -1862,10 +1862,11 @@ impl World {
             let body = rider.body.teleport(&runtime.config, &runtime.frame, runtime.bridge(),
                 horizontal_distance * f64::from(direction) / 60.0,
                 -vertical_distance_abs * f64::from(vertical) / 60.0).ok_or("teleport_blocked")?;
-            return Ok(TeleportPlan { map_id, x: body.s * 60.0, y: -body.position[1] * 60.0,
+            return Ok(TeleportPlan { map_id, east: None, x: body.s * 60.0, y: -body.position[1] * 60.0,
                 grounded: body.grounded, foothold_id: 0, colossus: Some(body) });
         }
         let map = self.map_for(&map_id).clone();
+        if henesys::active(&map) { return henesys::teleport(&map, player, horizontal_distance, vertical_distance_abs, direction, vertical); }
         let horizontal = horizontal_distance * f64::from(direction);
         let vertical_distance = vertical_distance_abs * f64::from(vertical);
         let mut target_x = (player.state.x + horizontal).clamp(map.bounds.x_min, map.bounds.x_max);
@@ -1909,6 +1910,7 @@ impl World {
         }
         Ok(TeleportPlan {
             colossus: None,
+            east: None,
             map_id,
             x: target_x,
             y: target_y,
@@ -1924,6 +1926,9 @@ impl World {
         if let Some(body) = plan.colossus {
             if let Some(rider) = player.colossus.as_mut() { rider.body = body; }
         }
+        if let Some((direction, vertical, junction)) = plan.east {
+            player.east_vertical = vertical; player.east_walk = direction; player.east_junction = junction;
+        } else { henesys::reset(player); }
         player.map_id = plan.map_id;
         player.state.x = plan.x;
         player.state.y = plan.y;

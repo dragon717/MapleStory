@@ -97,6 +97,40 @@ const reopened = new KeyBindings({ storage });
 assert.equal(reopened.setCharacter('cleared', 0), true);
 assert.equal(reopened.resolve('KeyR'), null, '现行存档里被清掉的键不会被迁移逻辑复活');
 
+// v2 migration preserves custom Space / cleared ordinary keys while adding only the new special action.
+for (const primary of [{ type: 'skill', skillId: 2001008 }, null]) {
+  const id = primary ? 'v2-custom-space' : 'v2-cleared-space';
+  storage.setItem(`${STORAGE_PREFIX}${id}`, JSON.stringify({ version: 2, customized: true, bindings: primary ? { 'Space:0': primary } : {}, slots: v1Slots }));
+  const old = new KeyBindings({ storage }); old.setCharacter(id, 200);
+  assert.deepEqual(old.resolve('Space'), primary);
+  assert.equal(old.interacts('Space'), true);
+  assert.equal(old.resolve('KeyR'), null, 'v2 cleared mount key is not resurrected');
+}
+const shared = new KeyBindings({ storage }); shared.setCharacter('shared', 0);
+assert.deepEqual(shared.resolve('Space'), { type: 'action', action: 'jump' });
+assert.equal(shared.interacts('Space'), true);
+assert.equal(shared.slots.find(s => s.code === 'Space').interaction, true);
+shared.bind('Space', false, { type: 'skill', skillId: 1000 });
+assert.equal(shared.interacts('Space'), true, 'changing ordinary action preserves interaction');
+shared.bind('KeyB', true, { type: 'action', action: 'talk' });
+assert.equal(shared.interacts('Space'), false, 'moving special action removes its former key');
+assert.equal(shared.interacts('KeyB', true), true);
+assert.equal(shared.interacts('KeyB'), false);
+assert.equal(shared.resolve('KeyB', true), null, 'interaction is not an ordinary binding');
+shared.bind('KeyB', true, { type: 'action', action: 'attack' });
+shared.bind('KeyB', true, { type: 'action', action: 'jump' });
+assert.deepEqual(shared.resolve('KeyB', true), { type: 'action', action: 'jump' }, 'ordinary actions replace each other');
+const reloadShared = new KeyBindings({ storage }); reloadShared.setCharacter('shared', 0);
+assert.equal(reloadShared.interacts('KeyB', true), true);
+assert.deepEqual(reloadShared.resolve('KeyB', true), { type: 'action', action: 'jump' });
+reloadShared.clearInteraction();
+assert.deepEqual(reloadShared.resolve('KeyB', true), { type: 'action', action: 'jump' }, 'removing special action preserves jump');
+const disabledShared = new KeyBindings({ storage }); disabledShared.setCharacter('shared', 0);
+assert.equal(disabledShared.interacts('Space'), false);
+assert.equal(disabledShared.interacts('KeyB', true), false, 'cleared special action stays cleared after reopen');
+assert.equal(disabledShared.bind('ArrowUp', false, { type: 'action', action: 'talk' }), false);
+assert.equal(disabledShared.bind('KeyB', false, [{ type: 'action', action: 'jump' }, { type: 'action', action: 'attack' }]), false, 'arbitrary multi-action bindings are rejected');
+
 const errors = [];
 const failing = new KeyBindings({
   storage: { getItem: () => null, setItem: () => { throw new Error('quota'); } },
@@ -109,4 +143,4 @@ assert.equal(failing.setSlot(0, FIXED_CODES[0], false), false, 'arrows remain fi
 assert.equal(keyLabel('KeyA'), 'A');
 assert.equal(keyLabel('Digit1', true), 'Shift + 1');
 assert.equal(keyLabel('ArrowLeft'), '←');
-console.log(`PASS: keybinding map, ${SLOT_COUNT} display slots, v1->v${STORAGE_VERSION} default-key migration, cleared keys stay cleared, persistence validation, job preservation, and save errors.`);
+console.log(`PASS: restricted interaction co-binding, keybinding map, ${SLOT_COUNT} display slots, v1->v${STORAGE_VERSION} default-key migration, cleared keys stay cleared, persistence validation, job preservation, and save errors.`);

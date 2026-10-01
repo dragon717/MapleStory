@@ -46,7 +46,7 @@ export interface HudViewOptions {
   openPets?: () => void;
   castSkill?: (skillId: number) => string | void;
   releaseSkill?: (requestId: string) => void;
-  keySlots?: () => readonly { code: string; shift: boolean }[];
+  keySlots?: () => readonly { code: string; shift: boolean; interaction?: boolean }[];
   resolveBinding?: (code: string, shift: boolean) => KeyBinding | null;
   bindingLabel?: (binding: KeyBinding) => string;
   activateBinding?: (binding: KeyBinding) => void;
@@ -459,6 +459,8 @@ export class HudView {
         cell.button.dataset.shortcutCode = slot.code;
         cell.button.dataset.shortcutShift = String(slot.shift);
       }
+      cell.button.dataset.interaction = String(Boolean(slot?.interaction));
+      const interactionLabel = slot?.interaction ? ' + 交互' : '';
       cell.action = this.options.resolveBinding?.(cell.binding.code, cell.binding.shift);
       const id = this.options.resolveBinding ? (cell.action?.type === 'skill' ? cell.action.skillId : undefined) : this.shortcutId(player.job, cell.binding);
       if (this.options.resolveBinding && cell.action?.type !== 'skill') {
@@ -468,7 +470,7 @@ export class HudView {
         cell.button.dataset.available = String(Boolean(action)); cell.button.dataset.blockReason = action ? '' : '尚未配置';
         cell.button.disabled = false; cell.button.draggable = false;
         cell.button.setAttribute('aria-disabled', String(!action));
-        cell.button.title = `${cell.binding.label} · ${label} · 右键设置`;
+        cell.button.title = `${cell.binding.label} · ${label}${interactionLabel} · 右键设置`;
         cell.button.setAttribute('aria-label', cell.button.title);
         const itemArt = action?.type === 'item' ? this.manifest.items?.[String(action.itemId).padStart(8, '0')] : undefined;
         cell.icon.hidden = !itemArt; if (itemArt) cell.icon.src = resolveAssetUrl(itemArt.url);
@@ -490,8 +492,8 @@ export class HudView {
       cell.button.disabled = !this.options.editSlot && Boolean(reason);
       cell.button.draggable = Boolean(this.options.editSlot && id && level > 0);
       cell.button.setAttribute('aria-disabled', String(Boolean(reason)));
-      cell.button.title = entry ? `${cell.binding.label} · ${entry.name}${reason ? ` · ${reason}` : ''}` : `${cell.binding.label} · 尚未配置`;
-      cell.button.setAttribute('aria-label', entry ? `${cell.binding.label}：${entry.name}，等级 ${level}${reason ? `，${reason}` : ''}` : `${cell.binding.label}：尚未配置`);
+      cell.button.title = entry ? `${cell.binding.label} · ${entry.name}${interactionLabel}${reason ? ` · ${reason}` : ''}` : `${cell.binding.label} · 尚未配置`;
+      cell.button.setAttribute('aria-label', entry ? `${cell.binding.label}：${entry.name}${interactionLabel}，等级 ${level}${reason ? `，${reason}` : ''}` : `${cell.binding.label}：尚未配置`);
       if (icon) {
         cell.icon.src = resolveAssetUrl(icon.url);
         cell.icon.width = icon.width ?? SOURCE_SLOT_SIZE;

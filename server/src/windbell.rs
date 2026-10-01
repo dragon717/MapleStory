@@ -1529,6 +1529,7 @@ impl World {
             return false;
         };
         candidate.map_id = map_id.to_owned();
+        henesys::reset(&mut candidate);
         candidate.state.x = x.clamp(map.bounds.x_min, map.bounds.x_max);
         candidate.state.y = y;
         candidate.state.vx = 0.0;
