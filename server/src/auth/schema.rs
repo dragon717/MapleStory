@@ -129,6 +129,16 @@ impl Store {
                code TEXT NOT NULL,
                PRIMARY KEY(account_id,request_id)
              );
+             CREATE TABLE IF NOT EXISTS gm_progress_actions(
+               account_id TEXT NOT NULL,
+               request_id TEXT NOT NULL,
+               command TEXT NOT NULL,
+               argument TEXT NOT NULL,
+               success INTEGER NOT NULL,
+               code TEXT NOT NULL,
+               message TEXT NOT NULL,
+               PRIMARY KEY(account_id,request_id)
+             );
              CREATE TABLE IF NOT EXISTS storage_mesos_actions(
                account_id TEXT NOT NULL,
                request_id TEXT NOT NULL,

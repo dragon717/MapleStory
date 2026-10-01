@@ -941,6 +941,7 @@ async function enterGame(session: LoginResponse) {
       el('connection').textContent = state === 'online' ? `● ${english ? 'Connected' : '已连接'} · ${session.username}` : state === 'connecting' ? (english ? 'Connecting…' : '正在连接…') : (english ? 'Disconnected' : '连接已断开');
       el('connection').classList.toggle('online', state === 'online');
       el('reconnect').hidden = state !== 'offline';
+      el('reconnect').textContent = connection?.isTerminal() ? (english ? 'Log in again' : '重新登录') : (english ? 'Reconnect' : '重连');
       input?.setReady(state === 'online');
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
@@ -987,7 +988,7 @@ const entry = new EntryView(el('welcome'), enterGame);
 const clientActions = new ClientActionsView(document.querySelector<HTMLElement>('#app')!);
 entry.onStageChange = stage => clientActions.setVisible(stage === 'login');
 el('game').onpointerdown = () => el('game').focus({ preventScroll: true });
-el('reconnect').onclick = () => { connection?.connect(); el('game').focus({ preventScroll: true }); };
+el('reconnect').onclick = () => { if (connection?.isTerminal()) { leaveGame(); entry.showLogin(); return; } connection?.connect(); el('game').focus({ preventScroll: true }); };
 el('sound').onclick = () => { muted = !muted; world?.setMuted(muted); colossusView?.setMuted(muted); el('sound').textContent = english ? `Sound: ${muted ? 'Off' : 'On'}` : `声音：${muted ? '关' : '开'}`; el('game').focus({ preventScroll: true }); };
 function leaveGame(logout = false) {
   // Closing the socket is not a logout: the server keeps the character

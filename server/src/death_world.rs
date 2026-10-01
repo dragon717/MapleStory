@@ -414,7 +414,12 @@ impl World {
     /// 阶段判据。碑本身是一座真碑——持久化、同图容量与到期全部走真实
     /// 路径；`death_id` 带 `gm-shadow-` 前缀并拼接随机后缀，每次调用都是
     /// 一座新碑（不会被死亡去重误伤），容量满了同样挤掉同图最早的。
-    pub(super) fn gm_spawn_shadow(&mut self, id: &str, stage: u8) -> Result<String, String> {
+    pub(super) fn gm_spawn_shadow(
+        &mut self,
+        id: &str,
+        request_id: &str,
+        stage: u8,
+    ) -> Result<auth::gm::GmProgressResult, String> {
         let Some(player) = self.players.get(id) else {
             return Err("你还没有进入世界。".into());
         };
@@ -453,19 +458,37 @@ impl World {
             mourners: BTreeSet::new(),
             next_strike_unix_ms: 0,
         };
-        self.make_room_for_tombstone(&tombstone);
-        if let Some(store) = self.store.as_ref() {
-            if store.save_tombstone(&tombstone_record(&tombstone)).is_err() {
-                return Err("墓碑留档失败，这一座没有落成。".into());
+        let result = auth::gm::GmProgressResult {
+            success: true,
+            code: "gm_shadow_ok".into(),
+            message: format!(
+                "已在脚下生成虚影「{}」（{} 的碑）。走近可悼念，30 分钟后随风而逝。",
+                Tombstone::STAGE_NAMES[stage as usize],
+                tombstone.character_name,
+            ),
+        };
+        let store = self.store.as_ref().ok_or("存档不可用，未生成虚影。")?;
+        match store.commit_gm_shadow(
+            id,
+            request_id,
+            stage,
+            &tombstone_record(&tombstone),
+            &result,
+        )? {
+            auth::gm::GmActionCommit::Replayed(prior) => return Ok(prior),
+            auth::gm::GmActionCommit::RequestReused => {
+                return Ok(auth::gm::GmProgressResult {
+                    success: false,
+                    code: "request_reused".into(),
+                    message: "请求编号已用于其他 GM 操作或参数。".into(),
+                })
             }
+            auth::gm::GmActionCommit::Applied => {}
         }
-        let name = tombstone.character_name.clone();
+        self.make_room_for_tombstone(&tombstone);
         self.death_tombstones
             .insert(tombstone.id.clone(), tombstone);
-        Ok(format!(
-            "已在脚下生成虚影「{}」（{name} 的碑）。走近可悼念，30 分钟后随风而逝。",
-            Tombstone::STAGE_NAMES[stage as usize],
-        ))
+        Ok(result)
     }
 
     /// 悼念一次。客户端只命名墓碑；存在性、到期、同图、距离与死活全部由

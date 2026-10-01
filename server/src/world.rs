@@ -38,6 +38,8 @@ mod chairs;
 mod combat_rules;
 #[path = "commands.rs"]
 mod commands;
+#[path = "session_control.rs"]
+mod session_control;
 /// 原创扩展「死亡世界」第一期：墓碑留存 + 虚影演化（审计代码图条目 06 的
 /// 原创扩展立项）。不改变任何原版死亡/复活语义。见模块头。
 #[path = "death_world.rs"]
@@ -2258,6 +2260,14 @@ pub struct CashShopCatalogue {
 }
 
 pub enum Command {
+    JoinAuthorized {
+        authorization: auth::Authorization,
+        connection: String,
+        output: mpsc::Sender<String>,
+        reply: oneshot::Sender<bool>,
+        lang: String,
+        terminate: oneshot::Sender<&'static str>,
+    },
     Join {
         identity: Identity,
         connection: String,
@@ -2938,6 +2948,8 @@ pub struct World {
     /// snapshot and the world map already speak those ids.
     return_maps: BTreeMap<String, String>,
     players: BTreeMap<String, Player>,
+    controls: BTreeMap<String, session_control::Control>,
+    gm_players: BTreeSet<String>,
     monsters: BTreeMap<String, Monster>,
     npcs: BTreeMap<String, NpcInstance>,
     drops: BTreeMap<String, DropState>,
@@ -3129,6 +3141,8 @@ impl World {
             map,
             gameplay,
             players: BTreeMap::new(),
+            controls: BTreeMap::new(),
+            gm_players: BTreeSet::new(),
             monsters: BTreeMap::new(),
             npcs: BTreeMap::new(),
             drops: BTreeMap::new(),
@@ -3825,6 +3839,7 @@ impl World {
             }
             self.disconnect_boss_player(&id);
             self.freeze_leaving_pet_hunger(&id);
+            self.revoke_control(&id);
             self.players.remove(&id);
             self.end_conversation(&id);
             self.pending_attacks
@@ -4661,6 +4676,7 @@ impl World {
     }
 
     pub fn step(&mut self) {
+        self.expire_controls();
         self.tick += 1;
         self.step_windbell_before_players();
         self.step_colossus();

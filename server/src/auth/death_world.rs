@@ -26,40 +26,45 @@ pub struct TombstoneRecord {
     pub mourners: Vec<String>,
 }
 
+/// Shared by ordinary upserts and the atomic GM receipt transaction.
+pub(super) fn write_tombstone(db: &Connection, record: &TombstoneRecord) -> Result<(), String> {
+    let mourners_json =
+        serde_json::to_string(&record.mourners).map_err(|_| "account persistence failed")?;
+    let appearance_json = record
+        .appearance
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|_| "account persistence failed")?;
+    db.execute(
+        "INSERT OR REPLACE INTO death_tombstones(
+           id,death_id,character_name,map_id,x,y,epitaph,appearance_json,
+           created_unix_ms,expires_unix_ms,mourners_json)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+        params![
+            record.id,
+            record.death_id,
+            record.character_name,
+            record.map_id,
+            record.x,
+            record.y,
+            record.epitaph,
+            appearance_json,
+            record.created_unix_ms,
+            record.expires_unix_ms,
+            mourners_json,
+        ],
+    )
+    .map_err(|_| "account persistence failed")?;
+    Ok(())
+}
+
 impl Store {
     /// Upsert 一座墓碑。悼念人数变化也走这里（整行重写），因为悼念集合
     /// 本身就是墓碑事实的一部分。
     pub fn save_tombstone(&self, record: &TombstoneRecord) -> Result<(), String> {
         let db = self.db.lock().map_err(|_| "account store unavailable")?;
-        let mourners_json = serde_json::to_string(&record.mourners)
-            .map_err(|_| "account persistence failed")?;
-        let appearance_json = record
-            .appearance
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()
-            .map_err(|_| "account persistence failed")?;
-        db.execute(
-            "INSERT OR REPLACE INTO death_tombstones(
-               id,death_id,character_name,map_id,x,y,epitaph,appearance_json,
-               created_unix_ms,expires_unix_ms,mourners_json)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-            params![
-                record.id,
-                record.death_id,
-                record.character_name,
-                record.map_id,
-                record.x,
-                record.y,
-                record.epitaph,
-                appearance_json,
-                record.created_unix_ms,
-                record.expires_unix_ms,
-                mourners_json,
-            ],
-        )
-        .map_err(|_| "account persistence failed")?;
-        Ok(())
+        write_tombstone(&db, record)
     }
 
     /// 全量读回。到期筛选不在这一层做——期限是世界时钟的判据，这里只交事实。

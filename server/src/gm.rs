@@ -15,8 +15,7 @@
 //! ## 不负责
 //! - 聊天限流与幂等窗口（GM 命令在它们之前截获，不受令牌桶约束）
 //! - 宠物道具的召唤语义（宠物走 `useItem` 分支，见 `pets.rs`）
-//! - 权限体系：当前阶段所有角色都可用（单机复刻用途），后续接入 GM 账号表时
-//!   只需在本模块入口加一道身份闸门
+//! - 权限来源：由启动认证流程写入 World 的服务端 GM 账号允许名单
 //!
 //! ## 状态所有者
 //! 无自有状态：道具落在 `Player.state.inventory`，反馈走 `Player.output`。
@@ -53,6 +52,17 @@ impl World {
     /// Entry point from `handle_chat`: `text` is known to start with `/`
     /// after trimming.  Never broadcasts to the map room.
     pub(super) fn handle_gm_command(&mut self, id: String, request_id: String, text: String) {
+        if !self.gm_players.contains(&id) {
+            gm_result(
+                self,
+                &id,
+                &request_id,
+                false,
+                "gm_forbidden",
+                "当前账号没有 GM 权限。",
+            );
+            return;
+        }
         let trimmed = text.trim();
         let mut parts = trimmed.split_whitespace();
         let command = parts.next().unwrap_or("").to_ascii_lowercase();
@@ -79,8 +89,8 @@ impl World {
     ///
     /// P: the local wallet has no real charging path, so this command is the
     /// only grant; it exists so the purchase flow is actually usable.  The
-    /// amount clamps to a sane 1..=1_000_000_000 window and persists through
-    /// the same save_profile path a purchase uses.
+    /// amount is limited to 1..=1_000_000_000 and the balance plus request
+    /// receipt commit in one SQLite transaction.
     fn gm_cash(&mut self, id: &str, request_id: &str, args: &[&str]) {
         let parsed = args
             .first()
@@ -97,30 +107,85 @@ impl World {
             );
             return;
         }
-        let Some(player) = self.players.get_mut(id) else {
+        let Some(store) = self.store.clone() else {
+            gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "persistence",
+                "存档不可用，未发放楓點。",
+            );
             return;
         };
-        player.state.cash = player.state.cash.saturating_add(parsed as u64);
-        let balance = player.state.cash;
-        if let (Some(store), Some(player)) = (self.store.as_ref(), self.players.get(id)) {
-            let _ = store.save_profile(
+        let Some(player) = self.players.get(id).cloned() else {
+            return;
+        };
+        let before = player.state.cash;
+        let Some(balance) = before.checked_add(parsed as u64) else {
+            gm_result(
+                self,
                 id,
-                &profile_from_state(
-                    &player.state,
-                    &player.map_id,
-                    &player.death_id,
-                    player.base_max_mp,
-                ),
+                request_id,
+                false,
+                "persistence",
+                "余额超出存档范围，未发放楓點。",
             );
-        }
-        gm_result(
-            self,
+            return;
+        };
+        let mut candidate = player;
+        candidate.state.cash = balance;
+        let result = auth::gm::GmProgressResult {
+            success: true,
+            code: "gm_cash_ok".to_owned(),
+            message: format!("已发放 {parsed} 楓點，当前余额 {balance}。"),
+        };
+        let profile = profile_from_state(
+            &candidate.state,
+            &candidate.map_id,
+            &candidate.death_id,
+            candidate.base_max_mp,
+        );
+        match store.commit_gm_progress(
             id,
             request_id,
-            true,
-            "",
-            &format!("已发放 {parsed} 楓點，当前余额 {balance}。"),
-        );
+            "cash",
+            &parsed.to_string(),
+            Some(before),
+            &profile,
+            &result,
+        ) {
+            Ok(auth::gm::GmActionCommit::Applied) => {
+                self.players.insert(id.to_owned(), candidate);
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    result.success,
+                    &result.code,
+                    &result.message,
+                );
+            }
+            Ok(auth::gm::GmActionCommit::Replayed(result)) => {
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    result.success,
+                    &result.code,
+                    &result.message,
+                );
+            }
+            Ok(auth::gm::GmActionCommit::RequestReused) => gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "request_reused",
+                "请求编号已用于其他 GM 操作或参数。",
+            ),
+            Err(error) => gm_result(self, id, request_id, false, "persistence", &error),
+        }
     }
 
     /// `/exp <amount>` — grant experience to the sender.
@@ -151,47 +216,90 @@ impl World {
             );
             return;
         }
-        let (level_before, after) = {
-            let Some(player) = self.players.get_mut(id) else {
-                return;
-            };
-            let level_before = player.state.level;
-            Self::add_exp(&mut player.state, parsed, &self.gameplay.exp_table);
-            let after = (player.state.level, player.state.exp, player.state.exp_to_next);
-            // A level-up changes the attribute inputs (level feeds max HP/MP),
-            // so refresh the same derived view the reward path refreshes.
-            refresh_player_derived(&self.gameplay, &self.mage_skills, player);
-            (level_before, after)
+        let Some(store) = self.store.clone() else {
+            gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "persistence",
+                "存档不可用，未发放经验。",
+            );
+            return;
         };
-        let persisted = match (self.store.as_ref(), self.players.get(id)) {
-            (Some(store), Some(player)) => store
-                .save_profile(
-                    id,
-                    &profile_from_state(
-                        &player.state,
-                        &player.map_id,
-                        &player.death_id,
-                        player.base_max_mp,
-                    ),
-                )
-                .is_ok(),
-            _ => true,
+        let Some(mut candidate) = self.players.get(id).cloned() else {
+            return;
         };
-        let (level, exp, exp_to_next) = after;
+        let level_before = candidate.state.level;
+        Self::add_exp(&mut candidate.state, parsed, &self.gameplay.exp_table);
+        // A level-up changes derived attributes, so refresh the same view as
+        // the ordinary reward path before writing the candidate profile.
+        refresh_player_derived(&self.gameplay, &self.mage_skills, &mut candidate);
+        let (level, exp, exp_to_next) = (
+            candidate.state.level,
+            candidate.state.exp,
+            candidate.state.exp_to_next,
+        );
         let summary = if level > level_before {
             format!("已获得 {parsed} 经验，升级至 {level} 级（{exp}/{exp_to_next}）。")
         } else {
             format!("已获得 {parsed} 经验，当前 {level} 级（{exp}/{exp_to_next}）。")
         };
-        // Never claim the progress survived a failed write: the level is real
-        // in this session but a reconnect would load the older row.
-        let message = if persisted {
-            summary
-        } else {
-            format!("{summary}（存档失败，重连后可能回退）")
+        let result = auth::gm::GmProgressResult {
+            success: true,
+            code: "gm_exp_ok".to_owned(),
+            message: summary,
         };
-        gm_result(self, id, request_id, true, "gm_exp_ok", &message);
-        self.send_snapshot(id);
+        let profile = profile_from_state(
+            &candidate.state,
+            &candidate.map_id,
+            &candidate.death_id,
+            candidate.base_max_mp,
+        );
+        match store.commit_gm_progress(
+            id,
+            request_id,
+            "exp",
+            &parsed.to_string(),
+            None,
+            &profile,
+            &result,
+        ) {
+            Ok(auth::gm::GmActionCommit::Applied) => {
+                self.players.insert(id.to_owned(), candidate);
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    result.success,
+                    &result.code,
+                    &result.message,
+                );
+                self.send_snapshot(id);
+            }
+            Ok(auth::gm::GmActionCommit::Replayed(result)) => {
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    result.success,
+                    &result.code,
+                    &result.message,
+                );
+                if result.success {
+                    self.send_snapshot(id);
+                }
+            }
+            Ok(auth::gm::GmActionCommit::RequestReused) => gm_result(
+                self,
+                id,
+                request_id,
+                false,
+                "request_reused",
+                "请求编号已用于其他 GM 操作或参数。",
+            ),
+            Err(error) => gm_result(self, id, request_id, false, "persistence", &error),
+        }
     }
 
     /// `/add <itemId> <count>` — grant items to the sender's inventory.
@@ -427,14 +535,21 @@ impl World {
                 return;
             }
         };
-        match self.gm_spawn_shadow(id, stage) {
-            Ok(message) => {
-                gm_result(self, id, request_id, true, "gm_shadow_ok", &message);
-                self.send_snapshot(id);
+        match self.gm_spawn_shadow(id, request_id, stage) {
+            Ok(result) => {
+                gm_result(
+                    self,
+                    id,
+                    request_id,
+                    result.success,
+                    &result.code,
+                    &result.message,
+                );
+                if result.success {
+                    self.send_snapshot(id);
+                }
             }
-            Err(message) => {
-                gm_result(self, id, request_id, false, "gm_shadow_failed", &message);
-            }
+            Err(message) => gm_result(self, id, request_id, false, "gm_shadow_failed", &message),
         }
     }
 }

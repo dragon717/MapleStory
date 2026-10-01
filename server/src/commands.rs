@@ -51,7 +51,51 @@ fn resolve_join_map_position(
 
 impl World {
     pub fn command(&mut self, command: Command) {
+        // Expiry dispatches Detach through this queue; Detach cannot exercise control.
+        // Avoid recursively scanning every other expired lease while detaching a batch.
+        if !matches!(&command, Command::Detach { .. }) {
+            self.expire_controls();
+        }
+        let (command, mut authorization) = match command {
+            Command::JoinAuthorized {
+                authorization,
+                connection,
+                output,
+                reply,
+                lang,
+                terminate,
+            } => {
+                if !authorization.lease.valid() {
+                    let _ = output.try_send(reject(
+                        "unauthenticated",
+                        "登录授权已失效，请重新登录。",
+                        None,
+                    ));
+                    let _ = terminate.send("unauthenticated");
+                    let _ = reply.send(false);
+                    return;
+                }
+                let identity = authorization.identity.clone();
+                let control = session_control::Control {
+                    authorization,
+                    connection: connection.clone(),
+                    terminate,
+                };
+                (
+                    Command::Join {
+                        identity,
+                        connection,
+                        output,
+                        reply,
+                        lang,
+                    },
+                    Some(control),
+                )
+            }
+            command => (command, None),
+        };
         match command {
+            Command::JoinAuthorized { .. } => unreachable!("authorized joins are normalized above"),
             Command::Join {
                 identity,
                 connection,
@@ -91,6 +135,15 @@ impl World {
                     self.end_conversation(&identity.id);
                     self.pending_attacks
                         .retain(|_, attack| attack.player_id != identity.id);
+                    if !self.bind_control(&identity.id, authorization.take()) {
+                        let _ = output.try_send(reject(
+                            "unauthenticated",
+                            "登录授权已失效，请重新登录。",
+                            None,
+                        ));
+                        let _ = reply.send(false);
+                        return;
+                    }
                     if let Some(existing) = self.players.get_mut(&identity.id) {
                         existing.away_sequence += 1;
                         existing.connection = connection.clone();
@@ -416,6 +469,15 @@ impl World {
                     .into_iter()
                     .map(|row| row.id)
                     .collect();
+                if !self.bind_control(&id, authorization.take()) {
+                    let _ = output.try_send(reject(
+                        "unauthenticated",
+                        "登录授权已失效，请重新登录。",
+                        None,
+                    ));
+                    let _ = reply.send(false);
+                    return;
+                }
                 self.players.insert(
                     id.clone(),
                     Player {
@@ -641,6 +703,7 @@ impl World {
                         return;
                     }
                 }
+                self.revoke_control(&id);
                 if !self.disconnect_windbell_player(&id) {
                     return;
                 }
@@ -671,6 +734,7 @@ impl World {
                     .get(&id)
                     .is_some_and(|p| p.connection == connection)
                 {
+                    self.revoke_control(&id);
                     if !self.disconnect_windbell_player(&id) {
                         return;
                     }
@@ -719,6 +783,7 @@ impl World {
                     // merely closes is a tab switch or a reload, not a
                     // departure, and must keep the character resident.
                     ClientMessage::Logout => {
+                        self.revoke_control(&id);
                         if !self.disconnect_windbell_player(&id) {
                             return;
                         }

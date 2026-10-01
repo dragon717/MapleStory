@@ -50,11 +50,12 @@ globalThis.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.len
 globalThis.clearTimeout = handle => { if (timers[handle - 1]) timers[handle - 1].cleared = true; };
 
 const statuses = [];
-const connection = new Connection(
+const makeConnection = () => new Connection(
   { token: 't', protocolVersion: 'pv', contentVersion: 'cv' },
   () => {},
   (status, reason) => statuses.push([status, reason]),
 );
+let connection = makeConnection();
 const lastSocket = () => FakeWebSocket.instances.at(-1);
 
 // 场景 1：非终端断线 ⇒ 必须安排重试。
@@ -77,6 +78,7 @@ second.onmessage({ data: JSON.stringify({ type: 'rejected', message: 'replaced',
 second.onclose({ reason: '' });
 assert.equal(timers.filter(timer => !timer.cleared).length, 0, 'session_replaced 必须停止自动重试');
 
+connection = makeConnection();
 // 场景 3：主动 close() ⇒ 停止重试；挂起回调不得再连。
 timers.length = 0;
 connection.connect();
@@ -88,6 +90,7 @@ const countAfterClose = FakeWebSocket.instances.length;
 for (const timer of timers) if (!timer.cleared) timer.fn();
 assert.equal(FakeWebSocket.instances.length, countAfterClose, '主动关闭后挂起的重试回调不得再连接');
 
+connection = makeConnection();
 // 场景 4：终端码的可操作文案不得被先前的离线文案吞掉。
 // 服务端会话表是进程内的（`auth.rs` 的 `sessions: HashMap`），所以每次重启
 // 3010 都会让在线页面握手失败于 `unauthenticated`。此时 `onerror` 先报一次
@@ -110,3 +113,20 @@ assert.equal(
 assert.equal(timers.filter(timer => !timer.cleared).length, 0, 'unauthenticated 必须停止自动重试');
 
 console.log('network session: reconnect scheduling, terminal codes and active-close semantics passed.');
+
+// Revocation/replacement is terminal after the first authoritative snapshot too.
+for (const code of ['unauthenticated', 'session_replaced']) {
+  connection = makeConnection(); timers.length = 0;
+  connection.connect();
+  const socket = lastSocket();
+  socket.onmessage({ data: JSON.stringify({ type: 'snapshot' }) });
+  socket.onmessage({ data: JSON.stringify({ type: 'rejected', code, message: 'authorization ended' }) });
+  socket.onclose({ reason: '' });
+  assert(connection.isTerminal());
+  assert.equal(timers.filter(t => !t.cleared).length, 0);
+  const count = FakeWebSocket.instances.length;
+  connection.connect(); // Manual/visibility retry cannot reuse the terminated credential.
+  assert.equal(FakeWebSocket.instances.length, count);
+  assert.equal(connection.send({ type: 'logout' }), false);
+}
+console.log('network session: online revocation/replacement and credential reuse guards passed.');

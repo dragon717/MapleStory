@@ -26,6 +26,14 @@ use tokio::sync::{mpsc, oneshot};
 // `grant_level_sp` / `add_exp` 原是 auth 层 `pub(crate)` 自由函数，world::quest 走
 // `auth::X` 路径调用；搬入 db.rs 后 re-export 保住原路径。
 use self::db::*;
+#[path = "auth/session_lease.rs"]
+mod session_lease;
+pub(crate) use session_lease::{Authorization, SessionLease};
+#[path = "auth/gm.rs"]
+pub(crate) mod gm;
+#[cfg(test)]
+#[path = "auth/session_tests.rs"]
+mod session_tests;
 pub(crate) use db::{add_exp, grant_level_sp};
 // 转职：auth 侧自己拥有的事务契约与奖励纯函数。世界侧只认这两个名字，
 // 不认 `shared/job-advance.json` 的字段形状。
@@ -103,7 +111,9 @@ pub enum Request {
     ),
     #[cfg(test)]
     Verify(String, oneshot::Sender<Option<Identity>>),
+    #[cfg(test)]
     VerifyCharacter(String, oneshot::Sender<Option<Identity>>),
+    AuthorizeCharacter(String, oneshot::Sender<Option<Authorization>>),
     Lobby {
         token: String,
         action: crate::lobby::Action,
@@ -123,7 +133,53 @@ struct Session {
     identity: Identity,
     account_id: String,
     kind: SessionKind,
-    expiry: Instant,
+    lease: Arc<SessionLease>,
+    control_lease: Arc<SessionLease>,
+}
+
+fn revoke_sessions(sessions: &mut HashMap<String, Session>, account_id: &str, roles_only: bool) {
+    sessions.retain(|_, session| {
+        if session.account_id != account_id {
+            return true;
+        }
+        session.control_lease.revoke();
+        if roles_only && session.kind == SessionKind::Account {
+            return true;
+        }
+        session.lease.revoke();
+        false
+    });
+}
+
+fn prune_sessions(sessions: &mut HashMap<String, Session>) {
+    sessions.retain(|_, session| {
+        if session.lease.valid() {
+            return true;
+        }
+        session.control_lease.revoke();
+        false
+    });
+}
+
+fn authorize_character(
+    session: &Session,
+    store: &Store,
+    gm_accounts: &HashSet<String>,
+) -> Option<Authorization> {
+    if !session.lease.valid() || !session.control_lease.valid() {
+        return None;
+    }
+    let identity = if session.kind == SessionKind::Character {
+        session.identity.clone()
+    } else {
+        let (id, username) = lobby::legacy_identity(store, &session.account_id).ok()??;
+        Identity { id, username }
+    };
+    Some(Authorization {
+        identity,
+        gm: gm_accounts.contains(&session.account_id),
+        lease: session.control_lease.clone(),
+    })
 }
 
 /// Acceptance-test failure injector: while set, the persistence write
@@ -1848,6 +1904,20 @@ impl Store {
 }
 
 pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
+    let gm_accounts = std::env::var("MAPLE_GM_ACCOUNT_IDS")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .collect();
+    start_with_gm_accounts(path, gm_accounts)
+}
+
+fn start_with_gm_accounts(
+    path: &Path,
+    gm_accounts: HashSet<String>,
+) -> Result<AuthService, Box<dyn std::error::Error>> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -1911,10 +1981,11 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                             username: c.username,
                         };
                         let token = random_id();
-                        sessions.retain(|_, session| session.expiry > Instant::now());
+                        prune_sessions(&mut sessions);
                         // A fresh account login starts a new selection flow;
                         // invalidate role tokens issued by the previous flow.
-                        sessions.retain(|_, session| session.account_id != identity.id);
+                        revoke_sessions(&mut sessions, &identity.id, false);
+                        let expiry = Instant::now() + Duration::from_secs(86400);
                         sessions.insert(
                             identity.id.clone(),
                             Session {
@@ -1922,7 +1993,8 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                                 identity: identity.clone(),
                                 account_id: identity.id.clone(),
                                 kind: SessionKind::Account,
-                                expiry: Instant::now() + Duration::from_secs(86400),
+                                lease: Arc::new(SessionLease::new(expiry)),
+                                control_lease: Arc::new(SessionLease::new(expiry)),
                             },
                         );
                         Ok((identity, token))
@@ -1934,39 +2006,38 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                 Request::Verify(token, reply) => {
                     let identity = sessions
                         .values()
-                        .find(|session| session.token == token && session.expiry > Instant::now())
+                        .find(|session| session.token == token && session.lease.valid())
                         .map(|session| session.identity.clone());
                     let _ = reply.send(identity);
                 }
+                #[cfg(test)]
                 Request::VerifyCharacter(token, reply) => {
-                    sessions.retain(|_, session| session.expiry > Instant::now());
-                    let session = sessions
+                    prune_sessions(&mut sessions);
+                    let identity = sessions
                         .values()
                         .find(|session| session.token == token)
-                        .cloned();
-                    let identity = match session {
-                        Some(session) if session.kind == SessionKind::Character => {
-                            Some(session.identity)
-                        }
-                        // The original WS protocol sent the account token
-                        // directly. Preserve that path only for a pre-lobby
-                        // account whose one legacy role still owns account.id.
-                        Some(session) if session.kind == SessionKind::Account => {
-                            lobby::legacy_identity(&lobby_store, &session.account_id)
-                                .ok()
-                                .flatten()
-                                .map(|(id, username)| Identity { id, username })
-                        }
-                        _ => None,
-                    };
+                        .and_then(|session| {
+                            authorize_character(session, &lobby_store, &gm_accounts)
+                        })
+                        .map(|grant| grant.identity);
                     let _ = reply.send(identity);
+                }
+                Request::AuthorizeCharacter(token, reply) => {
+                    prune_sessions(&mut sessions);
+                    let grant = sessions
+                        .values()
+                        .find(|session| session.token == token)
+                        .and_then(|session| {
+                            authorize_character(session, &lobby_store, &gm_accounts)
+                        });
+                    let _ = reply.send(grant);
                 }
                 Request::Lobby {
                     token,
                     action,
                     reply,
                 } => {
-                    sessions.retain(|_, session| session.expiry > Instant::now());
+                    prune_sessions(&mut sessions);
                     let result = (|| {
                         let account = sessions
                             .values()
@@ -1975,6 +2046,10 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                             })
                             .cloned()
                             .ok_or_else(|| "invalid session".to_owned())?;
+                        if matches!(action, lobby::Action::Logout) {
+                            revoke_sessions(&mut sessions, &account.account_id, false);
+                            return Ok(lobby::Response::LoggedOut);
+                        }
                         let response = lobby::handle(&lobby_store, &account.account_id, action)?;
                         let selected_token = random_id();
                         let (response, character) = response.with_token(selected_token.clone());
@@ -1983,10 +2058,12 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                             // again. Keep the session map bounded even if it
                             // retries selection repeatedly.
                             let account_id = account.account_id.clone();
-                            sessions.retain(|_, session| {
-                                session.account_id != account_id
-                                    || session.kind != SessionKind::Character
-                            });
+                            revoke_sessions(&mut sessions, &account_id, true);
+                            let expiry = account
+                                .lease
+                                .expires_at()
+                                .min(Instant::now() + Duration::from_secs(86400));
+                            let lease = Arc::new(SessionLease::new(expiry));
                             sessions.insert(
                                 selected_token.clone(),
                                 Session {
@@ -1997,7 +2074,8 @@ pub fn start(path: &Path) -> Result<AuthService, Box<dyn std::error::Error>> {
                                     },
                                     account_id,
                                     kind: SessionKind::Character,
-                                    expiry: Instant::now() + Duration::from_secs(86400),
+                                    lease: lease.clone(),
+                                    control_lease: lease,
                                 },
                             );
                         }

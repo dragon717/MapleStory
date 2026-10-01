@@ -35,6 +35,7 @@ fn gm_of_kind<'a>(batch: &'a [Value], kind: &str) -> Vec<&'a Value> {
 fn gm_add_grants_items_into_the_sender_inventory_without_broadcast() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     let mut bob = join_test_player(&mut world, "bob");
     chat_drain(&mut alice);
     chat_drain(&mut bob);
@@ -69,6 +70,7 @@ fn gm_add_grants_items_into_the_sender_inventory_without_broadcast() {
 fn gm_add_defaults_to_one_and_rejects_unknown_ids_and_quantities() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
 
     // Missing quantity defaults to 1.
@@ -101,6 +103,7 @@ fn gm_unknown_commands_answer_the_sender_only() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");
     let mut bob = join_test_player(&mut world, "bob");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
     chat_drain(&mut bob);
 
@@ -117,6 +120,7 @@ fn gm_unknown_commands_answer_the_sender_only() {
 fn gm_commands_bypass_the_chat_rate_limit_window() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
 
     // Drain the chat bucket first: five sends burn the whole burst.
@@ -136,6 +140,7 @@ fn gm_commands_bypass_the_chat_rate_limit_window() {
 fn gm_add_can_grant_a_pet_item_for_the_pet_flow() {
     let mut world = chat_world();
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
 
     chat_send(&mut world, "alice", "gm-pet", "/add 5000000 1");
@@ -158,12 +163,13 @@ fn gm_add_can_grant_a_pet_item_for_the_pet_flow() {
 
 #[test]
 fn gm_exp_grants_experience_through_the_shared_level_up_path() {
-    let mut world = chat_world();
+    let (mut world, path) = gm_store_world("exp");
     // `Gameplay::default()` ships no exp table, so pin a three-step one: the
     // level-up boundary is then a real crossing instead of a saturation.
     world.gameplay.exp_table = vec![10, 20, 30];
     let mut alice = join_test_player(&mut world, "alice");
     let mut bob = join_test_player(&mut world, "bob");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
     chat_drain(&mut bob);
 
@@ -176,6 +182,30 @@ fn gm_exp_grants_experience_through_the_shared_level_up_path() {
     assert_eq!(results[0]["code"], "gm_exp_ok");
     let state = &world.players["alice"].state;
     assert_eq!((state.level, state.exp, state.exp_to_next), (1, 5, 10));
+
+    let original_message = results[0]["message"].clone();
+    chat_send(&mut world, "alice", "gm-exp-1", "/exp 5");
+    let replay = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(replay.len(), 1);
+    assert_eq!(replay[0]["message"], original_message);
+    assert_eq!(
+        (
+            world.players["alice"].state.level,
+            world.players["alice"].state.exp
+        ),
+        (1, 5)
+    );
+    chat_send(&mut world, "alice", "gm-exp-1", "/exp 6");
+    let reused = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(reused.len(), 1);
+    assert_eq!(reused[0]["code"], "request_reused");
+    assert_eq!(
+        (
+            world.players["alice"].state.level,
+            world.players["alice"].state.exp
+        ),
+        (1, 5)
+    );
 
     // Two thresholds at once: 5 + 25 = 30 spends 10 (->2) and 20 (->3) and
     // leaves 0/30, paying the same +5 AP per level a quest reward pays.
@@ -203,6 +233,83 @@ fn gm_exp_grants_experience_through_the_shared_level_up_path() {
     );
     assert!(gm_of_kind(&batch, "chatMessage").is_empty());
     assert!(gm_take_all(&mut bob).is_empty());
+    let store = world.store.as_ref().expect("store attached");
+    let persisted = store
+        .load_profile("alice", &world.default_profile())
+        .expect("saved profile");
+    assert_eq!(
+        (persisted.level, persisted.exp, persisted.exp_to_next),
+        (3, 0, 30)
+    );
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn gm_cash_is_atomic_idempotent_and_rejects_body_changes() {
+    let (mut world, path) = gm_store_world("cash");
+    let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
+    chat_drain(&mut alice);
+
+    chat_send(&mut world, "alice", "gm-cash-1", "/cash 50");
+    let first = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0]["code"], "gm_cash_ok");
+    assert_eq!(world.players["alice"].state.cash, 50);
+
+    chat_send(&mut world, "alice", "gm-cash-1", "/cash 50");
+    let replay = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(replay.len(), 1);
+    assert_eq!(replay[0]["message"], first[0]["message"]);
+    assert_eq!(world.players["alice"].state.cash, 50);
+
+    chat_send(&mut world, "alice", "gm-cash-1", "/cash 60");
+    let reused = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(reused.len(), 1);
+    assert_eq!(reused[0]["code"], "request_reused");
+    assert_eq!(world.players["alice"].state.cash, 50);
+
+    let denial = auth::Store::deny_persistence();
+    chat_send(&mut world, "alice", "gm-cash-denied", "/cash 10");
+    let denied = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(denied.len(), 1);
+    assert_eq!(denied[0]["success"], false);
+    assert_eq!(denied[0]["code"], "persistence");
+    assert_eq!(
+        world.players["alice"].state.cash, 50,
+        "a failed commit must not change memory"
+    );
+    let store = world.store.as_ref().expect("store attached");
+    let persisted = store
+        .load_profile("alice", &world.default_profile())
+        .expect("saved profile");
+    assert_eq!(persisted.cash, 50);
+    drop(denial);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn ordinary_players_cannot_use_any_gm_command() {
+    let mut world = chat_world();
+    let mut alice = join_test_player(&mut world, "alice");
+    chat_drain(&mut alice);
+    for (request_id, text) in [
+        ("forbidden-add", "/add 2000000 1"),
+        ("forbidden-cash", "/cash 50"),
+        ("forbidden-exp", "/exp 50"),
+        ("forbidden-shadow", "/shadow 2"),
+    ] {
+        chat_send(&mut world, "alice", request_id, text);
+    }
+    let replies = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(replies.len(), 4);
+    assert!(replies
+        .iter()
+        .all(|reply| reply["success"] == false && reply["code"] == "gm_forbidden"));
+    let state = &world.players["alice"].state;
+    assert!(state.inventory.is_empty());
+    assert_eq!((state.cash, state.level, state.exp), (0, 1, 0));
+    assert!(world.death_tombstones.is_empty());
 }
 
 /// 带持久化的世界。
@@ -211,12 +318,11 @@ fn gm_exp_grants_experience_through_the_shared_level_up_path() {
 /// 内存的 `inventory::add_items`，那条路径不做持有判据。所以「唯一道具第二次
 /// 发放被拒」这个事实**只能**在 store-backed 的世界里钉住。
 fn gm_store_world(tag: &str) -> (World, std::path::PathBuf) {
-    let path = std::env::temp_dir()
-        .join(format!("maple-gm-only-{tag}-{}.sqlite3", auth::random_id()));
+    let path =
+        std::env::temp_dir().join(format!("maple-gm-only-{tag}-{}.sqlite3", auth::random_id()));
     let service = auth::start(&path).expect("temp store");
-    let world =
-        World::new_with_store(map(), 600, Gameplay::default(), service.store.clone())
-            .expect("world with store");
+    let world = World::new_with_store(map(), 600, Gameplay::default(), service.store.clone())
+        .expect("world with store");
     (world, path)
 }
 
@@ -224,6 +330,7 @@ fn gm_store_world(tag: &str) -> (World, std::path::PathBuf) {
 fn gm_add_refusing_a_unique_item_names_where_the_other_one_is_held() {
     let (mut world, path) = gm_store_world("mount");
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
 
     // 野豬（1902000）：源 `Character/TamingMob/01902000.json` 的 `info.only=1`，
@@ -286,6 +393,7 @@ fn gm_exp_rejects_out_of_band_amounts_without_touching_progress() {
     let mut world = chat_world();
     world.gameplay.exp_table = vec![10, 20, 30];
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
 
     for (request_id, text) in [
@@ -309,9 +417,10 @@ fn gm_exp_rejects_out_of_band_amounts_without_touching_progress() {
 
 #[test]
 fn gm_shadow_answers_the_guide_then_spawns_a_staged_tombstone() {
-    let mut world = chat_world();
+    let (mut world, path) = gm_store_world("shadow");
     let mut alice = join_test_player(&mut world, "alice");
     let mut bob = join_test_player(&mut world, "bob");
+    world.gm_players.insert("alice".to_owned());
     chat_drain(&mut alice);
     chat_drain(&mut bob);
 
@@ -346,14 +455,51 @@ fn gm_shadow_answers_the_guide_then_spawns_a_staged_tombstone() {
     assert_eq!(tombstones[0]["stageName"].as_str(), Some("凝聚"));
     assert_eq!(tombstones[0]["characterName"].as_str(), Some("alice"));
 
+    let original_message = results[0]["message"].clone();
+    chat_send(&mut world, "alice", "sh-2", "/shadow 2");
+    let replay = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(replay.len(), 1);
+    assert_eq!(replay[0]["message"], original_message);
+    assert_eq!(
+        world.death_tombstones.len(),
+        1,
+        "a replay must not create a second tombstone"
+    );
+    chat_send(&mut world, "alice", "sh-2", "/shadow 1");
+    let reused = gm_take_kind(&mut alice, "gmResult");
+    assert_eq!(reused.len(), 1);
+    assert_eq!(reused[0]["code"], "request_reused");
+    assert_eq!(world.death_tombstones.len(), 1);
+
+    // Force receipt insertion to fail after writing the tombstone: both must roll back.
+    world.store.as_ref().unwrap().with_db(|db| {
+        db.execute_batch("CREATE TRIGGER deny_gm_receipt BEFORE INSERT ON gm_progress_actions BEGIN SELECT RAISE(ABORT, 'fixture'); END;")
+            .map_err(|_| "fixture".into())
+    }).unwrap();
+    chat_send(&mut world, "alice", "sh-rollback", "/shadow 0");
+    assert_eq!(gm_take_kind(&mut alice, "gmResult")[0]["success"], false);
+    assert_eq!(world.death_tombstones.len(), 1);
+    assert_eq!(world.store.as_ref().unwrap().load_tombstones().unwrap().len(), 1);
+    world.store.as_ref().unwrap().with_db(|db| db.execute_batch("DROP TRIGGER deny_gm_receipt").map_err(|_| "fixture".into())).unwrap();
+    chat_send(&mut world, "alice", "sh-rollback", "/shadow 0");
+    assert_eq!(gm_take_kind(&mut alice, "gmResult")[0]["success"], true);
+    assert_eq!(world.death_tombstones.len(), 2, "rollback leaves the request retryable");
+    // Replay also survives reopening SQLite, even with no in-memory receipt cache.
+    let reopened = auth::start(&path).unwrap();
+    world.store = Some(reopened.store.clone());
+    chat_send(&mut world, "alice", "sh-2", "/shadow 2");
+    assert_eq!(gm_take_kind(&mut alice, "gmResult")[0]["message"], original_message);
+    assert_eq!(world.death_tombstones.len(), 2);
+
     // 阶段越界（3）与多余参数都被拒，碑的数量不变。
     chat_send(&mut world, "alice", "sh-bad", "/shadow 3");
     chat_send(&mut world, "alice", "sh-extra", "/shadow 1 2");
     let rejects = gm_take_kind(&mut alice, "gmResult");
     assert_eq!(rejects.len(), 2);
     assert!(rejects.iter().all(|value| value["code"] == "gm_usage"));
-    assert_eq!(world.death_tombstones.len(), 1);
+    assert_eq!(world.death_tombstones.len(), 2);
 
     // 其他玩家什么也收不到：命令不广播，快照不旁落。
     assert!(gm_take_all(&mut bob).is_empty());
+    let _ = std::fs::remove_file(path);
 }

@@ -92,6 +92,7 @@ fn pet_growth_snapshot_derives_fullness_weakness_and_lifespan() {
 fn pet_feeding_restores_fullness_and_grants_source_closeness() {
     let mut world = World::new_with_gameplay(life_map("test"), 600, Gameplay::default());
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".into());
     chat_send(&mut world, "alice", "give-food", "/add 2120000 5");
     pet_give(&mut world, "alice", "5000000");
     pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");
@@ -146,6 +147,7 @@ fn pet_feeding_restores_fullness_and_grants_source_closeness() {
 fn pet_overfeed_costs_closeness_at_full_fullness() {
     let mut world = World::new_with_gameplay(life_map("test"), 600, Gameplay::default());
     let mut alice = join_test_player(&mut world, "alice");
+    world.gm_players.insert("alice".into());
     chat_send(&mut world, "alice", "give-food", "/add 2120000 3");
     pet_give(&mut world, "alice", "5000000");
     pet_use_item(&mut world, "alice", "pet-1", 1, "5000000");

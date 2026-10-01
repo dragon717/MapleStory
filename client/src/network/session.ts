@@ -20,6 +20,7 @@ export class Connection {
   private retry?: ReturnType<typeof setTimeout>;
   private attempt = 0;
   private stopped = false;
+  private terminalCode = '';
   constructor(private session: LoginResponse, private message: (message: ServerMessage) => void, private state: (status: 'connecting' | 'online' | 'offline', reason?: string) => void) {}
   /** The server pushes a snapshot every world tick (~50 ms), so `onmessage`
    *  sees one constantly. Only report a status change when the connection
@@ -39,6 +40,7 @@ export class Connection {
     this.state(status, reason);
   }
   connect() {
+    if (this.terminalCode) return;
     this.stopped = false;
     this.closeSocket();
     this.report('connecting');
@@ -47,19 +49,26 @@ export class Connection {
     let acknowledged = false;
     const socket = this.socket = new WebSocket(wsUrl());
     this.timeout = setTimeout(() => { if (this.socket === socket) { this.report('offline', '连接超时，请重连。'); socket.close(); } }, 10000);
-    socket.onopen = () => this.send({ type: 'hello', token: this.session.token, protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION, lang: uiLocale() });
+    socket.onopen = () => { if (this.socket === socket) this.send({ type: 'hello', token: this.session.token, protocolVersion: PROTOCOL_VERSION, contentVersion: CONTENT_VERSION, lang: uiLocale() }); };
     socket.onmessage = event => {
-      if (this.socket !== socket) return;
+      if (this.socket !== socket || this.terminalCode) return;
       try {
         const message = JSON.parse(event.data) as ServerMessage;
         if (message.type === 'snapshot') { acknowledged = true; clearTimeout(this.timeout); this.attempt = 0; this.report('online'); }
         // The localized line comes first; the raw code stays in the console so
         // a handshake failure is still diagnosable without showing it to the
         // player on the connection screen.
-        else if (message.type === 'rejected' && !acknowledged) {
+        else if (message.type === 'rejected' && (!acknowledged || TERMINAL_CODES.has(message.code))) {
           handshakeCode = message.code;
           handshakeFailure = protocolText(message.code, message.message);
           console.debug('[protocol] 握手被拒', message.code, message.message);
+          if (TERMINAL_CODES.has(message.code)) {
+            this.terminalCode = message.code;
+            clearTimeout(this.retry);
+            this.stopped = true;
+            this.report('offline', this.terminalReason());
+            socket.close();
+          }
         }
         this.message(message);
       } catch { this.report('offline', '服务器消息无法解析，请重连。'); socket.close(); }
@@ -67,6 +76,7 @@ export class Connection {
     socket.onclose = event => {
       if (this.socket !== socket) return;
       clearTimeout(this.timeout);
+      if (this.terminalCode) { this.report('offline', this.terminalReason()); return; }
       this.report('offline', event.reason || handshakeFailure || '连接已断开，正在尝试恢复…');
       this.scheduleReconnect(handshakeCode);
     };
@@ -81,8 +91,9 @@ export class Connection {
   private scheduleReconnect(handshakeCode = '') {
     if (this.stopped) return;
     if (handshakeCode && TERMINAL_CODES.has(handshakeCode)) {
+      this.terminalCode = handshakeCode;
       this.stopped = true;
-      this.report('offline', handshakeCode === 'session_replaced' ? '该角色已在其他页面或设备恢复。' : '登录状态已失效，请重新登录。');
+      this.report('offline', this.terminalReason());
       return;
     }
     const base = document.hidden ? 8000 : 1000;
@@ -93,6 +104,7 @@ export class Connection {
     this.retry = setTimeout(() => { if (!this.stopped) this.connect(); }, jitter);
   }
   send(message: ClientMessage): boolean {
+    if (this.terminalCode) return false;
     const socket = this.socket;
     if (!socket || socket.readyState !== WebSocket.OPEN) return false;
     try {
@@ -102,6 +114,8 @@ export class Connection {
       return false;
     }
   }
+  isTerminal(): boolean { return Boolean(this.terminalCode); }
+  private terminalReason(): string { return this.terminalCode === 'session_replaced' ? '该角色已在其他页面或设备恢复。' : '登录状态已失效，请重新登录。'; }
   /** Tears down the live socket and pending timers **without** touching the
    *  retry gate.  `connect()` reuses this to swap sockets; the public
    *  `close()` is the explicit teardown that additionally stops reconnecting.

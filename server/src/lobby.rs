@@ -49,6 +49,7 @@ impl<'de> Deserialize<'de> for HttpRequest {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Action {
+    Logout,
     List {
         #[serde(default, rename = "channelId")]
         channel_id: Option<u32>,
@@ -210,6 +211,7 @@ pub struct CharacterSummary {
 }
 
 pub enum Response {
+    LoggedOut,
     List {
         characters: Vec<CharacterSummary>,
         slot_limit: u32,
@@ -231,6 +233,7 @@ pub enum Response {
 impl Response {
     pub fn into_json(self) -> Value {
         match self {
+            Self::LoggedOut => serde_json::json!({ "ok": true }),
             Self::List {
                 characters,
                 slot_limit,
@@ -412,6 +415,7 @@ pub(crate) fn handle(store: &Store, account_id: &str, action: Action) -> Result<
             return Err("invalid session".to_owned());
         }
         let response = match action {
+            Action::Logout => return Err("logout requires authentication".to_owned()),
             Action::List { channel_id } => {
                 validate_channel(channel_id)?;
                 ensure_legacy(&tx, account_id)?;

@@ -15,6 +15,7 @@ fn pet_use_item(world: &mut World, id: &str, request_id: &str, slot: i16, item_i
 }
 
 fn pet_give(world: &mut World, id: &str, item_id: &str) {
+    world.gm_players.insert(id.to_owned());
     chat_send(
         world,
         id,
@@ -45,6 +46,7 @@ fn pet_same_species_instances_limit_replay_recall_and_forgery() {
     let mut world = World::new_with_gameplay(life_map("test"), 600, Gameplay::default());
     let mut alice = join_test_player(&mut world, "alice");
     chat_drain(&mut alice);
+    world.gm_players.insert("alice".into());
     chat_send(&mut world, "alice", "give-four", "/add 5000000 4");
     for slot in 1..=3 {
         pet_use_item(

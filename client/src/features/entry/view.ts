@@ -72,6 +72,8 @@ export class EntryView {
     } catch (error) { this.setNote(error instanceof Error ? error.message : String(error), true); }
   }
   showLogin() {
+    const session = this.session;
+    if (session) void lobbyRequest(session, 'logout').catch(() => { /* Local logout also works after expiry or transport loss. */ });
     this.revision++; this.session = undefined; this.characters = []; this.selected = undefined; this.host.hidden = false; this.go('login');
   }
   async returnTo(stage: 'channel' | 'characters') {
@@ -203,7 +205,7 @@ export class EntryView {
     if (action === 'help') return this.setNote(text('账号：3–32位英文字母、数字、_或-。密码至少8位。首次游玩请注册，再创建冒险家角色。', 'ID: 3–32 ASCII letters, digits, _ or -. Password: at least 8 characters. Register an account, then create an Explorer.'));
     if (action === 'language') { const url = new URL(location.href); url.searchParams.set('lang', uiLocale() === 'en' ? 'zh' : 'en'); location.assign(url); return; }
     if (action === 'first') return this.showLogin();
-    if (action === 'back') return this.go(this.stage === 'create' ? 'characters' : this.stage === 'characters' ? 'channel' : 'login');
+    if (action === 'back') { if (this.stage === 'channel') return this.showLogin(); return this.go(this.stage === 'create' ? 'characters' : 'channel'); }
     if (action === 'channel') return this.go('characters');
     if (action === 'cancel-create') return this.go('characters');
     if (action === 'create') { if (this.characters.length >= this.slotLimit) return; this.draftName = ''; this.checkedName = ''; this.createRequestId = ''; this.go('create'); return; }

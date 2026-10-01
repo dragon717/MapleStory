@@ -201,13 +201,14 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
     let (reply, rx) = oneshot::channel();
     if app
         .auth
-        .try_send(Request::VerifyCharacter(token, reply))
+        .try_send(Request::AuthorizeCharacter(token, reply))
         .is_err()
     {
         let _ = send(&mut socket, reject("busy", "Authentication busy", None)).await;
         return;
     }
-    let Ok(Ok(Some(identity))) = tokio::time::timeout(Duration::from_secs(10), rx).await else {
+    let Ok(Ok(Some(authorization))) = tokio::time::timeout(Duration::from_secs(10), rx).await
+    else {
         let _ = send(
             &mut socket,
             reject("unauthenticated", "Invalid or expired session", None),
@@ -215,18 +216,20 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
         .await;
         return;
     };
-    let id = identity.id.clone();
+    let id = authorization.identity.id.clone();
     let connection = auth::random_id();
     let (output, mut outgoing) = mpsc::channel(32);
+    let (terminate, mut terminated) = oneshot::channel();
     let (reply, rx) = oneshot::channel();
     if app
         .world
-        .try_send(world::Command::Join {
-            identity,
+        .try_send(world::Command::JoinAuthorized {
+            authorization,
             connection: connection.clone(),
             output,
             reply,
             lang: lang.unwrap_or_default(),
+            terminate,
         })
         .is_err()
     {
@@ -256,6 +259,13 @@ async fn socket_loop(mut socket: WebSocket, app: App) {
     let mut departure = Departure::Detached(world::AwayReason::TransportLost);
     loop {
         tokio::select! {
+            biased;
+            reason=&mut terminated=>{
+                let code=reason.unwrap_or("unauthenticated");
+                let message=if code=="session_replaced" { "该角色已在其他页面或设备恢复。" } else { "登录授权已失效，请重新登录。" };
+                let _=send(&mut socket,reject(code,message,None)).await;
+                break;
+            }
             packet=socket.recv()=>{
                 if window.elapsed()>=Duration::from_secs(1) { window=Instant::now();count=0; } count+=1;
                 if count>60 { let _=send(&mut socket,reject("rate_limit","Maximum 60 messages per second",None)).await; departure=Departure::Gone; break; }

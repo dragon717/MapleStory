@@ -1885,6 +1885,7 @@ impl World {
                     Ok(profile) => authoritative_profile = Some(profile),
                     Err(error) => {
                         self.send_reject(&id, "persistence", &error, Some(&request_id));
+                        self.revoke_control(&id);
                         self.players.remove(&id);
                         self.end_conversation(&id);
                         self.pending_attacks
