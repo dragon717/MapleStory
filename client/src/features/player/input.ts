@@ -1,4 +1,4 @@
-import type { ClientMessage, NpcState, PlayerState } from '../../../../shared/protocol';
+import type { ClientMessage, MovementView, NpcState, PlayerState } from '../../../../shared/protocol';
 import type { Action, KeyBinding } from '../keybindings/model';
 
 export const MAGE_JOB_WHITELIST = new Set([200, 210, 211, 212, 220, 221, 222, 230, 231, 232]);
@@ -235,6 +235,7 @@ export interface Interactable {
   /** Latest authoritative self state, used only to distinguish grounded jump from air float. */
   playerState?: () => PlayerState | undefined;
   basicMovementOnly?: () => boolean;
+  movementView?: () => MovementView | undefined;
   mapDirection?: (raw: -1|0|1) => -1|0|1;
   /** UI-owned modal state; prevents gameplay input from crossing the window boundary. */
   isBlocked?: () => boolean;
@@ -294,7 +295,8 @@ export class PlayerInput {
       this.releaseBlockedInput();
       return;
     }
-    this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical() });
+    const view = this.targets.movementView?.();
+    this.send({ type: 'input', seq: ++this.seq, direction: this.direction(), jump, vertical: this.vertical(), ...(view ? {view} : {}) });
   }
   private releaseBlockedInput() {
     this.releaseChannel();

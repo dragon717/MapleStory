@@ -116,6 +116,7 @@ impl Harness {
             id: "p".into(),
             connection: "p-connection".into(),
             message: ClientMessage::Input {
+                view: None,
                 seq,
                 direction,
                 vertical,

@@ -37,6 +37,7 @@ fn a16_current_controller_can_resume_without_renewing_passive_absence() {
         id: "resume".into(),
         connection: "new".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: 0,
@@ -65,6 +66,7 @@ fn a16_current_controller_can_resume_without_renewing_passive_absence() {
         id: "resume".into(),
         connection: "new".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 2,
             direction: 1,
             vertical: 0,
@@ -279,6 +281,7 @@ fn a06_detach_clears_held_input_so_the_character_does_not_keep_acting() {
         id: "a".into(),
         connection: "c1".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -508,7 +511,7 @@ fn a14_takeover_resets_the_input_sequence_so_the_character_can_move_again() {
         world.command(Command::Input {
             id: "a".into(),
             connection: "c1".into(),
-            message: ClientMessage::Input { seq, direction: 1, vertical: 0, jump: false },
+            message: ClientMessage::Input { view: None, seq, direction: 1, vertical: 0, jump: false },
         });
     }
     assert_eq!(world.players["a"].state.last_input_seq, 50);
@@ -526,7 +529,7 @@ fn a14_takeover_resets_the_input_sequence_so_the_character_can_move_again() {
     world.command(Command::Input {
         id: "a".into(),
         connection: "c2".into(),
-        message: ClientMessage::Input { seq: 1, direction: 1, vertical: 0, jump: false },
+        message: ClientMessage::Input { view: None, seq: 1, direction: 1, vertical: 0, jump: false },
     });
     assert_eq!(world.players["a"].direction, 1, "the character must be controllable again");
     while rx1.try_recv().is_ok() {}
@@ -548,7 +551,7 @@ fn a15_switching_characters_removes_the_old_one_and_the_new_one_moves() {
         world.command(Command::Input {
             id: "A".into(),
             connection: "s1".into(),
-            message: ClientMessage::Input { seq, direction: 1, vertical: 0, jump: false },
+            message: ClientMessage::Input { view: None, seq, direction: 1, vertical: 0, jump: false },
         });
     }
     world.step();
@@ -566,7 +569,7 @@ fn a15_switching_characters_removes_the_old_one_and_the_new_one_moves() {
     world.command(Command::Input {
         id: "B".into(),
         connection: "s2".into(),
-        message: ClientMessage::Input { seq: 1, direction: 1, vertical: 0, jump: false },
+        message: ClientMessage::Input { view: None, seq: 1, direction: 1, vertical: 0, jump: false },
     });
     world.step();
     assert_eq!(world.players.len(), 1, "only the selected character is in the world");
@@ -585,7 +588,7 @@ fn a15_switching_characters_removes_the_old_one_and_the_new_one_moves() {
     world.command(Command::Input {
         id: "A".into(),
         connection: "s3".into(),
-        message: ClientMessage::Input { seq: 1, direction: 1, vertical: 0, jump: false },
+        message: ClientMessage::Input { view: None, seq: 1, direction: 1, vertical: 0, jump: false },
     });
     assert_eq!(world.players["A"].direction, 1, "A can move after returning");
     let x_before = world.players["A"].state.x;

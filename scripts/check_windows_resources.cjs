@@ -130,6 +130,7 @@ function validate(root = path.resolve(__dirname, '..')) {
   );
   const windbell = windbellBundle.validate(projectRoot);
   const colossus = require('./check_colossus_bundle.cjs').validate(projectRoot);
+  const henesys = require('./check_henesys_assets.cjs').validate(projectRoot);
   return {
     protocolVersion: protocol.protocolVersion,
     contentVersion: protocol.contentVersion,
@@ -137,6 +138,7 @@ function validate(root = path.resolve(__dirname, '..')) {
     checkedAssets,
     windbell,
     colossus,
+    henesys,
     mapCount: mapCatalog.maps.length,
   };
 }

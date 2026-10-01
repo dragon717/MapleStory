@@ -2445,7 +2445,9 @@ struct Player {
     // This is server-internal state; the wire contract still exposes only
     // the authoritative PlayerState.
     last_foothold_id: u64,
+    east_view: Option<crate::protocol::MovementView>,
     east_turn_until: u64,
+    east_horizontal: i8,
     east_vertical: i8,
     east_walk: i8,
     east_junction: Option<usize>,
@@ -2769,7 +2771,7 @@ struct ShopRebuyOutcome {
 
 struct TeleportPlan {
     colossus: Option<colossus::motion::Body>,
-    east: Option<(i8, i8, Option<usize>)>,
+    east: Option<(i8, i8, i8, Option<usize>)>,
     map_id: String,
     x: f64,
     y: f64,
@@ -3107,6 +3109,7 @@ impl World {
         gameplay: Gameplay,
         store: Option<Store>,
     ) -> Result<Self, String> {
+        if henesys::active(&map) { henesys::validate_paths()?; }
         let hit_after_ms = gameplay.player.attack_after_ms.unwrap_or(duration_ms);
         // Flatten the exported sticker ids once; the catalogue is a publication
         // detail after this point.
@@ -3329,6 +3332,7 @@ impl World {
             ));
         }
         for map in maps {
+            if henesys::active(&map) { henesys::validate_paths()?; }
             let map_id = map.id.clone();
             self.maps.insert(map_id.clone(), map);
             if let Some(store) = self.store.as_ref() {

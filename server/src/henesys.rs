@@ -4,12 +4,14 @@ use super::*;
 use std::sync::OnceLock;
 #[derive(Deserialize)]
 struct Node {
+    name: String,
     x: f64,
     y: f64,
     position: [f64; 3],
 }
 #[derive(Deserialize)]
 struct Route {
+    name: String,
     start: f64,
     end: f64,
     #[serde(rename = "loop")]
@@ -24,6 +26,7 @@ struct Entry {
 }
 #[derive(Deserialize)]
 struct Junction {
+    name: String,
     entries: Vec<Entry>,
 }
 #[derive(Deserialize)]
@@ -74,10 +77,16 @@ struct Turn {
     direction: i8,
     junction: usize,
 }
-fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<Turn> {
+fn turn(
+    data: &Layout,
+    route: usize,
+    x: f64,
+    input: [f64; 2],
+    view: Option<crate::protocol::MovementView>,
+) -> Option<Turn> {
     let mut best = None;
     let mut score = 0.25;
-    for (junction, j) in layout().junctions.iter().enumerate() {
+    for (junction, j) in data.junctions.iter().enumerate() {
         if !j
             .entries
             .iter()
@@ -86,7 +95,7 @@ fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<Turn> {
             continue;
         }
         for e in &j.entries {
-            let r = &layout().routes[e.route];
+            let r = &data.routes[e.route];
             for (i, n) in r
                 .nodes
                 .iter()
@@ -100,7 +109,7 @@ fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<Turn> {
                         r.nodes.get(i + 1)
                     };
                     let Some(other) = neighbor else { continue };
-                    let t = tangent(n, other);
+                    let t = screen_tangent(n, other, view);
                     let s = t[0] * input[0] + t[1] * input[1];
                     if s > score + 0.001 {
                         score = s;
@@ -118,14 +127,184 @@ fn turn(route: usize, x: f64, input: [f64; 2]) -> Option<Turn> {
     }
     best.filter(|choice| choice.route != route)
 }
-fn vertical_direction(r: &Route, x: f64, vertical: i8) -> i8 {
-    let (a, b) = segment(r, x);
-    let depth = tangent(a, b)[1];
-    if depth.abs() > 0.25 {
-        (depth * vertical as f64).signum() as i8
-    } else {
-        -vertical
+fn screen_tangent(a: &Node, b: &Node, view: Option<crate::protocol::MovementView>) -> [f64; 2] {
+    let Some(view) = view else {
+        return tangent(a, b);
+    };
+    let dx = b.position[0] - a.position[0];
+    let dy = b.position[1] - a.position[1];
+    let dz = b.position[2] - a.position[2];
+    let right = dx * view.yaw.cos() - dz * view.yaw.sin();
+    let down =
+        (dx * view.yaw.sin() + dz * view.yaw.cos()) * view.pitch.sin() - dy * view.pitch.cos();
+    let len = right.hypot(down).max(1e-9);
+    [right / len, down / len]
+}
+fn walk_direction(
+    r: &Route,
+    x: f64,
+    horizontal: i8,
+    vertical: i8,
+    view: Option<crate::protocol::MovementView>,
+) -> i8 {
+    if horizontal == 0 && vertical == 0 {
+        return 0;
     }
+    let (a, b) = segment(r, x);
+    if view.is_none() {
+        if horizontal != 0 {
+            return horizontal;
+        }
+        let depth = tangent(a, b)[1];
+        return if depth.abs() > 0.25 {
+            (depth * vertical as f64).signum() as i8
+        } else {
+            -vertical
+        };
+    }
+    let t = screen_tangent(a, b, view);
+    // Near a screen-vertical/horizontal road, the other axis still walks along it.
+    let score = if vertical == 0 && t[0].abs() < 0.15 {
+        t[1] * horizontal as f64
+    } else if horizontal == 0 && t[1].abs() < 0.15 {
+        -t[0] * vertical as f64
+    } else {
+        t[0] * horizontal as f64 + t[1] * vertical as f64
+    };
+    if score.abs() > 1e-9 {
+        score.signum() as i8
+    } else {
+        if horizontal != 0 {
+            horizontal
+        } else {
+            -vertical
+        }
+    }
+}
+
+/// Run before accepting players; check actual directional exits, not just declared links.
+pub(super) fn validate_paths() -> Result<(), String> {
+    validate_layout(layout())
+}
+fn validate_layout(data: &Layout) -> Result<(), String> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let fail = |detail: String| format!("初弦地路径错误：{detail}");
+    if data.routes.is_empty() {
+        return Err(fail("道路为空".into()));
+    }
+    let mut named: BTreeMap<&str, ([f64; 3], BTreeSet<usize>)> = BTreeMap::new();
+    for (ri, r) in data.routes.iter().enumerate() {
+        if r.nodes.len() < 2 || !r.start.is_finite() || !r.end.is_finite() || r.start >= r.end {
+            return Err(fail(format!("{} 的道路范围无效", r.name)));
+        }
+        if r.start != r.nodes[0].x || r.end != r.nodes.last().unwrap().x {
+            return Err(fail(format!("{} 的端点与道路范围不一致", r.name)));
+        }
+        for n in &r.nodes {
+            if !n.x.is_finite() || !n.y.is_finite() || n.position.iter().any(|v| !v.is_finite()) {
+                return Err(fail(format!("{} / {} 的坐标无效", r.name, n.name)));
+            }
+            let (position, routes) = named
+                .entry(&n.name)
+                .or_insert((n.position, BTreeSet::new()));
+            if *position != n.position {
+                return Err(fail(format!("{} 同名路口位置不一致", n.name)));
+            }
+            routes.insert(ri);
+        }
+        for pair in r.nodes.windows(2) {
+            if pair[0].x >= pair[1].x
+                || (pair[1].position[0] - pair[0].position[0])
+                    .hypot(pair[1].position[2] - pair[0].position[2])
+                    <= 1e-6
+            {
+                return Err(fail(format!("{} 有零长或倒序路段", r.name)));
+            }
+        }
+        if ri > 0 && r.start <= data.routes[ri - 1].end {
+            return Err(fail(format!("{} 的权威坐标范围重叠", r.name)));
+        }
+        if r.closed && r.nodes[0].position != r.nodes.last().unwrap().position {
+            return Err(fail(format!("{} 环路首尾未闭合", r.name)));
+        }
+    }
+    let mut junction_names = BTreeSet::new();
+    for j in &data.junctions {
+        if !junction_names.insert(j.name.as_str()) {
+            return Err(fail(format!("{} 重复声明路口", j.name)));
+        }
+        let Some((_, expected)) = named.get(j.name.as_str()) else {
+            return Err(fail(format!("{} 缺少道路节点", j.name)));
+        };
+        let mut actual = BTreeSet::new();
+        for e in &j.entries {
+            let Some(r) = data.routes.get(e.route) else {
+                return Err(fail(format!("{} 引用了不存在的道路", j.name)));
+            };
+            if !r
+                .nodes
+                .iter()
+                .any(|n| n.name == j.name && n.x == e.x && n.y == e.y)
+            {
+                return Err(fail(format!("{} 与 {} 的连接坐标不一致", j.name, r.name)));
+            }
+            actual.insert(e.route);
+        }
+        if actual.len() < 2 || &actual != expected {
+            return Err(fail(format!("{} 的道路连接缺失", j.name)));
+        }
+    }
+    for (name, (_, roads)) in &named {
+        if roads.len() > 1 && !junction_names.contains(name) {
+            return Err(fail(format!("{name} 看似相连却未声明路口")));
+        }
+    }
+    // Check the same selector in 2D and at the supported 3D view limits.
+    let views = std::iter::once(None).chain([-0.45, 0.0, 0.45].into_iter().flat_map(|yaw| {
+        [0.08, 0.4, 0.6, 1.4]
+            .into_iter()
+            .map(move |pitch| Some(crate::protocol::MovementView { yaw, pitch }))
+    }));
+    for view in views {
+        let mut edges = vec![BTreeSet::new(); data.routes.len()];
+        for j in &data.junctions {
+            for e in &j.entries {
+                for input in [
+                    [-1., 0.],
+                    [1., 0.],
+                    [0., -1.],
+                    [0., 1.],
+                    [-1., -1.],
+                    [1., -1.],
+                    [-1., 1.],
+                    [1., 1.],
+                ] {
+                    if let Some(choice) = turn(data, e.route, e.x, input, view) {
+                        edges[e.route].insert(choice.route);
+                    }
+                }
+            }
+        }
+        // A legitimate building loop is fine; a one-way component with no way back is not.
+        for origin in 0..data.routes.len() {
+            let mut reached = BTreeSet::from([origin]);
+            let mut pending = vec![origin];
+            while let Some(ri) = pending.pop() {
+                for next in &edges[ri] {
+                    if reached.insert(*next) {
+                        pending.push(*next);
+                    }
+                }
+            }
+            if let Some(missing) = (0..data.routes.len()).find(|ri| !reached.contains(ri)) {
+                return Err(fail(format!(
+                    "{} 无法到达或返回 {}，存在断路或无法退出的环 (视角 {:?})",
+                    data.routes[origin].name, data.routes[missing].name, view
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn teleport(
@@ -141,23 +320,37 @@ pub(super) fn teleport(
     let mut route = old_route;
     let mut x = player.state.x;
     let mut junction = player.east_junction;
-    let mut sign = if direction != 0 {
-        direction
-    } else if player.east_vertical == vertical && player.east_walk != 0 {
+    let mut sign = if player.east_horizontal == direction
+        && player.east_vertical == vertical
+        && player.east_walk != 0
+    {
         player.east_walk
     } else {
-        vertical_direction(&data.routes[route], x, vertical)
+        walk_direction(
+            &data.routes[route],
+            x,
+            direction,
+            vertical,
+            player.east_view,
+        )
     };
-    if vertical != 0 && player.state.grounded {
-        if let Some(choice) = turn(route, x, [0., vertical as f64])
-            .filter(|c| player.east_vertical != vertical || Some(c.junction) != junction)
-        {
+    if (direction != 0 || vertical != 0) && player.state.grounded {
+        if let Some(choice) = turn(
+            data,
+            route,
+            x,
+            [direction as f64, vertical as f64],
+            player.east_view,
+        )
+        .filter(|c| {
+            player.east_horizontal != direction
+                || player.east_vertical != vertical
+                || Some(c.junction) != junction
+        }) {
             route = choice.route;
             x = choice.x;
             junction = Some(choice.junction);
-            if direction == 0 {
-                sign = choice.direction;
-            }
+            sign = choice.direction;
         }
     }
     let r = &data.routes[route];
@@ -189,7 +382,7 @@ pub(super) fn teleport(
         .id;
     Ok(TeleportPlan {
         colossus: None,
-        east: Some((sign, vertical, junction)),
+        east: Some((sign, direction, vertical, junction)),
         map_id: map.id.clone(),
         x,
         y,
@@ -208,7 +401,9 @@ pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
     }
 }
 pub(super) fn reset(player: &mut Player) {
+    player.east_view = None;
     player.east_turn_until = 0;
+    player.east_horizontal = 0;
     player.east_vertical = 0;
     player.east_walk = 0;
     player.east_junction = None;
@@ -221,7 +416,10 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
         player.state.y = map.spawn.y;
         player.state.grounded = true;
     }
-    if player.vertical != player.east_vertical {
+    let input_changed =
+        player.direction != player.east_horizontal || player.vertical != player.east_vertical;
+    if input_changed {
+        player.east_horizontal = player.direction;
         player.east_vertical = player.vertical;
         player.east_walk = 0;
         player.east_junction = None;
@@ -235,16 +433,16 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
             player.east_junction = None;
         }
     }
-    // Left/right travel the arc; held up/down keep the arc direction chosen at entry through curves.
-    let input = [0.0, player.vertical as f64];
-    if player.vertical != 0
+    // Four direction keys choose spatial exits; held input keeps the chosen arc sign through curves.
+    let input = [player.direction as f64, player.vertical as f64];
+    if (player.direction != 0 || player.vertical != 0)
         && player.state.grounded
         && player.chair.is_none()
-        && tick >= player.east_turn_until
+        && (input_changed || tick >= player.east_turn_until)
         && tick >= player.knockback_until
     {
-        if let Some(choice) =
-            turn(ri, player.state.x, input).filter(|c| Some(c.junction) != player.east_junction)
+        if let Some(choice) = turn(data, ri, player.state.x, input, player.east_view)
+            .filter(|c| Some(c.junction) != player.east_junction)
         {
             ri = choice.route;
             player.state.x = choice.x;
@@ -258,16 +456,16 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
     let old_ground = ground(r, player.state.x);
     let (a, b) = segment(r, player.state.x);
     let t = tangent(a, b);
-    if player.vertical != 0 && player.east_walk == 0 {
-        player.east_walk = vertical_direction(r, player.state.x, player.vertical);
+    if player.east_walk == 0 {
+        player.east_walk = walk_direction(
+            r,
+            player.state.x,
+            player.direction,
+            player.vertical,
+            player.east_view,
+        );
     }
-    let sign = if player.direction != 0 {
-        player.direction
-    } else if player.vertical != 0 {
-        player.east_walk
-    } else {
-        0
-    } as f64;
+    let sign = player.east_walk as f64;
     let slow = if player.status.slows_walk() { 0.5 } else { 1.0 };
     player.state.vx = if tick < player.knockback_until {
         player.knockback_vx
@@ -342,6 +540,50 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
 mod tests {
     use super::*;
     #[test]
+    fn east_startup_rejects_broken_paths_and_accepts_real_loops() {
+        validate_paths().unwrap();
+        let load = || {
+            serde_json::from_str::<Layout>(include_str!("../../shared/chuxian-east.json")).unwrap()
+        };
+        let mut broken = load();
+        broken.junctions[0].entries[0].route = broken.routes.len();
+        assert!(validate_layout(&broken)
+            .unwrap_err()
+            .contains("不存在的道路"));
+        let mut broken = load();
+        broken.junctions.remove(0);
+        assert!(validate_layout(&broken).unwrap_err().contains("未声明路口"));
+        let mut broken = load();
+        broken.routes[0].nodes[1].x = broken.routes[0].nodes[0].x;
+        assert!(validate_layout(&broken).unwrap_err().contains("零长或倒序"));
+        // Break a ring while keeping its nonzero segments and endpoint ranges valid.
+        let mut broken = load();
+        let ring = broken.routes.iter_mut().find(|r| r.closed).unwrap();
+        ring.nodes.last_mut().unwrap().name = "broken-ring-end".into();
+        ring.nodes.last_mut().unwrap().position[0] += 1.;
+        assert!(validate_layout(&broken).unwrap_err().contains("首尾未闭合"));
+        // Keep a disconnected road internally valid, but remove all of its shared nodes.
+        let mut broken = load();
+        let isolated = broken.routes.len() - 1;
+        for n in &mut broken.routes[isolated].nodes {
+            n.name = format!("isolated-{}", n.name);
+        }
+        for j in &mut broken.junctions {
+            j.entries.retain(|e| e.route != isolated);
+        }
+        broken.junctions.retain(|j| {
+            j.entries
+                .iter()
+                .map(|e| e.route)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                > 1
+        });
+        assert!(validate_layout(&broken)
+            .unwrap_err()
+            .contains("无法到达或返回"));
+    }
+    #[test]
     fn east_junction_hint_parity() {
         let mut positions = vec![0.0, layout().routes[0].start];
         for junction in &layout().junctions {
@@ -353,19 +595,47 @@ mod tests {
                 }
             }
         }
+        let views = [
+            None,
+            Some(crate::protocol::MovementView {
+                yaw: 0.,
+                pitch: 0.4,
+            }),
+            Some(crate::protocol::MovementView {
+                yaw: -0.45,
+                pitch: 0.08,
+            }),
+            Some(crate::protocol::MovementView {
+                yaw: 0.45,
+                pitch: 1.4,
+            }),
+        ];
         let samples: Vec<_> = positions
             .into_iter()
-            .map(|x| {
-                let choices: Vec<_> = [-1.0, 1.0]
-                    .into_iter()
-                    .filter_map(|vertical| {
-                        route_at(x)
-                            .and_then(|route| turn(route, x, [0.0, vertical]))
-                            .map(|_| if vertical < 0.0 { "up" } else { "down" })
-                    })
-                    .collect();
-                serde_json::json!({ "x": x, "choices": choices })
-            })
+            .flat_map(|x| views.into_iter().map(move |view| {
+                let mut hinted = std::collections::BTreeSet::new();
+                let choices: Vec<_> = [
+                    ("up", [0., -1.]),
+                    ("down", [0., 1.]),
+                    ("left", [-1., 0.]),
+                    ("right", [1., 0.]),
+                    ("upLeft", [-1., -1.]),
+                    ("upRight", [1., -1.]),
+                    ("downLeft", [-1., 1.]),
+                    ("downRight", [1., 1.]),
+                ]
+                .into_iter()
+                .filter_map(|(key, input)| {
+                    route_at(x)
+                        .and_then(|route| turn(layout(), route, x, input, view))
+                        .and_then(|choice| {
+                            let fresh = hinted.insert(choice.route);
+                            (key.len() <= 5 || fresh).then_some(key)
+                        })
+                })
+                .collect();
+                serde_json::json!({ "x": x, "view": view.map(|v| serde_json::json!({"yaw": v.yaw, "pitch": v.pitch})), "choices": choices })
+            }))
             .collect();
         println!(
             "JUNCTION_CHOICES={}",
@@ -403,7 +673,7 @@ mod tests {
             })
             .unwrap();
         let x = junction.entries.iter().find(|e| e.route == 0).unwrap().x;
-        assert!(turn(0, x, [0.0, -1.0]).is_some());
-        assert!(turn(0, x + 100.0, [0.0, -1.0]).is_none());
+        assert!(turn(d, 0, x, [0.0, -1.0], None).is_some());
+        assert!(turn(d, 0, x + 100.0, [0.0, -1.0], None).is_none());
     }
 }

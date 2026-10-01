@@ -16,7 +16,7 @@ fn all_authored_maps_keep_the_walker_grounded() {
             seq += 1;
             world.command(Command::Input {
                 id: "p".into(), connection: "p-connection".into(),
-                message: ClientMessage::Input { seq, direction: 1, vertical: 0, jump: false },
+                message: ClientMessage::Input { view: None, seq, direction: 1, vertical: 0, jump: false },
             });
             world.step();
             while rx.try_recv().is_ok() {}
@@ -28,7 +28,7 @@ fn all_authored_maps_keep_the_walker_grounded() {
         // 停止行走让坠落走完回收流程，任何不可回收的破图在这里都会超时失败。
         world.command(Command::Input {
             id: "p".into(), connection: "p-connection".into(),
-            message: ClientMessage::Input { seq: seq + 1, direction: 0, vertical: 0, jump: false },
+            message: ClientMessage::Input { view: None, seq: seq + 1, direction: 0, vertical: 0, jump: false },
         });
         let mut grounded_again = false;
         for _ in 0..600 {

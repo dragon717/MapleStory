@@ -272,20 +272,20 @@ export class PlayerView {
     this.junctionHint?.setVisible(false);
     if (!this.self || !directions.length || !player.grounded || player.hp <= 0 || player.action === 'dead' || player.chair) return;
     const art = this.manifest.miniMap?.icons.direction;
-    const frames = [art?.n, art?.s];
+    const frames = [art?.n, art?.s, art?.w, art?.e, art?.nw, art?.ne, art?.sw, art?.se];
     if (frames.some(frame => !frame) || !ensureTextures(this.scene, frames.map(frame => frame?.url))) return;
     if (frames.some(frame => !this.scene.textures.exists(frame!.url))) return;
     if (!this.junctionHint) {
       this.junctionHint = this.scene.add.container(0, 0).setDepth(this.body.depth + 2);
       this.junctionHint.add(frames.map(frame => this.scene.add.image(0, 0, frame!.url).setOrigin(.5, 1)));
     }
-    // The TMS273 n/s frames share static Canvas art; animate the hint anchor, not the pixels.
+    // Reuse the original TMS273 arrows; animate their anchor, not the pixels.
     const bob = Math.sin(this.scene.time.now / 180) * 3;
     this.junctionHint.setPosition(player.x, player.y + this.headOffsetY - 34 - bob).setVisible(true);
     let index = 0;
     this.junctionHint.list.forEach((child, i) => {
       const image = child as Phaser.GameObjects.Image;
-      const visible = directions.includes(i === 0 ? 'up' : 'down');
+      const visible = directions.includes((['up','down','left','right','upLeft','upRight','downLeft','downRight'] as const)[i]);
       image.setVisible(visible);
       if (visible) image.setPosition((index++ - (directions.length - 1) / 2) * 26, 0);
     });

@@ -26,6 +26,7 @@ fn windbell_input(world: &mut World, id: &str, seq: u64, direction: i8, vertical
         id: id.to_owned(),
         connection: format!("{id}-connection"),
         message: ClientMessage::Input {
+            view: None,
             seq,
             direction,
             vertical,

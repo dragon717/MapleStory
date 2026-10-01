@@ -2,7 +2,7 @@ use crate::inventory;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 36;
+pub const PROTOCOL_VERSION: u32 = 37;
 pub const CONTENT_VERSION: &str = "tms273-50";
 
 /// 冒险笔记（图鉴）的页签。  服务器只按这个枚举分派，客户端不能提交任意分区名，
@@ -108,6 +108,19 @@ impl AbilityStat {
     }
 }
 
+/// Local viewing intent, never a client-supplied position or route.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MovementView {
+    pub yaw: f64,
+    pub pitch: f64,
+}
+impl MovementView {
+    fn valid(self) -> bool {
+        self.yaw.is_finite() && self.pitch.is_finite()
+            && self.yaw.abs() <= 0.45 && (0.0..=1.4).contains(&self.pitch)
+    }
+}
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AbilityStats {
@@ -167,6 +180,8 @@ pub enum ClientMessage {
         direction: i8,
         vertical: i8,
         jump: bool,
+        #[serde(default)]
+        view: Option<MovementView>,
     },
     Attack {
         #[serde(rename = "requestId")]
@@ -198,6 +213,8 @@ pub enum ClientMessage {
         direction: Option<i8>,
         #[serde(default)]
         vertical: Option<i8>,
+        #[serde(default)]
+        view: Option<MovementView>,
     },
     BossPractice {
         #[serde(rename = "requestId")]
@@ -640,12 +657,14 @@ impl ClientMessage {
                 seq,
                 direction,
                 vertical,
+                view,
                 ..
             } => {
                 *seq > 0
                     && *seq <= 9_007_199_254_740_991
                     && (-1..=1).contains(direction)
                     && (-1..=1).contains(vertical)
+                    && view.is_none_or(MovementView::valid)
             }
             Self::Attack { request_id }
             | Self::ReleaseSkill { request_id }
@@ -708,9 +727,11 @@ impl ClientMessage {
                 request_id,
                 direction,
                 vertical,
+                view,
                 ..
             } => {
                 valid_id(request_id)
+                    && view.is_none_or(MovementView::valid)
                     && direction.is_none_or(|value| (-1..=1).contains(&value))
                     && vertical.is_none_or(|value| (-1..=1).contains(&value))
             }
@@ -1431,5 +1452,33 @@ mod tests {
                 "{bad} must not reach a handler"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod movement_view_checks {
+    use super::*;
+    #[test]
+    fn east_view_intent_rejects_invalid_and_accepts_legacy_inputs() {
+        for action in [
+            serde_json::json!({"type":"input","seq":1,"direction":1,"vertical":0,"jump":false}),
+            serde_json::json!({"type":"castSkill","requestId":"view-check","skillId":2001002,"direction":1}),
+        ] {
+            assert!(serde_json::from_value::<ClientMessage>(action.clone()).unwrap().valid());
+            for view in [serde_json::json!({"yaw":0.45,"pitch":0.6}), serde_json::json!({"yaw":-0.45,"pitch":1.4})] {
+                let mut message = action.clone(); message["view"] = view;
+                assert!(serde_json::from_value::<ClientMessage>(message).unwrap().valid());
+            }
+            for view in [serde_json::json!({"yaw":0.451,"pitch":0.4}), serde_json::json!({"yaw":0,"pitch":-0.1}), serde_json::json!({"yaw":0,"pitch":1.401})] {
+                let mut message = action.clone(); message["view"] = view;
+                assert!(!serde_json::from_value::<ClientMessage>(message).unwrap().valid());
+            }
+            for view in [serde_json::json!({"yaw":0}), serde_json::json!({"yaw":0,"pitch":0.4,"x":5}), serde_json::json!({"yaw":"NaN","pitch":0.4})] {
+                let mut message = action.clone(); message["view"] = view;
+                assert!(serde_json::from_value::<ClientMessage>(message).is_err());
+            }
+        }
+        assert!(!MovementView {yaw: f64::NAN, pitch: 0.4}.valid());
+        assert!(!MovementView {yaw: 0., pitch: f64::INFINITY}.valid());
     }
 }

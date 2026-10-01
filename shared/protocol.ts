@@ -1,5 +1,5 @@
 // MVP contract: positions are world-space foot coordinates; Rust owns all authoritative state.
-export const PROTOCOL_VERSION = 36;
+export const PROTOCOL_VERSION = 37;
 export const CONTENT_VERSION = 'tms273-50';
 export type Facing = -1 | 1;
 export type AbilityStat = 'strength' | 'dexterity' | 'intelligence' | 'luck';
@@ -257,17 +257,19 @@ export interface ColossusState {
   actors: { id: string; name: string; body: ColossusBody; attacking: boolean }[];
   people: ColossusBody[]; stones: ColossusBody[];
 }
+/** Camera intent only; positions and route choices remain server-authoritative. */
+export type MovementView = { yaw: number; pitch: number };
 export type ClientMessage =
   | { type: 'colossus'; requestId: string; sequence: number; action: ColossusAction }
   | { type: 'windbell'; requestId: string; sequence: number; action: WindbellAction; instanceId?: string }
   | { type: 'hello'; token: string; protocolVersion: number; contentVersion: string; lang?: 'zh' | 'en' }
-  | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean }
+  | { type: 'input'; seq: number; direction: -1 | 0 | 1; vertical: -1 | 0 | 1; jump: boolean; view?: MovementView }
   | { type: 'attack'; requestId: string }
   | { type: 'bossPractice'; requestId: string; action: 'enter' | 'leave' | 'retry'; encounterId?: string }
   | { type: 'allocateAp'; requestId: string; stat: AbilityStat }
   | { type: 'resetHyper'; requestId: string; expectedCost: number }
   | { type: 'learnSkill'; requestId: string; skillId: number }
-  | { type: 'castSkill'; requestId: string; skillId: number; direction?: -1 | 0 | 1; vertical?: -1 | 0 | 1 }
+  | { type: 'castSkill'; requestId: string; skillId: number; direction?: -1 | 0 | 1; vertical?: -1 | 0 | 1; view?: MovementView }
   | { type: 'releaseSkill'; requestId: string }
   | { type: 'revive'; requestId: string }
   /** 原创扩展「死亡世界」：向一座墓碑悼念。客户端只命名墓碑；存在性、到期、

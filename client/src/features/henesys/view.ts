@@ -15,6 +15,7 @@ type Saved={o:Display;x:number;y:number;sx:number;sy:number;depth:number;z:numbe
  * are projected for one render, then restored before any gameplay callback runs. */
 export class HenesysView {
  private root=document.createElement('div');
+ private roadLabel=document.createElement('div');
  private renderer:T.WebGLRenderer;
  private scene=new T.Scene();
  private camera=new T.PerspectiveCamera(38,1,.1,700);
@@ -55,7 +56,8 @@ export class HenesysView {
   try{return new HenesysView(world,map,gltf.scene,hdr,self);}catch(e){HenesysView.disposeModel(gltf.scene);hdr.dispose();throw e;}
  }
  constructor(private world:Phaser.Scene,_map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>{x:number;y:number}|undefined){
-  this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，左右键沿道路行走，上下键沿路行走并选择岔路，交互与跳跃可共键，右键调整视角');
+  this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角');
+  this.roadLabel.className='henesys-road-label';this.root.append(this.roadLabel);
   this.phaser=world.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
   if(!(this.phaser.gl instanceof WebGL2RenderingContext))throw new Error('初弦地需要WebGL2');
   // Share one GPU context: the paper dolls stay in a framebuffer, never read back through a canvas.
@@ -99,6 +101,11 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   world.game.events.on('prerender',this.prepare);world.game.events.on('postrender',this.draw);
   this.renderer.resetState();this.phaser.pipelines.rebind();
  }
+ movementView(){
+  const source=this.world.cameras.main,distance=source.height/PIXELS_PER_METRE/(2*Math.tan(T.MathUtils.degToRad(19)))*this.zoom;
+  // Projection at the character's feet includes the camera's target height and terrain lift.
+  return {yaw:this.yaw,pitch:Math.atan2(distance*Math.sin(this.pitch)+Math.min(270,source.height*.3)/PIXELS_PER_METRE+this.lift,distance*Math.cos(this.pitch))};
+ }
  resetCamera(){this.yaw=0;this.pitch=.24;this.zoom=1.2;}
  toggleQuality(){this.quality=!this.quality;}
  project(x:number,y:number){const p=new T.Vector3(...point3d(x,y)).project(this.camera);return {x:(p.x+1)*this.width/2,y:(1-p.y)*this.height/2,z:(p.z+1)/2};}
@@ -122,6 +129,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const cell=new T.Vector3(Math.floor(base.x/8)*8,Math.floor(base.y/8)*8,Math.floor(base.z/8)*8);
   if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.target.position.copy(cell);this.sun.position.copy(cell).add(new T.Vector3(-26,20,-95));this.sun.shadow.needsUpdate=true;}
   const ground=segmentAt(actor.x),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
+  const roadName=`初弦地 · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
   this.footShadow.position.set(foot.x,groundY+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
   if(performance.now()-this.fadeAt>180){
    this.fadeAt=performance.now();const blocked=new Set<T.Mesh>();

@@ -53,6 +53,7 @@ fn water_is_finite_enterable_and_swimmable_without_foothold_edges() {
         id: "water".into(),
         connection: "water-connection".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: 1,
@@ -74,6 +75,7 @@ fn water_is_finite_enterable_and_swimmable_without_foothold_edges() {
             id: "water".into(),
             connection: "water-connection".into(),
             message: ClientMessage::Input {
+                view: None,
                 seq,
                 direction,
                 vertical,
@@ -381,6 +383,7 @@ fn water_jump_rises_while_submerged_and_exits_at_the_surface() {
                 id: "p".into(),
                 connection: "p-connection".into(),
                 message: ClientMessage::Input {
+                    view: None,
                     seq,
                     direction: 0,
                     vertical: 0,
@@ -425,6 +428,7 @@ fn water_jump_rises_while_submerged_and_exits_at_the_surface() {
         id: "p".into(),
         connection: "p-connection".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,

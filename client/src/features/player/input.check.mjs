@@ -324,6 +324,13 @@ try {
   window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyX', repeat: false }));
   assert.equal(messages.filter(message => message.type === 'attack').length, attackCount, 'Modal input cannot attack');
   modalBlocked = false;
+  const movementView={yaw:.45,pitch:.6};
+  input.targets.movementView=()=>movementView;
+  input.emit(false);
+  assert.deepEqual(messages.at(-1).view,movementView,'current camera intent accompanies input');
+  input.targets.movementView=()=>undefined;
+  input.emit(false);
+  assert.equal(Object.hasOwn(messages.at(-1),'view'),false,'other maps/2D omit the optional view');
   for (const stop of [
     () => window.dispatchEvent(new Event('blur')),
     () => { document.hidden = true; document.dispatchEvent(new Event('visibilitychange')); },

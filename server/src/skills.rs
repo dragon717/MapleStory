@@ -1926,7 +1926,8 @@ impl World {
         if let Some(body) = plan.colossus {
             if let Some(rider) = player.colossus.as_mut() { rider.body = body; }
         }
-        if let Some((direction, vertical, junction)) = plan.east {
+        if let Some((direction, horizontal, vertical, junction)) = plan.east {
+            player.east_horizontal = horizontal;
             player.east_vertical = vertical; player.east_walk = direction; player.east_junction = junction;
         } else { henesys::reset(player); }
         player.map_id = plan.map_id;

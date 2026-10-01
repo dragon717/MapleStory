@@ -477,7 +477,9 @@ impl World {
                         windbell_arrival_origin_foothold: 0,
                         foothold_id,
                         last_foothold_id: foothold_id,
+                        east_view: None,
                         east_turn_until: 0,
+                        east_horizontal: 0,
                         east_vertical: 0,
                         east_walk: 0,
                         east_junction: None,
@@ -765,6 +767,7 @@ impl World {
                         direction,
                         vertical,
                         jump,
+                        view,
                     } => {
                         if seq <= player.state.last_input_seq {
                             return;
@@ -795,6 +798,13 @@ impl World {
                             // explicit new action and may leave the boundary.
                             player.fall_boundary_hold = false;
                         }
+                        // Release/repress can happen between ticks; do not lose that new intent.
+                        if player.direction != direction || player.vertical != vertical {
+                            player.east_walk = 0;
+                            player.east_junction = None;
+                            player.east_turn_until = 0;
+                        }
+                        player.east_view = view;
                         player.direction = direction;
                         player.vertical = vertical;
                         player.jump |= jump;
@@ -818,7 +828,11 @@ impl World {
                         skill_id,
                         direction,
                         vertical,
-                    } => self.handle_cast_skill(id, request_id, skill_id, direction, vertical),
+                        view,
+                    } => {
+                        if let Some(player) = self.players.get_mut(&id) { player.east_view = view; }
+                        self.handle_cast_skill(id, request_id, skill_id, direction, vertical)
+                    },
                     ClientMessage::BossPractice {
                         request_id,
                         action,

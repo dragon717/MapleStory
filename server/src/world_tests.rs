@@ -670,6 +670,7 @@ fn authority_movement_dedup_and_disconnect() {
         id: "a".into(),
         connection: "forged".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -681,6 +682,7 @@ fn authority_movement_dedup_and_disconnect() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -2395,6 +2397,7 @@ fn jump_stops_at_chain_wall_but_outer_wall_does_not_pin_takeoff() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -2463,6 +2466,7 @@ fn ladder_follows_original_probe_and_detaches_at_end() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: -1,
@@ -2505,6 +2509,7 @@ fn ladder_follows_original_probe_and_detaches_at_end() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: -1,
@@ -2553,6 +2558,7 @@ fn allowed_ladder_top_lands_on_authored_foothold_and_stays_grounded() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: -1,
@@ -2584,6 +2590,7 @@ fn allowed_ladder_top_lands_on_authored_foothold_and_stays_grounded() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 2,
             direction: 0,
             vertical: 0,
@@ -2597,6 +2604,7 @@ fn allowed_ladder_top_lands_on_authored_foothold_and_stays_grounded() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 3,
             direction: 1,
             vertical: 0,
@@ -2644,6 +2652,7 @@ fn forbidden_ladder_top_holds_at_endpoint() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: -1,
@@ -2665,6 +2674,7 @@ fn forbidden_ladder_top_holds_at_endpoint() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 2,
             direction: 1,
             vertical: 0,
@@ -2719,6 +2729,7 @@ fn downjump_requires_allowed_source_foothold_and_skips_it_until_lower_landing() 
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: 1,
@@ -2756,6 +2767,7 @@ fn downjump_requires_allowed_source_foothold_and_skips_it_until_lower_landing() 
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: 1,
@@ -2769,6 +2781,7 @@ fn downjump_requires_allowed_source_foothold_and_skips_it_until_lower_landing() 
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 2,
             direction: 1,
             vertical: 1,
@@ -2805,6 +2818,7 @@ fn jump_returns_to_the_lowest_authored_foothold() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 0,
             vertical: 0,
@@ -2848,6 +2862,7 @@ fn falling_sweeps_across_edge_to_narrow_authored_foothold() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -2892,6 +2907,7 @@ fn walking_off_foothold_edge_does_not_reland_at_sweep_start() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -2938,6 +2954,7 @@ fn falling_beyond_map_recovers_on_last_authored_foothold_and_stays_stable() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -2976,6 +2993,7 @@ fn falling_beyond_map_recovers_on_last_authored_foothold_and_stays_stable() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 2,
             direction: 1,
             vertical: 0,
@@ -3020,6 +3038,7 @@ fn falling_without_last_authored_foothold_uses_spawn_support() {
         id: "a".into(),
         connection: "c".into(),
         message: ClientMessage::Input {
+            view: None,
             seq: 1,
             direction: 1,
             vertical: 0,
@@ -5915,16 +5934,18 @@ fn henesys_east_walk_jump_branch_and_saved_position() {
     let cross=east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
     let (_,ground)=henesys::repair_position(&map,cross,0.0);p.state.x=cross;p.state.y=ground;p.state.grounded=true;p.vertical=-1;
     step_player(&map,&gameplay,p,30);let market_start=east["routes"][1]["start"].as_f64().unwrap();let market_end=east["routes"][1]["end"].as_f64().unwrap();assert!(p.state.x>=market_start&&p.state.x<=market_end,"north input enters the actual market branch");
-    // Every curved/vertical segment accepts both arc directions without auto-changing roads.
-    for route in east["routes"].as_array().unwrap() {
+    // Away from junctions, left/right still traverse every curve in authored arc order.
+    for (route_index, route) in east["routes"].as_array().unwrap().iter().enumerate() {
         let nodes = route["nodes"].as_array().unwrap();
         for pair in nodes.windows(2) {
             let start = (pair[0]["x"].as_f64().unwrap() + pair[1]["x"].as_f64().unwrap()) / 2.0;
+            if east["junctions"].as_array().unwrap().iter().any(|junction| junction["entries"].as_array().unwrap().iter().any(|entry| entry["route"].as_u64().unwrap() as usize == route_index && (entry["x"].as_f64().unwrap() - start).abs() <= 55. + mounts::walk_speed(p, p.move_speed) * TICK_MS as f64 / 1000.)) { continue; }
             let (_, y) = henesys::repair_position(&map, start, 0.0);
+            henesys::reset(p);
             p.state.x = start; p.state.y = y; p.state.grounded = true; p.state.vy = 0.0;
             p.direction = 1; p.vertical = 0;
             step_player(&map, &gameplay, p, 100);
-            assert!(p.state.x > start, "right must advance every road segment");
+            assert!(p.state.x > start, "right must advance road {} at {} (actual {})", route["name"], start, p.state.x);
             p.direction = -1;
             step_player(&map, &gameplay, p, 101);
             assert!((p.state.x - start).abs() < 1e-6, "left retraces the same road, including vertical/returning curves");
@@ -5932,6 +5953,62 @@ fn henesys_east_walk_jump_branch_and_saved_position() {
     }
     let (x,y)=henesys::repair_position(&map,698.0,297.0);assert_eq!((x,y),(map.spawn.x,map.spawn.y),"old rail saves migrate safely");
     let (x,y)=henesys::repair_position(&map,p.state.x,-9999.0);assert_eq!(x,p.state.x);assert!(y.is_finite()&&y<0.0,"new-road saved positions survive reconnect");
+}
+
+#[test]
+fn east_vertical_road_returns_to_horizontal_with_walk_and_teleport() {
+    let east: serde_json::Value = serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
+    let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
+    let mut world = World::new(map.clone(), 600);
+    let _rx = join_test_player(&mut world, "east");
+    let gameplay = world.gameplay.clone();
+    let cross = east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
+    let main_start = east["routes"][0]["start"].as_f64().unwrap();
+    let main_end = east["routes"][0]["end"].as_f64().unwrap();
+    let market_start = east["routes"][1]["start"].as_f64().unwrap();
+    let market_end = east["routes"][1]["end"].as_f64().unwrap();
+    let level = MageLevel { x: Some(190), y: Some(295), ..Default::default() };
+    for view in [None, Some(crate::protocol::MovementView {yaw: 0., pitch: 0.4})] {
+        for horizontal in [-1, 1] {
+            let p = world.players.get_mut("east").unwrap();
+            henesys::reset(p);
+            p.east_view = view;
+            p.state.x = cross;
+            p.state.y = henesys::repair_position(&map, cross, 0.).1;
+            p.state.grounded = true;
+            p.state.vy = 0.;
+            p.direction = 0;
+            p.vertical = -1;
+            step_player(&map, &gameplay, p, 1);
+            assert!(p.state.x >= market_start && p.state.x <= market_end, "up enters the vertical market road");
+            p.direction = horizontal;
+            p.vertical = 0;
+            step_player(&map, &gameplay, p, 2);
+            assert!(p.state.x >= main_start && p.state.x <= main_end, "left/right returns to the horizontal road immediately");
+            assert!((p.state.x - cross) * horizontal as f64 > 0., "the chosen exit matches its visible direction");
+            for tick in 3..25 {
+                let old = p.state.x;
+                step_player(&map, &gameplay, p, tick);
+                assert!((p.state.x - old) * horizontal as f64 > 0., "held return input does not bounce back to the vertical road");
+            }
+            henesys::reset(p);
+            p.east_view = view;
+            p.state.x = cross;
+            p.state.y = henesys::repair_position(&map, cross, 0.).1;
+            p.direction = 0;
+            p.vertical = -1;
+            step_player(&map, &gameplay, p, 30);
+            p.direction = horizontal;
+            p.vertical = 0;
+            let plan = world.plan_teleport("east", &level, horizontal, 0).unwrap();
+            assert!(plan.x >= main_start && plan.x <= main_end, "horizontal teleport also returns from the vertical road");
+            let target = plan.x;
+            world.apply_teleport("east", plan);
+            let p = world.players.get_mut("east").unwrap();
+            step_player(&map, &gameplay, p, 31);
+            assert!((p.state.x - target) * horizontal as f64 > 0., "walking continues after the return teleport");
+        }
+    }
 }
 
 #[test]
@@ -6155,4 +6232,66 @@ fn east_position_batch_is_atomic_and_keeps_stats() {
     );
     drop(service);
     let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn east_screen_direction_and_held_curve_use_one_rule() {
+    use crate::protocol::MovementView;
+    let east: serde_json::Value = serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
+    let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
+    let mut world = World::new(map.clone(), 600);
+    let _rx = join_test_player(&mut world, "east-view");
+    let gameplay = world.gameplay.clone();
+    let view = MovementView {yaw: 0., pitch: 0.4};
+    let nodes = east["routes"][3]["nodes"].as_array().unwrap();
+    let x_at = |i: usize| nodes[i]["x"].as_f64().unwrap();
+    let west = (x_at(42) + x_at(43)) / 2.;
+    let p = world.players.get_mut("east-view").unwrap();
+    p.state.x = west; p.state.y = henesys::repair_position(&map, west, 0.).1;
+    p.state.grounded = true; p.move_speed = 160.; p.east_view = Some(view);
+    p.direction = -1;
+    step_player(&map, &gameplay, p, 1);
+    assert!(p.state.x > west, "screen-left on a westbound road advances the authored arc");
+    p.direction = 1;
+    step_player(&map, &gameplay, p, 2);
+    assert!((p.state.x - west).abs() < 1e-6, "screen-right retraces, regardless of authoring order");
+    let level = MageLevel {x: Some(190), y: Some(295), ..Default::default()};
+    let plan = world.plan_teleport("east-view", &level, 1, 0).unwrap();
+    assert!(plan.x < west, "new right teleport uses the same screen direction");
+    let p = world.players.get_mut("east-view").unwrap();
+    henesys::reset(p);
+    let start = (x_at(26) + x_at(27)) / 2.;
+    p.state.x = start; p.state.y = henesys::repair_position(&map, start, 0.).1;
+    p.east_view = Some(view); p.direction = 1; p.vertical = 0;
+    for tick in 3..260 {
+        let old = p.state.x;
+        // Adjusting the camera while holding cannot reverse the committed progress.
+        if tick == 140 { p.east_view = Some(MovementView {yaw: -0.45, pitch: 0.6}); }
+        step_player(&map, &gameplay, p, tick);
+        assert!(p.state.x > old, "held right continues around the real bend without oscillation");
+    }
+    assert!(p.state.x > x_at(38), "walk crossed from eastbound into westbound part of the ring");
+    let before = p.state.x;
+    let plan = world.plan_teleport("east-view", &level, 1, 0).unwrap();
+    assert!(plan.x > before, "held teleport continues along the curved road instead of reversing");
+    world.apply_teleport("east-view", plan);
+    // Two accepted packets before the next tick must still record the release edge.
+    let packet = |seq, direction, view| Command::Input { id: "east-view".into(), connection: "east-view-connection".into(), message: ClientMessage::Input {seq, direction, vertical: 0, jump: false, view} };
+    world.command(packet(1, 0, Some(view)));
+    world.command(packet(2, 1, Some(view)));
+    assert_eq!(world.players["east-view"].east_walk, 0, "quick release/repress ends the old commitment");
+    let p = world.players.get_mut("east-view").unwrap();
+    let before = p.state.x;
+    step_player(&map, &gameplay, p, 260);
+    assert!(p.state.x < before, "a new press now moves screen-right on this westbound segment");
+    world.command(packet(1, -1, None));
+    assert_eq!(world.players["east-view"].direction, 1, "stale input cannot replace the new direction/view");
+    assert_eq!(world.players["east-view"].east_view.unwrap().yaw, 0.);
+    let mut forged = packet(3, -1, None);
+    if let Command::Input {connection, ..} = &mut forged { *connection = "other-connection".into(); }
+    world.command(forged);
+    assert_eq!(world.players["east-view"].direction, 1, "another connection cannot steer this character");
+    // The discrete skill carries its own fresh view even before an input heartbeat.
+    world.command(Command::Input {id: "east-view".into(), connection: "east-view-connection".into(), message: ClientMessage::CastSkill {request_id: "fresh-view".into(), skill_id: 0, direction: Some(1), vertical: Some(0), view: Some(MovementView {yaw: 0.45, pitch: 0.6})}});
+    assert_eq!(world.players["east-view"].east_view.unwrap().yaw, 0.45);
 }

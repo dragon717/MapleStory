@@ -135,6 +135,7 @@ fn colossus_commands_reject_forgery_and_resume_one_resident() {
         id: "rider".into(),
         connection: "rider-connection".into(),
         message: ClientMessage::Input {
+            view: None,
             seq,
             direction,
             vertical: 0,
@@ -494,7 +495,7 @@ fn colossus_owned_skills_keep_cost_replay_cooldowns_and_canonical_save() {
     let r=world.colossus.as_ref().unwrap();
     let body=super::colossus::motion::Body::new(&r.config,"harbor",5.0,&r.frame);
     let p=world.players.get_mut("ability-rider").unwrap();p.colossus.as_mut().unwrap().body=body;p.colossus.as_mut().unwrap().arrival_until=0;
-    let cast=|connection:&str,request:&str,skill_id|Command::Input{id:"ability-rider".into(),connection:connection.into(),message:ClientMessage::CastSkill{request_id:request.into(),skill_id,direction:Some(1),vertical:Some(if skill_id==SKILL_MAGIC_WAVE {-1} else {0})}};
+    let cast=|connection:&str,request:&str,skill_id|Command::Input{id:"ability-rider".into(),connection:connection.into(),message:ClientMessage::CastSkill { view: None,request_id:request.into(),skill_id,direction:Some(1),vertical:Some(if skill_id==SKILL_MAGIC_WAVE {-1} else {0})}};
     let mp=world.players["ability-rider"].state.mp;
     world.command(cast("forged","forged",SKILL_TELEPORT));
     assert_eq!(world.players["ability-rider"].state.mp,mp);

@@ -114,6 +114,7 @@ export class World extends Phaser.Scene {
     this.threeEnabled = enabled;
     if (this.mapId === HENESYS_MAP_ID) this.switchMap(this.mapId, this.manifest.map, this.snapshot);
   }
+  movementView() { return this.isThreeActive ? this.henesys?.movementView() : undefined; }
   resetThreeCamera() { this.henesys?.resetCamera(); }
   toggleThreeQuality() { this.henesys?.toggleQuality(); }
   private startThree() {
@@ -125,7 +126,7 @@ export class World extends Phaser.Scene {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
-      this.status('初弦地东边村落已就绪：左右键沿路行走，上下键沿路行走并选择岔路；交互与跳跃可在键盘设置中共键；右键调整视角。');
+      this.status('初弦地东边村落已就绪：方向键按画面选路，按住沿弯路继续前进，松开再按重新选方向；交互与跳跃可在键盘设置中共键；右键调整视角。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
       this.threeLoading = false;
@@ -647,7 +648,7 @@ export class World extends Phaser.Scene {
     if (!drawn) return;
     const snapshot = drawn;
     const self = this.snapshot?.players.find(player => player.id === snapshot.selfId);
-    const junction = this.mapId === HENESYS_MAP_ID && self ? junctionDirections(self.x) : [];
+    const junction = this.mapId === HENESYS_MAP_ID && self ? junctionDirections(self.x, this.movementView()) : [];
     const ids = new Set(snapshot.players.map(player => player.id));
     for (const [id, view] of this.players) if (!ids.has(id)) { this.combat?.clearSkillPlayer(id); view.destroy(); this.players.delete(id); this.actions.delete(id); }
     for (const player of snapshot.players) {

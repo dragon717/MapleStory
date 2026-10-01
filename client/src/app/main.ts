@@ -409,7 +409,7 @@ async function enterGame(session: LoginResponse) {
     };
     skills?.destroy();
     skills = new SkillView(el('ui-windows'), manifest, {
-      send: message => connection?.send(message) ?? false,
+      send: message => connection?.send(message.type === 'castSkill' ? {...message, view: world?.movementView()} : message) ?? false,
       status,
       bindSkill: skillId => { skills?.close(); openKeybindings(skillId); },
       shortcutLabel: skillId => keybindingsView?.skillKeys(skillId) ?? '',
@@ -952,6 +952,7 @@ async function enterGame(session: LoginResponse) {
       toggleSkills,
       castSkill,
       playerState: () => selfState,
+      movementView: () => world?.movementView(),
       mapDirection: raw => colossusView?.direction(raw) ?? raw,
       hasInteraction: (code, shift) => keybindings.interacts(code, shift),
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
@@ -995,7 +996,7 @@ function leaveGame(logout = false) {
 }
 function castSkill(skillId: number, direction?: -1 | 0 | 1, vertical?: -1 | 0 | 1): string | undefined {
   const requestId = `skill-cast-${Date.now()}-${++skillRequestSequence}`;
-  return connection?.send({ type: 'castSkill', requestId, skillId, direction, vertical }) ? requestId : undefined;
+  return connection?.send({ type: 'castSkill', requestId, skillId, direction, vertical, view: world?.movementView() }) ? requestId : undefined;
 }
 
 function returnToEntry(stage: 'characters' | 'channel') { leaveGame(true); void entry.returnTo(stage); }

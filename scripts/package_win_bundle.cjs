@@ -41,6 +41,8 @@ const FILES = [
   // 现在由本文件的 assertPackClosure() 反向核对，不再只靠人记得加。
   'scripts/tms273_creation_catalog.cjs',
   'scripts/check_windbell_bundle.cjs',
+  'scripts/check_colossus_bundle.cjs',
+  'scripts/check_henesys_assets.cjs',
   'scripts/build-release.cjs',
   'start.bat',
   'stop.bat',
