@@ -48,3 +48,39 @@ export function junctionDirections(x:number,view?:MovementView): JunctionDirecti
     return direction.length<=5||fresh;
   });
 }
+
+// A junction changes the authority's arc-distance chart, not the physical location.
+type Foot = {x:number;y:number};
+type Road = typeof east.routes[number];
+type ArcPath = {exit:number;before:number;after:number;fromRoad:Road;toRoad:Road};
+function arcDelta(road:Road,from:number,to:number){
+  let delta=to-from;
+  if(road.loop&&Math.abs(delta)>(road.end-road.start)/2)delta-=Math.sign(delta)*(road.end-road.start);
+  return delta;
+}
+function junctionPath(a:Foot,b:Foot){
+  const from=east.routes.findIndex(r=>a.x>=r.start-1e-7&&a.x<=r.end+1e-7);
+  const to=east.routes.findIndex(r=>b.x>=r.start-1e-7&&b.x<=r.end+1e-7);
+  if(from<0||to<0)return;
+  if(from===to)return {exit:0,before:arcDelta(east.routes[from],a.x,b.x),after:0,fromRoad:east.routes[from],toRoad:east.routes[to]};
+  let best:ArcPath|undefined;
+  for(const junction of east.junctions)for(const entry of junction.entries.filter(e=>e.route===from))for(const exit of junction.entries.filter(e=>e.route===to)){
+    const before=arcDelta(east.routes[from],a.x,entry.x),after=arcDelta(east.routes[to],exit.x,b.x);
+    if(!best||Math.abs(before)+Math.abs(after)<Math.abs(best.before)+Math.abs(best.after))best={exit:exit.x,before,after,fromRoad:east.routes[from],toRoad:east.routes[to]};
+  }
+  return best;
+}
+export function eastMotionDistance(a:Foot,b:Foot){
+  const path=junctionPath(a,b);
+  return path?Math.hypot(Math.abs(path.before)+Math.abs(path.after),b.y-a.y):Infinity;
+}
+export function eastMotionBlend(a:Foot,b:Foot,f:number):Foot{
+  const path=junctionPath(a,b);if(!path)return b;
+  const before=Math.abs(path.before),length=before+Math.abs(path.after),travel=length*f;
+  const sameRoad=path.fromRoad===path.toRoad,onOld=sameRoad||travel<before,road=onOld?path.fromRoad:path.toRoad;
+  let x=sameRoad?a.x+path.before*f:onOld?a.x+Math.sign(path.before)*travel:path.exit+Math.sign(path.after)*(travel-before);
+  if(road.loop)x=road.start+((x-road.start)%(road.end-road.start)+(road.end-road.start))%(road.end-road.start);
+  const ground=(x:number)=>{const {a,b}=segmentAt(x);return a.y+(b.y-a.y)*(x-a.x)/(b.x-a.x);};
+  // Preserve the road foot height and interpolate only the height of an existing hop.
+  return {x,y:ground(x)+(a.y-ground(a.x))*(1-f)+(b.y-ground(b.x))*f};
+}

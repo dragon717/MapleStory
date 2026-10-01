@@ -35,10 +35,8 @@ export class HenesysView {
  private paper:T.Mesh<T.PlaneGeometry,T.ShaderMaterial>;
  private saved:Saved[]=[];
  private rasterCamera?:Pick<Phaser.Cameras.Scene2D.Camera,'x'|'y'|'width'|'height'|'scrollX'|'scrollY'|'zoomX'|'zoomY'|'roundPixels'|'useBounds'>;
- private liftAt=new T.Vector3(Infinity,Infinity,Infinity);private liftDistance=0;private wantedLift=0;
  private model:T.Group;
  private surfaces:T.Object3D[]=[];
- private terrain:T.Mesh[]=[];
  private occluders:{mesh:T.Mesh;bounds:T.Box3}[]=[];
  private shadowCell=new T.Vector3(Infinity,Infinity,Infinity);
  private faded=new Map<T.Mesh,T.Material|T.Material[]>();private fadeAt=0;
@@ -48,7 +46,7 @@ export class HenesysView {
  private sunlight=new Sunlight();
  private environment:T.WebGLRenderTarget;
  private sourceMaterials=new Set<T.Material>();
- private width=0;private height=0;private pitch=.24;private yaw=0;private zoom=1.2;private lift=0;
+ private width=0;private height=0;private pitch=.24;private yaw=0;private zoom=1.2;
  private disposed=false;private quality=true;private drag?:{id:number;x:number;y:number};
  static async create(world:Phaser.Scene,map:MapDefinition,self:()=>{x:number;y:number}|undefined,current:()=>boolean){
   const [gltf,hdr]=await Promise.all([new GLTFLoader().loadAsync(resolveAssetUrl('/assets/henesys/chuxian-east.glb')),new EXRLoader().loadAsync(resolveAssetUrl('/assets/henesys/dawn.exr'))]);
@@ -79,7 +77,6 @@ export class HenesysView {
    if(o.userData.layer==='vegetation')vegetation.push(o);
    if(!(o instanceof T.Mesh))return;o.castShadow=true;o.receiveShadow=true;this.surfaces.push(o);
    const layer=o.userData.layer??o.parent?.userData.layer;
-   if(layer==='terrain'||layer==='roads')this.terrain.push(o);
    if(layer==='props'||layer==='buildings')this.occluders.push({mesh:o,bounds:new T.Box3().setFromObject(o)});
    for(const m of Array.isArray(o.material)?o.material:[o.material]){this.sourceMaterials.add(m);const p=m as T.MeshStandardMaterial;if(p.map)p.map.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());}
    if((o.userData.layer??o.parent?.userData.layer)==='water'){o.material=new T.MeshPhysicalMaterial({color:0x69aaa1,roughness:.22,metalness:.15,transparent:true,opacity:.92});o.castShadow=false;}
@@ -103,8 +100,8 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  }
  movementView(){
   const source=this.world.cameras.main,distance=source.height/PIXELS_PER_METRE/(2*Math.tan(T.MathUtils.degToRad(19)))*this.zoom;
-  // Projection at the character's feet includes the camera's target height and terrain lift.
-  return {yaw:this.yaw,pitch:Math.atan2(distance*Math.sin(this.pitch)+Math.min(270,source.height*.3)/PIXELS_PER_METRE+this.lift,distance*Math.cos(this.pitch))};
+  // Projection at the character's feet includes the camera's target height.
+  return {yaw:this.yaw,pitch:Math.atan2(distance*Math.sin(this.pitch)+Math.min(270,source.height*.3)/PIXELS_PER_METRE,distance*Math.cos(this.pitch))};
  }
  resetCamera(){this.yaw=0;this.pitch=.24;this.zoom=1.2;}
  toggleQuality(){this.quality=!this.quality;}
@@ -119,12 +116,8 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const foot=new T.Vector3(...point3d(actor.x,actor.y)),base=foot.clone().add(new T.Vector3(0,Math.min(270,source.height*.3)/PIXELS_PER_METRE,0));
   const distance=source.height/PIXELS_PER_METRE/(2*Math.tan(T.MathUtils.degToRad(19)))*this.zoom;
   const offset=new T.Vector3(Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),Math.cos(this.yaw)*Math.cos(this.pitch)).multiplyScalar(distance);
-  // Preserve the fixed angle; a bounded lift exposes the current foot without revealing remote hidden lanes.
-  if(this.liftAt.distanceTo(foot)>.6||Math.abs(this.liftDistance-distance)>.3||this.drag){
-  let wanted=0;for(;wanted<=6;wanted+=.5){const eye=base.clone().add(offset).add(new T.Vector3(0,wanted,0)),aim=foot.clone().add(new T.Vector3(0,.16,0));this.ray.set(eye,aim.clone().sub(eye).normalize());this.ray.far=eye.distanceTo(aim)-.08;if(!this.ray.intersectObjects(this.terrain,false).length)break;}
-  this.wantedLift=Math.min(wanted,6);this.liftAt.copy(foot);this.liftDistance=distance;
-  }
-  this.lift=T.MathUtils.lerp(this.lift,this.wantedLift,1-Math.exp(-Math.min(delta,100)/130));base.y+=this.lift;this.camera.position.copy(base).add(offset);this.camera.lookAt(base);this.camera.updateMatrixWorld();
+  // Road changes only update the continuous foot target; reframing is manual.
+  this.camera.position.copy(base).add(offset);this.camera.lookAt(base);this.camera.updateMatrixWorld();
   // Static scenery needs a new shadow only when the local coverage cell changes.
   const cell=new T.Vector3(Math.floor(base.x/8)*8,Math.floor(base.y/8)*8,Math.floor(base.z/8)*8);
   if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.target.position.copy(cell);this.sun.position.copy(cell).add(new T.Vector3(-26,20,-95));this.sun.shadow.needsUpdate=true;}

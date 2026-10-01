@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HENESYS_MAP_ID, junctionDirections, platformThickness } from '../features/henesys/coordinates';
+import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
@@ -22,7 +22,7 @@ import { composeAppearance } from '../features/entry/appearance';
 import { CombatView, type SkillCastEvent } from '../features/combat/view';
 import { consumeAction } from '../features/player/action-events';
 import { WindbellScene } from '../features/windbell/scene';
-import { MotionInterpolator, SELF_DELAY_TICKS } from '../features/net-motion/motion-interpolator';
+import { MotionInterpolator, SELF_DELAY_TICKS, type MotionOptions } from '../features/net-motion/motion-interpolator';
 type Snapshot = Extract<ServerMessage, { type: 'snapshot' }>;
 type GameplaySnapshot = Snapshot & { monsters?: MonsterSnapshot[]; drops?: DropSnapshot[]; npcs?: NpcSnapshot[] };
 type ReactorSnapshot = NonNullable<Snapshot['reactors']>[number];
@@ -84,8 +84,12 @@ export class World extends Phaser.Scene {
    * 自角色只缓冲半拍（手感优先），远端与怪物/宠物缓冲一拍（观感优先）。
    * 详见 `features/net-motion/motion-interpolator.ts`。
    */
-  private selfMotion = new MotionInterpolator<PlayerState>({ delayTicks: SELF_DELAY_TICKS });
-  private peerMotion = new MotionInterpolator<PlayerState>();
+  private playerMotionGeometry: Pick<MotionOptions, 'distance' | 'blend'> = {
+    distance: (a,b) => this.isThreeActive ? eastMotionDistance(a,b) : Math.hypot(b.x-a.x,b.y-a.y),
+    blend: (a,b,f) => this.isThreeActive ? eastMotionBlend(a,b,f) : {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f},
+  };
+  private selfMotion = new MotionInterpolator<PlayerState>({ delayTicks: SELF_DELAY_TICKS, ...this.playerMotionGeometry });
+  private peerMotion = new MotionInterpolator<PlayerState>(this.playerMotionGeometry);
   private monsterMotion = new MotionInterpolator<MonsterSnapshot>();
   private petMotion = new MotionInterpolator<{ id: string; x: number; y: number }>();
   constructor(

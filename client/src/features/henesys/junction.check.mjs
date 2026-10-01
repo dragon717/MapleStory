@@ -46,17 +46,17 @@ view.self=false;view.updateJunctionHint(player,['up']);assert.equal(hint.visible
 view.self=true;view.scene.textures.exists=()=>false;view.updateJunctionHint(player,['up']);assert.equal(hint.visible,false,'missing textures do not draw placeholders');
 console.log('PASS: local eight-direction hints, centering, animation, reuse, hidden states and missing art.');
 
-// Check the real view getter, including zoom, target height and terrain lift, without creating a GPU.
+// Check the real view getter, including zoom, target height, without creating a GPU.
 const henesysSource = await readFile(new URL('./view.ts',import.meta.url),'utf8');
 const henesysJs=ts.transpileModule(henesysSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/^import .*;\r?\n/gm,'');
 const {HenesysView}=await import(`data:text/javascript;base64,${Buffer.from(henesysJs).toString('base64')}`);
 globalThis.T={MathUtils:{degToRad:degrees=>degrees*Math.PI/180}};
 globalThis.PIXELS_PER_METRE=east.pixelsPerMetre;
 const cameraView=Object.create(HenesysView.prototype);
-for(const height of [200,480,1080])for(const yaw of [-.45,0,.45])for(const pitch of [.08,.24,.46])for(const zoom of [.9,1.7])for(const lift of [0,6]){
-  Object.assign(cameraView,{world:{cameras:{main:{height}}},yaw,pitch,zoom,lift});
+for(const height of [200,480,1080])for(const yaw of [-.45,0,.45])for(const pitch of [.08,.24,.46])for(const zoom of [.9,1.7]){
+  Object.assign(cameraView,{world:{cameras:{main:{height}}},yaw,pitch,zoom});
   const view=cameraView.movementView();
   assert.equal(view.yaw,yaw);
-  assert.ok(view.pitch>pitch&&view.pitch<1.4,'foot viewing angle is valid and includes target height/lift');
+  assert.ok(view.pitch>pitch&&view.pitch<1.4,'foot viewing angle is valid and includes target height');
 }
-console.log('PASS: current camera intent includes target height, zoom and terrain lift at all allowed view limits.');
+console.log('PASS: current camera intent includes target height, zoom at all allowed view limits.');

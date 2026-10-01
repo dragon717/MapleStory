@@ -55,6 +55,9 @@ export interface MotionTrack {
 export interface MotionOptions {
   /** 渲染时钟瞄准「最新样本往前数第几拍」。0.5 = 半个 tick（约 25ms）延迟。 */
   delayTicks?: number;
+  /** Alternate coordinate charts may represent adjacent positions with distant x values. */
+  distance?: (prev: MotionSample, latest: MotionSample) => number;
+  blend?: (prev: MotionSample, latest: MotionSample, fraction: number) => {x:number;y:number};
   /** 单拍位移超过这个距离就认定为瞬移（世界单位，与 foothold 同一坐标系）。 */
   teleportDistance?: number;
   /** 样本间隔超过这么多拍就不再插值（后台标签页 / 断流恢复）。 */
@@ -93,8 +96,12 @@ export class MotionInterpolator<T extends MotionEntity> {
   private readonly slewGain: number;
   private readonly maxSlew: number;
   private readonly resyncTicks: number;
+  private readonly distance: NonNullable<MotionOptions['distance']>;
+  private readonly blend?: MotionOptions['blend'];
 
   constructor(options: MotionOptions = {}) {
+    this.distance = options.distance ?? ((a,b)=>Math.hypot(b.x-a.x,b.y-a.y));
+    this.blend = options.blend;
     this.delayTicks = options.delayTicks ?? PEER_DELAY_TICKS;
     this.teleportDistance = options.teleportDistance ?? 600;
     this.maxInterpTicks = options.maxInterpTicks ?? 6;
@@ -133,9 +140,10 @@ export class MotionInterpolator<T extends MotionEntity> {
         continue;
       }
       const gap = serverTick - track.latest.tick;
-      const distance = Math.hypot(entity.x - track.latest.x, entity.y - track.latest.y);
+      const latest = {tick: serverTick, x: entity.x, y: entity.y};
+      const distance = this.distance(track.latest, latest);
       track.prev = track.latest;
-      track.latest = { tick: serverTick, x: entity.x, y: entity.y };
+      track.latest = latest;
       track.teleported = gap > this.maxInterpTicks || distance > this.teleportDistance;
     }
     for (const id of [...this.tracks.keys()]) if (!seen.has(id)) this.tracks.delete(id);
@@ -180,6 +188,7 @@ export class MotionInterpolator<T extends MotionEntity> {
     const f = clamp((this.clock - prev.tick) / span, 0, 1);
     if (f <= 0) return { ...entity, x: prev.x, y: prev.y };
     if (f >= 1) return entity;
+    if (this.blend) return {...entity, ...this.blend(prev, latest, f)};
     return {
       ...entity,
       x: prev.x + (latest.x - prev.x) * f,
