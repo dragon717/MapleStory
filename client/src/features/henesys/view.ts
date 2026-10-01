@@ -2,13 +2,14 @@ import * as T from 'three';
 import Phaser from 'phaser';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
-import { Sky } from 'three/addons/objects/Sky.js';
 import type { MapDefinition } from '../../assets/manifest';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import { PIXELS_PER_METRE, point3d, segmentAt } from './coordinates';
 import { Sunlight } from './sunlight';
 import { LocalReveal } from './local-reveal';
 import { villageInstruments } from './instruments';
+import { VillageEnvironment } from './environment';
+import type { EnvironmentSettings } from './environment-settings';
 import './style.css';
 
 type Display = Phaser.GameObjects.GameObject & {x:number;y:number;scaleX:number;scaleY:number;depth:number;visible:boolean;setPosition(x:number,y:number):Display;setScale(x:number,y:number):Display;setDepth(n:number):Display;getBounds():Phaser.Geom.Rectangle};
@@ -46,9 +47,13 @@ export class HenesysView {
  private sun=new T.DirectionalLight(0xffe6c2,3.1);
  private sunlight=new Sunlight();
  private environment:T.WebGLRenderTarget;
+ private dawnEnvironment:T.WebGLRenderTarget;
+ private pmrem:T.PMREMGenerator;
+ private climate:VillageEnvironment;
  private sourceMaterials=new Set<T.Material>();
  private width=0;private height=0;private pitch=.24;private yaw=0;private zoom=1.2;
  private disposed=false;private quality=true;private drag?:{id:number;x:number;y:number};
+ private skyPreview=false;
  static async create(world:Phaser.Scene,map:MapDefinition,self:()=>ActorFoot|undefined,current:()=>boolean){
   const [gltf,hdr]=await Promise.all([new GLTFLoader().loadAsync(resolveAssetUrl('/assets/henesys/chuxian-east.glb')),new EXRLoader().loadAsync(resolveAssetUrl('/assets/henesys/dawn.exr'))]);
   if(!current()){HenesysView.disposeModel(gltf.scene);hdr.dispose();return undefined;}
@@ -62,15 +67,11 @@ export class HenesysView {
   // Share one GPU context: the paper dolls stay in a framebuffer, never read back through a canvas.
   this.renderer=new T.WebGLRenderer({canvas:world.game.canvas,context:this.phaser.gl as WebGL2RenderingContext});
   this.actors=new Phaser.Renderer.WebGL.RenderTarget(this.phaser,1,1,1,1,true,true,false,true);
-  this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.05;
+  this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.NeutralToneMapping;this.renderer.toneMappingExposure=1.1;
   this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;
-  const pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromEquirectangular(hdr);pmrem.dispose();hdr.dispose();
-  this.scene.environment=this.environment.texture;this.scene.environmentIntensity=.85;
-  const sky=new Sky();sky.scale.setScalar(500);Object.assign(sky.material.uniforms.turbidity,{value:3});sky.material.uniforms.rayleigh.value=1.6;sky.material.uniforms.mieCoefficient.value=.008;sky.material.uniforms.mieDirectionalG.value=.85;sky.material.uniforms.sunPosition.value.set(-26,20,-95);
-  sky.material.fragmentShader=sky.material.fragmentShader.replace('vec4( texColor, 1.0 )','vec4( texColor * 0.075, 1.0 )');this.scene.add(sky);
-  this.scene.add(new T.HemisphereLight(0xd4e9ff,0x72805c,.65));
-  const bounce=new T.DirectionalLight(0xa8c9e6,.5);bounce.position.set(45,20,36);this.scene.add(bounce);
-  this.sun.castShadow=true;Object.assign(this.sun.shadow.camera,{left:-42,right:42,top:36,bottom:-36,near:1,far:150});this.sun.shadow.mapSize.set(2048,2048);this.sun.shadow.normalBias=.025;this.sun.shadow.bias=-.00012;
+  this.pmrem=new T.PMREMGenerator(this.renderer);this.environment=this.dawnEnvironment=this.pmrem.fromEquirectangular(hdr);hdr.dispose();
+  this.scene.environment=this.environment.texture;
+  this.sun.castShadow=true;Object.assign(this.sun.shadow.camera,{left:-64,right:64,top:58,bottom:-58,near:1,far:350});this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.normalBias=.05;this.sun.shadow.bias=-.00006;
   this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=true;
   this.scene.add(this.sun,this.sun.target,model);this.footShadow.rotation.x=-Math.PI/2;this.scene.add(this.footShadow);model.updateMatrixWorld(true);
   const vegetation:T.Object3D[]=[];
@@ -86,6 +87,7 @@ export class HenesysView {
   const forest=new T.Group();forest.userData.layer='vegetation';model.add(forest);
   for(const b of batches.values()){if(b.objects.length<2)continue;const inst=new T.InstancedMesh(b.geometry,b.material,b.objects.length);inst.castShadow=true;inst.receiveShadow=true;b.objects.forEach((o,i)=>{inst.setMatrixAt(i,o.matrixWorld);o.visible=false;});inst.computeBoundingSphere();forest.add(inst);}
   this.reveal=new LocalReveal(model);
+  this.climate=new VillageEnvironment(this.scene,this.sun,model);
   this.texture=new T.ExternalTexture(this.actors.texture.webGLTexture);
   const material=new T.ShaderMaterial({glslVersion:T.GLSL3,transparent:true,premultipliedAlpha:true,depthTest:true,depthWrite:true,toneMapped:false,uniforms:{image:{value:this.texture},actorDepth:{value:this.depthTarget.texture}},vertexShader:`out vec2 screenUv;void main(){screenUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,fragmentShader:`uniform sampler2D image,actorDepth;in vec2 screenUv;out vec4 outColor;
 #define gl_FragColor outColor
@@ -104,23 +106,36 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   return {yaw:this.yaw,pitch:Math.atan2(distance*Math.sin(this.pitch)+Math.min(270,source.height*.3)/PIXELS_PER_METRE,distance*Math.cos(this.pitch))};
  }
  resetCamera(){this.yaw=0;this.pitch=.24;this.zoom=1.2;}
- toggleQuality(){this.quality=!this.quality;}
+ toggleQuality(){this.quality=!this.quality;this.sunlight.resize(this.depthTarget.width,this.depthTarget.height,this.quality);}
+ setEnvironment(value:EnvironmentSettings){this.climate.set(value);}
+ previewSky(enabled:boolean){this.skyPreview=enabled;}
  project(x:number,y:number){const p=new T.Vector3(...point3d(x,y)).project(this.camera);return {x:(p.x+1)*this.width/2,y:(1-p.y)*this.height/2,z:(p.z+1)/2};}
  private prepare=(_renderer?:unknown,_time?:number,delta=1000/60)=>{
   if(this.disposed||!this.world.sys.isActive()||!this.world.sys.isVisible())return;
   const source=this.world.cameras.main,parent=this.root.parentElement!;if(!parent.clientWidth||!parent.clientHeight)return;
   // Environment quality must not lower the source pixel/text resolution.
   const ratio=Math.min(devicePixelRatio,2);
-  if(this.width!==parent.clientWidth||this.height!==parent.clientHeight||this.renderer.getPixelRatio()!==ratio){this.width=parent.clientWidth;this.height=parent.clientHeight;this.renderer.setPixelRatio(ratio);this.renderer.setSize(this.width,this.height,false);this.camera.aspect=this.width/this.height;this.camera.updateProjectionMatrix();const w=Math.round(this.width*ratio),h=Math.round(this.height*ratio);this.sunlight.resize(w,h);this.depthTarget.setSize(w,h);}
+  if(this.width!==parent.clientWidth||this.height!==parent.clientHeight||this.renderer.getPixelRatio()!==ratio){this.width=parent.clientWidth;this.height=parent.clientHeight;this.renderer.setPixelRatio(ratio);this.renderer.setSize(this.width,this.height,false);this.camera.aspect=this.width/this.height;this.camera.updateProjectionMatrix();const w=Math.round(this.width*ratio),h=Math.round(this.height*ratio);this.sunlight.resize(w,h,this.quality);this.depthTarget.setSize(w,h);}
   const actor=this.self();if(!actor)return;
   const foot=new T.Vector3(...point3d(actor.x,actor.y)),base=foot.clone().add(new T.Vector3(0,Math.min(270,source.height*.3)/PIXELS_PER_METRE,0));
   const distance=source.height/PIXELS_PER_METRE/(2*Math.tan(T.MathUtils.degToRad(19)))*this.zoom;
   const offset=new T.Vector3(Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),Math.cos(this.yaw)*Math.cos(this.pitch)).multiplyScalar(distance);
   // Road changes only update the continuous foot target; reframing is manual.
   this.camera.position.copy(base).add(offset);this.camera.lookAt(base);this.camera.updateMatrixWorld();
+  if(this.skyPreview){this.camera.position.copy(base).add(new T.Vector3(Math.sin(this.yaw)*distance*2,14,Math.cos(this.yaw)*distance*2));this.camera.lookAt(this.climate.light.daylight>.5?this.climate.uniforms.solarDirection.value.clone().multiplyScalar(490):base.clone().add(new T.Vector3(0,40,-180)));this.camera.updateMatrixWorld();}
   // Static scenery needs a new shadow only when the local coverage cell changes.
   const cell=new T.Vector3(Math.floor(base.x/8)*8,Math.floor(base.y/8)*8,Math.floor(base.z/8)*8);
-  if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.target.position.copy(cell);this.sun.position.copy(cell).add(new T.Vector3(-26,20,-95));this.sun.shadow.needsUpdate=true;}
+  if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.shadow.needsUpdate=true;}
+  this.sun.target.position.copy(cell);this.sun.position.copy(cell).addScaledVector(this.climate.uniforms.solarDirection.value,150);
+  this.climate.update(base,performance.now()/1000,ratio);
+  if(this.climate.consumeSkyChange()){
+   this.renderer.resetState();
+   if(this.environment!==this.dawnEnvironment)this.environment.dispose();
+   const s=this.climate.settings;
+   this.environment=s.hour>=5.5&&s.hour<=7.5&&s.weather==='clear'?this.dawnEnvironment:this.pmrem.fromScene(this.climate.skyScene,0,.1,700);
+   this.scene.environment=this.environment.texture;this.scene.environmentIntensity=.35+this.climate.light.daylight*.75;
+   this.renderer.resetState();this.phaser.pipelines.rebind();
+  }
   const ground=segmentAt(actor.x),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
   const roadName=`初弦地 · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
   this.footShadow.position.set(foot.x,groundY+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
@@ -162,7 +177,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  private draw=()=>{
   if(this.capturing){this.actors.unbind(true);this.phaser.resetProjectionMatrix();this.capturing=false;}
   if(this.disposed||!this.saved.length){this.restore();return;}
-  try{this.phaser.pipelines.clear();this.renderer.resetState();this.texture.sourceTexture=this.actors.texture.webGLTexture;this.renderer.setRenderTarget(this.depthTarget);this.renderer.setClearColor(0xffffff,1);this.renderer.render(this.depthScene,this.paperCamera);this.renderer.setClearColor(0,0);this.renderer.setRenderTarget(null);if(this.quality)this.sunlight.render(this.renderer,this.scene,this.camera,this.sun);else this.renderer.render(this.scene,this.camera);this.renderer.autoClear=false;this.renderer.render(this.paperScene,this.paperCamera);this.renderer.autoClear=true;}finally{this.renderer.resetState();this.phaser.pipelines.rebind();this.restore();}
+  try{this.phaser.pipelines.clear();this.renderer.resetState();this.texture.sourceTexture=this.actors.texture.webGLTexture;this.renderer.setRenderTarget(this.depthTarget);this.renderer.setClearColor(0xffffff,1);this.renderer.render(this.depthScene,this.paperCamera);this.renderer.setClearColor(0,0);this.renderer.setRenderTarget(null);this.sunlight.render(this.renderer,this.scene,this.camera,this.sun,this.climate);this.renderer.autoClear=false;this.renderer.render(this.paperScene,this.paperCamera);this.renderer.autoClear=true;}finally{this.renderer.resetState();this.phaser.pipelines.rebind();this.restore();}
  };
  private forward(e:PointerEvent,type:string){const b=this.root.getBoundingClientRect(),c=this.world.game.canvas,s=c.getBoundingClientRect();c.dispatchEvent(new MouseEvent(type,{clientX:s.left+(e.clientX-b.left)/b.width*s.width,clientY:s.top+(e.clientY-b.top)/b.height*s.height,button:0,buttons:e.buttons&1,bubbles:true,cancelable:true,view:window}));}
  private down=(e:PointerEvent)=>{e.preventDefault();this.root.setPointerCapture(e.pointerId);if(e.button===2)this.drag={id:e.pointerId,x:e.clientX,y:e.clientY};else if(e.button===0)this.forward(e,'mousedown');};
@@ -171,5 +186,5 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  private context=(e:Event)=>e.preventDefault();
  private wheel=(e:WheelEvent)=>{e.preventDefault();this.zoom=T.MathUtils.clamp(this.zoom*Math.exp(T.MathUtils.clamp(e.deltaY,-100,100)*.002),.9,1.7);};
  private static disposeModel(root:T.Object3D){const textures=new Set<T.Texture>(),materials=new Set<T.Material>(),geometries=new Set<T.BufferGeometry>();root.traverse(o=>{if(!(o instanceof T.Mesh))return;geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material]){materials.add(m);for(const v of Object.values(m))if(v instanceof T.Texture)textures.add(v);}});textures.forEach(t=>t.dispose());materials.forEach(m=>m.dispose());geometries.forEach(g=>g.dispose());}
- destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);this.reveal.destroy();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.sun.shadow.dispose();this.environment.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
+ destroy(){if(this.disposed)return;this.disposed=true;this.restore();this.world.game.events.off('prerender',this.prepare);this.world.game.events.off('postrender',this.draw);this.root.parentElement?.classList.remove('show-henesys');this.root.remove();this.resizeSource(this.world.game.scale.width,this.world.game.scale.height);HenesysView.disposeModel(this.scene);HenesysView.disposeModel(this.paperScene);this.reveal.destroy();this.sourceMaterials.forEach(m=>m.dispose());this.depthRects?.dispose();this.depthGeometry.dispose();this.depthMaterial.dispose();this.depthTarget.dispose();this.sunlight.destroy();this.climate.destroy();this.sun.shadow.dispose();if(this.environment!==this.dawnEnvironment)this.environment.dispose();this.dawnEnvironment.dispose();this.pmrem.dispose();this.actors.destroy();this.texture.dispose();this.renderer.dispose();this.phaser.pipelines.rebind();}
 }

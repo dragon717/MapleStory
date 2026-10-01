@@ -33,6 +33,7 @@ import '../features/chairs/style.css';
 import { MenuView } from '../features/menu/view';
 import { ColossusView } from '../features/colossus/view';
 import { ActivitiesView } from '../features/windbell/activities';
+import { DEFAULT_ENVIRONMENT } from '../features/henesys/environment-settings';
 import { NpcDialogueView } from '../features/npc/dialogue';
 import { QuestLogView } from '../features/quest/log';
 import { NotebookView } from '../features/notebook/view';
@@ -432,6 +433,8 @@ async function enterGame(session: LoginResponse) {
       setEnabled: enabled => { if (colossusView || world?.mapId !== HENESYS_MAP_ID) return; input?.reset(); world.setThreeEnabled(enabled); },
       resetCamera: () => world?.resetThreeCamera(),
       toggleQuality: () => world?.toggleThreeQuality(),
+      previewSky: enabled=>world?.previewSky(enabled),
+      environment:{get:()=>world?.environment??{...DEFAULT_ENVIRONMENT},set:value=>world?.setEnvironment(value)},
       audio:{spatial:()=>world?.spatialAudioEnabled??true,setSpatial:enabled=>world?.setSpatialAudio(enabled),volume:()=>world?.soundVolume??1,setVolume:volume=>world?.setSoundVolume(volume)},
     });
     menus = new MenuView(

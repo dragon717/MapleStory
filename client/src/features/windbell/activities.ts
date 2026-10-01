@@ -6,6 +6,7 @@ import type { ColossusControl } from '../colossus/view';
 import colossus from '../../../../shared/colossus.json';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import { CHUXIAN_NAME } from '../../app/i18n';
+import { TIMES, WEATHERS, SEASONS, DEFAULT_ENVIRONMENT, type EnvironmentSettings } from '../henesys/environment-settings';
 import './style.css';
 
 /** Menus send intentions; the server owns entry, proximity and world facts. */
@@ -28,10 +29,12 @@ export class ActivitiesView {
   private inColossus = false;
   private sceneToggle?: HTMLButtonElement;
   private sceneReset?: HTMLButtonElement;
+  private environmentRefresh?:()=>void;
+  private skyPreview=false;
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void; audio?: {spatial:()=>boolean;setSpatial:(enabled:boolean)=>void;volume:()=>number;setVolume:(volume:number)=>void} }) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void; previewSky?:(enabled:boolean)=>void; environment?:{get:()=>EnvironmentSettings;set:(value:Partial<EnvironmentSettings>)=>void};audio?: {spatial:()=>boolean;setSpatial:(enabled:boolean)=>void;volume:()=>number;setVolume:(volume:number)=>void} }) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
     const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
@@ -63,6 +66,24 @@ export class ActivitiesView {
         const volumeLabel=document.createElement('label');volumeLabel.append('总音量 ',volume);
         details.ontoggle=()=>{if(details.open){space.checked=audio.spatial();space.disabled=!sceneDisplay.enabled();volume.value=String(audio.volume());}};
         details.append(spaceLabel,document.createElement('br'),volumeLabel);card.append(details);
+      }
+      if(sceneDisplay.environment){
+        const environment=sceneDisplay.environment,details=document.createElement('details'),summary=document.createElement('summary'),fields=document.createElement('fieldset');
+        details.className='environment-controls';summary.textContent='环境与光照';details.append(summary,fields);fields.setAttribute('aria-label','初弦地环境设置');
+        const controls:Record<string,HTMLInputElement|HTMLSelectElement>={},clock=document.createElement('output');
+        const change=(value:Partial<EnvironmentSettings>)=>{environment.set(value);refresh();};
+        const row=(title:string,control:HTMLInputElement|HTMLSelectElement)=>{const label=document.createElement('label');label.append(title,control);fields.append(label);return control;};
+        const select=(title:string,values:readonly (readonly [string|number,string])[],key:string,action:(value:string)=>void)=>{const input=document.createElement('select');input.setAttribute('aria-label',title);for(const [value,label] of values){const option=document.createElement('option');option.value=String(value);option.textContent=label;input.append(option);}input.onchange=()=>action(input.value);controls[key]=row(title,input);return input;};
+        select('时段',[['','自定时间'],...TIMES.map(([name,hour])=>[hour,name] as const)],'preset',value=>{if(value)change({hour:Number(value)});});
+        const range=(title:string,key:'hour'|'moisture'|'grade',max:number,step:number)=>{const input=document.createElement('input');input.type='range';input.min='0';input.max=String(max);input.step=String(step);input.setAttribute('aria-label',title);input.oninput=()=>change({[key]:Number(input.value)});controls[key]=row(title,input);};
+        range('太阳时刻','hour',24,.1);clock.setAttribute('aria-live','off');fields.append(clock);
+        select('天气',WEATHERS,'weather',value=>change({weather:value as EnvironmentSettings['weather']}));
+        select('季节',SEASONS,'season',value=>change({season:value as EnvironmentSettings['season']}));
+        range('干燥 — 湿润','moisture',1,.05);range('灰调（默认关闭）','grade',.2,.01);
+        const hint=document.createElement('p');hint.textContent='太阳从东侧升起、西侧落下；星光和极光在夜间出现。设置保存在本机，雨天会浸湿路面。可仰望太阳与星空，关闭设置返回行走镜头。';fields.append(hint,this.button('恢复晴朗上午',()=>change({...DEFAULT_ENVIRONMENT})));
+        if(sceneDisplay.previewSky)fields.append(this.button('仰望天空 / 回到村路',()=>{if(sceneDisplay.enabled()){this.skyPreview=!this.skyPreview;sceneDisplay.previewSky?.(this.skyPreview);}}));
+        const refresh=()=>{const s=environment.get();for(const key of ['hour','weather','season','moisture','grade'] as const)controls[key].value=String(s[key]);controls.preset.value=TIMES.find(t=>Math.abs(t[1]-s.hour)<.01)?.[1].toString()??'';const hour=s.hour%24;clock.textContent=`${String(Math.floor(hour)).padStart(2,'0')}:${String(Math.round((hour%1)*60)).padStart(2,'0')} · ${s.moisture>=.5?'湿润':'干燥'}`;fields.disabled=!sceneDisplay.available();};
+        this.environmentRefresh=refresh;details.ontoggle=()=>{if(details.open)refresh();};refresh();card.append(details);
       }
       if (openKeys) card.append(this.button('键盘设置' , () => { this.close(false); openKeys(); }));
       this.content.append(card);
@@ -109,6 +130,7 @@ export class ActivitiesView {
   talk() { this.act('talk'); }
   show() { this.refreshSceneDisplay(); this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
   private refreshSceneDisplay() {
+    this.environmentRefresh?.();
     if (!this.sceneToggle || !this.sceneDisplay) return;
     const available = this.sceneDisplay.available() && !this.inColossus;
     this.sceneToggle.disabled = !available;
@@ -116,7 +138,7 @@ export class ActivitiesView {
     if (this.sceneReset) this.sceneReset.disabled = !available || !this.sceneDisplay.enabled();
   }
   updateColossus(active: boolean) { this.inColossus = active; this.refreshSceneDisplay(); if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
-  close(restoreFocus = true) { this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
+  close(restoreFocus = true) { this.skyPreview=false;this.sceneDisplay?.previewSky?.(false);this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
   private act(action: WindbellAction) { if (this.state) this.send(action, action === 'enterIsland' || action === 'enterBridge' ? undefined : this.state.instanceId); this.focus(); }
   update(state?: WindbellState, player?: PlayerState, npcs: NpcState[] = []) {
     this.state = state; this.dock.hidden = !state;

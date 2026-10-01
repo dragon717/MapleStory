@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
 import type { HenesysView } from '../features/henesys/view';
 import { VillageAudio, FOOT_SOUNDS } from '../features/henesys/audio';
+import { environmentSettings, loadEnvironment, saveEnvironment, type EnvironmentSettings } from '../features/henesys/environment-settings';
 import { randomDropId } from '../features/player/pickup';
 import { protocolText, uiLocale } from '../app/i18n';
 import type { NpcState, PlayerState, ServerMessage } from '../../../shared/protocol';
@@ -36,6 +37,9 @@ export interface PortalRequest {
 }
 type PortalHandler = (request: PortalRequest) => void;
 export class World extends Phaser.Scene {
+  private climateSettings=loadEnvironment();
+  get environment(){return {...this.climateSettings};}
+  setEnvironment(value:Partial<EnvironmentSettings>){this.climateSettings=environmentSettings({...this.climateSettings,...value});saveEnvironment(this.climateSettings);this.henesys?.setEnvironment(this.climateSettings);}
   private henesys?: HenesysView;
   private threeEnabled = true;
   private threeLoading = false;
@@ -123,6 +127,7 @@ export class World extends Phaser.Scene {
   movementView() { return this.isThreeActive ? this.henesys?.movementView() : undefined; }
   resetThreeCamera() { this.henesys?.resetCamera(); }
   toggleThreeQuality() { this.henesys?.toggleQuality(); }
+  previewSky(enabled:boolean){this.henesys?.previewSky(enabled);}
   get spatialAudioEnabled() { return this.villageAudio?.spatialEnabled ?? true; }
   setSpatialAudio(enabled:boolean) { this.villageAudio?.setSpatial(enabled); }
   get soundVolume() { return this.sound?.volume ?? 1; }
@@ -140,6 +145,7 @@ export class World extends Phaser.Scene {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
+      view.setEnvironment(this.climateSettings);
       this.status('初弦地东边村落已就绪：方向键按画面选路，按住沿弯路继续前进，松开再按重新选方向；交互与跳跃可在键盘设置中共键；右键调整视角。');
     }).catch(error => {
       if (generation !== this.threeGeneration) return;

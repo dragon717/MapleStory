@@ -18,3 +18,7 @@
 .activity-content>p{margin:10px 4px 0;font-size:11px}
 @media(max-width:380px){.windbell-activities article{grid-template-columns:86px minmax(0,1fr);gap:4px 8px}.windbell-activities article img{width:86px}}
 .windbell-activities button:disabled{opacity:.5;cursor:default;border-bottom-color:transparent}
+
+.environment-controls{grid-column:1/-1;margin-top:8px;background:#fffdf3;padding:6px 8px}.environment-controls summary{cursor:pointer;color:#1766ac;font-weight:bold}.environment-controls fieldset{border:0;padding:8px 0 0;min-width:0;display:grid;gap:8px}.environment-controls label{display:grid;grid-template-columns:minmax(95px,1fr) minmax(0,1.5fr);gap:8px;align-items:center}.environment-controls input,.environment-controls select{width:100%;min-width:0;box-sizing:border-box}.environment-controls select{font:inherit;padding:5px;border:1px solid #a5b6b7;background:#fff;color:#303030}.environment-controls output{color:#526774;text-align:right}.environment-controls p{margin:0;color:#606964}.environment-controls :focus-visible{outline:2px solid #eaa34e;outline-offset:2px}
+
+.windbell-activities{box-sizing:border-box}
