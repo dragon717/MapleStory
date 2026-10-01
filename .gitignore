@@ -1,47 +1,44 @@
+# OS files, Python cache and local tool state.
 .DS_Store
 __pycache__/
 *.pyc
 .playwright-cli/
+/.trash-icloud-dup/
+/.workbuddy/
+/.workbuddy-ai/memory/
 
-# iCloud 冲突副本的隔离区（scripts/check_icloud_conflict_copies.cjs 的配套）。
-# 待人工复核的「<名字> 2.<ext>」暂存在这里，附 MANIFEST.json；确认无用后整目录删除。
-# 这是过渡区，不是垃圾桶：门禁保证副本进不了版本库，这里只保证它们不会
-# 在复核期间又被 git add 带走。
-.trash-icloud-dup/
-
-# Original third-party repositories, WZ packages and acquisition material.
-/参考
-
-# Local runtime state and credentials.
-server/data/
+# Live accounts, credentials, logs, retained releases and temporary builds.
+/server/data/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
+/runtime/
+/build/
+/client/dist*/
 
-# Dependencies and build output.
-/client/node_modules
-scripts/node_modules/
-scripts/unpack_tms273_ms/target/
-server/target/
+# Installed dependencies and native build caches.
+/client/node_modules/
+/scripts/node_modules/
+/scripts/unpack_tms273_ms/target/
+/server/target/
+/client/src-tauri/target/
 
-# Generated/runtime resource trees stay in the root resource archive.
-client/public/
-client/public-gameplay/
-client/public-tms273/
-references/browser-probe/assets/
-references/gameplay-assets/assets/
-references/gameplay-assets/avatar/assets/
-resources/
+# Third-party source packages and exported runtime resources (distributed separately).
+/参考/
+/resources/
+/client/public/
+/client/public-gameplay/
+/client/public-tms273/
+/references/browser-probe/assets/
+/references/gameplay-assets/assets/
+/references/gameplay-assets/avatar/assets/
+# Large derived map catalog: regenerate with import_tms273.py + export_tms273.cjs.
+/references/tms273-data/maps.json
+/references/tms273-data/quests.json
+/references/tms273-data/manifest.json
+MapleStory-运行资源-*.tar.gz
 
-# TMS273 map catalog: a 152 MB export derived from the 参考/ WZ packages. It grows
-# with every map assembly (98 -> 139 -> 153 MB) and broke GitHub's 100 MB blob
-# limit, so it stays local like the generated trees above. Rebuild it through
-# scripts/import_tms273.py + scripts/export_tms273.cjs instead of committing it.
-references/tms273-data/maps.json
-
-# Evidence media and other binary art/audio are not source commits.
-# Live render/performance probes are generated locally; checks and summaries live in scripts/ and docs/.
-/artifacts/henesys/east-village/live/
+# Local screenshots, art/audio exports and archives.
 *.png
 *.jpg
 *.jpeg
@@ -52,25 +49,35 @@ references/tms273-data/maps.json
 *.wav
 *.wz
 *.zip
-MapleStory-运行资源-*.tar.gz
-.workbuddy/*
-.workbuddy-ai/memory/*
+# Packaged app icons are build inputs, unlike screenshots or icon-source.png.
+!/client/src-tauri/icons/*.png
 
-evidence/*/quest-i18n/cache/*
+# Recomputable reports. Keep handwritten sources, curated baselines and gate inputs.
+/artifacts/**/*.log
+/artifacts/henesys/
+/artifacts/windbell/
+/artifacts/asset-index-report.json
+/artifacts/refactor/frontend-deps.json
+/artifacts/refactor/large-files.json
+/artifacts/portal-boundary-classification.json
+/artifacts/portal-closure.json
+/artifacts/portal-closure-repro.json
+/artifacts/tms273_source_volume_audit.json
+/artifacts/tms273_assemble_missing.json
+/references/browser-probe/check-results.json
+/references/browser-probe/export-summary.json
+/references/gameplay-assets/avatar/export-summary.json
+/scripts/_probe_skill_outlinks.json
+# debt-register.json, baseline-metrics.json, repair ledgers and the canvas-volume
+# mapping consumed by _probe_skill_outlinks.cjs intentionally remain versioned.
 
-
-# Directory policy: release candidates, retained builds and live control are local.
-/build/
-/runtime/
-/client/dist*/
-
-# Desktop shell: Cargo build output for src-tauri（与 server/target 同性质）。
-client/src-tauri/target/
-
-# Desktop installer staging area.
-build/desktop/
-
-# Content object index report（由 scripts/index_client_assets.cjs --report 生成；
-# 权威版本号在 assets/objects/current.json 指针里，这份报告只是可重算的流水）。
-artifacts/asset-index-report.json
-evidence/*
+# Evidence output stays local; handwritten findings, repro scripts and patches stay in Git.
+/evidence/**
+!/evidence/**/
+!/evidence/**/*.md
+!/evidence/**/*.cjs
+!/evidence/**/*.mjs
+!/evidence/**/*.py
+!/evidence/**/*.sh
+!/evidence/**/*.patch
+!/evidence/**/*.diff

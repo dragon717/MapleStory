@@ -101,13 +101,15 @@ Windows 重复启动会提示本项目已在运行；更新代码后先 `stop.ba
 | `resources/` | 已导出的游戏素材与内容数据；`scenes/` 场景、`characters/` 人物、`ui/` 界面与审阅清单、`music/` 音乐、`sfx/` 音效，`blender/` 只放 3D 建模资产及必要贴图 | 保持 83、273 与原创版本边界；资源不是临时构建，不按两版规则删除；原创 Windbell 不再使用 `creative/` 聚合目录 |
 | `references/`、`参考/` | 研究资料与原始参考仓库；研究包整体归入 `references/tms273_research_pack/` | 大型嵌套参考仓库保留原位，修改前先读其自身规则；研究包内部结构保持完整，历史资料用索引追溯 |
 | `scripts/`、`bots/`、`qa/` | 构建、导出、检查工具，陪测机器人与现有验收脚本 | 保留可执行源码；报告、截图和构建产物分别归入对应目录 |
-| `evidence/YYYY-MM-DD/任务名/` | 验证报告、截图、日志与必要补丁证据 | 旧输出、缺陷补丁和截图已按内容归入，由 `evidence/INDEX.md` 索引；不自动删除恢复点或数据库快照 |
+| `evidence/YYYY-MM-DD/任务名/` | 验证报告、截图、日志与必要补丁证据 | 手写发现、复现脚本和补丁入 Git，由 `evidence/INDEX.md` 索引；截图、日志及脚本生成的页面/打包文件只留本地；不自动删除恢复点或数据库快照 |
 | `runtime/` | 运行日志、PID、服务控制状态 | 只放当前运行控制和日志；历史快照归证据，启停脚本统一使用此路径 |
-| `artifacts/refactor/` | 审计报告、门禁债务登记等工程检查数据 | `debt-register.json` 是检查输入，不能当临时产物清理 |
+| `artifacts/refactor/` | 审计报告、门禁债务登记等工程检查数据 | `debt-register.json` 和人工 `baseline-metrics.json` 入 Git；每次生成的 `frontend-deps.json`、`large-files.json` 只留本地 |
 | `build/current/`、`build/previous/` | 配套前后端成功制品及发布包 | 当前成功版＋上一成功版，共两套；新版本通过必要检查并切换后删除更早版，失败不轮替，仍被运行引用的不删；数据库不入包 |
 | `build/tmp/` 与工具原生缓存目录 | 候选构建、各类 `dist-*-check`；`server/target/`、`node_modules/` 等缓存 | 临时构建在任务结束后清理；缓存单独管理，不算历史版本；只清理未被使用的可再生缓存；正式启停使用 `build/current/server/` 中的二进制 |
 
 维护顺序：先确定文件职责，再同步文档链接、启停、打包、构建和检查脚本路径。`npm run check --prefix client` 包含目录归属和构建轮替检查。Vite 的清空输出行为只用于候选构建目录，不能直接清空当前成功版。同名文件先比对，不仅凭名称删除；已完成记录按任务归档，不再新增重复台账。
+
+Git 保留源码、依赖锁文件、核定来源记录、检查夹具和追加式修复历史；自动报告与素材导出不入库。`references/tms273-data/{maps,quests,manifest}.json` 由 `scripts/import_tms273.py` 生成（完整管线为 `scripts/build_tms273.cjs`），同目录 `*-source.json` 保留。导出缺口报告由 `scripts/assemble_tms273.cjs` 生成，供修复脚本读取；修复历史与门禁输入继续入库。整理忽略规则后可运行 `node scripts/check_gitignore.cjs` 核对，不删除本地文件或改写 Git 历史。
 
 ## 开发与资源维护
 
