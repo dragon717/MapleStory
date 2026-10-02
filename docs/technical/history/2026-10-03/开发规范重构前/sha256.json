@@ -1,0 +1,42 @@
+{
+  "项目入口.md": {
+    "source": "/Users/muniao/Code/MapleStory/AGENTS.md",
+    "sha256": "9d5b1059eb8fc8b2f7aa15f715aa33e4009e2a8a1f07467a2904d787bf82a771",
+    "bytes": 1705
+  },
+  "长期记忆.md": {
+    "source": "/Users/muniao/Code/MapleStory/MEMORY.md",
+    "sha256": "e74ed34b528776b96f0f994844568205a8da528b48cf4c2f61f316dea8ab7b9d",
+    "bytes": 1224
+  },
+  "长期开发规范.md": {
+    "source": "/Users/muniao/Code/MapleStory/docs/technical/BUSINESS_DEVELOPMENT.md",
+    "sha256": "1c4a063badd01aeb1d6466994bd8f3884b7834e0b85cd4d4fe3cef57da8c77c4",
+    "bytes": 29635
+  },
+  "地图开发指南.md": {
+    "source": "/Users/muniao/Code/MapleStory/docs/technical/3D场景开发通用指南.md",
+    "sha256": "e844e76f0b30098d0d3295df6cc3021ecb4c78585914427924b93339dec0ff37",
+    "bytes": 34067
+  },
+  "初弦地技能.md": {
+    "source": "/Users/muniao/.codex/skills/chuxian-scene-delivery/SKILL.md",
+    "sha256": "6a2888313c30a5c6ba84e8c68e82e55923f0574749889f87129d12bc79b7b69f",
+    "bytes": 6706
+  },
+  "存档修复技能.md": {
+    "source": "/Users/muniao/.codex/skills/maplestory-persistence-repair/SKILL.md",
+    "sha256": "4b940d309141e0f46ef5e7f6498309cc0579c45ee358b0a4be79a0faa38ddd95",
+    "bytes": 2546
+  },
+  "代码调查技能.md": {
+    "source": "/Users/muniao/.codex/skills/codebase-investigation/SKILL.md",
+    "sha256": "631e493e50d19a4e5236842bb1620e4d0a1434654ead4970d763a7871c26f8cd",
+    "bytes": 4051
+  },
+  "目标交付技能.md": {
+    "source": "/Users/muniao/.codex/skills/goal-driven-delivery/SKILL.md",
+    "sha256": "4de106176aaef97d284d5d1ee6b7c8375e8daa41c2e22707a4b9768f8e76cea8",
+    "bytes": 3380
+  }
+}
