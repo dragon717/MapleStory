@@ -15,9 +15,9 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-55';
+const version = 'tms273-56';
 const voyageRoot = path.join(root, 'resources/scenes/sky-voyage-v3');
-for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
+for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ...['warrior','mage','archer','rogue'].map(name => ['textures/stained-glass-'+name+'.png','stained-glass-'+name+'.png']), ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['vendor/bed/opengameart-victorian-bed/ATTRIBUTION.md','sky-voyage-bed-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
   const file = path.join(publicRoot, 'assets/entry', name);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.copyFileSync(path.join(voyageRoot, source), file); invalidateCompressed(file);
@@ -618,6 +618,9 @@ for (const [id, definition] of Object.entries(items)) {
   assert(layer || entry, `Missing ordinary equipment appearance: ${id}`);
 }
 collect(appearance);
+const voyageSleep = read('voyage-sleep');
+collect(voyageSleep);
+write(path.join(publicRoot, 'assets/entry/voyage-sleep.json'), voyageSleep);
 // The first-screen catalogue contains only an index; copy each selected
 // item's JSON and its textures without putting them in the initial preload.
 // 教训（2026-09-18）：`entry.url` 指向的就是那件装备自己的外观 JSON，它和

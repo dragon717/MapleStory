@@ -981,7 +981,7 @@ async function enterGame(session: LoginResponse) {
   } catch (error) { leaveGame(); throw error; }
 }
 const gameAudio = installGameAudio(el('welcome'), () => game);
-const entry = new EntryView(el('welcome'), enterGame);
+const entry = new EntryView(el('welcome'), enterGame, gameAudio.entry);
 // 首页右下角的更新/下载区（v3 §6.1）：挂在 `#app` 下，与 PageShell 会搬进
 // 消息窗的 header/footer/#message 是兄弟节点，因此不会被那段逻辑带走；
 // 它只依赖 `/api/client-release`，不依赖 manifest / 外观 / Phaser 初始化。

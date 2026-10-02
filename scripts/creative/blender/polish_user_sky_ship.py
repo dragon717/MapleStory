@@ -38,6 +38,54 @@ for obj in parts:
                 for i in group: changes[i]=replacement
         for i,material in changes.items(): mesh.polygons[i].material_index=material
         obj['finish_revision']=1
+    # The original RGB classifier mistook baked shadows/reflections for blue/green paint.
+    # Preserve that classification as evidence, then constrain it by the actual rig component.
+    source=mesh.attributes.get('SV3_SourceMaterial')
+    if source is None:
+        source=mesh.attributes.new('SV3_SourceMaterial','INT','FACE')
+        for p in mesh.polygons: source.data[p.index].value=p.material_index
+    slots={m.name.removeprefix('SV3_M_'):i for i,m in enumerate(mesh.materials)}
+    for p in mesh.polygons:
+        old=mesh.materials[source.data[p.index].value].name.removeprefix('SV3_M_')
+        co=p.center+obj.location
+        chosen=old
+        if 'Fan_' in obj.name or 'Vane_' in obj.name:
+            chosen='Brass' if old=='Brass' else 'Linen'
+        elif 'Wheel_' in obj.name or 'Engine_' in obj.name:
+            chosen='Brass' if old=='Brass' else 'Enamel'
+        elif 'Nozzle_' in obj.name:
+            chosen='Sapphire' if old=='Sapphire' else 'Brass' if old=='Brass' else 'Navy'
+        elif obj.name=='SV3_Hull':
+            timber=(-4<co.z<9 and abs(co.y)<66) or (abs(co.x)<1.6 and abs(co.y+10.5)<3 and co.z>8)
+            if old in {'Navy','Sapphire','Jade','Linen','Amber'}:
+                chosen='Wood' if timber else 'Enamel'
+            if co.z<-10:chosen='Navy' if co.z<-14 else 'Enamel'
+        if chosen not in slots:
+            mesh.materials.append(bpy.data.materials['SV3_M_'+chosen]);slots[chosen]=len(mesh.materials)-1
+        p.material_index=slots[chosen]
+    # Smooth isolated labels by shared edges (not vertices); keep large structural borders.
+    edge_faces=defaultdict(list)
+    for p in mesh.polygons:
+        for edge in p.edge_keys:edge_faces[edge].append(p.index)
+    adjacent=defaultdict(set)
+    for group in edge_faces.values():
+        for i in group:adjacent[i].update(j for j in group if j!=i)
+    visited=set();changes={}
+    for p in mesh.polygons:
+        if p.index in visited:continue
+        region=[];queue=[p.index];visited.add(p.index);border=defaultdict(float)
+        while queue:
+            i=queue.pop();face=mesh.polygons[i];region.append(i)
+            for j in adjacent[i]:
+                other=mesh.polygons[j]
+                if other.material_index==p.material_index:
+                    if j not in visited:visited.add(j);queue.append(j)
+                else:border[other.material_index]+=other.area
+        if border and sum(mesh.polygons[i].area for i in region)<24:
+            replacement=max(border,key=border.get)
+            for i in region:changes[i]=replacement
+    for i,index in changes.items():mesh.polygons[i].material_index=index
+    obj['material_revision']='structure-v2; source RGB labels retained in SV3_SourceMaterial'
     uv=mesh.uv_layers['MaterialUV']
     for p in mesh.polygons:
         name=mesh.materials[p.material_index].name
@@ -67,15 +115,15 @@ for name,rough,metal in [('Enamel',.62,.04),('Brass',.48,.7),('Wood',.76,0),('Li
         for link in list(shader.inputs['Base Color'].links): mat.node_tree.links.remove(link)
         shader.inputs['Base Color'].default_value=(.72,.69,.58,1)
 
-# Ship-local embarkation board. Blender Y forward; its front faces -Y (glTF +Z).
+# Ship-local cabin-side board. Blender Y forward; rotate the front toward starboard +X.
 ship=bpy.data.objects['SV2_Ship']
 old=bpy.data.objects.get('SV2_LoginSign')
 if old:
     for o in list(old.children_recursive): bpy.data.objects.remove(o,do_unlink=True)
     bpy.data.objects.remove(old,do_unlink=True)
 board=bpy.data.objects.new('SV2_LoginSign',None);scene.collection.objects.link(board)
-board.parent=ship;board.location=(-2.5,12.5,5.4);board.rotation_euler.z=-.15
-board['role']='deck-mounted embarkation noticeboard; native inputs projected on clipped paper'
+board.parent=ship;board.location=(10.3,0,5.4);board.rotation_euler.z=math.pi/2
+board['role']='starboard cabin-wall noticeboard; native form stays on the board from the first frame'
 
 def material(name,color,rough=.75,metal=0):
     m=bpy.data.materials.get(name) or bpy.data.materials.new(name)
@@ -99,7 +147,7 @@ def box(name,location,size,mat,bevel=.04):
         mod=o.modifiers.new('soft crafted edge','BEVEL');mod.width=bevel;mod.segments=3
         bpy.context.view_layer.objects.active=o;bpy.ops.object.modifier_apply(modifier=mod.name)
     return o
-# Surface 7.0 x 5.8m at z4.2; legs reach the measured deck surface at z5.4 world.
+# Surface at cabin-wall height, tied into the measured side geometry by mounting cleats.
 box('Back',(0,0,4.2),(7.4,.30,6.2),wood,.09)
 box('Paper',(0,-.18,4.2),(6.84,.055,5.66),paper,.025)
 for x in [-3.55,3.55]:box('Stile',(x,-.23,4.2),(.28,.22,6.3),wood)
@@ -107,9 +155,8 @@ for z in [1.15,7.25]:box('Rail',(0,-.23,z),(7.5,.25,.26),wood)
 for x in [-3.56,3.56]:
     for z in [1.17,7.23]:box('Corner',(x,-.37,z),(.4,.045,.35),brass,.015)
 for x in [-2.65,2.65]:
-    box('Post',(x,.14,.8),(.25,.35,1.6),wood)
-    box('Foot',(x,0,.08),(.75,1.7,.16),brass)
-    brace=box('Brace',(x,.7,.85),(.18,.18,1.85),wood);brace.rotation_euler.x=math.radians(35)
+    box('WallCleat',(x,.45,4.2),(.38,.65,6.5),wood)
+    for z in [2,6.3]:box('WallBracket',(x,1.1,z),(.5,1.2,.3),brass)
     box('PaperClip',(x,-.25,6.88),(.44,.13,.42),brass,.025)
 box('CrestPlate',(0,-.25,7.47),(2.4,.19,.56),teal,.06)
 # Brass compass inset, readable without a text or icon texture.
@@ -125,10 +172,11 @@ assert sum(len(o.data.polygons) for o in parts)==285840
 bpy.ops.export_scene.gltf(filepath=OUT+'/sky-voyage.glb',export_format='GLB',use_active_scene=True,export_yup=True,export_extras=True,export_apply=False,export_animations=True)
 bpy.ops.file.pack_all()
 bpy.ops.wm.save_as_mainfile(filepath=OUT+'/sky-voyage-polished.blend',compress=True)
+bpy.ops.wm.save_as_mainfile(filepath=OUT+'/sky-voyage.blend',compress=True)
 for screen in bpy.data.screens:
     for area in screen.areas:
         if area.type=='VIEW_3D':
-            space=area.spaces.active;space.region_3d.view_location=Vector((-5,14,9.6));space.region_3d.view_distance=30
-            space.region_3d.view_rotation=(Vector((-5,14,9.6))-Vector((13,-16,18))).to_track_quat('-Z','Y')
+            space=area.spaces.active;space.region_3d.view_location=Vector((10.3,0,9.6));space.region_3d.view_distance=30
+            space.region_3d.view_rotation=(Vector((10.3,0,9.6))-Vector((25,-11,14))).to_track_quat('-Z','Y')
             space.region_3d.view_perspective='PERSP';space.shading.type='MATERIAL';space.overlay.show_overlays=False
 print('SV3_FINISH_OK',len(parts),'parts; board',len(board.children),'objects; triangles',sum(len(o.data.polygons) for o in parts))

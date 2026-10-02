@@ -1,4 +1,5 @@
 import * as T from 'three';
+import type { VoyageWindowLight } from './voyage-window-light';
 
 // Periodic 3D value-Worley field, generated once; no downloaded cloud images.
 // Value-noise interpolation follows henesys/environment.ts, with voyage-sized frequencies.
@@ -74,7 +75,7 @@ float density(vec3 p){
   vec3 moving=p-vec3(cloudTime*9.,0.,cloudTime*3.2);
   float weather=textureLod(noiseVolume,vec3(moving.x*.00013,.37,moving.z*.00013),0.).a;
   // The ship and main island sit above the low sea; distant cumulus can rise above them.
-  vec2 city=(p.xz-vec2(450.,-2200.))/vec2(1150.,950.), ship=p.xz/vec2(320.,620.);
+  vec2 city=(p.xz-vec2(-1300.,-2200.))/vec2(1150.,950.), ship=p.xz/vec2(320.,620.);
   vec2 approach=vec2(p.x/1500.,(p.z+1100.)/2100.);
   float clearance=max(max(exp(-dot(city,city)),exp(-dot(ship,ship))),exp(-dot(approach,approach)));
   float top=-130.+(1.-clearance)*560.*smoothstep(.36,.73,weather);
@@ -197,13 +198,18 @@ void main(){
   update(delta: number, reducedMotion = false, visible = true) {
     if (this.alive && visible && !reducedMotion && Number.isFinite(delta) && delta > 0) this.uniforms.cloudTime.value += Math.min(delta, .05);
   }
-  render(renderer: T.WebGLRenderer, scene: T.Scene, camera: T.PerspectiveCamera, sun: T.DirectionalLight) {
+  render(renderer: T.WebGLRenderer, scene: T.Scene, camera: T.PerspectiveCamera, sun: T.DirectionalLight, cabin?: VoyageWindowLight) {
     if (!this.alive) return;
     const destination = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), mip = renderer.getActiveMipmapLevel();
     const autoClear = renderer.autoClear, scissorTest = renderer.getScissorTest();
     try {
       renderer.autoClear = true; renderer.setScissorTest(false);
       renderer.setRenderTarget(this.sceneTarget); renderer.render(scene, camera);
+      if (cabin) {
+        renderer.setRenderTarget(destination, face, mip); renderer.setScissorTest(scissorTest);
+        cabin.render(renderer, this.sceneTarget, camera, this.uniforms.cloudTime.value);
+        return;
+      }
       const u = this.uniforms;
       u.inverseProjection.value.copy(camera.projectionMatrixInverse); u.cameraWorld.value.copy(camera.matrixWorld); camera.getWorldPosition(u.eye.value);
       u.cameraNear.value = camera.near; u.cameraFar.value = camera.far;

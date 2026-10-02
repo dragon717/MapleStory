@@ -9,6 +9,8 @@ import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 import './voyage.css';
 import type { EntryVoyage } from './voyage';
+import type { EntryMusic } from './music';
+import type { Part } from '../../assets/avatar-types';
 
 type Stage = 'login' | 'channel' | 'characters' | 'create';
 type SceneArt = { width: number; height: number; layers: Pick<AssetFrame, 'url' | 'x' | 'y' | 'width' | 'height'>[] };
@@ -47,11 +49,13 @@ export class EntryView {
   private loadingVoyage = false;
   private profession = 0;
   private createdOnDeck = false;
+  private closedFaces: Record<string, Part> = {};
   /** Cash appearance layers already requested for the equipped list. */
   private appearanceLayerRequests = new Set<string>();
   /** Cash appearance layers whose file failed; never refetched this session. */
   private appearanceLayerFailures = new Set<string>();
-  constructor(private host: HTMLElement, private enter: (session: LoginResponse) => Promise<void>) {
+  constructor(private host: HTMLElement, private enter: (session: LoginResponse) => Promise<void>, private music?: EntryMusic) {
+    if (music) music.onChange = () => this.updateMusicButton();
     this.render();
     void this.loadArt();
     // 进入首页就**静默核对一次发布**：本页若已经陈旧（服务端在发布时于本页脚下
@@ -66,23 +70,27 @@ export class EntryView {
     this.loadingVoyage = true;
     void import('./voyage').then(({ EntryVoyage }) => {
       if (this.host.hidden) return;
-      this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); });
+      this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); else this.renderPreviews(); });
       this.voyage.setStage(this.stage);
+      this.voyage.setPassengers(this.characters.map(c => c.id), this.selected, this.page);
       const target = this.host.querySelector<HTMLElement>('.entry-background');
       if (target) this.voyage.attach(target);
-    }).catch(() => this.setNote(text('3D场景暂不可用，仍可登录。', '3D scenery is unavailable. You can still log in.'), true))
+    }).catch(() => { this.host.classList.add('voyage-unavailable'); this.setNote(text('3D场景暂不可用，仍可登录。', '3D scenery is unavailable. You can still log in.'), true); })
       .finally(() => { this.loadingVoyage = false; });
   }
   private async loadArt() {
     try {
-      const [artResponse, manifestResponse, catalogResponse, appearanceResponse] = await Promise.all([fetch(resolveAssetUrl('/assets/entry/manifest.json')), fetch(resolveAssetUrl('/assets/manifest.json')), fetch(resolveAssetUrl('/assets/entry/creation.json')), fetch(resolveAssetUrl('/assets/entry/appearance.json'))]);
+      const [artResponse, manifestResponse, catalogResponse, appearanceResponse, sleepResponse] = await Promise.all([fetch(resolveAssetUrl('/assets/entry/manifest.json')), fetch(resolveAssetUrl('/assets/manifest.json')), fetch(resolveAssetUrl('/assets/entry/creation.json')), fetch(resolveAssetUrl('/assets/entry/appearance.json')), fetch(resolveAssetUrl('/assets/entry/voyage-sleep.json'))]);
       if (!artResponse.ok || !manifestResponse.ok) throw new Error(text('登录素材加载失败，请刷新重试。', 'Unable to load entry artwork. Refresh to retry.'));
       this.assets = await artResponse.json();
       this.manifest = await manifestResponse.json();
+      const bgm = this.manifest?.mapCatalog?.maps.find(map => map.id === '200000000')?.bgm;
+      if (bgm) this.music?.setTrack(bgm);
       if (!catalogResponse.ok) throw new Error(text('创角配置加载失败，请刷新重试。', 'Unable to load character creation options.'));
       this.catalog = await catalogResponse.json();
       if (!appearanceResponse.ok) throw new Error("角色外观资源加载失败");
       this.avatarCatalog = await appearanceResponse.json();
+      if (sleepResponse.ok) this.closedFaces = (await sleepResponse.json()).faces;
       this.chooseGender(0);
       this.renderOptions();
       this.renderBackground();
@@ -149,16 +157,24 @@ export class EntryView {
     this.onStageChange?.(stage);
   }
   private render() {
+    this.music?.setActive(true);
     cancelAnimationFrame(this.animation ?? 0);
     const ready = this.host.classList.contains('entry-voyage-ready');
+    const unavailable = this.host.classList.contains('voyage-unavailable');
     this.voyage?.canvas.remove();
-    this.host.className = `entry entry-voyage entry-stage-${this.stage}${ready ? ' entry-voyage-ready' : ''}${this.createdOnDeck && this.stage === 'channel' ? ' voyage-leaving-cabin' : ''}`;
+    this.host.className = `entry entry-voyage entry-stage-${this.stage}${ready ? ' entry-voyage-ready' : ''}${unavailable ? ' voyage-unavailable' : ''}${this.createdOnDeck && this.stage === 'channel' ? ' voyage-leaving-cabin' : ''}`;
     document.body.classList.add('entry-active');
     this.host.innerHTML = `<div class="entry-background" aria-hidden="true"></div><div class="entry-brand">${text('冒险岛', 'MapleStory')}<small>TMS 273.7 · ${text('天空航船', 'Sky Voyage')}</small></div><div class="entry-scene">${this.stage === 'login' ? this.loginMarkup() : this.stage === 'channel' ? this.channelMarkup() : this.stage === 'characters' ? this.charactersMarkup() : this.createMarkup()}</div><nav class="entry-navigation" aria-label="${text('大厅导航', 'Lobby navigation')}">${this.stage !== 'login' ? `<button type="button" data-action="first">‹ ${text('切换登录', 'Switch login')}</button><button type="button" data-action="back">‹ ${text('返回', 'BACK')}</button>` : `<button type="button" data-action="skip-voyage">${text('跳过航程', 'Skip voyage')}</button>`}</nav><p class="entry-notice${this.error ? ' entry-error' : ''}" role="status"${this.note ? '' : ' hidden'}>${escape(this.note)}</p><div class="entry-edition">TMS 273.7 · ${text('天空之城航线', 'Route to Orbis')} · <a href="https://poly.pizza/m/dw-IMS0xk71" target="_blank" rel="noreferrer">Wings: Michael Fuchs</a> (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>, scaled/recolored)</div>`;
     this.renderBackground();
     const background = this.host.querySelector<HTMLElement>('.entry-background');
     if (background && this.voyage) { this.voyage.attach(background); this.voyage.setStage(this.stage); }
+    this.voyage?.setPassengers(this.characters.map(c => c.id), this.selected, this.page);
     this.bind();
+    if (this.music) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.action = 'entry-music';
+      button.addEventListener('click', () => this.music!.setMuted(!this.music!.muted));
+      this.host.querySelector('.entry-navigation')?.append(button); this.updateMusicButton();
+    }
     this.renderOptions();
     this.renderPreviews();
     this.setBusy();
@@ -173,7 +189,7 @@ export class EntryView {
   private worldBadge() { return `<div class="entry-world-badge entry-glass"><span class="entry-world-emblem">🍁</span><div>${text('冒险岛', 'Maple World')}<small>CH. 1 · ${text('主频道', 'Main channel')}</small></div></div>`; }
   private channelMarkup() {
     const character = this.characters.find(item => item.id === this.selected);
-    return `${character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span></div>` : ''}<aside class="entry-world-list">${this.worldBadge()}</aside>${character ? `<aside class="entry-quick entry-glass"><div class="entry-quick-level">★　Lv. ${character.level}</div><div class="entry-quick-body"><div class="entry-avatar" data-character="${character.id}"></div><strong>${escape(character.name)}</strong><span>${jobName(character.job)}</span></div><button class="entry-primary" data-action="quick">${text('开始游戏', 'Start game')}</button></aside>` : ''}<section class="entry-channels entry-glass"><h1>${text('选择频道', 'Select Channel')}</h1><p>${text('冒险岛', 'Maple World')}</p><button class="entry-channel-button selected" data-action="channel"><strong>CH. 1</strong><span>${text('主频道', 'Main channel')}</span><i></i></button><p class="entry-hint">${text('选择主频道，查看你的角色。', 'Select the main channel to view your characters.')}</p></section>`;
+    return `${character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span></div>` : ''}<aside class="entry-world-list">${this.worldBadge()}</aside>${character ? `<aside class="entry-quick entry-glass"><div class="entry-quick-level">★　Lv. ${character.level}</div><div class="entry-quick-body"><div class="entry-avatar" data-character="${character.id}"></div><strong>${escape(character.name)}</strong><span>${jobName(character.job)}</span></div><button class="entry-primary" data-action="quick">${text('开始游戏', 'Start game')}</button></aside>` : ''}<section class="entry-channels entry-glass"><h1>${text('选择频道', 'Select Channel')}</h1><p>${text('冒险岛', 'Maple World')}</p><button class="entry-channel-button selected" data-action="channel"><strong>CH. 1</strong><span>${text('主频道', 'Main channel')}</span><i></i></button><p class="entry-hint">${text(character ? '方向键 / WASD 自由走动 · 船上不能使用技能。' : '选择主频道，查看你的角色。', character ? 'Move with arrows / WASD. Skills are unavailable aboard.' : 'Select the main channel to view your characters.')}</p></section>`;
   }
   private charactersMarkup() {
     const start = this.page * 4;
@@ -185,7 +201,7 @@ export class EntryView {
   }
   private createMarkup() {
     const classes = [['战士', 'Warrior'], ['法师', 'Magician'], ['弓手', 'Bowman'], ['盗贼', 'Thief']];
-    return `<section class="voyage-cabin-windows" aria-label="${text('职业预览', 'Class previews')}">${classes.map(([zh, en], index) => `<button type="button" class="voyage-cabin-window${this.profession === index ? ' selected' : ''}" data-profession="${index}" aria-pressed="${this.profession === index}"><span class="voyage-window-portrait" data-instructor="${[1022000, 1032001, 1012100, 10203][index]}"></span><span class="voyage-window-label">${text(zh, en)}</span></button>`).join('')}<p class="voyage-profession-note">${text('职业之窗 · 只作预览；出舱仍是初心者，转职遵循游戏成长规则。', 'Class windows are previews. You begin as a Beginner and advance in the game.')}</p></section><div class="entry-create-preview"><div class="entry-avatar" data-draft="true"></div><span class="entry-nameplate">${escape(this.draftName || text('角色名称', 'Character name'))}</span></div><form id="create-character" class="entry-create-panel entry-glass"><h1>${text('创建角色', 'CHARACTER CREATION')}</h1><section class="entry-create-name"><label for="character-name">${text('角色名称', 'CHARACTER NAME')}</label><div><input id="character-name" required minlength="2" maxlength="12" autocomplete="off" placeholder="${text('2–12个中文字、字母或数字', '2–12 letters or numbers')}" value="${escape(this.draftName)}"><button type="button" class="entry-primary" data-action="check-name">${text('确认名称', 'Check Availability')}</button></div></section><section class="entry-customise"><div class="entry-customise-row"><span>${text('职业', 'CLASS')}</span><strong>${text('初心者 · 冒险家', 'Beginner · Explorer')}</strong></div><div class="entry-appearance-options"></div></section><div class="entry-create-actions"><button type="submit" class="entry-primary">${text('创建', 'OK')}</button><button type="button" data-action="cancel-create">${text('取消', 'CANCEL')}</button></div></form>`;
+    return `<section class="voyage-cabin-windows" aria-label="${text('职业预览', 'Class previews')}">${classes.map(([zh, en], index) => `<button type="button" class="voyage-cabin-window${this.profession === index ? ' selected' : ''}" data-profession="${index}" aria-pressed="${this.profession === index}"><span class="voyage-window-portrait"><img src="${escape(resolveAssetUrl(`/assets/entry/stained-glass-${['warrior', 'mage', 'archer', 'rogue'][index]}.png`))}" alt="" draggable="false"></span><span class="voyage-window-label">${text(zh, en)}</span></button>`).join('')}<p class="voyage-profession-note">${text('职业之窗 · 只作预览；出舱仍是初心者，转职遵循游戏成长规则。', 'Class windows are previews. You begin as a Beginner and advance in the game.')}</p></section><div class="entry-create-preview"><div class="entry-avatar" data-draft="true"></div><span class="entry-nameplate">${escape(this.draftName || text('角色名称', 'Character name'))}</span></div><form id="create-character" class="entry-create-panel entry-glass"><h1>${text('创建角色', 'CHARACTER CREATION')}</h1><section class="entry-create-name"><label for="character-name">${text('角色名称', 'CHARACTER NAME')}</label><div><input id="character-name" required minlength="2" maxlength="12" autocomplete="off" placeholder="${text('2–12个中文字、字母或数字', '2–12 letters or numbers')}" value="${escape(this.draftName)}"><button type="button" class="entry-primary" data-action="check-name">${text('确认名称', 'Check Availability')}</button></div></section><section class="entry-customise"><div class="entry-customise-row"><span>${text('职业', 'CLASS')}</span><strong>${text('初心者 · 冒险家', 'Beginner · Explorer')}</strong></div><div class="entry-appearance-options"></div></section><div class="entry-create-actions"><button type="submit" class="entry-primary">${text('创建', 'OK')}</button><button type="button" data-action="cancel-create">${text('取消', 'CANCEL')}</button></div></form>`;
   }
   private bind() {
     this.host.querySelector<HTMLFormElement>('#login')?.addEventListener('submit', event => {
@@ -217,9 +233,8 @@ export class EntryView {
     this.host.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(button => button.addEventListener('click', () => this.action(button.dataset.action!)));
     this.host.querySelectorAll<HTMLButtonElement>('[data-select]').forEach(button => {
       button.addEventListener('click', () => { this.selected = button.dataset.select; this.render(); });
-      button.addEventListener('dblclick', () => { this.selected = button.dataset.select; void this.run(() => this.startGame()); });
     });
-    this.host.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(button => button.addEventListener('click', () => { this.page = Number(button.dataset.page); this.render(); }));
+    this.host.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(button => button.addEventListener('click', () => { this.page = Number(button.dataset.page); this.selected = this.characters[this.page * 4]?.id; this.render(); }));
     if (this.stage === 'login') this.focusLoginField();
   }
   private focusLoginField() {
@@ -229,6 +244,13 @@ export class EntryView {
     const password = this.host.querySelector<HTMLInputElement>('#password');
     if (savedId) password?.focus();
     else username?.focus();
+  }
+  private updateMusicButton() {
+    const button = this.host.querySelector<HTMLButtonElement>('[data-action="entry-music"]');
+    if (!button || !this.music) return;
+    button.textContent = this.music.muted ? text('音乐：关', 'Music: off') : text('音乐：开', 'Music: on');
+    button.title = this.music.playing ? text('天空之城原曲', 'Orbis original BGM') : text('首次点击页面后播放', 'Playback begins after interacting with the page');
+    button.setAttribute('aria-pressed', String(!this.music.muted));
   }
   private action(action: string) {
     if (action === 'skip-voyage') return this.voyage?.skip();
@@ -256,8 +278,13 @@ export class EntryView {
   }
   private async startGame() {
     if (!this.selected) return;
+    const revision = this.revision;
     const session = await lobbyRequest<LoginResponse>(this.session!, 'select', { characterId: this.selected, channelId: 1 });
-    try { await this.enter(session); } catch (error) { this.host.hidden = false; throw error; }
+    if (revision !== this.revision) return;
+    if (this.voyage && !await this.voyage.depart()) return;
+    if (revision !== this.revision) return;
+    this.music?.setActive(false);
+    try { await this.enter(session); } catch (error) { this.host.hidden = false; this.voyage?.cancelDeparture(); this.music?.setActive(true); throw error; }
     this.host.hidden = true;
     this.voyage?.destroy(); this.voyage = undefined;
     document.body.classList.remove('entry-active');
@@ -315,7 +342,7 @@ export class EntryView {
       const weaponType = look && this.avatarCatalog ? appearanceWeaponType(this.avatarCatalog, equipped, look.weapon) : undefined;
       const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, equipped, { weaponType }) : undefined;
       const frames = target.dataset.empty ? this.assets?.effects?.empty.map(frame => ({ delay: frame.delay, parts: [frame] })) : actions?.stand;
-      return { target, frames, index: -1 };
+      return { target, frames, actions, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '' };
     });
     for (const target of Array.from(this.host.querySelectorAll<HTMLElement>('[data-instructor]'))) {
       const npc = this.manifest?.npcs?.[target.dataset.instructor!];
@@ -325,14 +352,26 @@ export class EntryView {
     this.loadPendingAppearanceLayers();
     const animate = (now: number) => {
       for (const preview of previews) {
-        const frames = preview.frames;
+        const action = preview.id ? this.voyage?.passengerAction(preview.id) ?? 'stand' : 'stand';
+        const avatarFrames = preview.actions?.[action as 'stand' | 'walk' | 'sit' | 'jump'] ?? preview.actions?.stand;
+        const frames = avatarFrames ?? preview.frames;
         if (!frames?.length) continue;
         const duration = frames.reduce((sum, frame) => sum + Math.max(1, frame.delay ?? 100), 0);
-        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : now % duration;
+        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches && action !== 'walk' ? 0 : now % duration;
         let index = 0;
         while (index < frames.length - 1 && elapsed >= Math.max(1, frames[index].delay ?? 100)) elapsed -= Math.max(1, frames[index++].delay ?? 100);
-        if (preview.index === index) continue;
-        preview.index = index;
+        if (preview.index === index && preview.action === action) continue;
+        preview.index = index; preview.action = action;
+        if (preview.id && avatarFrames) {
+          const closed = preview.face && this.closedFaces[String(preview.face)];
+          const parts = avatarFrames[index].parts.map(part => {
+            if (!closed || !this.voyage?.passengerSleeping(preview.id!) || !('part' in part) || part.part !== 'face') return part;
+            const brow = part.map?.brow, sleepBrow = closed.map?.brow;
+            if (!brow || !sleepBrow) return part;
+            return { ...part, ...closed, key: closed.url, x: part.x + part.origin.x + brow.x - closed.origin.x - sleepBrow.x, y: part.y + part.origin.y + brow.y - closed.origin.y - sleepBrow.y };
+          });
+          this.voyage?.setPassengerFrame(preview.id, parts);
+        }
         preview.target.innerHTML = frames[index].parts.map(part => `<img src="${escape(resolveAssetUrl(part.url))}" alt="" draggable="false" style="left:calc(50% + ${part.x}px);top:calc(100% + ${part.y}px);width:${part.width}px;height:${part.height}px">`).join('');
       }
       if (!this.host.hidden) this.animation = requestAnimationFrame(animate);

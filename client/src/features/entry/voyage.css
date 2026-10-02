@@ -6,6 +6,11 @@
   color: #503a24;
 }
 body.entry-active { background: #eee4cf; }
+/* Hide from the first synchronous render, including before the scene module/model loads. */
+.entry-voyage.entry-stage-login:not(.voyage-login-visible):not(.voyage-unavailable) #login {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 :is(.entry-voyage,.entry-voyage-ready) .entry-background > .voyage-canvas {
   position: absolute;
   inset: 0;
@@ -152,7 +157,7 @@ body.entry-active { background: #eee4cf; }
   transform-origin: 50% 55%;
 }
 :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character:not(.selected):not(.entry-empty) .entry-avatar {
-  transform: rotate(90deg) scale(.72);
+  transform: none;
 }
 :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected {
   filter: saturate(1.12) brightness(.97);
@@ -161,7 +166,7 @@ body.entry-active { background: #eee4cf; }
   box-shadow: 0 0 18px #e8c87c80;
 }
 :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected .entry-avatar {
-  animation: voyage-wake 680ms cubic-bezier(.2,.8,.2,1) both;
+  animation: none;
 }
 :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character strong {
   z-index: 2;
@@ -246,12 +251,6 @@ body.entry-active { background: #eee4cf; }
   text-shadow: none;
 }
 .entry-voyage .entry-notice.entry-error { color: #9b382c; }
-
-@keyframes voyage-wake {
-  0% { transform: translateY(9px) rotate(90deg) scale(.72); }
-  62% { transform: translateY(-8px) scale(1.06); }
-  100% { transform: translateY(0) scale(1); }
-}
 
 :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-windows {
   position: absolute;
@@ -437,6 +436,12 @@ body.entry-active { background: #eee4cf; }
 .entry-voyage.voyage-projected-bunks .entry-character-stage { position: static; margin: 0; width: auto; }
 .entry-voyage.voyage-projected-bunks .entry-character-grid { display: contents; }
 .entry-voyage.voyage-projected-bunks .entry-character { position: absolute; width: 160px; height: 180px; min-height: 180px; transform: translate(-50%,-100%); background: transparent; }
+.entry-voyage.voyage-world-avatars :is(.entry-character,.voyage-deck-avatar,.entry-create-preview) .entry-avatar { visibility: hidden; }
+.entry-voyage.voyage-projected-bunks .entry-character { border: 0; border-image: none; box-shadow: none; outline: none; justify-content: flex-end; padding: 0; width: 118px; height: 155px; min-height: 155px; }
+.entry-voyage.voyage-projected-bunks .entry-character.selected strong { border-bottom: 3px solid #dbad5e; }
+.entry-voyage.voyage-projected-bunks .entry-character strong { font-size: 12px; }
+.entry-voyage.voyage-projected-bunks .entry-character > span { font-size: 11px; color: #f4e5c8; text-shadow: 0 1px 3px #15100a; }
+.entry-voyage::after { content: ''; position: absolute; z-index: 10; inset: 0; pointer-events: none; background: #160f09; opacity: var(--voyage-passage, 0); }
 .entry-voyage.voyage-projected-bunks .entry-character::before,
 .entry-voyage.voyage-projected-bunks .entry-character::after { display: none; }
 .entry-voyage.voyage-projected-bunks .entry-pages { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); }
@@ -453,6 +458,12 @@ body.entry-active { background: #eee4cf; }
 .entry-voyage.voyage-projected-windows .entry-create-panel { align-self: start; margin-top: 23vh; max-height: calc(100dvh - 345px); overflow-y: auto; }
 .entry-voyage.voyage-projected-windows .entry-create-preview { left: 27%; top: 63%; transform: translate(-50%,-50%); }
 .entry-voyage.voyage-projected-windows .entry-create-actions { position: sticky; bottom: 0; background: #fff8e9; padding: 10px 0; }
+.entry-voyage.voyage-projected-windows .voyage-profession-note { top: 90px; left: 3vw; width: 47vw; }
+.entry-voyage.voyage-world-avatars .entry-create-preview { position: absolute; transform: translate(-50%, 8px); margin: 0; }
+.entry-voyage.voyage-world-avatars .entry-create-preview .entry-avatar { display: none; }
+.entry-voyage .entry-navigation { position: fixed; bottom: 38px; left: 12px; flex-direction: row; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 24px); }
+.entry-voyage .entry-navigation button { min-width: 0; padding: 6px 12px; min-height: 34px; font-size: 14px; }
+.entry-voyage.voyage-projected-bunks .entry-character { width: min(118px, 21vw); }
 
 /* Ink and controls on the authored paper; the frame, clips and stand are real geometry. */
 .entry-voyage-ready.entry-stage-login .entry-login {
@@ -496,8 +507,43 @@ body.entry-active { background: #eee4cf; }
 }
 .entry-voyage-ready .entry-login-links { margin-top: 17px; gap: 8px; }
 .entry-voyage-ready .entry-login-links button { min-height: 32px; padding: 4px 10px; }
+.entry-voyage-ready .entry-login.voyage-solid-controls button {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
 @media (max-width: 700px) {
   .entry-voyage-ready .entry-login { font-size: 19px; }
   .entry-voyage-ready .entry-login-links button { font-size: 16px; }
   .entry-voyage-ready .entry-login .entry-save { font-size: 14px; }
 }
+
+.entry-voyage.entry-stage-create .voyage-window-portrait { width: 90px; min-width: 0; height: 135px; min-height: 0; flex: 0 0 135px; }
+.entry-voyage.entry-stage-create .voyage-window-portrait img { width: 100%; height: 100%; image-rendering: auto; }
+.entry-voyage.voyage-projected-windows .voyage-window-portrait { display: none; }
+.entry-voyage.voyage-projected-windows .voyage-cabin-window { transform: translate(-50%,-100%); padding: 0; outline: none; box-shadow: none; }
+.entry-voyage.voyage-projected-windows .voyage-window-label { position: absolute; top: 100%; margin-top: 5px; white-space: nowrap; }
+.entry-voyage.voyage-projected-windows .voyage-cabin-window.selected .voyage-window-label { outline: 1px solid #f1c875; box-shadow: 0 0 12px #f1c87560; }
+.entry-voyage.entry-stage-create.voyage-projected-windows .voyage-cabin-window.selected { outline: none; filter: none; box-shadow: none; }
+
+@media (max-width: 899px), (max-height: 599px) {
+  .entry-voyage.entry-stage-create .entry-scene { display: block; height: 100dvh; min-height: 0; max-height: 100dvh; padding: 0; overflow: hidden; }
+  .entry-voyage.entry-stage-create .voyage-cabin-windows { position: absolute; top: 40px; left: 12px; width: calc(100% - 24px); display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
+  .entry-voyage.entry-stage-create .voyage-cabin-window { min-height: 0; height: 113px; padding: 0; border: 0; border-image: none; box-shadow: none; outline: none; }
+  .entry-voyage.entry-stage-create .voyage-cabin-window.selected { outline: none; box-shadow: none; }
+  .entry-voyage.entry-stage-create .voyage-window-portrait { width: 58px; height: 87px; flex: 0 0 87px; }
+  .entry-voyage.entry-stage-create .voyage-window-label { padding: 1px 4px; font-size: 11px; }
+  .entry-voyage.entry-stage-create .voyage-cabin-window.selected .voyage-window-label { outline: 1px solid #f1c875; }
+  .entry-voyage.entry-stage-create .voyage-profession-note { display: none; }
+  .entry-voyage.entry-stage-create .entry-create-panel { position: absolute; top: 265px; bottom: 85px; left: 12px; width: calc(100% - 24px); max-width: none; max-height: none; margin: 0; padding: 14px; overflow-y: auto; }
+  .entry-voyage.entry-stage-create .entry-create-actions { position: sticky; bottom: -14px; z-index: 2; background: #fff8e9; padding: 8px 0; margin-top: 8px; }
+  .entry-voyage.entry-stage-create .entry-notice { bottom: 79px; padding: 5px 9px; font-size: 12px; }
+  .entry-voyage.entry-stage-create .entry-create-preview { min-height: 0; }
+}
+@media (min-width: 600px) and (max-height: 599px), (min-width: 600px) and (max-width: 899px) {
+  .entry-voyage.entry-stage-create .voyage-cabin-windows { top: 65px; width: calc(45% - 18px); }
+  .entry-voyage.entry-stage-create .entry-create-panel { left: 46%; top: 24px; bottom: 77px; width: calc(54% - 12px); }
+}
+
+.entry-voyage.voyage-world-avatars .voyage-deck-avatar { transform: translate(-50%, 8px); }
+.entry-voyage.voyage-world-avatars .voyage-deck-avatar .entry-avatar { display: none; }

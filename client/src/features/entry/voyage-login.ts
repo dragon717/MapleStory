@@ -72,29 +72,75 @@ export function loginSurfaceOccluded(camera: T.Camera, points: readonly T.Vector
 export class VoyageLogin {
   private element?: HTMLElement;
   private original?: { style: string; inert: boolean };
-  private interact = () => this.reveal?.();
-  constructor(private host: HTMLElement, private reveal?: () => void) {}
-  update(camera: T.Camera, surface?: LoginSurface, occluders: readonly T.Object3D[] = []) {
+  private controls: { button: HTMLButtonElement; mesh: T.Mesh<T.ExtrudeGeometry, T.MeshStandardMaterial> }[] = [];
+  private controlSize = '';
+  private occluded = false;
+  private checkedAt = -Infinity;
+  constructor(private host: HTMLElement) {}
+  update(camera: T.Camera, surface?: LoginSurface, occluders: readonly T.Object3D[] = [], enabled = true) {
     const element = this.host.querySelector<HTMLElement>('#login');
     if (!surface || !element) { this.destroy(); return false; }
     if (element !== this.element) {
       this.destroy(); this.element = element;
       this.original = { style: element.style.cssText, inert: element.inert };
       Object.assign(element.style, { position: 'absolute', left: '0', top: '0', right: 'auto', bottom: 'auto', margin: '0', width: '430px', maxWidth: 'none', transformOrigin: '0 0', transition: 'none' });
-      element.addEventListener('keydown', this.interact); element.addEventListener('pointerdown', this.interact);
     }
+    this.updateControls(element, surface);
     const projection = projectLoginSurface(surface, camera, { width: this.host.clientWidth, height: this.host.clientHeight }, { width: element.offsetWidth, height: element.offsetHeight });
-    const visible = Boolean(projection && (!occluders.length || !loginSurfaceOccluded(camera, projection.points, occluders)));
+    if (projection && occluders.length && performance.now() - this.checkedAt > 100) {
+      this.occluded = loginSurfaceOccluded(camera, projection.points, occluders); this.checkedAt = performance.now();
+    }
+    const visible = Boolean(enabled && projection && (!occluders.length || !this.occluded));
     if (projection) element.style.transform = `matrix3d(${projection.matrix.elements.join(',')})`;
     element.style.visibility = visible ? 'visible' : 'hidden';
     element.style.pointerEvents = visible ? 'auto' : 'none';
     element.inert = !visible || this.original!.inert;
     return visible;
   }
+  private updateControls(element: HTMLElement, surface: LoginSurface) {
+    const scale = Math.min(surface.width / element.offsetWidth, surface.height / element.offsetHeight);
+    const buttons = Array.from(element.querySelectorAll<HTMLButtonElement>('button'));
+    const bounds = buttons.map(button => {
+      let x = 0, y = 0;
+      for (let node: HTMLElement | null = button; node && node !== element; node = node.offsetParent as HTMLElement | null) { x += node.offsetLeft; y += node.offsetTop; }
+      return { x, y, w: button.offsetWidth, h: button.offsetHeight };
+    });
+    const size = JSON.stringify([element.offsetWidth, element.offsetHeight, bounds]);
+    if (this.controlSize !== size) {
+      this.disposeControls(); this.controlSize = size;
+      buttons.forEach((button, index) => {
+        const b = bounds[index], w = b.w * scale, h = b.h * scale, r = Math.min(.06, h / 5);
+        const shape = new T.Shape();
+        shape.moveTo(-w / 2 + r, -h / 2); shape.lineTo(w / 2 - r, -h / 2);
+        shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r); shape.lineTo(w / 2, h / 2 - r);
+        shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); shape.lineTo(-w / 2 + r, h / 2);
+        shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); shape.lineTo(-w / 2, -h / 2 + r);
+        shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+        const geometry = new T.ExtrudeGeometry(shape, { depth: .07, bevelEnabled: true, bevelSize: .025, bevelThickness: .025, bevelSegments: 2, steps: 1, curveSegments: 4 });
+        const material = new T.MeshStandardMaterial({ color: button.classList.contains('entry-primary') ? '#345d64' : '#c5a66c', roughness: .38, metalness: button.classList.contains('entry-primary') ? .15 : .55 });
+        const mesh = new T.Mesh(geometry, material); mesh.name = `SV3_LoginButton_${index}`;
+        mesh.position.set((b.x + b.w / 2 - element.offsetWidth / 2) * scale, (element.offsetHeight / 2 - b.y - b.h / 2) * scale, .025);
+        mesh.castShadow = true; mesh.receiveShadow = true; surface.anchor.add(mesh);
+        this.controls.push({ button, mesh });
+      });
+      element.classList.add('voyage-solid-controls');
+    }
+    for (const { button, mesh } of this.controls) {
+      mesh.position.z = button.matches(':active') ? .008 : .025;
+      mesh.material.emissive.set(button.matches(':hover') && !button.disabled ? '#152324' : '#000000');
+      mesh.material.emissiveIntensity = .25;
+    }
+  }
+  private disposeControls() {
+    for (const { mesh } of this.controls) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
+    this.controls = []; this.controlSize = '';
+  }
   destroy() {
+    this.checkedAt = -Infinity; this.occluded = false;
+    this.disposeControls();
     if (!this.element || !this.original) return;
     this.element.style.cssText = this.original.style; this.element.inert = this.original.inert;
-    this.element.removeEventListener('keydown', this.interact); this.element.removeEventListener('pointerdown', this.interact);
+    this.element.classList.remove('voyage-solid-controls');
     this.element = undefined; this.original = undefined;
   }
 }

@@ -8,14 +8,14 @@ const require = createRequire(import.meta.url);
 const { build } = require('esbuild');
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(import.meta.dirname, '../../../..');
-const output = path.join(root, 'evidence/2026-10-02/sky-entry-v2');
+const output = path.join(root, 'evidence/2026-10-03/voyage-deck-walk/flow');
 await fs.mkdir(output, { recursive: true });
-await build({ stdin: { contents: `import './src/app/style.css'; import { EntryView } from './src/features/entry/view'; import { MenuView } from './src/features/menu/view'; const entry = new EntryView(document.getElementById('welcome'), async session => { document.getElementById('entered').textContent=session.username; }); document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
+await build({ stdin: { contents: `import './src/app/style.css'; import { EntryView } from './src/features/entry/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; const audio=installGameAudio(document.getElementById('welcome'),()=>undefined); window.__entryAudio=audio; const entry = new EntryView(document.getElementById('welcome'), async session => { if(audio.entry.playing)throw new Error('entry music must stop before game loading');if(window.__failEntry)throw new Error('offline entry restoration check');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
 const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
 const installed = (await fs.readdir(browserCache)).filter(name=>name.startsWith('chromium_headless_shell-')).sort((a,b)=>Number(b.split('-').at(-1))-Number(a.split('-').at(-1)))[0];
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (installed && path.join(browserCache, installed, 'chrome-headless-shell-mac-arm64/chrome-headless-shell'));
 const browser = await chromium.launch({ headless: true, executablePath });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+const page = await browser.newPage({ viewport: process.argv.includes('--deck-only') ? {width:960,height:640} : { width: 1440, height: 900 }, reducedMotion: 'reduce' });
 const errors = [];
 page.on('pageerror', error => errors.push(String(error)));
 page.on('console', message => { if (message.type() === 'error' && /shader|WebGLProgram|VALIDATE_STATUS/i.test(message.text())) errors.push(message.text()); });
@@ -28,7 +28,7 @@ const contentVersion = sharedProtocol.match(/CONTENT_VERSION = '([^']+)'/)?.[1];
 assert(protocolVersion > 0 && Boolean(contentVersion), 'shared protocol constants must be parseable');
 const accountSession = { token: 'account-token', playerId: 'account-id', username: 'entry_check', protocolVersion, contentVersion };
 let characters = [];
-let creations = 0;
+let creations = 0, selections = 0;
 // A character whose current equipped rows differ from the frozen creation
 // look: the selection/quick-start paper doll must render the equipped items
 // (cap 1002067, coat 1040002), not the creation longcoat 1050286.
@@ -45,7 +45,7 @@ await page.route('http://entry.test/**', async route => {
     if (request.action === 'list') return route.fulfill({ json: { characters, slotLimit: 12, channelId: 1 } });
     if (request.action === 'checkName') return route.fulfill({ json: { available: !characters.some(item => item.name === request.name) } });
     if (request.action === 'create') { assert(!('job' in request), 'class preview must not grant a job'); creations++; const look = request.appearance; const character = { id: String(creations).padStart(64, '0'), name: request.name, appearance: look, level: 1, job: 0, equipped: [[5, look.coat], [6, look.pants], [7, look.shoes], [11, look.weapon]].filter(([, itemId]) => itemId).map(([slot, itemId]) => ({ slot, itemId, quantity: 1 })) }; characters.push(character); return route.fulfill({ json: { character } }); }
-    if (request.action === 'select') { const character = characters.find(item => item.id === request.characterId); assert(character); assert.equal(request.channelId, 1); return route.fulfill({ json: { ...accountSession, token: 'character-token', playerId: character.id, username: character.name } }); }
+    if (request.action === 'select') { selections++; const character = characters.find(item => item.id === request.characterId); assert(character); assert.equal(request.channelId, 1); return route.fulfill({ json: { ...accountSession, token: 'character-token', playerId: character.id, username: character.name } }); }
     throw new Error(`Unknown action ${request.action}`);
   }
   const decoration = { 'panel': 'entry-panel', 'button': 'entry-button', 'crest': 'maple-crest' };
@@ -62,7 +62,7 @@ try {
   await page.locator('.entry-voyage-ready').waitFor({timeout:60000});
   assert.equal(await page.locator('.entry-avatar').count(),0,'first login must not invent a player');
   assert.equal(await page.locator('.voyage-canvas').count(),1);
-  await page.screenshot({ path: path.join(output, 'login-desktop.png') });
+  if(!process.argv.includes('--deck-only')) await page.screenshot({ path: path.join(output, 'login-desktop.png') });
   await page.locator('#username').fill('entry_check');
   await page.locator('#password').fill('entry-check-password');
   await page.locator('#submit').click();
@@ -73,7 +73,27 @@ try {
   assert(await quickAvatar.locator('img[src*="01002067"]').count() > 0, 'quick-start preview must render the equipped cap');
   assert(await quickAvatar.locator('img[src*="01040002"]').count() > 0, 'quick-start preview must render the equipped coat');
   assert.equal(await quickAvatar.locator('img[src*="01050286"]').count(), 0, 'quick-start preview must not fall back to the creation longcoat');
+  const deckState = () => page.evaluate(() => { const v=window.__entry.voyage, d=v.deck, doll=v.passengers.root.getObjectByName('SV3_Passenger_preview-swap'); return { position:d.position.toArray(), spawn:d.spawn.toArray(), moving:d.moving, action:v.passengerAction('preview-swap'), tilt:doll.rotation.x, keys:v.keys.size }; });
+  const beforeWalk = await deckState();
+  assert(beforeWalk.position[1]>5.4 && beforeWalk.position[1]<5.5, 'feet stand on the actual hull surface');
+  assert(Math.abs(beforeWalk.tilt)<.00001, 'a standing passenger cannot tilt into the deck');
+  await page.evaluate(()=>{ const v=window.__entry.voyage; window.__renderClouds=v.clouds.render.bind(v.clouds); v.clouds.render=()=>{}; });
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction(() => window.__entry.voyage.deck.moving, null, {timeout:10000});
+  assert.equal((await deckState()).action,'walk');
+  await page.waitForFunction(start => Math.hypot(...[0,2].map(i=>window.__entry.voyage.deck.position.toArray()[i]-start[i]))>.5, beforeWalk.position);
+  await page.keyboard.up('ArrowRight');
+  await page.waitForFunction(() => !window.__entry.voyage.passengers.deckMoving);
+  assert.equal((await deckState()).action,'stand');
+  const stopped = (await deckState()).position;
+  await page.keyboard.press('Space'); await page.keyboard.press('Control');
+  assert.deepEqual((await deckState()).position,stopped,'skill keys do not move or start the lobby character');
+  assert.equal(selections,0,'walking never selects a world session');
+  await page.keyboard.down('KeyA'); await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  assert.equal((await deckState()).keys,0,'losing focus clears all held movement'); await page.keyboard.up('KeyA');
+  await page.evaluate(()=>{const v=window.__entry.voyage;v.clouds.render=window.__renderClouds;v.updateActivity();});
   await page.screenshot({ path: path.join(output, 'channel-desktop.png') });
+  if(process.argv.includes('--deck-only')) { assert.deepEqual(errors,[]); await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline lobby geometry and keyboard input',beforeWalk,stopped,selections,errors},null,2)); console.log('Lobby upright feet, walking, skill isolation and blur checks passed'); } else {
   await page.locator('[data-action="channel"]').click();
   await artReady();
   assert.equal(await page.locator('.entry-character').count(),4,'four bunks per page, not an account cap');
@@ -105,6 +125,10 @@ try {
     const metrics = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth, controls: [...document.querySelectorAll('#create-character button,#create-character input')].map(node => { const r=node.getBoundingClientRect(); return { left:r.left,right:r.right,width:r.width }; }) }));
     assert(metrics.scrollWidth <= metrics.width, 'page must not overflow horizontally');
     assert(metrics.controls.every(control => control.left >= 0 && control.right <= metrics.width && control.width > 0), 'creation controls fit width');
+    const actions = await page.locator('.entry-create-actions').boundingBox();
+    assert(actions && actions.y >= 0 && actions.y + actions.height <= size.height, 'create/cancel actions stay visible without scrolling the page');
+    for (const window of await page.locator('[data-profession]').all()) { const r = await window.boundingBox(); assert(r && r.x >= 0 && r.y >= 0 && r.x+r.width <= size.width && r.y+r.height <= size.height, 'all four class windows fit the viewport'); }
+    assert(await page.locator('.voyage-window-portrait img').evaluateAll(es=>es.every(e=>e.complete&&e.naturalWidth>0)), 'generated window art loads on small screens');
     fit.push({ size, ...metrics });
     await artReady();
   await page.screenshot({ path: path.join(output, `create-${size.width}x${size.height}.png`), fullPage: true });
@@ -118,9 +142,18 @@ try {
   assert.equal(creations, 1);
   await artReady();
   await page.screenshot({ path: path.join(output, 'characters-desktop.png') });
+  await page.locator('[data-select].selected').dblclick();
+  assert.equal(selections, 0, 'selecting or double-clicking a bed cannot enter the game');
+  await page.evaluate(() => { window.__failEntry = true; });
+  await page.locator('[data-action="enter"]').click();
+  await page.locator('.entry-notice').filter({ hasText: 'offline entry restoration check' }).waitFor();
+  assert.equal(await page.locator('.voyage-canvas').count(), 1, 'entry failure restores the scene');
+  assert(await page.locator('[data-action="enter"]').isEnabled());
+  await page.evaluate(() => { window.__failEntry = false; });
   await page.locator('[data-action="enter"]').click();
   await page.locator('#entered').filter({ hasText: '冒险自检' }).waitFor();
   assert.equal(await page.locator('.voyage-canvas').count(),0,'entering the game disposes the entry renderer');
+  assert.equal(await page.evaluate(()=>window.__entryAudio.entry.playing),false,'entry music is released before game loading');
   await page.locator('#show-menu').click();
   await page.locator('.maple-menu-item').nth(41).waitFor();
   await artReady();
@@ -137,4 +170,5 @@ try {
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, mode: 'offline HTTP stubs; no live accounts or game server', creations, fit, errors }, null, 2));
   console.log('Entry offline flow, creation controls and responsive widths passed. Evidence:', output);
+  }
 } finally { await browser.close(); }

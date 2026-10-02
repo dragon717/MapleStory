@@ -3,8 +3,8 @@ const { createRequire } = require('node:module');
 const root = path.resolve(__dirname, '..'), output = path.join(root, 'build/.checks/voyage-clouds.cjs');
 fs.mkdirSync(path.dirname(output), { recursive: true });
 const requireClient = createRequire(path.join(root, 'client/package.json'));
-requireClient('esbuild').buildSync({ stdin: { contents: "export * from './voyage-clouds'; export * as T from 'three';", resolveDir: path.join(root, 'client/src/features/entry'), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: output });
-const { VoyageClouds, T } = require(output);
+requireClient('esbuild').buildSync({ stdin: { contents: "export * from './voyage-clouds'; export * from './voyage-window-light'; export * as T from 'three';", resolveDir: path.join(root, 'client/src/features/entry'), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: output });
+const { VoyageClouds, VoyageWindowLight, T } = require(output);
 const start = performance.now(), cloud = new VoyageClouds(), second = new VoyageClouds();
 const generationMs = (performance.now() - start) / 2;
 assert.deepEqual(cloud.noise.image.data, second.noise.image.data, 'fixed seed must produce the same volume');
@@ -55,3 +55,29 @@ assert.equal(disposals, 6, 'all six GPU owners release exactly once'); assert.eq
 assert.equal(cloud.scene.children.length, 0); assert.equal(cloud.sceneTarget.width, 390);
 second.destroy();
 console.log(`Voyage clouds: deterministic 3D field, bounded targets/time, render ownership/depth contract/disposal passed; CPU generation ${generationMs.toFixed(1)} ms per volume. GPU appearance is not asserted here.`);
+
+// New cabin path reuses the scene/depth capture, with matching native projectors and bounded scattering.
+const cabinCloud = new VoyageClouds(), ship = new T.Group(), lamps = new T.Group(); ship.add(lamps);
+for (const name of ['warrior','mage','archer','rogue']) {
+  const glass = new T.Mesh(new T.PlaneGeometry(3.6,4.7),new T.MeshStandardMaterial({map:new T.Texture()}));
+  glass.name='SV3_StainedGlass_'+name;ship.add(glass);
+}
+const glassLight = new VoyageWindowLight(ship,ship,lamps);
+assert.equal(glassLight.lights.length,4);
+glassLight.lights.forEach((light,i)=>{
+  assert.equal(light.map,glassLight.uniforms['glass'+i].value);assert(light.castShadow);
+  assert.equal(light.shadow.mapSize.x/light.shadow.mapSize.y,2/3);
+});
+renderer.render=(s,c)=>{s.updateMatrixWorld(true);c.updateMatrixWorld(true);draws.push({scene:s,target});};draws.length=0;
+cabinCloud.render(renderer,scene,camera,sun,glassLight);
+assert.deepEqual(draws.map(d=>d.target),[cabinCloud.sceneTarget,null]);
+assert.equal(glassLight.uniforms.depth.value,cabinCloud.sceneTarget.depthTexture);
+assert.equal(target,null);assert.equal(scissor,true);assert.equal(renderer.autoClear,false);
+assert.match(glassLight.material.fragmentShader,/span.y=min\(span.y,distance\(end,eye\)\)/);
+assert.match(glassLight.material.fragmentShader,/texture\(shadow0/);
+const savedRender=glassLight.render;glassLight.render=()=>{throw Error('cabin render failure');};
+assert.throws(()=>cabinCloud.render(renderer,scene,camera,sun,glassLight),/cabin render failure/);
+assert.equal(target,null);assert.equal(scissor,true);assert.equal(renderer.autoClear,false);glassLight.render=savedRender;
+let lightDisposals=0;glassLight.lights.forEach(l=>{l.dispose=()=>{lightDisposals++;};});
+glassLight.destroy();assert.equal(lightDisposals,4);assert.equal(lamps.children.length,0);cabinCloud.destroy();
+console.log('Cabin glass maps/shadows, shared depth, render restoration and projector disposal passed');
