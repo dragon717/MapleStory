@@ -4,7 +4,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import type { MapDefinition } from '../../assets/manifest';
 import { resolveAssetUrl } from '../../assets/resource-url';
-import { PIXELS_PER_METRE, point3d, segmentAt } from './coordinates';
+import { PIXELS_PER_METRE, point3d, segmentAt, SKY_CITY_MAP_ID } from './coordinates';
+import { VoyageCity } from '../entry/voyage-city';
 import { Sunlight } from './sunlight';
 import { LocalReveal } from './local-reveal';
 import { villageInstruments } from './instruments';
@@ -19,7 +20,7 @@ import './style.css';
 
 type Display = Phaser.GameObjects.GameObject & {x:number;y:number;scaleX:number;scaleY:number;depth:number;visible:boolean;setPosition(x:number,y:number):Display;setScale(x:number,y:number):Display;setDepth(n:number):Display;getBounds():Phaser.Geom.Rectangle};
 type Saved={o:Display;x:number;y:number;sx:number;sy:number;depth:number;z:number};
-type ActorFoot={x:number;y:number;revealHeight?:number;revealWidth?:number};
+type ActorFoot={x:number;y:number;revealHeight?:number;revealWidth?:number;sceneTime?:number};
 /** World retains every actor, animation, interaction and input. Only drawing coordinates
  * are projected for one render, then restored before any gameplay callback runs. */
 export class HenesysView {
@@ -45,6 +46,7 @@ export class HenesysView {
  private saved:Saved[]=[];
  private rasterCamera?:Pick<Phaser.Cameras.Scene2D.Camera,'x'|'y'|'width'|'height'|'scrollX'|'scrollY'|'zoomX'|'zoomY'|'roundPixels'|'useBounds'>;
  private model:T.Group;
+ private city?:VoyageCity;
  private surfaces:T.Object3D[]=[];
  private reveal:LocalReveal;
  private shadowCell=new T.Vector3(Infinity,Infinity,Infinity);
@@ -70,12 +72,12 @@ export class HenesysView {
  private disposed=false;private quality=true;private drag?:{id:number;x:number;y:number};
  private skyPreview=false;
  static async create(world:Phaser.Scene,map:MapDefinition,self:()=>ActorFoot|undefined,current:()=>boolean){
-  const [gltf,hdr]=await Promise.all([new GLTFLoader().loadAsync(resolveAssetUrl('/assets/henesys/chuxian-east.glb')),new EXRLoader().loadAsync(resolveAssetUrl('/assets/henesys/dawn.exr'))]);
+  const [gltf,hdr]=await Promise.all([new GLTFLoader().loadAsync(resolveAssetUrl(map.id===SKY_CITY_MAP_ID?'/assets/entry/sky-city.glb':'/assets/henesys/chuxian-east.glb')),new EXRLoader().loadAsync(resolveAssetUrl('/assets/henesys/dawn.exr'))]);
   if(!current()){HenesysView.disposeModel(gltf.scene);hdr.dispose();return undefined;}
   try{return new HenesysView(world,map,gltf.scene,hdr,self);}catch(e){HenesysView.disposeModel(gltf.scene);hdr.dispose();throw e;}
  }
- constructor(private world:Phaser.Scene,_map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>ActorFoot|undefined){
-  model.add(villageInstruments());this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label','初弦地东边村落，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角');
+ constructor(private world:Phaser.Scene,private map:MapDefinition,model:T.Group,hdr:T.DataTexture,private self:()=>ActorFoot|undefined){
+  if(map.id!==SKY_CITY_MAP_ID)model.add(villageInstruments());this.model=model;this.root.className='henesys-view';this.root.setAttribute('aria-label',`${map.name}，方向键沿路行走并选择路口方向，交互与跳跃可共键，右键调整视角`);
   this.roadLabel.className='henesys-road-label';this.root.append(this.roadLabel);
   this.phaser=world.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
   if(!(this.phaser.gl instanceof WebGL2RenderingContext))throw new Error('初弦地需要WebGL2');
@@ -101,6 +103,7 @@ export class HenesysView {
   for(const v of vegetation)v.traverse(o=>{if(!(o instanceof T.Mesh)||Array.isArray(o.material))return;const key=o.geometry.uuid+o.material.uuid,b=batches.get(key)??{geometry:o.geometry,material:o.material,objects:[] as T.Mesh[]};b.objects.push(o);batches.set(key,b);});
   const forest=new T.Group();forest.userData.layer='vegetation';model.add(forest);
   for(const b of batches.values()){if(b.objects.length<2)continue;const inst=new T.InstancedMesh(b.geometry,b.material,b.objects.length);inst.castShadow=true;inst.receiveShadow=true;b.objects.forEach((o,i)=>{inst.setMatrixAt(i,o.matrixWorld);o.visible=false;});inst.computeBoundingSphere();forest.add(inst);}
+  if(map.id===SKY_CITY_MAP_ID)this.city=new VoyageCity(model);
   this.reveal=new LocalReveal(model);
   this.climate=new VillageEnvironment(this.scene,this.sun,model);
   this.snow=new SnowSurface(model);
@@ -131,18 +134,18 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  syncActors(players:readonly PlayerState[],npcs:readonly NpcState[],monsters:readonly MonsterState[],selfId:string,art:Map<string,Phaser.GameObjects.GameObject>,teleported:ReadonlySet<string>){
   this.selfId=selfId;this.groundActors.length=0;this.lampActors.length=0;this.actorArt.length=0;
   for(const player of players){
-   this.groundActors.push(teleported.has(player.id)?{...player,teleported:true}:player);
-   const point=point3d(player.x,player.y),body=art.get(player.id);
+   const point=this.point(player.x,player.y),body=art.get(player.id);
+   this.groundActors.push({...player,point,surface: this.city?'stone':undefined,teleported:teleported.has(player.id)});
    this.lampActors.push({id:player.id,kind:'player',point,facing:player.facing,townLamp:player.townLamp,heightMetres:body?(body as Display).getBounds().height/PIXELS_PER_METRE:undefined});
    if(body)this.actorArt.push({art:body,point});
   }
   for(const npc of npcs){
-   const id='npc:'+npc.id,point=point3d(npc.x,npc.y),body=art.get(id);
-   this.groundActors.push({id,x:npc.x,y:npc.y,grounded:true,point});
+   const id='npc:'+npc.id,point=this.point(npc.x,npc.y),body=art.get(id);
+   this.groundActors.push({id,x:npc.x,y:npc.y,grounded:true,point,surface:this.city?'stone':undefined});
    this.lampActors.push({id,kind:'npc',point,facing:npc.facing,townLamp:npc.townLamp,heightMetres:body?(body as Display).getBounds().height/PIXELS_PER_METRE:undefined});
    if(body)this.actorArt.push({art:body,point});
   }
-  for(const mob of monsters){const id='mob:'+mob.id,point=point3d(mob.x,mob.y),body=art.get(id);if(mob.emissive)this.lampActors.push({id,kind:'monster',point,emissive:mob.emissive});if(body)this.actorArt.push({art:body,point});}
+  for(const mob of monsters){const id='mob:'+mob.id,point=this.point(mob.x,mob.y),body=art.get(id);if(mob.emissive)this.lampActors.push({id,kind:'monster',point,emissive:mob.emissive});if(body)this.actorArt.push({art:body,point});}
  }
  private shadeArt(root:Phaser.GameObjects.GameObject){
   if(root.type==='Container'){for(const child of (root as Phaser.GameObjects.Container).list)this.shadeArt(child);return;}
@@ -154,9 +157,14 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const tl=multiplyArtTint(saved.tl,this.artLight),tr=multiplyArtTint(saved.tr,this.artLight),bl=multiplyArtTint(saved.bl,this.artLight),br=multiplyArtTint(saved.br,this.artLight);
   if(saved.fill)image.setTintFill(tl,tr,bl,br);else image.setTint(tl,tr,bl,br);
  }
+ private point(x:number,y:number):[number,number,number]{
+  const point=point3d(x,y,this.map.id);
+  if(this.city){const {route}=segmentAt(x,this.map.id),t=T.MathUtils.clamp((x-route.start)/(route.end-route.start),0,1);point[1]+=.025+this.city.nodeOffset(route.nodes[0].name)*(1-t)+this.city.nodeOffset(route.nodes.at(-1)!.name)*t;}
+  return point;
+ }
  setEnvironment(value:EnvironmentSettings){this.climate.set(value);}
  previewSky(enabled:boolean){this.skyPreview=enabled;}
- project(x:number,y:number){const p=new T.Vector3(...point3d(x,y)).project(this.camera);return {x:(p.x+1)*this.width/2,y:(1-p.y)*this.height/2,z:(p.z+1)/2};}
+ project(x:number,y:number){const p=new T.Vector3(...this.point(x,y)).project(this.camera);return {x:(p.x+1)*this.width/2,y:(1-p.y)*this.height/2,z:(p.z+1)/2};}
  private prepare=(_renderer?:unknown,_time?:number,delta=1000/60)=>{
   if(this.disposed||!this.world.sys.isActive()||!this.world.sys.isVisible())return;
   const source=this.world.cameras.main,parent=this.root.parentElement!;if(!parent.clientWidth||!parent.clientHeight)return;
@@ -164,7 +172,8 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const ratio=Math.min(devicePixelRatio,2);
   if(this.width!==parent.clientWidth||this.height!==parent.clientHeight||this.renderer.getPixelRatio()!==ratio){this.width=parent.clientWidth;this.height=parent.clientHeight;this.renderer.setPixelRatio(ratio);this.renderer.setSize(this.width,this.height,false);this.camera.aspect=this.width/this.height;this.camera.updateProjectionMatrix();const w=Math.round(this.width*ratio),h=Math.round(this.height*ratio);this.sunlight.resize(w,h,this.quality);this.depthTarget.setSize(w,h);}
   const actor=this.self();if(!actor)return;
-  const foot=new T.Vector3(...point3d(actor.x,actor.y)),base=foot.clone().add(new T.Vector3(0,Math.min(270,source.height*.3)/PIXELS_PER_METRE,0));
+  this.city?.update(delta/1000,matchMedia('(prefers-reduced-motion: reduce)').matches,1,actor.sceneTime);
+  const foot=new T.Vector3(...this.point(actor.x,actor.y)),base=foot.clone().add(new T.Vector3(0,Math.min(270,source.height*.3)/PIXELS_PER_METRE,0));
   const distance=source.height/PIXELS_PER_METRE/(2*Math.tan(T.MathUtils.degToRad(19)))*this.zoom;
   const offset=new T.Vector3(Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),Math.cos(this.yaw)*Math.cos(this.pitch)).multiplyScalar(distance);
   // Road changes only update the continuous foot target; reframing is manual.
@@ -189,9 +198,9 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
    this.scene.environment=this.environment.texture;this.scene.environmentIntensity=.35+this.climate.light.daylight*.75;
    this.renderer.resetState();this.phaser.pipelines.rebind();
   }
-  const ground=segmentAt(actor.x),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
-  const roadName=`初弦地 · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
-  this.footShadow.position.set(foot.x,groundY+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
+  const ground=segmentAt(actor.x,this.map.id),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
+  const roadName=`${this.map.name} · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
+  this.footShadow.position.set(foot.x,this.point(actor.x,-groundY*PIXELS_PER_METRE)[1]+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
   this.reveal.update(foot,this.camera,this.width,this.height,ratio,delta,performance.now(),actor.revealHeight,actor.revealWidth);
   // Rasterize at final physical resolution before any detail can be lost.
   this.resizeSource(this.depthTarget.width,this.depthTarget.height);
@@ -203,7 +212,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   for(const item of this.world.children.list){const o=item as Display;if(!o.visible||typeof o.x!=='number'||typeof o.getBounds!=='function')continue;
    // A 2D name below the feet would be inside the 3D ground; use its above-head display anchor.
    const y=o.getData('projectionY')??o.y,p=this.project(o.x,y);if(p.z<0||p.z>1)continue;
-   const v=new T.Vector3(...point3d(o.x,y)).applyMatrix4(this.camera.matrixWorldInverse);const scale=this.height/(-v.z*2*Math.tan(T.MathUtils.degToRad(19)))/PIXELS_PER_METRE;
+   const v=new T.Vector3(...this.point(o.x,y)).applyMatrix4(this.camera.matrixWorldInverse);const scale=this.height/(-v.z*2*Math.tan(T.MathUtils.degToRad(19)))/PIXELS_PER_METRE;
    this.saved.push({o,x:o.x,y:o.y,sx:o.scaleX,sy:o.scaleY,depth:o.depth,z:p.z});
    // Labels keep their authored CSS size; perspective remains on sprite art.
    const artScale=(o.type==='Text'?Math.max(1,scale):scale)*ratio;

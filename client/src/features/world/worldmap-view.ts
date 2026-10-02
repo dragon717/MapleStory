@@ -1,3 +1,4 @@
+import {isSpatialMap} from '../henesys/coordinates';
 import type { AssetFrame, Manifest, WorldMapPage, WorldMapUiData } from '../../assets/manifest';
 import { installWindowDrag, clampIntoHost, bringToFront } from '../ui/window-shell';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
@@ -500,7 +501,7 @@ export class WorldMapView {
     const targets: SpotTarget[] = [];
     for (const entry of page.mapList) {
       if (entry.mapIds.includes(this.mapId)) continue;
-      const mapId = entry.mapIds.find(id => assembled.has(id));
+      const mapId = entry.mapIds.find(id => assembled.has(id) && (this.activityData || isSpatialMap(id)));
       if (!mapId) continue;
       const names = entry.mapIds
         .filter(id => assembled.has(id))

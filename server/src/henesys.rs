@@ -33,6 +33,8 @@ struct Junction {
 struct Layout {
     #[serde(rename = "pixelsPerMetre")]
     pixels_per_metre: f64,
+    #[serde(default, rename="directionSlots")]
+    direction_slots: bool,
     routes: Vec<Route>,
     junctions: Vec<Junction>,
 }
@@ -44,9 +46,19 @@ fn layout() -> &'static Layout {
             .expect("east village authority")
     })
 }
-pub(super) fn active(map: &Map) -> bool {
-    map.id == "100000000" && map.footholds.iter().any(|f| f.id == 920001)
+fn layout_for(map: &Map) -> &'static Layout {
+    if map.id != "200000000" { return layout(); }
+    static CITY: OnceLock<Layout> = OnceLock::new();
+    CITY.get_or_init(|| serde_json::from_str(include_str!("../../shared/sky-city.json")).expect("sky city authority"))
 }
+pub(super) fn active(map: &Map) -> bool {
+    (map.id == "100000000" && map.footholds.iter().any(|f| f.id == 920001))
+        || (map.id == "200000000" && map.footholds.iter().any(|f| f.id == 930001))
+}
+fn route_in(data: &Layout, x: f64) -> Option<usize> {
+    data.routes.iter().position(|r| x >= r.start && x <= r.end)
+}
+#[cfg(test)]
 fn route_at(x: f64) -> Option<usize> {
     layout()
         .routes
@@ -87,6 +99,32 @@ fn turn(
     input: [f64; 2],
     view: Option<crate::protocol::MovementView>,
 ) -> Option<Turn> {
+    if data.direction_slots {
+        for (junction, j) in data.junctions.iter().enumerate() {
+            if !j.entries.iter().any(|e|e.route==route && (e.x-x).abs()<=55.) { continue; }
+            let directions=[[0.,-1.],[0.,1.],[-1.,0.],[1.,0.],[-1.,-1.],[1.,-1.],[-1.,1.],[1.,1.]];
+            let mut exits=Vec::new();
+            for e in &j.entries {
+                let r=&data.routes[e.route];
+                for (i,n) in r.nodes.iter().enumerate().filter(|(_,n)|(n.x-e.x).abs()<0.01) {
+                    for side in [-1i8,1] {
+                        let other=if side<0 {i.checked_sub(1).map(|k|&r.nodes[k])} else {r.nodes.get(i+1)};
+                        if let Some(other)=other { exits.push((e,side,screen_tangent(n,other,view))); }
+                    }
+                }
+            }
+            // Crowded courtyards can have seven exits within one screen quadrant.
+            // Give every authored exit a distinct displayed key direction; no road is silently lost.
+            let mut scores=Vec::new();
+            for (i,(_,_,t)) in exits.iter().enumerate() {for (d,v) in directions.iter().enumerate(){scores.push((((t[0]*v[0]+t[1]*v[1])/f64::hypot(v[0],v[1])*1e9).round() as i64,i,d));}}
+            scores.sort_by(|a,b|b.0.cmp(&a.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+            let mut assigned=vec![false;exits.len()];let mut used=[false;8];
+            for (_,i,d) in scores {if assigned[i]||used[d]{continue;}assigned[i]=true;used[d]=true;
+                if directions[d]==input {let (e,side,_)=exits[i];return Some(Turn{route:e.route,x:e.x+side as f64*0.1,y:e.y,direction:side,junction});}
+            }
+        }
+        return None;
+    }
     let mut best = None;
     let mut score = 0.25;
     for (junction, j) in data.junctions.iter().enumerate() {
@@ -114,7 +152,7 @@ fn turn(
                     let Some(other) = neighbor else { continue };
                     let t = screen_tangent(n, other, view);
                     let s = t[0] * input[0] + t[1] * input[1];
-                    if s > score + 0.001 {
+                    if s > score + 0.001 || (best.as_ref().is_some_and(|choice: &Turn| choice.route == route) && e.route != route && s >= score - 0.001) {
                         score = s;
                         best = Some(Turn {
                             route: e.route,
@@ -187,7 +225,9 @@ fn walk_direction(
 
 /// Run before accepting players; check actual directional exits, not just declared links.
 pub(super) fn validate_paths() -> Result<(), String> {
-    validate_layout(layout())
+    validate_layout(layout())?;
+    let city: Layout = serde_json::from_str(include_str!("../../shared/sky-city.json")).map_err(|e|e.to_string())?;
+    validate_layout(&city)
 }
 fn validate_layout(data: &Layout) -> Result<(), String> {
     use std::collections::{BTreeMap, BTreeSet};
@@ -318,8 +358,8 @@ pub(super) fn teleport(
     direction: i8,
     vertical: i8,
 ) -> Result<TeleportPlan, String> {
-    let data = layout();
-    let old_route = route_at(player.state.x).ok_or("teleport_blocked")?;
+    let data = layout_for(map);
+    let old_route = route_in(data, player.state.x).ok_or("teleport_blocked")?;
     let mut route = old_route;
     let mut x = player.state.x;
     let mut junction = player.east_junction;
@@ -397,8 +437,8 @@ pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
     if !active(map) {
         return (x, y);
     }
-    if let Some(i) = route_at(x) {
-        (x, ground(&layout().routes[i], x))
+    if let Some(i) = route_in(layout_for(map), x) {
+        (x, ground(&layout_for(map).routes[i], x))
     } else {
         (map.spawn.x, map.spawn.y)
     }
@@ -412,9 +452,9 @@ pub(super) fn reset(player: &mut Player) {
     player.east_junction = None;
 }
 pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
-    let data = layout();
-    let mut ri = route_at(player.state.x).unwrap_or(0);
-    if route_at(player.state.x).is_none() {
+    let data = layout_for(map);
+    let mut ri = route_in(data, player.state.x).unwrap_or(0);
+    if route_in(data, player.state.x).is_none() {
         player.state.x = map.spawn.x;
         player.state.y = map.spawn.y;
         player.state.grounded = true;
@@ -542,6 +582,21 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sky_city_routes_and_turns() {
+        let data: Layout = serde_json::from_str(include_str!("../../shared/sky-city.json")).unwrap();
+        validate_layout(&data).unwrap();
+        assert!(data.direction_slots);
+        let directions=[("up",[0.,-1.]),("down",[0.,1.]),("left",[-1.,0.]),("right",[1.,0.]),("upLeft",[-1.,-1.]),("upRight",[1.,-1.]),("downLeft",[-1.,1.]),("downRight",[1.,1.])];
+        let views=[None,Some(crate::protocol::MovementView{yaw:0.,pitch:0.24}),Some(crate::protocol::MovementView{yaw:-0.45,pitch:0.08}),Some(crate::protocol::MovementView{yaw:0.45,pitch:0.46})];
+        let mut samples=Vec::new();
+        for j in &data.junctions {for e in &j.entries {for delta in [-55.0001,-55.,0.,55.,55.0001] {for view in views {
+            let x=e.x+delta;
+            let choices:Vec<_>=directions.iter().filter_map(|(key,input)|route_in(&data,x).and_then(|r|turn(&data,r,x,*input,view)).filter(|c|Some(c.route)!=route_in(&data,x)).map(|_|*key)).collect();
+            samples.push(serde_json::json!({"x":x,"view":view.map(|v|serde_json::json!({"yaw":v.yaw,"pitch":v.pitch})),"choices":choices}));
+        }}}}
+        println!("CITY_JUNCTION_CHOICES={}",serde_json::to_string(&samples).unwrap());
+    }
     #[test]
     fn east_startup_rejects_broken_paths_and_accepts_real_loops() {
         validate_paths().unwrap();

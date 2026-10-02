@@ -924,7 +924,7 @@ impl World {
             },
             inventory::MapMoveTarget::Map(town_id) => town_id,
         };
-        if !self.maps.contains_key(&destination) {
+        if !self.maps.contains_key(&destination) || !self.main_world_destination(&destination) {
             return Err("scroll_unavailable");
         }
         if destination == windbell::WIND_BELL_ISLAND_MAP_ID

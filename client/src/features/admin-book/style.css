@@ -1,0 +1,320 @@
+.admin-book-root {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--ui-window-z, 90);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(900px, calc(100% - 18px));
+  height: min(760px, calc(100% - 18px));
+  min-height: 360px;
+  overflow: hidden;
+  color: #304651;
+  background: #fffdf4;
+  border: 2px solid #6fb6c4;
+  border-radius: 9px;
+  box-shadow: 0 7px 24px #152a3455;
+  font: 13px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+  pointer-events: auto;
+}
+
+.admin-book-root[hidden],
+.admin-book-panel[hidden] {
+  display: none;
+}
+
+.admin-book-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 5px 10px;
+  cursor: grab;
+  color: #fff;
+  background: linear-gradient(120deg, #267c93, #48aebe);
+}
+
+.admin-book-header:active {
+  cursor: grabbing;
+}
+
+.admin-book-title {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: .08em;
+}
+
+.admin-book-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 2px 7px;
+  color: #215365;
+  background: #f8f2de;
+  border: 1px solid #b5d5d5;
+  border-radius: 5px;
+  font: inherit;
+}
+
+.admin-book-close img {
+  display: block;
+  max-width: 28px;
+  max-height: 26px;
+}
+
+.admin-book-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 7px 10px 0;
+  background: #eef8f5;
+  border-bottom: 1px solid #b8d9d6;
+}
+
+.admin-book-tab,
+.admin-book-button,
+.admin-book-shot {
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 5px 10px;
+  color: #28596b;
+  background: #f8fcf7;
+  border: 1px solid #92c3c6;
+  border-radius: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-book-tab {
+  min-height: 34px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.admin-book-tab:hover,
+.admin-book-button:hover,
+.admin-book-shot:hover,
+.admin-book-close:hover {
+  color: #143f50;
+  background: #e3f2ee;
+}
+
+.admin-book-tab[aria-selected="true"],
+.admin-book-shot[data-selected="true"] {
+  color: #fff;
+  background: #3d8f9e;
+  border-color: #2d7385;
+}
+
+.admin-book-button:disabled,
+.admin-book-shot:disabled,
+.admin-book-tab:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.admin-book-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+}
+
+.admin-book-panel {
+  min-height: 0;
+}
+
+.admin-book-lighting {
+  overflow: auto;
+}
+
+.admin-book-panel h3 {
+  margin: 0 0 4px;
+  color: #216579;
+  font-size: 17px;
+}
+
+.admin-book-panel h4 {
+  margin: 8px 0 5px;
+  color: #2e6978;
+  font-size: 14px;
+}
+
+.admin-book-copy,
+.admin-book-muted,
+.admin-book-status {
+  margin: 4px 0 8px;
+  color: #55707a;
+}
+
+.admin-book-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 7px 0;
+}
+
+.admin-book-details {
+  margin: 8px 0;
+  padding: 0 8px 7px;
+  background: #f3faf5;
+  border: 1px solid #c3dfd3;
+  border-radius: 6px;
+}
+
+.admin-book-details summary {
+  padding: 7px 0;
+  color: #2e6978;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-book-fieldset {
+  min-width: 0;
+  padding: 2px 0 0;
+  border: 0;
+}
+
+.admin-book-field {
+  display: grid;
+  grid-template-columns: minmax(118px, 1fr) minmax(150px, 2fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 31px;
+}
+
+.admin-book-field input[type="range"] {
+  width: 100%;
+}
+
+.admin-book-field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 4px;
+  color: #315867;
+  background: #fff;
+  border: 1px solid #a8cdca;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.admin-book-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+}
+
+.admin-book-clock {
+  display: block;
+  margin: 1px 0 3px 126px;
+  color: #397987;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-book-status {
+  min-height: 20px;
+  padding: 3px 6px;
+  color: #3a6975;
+  background: #eff8f5;
+  border-radius: 4px;
+}
+
+.admin-book-ship {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.admin-book-voyage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  flex: 1 1 auto;
+  min-height: 300px;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.admin-book-voyage-preview-host {
+  min-width: 0;
+  min-height: 300px;
+  height: 100%;
+  overflow: hidden;
+  background: #8ecfec;
+  border: 1px solid #7fb4c4;
+  border-radius: 7px;
+}
+
+.admin-book-voyage-preview-host .voyage-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.admin-book-voyage-controls {
+  min-width: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.admin-book-shot-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.admin-book-shot {
+  min-height: 30px;
+  padding: 4px 5px;
+}
+
+.admin-book-trial {
+  width: 100%;
+  margin: 9px 0 3px;
+}
+
+.admin-book-ship-fields {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-book-ship-status {
+  margin-top: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .admin-book-root {
+    width: calc(100% - 10px);
+    height: calc(100% - 10px);
+  }
+
+  .admin-book-voyage-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(300px, 1fr) auto;
+    overflow: auto;
+  }
+
+  .admin-book-voyage-controls {
+    max-height: 230px;
+  }
+}
+
+/* Reuse the same TMS273 UtilDlgEx shell as the migrated Activities controls. */
+.admin-book-root{top:8px;transform:translateX(-50%);padding:28px 10px 40px;border:0;border-radius:0;box-shadow:none;max-height:calc(100% - var(--hud-height,86px) - 20px);background:var(--admin-t) left top/100% 28px no-repeat,var(--admin-s) left bottom/100% 44px no-repeat,var(--admin-c) left top/100% 13px repeat-y;color:#303030;font:12px/1.7 Verdana,"Microsoft YaHei",sans-serif}
+.admin-book-header{position:absolute;top:3px;left:16px;right:6px;height:22px;min-height:0;padding:0;background:transparent;color:#303030}
+.admin-book-title{font:bold 13px/20px Verdana,"Microsoft YaHei",sans-serif;letter-spacing:0}
+.admin-book-close{border:0;border-radius:0;background:transparent;padding:3px;min-height:0;min-width:0;line-height:0}
+.admin-book-close img{width:19px;height:19px;image-rendering:pixelated}

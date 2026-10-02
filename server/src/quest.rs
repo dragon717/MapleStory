@@ -623,7 +623,7 @@ impl World {
             return None;
         }
         let map_id = Self::quest_route_map_id(spec, action)?;
-        self.maps.contains_key(map_id).then(|| {
+        (self.maps.contains_key(map_id) && self.main_world_destination(map_id)).then(|| {
             (
                 map_id.to_owned(),
                 match action {
@@ -1551,7 +1551,8 @@ impl World {
         let mut next_map_id = player_snapshot.map_id.clone();
         let mut warp = None;
         if let Some(target_map_id) = phase.warp_map_id.clone() {
-            let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
+            let Some(target_map) = self.maps.get(&target_map_id)
+                .filter(|_| self.main_world_destination(&target_map_id)).cloned() else {
                 self.send_reject(
                     id,
                     "map_unavailable",

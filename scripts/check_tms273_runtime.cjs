@@ -331,8 +331,16 @@ for(const map of catalog.maps) {
   }
   assert.deepEqual(missing,[],`Visible cross-map portal lacks a beam: ${missing.join(', ')}`);
   assert.deepEqual(phantom,[],`Beam invented for a portal type the client never draws: ${phantom.join(', ')}`);
-  assert(manifest.portals['002000000/east00']?.frames.length>0,'楓之港 → 碼頭 gate must be visible');
-  assert(manifest.portals['002000100/west00']?.frames.length>0,'碼頭 → 楓之港 gate must be visible');
+  const gates=catalog.maps.flatMap(map=>map.portals.filter(p=>p.targetMapId).map(p=>({from:map.id,...p})));
+  assert.equal(gates.length,2,'migrated main world must have exactly two gates');
+  for(const gate of gates){
+    assert(['100000000','200000000'].includes(gate.from));
+    assert.notEqual(gate.from,gate.targetMapId);
+    const back=catalog.maps.find(m=>m.id===gate.targetMapId)?.portals.find(p=>p.name===gate.targetPortalName);
+    assert.equal(back?.targetMapId,gate.from);assert.equal(back?.targetPortalName,gate.name);
+  }
+  for(const map of catalog.maps)if(!['100000000','200000000'].includes(map.id))
+    assert(map.portals.every(p=>p.name==='sp'&&!p.script&&!p.targetMapId),'retired source map must stay disconnected: '+map.id);
   // The reported pair, named so a regression names the map the user saw.
   assert.equal(manifest.portals['104020000/top00'],undefined,'六條岔道 rope-top collision gates must not glow');
   assert.equal(manifest.portals['104020000/top01'],undefined,'六條岔道 rope-top collision gates must not glow');
@@ -356,26 +364,8 @@ for(const map of catalog.maps) {
     }
     return best;
   };
-  // 愛奧斯塔 32樓/66樓：源 `tn` 指定的落点本身就是悬空锚（`221021200/st00`
-  // y=644 而该 x 只有 y=705 的地板，Δ61px；`221021700/top00` Δ41px）。这两处
-  // 是 pt:1 隐形锚，原版落上去也是自然下坠一小段——落点来自源，不能为了贴地
-  // 把锚点搬下来。逐条钉住这 6 条边，别让别的图悄悄借这条豁免。
-  // 埃德爾斯坦散步路道4 → 去礦山的路1（2026-09-16）：`310040000/west00` 是
-  // pt:2 可见门，源里就落在 y=-129、该列最近地板 `foothold/5/0/47` y=-99，
-  // Δ30px；源图与目录逐条都是 116 条 foothold，不是导入丢地板。同样照源保留。
-  const SOURCE_FLOATING_LANDINGS=[
-    '221021300/under00','221021300/under01','221021300/under02',
-    '221021300/under03','221021300/under04',
-    '221021800/under00',
-    '310030300/east00',
-  ];
   const floating=[];
   for(const map of catalog.maps)for(const portal of map.portals) {
-    // 埃德爾斯坦船的舱门（out00..09）由服务端 `ship.rs` 接管：检票相位
-    // warp 回本端检票站台 `sp`，航行中不开门——静态 tn 落点（源 st00 悬空
-    // 170px）不参与贴地审计。
-    if(['200090600','200090601','200090610','200090611'].includes(map.id)&&/^out\d+$/.test(portal.name))continue;
-    if(SOURCE_FLOATING_LANDINGS.includes(`${map.id}/${portal.name}`))continue;
     const targetId=portal.targetMapId;
     if(!targetId || targetId===map.id || !byId.has(targetId))continue;
     const target=byId.get(targetId);
@@ -384,71 +374,12 @@ for(const map of catalog.maps) {
     if(ground===null||Math.abs(ground-landing.y)>24)floating.push(`${map.id}/${portal.name} → ${targetId}/${portal.targetPortalName ?? 'spawn'} (Δ${ground===null?'none':Math.round(ground-landing.y)}px)`);
   }
   assert.deepEqual(floating,[],`Warp landing is not grounded: ${floating.join('; ')}`);
-  // 豁免本身也会过期：这些边必须仍然真的悬空，否则名单该删。
-  for(const edge of SOURCE_FLOATING_LANDINGS) {
-    const [mapId,name]=edge.split('/');
-    const portal=byId.get(mapId).portals.find(entry=>entry.name===name);
-    const target=byId.get(portal.targetMapId);
-    const landing=target.portals.find(entry=>entry.name===portal.targetPortalName);
-    const ground=groundNear(target,landing.x,landing.y);
-    assert(ground!==null&&Math.abs(ground-landing.y)>24,`${edge} 已不再悬空，豁免该删掉`);
-  }
-  // The pier ferry in both directions, per `Map/Map/Graph.json`.
-  const pier=byId.get('002000000').portals.find(p=>p.name==='east00');
-  assert.equal(pier.targetMapId,'002000100');
-  assert.equal(pier.targetPortalName,'west00','楓之港 → 碼頭 must land on the pier gate');
-  const back=byId.get('002000100').portals.find(p=>p.name==='west00');
-  assert.equal(back.targetMapId,'002000000');
-  assert.equal(back.targetPortalName,'in00','碼頭 → 楓之港 must land on the town gate');
-  // 維多利亞港三家商店：原版 273 的三个 type-2 店门必须能进，且双向都贴地。
-  for(const [mapId,name,target,gate] of [
-    ['104000000','in00','104000001','out00'],
-    ['104000000','in01','104000002','out01'],
-    ['104000000','in02','104000003','out00'],
-  ]) {
-    const town=byId.get(mapId).portals.find(p=>p.name===name);
-    assert.equal(town.targetMapId,target,`${mapId}/${name} must enter the source shop map`);
-    assert.equal(town.targetPortalName,gate);
-    const shop=byId.get(target),exit=shop.portals.find(p=>p.name===gate);
-    assert.equal(exit.targetMapId,mapId,`${target}/${gate} must return to 維多利亞港`);
-    assert.equal(exit.targetPortalName,name);
-    assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
-    assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);
-  }
-  // 魔法森林两家店：101000000 的 `in00`/`in01` 是原版 type-2 店门（无脚本体），
-  // 目标图 101000001/101000002 必须装配，否则玩家只会看到「此路线尚未开放」。
-  for(const [mapId,name,target,gate] of [
-    ['101000000','in00','101000001','out00'],
-    ['101000000','in01','101000002','out01'],
-  ]) {
-    const town=byId.get(mapId).portals.find(p=>p.name===name);
-    assert.equal(town.targetMapId,target,`${mapId}/${name} must enter the source shop map`);
-    assert.equal(town.targetPortalName,gate);
-    const shop=byId.get(target),exit=shop.portals.find(p=>p.name===gate);
-    assert.equal(exit.targetMapId,mapId,`${target}/${gate} must return to 魔法森林`);
-    assert.equal(exit.targetPortalName,name);
-    assert(manifest.portals[`${mapId}/${name}`]?.frames.length>0,`${mapId}/${name} gate must be visible`);
-    assert(manifest.portals[`${target}/${gate}`]?.frames.length>0,`${target}/${gate} gate must be visible`);
-  }
 }
-// 飞行船航线一期（2026-09-14）：六张船图随目录装配，甲板/船舱的 pt:3 接触门
-// 双向互切必须与源一致；returnMap 决定死亡复活落点，随源钉死；检票员/播报员
-// 必须站在检票地图上（服务端 ship.rs 以对话检票，源站台无静态登船门）。
+// 旧主世界连通性已永久退休；保留船图、returnMap 与 NPC 来源身份校验。
 {
   const byId=new Map(catalog.maps.map(map=>[map.id,map]));
   for(const id of ['200000100','200000112','200090000','200090001','200090010','200090011'])
     assert(byId.has(id),`ship map must be assembled: ${id}`);
-  for(const [cabin,deck] of [['200090001','200090000'],['200090011','200090010']]) {
-    for(const [from,name,to,gate] of [
-      [deck,'in00',cabin,'st01'],[deck,'under00',cabin,'st00'],
-      [cabin,'out00',deck,'in00'],[cabin,'out01',deck,'under00'],
-    ]) {
-      const portal=byId.get(from).portals.find(p=>p.name===name);
-      assert(portal,`${from}/${name} must exist`);
-      assert.equal(portal.targetMapId,to,`${from}/${name} must target ${to}`);
-      assert.equal(portal.targetPortalName,gate,`${from}/${name} must land on ${gate}`);
-    }
-  }
   for(const [map,returnMap] of [
     ['200000100','200000000'],['200000112','200000100'],
     ['200090000','200000100'],['200090001','200000100'],
@@ -478,17 +409,8 @@ for(const map of catalog.maps) {
     ['104020130','2150010'],
     ['310000010','2150008'],['310000010','9072000'],
   ]) assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
-  // 耶雷弗城/埃德爾斯坦城入口衔接：渡口 out00 由服务端 P 级路由回前庭，
-  // 前庭 in00 的源门必须指向渡口；码头 out00 必须通向城内（源 type-2 门）。
-  assert.equal(byId.get('130000200').portals.find(p=>p.name==='in00').targetMapId,'130000210','耶雷弗前庭 in00 must face the dock');
-  assert.equal(byId.get('310000010').portals.find(p=>p.name==='out00').targetMapId,'310000000','埃德爾斯坦码头 out00 must enter the town');
 }
-// 飞行船航线三期（2026-09-15）：玩具城⇄天空之城线。九张图按源装配；登船在
-// 两端的碼頭（剪票员站在码头上），售票处/港口通道只报班次与引路；船图在源里
-// 没有船舱也没有舱门，到站是服务端强制传送，所以这里只钉静态门与 returnMap。
-// 关键一条是天空之城售票处 `east00`（pt:7 `station_in`，脚本体缺失）：它的
-// P 级路由目标 200000120 港口通道的 `west00` 必须逐字回指 200000100/east00，
-// 否则那扇门就是凭空多出来的方向。
+// 保留玩具城/天空之城来源目录、回城表、船图和商店数据，旧门不再连接。
 {
   const byId=new Map(catalog.maps.map(map=>[map.id,map]));
   for(const id of [
@@ -497,54 +419,6 @@ for(const map of catalog.maps) {
     '200090100','200090110',
     '200000000','200000001','200000002',
   ]) assert(byId.has(id),`phase-3 ship map must be assembled: ${id}`);
-  // 源静态 pt:2 门：玩具城售票处 ⇄ 碼頭，港口通道 → 碼頭，两家商店 ⇄ 城内。
-  for(const [from,name,to,gate] of [
-    ['220000000','station00','220000100','out00'],
-    ['220000100','out00','220000000','station00'],
-    ['220000100','east00','220000110','west00'],
-    ['220000110','west00','220000100','east00'],
-    ['200000120','east00','200000121','west00'],
-    ['200000121','west00','200000100','east00'],
-    ['200000100','west00','200000000','top00'],
-    ['200000000','top00','200000100','west00'],
-    ['200000000','in00','200000001','out00'],
-    ['200000000','in01','200000002','out00'],
-    ['200000001','out00','200000000','in00'],
-    ['200000002','out00','200000000','in01'],
-  ]) {
-    const portal=byId.get(from).portals.find(p=>p.name===name);
-    assert(portal,`${from}/${name} must exist`);
-    assert.equal(portal.targetMapId,to,`${from}/${name} must target ${to}`);
-    assert.equal(portal.targetPortalName,gate,`${from}/${name} must land on ${gate}`);
-  }
-  // 售票处 east00 是 pt:7 脚本门（`station_in`），源 `tm` 是 999999999 ⇒ 目录里
-  // 必须**没有**服务器的静态目标。服务端 ship.rs::station_in_exit 按
-  // `Graph.json` 的授权表（`20/200000100/portal`，七个码头、portalNum 一律 4）
-  // 分流到已装配的码头，并把未装配目标如实拒绝。
-  // 修正（2026-09-16）：原先这里钉的是「路由到港口通道 200000120」，那是
-  // **错的**——港口通道不在授权表里，只是码头的另一条回程旁路（其 east00 →
-  // 200000121.west00），而 200000121.west00 本就有静态门直接回售票处；接上
-  // 它会把登船相位门包过去。现按授权表钉。
-  const stationIn=byId.get('200000100').portals.find(p=>p.name==='east00');
-  assert.equal(stationIn.type,7,'售票处 east00 must stay a script gate in the source');
-  // 客户端目录（remaster 的 exposeScriptedGateRoutes）必须把它暴露给玩家，
-  // 否则玩家按 ↑ 发不出请求，服务端写好的路由就是死代码。源 tm 无目标，
-  // 目录里的目标是我们按同一张授权表补的。
-  assert.equal(stationIn.targetMapId,'200000121',
-    'exposeScriptedGateRoutes must publish the authorized 碼頭 target on 售票处 east00');
-  assert.equal(stationIn.targetPortalName,'west00');
-  assert.equal(stationIn.script,'station_in');
-  // 反向断言：港口通道**不得**成为这扇门的目标，也不得被暴露成它的落点。
-  assert.notEqual(stationIn.targetMapId,'200000120',
-    'station_in must not bypass into 港口通道: it is absent from the Graph authorization table');
-  // 授权表里两个已装配码头都必须真装配（否则落点会踩空）。
-  for(const target of ['200000121','200000170']) assert(byId.has(target),
-    `station_in authorized target must be assembled: ${target}`);
-  // 未装配的五个授权目标必须**没有**目录暴露（暴露了就是送玩家进空图）。
-  assert.equal(byId.size,211,`catalog size drifted: ${byId.size}`);
-  for(const target of ['200000111','200000131','200000141','200000151','200000161']) {
-    assert(!byId.has(target),`${target} must stay unassembled so station_in refuses it`);
-  }
   for(const [map,returnMap] of [
     ['220000100','220000000'],['220000110','220000000'],
     ['200000120','200000000'],['200000121','200000000'],
@@ -577,22 +451,10 @@ for(const map of catalog.maps) {
     assert(shop.items.every(item=>itemDefs[item.itemId]),`every ${shopId} shelf item needs an item definition`);
     assert(gameplay.npcSpawns.some(spawn=>spawn.mapId===map&&spawn.templateId===template),`${template} must stand on ${map}`);
   }
-  // 玩具城 ⇄ 售票处 的步行入口必须真的双向可达（本模块让玩具城第一次接上海路）。
-  assert.equal(byId.get('220000000').portals.find(p=>p.name==='station00').targetMapId,'220000100',
-    '玩具城 station00 must enter the ticket hall');
 }
-// 愛奧斯塔（Eos Tower）與地球防衛本部（路德斯湖街）步行链路（2026-09-15，审计 T06）。
-// 玩具城第一次接上塔与湖街：城 `west00` → 村莊 `east00`、村莊 `west00` →
-// 愛奧斯塔入口 `east00`；入口 `tower00` 直接上 100樓，塔身逐层下行到 1樓，
-// 1樓 `under00` 落到地球防衛總部安全地帶，再由安全地帶接地球防衛本部城镇。
-// 全程源内静态门，无 P 级路由——所以这里钉的是门的目标与落点，不是路由。
+// 保留旧塔与本部的地图、回城表及固定怪素材身份。
 {
   const byId=new Map(catalog.maps.map(map=>[map.id,map]));
-  const gate=(map,name)=>{
-    const found=byId.get(map)?.portals.find(entry=>entry.name===name);
-    assert(found,`${map}/${name} must exist`);
-    return found;
-  };
   // 1~100 樓自下而上，三段分組梯層（11~30/36~65/71~90 樓）各占一个槽位。
   const floors=[
     '221020000','221020100','221020200','221020300','221020400',
@@ -603,54 +465,6 @@ for(const map of catalog.maps) {
     '221022800','221022900','221023000','221023100','221023200',
   ];
   for(const floor of floors) assert(byId.has(floor),`愛奧斯塔楼层必须装配: ${floor}`);
-  // 逐层不变式：本层 `top00` 上行到上一层（源里落 `st01` 或 `under00`，视该段
-  // 用的是接触门还是静态门），上一层的 `under00` 原路下行回本层。任何一层错位
-  // 都会让塔断成两截，这里逐段核出是哪一段。
-  for(let index=0;index<floors.length-1;index+=1) {
-    const lower=floors[index],upper=floors[index+1];
-    assert.equal(gate(lower,'top00').targetMapId,upper,`${lower}/top00 must climb to ${upper}`);
-    assert.equal(gate(upper,'under00').targetMapId,lower,`${upper}/under00 must descend to ${lower}`);
-  }
-  // 塔的两端：入口 `tower00` 进 100樓，100樓 `top00` 原路出塔；1樓 `under00`
-  // 落到安全地帶，安全地帶 `tower00` 回 1樓。
-  for(const [from,name,to,landing] of [
-    ['220000000','west00','220000300','east00'],
-    ['220000300','west00','220000400','east00'],
-    ['220000300','east00','220000000','west00'],
-    ['220000400','tower00','221023200','top00'],
-    ['221023200','top00','220000400','tower00'],
-    ['221020000','under00','221000400','tower00'],
-    ['221000400','tower00','221020000','under00'],
-    ['221000400','west00','221000000','east00'],
-    ['221000000','east00','221000400','west00'],
-  ]) {
-    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} must target ${to}`);
-    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} must land on ${landing}`);
-  }
-  // 上塔是可见门、塔内爬升是接触门：源里 100樓 横向回入口是 pt:2，
-  // 99樓→100樓 是 pt:3（与原版"走进门口即换层、不算传送门"一致）。
-  assert.equal(gate('220000400','tower00').type,2,'愛奧斯塔入口 tower00 must stay a visible gate');
-  assert.equal(gate('221023100','top00').type,3,'99樓 top00 must stay a contact gate');
-  // 地球防衛本部城内门链：主控室、通道（对侧门）、司令室，双向都指回上一间。
-  for(const [from,name,to,landing] of [
-    ['221000000','in00','221000100','out00'],
-    ['221000100','out00','221000000','in00'],
-    ['221000000','in01','221000001','out00'],
-    ['221000001','out00','221000000','in01'],
-    ['221000001','in00','221000100','out01'],
-    ['221000100','out01','221000001','in00'],
-    ['221000000','pt99','221000300','pt00'],
-    ['221000100','in04','221000300','out00'],
-    ['221000300','out00','221000100','in04'],
-  ]) {
-    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} must target ${to}`);
-    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} must land on ${landing}`);
-  }
-  // 隱藏之塔挂在 4樓（源 pt:10 同族门，双向配对）。
-  assert.equal(gate('221020300','in00').targetMapId,'221020701');
-  assert.equal(gate('221020300','in00').targetPortalName,'out00');
-  assert.equal(gate('221020701','out00').targetMapId,'221020300');
-  assert.equal(gate('221020701','out00').targetPortalName,'in00');
   // returnMap 必须落在已装配城镇，塔内/本部内死亡复活不会落到未收录图。
   for(const map of ['220000300','220000400','221020000','221020701','221023200'])
     assert.equal(catalog.returnMaps[map],'220000000',`${map} must return to 玩具城`);
@@ -668,84 +482,9 @@ for(const map of catalog.maps) {
   }
 }
 
-// 埃德爾斯坦城内 NPC 职能与脚本门（2026-09-16，飞行船三期剩余）。
-// 城 `310000000` 在二期交付后是**全死胡同**：11 扇出向门全指向未装配图。本片
-// 装配它的城内簇 10 张图，并按 `Map/Map/Graph.json` 的 `31/310000000/portal`
-// 授权表把四扇 pt:7 脚本门接上（服务端 `server/src/edelstein.rs`）。这里钉的是
-// **客户端目录暴露**：`world.ts::tryPortal` 只受理带 `targetMapId` 的门，源 `tm`
-// 是 `999999999` ⇒ 不暴露就等于玩家按 ↑ 发不出请求、服务端路由成死代码。
+// 保留埃德爾斯坦来源回城表、商店与仓库 NPC；旧图门由双地图约束取代。
 {
   const byId=new Map(catalog.maps.map(map=>[map.id,map]));
-  const gate=(map,name)=>{
-    const found=byId.get(map)?.portals.find(entry=>entry.name===name);
-    assert(found,`${map}/${name} must exist`);
-    return found;
-  };
-  // 四扇已路由的脚本门：目录必须带上服务端钩子用的目标与落点。
-  for(const [name,target,landing] of [
-    ['in00','310000001','out00'],
-    ['in01','310000004','out00'],
-    ['in02','310000010','out00'],
-    ['in03','310000003','out00'],
-  ]) {
-    assert.equal(gate('310000000',name).type,7,`城 ${name} 必须仍是源 pt:7 脚本门`);
-    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须暴露已装配的授权目标`);
-    assert.equal(gate('310000000',name).targetPortalName,landing,`城 ${name} 必须落在目标图的回门`);
-    // 内景的源静态回门正对本门，两端互为原样保留的源门。
-    assert.equal(gate(target,'out00').targetMapId,'310000000',`${target}/out00 必须回城`);
-    assert.equal(gate(target,'out00').targetPortalName,name,`${target}/out00 必须落在城的 ${name}`);
-  }
-  // 源 `tm` 自带目标的静态/接触门：目标图随本片装配。
-  for(const [name,target,landing] of [
-    ['west00','310020000','east00'],
-    ['east00','310030000','west00'],
-    ['resi00','310010000','out00'],
-  ]) {
-    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须通向 ${target}`);
-    assert.equal(gate('310000000',name).targetPortalName,landing,`城 ${name} 必须落在 ${target}/${landing}`);
-  }
-  // 「有授权、目标未装配」的三扇：目录里**写上**授权目标，客户端才会给
-  // 「此路线尚未开放：目标地图 X 尚未收录」，而不是按 ↑ 毫无反应。
-  for(const [name,target] of [
-    ['market00','910000000'],
-    ['profession','910001000'],
-    ['inXenonHouse','931060000'],
-  ]) {
-    assert.equal(gate('310000000',name).targetMapId,target,`城 ${name} 必须写明授权目标`);
-    assert(!byId.has(target),`${target} 必须仍未装配，否则这条记录失效`);
-  }
-  // 反向断言：源自己没给目标（授权 `999999999`）的两扇**必须**保持 null——
-  // 给它们编一个目标就是把「原版无路」写成「有路」。
-  for(const name of ['in05','pt_regionMove']) {
-    assert.equal(gate('310000000',name).targetMapId,null,`城 ${name} 必须保持关闭`);
-  }
-  // 城东全静态门步行链 → 去礦山的路2。
-  for(const [from,name,to,landing] of [
-    ['310030000','east00','310030100','west00'],
-    ['310030100','east00','310030200','west00'],
-    ['310030200','east00','310030300','west00'],
-    ['310030300','east00','310040000','west00'],
-    ['310040000','east00','310040100','west00'],
-  ]) {
-    assert.equal(gate(from,name).targetMapId,to,`${from}/${name} 必须通向 ${to}`);
-    assert.equal(gate(from,name).targetPortalName,landing,`${from}/${name} 必须落在 ${to}/${landing}`);
-    assert.equal(gate(to,landing).targetMapId,from,`${to}/${landing} 必须原路回 ${from}`);
-  }
-  // **步行链的终点边界**：去礦山的路2 的 `east00` 是 pt:7 `enterBlackMine`
-  // （脚本体不在本包）、`in00` 指向未装配的 `310040110` ⇒ `310040200 礦山入口`
-  // 及整个雷本礦山簇**没有任何可达入边**。本条是反向断言：谁给 east00 编目标、
-  // 或把 310040110/310040200 的入边接上，都会在这里失败。
-  assert.equal(gate('310040100','east00').type,7,'去礦山的路2 east00 必须仍是源 pt:7 脚本门');
-  assert.equal(gate('310040100','east00').script,'enterBlackMine');
-  assert.equal(gate('310040100','east00').targetMapId,null,'enterBlackMine 无脚本体 ⇒ 不得编目标');
-  assert.equal(gate('310040100','in00').targetMapId,'310040110');
-  assert(!byId.has('310040110'),'310040110 必须仍未装配，否则矿山区边界记录失效');
-  const mineEntrance=['310040200','310040300','310040210'];
-  for(const map of catalog.maps)for(const portal of map.portals) {
-    if(portal.targetMapId===null)continue;
-    assert(!mineEntrance.includes(portal.targetMapId)||mineEntrance.includes(map.id),
-      `${map.id}/${portal.name} 不得从矿山簇外接进 ${portal.targetMapId}：唯一入口 enterBlackMine 的脚本体不在本包`);
-  }
   // 城内 10 张新图的 returnMap 必须落在已装配城镇，死亡复活不会踩空。
   for(const [map,town] of [
     ['310000001','310000000'],['310000003','310000000'],['310000004','310000000'],
@@ -879,7 +618,7 @@ function healSourceFor(value) {
 function visit(value) {
   if(typeof value==='string'&&value.startsWith('/assets/')) {
     // The curved village minimap is generated by assemble_tms273, not exported from WZ.
-    assert(value.startsWith('/assets/tms273/') || value === '/assets/henesys/east-minimap.svg',value);
+    assert(value.startsWith('/assets/tms273/') || ['/assets/henesys/east-minimap.svg','/assets/entry/sky-city-minimap.svg'].includes(value),value);
     const asset=path.join(root,'client/public-tms273',value);
     let size;
     try { size=fs.statSync(asset).size; }

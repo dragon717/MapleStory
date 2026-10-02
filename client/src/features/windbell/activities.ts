@@ -5,8 +5,6 @@ import { createAssetButton, installWindowDrag, bringToFront, clampIntoHost } fro
 import type { ColossusControl } from '../colossus/view';
 import colossus from '../../../../shared/colossus.json';
 import { resolveAssetUrl } from '../../assets/resource-url';
-import { CHUXIAN_NAME } from '../../app/i18n';
-import { TIMES, WEATHERS, SEASONS, DEFAULT_ENVIRONMENT, type EnvironmentSettings } from '../henesys/environment-settings';
 import './style.css';
 
 /** Menus send intentions; the server owns entry, proximity and world facts. */
@@ -27,15 +25,10 @@ export class ActivitiesView {
   private colossusEnter?: HTMLButtonElement;
   private colossusControls?: HTMLElement;
   private inColossus = false;
-  private sceneToggle?: HTMLButtonElement;
-  private sceneReset?: HTMLButtonElement;
-  private environmentRefresh?:()=>void;
-  private environmentDetails?: HTMLDetailsElement;
-  private skyPreview=false;
   private escape = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopPropagation(); this.close(); }
   };
-  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest, private sceneDisplay?: { enabled: () => boolean; available: () => boolean; setEnabled: (enabled: boolean) => void; resetCamera: () => void; toggleQuality?: () => void; previewSky?:(enabled:boolean)=>void; environment?:{get:()=>EnvironmentSettings;set:(value:Partial<EnvironmentSettings>)=>void};audio?: {spatial:()=>boolean;setSpatial:(enabled:boolean)=>void;volume:()=>number;setVolume:(volume:number)=>void} }) {
+  constructor(host: HTMLElement, private send: (action: WindbellAction, instanceId?: string) => void, private focus: () => void, enterColossus?: () => void, controlColossus?: (action: ColossusControl) => void, openKeys?: () => void, manifest?: Manifest) {
     this.root.className = 'windbell-activities'; this.root.hidden = true;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'false'); this.root.setAttribute('aria-label', '活动清单');
     const title = document.createElement('h2'); title.textContent = '活动'; this.root.append(title);
@@ -48,47 +41,6 @@ export class ActivitiesView {
     this.disposeDrag = installWindowDrag(host, this.root, { titleHeight: 28, isOpen: () => this.open, onActivate: () => bringToFront(host, this.root) });
     this.root.addEventListener('pointerdown', () => bringToFront(host, this.root));
     this.resize = new ResizeObserver(() => clampIntoHost(host, this.root)); this.resize.observe(host);
-    if (sceneDisplay) {
-      const card = document.createElement('article'), heading = document.createElement('h3'), copy = document.createElement('p');
-      heading.textContent = CHUXIAN_NAME;
-      const art = document.createElement('img'); art.src = resolveAssetUrl('/assets/henesys/east-minimap.svg'); art.alt = CHUXIAN_NAME;
-      copy.textContent = '蘑菇屋、市场与弓箭手大厅沿村路展开，暖阳穿过树冠，天空映亮林间阴影。沿用移动、跳跃、攻击、NPC对话与全部原版界面。右键微调视角，滚轮缩放。';
-      this.sceneToggle = this.button('切换 2D 视图', () => { if (sceneDisplay.available()) { sceneDisplay.setEnabled(!sceneDisplay.enabled()); this.close(); } });
-      this.sceneReset = this.button('恢复镜头', () => { sceneDisplay.resetCamera(); this.close(); });
-      card.append(art, heading, copy, this.sceneToggle, this.sceneReset);
-      if (sceneDisplay.toggleQuality) card.append(this.button('切换省电画质', () => { if (sceneDisplay.available()) sceneDisplay.toggleQuality?.(); this.close(); }));
-      if(sceneDisplay.audio){
-        const audio=sceneDisplay.audio,details=document.createElement('details'),title=document.createElement('summary');title.textContent='声音设置';details.append(title);
-        const space=document.createElement('input');space.type='checkbox';space.checked=audio.spatial();space.disabled=!sceneDisplay.enabled();
-        const spaceLabel=document.createElement('label');spaceLabel.append(space,' 村落空间听感（关闭恢复原版）');
-        space.onchange=()=>audio.setSpatial(space.checked);
-        const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='.05';volume.value=String(audio.volume());
-        volume.oninput=()=>audio.setVolume(Number(volume.value));
-        const volumeLabel=document.createElement('label');volumeLabel.append('总音量 ',volume);
-        details.ontoggle=()=>{if(details.open){space.checked=audio.spatial();space.disabled=!sceneDisplay.enabled();volume.value=String(audio.volume());}};
-        details.append(spaceLabel,document.createElement('br'),volumeLabel);card.append(details);
-      }
-      if(sceneDisplay.environment){
-        const environment=sceneDisplay.environment,details=document.createElement('details'),summary=document.createElement('summary'),fields=document.createElement('fieldset');
-        details.className='environment-controls';summary.textContent='环境与光照';details.append(summary,fields);fields.setAttribute('aria-label','初弦地环境设置');
-        const controls:Record<string,HTMLInputElement|HTMLSelectElement>={},clock=document.createElement('output');
-        const change=(value:Partial<EnvironmentSettings>)=>{environment.set(value);refresh();};
-        const row=(title:string,control:HTMLInputElement|HTMLSelectElement)=>{const label=document.createElement('label');label.append(title,control);fields.append(label);return control;};
-        const select=(title:string,values:readonly (readonly [string|number,string])[],key:string,action:(value:string)=>void)=>{const input=document.createElement('select');input.setAttribute('aria-label',title);for(const [value,label] of values){const option=document.createElement('option');option.value=String(value);option.textContent=label;input.append(option);}input.onchange=()=>action(input.value);controls[key]=row(title,input);return input;};
-        select('时段',[['','自定时间'],...TIMES.map(([name,hour])=>[hour,name] as const)],'preset',value=>{if(value)change({hour:Number(value)});});
-        const range=(title:string,key:'hour'|'moisture'|'grade',max:number,step:number)=>{const input=document.createElement('input');input.type='range';input.min='0';input.max=String(max);input.step=String(step);input.setAttribute('aria-label',title);input.oninput=()=>change({[key]:Number(input.value)});controls[key]=row(title,input);};
-        range('太阳时刻','hour',24,.1);clock.setAttribute('aria-live','off');fields.append(clock);
-        select('天气',WEATHERS,'weather',value=>change({weather:value as EnvironmentSettings['weather']}));
-        select('季节',SEASONS,'season',value=>change({season:value as EnvironmentSettings['season']}));
-        range('干燥 — 湿润','moisture',1,.05);range('灰调（默认关闭）','grade',.2,.01);
-        const hint=document.createElement('p');hint.textContent='太阳从东侧升起、西侧落下；星光和极光在夜间出现。设置保存在本机，雨天会浸湿路面。可仰望太阳与星空，关闭设置返回行走镜头。';fields.append(hint,this.button('恢复晴朗上午',()=>change({...DEFAULT_ENVIRONMENT})));
-        if(sceneDisplay.previewSky)fields.append(this.button('仰望天空 / 回到村路',()=>{if(sceneDisplay.enabled()){this.skyPreview=!this.skyPreview;sceneDisplay.previewSky?.(this.skyPreview);}}));
-        const refresh=()=>{const s=environment.get();for(const key of ['hour','weather','season','moisture','grade'] as const)controls[key].value=String(s[key]);controls.preset.value=TIMES.find(t=>Math.abs(t[1]-s.hour)<.01)?.[1].toString()??'';const hour=s.hour%24;clock.textContent=`${String(Math.floor(hour)).padStart(2,'0')}:${String(Math.round((hour%1)*60)).padStart(2,'0')} · ${s.moisture>=.5?'湿润':'干燥'}`;fields.disabled=!sceneDisplay.available();};
-        this.environmentDetails=details;this.environmentRefresh=refresh;details.ontoggle=()=>{if(details.open)refresh();};refresh();card.append(details);
-      }
-      if (openKeys) card.append(this.button('键盘设置' , () => { this.close(false); openKeys(); }));
-      this.content.append(card);
-    }
     for (const [name, description, action, image] of [
       ['风铃岛', '沿根道攀登、放下树桥，或借热流抵达树梢驿站。', 'enterIsland', 'island-keyart'],
       ['风铃桥渡口', '河谷两岸的来路。桥上运货，桥下读纸；东岸石脊通向风铃岛。↓＋空格可落到桥下。', 'enterBridge', 'bridge-dormant'],
@@ -129,25 +81,9 @@ export class ActivitiesView {
   }
   isOpen() { return this.open; }
   talk() { this.act('talk'); }
-  show() { this.refreshSceneDisplay(); this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
-  showEnvironment() {
-    this.show();
-    if (this.environmentDetails) {
-      this.environmentDetails.open = true;
-      this.environmentDetails.scrollIntoView({ block: 'nearest' });
-      this.environmentDetails.querySelector<HTMLElement>('select')?.focus();
-    }
-  }
-  private refreshSceneDisplay() {
-    this.environmentRefresh?.();
-    if (!this.sceneToggle || !this.sceneDisplay) return;
-    const available = this.sceneDisplay.available() && !this.inColossus;
-    this.sceneToggle.disabled = !available;
-    this.sceneToggle.textContent = !available ? `回到${CHUXIAN_NAME}后可切换` : this.sceneDisplay.enabled() ? '切换 2D 视图' : `启用三维${CHUXIAN_NAME}`;
-    if (this.sceneReset) this.sceneReset.disabled = !available || !this.sceneDisplay.enabled();
-  }
-  updateColossus(active: boolean) { this.inColossus = active; this.refreshSceneDisplay(); if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
-  close(restoreFocus = true) { this.skyPreview=false;this.sceneDisplay?.previewSky?.(false);this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
+  show() { this.open = true; this.root.hidden = false; this.root.querySelector('button')?.focus(); if (this.inColossus) this.colossusCard?.scrollIntoView({ block: 'nearest' }); }
+  updateColossus(active: boolean) { this.inColossus = active; if (this.colossusEnter) this.colossusEnter.hidden = active; if (this.colossusControls) this.colossusControls.hidden = !active; }
+  close(restoreFocus = true) { this.open = false; this.root.hidden = true; if (restoreFocus) this.focus(); }
   private act(action: WindbellAction) { if (this.state) this.send(action, action === 'enterIsland' || action === 'enterBridge' ? undefined : this.state.instanceId); this.focus(); }
   update(state?: WindbellState, player?: PlayerState, npcs: NpcState[] = []) {
     this.state = state; this.dock.hidden = !state;

@@ -15,8 +15,9 @@ const DEFAULT_LOGIN_MAP_ID: &str = "100000000";
 ///
 /// The resident-player branch in `World::command` returns before this helper,
 /// so a connection takeover never changes a live character's location.  Once
-/// the catalog contains Henesys, a fresh login starts there while a valid
-/// saved Henesys point remains stable.  Catalogs from before that map was
+/// the catalog contains the migrated towns, a fresh login retains a valid
+/// saved 初弦地/天空之城 position and falls back to 初弦地 for legacy saves.
+/// Catalogs from before those maps were
 /// exported retain the previous persisted-map behavior.
 fn resolve_join_map_position(
     maps: &BTreeMap<String, Map>,
@@ -26,7 +27,11 @@ fn resolve_join_map_position(
     let persisted_map = maps.get(profile.map_id.as_str()).cloned();
     let henesys = maps.get(DEFAULT_LOGIN_MAP_ID).cloned();
     let (resolved_map, keep_saved_position) = match henesys {
-        Some(map) => (map, profile.map_id == DEFAULT_LOGIN_MAP_ID),
+        Some(map) => {
+            if profile.map_id == "200000000" {
+                persisted_map.clone().map(|m|(m,true)).unwrap_or((map,false))
+            } else { (map, profile.map_id == DEFAULT_LOGIN_MAP_ID) }
+        },
         None => (
             persisted_map.clone().unwrap_or_else(|| birth_map.clone()),
             persisted_map.is_some(),
@@ -318,7 +323,7 @@ impl World {
                     profile.map_id = BOSS_PRACTICE_FALLBACK_MAP_ID.to_owned();
                 }
                 // A fresh login uses Henesys when the catalog exports it;
-                // only a valid saved Henesys point is retained.  Older
+                // valid saved positions in either migrated town are retained.  Older
                 // catalogs fall back to the historical persisted-map rule.
                 let (resolved_map, resolved_x, resolved_y) =
                     resolve_join_map_position(&self.maps, &self.map, &profile);
@@ -1185,6 +1190,18 @@ impl World {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sky_city_login_keeps_saved_location_after_one_time_gm_move() {
+        let birth=join_map("birth",10.);
+        let east=join_map(DEFAULT_LOGIN_MAP_ID,200.);
+        let city=join_map("200000000",90.);
+        let maps=BTreeMap::from([(east.id.clone(),east),(city.id.clone(),city)]);
+        let (map,x,y)=resolve_join_map_position(&maps,&birth,&join_profile("200000000",321.));
+        assert_eq!(map.id,"200000000");assert_eq!((x,y),(321.,100.));
+        let (map,x,_)=resolve_join_map_position(&maps,&birth,&join_profile("101000000",321.));
+        assert_eq!(map.id,DEFAULT_LOGIN_MAP_ID);assert_eq!(x,200.);
+    }
 
     fn join_map(id: &str, spawn_x: f64) -> Map {
         Map {

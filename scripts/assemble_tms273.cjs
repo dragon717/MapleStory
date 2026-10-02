@@ -15,7 +15,7 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-56';
+const version = 'tms273-57';
 const voyageRoot = path.join(root, 'resources/scenes/sky-voyage-v3');
 for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ...['warrior','mage','archer','rogue'].map(name => ['textures/stained-glass-'+name+'.png','stained-glass-'+name+'.png']), ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['vendor/bed/opengameart-victorian-bed/ATTRIBUTION.md','sky-voyage-bed-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
   const file = path.join(publicRoot, 'assets/entry', name);
@@ -107,6 +107,7 @@ assert(maps.length === JSON.parse(fs.readFileSync(path.join(root,'references/tms
 // legal data (the archive has maps this build does not ship) — the scroll is
 // refused at use time instead of teleporting into nothing.
 const returnMaps = catalog.returnMaps ?? {};
+returnMaps['100000000']='100000000';returnMaps['200000000']='200000000';
 assert.deepEqual(Object.keys(returnMaps).sort(), maps.map(map => map.id).sort(), 'returnMap export is stale');
 for (const [mapId, townId] of Object.entries(returnMaps)) assert.match(townId, /^\d{9}$/, `returnMap target must be the 9-digit form: ${mapId} -> ${townId}`);
 assert.deepEqual(Object.keys(gameplay.sources.maps).sort(),maps.map(map=>map.id).sort(),'Gameplay export is stale');
@@ -390,6 +391,7 @@ require('./tms273_chapter.cjs').applyChapter(gameplay, items, manifest, read('ch
 // 不可执行边界（脚本体缺失）。放在章节适配之后，避免与开场/续章路线冲突。
 const remaster = require('./tms273_remaster.cjs').applyRemaster(gameplay, items, manifest, questText);
 assert.equal(remaster.total, 55, '后续章节任务数量与源盘点不一致');
+require('./henesys_layout.cjs').connectMigratedWorld(maps);
 // P: portal beams are exported from `maps-rendered.json` before the chapter
 // adapter assigns routes, and scripted gates (WZ `tm: 999999999`) carry no
 // target at that point.  Every gate that now leads to *another* map reuses the
@@ -705,11 +707,13 @@ for(const [name,data] of Object.entries({gameplay,items,'quest-text':questText,'
 }
 // Spatial minimap: markers use the same arc -> glTF transform as the renderer.
 {
- const east=require('../shared/chuxian-east.json'),b=east.miniBounds,width=230,height=128;
+ for(const east of [require('../shared/chuxian-east.json'),require('../shared/sky-city.json')]){
+ const b=east.miniBounds,width=230,height=128;
  const paths=east.routes.map(r=>`<polyline points="${r.nodes.map(n=>`${(n.position[0]-b.xMin)/b.width*width},${(n.position[2]-b.yMin)/b.height*height}`).join(' ')}"/>`).join('');
- const url='/assets/henesys/east-minimap.svg';
+ const url=east.mapId==='100000000'?'/assets/henesys/east-minimap.svg':'/assets/entry/sky-city-minimap.svg';
  fs.writeFileSync(path.join(publicRoot,url.slice(1)),`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#b6c99c"/><g fill="none" stroke="#eee0b6" stroke-width="3" stroke-linejoin="round">${paths}</g></svg>`,'utf8');
- manifest.miniMap.maps[east.mapId]={...manifest.miniMap.maps[east.mapId],url,width,height,world:b,source:'shared/chuxian-east.json',resolvedSource:'shared/chuxian-east.json'};
+ manifest.miniMap.maps[east.mapId]={...manifest.miniMap.maps[east.mapId],url,width,height,world:b,source:east.source,resolvedSource:east.source};
+ }
 }
 write(path.join(publicRoot,'assets/manifest.json'),manifest);
 write(path.join(outputRoot,'shared/mage-skills.json'),mageRules(read('skills')));

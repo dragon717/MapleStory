@@ -1,4 +1,4 @@
-import { HENESYS_MAP_ID, miniPoint } from '../henesys/coordinates';
+import { isSpatialMap, miniPoint } from '../henesys/coordinates';
 import type { NpcState, PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest, MapPortal, MiniMapMapAsset, MiniMapUiData } from '../../assets/manifest';
 import { mapText, uiLocale, uiText } from '../../app/i18n';
@@ -303,8 +303,8 @@ export class MiniMapView {
 
   /** Replace the displayed state.  Called once per authoritative snapshot. */
   update(input: MiniMapInput) {
-    if(input.mapId===HENESYS_MAP_ID){
-      const at=<T extends {x:number;y:number}>(p:T):T=>({...p,...miniPoint(p.x,p.y)});
+    if(isSpatialMap(input.mapId)){
+      const at=<T extends {x:number;y:number}>(p:T):T=>({...p,...miniPoint(p.x,p.y,input.mapId)});
       input={...input,self:input.self?at(input.self):undefined,players:input.players?.map(at),npcs:input.npcs?.map(at),portals:input.portals?.map(at)};
     }
     this.input = input;

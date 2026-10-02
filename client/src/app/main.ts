@@ -1,4 +1,4 @@
-import { HENESYS_MAP_ID } from '../features/henesys/coordinates';
+import { HENESYS_MAP_ID, isSpatialMap } from '../features/henesys/coordinates';
 import Phaser from 'phaser';
 import { installGameAudio } from '../features/world/game-audio';
 import type { LoginResponse, NpcState, PlayerState, BossPracticeState } from '../../../shared/protocol';
@@ -32,6 +32,7 @@ import { ChairStatusView } from '../features/chairs/view';
 import '../features/chairs/style.css';
 import { MenuView } from '../features/menu/view';
 import { ColossusView } from '../features/colossus/view';
+import { AdminBookView } from '../features/admin-book/view';
 import { ActivitiesView } from '../features/windbell/activities';
 import { DEFAULT_ENVIRONMENT } from '../features/henesys/environment-settings';
 import { TownLampPanel } from '../features/henesys/town-lamp-view';
@@ -76,6 +77,7 @@ let townLampPanel: TownLampPanel | undefined;
 let chairStatus: ChairStatusView | undefined;
 let menus: MenuView | undefined;
 let activities: ActivitiesView | undefined;
+let adminBook: AdminBookView | undefined;
 let npcDialogue: NpcDialogueView | undefined;
 let storage: StorageView | undefined;
 let party: PartyView | undefined;
@@ -156,7 +158,7 @@ function characterInfoIsOpen() {
  */
 function gameplayUiBlocked() {
   return Boolean(
-    keybindingsView?.isOpen() || activities?.isOpen() ||
+    keybindingsView?.isOpen() || (activities?.isOpen() || adminBook?.isOpen()) ||
     news.open
     || menus?.isOpen()
     || (npcDialogue?.isOpen() || townLampPanel?.isOpen())
@@ -207,7 +209,7 @@ function useShortcutItem(itemId: number) {
 let colossusSequence = 0;
 const sendColossus = (action: import('../../../shared/protocol').ColossusAction) => { if(action!=='travel')input?.reset(); connection?.send({type:'colossus',action,sequence:++colossusSequence,requestId:`colossus-${crypto.randomUUID()}`}); };
 function activateBinding(binding: KeyBinding) {
-  if (!binding || !selfState || keybindingsView?.isOpen() || activities?.isOpen()) return;
+  if (!binding || !selfState || keybindingsView?.isOpen() || (activities?.isOpen() || adminBook?.isOpen())) return;
   if (binding.type === 'item') { useShortcutItem(binding.itemId); return; }
   if (binding.type === 'skill') { castSkill(binding.skillId); return; }
   if (activateUiAction(binding.action)) return;
@@ -331,7 +333,7 @@ async function enterGame(session: LoginResponse) {
       // A whisper carries only the typed name and the body; the server resolves
       // the identity and decides whether the pair may talk at all.
       sendWhisper: (requestId, targetName, text) => connection?.send({ type: 'whisperSend', requestId, targetName, text }) ?? false,
-      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || (activities?.isOpen() || adminBook?.isOpen()) || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
       focusGame,
       selfId: () => selfState?.id,
     });
@@ -428,18 +430,21 @@ async function enterGame(session: LoginResponse) {
     petPanel = new PetPanel(el('ui-windows'), manifest, message => status(message), request => connection?.send(request) ?? false);
     menus?.destroy();
     activities?.destroy();
+    adminBook?.destroy();
     activities = new ActivitiesView(el('ui-windows'), (action, instanceId) => {
       input?.reset();
       if (!connection?.send({ type: 'windbell', action, instanceId, sequence: ++windbellSequence, requestId: `windbell-${crypto.randomUUID()}` })) status('请重新连接后再进入活动。', true);
-    }, focusGame, () => sendColossus('enter'), action => colossusView?.control(action), () => openKeybindings(), manifest, {
+    }, focusGame, () => sendColossus('enter'), action => colossusView?.control(action), () => openKeybindings(), manifest);
+    adminBook = new AdminBookView(el('ui-windows'),manifest,focusGame,{
+      openKeys:()=>openKeybindings(),
       enabled: () => world?.isThreeActive ?? false,
-      available: () => Boolean(world?.isLoaded && world.mapId === HENESYS_MAP_ID && !colossusView),
-      setEnabled: enabled => { if (colossusView || world?.mapId !== HENESYS_MAP_ID) return; input?.reset(); world.setThreeEnabled(enabled); },
+      available: () => Boolean(world?.isLoaded && isSpatialMap(world.mapId) && !colossusView),
+      setEnabled: enabled => { if (colossusView || !world || !isSpatialMap(world.mapId)) return; input?.reset(); world.setThreeEnabled(enabled); },
       resetCamera: () => world?.resetThreeCamera(),
       toggleQuality: () => world?.toggleThreeQuality(),
       previewSky: enabled=>world?.previewSky(enabled),
       environment:{get:()=>world?.environment??{...DEFAULT_ENVIRONMENT},set:value=>world?.setEnvironment(value)},
-      audio:{spatial:()=>world?.spatialAudioEnabled??true,setSpatial:enabled=>world?.setSpatialAudio(enabled),volume:()=>world?.soundVolume??1,setVolume:volume=>world?.setSoundVolume(volume)},
+      audio:{available:()=>world?.mapId===HENESYS_MAP_ID,spatial:()=>world?.spatialAudioEnabled??true,setSpatial:enabled=>world?.setSpatialAudio(enabled),volume:()=>world?.soundVolume??1,setVolume:volume=>world?.setSoundVolume(volume)},
     });
     menus = new MenuView(
       el('menus'),
@@ -453,7 +458,7 @@ async function enterGame(session: LoginResponse) {
       toggleCharacterInfo,
       () => returnToEntry('channel'),
       () => returnToEntry('characters'),
-      () => { input?.reset(); activities?.showEnvironment(); },
+      () => { input?.reset(); adminBook?.show(); },
       showNews,
       () => party?.toggle() ?? false,
       // Source UITotalMenu type 24 is the 好友&黑名單 shortcut.
@@ -469,6 +474,7 @@ async function enterGame(session: LoginResponse) {
       // Source UITotalMenu type 22 (怪物收藏) is the single notebook entry:
       // opening it closes the menu and shows the same window every time.
       () => { input?.reset(); menus?.close(); notebook?.open(); },
+      () => {input?.reset();adminBook?.show();},
     );
     // The menu bar is the escape hatch: with nothing else open, Escape raises
     // it (and a second Escape lowers it).  The menu keeps its own close
@@ -489,7 +495,7 @@ async function enterGame(session: LoginResponse) {
     keyRouterDispose?.();
     keyRouterDispose = installKeybindingRouter({
       resolve: (code, shift) => keybindings.resolve(code, shift),
-      blocked: () => !selfState || Boolean(activities?.isOpen() || keybindingsView?.isOpen() || news.open || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
+      blocked: () => !selfState || Boolean((activities?.isOpen() || adminBook?.isOpen()) || keybindingsView?.isOpen() || news.open || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen()),
       hasInteraction: (code, shift) => !gameplayUiBlocked() && keybindings.interacts(code, shift),
       activate: activateUiAction,
     });
@@ -974,7 +980,7 @@ async function enterGame(session: LoginResponse) {
       resolveBinding: (code, shift) => keybindings.resolve(code, shift),
       performAction: action => { activateUiAction(action); },
       useItem: useShortcutItem,
-      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || activities?.isOpen() || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
+      isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || (activities?.isOpen() || adminBook?.isOpen()) || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || petPanel?.isOpen() || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
     el('game').focus({ preventScroll: true });
@@ -1003,6 +1009,7 @@ function leaveGame(logout = false) {
   loadingOverlay?.hide(); loadingOverlay = undefined;
   setPlayLayout(false);
   activities?.destroy(); activities = undefined;
+  adminBook?.destroy(); adminBook = undefined;
   townLampPanel?.destroy(); townLampPanel = undefined;
   cashShop?.destroy(); cashShop = undefined;
   keyRouterDispose?.(); keyRouterDispose = undefined;

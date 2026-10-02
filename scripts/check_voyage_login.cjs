@@ -4,18 +4,19 @@ const root = path.resolve(__dirname, '..'), output = path.join(root, 'build/.che
 fs.mkdirSync(path.dirname(output), { recursive: true });
 createRequire(path.join(root, 'client/package.json'))('esbuild').buildSync({ stdin: { contents: "export * from './voyage-deck'; export * from './voyage-login'; export * from './voyage-passengers'; export { voyageOpeningPose } from './voyage'; export * as Three from 'three';", resolveDir: path.join(root, 'client/src/features/entry'), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: output, logLevel: 'silent' });
 const { Three: T, projectLoginSurface, loginSurfaceOccluded, VoyageLogin, voyageOpeningPose, VoyagePassengers, wakePose, VoyageDeck } = require(output);
-// Real geometry queries: slope-safe feet, edges, rails, diagonal speed and moving parent.
-const deckShip = new T.Group(), hull = new T.Group(); hull.name='SV3_Hull'; deckShip.add(hull);
-const floor = new T.Mesh(new T.BoxGeometry(8,.2,8),new T.MeshBasicMaterial()); floor.position.set(6,6,12); hull.add(floor);
-const rail = new T.Mesh(new T.BoxGeometry(.2,2,8),new T.MeshBasicMaterial()); rail.position.set(9.4,7,12); hull.add(rail);
-const walkCamera=new T.PerspectiveCamera(); walkCamera.position.set(6,12,20); walkCamera.lookAt(6,6,12);
-const deck=new VoyageDeck(deckShip); assert(Math.abs(deck.position.y-6.125)<.00001);
-for(let i=0;i<100;i++)deck.update(.05,1,0,walkCamera,deckShip);
-assert(deck.position.x<9.1,'torso cannot cross a rail');
-deck.reset(); for(let i=0;i<100;i++)deck.update(.05,-1,0,walkCamera,deckShip);
-assert(deck.position.x>=2.25,'footprint stays inside the deck');
+// The lobby follows authored centre lines and still queries the real surface/rails.
+const deckShip=new T.Group(),hull=new T.Group();hull.name='SV3_Hull';deckShip.add(hull);
+const floor=new T.Mesh(new T.BoxGeometry(20,.2,50),new T.MeshBasicMaterial());floor.position.set(0,6,0);hull.add(floor);
+const rail=new T.Mesh(new T.BoxGeometry(4,2,.2),new T.MeshBasicMaterial());rail.position.set(6.5,7,16);hull.add(rail);
+const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(6.5,12,30);walkCamera.lookAt(6.5,6,0);
+const deck=new VoyageDeck(deckShip);assert(Math.abs(deck.position.y-6.125)<.00001);
+deck.update(.05,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray(),'sideways input cannot leave the authored lane');
+for(let i=0;i<100;i++)deck.update(.05,0,1,walkCamera,deckShip);assert(deck.position.z<15.7,'torso cannot cross a rail');
+deck.reset();for(let i=0;i<400&&deck.position.z>-8;i++)deck.update(.05,0,-1,walkCamera,deckShip);
+deck.update(.05,0,0,walkCamera,deckShip);for(let i=0;i<150;i++)deck.update(.05,-1,0,walkCamera,deckShip);assert.equal(deck.position.x,-6.5,'junction reaches the other deck lane');assert.equal(deck.position.z,-8);
+deck.update(.05,0,1,walkCamera,deckShip);assert(deck.moving&&deck.position.z>-8,'release/repress chooses the left lane');
 deck.reset();deck.update(.05,1,1,walkCamera,deckShip);assert(Math.abs(deck.position.distanceTo(deck.spawn)-.15)<.00001,'diagonal movement cannot speed up');
-deckShip.position.set(40,10,90); deckShip.rotation.y=.7;deckShip.updateMatrixWorld(true);deck.reset();deck.update(.05,1,0,walkCamera,deckShip);assert(deck.moving,'ship movement cannot detach local collision');
+deckShip.position.set(40,10,90);deckShip.rotation.y=.7;deckShip.updateMatrixWorld(true);deck.reset();deck.update(.05,0,-1,walkCamera,deckShip);assert(deck.moving,'ship movement cannot detach local collision');
 deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
 deck.destroy();floor.geometry.dispose();floor.material.dispose();rail.geometry.dispose();rail.material.dispose();
 // Dense samples catch a hard cut; settling must reach the exact final pose with near-zero speed.

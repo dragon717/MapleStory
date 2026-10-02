@@ -98,8 +98,9 @@ export class VoyageCity {
       for (const plant of plants) group.remove(plant);
     }
   }
-  update(delta: number, reduced = false, energy = 1) {
-    if (!reduced && Number.isFinite(delta) && delta > 0) this.time += Math.min(delta, .05);
+  update(delta: number, reduced = false, energy = 1, time?:number) {
+    if(time!==undefined&&Number.isFinite(time))this.time=Math.max(0,time);
+    if (time===undefined && !reduced && Number.isFinite(delta) && delta > 0) this.time += Math.min(delta, .05);
     energy = reduced ? 0 : T.MathUtils.clamp(Number.isFinite(energy) ? energy : 0, 0, 2);
     this.glowTime.value = this.time;
     const heights = new Map(this.layout.landscape.islands.map(s => [s.id, islandOffset(s, this.time, energy, this.layout.landscape.motion)]));

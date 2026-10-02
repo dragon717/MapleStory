@@ -26,29 +26,29 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||path.join(os.homedir(),'
    return {gi,volume,zeroGI,zeroVolume,shadow,full:[v.sunlight.target.width,v.sunlight.target.height],effects:[v.sunlight.scattering.width,v.sunlight.scattering.height],actorsSeparate:v.paper.parent===v.paperScene};
   });
   assert(pixels.gi.energy>0&&pixels.gi.minAlpha<1,'visible surfaces must contribute indirect light and occlusion');assert.equal(pixels.zeroGI.energy,0);assert(pixels.volume.energy>0&&pixels.volume.minAlpha<1);assert.equal(pixels.zeroVolume.energy,0);assert(pixels.actorsSeparate);assert.deepEqual(pixels.effects,pixels.full.map(v=>Math.ceil(v/2)));
-  await page.getByRole('button',{name:'活动',exact:true}).click();await page.getByText('环境与光照',{exact:true}).click();
+  await page.getByRole('button',{name:'管理员之书',exact:true}).click();
   await page.getByLabel('时段',{exact:true}).selectOption('17');
   await page.waitForTimeout(250);const sunset=await page.evaluate(()=>{const v=window.henesysPreview.world.henesys;return {direction:v.climate.uniforms.solarDirection.value.toArray(),shadow:v.sun.shadow.matrix.toArray(),settings:window.henesysPreview.world.environment};});
   assert.notDeepEqual(sunset.shadow,pixels.shadow);assert(sunset.direction[0]<0);await page.evaluate(()=>window.henesysPreview.activities.close());await page.screenshot({path:path.join(out,'evening.png')});
   const weather=[];
   for(const [name,hour,season] of [['mist',9.5,'spring'],['drizzle',9.5,'summer'],['rain',14,'summer'],['snow',10,'winter'],['aurora',22,'autumn']]){
-   await page.getByRole('button',{name:'活动',exact:true}).click();await page.getByLabel('天气',{exact:true}).selectOption(name);await page.getByLabel('季节',{exact:true}).selectOption(season);
+   await page.getByRole('button',{name:'管理员之书',exact:true}).click();await page.getByLabel('天气',{exact:true}).selectOption(name);await page.getByLabel('季节',{exact:true}).selectOption(season);
    await page.getByLabel('太阳时刻',{exact:true}).fill(String(hour));await page.getByLabel('太阳时刻',{exact:true}).dispatchEvent('input');await page.evaluate(()=>window.henesysPreview.activities.close());await page.waitForTimeout(400);
    weather.push(await page.evaluate(()=>{const v=window.henesysPreview.world.henesys,c=v.climate;return {settings:window.henesysPreview.world.environment,sun:v.sun.intensity,night:c.stars.material.uniforms.night.value,particles:c.precipitation.visible,amount:c.precipitation.material.uniforms.amount.value,fog:v.sunlight.material.uniforms.fogDensity.value,aurora:v.sunlight.material.uniforms.aurora.value,snow:c.uniforms.winterSnow.value};}));
    await page.screenshot({path:path.join(out,name+'.png')});
   }
   assert(weather[0].fog>math.east.fog);assert(weather[1].particles&&weather[2].amount>weather[1].amount);assert(weather[3].snow>0&&weather[3].snow<.1,'snow accumulates gradually rather than painting winter white instantly');assert(weather[4].sun===0&&weather[4].night>0&&weather[4].aurora>0);
   // Use the same sky-preview button as players. Hide only the settings window for the capture.
-  await page.getByRole('button',{name:'活动',exact:true}).click();await page.getByRole('button',{name:'仰望天空 / 回到村路',exact:true}).click();
-  await page.evaluate(()=>document.querySelector('.windbell-activities').style.visibility='hidden');await page.waitForTimeout(200);await page.screenshot({path:path.join(out,'aurora-sky.png')});
-  await page.evaluate(()=>document.querySelector('.windbell-activities').style.visibility='');
+  await page.getByRole('button',{name:'管理员之书',exact:true}).click();await page.getByRole('button',{name:'仰望天空 / 回到村路',exact:true}).click();
+  await page.evaluate(()=>document.querySelector('.admin-book-root').style.visibility='hidden');await page.waitForTimeout(200);await page.screenshot({path:path.join(out,'aurora-sky.png')});
+  await page.evaluate(()=>document.querySelector('.admin-book-root').style.visibility='');
   await page.getByLabel('天气',{exact:true}).selectOption('clouds');await page.getByLabel('时段',{exact:true}).selectOption('12');await page.waitForTimeout(250);
-  await page.evaluate(()=>document.querySelector('.windbell-activities').style.visibility='hidden');await page.screenshot({path:path.join(out,'sun-clouds.png')});
-  await page.evaluate(()=>{document.querySelector('.windbell-activities').style.visibility='';window.henesysPreview.activities.close();});
+  await page.evaluate(()=>document.querySelector('.admin-book-root').style.visibility='hidden');await page.screenshot({path:path.join(out,'sun-clouds.png')});
+  await page.evaluate(()=>{document.querySelector('.admin-book-root').style.visibility='';window.henesysPreview.activities.close();});
   assert.equal(await page.evaluate(()=>window.henesysPreview.world.henesys.skyPreview),false,'closing settings restores walking camera');
   for(const viewport of [{width:390,height:844},{width:844,height:390},{width:1440,height:900}]){
-   await page.setViewportSize(viewport);await page.getByRole('button',{name:'活动',exact:true}).click();await page.getByLabel('天气',{exact:true}).scrollIntoViewIfNeeded();
-   const layout=await page.evaluate(()=>{const root=document.querySelector('.windbell-activities'),r=root.getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,left:r.left,right:r.right,controls:[...root.querySelectorAll('.environment-controls input,.environment-controls select')].map(c=>{const b=c.getBoundingClientRect();return b.left>=r.left&&b.right<=r.right+.5;})};});
+   await page.setViewportSize(viewport);await page.getByRole('button',{name:'管理员之书',exact:true}).click();await page.getByLabel('天气',{exact:true}).scrollIntoViewIfNeeded();
+   const layout=await page.evaluate(()=>{const root=document.querySelector('.admin-book-root'),r=root.getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,left:r.left,right:r.right,controls:[...root.querySelectorAll('.environment-controls input,.environment-controls select')].map(c=>{const b=c.getBoundingClientRect();return b.left>=r.left&&b.right<=r.right+.5;})};});
    await page.screenshot({path:path.join(out,'settings-'+viewport.width+'.png')});assert(layout.scroll<=layout.width&&layout.left>=-.5&&layout.right<=layout.width+.5&&layout.controls.every(Boolean),'environment controls must fit narrow/landscape view: '+JSON.stringify(layout));await page.evaluate(()=>window.henesysPreview.activities.close());
   }
   await page.evaluate(()=>{window.henesysPreview.world.setEnvironment({hour:22,weather:'aurora',season:'autumn',moisture:.85,grade:.03});window.henesysPreview.world.setThreeEnabled(false);});

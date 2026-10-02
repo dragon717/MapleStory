@@ -105,6 +105,8 @@ export class MenuView {
     /** Source UITotalMenu type 22 is the 怪物收藏 entry this build reuses for
      *  冒险笔记（图鉴）: one menu entry, one window, four pages (NB-07). */
     private onNotebook?: () => void,
+    /** Opens the extracted 初弦地/天空航船 administrator book. */
+    private onAdminBook?: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'maple-menu-layer';
@@ -229,6 +231,7 @@ export class MenuView {
         if (!button) continue;
         items.append(button);
       }
+      if (column === 6 && this.onAdminBook) items.append(this.createAdminBookButton(entries));
       category.append(items);
       categories.append(category);
     }
@@ -308,6 +311,33 @@ export class MenuView {
     text.className = 'maple-menu-item-label';
     text.textContent = displayText(label);
     button.append(plate, text);
+    return button;
+  }
+
+  private createAdminBookButton(entries: readonly MenuEntry[]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'maple-menu-item maple-menu-admin-book';
+    button.dataset.menuItem = 'admin-book';
+    button.setAttribute('role', 'menuitem');
+    button.setAttribute('aria-label', '管理员之书');
+    button.title = '管理员之书';
+    button.textContent = '管理员之书';
+    const lastEntry = entries.reduce((last, entry) => Math.max(last, entry.y + 40), 43);
+    button.style.setProperty('--menu-entry-y', `${lastEntry + 5}px`);
+    // This entry is a local control rather than a source UITotalMenu frame.
+    // Keep the source column geometry while drawing a readable plate in both
+    // wide and narrow menu layouts.
+    button.style.background = '#f8fcf7';
+    button.style.border = '1px solid #92c3c6';
+    button.style.borderRadius = '5px';
+    button.style.color = '#28596b';
+    button.style.font = '13px/38px "Microsoft YaHei", "PingFang SC", sans-serif';
+    button.style.textAlign = 'center';
+    button.addEventListener('click', () => {
+      this.close();
+      this.onAdminBook?.();
+    });
     return button;
   }
 

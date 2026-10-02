@@ -243,6 +243,40 @@ fn a_fixed_town_scroll_uses_the_town_it_names_without_a_return_entry() {
 }
 
 #[test]
+fn disconnected_town_portal_is_refused_by_shared_destination_policy() {
+    let mut birth = scroll_map(MAP_BIRTH, 100.0);
+    birth.portals.push(serde_json::from_value(serde_json::json!({
+        "name":"retired", "type":2, "x":100, "y":100, "targetMapId":TOWN_VICTORIA
+    })).unwrap());
+    let mut city = scroll_map("200000000", 100.0);
+    city.footholds[0].id = 930001;
+    let (mut world, mut output) = scroll_world(
+        vec![birth, city, scroll_map(TOWN_VICTORIA, 260.0)], &[],
+    );
+    scroll_drain(&mut output);
+    world.handle_portal("traveler".into(), "retired-gate".into(), "retired".into());
+    assert_eq!(scroll_map_of(&world), MAP_BIRTH);
+    let result: serde_json::Value = serde_json::from_str(&output.try_recv().unwrap()).unwrap();
+    assert_eq!(result["type"], "portalResult");
+    assert_eq!(result["success"], false);
+}
+
+#[test]
+fn disconnected_town_scroll_is_refused_before_consumption() {
+    let mut city = scroll_map("200000000", 100.0);
+    city.footholds[0].id = 930001;
+    let (mut world, mut output) = scroll_world(
+        vec![scroll_map(MAP_BIRTH, 100.0), city, scroll_map(TOWN_VICTORIA, 260.0)],
+        &[],
+    );
+    scroll_stock(&mut world, SCROLL_VICTORIA, 1);
+    scroll_use(&mut world, SCROLL_VICTORIA, "disconnected-1");
+    assert_eq!(scroll_last_reject(&mut output).unwrap()["code"], "scroll_unavailable");
+    assert_eq!(scroll_quantity(&world, SCROLL_VICTORIA), 1);
+    assert_eq!(scroll_map_of(&world), MAP_BIRTH);
+}
+
+#[test]
 fn a_scroll_with_no_return_town_is_refused_without_spending_it() {
     // A map the archive authors no return for has nowhere to send the body.
     // The contract is that the player learns this *and keeps the scroll*.

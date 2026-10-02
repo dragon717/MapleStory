@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
+import { eastMotionBlend, eastMotionDistance, HENESYS_MAP_ID, isSpatialMap, junctionDirections, PIXELS_PER_METRE, platformThickness } from '../features/henesys/coordinates';
 import type { SnowCover } from '../features/henesys/ground-snow';
 import type { HenesysView } from '../features/henesys/view';
 import { VillageAudio, FOOT_SOUNDS } from '../features/henesys/audio';
@@ -95,8 +95,8 @@ export class World extends Phaser.Scene {
    * 详见 `features/net-motion/motion-interpolator.ts`。
    */
   private playerMotionGeometry: Pick<MotionOptions, 'distance' | 'blend'> = {
-    distance: (a,b) => this.isThreeActive ? eastMotionDistance(a,b) : Math.hypot(b.x-a.x,b.y-a.y),
-    blend: (a,b,f) => this.isThreeActive ? eastMotionBlend(a,b,f) : {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f},
+    distance: (a,b) => this.isThreeActive ? eastMotionDistance(a,b,this.mapId) : Math.hypot(b.x-a.x,b.y-a.y),
+    blend: (a,b,f) => this.isThreeActive ? eastMotionBlend(a,b,f,this.mapId) : {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f},
   };
   private selfMotion = new MotionInterpolator<PlayerState>({ delayTicks: SELF_DELAY_TICKS, ...this.playerMotionGeometry });
   private peerMotion = new MotionInterpolator<PlayerState>(this.playerMotionGeometry);
@@ -122,11 +122,11 @@ export class World extends Phaser.Scene {
    *  server starts pushing snapshots while Phaser is still preloading. */
   get isLoaded() { return this.loaded && !this.threeLoading; }
   get isThreeEnabled() { return this.threeEnabled; }
-  get isThreeActive() { return this.mapId === HENESYS_MAP_ID && this.threeEnabled; }
+  get isThreeActive() { return isSpatialMap(this.mapId) && this.threeEnabled; }
   setThreeEnabled(enabled: boolean) {
     if (this.threeEnabled === enabled) return;
     this.threeEnabled = enabled;
-    if (this.mapId === HENESYS_MAP_ID) this.switchMap(this.mapId, this.manifest.map, this.snapshot);
+    if (isSpatialMap(this.mapId)) this.switchMap(this.mapId, this.manifest.map, this.snapshot);
   }
   movementView() { return this.isThreeActive ? this.henesys?.movementView() : undefined; }
   resetThreeCamera() { this.henesys?.resetCamera(); }
@@ -144,14 +144,14 @@ export class World extends Phaser.Scene {
     void import('../features/henesys/view').then(({ HenesysView }) => HenesysView.create(this, map, () => {
       const self = this.renderedSelf;if (!self) return;
       const bounds = this.players.get(self.id)?.body.getBounds();
-      return {x:self.x,y:self.y,revealHeight:bounds ? Math.max(2.2,(self.y-bounds.top)/PIXELS_PER_METRE+.5) : 2.2,revealWidth:(bounds?.width ?? 0)/PIXELS_PER_METRE};
+      return {x:self.x,y:self.y,sceneTime:this.snapshot?(this.snapshot.serverTick*this.snapshot.tickMs+Math.min(performance.now()-this.receivedAt,250))/1000:0,revealHeight:bounds ? Math.max(2.2,(self.y-bounds.top)/PIXELS_PER_METRE+.5) : 2.2,revealWidth:(bounds?.width ?? 0)/PIXELS_PER_METRE};
     }, () => generation === this.threeGeneration)).then(view => {
       if (!view) return;
       if (generation !== this.threeGeneration) { view.destroy(); return; }
       this.henesys = view; this.threeLoading = false;
       view.setEnvironment(this.climateSettings);
       if(this.snowCover)view.setSnowCover(this.snowCover);
-      this.status('初弦地东边村落已就绪：方向键按画面选路，按住沿弯路继续前进，松开再按重新选方向；交互与跳跃可在键盘设置中共键；右键调整视角。');
+      this.status(`${map.name}已就绪：方向键按画面选路，按住沿弯路继续前进，松开再按重新选方向；交互与跳跃可在键盘设置中共键；右键调整视角。`);
     }).catch(error => {
       if (generation !== this.threeGeneration) return;
       this.threeLoading = false;
@@ -319,7 +319,7 @@ export class World extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(this.isThreeActive ? 'rgba(0,0,0,0)' : windbellKind ? '#d4e6eb' : '#b4dfe0');
     // Keep source sprites and text at native resolution before 3D projection.
     this.cameras.main.setZoom(1);
-    for (const layer of windbellKind || this.isThreeActive || this.manifest.map.id === HENESYS_MAP_ID ? [] : this.manifest.map.layers) {
+    for (const layer of windbellKind || this.isThreeActive || isSpatialMap(this.manifest.map.id) ? [] : this.manifest.map.layers) {
       if (layer.background) this.createBackground(layer);
       else if (layer.frames?.length) this.createAnimatedLayer(layer);
       else {
@@ -329,7 +329,7 @@ export class World extends Phaser.Scene {
         if (layer.crop) image.setCrop(layer.crop.x, layer.crop.y, layer.crop.width, layer.crop.height);
       }
     }
-    if (!this.isThreeActive && this.manifest.map.id === HENESYS_MAP_ID) {
+    if (!this.isThreeActive && isSpatialMap(this.manifest.map.id)) {
       this.railTerrain = this.add.graphics().setDepth(-100);
       for (const f of this.manifest.map.footholds ?? []) {
         this.railTerrain.fillStyle(0x79694b).fillRect(f.x1, f.y1, f.x2-f.x1, platformThickness(f.id));
@@ -381,7 +381,7 @@ export class World extends Phaser.Scene {
     }
     if (this.manifest.map.bgm) {
       this.bgm = this.sound.add(this.manifest.map.bgm, { loop:true, volume:.25 });
-      if(this.isThreeActive && this.bgm instanceof Phaser.Sound.WebAudioSound)this.villageAudio=new VillageAudio(this,this.bgm);
+      if(this.mapId===HENESYS_MAP_ID && this.isThreeActive && this.bgm instanceof Phaser.Sound.WebAudioSound)this.villageAudio=new VillageAudio(this,this.bgm);
       this.bgm.play();
     }
     this.status('地图已就绪，等待服务器快照…');
@@ -686,7 +686,7 @@ export class World extends Phaser.Scene {
     if (!drawn) return;
     const snapshot = drawn;
     const self = this.snapshot?.players.find(player => player.id === snapshot.selfId);
-    const junction = this.mapId === HENESYS_MAP_ID && self ? junctionDirections(self.x, this.movementView()) : [];
+    const junction = isSpatialMap(this.mapId) && self ? junctionDirections(self.x, this.movementView(),this.mapId) : [];
     const ids = new Set(snapshot.players.map(player => player.id));
     for (const [id, view] of this.players) if (!ids.has(id)) { this.combat?.clearSkillPlayer(id); view.destroy(); this.players.delete(id); this.actions.delete(id); }
     for (const player of snapshot.players) {

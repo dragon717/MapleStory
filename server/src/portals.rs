@@ -8,6 +8,13 @@
 use super::*;
 
 impl World {
+    // Source maps stay catalogued for saves/assets; the migrated world has exactly two towns.
+    // Activity instances retain their own entry/return rules.
+    pub(super) fn main_world_destination(&self, id: &str) -> bool {
+        !self.maps.get("200000000").is_some_and(henesys::active)
+            || id == "100000000" || id == "200000000" || !id.chars().all(|c|c.is_ascii_digit())
+    }
+
     pub(super) fn handle_portal(&mut self, id: String, request_id: String, portal_name: String) {
         let Some(player) = self.players.get(&id) else {
             return;
@@ -15,6 +22,11 @@ impl World {
         let source_map_id = player.map_id.clone();
         let source_x = player.state.x;
         let source_y = player.state.y;
+        // Disconnected source gates cannot be re-entered by sending their former script names.
+        if !self.map_for(&source_map_id).portals.iter().any(|p|p.name==portal_name) {
+            self.send_portal_result(&id,&request_id,false,"portal_unavailable",&source_map_id,None);
+            return;
+        }
         // 飞行船脚本门（`ship.rs`）：`inERShip`/`move_OrbEde` 等源脚本体缺失
         // 的门与舱门相位闸，由 ship 模块按 P 级规则处置；已处置即返回。
         if self.ship_portal_gate(&id, &request_id, &source_map_id, &portal_name) {
@@ -78,7 +90,8 @@ impl World {
             );
             return;
         };
-        let Some(target_map) = self.maps.get(&target_map_id).cloned() else {
+        let Some(target_map) = self.maps.get(&target_map_id)
+            .filter(|_| self.main_world_destination(&target_map_id)).cloned() else {
             self.send_portal_result(
                 &id,
                 &request_id,
@@ -89,7 +102,7 @@ impl World {
             );
             return;
         };
-        let destination = portal
+        let mut destination = portal
             .target_portal_name
             .as_deref()
             .and_then(|name| {
@@ -100,6 +113,11 @@ impl World {
             })
             .map(|portal| (portal.x, portal.y))
             .unwrap_or((target_map.spawn.x, target_map.spawn.y));
+        if henesys::active(&target_map) {
+            // Arrive two metres beyond the paired gate so ↑ can walk into the city immediately.
+            destination.0+=if destination.0<target_map.spawn.x {90.} else {-90.};
+            destination=henesys::repair_position(&target_map,destination.0,destination.1);
+        }
         let grounded = target_map
             .ground_near(destination.0, destination.1)
             .filter(|(_, ground)| (ground - destination.1).abs() <= 24.0);
@@ -187,7 +205,7 @@ impl World {
             );
             return;
         }
-        if self.maps.get(&map_id).is_none() {
+        if self.maps.get(&map_id).is_none() || !self.main_world_destination(&map_id) {
             self.send_world_map_move_result(
                 &id,
                 &request_id,
@@ -270,6 +288,7 @@ impl World {
         map_id: String,
         portal_name: Option<&str>,
     ) -> bool {
+        if !self.main_world_destination(&map_id) { return false; }
         let Some(map) = self.maps.get(&map_id).cloned() else {
             return false;
         };

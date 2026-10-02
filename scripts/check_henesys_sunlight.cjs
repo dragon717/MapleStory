@@ -31,8 +31,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     assert(result.environment&&result.separateActors,'sky reflections must light the environment while actors stay outside bloom');
     assert.deepEqual(result.scattering,result.full.map(x=>Math.ceil(x/2)),'only scattering is downsampled');
     assert.deepEqual(errors,[]);
-    await page.getByRole('button',{name:'活动',exact:true}).click();
-    assert.equal(await page.getByRole('heading',{name:'初弦地',exact:true}).count(),1);
+    await page.getByRole('button',{name:'管理员之书',exact:true}).click();
+    assert.equal(await page.getByRole('heading',{name:'光照、天气与场景设置',exact:true}).count(),1);
     assert.equal(await page.title(),'初弦地 · 隔离预览');
     console.log('PASS: sky reflections, HDR bloom/scattering pixels and zero-strength controls, volume transmission, clear actors, 初弦地 name; '+JSON.stringify(result));
   } finally {await browser.close();}
