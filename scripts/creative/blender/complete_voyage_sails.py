@@ -35,6 +35,7 @@ for prefix in ['MainFan','AftFan']:
             for key in list(decal.keys()):del decal[key]
             decal['cloth_grid_uv']='uv1';decal['main_sail_crest']='existing maple-crest.png; continuous emblem across three main gores'
             decal['emblem_u_range']=[sector_u[sector],sector_u[sector+1]];decal['emblem_v_range']=[.30,.70]
+            decal['emblem_rotation_degrees']=90
             decal.modifiers.clear()
             for vertex in decal.data.vertices:vertex.co.x+=math.copysign(.018,vertex.co.x)
             # Grid UV drives cloth; emblem UV crops the image to the central patch.
@@ -43,7 +44,8 @@ for prefix in ['MainFan','AftFan']:
             for loop in decal.data.loops:
                 k=loop.vertex_index%429;u=k%13/12;v=k//13/32
                 global_u=sector_u[sector]+(sector_u[sector+1]-sector_u[sector])*u
-                art.data[loop.index].uv=(global_u,(v-.30)/.40);grid.data[loop.index].uv=(u,v)
+                # Rotate the whole image clockwise, not each gore's cropped fragment.
+                art.data[loop.index].uv=(1-(v-.30)/.40,global_u);grid.data[loop.index].uv=(u,v)
             decal.data.uv_layers.active=art;art.active_render=True
             mat=bpy.data.materials.get('SV3_MainSail_MapleDecal') or bpy.data.materials.new('SV3_MainSail_MapleDecal');mat.use_nodes=True
             mat.node_tree.nodes.clear();nodes=mat.node_tree.nodes;links=mat.node_tree.links

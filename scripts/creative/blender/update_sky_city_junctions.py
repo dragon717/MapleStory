@@ -23,7 +23,13 @@ for edge in LAYOUT['edges']:
     road_mesh(edge);changed.append(edge['id'])
 existing={o.get('node_id') for o in scene.objects}
 for n in LAYOUT['nodes']:
-    if n['id'] in existing:continue
+    if n['id'] in existing:
+        before=next(p for p in previous['nodes'] if p['id']==n['id'])
+        if before['position']!=n['position']:
+            for obj in scene.objects:
+                if obj.get('node_id')==n['id']:
+                    offset=Vector(native(n['position']))-Vector(native(before['position']));obj.location+=offset
+        continue
     obj=pad(n['id']+'_Landing',n['position'],2.1,neutral)
     obj['node_id']=n['id'];obj['motion_node']=n['id'];obj['zone']=n['zone'];obj['flat_landing']=True
 # Interior corridor landings are smaller than their new ring: extend the real floor.
@@ -39,6 +45,8 @@ for n in LAYOUT['nodes']:
     obj=pad(n['id']+'_FourArrowCourtyard',p,needed,neutral)
     obj['motion_node']=n['id'];obj['walk_surface']='backed courtyard floor';obj['zone']=n['zone']
 scene['spatial_layout']=json.dumps(LAYOUT,ensure_ascii=False)
+exec(compile((ROOT/'scripts/creative/blender/tag_sky_city_interiors.py').read_text(encoding='utf-8'),'tag_sky_city_interiors.py','exec'))
+tag_interiors(scene,LAYOUT)
 bpy.ops.wm.save_as_mainfile(filepath=str(DEST/'sky-city-spatial-prototype.blend'))
 bpy.ops.export_scene.gltf(filepath=str(DEST/'sky-city-spatial-prototype.glb'),export_format='GLB',use_active_scene=True,export_animations=False,export_extras=True,export_cameras=False,export_lights=False)
 print('FOUR_WAY_CITY',len(changed),'changed roads',len(LAYOUT['edges']),'total')

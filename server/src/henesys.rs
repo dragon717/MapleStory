@@ -17,6 +17,12 @@ struct Route {
     #[serde(rename = "loop")]
     closed: bool,
     nodes: Vec<Node>,
+    #[serde(default, rename="continueStart")]
+    continue_start: Option<usize>,
+    #[serde(default, rename="continueEnd")]
+    continue_end: Option<usize>,
+    #[serde(default, rename="previousEnd")]
+    previous_end: Option<f64>,
 }
 #[derive(Deserialize)]
 struct Entry {
@@ -77,6 +83,23 @@ fn segment(r: &Route, x: f64) -> (&Node, &Node) {
 fn ground(r: &Route, x: f64) -> f64 {
     let (a, b) = segment(r, x);
     a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)
+}
+fn continuation_near(data:&Layout, route:usize, x:f64)->bool {
+    let r=&data.routes[route];
+    (r.continue_start.is_some() && x-r.start<=55.) || (r.continue_end.is_some() && r.end-x<=55.)
+}
+/// Carry remaining travel through authored continuous endpoints in either direction.
+fn advance(data:&Layout, mut route:usize, mut x:f64, sign:i8, mut distance:f64)->(usize,f64) {
+    for _ in 0..=data.routes.len() {
+        let r=&data.routes[route];let intended=x+sign as f64*distance;
+        if r.closed{return (route,r.start+(intended-r.start).rem_euclid(r.end-r.start));}
+        let remaining=if sign>0 {intended-r.end} else {r.start-intended};
+        if remaining<=0. {return (route,intended.clamp(r.start,r.end));}
+        let next=if sign>0 {r.continue_end} else {r.continue_start};
+        let Some(next)=next else {return (route,intended.clamp(r.start,r.end));};
+        route=next;x=if sign>0 {data.routes[route].start} else {data.routes[route].end};distance=remaining;
+    }
+    (route,x)
 }
 fn tangent(a: &Node, b: &Node) -> [f64; 2] {
     let dx = b.position[0] - a.position[0];
@@ -239,6 +262,14 @@ fn validate_layout(data: &Layout) -> Result<(), String> {
         if r.nodes.len() < 2 || !r.start.is_finite() || !r.end.is_finite() || r.start >= r.end {
             return Err(fail(format!("{} 的道路范围无效", r.name)));
         }
+        for (next,forward) in [(r.continue_start,false),(r.continue_end,true)] {
+            if let Some(next)=next {
+                let target=data.routes.get(next).ok_or_else(||fail(format!("{} continuation missing",r.name)))?;
+                if target.nodes.is_empty(){return Err(fail(format!("{} continuation has no nodes",r.name)));}
+                let (a,b,back)=if forward {(r.nodes.last().unwrap(),&target.nodes[0],target.continue_start)} else {(&r.nodes[0],target.nodes.last().unwrap(),target.continue_end)};
+                if a.position!=b.position || back!=Some(ri) {return Err(fail(format!("{} continuation is not reciprocal",r.name)));}
+            }
+        }
         if r.start != r.nodes[0].x || r.end != r.nodes.last().unwrap().x {
             return Err(fail(format!("{} 的端点与道路范围不一致", r.name)));
         }
@@ -385,9 +416,9 @@ pub(super) fn teleport(
             player.east_view,
         )
         .filter(|c| {
-            player.east_horizontal != direction
+            (!continuation_near(data,route,x) || player.east_horizontal!=direction || player.east_vertical!=vertical) && (player.east_horizontal != direction
                 || player.east_vertical != vertical
-                || Some(c.junction) != junction
+                || Some(c.junction) != junction)
         }) {
             route = choice.route;
             x = choice.x;
@@ -395,18 +426,13 @@ pub(super) fn teleport(
             sign = choice.direction;
         }
     }
-    let r = &data.routes[route];
-    let intended = x + sign as f64
-        * if direction != 0 {
+    let distance = if direction != 0 {
             horizontal
         } else {
             vertical_distance
         };
-    let x = if r.closed {
-        r.start + (intended - r.start).rem_euclid(r.end - r.start)
-    } else {
-        intended.clamp(r.start, r.end)
-    };
+    let (route,x)=advance(data,route,x,sign,distance);
+    let r=&data.routes[route];
     let hop = if player.state.grounded {
         0.
     } else {
@@ -439,6 +465,9 @@ pub(super) fn repair_position(map: &Map, x: f64, y: f64) -> (f64, f64) {
     if let Some(i) = route_in(layout_for(map), x) {
         (x, ground(&layout_for(map).routes[i], x))
     } else {
+        if let Some(r)=layout_for(map).routes.iter().find(|r|x>=r.start&&r.previous_end.is_some_and(|end|x<=end)) {
+            return (r.end,ground(r,r.end));
+        }
         (map.spawn.x, map.spawn.y)
     }
 }
@@ -485,6 +514,7 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
     {
         if let Some(choice) = turn(data, ri, player.state.x, input, player.east_view)
             .filter(|c| Some(c.junction) != player.east_junction)
+            .filter(|_|input_changed || !continuation_near(data,ri,player.state.x))
         {
             ri = choice.route;
             player.state.x = choice.x;
@@ -525,13 +555,10 @@ pub(super) fn step(map: &Map, player: &mut Player, tick: u64) {
         player.drop_fh = 0;
     }
     player.jump = false;
-    let intended = player.state.x + player.state.vx * TICK_MS as f64 / 1000.0;
-    player.state.x = if r.closed {
-        r.start + (intended - r.start).rem_euclid(r.end - r.start)
-    } else {
-        intended.clamp(r.start, r.end)
-    };
-    let new_ground = ground(r, player.state.x);
+    let (next,x)=advance(data,ri,player.state.x,player.state.vx.signum() as i8,player.state.vx.abs()*TICK_MS as f64/1000.0);
+    if next!=ri {player.east_junction=data.junctions.iter().position(|j|j.entries.iter().any(|e|e.route==next&&(e.x-x).abs()<=55.));}
+    player.state.x=x;
+    let new_ground = ground(&data.routes[next], player.state.x);
     // A hop retains its height above this road; parallel roads cannot catch it through their depth.
     if player.state.grounded {
         player.state.y = new_ground;

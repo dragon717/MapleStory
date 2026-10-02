@@ -185,8 +185,9 @@ function checkSailBindings(runtime, scene) {
     const [u0,u1]=crest.userData.emblem_u_range;ranges.push([u0,u1]);
     const art=crest.geometry.getAttribute('uv'),grid=crest.geometry.getAttribute('uv1');
     for(let i=0;i<grid.count;i++){
-      assert(close(art.getX(i),u0+(u1-u0)*grid.getX(i)), 'each gore shares the global emblem U');
-      assert(close(art.getY(i),grid.getY(i)*2.5-.75), 'emblem uses the square middle-radius patch');
+      assert.equal(crest.userData.emblem_rotation_degrees,90);
+      assert(close(art.getX(i),grid.getY(i)*2.5-.75), 'rotated emblem uses the square middle-radius patch');
+      assert(close(art.getY(i),1-u0-(u1-u0)*grid.getX(i)), 'each gore shares the globally rotated emblem');
     }
   }
   assert(close(ranges[0][0],0)&&close(ranges[2][1],1));

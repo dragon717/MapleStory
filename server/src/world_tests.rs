@@ -5922,6 +5922,30 @@ fn fourth_job_core_channel_bind_summon_infinity_and_blizzard() {
 }
 
 #[test]
+fn sky_city_held_spiral_walks_every_floor_in_both_directions() {
+    let city:serde_json::Value=serde_json::from_str(include_str!("../../shared/sky-city.json")).unwrap();
+    let map:Map=serde_json::from_value(serde_json::json!({"id":city["mapId"],"bounds":city["bounds"],"spawn":city["spawn"],"footholds":city["platforms"]})).unwrap();
+    let mut world=World::new(map.clone(),600);let _rx=join_test_player(&mut world,"spiral");
+    let gameplay=world.gameplay.clone();let p=world.players.get_mut("spiral").unwrap();
+    let routes=city["routes"].as_array().unwrap();
+    for r in routes {if let Some(end)=r.get("previousEnd").and_then(|v|v.as_f64()) {let x=(end+r["end"].as_f64().unwrap())/2.;assert_eq!(henesys::repair_position(&map,x,0.).0,r["end"].as_f64().unwrap(),"shortened landing save stays on the same road");}}
+    let spiral:Vec<_>=routes.iter().filter(|r|r.get("continueStart").is_some()||r.get("continueEnd").is_some()).collect();
+    for sign in [1,-1] {
+        let first=if sign>0 {spiral[0]} else {*spiral.last().unwrap()};
+        let last=if sign>0 {*spiral.last().unwrap()} else {spiral[0]};
+        henesys::reset(p);p.state.x=if sign>0 {first["start"].as_f64().unwrap()+60.} else {first["end"].as_f64().unwrap()-60.};
+        p.state.y=henesys::repair_position(&map,p.state.x,0.).1;p.state.grounded=true;p.move_speed=160.;
+        p.direction=1;p.vertical=0;p.east_horizontal=1;p.east_walk=sign;
+        let mut ticks=0;
+        while !(p.state.x>=last["start"].as_f64().unwrap()+60. && p.state.x<=last["end"].as_f64().unwrap()-60.) {
+            let before=p.state.y;step_player(&map,&gameplay,p,ticks);ticks+=1;
+            assert!(if sign>0 {p.state.y>=before-1e-7} else {p.state.y<=before+1e-7},"held key cannot reverse vertical progress");
+            assert_eq!(p.east_walk,sign);assert!(ticks<15000,"continuous spiral cannot stall");
+        }
+    }
+}
+
+#[test]
 fn henesys_east_walk_jump_branch_and_saved_position() {
     let east: serde_json::Value = serde_json::from_str(include_str!("../../shared/chuxian-east.json")).unwrap();
     let map: Map = serde_json::from_value(serde_json::json!({"id":east["mapId"],"bounds":east["bounds"],"spawn":east["spawn"],"footholds":east["platforms"]})).unwrap();
@@ -5933,7 +5957,9 @@ fn henesys_east_walk_jump_branch_and_saved_position() {
     for tick in 3..25{step_player(&map,&gameplay,p,tick)}assert!(p.state.grounded,"hop lands on its own road");
     let cross=east["routes"][0]["nodes"][2]["x"].as_f64().unwrap();
     let (_,ground)=henesys::repair_position(&map,cross,0.0);p.state.x=cross;p.state.y=ground;p.state.grounded=true;p.vertical=-1;
-    step_player(&map,&gameplay,p,30);let market_start=east["routes"][1]["start"].as_f64().unwrap();let market_end=east["routes"][1]["end"].as_f64().unwrap();assert!(p.state.x>=market_start&&p.state.x<=market_end,"north input enters the actual market branch");
+    step_player(&map,&gameplay,p,30);
+    let courtyard=&east["routes"][16];assert_eq!(courtyard["nodes"][0]["name"],"marketCross");
+    assert!(p.state.x>=courtyard["start"].as_f64().unwrap()&&p.state.x<=courtyard["end"].as_f64().unwrap(),"north enters the authored four-arrow market courtyard");
     // Away from junctions, left/right still traverse every curve in authored arc order.
     for (route_index, route) in east["routes"].as_array().unwrap().iter().enumerate() {
         let nodes = route["nodes"].as_array().unwrap();

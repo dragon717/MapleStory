@@ -62,4 +62,24 @@ assert.equal(scanned,0,'moving a rigid object cannot rescan its unchanged vertic
 const vertices=wall.geometry.getAttribute('position');vertices.setX(0,vertices.getX(0)-2);vertices.needsUpdate=true;
 reveal.update(foot,camera,1000,700,1,16,2500);assert.equal(scanned,1,'deformed geometry still refreshes its local bounds');
 reveal.destroy();assert.equal(reveal.candidates.length,0);assert.equal(shader.uniforms.revealStrength.value,0);
+// An authored room cuts its enclosing shell, retaining the floor and restoring visibility.
+const roomModel=new T.Group(),volume=new T.Group();volume.name='Room';volume.userData.interior_bounds=[-4,-.5,-4,4,8,4];roomModel.add(volume);
+const shell=new T.Mesh(new T.BoxGeometry(8,8,1),shared);shell.userData.cutaway_rooms='Room';shell.position.set(0,4,3);roomModel.add(shell);
+const floor=new T.Mesh(new T.BoxGeometry(8,.2,8),shared);roomModel.add(floor);
+const upper=new T.Mesh(new T.BoxGeometry(8,.2,8),shared);upper.position.y=12;upper.userData.cutaway_rooms='Room';upper.userData.cutaway_above=true;upper.userData.cutaway_level=[0,0,0];roomModel.add(upper);
+const concealed=new T.Group();concealed.visible=false;concealed.userData.cutaway_rooms='Room';roomModel.add(concealed);
+const cutaway=new LocalReveal(roomModel,()=>true);
+assert(cutaway.update(foot,camera,1000,700,1,16,0));assert.equal(shell.visible,false);assert.equal(upper.visible,false);assert.equal(floor.visible,true);
+cutaway.update(new T.Vector3(4.3,0,0),camera,1000,700,1,16,100);assert.equal(shell.visible,false,'doorway exit margin prevents flicker');
+cutaway.update(new T.Vector3(5,0,0),camera,1000,700,1,16,200);assert.equal(shell.visible,true);assert.equal(upper.visible,true);assert.equal(concealed.visible,false);
+volume.position.y=10;cutaway.update(new T.Vector3(0,10,0),camera,1000,700,1,16,300);assert.equal(shell.visible,false,'moving island volume follows its transform');assert.equal(upper.visible,true,'floor within body clearance remains');
+cutaway.destroy();assert.equal(shell.visible,true);assert.equal(concealed.visible,false);
+const railModel=new T.Group(),rail=new T.Mesh(new T.BoxGeometry(16,.8,1),shared);rail.position.set(0,.4,5);railModel.add(rail);
+const railReveal=new LocalReveal(railModel,()=>true);
+railReveal.update(foot,camera,1000,700,1,1000,0);assert.equal(railReveal.strength.value,0,'a low rail deliberately keeps partial occlusion');
+// Joined geometry has a large box across an empty doorway; it must not count as a solid wall.
+const left=new T.BoxGeometry(1,9,1).toNonIndexed().translate(-5,0,0),right=new T.BoxGeometry(1,9,1).toNonIndexed().translate(5,0,0);
+rail.geometry=new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute([...left.attributes.position.array,...right.attributes.position.array],3));rail.position.set(0,4,5);
+railReveal.destroy();const hollow=new LocalReveal(railModel,()=>true);hollow.update(foot,camera,1000,700,1,1000,0);assert.equal(hollow.strength.value,0);
+hollow.destroy();
 console.log('PASS: isolated materials, instanced geometry, body/feet core, DPR, gradual fade, teleport/reset and unchanged shadow material.');

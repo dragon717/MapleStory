@@ -184,6 +184,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.shadow.needsUpdate=true;}
   this.sun.target.position.copy(cell);this.sun.position.copy(cell).addScaledVector(this.climate.uniforms.solarDirection.value,150);
   const now=performance.now(),seconds=now/1000;
+  if(this.reveal.update(foot,this.camera,this.width,this.height,ratio,delta,now,actor.revealHeight,actor.revealWidth))this.sun.shadow.needsUpdate=true;
   this.climate.update(base,seconds,ratio);
   if(this.snow.update(this.climate.settings,Math.min(delta/1000,.1),seconds))this.sun.shadow.needsUpdate=true;
   this.climate.uniforms.winterSnow.value=this.snow.amount;
@@ -201,7 +202,6 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const ground=segmentAt(actor.x,this.map.id),t=(actor.x-ground.a.x)/(ground.b.x-ground.a.x),groundY=-(ground.a.y+(ground.b.y-ground.a.y)*t)/PIXELS_PER_METRE;
   const roadName=`${this.map.name} · ${ground.route.name}`;if(this.roadLabel.textContent!==roadName)this.roadLabel.textContent=roadName;
   this.footShadow.position.set(foot.x,this.point(actor.x,-groundY*PIXELS_PER_METRE)[1]+.018,foot.z);this.footShadow.material.opacity=.18/(1+Math.max(0,foot.y-groundY));
-  this.reveal.update(foot,this.camera,this.width,this.height,ratio,delta,performance.now(),actor.revealHeight,actor.revealWidth);
   // Rasterize at final physical resolution before any detail can be lost.
   this.resizeSource(this.depthTarget.width,this.depthTarget.height);
   this.rasterCamera={x:source.x,y:source.y,width:source.width,height:source.height,scrollX:source.scrollX,scrollY:source.scrollY,zoomX:source.zoomX,zoomY:source.zoomY,roundPixels:source.roundPixels,useBounds:source.useBounds};

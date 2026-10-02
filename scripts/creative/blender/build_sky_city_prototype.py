@@ -723,6 +723,8 @@ assert len([o for o in scene.objects if o.get('node_id')])==len(LAYOUT['nodes'])
 assert len([o for o in scene.objects if o.get('map_id')])==27
 assert len([o for o in scene.objects if 'original_floor' in o])==22
 assert len([o for o in scene.objects if o.get('edge_id')])==len(LAYOUT['edges'])
+exec(compile(open('/Users/muniao/Code/MapleStory/scripts/creative/blender/tag_sky_city_interiors.py',encoding='utf-8').read(),'tag_sky_city_interiors.py','exec'))
+tag_interiors(scene,LAYOUT)
 bpy.ops.wm.save_as_mainfile(filepath=DEST+'sky-city-spatial-prototype.blend')
 bpy.ops.export_scene.gltf(filepath=DEST+'sky-city-spatial-prototype.glb',export_format='GLB',use_active_scene=True,
     export_animations=False,export_extras=True,export_cameras=False,export_lights=False)

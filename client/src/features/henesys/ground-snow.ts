@@ -15,10 +15,15 @@ export function advanceSnowCover(previous: SnowCover, settings: EnvironmentSetti
 
 const TILE_SIZE = 8, CELLS = 64, TILE_COUNT = 12, CELL_SIZE = TILE_SIZE / CELLS, SIDE = CELLS + 1;
 type Foot = { x: number; y: number; z: number };
-type Triangle = { a: T.Vector3; b: T.Vector3; c: T.Vector3; top: [number, number, number]; slopeX: number; slopeZ: number; lift?: (p:T.Vector3)=>number };
+type Triangle = { source: T.Mesh; a: T.Vector3; b: T.Vector3; c: T.Vector3; top: [number, number, number]; slopeX: number; slopeZ: number; lift?: (p:T.Vector3)=>number };
 type Sample = { y: number; top: number; triangle: Triangle };
-type Tile = { mesh: T.Mesh; position: T.BufferAttribute; top: T.BufferAttribute; press: T.BufferAttribute; indices: T.BufferAttribute; x: number; z: number; used: number; assigned: boolean; baseY: Float32Array; lifts: (((p:T.Vector3)=>number)|undefined)[] };
+type Tile = { mesh: T.Mesh; source?: T.Mesh; position: T.BufferAttribute; top: T.BufferAttribute; press: T.BufferAttribute; indices: T.BufferAttribute; x: number; z: number; used: number; assigned: boolean; baseY: Float32Array; lifts: (((p:T.Vector3)=>number)|undefined)[] };
 type Shader = Parameters<T.Material['onBeforeCompile']>[0];
+function surfaceVisible(source?: T.Object3D) {
+  if (!source) return false;
+  for (let o: T.Object3D | null = source; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
 
 /** Real snow shells plus a fixed cache of small road heightfields; no collision or foot-height changes. */
 export class SnowSurface {
@@ -27,6 +32,7 @@ export class SnowSurface {
   get depth() { return this.cover.depth; }
   private root = new T.Group();
   private shells: T.Mesh[] = [];
+  private shellSources = new WeakMap<T.Mesh, T.Mesh>();
   private motions: {mesh:T.Mesh;baseY:Float32Array;lift:(p:T.Vector3)=>number}[]=[];
   private tiles: Tile[] = [];
   private materials = new Set<T.Material>();
@@ -79,6 +85,7 @@ export class SnowSurface {
         shell.customDepthMaterial = this.depthMaterial(false, road); shell.castShadow = true; shell.receiveShadow = true;
         if(motion){const p=geometry.getAttribute('position');this.motions.push({mesh:shell,baseY:Float32Array.from({length:p.count},(_,i)=>p.getY(i)),lift:motion(mesh)});}
         shell.name = 'CE_Snow_' + mesh.name; shell.visible = false; this.root.add(shell); this.shells.push(shell);
+        this.shellSources.set(shell, mesh);
         if (road) roadSource ??= source;
       }
     }
@@ -167,7 +174,7 @@ export class SnowSurface {
     if (road) for (let i = 0; i < indices.length; i += 3) {
       const ids = indices.slice(i, i + 3), [a, b, c] = ids.map(id => vertices[id]);
       normal.crossVectors(ab.copy(b).sub(a), ac.copy(c).sub(a)).normalize();
-      const triangle: Triangle = { a, b, c, top: ids.map(id => tops[id]) as [number, number, number], slopeX: -normal.x / normal.y, slopeZ: -normal.z / normal.y, lift };
+      const triangle: Triangle = { source: mesh, a, b, c, top: ids.map(id => tops[id]) as [number, number, number], slopeX: -normal.x / normal.y, slopeZ: -normal.z / normal.y, lift };
       for (let x = Math.floor(Math.min(a.x, b.x, c.x) / 2); x <= Math.floor(Math.max(a.x, b.x, c.x) / 2); x++) for (let z = Math.floor(Math.min(a.z, b.z, c.z) / 2); z <= Math.floor(Math.max(a.z, b.z, c.z) / 2); z++) {
         const key = `${x},${z}`, bin = this.bins.get(key) ?? []; bin.push(triangle); this.bins.set(key, bin);
       }
@@ -247,6 +254,7 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
   private sample(x: number, z: number, y: number, tolerance = .45): Sample | undefined {
     let result: Sample | undefined, closest = tolerance;
     for (const triangle of this.bins.get(`${Math.floor(x / 2)},${Math.floor(z / 2)}`) ?? []) {
+      if (!surfaceVisible(triangle.source)) continue;
       const { a, b, c } = triangle, d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
       if (Math.abs(d) < 1e-8) continue;
       const u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d;
@@ -268,7 +276,7 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
     });
     if (tile) { tile.used = ++this.clock; return tile; }
     tile = this.tiles.reduce((old, next) => !next.assigned || next.used < old.used ? next : old);
-    tile.x = x; tile.z = z; tile.assigned = true; tile.used = ++this.clock;
+    tile.x = x; tile.z = z; tile.source = reference.triangle.source; tile.assigned = true; tile.used = ++this.clock;
     const slot = this.tiles.indexOf(tile), valid = new Uint8Array(SIDE * SIDE);
     const positions = tile.position.array as Float32Array, tops = tile.top.array as Float32Array;
     (tile.press.array as Float32Array).fill(0);
@@ -342,8 +350,11 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
     if (this.destroyed) return false;
     const previous = this.cover.amount; this.cover = advanceSnowCover(this.cover, settings, deltaSeconds);
     this.uniforms.snowAmount.value = this.amount; this.uniforms.snowFall.value = this.cover.fall;
-    for (const shell of this.shells) shell.visible = this.amount > .003;
-    for (const tile of this.tiles) tile.mesh.visible = tile.assigned && this.amount > .003;
+    for (const shell of this.shells) shell.visible = this.amount > .003 && surfaceVisible(this.shellSources.get(shell));
+    for (const [i, tile] of this.tiles.entries()) {
+      tile.mesh.visible = tile.assigned && this.amount > .003 && surfaceVisible(tile.source);
+      this.uniforms.snowTiles.value[i].z = tile.mesh.visible ? 1 : 0;
+    }
     if (previous > 0 && this.amount === 0) for (const tile of this.tiles) { (tile.press.array as Float32Array).fill(0); tile.press.needsUpdate = true; }
     this.shadowPending ||= Math.abs(this.amount - this.shadowAmount) >= .025 || previous > .003 && this.amount <= .003 || previous <= .003 && this.amount > .003;
     if (this.shadowPending && Number.isFinite(time) && time - this.shadowTime >= .4) {

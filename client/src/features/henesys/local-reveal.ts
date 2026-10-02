@@ -1,22 +1,35 @@
 import * as T from 'three';
 
-/** One local window in the existing opaque pass; scenery still casts its normal shadow. */
+/** Authored interior cutaways and a local opaque-pass window for full outdoor occlusion. */
 export class LocalReveal {
   private window = { value: new T.Vector4() };
   private depth = { value: 0 };
   private strength = { value: 0 };
   private candidates: { mesh: T.Mesh; bounds: T.Box3; instance?: number }[] = [];
   private geometryBounds = new WeakMap<T.BufferGeometry, { version: number; bounds: T.Box3 }>();
+  private occluders = new WeakMap<T.BufferGeometry,{version:number;tiles:{bounds:T.Box3;triangles:number[]}[]}>();
+  private localRay=new T.Ray();
+  private inverse=new T.Matrix4();
+  private vertices=[new T.Vector3(),new T.Vector3(),new T.Vector3()];
   private lastFoot?: T.Vector3;
   private direction = new T.Vector3();
   private ray = new T.Ray();
   private hit = new T.Vector3();
   private checkedAt = -Infinity;
   private blocked = false;
+  private interiors: { volume:T.Object3D; bounds:T.Box3; shells:{object:T.Object3D;above:boolean}[] }[]=[];
+  private hidden = new Map<T.Object3D,boolean>();
 
   constructor(model: T.Object3D, eligible?: (mesh:T.Mesh) => boolean) {
     const materials = new Map<T.Material, T.Material>();
     model.updateMatrixWorld(true);
+    model.traverse(o=>{
+      const b=o.userData.interior_bounds;
+      if(!Array.isArray(b)||b.length!==6||!b.every(Number.isFinite))return;
+      const shells:{object:T.Object3D;above:boolean}[]=[];
+      model.traverse(part=>{if(part.userData.cutaway_rooms?.split(',').includes(o.name))shells.push({object:part,above:part.userData.cutaway_above_rooms?.split(',').includes(o.name)??!!part.userData.cutaway_above});});
+      this.interiors.push({volume:o,bounds:new T.Box3(new T.Vector3(...b.slice(0,3)),new T.Vector3(...b.slice(3))),shells});
+    });
     model.traverseVisible(o => {
       if (!(o instanceof T.Mesh)) return;
       let parent: T.Object3D | null = o, layer;
@@ -57,9 +70,26 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
       };
       o.material = Array.isArray(o.material) ? o.material.map(patch) : patch(o.material);
     });
+    // Build large static hull/terrain tiles during scene setup, before the first walking frame.
+    for(const {mesh} of this.candidates)if((mesh.geometry.index?.count??mesh.geometry.getAttribute('position').count)>10000)this.tiles(mesh.geometry);
   }
 
   update(foot: T.Vector3, camera: T.PerspectiveCamera, width: number, height: number, ratio: number, delta: number, now = performance.now(), bodyHeight = 2.2, bodyWidth = 0) {
+    const cut=new Set<T.Object3D>();
+    for(const room of this.interiors){
+      room.volume.updateWorldMatrix(true,false);
+      const inside=room.volume.worldToLocal(foot.clone());
+      // Small exit margin prevents rapid toggling while standing on the doorway.
+      const bounds=room.bounds.clone();if(room.shells.some(s=>this.hidden.has(s.object)))bounds.expandByScalar(.6);
+      if(!bounds.containsPoint(inside))continue;
+      for(const shell of room.shells){
+        if(shell.above){shell.object.updateWorldMatrix(true,false);const y=new T.Vector3(...shell.object.userData.cutaway_level).applyMatrix4(shell.object.matrixWorld).y;if(y<=foot.y+3)continue;}
+        cut.add(shell.object);
+      }
+    }
+    let changed=false;
+    for(const [object,visible] of this.hidden)if(!cut.has(object)){object.visible=visible;this.hidden.delete(object);changed=true;}
+    for(const object of cut)if(!this.hidden.has(object)){this.hidden.set(object,object.visible);object.visible=false;changed=true;}
     const movement = this.lastFoot ? foot.clone().sub(this.lastFoot) : new T.Vector3();
     const teleported = movement.length() > 5;
     if (teleported) { this.direction.set(0, 0, 0); this.strength.value = 0; this.checkedAt = -Infinity; }
@@ -94,21 +124,60 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
         }
         item.bounds.copy(local.bounds).applyMatrix4(matrix);
       }
-      // Bounding boxes only decide fade timing; the shader checks actual foreground pixels.
-      // No triangle raycasts, GPU readbacks, or distance cutoff that misses a large building.
-      const side = new T.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(Math.max(.65, bodyWidth * .4));
+      // Boxes reject distant candidates; cached triangle tiles distinguish real walls from hollow hull bounds.
+      // The shader removes only foreground pixels; no GPU readback or alpha-sort pass.
+      const side = new T.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(Math.max(.3, bodyWidth * .4));
       const middle = foot.clone().add(new T.Vector3(0, bodyHeight / 2, 0));
-      this.blocked = [foot.clone().add(new T.Vector3(0, .15, 0)), head, middle.clone().add(side), middle.sub(side), ahead].some(p => {
+      // Keep deliberate partial occlusion; reveal only when the whole sampled body is hidden.
+      this.blocked = [foot.clone().add(new T.Vector3(0, .15, 0)), head, middle.clone().add(side), middle.sub(side)].every(p => {
         this.ray.set(camera.position, p.clone().sub(camera.position).normalize());
         const distance = camera.position.distanceTo(p) - .05;
-        return this.candidates.some(o => o.mesh.visible && this.ray.intersectBox(o.bounds, this.hit) && this.hit.distanceTo(camera.position) < distance);
+        return this.candidates.some(o => {let p:T.Object3D|null=o.mesh;while(p){if(!p.visible)return false;p=p.parent;}return !!this.ray.intersectBox(o.bounds,this.hit)&&this.hit.distanceTo(camera.position)<distance&&this.intersects(o.mesh,o.instance,distance);});
       });
     }
     const target = this.blocked ? 1 : 0;
     this.strength.value += (target - this.strength.value) * (1 - Math.exp(-Math.max(0, delta) / 90));
     if (Math.abs(target - this.strength.value) < .002) this.strength.value = target;
+    return changed;
+  }
+
+  private tiles(geometry:T.BufferGeometry){
+    const p=geometry.getAttribute('position'),index=geometry.index;
+    const version=p instanceof T.InterleavedBufferAttribute?p.data.version:p.version;
+    let cached=this.occluders.get(geometry);
+    if(!cached||cached.version!==version){
+      const bins=new Map<string,{bounds:T.Box3;triangles:number[]}>();
+      const count=index?.count??p.count;
+      for(let i=geometry.drawRange.start;i<Math.min(count,geometry.drawRange.start+geometry.drawRange.count);i+=3){
+        for(let j=0;j<3;j++)this.vertices[j].fromBufferAttribute(p,index?index.getX(i+j):i+j);
+        // Reuse the deck collider's small spatial tiles; cache until vertices actually change.
+        const center=this.vertices[0].clone().add(this.vertices[1]).add(this.vertices[2]).divideScalar(3);
+        const key=count>10000?`${Math.floor(center.x/4)},${Math.floor(center.y/4)},${Math.floor(center.z/4)}`:'all';
+        let bin=bins.get(key);if(!bin){bin={bounds:new T.Box3(),triangles:[]};bins.set(key,bin);}
+        bin.triangles.push(i);for(const v of this.vertices)bin.bounds.expandByPoint(v);
+      }
+      cached={version,tiles:[...bins.values()]};this.occluders.set(geometry,cached);
+    }
+    return cached.tiles;
+  }
+  private intersects(mesh:T.Mesh,instance:number|undefined,distance:number){
+    const geometry=mesh.geometry,p=geometry.getAttribute('position'),index=geometry.index,tiles=this.tiles(geometry);
+    this.inverse.copy(mesh.matrixWorld);
+    if(instance!==undefined){const m=new T.Matrix4();(mesh as T.InstancedMesh).getMatrixAt(instance,m);this.inverse.multiply(m);}
+    const world=this.inverse.clone();this.localRay.copy(this.ray).applyMatrix4(this.inverse.invert());
+    for(const tile of tiles){
+      if(!this.localRay.intersectBox(tile.bounds,this.hit))continue;
+      for(const i of tile.triangles){
+        for(let j=0;j<3;j++)this.vertices[j].fromBufferAttribute(p,index?index.getX(i+j):i+j);
+        const material=Array.isArray(mesh.material)?mesh.material[geometry.groups.find(g=>i>=g.start&&i<g.start+g.count)?.materialIndex??0]:mesh.material;
+        if(!material||!material.visible||material.transparent)continue;
+        const [a,b,c]=this.vertices;
+        if(this.localRay.intersectTriangle(material.side===T.BackSide?c:a,b,material.side===T.BackSide?a:c,material.side!==T.DoubleSide,this.hit)&&this.hit.applyMatrix4(world).distanceTo(this.ray.origin)<distance)return true;
+      }
+    }
+    return false;
   }
 
   // Patched materials/textures are owned and disposed by HenesysView's model lifecycle.
-  destroy() { this.strength.value = 0; this.candidates.length = 0; this.lastFoot = undefined; }
+  destroy() { for(const [object,visible] of this.hidden)object.visible=visible;this.hidden.clear();this.interiors.length=0;this.strength.value = 0; this.candidates.length = 0; this.lastFoot = undefined; }
 }

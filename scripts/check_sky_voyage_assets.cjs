@@ -42,6 +42,15 @@ function checkSkyCity(publicDirectory) {
   const embeddedLayout = JSON.parse(extras.spatial_layout);
   const layout = JSON.parse(fs.readFileSync(path.join(root, 'resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-layout.json'), 'utf8'));
   assert.deepEqual(embeddedLayout, layout, 'GLB layout metadata differs from its source layout');
+  const rooms=gltf.nodes.filter(n=>n.extras?.interior_bounds),roomNames=new Set(rooms.map(n=>n.name));
+  assert(roomNames.has('SC_Interior_Tower')&&roomNames.has('SC_Interior_Sanctuary'));
+  assert.equal(rooms.filter(n=>/^SC_F-R\d+$/.test(n.name)).length,27);
+  for(const node of gltf.nodes){
+    for(const name of node.extras?.cutaway_rooms?.split(',')??[])assert(roomNames.has(name),`${node.name}: missing cutaway room`);
+    if(node.extras?.cutaway_above_rooms)assert(node.extras.cutaway_level?.length===3&&node.extras.cutaway_level.every(Number.isFinite));
+    if(/^SC_G-(S16|S10|LAB|EXIT)_(Floor|Back|Side)/.test(node.name))assert.equal(node.extras.island_binding,'A03','side room geometry follows its island');
+  }
+  for(const spec of layout.rooms){const floor=gltf.nodes.find(n=>n.name===`SC_${spec.id}_Floor`);assert(!floor.extras?.cutaway_rooms,'current room floor stays visible');}
   assert(fs.existsSync(path.resolve(root, layout.provenance)), 'spatial layout provenance source is missing');
   assert(layout.nodes.length >= 177);assert(layout.fourWayJunctions); assert.equal(layout.landings.length, 177);
   assert(layout.edges.length >= 201); assert.equal(layout.mapAssignments.length, 287);
@@ -114,7 +123,7 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   }
   const crest=gltf.nodes.filter(node=>node.name?.startsWith('SV3_MainSail_Crest_'));
   assert.equal(crest.length,3,'one continuous maple emblem spans the three main sail gores');
-  for(const piece of crest)assert.equal(piece.extras.cloth_grid_uv,'uv1');
+  for(const piece of crest){assert.equal(piece.extras.cloth_grid_uv,'uv1');assert.equal(piece.extras.emblem_rotation_degrees,90);}
   const ranges=crest.sort((a,b)=>a.name.localeCompare(b.name)).map(n=>n.extras.emblem_u_range);
   assert.equal(ranges[0][0],0);assert(Math.abs(ranges[2][1]-1)<1e-6);
   for(let i=0;i<2;i++)assert(Math.abs(ranges[i][1]-ranges[i+1][0])<1e-6,'main sail UV must share seam coordinates');
