@@ -292,27 +292,21 @@ function renderMapRoute(manifest: Manifest) {
   route.textContent = names.length ? `${keybindings.interactionLabel} ${english ? 'Enter portal: ' : '进入传送门：'}${names.join(english ? ', ' : '、')}` : '';
   route.hidden = names.length === 0;
 }
-async function enterGame(session: LoginResponse) {
+async function enterGame(session: LoginResponse, beforeReveal: () => Promise<boolean>) {
   let windbellSequence = 0;
   const current = ++generation;
-  // Switch away from the character-select screen *before* fetching the
-  // manifest.  The user picks a character and the very next frame should be
-  // the full-bleed loading backdrop — not the character select still lingering
-  // while `loadManifest()` runs.  The overlay mounts onto `#game-shell` and,
-  // once `#play` is revealed, covers the whole viewport with the authored
-  // high-resolution art plus the progress card for the entire boot pipeline.
+  // Build the world behind the voyage; preserve its measured viewport while hidden.
   loadingOverlay?.hide();
-  loadingOverlay = new LoadingOverlay(el('game-shell'));
-  el('welcome').hidden = true;
+  loadingOverlay = new LoadingOverlay(el('welcome'));
   el('play').hidden = false;
-  // Switch to game-mode *before* mounting the overlay, so `#game-shell`
-  // already has its full 100dvh height when the overlay's `inset:0` is
-  // measured — the backdrop then fills the viewport on its first paint instead
-  // of starting at zero height.  `entry-active` is deliberately left for
-  // `startGame` to remove after `enter` resolves; it only hides the header/
-  // footer/status line, all of which the overlay covers anyway.
+  el('play').style.visibility = 'hidden';
   setPlayLayout(true);
   loadingOverlay.show();
+  let finishBoot!: () => void, failBoot!: (error: Error) => void;
+  const boot = new Promise<void>((resolve, reject) => { finishBoot = resolve; failBoot = reject; });
+  // Keep early loader failures handled until the setup reaches its await.
+  void boot.catch(() => {});
+  let revealing = false, bootFinished = false;
   loadingOverlay.update('manifest', null);
   status(english ? 'Loading resources…' : '正在读取资源清单…');
   try {
@@ -513,19 +507,16 @@ async function enterGame(session: LoginResponse) {
       },
       releaseSkill: requestId => { connection?.send({ type: 'releaseSkill', requestId }); },
     });
-    // The loading overlay covers the whole boot window and may only come
-    // down when BOTH sides are ready: the first authoritative snapshot has
-    // been announced AND the world scene finished preloading.  The server
-    // starts pushing snapshots the moment the WebSocket handshake lands —
-    // typically while Phaser is still fetching hundreds of textures — so
-    // hiding on the snapshot alone exposed the raw canvas with the top
-    // "正在装载地图与角色 · NN%" line climbing for the rest of the boot.
-    // Whichever side finishes last reveals the game; the gate on
-    // `loadingOverlay` keeps later status lines from re-running the reveal.
     const revealGame = () => {
-      if (!loadingOverlay || !world?.isLoaded) return;
-      loadingOverlay.hide();
-      loadingOverlay = undefined;
+      if (revealing || bootFinished || !world?.isLoaded || !selfState || !loadingOverlay || current !== generation) return;
+      revealing = true;
+      void (async () => {
+        loadingOverlay?.hide(); loadingOverlay = undefined;
+        input?.setReady(false);
+        if (!await beforeReveal() || current !== generation) throw new Error(english ? 'Entry cancelled.' : '入图已取消。');
+        el('play').style.visibility = '';
+        bootFinished = true; input?.setReady(connectionState === 'online'); finishBoot();
+      })().catch(error => failBoot(error instanceof Error ? error : new Error(String(error))));
     };
     world = new World(manifest, (message, error) => {
       status(message, error);
@@ -533,7 +524,7 @@ async function enterGame(session: LoginResponse) {
       // `isLoaded` flipped true; when the snapshot beat the textures, this
       // is the side that finishes last and performs the reveal.
       if (!error) revealGame();
-      if (error) { input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); townLampPanel?.update(undefined); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
+      if (error) { if (!bootFinished) failBoot(new Error(message)); input?.setReady(false); connection?.close(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); townLampPanel?.update(undefined); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); deathNotice?.clear(); awayNotice?.clear(); loadingOverlay?.hide(); loadingOverlay = undefined; el('connection').textContent = english ? 'Resource load failed' : '资源加载失败'; el('reconnect').hidden = true; }
     }, request => {
       const requestId = `portal-${Date.now()}-${++portalSequence}`;
       if (connection?.send({ type: 'portal', requestId, portalName: request.portalName })) {
@@ -938,7 +929,8 @@ async function enterGame(session: LoginResponse) {
       el('connection').classList.toggle('online', state === 'online');
       el('reconnect').hidden = state !== 'offline';
       el('reconnect').textContent = connection?.isTerminal() ? (english ? 'Log in again' : '重新登录') : (english ? 'Reconnect' : '重连');
-      input?.setReady(state === 'online');
+      input?.setReady(bootFinished && state === 'online');
+      if (state === 'offline' && connection?.isTerminal() && !bootFinished) failBoot(new Error(reason || '登录连接失败。'));
       if (state === 'online') focusGame();
       chat?.setAvailable(state === 'online');
       if (state !== 'online') { colossusView?.destroy(); colossusView=undefined; world?.scene?.setVisible(true); world?.scene?.resume(); keybindingsView?.close(); renderBossPractice(undefined, undefined); announcedMapId = undefined; selfState = undefined; world?.disconnect(); chat?.clear(); hud?.clear(); inventory?.clear(); skills?.clear(); characterInfo?.update(undefined); characterInfo?.close(); townLampPanel?.update(undefined); petPanel?.clear(); petPanel?.close(); mountStatus?.clear(); menus?.close(); party?.close(); friends?.close(); emoticons?.close(); miniMap?.clear(); deathNotice?.clear(); awayNotice?.clear(); npcDialogue?.clear(); townLampPanel?.close(); storage?.close(); cashShop?.close(); questLog?.clear(); party?.close(); friends?.close(); status(reason || (english ? 'Connecting to map server…' : '正在连接地图服务器…'), state === 'offline'); }
@@ -973,6 +965,7 @@ async function enterGame(session: LoginResponse) {
       isBlocked: () => Boolean(worldMap?.isOpen() || keybindingsView?.isOpen() || (activities?.isOpen() || adminBook?.isOpen()) || news.open || menus?.isOpen() || (npcDialogue?.isOpen() || townLampPanel?.isOpen()) || cashShop?.isOpen() || storage?.isOpen() || deathNotice?.isOpen() || skills?.isOpen() || characterInfoIsOpen() || (petPanel?.isOpen() || mountStatus?.isOpen()) || party?.isOpen() || friends?.isOpen() || emoticons?.isOpen()),
     });
     connection.connect();
+    await boot;
     el('game').focus({ preventScroll: true });
   } catch (error) { leaveGame(); throw error; }
 }
@@ -997,6 +990,7 @@ function leaveGame(logout = false) {
   // Hide the loading overlay before the game view collapses so a partially
   // bootstrapped session doesn't leave an orphaned progress card behind.
   loadingOverlay?.hide(); loadingOverlay = undefined;
+  el('play').style.visibility = '';
   setPlayLayout(false);
   activities?.destroy(); activities = undefined;
   adminBook?.destroy(); adminBook = undefined;

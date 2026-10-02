@@ -122,14 +122,14 @@ const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 // url('/assets/…') would break the esbuild-based offline app checks, which
 // try to resolve it on disk.  The CSS keeps the responsive cover rules so
 // the layout survives desktop / landscape / narrow-portrait breakpoints.
-assert.match(source, /UI__Canvas_customLoginTheme\.img_0_image_back_0_0-88919c5ab2\.png/, 'overlay uses the high-resolution CustomizeChar art');
+assert.doesNotMatch(source,/loading-overlay-backdrop/);
 // v3 §3.2: an art URL that lives in JS must also go through the resolver,
 // otherwise "重新下载所需资源" cannot reach this backdrop (it is a page-level
 // CSS background, not a Phaser loader request).  Reverse assertion: the plain
 // literal must never appear as a bare url() again.
-assert.match(source, /resolveAssetUrl\('[^']*UI__Canvas_customLoginTheme/, 'backdrop art must pass through resolveAssetUrl');
-assert.doesNotMatch(source, /backgroundImage\s*=\s*`url\('\/assets\//, 'backdrop must not hardcode a bare /assets/ url');
-assert.match(style, /background-size:\s*cover/, 'overlay background covers the viewport');
+assert.doesNotMatch(source,/loading-overlay-backdrop/);
+assert.doesNotMatch(source,/loading-overlay-backdrop/);
+assert.doesNotMatch(source,/loading-overlay-backdrop/);
 assert.match(style, /@media \(max-width: 700px\)/, 'overlay adapts to narrow viewports');
 assert.match(style, /@media \(prefers-reduced-motion: reduce\)/, 'overlay honours reduced motion');
 

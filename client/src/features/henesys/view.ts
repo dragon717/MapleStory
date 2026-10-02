@@ -104,9 +104,9 @@ export class HenesysView {
   const forest=new T.Group();forest.userData.layer='vegetation';model.add(forest);
   for(const b of batches.values()){if(b.objects.length<2)continue;const inst=new T.InstancedMesh(b.geometry,b.material,b.objects.length);inst.castShadow=true;inst.receiveShadow=true;b.objects.forEach((o,i)=>{inst.setMatrixAt(i,o.matrixWorld);o.visible=false;});inst.computeBoundingSphere();forest.add(inst);}
   if(map.id===SKY_CITY_MAP_ID)this.city=new VoyageCity(model);
-  this.reveal=new LocalReveal(model);
+  this.reveal=new LocalReveal(model,this.city?()=>true:undefined);
   this.climate=new VillageEnvironment(this.scene,this.sun,model);
-  this.snow=new SnowSurface(model);
+  this.snow=new SnowSurface(model,this.city?mesh=>this.city!.snowMotion(mesh):undefined);
   this.groundFeedback=new GroundFeedback(this.scene,step=>this.snow.stamp({x:step.point[0],y:step.point[1],z:step.point[2]},{x:step.direction[0],z:step.direction[2]},step.mount));
   this.townLamps=new TownLamps(this.scene);
   this.texture=new T.ExternalTexture(this.actors.texture.webGLTexture);

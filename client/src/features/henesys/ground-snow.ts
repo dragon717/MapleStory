@@ -15,9 +15,9 @@ export function advanceSnowCover(previous: SnowCover, settings: EnvironmentSetti
 
 const TILE_SIZE = 8, CELLS = 64, TILE_COUNT = 12, CELL_SIZE = TILE_SIZE / CELLS, SIDE = CELLS + 1;
 type Foot = { x: number; y: number; z: number };
-type Triangle = { a: T.Vector3; b: T.Vector3; c: T.Vector3; top: [number, number, number]; slopeX: number; slopeZ: number };
+type Triangle = { a: T.Vector3; b: T.Vector3; c: T.Vector3; top: [number, number, number]; slopeX: number; slopeZ: number; lift?: (p:T.Vector3)=>number };
 type Sample = { y: number; top: number; triangle: Triangle };
-type Tile = { mesh: T.Mesh; position: T.BufferAttribute; top: T.BufferAttribute; press: T.BufferAttribute; indices: T.BufferAttribute; x: number; z: number; used: number; assigned: boolean };
+type Tile = { mesh: T.Mesh; position: T.BufferAttribute; top: T.BufferAttribute; press: T.BufferAttribute; indices: T.BufferAttribute; x: number; z: number; used: number; assigned: boolean; baseY: Float32Array; lifts: (((p:T.Vector3)=>number)|undefined)[] };
 type Shader = Parameters<T.Material['onBeforeCompile']>[0];
 
 /** Real snow shells plus a fixed cache of small road heightfields; no collision or foot-height changes. */
@@ -27,6 +27,7 @@ export class SnowSurface {
   get depth() { return this.cover.depth; }
   private root = new T.Group();
   private shells: T.Mesh[] = [];
+  private motions: {mesh:T.Mesh;baseY:Float32Array;lift:(p:T.Vector3)=>number}[]=[];
   private tiles: Tile[] = [];
   private materials = new Set<T.Material>();
   private bins = new Map<string, Triangle[]>();
@@ -44,7 +45,7 @@ export class SnowSurface {
   };
 
   /** Construct after LocalReveal and VillageEnvironment so the cloned material retains both hooks. */
-  constructor(model: T.Object3D) {
+  constructor(model: T.Object3D, private motion?: (mesh:T.Mesh)=>(p:T.Vector3)=>number) {
     model.updateMatrixWorld(true);
     this.root.name = 'CE_AccumulatedSnow';
     // Samples and footsteps are world-space; keep them so even when the model has a transform.
@@ -59,8 +60,8 @@ export class SnowSurface {
         if (!layer && parent.userData.layer) layer = parent.userData.layer;
         name += ' ' + parent.name; walkable ||= parent.userData.walkable === true;
       }
-      const road = layer === 'roads' && walkable;
-      const terrain = layer === 'terrain' && /RollingVillageGround|FrontBank|Cliff/.test(name);
+      const road = layer === 'roads' && walkable || Boolean(motion && (o.userData.walk_surface || o.userData.motion_node));
+      const terrain = layer === 'terrain' && /RollingVillageGround|FrontBank|Cliff/.test(name) || Boolean(motion && o.userData.landscape_role?.includes('岛'));
       const roof = layer === 'buildings';
       if (road || terrain || roof) sources.push({ mesh: o, road, depth: road ? .075 : roof ? .18 : .15 });
     });
@@ -76,6 +77,7 @@ export class SnowSurface {
         if (!geometry) continue;
         const shell = new T.Mesh(geometry, this.snowMaterial(source, false, road));
         shell.customDepthMaterial = this.depthMaterial(false, road); shell.castShadow = true; shell.receiveShadow = true;
+        if(motion){const p=geometry.getAttribute('position');this.motions.push({mesh:shell,baseY:Float32Array.from({length:p.count},(_,i)=>p.getY(i)),lift:motion(mesh)});}
         shell.name = 'CE_Snow_' + mesh.name; shell.visible = false; this.root.add(shell); this.shells.push(shell);
         if (road) roadSource ??= source;
       }
@@ -94,7 +96,7 @@ export class SnowSurface {
         geometry.setIndex(indices); geometry.setDrawRange(0, 0);
         const mesh = new T.Mesh(geometry, material); mesh.customDepthMaterial = depth; mesh.castShadow = true; mesh.receiveShadow = true; mesh.visible = false;
         mesh.name = 'CE_SnowTracks_' + i; this.root.add(mesh);
-        this.tiles.push({ mesh, position, top, press, indices, x: 0, z: 0, used: 0, assigned: false });
+        this.tiles.push({ mesh, position, top, press, indices, x: 0, z: 0, used: 0, assigned: false, baseY:new Float32Array(SIDE*SIDE), lifts:[] });
       }
     }
     model.add(this.root);
@@ -137,6 +139,7 @@ export class SnowSurface {
   }
 
   private shellGeometry(mesh: T.Mesh, start: number, count: number, depth: number, road: boolean, cap = false) {
+    const lift=this.motion?.(mesh);
     const source = mesh.geometry, attribute = source.getAttribute('position'), index = source.index;
     const reverse = cap ? this.inwardCaps(mesh, start, count) : undefined;
     const vertices: T.Vector3[] = [], tops: number[] = [], indices: number[] = [], welded = new Map<string, number>(), edges = new Map<string, [number, number, number]>();
@@ -164,7 +167,7 @@ export class SnowSurface {
     if (road) for (let i = 0; i < indices.length; i += 3) {
       const ids = indices.slice(i, i + 3), [a, b, c] = ids.map(id => vertices[id]);
       normal.crossVectors(ab.copy(b).sub(a), ac.copy(c).sub(a)).normalize();
-      const triangle: Triangle = { a, b, c, top: ids.map(id => tops[id]) as [number, number, number], slopeX: -normal.x / normal.y, slopeZ: -normal.z / normal.y };
+      const triangle: Triangle = { a, b, c, top: ids.map(id => tops[id]) as [number, number, number], slopeX: -normal.x / normal.y, slopeZ: -normal.z / normal.y, lift };
       for (let x = Math.floor(Math.min(a.x, b.x, c.x) / 2); x <= Math.floor(Math.max(a.x, b.x, c.x) / 2); x++) for (let z = Math.floor(Math.min(a.z, b.z, c.z) / 2); z <= Math.floor(Math.max(a.z, b.z, c.z) / 2); z++) {
         const key = `${x},${z}`, bin = this.bins.get(key) ?? []; bin.push(triangle); this.bins.set(key, bin);
       }
@@ -232,6 +235,15 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
     this.materials.add(material); return material;
   }
 
+  private syncMotion(){
+    if(!this.motion)return;
+    const point=new T.Vector3();
+    for(const item of this.motions){const p=item.mesh.geometry.getAttribute('position') as T.BufferAttribute;for(let i=0;i<p.count;i++){point.set(p.getX(i),item.baseY[i],p.getZ(i));p.setY(i,item.baseY[i]+item.lift(point));}p.needsUpdate=true;item.mesh.frustumCulled=false;}
+    for(const tile of this.tiles){if(!tile.assigned)continue;for(let i=0;i<tile.position.count;i++){point.set(tile.position.getX(i),tile.baseY[i],tile.position.getZ(i));tile.position.setY(i,tile.baseY[i]+(tile.lifts[i]?.(point)??0));}tile.position.needsUpdate=true;tile.mesh.frustumCulled=false;
+      const slot=this.tiles.indexOf(tile);for(let j=0;j<CELLS;j++)for(let i=0;i<CELLS;i++){const a=j*SIDE+i,b=a+1,c=a+SIDE,d=c+1,cell=(slot*CELLS*CELLS+j*CELLS+i)*4;const ya=tile.position.getY(a),yb=tile.position.getY(b),yc=tile.position.getY(c),yd=tile.position.getY(d);this.layerData[cell]=(ya+yb+yc+yd)/4;this.layerData[cell+1]=(yb-ya+yd-yc)/(2*CELL_SIZE);this.layerData[cell+2]=(yc-ya+yd-yb)/(2*CELL_SIZE);}
+    }
+    this.layerMap.needsUpdate=true;
+  }
   private sample(x: number, z: number, y: number, tolerance = .45): Sample | undefined {
     let result: Sample | undefined, closest = tolerance;
     for (const triangle of this.bins.get(`${Math.floor(x / 2)},${Math.floor(z / 2)}`) ?? []) {
@@ -240,7 +252,7 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
       const u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d;
       const v = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, w = 1 - u - v;
       if (Math.min(u, v, w) < -1e-5) continue;
-      const height = u * a.y + v * b.y + w * c.y, gap = Math.abs(height - y);
+      const height = u * (a.y+(triangle.lift?.(a)??0)) + v * (b.y+(triangle.lift?.(b)??0)) + w * (c.y+(triangle.lift?.(c)??0)), gap = Math.abs(height - y);
       if (gap < closest || result && gap < closest + .025 && height > result.y) {
         closest = Math.min(closest, gap); result = { y: height, top: u * triangle.top[0] + v * triangle.top[1] + w * triangle.top[2], triangle };
       }
@@ -264,7 +276,9 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
       const n = j * SIDE + i, wx = x + i * CELL_SIZE, wz = z + j * CELL_SIZE;
       const predicted = reference.y + reference.triangle.slopeX * (wx - foot.x) + reference.triangle.slopeZ * (wz - foot.z);
       const sample = this.sample(wx, wz, predicted);
-      positions.set([wx, sample?.y ?? predicted, wz], n * 3); tops[n] = sample?.top ?? 0; valid[n] = sample ? 1 : 0;
+      positions.set([wx, sample?.y ?? predicted, wz], n * 3);
+      tile.lifts[n]=sample?.triangle.lift;
+      tile.baseY[n]=(sample?.y??predicted)-(tile.lifts[n]?.(new T.Vector3(wx,0,wz))??0); tops[n] = sample?.top ?? 0; valid[n] = sample ? 1 : 0;
     }
     const indices = tile.indices.array as Uint16Array; let count = 0;
     for (let j = 0; j < CELLS; j++) for (let i = 0; i < CELLS; i++) {
@@ -324,6 +338,7 @@ normal=normalize(cross(dFdx(snowViewPosition),dFdy(snowViewPosition)));`)
 
   /** True requests a cached shadow redraw, capped at 2.5Hz while snow or footprints change. */
   update(settings: EnvironmentSettings, deltaSeconds: number, time: number) {
+    if(this.amount>.003)this.syncMotion();
     if (this.destroyed) return false;
     const previous = this.cover.amount; this.cover = advanceSnowCover(this.cover, settings, deltaSeconds);
     this.uniforms.snowAmount.value = this.amount; this.uniforms.snowFall.value = this.cover.fall;

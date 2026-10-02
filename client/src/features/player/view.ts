@@ -272,7 +272,7 @@ export class PlayerView {
     this.junctionHint?.setVisible(false);
     if (!this.self || !directions.length || !player.grounded || player.hp <= 0 || player.action === 'dead' || player.chair) return;
     const art = this.manifest.miniMap?.icons.direction;
-    const frames = [art?.n, art?.s, art?.w, art?.e, art?.nw, art?.ne, art?.sw, art?.se];
+    const frames = [art?.n, art?.s, art?.w, art?.e];
     if (frames.some(frame => !frame) || !ensureTextures(this.scene, frames.map(frame => frame?.url))) return;
     if (frames.some(frame => !this.scene.textures.exists(frame!.url))) return;
     if (!this.junctionHint) {
@@ -285,7 +285,7 @@ export class PlayerView {
     let index = 0;
     this.junctionHint.list.forEach((child, i) => {
       const image = child as Phaser.GameObjects.Image;
-      const visible = directions.includes((['up','down','left','right','upLeft','upRight','downLeft','downRight'] as const)[i]);
+      const visible = directions.includes((['up','down','left','right'] as const)[i]);
       image.setVisible(visible);
       if (visible) image.setPosition((index++ - (directions.length - 1) / 2) * 26, 0);
     });

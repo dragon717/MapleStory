@@ -48,6 +48,14 @@ for (let i = 0; i < 120; i++) fan.advance(1 / 60, [0, 0, 6]);
 for (const i of fanPins) for (let axis = 0; axis < 3; axis++) assert(fan.positions[i * 3 + axis] === fanRest[i * 3 + axis], 'fan spars and hinge stay fixed');
 assert(fan.positions.every(Number.isFinite));
 assert(fan.positions.some((v, i) => i % 3 === 2 && Math.abs(v) > .01), 'triangular fan fabric billows between spars');
+// Folding changes the rest shape while preserving finite motion and exact spar pins.
+for(let step=0;step<120;step++){
+ const folded=fanRest.map((v,i)=>i%3===0?v*(1-step/180):v);
+ fan.retarget(folded); fan.advance(1/60,[0,0,6]);
+ assert(fan.positions.every(Number.isFinite));
+ for(const i of fanPins)for(let axis=0;axis<3;axis++)assert(fan.positions[i*3+axis]===folded[i*3+axis]);
+}
+const stableRest=fan.rest.slice();fan.retarget(new Float32Array([NaN]));assert.deepEqual(fan.rest,stableRest);
 assert.throws(() => new ClothGrid(rest, columns, rows, [-1]));
 assert.throws(() => new ShallowWater(2, 8, 4, 4, 1));
 const open = new ShipFlight(), reefed = new ShipFlight();

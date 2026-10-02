@@ -1,58 +1,9 @@
-/* ============================================================
- * LoadingOverlay — full-bleed loading screen used while the
- * game view boots.  Mounted inside `#game-shell`, sits above
- * the Phaser canvas, and uses the TMS273 `CustomizeChar`
- * login backdrop (1366x768) as its background.  Responsive
- * across desktop, landscape, and narrow portrait viewports.
- * ============================================================ */
-
-.loading-overlay {
-  /* Cover the entire game shell; the shell is `position:relative`, so
-     `inset:0` stretches the overlay across the visible canvas. */
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  align-items: end;
-  justify-items: center;
-  padding: clamp(20px, 4dvh, 48px) clamp(16px, 4vw, 64px);
-  /* A faint dark vignette makes the white text readable on bright parts of
-     the source artwork; the backdrop image itself fills the layer. */
-  background:
-    linear-gradient(180deg, rgba(8, 18, 14, 0.15) 0%, rgba(8, 18, 14, 0.05) 35%, rgba(8, 18, 14, 0.55) 100%),
-    radial-gradient(ellipse at 50% 35%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.25) 100%);
-  color: #f5fbfa;
-  font-family: 'Trebuchet MS', 'Microsoft YaHei', sans-serif;
-  pointer-events: auto;
-  user-select: none;
-  /* The card animation is opt-in via `prefers-reduced-motion`. */
-  animation: loading-overlay-fade-in 320ms ease-out;
-}
-
-.loading-overlay-backdrop {
-  /* The source-backed CustomizeChar backdrop (1366x768).  The image URL is
-     assigned from `view.ts` as an inline style: a CSS url('/assets/…') is
-     fine for vite (public dir) but esbuild-based offline checks try to
-     resolve it on disk and fail the whole bundle.  `object-position`
-     concerns are moot — background-size keeps the village / tree centered
-     when cropped by an extreme aspect. */
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  /* The original art was authored for a 1366x768 viewport; an up-scaling
-     filter is fine on bright desktops, but mobile and small windows must not
-     see a blurry blow-up. */
-  image-rendering: auto;
-  filter: saturate(1.05) contrast(1.02);
-}
-
+/* Live progress above the playable voyage. */
+.loading-overlay {position:fixed;left:50%;bottom:clamp(48px,8dvh,100px);transform:translateX(-50%);z-index:80;width:min(400px,calc(100vw - 28px));color:#f5fbfa;pointer-events:none;font-family:'Trebuchet MS','Microsoft YaHei',sans-serif;}
 .loading-overlay-card {
   position: relative;
-  width: min(560px, 100%);
-  padding: clamp(18px, 2.4dvh, 28px) clamp(20px, 3vw, 32px);
+  width: 100%;
+  padding: 12px 16px;
   background: linear-gradient(180deg, rgba(20, 35, 30, 0.62) 0%, rgba(8, 22, 18, 0.72) 100%);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 18px;

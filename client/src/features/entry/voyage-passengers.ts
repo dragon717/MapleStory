@@ -23,6 +23,8 @@ export class VoyagePassengers {
   private page = 0;
   private wake = { variant: 0, seconds: 10 };
   private book?: T.Group;
+  private bookClip?: T.AnimationClip;
+  private bookMixer?: T.AnimationMixer;
   private departure?: { seconds: number; resolve: (completed: boolean) => void; settled: boolean };
   private alive = true;
   deckPosition = new T.Vector3(6, 5.44, 12);
@@ -75,10 +77,11 @@ export class VoyagePassengers {
     this.changed();
   }
   update(delta: number, reduced: boolean, model: T.Object3D, camera: T.Camera, now: number) {
+    this.bookMixer?.update(reduced ? 3 : delta);
     this.wake.seconds = reduced ? 10 : this.wake.seconds + delta;
     if (this.departure && !this.departure.settled) {
       this.departure.seconds += reduced ? 3 : delta;
-      if (this.departure.seconds >= 2.1) { this.departure.settled = true; this.departure.resolve(true); }
+      if (this.departure.seconds >= (this.bookClip?.duration ?? 2.1)) { this.departure.settled = true; this.departure.resolve(true); }
     }
     for (const [id, doll] of this.dolls) {
       const index = this.ids.indexOf(id), sleeping = this.sleeping(id), selected = id === this.selected;
@@ -101,8 +104,7 @@ export class VoyagePassengers {
       }
       if (onDeck || id === 'draft') {
         if (onDeck) doll.group.position.copy(this.deckPosition); else doll.group.position.set(0, .025, 38.8);
-        const eye = this.root.worldToLocal(camera.getWorldPosition(new T.Vector3()));
-        doll.group.rotation.set(0, Math.atan2(eye.x - doll.group.position.x, eye.z - doll.group.position.z), 0);
+        doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
         if (onDeck) doll.group.scale.x = this.deckFacing;
       }
       const vertices = doll.mesh.geometry.attributes.position;
@@ -125,31 +127,21 @@ export class VoyagePassengers {
   depart() {
     this.cancelDeparture();
     if (!this.root.parent || !this.selected) return Promise.resolve(true);
-    const book = new T.Group(); book.name = 'SV3_DepartureBook'; this.root.add(book); this.book = book;
-    const cover = new T.MeshStandardMaterial({ color: '#253f56', metalness: .2, roughness: .5 });
-    const pages = new T.MeshStandardMaterial({ color: '#ffefd4', emissive: '#b9dfff', emissiveIntensity: .65, roughness: .85 });
-    const gold = new T.MeshStandardMaterial({ color: '#d9ad58', metalness: .75, roughness: .3 });
-    for (const side of [-1, 1]) {
-      const leaf = new T.Group(); leaf.rotation.z = side * -.2; book.add(leaf);
-      for (const [w, h, d, x, z, mat] of [[.6, .85, .07, side * .3, 0, cover], [.54, .77, .045, side * .28, .057, pages]] as const) {
-        const mesh = new T.Mesh(new T.BoxGeometry(w, h, d), mat); mesh.position.set(x, 0, z); mesh.castShadow = true; leaf.add(mesh);
-      }
-      for (let line = 0; line < 5; line++) {
-        const ink = new T.Mesh(new T.BoxGeometry(.36 - line % 2 * .1, .018, .004), gold); ink.position.set(side * .29, .22 - line * .095, .084); leaf.add(ink);
-      }
-    }
-    const glow = new T.PointLight('#99d9ff', 3, 5, 2); glow.position.z = .4; book.add(glow);
-    book.scale.setScalar(0);
+    if (!this.book || !this.bookClip) return Promise.resolve(true);
+    this.root.add(this.book);
+    this.bookMixer = new T.AnimationMixer(this.book);
+    this.bookMixer.clipAction(this.bookClip).setLoop(T.LoopOnce, 1).play().clampWhenFinished = true;
+    this.book.scale.setScalar(0);
     return new Promise<boolean>(resolve => { this.departure = { seconds: 0, resolve, settled: false }; this.changed(); });
   }
   cancelDeparture() {
     this.departure?.resolve(false); this.departure = undefined;
-    if (this.book) {
-      const materials = new Set<T.Material>();
-      this.book.traverse(node => { if (node instanceof T.Mesh) { node.geometry.dispose(); for (const m of Array.isArray(node.material) ? node.material : [node.material]) materials.add(m); } });
-      materials.forEach(m => m.dispose()); this.book.removeFromParent(); this.book = undefined;
-    }
+    this.bookMixer?.stopAllAction(); this.bookMixer = undefined;
+    this.book?.removeFromParent();
   }
+  setBook(book:T.Group,clip:T.AnimationClip) { this.book=book;this.bookClip=clip; }
+
   private disposeDoll(doll: Doll) { doll.token++; doll.mesh.geometry.dispose(); doll.mesh.material.dispose(); doll.texture.dispose(); doll.group.removeFromParent(); (doll.zz.material as T.SpriteMaterial).map?.dispose(); (doll.zz.material as T.SpriteMaterial).dispose(); doll.zz.removeFromParent(); }
-  destroy() { this.alive = false; this.cancelDeparture(); this.dolls.forEach(d => this.disposeDoll(d)); this.dolls.clear(); this.images.clear(); this.root.removeFromParent(); }
+  destroy() { this.alive = false; this.cancelDeparture();
+    this.book?.traverse(node=>{if(node instanceof T.Mesh){node.geometry.dispose();for(const m of Array.isArray(node.material)?node.material:[node.material])m.dispose();}}); this.book=undefined; this.dolls.forEach(d => this.disposeDoll(d)); this.dolls.clear(); this.images.clear(); this.root.removeFromParent(); }
 }

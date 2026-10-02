@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process'),{createRequire}=require('node:module');
 const root=path.resolve(__dirname,'..'),read=file=>JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
 const city=read('shared/sky-city.json'),source=read(city.source),maps=read('shared/maps.json').maps,sky=maps.find(m=>m.id===city.mapId);
-assert.equal(city.routes.length,source.edges.length);assert.equal(city.routes.length,201);assert.equal(sky.footholds.length,city.platforms.length);assert.deepEqual({x:sky.spawn.x,y:sky.spawn.y},city.spawn);
+assert.equal(city.routes.length,source.edges.length);assert(city.routes.length>=201);assert(source.fourWayJunctions);assert.equal(sky.footholds.length,city.platforms.length);assert.deepEqual({x:sky.spawn.x,y:sky.spawn.y},city.spawn);
 for(const [i,r] of city.routes.entries()){
  assert.equal(r.edgeId,source.edges[i].id);assert.deepEqual(r.nodes.map(n=>n.position),source.edges[i].points);
  for(const n of r.nodes)assert(Math.abs(n.y+n.position[1]*city.pixelsPerMetre)<1e-8);
@@ -22,5 +22,6 @@ const result=spawnSync(cargo,['test','--manifest-path','server/Cargo.toml','sky_
 assert.equal(result.status,0,result.stderr.slice(-4000));
 const line=result.stdout.split('\n').find(line=>line.startsWith('CITY_JUNCTION_CHOICES='));assert(line,'Rust selector fixture');
 const samples=JSON.parse(line.slice('CITY_JUNCTION_CHOICES='.length));
+for(const s of samples){assert(s.choices.every(d=>['up','down','left','right'].includes(d)));}
 for(const s of samples)assert.deepEqual(new Set(junctionDirections(s.x,s.view??undefined,city.mapId)),new Set(s.choices),`server/client road choice at ${s.x} ${JSON.stringify(s.view)}`);
 console.log(JSON.stringify({ok:true,routes:city.routes.length,junctions:city.junctions.length,segments:city.platforms.length,portals:gates.length,hintSamples:samples.length,npcs:actors.length}));

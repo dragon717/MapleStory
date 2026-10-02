@@ -1,26 +1,5 @@
-/*
- * LoadingOverlay — full-bleed loading screen shown while the game view boots.
- *
- * The overlay sits on top of the Phaser canvas inside `#game-shell`.  It uses
- * the authored TMS273 `CustomizeChar` login backdrop (1366x768) as its
- * background, scales with the viewport, and renders a modern, glassy progress
- * bar at the bottom.  The bar is driven by the same messages the rest of the
- * app already produces (`status`), so wiring it into the boot pipeline does
- * not require inventing a new progress channel:
- *
- *   - "正在读取资源清单…" / "Loading resources…" → stage `manifest`
- *   - "正在装载地图与角色 · NN%" / "Loading map & avatar · NN%" → stage `assets`
- *     with percentage parsed from the trailing number.
- *   - "地图已就绪…" / "Map ready…" → stage `ready` (indeterminate).
- *   - anything else (including errors) is forwarded as the headline.
- *
- * The overlay intentionally does not trap focus, does not own pointer events
- * for the buttons it does not render, and removes itself on `hide()` so the
- * Phaser canvas receives input again.
- */
-
+/** Small, non-blocking boot progress card; the voyage remains playable. */
 import { uiLocale } from '../../app/i18n';
-import { resolveAssetUrl } from '../../assets/resource-url';
 import './style.css';
 
 /* eslint-disable no-restricted-syntax */
@@ -50,7 +29,6 @@ export type LoadingStage = 'manifest' | 'assets' | 'ready';
  */
 export class LoadingOverlay {
   private root?: HTMLElement;
-  private backdrop?: HTMLElement;
   private headline?: HTMLElement;
   private stageChip?: HTMLElement;
   private bar?: HTMLElement;
@@ -71,22 +49,6 @@ export class LoadingOverlay {
     root.setAttribute('role', 'status');
     root.setAttribute('aria-live', 'polite');
 
-    // Backdrop is the source-backed CustomizeChar canvas (1366x768); the
-    // responsive stylesheet scales it to the viewport while keeping the
-    // village / tree centered.  The URL lives here (inline style) rather
-    // than in the stylesheet so offline esbuild bundles never try to
-    // resolve the absolute /assets path on disk.
-    const backdrop = document.createElement('div');
-    backdrop.className = 'loading-overlay-backdrop';
-    backdrop.setAttribute('aria-hidden', 'true');
-    // v3 §3.2：CSS 里的美术 URL 也必须经 resolver，否则「重新下载所需资源」
-    // 修不到这张底板（它是页面级 CSS 背景，不走 Phaser loader）。
-    backdrop.style.backgroundImage = `url('${resolveAssetUrl('/assets/entry/UI__Canvas_customLoginTheme.img_0_image_back_0_0-88919c5ab2.png')}')`;
-    root.appendChild(backdrop);
-
-    // The card carries the live progress UI.  It is a flat DOM tree of named
-    // hooks (`.loading-overlay-stage`, `.loading-overlay-headline`, etc.) so
-    // the stylesheet can target each piece without inline styles.
     const card = document.createElement('div');
     card.className = 'loading-overlay-card';
     root.appendChild(card);
@@ -121,14 +83,13 @@ export class LoadingOverlay {
     percent.textContent = '0%';
     const hint = document.createElement('span');
     hint.className = 'loading-overlay-hint';
-    hint.textContent = english() ? 'First load may take a moment.' : '首次加载稍候片刻。';
+    hint.textContent = english() ? 'You can keep walking aboard while loading.' : '加载期间可以继续在船上行走。';
     meta.appendChild(percent);
     meta.appendChild(hint);
     card.appendChild(meta);
 
     this.host.appendChild(root);
     this.root = root;
-    this.backdrop = backdrop;
     this.headline = headline;
     this.stageChip = stage;
     this.bar = bar;
@@ -205,7 +166,6 @@ export class LoadingOverlay {
     this.removed = true;
     this.root.remove();
     this.root = undefined;
-    this.backdrop = undefined;
     this.headline = undefined;
     this.stageChip = undefined;
     this.bar = undefined;

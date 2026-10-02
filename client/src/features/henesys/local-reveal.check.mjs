@@ -6,6 +6,7 @@ const source=fs.readFileSync(new URL('./local-reveal.ts',import.meta.url),'utf8'
 const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/^import .*;\r?\n/gm,'').replace('export class','class');
 const LocalReveal=new Function('T',`${js};return LocalReveal;`)(T);
 const model=new T.Group(),shared=new T.MeshStandardMaterial();
+shared.onBeforeCompile=shader=>{shader.uniforms.authoredFlow={value:1};shader.fragmentShader+='\n// authored-flow';};shared.customProgramCacheKey=()=> 'authored-flow';
 const wall=new T.Mesh(new T.BoxGeometry(16,9,1),shared);wall.userData.layer='buildings';wall.position.set(0,2,5);
 const ground=new T.Mesh(new T.PlaneGeometry(30,30),shared);ground.userData.layer='terrain';model.add(wall,ground);
 const hidden=new T.Mesh(wall.geometry,shared);hidden.userData.layer='props';hidden.visible=false;model.add(hidden);
@@ -16,6 +17,7 @@ assert.notEqual(wall.material,shared);assert.equal(ground.material,shared);asser
 assert.equal(trees.material,wall.material,'eligible geometry reuses one patched clone');
 assert.equal(wall.material.opacity,1);assert.equal(wall.material.transparent,false);assert.equal(wall.material.depthWrite,true);
 const shader={uniforms:{},fragmentShader:T.ShaderLib.standard.fragmentShader};wall.material.onBeforeCompile(shader,{});
+assert.equal(shader.uniforms.authoredFlow.value,1,'preserve existing city shader hook');assert(wall.material.customProgramCacheKey().includes('authored-flow'));
 assert.match(shader.fragmentShader,/gl_FragCoord.z < revealDepth/,'rear geometry remains opaque');
 assert.match(shader.fragmentShader,/smoothstep\(.62, 1\./,'window has a feathered edge');
 assert.equal(wall.customDepthMaterial,undefined,'shadow material stays untouched');

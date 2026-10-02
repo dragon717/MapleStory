@@ -117,7 +117,7 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   passengers.setSlots(['a','b'],'a','channel',0); passengers.deckPosition.set(6,5.442377,12); passengers.deckMoving=true;
   camera.position.set(18,11,24);camera.lookAt(5,6.3,11);passengers.update(.1,false,model,camera,0);
   assert.equal(passengers.action('a'),'walk');assert.equal(passengers.action('b'),'stand');
-  assert(new T.Vector3(0,1,0).applyQuaternion(deckDoll.group.quaternion).distanceTo(new T.Vector3(0,1,0))<1e-7,'standing sprite is upright despite camera pitch');
+  assert(deckDoll.group.quaternion.angleTo(camera.getWorldQuaternion(new T.Quaternion()))<1e-7,'walk sprite faces the complete game camera, preserving its screen-up foot anchor');
   assert.deepEqual(deckDoll.group.position.toArray(),passengers.deckPosition.toArray());
   for(let i=0;i<deckDoll.mesh.geometry.attributes.position.count;i++)assert(Math.abs(deckDoll.mesh.geometry.attributes.position.getZ(i))<1e-7,'deck sprite cannot retain bed deformation');
   passengers.dolls.delete('a');deckDoll.group.removeFromParent();deckDoll.mesh.geometry.dispose();deckDoll.mesh.material.dispose();deckDoll.zz.material.dispose();
@@ -126,11 +126,23 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   const wake = { ...passengers.wake };
   passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
   assert.deepEqual(passengers.wake, wake, 'rerenders cannot restart or randomize the same selection');
+  const departureBook = new T.Group(); departureBook.name = 'SV3_DepartureBook';
+  const departurePage = new T.Group(); departurePage.name = 'SV3_BookPage'; departureBook.add(departurePage);
+  const departureMesh = new T.Mesh(new T.BoxGeometry(.4, .06, .6), new T.MeshBasicMaterial()); departurePage.add(departureMesh);
+  const departureClip = new T.AnimationClip('SV3_BookOpenFlipGlow', 2.1, [
+    new T.VectorKeyframeTrack('SV3_BookPage.position', [0, 2.1], [0, 0, 0, 0, .2, 0]),
+  ]);
+  passengers.setBook(departureBook, departureClip);
   const cancelled = passengers.depart(); passengers.setSlots(['a', 'b'], 'b', 'characters', 0);
   assert.equal(await cancelled, false); assert(!model.getObjectByName('SV3_DepartureBook'));
   assert.equal(passengers.wake.seconds, 0); assert(passengers.sleeping('a') && !passengers.sleeping('b'));
-  const completed = passengers.depart(); passengers.update(.016, true, model, camera, 0);
-  assert.equal(await completed, true, 'reduced motion still resolves departure');
+  passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
+  const completed = passengers.depart();
+  assert.equal(departureBook.parent, passengers.root, 'a cancelled book can be attached again');
+  passengers.update(.5, false, model, camera, 0);
+  assert(departurePage.position.y > 0, 'replayed departure drives the supplied animation clip');
+  for (let i = 0; i < 17; i++) passengers.update(.1, false, model, camera, 0);
+  assert.equal(await completed, true, 'a normal-length clip resolves departure at its authored duration');
   const destroyed = passengers.depart(); passengers.destroy();
   assert.equal(await destroyed, false); assert.equal(model.children.length, 0);
   console.log('Wake variants, stable selection, departure cancellation/reduced motion/disposal passed');

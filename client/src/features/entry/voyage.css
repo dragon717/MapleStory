@@ -547,3 +547,10 @@ body.entry-active { background: #eee4cf; }
 
 .entry-voyage.voyage-world-avatars .voyage-deck-avatar { transform: translate(-50%, 8px); }
 .entry-voyage.voyage-world-avatars .voyage-deck-avatar .entry-avatar { display: none; }
+
+.entry-stage-channel .entry-brand,.entry-stage-channel .entry-navigation {display:none;}
+.entry-stage-channel .entry-scene {padding:0;display:block;}
+.voyage-adventure {position:absolute;transform:translate(-50%,-50%);z-index:5;min-width:130px;}
+.voyage-junction-hint {position:absolute;left:50%;bottom:90px;transform:translateX(-50%);display:flex;gap:4px;pointer-events:none;}
+.voyage-junction-hint img {image-rendering:pixelated;}
+.voyage-loading .entry-notice {display:none;}

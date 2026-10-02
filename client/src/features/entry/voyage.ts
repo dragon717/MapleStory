@@ -8,6 +8,7 @@ import { VoyageClouds } from './voyage-clouds';
 import { VoyageLogin, type LoginSurface } from './voyage-login';
 import { VoyageCity } from './voyage-city';
 import { VoyageDeck } from './voyage-deck';
+import { LocalReveal } from '../henesys/local-reveal';
 import { VoyagePassengers } from './voyage-passengers';
 import { VoyageWindowLight } from './voyage-window-light';
 import type { Part } from '../../assets/avatar-types';
@@ -59,6 +60,10 @@ export class EntryVoyage {
   private flight?: ShipFlight;
   private shipRotation = new T.Quaternion();
   private deck?: VoyageDeck;
+  private reveal?: LocalReveal;
+  onAdventure?: () => void;
+  directionIcons?: Record<string, {url:string}>;
+  private adventureNear = false;
   private deckCharacter?: string;
   private keys = new Set<string>();
   private stage: VoyageStage = 'login';
@@ -87,13 +92,14 @@ export class EntryVoyage {
   private shipOrigin = new T.Vector3();
   private waterTime = { value: 0 };
   private water?: VoyageWater;
-  private sails: { simulation: ClothGrid; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array }[] }[] = [];
+  private sails: { simulation: ClothGrid; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array; basis: Float32Array }[] }[] = [];
   private reflection: T.WebGLRenderTarget;
   private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; };
   private onKey = (event: KeyboardEvent) => {
+    if (event.type === 'keydown' && ['KeyX', 'ControlLeft', 'ControlRight'].includes(event.code) && this.stage === 'channel' && this.adventureNear && !event.repeat && this.host.getAttribute('aria-busy') !== 'true' && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { event.preventDefault(); this.onAdventure?.(); return; }
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return;
     if (event.type === 'keyup') { this.keys.delete(event.code); return; }
-    if (this.stage !== 'channel' || !this.deckCharacter || this.host.hidden || document.hidden || this.host.getAttribute('aria-busy') === 'true' || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
+    if (this.stage !== 'channel' || !this.deckCharacter || this.host.hidden || document.hidden || (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
     event.preventDefault(); this.keys.add(event.code);
     if (this.reduced.matches && !event.repeat) this.updateActivity();
   };
@@ -164,7 +170,7 @@ export class EntryVoyage {
               material.bumpMap = material.map; material.bumpScale = Number(material.userData.wood_bump_from_basecolor);
             }
           }
-          if (material.name !== 'SV2_M_CrestDecal') continue;
+          if (!['SV2_M_CrestDecal','SV3_MainSail_MapleDecal'].includes(material.name)) continue;
           material.polygonOffset = true; material.polygonOffsetFactor = -2; material.polygonOffsetUnits = -2;
           material.depthWrite = false;
         }
@@ -174,6 +180,7 @@ export class EntryVoyage {
       this.ship = gltf.scene.getObjectByName('SV2_Ship');
       if (this.ship) {
         this.shipOrigin.copy(this.ship.position); this.shipRotation.copy(this.ship.quaternion);
+        this.reveal = new LocalReveal(this.ship, () => true);
         this.deck = new VoyageDeck(this.ship); this.passengers.deckPosition.copy(this.deck.position);
         this.passengers.attach(this.ship);
         this.ship.add(this.cabinLights);
@@ -196,7 +203,12 @@ export class EntryVoyage {
     const load = (url: string, buffer?: ArrayBuffer) => new Promise<{ scene: T.Group }>((resolve, reject) => {
       if (buffer) loader.parse(buffer, '', resolve, reject); else loader.load(resolveAssetUrl(url), resolve, undefined, reject);
     });
-    void Promise.all([load('/assets/entry/sky-voyage.glb', bytes), load('/assets/entry/sky-city.glb', cityBytes)]).then(([shipModel, cityModel]) => {
+    void Promise.all([load('/assets/entry/sky-voyage.glb', bytes), load('/assets/entry/sky-city.glb', cityBytes), loader.loadAsync(resolveAssetUrl('/assets/entry/voyage-book.glb'))]).then(([shipModel, cityModel, bookModel]) => {
+      const clip = bookModel.animations.find(clip => clip.name === 'SV3_BookOpenFlipGlow');
+      if (!clip || !bookModel.scene.getObjectByName('SV3_DepartureBook')) {
+        dispose(bookModel.scene); dispose(shipModel.scene); dispose(cityModel.scene); throw new Error('Invalid voyage book model');
+      }
+      if (!this.alive) dispose(bookModel.scene); else this.passengers.setBook(bookModel.scene, clip);
       if (!this.alive) { dispose(shipModel.scene); dispose(cityModel.scene); return; }
       const root = cityModel.scene; root.position.set(-1300, -80, -2200); root.scale.setScalar(1.8); this.scene.add(root);
       root.traverse(o => { if (o instanceof T.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -222,7 +234,7 @@ export class EntryVoyage {
     this.shot = undefined;
     this.stage = stage;
     if (stage !== 'login') this.login.destroy();
-    if (this.loginSurface) this.loginSurface.anchor.parent!.visible = stage === 'login';
+    if (this.loginSurface) this.loginSurface.anchor.parent!.visible = stage === 'login' || stage === 'channel';
     if (stage !== 'login') this.skip();
     if (!this.transition) this.showCabin(stage === 'characters' || stage === 'create');
     this.resize(); this.updateActivity();
@@ -277,16 +289,6 @@ export class EntryVoyage {
     const width = Math.max(1, this.host.clientWidth), height = Math.max(1, this.host.clientHeight);
     this.camera.aspect = width / height;
     this.camera.clearViewOffset();
-    if (this.stage === 'channel' && width > 700) {
-      const quick = this.host.querySelector('.entry-quick')?.getBoundingClientRect();
-      const channels = this.host.querySelector('.entry-channels')?.getBoundingClientRect();
-      const host = this.host.getBoundingClientRect();
-      if (quick && channels && channels.left - quick.right > 150) {
-        // Keep the standing passenger in the visible deck between the lobby panels.
-        const center = (quick.right + channels.left) / 2 - host.left;
-        this.camera.setViewOffset(width, height, width / 2 - center, 0, width, height);
-      }
-    }
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
     const size = this.renderer.getDrawingBufferSize(new T.Vector2()); this.clouds.resize(size.x, size.y);
@@ -302,7 +304,7 @@ export class EntryVoyage {
     const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
     this.previous = now;
     if (this.deck && this.ship && this.stage === 'channel') {
-      if (this.host.getAttribute('aria-busy') === 'true') this.clearMovement();
+      if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
       this.deck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
       this.passengers.deckPosition.copy(this.deck.position); this.passengers.deckMoving = this.deck.moving; this.passengers.deckFacing = this.deck.facing;
@@ -336,9 +338,6 @@ export class EntryVoyage {
     const shipOffset = new T.Vector3(-150 * arrival, 0, 220 * arrival);
     this.camera.position.copy(fixed ? new T.Vector3().fromArray(fixed.eye) : opening.eye);
     const aim = fixed ? new T.Vector3().fromArray(fixed.aim) : opening.aim;
-    if (this.stage === 'channel' && !this.shot && this.deck) {
-      const offset = this.deck.position.clone().sub(this.deck.spawn); this.camera.position.add(offset); aim.add(offset);
-    }
     let fieldOfView = this.stage === 'characters' ? Math.max(38, T.MathUtils.radToDeg(2 * Math.atan(3.9 / this.camera.aspect / this.camera.position.distanceTo(aim)))) : 46;
     if (!this.shot && this.stage === 'login' && (this.host.clientWidth < 700 || this.host.clientHeight < 600)) {
       // Keep the verified clear camera position; dollying back puts the mast between the reader and paper.
@@ -375,6 +374,32 @@ export class EntryVoyage {
         this.ship.quaternion.multiply(new T.Quaternion().setFromEuler(new T.Euler(0, this.flight.heading, -this.flight.steering * .025)));
         this.camera.position.add(this.flight.position);
         this.camera.lookAt(aim.clone().add(this.flight.position));
+      }
+    }
+    if (this.stage === 'channel' && !this.shot && this.deck && this.ship) {
+      // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
+      const base = this.ship.localToWorld(this.deck.position.clone());
+      base.y += Math.min(270, this.host.clientHeight * .3) / 45;
+      const distance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))) * 1.2;
+      this.camera.position.copy(base).add(new T.Vector3(0, Math.sin(.24), Math.cos(.24)).multiplyScalar(distance));
+      this.camera.lookAt(base);
+      if (this.camera.fov !== 38) { this.camera.fov = 38; this.camera.updateProjectionMatrix(); }
+      this.ship.updateWorldMatrix(true, true);
+      this.camera.updateMatrixWorld(true);
+      this.reveal?.update(this.ship.localToWorld(this.deck.position.clone()), this.camera, this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio(), delta * 1000, now);
+      const button = this.host.querySelector<HTMLButtonElement>('.voyage-adventure');
+      this.adventureNear = Math.hypot(this.deck.position.x - 6.5, this.deck.position.z) <= 2.5;
+      if (button) {
+        const point = (this.loginSurface?.anchor.getWorldPosition(new T.Vector3()) ?? this.ship.localToWorld(new T.Vector3(6.5, this.deck.spawn.y + 1.8, 0))).project(this.camera);
+        button.style.left = `${(point.x + 1) * 50}%`; button.style.top = `${(1 - point.y) * 50}%`;
+        button.hidden = point.z < -1 || point.z > 1 || Math.abs(point.x) > 1 || Math.abs(point.y) > 1;
+        button.disabled = !this.adventureNear || this.host.getAttribute('aria-busy') === 'true';
+      }
+      const hint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
+      if (hint) {
+        const icons:Record<string,string> = {up:'n',down:'s',left:'w',right:'e'};
+        const html = this.deck.hints(this.camera, this.ship).map(d => {const image=this.directionIcons?.[icons[d]];return image ? `<img src="${resolveAssetUrl(image.url)}" alt="${d}" width="24" height="24">` : '';}).join('');
+        if (hint.innerHTML !== html) hint.innerHTML = html;
       }
     }
     this.camera.updateMatrixWorld(true);
@@ -438,28 +463,35 @@ export class EntryVoyage {
       const columns = Number(node.userData.cloth_columns), rows = Number(node.userData.cloth_rows);
       if (!Number.isInteger(columns) || !Number.isInteger(rows) || columns < 2 || rows < 2 || columns > 64 || rows > 64) return;
       const meshes: T.Mesh[] = [];
-      node.traverse(child => { if (child instanceof T.Mesh && child.geometry.getAttribute('uv')) meshes.push(child); });
+      node.traverse(child => {
+        if (!(child instanceof T.Mesh)) return;
+        const uv = child.geometry.getAttribute(child.userData.cloth_grid_uv ?? node.userData.cloth_grid_uv ?? 'uv');
+        // Rigid timber ribs have their own fold rig, never cloth-grid UVs.
+        if (uv && uv.count === (columns+1)*(rows+1)*(node.userData.cloth_two_sides?2:1)) meshes.push(child);
+      });
+      for(const side of node.userData.cloth_two_sides?[-1,1]:[0]) {
       const canvas = meshes.find(mesh => !(mesh.material as T.MeshStandardMaterial).map) ?? meshes[0];
       if (!canvas) return;
       const rest = new Float32Array((columns + 1) * (rows + 1) * 3), filled = new Set<number>();
       const gridIndex = (uv: T.BufferAttribute, i: number) => Math.round(uv.getY(i) * rows) * (columns + 1) + Math.round(uv.getX(i) * columns);
-      const pos = canvas.geometry.getAttribute('position') as T.BufferAttribute, uv = canvas.geometry.getAttribute('uv') as T.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) { const grid = gridIndex(uv, i); if (grid < 0 || grid >= rest.length / 3) return; rest.set([pos.getX(i), pos.getY(i), pos.getZ(i)], grid * 3); filled.add(grid); }
+      const pos = canvas.geometry.getAttribute('position') as T.BufferAttribute, uv = canvas.geometry.getAttribute(node.userData.cloth_grid_uv??'uv') as T.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) { if(side&&Math.sign(pos.getX(i))!==side)continue; const grid = gridIndex(uv, i); if (grid < 0 || grid >= rest.length / 3) return; rest.set([pos.getX(i), pos.getY(i), pos.getZ(i)], grid * 3); filled.add(grid); }
       if (filled.size !== rest.length / 3) return;
       const pins = node.userData.cloth_pins;
       const attachments = typeof pins === 'string' ? JSON.parse(pins) : pins;
       const simulation = new ClothGrid(rest, columns, rows, Array.isArray(attachments) ? attachments : Number(node.userData.pin_v) === 1);
       this.sails.push({ simulation, meshes: meshes.map(mesh => {
-        mesh.geometry = mesh.geometry.clone();
-        const p = mesh.geometry.getAttribute('position') as T.BufferAttribute, u = mesh.geometry.getAttribute('uv') as T.BufferAttribute;
+        if(side!==1)mesh.geometry = mesh.geometry.clone();
+        const p = mesh.geometry.getAttribute('position') as T.BufferAttribute, u = mesh.geometry.getAttribute(mesh.userData.cloth_grid_uv??node.userData.cloth_grid_uv??'uv') as T.BufferAttribute;
         p.setUsage(T.DynamicDrawUsage);
         const map: number[] = [], offsets = new Float32Array(p.count * 3);
         for (let i = 0; i < p.count; i++) {
-          const grid = gridIndex(u, i); map.push(grid);
+          const grid = gridIndex(u, i); map.push(side&&Math.sign(p.getX(i))!==side?-1:grid);
           offsets.set([p.getX(i) - rest[grid * 3], p.getY(i) - rest[grid * 3 + 1], p.getZ(i) - rest[grid * 3 + 2]], i * 3);
         }
-        return { mesh, map, offsets };
+        return { mesh, map, offsets, basis:new Float32Array(p.array) };
       }) });
+      }
     });
   }
   private updateSails(delta: number, time: number) {
@@ -468,10 +500,15 @@ export class EntryVoyage {
       const gravity = new T.Vector3(0, -1, 0).transformDirection(inverse).multiplyScalar(9.81);
       const wind = new T.Vector3(6 + Math.sin(time * .8) * 2, .4, Math.sin(time * .45) * 2);
       const force = wind.length(); wind.transformDirection(inverse).multiplyScalar(force);
+      const {mesh:source,map:indices,basis}=sail.meshes[0],rest=sail.simulation.rest.slice();
+      const targets=source.geometry.morphAttributes.position??[],weights=source.morphTargetInfluences??[];
+      const morph=(i:number,axis:number)=>targets.reduce((sum,target,j)=>sum+(weights[j]??0)*target.getComponent(i,axis),0);
+      for(let i=0;i<indices.length;i++){const grid=indices[i];if(grid<0)continue;for(let axis=0;axis<3;axis++)rest[grid*3+axis]=basis[i*3+axis]+morph(i,axis);}
+      sail.simulation.retarget(rest);
       sail.simulation.advance(delta, wind.toArray(), gravity.toArray());
       for (const { mesh, map, offsets } of sail.meshes) {
         const position = mesh.geometry.getAttribute('position') as T.BufferAttribute;
-        for (let i = 0; i < position.count; i++) { const grid = map[i] * 3; position.setXYZ(i, sail.simulation.positions[grid] + offsets[i * 3], sail.simulation.positions[grid + 1] + offsets[i * 3 + 1], sail.simulation.positions[grid + 2] + offsets[i * 3 + 2]); }
+        for (let i = 0; i < position.count; i++) { const grid = map[i] * 3; if(grid<0)continue;position.setXYZ(i, sail.simulation.positions[grid] + offsets[i * 3] - morph(i,0), sail.simulation.positions[grid + 1] + offsets[i * 3 + 1] - morph(i,1), sail.simulation.positions[grid + 2] + offsets[i * 3 + 2] - morph(i,2)); }
         position.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingSphere();
       }
     }
@@ -489,7 +526,7 @@ export class EntryVoyage {
     this.resizeObserver.disconnect(); this.hiddenObserver.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
     document.removeEventListener('keydown', this.onKey); document.removeEventListener('keyup', this.onKey); window.removeEventListener('blur', this.clearMovement);
-    this.clearMovement(); this.deck?.destroy();
+    this.clearMovement(); this.deck?.destroy(); this.reveal?.destroy();
     this.reduced.removeEventListener('change', this.onMotion);
     this.passengers.destroy(); this.login.destroy(); this.clouds.destroy(); this.windowLight?.destroy(); this.water?.dispose(); dispose(this.scene); this.reflection.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.canvas.remove();
     this.host.classList.remove('entry-voyage-ready', 'voyage-travelling', 'voyage-login-visible');

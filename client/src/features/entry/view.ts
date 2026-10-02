@@ -54,7 +54,7 @@ export class EntryView {
   private appearanceLayerRequests = new Set<string>();
   /** Cash appearance layers whose file failed; never refetched this session. */
   private appearanceLayerFailures = new Set<string>();
-  constructor(private host: HTMLElement, private enter: (session: LoginResponse) => Promise<void>, private music?: EntryMusic) {
+  constructor(private host: HTMLElement, private enter: (session: LoginResponse, ready: () => Promise<boolean>) => Promise<void>, private music?: EntryMusic) {
     if (music) music.onChange = () => this.updateMusicButton();
     this.render();
     void this.loadArt();
@@ -71,6 +71,8 @@ export class EntryView {
     void import('./voyage').then(({ EntryVoyage }) => {
       if (this.host.hidden) return;
       this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); else this.renderPreviews(); });
+      this.voyage.onAdventure = () => { if (!this.busy) void this.run(() => this.startGame()); };
+      this.voyage.directionIcons = this.manifest?.miniMap?.icons?.direction;
       this.voyage.setStage(this.stage);
       this.voyage.setPassengers(this.characters.map(c => c.id), this.selected, this.page);
       const target = this.host.querySelector<HTMLElement>('.entry-background');
@@ -84,6 +86,7 @@ export class EntryView {
       if (!artResponse.ok || !manifestResponse.ok) throw new Error(text('登录素材加载失败，请刷新重试。', 'Unable to load entry artwork. Refresh to retry.'));
       this.assets = await artResponse.json();
       this.manifest = await manifestResponse.json();
+      if (this.voyage) this.voyage.directionIcons = this.manifest?.miniMap?.icons?.direction;
       const bgm = this.manifest?.mapCatalog?.maps.find(map => map.id === '200000000')?.bgm;
       if (bgm) this.music?.setTrack(bgm);
       if (!catalogResponse.ok) throw new Error(text('创角配置加载失败，请刷新重试。', 'Unable to load character creation options.'));
@@ -189,7 +192,7 @@ export class EntryView {
   private worldBadge() { return `<div class="entry-world-badge entry-glass"><span class="entry-world-emblem">🍁</span><div>${text('冒险岛', 'Maple World')}<small>CH. 1 · ${text('主频道', 'Main channel')}</small></div></div>`; }
   private channelMarkup() {
     const character = this.characters.find(item => item.id === this.selected);
-    return `${character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span></div>` : ''}<aside class="entry-world-list">${this.worldBadge()}</aside>${character ? `<aside class="entry-quick entry-glass"><div class="entry-quick-level">★　Lv. ${character.level}</div><div class="entry-quick-body"><div class="entry-avatar" data-character="${character.id}"></div><strong>${escape(character.name)}</strong><span>${jobName(character.job)}</span></div><button class="entry-primary" data-action="quick">${text('开始游戏', 'Start game')}</button></aside>` : ''}<section class="entry-channels entry-glass"><h1>${text('选择频道', 'Select Channel')}</h1><p>${text('冒险岛', 'Maple World')}</p><button class="entry-channel-button selected" data-action="channel"><strong>CH. 1</strong><span>${text('主频道', 'Main channel')}</span><i></i></button><p class="entry-hint">${text(character ? '方向键 / WASD 沿甲板行走，路口可组合方向换路 · 无技能。' : '选择主频道，查看你的角色。', character ? 'Follow deck paths with arrows / WASD; combine directions at junctions. No skills aboard.' : 'Select the main channel to view your characters.')}</p></section>`;
+    return character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span><div class="voyage-junction-hint" aria-label="${text('路口方向', 'Junction directions')}"></div></div><button class="entry-primary voyage-adventure" data-action="quick">${text('开始冒险', 'Begin adventure')}</button>` : `<button class="entry-primary" data-action="channel">${text('创建角色，开始冒险', 'Create a character')}</button>`;
   }
   private charactersMarkup() {
     const start = this.page * 4;
@@ -281,10 +284,13 @@ export class EntryView {
     const revision = this.revision;
     const session = await lobbyRequest<LoginResponse>(this.session!, 'select', { characterId: this.selected, channelId: 1 });
     if (revision !== this.revision) return;
-    if (this.voyage && !await this.voyage.depart()) return;
-    if (revision !== this.revision) return;
-    this.music?.setActive(false);
-    try { await this.enter(session); } catch (error) { this.host.hidden = false; this.voyage?.cancelDeparture(); this.music?.setActive(true); throw error; }
+    this.host.classList.add('voyage-loading');
+    try { await this.enter(session, async () => {
+      this.host.classList.remove('voyage-loading');
+      this.host.classList.add('voyage-departing');
+      this.music?.setActive(false);
+      return revision === this.revision && (!this.voyage || await this.voyage.depart());
+    }); } catch (error) { this.host.hidden = false; this.host.classList.remove('voyage-loading', 'voyage-departing'); this.voyage?.cancelDeparture(); this.music?.setActive(true); throw error; }
     this.host.hidden = true;
     this.voyage?.destroy(); this.voyage = undefined;
     document.body.classList.remove('entry-active');

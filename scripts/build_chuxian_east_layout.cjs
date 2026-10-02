@@ -2,6 +2,18 @@
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const source = JSON.parse(fs.readFileSync(path.join(root,'resources/scenes/chuxian-east-v1/source-layout.json'),'utf8'));
+// Split crowded multi-road crossings into compact courtyard loops; keep original routes.
+if(!source.fourWayJunctions){
+ const crowded=new Map();source.routes.forEach((r,ri)=>r.points.forEach((name,i)=>{const entry=crowded.get(name)??new Map();entry.set(ri,(entry.get(ri)??0)+(i>0)+(i<r.points.length-1));crowded.set(name,entry);}));
+ for(const [name,roads] of crowded){if([...roads.values()].reduce((a,b)=>a+b,0)<=4)continue;
+  const p=source.nodes[name],anchors=[...roads.keys()].map((ri,i)=>{const anchor=i?`${name}-J${i}`:name,angle=i*2*Math.PI/roads.size;
+   if(i)source.nodes[anchor]=[p[0]+2.5*(Math.cos(angle)-1),p[1]+2.5*Math.sin(angle),p[2]];
+   source.routes[ri].points=source.routes[ri].points.map(n=>n===name?anchor:n);return anchor;
+  });
+  source.routes.push({name:`${name}庭院岔口`,points:[...anchors,anchors[0]],width:3,kind:'loop'});
+ }
+ source.fourWayJunctions=true;fs.writeFileSync(path.join(root,'resources/scenes/chuxian-east-v1/source-layout.json'),JSON.stringify(source,null,2)+'\n','utf8');
+}
 let offset=100000, id=920001;
 const junctions=new Map(), platforms=[];
 const routes=source.routes.map((route,index)=>{
@@ -18,7 +30,7 @@ const routes=source.routes.map((route,index)=>{
   return {name:route.name,kind:route.kind,width:route.width,start:nodes[0].x,end:x,loop:route.points[0]===route.points.at(-1),nodes,firstId:segments[0].id,lastId:segments.at(-1).id};
 });
 const first=routes[0].nodes[1];
-const data={mapId:'100000000',name:'初弦地',district:'初弦地东边村落',pixelsPerMetre:45,source:'resources/scenes/chuxian-east-v1/source-layout.json',routes,platforms,junctions:[...junctions.entries()].filter(([,entries])=>new Set(entries.map(e=>e.route)).size>1).map(([name,entries])=>({name,entries})),spawn:{x:first.x+450,y:first.y+(routes[0].nodes[2].y-first.y)*450/(routes[0].nodes[2].x-first.x)},bounds:{xMin:routes[0].start,xMax:routes.at(-1).end,yMin:-2200,yMax:300},miniBounds:{xMin:-104,yMin:-62,width:208,height:132}};
-assert.equal(routes.length,16);assert(data.junctions.length>10);
+const data={mapId:'100000000',name:'初弦地',district:'初弦地东边村落',pixelsPerMetre:45,directionSlots:true,source:'resources/scenes/chuxian-east-v1/source-layout.json',routes,platforms,junctions:[...junctions.entries()].filter(([,entries])=>new Set(entries.map(e=>e.route)).size>1).map(([name,entries])=>({name,entries})),spawn:{x:first.x+450,y:first.y+(routes[0].nodes[2].y-first.y)*450/(routes[0].nodes[2].x-first.x)},bounds:{xMin:routes[0].start,xMax:routes.at(-1).end,yMin:-2200,yMax:300},miniBounds:{xMin:-104,yMin:-62,width:208,height:132}};
+assert(routes.length>=16);assert(data.junctions.length>10);
 fs.writeFileSync(path.join(root,'shared/chuxian-east.json'),JSON.stringify(data,null,2)+'\n','utf8');
 console.log(JSON.stringify({routes:routes.length,segments:platforms.length,junctions:data.junctions.length}));

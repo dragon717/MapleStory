@@ -15,6 +15,7 @@ export class ShipFlight {
   time = 0;
   position = new T.Vector3();
   trial = false;
+  private manualSail=false;
   private parts: { node: T.Object3D; rest: T.Quaternion; kind: string; fold: number; morphs: T.Mesh[] }[] = [];
   private nozzles: T.MeshStandardMaterial[] = [];
   constructor(root?: T.Object3D) {
@@ -37,6 +38,7 @@ export class ShipFlight {
     });
   }
   setControls(input: Partial<ShipControls>) {
+    if(input.sail!==undefined)this.manualSail=true;
     for (const key of ['sail', 'wind', 'throttle', 'steering'] as const) {
       if (input[key] !== undefined) this.controls[key] = bounded(input[key], key === 'steering' ? -1 : 0, key === 'wind' ? 16 : 1, this.controls[key]);
     }
@@ -49,7 +51,8 @@ export class ShipFlight {
     const dt = Number.isFinite(delta) ? Math.max(0, Math.min(delta, .05)) : 0;
     this.time += dt;
     const blend = snap ? 1 : 1 - Math.exp(-dt * 3);
-    this.deployment += (this.controls.sail - this.deployment) * blend;
+    const sail=this.manualSail?this.controls.sail:.72+.28*(.5+.5*Math.cos(this.time*.35));
+    this.deployment += (sail - this.deployment) * blend;
     this.steering += (this.controls.steering - this.steering) * blend;
     // ponytail: calibrated force/drag model for the entry preview; World owns future multiplayer navigation.
     this.thrust = 18 * this.controls.throttle + .22 * this.controls.wind ** 2 * (.18 + .82 * this.deployment);
@@ -68,7 +71,7 @@ export class ShipFlight {
       for (const mesh of part.morphs) {
         const dictionary = mesh.morphTargetDictionary!, values = mesh.morphTargetInfluences!;
         if (dictionary.DeployFold !== undefined) values[dictionary.DeployFold] = 1 - this.deployment;
-        if (dictionary.WindPressure !== undefined) values[dictionary.WindPressure] = pressure;
+        if (dictionary.WindPressure !== undefined) values[dictionary.WindPressure] = part.node.userData.cloth_canvas_vertex_start===0?0:pressure;
       }
     }
     for (const material of this.nozzles) material.emissiveIntensity = .08 + this.controls.throttle * .8;

@@ -28,6 +28,11 @@ export class ClothGrid {
       if (y + 2 <= rows) edge(i, i + 2 * (columns + 1), .12);
     }
   }
+  retarget(rest:Float32Array){
+    if(rest.length!==this.rest.length||!rest.every(Number.isFinite))return;
+    for(let k=0;k<rest.length;k++){const delta=rest[k]-this.rest[k];this.positions[k]+=delta;this.previous[k]+=delta;this.rest[k]=rest[k];}
+    for(const edge of this.edges){const [a,b]=edge;edge[2]=Math.hypot(...[0,1,2].map(axis=>rest[a*3+axis]-rest[b*3+axis]));}
+  }
   advance(delta: number, wind: readonly number[], gravity: readonly number[] = [0, -9.81, 0]) {
     if (!Number.isFinite(delta) || delta <= 0 || !wind.every(Number.isFinite) || !gravity.every(Number.isFinite)) return;
     // Fixed steps prevent a resumed tab from injecting a frame-sized gravity impulse.

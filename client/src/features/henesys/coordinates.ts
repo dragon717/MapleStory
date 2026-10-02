@@ -24,7 +24,7 @@ export function point3d(x: number,y: number,mapId=HENESYS_MAP_ID): [number,numbe
   return [a.position[0]+(b.position[0]-a.position[0])*t,-y/PIXELS_PER_METRE,a.position[2]+(b.position[2]-a.position[2])*t];
 }
 export function miniPoint(x:number,y:number,mapId=HENESYS_MAP_ID){const p=point3d(x,y,mapId);return {x:p[0],y:p[2]};}
-export type JunctionDirection = 'up' | 'down' | 'left' | 'right' | 'upLeft' | 'upRight' | 'downLeft' | 'downRight';
+export type JunctionDirection = 'up' | 'down' | 'left' | 'right';
 /** Display-only mirror of server/src/henesys.rs::turn: same range, score and tie order. */
 export function junctionDirections(x:number,view?:MovementView,mapId=HENESYS_MAP_ID): JunctionDirection[] {
   const east=layoutFor(mapId);
@@ -32,8 +32,8 @@ export function junctionDirections(x:number,view?:MovementView,mapId=HENESYS_MAP
   const epsilon=1e-7,route=east.routes.findIndex(r=>x>=r.start-epsilon&&x<=r.end+epsilon);
   if(route<0)return [];
   if('directionSlots' in east && east.directionSlots){
-    const directions=['up','down','left','right','upLeft','upRight','downLeft','downRight'] as const;
-    const vectors=[[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+    const directions=['up','down','left','right'] as const;
+    const vectors=[[0,-1],[0,1],[-1,0],[1,0]];
     const selected:JunctionDirection[]=[];
     for(const j of east.junctions){
       if(!j.entries.some(e=>e.route===route&&Math.abs(e.x-x)<=55+epsilon))continue;
@@ -49,8 +49,8 @@ export function junctionDirections(x:number,view?:MovementView,mapId=HENESYS_MAP
     return [...new Set(selected)];
   }
   const hinted=new Set<number>();
-  return (['up','down','left','right','upLeft','upRight','downLeft','downRight'] as const).filter(direction=>{
-    const horizontal=direction==='left'||direction.endsWith('Left')?-1:direction==='right'||direction.endsWith('Right')?1:0;
+  return (['up','down','left','right'] as const).filter(direction=>{
+    const horizontal=direction==='left'?-1:direction==='right'?1:0;
     const vertical=direction.startsWith('up')?-1:direction.startsWith('down')?1:0;
     let best:number|undefined,score=.25;
     for(const junction of east.junctions){

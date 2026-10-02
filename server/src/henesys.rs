@@ -102,7 +102,7 @@ fn turn(
     if data.direction_slots {
         for (junction, j) in data.junctions.iter().enumerate() {
             if !j.entries.iter().any(|e|e.route==route && (e.x-x).abs()<=55.) { continue; }
-            let directions=[[0.,-1.],[0.,1.],[-1.,0.],[1.,0.],[-1.,-1.],[1.,-1.],[-1.,1.],[1.,1.]];
+            let directions=[[0.,-1.],[0.,1.],[-1.,0.],[1.,0.]];
             let mut exits=Vec::new();
             for e in &j.entries {
                 let r=&data.routes[e.route];
@@ -113,12 +113,11 @@ fn turn(
                     }
                 }
             }
-            // Crowded courtyards can have seven exits within one screen quadrant.
-            // Give every authored exit a distinct displayed key direction; no road is silently lost.
+            // Courtyard loops keep the degree <=4; one arrow selects each authored exit.
             let mut scores=Vec::new();
             for (i,(_,_,t)) in exits.iter().enumerate() {for (d,v) in directions.iter().enumerate(){scores.push((((t[0]*v[0]+t[1]*v[1])/f64::hypot(v[0],v[1])*1e9).round() as i64,i,d));}}
             scores.sort_by(|a,b|b.0.cmp(&a.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
-            let mut assigned=vec![false;exits.len()];let mut used=[false;8];
+            let mut assigned=vec![false;exits.len()];let mut used=[false;4];
             for (_,i,d) in scores {if assigned[i]||used[d]{continue;}assigned[i]=true;used[d]=true;
                 if directions[d]==input {let (e,side,_)=exits[i];return Some(Turn{route:e.route,x:e.x+side as f64*0.1,y:e.y,direction:side,junction});}
             }
@@ -671,25 +670,18 @@ mod tests {
         let samples: Vec<_> = positions
             .into_iter()
             .flat_map(|x| views.into_iter().map(move |view| {
-                let mut hinted = std::collections::BTreeSet::new();
                 let choices: Vec<_> = [
                     ("up", [0., -1.]),
                     ("down", [0., 1.]),
                     ("left", [-1., 0.]),
                     ("right", [1., 0.]),
-                    ("upLeft", [-1., -1.]),
-                    ("upRight", [1., -1.]),
-                    ("downLeft", [-1., 1.]),
-                    ("downRight", [1., 1.]),
                 ]
                 .into_iter()
                 .filter_map(|(key, input)| {
                     route_at(x)
                         .and_then(|route| turn(layout(), route, x, input, view))
-                        .and_then(|choice| {
-                            let fresh = hinted.insert(choice.route);
-                            (key.len() <= 5 || fresh).then_some(key)
-                        })
+                        .filter(|choice| Some(choice.route) != route_at(x))
+                        .map(|_| key)
                 })
                 .collect();
                 serde_json::json!({ "x": x, "view": view.map(|v| serde_json::json!({"yaw": v.yaw, "pitch": v.pitch})), "choices": choices })
@@ -703,7 +695,7 @@ mod tests {
     #[test]
     fn east_routes_and_turns_are_authoritative() {
         let d = layout();
-        assert_eq!(d.routes.len(), 16);
+        assert_eq!(d.routes.len(), 19);
         for (i, r) in d.routes.iter().enumerate() {
             assert_eq!(route_at((r.start + r.end) / 2.0), Some(i));
             for n in &r.nodes {
@@ -722,16 +714,16 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(reached.len(), 16, "all roads reachable from main street");
+        assert_eq!(reached.len(), d.routes.len(), "all roads reachable from main street");
         let junction = d
             .junctions
             .iter()
             .find(|j| {
-                j.entries.iter().any(|e| e.route == 0) && j.entries.iter().any(|e| e.route == 1)
+                j.entries.iter().any(|e| e.route == 0) && j.entries.iter().any(|e| e.route != 0)
             })
             .unwrap();
         let x = junction.entries.iter().find(|e| e.route == 0).unwrap().x;
-        assert!(turn(d, 0, x, [0.0, -1.0], None).is_some());
+        assert!([[0.,-1.],[0.,1.],[-1.,0.],[1.,0.]].into_iter().any(|input| turn(d, 0, x, input, None).is_some_and(|c|c.route!=0)));
         assert!(turn(d, 0, x + 100.0, [0.0, -1.0], None).is_none());
     }
 }

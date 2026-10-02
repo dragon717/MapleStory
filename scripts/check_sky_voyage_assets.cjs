@@ -43,17 +43,17 @@ function checkSkyCity(publicDirectory) {
   const layout = JSON.parse(fs.readFileSync(path.join(root, 'resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-layout.json'), 'utf8'));
   assert.deepEqual(embeddedLayout, layout, 'GLB layout metadata differs from its source layout');
   assert(fs.existsSync(path.resolve(root, layout.provenance)), 'spatial layout provenance source is missing');
-  assert.equal(layout.nodes.length, 177); assert.equal(layout.landings.length, 177);
-  assert.equal(layout.edges.length, 201); assert.equal(layout.mapAssignments.length, 287);
+  assert(layout.nodes.length >= 177);assert(layout.fourWayJunctions); assert.equal(layout.landings.length, 177);
+  assert(layout.edges.length >= 201); assert.equal(layout.mapAssignments.length, 287);
   assert.equal(layout.physicalLinks.filter(link => link.surface === 'suspension').length, 41);
   assert.equal(layout.physicalLinks.filter(link => link.surface === 'rainbow').length, 1);
   const islands = gltf.nodes.filter(node => node.name?.endsWith('_Island') && node.extras?.island_id);
   assert.equal(islands.length, 35); assert.equal(new Set(islands.map(node => node.extras.island_id)).size, 35);
-  const edgeNodes = gltf.nodes.filter(node => /^SC_L\d{3}$/.test(node.name ?? ''));
+  const edgeNodes = gltf.nodes.filter(node => Boolean(node.extras?.edge_id));
   assert.equal(edgeNodes.length, layout.edges.length);
   assert.deepEqual(new Set(edgeNodes.map(node => node.extras?.edge_id)), new Set(layout.edges.map(edge => edge.id)));
   assert.deepEqual(new Set(layout.edges.map(edge => edge.carrier)), new Set([
-    'land-or-fragment-islands', 'suspension-cables', 'rainbow-energy-bridge', 'building-floor'
+    'land-or-fragment-islands', 'suspension-cables', 'rainbow-energy-bridge', 'building-floor', 'existing-courtyard-landing'
   ]));
   const roadCheck = JSON.parse(extras.road_carrier_check);
   const terrainCheck = JSON.parse(extras.terrain_clearance_check);
@@ -104,6 +104,21 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   assert.equal(parts.length, 18);
   assert.equal(parts.reduce((sum, node) => sum + node.extras.source_triangles, 0), 285840);
   assert.equal(parts.filter(node => node.extras.rig_kind === 'fan').length, 6);
+  const fans=parts.filter(node=>node.extras.rig_kind==='fan');
+  for(const fan of fans){
+    assert.equal(fan.extras.cloth_canvas_vertex_start,0);
+    assert.equal(fan.extras.cloth_columns,12);assert.equal(fan.extras.cloth_rows,32);
+    assert.equal(fan.extras.cloth_two_sides,true);assert.equal(fan.extras.cloth_grid_uv,'uv2');
+    assert(fan.extras.cloth_pins.length>0);
+    assert(gltf.meshes[fan.mesh].primitives.every(p=>p.attributes.TEXCOORD_2!==undefined),'cloth grid UV must survive export');
+  }
+  const crest=gltf.nodes.filter(node=>node.name==='SV3_MainSail_Crest');
+  assert.equal(crest.length,1,'only the main sail carries a maple crest');
+  assert.equal(crest[0].extras.cloth_grid_uv,'uv1');
+  const book=readGlb(path.join(directory,'voyage-book.glb')).gltf;
+  assert(book.nodes.some(n=>n.name==='SV3_DepartureBook'));
+  assert(book.animations.some(a=>a.name==='SV3_BookOpenFlipGlow'));
+  assert(fs.readFileSync(path.join(root,'resources/scenes/sky-voyage-v3/models/voyage-book.glb')).equals(fs.readFileSync(path.join(directory,'voyage-book.glb'))),'published book must match Blender export');
   for (const part of parts.filter(node => node.extras.fold_morph || node.extras.wind_morph)) {
     const mesh = gltf.meshes[part.mesh];
     for (const name of [part.extras.fold_morph, part.extras.wind_morph].filter(Boolean)) {

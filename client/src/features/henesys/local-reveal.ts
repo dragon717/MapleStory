@@ -5,7 +5,7 @@ export class LocalReveal {
   private window = { value: new T.Vector4() };
   private depth = { value: 0 };
   private strength = { value: 0 };
-  private candidates: { mesh: T.Mesh; bounds: T.Box3 }[] = [];
+  private candidates: { mesh: T.Mesh; bounds: T.Box3; instance?: number }[] = [];
   private lastFoot?: T.Vector3;
   private direction = new T.Vector3();
   private ray = new T.Ray();
@@ -13,20 +13,21 @@ export class LocalReveal {
   private checkedAt = -Infinity;
   private blocked = false;
 
-  constructor(model: T.Object3D) {
+  constructor(model: T.Object3D, eligible?: (mesh:T.Mesh) => boolean) {
     const materials = new Map<T.Material, T.Material>();
     model.updateMatrixWorld(true);
     model.traverseVisible(o => {
       if (!(o instanceof T.Mesh)) return;
       let parent: T.Object3D | null = o, layer;
       while (parent && !layer) { layer = parent.userData.layer; parent = parent.parent; }
-      if (!['buildings', 'props', 'vegetation'].includes(layer)) return;
+      if (eligible ? !eligible(o) : !['buildings', 'props', 'vegetation'].includes(layer) && !o.userData.island_binding && !o.userData.edge_id && !o.userData.bridge_edge) return;
+      if ((Array.isArray(o.material)?o.material:[o.material]).every(m=>m.transparent)) return;
       if (o instanceof T.InstancedMesh) {
         o.geometry.computeBoundingBox();
         const matrix = new T.Matrix4();
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, matrix);matrix.premultiply(o.matrixWorld);
-          this.candidates.push({ mesh: o, bounds: o.geometry.boundingBox!.clone().applyMatrix4(matrix) });
+          this.candidates.push({ mesh: o, bounds: o.geometry.boundingBox!.clone().applyMatrix4(matrix), instance: i });
         }
       } else this.candidates.push({ mesh: o, bounds: new T.Box3().setFromObject(o) });
       const patch = (source: T.Material) => {
@@ -34,8 +35,10 @@ export class LocalReveal {
         if (material) return material;
         // A source material may also belong to the ground: clone only eligible scenery.
         material = source.clone();
-        material.customProgramCacheKey = () => 'chuxian-local-reveal-v1';
-        material.onBeforeCompile = shader => {
+        const previous = source.onBeforeCompile, key = source.customProgramCacheKey.call(source);
+        material.customProgramCacheKey = () => key + ':chuxian-local-reveal-v1';
+        material.onBeforeCompile = (shader, renderer) => {
+          previous.call(material!, shader, renderer);
           Object.assign(shader.uniforms, { revealWindow: this.window, revealDepth: this.depth, revealStrength: this.strength });
           shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_pars_fragment>', `#include <clipping_planes_pars_fragment>
 uniform vec4 revealWindow;
@@ -75,6 +78,15 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
     this.depth.value = (Math.max(f.z, a.z) + 1) / 2;
     if (now - this.checkedAt >= 100) {
       this.checkedAt = now;
+      // Moving islands and ship require current, rather than construction-time, bounds.
+      const matrix = new T.Matrix4();
+      for (const item of this.candidates) {
+        item.mesh.updateWorldMatrix(true, false);
+        if (item.instance !== undefined) (item.mesh as T.InstancedMesh).getMatrixAt(item.instance, matrix); else matrix.identity();
+        matrix.premultiply(item.mesh.matrixWorld);
+        item.mesh.geometry.computeBoundingBox();
+        item.bounds.copy(item.mesh.geometry.boundingBox!).applyMatrix4(matrix);
+      }
       // Bounding boxes only decide fade timing; the shader checks actual foreground pixels.
       // No triangle raycasts, GPU readbacks, or distance cutoff that misses a large building.
       const side = new T.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(Math.max(.65, bodyWidth * .4));

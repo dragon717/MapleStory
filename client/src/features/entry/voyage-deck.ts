@@ -52,6 +52,23 @@ export class VoyageDeck {
   }
   reset() { this.position.copy(this.spawn); this.moving = false; this.facing = 1;this.route=0;this.distance=26;this.direction=0;this.input='';this.junction=undefined; }
   private segment(){const road=this.roads[this.route],i=Math.max(1,road.nodes.findIndex((n,i)=>i>0&&this.distance<=n.distance));return {road,a:road.nodes[i-1],b:road.nodes[i]};}
+  private choose(wish:T.Vector3){
+    const current=this.segment();
+    let best:{route:number;distance:number;direction:number;name:string}|undefined,score=.25;
+    for(const node of current.road.nodes){
+      if(Math.abs(node.distance-this.distance)>.3)continue;
+      this.roads.forEach((road,ri)=>road.nodes.forEach((n,i)=>{if(n.name!==node.name)return;for(const side of [-1,1]){const other=road.nodes[i+side];if(!other)continue;const alignment=new T.Vector3(other.x-n.x,0,other.z-n.z).normalize().dot(wish);
+        if(alignment>score+.001||(best?.route===this.route&&ri!==this.route&&alignment>=score-.001)){score=alignment;best={route:ri,distance:n.distance,direction:side,name:n.name};}
+      }}));
+    }
+    return best;
+  }
+  hints(camera:T.Camera,ship:T.Object3D){
+    const inverse=ship.getWorldQuaternion(new T.Quaternion()).invert();
+    const forward=camera.getWorldDirection(new T.Vector3()).applyQuaternion(inverse);forward.y=0;forward.normalize();
+    const right=forward.clone().cross(new T.Vector3(0,1,0));
+    return (['up','down','left','right'] as const).filter(direction=>{const wish=direction==='up'?forward:direction==='down'?forward.clone().negate():direction==='left'?right.clone().negate():right;const choice=this.choose(wish);return choice&&choice.route!==this.route;});
+  }
   update(delta: number, horizontal: number, vertical: number, camera: T.Camera, ship: T.Object3D) {
     this.moving = false;
     if (!Number.isFinite(delta) || delta <= 0) return;
@@ -64,13 +81,7 @@ export class VoyageDeck {
     if(input!==this.input){this.direction=0;this.junction=undefined;this.input=input;}
     const current=this.segment();
     if(this.junction&&!current.road.nodes.some(n=>n.name===this.junction&&Math.abs(n.distance-this.distance)<.4))this.junction=undefined;
-    let best:{route:number;distance:number;direction:number;name:string}|undefined,score=.25;
-    for(const node of current.road.nodes){
-      if(Math.abs(node.distance-this.distance)>.3||node.name===this.junction)continue;
-      this.roads.forEach((road,ri)=>road.nodes.forEach((n,i)=>{if(n.name!==node.name)return;for(const side of [-1,1]){const other=road.nodes[i+side];if(!other)continue;const alignment=new T.Vector3(other.x-n.x,0,other.z-n.z).normalize().dot(wish);
-        if(alignment>score+.001||(best?.route===this.route&&ri!==this.route&&alignment>=score-.001)){score=alignment;best={route:ri,distance:n.distance,direction:side,name:n.name};}
-      }}));
-    }
+    const best=this.junction?undefined:this.choose(wish);
     if(best){this.route=best.route;this.distance=best.distance;this.direction=best.direction;this.junction=best.name;}
     const {road,a,b}=this.segment();
     if(!this.direction)this.direction=Math.sign(new T.Vector3(b.x-a.x,0,b.z-a.z).normalize().dot(wish));

@@ -24,6 +24,23 @@ export class VoyageCity {
   private glowTime = { value: 0 };
   nodeOffset(id: string) { return this.offsets.get(id) ?? 0; }
   islandRoot(id: string) { return this.groups.get(id); }
+  snowMotion(mesh:T.Mesh) {
+    let owner:T.Object3D|null=mesh;
+    while(owner&&!owner.userData.edge_id&&!owner.userData.motion_node&&!owner.userData.island_binding)owner=owner.parent;
+    const data=owner?.userData??{},link=this.layout.edges.find(e=>e.id===data.edge_id);
+    if (link) {
+      // Shell and track X/Z stay authored; cache their fixed road weights, not dynamic heights.
+      const weights = new Map<string, number>();
+      return (p:T.Vector3) => {
+        const key = `${p.x},${p.z}`;
+        let t = weights.get(key);
+        if (t === undefined) { t = this.fraction(p, link.points); weights.set(key, t); }
+        return this.nodeOffset(link.start) * (1-t) + this.nodeOffset(link.end) * t;
+      };
+    }
+    if(data.motion_node)return (_p:T.Vector3)=>this.nodeOffset(data.motion_node);
+    return (_p:T.Vector3)=>this.groups.get(data.island_binding)?.position.y??0;
+  }
   status() { return { motionTime: this.time, islandOffsets: Object.fromEntries([...this.groups].map(([id, group]) => [id, group.position.y])), dynamicMeshes: this.deformed.length }; }
   constructor(readonly root: T.Group) {
     this.layout = JSON.parse(root.userData.spatial_layout) as Layout;
