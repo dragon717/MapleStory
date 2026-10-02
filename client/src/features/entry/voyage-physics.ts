@@ -4,7 +4,7 @@ export class ClothGrid {
   readonly previous: Float32Array;
   readonly rest: Float32Array;
   readonly pinned: Uint8Array;
-  private edges: [number, number, number, number][] = [];
+  private edges: Float64Array;
   private pending = 0;
   constructor(rest: Float32Array, readonly columns: number, readonly rows: number, pins: boolean | readonly number[] = true) {
     if (!Number.isInteger(columns) || !Number.isInteger(rows) || columns < 2 || rows < 2 || columns > 64 || rows > 64 || rest.length !== (columns + 1) * (rows + 1) * 3 || !rest.every(Number.isFinite)) throw new Error('Invalid sail grid');
@@ -14,30 +14,34 @@ export class ClothGrid {
       if (!pins.length || !pins.every(i => Number.isInteger(i) && i >= 0 && i < this.pinned.length)) throw new Error('Invalid sail attachments');
       for (const i of pins) this.pinned[i] = 1;
     }
+    else for (let x=0;x<=columns;x++) this.pinned[(pins ? rows : 0)*(columns+1)+x]=1;
+    const edges: number[] = [];
     const edge = (a: number, b: number, stiffness: number) => {
       const distance = Math.hypot(...[0, 1, 2].map(axis => rest[a * 3 + axis] - rest[b * 3 + axis]));
-      if (distance > 1e-7) this.edges.push([a, b, distance, stiffness]);
+      const wa=1-this.pinned[a],wb=1-this.pinned[b];
+      if (distance > 1e-7 && wa+wb) edges.push(a*3,b*3,distance,stiffness/(wa+wb),wa,wb);
     };
     for (let y = 0; y <= rows; y++) for (let x = 0; x <= columns; x++) {
       const i = y * (columns + 1) + x;
-      if (typeof pins === 'boolean' && y === (pins ? rows : 0)) this.pinned[i] = 1;
       if (x < columns) edge(i, i + 1, 1);
       if (y < rows) edge(i, i + columns + 1, 1);
       if (x < columns && y < rows) { edge(i, i + columns + 2, .8); edge(i + 1, i + columns + 1, .8); }
       if (x + 2 <= columns) edge(i, i + 2, .12);
       if (y + 2 <= rows) edge(i, i + 2 * (columns + 1), .12);
     }
+    this.edges=Float64Array.from(edges);
   }
   retarget(rest:Float32Array){
     if(rest.length!==this.rest.length||!rest.every(Number.isFinite))return;
     for(let k=0;k<rest.length;k++){const delta=rest[k]-this.rest[k];this.positions[k]+=delta;this.previous[k]+=delta;this.rest[k]=rest[k];}
-    for(const edge of this.edges){const [a,b]=edge;edge[2]=Math.hypot(...[0,1,2].map(axis=>rest[a*3+axis]-rest[b*3+axis]));}
+    for(let i=0;i<this.edges.length;i+=6){const a=this.edges[i],b=this.edges[i+1];this.edges[i+2]=Math.sqrt((rest[a]-rest[b])**2+(rest[a+1]-rest[b+1])**2+(rest[a+2]-rest[b+2])**2);}
   }
+
   advance(delta: number, wind: readonly number[], gravity: readonly number[] = [0, -9.81, 0]) {
     if (!Number.isFinite(delta) || delta <= 0 || !wind.every(Number.isFinite) || !gravity.every(Number.isFinite)) return;
-    // Fixed steps prevent a resumed tab from injecting a frame-sized gravity impulse.
+    // Fixed 60 Hz cloth decouples physics from display rate; resumed tabs remain bounded.
     this.pending += Math.min(delta, .05);
-    const dt = 1 / 120;
+    const dt = 1 / 60;
     while (this.pending >= dt) {
       this.pending -= dt;
       const p = this.positions, previous = this.previous;
@@ -45,19 +49,19 @@ export class ClothGrid {
         const k = i * 3 + axis;
         if (this.pinned[i]) { p[k] = previous[k] = this.rest[k]; continue; }
         const value = p[k];
-        p[k] += (p[k] - previous[k]) * .995 + (gravity[axis] + wind[axis]) * dt * dt;
+        p[k] += (p[k] - previous[k]) * (.995 * .995) + (gravity[axis] + wind[axis]) * dt * dt;
         previous[k] = value;
       }
-      for (let pass = 0; pass < 8; pass++) for (const [a, b, length, stiffness] of this.edges) {
-        const wa = 1 - this.pinned[a], wb = 1 - this.pinned[b];
-        if (!wa && !wb) continue;
-        const dx = p[b * 3] - p[a * 3], dy = p[b * 3 + 1] - p[a * 3 + 1], dz = p[b * 3 + 2] - p[a * 3 + 2];
-        const distance = Math.hypot(dx, dy, dz);
-        if (distance < 1e-8) continue;
-        const correction = (distance - length) / distance / (wa + wb) * stiffness;
-        p[a * 3] += dx * correction * wa; p[b * 3] -= dx * correction * wb;
-        p[a * 3 + 1] += dy * correction * wa; p[b * 3 + 1] -= dy * correction * wb;
-        p[a * 3 + 2] += dz * correction * wa; p[b * 3 + 2] -= dz * correction * wb;
+      const edges=this.edges;
+      for (let pass = 0; pass < 8; pass++) for (let i=0;i<edges.length;i+=6) {
+        const a=edges[i],b=edges[i+1],wa=edges[i+4],wb=edges[i+5];
+        const dx=p[b]-p[a],dy=p[b+1]-p[a+1],dz=p[b+2]-p[a+2];
+        const distance=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(distance<1e-8)continue;
+        const correction=(distance-edges[i+2])/distance*edges[i+3];
+        p[a]+=dx*correction*wa;p[b]-=dx*correction*wb;
+        p[a+1]+=dy*correction*wa;p[b+1]-=dy*correction*wb;
+        p[a+2]+=dz*correction*wa;p[b+2]-=dz*correction*wb;
       }
     }
   }

@@ -36,6 +36,11 @@ for (let x = 0; x <= columns; x++) {
 }
 assert(Math.abs(cloth.positions[2]) > .05, 'wind deflects the free sail');
 assert(Math.hypot(cloth.positions[0], cloth.positions[1] - 1.5, cloth.positions[2]) < 2, 'cloth remains attached under gravity');
+const sixty=new ClothGrid(rest,columns,rows),highRefresh=new ClothGrid(rest,columns,rows);
+for(let i=0;i<120;i++){sixty.advance(1/60,[0,0,6]);highRefresh.advance(1/120,[0,0,6]);highRefresh.advance(1/120,[0,0,6]);}
+assert.deepEqual(sixty.positions,highRefresh.positions,'cloth state is independent of display refresh rate');
+const resumed=new ClothGrid(rest,columns,rows),bounded=new ClothGrid(rest,columns,rows);
+resumed.advance(3600,[0,0,6]);bounded.advance(.05,[0,0,6]);assert.deepEqual(resumed.positions,bounded.positions,'resumed cloth cannot perform unbounded catchup');
 assert.throws(() => new ClothGrid(rest, 1000, rows));
 const fanRest = rest.slice(), fanPins = [];
 for (let y = 0; y <= rows; y++) for (let x = 0; x <= columns; x++) {

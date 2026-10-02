@@ -6,6 +6,7 @@ export class LocalReveal {
   private depth = { value: 0 };
   private strength = { value: 0 };
   private candidates: { mesh: T.Mesh; bounds: T.Box3; instance?: number }[] = [];
+  private geometryBounds = new WeakMap<T.BufferGeometry, { version: number; bounds: T.Box3 }>();
   private lastFoot?: T.Vector3;
   private direction = new T.Vector3();
   private ray = new T.Ray();
@@ -84,8 +85,14 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
         item.mesh.updateWorldMatrix(true, false);
         if (item.instance !== undefined) (item.mesh as T.InstancedMesh).getMatrixAt(item.instance, matrix); else matrix.identity();
         matrix.premultiply(item.mesh.matrixWorld);
-        item.mesh.geometry.computeBoundingBox();
-        item.bounds.copy(item.mesh.geometry.boundingBox!).applyMatrix4(matrix);
+        const geometry = item.mesh.geometry, position = geometry.getAttribute('position');
+        const version = position instanceof T.InterleavedBufferAttribute ? position.data.version : position.version;
+        let local = this.geometryBounds.get(geometry);
+        if (!local || local.version !== version) {
+          geometry.computeBoundingBox();
+          local = { version, bounds: geometry.boundingBox!.clone() }; this.geometryBounds.set(geometry, local);
+        }
+        item.bounds.copy(local.bounds).applyMatrix4(matrix);
       }
       // Bounding boxes only decide fade timing; the shader checks actual foreground pixels.
       // No triangle raycasts, GPU readbacks, or distance cutoff that misses a large building.

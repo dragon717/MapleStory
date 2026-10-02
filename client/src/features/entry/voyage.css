@@ -550,7 +550,7 @@ body.entry-active { background: #eee4cf; }
 
 .entry-stage-channel .entry-brand,.entry-stage-channel .entry-navigation {display:none;}
 .entry-stage-channel .entry-scene {padding:0;display:block;}
-.voyage-adventure {position:absolute;transform:translate(-50%,-50%);z-index:5;min-width:130px;}
+.voyage-adventure {position:absolute;z-index:5;width:240px;height:64px;min-width:0;padding:0;transform-origin:0 0;transition:none;}
 .voyage-junction-hint {position:absolute;left:50%;bottom:90px;transform:translateX(-50%);display:flex;gap:4px;pointer-events:none;}
 .voyage-junction-hint img {image-rendering:pixelated;}
 .voyage-loading .entry-notice {display:none;}

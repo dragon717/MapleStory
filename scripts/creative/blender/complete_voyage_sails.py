@@ -4,6 +4,12 @@ from pathlib import Path
 ROOT=Path('/Users/muniao/Code/MapleStory');DEST=ROOT/'resources/scenes/sky-voyage-v3'
 scene=bpy.data.scenes['SV3_ProductionRig'];bpy.context.window.scene=scene
 image=bpy.data.images.load(str(DEST/'textures/maple-crest.png'),check_existing=True)
+# One continuous, square emblem across the three gores, measured at their middle radius.
+widths=[(bpy.data.objects[f'SV3_MainFan_{i}'].data.vertices[16*13+12].co-bpy.data.objects[f'SV3_MainFan_{i}'].data.vertices[16*13].co).length for i in range(3)]
+sector_u=[0.0]
+for width in widths:sector_u.append(sector_u[-1]+width/sum(widths))
+for old in list(bpy.data.objects):
+    if old.name.startswith('SV3_MainSail_Crest'):bpy.data.objects.remove(old,do_unlink=True)
 for prefix in ['MainFan','AftFan']:
     for sector in range(3):
         obj=bpy.data.objects['SV3_'+prefix+'_'+str(sector)]
@@ -22,14 +28,13 @@ for prefix in ['MainFan','AftFan']:
         cloth.settings.vertex_group_mass=group.name;cloth.settings.quality=5;cloth.settings.mass=.25
         cloth.show_viewport=False;cloth.show_render=False
         obj['cloth_source']='editable pinned Blender cloth; fixed-step runtime grid follows folding ribs'
-        # One crest per main fan side, across the central gore; small sails stay unmarked.
-        if prefix=='MainFan' and sector==1:
-            old=bpy.data.objects.get('SV3_MainSail_Crest')
-            if old:bpy.data.objects.remove(old,do_unlink=True)
-            decal=obj.copy();decal.data=obj.data.copy();decal.name='SV3_MainSail_Crest';scene.collection.objects.link(decal)
+        # Three cloth pieces share one emblem; small sails stay unmarked.
+        if prefix=='MainFan':
+            decal=obj.copy();decal.data=obj.data.copy();decal.name=f'SV3_MainSail_Crest_{sector}';scene.collection.objects.link(decal)
             decal.parent=obj;decal.location=(0,0,0)
             for key in list(decal.keys()):del decal[key]
-            decal['cloth_grid_uv']='uv1';decal['main_sail_crest']='existing maple-crest.png; one emblem on each face of main sail'
+            decal['cloth_grid_uv']='uv1';decal['main_sail_crest']='existing maple-crest.png; continuous emblem across three main gores'
+            decal['emblem_u_range']=[sector_u[sector],sector_u[sector+1]];decal['emblem_v_range']=[.30,.70]
             decal.modifiers.clear()
             for vertex in decal.data.vertices:vertex.co.x+=math.copysign(.018,vertex.co.x)
             # Grid UV drives cloth; emblem UV crops the image to the central patch.
@@ -37,7 +42,8 @@ for prefix in ['MainFan','AftFan']:
             art=decal.data.uv_layers.new(name='Emblem');grid=decal.data.uv_layers.new(name='ClothGrid')
             for loop in decal.data.loops:
                 k=loop.vertex_index%429;u=k%13/12;v=k//13/32
-                art.data[loop.index].uv=(u*3-1,v*2.5-1.3);grid.data[loop.index].uv=(u,v)
+                global_u=sector_u[sector]+(sector_u[sector+1]-sector_u[sector])*u
+                art.data[loop.index].uv=(global_u,(v-.30)/.40);grid.data[loop.index].uv=(u,v)
             decal.data.uv_layers.active=art;art.active_render=True
             mat=bpy.data.materials.get('SV3_MainSail_MapleDecal') or bpy.data.materials.new('SV3_MainSail_MapleDecal');mat.use_nodes=True
             mat.node_tree.nodes.clear();nodes=mat.node_tree.nodes;links=mat.node_tree.links

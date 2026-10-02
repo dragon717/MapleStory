@@ -69,6 +69,7 @@ function loadRuntimeModule() {
       contents: [
         "import * as THREE from 'three';",
         "export { THREE };",
+        "export { projectLoginSurface } from './src/features/entry/voyage-login.ts';",
         "export { EntryVoyage } from './src/features/entry/voyage.ts';",
         "export { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';",
         "export { ShipFlight } from './src/features/entry/voyage-ship.ts';",
@@ -174,17 +175,25 @@ function checkSailBindings(runtime, scene) {
   for (const name of fanNames) {
     assert.equal(byRoot.get(name)?.length, 2, `${name} must have one solver per face`);
   }
-  assert.deepEqual(subject.sails.find(s => s.meshes[0].mesh.name === 'SV3_MainFan_1')?.meshes.map(x => x.mesh.name), ['SV3_MainFan_1', 'SV3_MainSail_Crest']);
-  const crest = scene.getObjectByName('SV3_MainSail_Crest');
-  assert(crest, 'missing maple crest mesh');
-  assert.equal(crest.userData.cloth_grid_uv, 'uv1');
-  assert(crest.geometry.getAttribute('uv1'), 'crest must retain its uv1 grid');
-  assert(!crest.geometry.getAttribute('uv2'), 'crest must use its authored uv1, not an invented uv2');
-
-  const mainSails = subject.sails.filter(s => s.meshes[0].mesh.name === 'SV3_MainFan_1');
-  assert.equal(mainSails.length, 2);
+  const mainSails = subject.sails.filter(s => s.meshes[0].mesh.name.startsWith('SV3_MainFan_'));
+  assert.equal(mainSails.length, 6);
+  const ranges=[];
+  for(let sector=0;sector<3;sector++) {
+    const crest=scene.getObjectByName(`SV3_MainSail_Crest_${sector}`);
+    assert(crest, 'missing main gore crest');
+    assert.equal(crest.userData.cloth_grid_uv,'uv1');
+    const [u0,u1]=crest.userData.emblem_u_range;ranges.push([u0,u1]);
+    const art=crest.geometry.getAttribute('uv'),grid=crest.geometry.getAttribute('uv1');
+    for(let i=0;i<grid.count;i++){
+      assert(close(art.getX(i),u0+(u1-u0)*grid.getX(i)), 'each gore shares the global emblem U');
+      assert(close(art.getY(i),grid.getY(i)*2.5-.75), 'emblem uses the square middle-radius patch');
+    }
+  }
+  assert(close(ranges[0][0],0)&&close(ranges[2][1],1));
+  for(let i=0;i<2;i++)assert(close(ranges[i][1],ranges[i+1][0]), 'emblem cannot jump at a gore seam');
   for (const sail of mainSails) {
     const [rootBinding, crestBinding] = sail.meshes;
+    assert(crestBinding, 'every main gore must carry its portion of the same emblem');
     assert.deepEqual(crestBinding.map, rootBinding.map, 'crest and main sail must share grid mapping');
     equalArrays(crestBinding.offsets, rootBinding.offsets, 'crest/main cloth offsets');
     equalArrays(crestBinding.basis, rootBinding.basis, 'crest/main cloth base geometry');
@@ -280,6 +289,14 @@ async function main() {
   const geometry = geometryOnlyGlb(bytes);
   const gltf = await parse(new runtime.GLTFLoader(), geometry);
   gltf.scene.updateMatrixWorld(true);
+  const camera=new runtime.THREE.PerspectiveCamera(38,1440/900,1,24000);
+  const base=new runtime.THREE.Vector3(6.5,11.44,0),distance=900/45/(2*Math.tan(19*Math.PI/180))*1.2;
+  camera.position.copy(base).add(new runtime.THREE.Vector3(Math.sin(Math.PI/4)*Math.cos(.24),Math.sin(.24),Math.cos(Math.PI/4)*Math.cos(.24)).multiplyScalar(distance));camera.lookAt(base);camera.updateMatrixWorld(true);
+  const board=gltf.scene.getObjectByName('SV3_LoginSurface');assert(board,'real ship-side board');
+  const projected=runtime.projectLoginSurface({anchor:board,width:board.userData.width,height:1.6},camera,{width:1440,height:900},{width:240,height:64});
+  assert(projected,'the actual gameplay camera must see the boat-side board from its front');
+  const center=new runtime.THREE.Vector3(120,32,0).applyMatrix4(projected.matrix),actual=board.getWorldPosition(new runtime.THREE.Vector3()).project(camera);
+  assert(close(center.x,(actual.x+1)*720)&&close(center.y,(1-actual.y)*450),'adventure must sit on the physical board');
   const cloth = checkSailBindings(runtime, gltf.scene);
   const reveal = checkLocalReveal(runtime);
   console.log(JSON.stringify({

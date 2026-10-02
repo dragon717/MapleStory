@@ -56,5 +56,10 @@ for(const p of [foot,foot.clone().add(new T.Vector3(0,6,0)),foot.clone().add(new
 }
 reveal.update(new T.Vector3(100,0,0),camera,1000,700,1,16,1766);
 assert.equal(shader.uniforms.revealStrength.value,0,'teleport must not leave the previous window active');
+let scanned=0;const compute=wall.geometry.computeBoundingBox.bind(wall.geometry);wall.geometry.computeBoundingBox=()=>{scanned++;compute();};
+for(let i=0;i<5;i++){wall.position.x+=.1;reveal.update(foot,camera,1000,700,1,16,1900+i*100);}
+assert.equal(scanned,0,'moving a rigid object cannot rescan its unchanged vertices');
+const vertices=wall.geometry.getAttribute('position');vertices.setX(0,vertices.getX(0)-2);vertices.needsUpdate=true;
+reveal.update(foot,camera,1000,700,1,16,2500);assert.equal(scanned,1,'deformed geometry still refreshes its local bounds');
 reveal.destroy();assert.equal(reveal.candidates.length,0);assert.equal(shader.uniforms.revealStrength.value,0);
 console.log('PASS: isolated materials, instanced geometry, body/feet core, DPR, gradual fade, teleport/reset and unchanged shadow material.');

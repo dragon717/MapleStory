@@ -348,7 +348,9 @@ export class EntryView {
       const weaponType = look && this.avatarCatalog ? appearanceWeaponType(this.avatarCatalog, equipped, look.weapon) : undefined;
       const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, equipped, { weaponType }) : undefined;
       const frames = target.dataset.empty ? this.assets?.effects?.empty.map(frame => ({ delay: frame.delay, parts: [frame] })) : actions?.stand;
-      return { target, frames, actions, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '' };
+      const parts = ['stand','walk','sit','jump'].flatMap(action => (actions?.[action as 'stand'|'walk'|'sit'|'jump'] ?? []).flatMap(frame=>frame.parts));
+      const bounds = parts.length ? { left: Math.min(...parts.map(p=>p.x)), top: Math.min(...parts.map(p=>p.y)), right: Math.max(...parts.map(p=>p.x+(p.width??0))), bottom: Math.max(...parts.map(p=>p.y+(p.height??0))) } : undefined;
+      return { target, frames, actions, bounds, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '' };
     });
     for (const target of Array.from(this.host.querySelectorAll<HTMLElement>('[data-instructor]'))) {
       const npc = this.manifest?.npcs?.[target.dataset.instructor!];
@@ -363,7 +365,7 @@ export class EntryView {
         const frames = avatarFrames ?? preview.frames;
         if (!frames?.length) continue;
         const duration = frames.reduce((sum, frame) => sum + Math.max(1, frame.delay ?? 100), 0);
-        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches && action !== 'walk' ? 0 : now % duration;
+        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches && action !== 'walk' ? 0 : (this.voyage?.passengerTime() ?? now) % duration;
         let index = 0;
         while (index < frames.length - 1 && elapsed >= Math.max(1, frames[index].delay ?? 100)) elapsed -= Math.max(1, frames[index++].delay ?? 100);
         if (preview.index === index && preview.action === action) continue;
@@ -376,7 +378,7 @@ export class EntryView {
             if (!brow || !sleepBrow) return part;
             return { ...part, ...closed, key: closed.url, x: part.x + part.origin.x + brow.x - closed.origin.x - sleepBrow.x, y: part.y + part.origin.y + brow.y - closed.origin.y - sleepBrow.y };
           });
-          this.voyage?.setPassengerFrame(preview.id, parts);
+          this.voyage?.setPassengerFrame(preview.id, parts, preview.bounds);
         }
         preview.target.innerHTML = frames[index].parts.map(part => `<img src="${escape(resolveAssetUrl(part.url))}" alt="" draggable="false" style="left:calc(50% + ${part.x}px);top:calc(100% + ${part.y}px);width:${part.width}px;height:${part.height}px">`).join('');
       }

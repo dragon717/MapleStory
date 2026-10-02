@@ -11,7 +11,9 @@ export function wakePose(variant: number, seconds: number) {
     lift: variant === 2 ? Math.sin(ease((t - .35) / .65) * Math.PI) * .5 : 0,
     action: variant === 1 && t > .22 && t < .78 ? 'sit' : variant === 2 && t > .3 && t < .8 ? 'jump' : 'stand' };
 }
-type Doll = { group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
+export type DollBounds = { left: number; top: number; right: number; bottom: number };
+const dollTexture = (canvas: HTMLCanvasElement) => { const texture = new T.CanvasTexture(canvas); texture.colorSpace=T.SRGBColorSpace; texture.magFilter=texture.minFilter=T.NearestFilter; texture.generateMipmaps=false; return texture; };
+type Doll = { bounds?: DollBounds; group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
 
 export class VoyagePassengers {
   private root = new T.Group();
@@ -40,13 +42,12 @@ export class VoyagePassengers {
   }
   action(id: string) { if (this.stage === 'channel' && id === this.selected) return this.deckMoving ? 'walk' : 'stand'; return id === this.selected ? wakePose(this.wake.variant, this.wake.seconds).action : 'stand'; }
   sleeping(id: string) { return this.stage === 'characters' && id !== this.selected; }
-  async setFrame(id: string, parts: Part[]) {
+  async setFrame(id: string, parts: Part[], bounds?: DollBounds) {
     if (!parts.length || !this.alive) return;
     if (this.sleeping(id)) parts = parts.filter(p => !('part' in p) || p.part !== 'weapon');
     let doll = this.dolls.get(id);
     if (!doll) {
-      const canvas = document.createElement('canvas'), texture = new T.CanvasTexture(canvas);
-      texture.colorSpace = T.SRGBColorSpace; texture.magFilter = T.NearestFilter; texture.minFilter = T.NearestFilter;
+      const canvas = document.createElement('canvas'), texture = dollTexture(canvas);
       const material = new T.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: .05, roughness: .95, side: T.DoubleSide });
       const mesh = new T.Mesh(new T.PlaneGeometry(1, 1, 1, 10), material); mesh.castShadow = true; mesh.receiveShadow = true;
       const group = new T.Group(); group.name = `SV3_Passenger_${id}`; group.add(mesh); this.root.add(group);
@@ -65,14 +66,21 @@ export class VoyagePassengers {
       return this.images.get(url)!;
     })).catch(() => undefined);
     if (!images || !this.alive || doll.token !== token) return;
-    const left = Math.min(...parts.map(p => p.x)), top = Math.min(...parts.map(p => p.y));
-    const right = Math.max(...parts.map((p, i) => p.x + (p.width ?? images[i].width))), bottom = Math.max(...parts.map((p, i) => p.y + (p.height ?? images[i].height)));
-    doll.canvas.width = Math.max(1, right - left); doll.canvas.height = Math.max(1, bottom - top);
-    const ctx = doll.canvas.getContext('2d')!; ctx.imageSmoothingEnabled = false;
+    const previous = bounds ?? doll.bounds;
+    const left = Math.min(previous?.left ?? Infinity, ...parts.map(p => p.x)), top = Math.min(previous?.top ?? Infinity, ...parts.map(p => p.y));
+    const right = Math.max(previous?.right ?? -Infinity, ...parts.map((p, i) => p.x + (p.width ?? images[i].width))), bottom = Math.max(previous?.bottom ?? -Infinity, ...parts.map((p, i) => p.y + (p.height ?? images[i].height)));
+    doll.bounds = { left, top, right, bottom };
+    const width = Math.max(1, right-left), height = Math.max(1, bottom-top);
+    if (doll.canvas.width !== width || doll.canvas.height !== height) {
+      doll.canvas.width = width; doll.canvas.height = height;
+      // WebGL immutable texture storage cannot resize via needsUpdate alone.
+      doll.texture.dispose(); doll.texture = dollTexture(doll.canvas); doll.mesh.material.map = doll.texture;
+    }
+    const ctx = doll.canvas.getContext('2d')!; ctx.clearRect(0,0,width,height); ctx.imageSmoothingEnabled = false;
     parts.forEach((p, i) => ctx.drawImage(images[i], p.x - left, p.y - top, p.width ?? images[i].width, p.height ?? images[i].height));
     doll.texture.needsUpdate = true;
-    // Source coordinates are relative to the foot, including equipment extending beyond the body.
-    doll.mesh.scale.set(doll.canvas.width / 42, doll.canvas.height / 42, 1);
+    // A stable canvas across all actions keeps the source foot and texture aspect unchanged.
+    doll.mesh.scale.set(width / 42, height / 42, 1);
     doll.mesh.position.set((left + right) / 84, -(top + bottom) / 84, 0);
     this.changed();
   }

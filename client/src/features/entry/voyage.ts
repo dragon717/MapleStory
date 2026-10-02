@@ -5,7 +5,7 @@ import { ClothGrid } from './voyage-physics';
 import { VoyageWater, type WaterSpec } from './voyage-water';
 import { ShipFlight, type ShipControls } from './voyage-ship';
 import { VoyageClouds } from './voyage-clouds';
-import { VoyageLogin, type LoginSurface } from './voyage-login';
+import { VoyageLogin, projectLoginSurface, type LoginSurface } from './voyage-login';
 import { VoyageCity } from './voyage-city';
 import { VoyageDeck } from './voyage-deck';
 import { LocalReveal } from '../henesys/local-reveal';
@@ -71,6 +71,7 @@ export class EntryVoyage {
   private frame = 0;
   private elapsed = 0;
   private previous = 0;
+  private animationTime = 0;
   private duration = 24;
   private shot?: Shot;
   private reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -92,7 +93,7 @@ export class EntryVoyage {
   private shipOrigin = new T.Vector3();
   private waterTime = { value: 0 };
   private water?: VoyageWater;
-  private sails: { simulation: ClothGrid; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array; basis: Float32Array }[] }[] = [];
+  private sails: { simulation: ClothGrid; target: Float32Array; morph: Float32Array; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array; basis: Float32Array }[] }[] = [];
   private reflection: T.WebGLRenderTarget;
   private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; };
   private onKey = (event: KeyboardEvent) => {
@@ -268,9 +269,10 @@ export class EntryVoyage {
     this.deckCharacter = selected;
     this.page = page; this.passengers.setSlots(ids, selected, this.stage, page);
   }
+  passengerTime() { return this.animationTime; }
   passengerAction(id: string) { return this.passengers.action(id); }
   passengerSleeping(id: string) { return this.passengers.sleeping(id); }
-  setPassengerFrame(id: string, parts: Part[]) { void this.passengers.setFrame(id, parts); }
+  setPassengerFrame(id: string, parts: Part[], bounds?: import('./voyage-passengers').DollBounds) { void this.passengers.setFrame(id, parts, bounds); }
   depart() { this.clearMovement(); return this.passengers.depart(); }
   cancelDeparture() { this.passengers.cancelDeparture(); this.updateActivity(); }
   skip() {
@@ -302,7 +304,7 @@ export class EntryVoyage {
   private draw = (now: number) => {
     if (!this.alive || this.host.hidden || document.hidden) return;
     const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
-    this.previous = now;
+    this.previous = now; this.animationTime += delta*1000;
     if (this.deck && this.ship && this.stage === 'channel') {
       if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
@@ -310,7 +312,7 @@ export class EntryVoyage {
       this.passengers.deckPosition.copy(this.deck.position); this.passengers.deckMoving = this.deck.moving; this.passengers.deckFacing = this.deck.facing;
     }
     this.flight?.update(this.reduced.matches ? 0 : delta, this.reduced.matches);
-    this.city?.update(delta, this.reduced.matches);
+    this.city?.update(delta, this.reduced.matches,1,undefined,this.camera,this.host.clientHeight);
     this.clouds.update(delta, this.reduced.matches);
     if (!this.reduced.matches) {
       this.waterTime.value += delta;
@@ -338,7 +340,7 @@ export class EntryVoyage {
     const shipOffset = new T.Vector3(-150 * arrival, 0, 220 * arrival);
     this.camera.position.copy(fixed ? new T.Vector3().fromArray(fixed.eye) : opening.eye);
     const aim = fixed ? new T.Vector3().fromArray(fixed.aim) : opening.aim;
-    let fieldOfView = this.stage === 'characters' ? Math.max(38, T.MathUtils.radToDeg(2 * Math.atan(3.9 / this.camera.aspect / this.camera.position.distanceTo(aim)))) : 46;
+    let fieldOfView = this.stage === 'channel' && !this.shot ? 38 : this.stage === 'characters' ? Math.max(38, T.MathUtils.radToDeg(2 * Math.atan(3.9 / this.camera.aspect / this.camera.position.distanceTo(aim)))) : 46;
     if (!this.shot && this.stage === 'login' && (this.host.clientWidth < 700 || this.host.clientHeight < 600)) {
       // Keep the verified clear camera position; dollying back puts the mast between the reader and paper.
       const board = new T.Vector3(10.518, 9.6, 0);
@@ -381,7 +383,9 @@ export class EntryVoyage {
       const base = this.ship.localToWorld(this.deck.position.clone());
       base.y += Math.min(270, this.host.clientHeight * .3) / 45;
       const distance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))) * 1.2;
-      this.camera.position.copy(base).add(new T.Vector3(0, Math.sin(.24), Math.cos(.24)).multiplyScalar(distance));
+      // Retain the authored starboard viewing side so the board is front-facing.
+      const yaw=Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2]);
+      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw)*Math.cos(.24), Math.sin(.24), Math.cos(yaw)*Math.cos(.24)).multiplyScalar(distance));
       this.camera.lookAt(base);
       if (this.camera.fov !== 38) { this.camera.fov = 38; this.camera.updateProjectionMatrix(); }
       this.ship.updateWorldMatrix(true, true);
@@ -390,9 +394,9 @@ export class EntryVoyage {
       const button = this.host.querySelector<HTMLButtonElement>('.voyage-adventure');
       this.adventureNear = Math.hypot(this.deck.position.x - 6.5, this.deck.position.z) <= 2.5;
       if (button) {
-        const point = (this.loginSurface?.anchor.getWorldPosition(new T.Vector3()) ?? this.ship.localToWorld(new T.Vector3(6.5, this.deck.spawn.y + 1.8, 0))).project(this.camera);
-        button.style.left = `${(point.x + 1) * 50}%`; button.style.top = `${(1 - point.y) * 50}%`;
-        button.hidden = point.z < -1 || point.z > 1 || Math.abs(point.x) > 1 || Math.abs(point.y) > 1;
+        const projection=this.loginSurface && projectLoginSurface({...this.loginSurface,height:1.6},this.camera,{width:this.host.clientWidth,height:this.host.clientHeight},{width:button.offsetWidth,height:button.offsetHeight});
+        button.hidden=!projection;
+        if(projection){button.style.left='0';button.style.top='0';button.style.transform=`matrix3d(${projection.matrix.elements.join(',')})`;}
         button.disabled = !this.adventureNear || this.host.getAttribute('aria-busy') === 'true';
       }
       const hint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
@@ -480,7 +484,7 @@ export class EntryVoyage {
       const pins = node.userData.cloth_pins;
       const attachments = typeof pins === 'string' ? JSON.parse(pins) : pins;
       const simulation = new ClothGrid(rest, columns, rows, Array.isArray(attachments) ? attachments : Number(node.userData.pin_v) === 1);
-      this.sails.push({ simulation, meshes: meshes.map(mesh => {
+      this.sails.push({ simulation, target: rest.slice(), morph: new Float32Array(pos.count * 3), meshes: meshes.map(mesh => {
         if(side!==1)mesh.geometry = mesh.geometry.clone();
         const p = mesh.geometry.getAttribute('position') as T.BufferAttribute, u = mesh.geometry.getAttribute(mesh.userData.cloth_grid_uv??node.userData.cloth_grid_uv??'uv') as T.BufferAttribute;
         p.setUsage(T.DynamicDrawUsage);
@@ -500,18 +504,25 @@ export class EntryVoyage {
       const gravity = new T.Vector3(0, -1, 0).transformDirection(inverse).multiplyScalar(9.81);
       const wind = new T.Vector3(6 + Math.sin(time * .8) * 2, .4, Math.sin(time * .45) * 2);
       const force = wind.length(); wind.transformDirection(inverse).multiplyScalar(force);
-      const {mesh:source,map:indices,basis}=sail.meshes[0],rest=sail.simulation.rest.slice();
+      const {mesh:source,map:indices,basis}=sail.meshes[0], rest=sail.target, morph=sail.morph;
       const targets=source.geometry.morphAttributes.position??[],weights=source.morphTargetInfluences??[];
-      const morph=(i:number,axis:number)=>targets.reduce((sum,target,j)=>sum+(weights[j]??0)*target.getComponent(i,axis),0);
-      for(let i=0;i<indices.length;i++){const grid=indices[i];if(grid<0)continue;for(let axis=0;axis<3;axis++)rest[grid*3+axis]=basis[i*3+axis]+morph(i,axis);}
+      morph.fill(0);
+      for(let j=0;j<targets.length;j++) {
+        const weight=weights[j]??0; if(!weight)continue;
+        const target=targets[j];
+        for(let i=0;i<indices.length;i++){if(indices[i]<0)continue;const k=i*3;morph[k]+=weight*target.getX(i);morph[k+1]+=weight*target.getY(i);morph[k+2]+=weight*target.getZ(i);}
+      }
+      for(let i=0;i<indices.length;i++){const grid=indices[i];if(grid<0)continue;for(let axis=0;axis<3;axis++)rest[grid*3+axis]=basis[i*3+axis]+morph[i*3+axis];}
       sail.simulation.retarget(rest);
       sail.simulation.advance(delta, wind.toArray(), gravity.toArray());
       for (const { mesh, map, offsets } of sail.meshes) {
         const position = mesh.geometry.getAttribute('position') as T.BufferAttribute;
-        for (let i = 0; i < position.count; i++) { const grid = map[i] * 3; if(grid<0)continue;position.setXYZ(i, sail.simulation.positions[grid] + offsets[i * 3] - morph(i,0), sail.simulation.positions[grid + 1] + offsets[i * 3 + 1] - morph(i,1), sail.simulation.positions[grid + 2] + offsets[i * 3 + 2] - morph(i,2)); }
-        position.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingSphere();
+        for (let i = 0; i < position.count; i++) { const grid = map[i] * 3; if(grid<0)continue;position.setXYZ(i, sail.simulation.positions[grid] + offsets[i * 3] - morph[i*3], sail.simulation.positions[grid + 1] + offsets[i * 3 + 1] - morph[i*3+1], sail.simulation.positions[grid + 2] + offsets[i * 3 + 2] - morph[i*3+2]); }
       }
     }
+    // Both cloth faces write the same geometry: upload and rebuild normals only once.
+    const geometries=new Set(this.sails.flatMap(s=>s.meshes.map(m=>m.mesh.geometry)));
+    for(const geometry of geometries){geometry.getAttribute('position').needsUpdate=true;geometry.computeVertexNormals();geometry.computeBoundingSphere();}
   }
   disturbWater() { this.water?.disturb(); }
   setShipControls(input: Partial<ShipControls>) { this.flight?.setControls(input); this.updateActivity(); }

@@ -19,7 +19,7 @@ export class VoyageCity {
   private groups = new Map<string, T.Group>();
   private pads: { object: T.Object3D; y: number; id: string }[] = [];
   private offsets = new Map<string, number>();
-  private deformed: { mesh: T.Mesh; rest: Float32Array; u: Float32Array; link: Link; axis: T.Vector3; windAxis: T.Vector3 }[] = [];
+  private deformed: { mesh: T.Mesh; rest: Float32Array; u: Float32Array; link: Link; axis: T.Vector3; windAxis: T.Vector3; bounds: T.Sphere; lastA: number; lastB: number; lastWind: number }[] = [];
   private time = 0;
   private glowTime = { value: 0 };
   nodeOffset(id: string) { return this.offsets.get(id) ?? 0; }
@@ -80,8 +80,8 @@ export class VoyageCity {
       const rest = new Float32Array(positions.array), u = new Float32Array(positions.count);
       const relative = inverseRoot.clone().multiply(o.matrixWorld), inverse = relative.clone().invert();
       for (let i = 0; i < u.length; i++) u[i] = this.fraction(new T.Vector3().fromArray(rest, i * 3).applyMatrix4(relative), link.points);
-      o.frustumCulled = false;
-      this.deformed.push({ mesh: o, rest, u, link, axis: new T.Vector3(0, 1, 0).transformDirection(inverse), windAxis: new T.Vector3(1, 0, 0).transformDirection(inverse) });
+      o.frustumCulled = false; o.geometry.computeBoundingSphere();
+      this.deformed.push({ mesh: o, rest, u, link, axis: new T.Vector3(0, 1, 0).transformDirection(inverse), windAxis: new T.Vector3(1, 0, 0).transformDirection(inverse), bounds:o.geometry.boundingSphere!.clone(),lastA:NaN,lastB:NaN,lastWind:NaN });
       if (object.userData.rainbow_bridge) {
         o.geometry.setAttribute('bridgeT', new T.BufferAttribute(u, 1));
         const materials: T.Material[] = Array.isArray(o.material) ? o.material : [o.material];
@@ -115,7 +115,7 @@ export class VoyageCity {
       for (const plant of plants) group.remove(plant);
     }
   }
-  update(delta: number, reduced = false, energy = 1, time?:number) {
+  update(delta: number, reduced = false, energy = 1, time?:number, camera?:T.PerspectiveCamera, height=900) {
     if(time!==undefined&&Number.isFinite(time))this.time=Math.max(0,time);
     if (time===undefined && !reduced && Number.isFinite(delta) && delta > 0) this.time += Math.min(delta, .05);
     energy = reduced ? 0 : T.MathUtils.clamp(Number.isFinite(energy) ? energy : 0, 0, 2);
@@ -124,10 +124,26 @@ export class VoyageCity {
     for (const n of this.layout.nodes) this.offsets.set(n.id, Object.entries(n.islandWeights).reduce((sum, [id, weight]) => sum + heights.get(id)! * weight, 0));
     for (const [id, group] of this.groups) group.position.y = heights.get(id)!;
     for (const pad of this.pads) pad.object.position.y = pad.y + this.offsets.get(pad.id)!;
-    for (const { mesh, rest, u, link, axis, windAxis } of this.deformed) {
+    const frustum=camera?new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse)):undefined;
+    const worldBounds=new T.Sphere(),motion=this.layout.landscape.motion;
+    const margin=2*(motion.commonAmplitude+motion.localAmplitude)+.44;
+    for (const state of this.deformed) {
+      const { mesh, rest, u, link, axis, windAxis }=state;
       const a = this.offsets.get(link.start)!, b = this.offsets.get(link.end)!, positions = mesh.geometry.getAttribute('position') as T.BufferAttribute;
+      const amplitude=link.surface==='suspension'?.22*energy*Math.sin(this.time*1.1):0;
+      if(camera&&frustum){
+        worldBounds.copy(state.bounds);worldBounds.radius+=margin;worldBounds.applyMatrix4(mesh.matrixWorld);
+        if(!frustum.intersectsSphere(worldBounds))continue;
+        const depth=-worldBounds.center.clone().applyMatrix4(camera.matrixWorldInverse).z;
+        const scale=mesh.matrixWorld.getMaxScaleOnAxis();
+        const pixels=height/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2))*Math.max(camera.near,depth-worldBounds.radius));
+        const change=Math.max(Math.abs(a-state.lastA),Math.abs(b-state.lastB))+Math.abs(amplitude-state.lastWind);
+        // Accumulate until a visible change exceeds a tenth of a pixel; keep every frame's node/island motion.
+        if(change*scale*pixels<.1)continue;
+      }
+      state.lastA=a;state.lastB=b;state.lastWind=amplitude;
       for (let i = 0; i < u.length; i++) {
-        const t = u[i], dy = a + (b - a) * t, wind = link.surface === 'suspension' ? .22 * energy * Math.sin(this.time * 1.1) * Math.sin(Math.PI * t) ** 2 : 0;
+        const t = u[i], dy = a + (b - a) * t, wind = amplitude * Math.sin(Math.PI * t) ** 2;
         positions.setXYZ(i, rest[i * 3] + axis.x * dy + windAxis.x * wind, rest[i * 3 + 1] + axis.y * dy + windAxis.y * wind, rest[i * 3 + 2] + axis.z * dy + windAxis.z * wind);
       }
       positions.needsUpdate = true;

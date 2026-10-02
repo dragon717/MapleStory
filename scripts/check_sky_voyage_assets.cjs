@@ -112,9 +112,12 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
     assert(fan.extras.cloth_pins.length>0);
     assert(gltf.meshes[fan.mesh].primitives.every(p=>p.attributes.TEXCOORD_2!==undefined),'cloth grid UV must survive export');
   }
-  const crest=gltf.nodes.filter(node=>node.name==='SV3_MainSail_Crest');
-  assert.equal(crest.length,1,'only the main sail carries a maple crest');
-  assert.equal(crest[0].extras.cloth_grid_uv,'uv1');
+  const crest=gltf.nodes.filter(node=>node.name?.startsWith('SV3_MainSail_Crest_'));
+  assert.equal(crest.length,3,'one continuous maple emblem spans the three main sail gores');
+  for(const piece of crest)assert.equal(piece.extras.cloth_grid_uv,'uv1');
+  const ranges=crest.sort((a,b)=>a.name.localeCompare(b.name)).map(n=>n.extras.emblem_u_range);
+  assert.equal(ranges[0][0],0);assert(Math.abs(ranges[2][1]-1)<1e-6);
+  for(let i=0;i<2;i++)assert(Math.abs(ranges[i][1]-ranges[i+1][0])<1e-6,'main sail UV must share seam coordinates');
   const book=readGlb(path.join(directory,'voyage-book.glb')).gltf;
   assert(book.nodes.some(n=>n.name==='SV3_DepartureBook'));
   assert(book.animations.some(a=>a.name==='SV3_BookOpenFlipGlow'));

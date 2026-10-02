@@ -121,6 +121,23 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   assert.deepEqual(deckDoll.group.position.toArray(),passengers.deckPosition.toArray());
   for(let i=0;i<deckDoll.mesh.geometry.attributes.position.count;i++)assert(Math.abs(deckDoll.mesh.geometry.attributes.position.getZ(i))<1e-7,'deck sprite cannot retain bed deformation');
   passengers.dolls.delete('a');deckDoll.group.removeFromParent();deckDoll.mesh.geometry.dispose();deckDoll.mesh.material.dispose();deckDoll.zz.material.dispose();
+  // Real setFrame must retain GPU storage dimensions across differently-sized walk frames.
+  const context={clearRect(){},drawImage(){},fillText(){}};
+  global.document={createElement:()=>({width:300,height:150,getContext:()=>context})};
+  global.Image=class {width=32;height=48;set src(value){queueMicrotask(()=>this.onload());}};
+  const part={key:'body',url:'/body.png',x:-16,y:-48,width:32,height:48,origin:{x:16,y:48},z:0};
+  const bounds={left:-32,top:-64,right:48,bottom:4};
+  await passengers.setFrame('a',[part],bounds);
+  const doll=passengers.dolls.get('a'),texture=doll.texture,scale=doll.mesh.scale.clone(),offset=doll.mesh.position.clone();
+  await passengers.setFrame('a',[{...part,x:-12,y:-44,width:40,height:44}],bounds);
+  assert.equal(doll.texture,texture,'walk frames cannot resize immutable GPU texture storage');
+  assert.deepEqual([doll.canvas.width,doll.canvas.height],[80,68]);
+  assert(doll.mesh.scale.equals(scale)&&doll.mesh.position.equals(offset),'frame canvas preserves the same foot and aspect');
+  let released=false;texture.addEventListener('dispose',()=>released=true);
+  await passengers.setFrame('a',[{...part,x:-80,width:160}],{left:-80,top:-64,right:80,bottom:4});
+  assert(released&&doll.texture!==texture,'a genuinely new appearance reallocates the texture safely');
+  passengers.setSlots([],undefined,'login',0);
+  delete global.document;delete global.Image;
   passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
   passengers.update(.4, false, model, camera, 0);
   const wake = { ...passengers.wake };
