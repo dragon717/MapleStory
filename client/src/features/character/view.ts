@@ -17,13 +17,10 @@ type CharacterField =
   | 'defense'
   | 'moveSpeed'
   | 'movementNote'
-  | 'magicGuard'
   | 'strength'
   | 'dexterity'
   | 'intelligence'
-  | 'luck'
-  | 'meditation'
-  | 'iceTeleport';
+  | 'luck';
 
 type AllocateApRequest = Extract<ClientMessage, { type: 'allocateAp' }>;
 type AbilityResult = Extract<ServerMessage, { type: 'abilityResult' }>;
@@ -197,14 +194,7 @@ export class CharacterInfoView {
     this.setField('magicAttack', this.numberOrDash(derived?.magicAttack));
     this.setField('defense', this.numberOrDash(derived?.defense));
     this.setField('moveSpeed', this.speedOrDash(derived?.currentMoveSpeed ?? (player?.mount || player?.abnormalStatus?.slowMs ? undefined : derived?.moveSpeed)));
-    const movement = [
-      player?.mount && `骑乘 ${player.mount.speed}%（临时）`,
-      player?.abnormalStatus?.slowMs && `缓速 ${Math.ceil(player.abnormalStatus.slowMs / 1000)} 秒`,
-    ].filter(Boolean);
-    this.setField('movementNote', movement.length ? `属性速度 ${this.speedOrDash(derived?.moveSpeed)} · ${movement.join(' · ')}` : '当前步行速度，包含装备与技能影响');
-    this.setField('magicGuard', derived ? (derived.magicGuard ? '开启' : '关闭') : '—');
-    this.setField('meditation', this.remainingText(derived?.meditationRemainingMs));
-    this.setField('iceTeleport', derived?.iceTeleport === undefined ? '—' : (derived.iceTeleport ? '开启' : '关闭'));
+    this.setField('movementNote', `属性速度 ${this.speedOrDash(derived?.moveSpeed)} · 当前速度由服务器计算，临时效果见快捷栏上方`);
     for (const stat of ABILITY_STATS) {
       this.setField(stat, this.numberOrDash(ability?.[stat] ?? derived?.[stat]));
       this.setDerivedField(stat, derived?.[stat] === undefined ? '' : `总 ${this.numberOrDash(derived[stat])}`);
@@ -334,14 +324,8 @@ export class CharacterInfoView {
     this.appendStat(combatStats, 'moveSpeed', '当前移动速度');
     const movementNote = this.appendField(combatStats, 'movementNote', 'character-movement-note', '速度说明');
     movementNote.querySelector('.character-field-label')?.remove();
-    this.appendStat(combatStats, 'magicGuard', '魔心防御');
     detail.append(this.groupTitle('战斗与移动'), combatStats);
 
-    const statusStats = document.createElement('dl');
-    statusStats.className = 'character-live-stats character-status-stats';
-    this.appendStat(statusStats, 'meditation', '精神强化');
-    this.appendStat(statusStats, 'iceTeleport', '寒冰迅移');
-    detail.append(this.groupTitle('当前状态'), statusStats);
     return detail;
   }
 
@@ -583,11 +567,6 @@ export class CharacterInfoView {
 
   private speedOrDash(value: number | undefined) {
     return value !== undefined && Number.isFinite(value) ? `${Number(value.toFixed(1))} px/s` : '—';
-  }
-
-  private remainingText(value: number | undefined) {
-    if (value === undefined || !Number.isFinite(value)) return '—';
-    return value > 0 ? `${Math.ceil(value / 1000)} 秒` : '关闭';
   }
 }
 

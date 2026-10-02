@@ -22,7 +22,7 @@ export interface ChairReadout {
 }
 
 /** 快照投影。缺席即未坐下。 */
-export function chairReadout(player: PlayerState | undefined): ChairReadout | undefined {
+export function chairReadout(player: Pick<PlayerState, 'chair'> | undefined): ChairReadout | undefined {
   const chair: ChairState | undefined = player?.chair;
   if (!chair) return undefined;
   const verified = chair.recoveryIntervalMs !== undefined && chair.nextRecoveryInMs !== undefined;

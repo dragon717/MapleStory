@@ -112,6 +112,8 @@ const state = {
   announced: [],
   unequipped: [],
   used: [],
+  petOpens: 0,
+  mountOpens: 0,
   closeRequests: 0,
   tooltipHides: 0,
 };
@@ -159,6 +161,8 @@ const makeHost = () => ({
   chooseScrollTarget: (slotNumber, target) => state.scrollTargets.push([slotNumber, target?.itemId]),
   announceSelection: target => state.announced.push(target.itemId),
   unequip: target => state.unequipped.push(target.itemId),
+  openPet: () => { state.petOpens += 1; },
+  openMount: () => { state.mountOpens += 1; },
   useItem: (sourceTab, sourceSlot, target) => state.used.push([sourceTab, sourceSlot, target.itemId]),
   onCloseRequest: () => { state.closeRequests += 1; },
   drag: { bindEquipmentSlot() {} },
@@ -233,8 +237,8 @@ const closeRequests = state.closeRequests;
 view.window.children.filter(child => child.action).at(-1).action();
 assert.equal(state.closeRequests, closeRequests + 1, 'close 按钮请求关闭');
 
-// 双击已装备的骑宠 = 上下马，**不是**卸下（審計第 30 项）。
-// 判据是源 tamingMob；鞍具只有 Sd 槽位，不是可骑宠物。
+// 双击已装备的骑宠 = 打开二级坐骑窗，**不是**直接上下马或卸下。
+// 实际上下马由坐骑窗沿既有 useItem 通道完成；鞍具仍可卸下。
 const mountIndex = JSON.parse(await readFile(new URL('../../../../shared/mount-index.json', import.meta.url), 'utf8'));
 const mountId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Tm' && mountIndex[id].tamingMob);
 const saddleId = Object.keys(mountIndex).find(id => mountIndex[id].islot === 'Sd');
@@ -243,7 +247,7 @@ const unequippedBefore = state.unequipped.length;
 state.equipped.set(18, item(18, mountId));
 view.render();
 slotByNumber.get(18).emit('dblclick');
-assert.deepEqual(state.used.at(-1), [0, -18, mountId], '双击 Tm 槽骑宠提交 useItem(tab 0, −18, id)');
+assert.equal(state.mountOpens, 1, '双击 Tm 槽打开坐骑管理窗');
 assert.equal(state.unequipped.length, unequippedBefore, '双击骑宠不产生卸下意图');
 state.equipped.set(19, item(19, saddleId));
 view.render();
@@ -253,54 +257,22 @@ assert.deepEqual(state.unequipped.at(-1), saddleId, '无 tamingMob 的馬鞍双�
 state.equipped.set(11, item(11, '1002067'));
 view.render();
 slotByNumber.get(11).emit('dblclick');
-assert.equal(state.used.length, 1, '普通装备不进骑乘通道');
+assert.equal(state.used.length, 0, '普通装备不进骑乘通道');
 assert.equal(state.unequipped.length, unequippedBefore + 2, '普通装备双击仍是卸下');
 
 console.log('inventory equipment-view: window build, open/close sync, render states, slot click branches, mount ride branch, close request passed.');
 
-// Real source layout has no Tm/Sd slots: equipped mounts must still be visible
-// and removable, rather than disappearing into an unreachable equipment row.
+// Real source layout has no Tm/Sd slots: they now live in the second-level
+// mount manager, while the first-level equipment window exposes two entries.
 const sourceLayout = { ...layout, slots: { 1: layout.slots[1] } };
 const sourceView = new EquipmentView(new FakeElement(), manifest, sourceLayout, makeHost());
 sourceView.render();
 const extra = sourceView.window.querySelectorAll('.equipment-slot');
-const mountSlot = extra.find(button => button.dataset.slot === '18');
-assert.equal(mountSlot.children[0].srcFrame.url, mountId + '.png');
-assert.match(mountSlot.getAttribute('aria-label'), /右键卸下/);
-mountSlot.emit('contextmenu');
-assert.equal(state.unequipped.at(-1), mountId);
-// 窗口总高＝源装备画布高度 + 骑宠行高度：行高只有一个来源（`MOUNT_FOOTER_HEIGHT`），
-// 检查也对着它算，而不是在测试里再抄一个 460。
-assert.equal(sourceView.window.style.height, `${layout.height + MOUNT_FOOTER_HEIGHT}px`);
-assert.equal(sourceView.window.style['--equipment-mount-footer-height'], `${MOUNT_FOOTER_HEIGHT}px`, '行高传给样式表');
-assert.deepEqual(
-  extra.map(button => Number(button.dataset.slot)), [1, 18, 19],
-  '源画布缺的 Tm/Sd 两格由底部行补上，而不是消失',
-);
-const mountLabels = sourceView.window.querySelectorAll('.equipment-mount-label');
-assert.deepEqual(mountLabels.map(label => label.textContent), ['骑宠', '鞍具'], '未骑乘时标签只说槽名');
-
-// 骑乘状态：同一个装备行，`mount.itemId` 在不在决定高亮与文案——只看图标分不出
-// 「装着骑宠」和「正在骑」，所以这一条必须落在 DOM 上，而不是只在 title 里。
-state.equipped.set(18, item(18, mountId));
-state.mountedId = mountId;
-sourceView.render();
-assert.ok(mountSlot.classList.contains('equipment-slot-riding'), '正在骑的骑宠格加 riding 类');
-assert.match(mountSlot.getAttribute('aria-label'), /骑乘中，双击下马/);
-assert.equal(mountLabels[0].textContent, '骑宠 · 骑乘中', '骑宠格标签说出骑乘状态');
-assert.ok(mountLabels[0].classList.contains('is-riding'));
-assert.equal(mountLabels[1].textContent, '鞍具', '鞍具格不跟着变');
-// 下马（快照里 mount 消失）后高亮必须清掉，不能留着一个"还在骑"的假象。
-state.mountedId = undefined;
-sourceView.render();
-assert.ok(!mountSlot.classList.contains('equipment-slot-riding'), '下马后 riding 类清掉');
-assert.equal(mountLabels[0].textContent, '骑宠');
-assert.ok(!mountLabels[0].classList.contains('is-riding'));
-// 快照与装备行对不上（说在骑，装备里却找不到那一行）时**不做任何高亮**：
-// 客户端只显示服务器给的事实，不在本地补第二套判定把状态圆过去。
-state.mountedId = '1999999';
-sourceView.render();
-assert.ok(!mountSlot.classList.contains('equipment-slot-riding'));
-assert.equal(mountLabels[0].textContent, '骑宠');
-state.mountedId = undefined;
-sourceView.render();
+assert.deepEqual(extra.map(button => Number(button.dataset.slot)), [1], '一级源画布不再渲染 Tm/Sd 槽');
+const managerEntries = sourceView.window.querySelectorAll('.equipment-manager-entry');
+assert.deepEqual(managerEntries.map(button => button.dataset.manager), ['pet', 'mount'], '装备窗提供宠物/坐骑两个并排入口');
+managerEntries[0].emit('click');
+managerEntries[1].emit('click');
+assert.equal(state.petOpens, 1, '宠物入口打开二级宠物窗');
+assert.equal(state.mountOpens, 2, '坐骑入口打开二级坐骑窗');
+assert.equal(sourceView.window.style.height, `${layout.height}px`, '一级装备窗恢复源高度');

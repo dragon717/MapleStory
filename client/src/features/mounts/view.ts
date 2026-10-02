@@ -1,110 +1,310 @@
-//! 骑乘状态标记 + 骑乘开关（第 30 项）。
+//! 坐骑二级管理窗。
 //!
-//! 装备窗附栏与此快捷标记共用既有 useItem 通道；状态始终来自服务端。
-//!
-//! ## 边界
-//! * 本视图**不推导**骑乘状态：`player.mount` 在不在由服务端决定，这里只显示。
-//! * 提交的槽位来自**权威装备行**（`mountToggleTarget`），不是本地 id→槽 推算；
-//!   服务端还会再复核一次（不符回 `mount_mismatch`）。
-//! * 状态标记只在**有可切换的坐骑**时出现；没有坐骑时整块隐藏。
+//! 骑乘与否、骑的是哪只、快多少，全部是服务端事实：本视图只显示最近的
+//! `PlayerState`，并沿用既有 `useItem` + 负槽号意图。一级装备窗只负责
+//! 打开这里，骑乘/下马由本管理窗执行。
 
-import type { ClientMessage, PlayerState } from '../../../../shared/protocol';
+import type { ClientMessage, InventoryItem, PlayerState } from '../../../../shared/protocol';
+import type { AssetFrame, Manifest } from '../../assets/manifest';
+import { resolveAssetUrl } from '../../assets/resource-url';
+import { bringToFront, installWindowDrag } from '../ui/window-shell.ts';
 import { uiLocale } from '../../app/i18n';
 import { itemName } from '../inventory/names';
-import { mountSpeedLabel, type MountReadout, type MountToggleTarget } from './model';
+import { MOUNT_BODY_SLOTS, mountSpeedLabel, type MountReadout, type MountToggleTarget } from './model';
 import { MountStore } from './store';
+import './style.css';
 
 export class MountStatusView {
-  private readonly root: HTMLDivElement;
+  private readonly managerRoot: HTMLDivElement;
+  private readonly managerWindow: HTMLDivElement;
+  private readonly managerClose: HTMLButtonElement;
+  private readonly managerStatus: HTMLParagraphElement;
+  private readonly managerEquipment: HTMLDivElement;
+  private readonly managerAction: HTMLButtonElement;
+  private readonly managerHint: HTMLParagraphElement;
+  private readonly managerDragDispose: () => void;
   private readonly store = new MountStore();
-  /** 只在投影真的变了才重写 DOM：`#notices` 是 `aria-live="assertive"`，
-   *  每拍（服务端每 tick 推一次快照）重写会把同一句话反复播报。 */
+  private readonly manifest: Manifest;
+  private readonly status: (message: string) => void;
+  private readonly send: (message: ClientMessage) => boolean;
+  private readonly unequip?: (item: InventoryItem) => void;
   private signature = '';
   private requestSequence = 0;
+  private managerOpen = false;
+  private equipped: InventoryItem[] = [];
+  private destroyed = false;
+
+  private readonly handleKeyDown = (event: KeyboardEvent) => {
+    if (this.destroyed || !this.managerOpen || event.defaultPrevented || event.isComposing) return;
+    if (event.key !== 'Escape' && event.code !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.close();
+  };
 
   constructor(
     host: HTMLElement,
-    private readonly status: (message: string) => void,
-    private readonly send: (message: ClientMessage) => boolean,
+    manifest: Manifest,
+    status: (message: string) => void,
+    send: (message: ClientMessage) => boolean,
+    unequip?: (item: InventoryItem) => void,
   ) {
-    this.root = document.createElement('div');
-    this.root.className = 'mount-status-host';
-    this.root.hidden = true;
-    host.append(this.root);
+    this.manifest = manifest;
+    this.status = status;
+    this.send = send;
+    this.unequip = unequip;
+
+    this.managerRoot = document.createElement('div');
+    this.managerRoot.className = 'ui-windows tms273-mount-host';
+    this.managerRoot.hidden = true;
+    this.managerRoot.dataset.open = 'false';
+    host.append(this.managerRoot);
+
+    this.managerWindow = document.createElement('div');
+    this.managerWindow.className = 'mount-window';
+    this.managerWindow.setAttribute('role', 'dialog');
+    this.managerWindow.setAttribute('aria-modal', 'false');
+    this.managerWindow.setAttribute('aria-label', '坐骑管理');
+    this.managerWindow.tabIndex = -1;
+    this.managerWindow.hidden = true;
+
+    const titlebar = document.createElement('div');
+    titlebar.className = 'mount-titlebar';
+    titlebar.setAttribute('aria-hidden', 'true');
+    this.managerWindow.append(titlebar);
+
+    const title = document.createElement('h2');
+    title.className = 'mount-window-title';
+    title.textContent = '坐骑管理';
+    this.managerWindow.append(title);
+
+    this.managerClose = this.createCloseButton();
+    this.managerWindow.append(this.managerClose);
+
+    const content = document.createElement('div');
+    content.className = 'mount-window-content';
+    const mountHeading = document.createElement('h3');
+    mountHeading.className = 'mount-section-title';
+    mountHeading.textContent = '骑宠';
+    content.append(mountHeading);
+
+    this.managerStatus = document.createElement('p');
+    this.managerStatus.className = 'mount-manager-status';
+    content.append(this.managerStatus);
+
+    const equipmentHeading = document.createElement('h3');
+    equipmentHeading.className = 'mount-section-title';
+    equipmentHeading.textContent = '骑宠装备';
+    content.append(equipmentHeading);
+
+    this.managerEquipment = document.createElement('div');
+    this.managerEquipment.className = 'mount-equipment-list';
+    this.managerEquipment.setAttribute('aria-label', '骑宠装备');
+    content.append(this.managerEquipment);
+
+    this.managerAction = document.createElement('button');
+    this.managerAction.type = 'button';
+    this.managerAction.className = 'mount-window-toggle';
+    this.managerAction.addEventListener('click', () => {
+      const target = this.store.toggleTarget();
+      if (target) this.toggle(target);
+      else this.status(this.t('现在没有可骑乘的骑宠。', 'No rideable mount is equipped.'));
+    });
+    content.append(this.managerAction);
+
+    this.managerHint = document.createElement('p');
+    this.managerHint.className = 'mount-window-hint';
+    content.append(this.managerHint);
+    this.managerWindow.append(content);
+    this.managerRoot.append(this.managerWindow);
+
+    this.managerClose.addEventListener('click', () => this.close());
+    this.managerDragDispose = installWindowDrag(this.managerRoot, this.managerWindow, {
+      titleHeight: 30,
+      isOpen: () => this.managerOpen,
+      onActivate: () => bringToFront(this.managerRoot, this.managerWindow),
+    });
+    document.addEventListener('keydown', this.handleKeyDown, true);
+    this.renderManager();
   }
 
   update(self: PlayerState | undefined) {
+    if (this.destroyed) return;
     this.store.update(self);
+    this.equipped = (self?.equipped ?? []).filter(item => MOUNT_BODY_SLOTS.includes(Math.abs(item.slot)));
     const readout = this.store.current();
     const target = this.store.toggleTarget();
-    const signature = target
-      ? `${target.itemId}:${target.slot}:${target.riding}:${readout ? mountSpeedLabel(readout) : ''}`
-      : '';
+    const equipmentSignature = this.equipped.map(item => `${item.slot}:${item.itemId}:${item.quantity}`).join('|');
+    const signature = `${target ? `${target.itemId}:${target.slot}:${target.riding}` : ''}:${readout ? `${readout.speed}:${readout.jump}:${readout.fs}:${readout.fatigue}` : ''}:${equipmentSignature}`;
     if (signature === this.signature) return;
     this.signature = signature;
-    if (!target) {
-      this.root.hidden = true;
-      this.root.replaceChildren();
-      return;
-    }
-    this.render(target, readout);
+    if (this.managerOpen) this.renderManager();
   }
 
   clear() {
     this.store.clear();
+    this.equipped = [];
     this.signature = '';
-    this.root.hidden = true;
-    this.root.replaceChildren();
+    this.close(false);
+  }
+
+  /** Open the second-level manager from the equipment window. */
+  open(): boolean {
+    if (this.destroyed) return false;
+    this.managerOpen = true;
+    this.managerRoot.hidden = false;
+    this.managerRoot.dataset.open = 'true';
+    this.managerWindow.hidden = false;
+    bringToFront(this.managerRoot, this.managerWindow);
+    this.renderManager();
+    this.managerAction.focus({ preventScroll: true });
+    return true;
+  }
+
+  close(restoreFocus = true) {
+    const wasOpen = this.managerOpen;
+    this.managerOpen = false;
+    this.managerRoot.hidden = true;
+    this.managerRoot.dataset.open = 'false';
+    this.managerWindow.hidden = true;
+    if (wasOpen && restoreFocus) document.querySelector<HTMLElement>('#game')?.focus({ preventScroll: true });
+  }
+
+  isOpen() {
+    return this.managerOpen;
   }
 
   destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
     this.clear();
-    this.root.remove();
+    this.managerDragDispose();
+    document.removeEventListener('keydown', this.handleKeyDown, true);
+    this.managerRoot.remove();
   }
 
-  private render(target: MountToggleTarget, readout: MountReadout | undefined) {
-    this.root.replaceChildren();
-    this.root.hidden = false;
-    const t = (zh: string, en: string) => (uiLocale() === 'en' ? en : zh);
-    const name = itemName(target.itemId);
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'mount-status' + (target.riding ? ' is-riding' : '');
-    button.setAttribute('aria-pressed', target.riding ? 'true' : 'false');
-    button.title = target.riding ? t('点击下马', 'Click to dismount') : t('点击骑乘这只坐骑', 'Click to ride this mount');
-    // 读数只有**骑乘中**才有（`PlayerState.mount` 是快照字段），所以速度串在
-    // 未骑乘时是空的——不要拿"装备里的那件"去猜它的速度。
-    const speed = target.riding && readout ? ` · ${mountSpeedLabel(readout)}` : '';
-    button.textContent = target.riding
-      ? `${t('骑乘中', 'Riding')}：${name}${speed}`
-      : `${t('骑乘', 'Ride')}：${name}`;
-    button.setAttribute('aria-label', `${button.textContent}（${button.title}）`);
-    button.addEventListener('click', () => this.toggle(target));
-    this.root.append(button);
+  private renderManager() {
+    const target = this.store.toggleTarget();
+    const readout = this.store.current();
+    if (!target) {
+      this.managerStatus.textContent = this.t('尚未装备可骑乘的骑宠。', 'No rideable mount is equipped.');
+      this.managerAction.hidden = true;
+    } else {
+      const name = itemName(target.itemId);
+      const speed = target.riding && readout ? ` · ${mountSpeedLabel(readout)}` : '';
+      this.managerStatus.textContent = target.riding
+        ? `${this.t('骑乘中', 'Riding')}：${name}${speed}`
+        : `${this.t('已装备', 'Equipped')}：${name}`;
+      this.managerAction.hidden = false;
+      this.managerAction.textContent = target.riding ? this.t('下马', 'Dismount') : this.t('骑乘', 'Ride');
+      this.managerAction.setAttribute('aria-label', this.managerAction.textContent);
+    }
+    this.managerEquipment.replaceChildren();
+    if (!this.equipped.length) {
+      const empty = document.createElement('p');
+      empty.className = 'mount-equipment-empty';
+      empty.textContent = this.t('装备窗中没有骑宠或鞍具。', 'No mount or saddle is equipped.');
+      this.managerEquipment.append(empty);
+    } else {
+      for (const item of this.equipped) this.renderEquipmentRow(item, target);
+    }
+    this.managerHint.textContent = target
+      ? this.t('骑乘和下马在此管理，装备变化会同步角色状态。', 'Ride and dismount here; equipment changes stay in sync with the character.')
+      : this.t('请先在装备窗装备可骑乘的骑宠。', 'Equip a rideable mount in the equipment window first.');
   }
 
-  /**
-   * 骑宠键入口：与状态标记点击、装备栏里双击骑宠槽走**同一条** `useItem` 通道。
-   *
-   * 目标同样取自权威装备行（`mountToggleTarget`），这里不另算一遍「我在骑哪只」。
-   * 现在没有可切换的坐骑（没装骑宠／装备行与快照对不上）时**如实说一声**，
-   * 不发一个猜出来的请求。返回是否真的提交了意图。
-   */
+  private renderEquipmentRow(item: InventoryItem, target: MountToggleTarget | undefined) {
+    const row = document.createElement('div');
+    row.className = 'mount-equipment-row';
+    row.dataset.slot = String(Math.abs(item.slot));
+    const iconFrame = this.manifest.mounts?.[item.itemId];
+    if (iconFrame) {
+      const icon = document.createElement('img');
+      icon.className = 'mount-equipment-icon';
+      this.setFrame(icon, iconFrame);
+      icon.alt = '';
+      icon.setAttribute('aria-hidden', 'true');
+      row.append(icon);
+    }
+    const details = document.createElement('div');
+    details.className = 'mount-equipment-details';
+    const name = document.createElement('strong');
+    name.textContent = Math.abs(item.slot) === 19 ? this.t('鞍具：' + itemName(item.itemId), 'Saddle: ' + itemName(item.itemId)) : itemName(item.itemId);
+    const state = document.createElement('span');
+    state.textContent = target?.itemId === item.itemId && target.riding
+      ? this.t('骑乘中', 'Riding')
+      : Math.abs(item.slot) === 19
+        ? this.t('装饰装备', 'Cosmetic equipment')
+        : this.t('可在此窗骑乘', 'Ready to ride here');
+    details.append(name, state);
+    row.append(details);
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'mount-equipment-unequip';
+    action.textContent = this.t('卸下', 'Unequip');
+    action.setAttribute('aria-label', `${action.textContent}${itemName(item.itemId)}`);
+    action.addEventListener('click', () => {
+      if (this.unequip) {
+        this.unequip(item);
+        return;
+      }
+      this.status(this.t('请从装备窗卸下这件骑宠装备。', 'Use the equipment window to unequip this mount item.'));
+    });
+    row.append(action);
+    this.managerEquipment.append(row);
+  }
+
+  private createCloseButton() {
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'mount-window-close';
+    close.title = this.t('关闭坐骑管理', 'Close Mount Manager');
+    close.setAttribute('aria-label', close.title);
+    const frame = this.manifest.equipmentUi?.['main/button:close/normal/0'];
+    if (frame) {
+      const image = document.createElement('img');
+      image.className = 'mount-window-close-image';
+      this.setFrame(image, frame);
+      image.alt = '';
+      image.setAttribute('aria-hidden', 'true');
+      close.append(image);
+      const setCloseState = (state: 'normal' | 'pressed' | 'mouseOver') => {
+        const next = this.manifest.equipmentUi?.[`main/button:close/${state}/0`] ?? frame;
+        this.setFrame(image, next);
+      };
+      close.addEventListener('pointerover', () => setCloseState('mouseOver'));
+      close.addEventListener('pointerout', () => setCloseState('normal'));
+      close.addEventListener('pointerdown', () => setCloseState('pressed'));
+      close.addEventListener('pointerup', () => setCloseState('normal'));
+      close.addEventListener('pointercancel', () => setCloseState('normal'));
+    } else {
+      close.textContent = '×';
+    }
+    return close;
+  }
+
+  private setFrame(element: HTMLImageElement, frame: AssetFrame) {
+    element.src = resolveAssetUrl(frame.url);
+    element.width = frame.width;
+    element.height = frame.height;
+    element.style.width = `${frame.width}px`;
+    element.style.height = `${frame.height}px`;
+  }
+
+  /** 骑宠键入口：保留既有 KeyR 调用的权威 useItem 通道。 */
   toggleCurrent(): boolean {
     const target = this.store.toggleTarget();
     if (!target) {
       this.status(this.t(
-        '现在没有可骑乘的骑宠：先在装备栏右侧的「骑宠」格装上骑宠，再按这个键。',
-        'No rideable mount right now: equip one in the Mount slot first.',
+        '现在没有可骑乘的骑宠：先在装备栏的坐骑管理中装备骑宠，再按这个键。',
+        'No rideable mount right now: equip one in the Mount Manager first.',
       ));
       return false;
     }
     return this.toggle(target);
   }
 
-  /** 上下马：与背包双击走**同一条**既有通道（`useItem` + 负槽号）。
-   *  方向不由客户端决定——服务端在回执里点名 `mount_on` / `mount_off`。 */
+  /** 上下马：与 KeyR 和管理窗按钮共用既有 `useItem` + 负槽号。 */
   private toggle(target: MountToggleTarget): boolean {
     const requestId = this.requestId();
     if (!this.send({

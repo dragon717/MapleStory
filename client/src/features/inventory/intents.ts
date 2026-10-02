@@ -89,6 +89,18 @@ export class InventoryIntents {
     this.host.status(this.host.t('正在移动 ' + this.host.itemLabel(item) + '…', 'Moving ' + this.host.itemLabel(item) + '…'));
   }
 
+  unequip(item: InventoryItem) {
+    let targetSlot = 1;
+    while (targetSlot <= this.host.slotLimit(0) && this.host.itemAt(targetSlot, 0)) targetSlot++;
+    if (targetSlot > this.host.slotLimit(0)) {
+      this.host.status(this.host.t('装备背包已满，无法卸下。', 'The equipment inventory is full.'));
+      return;
+    }
+    if (!this.send({ type: 'inventoryMove', requestId: this.requestId('unequip'), inventoryType: 1, sourceSlot: -Math.abs(item.slot), targetSlot, quantity: 1 })) {
+      this.host.status(this.host.t('物品栏操作需要保持在线。', 'Inventory actions require an online connection.'));
+    }
+  }
+
   dropSlot(sourceTab: number, sourceSlot: number) {
     if (this.host.practice()) { this.host.status(this.host.t('请退出练习后再丢弃物品。', 'Leave practice before dropping items.')); return; }
     const item = this.host.itemAt(sourceSlot, sourceTab);

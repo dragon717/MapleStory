@@ -176,6 +176,12 @@ async function exportEquipmentWindow() {
   }
   const equipCanvas = await frame(`${source}/EquipTab/canvas:equip`);
   equipmentUi['EquipTab/canvas:equip'] = equipCanvas;
+  equipmentUi['PetTab/canvas:pet'] = await frame(`${source}/PetTab/canvas:pet`);
+  for (const state of ['normal', 'selected']) {
+    for (let index = 0; index < 2; index++) {
+      equipmentUi[`main/tab:detailTab/${state}/${index}`] = await frame(`${source}/main/tab:detailTab/${state}/${index}`);
+    }
+  }
   const equipTab = await get(`${source}/EquipTab`);
   const slotSize = Number(value(equipTab, 'SlotSize'));
   assert(Number.isFinite(slotSize) && slotSize > 0);

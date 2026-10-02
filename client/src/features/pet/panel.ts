@@ -84,12 +84,43 @@ export class PetPanel {
     titlebar.setAttribute('aria-hidden', 'true');
     this.window.append(titlebar);
 
+    const title = document.createElement('h2');
+    title.className = 'pet-window-title';
+    title.textContent = '宠物管理';
+    this.window.append(title);
+
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'pet-window-close';
-    close.textContent = '×';
-    close.title = '关闭';
+    close.title = '关闭宠物管理';
     close.setAttribute('aria-label', '关闭宠物管理');
+    // Keep the close affordance on the same source button as UIEquip.  The
+    // current pet export has no separate window close frame; the shared
+    // UIEquip frame is the authored TMS273 close glyph already used by the
+    // inventory/equipment windows.  Text × remains a deterministic fallback
+    // for the isolated pet fixture and older manifests.
+    const closeFrames = manifest.equipmentUi;
+    const closeFrame = closeFrames?.['main/button:close/normal/0'];
+    const closeImage = closeFrame ? document.createElement('img') : undefined;
+    if (closeImage && closeFrame) {
+      closeImage.className = 'pet-window-close-image';
+      closeImage.alt = '';
+      closeImage.draggable = false;
+      closeImage.setAttribute('aria-hidden', 'true');
+      this.setArt(closeImage, closeFrame, { x: 0, y: 0 });
+      close.append(closeImage);
+      const setCloseState = (state: 'normal' | 'pressed' | 'mouseOver') => {
+        const frame = closeFrames?.[`main/button:close/${state}/0`] ?? closeFrame;
+        this.setArt(closeImage, frame, { x: 0, y: 0 });
+      };
+      close.addEventListener('pointerover', () => setCloseState('mouseOver'));
+      close.addEventListener('pointerout', () => setCloseState('normal'));
+      close.addEventListener('pointerdown', () => setCloseState('pressed'));
+      close.addEventListener('pointerup', () => setCloseState('normal'));
+      close.addEventListener('pointercancel', () => setCloseState('normal'));
+    } else {
+      close.textContent = '×';
+    }
     close.addEventListener('click', () => this.close());
 
     const layout = document.createElement('div');

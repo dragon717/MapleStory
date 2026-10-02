@@ -3,10 +3,10 @@ import type { AssetFrame, Manifest, SkillCatalogEntry } from '../../assets/manif
 import { shortcutSkill, bookAllowsJob, branchFourthJob } from '../player/input.ts';
 import type { KeyBinding } from '../keybindings/model';
 import { INVENTORY_DROP_ZONE_ATTRIBUTE, hasInventoryDrag, readInventoryDrag } from '../inventory/drag-controller';
-import { BuffBar } from './buff-bar.ts';
+import { BuffBar, playerStatuses } from './buff-bar.ts';
 import { resolveAssetUrl } from '../../assets/resource-url';
 
-export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing'>;
+export type HudPlayer = Pick<PlayerState, 'username' | 'hp' | 'maxHp' | 'mp' | 'maxMp' | 'level' | 'exp' | 'expToNext' | 'mesos' | 'inventory' | 'job' | 'skills' | 'derivedStats' | 'action' | 'climbing' | 'abnormalStatus' | 'mount' | 'chair'>;
 export function gaugeRatio(value: number, maximum: number): number {
   return Number.isFinite(value) && Number.isFinite(maximum) && maximum > 0 ? Math.max(0, Math.min(1, value / maximum)) : 0;
 }
@@ -42,8 +42,6 @@ const SOURCE_SLOT_STEP = 35;
 export interface HudViewOptions {
   openCashShop?: () => void;
   openActivities?: () => void;
-  /** Opens the source-backed TMS273 pet-management window. */
-  openPets?: () => void;
   castSkill?: (skillId: number) => string | void;
   releaseSkill?: (requestId: string) => void;
   keySlots?: () => readonly { code: string; shift: boolean; interaction?: boolean }[];
@@ -146,16 +144,11 @@ export class HudView {
         else this.status(`${label}业务尚未接入。`);
       });
       actions.append(button);
-      if (key === 'Character') {
-        const petButton = this.createPetButton();
-        if (petButton) actions.append(petButton);
-      }
     }
     row.append(actions);
     this.createQuickSlots(row);
-    // The buff row closes the HUD line: source plate + one icon per active
-    // server-owned buff.  It renders nothing until the server sends durations.
-    this.buffBar = new BuffBar(row, manifest);
+    // The shared status row sits above the shortcuts; all effects remain server-owned.
+    this.buffBar = new BuffBar(this.quickSlot ?? row, manifest);
     const expTrack = document.createElement('div');
     expTrack.className = 'tms-exp'; expTrack.setAttribute('role', 'progressbar'); expTrack.setAttribute('aria-label', '经验');
     this.exp.className = 'tms-exp-fill';
@@ -203,9 +196,8 @@ export class HudView {
       ? `${player.exp} / MAX [${percent.toFixed(2)}% · 封顶]`
       : `${player.exp} / ${player.expToNext} [${percent.toFixed(2)}%]`;
     this.updateShortcuts(player);
-    // Buffs are server-owned: the snapshot only carries the remaining ms, so the
-    // row is a pure render of `skillBuffs` (empty ⇒ the whole bar hides).
-    this.buffBar?.update(player.derivedStats?.skillBuffs);
+    // Durations, toggle states and ailments all come from the same authoritative snapshot.
+    this.buffBar?.update(playerStatuses(player));
   }
 
   clear() {
@@ -243,41 +235,6 @@ export class HudView {
     image.width = frame.width; image.height = frame.height;
     if (positioned) Object.assign(image.style, { position: 'absolute', left: `${-frame.origin.x}px`, top: `${-frame.origin.y}px` });
     parent.append(image); return image;
-  }
-
-  private createPetButton() {
-    const states = this.petButtonStates();
-    const normal = states?.normal;
-    if (!normal) return undefined;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tms-hud-pet-button';
-    button.title = '宠物';
-    button.setAttribute('aria-label', '宠物');
-    const image = document.createElement('img');
-    image.src = resolveAssetUrl(normal.url);
-    image.width = normal.width;
-    image.height = normal.height;
-    image.alt = '';
-    image.draggable = false;
-    button.append(image);
-    const state = (name: 'normal' | 'mouseOver' | 'pressed' | 'disabled') => {
-      const frame = states[name] ?? normal;
-      image.src = resolveAssetUrl(frame.url);
-      image.width = frame.width;
-      image.height = frame.height;
-    };
-    button.addEventListener('pointerenter', () => state('mouseOver'));
-    button.addEventListener('pointerleave', () => state('normal'));
-    button.addEventListener('pointerdown', () => state('pressed'));
-    button.addEventListener('pointerup', () => state('mouseOver'));
-    button.addEventListener('pointercancel', () => state('normal'));
-    button.addEventListener('click', () => this.options.openPets?.());
-    return button;
-  }
-
-  private petButtonStates() {
-    return this.manifest.petUi?.buttons.character;
   }
 
   private releaseHiddenChannel = () => { if (document.hidden) this.releaseChannel(); };

@@ -174,6 +174,89 @@
   max-width: none !important;
 }
 
+/* 一级装备窗的两个原版管理入口。Tm/Sd 装备本体在坐骑二级窗中展示，
+   这里仅保留并排入口，位置落在源标题条下方的空白带，避免覆盖源槽位画布。 */
+.tms273-inventory-host .equipment-manager-entries {
+  position: absolute;
+  z-index: 4;
+  left: 10px;
+  top: 30px;
+  display: flex;
+  gap: 3px;
+  width: 346px;
+  height: 24px;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.tms273-inventory-host .equipment-manager-entry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  width: 171px;
+  height: 22px;
+  padding: 1px 4px;
+  border: 1px solid #6a7880;
+  border-radius: 3px;
+  background: #3a454d;
+  color: #e5c36b;
+  font: 700 10px/18px "Microsoft YaHei", "PingFang SC", sans-serif;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: inset 0 1px #5b6870, 0 1px 1px #0008;
+  overflow: hidden;
+}
+
+.tms273-inventory-host .equipment-manager-entry:hover {
+  background: #4a555d;
+  color: #f2d88e;
+}
+
+.tms273-inventory-host .equipment-manager-entry:active {
+  background: #4c4533;
+  box-shadow: inset 0 1px 2px #15191c99;
+}
+
+.tms273-inventory-host .equipment-manager-entry:focus-visible {
+  outline: 2px solid #f6d17a;
+  outline-offset: 1px;
+}
+
+.tms273-inventory-host .equipment-manager-entry-image {
+  flex: 0 0 auto;
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: 48px;
+  max-height: 16px;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.tms273-inventory-host .equipment-manager-entry[data-source-art="true"] .equipment-manager-entry-label {
+  display: none;
+}
+
+.tms273-inventory-host .equipment-manager-entry-pet[data-source-art="true"] .equipment-manager-entry-image {
+  max-width: 171px;
+  max-height: 22px;
+}
+
+.tms273-inventory-host .equipment-manager-entry-mount .equipment-manager-entry-image {
+  max-width: 32px;
+  max-height: 18px;
+}
+
+.tms273-inventory-host .equipment-manager-entry-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 @media (max-width: 799px) {
   .tms273-inventory-host .inventory-window {
     max-width: none !important;
@@ -320,53 +403,4 @@
 .tms273-inventory-host .inventory-comparison-empty {
   color: #bbb;
   font-size: 11px;
-}
-
-/* 装备窗底部的骑宠／鞍具行（源 `UI/Equip` 的画布没有 Tm/Sd 两格，这是界面扩展 P）。
-   行高与窗口总高都由 `equipment-view.ts` 的 `MOUNT_FOOTER_HEIGHT` 定，这里只取那个
-   自定义属性——两处各写一个 60 就是下一个「改了一处忘了另一处」。 */
-.tms273-inventory-host .equipment-mount-slots {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: var(--equipment-mount-footer-height);
-  display: flex;
-  align-items: center;
-  justify-content: space-evenly;
-  background: #f4f4f2;
-  border: 1px solid #999;
-  border-radius: 0 0 6px 6px;
-  color: #333;
-  font-size: 11px;
-  box-sizing: border-box;
-}
-.tms273-inventory-host .equipment-mount-slots > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.tms273-inventory-host .equipment-mount-label {
-  color: #444;
-  white-space: nowrap;
-}
-/* 骑乘中：标签说出来（「骑宠 · 骑乘中」），格子再加一圈高亮——只看图标分不出
-   「装着骑宠」和「正在骑」。 */
-.tms273-inventory-host .equipment-mount-label.is-riding {
-  color: #8a5a00;
-  font-weight: 600;
-}
-.tms273-inventory-host .equipment-mount-slots .equipment-slot {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid #aaa;
-  border-radius: 3px;
-  background: #e1e5e7;
-}
-.tms273-inventory-host .equipment-mount-slots .equipment-slot.equipment-slot-riding {
-  border-color: #d9a521;
-  background: #fdf3d2;
-  box-shadow: inset 0 0 0 1px #f0d489;
 }

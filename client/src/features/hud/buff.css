@@ -4,8 +4,12 @@
    the gaps from the authored `spaceX` / `spaceY`. */
 
 .tms-buff-bar {
-  position: relative;
-  flex: 0 1 auto;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 100%;
+  z-index: 2;
   display: flex;
   align-items: center;
   min-height: 32px;
@@ -19,6 +23,12 @@
 .tms-buff-panel {
   position: absolute;
   inset: 0;
+  border: 1px solid #ffffffdb;
+  border-radius: 6px;
+  background: #ffffff42;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px #0003;
   pointer-events: none;
 }
 
@@ -29,6 +39,7 @@
   image-rendering: pixelated;
   pointer-events: none;
   user-select: none;
+  opacity: .18;
 }
 
 .tms-buff-slice-nw { left: 0; top: 0; width: 5px; height: 5px; }
@@ -45,6 +56,8 @@
   position: relative;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--tms-buff-space-x, 5px);
   margin: 0;
   padding: 4px 7px;
@@ -56,12 +69,14 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 .tms-buff-icon {
   display: block;
   width: 32px;
   height: 32px;
+  object-fit: contain;
   max-width: none;
   image-rendering: pixelated;
   pointer-events: none;
@@ -86,3 +101,5 @@
   .tms-buff-entry { width: 26px; height: 26px; }
   .tms-buff-icon { width: 26px; height: 26px; }
 }
+
+.tms-hud-row > .tms-buff-bar { position: relative; bottom: auto; }

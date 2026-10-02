@@ -7,10 +7,11 @@ import type { DragController } from './drag-controller';
 
 type AssetSet = Record<string, AssetFrame>;
 
-/** 装备窗底部骑宠／鞍具行的高度。  源 `UI/Equip` 的装备画布没有 Tm/Sd 两格，
- *  所以这一行是界面扩展（P）：高度在这里定一次，窗口总高与样式表都取它。
- *  导出是为了让离线检查对着这一个数核对窗口总高，不在测试里再抄一个魔数。 */
-export const MOUNT_FOOTER_HEIGHT = 52;
+/**
+ * 旧版离线检查曾从这里读取底部骑宠行的高度。骑宠和鞍具已经移到坐骑
+ * 二级窗，保留导出以免外部检查在切换期间失效；一级装备窗不再使用它。
+ */
+export const MOUNT_FOOTER_HEIGHT = 0;
 
 /**
  * 装备窗口宿主回调（plan §8.2：装备窗口 DOM 与受控交互）。
@@ -40,8 +41,11 @@ export interface EquipmentHost {
   /** 非卷轴阶段点击已装备槽的状态提示。 */
   announceSelection(item: InventoryItem): void;
   unequip(item: InventoryItem): void;
-  /** 骑乘入口（審計第 30 项）：双击**已装备**的骑宠走既有的 `useItem` 通道
-   *  （负槽号＝已装备），而不是卸下。道具与装备都不动，只切换骑乘状态。 */
+  /** 打开装备窗里的二级宠物管理。 */
+  openPet?: () => void;
+  /** 打开装备窗里的二级坐骑管理；坐骑窗负责骑乘/下马。 */
+  openMount?: () => void;
+  /** 二级坐骑窗尚未接线时的兼容出口，生产接线后骑乘统一走管理窗。 */
   useItem(sourceTab: number, sourceSlot: number, item: InventoryItem): void;
   /** close 按钮请求（view 负责 pendingScroll 清理与焦点归还）。 */
   onCloseRequest(): void;
@@ -62,9 +66,6 @@ export interface EquipmentHost {
 export class EquipmentView {
   private readonly windowEl?: HTMLDivElement;
   private readonly closeButton?: HTMLButtonElement;
-  /** 底部骑宠／鞍具行的标签（键＝身体槽号）。`render()` 会改写骑宠格的文案，
-   *  因为「装着骑宠」与「正在骑」是两件事，而这个区别只有标签说得清。 */
-  private readonly mountLabels = new Map<number, HTMLSpanElement>();
   private openState = false;
 
   constructor(private readonly root: HTMLElement, manifest: Manifest, private readonly layout: EquipmentLayout, private readonly host: EquipmentHost) {
@@ -101,36 +102,9 @@ export class EquipmentView {
     title.textContent = t('装备栏', 'Equip Inventory');
     title.setAttribute('aria-hidden', 'true');
     equipmentWindow.append(title);
+    equipmentWindow.append(this.createManagerEntries(ui, t));
     for (const slotNumber of Object.keys(this.layout.slots).map(Number)) {
       this.createSlot(equipmentWindow, slotNumber);
-    }
-    // TMS273's main equip canvas omits Tm/Sd. Keep equipped items reachable
-    // in a web footer, using the same slot interactions as the source canvas.
-    const extraSlots = MOUNT_BODY_SLOTS.filter(slot => !this.layout.slots[String(slot)]);
-    if (extraSlots.length) {
-      const mounts = document.createElement('div');
-      mounts.className = 'equipment-mount-slots';
-      // 行高与窗口总高只有**一处**数字（`MOUNT_FOOTER_HEIGHT`）：窗口高度加它，
-      // 行的内部布局也从同一个自定义属性取，样式表里不再写第二个 60。
-      equipmentWindow.style.setProperty('--equipment-mount-footer-height', `${MOUNT_FOOTER_HEIGHT}px`);
-      for (const slot of extraSlots) {
-        const group = document.createElement('div');
-        group.className = 'equipment-mount-group';
-        group.dataset.slot = String(slot);
-        const label = document.createElement('span');
-        label.className = 'equipment-mount-label';
-        label.textContent = this.mountSlotLabel(slot, false);
-        // 鞍具在这套数据里没有任何战斗属性（`info` 只有 tuc/reqLevel），而且它
-        // 不带 `tamingMob` —— 骑乘判定只看骑宠本身。这句话是**本构建**的事实，
-        // 不是对别的版本（那些版本里马鞍可能另有作用）的断言。
-        if (slot !== 18) group.title = t('鞍具：装饰件，骑乘状态由骑宠决定', 'Saddle: cosmetic; riding is decided by the mount');
-        group.append(label);
-        this.mountLabels.set(slot, label);
-        this.createSlot(group, slot);
-        mounts.append(group);
-      }
-      equipmentWindow.append(mounts);
-      equipmentWindow.style.height = `${this.layout.height + MOUNT_FOOTER_HEIGHT}px`;
     }
     const close = this.host.createWindowButton(equipmentWindow, 'close', ui, 'main/button:close/normal/0', () => this.host.onCloseRequest());
     close?.setAttribute('aria-label', t('关闭装备栏', 'Close equip inventory'));
@@ -178,15 +152,9 @@ export class EquipmentView {
     if (!equipmentWindow) return;
     const t = (zh: string, en: string) => this.host.translate(zh, en);
     const selecting = this.host.selectingTarget();
-    // 是否在骑**不从这里推**：服务器快照里的 `mount.itemId` 是唯一口径，
-    // 装备里装着骑宠与真在骑是两件事（同 `mounts/model.ts` 的判据）。
+    // 骑宠和鞍具现在由二级坐骑窗管理；一级装备窗只渲染其源画布槽位。
     const mountedId = this.host.mountedItemId();
     equipmentWindow.classList.toggle('equipment-selecting-target', selecting);
-    for (const [slot, label] of this.mountLabels) {
-      const riding = mountedId !== undefined && this.host.equippedItemAt(slot)?.itemId === mountedId;
-      label.textContent = this.mountSlotLabel(slot, riding);
-      label.classList.toggle('is-riding', riding);
-    }
     equipmentWindow.querySelectorAll<HTMLButtonElement>('.equipment-slot').forEach(button => {
       const slotNumber = Number(button.dataset.slot);
       const item = this.host.equippedItemAt(slotNumber);
@@ -202,10 +170,10 @@ export class EquipmentView {
         button.title = itemDetails(item.itemId, item);
         button.setAttribute('aria-label', selecting
           ? t('对 ' + itemName(item.itemId) + ' 使用卷轴', 'Use the scroll on ' + itemName(item.itemId))
-          : isMountItem(item.itemId)
+            : isMountItem(item.itemId)
             ? riding
-              ? t('已装备 ' + itemName(item.itemId) + '（骑乘中，双击下马，右键卸下）', itemName(item.itemId) + ' (riding; double-click to dismount, right-click to unequip)')
-              : t('已装备 ' + itemName(item.itemId) + '（双击骑乘，右键卸下）', itemName(item.itemId) + ' (double-click to ride, right-click to unequip)')
+              ? t('已装备 ' + itemName(item.itemId) + '（打开坐骑管理窗下马，右键卸下）', itemName(item.itemId) + ' (open Mount Manager to dismount, right-click to unequip)')
+              : t('已装备 ' + itemName(item.itemId) + '（打开坐骑管理窗骑乘，右键卸下）', itemName(item.itemId) + ' (open Mount Manager to ride, right-click to unequip)')
             : t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
         const frame = this.host.itemFrame(item.itemId);
         if (frame) {
@@ -227,14 +195,6 @@ export class EquipmentView {
         button.setAttribute('aria-label', button.title);
       }
     });
-  }
-
-  /** 底部行的标签：骑宠格还要说清「现在是不是骑着」——源 UI 里没有 Tm/Sd 两格，
-   *  这一行是界面扩展（P），所以这句话得由这里补上。 */
-  private mountSlotLabel(slot: number, riding: boolean): string {
-    const t = (zh: string, en: string) => this.host.translate(zh, en);
-    if (slot !== 18) return t('鞍具', 'Saddle');
-    return riding ? t('骑宠 · 骑乘中', 'Mount · riding') : t('骑宠', 'Mount');
   }
 
   private createSlot(parent: HTMLDivElement, slotNumber: number) {
@@ -298,11 +258,86 @@ export class EquipmentView {
   /** Only a source-declared mount toggles riding; saddles remain removable. */
   private onSlotActivate(slotNumber: number, item: InventoryItem) {
     if (MOUNT_BODY_SLOTS.includes(slotNumber) && isMountItem(item.itemId)) {
+      if (this.host.openMount) {
+        this.host.openMount();
+        return;
+      }
       const slot = slotNumber;
       // `sourceTab` 0 = 装备页签（`TAB_INVENTORY_TYPE[0] === 1`）；负槽号＝已装备。
       this.host.useItem(0, -slot, item);
       return;
     }
     this.host.unequip(item);
+  }
+
+  /**
+   * 一级装备窗只保留两个原版入口；骑宠、鞍具以及宠物操作都由各自的
+   * 二级窗承载；宠物入口只使用 UIEquip 已导出的第二个 detailTab 帧。
+   */
+  private createManagerEntries(assets: AssetSet, t: (zh: string, en: string) => string) {
+    const bar = document.createElement('div');
+    bar.className = 'equipment-manager-entries';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', t('宠物与坐骑管理', 'Pet and mount managers'));
+    bar.append(
+      this.createManagerEntry('pet', t('宠物', 'Pets'), assets, t),
+      this.createManagerEntry('mount', t('坐骑', 'Mounts'), assets, t),
+    );
+    return bar;
+  }
+
+  private createManagerEntry(
+    kind: 'pet' | 'mount',
+    label: string,
+    assets: AssetSet,
+    t: (zh: string, en: string) => string,
+  ) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `equipment-manager-entry equipment-manager-entry-${kind}`;
+    button.dataset.manager = kind;
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    const frame = this.managerFrame(kind, assets);
+    if (frame) {
+      button.dataset.sourceArt = 'true';
+      const image = this.host.assetImage(frame, 'equipment-manager-entry-image');
+      image.alt = '';
+      image.setAttribute('aria-hidden', 'true');
+      image.draggable = false;
+      button.append(image);
+    }
+    const text = document.createElement('span');
+    text.className = 'equipment-manager-entry-label';
+    text.textContent = label;
+    button.append(text);
+    button.addEventListener('click', () => {
+      const action = kind === 'pet' ? this.host.openPet : this.host.openMount;
+      if (action) {
+        action();
+        return;
+      }
+      this.host.status(t(
+        kind === 'pet' ? '宠物管理窗尚未接入。' : '坐骑管理窗尚未接入。',
+        kind === 'pet' ? 'Pet Manager is not connected.' : 'Mount Manager is not connected.',
+      ));
+    });
+    return button;
+  }
+
+  private managerFrame(kind: 'pet' | 'mount', assets: AssetSet) {
+    const candidates = kind === 'pet'
+      // UIEquip's authored second tab is the pet page.  It is a tab frame,
+      // not a guessed button from another WZ family.
+      ? ['main/tab:detailTab/normal/1', 'main/tab:detailTab/selected/1']
+      : [];
+    for (const key of candidates) {
+      const frame = assets[key];
+      if (frame) return frame;
+    }
+    // This TMS273 source has no authored TamingMob tab/button.  The mount
+    // manager intentionally remains a same-shell P entry with its own label;
+    // never borrow Pet/HUD/menu art and present it as a source mount control.
+    return undefined;
   }
 }

@@ -90,7 +90,7 @@ export class InventoryView {
   private readonly handleGridWheel = (event: WheelEvent) => this.onGridWheel(event);
   private readonly handleGridScroll = () => this.clampGridScroll();
 
-  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false) {
+  constructor(private host: HTMLElement, manifest: Manifest, private status: (message: string) => void, private send: SendClientMessage = () => false, managers: { openPet: () => void; openMount: () => void } | undefined = undefined) {
     this.manifest = manifest;
     this.ui = manifest.inventoryUi;
     this.inventoryLayout = manifest.inventoryLayout as InventoryLayout;
@@ -246,6 +246,8 @@ export class InventoryView {
       // 骑乘入口：双击已装备的骑宠由 `EquipmentView::onSlotActivate` 判出来，
       // 这里只把它接回既有的 useItem 通道（负槽号＝已装备），不另开消息类型。
       useItem: (sourceTab, sourceSlot, item) => this.submitUseItem(sourceTab, sourceSlot, item),
+      openPet: managers?.openPet,
+      openMount: managers?.openMount,
       onCloseRequest: () => this.closeEquipment(),
       drag: this.drag,
       tooltips: this.tooltips,
@@ -849,9 +851,8 @@ export class InventoryView {
     return equippedAtSlot(this.equipped, slotNumber);
   }
 
-  private unequip(item: InventoryItem) {
-    const sourceSlot = -Math.abs(item.slot);
-    this.submitUseItem(0, sourceSlot, item);
+  unequip(item: InventoryItem) {
+    this.intents.unequip(item);
   }
 
   private showSlotTooltip(slotNumber: number) {

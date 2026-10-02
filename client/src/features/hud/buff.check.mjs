@@ -84,16 +84,23 @@ class FakeDocument extends FakeElement {
   createElement(tagName) { return new FakeElement(tagName, this); }
 }
 
-const source = await readFile(new URL('./buff-bar.ts', import.meta.url), 'utf8');
+const chairSource = await readFile(new URL('../chairs/model.ts', import.meta.url), 'utf8');
+const chairCompiled = ts.transpileModule(chairSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+}).outputText.replace(/import \{ itemName \} from '[^']+';/, 'const itemName = id => id;');
+const chairModule = `data:text/javascript;base64,${Buffer.from(chairCompiled).toString('base64')}`;
+const source = (await readFile(new URL('./buff-bar.ts', import.meta.url), 'utf8'))
+  .replace("from '../chairs/model'", `from '${chairModule}'`);
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 })
   // 资源地址解析（v3 §3.1）：离线圈定下用恒等桩（与 dialogue.check.mjs 同一约定）。
   // 本检查不剥 import，所以必须**替换**这一行：留着相对说明符会让 `data:` 模块装载失败。
   .outputText.replace(/import \{[^}]*\} from '\.\.\/\.\.\/assets\/resource-url';/, 'const resolveAssetUrl = url => url;');
-const { BuffBar, buffSeconds } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const { BuffBar, buffSeconds, playerStatuses } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
 globalThis.document = new FakeDocument();
+const update=(bar,buffs)=>bar.update(playerStatuses({derivedStats:{skillBuffs:buffs}}));
 
 // ── The remaining-seconds readout ──
 assert.equal(buffSeconds(0), '', 'a spent buff shows no readout');
@@ -102,9 +109,10 @@ assert.equal(buffSeconds(Number.NaN), '', 'a non-numeric remainder shows no read
 assert.equal(buffSeconds(999), '1', 'sub-second remainders round up (never "0" while active)');
 assert.equal(buffSeconds(1000), '1');
 assert.equal(buffSeconds(59_000), '59');
-assert.equal(buffSeconds(60_000), '1:00', 'a minute switches to m:ss');
-assert.equal(buffSeconds(95_000), '1:35');
-assert.equal(buffSeconds(600_000), '10:00');
+assert.equal(buffSeconds(60_000), '60', 'all durations remain in seconds');
+assert.equal(buffSeconds(95_000), '95');
+assert.equal(buffSeconds(600_000), '600');
+assert.equal(buffSeconds(1_000_000), '999', 'only the displayed seconds are capped');
 
 const slice = name => ({ url: `favoriteBuff_${name}.png`, width: 5, height: 5, x: 0, y: 0, origin: { x: 0, y: 0 } });
 const manifest = {
@@ -128,8 +136,8 @@ const host = document.createElement('div');
 const bar = new BuffBar(host, manifest);
 const root = host.querySelector('.tms-buff-bar');
 assert(root, 'the bar mounts onto the HUD row');
-assert.equal(root.getAttribute('role'), 'status');
-assert.equal(root.getAttribute('aria-label'), '增益状态');
+assert.equal(root.getAttribute('role'), 'group');
+assert.equal(root.getAttribute('aria-label'), '角色状态');
 assert.equal(root.hidden, true, 'the bar stays hidden until the server reports a buff');
 assert.equal(root.dataset.available, 'true', 'the authored plate is available');
 assert.equal(root.style.getPropertyValue('--tms-buff-space-x'), '5px', 'the icon gap comes from the authored spaceX');
@@ -144,7 +152,7 @@ const list = root.querySelector('.tms-buff-list');
 assert.equal(list.children.length, 0, 'no rows before the first snapshot');
 
 // ── Two active buffs ──
-bar.update({ 2001002: 45_000, 1001003: 5_400 });
+update(bar, { 2001002: 45_000, 1001003: 5_400 });
 assert.equal(root.hidden, false, 'the bar shows itself once a buff is active');
 assert.equal(list.children.length, 2);
 assert.deepEqual(list.children.map(entry => entry.dataset.skillId), ['1001003', '2001002'], 'rows are ordered by skill id');
@@ -153,38 +161,38 @@ assert.equal(first.querySelector('.tms-buff-icon').src, 'icon_1001003.png');
 assert.equal(first.querySelector('.tms-buff-time').textContent, '6', '5.4 s reads as 6');
 
 // ── A tick rewrites the text and keeps the same nodes ──
-bar.update({ 2001002: 44_000, 1001003: 4_400 });
+update(bar, { 2001002: 44_000, 1001003: 4_400 });
 assert.equal(list.children.length, 2, 'a tick never rebuilds the row set');
 assert.equal(list.children[0], first, 'the row node is reused');
 assert.equal(first.querySelector('.tms-buff-time').textContent, '5');
 assert.equal(list.children[1].querySelector('.tms-buff-time').textContent, '44');
 
 // ── An expired buff is dropped, a new one is appended ──
-bar.update({ 2001002: 0, 1001003: 3_400, 2221054: 90_000 });
+update(bar, { 2001002: 0, 1001003: 3_400, 2221054: 90_000 });
 assert.deepEqual(list.children.map(entry => entry.dataset.skillId), ['1001003', '2221054'], 'a spent buff leaves the row');
 // 2221054 is not in the catalog: the row still mounts, it just has no icon.
 const unknown = list.children[1];
 assert.equal(unknown.querySelector('.tms-buff-icon').src, undefined, 'an unexported skill renders an empty slot, not a broken image');
-assert.equal(unknown.querySelector('.tms-buff-time').textContent, '1:30');
+assert.equal(unknown.querySelector('.tms-buff-time').textContent, '90');
 
 // ── Everything expiring hides the bar again ──
-bar.update({ 1001003: 0, 2221054: -1 });
+update(bar, { 1001003: 0, 2221054: -1 });
 assert.equal(root.hidden, true, 'no active buff hides the whole bar');
 assert.equal(list.children.length, 0);
 
 // ── Empty / missing maps are not an error ──
-bar.update(undefined);
+update(bar, undefined);
 assert.equal(root.hidden, true, 'undefined buffs hide the bar');
-bar.update({});
+update(bar, {});
 assert.equal(root.hidden, true);
 
 // ── clear() and destroy() ──
-bar.update({ 2001002: 10_000 });
+update(bar, { 2001002: 10_000 });
 assert.equal(root.hidden, false);
 bar.clear();
 assert.equal(list.children.length, 0, 'clear() empties the row');
 assert.equal(root.hidden, true);
-bar.update({ 2001002: 10_000 });
+update(bar, { 2001002: 10_000 });
 assert.equal(root.hidden, false, 'the bar can be repopulated after clear()');
 bar.destroy();
 assert.equal(host.querySelector('.tms-buff-bar'), null, 'destroy() unmounts the bar');
@@ -195,8 +203,25 @@ const bareBar = new BuffBar(bare, { skillCatalog: manifest.skillCatalog });
 const bareRoot = bare.querySelector('.tms-buff-bar');
 assert.equal(bareRoot.dataset.available, 'false', 'without the export the plate is reported as unavailable');
 assert.equal(bareRoot.querySelectorAll('.tms-buff-slice').length, 0, 'no slices are invented');
-bareBar.update({ 2001002: 1_000 });
+update(bareBar, { 2001002: 1_000 });
 assert.equal(bareRoot.hidden, false, 'icons still render without the plate');
 assert.equal(bareRoot.querySelector('.tms-buff-list').children.length, 1);
 
-console.log('PASS: buff plate 9-slice, durable rows by skill id, second readout, expiry, clear and destroy.');
+const statuses=playerStatuses({
+  skills:{2111011:1},
+  derivedStats:{skillBuffs:{2001002:1500,2221010:99999999},magicGuard:true,meditationRemainingMs:4200,iceTeleport:true,teleportMastery:true,teleportBoost:true,hyperBarrierActive:true,fireWardActive:true,hyperTeleportEnabled:true,adaptationCharges:3},
+  abnormalStatus:{sealMs:2000,stunMs:3000,curseMs:4000,poisonMs:5000,slowMs:6000},
+  mount:{itemId:'1902000',speed:150},chair:{itemId:'3010000', recoveryHp:-1, recoveryMp:0, recoveryIntervalMs:10000, nextRecoveryInMs:2500},
+});
+assert.equal(statuses.filter(s=>s.id==='2001002').length,1,'timed effects and toggles never duplicate');
+assert.equal(statuses.filter(s=>s.id.startsWith('disease:')).length,5,'all five authoritative diseases are included');
+assert.equal(statuses.find(s=>s.id==='2111011').count,3,'adaptation preserves remaining charges');
+assert.equal(statuses.find(s=>s.id==='2201001').remainingMs,4200,'meditation uses its actual duration');
+assert.equal(statuses.find(s=>s.id==='2221010').remainingMs,99999999,'display cap never truncates state');
+assert(statuses.some(s=>s.id==='mount')&&statuses.some(s=>s.id==='chair'),'temporary movement states are included');
+assert.match(statuses.find(s=>s.id==='chair').label,/HP -1.*每 10 秒扣减一次，下次结算 3 秒/,'chair recovery readout remains available in the status tooltip');
+const toggles=new BuffBar(document.createElement('div'),manifest);
+toggles.update(playerStatuses({derivedStats:{magicGuard:true}}));
+assert.equal(toggles['list'].children[0].querySelector('.tms-buff-time').textContent,'∞','no invented duration for an open toggle');
+toggles.destroy();
+console.log('PASS: all character effects, seconds capped at 999, buff plate 9-slice, durable rows by skill id, second readout, expiry, clear and destroy.');

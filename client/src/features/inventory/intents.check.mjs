@@ -208,4 +208,25 @@ state.promptAnswer = null;
 controller.dropMesos();
 assert.equal(sent.at(-1).quantity, 250, 'prompt 取消不发送');
 
-console.log('inventory intents: message shapes, inventoryType pinning, practice gates, prompt flow, pending lifecycle passed.');
+// Mount unequip must use inventoryMove: negative-slot useItem toggles riding.
+state.inventory.clear();
+state.slotLimits[0] = 3;
+state.inventory.set('0:1', item(1, '1002067'));
+controller.unequip(item(18, '1902000'));
+assert.equal(sent.at(-1).type, 'inventoryMove');
+assert.equal(sent.at(-1).sourceSlot, -18);
+assert.equal(sent.at(-1).targetSlot, 2, 'first free equipment inventory slot');
+assert.equal(sent.at(-1).inventoryType, 1);
+state.inventory.set('0:2', item(2, '1002067'));
+state.inventory.set('0:3', item(3, '1002067'));
+const beforeFull = sent.length;
+controller.unequip(item(19, '1912000'));
+assert.equal(sent.length, beforeFull, 'full inventory leaves equipment untouched');
+assert.match(lastStatus(), /装备背包已满/);
+state.inventory.delete('0:2');
+state.sendOk = false;
+controller.unequip(item(19, '1912000'));
+assert.equal(sent.length, beforeFull, 'offline unequip cannot submit');
+assert.match(lastStatus(), /保持在线/);
+
+console.log('inventory intents: message shapes, mount unequip, full inventory, inventoryType pinning, practice gates, prompt flow, pending lifecycle passed.');

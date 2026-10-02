@@ -1,4 +1,4 @@
-// Offline pet/HUD component regression: real source art, no game server or account.
+// Offline pet/HUD component regression: equipment entries have their own DOM check.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const manifest = await (await fetch('/assets/manifest.json')).json();
 window.sent = [];
 window.player = {id:'offline',username:'离线冒险者',hp:50,maxHp:50,mp:5,maxMp:5,level:2,exp:4,expToNext:60,mesos:0,inventory:[{slot:1,itemId:'5000000',quantity:1},{slot:2,itemId:'5000001',quantity:1},{slot:3,itemId:'5000021',quantity:1}],action:'stand',pets:[{id:'p1',itemId:'5000000',name:'褐色小貓',inventorySlot:1,x:0,y:0,facing:1,action:'move',baseSpeed:120,moveSpeed:240,mode:'loot'},{id:'p2',itemId:'5000001',name:'褐色小狗',inventorySlot:2,x:0,y:0,facing:1,action:'move',baseSpeed:180,moveSpeed:170,mode:'follow'}]};
 window.panel = new PetPanel(document.querySelector('#ui-windows'), manifest, ()=>{}, message=>{window.sent.push(message);return true;});
-window.hud = new HudView(document.querySelector('#hud'), manifest, ()=>{}, undefined, undefined, undefined, {openPets:()=>window.panel.toggle()});
+window.hud = new HudView(document.querySelector('#hud'), manifest, ()=>{});
 window.panel.update(window.player); window.hud.update(window.player);
 window.layoutObserver = new ResizeObserver(()=>document.querySelector('#game-shell').style.setProperty('--hud-height',document.querySelector('#hud').getBoundingClientRect().height+'px'));
 window.layoutObserver.observe(document.querySelector('#hud'));
@@ -42,9 +42,8 @@ window.layoutObserver.observe(document.querySelector('#hud'));
     await page.setViewportSize({ width, height });
     await page.evaluate(() => window.panel.close());
     await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector('#game-shell').style.getPropertyValue('--hud-height')) - document.querySelector('#hud').getBoundingClientRect().height) < 1);
-    const entry = page.getByRole('button', { name: '宠物', exact: true });
-    assert(await entry.isVisible(), `pet menu entry must be visible at ${width}x${height}`);
-    await entry.click({ timeout: 3000 });
+    assert.equal(await page.getByRole('button', { name: '宠物', exact: true }).count(), 0, 'pet management is an equipment child, with no duplicate HUD entry');
+    await page.evaluate(() => window.panel.open());
     await page.locator('.pet-tab[data-slot="2"]').click({ timeout: 3000 });
     assert.equal(await page.locator('.pet-tab.is-selected').getAttribute('data-slot'), '2');
     await page.locator('.pet-tab[data-slot="0"]').click({ timeout: 3000 });

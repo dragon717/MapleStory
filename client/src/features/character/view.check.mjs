@@ -137,6 +137,8 @@ const player = {
 view.update(player);
 const root = host.querySelector('.tms273-character-host');
 assert(root, 'Character root is mounted');
+assert.equal(root.querySelector('.character-status-stats'),null,'effect list moved to the HUD');
+assert.equal(root.querySelector('[data-field="magicGuard"]'),null,'toggle state moved to the HUD');
 assert(root.querySelector('.character-titlebar'), 'A dedicated title strip is mounted for window drag');
 assert.equal(root.hidden, true, 'The window starts closed');
 assert.equal(root.querySelector('[data-field="username"]').children.at(-1).textContent, '冰法');

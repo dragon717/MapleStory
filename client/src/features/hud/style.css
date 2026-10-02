@@ -10,10 +10,10 @@
   min-width: 0;
   margin-left: auto;
   pointer-events: auto;
-  filter: drop-shadow(0 2px 2px #0008);
 }
 
 .tms-quick-slot-grid {
+  filter: drop-shadow(0 2px 2px #0008);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(32px, 1fr));
   gap: 3px;

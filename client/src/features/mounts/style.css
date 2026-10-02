@@ -1,53 +1,221 @@
-/* 骑乘状态标记：抬到快捷栏**上方**，不再压住快捷栏。
-   `--hud-height` 由 `app/main.ts` 按 `#hud` 的实测高度写入，与聊天框
-   （`app/style.css` 的 `.game-mode #game-shell>#chat`）和宠物面板
-   （`features/pet/style.css`）用的是同一套约定，所以快捷栏换行/折叠后
-   标记会自动跟着走，不需要另写断点去猜高度。
-
-   落点选**右侧**而不是左下：左下 HUD 上方是聊天框、左上是小地图，
-   右下 HUD 上方才是空的。
-   与坐姿标记**互斥**（服务端保证：骑乘中不能坐下 `chair_mounted`、
-   坐下不能骑乘 `mount_seated`），所以两者共用同一落点也不会同时出现。
-
-   #notices 本身是 pointer-events:none 的满屏网格，子元素自行开启命中。 */
-#game-shell > #notices > .mount-status-host {
+/* 二级坐骑窗：复用 ui-windows/window-shell 的拖拽与分层约定。TMS273 的
+   UIEquip 源没有 TamingMob 页签，因此内容用同一套原版像素窗壳承载，
+   骑宠、鞍具与权威骑乘按钮集中在这里。 */
+.ui-windows.tms273-mount-host {
   position: absolute;
-  right: max(8px, env(safe-area-inset-right));
-  bottom: calc(var(--hud-height, 86px) + 6px);
-  z-index: 8;
-  max-width: min(240px, calc(100% - 16px));
+  inset: 0;
+  z-index: 9;
+  overflow: visible;
   pointer-events: none;
 }
-.mount-status-host[hidden] { display: none !important; }
-.mount-status {
+
+.tms273-mount-host[hidden],
+.mount-window[hidden] { display: none !important; }
+
+.mount-window {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(366px, calc(100% - 12px));
+  min-height: 230px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
   pointer-events: auto;
-  display: block;
-  max-width: 100%;
-  padding: 4px 10px;
-  border: 2px solid #6b7f52;
-  border-radius: 6px;
-  background: #eef4e6;
-  color: #2f3d22;
-  font: 12px/1.5 "Microsoft YaHei", sans-serif;
-  text-align: left;
+  z-index: var(--ui-window-z, 1);
+  color: #e9edf0;
+  background: #2e353b;
+  border: 1px solid #13181c;
+  border-radius: 2px;
+  box-shadow: inset 0 1px #5b6870, 0 4px 7px #000b;
+  font: 11px/1.35 Verdana, "Microsoft YaHei", sans-serif;
+  image-rendering: pixelated;
+}
+
+.mount-titlebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 30px;
+  background: #303a42;
+  border-bottom: 1px solid #151b20;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.mount-window-title {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  top: 5px;
+  margin: 0;
+  color: #e5c36b;
+  font: 700 13px/20px "Microsoft YaHei", sans-serif;
+  text-shadow: 1px 1px #121619;
+  pointer-events: none;
+}
+
+.mount-window-close {
+  position: absolute;
+  z-index: 4;
+  right: 7px;
+  top: 7px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid #6a7880;
+  border-radius: 2px;
+  background: #424d55;
+  color: #e9edf0;
+  font: 700 14px/14px Arial, sans-serif;
   cursor: pointer;
 }
-.mount-status:hover { background: #e0ebd3; }
-.mount-status:focus-visible { outline: 2px solid #efc269; outline-offset: 1px; }
-.mount-status.is-riding {
-  border-color: #8a6b2f;
-  background: #f6efdc;
-  color: #4a3a19;
+
+.mount-window-close-image {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  margin: auto;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.mount-window-close:focus-visible,
+.mount-window-toggle:focus-visible {
+  outline: 2px solid #f5c967;
+  outline-offset: 1px;
+}
+
+.mount-window-content {
+  position: relative;
+  margin-top: 30px;
+  padding: 10px 12px 11px;
+}
+
+.mount-section-title {
+  margin: 0 0 6px;
+  color: #e5c36b;
+  font: 700 11px/15px "Microsoft YaHei", sans-serif;
+  text-shadow: 1px 1px #121619;
+}
+
+.mount-section-title:not(:first-child) {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #4d5961;
+}
+
+.mount-window-intro {
+  margin: 0 0 6px;
+  color: #e5c36b;
   font-weight: 700;
 }
-.mount-status.is-riding:hover { background: #efe4c8; }
 
-/* 窄屏：快捷栏几乎占满宽度，标记跟着放宽并贴到 HUD 正上方。 */
+.mount-manager-status {
+  min-height: 18px;
+  margin: 0 0 7px;
+  padding: 4px 6px;
+  border: 1px solid #59666e;
+  border-radius: 2px;
+  background: #3a454d;
+  color: #f0f2ef;
+  font-weight: 700;
+}
+
+.mount-equipment-list {
+  display: grid;
+  gap: 4px;
+  min-height: 53px;
+}
+
+.mount-equipment-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 3px 5px;
+  border: 1px solid #59666e;
+  border-radius: 2px;
+  background: #374149;
+}
+
+.mount-equipment-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.mount-equipment-details {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mount-equipment-details strong,
+.mount-equipment-details span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mount-equipment-details strong { color: #f0d48c; font-size: 10px; }
+.mount-equipment-details span { color: #c5d0d2; font-size: 9px; }
+.mount-equipment-empty { margin: 4px 0; color: #c5d0d2; font-size: 9px; }
+
+.mount-equipment-unequip {
+  flex: 0 0 auto;
+  min-width: 42px;
+  height: 21px;
+  padding: 0 5px;
+  border: 1px solid #7c6b3c;
+  border-radius: 2px;
+  background: #4b4533;
+  color: #f0d48c;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.mount-equipment-unequip:hover { background: #655936; }
+.mount-equipment-unequip:focus-visible { outline: 2px solid #f5c967; outline-offset: 1px; }
+
+.mount-window-toggle {
+  display: block;
+  width: 116px;
+  height: 26px;
+  margin: 9px auto 5px;
+  border: 1px solid #a4853c;
+  border-radius: 3px;
+  background: #80692f;
+  color: #fff6d8;
+  font: 700 11px/23px "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+  text-shadow: 1px 1px #2c2410;
+}
+
+.mount-window-toggle:hover { background: #a07f34; }
+.mount-window-toggle[hidden] { display: none !important; }
+
+.mount-window-hint {
+  margin: 5px 0 0;
+  color: #aebbc0;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 @media (max-width: 480px) {
-  #game-shell > #notices > .mount-status-host {
-    right: max(6px, env(safe-area-inset-right));
-    bottom: calc(var(--hud-height, 86px) + 4px);
-    max-width: calc(100% - 12px);
+  .mount-window {
+    left: 6px;
+    top: 6px;
+    width: calc(100% - 12px);
+    max-height: calc(100% - 12px);
+    transform: none;
+    overflow: auto;
   }
-  .mount-status { padding: 3px 8px; font-size: 11px; }
 }
