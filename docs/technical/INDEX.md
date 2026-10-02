@@ -5,6 +5,7 @@
 | 文档 | 职责 / 标题 |
 | --- | --- |
 | [3D场景开发通用指南.md](3D场景开发通用指南.md) | **别名：3d建模**（大小写不敏感）；提到该别名先读取本文。参考与尺度、Blender MCP、混合渲染清晰度、资产交付和验证方法 |
+| [天空航船卡通物理水方案调研.md](天空航船卡通物理水方案调研.md) | 联网比较波函数、FFT、高度场、浅水方程与粒子流体；本轮程序水选择、漫画浪线与物理能力边界 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构文档入口 |
 | [ARCHITECTURE_ACCEPTANCE.md](ARCHITECTURE_ACCEPTANCE.md) | 架构与资源验收标准 |
 | [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md) | 后端技术方案（审查草案） |

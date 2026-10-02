@@ -1,0 +1,503 @@
+/* Skyship login, cabin and berth dressing. Loaded after style.css. */
+.entry-voyage {
+  --voyage-panel-image: url('/assets/entry/voyage-panel.png');
+  --voyage-button-image: url('/assets/entry/voyage-button.png');
+  --voyage-crest-image: url('/assets/entry/voyage-crest.png');
+  color: #503a24;
+}
+body.entry-active { background: #eee4cf; }
+:is(.entry-voyage,.entry-voyage-ready) .entry-background > .voyage-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.entry-voyage-ready .entry-background-canvas { display: none; }
+:is(.entry-voyage,.entry-voyage-ready) .entry-scene { z-index: 1; }
+:is(.entry-voyage,.entry-voyage-ready) .voyage-deck-avatar {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+:is(.entry-voyage,.entry-voyage-ready) .voyage-deck-avatar .entry-avatar {
+  width: 110px;
+  height: 110px;
+  image-rendering: pixelated;
+  transform: scale(1.5);
+  transform-origin: 50% 100%;
+}
+
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-login .entry-scene,
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-channel .entry-scene { display: block; padding: 0; }
+.entry-voyage .entry-glass {
+  border: 16px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 16px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #503a24;
+  text-shadow: none;
+}
+.entry-voyage .entry-login,
+.entry-voyage .entry-channels {
+  position: absolute;
+  z-index: 2;
+  width: min(430px, calc(100vw - 32px));
+  margin: 0;
+  border: 20px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 20px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 12px 28px #55391b40;
+  color: #503a24;
+  text-shadow: none;
+}
+.entry-voyage.entry-stage-login .entry-login {
+  left: clamp(16px, 5vw, 80px);
+  top: clamp(92px, 16vh, 154px);
+  padding: 18px 20px 15px;
+}
+.entry-voyage.entry-stage-channel .entry-channels {
+  right: clamp(18px, 5vw, 80px);
+  top: clamp(145px, 23vh, 225px);
+  min-height: 0;
+  padding: 18px 20px;
+}
+.entry-voyage .entry-login h1,
+.entry-voyage .entry-channels h1 {
+  margin: 0 0 15px;
+  color: #59401f;
+  font-size: 20px;
+  text-align: center;
+  text-shadow: none;
+}
+.entry-voyage .entry-login-fields {
+  border-top: 2px solid #c8a467;
+  background: transparent;
+}
+.entry-voyage .entry-login-fields > input {
+  color: #49361f;
+  border-bottom: 1px solid #e4d5b4;
+  background: #fffaf0;
+  text-shadow: none;
+}
+.entry-voyage .entry-login-fields > input::placeholder { color: #806d52; }
+.entry-voyage .entry-save { color: #5e492d; }
+.entry-voyage .entry-save input { accent-color: #a9782f; }
+.entry-voyage .entry-login-links,
+.entry-voyage .entry-login-links button,
+.entry-voyage .entry-channels > p { color: #5a4326; }
+.entry-voyage .entry-login-links button {
+  min-height: 30px;
+  padding: 2px 6px;
+  border: 6px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 6px / 0 stretch;
+}
+.entry-voyage .entry-channel-button { width: 100%; color: #49361f; }
+.entry-voyage .entry-channel-button span { color: inherit; }
+.entry-voyage .entry-channel-button i { background: #c49a52; }
+.entry-voyage .entry-hint { margin-bottom: 0; }
+
+.entry-voyage button:not(.entry-character) {
+  color: #49361f;
+  border: 12px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 12px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 5px 12px;
+}
+.entry-voyage button:not(.entry-character):hover { filter: brightness(1.035); }
+.entry-voyage button[aria-pressed="true"],
+.entry-voyage button.selected { filter: saturate(1.14) brightness(.97); }
+.entry-voyage button:focus-visible,
+.entry-voyage input:focus-visible {
+  outline: 3px solid #644113;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px #fffdf4;
+}
+
+/* Each occupied character is a real avatar resting in its own berth. */
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  column-gap: clamp(8px, 1.2vw, 20px);
+  row-gap: clamp(10px, 2vh, 24px);
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character {
+  isolation: isolate;
+  overflow: visible;
+  min-height: 174px;
+  padding: 8px 6px 12px;
+  color: #49361f;
+  border: 18px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 18px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 6px 14px #5d472540;
+  text-shadow: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character::before,
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character::after {
+  display: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character .entry-avatar {
+  z-index: 1;
+  flex-shrink: 0;
+  transform-origin: 50% 55%;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character:not(.selected):not(.entry-empty) .entry-avatar {
+  transform: rotate(90deg) scale(.72);
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected {
+  filter: saturate(1.12) brightness(.97);
+  outline: 2px solid #966522;
+  outline-offset: 1px;
+  box-shadow: 0 0 18px #e8c87c80;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected .entry-avatar {
+  animation: voyage-wake 680ms cubic-bezier(.2,.8,.2,1) both;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character strong {
+  z-index: 2;
+  margin-top: 4px;
+  color: #49361f;
+  padding: 5px 10px;
+  border: 6px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 6px / 0 stretch;
+  background: transparent;
+  text-shadow: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character > span { z-index: 2; }
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-empty {
+  color: #684c27;
+  opacity: .82;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-empty .entry-avatar { opacity: .55; }
+
+.entry-voyage .entry-world-emblem {
+  display: block;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  background: var(--voyage-crest-image) center / contain no-repeat;
+  font-size: 0;
+}
+.entry-voyage .entry-nameplate {
+  color: #49361f;
+  border: 7px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 7px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  text-shadow: none;
+}
+.entry-voyage .entry-slots,
+.entry-voyage .entry-quick-level,
+.entry-voyage .entry-customise-row > strong,
+.entry-voyage .entry-option-controls output {
+  color: #49361f;
+  border: 8px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 8px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.entry-voyage .entry-quick-body,
+.entry-voyage .entry-customise,
+.entry-voyage .entry-create-name,
+.entry-voyage .voyage-profession-note {
+  color: #49361f;
+  border: 12px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 12px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-shadow: none;
+}
+.entry-voyage .entry-quick-body > span { color: #735e3d; }
+.entry-voyage .entry-customise-row > strong { text-align: center; font-weight: 600; }
+.entry-voyage .entry-customise-row output { color: #49361f; }
+.entry-voyage .entry-glass :is(h1,h2) { color: #59401f; text-shadow: none; }
+.entry-voyage .entry-glass :is(input:not([type=checkbox]),select) { color: #59401f; background: #fffdf6; border-color: #d2ba80; }
+.entry-voyage .entry-create-name button { min-width: 110px; white-space: nowrap; }
+.entry-voyage .entry-colors button {
+  border: 2px solid #fffaf0;
+  border-image: none;
+  border-radius: 50%;
+  background: var(--hair-color);
+  box-shadow: 0 0 0 1px #9b7338;
+}
+.entry-voyage .entry-colors button.selected { outline: 2px solid #694515; outline-offset: 2px; }
+.entry-voyage .entry-create-actions { background: transparent; }
+.entry-voyage .entry-create-actions > button { min-height: 42px; }
+.entry-voyage .entry-notice {
+  color: #49361f;
+  border: 14px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 14px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 6px 20px #53412240;
+  text-shadow: none;
+}
+.entry-voyage .entry-notice.entry-error { color: #9b382c; }
+
+@keyframes voyage-wake {
+  0% { transform: translateY(9px) rotate(90deg) scale(.72); }
+  62% { transform: translateY(-8px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-windows {
+  position: absolute;
+  z-index: 1;
+  top: clamp(76px, 9vh, 118px);
+  left: clamp(14px, 4vw, 60px);
+  display: grid;
+  width: min(440px, 34vw);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1vw, 14px);
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window,
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-window {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 152px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: 7px 8px 9px;
+  border: 12px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 12px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 5px 12px #60472435;
+  cursor: default;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window.selected,
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-window.selected {
+  filter: saturate(1.14) brightness(.97);
+  outline: 2px solid #966522;
+  outline-offset: 1px;
+  box-shadow: 0 0 15px #e8c87c80;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window::before,
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-window::before {
+  display: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window-portrait {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1;
+  width: 110px;
+  min-width: 110px;
+  height: 110px;
+  min-height: 110px;
+  flex: 0 0 110px;
+  overflow: visible;
+  image-rendering: pixelated;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window-portrait img {
+  display: block;
+  max-width: none;
+  max-height: none;
+  image-rendering: pixelated;
+  object-fit: contain;
+  object-position: center bottom;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window-label {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 2px 8px;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  color: #49361f;
+  border: 5px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 5px / 0 stretch;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-profession-note {
+  grid-column: 1 / -1;
+  margin: 1px 0 0;
+  padding: 6px 9px;
+  border: 12px solid transparent;
+  border-image: var(--voyage-panel-image) 240 fill / 12px / 0 stretch;
+  border-radius: 0;
+  color: #49361f;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  text-shadow: none;
+}
+:is(.entry-voyage,.entry-voyage-ready).entry-stage-create .entry-create-panel { position: relative; z-index: 3; }
+
+.entry-voyage.voyage-leaving-cabin .voyage-deck-avatar {
+  animation: voyage-leave-cabin 850ms cubic-bezier(.2,.75,.3,1) both;
+}
+@keyframes voyage-leave-cabin {
+  0% { transform: translate(-50%, -100%) translate(12px, 7px) scale(.94); }
+  58% { transform: translate(-50%, -100%) translate(-2px, -1px) scale(1); }
+  100% { transform: translate(-50%, -100%) translate(-24px, 0); }
+}
+
+.entry-voyage .entry-edition {
+  max-width: min(780px, calc(100vw - 28px));
+  padding: 4px 9px;
+  border: 7px solid transparent;
+  border-image: var(--voyage-button-image) 200 220 200 220 fill / 7px / 0 stretch;
+  border-radius: 0;
+  color: #503a24;
+  background: transparent;
+  line-height: 1.4;
+  text-shadow: none;
+}
+.entry-voyage .entry-edition a { color: #684719; text-decoration: underline; text-underline-offset: 2px; }
+.entry-voyage .entry-edition a:focus-visible { outline: 2px solid #644113; outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  .entry-voyage.entry-stage-create .entry-brand { display: none; }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-login .entry-login {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 16px 14px 12px;
+    border-width: 15px;
+    border-image-width: 15px;
+  }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-channel .entry-channels {
+    top: 50%;
+    right: 14px;
+    left: 14px;
+    width: auto;
+    padding: 15px 12px;
+    border-width: 15px;
+    border-image-width: 15px;
+    transform: translateY(-50%);
+  }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character { min-height: 154px; }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-windows {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: min(360px, 100%);
+    grid-row: 2;
+    grid-column: 1;
+    gap: 7px;
+  }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window,
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-cabin-window { min-height: 148px; padding: 5px 3px 7px; }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-window-label { padding-inline: 4px; font-size: 12px; }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .voyage-profession-note { font-size: 11px; }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .entry-scene {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 620px;
+    align-content: start;
+    overflow-y: auto;
+    grid-template-rows: 115px auto auto;
+    gap: 14px;
+    padding: 80px 14px 145px;
+    scrollbar-width: thin;
+  }
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-create .entry-create-panel {
+    grid-row: 3;
+    grid-column: 1;
+    max-height: none;
+    overflow: visible;
+  }
+  .entry-voyage .entry-edition { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected .entry-avatar {
+    animation: none;
+    transform: none;
+  }
+  .entry-voyage.voyage-leaving-cabin .voyage-deck-avatar { animation: none; }
+}
+
+/* Desktop labels/real paper dolls use the same 3D bed anchors as the model. */
+.entry-voyage.voyage-projected-bunks .entry-character-stage { position: static; margin: 0; width: auto; }
+.entry-voyage.voyage-projected-bunks .entry-character-grid { display: contents; }
+.entry-voyage.voyage-projected-bunks .entry-character { position: absolute; width: 160px; height: 180px; min-height: 180px; transform: translate(-50%,-100%); background: transparent; }
+.entry-voyage.voyage-projected-bunks .entry-character::before,
+.entry-voyage.voyage-projected-bunks .entry-character::after { display: none; }
+.entry-voyage.voyage-projected-bunks .entry-pages { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); }
+.entry-voyage.voyage-projected-bunks .entry-character-actions { position: absolute; bottom: 95px; left: 50%; transform: translateX(-50%); }
+
+.entry-voyage.entry-stage-create .entry-create-actions { position: static; background: transparent; }
+.entry-voyage.entry-stage-create .voyage-cabin-window::before { display: none; }
+.entry-voyage.entry-stage-create .voyage-cabin-window { background: transparent; cursor: pointer; }
+.entry-voyage.entry-stage-create .voyage-cabin-window.selected { outline: 2px solid #966522; outline-offset: 1px; }
+.entry-voyage.voyage-projected-windows .voyage-cabin-windows { display: contents; }
+.entry-voyage.voyage-projected-windows .voyage-cabin-window { position: absolute; width: 160px; min-height: 150px; transform: translate(-50%,-50%); border: 0; border-image: none; background: transparent; box-shadow: none; overflow: visible; }
+.entry-voyage.voyage-projected-windows .voyage-cabin-window::before { display: none; }
+.entry-voyage.voyage-projected-windows .voyage-profession-note { position: absolute; left: 5vw; top: 33vh; width: 42vw; }
+.entry-voyage.voyage-projected-windows .entry-create-panel { align-self: start; margin-top: 23vh; max-height: calc(100dvh - 345px); overflow-y: auto; }
+.entry-voyage.voyage-projected-windows .entry-create-preview { left: 27%; top: 63%; transform: translate(-50%,-50%); }
+.entry-voyage.voyage-projected-windows .entry-create-actions { position: sticky; bottom: 0; background: #fff8e9; padding: 10px 0; }
+
+/* Ink and controls on the authored paper; the frame, clips and stand are real geometry. */
+.entry-voyage-ready.entry-stage-login .entry-login {
+  border: 0;
+  border-image: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 18px 22px;
+  color: #413320;
+}
+.entry-voyage-ready .entry-login h1 {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 29px;
+  letter-spacing: .16em;
+  margin: 0 0 22px;
+  color: #443323;
+}
+.entry-voyage-ready .entry-login-fields { border-top: 1px solid #9a8057; }
+.entry-voyage-ready .entry-login.entry-glass .entry-login-fields > input {
+  background: #7052250b;
+  border-bottom: 1px solid #9a80577a;
+  height: 59px;
+  padding-left: 9px;
+}
+.entry-voyage-ready .entry-login button {
+  border-image: none;
+  border: 1px solid #9b7b47;
+  border-radius: 2px;
+  background: #8060390d;
+  box-shadow: none;
+}
+.entry-voyage-ready .entry-login > .entry-primary {
+  height: 52px;
+  margin-top: 22px;
+  background: #345d64;
+  border: 1px solid #263e3e;
+  color: #fff0ce;
+  font-size: 20px;
+  letter-spacing: .1em;
+  box-shadow: inset 0 0 0 3px #bbaa7660;
+}
+.entry-voyage-ready .entry-login-links { margin-top: 17px; gap: 8px; }
+.entry-voyage-ready .entry-login-links button { min-height: 32px; padding: 4px 10px; }
+@media (max-width: 700px) {
+  .entry-voyage-ready .entry-login { font-size: 19px; }
+  .entry-voyage-ready .entry-login-links button { font-size: 16px; }
+  .entry-voyage-ready .entry-login .entry-save { font-size: 14px; }
+}

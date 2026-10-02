@@ -15,7 +15,13 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-51';
+const version = 'tms273-55';
+const voyageRoot = path.join(root, 'resources/scenes/sky-voyage-v3');
+for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
+  const file = path.join(publicRoot, 'assets/entry', name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.copyFileSync(path.join(voyageRoot, source), file); invalidateCompressed(file);
+}
 // The reviewed east-village GLB and licensed dawn environment replace the old rail runtime.
 const eastRoot=path.join(root,'resources/scenes/chuxian-east-v1');
 fs.mkdirSync(path.join(publicRoot,'assets/henesys'),{recursive:true});
@@ -651,7 +657,7 @@ for(const url of urls) assertNoConflictCopyName(path.basename(url), `清单引�
   // 装配通过了却留着一份旧的失败清单，正是本项目反复吃亏的「自述 ≠ 事实」
   // （对照 metadata.json 的 contentVersion：只校验自述，就能让旧二进制贴上新清单上线）。
   // 因此不设「只在失败时写」——成功就必须把台账改写成空。
-  const ledger=path.join(root,'artifacts/tms273_assemble_missing.json');
+  const ledger=path.join(outputRoot,'artifacts/tms273_assemble_missing.json');
   write(ledger,{version,input:path.relative(root,input),checked:urls.size,missing,zeroByte});
   if(missing.length||zeroByte.length){
     const sections=[`全量清单已落盘：${path.relative(root,ledger)}`];
