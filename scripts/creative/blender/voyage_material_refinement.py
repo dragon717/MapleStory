@@ -84,8 +84,8 @@ PROTOTYPE_STYLE = {
     "BrassTrim": {"base_color": (0.66, 0.40, 0.12, 1.0), "roughness": 0.38, "metallic": 0.70},
     "NavyIron": {"base_color": (0.018, 0.042, 0.078, 1.0), "roughness": 0.55, "metallic": 0.45},
     "TealRibbon": {"base_color": (0.015, 0.22, 0.18, 1.0), "roughness": 0.44, "metallic": 0.18},
-    "JadeGlass": {"base_color": (0.012, 0.42, 0.22, 1.0), "roughness": 0.21, "metallic": 0.25},
-    "SapphireGlass": {"base_color": (0.012, 0.17, 0.48, 1.0), "roughness": 0.20, "metallic": 0.25},
+    "JadeGlass": {"base_color": (0.38, 0.86, 0.60, 1.0), "roughness": 0.08, "metallic": 0.0},
+    "SapphireGlass": {"base_color": (0.36, 0.65, 0.96, 1.0), "roughness": 0.08, "metallic": 0.0},
     # This is the final repair script's amber color, rather than the earlier
     # prototype draft value.  The transmission contract is the same for both.
     "AmberCrystal": {"base_color": (0.95, 0.20, 0.025, 1.0), "roughness": 0.075, "metallic": 0.0},
@@ -316,6 +316,18 @@ def _restore_hull_semantics(scene: Any, materials: dict[str, Any]) -> dict[str, 
     archive = _archive_object()
     if hull is None or hull.type != "MESH":
         return {"restored_faces": 0, "unmatched_faces": 0, "archive": "missing SV3_Hull"}
+    if hull.data.name.startswith("SV3_Hull_ExactOpenings"):
+        # Clipping has already propagated each source face label. Its new
+        # vertex IDs must never be compared with the original mesh's IDs.
+        for polygon in hull.data.polygons:
+            semantic = _semantic_from_material(hull.data.materials[polygon.material_index])
+            if semantic in materials:
+                polygon.material_index = _ensure_slot(hull.data, materials[semantic])
+        hull["material_restore_source"] = "BeforeRepair_SV3_Hull"
+        hull["material_restore_match"] = "source face label propagated through exact clipping"
+        hull["material_restore_faces"] = len(hull.data.polygons)
+        hull["material_restore_unmatched_faces"] = 0
+        return {"restored_faces": len(hull.data.polygons), "unmatched_faces": 0, "archive": "exact source-label clipping"}
     if archive is None or archive.type != "MESH":
         return {"restored_faces": 0, "unmatched_faces": len(hull.data.polygons), "archive": "missing BeforeRepair_SV3_Hull"}
 

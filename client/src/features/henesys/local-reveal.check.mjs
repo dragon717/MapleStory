@@ -28,6 +28,9 @@ for(let i=0;i<40;i++){
   assert.ok(strength>=old&&strength-old<.2,'fade in advances gradually');old=strength;
 }
 assert.equal(old,1);
+reveal.strength.value=0;
+reveal.update(foot,camera,1000,700,1,0,650);
+assert.equal(reveal.strength.value,1,'a reduced-motion frame still reveals a fully blocked body');
 const window=shader.uniforms.revealWindow.value.clone();
 for(const p of [foot,foot.clone().add(new T.Vector3(0,2.2,0))]){
   const projected=p.clone().project(camera);

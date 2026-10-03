@@ -9,7 +9,7 @@ const { build } = require('esbuild');
 const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root = path.resolve(import.meta.dirname, '../../../..');
 const publicRoot = process.env.MAPLE_PREVIEW_ASSETS || path.join(root,'client/public-tms273');
-const output = path.join(root, 'evidence/2026-10-03/voyage-deck-walk/flow');
+const output = process.env.MAPLE_ENTRY_EVIDENCE || path.join(root, 'evidence/2026-10-03/voyage-deck-walk/flow');
 await fs.mkdir(output, { recursive: true });
 await build({ stdin: { contents: `import './src/app/style.css'; import { EntryView } from './src/features/entry/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; const audio=installGameAudio(document.getElementById('welcome'),()=>undefined); window.__entryAudio=audio; const entry = new EntryView(document.getElementById('welcome'), async (session,ready) => { if(window.__failEntry)throw new Error('offline entry restoration check');if(!await ready())return;if(audio.entry.playing)throw new Error('entry music must stop when the world is ready');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
 const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
@@ -33,7 +33,7 @@ let creations = 0, selections = 0;
 // A character whose current equipped rows differ from the frozen creation
 // look: the selection/quick-start paper doll must render the equipped items
 // (cap 1002067, coat 1040002), not the creation longcoat 1050286.
-const swapCharacter = { id: 'preview-swap', name: '换装自检', level: 5, job: 0, appearance: { gender: 0, face: 20100, hair: 30000, skin: 0, coat: 1050286, pants: 0, shoes: 1072833, weapon: 1302000 }, equipped: [{ slot: 1, itemId: '1002067', quantity: 1 }, { slot: 5, itemId: '1040002', quantity: 1 }, { slot: 7, itemId: '1072833', quantity: 1 }, { slot: 11, itemId: '1302000', quantity: 1 }] };
+const swapCharacter = { id: 'preview-swap', name: '旅人', level: 5, job: 0, appearance: { gender: 0, face: 20100, hair: 30000, skin: 0, coat: 1050286, pants: 0, shoes: 1072833, weapon: 1302000 }, equipped: [{ slot: 1, itemId: '1002067', quantity: 1 }, { slot: 5, itemId: '1040002', quantity: 1 }, { slot: 7, itemId: '1072833', quantity: 1 }, { slot: 11, itemId: '1302000', quantity: 1 }] };
 characters.push(swapCharacter, ...Array.from({length:4}, (_,i)=>({...swapCharacter,id:`passenger-${i}`,name:`乘客${i}`})));
 await page.route('http://entry.test/**', async route => {
   const url = new URL(route.request().url());
@@ -63,6 +63,11 @@ try {
   await page.locator('.entry-voyage-ready').waitFor({timeout:60000});
   assert.equal(await page.locator('.entry-avatar').count(),0,'first login must not invent a player');
   assert.equal(await page.locator('.voyage-canvas').count(),1);
+  if(process.argv.includes('--visual-only')) {
+    const {captureVoyageVisuals}=await import('./voyage.visual.check.mjs');
+    await captureVoyageVisuals(page,output,errors);
+    assert.deepEqual(errors,[]);
+  } else {
   if(!process.argv.includes('--deck-only')) await page.screenshot({ path: path.join(output, 'login-desktop.png') });
   await page.locator('#username').fill('entry_check');
   await page.locator('#password').fill('entry-check-password');
@@ -76,15 +81,16 @@ try {
   assert.equal(await quickAvatar.locator('img[src*="01050286"]').count(), 0, 'quick-start preview must not fall back to the creation longcoat');
   const deckState = () => page.evaluate(() => { const v=window.__entry.voyage, d=v.deck, doll=v.passengers.root.getObjectByName('SV3_Passenger_preview-swap'); return { position:d.position.toArray(), spawn:d.spawn.toArray(), moving:d.moving, action:v.passengerAction('preview-swap'), cameraFacing:doll.quaternion.angleTo(v.ship.getWorldQuaternion(doll.quaternion.clone()).invert().multiply(v.camera.getWorldQuaternion(doll.quaternion.clone()))), keys:v.keys.size }; });
   await page.waitForFunction(()=>{const v=window.__entry.voyage,d=v.passengers.root.getObjectByName("SV3_Passenger_preview-swap");return d && d.quaternion.angleTo(v.ship.getWorldQuaternion(d.quaternion.clone()).invert().multiply(v.camera.getWorldQuaternion(d.quaternion.clone())))<.00001;});
+  await page.evaluate(()=>{const v=window.__entry.voyage;window.__cameraRayTimes=[];const original=v.avoidCameraSurface.bind(v);v.avoidCameraSurface=(...args)=>{const t=performance.now();try{return original(...args);}finally{window.__cameraRayTimes.push(performance.now()-t);}};});
   const beforeWalk = await deckState();
   assert(beforeWalk.position[1]>5.4 && beforeWalk.position[1]<5.5, 'feet stand on the actual hull surface');
   assert(beforeWalk.cameraFacing<.00001, 'passenger keeps the complete camera-facing foot plane');
   await page.evaluate(()=>{ const v=window.__entry.voyage; window.__renderClouds=v.clouds.render.bind(v.clouds); v.clouds.render=()=>{}; });
-  await page.keyboard.down('ArrowRight');
+  await page.keyboard.down('ArrowLeft');
   await page.waitForFunction(() => window.__entry.voyage.deck.moving, null, {timeout:10000});
   assert.equal((await deckState()).action,'walk');
   await page.waitForFunction(start => Math.hypot(...[0,2].map(i=>window.__entry.voyage.deck.position.toArray()[i]-start[i]))>.5, beforeWalk.position);
-  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('ArrowLeft');
   await page.waitForFunction(() => !window.__entry.voyage.passengers.deckMoving);
   assert.equal((await deckState()).action,'stand');
   const stopped = (await deckState()).position;
@@ -115,14 +121,14 @@ try {
     await page.evaluate(()=>{const v=window.__entry.voyage;v.cabinDeck.place(v.cabinDeck.position.clone().set(0,0,45.3));v.passengers.finishWake();v.exitArmed=true;v.updateActivity();});
     await page.keyboard.down('ArrowDown');await page.keyboard.down('ArrowRight');await page.locator('.entry-stage-channel').waitFor();await page.keyboard.up('ArrowDown');await page.keyboard.up('ArrowRight');console.log('Cabin portal returned to deck');
     await page.evaluate(()=>{const v=window.__entry.voyage;v.deck.place(v.deck.position.clone().set(6.5,5.445,-35));v.updateActivity();});await page.waitForFunction(()=>!document.querySelector('.voyage-adventure-shortcut').hidden);
-    await page.evaluate(()=>{const v=window.__entry.voyage;v.deck.place(v.deck.position.clone().set(6.5,5.445,20));v.updateActivity();});await page.waitForFunction(()=>!document.querySelector('.voyage-adventure').hidden);
+    await page.evaluate(()=>{const v=window.__entry.voyage;v.deck.place(v.deck.position.clone().set(2,5.445,7));v.updateActivity();});await page.waitForFunction(()=>!document.querySelector('.voyage-adventure').hidden);
     assert(await page.locator('.voyage-adventure').isEnabled(),'physical board remains clickable well beyond the old distance limit');
-    await page.screenshot({path:path.join(output,'captain-adventure.png')});
+    await page.screenshot({path:path.join(output,'deck-exterior.png')});
     const transmission=await page.evaluate(()=>{const v=window.__entry.voyage;const mats=[];v.model.traverse(o=>{for(const m of o.material?Array.isArray(o.material)?o.material:[o.material]:[]){if(m.name==='SV3_Prototype_SapphireGlass')mats.push({physical:m.isMeshPhysicalMaterial,transmission:m.transmission,ior:m.ior});}});document.querySelector('.entry-scene').style.visibility='hidden';v.camera.position.set(18,8.3,-21.2);v.camera.lookAt(10.8,8.15,-21.2);v.camera.updateMatrixWorld(true);v.clouds.render(v.renderer,v.scene,v.camera,v.sun);return mats;});
     assert(transmission.length&&transmission.every(m=>m.physical&&m.transmission>.93&&m.ior>1.45));await page.screenshot({path:path.join(output,'sapphire-transmission.png')});
     await page.evaluate(()=>{document.querySelector('.entry-scene').style.visibility='';window.__entry.voyage.updateActivity();});
     await page.locator('.voyage-adventure').click();await page.locator('#entered').waitFor({state:'visible'});assert.equal(selections,1);
-    assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline production WebGL and local cabin lifecycle; in-memory account replies',transmission,selections,creations,errors},null,2));console.log('Production ship/cabin walking, jump, camera, empty-bed creation, return and physical transmission passed');
+    const cameraRay=await page.evaluate(()=>{const a=window.__cameraRayTimes.sort((a,b)=>a-b);return{samples:a.length,medianMs:a[Math.floor(a.length*.5)],p95Ms:a[Math.floor(a.length*.95)],maxMs:a.at(-1)};});assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline production WebGL and local cabin lifecycle; in-memory account replies',transmission,cameraRay,selections,creations,errors},null,2));console.log('Camera collision ray CPU:',JSON.stringify(cameraRay));console.log('Production ship/cabin walking, jump, camera, empty-bed creation, return and physical transmission passed');
   } else   if(process.argv.includes('--deck-only')) { assert.deepEqual(errors,[]); await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline lobby geometry and keyboard input',beforeWalk,stopped,selections,errors},null,2)); console.log('Lobby upright feet, walking, skill isolation and blur checks passed'); } else {
   await page.locator('[data-action="channel"]').click();
   await artReady();
@@ -200,5 +206,6 @@ try {
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, mode: 'offline HTTP stubs; no live accounts or game server', creations, fit, errors }, null, 2));
   console.log('Entry offline flow, creation controls and responsive widths passed. Evidence:', output);
+  }
   }
 } finally { await browser.close(); }

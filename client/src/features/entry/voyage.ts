@@ -73,6 +73,8 @@ export class EntryVoyage {
   private pitch = .24;
   private yaw = 0;
   private zoom = 1.2;
+  private cameraRay = new T.Raycaster();
+  private cameraObstacles: T.Mesh[] = [];
   private drag?: { id: number; x: number; y: number };
   private deckCharacter?: string;
   private keys = new Set<string>();
@@ -245,6 +247,11 @@ export class EntryVoyage {
           if (anchor) this.loginSurface = { anchor, width: Number(anchor.userData.width), height: Number(anchor.userData.height) };
         }
       }
+      this.ship?.traverse(o => {
+        if (!(o instanceof T.Mesh)) return;
+        for (let parent:T.Object3D|null=o;parent;parent=parent.parent) if (['SV2_LoginSign','SV3_AdventureSign'].includes(parent.name) || parent.name.startsWith('SV3_Passenger_')) return;
+        if (!(Array.isArray(o.material) ? o.material : [o.material]).every(m => m.transparent || m instanceof T.MeshPhysicalMaterial && m.transmission > .5)) this.cameraObstacles.push(o);
+      });
       this.host.classList.add('entry-voyage-ready');
       this.showCabin(this.stage === 'characters' || this.stage === 'create'); this.ready(); this.resize(); this.updateActivity();
     };
@@ -364,6 +371,26 @@ export class EntryVoyage {
     cancelAnimationFrame(this.frame); this.previous = 0;
     if (!this.host.hidden && !document.hidden) this.frame = requestAnimationFrame(this.draw);
   }
+  private avoidCameraSurface(base:T.Vector3) {
+    if (!this.ship) return;
+    this.ship.updateWorldMatrix(true,true);
+    const direction=this.camera.position.clone().sub(base), distance=direction.length();direction.normalize();
+    // Body occluders retain the full-body reveal rule. Only the last two metres
+    // of the dolly are tested, preventing a wall from forcing a giant close-up.
+    const origin=base.clone().addScaledVector(direction,Math.max(0,distance-2));
+    this.cameraRay.set(origin,direction);this.cameraRay.far=3;
+    let nearest=Infinity;const small:T.Mesh[]=[];
+    for(const mesh of this.cameraObstacles) {
+      let visible=true;for(let p:T.Object3D|null=mesh;p;p=p.parent)if(!p.visible){visible=false;break;}
+      if(!visible)continue;
+      // Static hull tiles already exist for body reveal; cloth stays on its
+      // small current mesh so its animated buffers need no second tile cache.
+      if(mesh.geometry.attributes.position.count>10000 && this.reveal) nearest=Math.min(nearest,this.reveal.surfaceDistance(mesh,origin,direction,3)??Infinity);
+      else small.push(mesh);
+    }
+    nearest=Math.min(nearest,this.cameraRay.intersectObjects(small,false)[0]?.distance??Infinity);
+    if(nearest<3)this.camera.position.copy(base).addScaledVector(direction,Math.max(3,distance-2+nearest-1.5));
+  }
   private draw = (now: number) => {
     if (!this.alive || this.host.hidden || document.hidden) return;
     const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
@@ -415,11 +442,25 @@ export class EntryVoyage {
     if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship) {
       // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
       const base = this.ship.localToWorld(walkingDeck.position.clone());
-      base.y += Math.min(270, this.host.clientHeight * .3) / 45;
-      const distance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))) * this.zoom;
-      // Retain the authored starboard viewing side so the board is front-facing.
-      const yaw=Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2]) + this.yaw;
+      const room = this.ship.getObjectByName('SV3_CaptainRoom');
+      const bounds = room?.userData.interior_bounds;
+      const localFoot = room?.worldToLocal(base.clone());
+      const inCaptainRoom = this.stage === 'channel' && Array.isArray(bounds) && localFoot && new T.Box3(new T.Vector3(...bounds.slice(0,3)), new T.Vector3(...bounds.slice(3))).containsPoint(localFoot);
+      // Stay at character scale inside the room; the outdoor dolly crosses the main sail.
+      base.y += inCaptainRoom ? 1.1 : Math.min(270, this.host.clientHeight * .3) / 45;
+      const outdoorDistance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19)));
+      const distance = (inCaptainRoom ? 6.4 : outdoorDistance) * this.zoom;
+      // Retain the authored viewing side so both wall-mounted boards are front-facing.
+      const yaw=(inCaptainRoom ? -2.6 : Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2])) + this.yaw;
       this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw)*Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(yaw)*Math.cos(this.pitch)).multiplyScalar(distance));
+      if (inCaptainRoom && room) {
+        const eye = room.worldToLocal(this.camera.position.clone());
+        eye.x = T.MathUtils.clamp(eye.x, bounds[0] + .35, bounds[3] - .35);
+        eye.y = T.MathUtils.clamp(eye.y, bounds[1] + 1, bounds[4] - .35);
+        eye.z = T.MathUtils.clamp(eye.z, bounds[2] + .35, bounds[5] - .35);
+        this.camera.position.copy(room.localToWorld(eye));
+      }
+      if (this.stage === 'channel') this.avoidCameraSurface(base);
       aim.copy(base); fieldOfView=38;
 
     }
@@ -629,7 +670,7 @@ export class EntryVoyage {
     this.host.removeEventListener('pointerdown', this.cameraDown); this.host.removeEventListener('pointermove', this.cameraMove);
     this.host.removeEventListener('pointerup', this.cameraUp); this.host.removeEventListener('pointercancel', this.cameraUp);
     this.host.removeEventListener('wheel', this.cameraWheel); this.host.removeEventListener('contextmenu', this.contextMenu);
-    this.clearMovement(); this.deck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
+    this.cameraObstacles.length=0; this.clearMovement(); this.deck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
     this.reduced.removeEventListener('change', this.onMotion);
     this.passengers.destroy(); this.login.destroy(); this.clouds.destroy(); this.windowLight?.destroy(); this.water?.dispose(); dispose(this.scene); this.reflection.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.canvas.remove();
     this.host.classList.remove('entry-voyage-ready', 'voyage-travelling', 'voyage-login-visible');

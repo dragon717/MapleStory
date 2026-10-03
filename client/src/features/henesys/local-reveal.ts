@@ -132,11 +132,13 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
       this.blocked = [foot.clone().add(new T.Vector3(0, .15, 0)), head, middle.clone().add(side), middle.sub(side)].every(p => {
         this.ray.set(camera.position, p.clone().sub(camera.position).normalize());
         const distance = camera.position.distanceTo(p) - .05;
-        return this.candidates.some(o => {let p:T.Object3D|null=o.mesh;while(p){if(!p.visible)return false;p=p.parent;}return !!this.ray.intersectBox(o.bounds,this.hit)&&this.hit.distanceTo(camera.position)<distance&&this.intersects(o.mesh,o.instance,distance);});
+        return this.candidates.some(o => {let p:T.Object3D|null=o.mesh;while(p){if(!p.visible)return false;p=p.parent;}return !!this.ray.intersectBox(o.bounds,this.hit)&&this.hit.distanceTo(camera.position)<distance&&this.triangleDistance(o.mesh,o.instance,distance)!==undefined;});
       });
     }
     const target = this.blocked ? 1 : 0;
-    this.strength.value += (target - this.strength.value) * (1 - Math.exp(-Math.max(0, delta) / 90));
+    // A reduced-motion single frame has no advancing delta. Resolve its
+    // coverage immediately instead of leaving a fully hidden body invisible.
+    this.strength.value += (target - this.strength.value) * (delta > 0 ? 1 - Math.exp(-delta / 90) : 1);
     if (Math.abs(target - this.strength.value) < .002) this.strength.value = target;
     return changed;
   }
@@ -160,11 +162,17 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
     }
     return cached.tiles;
   }
-  private intersects(mesh:T.Mesh,instance:number|undefined,distance:number){
+  /** Reuse the same static triangle tiles for a short camera-clearance ray. */
+  surfaceDistance(mesh:T.Mesh,origin:T.Vector3,direction:T.Vector3,distance:number) {
+    this.ray.set(origin,direction);
+    return this.triangleDistance(mesh,undefined,distance,true);
+  }
+  private triangleDistance(mesh:T.Mesh,instance:number|undefined,distance:number,nearest=false){
     const geometry=mesh.geometry,p=geometry.getAttribute('position'),index=geometry.index,tiles=this.tiles(geometry);
     this.inverse.copy(mesh.matrixWorld);
     if(instance!==undefined){const m=new T.Matrix4();(mesh as T.InstancedMesh).getMatrixAt(instance,m);this.inverse.multiply(m);}
     const world=this.inverse.clone();this.localRay.copy(this.ray).applyMatrix4(this.inverse.invert());
+    let closest:number|undefined;
     for(const tile of tiles){
       if(!this.localRay.intersectBox(tile.bounds,this.hit))continue;
       for(const i of tile.triangles){
@@ -172,10 +180,16 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
         const material=Array.isArray(mesh.material)?mesh.material[geometry.groups.find(g=>i>=g.start&&i<g.start+g.count)?.materialIndex??0]:mesh.material;
         if(!material||!material.visible||material.transparent || material instanceof T.MeshPhysicalMaterial && material.transmission > .5)continue;
         const [a,b,c]=this.vertices;
-        if(this.localRay.intersectTriangle(material.side===T.BackSide?c:a,b,material.side===T.BackSide?a:c,material.side!==T.DoubleSide,this.hit)&&this.hit.applyMatrix4(world).distanceTo(this.ray.origin)<distance)return true;
+        if(this.localRay.intersectTriangle(material.side===T.BackSide?c:a,b,material.side===T.BackSide?a:c,material.side!==T.DoubleSide,this.hit)) {
+          const hitDistance=this.hit.applyMatrix4(world).distanceTo(this.ray.origin);
+          if(hitDistance<distance) {
+            if(!nearest)return hitDistance;
+            closest=Math.min(closest??Infinity,hitDistance);
+          }
+        }
       }
     }
-    return false;
+    return closest;
   }
 
   // Patched materials/textures are owned and disposed by HenesysView's model lifecycle.

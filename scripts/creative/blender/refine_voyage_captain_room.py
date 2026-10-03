@@ -60,33 +60,14 @@ for ids in components.values():
     if len(ids)>8:continue
     pts=[m.vertices[i].co for j in ids for i in m.polygons[j].vertices]
     if min(v.z for v in pts)>15 and max(v.z for v in pts)<20:fragments.update(ids)
-# Retain the curved authored roof. Remove only the shell faces inside the repaired room/door void.
-kept=[];roof_faces=[];removed_room=0
-for p in m.polygons:
-    c=p.center
-    room=abs(c.x)<5.05 and -18<c.y<0 and 5.46<c.z<8.35
-    door=4<c.x<7.0 and -14.5<c.y<-12 and 5.35<c.z<8.15
-    roof=abs(c.x)<5.1 and -18<c.y<0 and 8.35<=c.z<10.6
-    jewel=abs(c.x)>7.5 and any(((c.y-y)/(r*.87))**2+((c.z-z)/(r*.87))**2<1 for y,z,r in [(12,3.5,2.25),(21.2,8.15,3),(-30,8,2.9)])
-    if roof:roof_faces.append(p);continue
-    if p.index in fragments or room or door or jewel:
-        removed_room+=bool(room or door);continue
-    kept.append(p)
-new=bpy.data.meshes.new('SV3_Hull_CaptainOpening');new.from_pydata([v.co for v in m.vertices],[],[tuple(p.vertices) for p in kept]);new.update()
-for mat in m.materials:new.materials.append(mat)
-for layer in m.uv_layers:
-    dst=new.uv_layers.new(name=layer.name)
-    for p,old in zip(new.polygons,kept):
-        p.material_index=old.material_index;p.use_smooth=old.use_smooth
-        for a,b in zip(p.loop_indices,old.loop_indices):dst.data[a].uv=layer.data[b].uv
-hull.data=new;hull['captain_room_repair']='retained curved roof; real room floor and open doorway; static clipped rig fragments removed'
+# Preserve the source curved roof, UVs and interpolated normals; clip real voids.
+spec=importlib.util.spec_from_file_location('clip_voyage_hull',ROOT/'scripts/creative/blender/clip_voyage_hull.py');clip=importlib.util.module_from_spec(spec);spec.loader.exec_module(clip)
+hull.data,roof_data=clip.refine_hull(m,fragments)
+hull['captain_room_repair']='exact room/jewel openings; continuous paint boundaries; retained source UV and normals'
+removed_room=len(m.polygons)-len(hull.data.polygons)
 room=empty('SV3_CaptainRoom',bpy.data.objects['SV3_Exterior'])
-roof=mesh('SV3_CaptainRoof',[v.co for v in m.vertices],[tuple(p.vertices) for p in roof_faces],walnut,room)
+roof=bpy.data.objects.new('SV3_CaptainRoof',roof_data);scene.collection.objects.link(roof);roof.parent=room
 roof['cutaway_rooms']=room.name
-for layer in m.uv_layers:
-    dst=roof.data.uv_layers.get(layer.name) or roof.data.uv_layers.new(name=layer.name)
-    for p,q in zip(roof.data.polygons,roof_faces):
-        for a,b in zip(p.loop_indices,q.loop_indices):dst.data[a].uv=layer.data[b].uv
 room['interior_bounds']=[-4.8,5.3,0,4.8,8.6,18];room['lobby_walkable']=True
 floor=box('SV3_CaptainFloor',(0,-9,5.32),(9.6,18,.20),wood,room)
 box('SV3_CaptainDoorThreshold',(5.4,-13.25,5.32),(2.9,3.6,.20),wood,room)
@@ -141,7 +122,7 @@ for i in range(64):j=(i+1)%64;faces.append((i,j,j+64,i+64))
 mesh('SV3_CabinDeckPortal_Ring',verts,faces,brass,cabin)
 # Only enclosing room walls/roof use full room cutaway; rails keep normal partial occlusion.
 for o in room.children:
-    if o.name.startswith('SV3_CaptainWall_'):o['cutaway_rooms']=room.name
+    if o.name in ['SV3_CaptainWall_Port','SV3_CaptainWall_End_0']:o['cutaway_rooms']=room.name
 # Remove each opaque backing cap on the real gem settings; transmissive material remains opaque-pass physical glass.
 for o in scene.objects:
     if o.type!='MESH' or not o.name.startswith('SV3_Repaired_') or 'Setting_' not in o.name:continue
@@ -151,6 +132,24 @@ for o in scene.objects:
     for mat in old.materials:new.materials.append(mat)
     for p,q in zip(new.polygons,polys):p.material_index=q.material_index
     o.data=new;o['jewel_backing']='opaque brass cap removed; open transmissive cabochon'
+# Cover the precisely cut source boundary with a continuous open jewel collar.
+# Original fused brass/glass fragments cannot remain behind the new cabochon.
+for o in list(scene.objects):
+    if o.name.startswith('SV3_JewelCollar_'):remove_tree(o)
+for side in [-1,1]:
+    for label,y,z,r in [('Jade',12,3.5,2.25),('Sapphire',21.2,8.15,3),('Stern',-30,8,2.9)]:
+        rings=[(7.45,r*.82),(10.37,r*.82),(10.37,r*1.18),(9.6,r*1.18)]
+        verts=[];faces=[];count=96
+        for x,radius in rings:
+            for i in range(count):
+                a=i*math.tau/count;verts.append((side*x,y+radius*math.cos(a),z+radius*math.sin(a)))
+        for k in range(len(rings)-1):
+            for i in range(count):
+                j=(i+1)%count;f=(k*count+i,k*count+j,(k+1)*count+j,(k+1)*count+i)
+                faces.append(f if side==1 else tuple(reversed(f)))
+        collar=mesh('SV3_JewelCollar_'+label+'_'+str(side),verts,faces,brass,hull)
+        for p in collar.data.polygons:p.use_smooth=True
+        collar['jewel_open_collar']=True
 # Apply the independently reviewed material helper without touching geometry.
 spec=importlib.util.spec_from_file_location('voyage_material_refinement',ROOT/'scripts/creative/blender/voyage_material_refinement.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);module.refine_materials(scene)
 # Move and invert the same continuous image in global gore coordinates, never per-piece repetitions.
@@ -165,4 +164,4 @@ for o in scene.objects:o.select_set(o.type in {'MESH','EMPTY'})
 bpy.context.view_layer.objects.active=ship
 bpy.ops.file.pack_all();bpy.ops.wm.save_as_mainfile(filepath=str(DEST/'sky-voyage.blend'),compress=True)
 bpy.ops.export_scene.gltf(filepath=str(DEST/'sky-voyage.glb'),export_format='GLB',use_selection=True,use_active_scene=True,export_yup=True,export_extras=True,export_apply=False,export_animations=True)
-print('CAPTAIN_ROOM_REPAIR',json.dumps({'static_fragment_faces':len(fragments),'interior_shell_faces':removed_room,'door':[4.8,5.42,13.25],'adventure':[5.01,7,10.3]},ensure_ascii=False))
+print('CAPTAIN_ROOM_REPAIR',json.dumps({'static_fragment_faces':len(fragments),'source_hull_faces':len(m.polygons),'clipped_hull_faces':len(hull.data.polygons),'door':[4.8,5.42,13.25],'adventure':[5.01,7,10.3]},ensure_ascii=False))
