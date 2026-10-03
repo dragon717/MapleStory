@@ -22,7 +22,7 @@ const { chromium } = require('/Users/muniao/.cache/codex-runtimes/codex-primary-
 const root = path.resolve(import.meta.dirname, '../../../..');
 const output = await fs.mkdtemp(path.join(os.tmpdir(), 'client-actions-view-check-'));
 await build({
-  stdin: { contents: `import { ClientActionsView } from './src/features/client-actions/view'; new ClientActionsView(document.body, {});`, resolveDir: path.join(root, 'client'), loader: 'ts' },
+  stdin: { contents: `import { ClientActionsView } from './src/features/client-actions/view'; window.actions = new ClientActionsView(document.body, {});`, resolveDir: path.join(root, 'client'), loader: 'ts' },
   bundle: true, format: 'esm', outfile: path.join(output, 'view-check.js'), logLevel: 'silent',
 });
 
@@ -62,10 +62,30 @@ await page.route('http://client-actions.test/**', async route => {
 
 const update = () => page.locator('[data-role="update"]');
 const confirm = () => page.locator('[data-role="confirm"]');
+const expand = () => page.locator('.client-actions summary').click();
 
 try {
   await page.goto('http://client-actions.test/');
+  await page.locator('.client-actions summary').waitFor();
+  assert.equal(await update().isVisible(), false, '默认收起发布信息及操作，只保留展开入口');
+  await expand();
   await update().waitFor();
+  await page.locator('[data-role="download"]').click();
+  assert.equal(await page.locator('[data-role="downloads"]').isVisible(), true, '展开后下载入口仍可用');
+  await expand();
+  assert.equal(await update().isVisible(), false, '可再次收起');
+  await page.locator('.client-actions summary').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await update().isVisible(), true, '键盘可重新展开');
+  for (const [hour, theme, background] of [[12, 'day', 'rgba(255, 255, 255, 0.88)'], [22, 'night', 'rgba(0, 0, 0, 0.82)']]) {
+    await page.evaluate(hour => {
+      localStorage.setItem('chuxian-environment', JSON.stringify({ hour }));
+      window.actions.setVisible(false); window.actions.setVisible(true);
+    }, hour);
+    assert.equal(await page.locator('.client-actions').getAttribute('data-theme'), theme, '沿用现有环境昼夜设置');
+    assert.equal(await page.locator('.client-actions').evaluate(node => getComputedStyle(node).backgroundColor), background);
+  }
+  console.log('  ok  默认收起、鼠标/键盘重新展开、下载保留与现有昼夜黑白样式');
   assert.equal(await confirm().isVisible(), false, '未点击前不得显示确认面板');
 
   // ① 页面陈旧（服务端内容版本比本页新）：点「强制更新」必须
@@ -86,6 +106,7 @@ try {
 
   // ③ 回归：发布与本页兼容时，这条路径照旧可用。
   served = compatibleRelease;
+  await expand();
   await update().waitFor();
   await update().click();
   await confirm().waitFor({ state: 'visible', timeout: 15000 });
@@ -94,7 +115,7 @@ try {
   console.log('  ok  回归：兼容发布照旧可确认并重载');
 
   assert.deepEqual(pageErrors, [], '不得抛出未捕获错误');
-  console.log('\nclient-actions/view.browser.check: 3 组用户可见行为断言全部通过（离线 stub，无真实服务）');
+  console.log('\nclient-actions/view.browser.check: 折叠/主题与 3 组更新行为断言全部通过（离线 stub，无真实服务）');
 } finally {
   await browser.close();
   await fs.rm(output, { recursive: true, force: true });

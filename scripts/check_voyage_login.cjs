@@ -4,18 +4,19 @@ const root = path.resolve(__dirname, '..'), output = path.join(root, 'build/.che
 fs.mkdirSync(path.dirname(output), { recursive: true });
 createRequire(path.join(root, 'client/package.json'))('esbuild').buildSync({ stdin: { contents: "export * from './voyage-deck'; export * from './voyage-login'; export * from './voyage-passengers'; export { voyageOpeningPose } from './voyage'; export * as Three from 'three';", resolveDir: path.join(root, 'client/src/features/entry'), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: output, logLevel: 'silent' });
 const { Three: T, projectLoginSurface, loginSurfaceOccluded, VoyageLogin, voyageOpeningPose, VoyagePassengers, wakePose, VoyageDeck } = require(output);
-// The lobby follows authored centre lines and still queries the real surface/rails.
+// The lobby follows visible floor support and real rails, without invisible lane restrictions.
 const deckShip=new T.Group(),hull=new T.Group();hull.name='SV3_Hull';deckShip.add(hull);
 const floor=new T.Mesh(new T.BoxGeometry(20,.2,50),new T.MeshBasicMaterial());floor.position.set(0,6,0);hull.add(floor);
 const rail=new T.Mesh(new T.BoxGeometry(4,2,.2),new T.MeshBasicMaterial());rail.position.set(6.5,7,16);hull.add(rail);
 const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(6.5,12,30);walkCamera.lookAt(6.5,6,0);
 const deck=new VoyageDeck(deckShip);assert(Math.abs(deck.position.y-6.125)<.00001);
-deck.update(.05,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray(),'sideways input cannot leave the authored lane');
-for(let i=0;i<100;i++)deck.update(.05,0,1,walkCamera,deckShip);assert(deck.position.z<15.7,'torso cannot cross a rail');
-deck.reset();for(let i=0;i<400&&deck.position.z>-8;i++)deck.update(.05,0,-1,walkCamera,deckShip);
-deck.update(.05,0,0,walkCamera,deckShip);for(let i=0;i<150;i++)deck.update(.05,-1,0,walkCamera,deckShip);assert.equal(deck.position.x,-6.5,'junction reaches the other deck lane');assert.equal(deck.position.z,-8);
-deck.update(.05,0,1,walkCamera,deckShip);assert(deck.moving&&deck.position.z>-8,'release/repress chooses the left lane');
+deck.update(.05,1,0,walkCamera,deckShip);assert(deck.position.x>deck.spawn.x,'visible sideways deck floor is walkable');
+deck.reset();for(let i=0;i<100;i++)deck.update(.05,0,1,walkCamera,deckShip);assert(deck.position.z<15.7,'torso cannot cross a rail');
+deck.reset();for(let i=0;i<130;i++)deck.update(.05,1,0,walkCamera,deckShip);assert(deck.position.x<9.8,'all five foot samples must remain on actual floor');
 deck.reset();deck.update(.05,1,1,walkCamera,deckShip);assert(Math.abs(deck.position.distanceTo(deck.spawn)-.15)<.00001,'diagonal movement cannot speed up');
+const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');
+for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert.equal(deck.position.y,landing);assert(!deck.jumping,'jump lands on the same actual deck');
+deck.reset();walkCamera.position.set(20,12,30);walkCamera.lookAt(0,6,0);walkCamera.updateMatrixWorld(true);deck.update(.05,1,0,walkCamera,deckShip);const face=deck.facing;deck.update(.05,-1,0,walkCamera,deckShip);assert.equal(deck.facing,-face,'body reverses with actual projected movement');
 deckShip.position.set(40,10,90);deckShip.rotation.y=.7;deckShip.updateMatrixWorld(true);deck.reset();deck.update(.05,0,-1,walkCamera,deckShip);assert(deck.moving,'ship movement cannot detach local collision');
 deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
 deck.destroy();floor.geometry.dispose();floor.material.dispose();rail.geometry.dispose();rail.material.dispose();
@@ -27,7 +28,7 @@ for (let i = 1; i <= 2400; i++) {
   assert(pose.eye.distanceTo(previousPose.eye) < 1.2 && pose.aim.distanceTo(previousPose.aim) < .7, 'continuous one-take path cannot jump');
   previousPose = pose;
 }
-assert.deepEqual(previousPose.eye.toArray(), [25, 14, 11]);
+assert(previousPose.eye.distanceTo(new T.Vector3(.1,7.2,9))<1e-10);
 assert(voyageOpeningPose(.9999).eye.distanceTo(previousPose.eye) < .00001, 'the final approach settles without a snap');
 const viewport = { width: 1440, height: 900 }, pixels = { width: 430, height: 360 };
 const camera = new T.PerspectiveCamera(46, viewport.width / viewport.height, 1, 1000);
@@ -111,7 +112,8 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
     }
   }
   assert.equal(wakePose(1, .7).action, 'sit'); assert.equal(wakePose(2, .6).action, 'jump');
-  const passengers = new VoyagePassengers(() => {}), model = new T.Group(); passengers.attach(model);
+  let clockTime=0;
+  const passengers = new VoyagePassengers(() => {},()=>clockTime), model = new T.Group(); passengers.attach(model);
   const deckDoll={group:new T.Group(),mesh:new T.Mesh(new T.PlaneGeometry(1,1,1,10),new T.MeshStandardMaterial()),zz:new T.Sprite()};
   deckDoll.group.add(deckDoll.mesh); passengers.root.add(deckDoll.group); passengers.dolls.set('a',deckDoll);
   passengers.setSlots(['a','b'],'a','channel',0); passengers.deckPosition.set(6,5.442377,12); passengers.deckMoving=true;
@@ -137,12 +139,24 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   await passengers.setFrame('a',[{...part,x:-80,width:160}],{left:-80,top:-64,right:80,bottom:4});
   assert(released&&doll.texture!==texture,'a genuinely new appearance reallocates the texture safely');
   passengers.setSlots([],undefined,'login',0);
-  delete global.document;delete global.Image;
+
   passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
   passengers.update(.4, false, model, camera, 0);
   const wake = { ...passengers.wake };
   passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
   assert.deepEqual(passengers.wake, wake, 'rerenders cannot restart or randomize the same selection');
+  // Local return animation cannot outlive selection, its 3-second deadline or the view.
+  await passengers.setFrame('a',[part],bounds);await passengers.setFrame('b',[part],bounds);
+  passengers.finishWake();passengers.deckPosition.set(-10,0,35);passengers.update(.1,false,model,camera,0);
+  passengers.setSlots(['a','b'],'b','characters',0);assert(passengers.returning.has('a'));assert.equal(passengers.action('a'),'walk');
+  passengers.update(2.7,false,model,camera,0);assert(passengers.returning.has('a'),'long walk stays local until requested deadline');
+  clockTime=3001;passengers.update(.02,false,model,camera,0);assert(!passengers.returning.has('a')&&passengers.sleeping('a'),'3 seconds always returns the correct identity to its bed');
+  passengers.finishWake();passengers.deckPosition.set(5,0,39);passengers.update(.1,false,model,camera,0);
+  passengers.setSlots(['a','b'],'a','characters',0);assert(passengers.returning.has('b'));
+  passengers.setSlots(['a','b'],'b','characters',0);assert(!passengers.returning.has('b'),'selecting a returning character cancels its old return');
+  clockTime+=4000;passengers.update(.01,false,model,camera,0);assert(!passengers.returning.has('a'),'a clamped resume frame still enforces real elapsed deadline');
+  passengers.setSlots(['a','b'],'b','channel',0);assert.equal(passengers.returning.size,0,'leaving the cabin cancels returns');
+  passengers.setSlots(['a','b'],'a','characters',0);
   const departureBook = new T.Group(); departureBook.name = 'SV3_DepartureBook';
   const departurePage = new T.Group(); departurePage.name = 'SV3_BookPage'; departureBook.add(departurePage);
   const departureMesh = new T.Mesh(new T.BoxGeometry(.4, .06, .6), new T.MeshBasicMaterial()); departurePage.add(departureMesh);
@@ -152,15 +166,18 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   passengers.setBook(departureBook, departureClip);
   const cancelled = passengers.depart(); passengers.setSlots(['a', 'b'], 'b', 'characters', 0);
   assert.equal(await cancelled, false); assert(!model.getObjectByName('SV3_DepartureBook'));
-  assert.equal(passengers.wake.seconds, 0); assert(passengers.sleeping('a') && !passengers.sleeping('b'));
+  assert.equal(passengers.wake.seconds, 0); assert(passengers.returning.has('a') && !passengers.sleeping('b'));
   passengers.setSlots(['a', 'b'], 'a', 'characters', 0);
   const completed = passengers.depart();
   assert.equal(departureBook.parent, passengers.root, 'a cancelled book can be attached again');
   passengers.update(.5, false, model, camera, 0);
   assert(departurePage.position.y > 0, 'replayed departure drives the supplied animation clip');
+  const towardDoll=passengers.dolls.get('a').group.position.clone().sub(departureBook.position);towardDoll.y=0;towardDoll.normalize();
+  const pagesNormal=new T.Vector3(0,0,1).applyQuaternion(departureBook.quaternion);assert(pagesNormal.dot(towardDoll)>.98,'readable page normal faces the character while the existing animation runs');
   for (let i = 0; i < 17; i++) passengers.update(.1, false, model, camera, 0);
   assert.equal(await completed, true, 'a normal-length clip resolves departure at its authored duration');
   const destroyed = passengers.depart(); passengers.destroy();
   assert.equal(await destroyed, false); assert.equal(model.children.length, 0);
+  delete global.document;delete global.Image;
   console.log('Wake variants, stable selection, departure cancellation/reduced motion/disposal passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

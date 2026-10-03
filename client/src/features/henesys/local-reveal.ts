@@ -35,7 +35,7 @@ export class LocalReveal {
       let parent: T.Object3D | null = o, layer;
       while (parent && !layer) { layer = parent.userData.layer; parent = parent.parent; }
       if (eligible ? !eligible(o) : !['buildings', 'props', 'vegetation'].includes(layer) && !o.userData.island_binding && !o.userData.edge_id && !o.userData.bridge_edge) return;
-      if ((Array.isArray(o.material)?o.material:[o.material]).every(m=>m.transparent)) return;
+      if ((Array.isArray(o.material)?o.material:[o.material]).every(m=>m.transparent || m instanceof T.MeshPhysicalMaterial && m.transmission > .5)) return;
       if (o instanceof T.InstancedMesh) {
         o.geometry.computeBoundingBox();
         const matrix = new T.Matrix4();
@@ -170,7 +170,7 @@ if (gl_FragCoord.z < revealDepth && reveal > coverage) discard;`);
       for(const i of tile.triangles){
         for(let j=0;j<3;j++)this.vertices[j].fromBufferAttribute(p,index?index.getX(i+j):i+j);
         const material=Array.isArray(mesh.material)?mesh.material[geometry.groups.find(g=>i>=g.start&&i<g.start+g.count)?.materialIndex??0]:mesh.material;
-        if(!material||!material.visible||material.transparent)continue;
+        if(!material||!material.visible||material.transparent || material instanceof T.MeshPhysicalMaterial && material.transmission > .5)continue;
         const [a,b,c]=this.vertices;
         if(this.localRay.intersectTriangle(material.side===T.BackSide?c:a,b,material.side===T.BackSide?a:c,material.side!==T.DoubleSide,this.hit)&&this.hit.applyMatrix4(world).distanceTo(this.ray.origin)<distance)return true;
       }

@@ -2,7 +2,7 @@
 //!
 //! 骑乘与否、骑的是哪只、快多少，全部是服务端事实：本视图只显示最近的
 //! `PlayerState`，并沿用既有 `useItem` + 负槽号意图。一级装备窗只负责
-//! 打开这里，骑乘/下马由本管理窗执行。
+//! 打开这里，骑乘/解除骑乘由本管理窗执行。
 
 import type { ClientMessage, InventoryItem, PlayerState } from '../../../../shared/protocol';
 import type { AssetFrame, Manifest } from '../../assets/manifest';
@@ -196,7 +196,7 @@ export class MountStatusView {
         ? `${this.t('骑乘中', 'Riding')}：${name}${speed}`
         : `${this.t('已装备', 'Equipped')}：${name}`;
       this.managerAction.hidden = false;
-      this.managerAction.textContent = target.riding ? this.t('下马', 'Dismount') : this.t('骑乘', 'Ride');
+      this.managerAction.textContent = target.riding ? this.t('解除骑乘', 'Dismount') : this.t('骑乘', 'Ride');
       this.managerAction.setAttribute('aria-label', this.managerAction.textContent);
     }
     this.managerEquipment.replaceChildren();
@@ -209,7 +209,7 @@ export class MountStatusView {
       for (const item of this.equipped) this.renderEquipmentRow(item, target);
     }
     this.managerHint.textContent = target
-      ? this.t('骑乘和下马在此管理，装备变化会同步角色状态。', 'Ride and dismount here; equipment changes stay in sync with the character.')
+      ? this.t('骑乘和解除骑乘在此管理，装备变化会同步角色状态。', 'Ride and dismount here; equipment changes stay in sync with the character.')
       : this.t('请先在装备窗装备可骑乘的骑宠。', 'Equip a rideable mount in the equipment window first.');
   }
 
@@ -304,7 +304,7 @@ export class MountStatusView {
     return this.toggle(target);
   }
 
-  /** 上下马：与 KeyR 和管理窗按钮共用既有 `useItem` + 负槽号。 */
+  /** 骑乘/解除骑乘：与 KeyR 和管理窗按钮共用既有 `useItem` + 负槽号。 */
   private toggle(target: MountToggleTarget): boolean {
     const requestId = this.requestId();
     if (!this.send({
@@ -317,7 +317,7 @@ export class MountStatusView {
       this.status(this.t('骑乘操作需要保持在线。', 'Riding actions require an online connection.'));
       return false;
     }
-    this.status(this.t('正在' + (target.riding ? '下马' : '骑乘') + '…', (target.riding ? 'Dismounting' : 'Mounting') + '…'));
+    this.status(this.t('正在' + (target.riding ? '解除骑乘' : '骑乘') + '…', (target.riding ? 'Dismounting' : 'Mounting') + '…'));
     return true;
   }
 

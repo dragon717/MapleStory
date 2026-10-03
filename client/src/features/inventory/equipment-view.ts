@@ -43,7 +43,7 @@ export interface EquipmentHost {
   unequip(item: InventoryItem): void;
   /** 打开装备窗里的二级宠物管理。 */
   openPet?: () => void;
-  /** 打开装备窗里的二级坐骑管理；坐骑窗负责骑乘/下马。 */
+  /** 打开装备窗里的二级坐骑管理；坐骑窗负责骑乘/解除骑乘。 */
   openMount?: () => void;
   /** 二级坐骑窗尚未接线时的兼容出口，生产接线后骑乘统一走管理窗。 */
   useItem(sourceTab: number, sourceSlot: number, item: InventoryItem): void;
@@ -172,7 +172,7 @@ export class EquipmentView {
           ? t('对 ' + itemName(item.itemId) + ' 使用卷轴', 'Use the scroll on ' + itemName(item.itemId))
             : isMountItem(item.itemId)
             ? riding
-              ? t('已装备 ' + itemName(item.itemId) + '（打开坐骑管理窗下马，右键卸下）', itemName(item.itemId) + ' (open Mount Manager to dismount, right-click to unequip)')
+              ? t('已装备 ' + itemName(item.itemId) + '（打开坐骑管理窗解除骑乘，右键卸下）', itemName(item.itemId) + ' (open Mount Manager to dismount, right-click to unequip)')
               : t('已装备 ' + itemName(item.itemId) + '（打开坐骑管理窗骑乘，右键卸下）', itemName(item.itemId) + ' (open Mount Manager to ride, right-click to unequip)')
             : t('已装备 ' + itemName(item.itemId) + '（双击卸下）', itemName(item.itemId) + ' equipped (double-click to unequip)'));
         const frame = this.host.itemFrame(item.itemId);

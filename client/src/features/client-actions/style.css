@@ -3,23 +3,49 @@
    游戏模式（body.game-mode）下隐藏：更新按钮不该打断正在进行的输入与提交。 */
 
 .client-actions {
+  --actions-background: rgba(255, 255, 255, 0.88);
+  --actions-text: #20252b;
+  --actions-border: rgba(0, 0, 0, 0.18);
+  --actions-button: rgba(0, 0, 0, 0.04);
+  --actions-hover: rgba(0, 0, 0, 0.09);
+  --actions-link: #12608f;
+  --actions-error: #a52d25;
   position: fixed;
   right: max(12px, env(safe-area-inset-right));
   bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 40;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-end;
   max-width: min(340px, calc(100vw - 24px));
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(12, 18, 30, 0.72);
-  color: #f2f4f8;
+  background: var(--actions-background);
+  color: var(--actions-text);
   font-size: 12px;
   line-height: 1.5;
   backdrop-filter: blur(6px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.client-actions[data-theme="night"] {
+  --actions-background: rgba(0, 0, 0, 0.82);
+  --actions-text: #f2f4f8;
+  --actions-border: rgba(255, 255, 255, 0.28);
+  --actions-button: rgba(255, 255, 255, 0.12);
+  --actions-hover: rgba(255, 255, 255, 0.2);
+  --actions-link: #9fdcff;
+  --actions-error: #ffc9c2;
+}
+
+.client-actions summary {
+  cursor: pointer;
+  text-align: right;
+}
+
+.client-actions-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 8px;
 }
 
 .client-actions[hidden] {
@@ -32,7 +58,7 @@
   gap: 4px 10px;
   align-items: baseline;
   margin: 0;
-  color: rgba(242, 244, 248, 0.82);
+  color: inherit;
 }
 
 /* 中文标签的「最小内容宽度」只有一个字，flex 收缩会把它拆成「当前发 / 布：」
@@ -78,19 +104,20 @@
 
 .client-actions button {
   padding: 5px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--actions-border);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--actions-button);
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
 
 .client-actions button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--actions-hover);
 }
 
-.client-actions button:focus-visible {
+.client-actions button:focus-visible,
+.client-actions summary:focus-visible {
   outline: 2px solid #8fd0ff;
   outline-offset: 1px;
 }
@@ -104,12 +131,12 @@
   margin: 0;
   min-height: 1.5em;
   text-align: right;
-  color: rgba(242, 244, 248, 0.88);
+  color: inherit;
   word-break: break-word;
 }
 
 .client-actions-status.error {
-  color: #ffc9c2;
+  color: var(--actions-error);
 }
 
 .client-actions-confirm {
@@ -148,7 +175,7 @@
 }
 
 .client-actions-downloads a {
-  color: #9fdcff;
+  color: var(--actions-link);
   text-decoration: none;
   font-weight: 600;
 }
@@ -170,7 +197,8 @@
 .client-actions-meta,
 .client-actions-note {
   display: block;
-  color: rgba(242, 244, 248, 0.72);
+  color: inherit;
+  opacity: 0.72;
   font-size: 11px;
 }
 
@@ -182,9 +210,11 @@ body.game-mode .client-actions {
 
 @media (max-width: 640px) {
   .client-actions {
-    left: max(12px, env(safe-area-inset-left));
+    max-width: calc(100vw - 24px);
+  }
+
+  .client-actions-content {
     align-items: stretch;
-    max-width: none;
   }
 
   .client-actions-row,

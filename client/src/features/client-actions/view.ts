@@ -17,6 +17,7 @@
 
 import { uiText, uiLocale } from '../../app/i18n';
 import { fetchClientRelease, type ClientRelease } from '../../platform/runtime-config';
+import { environmentLight, loadEnvironment } from '../henesys/environment-settings';
 import {
   detectPlatform, normalizeDesktopReleases, releaseFor,
   type DesktopPlatform, type DesktopRelease,
@@ -84,6 +85,9 @@ export class ClientActionsView {
     this.root.id = 'client-actions';
     this.root.hidden = false;
     this.root.innerHTML = `
+<details>
+<summary>${uiText('clientActions')}</summary>
+<div class="client-actions-content">
 <p class="client-actions-version"><span class="client-actions-label">${uiText('clientVersion')}</span><strong data-role="version">—</strong><span class="client-actions-resource"><span class="client-actions-label">${uiText('clientResource')}</span><em data-role="resource">${uiText('clientResourceNone')}</em></span></p>
 <div class="client-actions-row">
   <button type="button" data-role="update" title="${uiText('clientUpdateHint')}">${uiText('clientUpdate')}</button>
@@ -97,8 +101,10 @@ export class ClientActionsView {
     <button type="button" data-role="cancel">${uiText('clientCancel')}</button>
   </div>
 </div>
-<div class="client-actions-downloads" data-role="downloads" hidden aria-label="${uiText('clientDownloadTitle')}"></div>`;
+<div class="client-actions-downloads" data-role="downloads" hidden aria-label="${uiText('clientDownloadTitle')}"></div>
+</div></details>`;
     host.append(this.root);
+    this.setVisible(true);
 
     const pick = <T extends HTMLElement>(role: string): T =>
       this.root.querySelector<T>(`[data-role="${role}"]`)!;
@@ -141,6 +147,7 @@ export class ClientActionsView {
   /** 进入频道 / 创角 / 游戏时隐藏；回到登录首页再显示（v3 §6.1）。 */
   setVisible(visible: boolean) {
     this.root.hidden = !visible;
+    if (visible) this.root.dataset.theme = environmentLight(loadEnvironment()).daylight > .5 ? 'day' : 'night';
     if (!visible) { this.confirm.hidden = true; this.downloads.hidden = true; }
   }
 

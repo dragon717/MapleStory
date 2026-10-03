@@ -131,7 +131,7 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   // 坐骑（第 30 项）：开关的两种结果 + 八种拒绝。拒绝码由服务端在**会话状态**
   // 判据里给出，每一个都点明真实原因，不合并成一句「无法操作」。
   mount_on: { zh: '已骑乘', en: 'Mounted' },
-  mount_off: { zh: '已下马', en: 'Dismounted' },
+  mount_off: { zh: '已解除骑乘', en: 'Dismounted' },
   no_mount_equipped: { zh: '装备栏里没有可骑乘的坐骑', en: 'No rideable mount is equipped' },
   mount_no_ride_stats: { zh: '这只坐骑在源里没有已核定的骑乘数值，无法骑乘', en: 'This mount has no verified ride data in the source, so it cannot be ridden' },
   mount_mismatch: { zh: '装备栏里的坐骑已经变了，请重试', en: 'The equipped mount changed; try again' },
@@ -147,7 +147,7 @@ const PROTOCOL_ERRORS: Readonly<Record<string, Readonly<Record<UiLocale, string>
   chair_mismatch: { zh: '这一格的椅子已经变了，请重试', en: 'The chair in that slot changed; try again' },
   not_a_chair: { zh: '这个装饰品不能坐', en: 'That setup item cannot be sat on' },
   chair_dead: { zh: '死亡状态无法坐下', en: 'Cannot sit while dead' },
-  chair_mounted: { zh: '请先下马再坐下', en: 'Dismount before sitting' },
+  chair_mounted: { zh: '请先解除骑乘再坐下', en: 'Dismount before sitting' },
   chair_unsupported: { zh: '只有站在地面上才能坐下', en: 'Sit on the ground, not mid-air or on a rope' },
   // 骑乘与坐姿是会话状态：没有可落库的字段，走到持久化事务里就是调用方绕过了
   // 世界侧。给一个具名原因，而不是复用「栏位非法」（设置栏与装备槽都是合法栏位）。
@@ -332,6 +332,7 @@ const MENU_ENTRY_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>
  *  按钮名字按功能命名，不使用源素材烘焙过的标签；桌面包未发布时如实说
  *  「准备中」，不给出占位链接。 */
 const CLIENT_ACTION_TEXT: Readonly<Record<string, Readonly<Record<UiLocale, string>>>> = Object.freeze({
+  clientActions: { zh: '版本与下载', en: 'Version & downloads' },
   clientUpdate: { zh: '强制更新', en: 'Force update' },
   clientUpdateHint: { zh: '联网检查最新发布，并重新装载页面与资源清单', en: 'Check the newest release, then reload the page and manifests' },
   clientDownload: { zh: '下载桌面客户端', en: 'Download desktop client' },

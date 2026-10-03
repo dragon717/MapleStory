@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { voyageScreenFacing } from './voyage-deck';
 import type { Part } from '../../assets/avatar-types';
 import { resolveAssetUrl } from '../../assets/resource-url';
 
@@ -21,6 +22,12 @@ export class VoyagePassengers {
   private images = new Map<string, Promise<HTMLImageElement>>();
   private ids: string[] = [];
   private selected?: string;
+  private returning = new Map<string, { from: T.Vector3; previous: T.Vector3; seconds: number; deadline: number; facing: number }>();
+  get hasReturning() { return this.returning.size > 0; }
+  location(id: string) { return this.dolls.get(id)?.group.position.clone(); }
+  get waking() { return wakePose(this.wake.variant, this.wake.seconds).progress < 1; }
+  finishWake() { this.wake.seconds = 10; }
+
   private stage = 'login';
   private page = 0;
   private wake = { variant: 0, seconds: 10 };
@@ -31,17 +38,26 @@ export class VoyagePassengers {
   private alive = true;
   deckPosition = new T.Vector3(6, 5.44, 12);
   deckMoving = false;
+  deckJumping = false;
   deckFacing = 1;
-  constructor(private changed: () => void) { this.root.name = 'SV3_Passengers'; }
+  constructor(private changed: () => void, private clock: () => number = () => performance.now()) { this.root.name = 'SV3_Passengers'; }
   attach(ship: T.Object3D) { ship.add(this.root); }
   setSlots(ids: string[], selected: string | undefined, stage: string, page: number) {
-    if (selected !== this.selected || (stage === 'characters' && this.stage !== stage)) this.wake = { variant: Math.floor(Math.random() * 3), seconds: 0 };
+    if (selected !== this.selected) {
+      if (this.selected && this.stage === 'characters') {
+        const from = this.location(this.selected);
+        if (from) this.returning.set(this.selected, { from, previous: from.clone(), seconds: 0, deadline: this.clock()+3000, facing: 1 });
+      }
+      const returning = selected && this.returning.delete(selected);
+      this.wake = { variant: Math.floor(Math.random() * 3), seconds: returning ? 10 : 0 };
+    }
+    if (stage !== 'characters') this.returning.clear();
     if (stage !== this.stage || selected !== this.selected) this.cancelDeparture();
     this.ids = ids; this.selected = selected; this.stage = stage; this.page = page;
     for (const [id, doll] of this.dolls) if (!ids.includes(id) && id !== 'draft') { this.disposeDoll(doll); this.dolls.delete(id); }
   }
-  action(id: string) { if (this.stage === 'channel' && id === this.selected) return this.deckMoving ? 'walk' : 'stand'; return id === this.selected ? wakePose(this.wake.variant, this.wake.seconds).action : 'stand'; }
-  sleeping(id: string) { return this.stage === 'characters' && id !== this.selected; }
+  action(id: string) { if ((this.stage === 'channel' || this.stage === 'characters' && !this.waking) && id === this.selected) return this.deckJumping ? 'jump' : this.deckMoving ? 'walk' : 'stand'; if (this.returning.has(id)) return 'walk'; return id === this.selected ? wakePose(this.wake.variant, this.wake.seconds).action : 'stand'; }
+  sleeping(id: string) { return this.stage === 'characters' && id !== this.selected && !this.returning.has(id); }
   async setFrame(id: string, parts: Part[], bounds?: DollBounds) {
     if (!parts.length || !this.alive) return;
     if (this.sleeping(id)) parts = parts.filter(p => !('part' in p) || p.part !== 'weapon');
@@ -92,8 +108,10 @@ export class VoyagePassengers {
       if (this.departure.seconds >= (this.bookClip?.duration ?? 2.1)) { this.departure.settled = true; this.departure.resolve(true); }
     }
     for (const [id, doll] of this.dolls) {
-      const index = this.ids.indexOf(id), sleeping = this.sleeping(id), selected = id === this.selected;
-      const onDeck = this.stage === 'channel' && selected;
+      const index = this.ids.indexOf(id), selected = id === this.selected;
+      let sleeping = this.sleeping(id);
+      const onDeck = selected && (this.stage === 'channel' || this.stage === 'characters' && !this.waking);
+      let returning = this.returning.get(id);
       doll.group.visible = onDeck || (this.stage === 'characters' && index >= 0) || (this.stage === 'create' && id === 'draft');
       doll.zz.visible = doll.group.visible && sleeping;
       if (!doll.group.visible) continue;
@@ -110,6 +128,26 @@ export class VoyagePassengers {
         doll.group.quaternion.slerp(facing, pose.progress);
         doll.group.rotateZ(pose.roll);
       }
+      if (returning) {
+        returning.seconds += Math.max(0, delta);
+        // Walk through the clear aisle; the user-requested deadline guarantees a sleeping bed by 3 s.
+        const waypoints = [returning.from, new T.Vector3(returning.from.x, .025, 47), new T.Vector3(feet.x + .75, .025, 47), new T.Vector3(feet.x + .75, .025, feet.z + .2)];
+        const length=waypoints.slice(1).reduce((sum,p,i)=>sum+p.distanceTo(waypoints[i]),0);
+        const elapsed=Math.max(returning.seconds,(this.clock()-(returning.deadline-3000))/1000);
+        let distance = Math.min(elapsed, 3) * Math.max(3,length/3);
+        doll.group.position.copy(waypoints[0]);
+        for (let i=1;i<waypoints.length;i++) {
+          const length=waypoints[i].distanceTo(waypoints[i-1]);
+          doll.group.position.lerpVectors(waypoints[i-1],waypoints[i],length ? Math.min(1,distance/length) : 1);
+          if(distance<length)break; distance-=length;
+        }
+        doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
+        returning.facing = voyageScreenFacing(returning.previous, doll.group.position, this.root, camera, returning.facing);
+        returning.previous.copy(doll.group.position); doll.group.scale.x = returning.facing;
+        if (this.clock() >= returning.deadline || doll.group.position.distanceTo(waypoints[3]) < .04) {
+          this.returning.delete(id); doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI/2,0,0); doll.group.scale.setScalar(1); doll.zz.visible=true; sleeping=true; returning=undefined;
+        }
+      }
       if (onDeck || id === 'draft') {
         if (onDeck) doll.group.position.copy(this.deckPosition); else doll.group.position.set(0, .025, 38.8);
         doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
@@ -117,14 +155,17 @@ export class VoyagePassengers {
       }
       const vertices = doll.mesh.geometry.attributes.position;
       // Keep the body under the quilt's low folds while the head rests above the pillow.
-      for (let i = 0; i < vertices.count; i++) vertices.setZ(i, (-.16 + ease((vertices.getY(i) + .1) / .5) * .35) * (onDeck || id === 'draft' ? 0 : sleeping ? 1 : 1 - pose.progress));
+      for (let i = 0; i < vertices.count; i++) vertices.setZ(i, (-.16 + ease((vertices.getY(i) + .1) / .5) * .35) * (onDeck || returning || id === 'draft' ? 0 : sleeping ? 1 : 1 - pose.progress));
       vertices.needsUpdate = true;
       doll.zz.position.copy(sleep).add(new T.Vector3(.5, .7 + Math.sin(now * .0015) * .08, -.6));
       if (selected && this.departure && this.book) {
         const t = this.departure.seconds;
         this.book.position.copy(feet).add(new T.Vector3(.7, .8, 1.8));
         if (onDeck) this.book.position.copy(this.deckPosition).add(new T.Vector3(.6, .86, 1.5));
-        this.book.scale.setScalar(ease(t / .4)); this.book.rotation.y = Math.sin(t * 1.8) * .12;
+        this.book.scale.setScalar(ease(t / .4));
+        // Authored readable pages face local +Z; rotate the whole book toward the passenger.
+        const toward = doll.group.position.clone().sub(this.book.position);
+        this.book.rotation.y = Math.atan2(toward.x, toward.z) + Math.sin(t * 1.8) * .12;
         const absorb = ease((t - .65) / 1.1);
         doll.group.position.lerp(this.book.position, absorb); doll.group.scale.setScalar(1 - absorb * .99);
         doll.zz.visible = false;
@@ -151,5 +192,6 @@ export class VoyagePassengers {
 
   private disposeDoll(doll: Doll) { doll.token++; doll.mesh.geometry.dispose(); doll.mesh.material.dispose(); doll.texture.dispose(); doll.group.removeFromParent(); (doll.zz.material as T.SpriteMaterial).map?.dispose(); (doll.zz.material as T.SpriteMaterial).dispose(); doll.zz.removeFromParent(); }
   destroy() { this.alive = false; this.cancelDeparture();
+    this.returning.clear();
     this.book?.traverse(node=>{if(node instanceof T.Mesh){node.geometry.dispose();for(const m of Array.isArray(node.material)?node.material:[node.material])m.dispose();}}); this.book=undefined; this.dolls.forEach(d => this.disposeDoll(d)); this.dolls.clear(); this.images.clear(); this.root.removeFromParent(); }
 }

@@ -18,8 +18,8 @@ const poses = {
   far: { eye: [420, 210, 650], aim: [75, 45, -450] },
   mid: { eye: [160, 55, 205], aim: [5, 12, -50] },
   overview: { eye: [270, 190, 450], aim: [120, -10, -700] },
-  deck: { eye: [25, 14, 11], aim: [5, 6.5, -14] },
-  channel: { eye: [18, 11, 24], aim: [5, 6.3, 11] },
+  deck: { eye: [.1, 7.2, 9], aim: [4.32, 6.78, 7] },
+  channel: { eye: [-8, 11, 24], aim: [5, 6.3, 11] },
   cabin: { eye: [23, 19, 66], aim: [13, 2, 40] },
   berths: { eye: [-8.1, 5.8, 48], aim: [-8.1, .5, 43.7] },
   city: { eye: [150, 1300, -600], aim: [-1300, 70, -2200] },
@@ -60,10 +60,20 @@ export class EntryVoyage {
   private flight?: ShipFlight;
   private shipRotation = new T.Quaternion();
   private deck?: VoyageDeck;
+  private cabinDeck?: VoyageDeck;
+  private ids: string[] = [];
+  private entranceArmed = true;
+  private exitArmed = false;
+  onCabin?: () => void;
+  onDeck?: () => void;
+  onCreate?: (slot: number) => void;
   private reveal?: LocalReveal;
   onAdventure?: () => void;
   directionIcons?: Record<string, {url:string}>;
-  private adventureNear = false;
+  private pitch = .24;
+  private yaw = 0;
+  private zoom = 1.2;
+  private drag?: { id: number; x: number; y: number };
   private deckCharacter?: string;
   private keys = new Set<string>();
   private stage: VoyageStage = 'login';
@@ -80,6 +90,7 @@ export class EntryVoyage {
   private clouds = new VoyageClouds();
   private login: VoyageLogin;
   private loginSurface?: LoginSurface;
+  private adventureSurface?: LoginSurface;
   private city?: VoyageCity;
   private sun: T.DirectionalLight;
   private hemisphere: T.HemisphereLight;
@@ -95,12 +106,36 @@ export class EntryVoyage {
   private water?: VoyageWater;
   private sails: { simulation: ClothGrid; target: Float32Array; morph: Float32Array; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array; basis: Float32Array }[] }[] = [];
   private reflection: T.WebGLRenderTarget;
-  private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; };
+  private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; this.drag = undefined; };
+  private cameraDown = (event: PointerEvent) => {
+    if (!['channel','characters'].includes(this.stage) || event.button !== 2 || event.target instanceof HTMLElement && event.target.closest('button,input,textarea,select')) return;
+    event.preventDefault(); this.host.setPointerCapture(event.pointerId);
+    this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  };
+  private cameraMove = (event: PointerEvent) => {
+    if (this.drag?.id !== event.pointerId) return;
+    this.yaw = T.MathUtils.clamp(this.yaw - (event.clientX - this.drag.x) * .004, -.45, .45);
+    this.pitch = T.MathUtils.clamp(this.pitch + (event.clientY - this.drag.y) * .003, .08, .46);
+    this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    if (this.reduced.matches) this.updateActivity();
+  };
+  private cameraUp = () => { this.drag = undefined; };
+  private cameraWheel = (event: WheelEvent) => {
+    if (!['channel','characters'].includes(this.stage) || event.target instanceof HTMLElement && event.target.closest('input,textarea,select,.entry-create-panel')) return;
+    event.preventDefault(); this.zoom = T.MathUtils.clamp(this.zoom * Math.exp(T.MathUtils.clamp(event.deltaY, -100, 100) * .002), .9, 1.7);
+    if (this.reduced.matches) this.updateActivity();
+  };
+  private contextMenu = (event: Event) => { if (['channel','characters'].includes(this.stage)) event.preventDefault(); };
   private onKey = (event: KeyboardEvent) => {
-    if (event.type === 'keydown' && ['KeyX', 'ControlLeft', 'ControlRight'].includes(event.code) && this.stage === 'channel' && this.adventureNear && !event.repeat && this.host.getAttribute('aria-busy') !== 'true' && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { event.preventDefault(); this.onAdventure?.(); return; }
+    if (event.type === 'keydown' && ['Space', 'KeyX', 'ControlLeft', 'ControlRight'].includes(event.code) && ['channel','characters'].includes(this.stage) && !this.host.hidden && !document.hidden && !event.repeat && this.host.getAttribute('aria-busy') !== 'true' && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) {
+      event.preventDefault();
+      if (event.code === 'Space') { (this.stage === 'characters' ? this.cabinDeck : this.deck)?.jump(); if (this.reduced.matches) this.updateActivity(); }
+      else if (this.stage === 'channel') this.onAdventure?.();
+      return;
+    }
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return;
     if (event.type === 'keyup') { this.keys.delete(event.code); return; }
-    if (this.stage !== 'channel' || !this.deckCharacter || this.host.hidden || document.hidden || (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
+    if (!['channel','characters'].includes(this.stage) || !this.deckCharacter || this.host.hidden || document.hidden || (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
     event.preventDefault(); this.keys.add(event.code);
     if (this.reduced.matches && !event.repeat) this.updateActivity();
   };
@@ -118,6 +153,12 @@ export class EntryVoyage {
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'voyage-canvas';
     this.canvas.setAttribute('aria-hidden', 'true');
+    this.host.addEventListener('pointerdown', this.cameraDown);
+    this.host.addEventListener('pointermove', this.cameraMove);
+    this.host.addEventListener('pointerup', this.cameraUp);
+    this.host.addEventListener('pointercancel', this.cameraUp);
+    this.host.addEventListener('wheel', this.cameraWheel, { passive: false });
+    this.host.addEventListener('contextmenu', this.contextMenu);
     this.scene.background = new T.Color('#8ecfec');
     this.scene.fog = new T.Fog('#c5dfed', 4200, 15000);
     this.hemisphere = new T.HemisphereLight('#d6ecff', '#687184', .5); this.scene.add(this.hemisphere);
@@ -181,8 +222,13 @@ export class EntryVoyage {
       this.ship = gltf.scene.getObjectByName('SV2_Ship');
       if (this.ship) {
         this.shipOrigin.copy(this.ship.position); this.shipRotation.copy(this.ship.quaternion);
-        this.reveal = new LocalReveal(this.ship, () => true);
-        this.deck = new VoyageDeck(this.ship); this.passengers.deckPosition.copy(this.deck.position);
+        this.reveal = new LocalReveal(this.ship, mesh => {
+          // Cloth and its folding spars keep their full render; only solid ship scenery can hide the body.
+          let node: T.Object3D | null = mesh;
+          while (node) { if (node.userData.cloth_columns || node.name.startsWith('SV3_MainSail_Crest')) return false; node=node.parent; }
+          return true;
+        });
+        this.deck = new VoyageDeck(this.ship); this.cabinDeck = new VoyageDeck(this.ship, true); this.passengers.deckPosition.copy(this.deck.position);
         this.passengers.attach(this.ship);
         this.ship.add(this.cabinLights);
         this.windowLight = new VoyageWindowLight(this.ship, gltf.scene, this.cabinLights);
@@ -190,6 +236,8 @@ export class EntryVoyage {
           const lamp = new T.PointLight('#ffb76c', 9, 7, 2); lamp.position.set(x, 2.2, 42.6); this.cabinLights.add(lamp);
         }
         if (this.ship.userData.rig_version === 1) this.flight = new ShipFlight(this.ship);
+        const adventureAnchor = gltf.scene.getObjectByName('SV3_AdventureSurface');
+        if (adventureAnchor) this.adventureSurface = { anchor: adventureAnchor, width: Number(adventureAnchor.userData.width), height: Number(adventureAnchor.userData.height) };
         const sign = gltf.scene.getObjectByName('SV2_LoginSign');
         if (sign) {
           this.ship.attach(sign);
@@ -234,8 +282,17 @@ export class EntryVoyage {
     if (changed && this.model && !this.reduced.matches) this.beginTransition(stage, 2.6);
     this.shot = undefined;
     this.stage = stage;
+    if (changed && stage === 'characters') {
+      this.cabinDeck?.reset(); this.passengers.finishWake(); this.exitArmed=false;
+    }
+    if (changed && stage === 'channel' && this.deck && this.model) {
+      const door=this.model.getObjectByName('SV3_CaptainDoorOpening');
+      if(door && this.ship) { const point=this.ship.worldToLocal(door.getWorldPosition(new T.Vector3()));point.x+=1.6;this.deck.place(point); }
+      this.entranceArmed=false;
+    }
+    const sign=this.model?.getObjectByName('SV3_AdventureSign');if(sign)sign.visible=stage==='channel';
     if (stage !== 'login') this.login.destroy();
-    if (this.loginSurface) this.loginSurface.anchor.parent!.visible = stage === 'login' || stage === 'channel';
+    if (this.loginSurface) this.loginSurface.anchor.parent!.visible = stage === 'login';
     if (stage !== 'login') this.skip();
     if (!this.transition) this.showCabin(stage === 'characters' || stage === 'create');
     this.resize(); this.updateActivity();
@@ -266,7 +323,13 @@ export class EntryVoyage {
   setPassengers(ids: string[], selected: string | undefined, page: number) {
     if (page !== this.page && this.stage === 'characters' && !this.reduced.matches) this.beginTransition(this.stage, 1.25);
     if (selected !== this.deckCharacter) { this.clearMovement(); this.deck?.reset(); }
-    this.deckCharacter = selected;
+    if (selected !== this.deckCharacter && this.stage === 'characters' && selected && this.ship && this.model && this.cabinDeck) {
+      const previous=this.passengers.location(selected);
+      const anchor=this.model.getObjectByName(`SV2_Bed_${ids.indexOf(selected)}_SleepAnchor`);
+      const point=anchor ? this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(.75,0,.98)) : this.cabinDeck.spawn.clone();
+      point.y=.025;this.cabinDeck.place(previous && !this.passengers.sleeping(selected) ? previous : point);
+    }
+    this.ids=ids; this.deckCharacter = selected;
     this.page = page; this.passengers.setSlots(ids, selected, this.stage, page);
   }
   passengerTime() { return this.animationTime; }
@@ -305,11 +368,12 @@ export class EntryVoyage {
     if (!this.alive || this.host.hidden || document.hidden) return;
     const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
     this.previous = now; this.animationTime += delta*1000;
-    if (this.deck && this.ship && this.stage === 'channel') {
+    const walkingDeck=this.stage==='characters' ? this.cabinDeck : this.deck;
+    if (walkingDeck && this.ship && ['channel','characters'].includes(this.stage)) {
       if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
-      this.deck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
-      this.passengers.deckPosition.copy(this.deck.position); this.passengers.deckMoving = this.deck.moving; this.passengers.deckFacing = this.deck.facing;
+      if (this.stage!=='characters' || !this.passengers.waking) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
+      this.passengers.deckPosition.copy(walkingDeck.position); this.passengers.deckMoving = walkingDeck.moving; this.passengers.deckJumping = walkingDeck.jumping; this.passengers.deckFacing = walkingDeck.facing;
     }
     this.flight?.update(this.reduced.matches ? 0 : delta, this.reduced.matches);
     this.city?.update(delta, this.reduced.matches,1,undefined,this.camera,this.host.clientHeight);
@@ -343,10 +407,21 @@ export class EntryVoyage {
     let fieldOfView = this.stage === 'channel' && !this.shot ? 38 : this.stage === 'characters' ? Math.max(38, T.MathUtils.radToDeg(2 * Math.atan(3.9 / this.camera.aspect / this.camera.position.distanceTo(aim)))) : 46;
     if (!this.shot && this.stage === 'login' && (this.host.clientWidth < 700 || this.host.clientHeight < 600)) {
       // Keep the verified clear camera position; dollying back puts the mast between the reader and paper.
-      const board = new T.Vector3(10.518, 9.6, 0);
+      const board = this.loginSurface?.anchor.getWorldPosition(new T.Vector3()) ?? new T.Vector3(4.32,6.78,7);
       const settle = smooth(Math.max(0, Math.min(1, (t - .78) / .22)));
-      const finalFov = T.MathUtils.radToDeg(2 * Math.atan(Math.max(3.65, 4 / this.camera.aspect) / new T.Vector3().fromArray(poses.deck.eye).distanceTo(board)));
+      const finalFov = T.MathUtils.radToDeg(2 * Math.atan(Math.max(1.95, 2.1 / this.camera.aspect) / new T.Vector3().fromArray(poses.deck.eye).distanceTo(board)));
       fieldOfView = T.MathUtils.lerp(46, finalFov, settle); aim.lerp(board, settle);
+    }
+    if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship) {
+      // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
+      const base = this.ship.localToWorld(walkingDeck.position.clone());
+      base.y += Math.min(270, this.host.clientHeight * .3) / 45;
+      const distance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))) * this.zoom;
+      // Retain the authored starboard viewing side so the board is front-facing.
+      const yaw=Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2]) + this.yaw;
+      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw)*Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(yaw)*Math.cos(this.pitch)).multiplyScalar(distance));
+      aim.copy(base); fieldOfView=38;
+
     }
     let passage = 0;
     if (this.transition) {
@@ -378,31 +453,45 @@ export class EntryVoyage {
         this.camera.lookAt(aim.clone().add(this.flight.position));
       }
     }
-    if (this.stage === 'channel' && !this.shot && this.deck && this.ship) {
-      // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
-      const base = this.ship.localToWorld(this.deck.position.clone());
-      base.y += Math.min(270, this.host.clientHeight * .3) / 45;
-      const distance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))) * 1.2;
-      // Retain the authored starboard viewing side so the board is front-facing.
-      const yaw=Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2]);
-      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw)*Math.cos(.24), Math.sin(.24), Math.cos(yaw)*Math.cos(.24)).multiplyScalar(distance));
-      this.camera.lookAt(base);
-      if (this.camera.fov !== 38) { this.camera.fov = 38; this.camera.updateProjectionMatrix(); }
+    if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship) {
       this.ship.updateWorldMatrix(true, true);
       this.camera.updateMatrixWorld(true);
-      this.reveal?.update(this.ship.localToWorld(this.deck.position.clone()), this.camera, this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio(), delta * 1000, now);
+      this.reveal?.update(this.ship.localToWorld(walkingDeck.position.clone()), this.camera, this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio(), delta * 1000, now);
       const button = this.host.querySelector<HTMLButtonElement>('.voyage-adventure');
-      this.adventureNear = Math.hypot(this.deck.position.x - 6.5, this.deck.position.z) <= 2.5;
       if (button) {
-        const projection=this.loginSurface && projectLoginSurface({...this.loginSurface,height:1.6},this.camera,{width:this.host.clientWidth,height:this.host.clientHeight},{width:button.offsetWidth,height:button.offsetHeight});
+        const projection=this.adventureSurface && projectLoginSurface(this.adventureSurface,this.camera,{width:this.host.clientWidth,height:this.host.clientHeight},{width:button.offsetWidth || parseFloat(getComputedStyle(button).width),height:button.offsetHeight || parseFloat(getComputedStyle(button).height)});
         button.hidden=!projection;
         if(projection){button.style.left='0';button.style.top='0';button.style.transform=`matrix3d(${projection.matrix.elements.join(',')})`;}
-        button.disabled = !this.adventureNear || this.host.getAttribute('aria-busy') === 'true';
+        button.disabled = this.host.getAttribute('aria-busy') === 'true';
+        const quick=this.host.querySelector<HTMLButtonElement>('.voyage-adventure-shortcut');
+        if(quick)quick.hidden=!!projection;
+      }
+      if (this.host.getAttribute('aria-busy') !== 'true' && walkingDeck.moving) {
+        if (this.stage==='channel') {
+          const door=this.model?.getObjectByName('SV3_CaptainDoorOpening');
+          if(door) {
+            const distance=this.ship.worldToLocal(door.getWorldPosition(new T.Vector3())).distanceTo(walkingDeck.position);
+            if(distance>1.8)this.entranceArmed=true;
+            if(distance<1.0 && this.entranceArmed){this.entranceArmed=false;queueMicrotask(()=>{if(this.alive&&this.stage==='channel')this.onCabin?.();});}
+          }
+        } else if(this.stage==='characters') {
+          const marker=this.model?.getObjectByName('SV3_CabinDeckPortal');
+          const exit=marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
+          const distance=exit?.distanceTo(walkingDeck.position) ?? Infinity;
+          if(distance>1.5)this.exitArmed=true;
+          if(distance<.7 && this.exitArmed){this.exitArmed=false;queueMicrotask(()=>{if(this.alive&&this.stage==='characters')this.onDeck?.();});}
+          for(let index=this.ids.length;index<12;index++) {
+            const anchor=this.model?.getObjectByName(`SV2_Bed_${index}_SleepAnchor`);
+            if(!anchor)continue;
+            const point=this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(.75,0,.98));point.y=.025;
+            if(point.distanceTo(walkingDeck.position)<.65){queueMicrotask(()=>{if(this.alive&&this.stage==='characters')this.onCreate?.(index);});break;}
+          }
+        }
       }
       const hint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
       if (hint) {
         const icons:Record<string,string> = {up:'n',down:'s',left:'w',right:'e'};
-        const html = this.deck.hints(this.camera, this.ship).map(d => {const image=this.directionIcons?.[icons[d]];return image ? `<img src="${resolveAssetUrl(image.url)}" alt="${d}" width="24" height="24">` : '';}).join('');
+        const html = walkingDeck.hints(this.camera, this.ship).map(d => {const image=this.directionIcons?.[icons[d]];return image ? `<img src="${resolveAssetUrl(image.url)}" alt="${d}" width="24" height="24">` : '';}).join('');
         if (hint.innerHTML !== html) hint.innerHTML = html;
       }
     }
@@ -413,7 +502,7 @@ export class EntryVoyage {
     if (avatar && this.ship) {
       const point = this.ship.localToWorld(this.passengers.deckPosition.clone()).project(this.camera);
       avatar.style.left = `${(point.x + 1) * 50}%`; avatar.style.top = `${(1 - point.y) * 50}%`;
-      avatar.hidden = travelling || cabin;
+      avatar.hidden = travelling || this.stage==='create';
     }
     const draft = this.host.querySelector<HTMLElement>('.entry-create-preview');
     if (draft && this.ship) {
@@ -459,7 +548,7 @@ export class EntryVoyage {
     const loginVisible = this.stage === 'login' && this.login.update(this.camera, this.loginSurface, exterior ? [exterior] : []);
     this.host.classList.toggle('voyage-login-visible', loginVisible);
     this.clouds.render(this.renderer, this.scene, this.camera, this.sun, this.cabinShown ? this.windowLight : undefined);
-    if (!this.reduced.matches || this.keys.size > 0) this.frame = requestAnimationFrame(this.draw);
+    if (!this.reduced.matches || this.keys.size > 0 || walkingDeck?.jumping || this.passengers.waking || this.passengers.hasReturning) this.frame = requestAnimationFrame(this.draw);
   };
   private bindSails(model: T.Group) {
     model.traverse(node => {
@@ -537,7 +626,10 @@ export class EntryVoyage {
     this.resizeObserver.disconnect(); this.hiddenObserver.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
     document.removeEventListener('keydown', this.onKey); document.removeEventListener('keyup', this.onKey); window.removeEventListener('blur', this.clearMovement);
-    this.clearMovement(); this.deck?.destroy(); this.reveal?.destroy();
+    this.host.removeEventListener('pointerdown', this.cameraDown); this.host.removeEventListener('pointermove', this.cameraMove);
+    this.host.removeEventListener('pointerup', this.cameraUp); this.host.removeEventListener('pointercancel', this.cameraUp);
+    this.host.removeEventListener('wheel', this.cameraWheel); this.host.removeEventListener('contextmenu', this.contextMenu);
+    this.clearMovement(); this.deck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
     this.reduced.removeEventListener('change', this.onMotion);
     this.passengers.destroy(); this.login.destroy(); this.clouds.destroy(); this.windowLight?.destroy(); this.water?.dispose(); dispose(this.scene); this.reflection.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.canvas.remove();
     this.host.classList.remove('entry-voyage-ready', 'voyage-travelling', 'voyage-login-visible');

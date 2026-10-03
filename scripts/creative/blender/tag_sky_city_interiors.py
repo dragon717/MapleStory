@@ -1,8 +1,13 @@
 """Add explicit cutaway volumes to existing authored rooms, retaining editable geometry."""
 import bpy
+from pathlib import Path
 from mathutils import Vector
 
 def tag_interiors(scene, layout):
+    namespace={}
+    source=Path(__file__).with_name('split_sky_city_tower_shell.py')
+    exec(compile(source.read_text(encoding='utf-8'),str(source),'exec'),namespace)
+    print('TOWER_SHELL_SPLIT',namespace['split_tower_surroundings'](scene,layout))
     def volume(name, center, size, island):
         obj=bpy.data.objects.get('SC_Interior_'+name)
         if obj is None:
@@ -50,7 +55,7 @@ def tag_interiors(scene, layout):
     room=volume('Tower',[tower['center'][0],bottom,tower['center'][2]],[34,tower['center'][1]-bottom+8,34],'A03')
     nodes={n['id']:n for n in layout['nodes']}
     for obj in list(scene.objects):
-        if obj.name.startswith('SC_G_Column'):shell(obj,room)
+        if obj.name.startswith('SC_G_Column') or obj.get('tower_adjacent_shell') or obj.get('carrier') == 'tower entrance foundation with an open central shaft':shell(obj,room)
         if 'original_floor' in obj:
             level=tower['center'][1]-tower['levels'].index(obj['original_floor'])*tower['floorHeight'];shell(obj,room,level)
         elif obj.name.startswith('SC_G_FlatLanding_'):

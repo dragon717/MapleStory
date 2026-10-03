@@ -72,6 +72,9 @@ export class EntryView {
       if (this.host.hidden) return;
       this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); else this.renderPreviews(); });
       this.voyage.onAdventure = () => { if (!this.busy) void this.run(() => this.startGame()); };
+      this.voyage.onCabin=()=>{if(!this.busy)this.go('characters');};
+      this.voyage.onDeck=()=>{if(!this.busy)this.go('channel');};
+      this.voyage.onCreate=slot=>{if(!this.busy && slot>=this.characters.length && slot<this.slotLimit){this.page=Math.floor(slot/4);this.action('create');}};
       this.voyage.directionIcons = this.manifest?.miniMap?.icons?.direction;
       this.voyage.setStage(this.stage);
       this.voyage.setPassengers(this.characters.map(c => c.id), this.selected, this.page);
@@ -192,7 +195,7 @@ export class EntryView {
   private worldBadge() { return `<div class="entry-world-badge entry-glass"><span class="entry-world-emblem">🍁</span><div>${text('冒险岛', 'Maple World')}<small>CH. 1 · ${text('主频道', 'Main channel')}</small></div></div>`; }
   private channelMarkup() {
     const character = this.characters.find(item => item.id === this.selected);
-    return character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span><div class="voyage-junction-hint" aria-label="${text('路口方向', 'Junction directions')}"></div></div><button class="entry-primary voyage-adventure" data-action="quick">${text('开始冒险', 'Begin adventure')}</button>` : `<button class="entry-primary" data-action="channel">${text('创建角色，开始冒险', 'Create a character')}</button>`;
+    return character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span><div class="voyage-junction-hint" aria-label="${text('路口方向', 'Junction directions')}"></div></div><button class="entry-primary voyage-adventure" data-action="quick">${text('开始冒险', 'Begin adventure')}</button><button class="entry-primary voyage-adventure-shortcut" data-action="quick" hidden>${text('开始冒险', 'Begin adventure')}</button>` : `<button class="entry-primary" data-action="channel">${text('创建角色，开始冒险', 'Create a character')}</button>`;
   }
   private charactersMarkup() {
     const start = this.page * 4;
@@ -200,7 +203,8 @@ export class EntryView {
       const character = this.characters[start + index];
       return character ? `<button class="entry-character${character.id === this.selected ? ' selected' : ''}" data-berth="${index}" data-select="${character.id}" aria-pressed="${character.id === this.selected}"><div class="entry-avatar" data-character="${character.id}"></div><strong>${escape(character.name)}</strong><span>Lv. ${character.level} · ${jobName(character.job)}</span></button>` : `<button class="entry-character entry-empty" data-berth="${index}" data-action="create" aria-label="${text('创建角色', 'Create character')}"><div class="entry-avatar" data-empty="true"></div><span>＋</span></button>`;
     }).join('');
-    return `<aside class="entry-selection-info">${this.worldBadge()}<p class="entry-slots">${text('角色栏位', 'CHARACTER SLOT')} <strong>${this.characters.length}/${this.slotLimit}</strong></p></aside><section class="entry-character-stage" aria-label="${text('角色选择', 'Character selection')}"><div class="entry-character-grid">${slots}</div><div class="entry-pages">${Array.from({ length: Math.ceil(this.slotLimit / 4) }, (_, index) => `<button data-page="${index}" class="${index === this.page ? 'selected' : ''}" aria-label="${text('第', 'Page ')}${index + 1}${text('页', '')}">${index + 1}</button>`).join('')}</div><div class="entry-character-actions"><button class="entry-tan" data-action="create"${this.characters.length >= this.slotLimit ? ' data-unavailable="true"' : ''}>＋ ${text('创建角色', 'Create Character')}</button><button class="entry-primary" data-action="enter"${!this.selected ? ' data-unavailable="true"' : ''}>${text('开始游戏', 'PLAY')}</button></div></section>`;
+    const active=this.characters.find(c=>c.id===this.selected);
+    return `${active ? `<div class="voyage-deck-avatar"><span class="entry-nameplate">${escape(active.name)}</span></div>` : ''}<aside class="entry-selection-info">${this.worldBadge()}<p class="entry-slots">${text('角色栏位', 'CHARACTER SLOT')} <strong>${this.characters.length}/${this.slotLimit}</strong></p></aside><section class="entry-character-stage" aria-label="${text('角色选择', 'Character selection')}"><div class="entry-character-grid">${slots}</div><div class="entry-pages">${Array.from({ length: Math.ceil(this.slotLimit / 4) }, (_, index) => `<button data-page="${index}" class="${index === this.page ? 'selected' : ''}" aria-label="${text('第', 'Page ')}${index + 1}${text('页', '')}">${index + 1}</button>`).join('')}</div><div class="entry-character-actions"><button class="entry-tan" data-action="create"${this.characters.length >= this.slotLimit ? ' data-unavailable="true"' : ''}>＋ ${text('创建角色', 'Create Character')}</button><button class="entry-primary" data-action="enter"${!this.selected ? ' data-unavailable="true"' : ''}>${text('开始游戏', 'PLAY')}</button></div></section>`;
   }
   private createMarkup() {
     const classes = [['战士', 'Warrior'], ['法师', 'Magician'], ['弓手', 'Bowman'], ['盗贼', 'Thief']];
@@ -275,9 +279,9 @@ export class EntryView {
     await this.refreshCharacters();
     this.selected = result.character.id;
     this.page = Math.floor(this.characters.findIndex(character => character.id === this.selected) / 4);
-    this.createdOnDeck = true;
-    this.go('channel');
-    this.setNote(text('初心者已走出船舱，选择“开始游戏”进入冒险。', 'Character created. Select PLAY to begin.'));
+    this.createdOnDeck = false;
+    this.go('characters');
+    this.setNote(text('初心者已回到船舱，可走回甲板开始冒险。', 'Character created. Return to the deck to begin your adventure.'));
   }
   private async startGame() {
     if (!this.selected) return;
@@ -352,6 +356,16 @@ export class EntryView {
       const bounds = parts.length ? { left: Math.min(...parts.map(p=>p.x)), top: Math.min(...parts.map(p=>p.y)), right: Math.max(...parts.map(p=>p.x+(p.width??0))), bottom: Math.max(...parts.map(p=>p.y+(p.height??0))) } : undefined;
       return { target, frames, actions, bounds, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '' };
     });
+    for(const character of this.characters) {
+      if(previews.some(p=>p.id===character.id))continue;
+      const look=character.appearance,equipped=character.equipped??initialEquipment(look);
+      if(!this.avatarCatalog)continue;
+      const actions=composeAppearance(this.avatarCatalog,look,equipped,{weaponType:appearanceWeaponType(this.avatarCatalog,equipped,look.weapon)});
+      if(!actions)continue;
+      const parts=['stand','walk','sit','jump'].flatMap(a=>(actions[a as 'stand'|'walk'|'sit'|'jump']??[]).flatMap(f=>f.parts));
+      const bounds=parts.length ? {left:Math.min(...parts.map(p=>p.x)),top:Math.min(...parts.map(p=>p.y)),right:Math.max(...parts.map(p=>p.x+(p.width??0))),bottom:Math.max(...parts.map(p=>p.y+(p.height??0)))} : undefined;
+      previews.push({target:document.createElement('div'),frames:actions.stand,actions,bounds,face:look.face,id:character.id,index:-1,action:''});
+    }
     for (const target of Array.from(this.host.querySelectorAll<HTMLElement>('[data-instructor]'))) {
       const npc = this.manifest?.npcs?.[target.dataset.instructor!];
       const frame = npc?.stand?.[0];

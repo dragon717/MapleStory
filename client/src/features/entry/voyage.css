@@ -554,3 +554,16 @@ body.entry-active { background: #eee4cf; }
 .voyage-junction-hint {position:absolute;left:50%;bottom:90px;transform:translateX(-50%);display:flex;gap:4px;pointer-events:none;}
 .voyage-junction-hint img {image-rendering:pixelated;}
 .voyage-loading .entry-notice {display:none;}
+
+/* Both actions use the same visible timber surface as the captain-room board. */
+.entry-voyage .voyage-adventure,
+.entry-voyage .voyage-adventure-shortcut {
+  background: url('/assets/entry/captain-sign-wood.png') center/cover, #be9460;
+  border: 2px solid #755031;
+  border-radius: 9% 14% 12% 8%;
+  color: #382719;
+  text-shadow: 0 1px #ead5af;
+  box-shadow: inset 0 2px 2px #f0d8ac, 0 4px 0 #6b482b, 0 6px 10px #22170c44;
+}
+.entry-voyage .voyage-adventure-shortcut { position: absolute; z-index: 5; right: 20px; bottom: 70px; width: 155px; }
+.entry-voyage :is(.voyage-adventure,.voyage-adventure-shortcut)[hidden] { display: none; }

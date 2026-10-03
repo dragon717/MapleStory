@@ -69,8 +69,10 @@ function loadRuntimeModule() {
       contents: [
         "import * as THREE from 'three';",
         "export { THREE };",
-        "export { projectLoginSurface } from './src/features/entry/voyage-login.ts';",
-        "export { EntryVoyage } from './src/features/entry/voyage.ts';",
+        "export { projectLoginSurface, loginSurfaceOccluded } from './src/features/entry/voyage-login.ts';",
+        "export { VoyageCity } from './src/features/entry/voyage-city.ts';",
+        "export { VoyageDeck } from './src/features/entry/voyage-deck.ts';",
+        "export { EntryVoyage, voyageOpeningPose } from './src/features/entry/voyage.ts';",
         "export { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';",
         "export { ShipFlight } from './src/features/entry/voyage-ship.ts';",
         "export { LocalReveal } from './src/features/henesys/local-reveal.ts';",
@@ -185,9 +187,9 @@ function checkSailBindings(runtime, scene) {
     const [u0,u1]=crest.userData.emblem_u_range;ranges.push([u0,u1]);
     const art=crest.geometry.getAttribute('uv'),grid=crest.geometry.getAttribute('uv1');
     for(let i=0;i<grid.count;i++){
-      assert.equal(crest.userData.emblem_rotation_degrees,90);
-      assert(close(art.getX(i),grid.getY(i)*2.5-.75), 'rotated emblem uses the square middle-radius patch');
-      assert(close(art.getY(i),1-u0-(u1-u0)*grid.getX(i)), 'each gore shares the globally rotated emblem');
+      assert.equal(crest.userData.emblem_rotation_degrees,270);
+      assert(close(art.getX(i),1-(grid.getY(i)-.30)/.40), 'whole emblem shifts toward the larger forward sail region');
+      assert(close(art.getY(i),u0+(u1-u0)*grid.getX(i)+.12), 'each gore shares the globally inverted emblem');
     }
   }
   assert(close(ranges[0][0],0)&&close(ranges[2][1],1));
@@ -292,13 +294,33 @@ async function main() {
   gltf.scene.updateMatrixWorld(true);
   const camera=new runtime.THREE.PerspectiveCamera(38,1440/900,1,24000);
   const base=new runtime.THREE.Vector3(6.5,11.44,0),distance=900/45/(2*Math.tan(19*Math.PI/180))*1.2;
-  camera.position.copy(base).add(new runtime.THREE.Vector3(Math.sin(Math.PI/4)*Math.cos(.24),Math.sin(.24),Math.cos(Math.PI/4)*Math.cos(.24)).multiplyScalar(distance));camera.lookAt(base);camera.updateMatrixWorld(true);
-  const board=gltf.scene.getObjectByName('SV3_LoginSurface');assert(board,'real ship-side board');
-  const projected=runtime.projectLoginSurface({anchor:board,width:board.userData.width,height:1.6},camera,{width:1440,height:900},{width:240,height:64});
+  camera.position.copy(base).add(new runtime.THREE.Vector3(Math.sin(-Math.PI/4)*Math.cos(.24),Math.sin(.24),Math.cos(Math.PI/4)*Math.cos(.24)).multiplyScalar(distance));camera.lookAt(base);camera.updateMatrixWorld(true);
+  const board=gltf.scene.getObjectByName('SV3_AdventureSurface');assert(board,'real captain-room adventure board');
+  const projected=runtime.projectLoginSurface({anchor:board,width:board.userData.width,height:board.userData.height},camera,{width:1440,height:900},{width:240,height:64});
   assert(projected,'the actual gameplay camera must see the boat-side board from its front');
   const center=new runtime.THREE.Vector3(120,32,0).applyMatrix4(projected.matrix),actual=board.getWorldPosition(new runtime.THREE.Vector3()).project(camera);
   assert(close(center.x,(actual.x+1)*720)&&close(center.y,(1-actual.y)*450),'adventure must sit on the physical board');
+  const ship=gltf.scene.getObjectByName('SV2_Ship'),door=gltf.scene.getObjectByName('SV3_CaptainDoorOpening'),exit=gltf.scene.getObjectByName('SV3_CabinDeckPortal');
+  assert(door&&exit,'both authored local cabin portals are retained');
+  const loginCamera=new runtime.THREE.PerspectiveCamera(46,1440/900,1,24000),pose=runtime.voyageOpeningPose(1);
+  loginCamera.position.copy(pose.eye);loginCamera.lookAt(pose.aim);loginCamera.updateMatrixWorld(true);
+  ship.attach(gltf.scene.getObjectByName('SV2_LoginSign')); // Production retains the board but excludes its own backing from exterior occlusion.
+  const paper=gltf.scene.getObjectByName('SV3_LoginSurface'),loginProjection=runtime.projectLoginSurface({anchor:paper,width:paper.userData.width,height:paper.userData.height},loginCamera,{width:1440,height:900},{width:430,height:360});
+  assert(loginProjection && !runtime.loginSurfaceOccluded(loginCamera,loginProjection.points,[gltf.scene.getObjectByName('SV3_Exterior')]),'actual final opening pose must read the real login surface without opaque shell/rail obstruction');
+  const walk=new runtime.VoyageDeck(ship);assert(walk.position.y>5.4&&walk.position.y<5.5,'spawn must be on the captain floor, not its roof');
+  walk.place(new runtime.THREE.Vector3(6.4,5.445,11.65));camera.position.set(-18,14,36);camera.lookAt(6.4,11.445,11.65);camera.updateMatrixWorld(true);
+  const entry=ship.worldToLocal(door.getWorldPosition(new runtime.THREE.Vector3()));
+  for(let i=0;i<24&&walk.position.distanceTo(entry)>=1;i++)walk.update(.05,0,1,camera,ship);
+  assert(walk.position.distanceTo(entry)<1,'real threshold floor must connect the outer deck to the actual cabin trigger');walk.destroy();
+  const cabinWalk=new runtime.VoyageDeck(ship,true);cabinWalk.place(new runtime.THREE.Vector3(0,0,46));const cabinStart=cabinWalk.position.clone();
+  for(let i=0;i<5;i++)cabinWalk.update(.05,-1,0,camera,ship);assert(cabinWalk.position.distanceTo(cabinStart)>.4,'actual bed cabin supports free aisle movement');cabinWalk.destroy();
   const cloth = checkSailBindings(runtime, gltf.scene);
+  const cityGltf=await parse(new runtime.GLTFLoader(),geometryOnlyGlb(fs.readFileSync(path.join(client,'public-tms273/assets/entry/sky-city.glb'))));
+  const cityRoot=cityGltf.scene,city=new runtime.VoyageCity(cityRoot),shells=[];
+  cityRoot.traverse(o=>{if(o.userData.tower_adjacent_shell)shells.push(o);});assert.equal(shells.length,2);
+  const pairs=shells.map(shell=>{const original=cityRoot.getObjectByName(shell.name.replace('SC_G_AdjacentRockShell_',''));assert(original);assert.equal(shell.parent,city.islandRoot(shell.userData.island_binding));assert.equal(shell.parent,original.parent,'split shell shares the actual original island motion root');return {shell,original,before:shell.getWorldPosition(new runtime.THREE.Vector3()),originalBefore:original.getWorldPosition(new runtime.THREE.Vector3())};});
+  city.update(.05,false,1,17);cityRoot.updateWorldMatrix(true,true);
+  for(const {shell,original,before,originalBefore}of pairs){const movement=shell.getWorldPosition(new runtime.THREE.Vector3()).sub(before),islandMovement=original.getWorldPosition(new runtime.THREE.Vector3()).sub(originalBefore);assert(movement.length()>.01,'real island drift is exercised');assert(movement.distanceTo(islandMovement)<1e-7,'shell follows original floating island position exactly');}
   const reveal = checkLocalReveal(runtime);
   console.log(JSON.stringify({
     status: 'passed',

@@ -157,12 +157,17 @@ try {
   // null result consumes the key, while arrows keep their fixed movement role.
   const customBindings = new Map();
   const uiActions = [];
+  let mountActions = 0;
   const usedItems = [];
   input.targets.resolveBinding = (code, shift) => customBindings.get(`${code}:${shift ? 1 : 0}`) ?? null;
-  input.targets.performAction = action => uiActions.push(action);
+  input.targets.performAction = action => {
+    uiActions.push(action);
+    if (action === 'mount') mountActions += 1;
+  };
   input.targets.useItem = itemId => usedItems.push(itemId);
   customBindings.set('KeyB:0', { type: 'skill', skillId: 2001008 });
   customBindings.set('KeyC:0', { type: 'action', action: 'character' });
+  customBindings.set('KeyR:0', { type: 'action', action: 'mount' });
   customBindings.set('KeyI:0', { type: 'item', itemId: 2010000 });
   customBindings.set('KeyA:0', { type: 'action', action: 'left' });
   customBindings.set('KeyP:0', { type: 'action', action: 'pickup' });
@@ -173,8 +178,12 @@ try {
   dispatchCode('KeyI');
   assert.deepEqual(uiActions, ['character']);
   assert.deepEqual(usedItems, [2010000]);
+  dispatchCode('KeyR');
+  assert.equal(mountActions, 1, 'custom mount action reaches the gameplay dispatcher');
+  dispatchCode('KeyR', true);
+  assert.equal(mountActions, 1, 'mount action ignores OS key repeat');
   window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyC', repeat: false, ctrlKey: true }));
-  assert.deepEqual(uiActions, ['character'], 'Ctrl plus a mapped key remains a browser shortcut');
+  assert.deepEqual(uiActions, ['character', 'mount'], 'Ctrl plus a mapped key remains a browser shortcut');
   window.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { code: 'AltLeft', repeat: false, altKey: true }));
   assert.equal(messages.at(-1).jump, true, 'Alt can be assigned as a single key');
   window.dispatchEvent(Object.assign(new Event('keyup'), { code: 'AltLeft' }));
@@ -272,6 +281,15 @@ try {
     pressThroughRouter();
     assert.equal(portals, beforeUi + 1, 'ordinary UI key alone does not interact');
     assert.equal(uiActions.length, uiCount + 2, 'capture prevents a second UI dispatch');
+
+    customBindings.set('KeyR:0', { type: 'action', action: 'mount' });
+    const mountActionCount = uiActions.length;
+    const mountEvent = Object.assign(new Event('keydown', { cancelable: true }), { code: 'KeyR', repeat: false });
+    document.dispatchEvent(mountEvent);
+    window.dispatchEvent(mountEvent);
+    assert.equal(uiActions.length, mountActionCount + 1, 'document router dispatches mount action once');
+    assert.equal(uiActions.at(-1), 'mount', 'document router dispatches the mount action');
+    assert.equal(mountEvent.defaultPrevented, true, 'document router consumes the mount action');
   } finally { disposeRouter(); }
   delete input.targets.hasInteraction;
   const nativeTab = Object.assign(new Event('keydown', { cancelable: true }), { code: 'Tab', repeat: false });
