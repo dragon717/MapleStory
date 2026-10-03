@@ -71,9 +71,9 @@ removed_room=len(m.polygons)-len(hull.data.polygons)
 room=empty('SV3_CaptainRoom',bpy.data.objects['SV3_Exterior'])
 roof=bpy.data.objects.new('SV3_CaptainRoof',roof_data);scene.collection.objects.link(roof);roof.parent=room
 roof['cutaway_rooms']=room.name
-room['interior_bounds']=[-4.8,5.3,0,4.8,8.6,18];room['lobby_walkable']=True
-floor=box('SV3_CaptainFloor',(0,-9,5.32),(9.6,18,.20),wood,room)
-box('SV3_CaptainDoorThreshold',(5.4,-13.25,5.32),(2.9,3.6,.20),wood,room)
+room['lobby_walkable']=False
+# Exterior shell only: no walk-in room floor or threshold.
+box('SV3_CaptainDoorSeal',(4.8,-13.25,6.77),(.34,2.5,2.7),walnut,room)
 # Explicit side wall sections leave a genuine 2.5m doorway.
 for name,z0,z1 in [('Forward',0,12),('Aft',14.5,18)]:
     box('SV3_CaptainWall_'+name,(4.75,-(z0+z1)/2,6.86),(.24,z1-z0,2.88),walnut,room)
@@ -81,11 +81,11 @@ box('SV3_CaptainDoorLintel',(4.75,-13.25,8.23),(.30,2.7,.24),brass,room,.035)
 box('SV3_CaptainWall_Port',(-4.75,-9,6.86),(.24,18,2.88),walnut,room)
 for z in [0,18]:box('SV3_CaptainWall_End_'+str(z),(0,-z,6.86),(9.5,.24,2.88),walnut,room)
 door=empty('SV3_CaptainDoorOpening',room,(4.8,-13.25,5.42));door['width']=2.5;door['height']=2.7;door['lobby_target']='SV3_CabinInterior';door['trigger_radius']=1.15
-# A visible portal is inside the open doorway, independent of game-world adventure permission.
-portal=empty('SV3_CaptainPortal',room,(3.65,-13.25,5.46));portal['lobby_target']='SV3_CabinInterior'
+# The original vertical 2D portal stands outside the sealed shell.
+portal=empty('SV3_CaptainPortal',room,(5.65,-13.25,5.42));portal['lobby_target']='SV3_CabinInterior'
 verts=[];faces=[]
 for r in [ .69,.84 ]:
-    for i in range(64):a=i*math.tau/64;verts.append((3.65+r*math.cos(a),-13.25+r*math.sin(a),5.46))
+    for i in range(64):a=i*math.tau/64;verts.append((5.65+r*math.cos(a),-13.25+r*math.sin(a),5.46))
 for i in range(64):j=(i+1)%64;faces.append((i,j,j+64,i+64))
 mesh('SV3_CaptainPortal_Ring',verts,faces,brass,room)
 # The captain window is a real opening in the new side wall, with a transmissive jewel pane.
@@ -102,8 +102,13 @@ for k in range(3):
 mesh('SV3_CaptainPorthole_Frame',verts,faces,brass,room)
 verts=[(4.79,-3.3,7)]+[(4.79,-3.3+.88*math.cos(i*math.tau/64),7+.88*math.sin(i*math.tau/64)) for i in range(64)]
 mesh('SV3_CaptainPorthole_Glass',verts,[(0,i+1,(i+1)%64+1) for i in range(64)],glass,room)
-# Login remains a physical readable board, now mounted inboard on the captain-room wall.
-sign=bpy.data.objects['SV2_LoginSign'];sign.parent=room;sign.location=(4.42,-7,4.85);sign.scale=(.46,.46,.46);sign.rotation_euler=(0,0,-math.pi/2)
+# Login remains a physical readable board, mounted on the starboard exterior.
+# Blender uses X lateral / -Y ship depth / Z up; the exported glTF position is
+# therefore (10.3, 5.4, 0) with its face looking out through +X.  Keeping the
+# sign on the ship root makes it visible from the exterior login camera and
+# prevents it from being hidden with the berth-room cutaway.
+ship=bpy.data.objects['SV2_Ship']
+sign=bpy.data.objects['SV2_LoginSign'];sign.parent=ship;sign.location=(10.3,0,5.4);sign.scale=(1,1,1);sign.rotation_euler=(0,0,math.pi/2)
 # A separate small irregular beveled adventure sign sits between door and window.
 adventure=empty('SV3_AdventureSign',room,(4.50,-10.3,7.0));adventure.rotation_euler=(0,0,-math.pi/2)
 outline=[(-.95,-.34),(-.76,-.39),(.71,-.35),(.91,-.21),(.86,.28),(.66,.37),(-.75,.32),(-.97,.16)]
@@ -117,7 +122,7 @@ cabin=bpy.data.objects['SV3_CabinInterior']
 for name in ['SV3_CabinDeckPortal','SV3_CabinDeckPortal_Ring']:
     old=bpy.data.objects.get(name)
     if old:remove_tree(old)
-back=empty('SV3_CabinDeckPortal',cabin,(0,-47.1,.03));back['lobby_target']='SV3_CaptainDoorOpening';back['trigger_radius']=.7
+back=empty('SV3_CabinDeckPortal',cabin,(0,-47.1,.03));back['lobby_target']='SV3_CaptainPortal';back['trigger_radius']=.7
 verts=[];faces=[]
 for r in [.70,.82]:
     for i in range(64):a=i*math.tau/64;verts.append((r*math.cos(a),-47.1+r*math.sin(a),.03))

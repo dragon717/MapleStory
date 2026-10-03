@@ -4,31 +4,35 @@ const root = path.resolve(__dirname, '..'), output = path.join(root, 'build/.che
 fs.mkdirSync(path.dirname(output), { recursive: true });
 createRequire(path.join(root, 'client/package.json'))('esbuild').buildSync({ stdin: { contents: "export * from './voyage-deck'; export * from './voyage-login'; export * from './voyage-passengers'; export { voyageOpeningPose } from './voyage'; export * as Three from 'three';", resolveDir: path.join(root, 'client/src/features/entry'), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: output, logLevel: 'silent' });
 const { Three: T, projectLoginSurface, loginSurfaceOccluded, VoyageLogin, voyageOpeningPose, VoyagePassengers, wakePose, VoyageDeck } = require(output);
-// The lobby follows visible floor support and real rails, without invisible lane restrictions.
-const deckShip=new T.Group(),hull=new T.Group();hull.name='SV3_Hull';deckShip.add(hull);
-const floor=new T.Mesh(new T.BoxGeometry(20,.2,50),new T.MeshBasicMaterial());floor.position.set(0,6,0);hull.add(floor);
-const rail=new T.Mesh(new T.BoxGeometry(4,2,.2),new T.MeshBasicMaterial());rail.position.set(6.5,7,16);hull.add(rail);
-const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(6.5,12,30);walkCamera.lookAt(6.5,6,0);
-const deck=new VoyageDeck(deckShip);assert(Math.abs(deck.position.y-6.125)<.00001);
-deck.update(.05,1,0,walkCamera,deckShip);assert(deck.position.x>deck.spawn.x,'visible sideways deck floor is walkable');
-deck.reset();for(let i=0;i<100;i++)deck.update(.05,0,1,walkCamera,deckShip);assert(deck.position.z<15.7,'torso cannot cross a rail');
-deck.reset();for(let i=0;i<130;i++)deck.update(.05,1,0,walkCamera,deckShip);assert(deck.position.x<9.8,'all five foot samples must remain on actual floor');
-deck.reset();deck.update(.05,1,1,walkCamera,deckShip);assert(Math.abs(deck.position.distanceTo(deck.spawn)-.15)<.00001,'diagonal movement cannot speed up');
-const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');
-for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert.equal(deck.position.y,landing);assert(!deck.jumping,'jump lands on the same actual deck');
-deck.reset();walkCamera.position.set(20,12,30);walkCamera.lookAt(0,6,0);walkCamera.updateMatrixWorld(true);deck.update(.05,1,0,walkCamera,deckShip);const face=deck.facing;deck.update(.05,-1,0,walkCamera,deckShip);assert.equal(deck.facing,-face,'body reverses with actual projected movement');
-deckShip.position.set(40,10,90);deckShip.rotation.y=.7;deckShip.updateMatrixWorld(true);deck.reset();deck.update(.05,0,-1,walkCamera,deckShip);assert(deck.moving,'ship movement cannot detach local collision');
+// Decode the real authored GLB without textures/GPU: collision, route and
+// foot support still use production Three geometry and transforms.
+const bytes=fs.readFileSync(path.join(root,'resources/scenes/sky-voyage-v3/models/sky-voyage.glb'));
+const jsonLength=bytes.readUInt32LE(12),gltf=JSON.parse(bytes.subarray(20,20+jsonLength)),binary=bytes.subarray(28+jsonLength);
+const attribute=index=>{const a=gltf.accessors[index],v=gltf.bufferViews[a.bufferView],ArrayType={5126:Float32Array,5125:Uint32Array,5123:Uint16Array,5121:Uint8Array}[a.componentType];return new T.BufferAttribute(new ArrayType(binary.buffer,binary.byteOffset+(v.byteOffset||0)+(a.byteOffset||0),a.count*({SCALAR:1,VEC2:2,VEC3:3,VEC4:4}[a.type])),{SCALAR:1,VEC2:2,VEC3:3,VEC4:4}[a.type]);};
+const objects=gltf.nodes.map(node=>{const object=new T.Group();object.name=node.name;object.userData=node.extras||{};if(node.translation)object.position.fromArray(node.translation);if(node.rotation)object.quaternion.fromArray(node.rotation);if(node.scale)object.scale.fromArray(node.scale);if(node.matrix){object.matrix.fromArray(node.matrix);object.matrix.decompose(object.position,object.quaternion,object.scale);}if(node.mesh!==undefined)for(const primitive of gltf.meshes[node.mesh].primitives){const geometry=new T.BufferGeometry();geometry.setAttribute('position',attribute(primitive.attributes.POSITION));if(primitive.indices!==undefined)geometry.setIndex(attribute(primitive.indices));object.add(new T.Mesh(geometry,new T.MeshBasicMaterial()));}return object;});
+gltf.nodes.forEach((node,index)=>(node.children||[]).forEach(child=>objects[index].add(objects[child])));
+const deckShip=objects.find(object=>object.name==='SV2_Ship');deckShip.scale.setScalar(2);deckShip.updateWorldMatrix(true,true);
+const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(0,15,35);walkCamera.lookAt(0,10,0);walkCamera.updateMatrixWorld(true);
+const deck=new VoyageDeck(deckShip),cabinDeck=new VoyageDeck(deckShip,true);
+assert(!deckShip.getObjectByName('SV3_CaptainFloor')&&!deckShip.getObjectByName('SV3_CaptainDoorThreshold'),'obsolete walk-in room geometry is absent');
+assert(deckShip.getObjectByName('SV3_CaptainDoorSeal'),'exterior opening is sealed in the actual export');
+const followRoute=surface=>{surface.place(surface.route[0]);for(const target of surface.route.slice(1)){let steps=0;while(Math.hypot(target.x-surface.position.x,target.z-surface.position.z)>.03){const direction=target.clone().sub(surface.position);direction.y=0;direction.normalize();surface.update(.01,direction.x,direction.z,walkCamera,deckShip);assert(surface.moving,'fixed route must be continuously walkable');assert(Math.hypot(surface.position.x-surface.routePoint(surface.position).x,surface.position.z-surface.routePoint(surface.position).z)<1e-7,'feet stay on the authored fixed line');assert(++steps<2000,'route segment cannot stall');}}};
+followRoute(deck);followRoute(cabinDeck);
+for(let i=0;i<12;i++){const anchor=deckShip.getObjectByName(`SV2_Bed_${i}_FootAnchor`),point=deckShip.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0,0,.6));point.y=0;cabinDeck.place(point);assert(cabinDeck.position.distanceTo(point)<.03,'all twelve bed interactions are reachable on the door-facing aisle');}
+const left=cabinDeck.route[2];cabinDeck.place(left);for(let i=0;i<120;i++)cabinDeck.update(.05,0,-1,walkCamera,deckShip);assert(cabinDeck.position.distanceTo(left)<.03,'forward input cannot leave the aisle and cross beds');
+deck.reset();const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert(Math.abs(deck.position.y-landing)<1e-7);
 deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
-deck.destroy();floor.geometry.dispose();floor.material.dispose();rail.geometry.dispose();rail.material.dispose();
+deck.destroy();cabinDeck.destroy();
+console.log('Actual ship export: sealed exterior, connected outer curve, all twelve bed-side positions, lane boundaries and jump landing passed');
 // Dense samples catch a hard cut; settling must reach the exact final pose with near-zero speed.
 let previousPose = voyageOpeningPose(0);
 for (let i = 1; i <= 2400; i++) {
   const pose = voyageOpeningPose(i / 2400);
   assert(pose.eye.toArray().concat(pose.aim.toArray()).every(Number.isFinite));
-  assert(pose.eye.distanceTo(previousPose.eye) < 1.2 && pose.aim.distanceTo(previousPose.aim) < .7, 'continuous one-take path cannot jump');
+  assert(pose.eye.distanceTo(previousPose.eye) < 2.4 && pose.aim.distanceTo(previousPose.aim) < 1.4, 'continuous one-take path cannot jump');
   previousPose = pose;
 }
-assert(previousPose.eye.distanceTo(new T.Vector3(.1,7.2,9))<1e-10);
+assert(previousPose.eye.distanceTo(new T.Vector3(.2,14.4,18))<1e-10);
 assert(voyageOpeningPose(.9999).eye.distanceTo(previousPose.eye) < .00001, 'the final approach settles without a snap');
 const viewport = { width: 1440, height: 900 }, pixels = { width: 430, height: 360 };
 const camera = new T.PerspectiveCamera(46, viewport.width / viewport.height, 1, 1000);

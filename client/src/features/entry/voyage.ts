@@ -12,6 +12,8 @@ import { LocalReveal } from '../henesys/local-reveal';
 import { VoyagePassengers } from './voyage-passengers';
 import { VoyageWindowLight } from './voyage-window-light';
 import type { Part } from '../../assets/avatar-types';
+import { VOYAGE_SHIP_SCALE } from './voyage-scale';
+import { createVoyagePaper, VoyagePaperProjector, type VoyagePaperSurface } from './voyage-paper';
 
 export type VoyageStage = 'login' | 'channel' | 'characters' | 'create';
 const poses = {
@@ -28,9 +30,14 @@ const poses = {
 } as const;
 type Shot = keyof typeof poses;
 const smooth = (v: number) => v * v * (3 - 2 * v);
+const shipPose = <T extends { eye: readonly number[]; aim: readonly number[] }>(pose: T) => ({
+  eye: pose.eye.map(value => value * VOYAGE_SHIP_SCALE),
+  aim: pose.aim.map(value => value * VOYAGE_SHIP_SCALE),
+});
+const poseFor = (shot: Shot) => shot === 'city' || shot === 'water' ? poses[shot] : shipPose(poses[shot]);
 // One continuous take, metres / glTF Y-up. Arc-length sampling avoids speed jumps at knots.
-const openingEye = new T.CatmullRomCurve3([poses.far.eye, [460, 225, 670], [180, 76, 260], [65, 29, 66], [34, 17, 20], poses.deck.eye].map(p => new T.Vector3().fromArray(p)), false, 'catmullrom', .25);
-const openingAim = new T.CatmullRomCurve3([[75, 45, -450], [35, 35, -340], [0, 18, -110], [5, 10, -24], poses.deck.aim].map(p => new T.Vector3().fromArray(p)), false, 'catmullrom', .25);
+const openingEye = new T.CatmullRomCurve3([shipPose(poses.far).eye, [460, 225, 670], [180, 76, 260], [65, 29, 66], [34, 17, 20], shipPose(poses.deck).eye].map(p => new T.Vector3().fromArray(p)), false, 'catmullrom', .25);
+const openingAim = new T.CatmullRomCurve3([shipPose(poses.far).aim, [35, 35, -340], [0, 18, -110], [5, 10, -24], shipPose(poses.deck).aim].map(p => new T.Vector3().fromArray(p)), false, 'catmullrom', .25);
 export function voyageOpeningPose(progress: number) {
   const t = Math.max(0, Math.min(1, progress)), ease = t * t * t * (t * (t * 6 - 15) + 10);
   return { eye: openingEye.getPointAt(ease), aim: openingAim.getPointAt(ease) };
@@ -67,9 +74,9 @@ export class EntryVoyage {
   onCabin?: () => void;
   onDeck?: () => void;
   onCreate?: (slot: number) => void;
+  onCharacter?: (id: string) => void;
   private reveal?: LocalReveal;
   onAdventure?: () => void;
-  directionIcons?: Record<string, {url:string}>;
   private pitch = .24;
   private yaw = 0;
   private zoom = 1.2;
@@ -107,6 +114,22 @@ export class EntryVoyage {
   private waterTime = { value: 0 };
   private water?: VoyageWater;
   private sails: { simulation: ClothGrid; target: Float32Array; morph: Float32Array; meshes: { mesh: T.Mesh; map: number[]; offsets: Float32Array; basis: Float32Array }[] }[] = [];
+  private portalMeshes: T.Mesh[] = [];
+  private portalTextures: T.Texture[] = [];
+  private portalFrameTextures: T.Texture[] = [];
+  private portalFrameIndex = 0;
+  private portalFrameElapsed = 0;
+  private floorCount?: T.Mesh;
+  private floorCountTexture?: T.CanvasTexture;
+  private slotLimit = 0;
+  private nearInteraction: 'enter-cabin' | 'return-deck' | 'create-character' | 'role-details' | undefined;
+  private nearbyEmptySlot?: number;
+  private nearbyCharacterId?: string;
+  private roleDetailOpen = false;
+  private rolePaper?: VoyagePaperSurface;
+  private createPaper?: VoyagePaperSurface;
+  private rolePaperProjector = new VoyagePaperProjector();
+  private createPaperProjector = new VoyagePaperProjector();
   private reflection: T.WebGLRenderTarget;
   private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; this.drag = undefined; };
   private cameraDown = (event: PointerEvent) => {
@@ -129,15 +152,24 @@ export class EntryVoyage {
   };
   private contextMenu = (event: Event) => { if (['channel','characters'].includes(this.stage)) event.preventDefault(); };
   private onKey = (event: KeyboardEvent) => {
+    if (event.type === 'keydown' && event.code === 'Escape' && this.roleDetailOpen) { event.preventDefault(); this.closeRoleDetails(); return; }
+    if (this.roleDetailOpen) return;
     if (event.type === 'keydown' && ['Space', 'KeyX', 'ControlLeft', 'ControlRight'].includes(event.code) && ['channel','characters'].includes(this.stage) && !this.host.hidden && !document.hidden && !event.repeat && this.host.getAttribute('aria-busy') !== 'true' && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) {
       event.preventDefault();
-      if (event.code === 'Space') { (this.stage === 'characters' ? this.cabinDeck : this.deck)?.jump(); if (this.reduced.matches) this.updateActivity(); }
+      if (event.code === 'Space') {
+        if (this.nearInteraction === 'enter-cabin') this.onCabin?.();
+        else if (this.nearInteraction === 'return-deck') this.onDeck?.();
+        else if (this.nearInteraction === 'create-character' && this.nearbyEmptySlot !== undefined) this.onCreate?.(this.nearbyEmptySlot);
+        else if (this.nearInteraction === 'role-details' && this.nearbyCharacterId) { this.roleDetailOpen = true; this.onCharacter?.(this.nearbyCharacterId); }
+        else (this.stage === 'characters' ? this.cabinDeck : this.deck)?.jump();
+        if (this.reduced.matches) this.updateActivity();
+      }
       else if (this.stage === 'channel') this.onAdventure?.();
       return;
     }
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return;
     if (event.type === 'keyup') { this.keys.delete(event.code); return; }
-    if (!['channel','characters'].includes(this.stage) || !this.deckCharacter || this.host.hidden || document.hidden || (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
+    if (!['channel','characters'].includes(this.stage) || this.host.hidden || document.hidden || (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) || event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) { this.clearMovement(); return; }
     event.preventDefault(); this.keys.add(event.code);
     if (this.reduced.matches && !event.repeat) this.updateActivity();
   };
@@ -209,9 +241,24 @@ export class EntryVoyage {
         object.castShadow = true; object.receiveShadow = true;
         for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
           if (material instanceof T.MeshStandardMaterial) {
-            if (material.map) material.map.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+            if (material.map) {
+              material.map.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+              // The exported sampler is repeatable, but setting it here keeps
+              // the contract intact for older cached GLBs as well.
+              material.map.wrapS = T.RepeatWrapping; material.map.wrapT = T.RepeatWrapping;
+              const semantic = String(material.userData.voyage_material_semantic ?? '');
+              // Older cached GLBs carry the pre-polish UV projection. Keep
+              // the source recipe's directional grain readable until Blender
+              // can regenerate the scene on the build machine.
+              if (semantic === 'SparWood' || semantic === 'SternWalnut') material.map.repeat.set(.9, 1.05);
+              if (semantic === 'DeckTeak') material.map.repeat.set(.8, .8);
+              material.map.needsUpdate = true;
+            }
+            const semantic = String(material.userData.voyage_material_semantic ?? '');
+            if (semantic === 'SparWood' || semantic === 'SternWalnut') material.roughness = Math.max(material.roughness, .72);
             if (material.map && material.userData.wood_bump_from_basecolor) {
-              material.bumpMap = material.map; material.bumpScale = Number(material.userData.wood_bump_from_basecolor);
+              material.bumpMap = material.map;
+              material.bumpScale = Math.min(.035, Number(material.userData.wood_bump_from_basecolor));
             }
           }
           if (!['SV2_M_CrestDecal','SV3_MainSail_MapleDecal'].includes(material.name)) continue;
@@ -223,6 +270,8 @@ export class EntryVoyage {
       this.bindSails(gltf.scene);
       this.ship = gltf.scene.getObjectByName('SV2_Ship');
       if (this.ship) {
+        this.ship.scale.setScalar(VOYAGE_SHIP_SCALE);
+        this.ship.userData.presentation_scale = VOYAGE_SHIP_SCALE;
         this.shipOrigin.copy(this.ship.position); this.shipRotation.copy(this.ship.quaternion);
         this.reveal = new LocalReveal(this.ship, mesh => {
           // Cloth and its folding spars keep their full render; only solid ship scenery can hide the body.
@@ -242,10 +291,22 @@ export class EntryVoyage {
         if (adventureAnchor) this.adventureSurface = { anchor: adventureAnchor, width: Number(adventureAnchor.userData.width), height: Number(adventureAnchor.userData.height) };
         const sign = gltf.scene.getObjectByName('SV2_LoginSign');
         if (sign) {
+          // Older cached exports still contain the inboard sign from the room
+          // repair.  Normalize both old and newly exported files at runtime so
+          // the physical form always lives on the starboard exterior.
           this.ship.attach(sign);
+          sign.position.set(10.3, 5.4, 0);
+          sign.rotation.set(0, Math.PI / 2, 0);
+          sign.scale.setScalar(1);
+          sign.userData.login_surface_mount = 'starboard-exterior';
           const anchor = sign.getObjectByName('SV3_LoginSurface');
           if (anchor) this.loginSurface = { anchor, width: Number(anchor.userData.width), height: Number(anchor.userData.height) };
         }
+        const adventureSign = gltf.scene.getObjectByName('SV3_AdventureSign');
+        if (adventureSign) { this.ship.attach(adventureSign); adventureSign.position.set(5.05, 7, 10.3); adventureSign.rotation.set(0, Math.PI / 2, 0); }
+        this.installPortalVisuals();
+        this.installFloorCountLabel();
+        this.installPapers();
       }
       this.ship?.traverse(o => {
         if (!(o instanceof T.Mesh)) return;
@@ -284,17 +345,24 @@ export class EntryVoyage {
   }
   attach(target: HTMLElement) { target.append(this.canvas); this.resize(); this.updateActivity(); }
   setStage(stage: VoyageStage) {
-    const changed = this.stage !== stage;
-    if (changed) this.clearMovement();
+    const previousStage = this.stage;
+    const changed = previousStage !== stage;
+    if (changed) {
+      this.clearMovement();
+      this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
+      this.roleDetailOpen = false;
+    }
     if (changed && this.model && !this.reduced.matches) this.beginTransition(stage, 2.6);
     this.shot = undefined;
     this.stage = stage;
-    if (changed && stage === 'characters') {
+    if (changed && stage === 'characters' && previousStage !== 'create') {
       this.cabinDeck?.reset(); this.passengers.finishWake(); this.exitArmed=false;
     }
-    if (changed && stage === 'channel' && this.deck && this.model) {
-      const door=this.model.getObjectByName('SV3_CaptainDoorOpening');
-      if(door && this.ship) { const point=this.ship.worldToLocal(door.getWorldPosition(new T.Vector3()));point.x+=1.6;this.deck.place(point); }
+    if (changed && stage === 'create' && this.createPaper && this.cabinDeck) this.createPaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(3.5, 4.3, -1.7));
+    if (changed && stage === 'channel' && this.deck) {
+      // A completed login always returns to the open starboard deck. The
+      // portal remains a manual Space interaction further up the arc.
+      this.deck.reset();
       this.entranceArmed=false;
     }
     const sign=this.model?.getObjectByName('SV3_AdventureSign');if(sign)sign.visible=stage==='channel';
@@ -303,6 +371,7 @@ export class EntryVoyage {
     if (stage !== 'login') this.skip();
     if (!this.transition) this.showCabin(stage === 'characters' || stage === 'create');
     this.resize(); this.updateActivity();
+    this.updateInteractionHint();
   }
   private showCabin(cabin: boolean) {
     this.cabinShown = cabin;
@@ -315,6 +384,7 @@ export class EntryVoyage {
       const interior = this.model.getObjectByName('SV3_CabinInterior');
       if (exterior) exterior.visible = !cabin;
       if (interior) interior.visible = cabin;
+      if (this.floorCount) this.floorCount.visible = cabin;
       if (cabin) this.flight?.setTrial(false);
       const roof = this.model.getObjectByName('SV2_CabinRoof');
       if (roof) roof.visible = !cabin;
@@ -327,18 +397,108 @@ export class EntryVoyage {
   private beginTransition(stage: VoyageStage, duration: number) {
     this.transition = { eye: this.camera.position.clone(), aim: this.aim.clone(), fov: this.camera.fov, time: 0, duration, fromCabin: this.cabinShown, toCabin: stage === 'characters' || stage === 'create' };
   }
-  setPassengers(ids: string[], selected: string | undefined, page: number) {
-    if (page !== this.page && this.stage === 'characters' && !this.reduced.matches) this.beginTransition(this.stage, 1.25);
-    if (selected !== this.deckCharacter) { this.clearMovement(); this.deck?.reset(); }
-    if (selected !== this.deckCharacter && this.stage === 'characters' && selected && this.ship && this.model && this.cabinDeck) {
-      const previous=this.passengers.location(selected);
-      const anchor=this.model.getObjectByName(`SV2_Bed_${ids.indexOf(selected)}_SleepAnchor`);
-      const point=anchor ? this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(.75,0,.98)) : this.cabinDeck.spawn.clone();
-      point.y=.025;this.cabinDeck.place(previous && !this.passengers.sleeping(selected) ? previous : point);
+  private installPortalVisuals() {
+    if (!this.ship || !this.model) return;
+    this.model.getObjectByName('SV3_CaptainPortal_Ring')?.traverse(node => { node.visible = false; });
+    this.model.getObjectByName('SV3_CabinDeckPortal_Ring')?.traverse(node => { node.visible = false; });
+    // Source-backed portal sequence from resources/tms273-export/portals.json.
+    // Every frame is authored with a 100ms delay; frame 0 is the shared editor
+    // export used by the source data for the first animation frame.
+    const frameUrls = [
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_editor_pv-e7c0ca5e5a.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_1-3f8016697c.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_2-81bc6650af.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_3-3b2ac0bcc0.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_4-eca7cee401.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_5-7599963d1c.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_6-39b4e78d02.png',
+      '/assets/tms273/Map__Canvas_MapHelper.img_portal_game_pv_default_7-5ac11ddd13.png',
+    ];
+    const loader = new T.TextureLoader();
+    this.portalFrameTextures = frameUrls.map(url => {
+      const texture = loader.load(resolveAssetUrl(url));
+      texture.colorSpace = T.SRGBColorSpace; texture.magFilter = T.LinearFilter; texture.minFilter = T.LinearMipmapLinearFilter;
+      this.portalTextures.push(texture); return texture;
+    });
+    const add = (portalName: string, parentName: string) => {
+      const portal = this.model!.getObjectByName(portalName), parent = this.model!.getObjectByName(parentName);
+      if (!portal || !parent) return;
+      if (portalName === 'SV3_CaptainPortal' && this.ship) {
+        portal.position.copy(portal.parent!.worldToLocal(this.ship.localToWorld(new T.Vector3(5.65, 5.42, 13.25))));
+      }
+      const point = parent.worldToLocal(portal.getWorldPosition(new T.Vector3()));
+      const material = new T.MeshBasicMaterial({ map: this.portalFrameTextures[0], transparent: true, depthWrite: false, depthTest: true, side: T.DoubleSide, opacity: .94 });
+      // The source frames are a vertical light column (roughly 99×138), with
+      // the portal node marking the bottom edge. Keep the authored aspect and
+      // billboard it toward the camera instead of flattening it into a floor
+      // decal.
+      const height = 2.8 / VOYAGE_SHIP_SCALE, width = 1.95 / VOYAGE_SHIP_SCALE;
+      const mesh = new T.Mesh(new T.PlaneGeometry(width, height), material);
+      mesh.name = `${portalName}_Original2D`; mesh.position.copy(point); mesh.position.y += height / 2 + .035; parent.add(mesh); this.portalMeshes.push(mesh);
+    };
+    add('SV3_CaptainPortal', 'SV3_Exterior');
+    add('SV3_CabinDeckPortal', 'SV3_CabinInterior');
+  }
+  private updatePortalVisuals(delta: number) {
+    if (!this.portalMeshes.length) return;
+    if (this.portalFrameTextures.length >= 2) {
+      this.portalFrameElapsed += delta * 1000;
+      if (this.portalFrameElapsed >= 100) {
+        this.portalFrameElapsed %= 100;
+        this.portalFrameIndex = (this.portalFrameIndex + 1) % this.portalFrameTextures.length;
+        const texture = this.portalFrameTextures[this.portalFrameIndex];
+        this.portalMeshes.forEach(mesh => {
+          const material = mesh.material as T.MeshBasicMaterial;
+          material.map = texture; material.needsUpdate = true;
+        });
+      }
     }
+    // PlaneGeometry faces local +Z. Use the parent-local camera target so the
+    // bottom anchor stays on the authored floor while the column remains
+    // readable from either side of the 2.5D cabin view.
+    const cameraWorld = this.camera.getWorldPosition(new T.Vector3());
+    this.portalMeshes.forEach(mesh => {
+      const parent = mesh.parent;
+      if (!parent) return;
+      parent.updateWorldMatrix(true, false);
+      const direction = parent.worldToLocal(cameraWorld.clone()).sub(mesh.position);
+      mesh.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
+    });
+  }
+  private installFloorCountLabel() {
+    if (!this.ship || !this.model) return;
+    const cabin = this.model.getObjectByName('SV3_CabinInterior'); if (!cabin) return;
+    const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 150;
+    const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; texture.minFilter = T.LinearFilter;
+    const material = new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide });
+    const mesh = new T.Mesh(new T.PlaneGeometry(7.2, 1.7), material); mesh.name = 'SV3_CabinFloorCount'; mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, .045, 38.0); mesh.visible = false; cabin.add(mesh);
+    this.floorCount = mesh; this.floorCountTexture = texture; this.updateFloorCountLabel();
+  }
+  private installPapers() {
+    const cabin = this.model?.getObjectByName('SV3_CabinInterior'); if (!cabin) return;
+    this.rolePaper = createVoyagePaper(cabin, 'SV3_RoleParchment', new T.Vector3(11.0, 3.0, 41.2), 5.6, 7.2);
+    this.createPaper = createVoyagePaper(cabin, 'SV3_CreateParchment', new T.Vector3(0, 3.1, 38.9), 8.8, 8.6);
+  }
+  private updateFloorCountLabel() {
+    if (!this.floorCountTexture) return;
+    const canvas = this.floorCountTexture.image as HTMLCanvasElement, context = canvas.getContext('2d'); if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#fff3c8'; context.strokeStyle = '#3e2817'; context.lineWidth = 10; context.textAlign = 'center'; context.textBaseline = 'middle'; context.font = 'bold 88px Georgia, serif';
+    const value = `${this.ids.length}/${Math.max(this.slotLimit, this.ids.length)}`; context.strokeText(value, canvas.width / 2, canvas.height / 2); context.fillText(value, canvas.width / 2, canvas.height / 2); this.floorCountTexture.needsUpdate = true;
+  }
+  setPassengers(ids: string[], selected: string | undefined, page: number, slotLimit = this.slotLimit) {
+
+    if (selected !== this.deckCharacter) { this.clearMovement(); if (this.stage === 'channel') this.deck?.reset(); }
     this.ids=ids; this.deckCharacter = selected;
+    this.slotLimit = Math.max(ids.length, slotLimit || ids.length); this.updateFloorCountLabel();
     this.page = page; this.passengers.setSlots(ids, selected, this.stage, page);
   }
+  openRoleDetails() {
+    if (this.stage !== 'characters' || this.nearInteraction !== 'role-details' || !this.nearbyCharacterId) return;
+    this.roleDetailOpen = true;
+    if (this.rolePaper && this.cabinDeck) this.rolePaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(3.5, 3.6, -1.7));
+    this.updateActivity();
+  }
+  closeRoleDetails() { this.roleDetailOpen = false; this.clearMovement(); this.updateActivity(); }
   passengerTime() { return this.animationTime; }
   passengerAction(id: string) { return this.passengers.action(id); }
   passengerSleeping(id: string) { return this.passengers.sleeping(id); }
@@ -353,7 +513,7 @@ export class EntryVoyage {
   /** Preview controls share the production geometry/camera. */
   showShot(shot: Shot) {
     this.setStage(shot === 'cabin' ? 'create' : shot === 'berths' ? 'characters' : 'login'); this.skip(); this.shot = shot;
-    const pose = poses[shot]; this.camera.position.fromArray(pose.eye); this.camera.lookAt(new T.Vector3().fromArray(pose.aim));
+    const pose = poseFor(shot); this.camera.position.fromArray(pose.eye); this.camera.lookAt(new T.Vector3().fromArray(pose.aim));
     this.renderer.render(this.scene, this.camera);
   }
   private resize() {
@@ -391,6 +551,21 @@ export class EntryVoyage {
     nearest=Math.min(nearest,this.cameraRay.intersectObjects(small,false)[0]?.distance??Infinity);
     if(nearest<3)this.camera.position.copy(base).addScaledVector(direction,Math.max(3,distance-2+nearest-1.5));
   }
+  private updateInteractionHint() {
+    const hint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
+    if (!hint) return;
+    const active = Boolean(this.nearInteraction);
+    hint.hidden = !active;
+    hint.dataset.kind = this.nearInteraction ?? '';
+    const label = hint.querySelector<HTMLElement>('[data-role="space-label"]');
+    if (label) label.textContent = this.nearInteraction === 'enter-cabin'
+      ? '传送至选角舱'
+      : this.nearInteraction === 'return-deck'
+        ? '返回甲板'
+        : this.nearInteraction === 'role-details'
+          ? '查看角色'
+          : '创建角色';
+  }
   private draw = (now: number) => {
     if (!this.alive || this.host.hidden || document.hidden) return;
     const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
@@ -399,7 +574,7 @@ export class EntryVoyage {
     if (walkingDeck && this.ship && ['channel','characters'].includes(this.stage)) {
       if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
-      if (this.stage!=='characters' || !this.passengers.waking) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
+      if (!this.roleDetailOpen && (this.stage!=='characters' || !this.passengers.waking)) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
       this.passengers.deckPosition.copy(walkingDeck.position); this.passengers.deckMoving = walkingDeck.moving; this.passengers.deckJumping = walkingDeck.jumping; this.passengers.deckFacing = walkingDeck.facing;
     }
     this.flight?.update(this.reduced.matches ? 0 : delta, this.reduced.matches);
@@ -410,6 +585,9 @@ export class EntryVoyage {
       this.water?.update(delta);
       this.updateSails(delta, now / 1000);
     }
+    // Billboarding also runs in reduced motion so the first source frame is
+    // readable in a static screenshot; animation timing itself stays paused.
+
     if (this.model) this.elapsed = Math.min(this.duration, this.elapsed + delta);
     const t = this.elapsed / this.duration;
     // One sun for materials and clouds; concentrate its shadow texels on the current subject.
@@ -423,43 +601,50 @@ export class EntryVoyage {
     }
     const cabin = this.stage === 'characters' || this.stage === 'create';
     const compactCreate = this.host.clientWidth < 900 || this.host.clientHeight < 600;
-    const createPose = compactCreate ? this.host.clientWidth < 600 ? { eye: [8, 10, 57], aim: [0, -6, 39] } : { eye: [13, 9, 55], aim: [5, 0, 39] } : poses.cabin;
-    const cabinPose = this.stage === 'characters' ? { eye: [poses.berths.eye[0] + this.page * 8.1, 5.8, 48], aim: [poses.berths.aim[0] + this.page * 8.1, .5, 43.7] } : createPose;
-    const fixed = this.shot ? poses[this.shot] : cabin ? cabinPose : this.stage === 'channel' ? poses.channel : undefined;
+    const createPose = compactCreate
+      ? this.host.clientWidth < 600 ? shipPose({ eye: [8, 10, 57], aim: [0, -6, 39] }) : shipPose({ eye: [13, 9, 55], aim: [5, 0, 39] })
+      : shipPose(poses.cabin);
+    const cabinPose = this.stage === 'characters'
+      ? { eye: [poses.berths.eye[0] * VOYAGE_SHIP_SCALE + this.page * 8.1 * VOYAGE_SHIP_SCALE, 5.8 * VOYAGE_SHIP_SCALE, 48 * VOYAGE_SHIP_SCALE], aim: [poses.berths.aim[0] * VOYAGE_SHIP_SCALE + this.page * 8.1 * VOYAGE_SHIP_SCALE, .5 * VOYAGE_SHIP_SCALE, 43.7 * VOYAGE_SHIP_SCALE] }
+      : createPose;
+    const fixed = this.shot ? poseFor(this.shot) : cabin ? cabinPose : this.stage === 'channel' ? shipPose(poses.channel) : undefined;
     const opening = voyageOpeningPose(t);
     const arrival = 1 - smooth(Math.min(1, t / .78));
     const shipOffset = new T.Vector3(-150 * arrival, 0, 220 * arrival);
     this.camera.position.copy(fixed ? new T.Vector3().fromArray(fixed.eye) : opening.eye);
     const aim = fixed ? new T.Vector3().fromArray(fixed.aim) : opening.aim;
     let fieldOfView = this.stage === 'channel' && !this.shot ? 38 : this.stage === 'characters' ? Math.max(38, T.MathUtils.radToDeg(2 * Math.atan(3.9 / this.camera.aspect / this.camera.position.distanceTo(aim)))) : 46;
-    if (!this.shot && this.stage === 'login' && (this.host.clientWidth < 700 || this.host.clientHeight < 600)) {
-      // Keep the verified clear camera position; dollying back puts the mast between the reader and paper.
-      const board = this.loginSurface?.anchor.getWorldPosition(new T.Vector3()) ?? new T.Vector3(4.32,6.78,7);
-      const settle = smooth(Math.max(0, Math.min(1, (t - .78) / .22)));
-      const finalFov = T.MathUtils.radToDeg(2 * Math.atan(Math.max(1.95, 2.1 / this.camera.aspect) / new T.Vector3().fromArray(poses.deck.eye).distanceTo(board)));
-      fieldOfView = T.MathUtils.lerp(46, finalFov, settle); aim.lerp(board, settle);
+    if (!this.shot && this.stage === 'characters' && this.roleDetailOpen && this.rolePaper) {
+      this.rolePaper.anchor.updateWorldMatrix(true, false);
+      const paper = this.rolePaper.anchor.getWorldPosition(new T.Vector3());
+      const normal = new T.Vector3(0, 0, 1).applyNormalMatrix(new T.Matrix3().getNormalMatrix(this.rolePaper.anchor.matrixWorld)).normalize();
+      this.camera.position.copy(paper).addScaledVector(normal, 26).add(new T.Vector3(-5, 3, 0)); aim.copy(paper).add(new T.Vector3(-3, 0, 0)); fieldOfView = 38;
     }
-    if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship) {
+    if (!this.shot && this.stage === 'create' && this.createPaper) {
+      this.createPaper.anchor.updateWorldMatrix(true, false);
+      const paper = this.createPaper.anchor.getWorldPosition(new T.Vector3());
+      const distance = Math.max(32, 21 / this.camera.aspect / (2 * Math.tan(T.MathUtils.degToRad(19))));
+      this.camera.position.copy(paper).add(new T.Vector3(-3, 3, distance)); aim.copy(paper).add(new T.Vector3(-2, 0, 0)); fieldOfView = 38;
+    }
+    if (!this.shot && this.stage === 'login' && this.loginSurface && t > .78 && this.ship) {
+      // The arrival finishes outside the physical board. Blend to the board
+      // pose over the last fifth of the take so the continuous shot never
+      // jumps from the mast view to a separate login camera.
+      this.ship.updateWorldMatrix(true, true); this.loginSurface.anchor.updateWorldMatrix(true, false);
+      const board = this.loginSurface.anchor.getWorldPosition(new T.Vector3());
+      const normal = new T.Vector3(0, 0, 1).applyNormalMatrix(new T.Matrix3().getNormalMatrix(this.loginSurface.anchor.matrixWorld)).normalize();
+      const settle = smooth(Math.max(0, Math.min(1, (t - .78) / .22)));
+      const boardEye = board.clone().addScaledVector(normal, 17).add(new T.Vector3(0, 3.0, 8.0));
+      const boardAim = board.clone().add(new T.Vector3(0, .4, 0));
+      this.camera.position.lerp(boardEye, settle); aim.lerp(boardAim, settle); fieldOfView = T.MathUtils.lerp(fieldOfView, 40, settle);
+    }
+    if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship && !this.roleDetailOpen) {
       // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
       const base = this.ship.localToWorld(walkingDeck.position.clone());
-      const room = this.ship.getObjectByName('SV3_CaptainRoom');
-      const bounds = room?.userData.interior_bounds;
-      const localFoot = room?.worldToLocal(base.clone());
-      const inCaptainRoom = this.stage === 'channel' && Array.isArray(bounds) && localFoot && new T.Box3(new T.Vector3(...bounds.slice(0,3)), new T.Vector3(...bounds.slice(3))).containsPoint(localFoot);
-      // Stay at character scale inside the room; the outdoor dolly crosses the main sail.
-      base.y += inCaptainRoom ? 1.1 : Math.min(270, this.host.clientHeight * .3) / 45;
-      const outdoorDistance = this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19)));
-      const distance = (inCaptainRoom ? 6.4 : outdoorDistance) * this.zoom;
-      // Retain the authored viewing side so both wall-mounted boards are front-facing.
-      const yaw=(inCaptainRoom ? -2.6 : Math.atan2(poses.channel.eye[0]-poses.channel.aim[0],poses.channel.eye[2]-poses.channel.aim[2])) + this.yaw;
-      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw)*Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(yaw)*Math.cos(this.pitch)).multiplyScalar(distance));
-      if (inCaptainRoom && room) {
-        const eye = room.worldToLocal(this.camera.position.clone());
-        eye.x = T.MathUtils.clamp(eye.x, bounds[0] + .35, bounds[3] - .35);
-        eye.y = T.MathUtils.clamp(eye.y, bounds[1] + 1, bounds[4] - .35);
-        eye.z = T.MathUtils.clamp(eye.z, bounds[2] + .35, bounds[5] - .35);
-        this.camera.position.copy(room.localToWorld(eye));
-      }
+      base.y += 1.65;
+      const distance = (this.stage === 'characters' ? 20 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * this.zoom;
+      const yaw = this.yaw, pitch = this.stage === 'characters' ? Math.max(this.pitch, .46) : Math.max(this.pitch, .2);
+      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(distance));
       if (this.stage === 'channel') this.avoidCameraSurface(base);
       aim.copy(base); fieldOfView=38;
 
@@ -504,39 +689,40 @@ export class EntryVoyage {
         button.hidden=!projection;
         if(projection){button.style.left='0';button.style.top='0';button.style.transform=`matrix3d(${projection.matrix.elements.join(',')})`;}
         button.disabled = this.host.getAttribute('aria-busy') === 'true';
-        const quick=this.host.querySelector<HTMLButtonElement>('.voyage-adventure-shortcut');
+        const quick=this.host.querySelector<HTMLElement>('.voyage-adventure-shortcut');
         if(quick)quick.hidden=!!projection;
       }
-      if (this.host.getAttribute('aria-busy') !== 'true' && walkingDeck.moving) {
-        if (this.stage==='channel') {
-          const door=this.model?.getObjectByName('SV3_CaptainDoorOpening');
-          if(door) {
-            const distance=this.ship.worldToLocal(door.getWorldPosition(new T.Vector3())).distanceTo(walkingDeck.position);
-            if(distance>1.8)this.entranceArmed=true;
-            if(distance<1.0 && this.entranceArmed){this.entranceArmed=false;queueMicrotask(()=>{if(this.alive&&this.stage==='channel')this.onCabin?.();});}
+      const previousNearbyCharacter = this.nearbyCharacterId;
+      this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
+      if (this.host.getAttribute('aria-busy') !== 'true') {
+        if (this.stage === 'channel') {
+          const portal = this.model?.getObjectByName('SV3_CaptainPortal');
+          const point = portal && this.ship.worldToLocal(portal.getWorldPosition(new T.Vector3()));
+          if (point && point.distanceTo(walkingDeck.position) < 1.15) this.nearInteraction = 'enter-cabin';
+        } else if (this.stage === 'characters') {
+          const marker = this.model?.getObjectByName('SV3_CabinDeckPortal');
+          const exit = marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
+          if (exit && exit.distanceTo(walkingDeck.position) < .7) this.nearInteraction = 'return-deck';
+          for (let index = 0; index < this.ids.length; index++) {
+            const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
+            if (!anchor) continue;
+            const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
+            if (point.distanceTo(walkingDeck.position) < .72) { this.nearInteraction = 'role-details'; this.nearbyCharacterId = this.ids[index]; break; }
           }
-        } else if(this.stage==='characters') {
-          const marker=this.model?.getObjectByName('SV3_CabinDeckPortal');
-          const exit=marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
-          const distance=exit?.distanceTo(walkingDeck.position) ?? Infinity;
-          if(distance>1.5)this.exitArmed=true;
-          if(distance<.7 && this.exitArmed){this.exitArmed=false;queueMicrotask(()=>{if(this.alive&&this.stage==='characters')this.onDeck?.();});}
-          for(let index=this.ids.length;index<12;index++) {
-            const anchor=this.model?.getObjectByName(`SV2_Bed_${index}_SleepAnchor`);
-            if(!anchor)continue;
-            const point=this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(.75,0,.98));point.y=.025;
-            if(point.distanceTo(walkingDeck.position)<.65){queueMicrotask(()=>{if(this.alive&&this.stage==='characters')this.onCreate?.(index);});break;}
+          if (!this.nearInteraction) for (let index = this.ids.length; index < 12; index++) {
+            const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
+            if (!anchor) continue;
+            const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
+            if (point.distanceTo(walkingDeck.position) < .72) { this.nearInteraction = 'create-character'; this.nearbyEmptySlot = index; break; }
           }
         }
       }
-      const hint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
-      if (hint) {
-        const icons:Record<string,string> = {up:'n',down:'s',left:'w',right:'e'};
-        const html = walkingDeck.hints(this.camera, this.ship).map(d => {const image=this.directionIcons?.[icons[d]];return image ? `<img src="${resolveAssetUrl(image.url)}" alt="${d}" width="24" height="24">` : '';}).join('');
-        if (hint.innerHTML !== html) hint.innerHTML = html;
-      }
+      if (this.roleDetailOpen && (this.nearInteraction !== 'role-details' || this.nearbyCharacterId !== previousNearbyCharacter)) this.roleDetailOpen = false;
+      this.updateInteractionHint();
+
     }
     this.camera.updateMatrixWorld(true);
+    this.updatePortalVisuals(this.reduced.matches ? 0 : delta);
     const travelling = t < 1 && this.stage === 'login';
     this.host.classList.toggle('voyage-travelling', travelling);
     const avatar = this.host.querySelector<HTMLElement>('.voyage-deck-avatar');
@@ -544,6 +730,12 @@ export class EntryVoyage {
       const point = this.ship.localToWorld(this.passengers.deckPosition.clone()).project(this.camera);
       avatar.style.left = `${(point.x + 1) * 50}%`; avatar.style.top = `${(1 - point.y) * 50}%`;
       avatar.hidden = travelling || this.stage==='create';
+    }
+    const spaceHint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
+    if (spaceHint && this.ship && walkingDeck && this.nearInteraction) {
+      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 1.9, 0))).project(this.camera);
+      spaceHint.style.left = `${(point.x + 1) * 50}%`;
+      spaceHint.style.top = `${(1 - point.y) * 50}%`;
     }
     const draft = this.host.querySelector<HTMLElement>('.entry-create-preview');
     if (draft && this.ship) {
@@ -554,8 +746,9 @@ export class EntryVoyage {
     this.host.classList.toggle('voyage-world-avatars', Boolean(this.model));
     const projectedBunks = this.stage === 'characters' && Boolean(this.ship);
     this.host.classList.toggle('voyage-projected-bunks', projectedBunks);
+    this.host.classList.toggle('voyage-paper-open', this.roleDetailOpen || this.stage === 'create');
     if (projectedBunks && this.ship) this.host.querySelectorAll<HTMLElement>('[data-berth]').forEach(button => {
-      const index = this.page * 4 + Number(button.dataset.berth), x = -10.8 + index * 1.8;
+      const index = Number(button.dataset.berth), x = -10.8 + index * 1.8;
       const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
       const point = (anchor ? anchor.getWorldPosition(new T.Vector3()) : this.ship!.localToWorld(new T.Vector3(x, .4, 43))).project(this.camera);
       const head = this.model?.getObjectByName(`SV2_Bed_${index}_SleepAnchor`)?.getWorldPosition(new T.Vector3());
@@ -568,7 +761,7 @@ export class EntryVoyage {
         button.style.minHeight = '0';
       }
       button.style.left = `${(point.x + 1) * 50}%`; button.style.top = `${(1 - point.y) * 50}%`;
-      button.style.visibility = point.z < -1 || point.z > 1 || !this.cabinShown || passage > .2 ? 'hidden' : 'visible';
+      button.style.visibility = this.roleDetailOpen || point.z < -1 || point.z > 1 || !this.cabinShown || passage > .2 ? 'hidden' : 'visible';
     });
     else this.host.querySelectorAll<HTMLElement>('[data-berth]').forEach(button => { if (button.style.left) { button.style.removeProperty('left'); button.style.removeProperty('top'); } });
     const projectedWindows = this.stage === 'create' && this.host.clientWidth >= 900 && this.host.clientHeight >= 600 && Boolean(this.model);
@@ -586,6 +779,12 @@ export class EntryVoyage {
     });
     else this.host.querySelectorAll<HTMLElement>('[data-profession]').forEach(button => { if (button.style.left) button.removeAttribute('style'); });
     const exterior = this.model?.getObjectByName('SV3_Exterior');
+    const roleElement = this.host.querySelector<HTMLElement>('[data-role="role-details"]') ?? undefined;
+    this.rolePaperProjector.set(roleElement, this.rolePaper, this.stage === 'characters' && this.roleDetailOpen && Boolean(this.deckCharacter));
+    this.rolePaperProjector.update(this.camera, { width: this.host.clientWidth, height: this.host.clientHeight });
+    const createElement = this.host.querySelector<HTMLElement>('#create-character') ?? undefined;
+    this.createPaperProjector.set(createElement, this.createPaper, this.stage === 'create');
+    this.createPaperProjector.update(this.camera, { width: this.host.clientWidth, height: this.host.clientHeight });
     const loginVisible = this.stage === 'login' && this.login.update(this.camera, this.loginSurface, exterior ? [exterior] : []);
     this.host.classList.toggle('voyage-login-visible', loginVisible);
     this.clouds.render(this.renderer, this.scene, this.camera, this.sun, this.cabinShown ? this.windowLight : undefined);
@@ -671,6 +870,11 @@ export class EntryVoyage {
     this.host.removeEventListener('pointerup', this.cameraUp); this.host.removeEventListener('pointercancel', this.cameraUp);
     this.host.removeEventListener('wheel', this.cameraWheel); this.host.removeEventListener('contextmenu', this.contextMenu);
     this.cameraObstacles.length=0; this.clearMovement(); this.deck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
+    this.portalMeshes.forEach(mesh => { mesh.geometry.dispose(); (mesh.material as T.Material).dispose(); mesh.removeFromParent(); });
+    this.portalTextures.forEach(texture => texture.dispose()); this.portalMeshes = []; this.portalTextures = [];
+    this.floorCount?.geometry.dispose(); (this.floorCount?.material as T.Material | undefined)?.dispose(); this.floorCountTexture?.dispose(); this.floorCount = undefined; this.floorCountTexture = undefined;
+    for (const paper of [this.rolePaper, this.createPaper]) { if (!paper) continue; paper.mesh.geometry.dispose(); (paper.mesh.material.map as T.Texture | null)?.dispose(); paper.mesh.material.dispose(); paper.group.removeFromParent(); }
+    this.rolePaperProjector.destroy(); this.createPaperProjector.destroy(); this.rolePaper = undefined; this.createPaper = undefined;
     this.reduced.removeEventListener('change', this.onMotion);
     this.passengers.destroy(); this.login.destroy(); this.clouds.destroy(); this.windowLight?.destroy(); this.water?.dispose(); dispose(this.scene); this.reflection.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.canvas.remove();
     this.host.classList.remove('entry-voyage-ready', 'voyage-travelling', 'voyage-login-visible');

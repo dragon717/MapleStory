@@ -567,3 +567,150 @@ body.entry-active { background: #eee4cf; }
 }
 .entry-voyage .voyage-adventure-shortcut { position: absolute; z-index: 5; right: 20px; bottom: 70px; width: 155px; }
 .entry-voyage :is(.voyage-adventure,.voyage-adventure-shortcut)[hidden] { display: none; }
+
+/* Top-right utility controls stay out of the physical login board. */
+.entry-voyage .entry-top-tools {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 12;
+  display: flex;
+  gap: 8px;
+}
+.entry-voyage .entry-icon-button {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #fff5 !important;
+  border-image: none !important;
+  border-radius: 50% !important;
+  background: #382b1bbd !important;
+  color: #fff6db !important;
+  box-shadow: 0 3px 9px #1b160d55 !important;
+  backdrop-filter: blur(8px);
+}
+.entry-voyage .entry-icon-button:hover { background: #59452ac9 !important; filter: none; }
+.entry-voyage .entry-icon-button svg { width: 21px; height: 21px; fill: currentColor; }
+.entry-voyage .entry-music-button[data-state="off"] { color: #d4c3a1 !important; opacity: .84; }
+
+/* The version/credit line belongs beside the title; client actions occupy the
+   next line on the same side instead of duplicating a footer marker. */
+.entry-voyage .entry-edition {
+  top: 57px;
+  bottom: auto;
+  left: 14px;
+  z-index: 4;
+  max-width: min(420px, calc(100vw - 28px));
+  font-size: 11px;
+}
+
+/* Space is projected above the player by voyage.ts. */
+.entry-voyage .voyage-space-hint {
+  position: fixed;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transform: translate(-50%, -100%);
+  padding: 5px 10px;
+  border: 1px solid #f9e7b3cc;
+  border-radius: 999px;
+  background: #2b2114d9;
+  color: #fff1c7;
+  font: 13px/1.2 "Microsoft YaHei", sans-serif;
+  box-shadow: 0 3px 10px #120e0999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.entry-voyage .voyage-space-hint[hidden] { display: none; }
+.entry-voyage .voyage-space-hint kbd {
+  min-width: 47px;
+  padding: 3px 8px;
+  border: 1px solid #f8e7b5;
+  border-radius: 4px;
+  background: #fff4d7;
+  color: #4e3922;
+  font: 700 12px/1.2 Arial, sans-serif;
+  text-align: center;
+}
+
+/* Paper projections remove the old flat overlays while retaining the same
+   DOM form and focusable controls. */
+.entry-voyage .voyage-role-details {
+  width: 340px;
+  padding: 32px 35px;
+  color: #49361f;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  text-align: center;
+  pointer-events: auto;
+}
+.entry-voyage .voyage-role-details h2 { margin: 0 0 18px; font-size: 27px; letter-spacing: .12em; }
+.entry-voyage .voyage-role-details p { margin: 0; font-size: 18px; }
+.entry-voyage-ready.entry-stage-create .entry-create-panel {
+  width: 430px;
+  max-width: none;
+  padding: 20px 25px;
+  border: 0;
+  border-image: none;
+  background: transparent;
+  box-shadow: none;
+  color: #49361f;
+  font-size: 13px;
+}
+.entry-voyage-ready.entry-stage-create .entry-create-panel h1 { font-size: 23px; margin-bottom: 15px; }
+.entry-voyage-ready.entry-stage-create .entry-create-name,
+.entry-voyage-ready.entry-stage-create .entry-customise { padding: 10px; margin-bottom: 8px; border: 1px solid #9b7b47aa; background: #fff5d433; }
+.entry-voyage-ready.entry-stage-create .entry-create-actions { margin-top: 10px; }
+.entry-voyage-ready.entry-stage-create .entry-create-actions > button { min-height: 35px; padding: 4px 9px; font-size: 14px; }
+
+/* If the projected board is outside the camera, this two-part shortcut keeps
+   login navigation and the larger adventure action visible together. */
+.entry-voyage .voyage-adventure-shortcut {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  width: auto;
+  min-width: 214px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.entry-voyage .voyage-adventure-shortcut > button { margin: 0; }
+.entry-voyage .voyage-return-login {
+  width: 38px;
+  min-height: 54px;
+  padding: 2px 3px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 22px;
+}
+.entry-voyage .voyage-return-login span { writing-mode: vertical-rl; font-size: 10px; line-height: 1; }
+.entry-voyage .voyage-start-adventure { flex: 1; min-width: 164px; min-height: 60px; font-size: 18px; }
+
+/* All berth labels belong to their scene anchor; no paging bar masks the aisle. */
+.entry-voyage.voyage-projected-bunks .entry-character { pointer-events: none; border: 0; background: transparent; box-shadow: none; }
+.entry-voyage.voyage-projected-bunks .entry-character :is(strong,span) { color: #fff3ca; text-shadow: 0 1px 3px #160b04, 1px 0 2px #160b04; }
+.entry-voyage.voyage-projected-bunks .entry-empty { visibility: hidden !important; }
+.entry-stage-characters .entry-navigation, .entry-stage-characters .entry-brand, .entry-stage-create .entry-navigation { display: none; }
+.entry-voyage .voyage-role-details { min-height: 370px; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+.entry-voyage .voyage-role-details dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; text-align: left; }
+.entry-voyage .voyage-role-details dt { color: #7a5935; }
+.entry-voyage .voyage-role-details dd { margin: 0; text-align: right; }
+.voyage-paper-actions { display: flex; flex-direction: column; gap: 10px; }
+.entry-voyage .voyage-paper-actions button { padding: 8px; min-height: 36px; font-size: 15px; }
+.entry-voyage.voyage-paper-open .voyage-space-hint { display: none; }
+
+.entry-voyage-ready:is(.entry-stage-create,.entry-stage-characters) .entry-scene { display: block; padding: 0; height: 100dvh; min-height: 0; grid-template-columns: none; }
+.entry-voyage-ready.entry-stage-create .entry-create-panel { grid-column: auto; max-height: none; overflow: visible; align-self: auto; justify-self: auto; }
+.entry-voyage-ready.entry-stage-create .entry-create-actions { position: static; background: transparent; }
+.entry-voyage .voyage-role-details { z-index: 4; }
+
+.entry-voyage-ready :is(.voyage-role-details,.entry-create-panel) { visibility: hidden; }

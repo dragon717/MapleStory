@@ -191,14 +191,14 @@
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
-      "bytes": 160060699,
-      "sha256": "9b0e9a0c2f14419a3f892f6c977d82da1120e1185d5d330eb1f07842dcf66753",
+      "bytes": 160198731,
+      "sha256": "ba405e06d660b31ce058a48ca55e03dcd5433f46a7f54d2e3dcf8b2207cdf538",
       "storage": "local-deferred"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
-      "bytes": 70715232,
-      "sha256": "22f0a89ced06ed81ac6603105945bd94c02b56f4da86770ee144c1e1f508f425",
+      "bytes": 70768996,
+      "sha256": "8c7471ebf73f051850ae406450ac9ea97c01688965f79b7b32674303049998b8",
       "storage": "local-deferred"
     },
     {

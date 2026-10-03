@@ -93,7 +93,11 @@ for obj in parts:
         magnitudes=[abs(v) for v in p.normal]
         axis=magnitudes.index(max(magnitudes))
         pair=[(1,2),(0,2),(1,0)][axis]
-        scale=.7 if name.endswith('Linen') else 3 if name.endswith('Wood') else 2
+        # The outer hull is a long continuous surface.  A 3 m projection made
+        # the same knot repeat as obvious vertical blocks on the curved side;
+        # keep the deck plank scale separate and give structural wood a longer
+        # 7 m grain span while retaining the source face-direction mapping.
+        scale=.7 if name.endswith('Linen') else 7 if name.endswith('Wood') else 2
         for i in p.loop_indices:
             co=mesh.vertices[mesh.loops[i].vertex_index].co+obj.location
             uv.data[i].uv=(co[pair[0]]/scale,co[pair[1]]/scale)

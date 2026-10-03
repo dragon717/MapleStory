@@ -2,6 +2,7 @@ import * as T from 'three';
 import { voyageScreenFacing } from './voyage-deck';
 import type { Part } from '../../assets/avatar-types';
 import { resolveAssetUrl } from '../../assets/resource-url';
+import { VOYAGE_PASSENGER_SCALE } from './voyage-scale';
 
 const ease = (t: number) => { t = T.MathUtils.clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 /** Local presentation only: feet stay attached to the authored ship/bed anchors. */
@@ -40,7 +41,12 @@ export class VoyagePassengers {
   deckMoving = false;
   deckJumping = false;
   deckFacing = 1;
-  constructor(private changed: () => void, private clock: () => number = () => performance.now()) { this.root.name = 'SV3_Passengers'; }
+  constructor(private changed: () => void, private clock: () => number = () => performance.now()) {
+    this.root.name = 'SV3_Passengers';
+    // Keep the carrier in ship-local coordinates.  Counter-scale each doll
+    // mesh below; scaling this carrier would also halve its world position and
+    // detach the character from the ×2 deck and bed anchors.
+  }
   attach(ship: T.Object3D) { ship.add(this.root); }
   setSlots(ids: string[], selected: string | undefined, stage: string, page: number) {
     if (selected !== this.selected) {
@@ -70,7 +76,7 @@ export class VoyagePassengers {
       const zCanvas = document.createElement('canvas'); zCanvas.width = 128; zCanvas.height = 96;
       const ctx = zCanvas.getContext('2d')!; ctx.font = 'bold 46px Georgia'; ctx.fillStyle = '#d5e9ff'; ctx.fillText('Z', 8, 81); ctx.font = 'bold 28px Georgia'; ctx.fillText('z', 60, 40);
       const zTexture = new T.CanvasTexture(zCanvas); zTexture.colorSpace = T.SRGBColorSpace;
-      const zz = new T.Sprite(new T.SpriteMaterial({ map: zTexture, transparent: true, depthTest: true })); zz.scale.set(.7, .525, 1); this.root.add(zz);
+      const zz = new T.Sprite(new T.SpriteMaterial({ map: zTexture, transparent: true, depthTest: true })); zz.scale.set(.7 * VOYAGE_PASSENGER_SCALE, .525 * VOYAGE_PASSENGER_SCALE, 1); this.root.add(zz);
       doll = { group, mesh, texture, canvas, token: 0, zz }; this.dolls.set(id, doll);
     }
     const token = ++doll.token;
@@ -112,6 +118,12 @@ export class VoyagePassengers {
       let sleeping = this.sleeping(id);
       const onDeck = selected && (this.stage === 'channel' || this.stage === 'characters' && !this.waking);
       let returning = this.returning.get(id);
+      // The source canvas uses a top-left origin.  Sleeping dolls keep the
+      // negative offset under the quilt; deck walkers grow upward from their
+      // feet, so flip the anchor for the outdoor presentation.
+      doll.mesh.position.y = onDeck || returning || id === 'draft'
+        ? Math.abs(doll.mesh.position.y)
+        : -Math.abs(doll.mesh.position.y);
       doll.group.visible = onDeck || (this.stage === 'characters' && index >= 0) || (this.stage === 'create' && id === 'draft');
       doll.zz.visible = doll.group.visible && sleeping;
       if (!doll.group.visible) continue;
@@ -120,7 +132,7 @@ export class VoyagePassengers {
       // Feet point toward the camera; local +Y (head) lies along the mattress toward -Z.
       const feet = sleep.clone().add(new T.Vector3(0, .025, .78));
       const pose = wakePose(this.wake.variant, this.wake.seconds);
-      doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI / 2, 0, 0); doll.group.scale.setScalar(1);
+      doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI / 2, 0, 0); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE);
       if (!sleeping) {
         doll.group.position.y = T.MathUtils.lerp(feet.y, .025, pose.progress) + pose.lift;
         doll.group.position.x += .75 * pose.progress; doll.group.position.z += .2 * pose.progress;
@@ -131,7 +143,9 @@ export class VoyagePassengers {
       if (returning) {
         returning.seconds += Math.max(0, delta);
         // Walk through the clear aisle; the user-requested deadline guarantees a sleeping bed by 3 s.
-        const waypoints = [returning.from, new T.Vector3(returning.from.x, .025, 47), new T.Vector3(feet.x + .75, .025, 47), new T.Vector3(feet.x + .75, .025, feet.z + .2)];
+        const footAnchor = model.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
+        const aisle = footAnchor ? this.root.worldToLocal(footAnchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)) : new T.Vector3(feet.x, .025, 45.2); aisle.y = .025;
+        const waypoints = [returning.from, new T.Vector3(returning.from.x, .025, aisle.z), aisle, feet];
         const length=waypoints.slice(1).reduce((sum,p,i)=>sum+p.distanceTo(waypoints[i]),0);
         const elapsed=Math.max(returning.seconds,(this.clock()-(returning.deadline-3000))/1000);
         let distance = Math.min(elapsed, 3) * Math.max(3,length/3);
@@ -143,15 +157,15 @@ export class VoyagePassengers {
         }
         doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
         returning.facing = voyageScreenFacing(returning.previous, doll.group.position, this.root, camera, returning.facing);
-        returning.previous.copy(doll.group.position); doll.group.scale.x = returning.facing;
+        returning.previous.copy(doll.group.position); doll.group.scale.x = VOYAGE_PASSENGER_SCALE * returning.facing;
         if (this.clock() >= returning.deadline || doll.group.position.distanceTo(waypoints[3]) < .04) {
-          this.returning.delete(id); doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI/2,0,0); doll.group.scale.setScalar(1); doll.zz.visible=true; sleeping=true; returning=undefined;
+          this.returning.delete(id); doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI/2,0,0); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE); doll.zz.visible=true; sleeping=true; returning=undefined;
         }
       }
       if (onDeck || id === 'draft') {
         if (onDeck) doll.group.position.copy(this.deckPosition); else doll.group.position.set(0, .025, 38.8);
         doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
-        if (onDeck) doll.group.scale.x = this.deckFacing;
+        if (onDeck) doll.group.scale.x = VOYAGE_PASSENGER_SCALE * this.deckFacing;
       }
       const vertices = doll.mesh.geometry.attributes.position;
       // Keep the body under the quilt's low folds while the head rests above the pillow.
@@ -162,12 +176,12 @@ export class VoyagePassengers {
         const t = this.departure.seconds;
         this.book.position.copy(feet).add(new T.Vector3(.7, .8, 1.8));
         if (onDeck) this.book.position.copy(this.deckPosition).add(new T.Vector3(.6, .86, 1.5));
-        this.book.scale.setScalar(ease(t / .4));
+        this.book.scale.setScalar(VOYAGE_PASSENGER_SCALE * ease(t / .4));
         // Authored readable pages face local +Z; rotate the whole book toward the passenger.
         const toward = doll.group.position.clone().sub(this.book.position);
         this.book.rotation.y = Math.atan2(toward.x, toward.z) + Math.sin(t * 1.8) * .12;
         const absorb = ease((t - .65) / 1.1);
-        doll.group.position.lerp(this.book.position, absorb); doll.group.scale.setScalar(1 - absorb * .99);
+        doll.group.position.lerp(this.book.position, absorb); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE * (1 - absorb * .99));
         doll.zz.visible = false;
       }
     }

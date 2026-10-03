@@ -48,7 +48,13 @@ export function loginSurfaceOccluded(camera: T.Camera, points: readonly T.Vector
   for (const root of roots) {
     root.updateWorldMatrix(true, true);
     root.traverse(object => {
-      if (object instanceof T.Mesh && visibleInTree(object) && object.layers.test(camera.layers)) meshes.push(object);
+      if (!(object instanceof T.Mesh) || !visibleInTree(object) || !object.layers.test(camera.layers)) return;
+      // The board, its physical button meshes and the paper itself are the
+      // destination surface, never an occluder of their own native form.
+      for (let parent: T.Object3D | null = object; parent; parent = parent.parent) {
+        if (parent.name === 'SV2_LoginSign' || parent.name === 'SV3_LoginSurface' || parent.name.startsWith('SV3_LoginButton_')) return;
+      }
+      meshes.push(object);
     });
   }
   const eye = camera.getWorldPosition(new T.Vector3()), ray = new T.Raycaster();
