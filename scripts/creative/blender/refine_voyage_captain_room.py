@@ -62,7 +62,10 @@ for ids in components.values():
     if min(v.z for v in pts)>15 and max(v.z for v in pts)<20:fragments.update(ids)
 # Preserve the source curved roof, UVs and interpolated normals; clip real voids.
 spec=importlib.util.spec_from_file_location('clip_voyage_hull',ROOT/'scripts/creative/blender/clip_voyage_hull.py');clip=importlib.util.module_from_spec(spec);spec.loader.exec_module(clip)
-hull.data,roof_data=clip.refine_hull(m,fragments)
+spec=importlib.util.spec_from_file_location('repair_voyage_cut_boundaries',ROOT/'scripts/creative/blender/repair_voyage_cut_boundaries.py');boundary=importlib.util.module_from_spec(spec);spec.loader.exec_module(boundary)
+# Fragment indices and material labels refer to the unsplit archived topology.
+repaired,restored_parts=boundary.repair(m,bpy.data.objects['BeforeRepair_SV3_Hull'].data,clip,fragments)
+hull.data,roof_data=clip.refine_hull(repaired,set())
 hull['captain_room_repair']='exact room/jewel openings; continuous paint boundaries; retained source UV and normals'
 removed_room=len(m.polygons)-len(hull.data.polygons)
 room=empty('SV3_CaptainRoom',bpy.data.objects['SV3_Exterior'])

@@ -72,7 +72,7 @@ def refine_hull(old, fragments):
     for p in old.polygons:
         if p.index in fragments: continue
         poly=[(old.vertices[old.loops[i].vertex_index].co.copy(),[l.data[i].uv.copy() for l in old.uv_layers],old.corner_normals[i].vector.copy()) for i in p.loop_indices]
-        mat=labels.get(tuple(sorted(p.vertices)),p.material_index)
+        mat=p.material_index if old.get('source_labels_propagated') else labels.get(tuple(sorted(p.vertices)),p.material_index)
         roof, remain=partition(poly,roof_box)
         if len(roof)>=3: roofs.append((roof,mat,p.use_smooth))
         for cut in cuts:
