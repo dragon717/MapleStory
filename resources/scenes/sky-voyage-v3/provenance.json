@@ -1,0 +1,289 @@
+{
+  "schema": "maple.sky-voyage.provenance.v3",
+  "generatedGeometry": "P: user-provided hull and approved rig, repaired cloth/timber/crystal semantics; new floating city and adapted downloaded cabin beds",
+  "tms273References": [
+    {
+      "class": "T",
+      "purpose": "destination identity and local source check",
+      "source": "参考/273/TMS273少爷一键端/客户端/TMS273.7/Data.wz; references/tms273-data/maps.json",
+      "mapSource": "Map.wz/Map/Map2/200000000.img",
+      "mapName": "天空之城",
+      "mapMetadataSource": "Map/Map/Map2/200000000.json",
+      "localRenderedReference": "resources/tms273-export/assets/tms273/Map_Map_Map2__Canvas_200000000.img_miniMap_canvas-4f5fa9e8e7.png",
+      "boundary": "The TMS273 map data is 2D WZ layout/sprite metadata; it does not define the castle and floating-island 3D geometry authored here."
+    },
+    {
+      "class": "T",
+      "purpose": "original ship graphic reference",
+      "source": "../sky-voyage-v2/references/tms273-data/maps.json, map 104020110, layer 0 object 1",
+      "objectSource": "Map.wz/Obj/vehicle.img/ship/ossyria/99",
+      "sourcePositionPixels": [
+        1309,
+        -344
+      ],
+      "boundary": "Original 2D WZ sprite reference. The mechanical fan-sail vessel, ivory/gold palette and passenger cabin here are authored 3D P adaptations."
+    },
+    {
+      "class": "T",
+      "purpose": "airship route/map classification",
+      "source": "../sky-voyage-v2/references/tms273-data/manifest.json",
+      "mapIds": [
+        "200000100",
+        "200000112",
+        "200000120",
+        "200000121"
+      ],
+      "boundary": "These map IDs establish local TMS273 airship/cabin source context, not a 3D model or login flow."
+    },
+    {
+      "class": "T",
+      "purpose": "complete original Orbis ship silhouette",
+      "mapSource": "Map.wz/Map/Map2/200090010.img",
+      "objectSource": "Map.wz/Obj/vehicle.img/ship/ossyria/{0..15}/0",
+      "localRenderedReference": "../sky-voyage-v2/references/tms273-orbis-ship-source.png",
+      "placementManifest": "../sky-voyage-v2/references/ship-exterior-frames.json",
+      "boundary": "TMS273 sprites composed at original coordinates/origins; all fourteen placed exterior frames and the composite match the decoded local GMS83-reference pack. The latter is a third-party pack, not verified official distribution."
+    },
+    {
+      "class": "T",
+      "purpose": "original curved timber cabin details",
+      "mapSource": "Map.wz/Map/Map2/200090011.img",
+      "localRenderedReference": "../sky-voyage-v2/references/cabin-interior-tms273-map-200090011.png",
+      "placementManifest": "../sky-voyage-v2/references/cabin-interior-tms273-map-200090011.manifest.json",
+      "boundary": "Original 2D cabin side view does not define new 3D floor plans, passenger berths or windows."
+    }
+  ],
+  "conceptReference": {
+    "class": "P",
+    "source": "resources/login-prototypes/2026-10-01/v4/{far,mid,close}.png",
+    "use": "Previous v4 composition reference. Latest user direction requires the original Orbis mechanical fan-sail silhouette, enlarged archipelago and ivory/gold P adaptation; whole concept images are not scene textures."
+  },
+  "thirdPartyAssets": [
+    {
+      "asset": "../sky-voyage-v1/vendor/wings/wings-michael-fuchs.glb",
+      "author": "Michael Fuchs",
+      "publisher": "Poly Pizza",
+      "license": "CC-BY 3.0",
+      "attribution": "“wings” by Michael Fuchs (Poly Pizza), CC-BY 3.0, https://poly.pizza/m/dw-IMS0xk71",
+      "sha256": "40487a86069dbf53bce4ded5825f3d95329cf1ade59348c3b454829d41a8231f",
+      "changes": "Rescaled and placed as the castle crest; geometry/material source otherwise retained."
+    },
+    {
+      "asset": "resources/scenes/henesys/rail-v1/vendor/nature/Stylized Nature MegaKit[Standard]/glTF/",
+      "author": "Quaternius",
+      "license": "CC0 (already used as CC0 Quaternius in the project Blender scene scripts)",
+      "usage": [
+        "CommonTree_1",
+        "TwistedTree_1",
+        "Bush_Common",
+        "Flower_3_Group",
+        "Rock_Medium_1"
+      ],
+      "boundary": "Meshes and bundled source textures are reused; no new vegetation framework or download is introduced."
+    },
+    {
+      "asset": "../sky-voyage-v2/vendor/castle/",
+      "author": "Kenney",
+      "license": "CC0 1.0",
+      "source": "https://kenney.nl/assets/castle-kit",
+      "sha256OriginalZip": "921f3f73927bb23106cae34bc21d5ab4b033a9fc120475e96f714a406e3169df",
+      "usage": "doorway, hexagonal roof, bridge pillar as small peripheral accents; principal palace authored geometry"
+    },
+    {
+      "asset": "vendor/bed/opengameart-victorian-bed/",
+      "author": "Colorado Stark",
+      "license": "CC0",
+      "source": "https://opengameart.org/content/bed",
+      "sha256OriginalZip": "f48e32c8a7f1f68af91213b3eb6ba46642d81f3d5daf2b90ae7f236624a49a72",
+      "usage": "Downloaded Victorian/antique bed adapted to a single berth; 12 instances in 3 groups; source meshes/textures retained",
+      "boundary": "This is not verified French style; user acceptance pending."
+    }
+  ],
+  "provisionalWorldbuilding": "A passenger ship belonging to a royal merchant fleet; ticket economy and canonical lore are not implemented.",
+  "generatedImageAssets": {
+    "tool": "built-in image_gen",
+    "directory": "textures/",
+    "manifest": "textures/ASSETS.md",
+    "usage": "New ivory enamel/champagne brass/teak/linen material sheet; UI panel/button/maple crest reused from v2. Text remains native DOM."
+  },
+  "designSheets": [
+    {
+      "class": "P",
+      "file": "../sky-voyage-v2/design/ship-orthographic-v2.png",
+      "tool": "built-in image_gen",
+      "sha256": "9fb2942b56d1baeac936d3b858ceba95b0d23048198418835d78d9cded99b2f1"
+    },
+    {
+      "class": "P",
+      "file": "../sky-voyage-v2/design/ship-interior-plan-v1.png",
+      "tool": "built-in image_gen",
+      "sha256": "f3aa0ea060e048f53f39bd5cc612509e16e9f475a390293ac2406fcc4365418c"
+    }
+  ],
+  "physics": {
+    "water": "program-generated shallow-water finite volume h/hu/hv + artistic Gerstner waves + gravity waterfall sheets and spray; constant-depth bounded domains, no 3D pressure/FLIP/SPH; elliptical visual shore mask with shoreline attenuation; the conservative solver remains rectangular, not a wet/dry shoreline solver",
+    "cloth": "P retopologized cloth with wind-pressure zero at patch boundaries; rigid timber has fold motion only. Separate DeployFold and WindPressure; no full cloth aerodynamics/self collision.",
+    "report": "docs/technical/天空航船卡通物理水方案调研.md"
+  },
+  "gmsVisualReferences": {
+    "class": "R",
+    "source": "local third-party BeiDou-Client-V15_fix GMS83-reference vehicle.img",
+    "index": "../sky-voyage-v2/references/gms83-vehicle/index.json",
+    "localRenderedReference": "../sky-voyage-v2/references/gms83-reference-orbis-ship.png",
+    "verified": "Root compared all 14 placed exterior frames with TMS273: decoded RGBA, size and origin match exactly; full composite identical.",
+    "boundary": "This confirms shape consistency with the GMS-reference asset pack, not authenticity of an official distribution or unpublished 3D/internal plans."
+  },
+  "designSheetsPromptRecord": "../sky-voyage-v2/design/ASSETS.md",
+  "visualCorrections": [
+    "native blob/data image fetch retained by offline fixtures",
+    "sail decal depth offset with normal scene occlusion",
+    "cabin camera keeps all four profession windows clear of the creation panel",
+    "elliptical pool shore clipping and river-bed sampled centerlines"
+  ],
+  "editableSource": {
+    "blend": "models/sky-voyage.blend",
+    "importedOriginal": "models/user-ship-import.blend",
+    "scripts": [
+      "scripts/creative/blender/prepare_user_sky_ship.py",
+      "scripts/creative/blender/rig_user_sky_ship.py",
+      "scripts/creative/blender/finish_user_sky_ship.py",
+      "scripts/creative/blender/polish_user_sky_ship.py",
+      "scripts/creative/blender/fit_voyage_cabin.py",
+      "scripts/creative/blender/map_ship_prototype_materials.py",
+      "scripts/creative/blender/repair_sky_ship_structure.py",
+      "scripts/creative/blender/fit_voyage_stained_glass.py"
+    ],
+    "sequence": "Historical prepare/rig/finish, then polish, downloaded cabin fit, prototype materials, structure repair. Saved Blender file retains imported original, downloaded bed source and pre-repair archive. Do not rerun the historical preparatory material script alone over repaired geometry. Then fit_voyage_stained_glass.py adds the four generated window textures and real apertures."
+  },
+  "userShipSource": {
+    "source": "user-provided local model, 2026-10-02",
+    "originalDirectory": "/Users/muniao/Downloads/17076d7e-dc54-4942-9d47-a33e214beadc_0",
+    "files": [
+      {
+        "file": "texture_pbr_20250901.png",
+        "bytes": 27607973,
+        "sha256": "94a3381c9afb22e2ff36bb267e78ae4a10d20dd988910309576ad7d0392d71d2"
+      },
+      {
+        "file": "texture_pbr_20250901_normal.png",
+        "bytes": 11092466,
+        "sha256": "c69cec344129a66640452cc718e57a20eca59aef09cdadef472678a53649d8a2"
+      },
+      {
+        "file": "d04169d2e8fd6eec32b5de965560538a.obj",
+        "bytes": 35727035,
+        "sha256": "2d412a4f4c3ae998f1665f46a277f3e0a5f032cf0133b68b998917e22ce303f1"
+      },
+      {
+        "file": "texture_pbr_20250901_roughness.png",
+        "bytes": 3604663,
+        "sha256": "1ecdd2a4b48d0bc7b86504f2e505872f172b8f3b462aaa61532dfc53c8efaa16"
+      },
+      {
+        "file": "material.mtl",
+        "bytes": 245,
+        "sha256": "9850ae5248d6dbf106daf4d0ba88a74ecfab339015525940460521a52d6c17f9"
+      },
+      {
+        "file": "texture_pbr_20250901_metallic.png",
+        "bytes": 3453480,
+        "sha256": "131d7dcf73e8e6890037d66b45c35c95f17cc5b470c9c583b73177a5bd9cce5d"
+      }
+    ],
+    "license": "User-provided for project adaptation; no independent license claim"
+  },
+  "textures": "Generated deck-planks.png / wood.png: MaterialUV with visible plank scale and lengthwise spar grain; native glTF multiplier; runtime wood bump from albedo. Original source atlas retained only in archived rig.",
+  "rigContract": {
+    "parts": 18,
+    "triangles": 131245,
+    "morphs": [
+      "DeployFold",
+      "WindPressure"
+    ],
+    "blenderTimeline": {
+      "1": "deployed neutral",
+      "40": "reefed neutral",
+      "65": "deployed left",
+      "95": "deployed right",
+      "120": "deployed neutral"
+    },
+    "boundary": "P local entry forces/drag and authored wind-pressure morphs; no new cloth solver or authoritative moving map.",
+    "originalTriangles": 285840
+  },
+  "currentRevision": {
+    "contentVersion": "tms273-64",
+    "sourceRigTriangles": 285840,
+    "repairedExteriorTriangles": 131245,
+    "archiveScene": "SV3_BeforeStructureRepair",
+    "repairs": [
+      "retopologized fan/vane cloth and independent rigid wood spars",
+      "separate crystal and timber cradle; complete gemstone settings",
+      "wood hull and prow; longitudinal spar grain; glTF native walnut color multiplier"
+    ],
+    "boundary": "Original model/source archive preserved. Geometry repairs are authored adaptations, not a full reconstruction of an official model.",
+    "stainedGlass": {
+      "date": "2026-10-03",
+      "source": "built-in image_gen, four independently generated original P window paintings",
+      "classes": {
+        "warrior": "red",
+        "mage": "blue",
+        "archer": "green",
+        "rogue": "amber"
+      },
+      "geometry": "alpha silhouette fitted pointed-arch window meshes, brass frames and matching real wall openings",
+      "lighting": "native textured spotlights/shadows plus scene-depth-bounded 32-sample RGB volume integration; single-scattering presentation, not spectral path tracing"
+    },
+    "captainRoom": {
+      "date": "2026-10-03",
+      "source": "scripts/creative/blender/refine_voyage_captain_room.py",
+      "materials": "scripts/creative/blender/voyage_material_refinement.py",
+      "archiveScene": "SV3_BeforeCaptainRepair",
+      "changes": [
+        "restore retained hull material regions from BeforeRepair_SV3_Hull topology",
+        "remove 20 welded disconnected rig-fragment faces; retain dynamic cloth and spars",
+        "real captain floor, connecting threshold, doorway and two local cabin portals",
+        "login board and independent thick irregular adventure board face the room interior",
+        "physical transmission retained, opaque gem backing caps removed, local hull windows opened",
+        "continuous three-panel maple crest: existing 90 degrees plus relative 180 degrees, shifted toward larger forward span"
+      ],
+      "boundary": "Authored local lobby geometry. No accounts, beds, multiplayer authority, animated cloth topology or existing book-page keyframes are replaced.",
+      "visualReview": {
+        "date": "2026-10-03",
+        "source": "scripts/creative/blender/clip_voyage_hull.py",
+        "changes": [
+          "source face labels propagated through exact room/jewel clipping; UV and normals interpolated",
+          "continuous ivory/timber boundaries and open annular jewel collars",
+          "default interior follow eye stays ahead of mast, board back walls retained",
+          "camera near-plane obstruction test includes live cloth; full-body reveal rule preserved"
+        ],
+        "boundary": "Follow-up restores exact wheel/underside boundaries and trims static aft fragments; complete authored cloth/white silhouettes retained.",
+        "hullSourceFaces": 86233,
+        "hullClippedFaces": 88754,
+        "assetBytes": 69101364
+      },
+      "endpointReview": {
+        "date": "2026-10-03",
+        "source": "scripts/creative/blender/repair_voyage_cut_boundaries.py",
+        "changes": [
+          "replace face-centre wheel/underside cuts with exact circle and plane intersections in bounded source regions",
+          "recover continuous ivory endpoint surfaces from archived source with UV and normals",
+          "trim fused aft shell fins at the captain roof end, retain live cloth and spars"
+        ],
+        "assetBytes": 70715232,
+        "reference": "resources/scenes/sky-voyage-v2/design/ship-orthographic-v2.png and original TMS Orbis ship layers",
+        "preservedMeshCount": 1763,
+        "hullClippedFaces": 101248
+      }
+    },
+    "assetSha256": "22f0a89ced06ed81ac6603105945bd94c02b56f4da86770ee144c1e1f508f425",
+    "skyCity": {
+      "source": "scripts/creative/blender/refine_sky_city_interior.py",
+      "sha256": "a1127825d3ce77db214520402792f66ccb41abc2dfa35edc75a67c2373cc0069",
+      "changes": [
+        "tag real tower entrance carrier as shell",
+        "split only tower-adjacent A03/D01 rock geometry, retain UV/materials and outside island geometry",
+        "keep current/next floors visible and restore shells on exit"
+      ]
+    }
+  }
+}

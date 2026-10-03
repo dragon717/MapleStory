@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "scope": "最近航船小素材与经典登录树；音乐、其他批次及定时任务暂不处理",
+  "files": [
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/ASSETS.md",
+      "bytes": 5596,
+      "sha256": "1e82fdb54abe52b68dda61f202aab38fc9a7d3efeea17f49f0a76edc2b5d06f0",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/brass.png",
+      "bytes": 536250,
+      "sha256": "6955e5f901dbb735f8b9810c4dcb3d234b3a3292f9595c343c78385db48dfdf9",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/deck-planks.png",
+      "bytes": 2124661,
+      "sha256": "e0a6cd8cf6b8a03f3fda4261c606c50a40b52ce72e0697b093756f3e292977c2",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/enamel.png",
+      "bytes": 559663,
+      "sha256": "7ff783844b49b0d235a929fa08fdb2b48269c10d4cae999ba98c458a3043b046",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/entry-button.png",
+      "bytes": 1080339,
+      "sha256": "6632e75e3784d1e6de884a9257e67e38e5534a6626e65fb4d3e020d4894c150b",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/entry-panel.png",
+      "bytes": 1469230,
+      "sha256": "ba68c0ba65cb28a78a27d16cda67aa9e13450b5f4ba465d464f9be703766ceb3",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/linen.png",
+      "bytes": 769759,
+      "sha256": "38a8144c5fc5b5226e176dfe10fef9c7c82e12949f823527f0b8fda02513307c",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/maple-crest.png",
+      "bytes": 1542271,
+      "sha256": "308bc23dd1bc418024c69d69dc0f13af91f805d3f62bb6afe82ac2a332de318b",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/material-sheet.png",
+      "bytes": 2511013,
+      "sha256": "13b585b4200ccce54087dd81d677313109dd3fe1975ab26dc20b8bac22985e0e",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-archer.png",
+      "bytes": 2997154,
+      "sha256": "1eed4d461430b8b8f06acb2ece775679261afce85c044a7e5046eff87839b912",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-archer.prompt.txt",
+      "bytes": 1369,
+      "sha256": "3dc4939c6bab809093f8fb158a677379f1f251f91ccb28c5ecddf297b28459a7",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-mage.png",
+      "bytes": 3268507,
+      "sha256": "55a37de741537cb465da975ac466d36d1e3963687baba3827b6827c0cacc8c1e",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-mage.prompt.txt",
+      "bytes": 1385,
+      "sha256": "09a6891977a2de5082d4f2fc8532db621fd3f45056825f04af15a8ca58ecdda7",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-rogue.png",
+      "bytes": 3189890,
+      "sha256": "46084fe39bb530d091e0c2448798db59d297b2250b40ea7d17d89bb0c0279568",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-rogue.prompt.txt",
+      "bytes": 1417,
+      "sha256": "c27f8151fb2c5462b1fac0f1c27a8fdd45f2fa6cc590ad3dbdc2499e72a125ab",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-warrior.png",
+      "bytes": 3281794,
+      "sha256": "90c175081de836db97a582a06d40cef562cd80d9f07c9a1a0d2fd05e5a46d4e1",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/stained-glass-warrior.prompt.txt",
+      "bytes": 1394,
+      "sha256": "a42513737f56b1256504e7b0da955c0e77d56789742565220d8c61c0364078fd",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/wood.png",
+      "bytes": 535594,
+      "sha256": "6970c090c878d501dc234ad018007aa2fb4dbe760934776c68f67d00bb8d2a7a",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/models/voyage-book.blend",
+      "bytes": 191496,
+      "sha256": "d13d570129a010f7725baead57c31c4b9ec7eda5845514ba56adfbacb67ff37a",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/models/voyage-book.glb",
+      "bytes": 535528,
+      "sha256": "6a33f81333f7a7a832583d1db7dd99375b1f5154581bd290d16d9d00e7a7c4bd",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/source-layout.json",
+      "bytes": 22048,
+      "sha256": "594d3aa1b3e57599542fa048d09fa36dfed5ada96ec07aec8d8cdb40e1e6d1e0",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/rig-source.json",
+      "bytes": 5333,
+      "sha256": "9640541d3954fdbb0f3f1ab36bdbae6dea9be1ba0cc2b09feacb58fe8e87db5d",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/provenance.json",
+      "bytes": 14861,
+      "sha256": "fe5893ba30d85442f88f3a5f4a5b9e3ba8bb547253550045b4f5d807ea780e73",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-layout.json",
+      "bytes": 780174,
+      "sha256": "c50dbb7a55580d78fb293c4f1ae5284e6908d845b5ca5b5ed8fe43de8716d251",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/city-connections.md",
+      "bytes": 19220,
+      "sha256": "1748f8220ca7e7ea563161438e9aac9af2338fa6bbc3a44019a0b159873bb262",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/district-ab-life-prompt.md",
+      "bytes": 10411,
+      "sha256": "0d01ff5520ce7c9bbc445034486adb349cc7fbd8a9418e592a8a3b4bb3555548",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/district-cde-gardens-prompt.md",
+      "bytes": 9922,
+      "sha256": "e61224d66e4eb53b005c37b6ebba0fae0c279c2b50f31a718847899f36deb575",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/district-fg-interior-prompt.md",
+      "bytes": 2850,
+      "sha256": "5cb8544f5f85e6248e8c9945fbd5236c359da26ac4bdd01c962d60f322ad358c",
+      "storage": "git"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/references/orbis-map-topology-tms273.json",
+      "bytes": 642743,
+      "sha256": "61935d1f4e2c87e8cf480a34eb999d74e9029ef571a207215f466a9eb56f1fd3",
+      "storage": "git"
+    },
+    {
+      "path": "resources/blender/classic-login-tree/Classic_MapleStory_Login_Tree.blend",
+      "bytes": 6058769,
+      "sha256": "d3e9f7488516de5620f8ded99e10924758eaaff9f9133e0faeff98dff6124c3b",
+      "storage": "git-existing"
+    },
+    {
+      "path": "resources/blender/classic-login-tree/MapleStory_Classic_Login_Tree_Blender.png",
+      "bytes": 5120286,
+      "sha256": "60ba4f1af793c16b50f56714fee508075d997c638d9168b08cc032d493d25714",
+      "storage": "git-existing"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
+      "bytes": 160060699,
+      "sha256": "9b0e9a0c2f14419a3f892f6c977d82da1120e1185d5d330eb1f07842dcf66753",
+      "storage": "local-deferred"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
+      "bytes": 70715232,
+      "sha256": "22f0a89ced06ed81ac6603105945bd94c02b56f4da86770ee144c1e1f508f425",
+      "storage": "local-deferred"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.blend",
+      "bytes": 113070812,
+      "sha256": "fa49a752610c2697287f6dd75aab419a5332a0da233414511832170a2dfaf07d",
+      "storage": "local-deferred"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.glb",
+      "bytes": 44287044,
+      "sha256": "a1127825d3ce77db214520402792f66ccb41abc2dfa35edc75a67c2373cc0069",
+      "storage": "local-deferred"
+    }
+  ],
+  "notes": [
+    "每项记录实际文件字节数与SHA-256；local-deferred尚未上传，Git clone不能恢复这些大模型。",
+    "原始模型、vendor、原版WZ与批量导出仍保留本地；上传批次不是完整运行资源包。"
+  ]
+}

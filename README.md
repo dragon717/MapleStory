@@ -100,7 +100,7 @@ GM权限默认关闭。需要管理员命令时，在启动服务的环境中设
 | `docs/technical/` | 长期开发规范、前后端架构、共享协议说明、UI 规范、操作手册 | 承接 `docs/technical/BUSINESS_DEVELOPMENT.md` 等；采用有效文档＋历史目录＋索引，执行进度统一回到计划 |
 | `client/` | 前端源码、静态资源入口、依赖清单与 Vite 配置 | 保留现有源码路径；代码历史交给 Git，不复制日期版本目录 |
 | `server/`、`shared/` | 后端源码、测试夹具；跨端协议与共享业务数据 | 保留现有路径与职责；`server/data/` 数据库独立保护，不参与构建清理 |
-| `resources/` | 已导出的游戏素材与内容数据；`scenes/` 场景、`characters/` 人物、`ui/` 界面与审阅清单、`music/` 音乐、`sfx/` 音效，`blender/` 只放 3D 建模资产及必要贴图 | 保持 83、273 与原创版本边界；资源不是临时构建，不按两版规则删除；原创 Windbell 不再使用 `creative/` 聚合目录 |
+| `resources/` | 已导出的游戏素材与内容数据；`scenes/` 场景、`characters/` 人物、`ui/` 界面与审阅清单、`music/` 音乐、`sfx/` 音效，`blender/` 只放 3D 建模资产及必要贴图 | 保持 83、273 与原创版本边界；当前可用资源与必需输入保留，独立历史素材快照/自动备份清理；小素材逐文件白名单入 Git，大模型另行分发，见 [素材管理](docs/technical/ASSET_MANAGEMENT.md) |
 | `references/`、`参考/` | 研究资料与原始参考仓库；研究包整体归入 `references/tms273_research_pack/` | 大型嵌套参考仓库保留原位，修改前先读其自身规则；研究包内部结构保持完整，历史资料用索引追溯 |
 | `scripts/`、`bots/`、`qa/` | 构建、导出、检查工具，陪测机器人与现有验收脚本 | 保留可执行源码；报告、截图和构建产物分别归入对应目录 |
 | `evidence/YYYY-MM-DD/任务名/` | 验证报告、截图、日志与必要补丁证据 | 手写发现、复现脚本和补丁入 Git，由 `evidence/INDEX.md` 索引；截图、日志及脚本生成的页面/打包文件只留本地；不自动删除恢复点或数据库快照 |
@@ -111,7 +111,7 @@ GM权限默认关闭。需要管理员命令时，在启动服务的环境中设
 
 维护顺序：先确定文件职责，再同步文档链接、启停、打包、构建和检查脚本路径。`npm run check --prefix client` 包含目录归属和构建轮替检查。Vite 的清空输出行为只用于候选构建目录，不能直接清空当前成功版。同名文件先比对，不仅凭名称删除；已完成记录按任务归档，不再新增重复台账。
 
-Git 保留源码、依赖锁文件、核定来源记录、检查夹具和追加式修复历史；自动报告与素材导出不入库。`references/tms273-data/{maps,quests,manifest}.json` 由 `scripts/import_tms273.py` 生成（完整管线为 `scripts/build_tms273.cjs`），同目录 `*-source.json` 保留。导出缺口报告由 `scripts/assemble_tms273.cjs` 生成，供修复脚本读取；修复历史与门禁输入继续入库。整理忽略规则后可运行 `node scripts/check_gitignore.cjs` 核对，不删除本地文件或改写 Git 历史。
+Git 保留源码、依赖锁文件、核定来源记录、检查夹具、计划日志与追加式修复历史；已确认的小型原创素材逐文件白名单入库，自动报告与批量运行导出继续分开。当前上传范围与大文件处理见 [素材管理](docs/technical/ASSET_MANAGEMENT.md)。`references/tms273-data/{maps,quests,manifest}.json` 由 `scripts/import_tms273.py` 生成（完整管线为 `scripts/build_tms273.cjs`），同目录 `*-source.json` 保留。导出缺口报告由 `scripts/assemble_tms273.cjs` 生成，供修复脚本读取；修复历史与门禁输入继续入库。整理忽略规则后可运行 `node scripts/check_gitignore.cjs` 核对，不删除本地文件或改写 Git 历史。
 
 ## 开发与资源维护
 

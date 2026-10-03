@@ -1,0 +1,264 @@
+{
+  "sourceTriangles": 500356,
+  "mainTriangles": 285840,
+  "excludedTriangles": 214516,
+  "scale": 176.06357068658923,
+  "axes": "Blender X=width, Y=aft-to-bow, Z=up; glTF X=width,Y=up,-Z=bow",
+  "originalUv": "SourceUV retained alongside the material projection UV",
+  "parts": {
+    "AftFan_0": {
+      "triangles": 3306,
+      "pivotBlender": [
+        0.0,
+        -49.26355542774644,
+        21.127628482390698
+      ],
+      "materials": {
+        "Linen": 1777,
+        "Brass": 1529
+      }
+    },
+    "AftFan_1": {
+      "triangles": 7070,
+      "pivotBlender": [
+        0.0,
+        -49.26355542774644,
+        21.127628482390698
+      ],
+      "materials": {
+        "Linen": 2576,
+        "Brass": 3645,
+        "Navy": 719,
+        "Sapphire": 130
+      }
+    },
+    "AftFan_2": {
+      "triangles": 10393,
+      "pivotBlender": [
+        0.0,
+        -49.26355542774644,
+        21.127628482390698
+      ],
+      "materials": {
+        "Brass": 6657,
+        "Linen": 2994,
+        "Navy": 733,
+        "Sapphire": 9
+      }
+    },
+    "AftVane_Port": {
+      "triangles": 11716,
+      "pivotBlender": [
+        -9.683496387762407,
+        -36.058787626252254,
+        -8.451051392956291
+      ],
+      "materials": {
+        "Linen": 4047,
+        "Brass": 7386,
+        "Navy": 283
+      }
+    },
+    "AftVane_Starboard": {
+      "triangles": 11859,
+      "pivotBlender": [
+        9.683496387762407,
+        -36.058787626252254,
+        -8.451051392956291
+      ],
+      "materials": {
+        "Linen": 4002,
+        "Brass": 7425,
+        "Navy": 407,
+        "Sapphire": 25
+      }
+    },
+    "BowVane_Port": {
+      "triangles": 7547,
+      "pivotBlender": [
+        -9.683496387762407,
+        53.733633423908266,
+        -5.8100978326574495
+      ],
+      "materials": {
+        "Linen": 3473,
+        "Brass": 3508,
+        "Navy": 566
+      }
+    },
+    "BowVane_Starboard": {
+      "triangles": 7495,
+      "pivotBlender": [
+        9.683496387762407,
+        53.733633423908266,
+        -5.8100978326574495
+      ],
+      "materials": {
+        "Linen": 3130,
+        "Brass": 3858,
+        "Navy": 479,
+        "Sapphire": 28
+      }
+    },
+    "Crystal": {
+      "triangles": 7163,
+      "pivotBlender": [
+        0.0,
+        -12.466269154249293,
+        -17.60635706865893
+      ],
+      "materials": {
+        "Amber": 7052,
+        "Sapphire": 47,
+        "Enamel": 24,
+        "Brass": 14,
+        "Navy": 26
+      }
+    },
+    "Engine_Port": {
+      "triangles": 5655,
+      "pivotBlender": [
+        -9.683496387762407,
+        -13.34658700768224,
+        -4.401589267164734
+      ],
+      "materials": {
+        "Enamel": 2753,
+        "Brass": 2804,
+        "Navy": 93,
+        "Jade": 5
+      }
+    },
+    "Engine_Starboard": {
+      "triangles": 5663,
+      "pivotBlender": [
+        9.683496387762407,
+        -13.34658700768224,
+        -4.401589267164734
+      ],
+      "materials": {
+        "Enamel": 2722,
+        "Brass": 2674,
+        "Navy": 256,
+        "Sapphire": 11
+      }
+    },
+    "Hull": {
+      "triangles": 133874,
+      "pivotBlender": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "materials": {
+        "Navy": 14773,
+        "Enamel": 32744,
+        "Brass": 58933,
+        "Sapphire": 2874,
+        "Wood": 21052,
+        "Jade": 3498
+      }
+    },
+    "MainFan_0": {
+      "triangles": 16617,
+      "pivotBlender": [
+        0.0,
+        25.56346211405398,
+        29.226552733973808
+      ],
+      "materials": {
+        "Linen": 7670,
+        "Brass": 8283,
+        "Navy": 657,
+        "Jade": 1,
+        "Sapphire": 6
+      }
+    },
+    "MainFan_1": {
+      "triangles": 18226,
+      "pivotBlender": [
+        0.0,
+        25.56346211405398,
+        29.226552733973808
+      ],
+      "materials": {
+        "Linen": 10128,
+        "Brass": 6854,
+        "Sapphire": 209,
+        "Navy": 1035
+      }
+    },
+    "MainFan_2": {
+      "triangles": 22093,
+      "pivotBlender": [
+        0.0,
+        25.56346211405398,
+        29.226552733973808
+      ],
+      "materials": {
+        "Linen": 12478,
+        "Brass": 9030,
+        "Navy": 498,
+        "Sapphire": 87
+      }
+    },
+    "Nozzle_Port": {
+      "triangles": 950,
+      "pivotBlender": [
+        -9.683496387762407,
+        0.034244364498541645,
+        -4.401589267164734
+      ],
+      "materials": {
+        "Enamel": 556,
+        "Navy": 146,
+        "Brass": 139,
+        "Sapphire": 109
+      }
+    },
+    "Nozzle_Starboard": {
+      "triangles": 944,
+      "pivotBlender": [
+        9.683496387762407,
+        0.034244364498541645,
+        -4.401589267164734
+      ],
+      "materials": {
+        "Enamel": 441,
+        "Brass": 232,
+        "Navy": 188,
+        "Sapphire": 83
+      }
+    },
+    "Wheel_Port": {
+      "triangles": 7646,
+      "pivotBlender": [
+        -9.683496387762407,
+        29.78898781053212,
+        0.0
+      ],
+      "materials": {
+        "Brass": 3992,
+        "Linen": 3123,
+        "Sapphire": 190,
+        "Navy": 339,
+        "Jade": 2
+      }
+    },
+    "Wheel_Starboard": {
+      "triangles": 7623,
+      "pivotBlender": [
+        9.683496387762407,
+        29.78898781053212,
+        0.0
+      ],
+      "materials": {
+        "Linen": 2957,
+        "Brass": 4140,
+        "Sapphire": 129,
+        "Navy": 386,
+        "Jade": 11
+      }
+    }
+  }
+}
