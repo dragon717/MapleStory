@@ -1199,6 +1199,12 @@
       ],
       "wheel": "Retained wheel cloth and timber topology/UV/pivots; centre-symmetric unequal opposite blades with 0.14 rad swept tips; opaque backing disks absent.",
       "mainSail": "Shared SailLinen material; one maple shifted left to ship Y=-13/Z=26 then additionally rotated clockwise 90 degrees; three existing physical cloth patches share the same image."
+    },
+    "mainDeck": {
+      "layoutSource": "shared/voyage-deck.json",
+      "walkSurface": "SV3_MainDeck_Surface",
+      "walkMode": "free movement across the connected exposed main deck; sealed cabin and rails remain solid; bed aisle remains constrained",
+      "height": 5.48
     }
   },
   "runtimePresentation": {

@@ -91,7 +91,7 @@ try {
   await page.waitForFunction(()=>{const v=window.__entry.voyage,d=v.passengers.root.getObjectByName("SV3_Passenger_preview-swap");return d && d.quaternion.angleTo(v.ship.getWorldQuaternion(d.quaternion.clone()).invert().multiply(v.camera.getWorldQuaternion(d.quaternion.clone())))<.00001;});
   await page.evaluate(()=>{const v=window.__entry.voyage;window.__cameraRayTimes=[];const original=v.avoidCameraSurface.bind(v);v.avoidCameraSurface=(...args)=>{const t=performance.now();try{return original(...args);}finally{window.__cameraRayTimes.push(performance.now()-t);}};});
   const beforeWalk = await deckState();
-  assert(beforeWalk.position[1]>5.4 && beforeWalk.position[1]<5.5, 'feet stand on the actual hull surface');
+  assert(Math.abs(beforeWalk.position[1]-5.505)<.00001, 'feet stand on the authored main deck surface');
   assert(beforeWalk.cameraFacing<.00001, 'passenger keeps the complete camera-facing foot plane');
   await page.evaluate(()=>{ const v=window.__entry.voyage; window.__renderClouds=v.clouds.render.bind(v.clouds); v.clouds.render=()=>{}; });
   await page.keyboard.down('ArrowRight');
@@ -115,18 +115,16 @@ try {
     const pitch=await page.evaluate(()=>window.__entry.voyage.pitch);await page.mouse.move(450,300);await page.mouse.down({button:'right'});await page.mouse.move(450,340);await page.mouse.up({button:'right'});assert((await page.evaluate(()=>window.__entry.voyage.pitch))>pitch);
     await page.evaluate(()=>{const v=window.__entry.voyage;v.pitch=.24;v.yaw=0;v.zoom=1.2;v.deck.reset();v.entranceArmed=true;v.updateActivity();});
     await page.evaluate(()=>{const v=window.__entry.voyage;window.__routeClouds=v.clouds.render;v.clouds.render=()=>{};v.updateActivity();});
-    // Follow the authored captain arc with real keyboard movement: forward to
-    // its bend, starboard across the curve, forward again, then back toward
-    // the door.  This proves the visible route is the collision route.
+    // Walk freely across the real main deck toward the cabin portal. The
+    // perpendicular starboard camera maps screen-left to aft, up to inboard.
     const walkUntil = async (codes, predicate) => {
       const held = Array.isArray(codes) ? codes : [codes];
       for (const code of held) await page.keyboard.down(code);
       try { await page.waitForFunction(predicate, undefined, { timeout: 12000 }); }
       finally { for (const code of held) await page.keyboard.up(code); }
     };
-    await walkUntil(['ArrowDown','ArrowRight'], () => { const p=window.__entry.voyage.deck.position; return p.x > 7.20 && p.z > 12.40; });
-    await walkUntil('ArrowDown', () => window.__entry.voyage.deck.position.z > 12.95);
-    await walkUntil('ArrowLeft', () => window.__entry.voyage.deck.position.x < 6.20);
+    await walkUntil('ArrowLeft', () => window.__entry.voyage.deck.position.z > 13.20);
+    await walkUntil('ArrowUp', () => window.__entry.voyage.deck.position.x < 5.90);
     await page.waitForFunction(() => window.__entry.voyage.nearInteraction === 'enter-cabin', undefined, { timeout: 8000 });
     await page.keyboard.up('ArrowDown'); await page.keyboard.up('ArrowRight'); await page.keyboard.up('ArrowLeft');
     await page.evaluate(()=>{const v=window.__entry.voyage;v.updateActivity();});
@@ -176,8 +174,10 @@ try {
     await page.evaluate(()=>{const v=window.__entry.voyage,p=v.ship.worldToLocal(v.model.getObjectByName('SV3_CabinDeckPortal').getWorldPosition(v.camera.position.clone()));p.y=.025;v.cabinDeck.place(p);v.passengers.finishWake();v.updateActivity();});await page.waitForFunction(()=>window.__entry.voyage.nearInteraction==='return-deck');await page.keyboard.press('Space');await page.locator('.entry-stage-channel').waitFor();console.log('Cabin portal returned to deck with Space');
     assert.equal(await page.evaluate(() => { const v=window.__entry.voyage; return Boolean(v.model.getObjectByName('SV3_CaptainFloor')?.visible || v.model.getObjectByName('SV3_CaptainDoorThreshold')?.visible); }), false, 'former walk-in room floor and threshold are removed');
     assert.equal(await page.evaluate(() => window.__entry.voyage.ship.getObjectByName('SV3_CaptainDoorSeal').visible), true);
-    await page.keyboard.down('ArrowUp'); await page.waitForTimeout(350); await page.keyboard.up('ArrowUp');
-    assert(await page.evaluate(() => { const d=window.__entry.voyage.deck; return d.position.distanceTo(d.routePoint(d.position)) < .03; }), 'outer keyboard walking stays on the fixed curve');
+    await page.keyboard.down('ArrowUp');
+    await page.waitForFunction(()=>window.__entry.voyage.deck.position.x<6.25);
+    await page.waitForTimeout(500); await page.keyboard.up('ArrowUp');
+    assert(await page.evaluate(() => { const d=window.__entry.voyage.deck; return d.position.x>=5.3 && d.position.x<6.25 && Math.abs(d.position.y-5.505)<.00001 && d.canStand(d.position,5.48); }), 'inboard input stops at the actual hull or cabin wall with grounded feet');
     assert(await page.evaluate(()=>{const v=window.__entry.voyage,p=v.model.getObjectByName('SV3_CaptainPortal_Original2D'),a=v.ship.worldToLocal(v.model.getObjectByName('SV3_CaptainPortal').getWorldPosition(v.camera.position.clone())),bottom=p.getWorldPosition(v.camera.position.clone());bottom.y-=p.geometry.parameters.height*p.getWorldScale(bottom.clone()).y/2;const local=v.ship.worldToLocal(bottom);return Math.abs(local.y-a.y-.035)<.00001&&p.rotation.x===0&&p.rotation.z===0&&Math.abs(p.geometry.parameters.height*p.getWorldScale(bottom.clone()).y-2.8)<.00001;}),'portal bottom stays on the floor with yaw-only facing and original world height');
     await capture('deck-exterior.png');
     const transmission=await page.evaluate(()=>{const v=window.__entry.voyage;const mats=[];v.model.traverse(o=>{for(const m of o.material?Array.isArray(o.material)?o.material:[o.material]:[]){if(m.name==='SV3_Prototype_SapphireGlass')mats.push({physical:m.isMeshPhysicalMaterial,transmission:m.transmission,ior:m.ior});}});document.querySelector('.entry-scene').style.visibility='hidden';v.camera.position.set(18,8.3,-21.2);v.camera.lookAt(10.8,8.15,-21.2);v.camera.updateMatrixWorld(true);v.clouds.render(v.renderer,v.scene,v.camera,v.sun);return mats;});

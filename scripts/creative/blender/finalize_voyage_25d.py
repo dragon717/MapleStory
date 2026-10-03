@@ -8,6 +8,8 @@ import bpy, json, math
 from pathlib import Path
 from mathutils import Vector
 ROOT = Path(__file__).resolve().parents[3]
+if 'surface' in json.loads((ROOT / 'shared/voyage-deck.json').read_text(encoding='utf-8')):
+    raise RuntimeError('The fixed-curve exterior recipe is retired. Use author_voyage_main_deck.py with the current shared footprint.')
 DEST = ROOT / 'resources/scenes/sky-voyage-v3/models'
 scene = bpy.data.scenes['SV3_ProductionRig']
 bpy.context.window.scene = scene

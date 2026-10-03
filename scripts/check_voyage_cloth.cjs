@@ -328,7 +328,8 @@ async function main() {
   loginCamera.position.copy(position).addScaledVector(normal,17).add(new runtime.THREE.Vector3(0,3,8));loginCamera.lookAt(position.clone().add(new runtime.THREE.Vector3(0,.4,0)));loginCamera.updateMatrixWorld(true);
   const loginProjection=runtime.projectLoginSurface({anchor:paper,width:paper.userData.width,height:paper.userData.height},loginCamera,{width:1440,height:900},{width:430,height:360});
   assert(loginProjection && !runtime.loginSurfaceOccluded(loginCamera,loginProjection.points,[gltf.scene.getObjectByName('SV3_Exterior')]),'settled opening pose reads the exterior login surface without opaque shell obstruction');
-  assert(walk.position.y>5.4&&walk.position.y<5.5,'spawn stays on the exterior floor');walk.destroy();
+  const deckSurface=JSON.parse(fs.readFileSync(path.join(root,'shared/voyage-deck.json'),'utf8')).surface;
+  assert(close(walk.position.y,deckSurface.height+.025),'spawn stays on the authored main deck floor');walk.destroy();
   const cloth = checkSailBindings(runtime, gltf.scene);
   const cityGltf=await parse(new runtime.GLTFLoader(),geometryOnlyGlb(fs.readFileSync(path.join(client,'public-tms273/assets/entry/sky-city.glb'))));
   const cityRoot=cityGltf.scene,city=new runtime.VoyageCity(cityRoot),shells=[];

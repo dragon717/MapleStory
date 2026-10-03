@@ -422,9 +422,6 @@ export class EntryVoyage {
     const add = (portalName: string, parentName: string) => {
       const portal = this.model!.getObjectByName(portalName), parent = this.model!.getObjectByName(parentName);
       if (!portal || !parent) return;
-      if (portalName === 'SV3_CaptainPortal' && this.ship) {
-        portal.position.copy(portal.parent!.worldToLocal(this.ship.localToWorld(new T.Vector3(5.65, 5.42, 13.25))));
-      }
       const point = parent.worldToLocal(portal.getWorldPosition(new T.Vector3()));
       const material = new T.MeshBasicMaterial({ map: this.portalFrameTextures[0], transparent: true, depthWrite: false, depthTest: true, side: T.DoubleSide, opacity: .94 });
       // The source frames are a vertical light column (roughly 99×138), with
@@ -652,8 +649,15 @@ export class EntryVoyage {
       const distance = (this.stage === 'characters' ? 20 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * this.zoom;
       // The exterior lane runs along Z. Its camera must look across the
       // starboard side (+X), rather than down the lane into the stern wall.
-      const yaw = this.yaw + (this.stage === 'channel' ? Math.PI / 2 : 0);
-      const pitch = this.stage === 'channel' ? Math.max(.46, this.pitch + .22) : this.pitch;
+      const x = walkingDeck.position.x, z = walkingDeck.position.z;
+      // Follow the exposed side of the ship. Crossing a front/rear deck
+      // turns continuously around that end, keeping the sealed room behind
+      // the walker rather than looking through it from the opposite rail.
+      const exteriorYaw = x >= 5 ? Math.PI / 2 : x <= -5 ? -Math.PI / 2
+        : z < 0 ? Math.PI - x / 5 * Math.PI / 2 : x / 5 * Math.PI / 2;
+      const yaw = this.yaw + (this.stage === 'channel' ? exteriorYaw : 0);
+      const endClearance = z < 0 ? Math.max(0, 1 - Math.abs(x) / 5) * .45 : 0;
+      const pitch = this.stage === 'channel' ? Math.max(.46 + endClearance, this.pitch + .22) : this.pitch;
       const offset = new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch))
         .applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())).multiplyScalar(distance);
       this.camera.position.copy(base).add(offset);

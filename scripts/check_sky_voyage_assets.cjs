@@ -91,6 +91,11 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   assert.equal(bytes.readUInt32LE(16), 0x4e4f534a);
   const gltf = JSON.parse(bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)));
   const names = gltf.nodes.map(node => node.name);
+  const deckContract = JSON.parse(fs.readFileSync(path.join(root, 'shared/voyage-deck.json'), 'utf8')).surface;
+  const mainDeck = gltf.nodes.find(node => node.name === deckContract.mesh);
+  assert(mainDeck && mainDeck.mesh !== undefined, 'the main deck requires a visible authored floor');
+  assert.equal(mainDeck.extras.lobby_walkable, true);
+  assert(!names.some(name => name?.startsWith('SV3_CaptainArcWalkway')), 'the retired narrow exterior walkway must not return');
   assert.equal(gltf.scenes.length, 1, 'export must contain only the current voyage scene');
   assert(!names.some(name => /^(CE_|HR_)/.test(name)), 'other authoring scenes must stay out of voyage export');
   for (const name of ['SV2_Ship', 'SV2_City', 'SV2_CabinRoof', 'SV2_CabinBackWall', 'SV2_CabinBackTrim',

@@ -39,13 +39,40 @@ const deck=new VoyageDeck(deckShip),cabinDeck=new VoyageDeck(deckShip,true);
 assert(!deckShip.getObjectByName('SV3_CaptainFloor')&&!deckShip.getObjectByName('SV3_CaptainDoorThreshold'),'obsolete walk-in room geometry is absent');
 assert(deckShip.getObjectByName('SV3_CaptainDoorSeal'),'exterior opening is sealed in the actual export');
 const followRoute=surface=>{surface.place(surface.route[0]);for(const target of surface.route.slice(1)){let steps=0;while(Math.hypot(target.x-surface.position.x,target.z-surface.position.z)>.03){const direction=target.clone().sub(surface.position);direction.y=0;direction.normalize();surface.update(.01,direction.x,direction.z,walkCamera,deckShip);assert(surface.moving,'fixed route must be continuously walkable');assert(Math.hypot(surface.position.x-surface.routePoint(surface.position).x,surface.position.z-surface.routePoint(surface.position).z)<1e-7,'feet stay on the authored fixed line');assert(++steps<2000,'route segment cannot stall');}}};
-followRoute(deck);followRoute(cabinDeck);
+followRoute(cabinDeck);
+assert(deckShip.getObjectByName('SV3_MainDeck_Surface'),'visible main deck is authored in the real model');
+assert(!objects.some(o=>o.name.startsWith('SV3_CaptainArcWalkway')),'the narrow arc is removed from the real model');
+const circuit=[deck.spawn.clone(),new T.Vector3(6.5,0,-8),new T.Vector3(-6.5,0,-8),new T.Vector3(-6.5,0,22),new T.Vector3(6.5,0,22),deck.spawn.clone()];
+for(const target of circuit.slice(1)){
+  let steps=0;
+  while(Math.hypot(target.x-deck.position.x,target.z-deck.position.z)>.04){
+    const wish=target.clone().sub(deck.position);wish.y=0;wish.normalize();
+    deck.update(.01,wish.x,wish.z,walkCamera,deckShip);
+    assert(deck.moving,`the entire exposed main deck forms one continuous walkable circuit: ${JSON.stringify({target:target.toArray(),foot:deck.position.toArray()})}`);
+    const support=deck.ground(deck.position.x,deck.position.z,deck.position.y+.4,.8);
+    assert(Math.abs(deck.position.y-support-.025)<1e-5,'feet sit on the visible deck without embedding');
+    assert(++steps<4000,'free deck circuit cannot stall');
+  }
+}
+assert.equal(deck.place(new T.Vector3(0,0,10)),false,'sealed cabin cannot be entered through a wall');
+assert.equal(deck.place(new T.Vector3(20,0,0)),false,'outside hull cannot become a walk position');
+assert(deck.place(new T.Vector3(0,0,-8)));
+const free=deck.position.clone();
+for(let i=0;i<40;i++)deck.update(.01,1,0,walkCamera,deckShip);
+for(let i=0;i<40;i++)deck.update(.01,0,1,walkCamera,deckShip);
+assert(deck.position.x-free.x>1&&deck.position.z-free.z>1,'main deck movement has independent lateral and longitudinal freedom');
+assert(deck.place(new T.Vector3(6.5,0,13.25)));for(let i=0;i<300;i++)deck.update(.01,-1,0,walkCamera,deckShip);
+assert(deck.position.x>=5.3&&deck.position.x<5.6,`body stops before the sealed cabin wall: ${deck.position.toArray()}`);
+assert(deck.place(new T.Vector3(-7.5,0,-8)));for(let i=0;i<300;i++)deck.update(.01,-1,0,walkCamera,deckShip);
+assert(deck.position.x>=-7.78&&deck.position.x<=-7.5,'rail collision stops outward movement before the visible deck boundary');
+assert.equal(deck.place(new T.Vector3(-7.9,0,-8)),false,'foot disk cannot hang over the visible deck boundary');
+
 for(let i=0;i<12;i++){const anchor=deckShip.getObjectByName(`SV2_Bed_${i}_FootAnchor`),point=deckShip.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0,0,.6));point.y=0;cabinDeck.place(point);assert(cabinDeck.position.distanceTo(point)<.03,'all twelve bed interactions are reachable on the door-facing aisle');}
 const left=cabinDeck.route[2];cabinDeck.place(left);for(let i=0;i<120;i++)cabinDeck.update(.05,0,-1,walkCamera,deckShip);assert(cabinDeck.position.distanceTo(left)<.03,'forward input cannot leave the aisle and cross beds');
 deck.reset();const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert(Math.abs(deck.position.y-landing)<1e-7);
 deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
 deck.destroy();cabinDeck.destroy();
-console.log('Actual ship export: sealed exterior, connected outer curve, all twelve bed-side positions, lane boundaries and jump landing passed');
+console.log('Actual ship export: continuous free main deck, sealed-room and rail boundaries, grounded feet, twelve bed-side positions and jump landing passed');
 // Dense samples catch a hard cut; settling must reach the exact final pose with near-zero speed.
 let previousPose = voyageOpeningPose(0);
 for (let i = 1; i <= 2400; i++) {

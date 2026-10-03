@@ -157,9 +157,10 @@
       "scripts/creative/blender/restore_voyage_retained_structure.py",
       "scripts/creative/blender/separate_voyage_original_parts.py",
       "scripts/creative/blender/place_single_voyage_crest.py",
-      "scripts/creative/blender/refine_voyage_wheel_contour.py"
+      "scripts/creative/blender/refine_voyage_wheel_contour.py",
+      "scripts/creative/blender/author_voyage_main_deck.py"
     ],
-    "sequence": "Historical prepare/rig/finish then polish, cabin fit, prototype materials, structure repair and stained glass. Saved file retains original and pre-repair archives. Current bounded correction loads saved scene and runs refine_voyage_login_corner.py: restore retained structure, separate original faces without changing geometry/UV, restore labelled engine materials, map one maple on existing cloth, and mount the native form on the physical timber sign. In-file OriginalPartSource meshes retain unsplit authority for idempotent reruns. Latest 2026-10-04 correction: shared linen, left-shifted maple with additional clockwise 90 degree rotation, Blender alpha blend preview and centrally symmetric swept wheel cloth/ribs. Wheel source meshes remain stored in-file for repeatable refinement."
+    "sequence": "Historical prepare/rig/finish then polish, cabin fit, prototype materials, structure repair and stained glass. Saved file retains original and pre-repair archives. Current bounded correction loads saved scene and runs refine_voyage_login_corner.py: restore retained structure, separate original faces without changing geometry/UV, restore labelled engine materials, map one maple on existing cloth, and mount the native form on the physical timber sign. In-file OriginalPartSource meshes retain unsplit authority for idempotent reruns. Latest 2026-10-04 correction: shared linen, left-shifted maple with additional clockwise 90 degree rotation, Blender alpha blend preview and centrally symmetric swept wheel cloth/ribs. Wheel source meshes remain stored in-file for repeatable refinement. Latest main-deck correction: run author_voyage_main_deck.py after the retained-structure/sail recipes; replaces only the narrow arc with continuous exposed deck around the sealed room, preserving other mesh positions. Shared footprint is in shared/voyage-deck.json."
   },
   "userShipSource": {
     "source": "user-provided local model, 2026-10-02",
