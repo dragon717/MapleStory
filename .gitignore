@@ -82,3 +82,13 @@ MapleStory-运行资源-*.tar.gz
 !/evidence/**/*.sh
 !/evidence/**/*.patch
 !/evidence/**/*.diff
+
+# User-approved classic login-tree 3D study (2026-10-03), only these two assets.
+!/resources/
+/resources/*
+!/resources/blender/
+/resources/blender/*
+!/resources/blender/classic-login-tree/
+/resources/blender/classic-login-tree/*
+!/resources/blender/classic-login-tree/Classic_MapleStory_Login_Tree.blend
+!/resources/blender/classic-login-tree/MapleStory_Classic_Login_Tree_Blender.png
