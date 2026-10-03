@@ -12,6 +12,28 @@ const attribute=index=>{const a=gltf.accessors[index],v=gltf.bufferViews[a.buffe
 const objects=gltf.nodes.map(node=>{const object=new T.Group();object.name=node.name;object.userData=node.extras||{};if(node.translation)object.position.fromArray(node.translation);if(node.rotation)object.quaternion.fromArray(node.rotation);if(node.scale)object.scale.fromArray(node.scale);if(node.matrix){object.matrix.fromArray(node.matrix);object.matrix.decompose(object.position,object.quaternion,object.scale);}if(node.mesh!==undefined)for(const primitive of gltf.meshes[node.mesh].primitives){const geometry=new T.BufferGeometry();geometry.setAttribute('position',attribute(primitive.attributes.POSITION));if(primitive.indices!==undefined)geometry.setIndex(attribute(primitive.indices));object.add(new T.Mesh(geometry,new T.MeshBasicMaterial()));}return object;});
 gltf.nodes.forEach((node,index)=>(node.children||[]).forEach(child=>objects[index].add(objects[child])));
 const deckShip=objects.find(object=>object.name==='SV2_Ship');deckShip.scale.setScalar(2);deckShip.updateWorldMatrix(true,true);
+assert(!objects.some(o=>o.name.startsWith('SV3_Reference_')),'rejected replacement geometry is absent');
+const stern=deckShip.getObjectByName('SV3_Hull_SternPlatform');
+assert(stern&&stern.userData.original_part==='SternPlatform','original stern faces form a separate editable platform');
+assert(deckShip.getObjectByName('SV3_Repaired_SternRoofDeck'),'retained platform roof is restored');
+for(const side of ['Port','Starboard']) {
+  const engine=deckShip.getObjectByName('SV3_Engine_'+side);
+  for(const part of ['MetalBand','EndCap'])assert(engine.getObjectByName(engine.name+'_'+part),'original engine regions are separated');
+  assert(deckShip.getObjectByName('SV3_Wheel_'+side+'_TimberSpokesAndHub'),'retained wheel ribs and hub are present');
+  const wheel=deckShip.getObjectByName('SV3_Wheel_'+side);
+  assert.equal(wheel.userData.wheel_contour,'centrally symmetric swept blades');
+  const positions=wheel.children.find(o=>o.isMesh).geometry.getAttribute('position');
+  const points=Array.from({length:positions.count},(_,i)=>new T.Vector3().fromBufferAttribute(positions,i));
+  const key=p=>p.toArray().map(x=>Math.round(x*1000)).join(',');
+  const pointSet=new Set(points.map(key));
+  for(const p of points)assert(pointSet.has(key(new T.Vector3(p.x,-p.y,-p.z))),'opposite wheel blades retain central symmetry');
+  const outer=points.map(p=>Math.hypot(p.y,p.z)).filter(r=>r>8.5);
+  assert(Math.max(...outer)-Math.min(...outer)>1,'wheel outer silhouette has unequal blade lengths');
+}
+const sockets=deckShip.getObjectByName('SV3_Repaired_WheelHullSockets');
+assert.equal(sockets.userData.removed_backing_disks,2);
+const socketSize=new T.Box3().setFromObject(sockets).getSize(new T.Vector3());
+assert(socketSize.y<6&&socketSize.z<6,'only narrow axles remain, without the large backing disks');
 const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(0,15,35);walkCamera.lookAt(0,10,0);walkCamera.updateMatrixWorld(true);
 const deck=new VoyageDeck(deckShip),cabinDeck=new VoyageDeck(deckShip,true);
 assert(!deckShip.getObjectByName('SV3_CaptainFloor')&&!deckShip.getObjectByName('SV3_CaptainDoorThreshold'),'obsolete walk-in room geometry is absent');

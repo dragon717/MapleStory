@@ -135,6 +135,14 @@ function checkSailBindings(runtime, scene) {
     assert.equal(node.userData.cloth_grid_uv, 'uv2', `${name} cloth_grid_uv`);
     return node;
   });
+  const materialOf = node => Array.isArray(node.material) ? node.material[0] : node.material;
+  for (const node of fanRoots) {
+    const material = materialOf(node);
+    assert(material, `${node.name} missing sail material`);
+    assert.equal(material.userData?.voyage_material_semantic, 'SailLinen', `${node.name} must use SailLinen`);
+  }
+  const sailMaterialNames = new Set(fanRoots.map(node => materialOf(node).name));
+  assert.equal(sailMaterialNames.size, 1, 'main and aft fan cloths must share one SailLinen material');
 
   const timberBefore = [];
   const fanTimberBefore = [];
@@ -179,17 +187,30 @@ function checkSailBindings(runtime, scene) {
   }
   const mainSails = subject.sails.filter(s => s.meshes[0].mesh.name.startsWith('SV3_MainFan_'));
   assert.equal(mainSails.length, 6);
+  const ship = scene.getObjectByName('SV2_Ship');
+  assert(ship, 'missing SV2_Ship for ship-local emblem UV validation');
+  ship.updateWorldMatrix(true, true);
+  const shipInverse = ship.matrixWorld.clone().invert();
+  const clamp01 = value => Math.max(0, Math.min(1, value));
   const ranges=[];
   for(let sector=0;sector<3;sector++) {
     const crest=scene.getObjectByName(`SV3_MainSail_Crest_${sector}`);
     assert(crest, 'missing main gore crest');
     assert.equal(crest.userData.cloth_grid_uv,'uv1');
+    assert.equal(crest.userData.emblem_single_image, true, 'each gore must use the one shared maple image');
+    assert.deepEqual(crest.userData.emblem_ship_center_yz, [-13, 26], 'emblem center must stay on the approved ship-local mark');
+    assert.equal(crest.userData.emblem_ship_size, 16, 'emblem projection size must stay authored');
+    assert.equal(crest.userData.emblem_sampler, 'CLAMP_TO_EDGE', 'emblem sampler must clamp its bounded UV');
+    assert.equal(crest.userData.emblem_rotation_degrees, 0, 'emblem rotation metadata must be normalized after the clockwise quarter-turn');
+    assert.equal(crest.userData.emblem_delta_clockwise_degrees, 90, 'emblem must record the approved clockwise quarter-turn');
     const [u0,u1]=crest.userData.emblem_u_range;ranges.push([u0,u1]);
-    const art=crest.geometry.getAttribute('uv'),grid=crest.geometry.getAttribute('uv1');
+    const art=crest.geometry.getAttribute('uv'),grid=crest.geometry.getAttribute('uv1'),position=crest.geometry.getAttribute('position');
     for(let i=0;i<grid.count;i++){
-      assert.equal(crest.userData.emblem_rotation_degrees,270);
-      assert(close(art.getX(i),1-(grid.getY(i)-.30)/.40), 'whole emblem shifts toward the larger forward sail region');
-      assert(close(art.getY(i),u0+(u1-u0)*grid.getX(i)+.12), 'each gore shares the globally inverted emblem');
+      const shipPoint=new THREE.Vector3().fromBufferAttribute(position,i).applyMatrix4(crest.matrixWorld).applyMatrix4(shipInverse);
+      const expectedU=clamp01(.5+(-shipPoint.z+13)/16),expectedV=clamp01(.5-(shipPoint.y-26)/16);
+      assert(close(art.getX(i),expectedU), 'emblem U must follow the one ship-local projection after glTF Y-up export');
+      assert(close(art.getY(i),expectedV), 'emblem V must follow the one ship-local projection after glTF Y-up export');
+      assert(art.getX(i)>=-1e-5&&art.getX(i)<=1+1e-5&&art.getY(i)>=-1e-5&&art.getY(i)<=1+1e-5, 'clamped emblem UV must stay inside the image');
     }
   }
   assert(close(ranges[0][0],0)&&close(ranges[2][1],1));
@@ -204,8 +225,6 @@ function checkSailBindings(runtime, scene) {
 
   for (const item of timberBefore) equalArrays(item.position, item.object.geometry.getAttribute('position').array, `${item.object.name} after bindSails`);
 
-  const ship = scene.getObjectByName('SV2_Ship');
-  assert(ship, 'missing SV2_Ship');
   const flight = new ShipFlight(ship);
   flight.setControls({ sail: .18, wind: 16, throttle: .7 });
   const dt = 1 / 60;

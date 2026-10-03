@@ -109,9 +109,10 @@
   "designSheets": [
     {
       "class": "P",
-      "file": "../sky-voyage-v2/design/ship-orthographic-v2.png",
+      "file": "../sky-voyage-v2/design/ship-orthographic-v1.png",
       "tool": "built-in image_gen",
-      "sha256": "9fb2942b56d1baeac936d3b858ceba95b0d23048198418835d78d9cded99b2f1"
+      "sha256": "fea269433bee0b3bf7ffc979d1239acca516e58cfe6c520156ad05bdc235cfac",
+      "authority": "User correction 2026-10-03: use adjacent v1 sheet; lower-right view is stern galleries"
     },
     {
       "class": "P",
@@ -151,9 +152,14 @@
       "scripts/creative/blender/fit_voyage_cabin.py",
       "scripts/creative/blender/map_ship_prototype_materials.py",
       "scripts/creative/blender/repair_sky_ship_structure.py",
-      "scripts/creative/blender/fit_voyage_stained_glass.py"
+      "scripts/creative/blender/fit_voyage_stained_glass.py",
+      "scripts/creative/blender/refine_voyage_login_corner.py",
+      "scripts/creative/blender/restore_voyage_retained_structure.py",
+      "scripts/creative/blender/separate_voyage_original_parts.py",
+      "scripts/creative/blender/place_single_voyage_crest.py",
+      "scripts/creative/blender/refine_voyage_wheel_contour.py"
     ],
-    "sequence": "Historical prepare/rig/finish, then polish, downloaded cabin fit, prototype materials, structure repair. Saved Blender file retains imported original, downloaded bed source and pre-repair archive. Do not rerun the historical preparatory material script alone over repaired geometry. Then fit_voyage_stained_glass.py adds the four generated window textures and real apertures."
+    "sequence": "Historical prepare/rig/finish then polish, cabin fit, prototype materials, structure repair and stained glass. Saved file retains original and pre-repair archives. Current bounded correction loads saved scene and runs refine_voyage_login_corner.py: restore retained structure, separate original faces without changing geometry/UV, restore labelled engine materials, map one maple on existing cloth, and mount the native form on the physical timber sign. In-file OriginalPartSource meshes retain unsplit authority for idempotent reruns. Latest 2026-10-04 correction: shared linen, left-shifted maple with additional clockwise 90 degree rotation, Blender alpha blend preview and centrally symmetric swept wheel cloth/ribs. Wheel source meshes remain stored in-file for repeatable refinement."
   },
   "userShipSource": {
     "source": "user-provided local model, 2026-10-02",

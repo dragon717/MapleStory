@@ -15,7 +15,7 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-65';
+const version = 'tms273-67';
 const voyageRoot = path.join(root, 'resources/scenes/sky-voyage-v3');
 for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ['models/voyage-book.glb', 'voyage-book.glb'], ...['warrior','mage','archer','rogue'].map(name => ['textures/stained-glass-'+name+'.png','stained-glass-'+name+'.png']), ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['vendor/bed/opengameart-victorian-bed/ATTRIBUTION.md','sky-voyage-bed-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/deck-planks.png', 'captain-sign-wood.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
   const file = path.join(publicRoot, 'assets/entry', name);

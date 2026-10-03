@@ -126,7 +126,12 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   }
   const crest=gltf.nodes.filter(node=>node.name?.startsWith('SV3_MainSail_Crest_'));
   assert.equal(crest.length,3,'one continuous maple emblem spans the three main sail gores');
-  for(const piece of crest){assert.equal(piece.extras.cloth_grid_uv,'uv1');assert.equal(piece.extras.emblem_rotation_degrees,270);}
+  for(const piece of crest){
+    assert.equal(piece.extras.cloth_grid_uv,'uv1');assert.equal(piece.extras.emblem_rotation_degrees,0);
+    assert.equal(piece.extras.emblem_delta_clockwise_degrees,90);
+    assert.deepEqual(piece.extras.emblem_ship_center_yz,[-13,26]);
+    assert.equal(piece.extras.emblem_single_image,true);
+  }
   const ranges=crest.sort((a,b)=>a.name.localeCompare(b.name)).map(n=>n.extras.emblem_u_range);
   assert.equal(ranges[0][0],0);assert(Math.abs(ranges[2][1]-1)<1e-6);
   for(let i=0;i<2;i++)assert(Math.abs(ranges[i][1]-ranges[i+1][0])<1e-6,'main sail UV must share seam coordinates');

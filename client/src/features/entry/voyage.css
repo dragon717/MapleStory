@@ -714,3 +714,89 @@ body.entry-active { background: #eee4cf; }
 .entry-voyage .voyage-role-details { z-index: 4; }
 
 .entry-voyage-ready :is(.voyage-role-details,.entry-create-panel) { visibility: hidden; }
+
+/* The authored login board supplies the title plate and wood surface. Keep the
+   live form as dark ink and the input area as the only readability layer. This
+   block intentionally comes last so it wins over the older mobile dimensions. */
+.entry-voyage-ready .entry-login.voyage-solid-controls {
+  width: 430px;
+  max-width: calc(100vw - 32px);
+  height: 350px;
+  padding: 20px 22px 16px;
+  border: 0;
+  border-image: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #382719;
+  text-shadow: none;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls h1 {
+  height: 44px;
+  margin: 0 0 14px;
+  color: #382719;
+  font-size: 29px;
+  line-height: 44px;
+  letter-spacing: .16em;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-fields {
+  border-top: 1px solid #8d6a3b99;
+  background: rgba(246, 218, 161, .24);
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-fields > input {
+  height: 64px;
+  color: #382719;
+  background: rgba(255, 244, 209, .34);
+  border-bottom: 1px solid #8d6a3b66;
+  text-shadow: none;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-fields > input::placeholder {
+  color: #654a2b;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-save {
+  color: #382719;
+  font-size: 13px;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-save input {
+  accent-color: #a9782f;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls > .entry-primary {
+  height: 65px;
+  margin-top: 14px;
+  padding: 0 12px;
+  border: 0;
+  border-image: none;
+  border-radius: 0;
+  background: transparent;
+  color: #382719;
+  box-shadow: none;
+  text-shadow: none;
+  font-size: 20px;
+  letter-spacing: .1em;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-links {
+  height: 34px;
+  margin-top: 14px;
+  gap: 8px;
+  color: #382719;
+}
+
+.entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-links button {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-image: none;
+  background: transparent;
+  color: #382719;
+  box-shadow: none;
+}

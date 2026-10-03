@@ -123,7 +123,17 @@ export class VoyageLogin {
         shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); shape.lineTo(-w / 2, -h / 2 + r);
         shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
         const geometry = new T.ExtrudeGeometry(shape, { depth: .07, bevelEnabled: true, bevelSize: .025, bevelThickness: .025, bevelSegments: 2, steps: 1, curveSegments: 4 });
-        const material = new T.MeshStandardMaterial({ color: button.classList.contains('entry-primary') ? '#345d64' : '#c5a66c', roughness: .38, metalness: button.classList.contains('entry-primary') ? .15 : .55 });
+        // Match the authored timber plaque; all controls are raised wooden
+        // plates. Text/input handling stays on the native perspective form.
+        let timber: T.MeshStandardMaterial | undefined;
+        surface.anchor.parent?.traverse(node => {
+          if (node instanceof T.Mesh) for (const candidate of Array.isArray(node.material) ? node.material : [node.material]) {
+            if (candidate instanceof T.MeshStandardMaterial && candidate.name === 'SV3_LoginTimber') timber = candidate;
+          }
+        });
+        const material = timber?.clone() ?? new T.MeshStandardMaterial({ color: '#bc8a50', roughness: .8, metalness: 0 });
+        const uv = geometry.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 2.8, uv.getY(i) / 2.8);
         const mesh = new T.Mesh(geometry, material); mesh.name = `SV3_LoginButton_${index}`;
         mesh.position.set((b.x + b.w / 2 - element.offsetWidth / 2) * scale, (element.offsetHeight / 2 - b.y - b.h / 2) * scale, .025);
         mesh.castShadow = true; mesh.receiveShadow = true; surface.anchor.add(mesh);

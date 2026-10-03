@@ -243,9 +243,8 @@ export class EntryVoyage {
           if (material instanceof T.MeshStandardMaterial) {
             if (material.map) {
               material.map.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-              // The exported sampler is repeatable, but setting it here keeps
-              // the contract intact for older cached GLBs as well.
-              material.map.wrapS = T.RepeatWrapping; material.map.wrapT = T.RepeatWrapping;
+              const decal = ['SV2_M_CrestDecal', 'SV3_MainSail_MapleDecal'].includes(material.name);
+              material.map.wrapS = material.map.wrapT = decal ? T.ClampToEdgeWrapping : T.RepeatWrapping;
               const semantic = String(material.userData.voyage_material_semantic ?? '');
               // Older cached GLBs carry the pre-polish UV projection. Keep
               // the source recipe's directional grain readable until Blender
@@ -535,21 +534,22 @@ export class EntryVoyage {
     if (!this.ship) return;
     this.ship.updateWorldMatrix(true,true);
     const direction=this.camera.position.clone().sub(base), distance=direction.length();direction.normalize();
-    // Body occluders retain the full-body reveal rule. Only the last two metres
-    // of the dolly are tested, preventing a wall from forcing a giant close-up.
-    const origin=base.clone().addScaledVector(direction,Math.max(0,distance-2));
-    this.cameraRay.set(origin,direction);this.cameraRay.far=3;
+    // Probe inward from outside the eye. A solid surface near the eye pushes
+    // the camera OUT of the hull; pulling toward the passenger put the old
+    // parallel view inside the wall. Body reveal keeps its separate rule.
+    const origin=this.camera.position.clone().addScaledVector(direction,3), inward=direction.clone().negate();
+    this.cameraRay.set(origin,inward);this.cameraRay.far=5;
     let nearest=Infinity;const small:T.Mesh[]=[];
     for(const mesh of this.cameraObstacles) {
       let visible=true;for(let p:T.Object3D|null=mesh;p;p=p.parent)if(!p.visible){visible=false;break;}
       if(!visible)continue;
       // Static hull tiles already exist for body reveal; cloth stays on its
       // small current mesh so its animated buffers need no second tile cache.
-      if(mesh.geometry.attributes.position.count>10000 && this.reveal) nearest=Math.min(nearest,this.reveal.surfaceDistance(mesh,origin,direction,3)??Infinity);
+      if(mesh.geometry.attributes.position.count>10000 && this.reveal) nearest=Math.min(nearest,this.reveal.surfaceDistance(mesh,origin,inward,5)??Infinity);
       else small.push(mesh);
     }
     nearest=Math.min(nearest,this.cameraRay.intersectObjects(small,false)[0]?.distance??Infinity);
-    if(nearest<3)this.camera.position.copy(base).addScaledVector(direction,Math.max(3,distance-2+nearest-1.5));
+    if(nearest<4.5)this.camera.position.copy(base).addScaledVector(direction,distance+3-nearest+1.5);
   }
   private updateInteractionHint() {
     const hint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
@@ -634,17 +634,29 @@ export class EntryVoyage {
       const board = this.loginSurface.anchor.getWorldPosition(new T.Vector3());
       const normal = new T.Vector3(0, 0, 1).applyNormalMatrix(new T.Matrix3().getNormalMatrix(this.loginSurface.anchor.matrixWorld)).normalize();
       const settle = smooth(Math.max(0, Math.min(1, (t - .78) / .22)));
-      const boardEye = board.clone().addScaledVector(normal, 17).add(new T.Vector3(0, 3.0, 8.0));
-      const boardAim = board.clone().add(new T.Vector3(0, .4, 0));
+      const tangent = new T.Vector3(1, 0, 0).transformDirection(this.loginSurface.anchor.matrixWorld);
+      // Leave room for the deck and destination on the right of the timber
+      // sign. Narrow screens keep the same physical surface centred/readable.
+      const wide = this.camera.aspect > 1.2;
+      const boardWidth = this.loginSurface.width * this.loginSurface.anchor.getWorldScale(new T.Vector3()).x;
+      const distance = wide ? 32 : Math.max(26, boardWidth / (2 * Math.tan(T.MathUtils.degToRad(20)) * this.camera.aspect * .76));
+      const boardEye = board.clone().addScaledVector(normal, distance).addScaledVector(tangent, wide ? -4 : 0).add(new T.Vector3(0, 3, 0));
+      const boardAim = board.clone().addScaledVector(tangent, wide ? 7 : 0).add(new T.Vector3(0, .6, 0));
       this.camera.position.lerp(boardEye, settle); aim.lerp(boardAim, settle); fieldOfView = T.MathUtils.lerp(fieldOfView, 40, settle);
     }
     if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship && !this.roleDetailOpen) {
-      // Match the in-world walk camera: foot target, 38° lens, pitch .24, 45 px/m.
+      // Keep the foot target and 38° lens; the exterior side view looks down
+      // enough to clear its railing while retaining vertical drag adjustment.
       const base = this.ship.localToWorld(walkingDeck.position.clone());
       base.y += 1.65;
       const distance = (this.stage === 'characters' ? 20 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * this.zoom;
-      const yaw = this.yaw, pitch = this.stage === 'characters' ? Math.max(this.pitch, .46) : Math.max(this.pitch, .2);
-      this.camera.position.copy(base).add(new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(distance));
+      // The exterior lane runs along Z. Its camera must look across the
+      // starboard side (+X), rather than down the lane into the stern wall.
+      const yaw = this.yaw + (this.stage === 'channel' ? Math.PI / 2 : 0);
+      const pitch = this.stage === 'channel' ? Math.max(.46, this.pitch + .22) : this.pitch;
+      const offset = new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch))
+        .applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())).multiplyScalar(distance);
+      this.camera.position.copy(base).add(offset);
       if (this.stage === 'channel') this.avoidCameraSurface(base);
       aim.copy(base); fieldOfView=38;
 

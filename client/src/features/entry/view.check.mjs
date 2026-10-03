@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, '../../../..');
 const publicRoot = process.env.MAPLE_PREVIEW_ASSETS || path.join(root,'client/public-tms273');
 const output = process.env.MAPLE_ENTRY_EVIDENCE || path.join(root, 'evidence/2026-10-03/voyage-deck-walk/flow');
 await fs.mkdir(output, { recursive: true });
-await build({ stdin: { contents: `import './src/app/style.css'; import { EntryView } from './src/features/entry/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; const audio=installGameAudio(document.getElementById('welcome'),()=>undefined); window.__entryAudio=audio; const entry = new EntryView(document.getElementById('welcome'), async (session,ready) => { if(window.__failEntry)throw new Error('offline entry restoration check');if(!await ready())return;if(audio.entry.playing)throw new Error('entry music must stop when the world is ready');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
+await build({ stdin: { contents: `import './src/app/style.css'; import * as Three from 'three'; window.__three=Three; import { EntryView } from './src/features/entry/view'; import { ClientActionsView } from './src/features/client-actions/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; const audio=installGameAudio(document.getElementById('welcome'),()=>undefined); window.__entryAudio=audio; const entry = new EntryView(document.getElementById('welcome'), async (session,ready) => { if(window.__failEntry)throw new Error('offline entry restoration check');if(!await ready())return;if(audio.entry.playing)throw new Error('entry music must stop when the world is ready');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; if (new URL(location.href).searchParams.has('reference')) window.__actions=new ClientActionsView(document.getElementById('app')); document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
 const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
 const installed = (await fs.readdir(browserCache)).filter(name=>name.startsWith('chromium_headless_shell-')).sort((a,b)=>Number(b.split('-').at(-1))-Number(a.split('-').at(-1)))[0];
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (installed && path.join(browserCache, installed, 'chrome-headless-shell-mac-arm64/chrome-headless-shell'));
@@ -58,14 +58,20 @@ await page.route('http://entry.test/**', async route => {
 const capture = async name => { await page.evaluate(()=>{const v=window.__entry.voyage;if(v?.model){v.camera.updateMatrixWorld(true);v.renderer.render(v.scene,v.camera);}}); await page.screenshot({path:path.join(output,name)}); };
 const artReady = () => page.waitForFunction(() => [...document.querySelectorAll('.entry-background img,.entry-avatar img,.maple-menu img')].every(img => img.complete && img.naturalWidth > 0));
 try {
-  await page.goto('http://entry.test/');
+  await page.goto(process.argv.includes('--reference-only') ? 'http://entry.test/?reference' : 'http://entry.test/');
   await page.locator('.entry-background img').first().waitFor({ state: 'attached' });
   await artReady();
   await page.locator('.entry-voyage-ready').waitFor({timeout:60000});
   await page.locator('#show-menu').evaluate(node => node.style.display = 'none');
   assert.equal(await page.locator('.entry-avatar').count(),0,'first login must not invent a player');
   assert.equal(await page.locator('.voyage-canvas').count(),1);
-  if(process.argv.includes('--visual-only')) {
+  if(process.argv.includes('--model-only')) {
+    const {captureVoyageModel}=await import('./voyage.model.check.mjs');
+    await captureVoyageModel(page,output,errors);
+  } else if(process.argv.includes('--reference-only')) {
+    const {checkVoyageReference}=await import('./voyage.reference.check.mjs');
+    await checkVoyageReference(page,output,errors);
+  } else if(process.argv.includes('--visual-only')) {
     const {captureVoyageVisuals}=await import('./voyage.visual.check.mjs');
     await captureVoyageVisuals(page,output,errors);
     assert.deepEqual(errors,[]);

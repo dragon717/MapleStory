@@ -1157,13 +1157,22 @@
     "loginSign": {
       "node": "SV2_LoginSign",
       "anchor": [
-        -8,
-        0,
-        -20
+        10.3,
+        5.4,
+        0
       ],
       "size": [
-        4,
-        6
+        7.15,
+        5.85
+      ],
+      "surfaceSize": [
+        6.65,
+        5.42
+      ],
+      "surfaceCenter": [
+        0,
+        4.2,
+        0.26
       ]
     },
     "deckAvatar": [
@@ -1172,14 +1181,25 @@
       -24
     ],
     "reference": {
-      "exteriorSheet": "design/ship-orthographic-v2.png",
+      "exteriorSheet": "design/ship-orthographic-v1.png",
       "interiorSheet": "design/ship-interior-plan-v1.png",
       "sourceSprite": "references/tms273-orbis-ship-source.png",
-      "scope": "Original Orbis silhouette reference; ivory/gold palette and expanded 3D passenger interiors are P adaptations, not official plans."
+      "scope": "User-confirmed v1 side/top/stern authority; v1 lower-right FRONT label depicts stern galleries. v2 bow panel is not the stern reference. P adaptation."
     },
     "exteriorSource": "user-provided OBJ, main connected component, 285840 triangles",
     "rigVersion": 1,
-    "navigation": "P local force/drag and flight demonstration, no server ship map"
+    "navigation": "P local force/drag and flight demonstration, no server ship map",
+    "referenceCorrections": {
+      "reference": "../sky-voyage-v2/design/ship-orthographic-v1.png",
+      "structure": "Retained source restored; rejected replacement cabins, floors and rods removed. Existing polygon positions, UVs and normals preserved during separation.",
+      "parts": [
+        "SV3_Hull body",
+        "SV3_Hull_SternPlatform original stern faces",
+        "Engine Shell / MetalBand / EndCap from retained FACE region labels"
+      ],
+      "wheel": "Retained wheel cloth and timber topology/UV/pivots; centre-symmetric unequal opposite blades with 0.14 rad swept tips; opaque backing disks absent.",
+      "mainSail": "Shared SailLinen material; one maple shifted left to ship Y=-13/Z=26 then additionally rotated clockwise 90 degrees; three existing physical cloth patches share the same image."
+    }
   },
   "runtimePresentation": {
     "owner": "client/src/features/entry/voyage.ts",
