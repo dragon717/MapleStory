@@ -1,6 +1,7 @@
 import type { MovementView } from '../../../../shared/protocol';
 import east from '../../../../shared/chuxian-east.json';
 import skyCity from '../../../../shared/sky-city.json';
+import { routeDirectionSlots } from './route-directions';
 export const SKY_CITY_MAP_ID=skyCity.mapId;
 export const isSpatialMap=(id:string)=>id===east.mapId||id===skyCity.mapId;
 export function layoutFor(id=east.mapId){return id===skyCity.mapId?skyCity:east;}
@@ -32,8 +33,6 @@ export function junctionDirections(x:number,view?:MovementView,mapId=HENESYS_MAP
   const epsilon=1e-7,route=east.routes.findIndex(r=>x>=r.start-epsilon&&x<=r.end+epsilon);
   if(route<0)return [];
   if('directionSlots' in east && east.directionSlots){
-    const directions=['up','down','left','right'] as const;
-    const vectors=[[0,-1],[0,1],[-1,0],[1,0]];
     const selected:JunctionDirection[]=[];
     for(const j of east.junctions){
       if(!j.entries.some(e=>e.route===route&&Math.abs(e.x-x)<=55+epsilon))continue;
@@ -42,9 +41,7 @@ export function junctionDirections(x:number,view?:MovementView,mapId=HENESYS_MAP
         const dx=other.position[0]-node.position[0],dy=other.position[1]-node.position[1],dz=other.position[2]-node.position[2];
         const right=view?dx*Math.cos(view.yaw)-dz*Math.sin(view.yaw):dx,down=view?(dx*Math.sin(view.yaw)+dz*Math.cos(view.yaw))*Math.sin(view.pitch)-dy*Math.cos(view.pitch):dz,len=Math.max(1e-9,Math.hypot(right,down));
         exits.push({route:e.route,right:right/len,down:down/len});}});}
-      const scores=exits.flatMap((e,i)=>vectors.map((v,d)=>({score:Math.round((e.right*v[0]+e.down*v[1])/Math.hypot(...v)*1e9),i,d}))).sort((a,b)=>b.score-a.score||a.i-b.i||a.d-b.d);
-      const assigned=new Set<number>(),used=new Set<number>();
-      for(const s of scores){if(assigned.has(s.i)||used.has(s.d))continue;assigned.add(s.i);used.add(s.d);if(exits[s.i].route!==route)selected.push(directions[s.d]);}
+      for(const slot of routeDirectionSlots(exits))if(exits[slot.index].route!==route)selected.push(slot.direction);
     }
     return [...new Set(selected)];
   }

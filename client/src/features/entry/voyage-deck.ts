@@ -1,5 +1,6 @@
 import * as T from 'three';
 import layout from '../../../../shared/voyage-deck.json';
+import { routeDirectionSlots } from '../henesys/route-directions';
 
 export function voyageScreenFacing(from: T.Vector3, to: T.Vector3, ship: T.Object3D, camera: T.Camera, previous = 1) {
   const dx = ship.localToWorld(to.clone()).project(camera).x - ship.localToWorld(from.clone()).project(camera).x;
@@ -23,6 +24,10 @@ export class VoyageDeck {
   private visualMaterials: T.Material[] = [];
   private ray = new T.Raycaster();
   private route: T.Vector3[] = [];
+  private routeDistance = 0;
+  private routeSign = 0;
+  private heldHorizontal = 0;
+  private heldVertical = 0;
   constructor(ship: T.Object3D, private readonly interior = false) {
     ship.updateWorldMatrix(true, true);
     const inverse = ship.matrixWorld.clone().invert(), tiles = new Map<string, number[]>();
@@ -53,7 +58,10 @@ export class VoyageDeck {
       geometry.computeBoundingBox(); geometry.computeBoundingSphere(); const tile = new T.Mesh(geometry, this.material); tile.name = 'SV3_DeckCollisionTile'; (key.startsWith('floor:') ? this.floor : this.mesh).add(tile);
     }
     if (!interior) {
-      this.route = Object.values(layout.nodes).map(point => new T.Vector3(point[0], layout.surface.height, point[1]));
+      this.route = layout.routes[0].nodes.map(name => {
+        const point = layout.nodes[name as keyof typeof layout.nodes];
+        return new T.Vector3(point[0], layout.surface.height, point[1]);
+      });
       this.addCaptainDoorSeal(ship);
     }
     else this.addCabinRoute(ship);
@@ -61,7 +69,8 @@ export class VoyageDeck {
       this.visual.name = 'SV3_DeckFallbacks';
       ship.add(this.visual);
     }
-    if (interior) this.position.copy(this.route[0]);
+    // Arrive on the horizontal bed aisle; the return portal shares this line.
+    if (interior) this.position.set(0, 0, this.route[0].z);
     else {
       // Login lands at the authored starboard boarding node.  The captain
       // room is reached across the main deck through its Space portal.
@@ -71,6 +80,7 @@ export class VoyageDeck {
     const height = this.ground(this.position.x, this.position.z, this.position.y + .4, .8);
     if (height !== undefined) this.position.y = height + .025;
     this.spawn.copy(this.position);
+    this.routeDistance = this.nearestRoute(this.position).distance;
   }
   private addCaptainDoorSeal(ship: T.Object3D) {
     // The former walk-in room is removed from the exterior presentation.
@@ -92,29 +102,57 @@ export class VoyageDeck {
     const collider = new T.Mesh(collisionGeometry, this.material); collider.name = 'SV3_CaptainDoorSeal_Collider'; this.mesh.add(collider);
   }
   private addCabinRoute(ship: T.Object3D) {
-    const portal = ship.getObjectByName('SV3_CabinDeckPortal');
-    const entry = portal ? ship.worldToLocal(portal.getWorldPosition(new T.Vector3())) : new T.Vector3(0, 0, 47.1);
-    entry.y = 0;
     const beds = Array.from({ length: 12 }, (_, index) => ship.getObjectByName(`SV2_Bed_${index}_FootAnchor`))
       .filter((anchor): anchor is T.Object3D => Boolean(anchor))
       .map(anchor => ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)));
     beds.forEach(point => point.y = 0);
-    // A single aisle along the door-facing ends of the actual beds. The
-    // short portal lead-in joins it without crossing any mattress.
+    // A single aisle along the door-facing ends of the actual beds.
     beds.sort((a, b) => a.x - b.x);
-    const junction = new T.Vector3(entry.x, 0, beds[0]?.z ?? 45.3);
-    this.route = [entry, junction, ...beds];
+    this.route = beds;
   }
   private routePoint(point: T.Vector3) {
-    let nearest = Infinity, result = this.route[0]?.clone() ?? point.clone();
+    return this.nearestRoute(point).point;
+  }
+  private nearestRoute(point: T.Vector3) {
+    let nearest = Infinity, result = this.route[0]?.clone() ?? point.clone(), distance = 0, total = 0;
     for (let i = 0; i < this.route.length - 1; i++) {
       const start = this.route[i], end = this.route[i + 1], segment = end.clone().sub(start); segment.y = 0;
       const offset = point.clone().sub(start); offset.y = 0;
       const amount = segment.lengthSq() ? T.MathUtils.clamp(offset.dot(segment) / segment.lengthSq(), 0, 1) : 0;
-      const candidate = start.clone().lerp(end, amount), distance = Math.hypot(candidate.x - point.x, candidate.z - point.z);
-      if (distance < nearest) { nearest = distance; result = candidate; }
+      const candidate = start.clone().lerp(end, amount);
+      const separation = Math.hypot(candidate.x - point.x, candidate.z - point.z);
+      if (separation < nearest) { nearest = separation; result = candidate; distance = total + segment.length() * amount; }
+      total += segment.length();
     }
-    return result;
+    return { point: result, distance };
+  }
+  private ringPoint(distance: number) {
+    const length = this.route.slice(1).reduce((sum, p, i) => sum + p.distanceTo(this.route[i]), 0);
+    let remaining = (distance % length + length) % length;
+    for (let i = 1; i < this.route.length; i++) {
+      const start = this.route[i - 1], end = this.route[i], size = start.distanceTo(end);
+      if (remaining <= size) return start.clone().lerp(end, remaining / size);
+      remaining -= size;
+    }
+    return this.route[0].clone();
+  }
+  private ringChoices(camera: T.Camera, ship: T.Object3D) {
+    const exits = [-1, 1].map(sign => this.ringPoint(this.routeDistance + sign * .3));
+    return this.projectChoices(exits, camera, ship).map(slot => ({ ...slot, sign: slot.index === 0 ? -1 : 1 }));
+  }
+  private projectChoices(exits: T.Vector3[], camera: T.Camera, ship: T.Object3D) {
+    const start = ship.localToWorld(this.position.clone()).project(camera);
+    return routeDirectionSlots(exits.map(point => {
+      point.y = this.position.y;
+      const end = ship.localToWorld(point.clone()).project(camera), right = end.x - start.x, down = (start.y - end.y) / (camera as T.PerspectiveCamera).aspect;
+      const size = Math.max(1e-9, Math.hypot(right, down));
+      return { right: right / size, down: down / size };
+    }));
+  }
+  junctionDirections(camera: T.PerspectiveCamera, ship: T.Object3D) {
+    if (this.interior) return [];
+    if (!this.route.slice(1, -1).some(p => Math.hypot(p.x - this.position.x, p.z - this.position.z) < .6)) return [];
+    return this.ringChoices(camera, ship).map(s => s.direction);
   }
   private ground(x: number, z: number, ceiling: number, distance: number) {
     this.ray.set(new T.Vector3(x, ceiling, z), new T.Vector3(0, -1, 0)); this.ray.far = distance;
@@ -122,10 +160,12 @@ export class VoyageDeck {
   }
   reset() { this.place(this.spawn); this.facing = 1; }
   place(point: T.Vector3) {
-    const candidate = this.interior ? this.routePoint(point) : point.clone();
+    const route = this.nearestRoute(point), candidate = route.point;
+    if (!this.interior && Math.hypot(candidate.x - point.x, candidate.z - point.z) > 1) return false;
     const height = this.ground(candidate.x, candidate.z, (this.interior ? candidate.y : layout.surface.height) + .4, .8);
     if (height === undefined || !this.interior && !this.canStand(candidate, height)) return false;
     candidate.y = height + .025; this.position.copy(candidate);
+    this.routeDistance = route.distance; this.routeSign = 0; this.heldHorizontal = 0; this.heldVertical = 0;
     this.moving = false; this.jumpHeight = 0; this.jumpVelocity = 0;
     return true;
   }
@@ -172,18 +212,27 @@ export class VoyageDeck {
   private walk(delta: number, horizontal: number, vertical: number, camera: T.Camera, ship: T.Object3D) {
     this.moving = false;
     if (!Number.isFinite(delta) || delta <= 0) return;
-    if(!horizontal&&!vertical)return;
+    const changed = horizontal !== this.heldHorizontal || vertical !== this.heldVertical;
+    this.heldHorizontal = horizontal; this.heldVertical = vertical;
+    if(!horizontal&&!vertical) { this.routeSign = 0; return; }
     const inverse = ship.getWorldQuaternion(new T.Quaternion()).invert();
     const forward = camera.getWorldDirection(new T.Vector3()).applyQuaternion(inverse); forward.y = 0; forward.normalize();
     const right = forward.clone().cross(new T.Vector3(0, 1, 0));
     const wish=right.multiplyScalar(horizontal).addScaledVector(forward,-vertical).normalize();
     const desired = this.position.clone().addScaledVector(wish, 3 * delta);
     if (!this.interior) {
-      const choices = [desired, new T.Vector3(desired.x, this.position.y, this.position.z), new T.Vector3(this.position.x, this.position.y, desired.z)];
-      const next = choices.find(point => this.tryFreeStep(point));
-      if (!next) return;
+      // Match spatial-map continuity: a key selects the arc sign once, then
+      // held input carries that sign through bends and the closed seam.
+      if (changed || !this.routeSign) {
+        const direction = Math.abs(horizontal) >= Math.abs(vertical) && horizontal
+          ? horizontal < 0 ? 'left' : 'right' : vertical < 0 ? 'up' : 'down';
+        this.routeSign = this.ringChoices(camera as T.PerspectiveCamera, ship).find(s => s.direction === direction)?.sign ?? 0;
+      }
+      if (!this.routeSign) return;
+      const distance = this.routeDistance + this.routeSign * 3 * delta, next = this.ringPoint(distance);
+      if (!this.tryFreeStep(next)) return;
       this.facing = voyageScreenFacing(this.position, next, ship, camera, this.facing);
-      this.position.copy(next); this.moving = true;
+      this.position.copy(next); this.routeDistance = distance; this.moving = true;
       return;
     }
     const next=this.routePoint(desired),offset=next.clone().sub(this.position); offset.y = 0;

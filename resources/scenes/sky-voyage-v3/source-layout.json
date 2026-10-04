@@ -1119,40 +1119,86 @@
       "presentation": "Existing editable cabin cutaway; exterior is hidden during selection/creation. Not an authoritative navigable interior."
     },
     "beds": {
-      "visualCount": 4,
+      "visualCount": 12,
       "anchors": [
+        [
+          -10.8,
+          0,
+          43.2
+        ],
+        [
+          -9,
+          0,
+          43.2
+        ],
+        [
+          -7.2,
+          0,
+          43.2
+        ],
         [
           -5.4,
           0,
-          43
+          43.2
         ],
         [
-          -1.8,
+          -2.9,
           0,
-          43
+          43.2
         ],
         [
-          1.8,
+          -1.1,
           0,
-          43
+          43.2
+        ],
+        [
+          1.1,
+          0,
+          43.2
+        ],
+        [
+          2.9,
+          0,
+          43.2
         ],
         [
           5.4,
           0,
-          43
+          43.2
+        ],
+        [
+          7.2,
+          0,
+          43.2
+        ],
+        [
+          9,
+          0,
+          43.2
+        ],
+        [
+          10.8,
+          0,
+          43.2
         ]
       ],
       "footLocal": [
         0,
         0,
-        1.3
+        1.6
       ],
       "sleepLocal": [
         0,
-        0.82,
+        0.635,
         0
       ],
-      "capacityPolicy": "visual berths do not cap account slots"
+      "capacityPolicy": "visual berths do not cap account slots",
+      "aisleLocalZ": 45.4,
+      "returnPortal": [
+        0,
+        0.03,
+        45.4
+      ]
     },
     "loginSign": {
       "node": "SV2_LoginSign",
@@ -1203,7 +1249,7 @@
     "mainDeck": {
       "layoutSource": "shared/voyage-deck.json",
       "walkSurface": "SV3_MainDeck_Surface",
-      "walkMode": "free movement across the connected exposed main deck; sealed cabin and rails remain solid; bed aisle remains constrained",
+      "walkMode": "closed main deck ring; held input continues through corners/seam; selection cabin has one horizontal bed aisle and a manual portal on the same line",
       "height": 5.48
     }
   },

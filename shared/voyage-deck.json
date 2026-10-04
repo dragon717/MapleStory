@@ -1,5 +1,5 @@
 {
-  "source": "SV3_MainDeck_Surface visible main deck, ship-local glTF metres; original hull supplies rail and shell collision",
+  "source": "SV3_MainDeck_Surface supports the closed main-deck loop; ship-local glTF metres; original hull supplies rail and shell collision",
   "spawn": "右舷登船位",
   "nodes": {
     "右舷前端": [
@@ -33,27 +33,15 @@
   },
   "routes": [
     {
-      "name": "右舷甲板",
+      "name": "主甲板回形环路",
+      "closed": true,
       "nodes": [
-        "右舷前端",
-        "右舷路口",
         "右舷登船位",
-        "右舷后端"
-      ]
-    },
-    {
-      "name": "前甲板横路",
-      "nodes": [
-        "右舷路口",
-        "左舷路口"
-      ]
-    },
-    {
-      "name": "左舷甲板",
-      "nodes": [
-        "左舷前端",
+        "右舷后端",
+        "左舷后端",
         "左舷路口",
-        "左舷后端"
+        "右舷路口",
+        "右舷登船位"
       ]
     }
   ],
@@ -96,8 +84,8 @@
       ]
     ],
     "sealedRoom": {
-      "xMin": -5.0,
-      "xMax": 5.0,
+      "xMin": -5,
+      "xMax": 5,
       "zMin": -0.25,
       "zMax": 18.25
     },

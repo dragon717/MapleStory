@@ -7,8 +7,10 @@ import ts from 'typescript';
 const east = JSON.parse(await readFile(new URL('../../../../shared/chuxian-east.json', import.meta.url), 'utf8'));
 const skyCity = JSON.parse(await readFile(new URL('../../../../shared/sky-city.json', import.meta.url), 'utf8'));
 const source = await readFile(new URL('./coordinates.ts', import.meta.url), 'utf8');
+const slotSource = await readFile(new URL('./route-directions.ts', import.meta.url), 'utf8');
+const slotJs = ts.transpileModule(slotSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
-const js = outputText.replace(/import east from '[^']+';/, `const east = ${JSON.stringify(east)};`).replace(/import skyCity from '[^']+';/, `const skyCity = ${JSON.stringify(skyCity)};`);
+const js = outputText.replace(/import east from '[^']+';/, `const east = ${JSON.stringify(east)};`).replace(/import skyCity from '[^']+';/, `const skyCity = ${JSON.stringify(skyCity)};`).replace(/import \{ routeDirectionSlots \} from '[^']+';/, slotJs);
 const { junctionDirections } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 // Compare the actual Rust turn function, including range edges, current-road winners and ties.
 const rust = spawnSync(process.env.CARGO_BIN || path.join(os.homedir(), '.cargo/bin/cargo'), ['test', 'east_junction_hint_parity', '--', '--nocapture'], { cwd: new URL('../../../../server/', import.meta.url), encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });

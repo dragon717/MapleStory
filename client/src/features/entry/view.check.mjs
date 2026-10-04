@@ -16,10 +16,11 @@ const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
 const installed = (await fs.readdir(browserCache)).filter(name=>name.startsWith('chromium_headless_shell-')).sort((a,b)=>Number(b.split('-').at(-1))-Number(a.split('-').at(-1)))[0];
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (installed && path.join(browserCache, installed, 'chrome-headless-shell-mac-arm64/chrome-headless-shell'));
 const browser = await chromium.launch({ headless: true, executablePath });
-const page = await browser.newPage({ viewport: process.argv.includes('--deck-only') ? {width:960,height:640} : { width: 1440, height: 900 }, reducedMotion: process.env.MAPLE_REDUCED_MOTION === 'no-preference' ? 'no-preference' : 'reduce' });
+const page = await browser.newPage({ viewport: (process.argv.includes('--deck-only') || process.argv.includes('--camera-motion-only')) ? {width:960,height:640} : { width: 1440, height: 900 }, reducedMotion: process.env.MAPLE_REDUCED_MOTION === 'no-preference' ? 'no-preference' : 'reduce' });
 const errors = [];
+const consoleErrors = [];
 page.on('pageerror', error => errors.push(String(error)));
-page.on('console', message => { if (message.type() === 'error' && /shader|WebGLProgram|VALIDATE_STATUS/i.test(message.text())) errors.push(message.text()); });
+page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); if (message.type() === 'error' && /shader|WebGLProgram|VALIDATE_STATUS/i.test(message.text())) errors.push(message.text()); });
 const manifest = JSON.parse(await fs.readFile(path.join(publicRoot,'assets/manifest.json'), 'utf8'));
 // The handshake constants must match shared/protocol.ts, or authenticate()
 // refuses the stub session exactly like it refuses an outdated server.
@@ -71,6 +72,15 @@ try {
   } else if(process.argv.includes('--reference-only')) {
     const {checkVoyageReference}=await import('./voyage.reference.check.mjs');
     await checkVoyageReference(page,output,errors);
+  } else if(process.argv.includes('--camera-motion-only')) {
+    const {checkVoyageCameraMotion}=await import('./voyage.camera-motion.check.mjs');
+    await checkVoyageCameraMotion(page,output,errors);
+  } else if(process.argv.includes('--polish-only')) {
+    const {checkVoyagePolish}=await import('./voyage.polish.check.mjs');
+    await checkVoyagePolish(page,output,errors);
+  } else if(process.argv.includes('--cabin-mask-only')) {
+    const {checkCabinMask}=await import('./voyage.cabin-mask.check.mjs');
+    await checkCabinMask(page,output,errors);
   } else if(process.argv.includes('--visual-only')) {
     const {captureVoyageVisuals}=await import('./voyage.visual.check.mjs');
     await captureVoyageVisuals(page,output,errors);
@@ -105,6 +115,12 @@ try {
   await page.keyboard.press('Space');await page.waitForFunction(()=>window.__entry.voyage.deck.jumping && window.__entry.voyage.passengerAction("preview-swap")==="jump");
   assert.equal((await deckState()).action,'jump');await page.waitForFunction(()=>!window.__entry.voyage.deck.jumping);
   assert(Math.abs((await deckState()).position[1]-stopped[1])<.0001,'jump lands on the same actual floor');
+  const ringStart=await page.evaluate(()=>window.__entry.voyage.deck.routeDistance);
+  await page.keyboard.down('ArrowLeft');
+  try { await page.waitForFunction(start=>window.__entry.voyage.deck.routeDistance>start+86.1,ringStart,{timeout:90000}); }
+  finally { await page.keyboard.up('ArrowLeft'); }
+  assert(await page.evaluate(()=>{const d=window.__entry.voyage.deck;return Math.hypot(d.position.x-d.routePoint(d.position).x,d.position.z-d.routePoint(d.position).z)<.00001;}),'one held key walks the entire real deck loop through every bend');
+  console.log('Closed deck loop completed with one continuously held key');
   assert.equal(selections,0,'walking never selects a world session');
   await page.keyboard.down('KeyA'); await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
   assert.equal((await deckState()).keys,0,'losing focus clears all held movement'); await page.keyboard.up('KeyA');
@@ -124,7 +140,6 @@ try {
       finally { for (const code of held) await page.keyboard.up(code); }
     };
     await walkUntil('ArrowLeft', () => window.__entry.voyage.deck.position.z > 13.20);
-    await walkUntil('ArrowUp', () => window.__entry.voyage.deck.position.x < 5.90);
     await page.waitForFunction(() => window.__entry.voyage.nearInteraction === 'enter-cabin', undefined, { timeout: 8000 });
     await page.keyboard.up('ArrowDown'); await page.keyboard.up('ArrowRight'); await page.keyboard.up('ArrowLeft');
     await page.evaluate(()=>{const v=window.__entry.voyage;v.updateActivity();});
@@ -133,9 +148,11 @@ try {
     assert(await page.evaluate(()=>{const v=window.__entry.voyage,p=v.model.getObjectByName('SV3_CaptainPortal_Original2D');return p.parent.name==='SV3_Exterior'&&!p.parent.visible;}),'exterior portal disappears with the exterior shell');
     assert.equal(selections,0,'walking to the real portal only arms the cabin interaction');
     await page.evaluate(()=>{const v=window.__entry.voyage;v.passengers.finishWake();v.updateActivity();});
-    await walkUntil('ArrowUp', () => window.__entry.voyage.cabinDeck.position.z < 45.22);
     const cabinBefore=await page.evaluate(()=>window.__entry.voyage.cabinDeck.position.toArray());
     await page.keyboard.down('ArrowLeft');await page.waitForFunction(p=>window.__entry.voyage.cabinDeck.position.distanceTo(window.__entry.voyage.cabinDeck.spawn.clone().fromArray(p))>.3,cabinBefore);await page.keyboard.up('ArrowLeft');
+    assert((await page.evaluate(()=>window.__entry.voyage.cabinDeck.position.x))<cabinBefore[0]-.3,'left input works immediately at the cabin arrival');
+    const leftFoot=await page.evaluate(()=>window.__entry.voyage.cabinDeck.position.x);
+    await page.keyboard.down('ArrowRight');await page.waitForFunction(x=>window.__entry.voyage.cabinDeck.position.x>x+.3,leftFoot);await page.keyboard.up('ArrowRight');
     assert.equal(await page.locator('[data-select]').count(),0,'remote bed clicks cannot select a character');
     await page.evaluate(()=>{const v=window.__entry.voyage,p=v.ship.worldToLocal(v.model.getObjectByName('SV2_Bed_1_FootAnchor').getWorldPosition(v.camera.position.clone())).add(v.camera.position.clone().set(0,0,.6));p.y=.025;v.cabinDeck.place(p);v.passengers.finishWake();v.updateActivity();});
     await page.waitForFunction(()=>window.__entry.voyage.nearInteraction==='role-details' && window.__entry.voyage.nearbyCharacterId==='passenger-0',null,{timeout:10000});
@@ -175,9 +192,8 @@ try {
     assert.equal(await page.evaluate(() => { const v=window.__entry.voyage; return Boolean(v.model.getObjectByName('SV3_CaptainFloor')?.visible || v.model.getObjectByName('SV3_CaptainDoorThreshold')?.visible); }), false, 'former walk-in room floor and threshold are removed');
     assert.equal(await page.evaluate(() => window.__entry.voyage.ship.getObjectByName('SV3_CaptainDoorSeal').visible), true);
     await page.keyboard.down('ArrowUp');
-    await page.waitForFunction(()=>window.__entry.voyage.deck.position.x<6.25);
     await page.waitForTimeout(500); await page.keyboard.up('ArrowUp');
-    assert(await page.evaluate(() => { const d=window.__entry.voyage.deck; return d.position.x>=5.3 && d.position.x<6.25 && Math.abs(d.position.y-5.505)<.00001 && d.canStand(d.position,5.48); }), 'inboard input stops at the actual hull or cabin wall with grounded feet');
+    assert(await page.evaluate(() => { const d=window.__entry.voyage.deck; return Math.abs(d.position.x-6.5)<.00001 && Math.abs(d.position.y-5.505)<.00001 && d.canStand(d.position,5.48); }), 'perpendicular input cannot leave the deck loop or cross the cabin wall');
     assert(await page.evaluate(()=>{const v=window.__entry.voyage,p=v.model.getObjectByName('SV3_CaptainPortal_Original2D'),a=v.ship.worldToLocal(v.model.getObjectByName('SV3_CaptainPortal').getWorldPosition(v.camera.position.clone())),bottom=p.getWorldPosition(v.camera.position.clone());bottom.y-=p.geometry.parameters.height*p.getWorldScale(bottom.clone()).y/2;const local=v.ship.worldToLocal(bottom);return Math.abs(local.y-a.y-.035)<.00001&&p.rotation.x===0&&p.rotation.z===0&&Math.abs(p.geometry.parameters.height*p.getWorldScale(bottom.clone()).y-2.8)<.00001;}),'portal bottom stays on the floor with yaw-only facing and original world height');
     await capture('deck-exterior.png');
     const transmission=await page.evaluate(()=>{const v=window.__entry.voyage;const mats=[];v.model.traverse(o=>{for(const m of o.material?Array.isArray(o.material)?o.material:[o.material]:[]){if(m.name==='SV3_Prototype_SapphireGlass')mats.push({physical:m.isMeshPhysicalMaterial,transmission:m.transmission,ior:m.ior});}});document.querySelector('.entry-scene').style.visibility='hidden';v.camera.position.set(18,8.3,-21.2);v.camera.lookAt(10.8,8.15,-21.2);v.camera.updateMatrixWorld(true);v.clouds.render(v.renderer,v.scene,v.camera,v.sun);return mats;});
@@ -187,4 +203,4 @@ try {
     const cameraRay=await page.evaluate(()=>{const a=window.__cameraRayTimes.sort((a,b)=>a-b);return{samples:a.length,medianMs:a[Math.floor(a.length*.5)],p95Ms:a[Math.floor(a.length*.95)],maxMs:a.at(-1)};});assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline production WebGL and local cabin lifecycle; in-memory account replies',transmission,cameraRay,selections,creations,errors},null,2));console.log('Camera collision ray CPU:',JSON.stringify(cameraRay));console.log('Production ship/cabin walking, jump, camera, empty-bed creation, return and physical transmission passed');
   } else { assert.deepEqual(errors,[]); await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline lobby geometry and keyboard input',beforeWalk,stopped,selections,errors},null,2)); console.log('Lobby upright feet, walking, skill isolation and blur checks passed'); }
   }
-} finally { await browser.close(); }
+} catch (error) { const state=await page.evaluate(()=>{const e=window.__entry,v=e?.voyage;return{entryStage:e?.stage,busy:e?.busy,stage:v?.stage,cabinShown:v?.cabinShown,transition:v?.transition,reduced:v?.reduced.matches,host:v?.host.className,hidden:v?.host.hidden,previous:v?.previous,now:performance.now()};}).catch(()=>undefined);console.error('Browser diagnostics:',JSON.stringify({errors,consoleErrors,state})); throw error; } finally { await browser.close(); }

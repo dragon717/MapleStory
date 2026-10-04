@@ -152,7 +152,7 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
     }
   }
   const layout = JSON.parse(fs.readFileSync(path.join(directory, 'sky-voyage-layout.json'), 'utf8'));
-  assert.equal(layout.units, 'metres'); assert.equal(layout.ship.cabin.frontWindowCount, 4); assert.equal(layout.ship.beds.visualCount, 4);
+  assert.equal(layout.units, 'metres'); assert.equal(layout.ship.cabin.frontWindowCount, 4); assert.equal(layout.ship.beds.visualCount, 12);
   assert.deepEqual(layout.city.mainIslandSize, [1800, 1280]);
   assert.deepEqual(layout.city.waterBodies, waterBodies, 'water domains must match the authored layout');
   assert.equal(layout.ship.length.zMax - layout.ship.length.zMin, 150);

@@ -42,37 +42,41 @@ const followRoute=surface=>{surface.place(surface.route[0]);for(const target of 
 followRoute(cabinDeck);
 assert(deckShip.getObjectByName('SV3_MainDeck_Surface'),'visible main deck is authored in the real model');
 assert(!objects.some(o=>o.name.startsWith('SV3_CaptainArcWalkway')),'the narrow arc is removed from the real model');
-const circuit=[deck.spawn.clone(),new T.Vector3(6.5,0,-8),new T.Vector3(-6.5,0,-8),new T.Vector3(-6.5,0,22),new T.Vector3(6.5,0,22),deck.spawn.clone()];
-for(const target of circuit.slice(1)){
-  let steps=0;
-  while(Math.hypot(target.x-deck.position.x,target.z-deck.position.z)>.04){
-    const wish=target.clone().sub(deck.position);wish.y=0;wish.normalize();
-    deck.update(.01,wish.x,wish.z,walkCamera,deckShip);
-    assert(deck.moving,`the entire exposed main deck forms one continuous walkable circuit: ${JSON.stringify({target:target.toArray(),foot:deck.position.toArray()})}`);
+const loopLength=86;
+for(const sign of [1,-1]) {
+  deck.reset();
+  const direction=deck.ringChoices(walkCamera,deckShip).find(c=>c.sign===sign).direction;
+  const [horizontal,vertical]={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]}[direction];
+  const touched=new Set();
+  for(let i=0;i<Math.ceil(loopLength*2/.03);i++) {
+    deck.update(.01,horizontal,vertical,walkCamera,deckShip);
+    assert(deck.moving,'held input must continue through all four corners and the closed seam');
+    assert(Math.hypot(deck.position.x-deck.routePoint(deck.position).x,deck.position.z-deck.routePoint(deck.position).z)<1e-7,'feet stay on the closed main deck line');
     const support=deck.ground(deck.position.x,deck.position.z,deck.position.y+.4,.8);
     assert(Math.abs(deck.position.y-support-.025)<1e-5,'feet sit on the visible deck without embedding');
-    assert(++steps<4000,'free deck circuit cannot stall');
+    deck.route.slice(1,-1).forEach((p,j)=>{if(p.distanceTo(deck.position)<.08)touched.add(j);});
   }
+  assert.equal(touched.size,4,'both orientations visit every corner');
+  assert(deck.position.distanceTo(deck.spawn)<.04,'two full circuits carry residual travel across the seam');
 }
 assert.equal(deck.place(new T.Vector3(0,0,10)),false,'sealed cabin cannot be entered through a wall');
 assert.equal(deck.place(new T.Vector3(20,0,0)),false,'outside hull cannot become a walk position');
-assert(deck.place(new T.Vector3(0,0,-8)));
-const free=deck.position.clone();
-for(let i=0;i<40;i++)deck.update(.01,1,0,walkCamera,deckShip);
-for(let i=0;i<40;i++)deck.update(.01,0,1,walkCamera,deckShip);
-assert(deck.position.x-free.x>1&&deck.position.z-free.z>1,'main deck movement has independent lateral and longitudinal freedom');
-assert(deck.place(new T.Vector3(6.5,0,13.25)));for(let i=0;i<300;i++)deck.update(.01,-1,0,walkCamera,deckShip);
-assert(deck.position.x>=5.3&&deck.position.x<5.6,`body stops before the sealed cabin wall: ${deck.position.toArray()}`);
-assert(deck.place(new T.Vector3(-7.5,0,-8)));for(let i=0;i<300;i++)deck.update(.01,-1,0,walkCamera,deckShip);
-assert(deck.position.x>=-7.78&&deck.position.x<=-7.5,'rail collision stops outward movement before the visible deck boundary');
-assert.equal(deck.place(new T.Vector3(-7.9,0,-8)),false,'foot disk cannot hang over the visible deck boundary');
+assert.equal(deck.place(new T.Vector3(-7.9,0,-8)),false,'outside the route cannot become a walk position');
+assert.equal(deck.canStand(new T.Vector3(-7.9,5.48,-8),5.48),false,'foot disk cannot hang over the visible deck boundary');
+assert.equal(deck.canStand(new T.Vector3(4.9,5.48,13.25),5.48),false,'actual cabin wall blocks the body');
+for(const sign of [-1,1]) {
+  cabinDeck.reset();const start=cabinDeck.position.clone();
+  for(let i=0;i<100;i++)cabinDeck.update(.01,sign,0,walkCamera,deckShip);
+  assert((cabinDeck.position.x-start.x)*sign>2.9,'both horizontal keys move immediately after entering the selection cabin');
+  assert(Math.abs(cabinDeck.position.z-start.z)<1e-7,'horizontal movement remains in the real bed aisle');
+}
 
 for(let i=0;i<12;i++){const anchor=deckShip.getObjectByName(`SV2_Bed_${i}_FootAnchor`),point=deckShip.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0,0,.6));point.y=0;cabinDeck.place(point);assert(cabinDeck.position.distanceTo(point)<.03,'all twelve bed interactions are reachable on the door-facing aisle');}
 const left=cabinDeck.route[2];cabinDeck.place(left);for(let i=0;i<120;i++)cabinDeck.update(.05,0,-1,walkCamera,deckShip);assert(cabinDeck.position.distanceTo(left)<.03,'forward input cannot leave the aisle and cross beds');
 deck.reset();const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert(Math.abs(deck.position.y-landing)<1e-7);
 deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
 deck.destroy();cabinDeck.destroy();
-console.log('Actual ship export: continuous free main deck, sealed-room and rail boundaries, grounded feet, twelve bed-side positions and jump landing passed');
+console.log('Actual ship export: closed main deck loop in both directions, sealed-room and rail boundaries, grounded feet, twelve bed-side positions and jump landing passed');
 // Dense samples catch a hard cut; settling must reach the exact final pose with near-zero speed.
 let previousPose = voyageOpeningPose(0);
 for (let i = 1; i <= 2400; i++) {
@@ -177,7 +181,8 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   for(let i=0;i<deckDoll.mesh.geometry.attributes.position.count;i++)assert(Math.abs(deckDoll.mesh.geometry.attributes.position.getZ(i))<1e-7,'deck sprite cannot retain bed deformation');
   passengers.dolls.delete('a');deckDoll.group.removeFromParent();deckDoll.mesh.geometry.dispose();deckDoll.mesh.material.dispose();deckDoll.zz.material.dispose();
   // Real setFrame must retain GPU storage dimensions across differently-sized walk frames.
-  const context={clearRect(){},drawImage(){},fillText(){}};
+  const ink=[];
+  const context={clearRect(){ink.length=0;},drawImage(_image,x,y,w,h){ink.push({x,y,w,h});},fillText(){},getImageData(_x,_y,width,height){const data=new Uint8ClampedArray(width*height*4);for(const r of ink)for(let y=Math.max(0,Math.ceil(r.y));y<Math.min(height,r.y+r.h);y++)for(let x=Math.max(0,Math.ceil(r.x));x<Math.min(width,r.x+r.w);x++)data[(y*width+x)*4+3]=255;return{data};}};
   global.document={createElement:()=>({width:300,height:150,getContext:()=>context})};
   global.Image=class {width=32;height=48;set src(value){queueMicrotask(()=>this.onload());}};
   const part={key:'body',url:'/body.png',x:-16,y:-48,width:32,height:48,origin:{x:16,y:48},z:0};
@@ -200,7 +205,12 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   assert.deepEqual(passengers.wake, wake, 'rerenders cannot restart or randomize the same selection');
   // Local return animation cannot outlive selection, its 3-second deadline or the view.
   await passengers.setFrame('a',[part],bounds);await passengers.setFrame('b',[part],bounds);
+  const bed=new T.Object3D();bed.name='SV2_Bed_1_SleepAnchor';bed.position.set(-4,.635,43);model.add(bed);
   passengers.finishWake();passengers.deckPosition.set(-10,0,35);passengers.update(.1,false,model,camera,0);
+  const sleeper=passengers.dolls.get('b'),centre=sleeper.bodyCenter;
+  const visibleCentre=new T.Vector3(centre.x,centre.y,0).applyMatrix4(sleeper.group.matrix);
+  sleeper.group.updateMatrix();visibleCentre.set(centre.x,centre.y,0).applyMatrix4(sleeper.group.matrix);
+  assert(Math.abs(visibleCentre.x-bed.position.x)<1e-6&&Math.abs(visibleCentre.z-bed.position.z)<1e-6,'visible sleeping body is centred on the actual bed anchor, not the foot/padded canvas');
   passengers.setSlots(['a','b'],'b','characters',0);assert(passengers.returning.has('a'));assert.equal(passengers.action('a'),'walk');
   passengers.update(2.7,false,model,camera,0);assert(passengers.returning.has('a'),'long walk stays local until requested deadline');
   clockTime=3001;passengers.update(.02,false,model,camera,0);assert(!passengers.returning.has('a')&&passengers.sleeping('a'),'3 seconds always returns the correct identity to its bed');
@@ -229,7 +239,7 @@ console.log('Voyage login perspective/ship motion/visibility/clipping/occlusion/
   const pagesNormal=new T.Vector3(0,0,1).applyQuaternion(departureBook.quaternion);assert(pagesNormal.dot(towardDoll)>.98,'readable page normal faces the character while the existing animation runs');
   for (let i = 0; i < 17; i++) passengers.update(.1, false, model, camera, 0);
   assert.equal(await completed, true, 'a normal-length clip resolves departure at its authored duration');
-  const destroyed = passengers.depart(); passengers.destroy();
+  const destroyed = passengers.depart(); bed.removeFromParent(); passengers.destroy();
   assert.equal(await destroyed, false); assert.equal(model.children.length, 0);
   delete global.document;delete global.Image;
   console.log('Wake variants, stable selection, departure cancellation/reduced motion/disposal passed');

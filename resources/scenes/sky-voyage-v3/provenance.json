@@ -292,5 +292,21 @@
         "keep current/next floors visible and restore shells on exit"
       ]
     }
+  },
+  "cabinDetailRefinement": {
+    "date": "2026-10-04",
+    "source": "scripts/creative/blender/refine_voyage_cabin_details.py",
+    "reference": "resources/scenes/sky-voyage-v2/design/ship-orthographic-v1.png",
+    "assetBytes": 72188808,
+    "assetSha256": "e2a4772e7d7479498e251d961469591dcf31bf95b3c2bc522eb6bcbd6d9f344c",
+    "changes": [
+      "12 retained beds shifted slightly; horizontal aisle return portal",
+      "brass lantern cages/crowns/bases/hanging loops",
+      "existing round porthole void restored, interpolated UV and normals",
+      "separate detail fittings on retained sealed captain door"
+    ],
+    "unrelatedMeshCountPreserved": 1778,
+    "portholeMeshFacesClippedAcrossPasses": 620,
+    "portholePolicy": "radius 1.12 through the captain shell x4.4..5.8; original outboard railing retains normal partial occlusion"
   }
 }

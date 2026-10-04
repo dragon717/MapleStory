@@ -15,7 +15,7 @@ export function wakePose(variant: number, seconds: number) {
 }
 export type DollBounds = { left: number; top: number; right: number; bottom: number };
 const dollTexture = (canvas: HTMLCanvasElement) => { const texture = new T.CanvasTexture(canvas); texture.colorSpace=T.SRGBColorSpace; texture.magFilter=texture.minFilter=T.NearestFilter; texture.generateMipmaps=false; return texture; };
-type Doll = { bounds?: DollBounds; group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
+type Doll = { bounds?: DollBounds; bodyCenter?: T.Vector2; group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
 
 export class VoyagePassengers {
   private root = new T.Group();
@@ -100,6 +100,14 @@ export class VoyagePassengers {
     }
     const ctx = doll.canvas.getContext('2d')!; ctx.clearRect(0,0,width,height); ctx.imageSmoothingEnabled = false;
     parts.forEach((p, i) => ctx.drawImage(images[i], p.x - left, p.y - top, p.width ?? images[i].width, p.height ?? images[i].height));
+    // Visible ink, rather than transparent animation padding, defines the
+    // sleeping body's centre. The source foot is still (0,0) when walking.
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    let minX = width, minY = height, maxX = -1, maxY = -1;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (pixels[(y * width + x) * 4 + 3] > 32) {
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    if (maxX >= 0) doll.bodyCenter = new T.Vector2((left + (minX + maxX) / 2) / 42, -(top + (minY + maxY) / 2) / 42);
     doll.texture.needsUpdate = true;
     // A stable canvas across all actions keeps the source foot and texture aspect unchanged.
     doll.mesh.scale.set(width / 42, height / 42, 1);
@@ -118,24 +126,18 @@ export class VoyagePassengers {
       let sleeping = this.sleeping(id);
       const onDeck = selected && (this.stage === 'channel' || this.stage === 'characters' && !this.waking);
       let returning = this.returning.get(id);
-      // The source canvas uses a top-left origin.  Sleeping dolls keep the
-      // negative offset under the quilt; deck walkers grow upward from their
-      // feet, so flip the anchor for the outdoor presentation.
-      doll.mesh.position.y = onDeck || returning || id === 'draft'
-        ? Math.abs(doll.mesh.position.y)
-        : -Math.abs(doll.mesh.position.y);
       doll.group.visible = onDeck || (this.stage === 'characters' && index >= 0) || (this.stage === 'create' && id === 'draft');
       doll.zz.visible = doll.group.visible && sleeping;
       if (!doll.group.visible) continue;
       const anchor = model.getObjectByName(`SV2_Bed_${index}_SleepAnchor`);
       const sleep = anchor ? this.root.worldToLocal(anchor.getWorldPosition(new T.Vector3())) : new T.Vector3(-10.8 + index * 1.8, .7, 43);
       // Feet point toward the camera; local +Y (head) lies along the mattress toward -Z.
-      const feet = sleep.clone().add(new T.Vector3(0, .025, .78));
+      const centre = doll.bodyCenter ?? new T.Vector2(0, .78 / VOYAGE_PASSENGER_SCALE);
+      const feet = sleep.clone().add(new T.Vector3(-centre.x * VOYAGE_PASSENGER_SCALE, .025, centre.y * VOYAGE_PASSENGER_SCALE));
       const pose = wakePose(this.wake.variant, this.wake.seconds);
       doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI / 2, 0, 0); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE);
       if (!sleeping) {
-        doll.group.position.y = T.MathUtils.lerp(feet.y, .025, pose.progress) + pose.lift;
-        doll.group.position.x += .75 * pose.progress; doll.group.position.z += .2 * pose.progress;
+        doll.group.position.lerp(this.deckPosition, pose.progress); doll.group.position.y += pose.lift;
         const facing = this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion()));
         doll.group.quaternion.slerp(facing, pose.progress);
         doll.group.rotateZ(pose.roll);

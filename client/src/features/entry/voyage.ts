@@ -29,6 +29,7 @@ const poses = {
   water: { eye: [165, 50, -2580], aim: [80, -19.605, -2690] },
 } as const;
 type Shot = keyof typeof poses;
+type CabinInteraction = { kind: 'enter-cabin' | 'return-deck' | 'create-character' | 'role-details'; label: string; id?: string; slot?: number };
 const smooth = (v: number) => v * v * (3 - 2 * v);
 const shipPose = <T extends { eye: readonly number[]; aim: readonly number[] }>(pose: T) => ({
   eye: pose.eye.map(value => value * VOYAGE_SHIP_SCALE),
@@ -61,6 +62,7 @@ export class EntryVoyage {
   readonly canvas: HTMLCanvasElement;
   private renderer: T.WebGLRenderer;
   private scene = new T.Scene();
+  private skyDecor = new T.Group();
   private camera = new T.PerspectiveCamera(46, 1, 1, 24000);
   private model?: T.Group;
   private ship?: T.Object3D;
@@ -80,6 +82,16 @@ export class EntryVoyage {
   private pitch = .24;
   private yaw = 0;
   private zoom = 1.2;
+  private inspection = false;
+  private inspectionYaw = 0;
+  private inspectionPitch = .48;
+  private shipBounds?: T.Sphere;
+  private followYaw = Math.PI / 2;
+  private followEye?: T.Vector3;
+  private followAim?: T.Vector3;
+  private interactions: CabinInteraction[] = [];
+  private choosingInteraction = false;
+  private interactionIndex = 0;
   private cameraRay = new T.Raycaster();
   private cameraObstacles: T.Mesh[] = [];
   private drag?: { id: number; x: number; y: number };
@@ -131,36 +143,52 @@ export class EntryVoyage {
   private rolePaperProjector = new VoyagePaperProjector();
   private createPaperProjector = new VoyagePaperProjector();
   private reflection: T.WebGLRenderTarget;
-  private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; this.drag = undefined; };
+  private clearMovement = () => { this.keys.clear(); this.passengers.deckMoving = false; this.drag = undefined; this.closeInteractionChoices(); };
   private cameraDown = (event: PointerEvent) => {
-    if (!['channel','characters'].includes(this.stage) || event.button !== 2 || event.target instanceof HTMLElement && event.target.closest('button,input,textarea,select')) return;
+    if (!['channel','characters'].includes(this.stage) || !(event.button === 2 || this.inspection && event.button === 0) || event.target instanceof HTMLElement && event.target.closest('button,input,textarea,select')) return;
     event.preventDefault(); this.host.setPointerCapture(event.pointerId);
     this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   };
   private cameraMove = (event: PointerEvent) => {
     if (this.drag?.id !== event.pointerId) return;
-    this.yaw = T.MathUtils.clamp(this.yaw - (event.clientX - this.drag.x) * .004, -.45, .45);
-    this.pitch = T.MathUtils.clamp(this.pitch + (event.clientY - this.drag.y) * .003, .08, .46);
+    if (this.inspection) {
+      this.inspectionYaw -= (event.clientX - this.drag.x) * .005;
+      this.inspectionPitch = T.MathUtils.clamp(this.inspectionPitch + (event.clientY - this.drag.y) * .003, -.25, 1.25);
+    } else {
+      this.yaw = T.MathUtils.clamp(this.yaw - (event.clientX - this.drag.x) * .004, -.45, .45);
+      this.pitch = T.MathUtils.clamp(this.pitch + (event.clientY - this.drag.y) * .003, .08, .75);
+    }
     this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
     if (this.reduced.matches) this.updateActivity();
   };
   private cameraUp = () => { this.drag = undefined; };
   private cameraWheel = (event: WheelEvent) => {
     if (!['channel','characters'].includes(this.stage) || event.target instanceof HTMLElement && event.target.closest('input,textarea,select,.entry-create-panel')) return;
-    event.preventDefault(); this.zoom = T.MathUtils.clamp(this.zoom * Math.exp(T.MathUtils.clamp(event.deltaY, -100, 100) * .002), .9, 1.7);
+    event.preventDefault(); this.zoom = T.MathUtils.clamp(this.zoom * Math.exp(T.MathUtils.clamp(event.deltaY, -100, 100) * .002), .9, this.stage === 'channel' ? 6.2 : 2.3);
+    if (this.stage === 'channel' && !this.inspection && this.zoom >= 2.6) { this.inspection = true; this.drag = undefined; this.inspectionYaw = this.followYaw + this.yaw; this.inspectionPitch = .48; }
+    if (this.inspection && this.zoom <= 2.2) { this.inspection = false; this.drag = undefined; this.yaw = 0; }
     if (this.reduced.matches) this.updateActivity();
   };
   private contextMenu = (event: Event) => { if (['channel','characters'].includes(this.stage)) event.preventDefault(); };
   private onKey = (event: KeyboardEvent) => {
+    if (this.choosingInteraction) {
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyW','KeyA','KeyS','KeyD','Space','Enter','Escape'].includes(event.code)) {
+        event.preventDefault();
+        if (event.type === 'keydown' && !event.repeat) {
+          if (event.code === 'Escape') this.closeInteractionChoices();
+          else if (event.code === 'Space' || event.code === 'Enter') this.performInteraction(this.interactions[this.interactionIndex]);
+          else { this.interactionIndex = (this.interactionIndex + (['ArrowLeft','ArrowUp','KeyW','KeyA'].includes(event.code) ? -1 : 1) + this.interactions.length) % this.interactions.length; this.renderInteractionChoices(); }
+        }
+        return;
+      }
+    }
     if (event.type === 'keydown' && event.code === 'Escape' && this.roleDetailOpen) { event.preventDefault(); this.closeRoleDetails(); return; }
     if (this.roleDetailOpen) return;
     if (event.type === 'keydown' && ['Space', 'KeyX', 'ControlLeft', 'ControlRight'].includes(event.code) && ['channel','characters'].includes(this.stage) && !this.host.hidden && !document.hidden && !event.repeat && this.host.getAttribute('aria-busy') !== 'true' && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]'))) {
       event.preventDefault();
       if (event.code === 'Space') {
-        if (this.nearInteraction === 'enter-cabin') this.onCabin?.();
-        else if (this.nearInteraction === 'return-deck') this.onDeck?.();
-        else if (this.nearInteraction === 'create-character' && this.nearbyEmptySlot !== undefined) this.onCreate?.(this.nearbyEmptySlot);
-        else if (this.nearInteraction === 'role-details' && this.nearbyCharacterId) { this.roleDetailOpen = true; this.onCharacter?.(this.nearbyCharacterId); }
+        if (this.interactions.length > 1) { this.keys.clear(); this.passengers.deckMoving = false; this.choosingInteraction = true; this.interactionIndex = 0; this.renderInteractionChoices(); }
+        else if (this.interactions.length) this.performInteraction(this.interactions[0]);
         else (this.stage === 'characters' ? this.cabinDeck : this.deck)?.jump();
         if (this.reduced.matches) this.updateActivity();
       }
@@ -183,7 +211,8 @@ export class EntryVoyage {
     this.renderer.toneMapping = T.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+    // Native depth-comparison shadows are required by the stained-glass haze.
+    this.renderer.shadowMap.type = T.PCFShadowMap;
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'voyage-canvas';
     this.canvas.setAttribute('aria-hidden', 'true');
@@ -210,11 +239,12 @@ export class EntryVoyage {
       fragmentShader: 'uniform vec3 top;uniform vec3 bottom;varying vec3 direction;void main(){float h=normalize(direction).y;gl_FragColor=vec4(mix(bottom,top,smoothstep(-.2,.6,h)),1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
     }));
     sky.name = 'VoyageSky'; this.scene.add(sky);
+    this.scene.add(this.skyDecor);
     const moon = new T.Mesh(new T.SphereGeometry(130, 32, 24), new T.MeshStandardMaterial({ color: '#fff0cb', emissive: '#d2dcf2', emissiveIntensity: .2, roughness: 1 }));
-    moon.position.set(-2200, 2100, -6800); this.scene.add(moon);
+    moon.position.set(-2200, 2100, -6800); this.skyDecor.add(moon);
     const starGeometry = new T.OctahedronGeometry(7), starMaterial = new T.MeshBasicMaterial({ color: '#fff7d8' });
     for (let i = 0; i < 24; i++) {
-      const star = new T.Mesh(starGeometry, starMaterial); star.position.set(Math.sin(i * 2.4) * 4800, 1500 + i % 7 * 180, -4200 - i % 5 * 430); star.scale.y = 2.2; this.scene.add(star);
+      const star = new T.Mesh(starGeometry, starMaterial); star.position.set(Math.sin(i * 2.4) * 4800, 1500 + i % 7 * 180, -4200 - i % 5 * 430); star.scale.y = 2.2; this.skyDecor.add(star);
     }
     const pmrem = new T.PMREMGenerator(this.renderer);
     this.reflection = pmrem.fromScene(this.scene, .04, .1, 16000);
@@ -283,7 +313,7 @@ export class EntryVoyage {
         this.ship.add(this.cabinLights);
         this.windowLight = new VoyageWindowLight(this.ship, gltf.scene, this.cabinLights);
         for (const x of [-11.7, -3.6, 4.5, 11.7]) {
-          const lamp = new T.PointLight('#ffb76c', 9, 7, 2); lamp.position.set(x, 2.2, 42.6); this.cabinLights.add(lamp);
+          const lamp = new T.PointLight('#ffb76c', 36, 14, 2); lamp.position.set(x, 2.2, 42.6); this.cabinLights.add(lamp);
         }
         if (this.ship.userData.rig_version === 1) this.flight = new ShipFlight(this.ship);
         const adventureAnchor = gltf.scene.getObjectByName('SV3_AdventureSurface');
@@ -315,7 +345,7 @@ export class EntryVoyage {
       this.host.classList.add('entry-voyage-ready');
       this.showCabin(this.stage === 'characters' || this.stage === 'create'); this.ready(); this.resize(); this.updateActivity();
     };
-    const failed = () => { if (this.alive) { this.host.classList.add('voyage-unavailable'); this.ready('天空航船模型加载失败；现有登录入口仍可使用。'); this.destroy(); } };
+    const failed = (error: unknown) => { if (this.alive) { console.error('Voyage model initialization failed', error); this.host.classList.add('voyage-unavailable'); this.ready('天空航船模型加载失败；现有登录入口仍可使用。'); this.destroy(); } };
     const load = (url: string, buffer?: ArrayBuffer) => new Promise<{ scene: T.Group }>((resolve, reject) => {
       if (buffer) loader.parse(buffer, '', resolve, reject); else loader.load(resolveAssetUrl(url), resolve, undefined, reject);
     });
@@ -347,8 +377,8 @@ export class EntryVoyage {
     const previousStage = this.stage;
     const changed = previousStage !== stage;
     if (changed) {
-      this.clearMovement();
-      this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
+      this.clearMovement(); this.followEye = undefined; this.followAim = undefined; this.inspection = false; this.zoom = 1.2; this.yaw = 0;
+      this.interactions = []; this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
       this.roleDetailOpen = false;
     }
     if (changed && this.model && !this.reduced.matches) this.beginTransition(stage, 2.6);
@@ -357,10 +387,10 @@ export class EntryVoyage {
     if (changed && stage === 'characters' && previousStage !== 'create') {
       this.cabinDeck?.reset(); this.passengers.finishWake(); this.exitArmed=false;
     }
-    if (changed && stage === 'create' && this.createPaper && this.cabinDeck) this.createPaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(3.5, 4.3, -1.7));
+    if (changed && stage === 'create' && this.createPaper && this.cabinDeck) this.createPaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(2.4, 3.2, -1.0));
     if (changed && stage === 'channel' && this.deck) {
       // A completed login always returns to the open starboard deck. The
-      // portal remains a manual Space interaction further up the arc.
+      // portal remains a manual Space interaction along the main deck loop.
       this.deck.reset();
       this.entranceArmed=false;
     }
@@ -375,9 +405,14 @@ export class EntryVoyage {
   private showCabin(cabin: boolean) {
     this.cabinShown = cabin;
     this.cabinLights.visible = cabin;
+    // Frame the standalone cabin against black; the exterior city and sky
+    // decorations are restored by the same transition when leaving it.
+    if (this.city) this.city.root.visible = !cabin;
+    this.skyDecor.visible = !cabin;
+    if (this.scene.background instanceof T.Color) this.scene.background.set(cabin ? '#000000' : '#8ecfec');
     const sky = this.scene.getObjectByName('VoyageSky') as T.Mesh<T.SphereGeometry, T.ShaderMaterial>;
-    sky.material.uniforms.top.value.set(cabin ? '#111724' : '#62b9e8');
-    sky.material.uniforms.bottom.value.set(cabin ? '#222736' : '#e4f2fb');
+    sky.material.uniforms.top.value.set(cabin ? '#000000' : '#62b9e8');
+    sky.material.uniforms.bottom.value.set(cabin ? '#000000' : '#e4f2fb');
     if (this.model) {
       const exterior = this.model.getObjectByName('SV3_Exterior');
       const interior = this.model.getObjectByName('SV3_CabinInterior');
@@ -464,21 +499,21 @@ export class EntryVoyage {
   private installFloorCountLabel() {
     if (!this.ship || !this.model) return;
     const cabin = this.model.getObjectByName('SV3_CabinInterior'); if (!cabin) return;
-    const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 150;
+    const canvas = document.createElement('canvas'); canvas.width = 2400; canvas.height = 1100;
     const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; texture.minFilter = T.LinearFilter;
     const material = new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide });
-    const mesh = new T.Mesh(new T.PlaneGeometry(7.2, 1.7), material); mesh.name = 'SV3_CabinFloorCount'; mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, .045, 38.0); mesh.visible = false; cabin.add(mesh);
+    const mesh = new T.Mesh(new T.PlaneGeometry(6.8, 3.12), material); mesh.name = 'SV3_CabinFloorCount'; mesh.position.set(-9.7, 1.8, 47.7); mesh.visible = false; cabin.add(mesh);
     this.floorCount = mesh; this.floorCountTexture = texture; this.updateFloorCountLabel();
   }
   private installPapers() {
     const cabin = this.model?.getObjectByName('SV3_CabinInterior'); if (!cabin) return;
-    this.rolePaper = createVoyagePaper(cabin, 'SV3_RoleParchment', new T.Vector3(11.0, 3.0, 41.2), 5.6, 7.2);
-    this.createPaper = createVoyagePaper(cabin, 'SV3_CreateParchment', new T.Vector3(0, 3.1, 38.9), 8.8, 8.6);
+    this.rolePaper = createVoyagePaper(cabin, 'SV3_RoleParchment', new T.Vector3(11.0, 3.0, 41.2), 2.8, 4.3);
+    this.createPaper = createVoyagePaper(cabin, 'SV3_CreateParchment', new T.Vector3(0, 3.1, 38.9), 3.4, 5.0);
   }
   private updateFloorCountLabel() {
     if (!this.floorCountTexture) return;
     const canvas = this.floorCountTexture.image as HTMLCanvasElement, context = canvas.getContext('2d'); if (!context) return;
-    context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#fff3c8'; context.strokeStyle = '#3e2817'; context.lineWidth = 10; context.textAlign = 'center'; context.textBaseline = 'middle'; context.font = 'bold 88px Georgia, serif';
+    context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#fff3c8'; context.strokeStyle = '#3e2817'; context.lineWidth = 26; context.textAlign = 'center'; context.textBaseline = 'middle'; context.font = 'bold 880px Georgia, serif';
     const value = `${this.ids.length}/${Math.max(this.slotLimit, this.ids.length)}`; context.strokeText(value, canvas.width / 2, canvas.height / 2); context.fillText(value, canvas.width / 2, canvas.height / 2); this.floorCountTexture.needsUpdate = true;
   }
   setPassengers(ids: string[], selected: string | undefined, page: number, slotLimit = this.slotLimit) {
@@ -491,10 +526,11 @@ export class EntryVoyage {
   openRoleDetails() {
     if (this.stage !== 'characters' || this.nearInteraction !== 'role-details' || !this.nearbyCharacterId) return;
     this.roleDetailOpen = true;
-    if (this.rolePaper && this.cabinDeck) this.rolePaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(3.5, 3.6, -1.7));
+    if (!this.reduced.matches) this.beginTransition('characters', .65);
+    if (this.rolePaper && this.cabinDeck) this.rolePaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(2.4, 3.0, -1.0));
     this.updateActivity();
   }
-  closeRoleDetails() { this.roleDetailOpen = false; this.clearMovement(); this.updateActivity(); }
+  closeRoleDetails() { this.roleDetailOpen = false; if (!this.reduced.matches) this.beginTransition('characters', .65); this.clearMovement(); this.updateActivity(); }
   passengerTime() { return this.animationTime; }
   passengerAction(id: string) { return this.passengers.action(id); }
   passengerSleeping(id: string) { return this.passengers.sleeping(id); }
@@ -548,14 +584,40 @@ export class EntryVoyage {
     nearest=Math.min(nearest,this.cameraRay.intersectObjects(small,false)[0]?.distance??Infinity);
     if(nearest<4.5)this.camera.position.copy(base).addScaledVector(direction,distance+3-nearest+1.5);
   }
+  private closeInteractionChoices() {
+    this.choosingInteraction = false;
+    this.host.querySelector('.voyage-interaction-choices')?.remove();
+    this.updateInteractionHint();
+  }
+  private renderInteractionChoices() {
+    let menu = this.host.querySelector<HTMLElement>('.voyage-interaction-choices');
+    if (!menu) { menu = document.createElement('div'); menu.className = 'voyage-interaction-choices'; menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', '选择交互'); this.host.append(menu); }
+    menu.replaceChildren();
+    const title = document.createElement('p'); title.textContent = '选择交互 · 方向键选择，Space 确认'; menu.append(title);
+    this.interactions.forEach((choice, index) => {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = choice.label;
+      button.setAttribute('aria-pressed', String(index === this.interactionIndex));
+      button.addEventListener('click', event => { event.stopPropagation(); this.performInteraction(choice); }); menu!.append(button);
+    });
+    this.updateInteractionHint();
+  }
+  private performInteraction(choice: CabinInteraction | undefined) {
+    this.closeInteractionChoices(); this.keys.clear();
+    if (!choice) return;
+    this.nearInteraction = choice.kind; this.nearbyCharacterId = choice.id; this.nearbyEmptySlot = choice.slot;
+    if (choice.kind === 'enter-cabin') this.onCabin?.();
+    else if (choice.kind === 'return-deck') this.onDeck?.();
+    else if (choice.kind === 'create-character' && choice.slot !== undefined) this.onCreate?.(choice.slot);
+    else if (choice.kind === 'role-details' && choice.id) { this.roleDetailOpen = true; this.onCharacter?.(choice.id); }
+  }
   private updateInteractionHint() {
     const hint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
     if (!hint) return;
-    const active = Boolean(this.nearInteraction);
+    const active = Boolean(this.nearInteraction) && !this.choosingInteraction;
     hint.hidden = !active;
     hint.dataset.kind = this.nearInteraction ?? '';
     const label = hint.querySelector<HTMLElement>('[data-role="space-label"]');
-    if (label) label.textContent = this.nearInteraction === 'enter-cabin'
+    if (label) label.textContent = this.interactions.length > 1 ? '选择交互' : this.nearInteraction === 'enter-cabin'
       ? '传送至选角舱'
       : this.nearInteraction === 'return-deck'
         ? '返回甲板'
@@ -565,13 +627,15 @@ export class EntryVoyage {
   }
   private draw = (now: number) => {
     if (!this.alive || this.host.hidden || document.hidden) return;
-    const delta = this.previous ? Math.min((now - this.previous) / 1000, .05) : 0;
+    // Movement retains a bounded simulation step; presentation follows wall time.
+    const frameDelta = this.previous ? Math.max(0, (now - this.previous) / 1000) : 0;
+    const delta = Math.min(frameDelta, .05);
     this.previous = now; this.animationTime += delta*1000;
     const walkingDeck=this.stage==='characters' ? this.cabinDeck : this.deck;
     if (walkingDeck && this.ship && ['channel','characters'].includes(this.stage)) {
       if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
-      if (!this.roleDetailOpen && (this.stage!=='characters' || !this.passengers.waking)) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
+      if (!this.roleDetailOpen && !this.choosingInteraction && (this.stage!=='characters' || !this.passengers.waking)) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
       this.passengers.deckPosition.copy(walkingDeck.position); this.passengers.deckMoving = walkingDeck.moving; this.passengers.deckJumping = walkingDeck.jumping; this.passengers.deckFacing = walkingDeck.facing;
     }
     this.flight?.update(this.reduced.matches ? 0 : delta, this.reduced.matches);
@@ -615,12 +679,12 @@ export class EntryVoyage {
       this.rolePaper.anchor.updateWorldMatrix(true, false);
       const paper = this.rolePaper.anchor.getWorldPosition(new T.Vector3());
       const normal = new T.Vector3(0, 0, 1).applyNormalMatrix(new T.Matrix3().getNormalMatrix(this.rolePaper.anchor.matrixWorld)).normalize();
-      this.camera.position.copy(paper).addScaledVector(normal, 26).add(new T.Vector3(-5, 3, 0)); aim.copy(paper).add(new T.Vector3(-3, 0, 0)); fieldOfView = 38;
+      this.camera.position.copy(paper).addScaledVector(normal, Math.max(16, 6.8 / (2 * this.camera.aspect * Math.tan(T.MathUtils.degToRad(19)) * .82))).add(new T.Vector3(-2, 2.5, 0)); aim.copy(paper).add(new T.Vector3(-1, 1.0, 0)); fieldOfView = 38;
     }
     if (!this.shot && this.stage === 'create' && this.createPaper) {
       this.createPaper.anchor.updateWorldMatrix(true, false);
       const paper = this.createPaper.anchor.getWorldPosition(new T.Vector3());
-      const distance = Math.max(32, 21 / this.camera.aspect / (2 * Math.tan(T.MathUtils.degToRad(19))));
+      const distance = Math.max(18, 9 / this.camera.aspect / (2 * Math.tan(T.MathUtils.degToRad(19))));
       this.camera.position.copy(paper).add(new T.Vector3(-3, 3, distance)); aim.copy(paper).add(new T.Vector3(-2, 0, 0)); fieldOfView = 38;
     }
     if (!this.shot && this.stage === 'login' && this.loginSurface && t > .78 && this.ship) {
@@ -642,32 +706,57 @@ export class EntryVoyage {
       this.camera.position.lerp(boardEye, settle); aim.lerp(boardAim, settle); fieldOfView = T.MathUtils.lerp(fieldOfView, 40, settle);
     }
     if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship && !this.roleDetailOpen) {
-      // Keep the foot target and 38° lens; the exterior side view looks down
-      // enough to clear its railing while retaining vertical drag adjustment.
       const base = this.ship.localToWorld(walkingDeck.position.clone());
       base.y += 1.65;
-      const distance = (this.stage === 'characters' ? 20 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * this.zoom;
-      // The exterior lane runs along Z. Its camera must look across the
-      // starboard side (+X), rather than down the lane into the stern wall.
       const x = walkingDeck.position.x, z = walkingDeck.position.z;
-      // Follow the exposed side of the ship. Crossing a front/rear deck
-      // turns continuously around that end, keeping the sealed room behind
-      // the walker rather than looking through it from the opposite rail.
-      const exteriorYaw = x >= 5 ? Math.PI / 2 : x <= -5 ? -Math.PI / 2
-        : z < 0 ? Math.PI - x / 5 * Math.PI / 2 : x / 5 * Math.PI / 2;
-      const yaw = this.yaw + (this.stage === 'channel' ? exteriorYaw : 0);
-      const endClearance = z < 0 ? Math.max(0, 1 - Math.abs(x) / 5) * .45 : 0;
-      const pitch = this.stage === 'channel' ? Math.max(.46 + endClearance, this.pitch + .22) : this.pitch;
+      // Each straight side has a stable heading. At a corner the camera rises
+      // while a short eased turn completes, rather than rotating along the aisle.
+      const targetYaw = Math.abs(x) >= 6.3 ? (x > 0 ? Math.PI / 2 : -Math.PI / 2) : z < 0 ? Math.PI : 0;
+      const turn = Math.atan2(Math.sin(targetYaw - this.followYaw), Math.cos(targetYaw - this.followYaw));
+      this.followYaw += turn * (this.reduced.matches ? 1 : 1 - Math.exp(-frameDelta * 4));
+      const corner = this.stage === 'channel' ? Math.max(0, 1 - Math.min(Math.abs(z + 8), Math.abs(z - 22)) / 3) : 0;
+      let distance = (this.stage === 'characters' ? 42 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * Math.min(this.zoom, 2.6);
+      let yaw = this.yaw + (this.stage === 'channel' ? this.followYaw : 0);
+      let pitch = this.stage === 'channel' ? Math.max(.56 + corner * .36, this.pitch + .22) : Math.max(.55, this.pitch + .25);
+      if (this.stage === 'characters') { base.y += 1.4; distance *= 1.05; }
+      if (this.stage === 'channel' && this.zoom > 2.2 && this.model) {
+        if (!this.shipBounds) {
+          const box = new T.Box3(), inverse = this.ship.matrixWorld.clone().invert();
+          this.model.getObjectByName('SV3_Exterior')?.traverse(node => {
+            if (!(node instanceof T.Mesh) || !node.visible) return;
+            for (let parent: T.Object3D | null = node; parent && parent !== this.ship; parent = parent.parent) if (!parent.visible) return;
+            node.geometry.computeBoundingBox();
+            if (node.geometry.boundingBox) box.union(node.geometry.boundingBox.clone().applyMatrix4(inverse.clone().multiply(node.matrixWorld)));
+          });
+          if (!box.isEmpty()) this.shipBounds = box.getBoundingSphere(new T.Sphere());
+        }
+        if (this.shipBounds) {
+          const amount = smooth(T.MathUtils.clamp((this.zoom - 2.2) / 4, 0, 1));
+          const halfVertical = T.MathUtils.degToRad(19), halfHorizontal = Math.atan(Math.tan(halfVertical) * this.camera.aspect);
+          const radius = this.shipBounds.radius * this.ship.getWorldScale(new T.Vector3()).x;
+          const fit = radius / Math.sin(Math.min(halfVertical, halfHorizontal)) * 1.13;
+          base.lerp(this.ship.localToWorld(this.shipBounds.center.clone()), amount);
+          distance = T.MathUtils.lerp(distance, fit, amount);
+          yaw = this.inspection ? this.inspectionYaw : yaw;
+          pitch = T.MathUtils.lerp(pitch, this.inspectionPitch, amount);
+        }
+      }
       const offset = new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch))
         .applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())).multiplyScalar(distance);
       this.camera.position.copy(base).add(offset);
-      if (this.stage === 'channel') this.avoidCameraSurface(base);
-      aim.copy(base); fieldOfView=38;
+      if (this.stage === 'channel' && !this.inspection) this.avoidCameraSurface(base);
+      aim.copy(base);
+      if (this.stage === 'characters') aim.add(new T.Vector3(0, 3, -3).applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())));
+      fieldOfView = 38;
+      const alpha = this.reduced.matches || !this.followEye ? 1 : 1 - Math.exp(-frameDelta * 6);
+      this.followEye ??= this.camera.position.clone(); this.followAim ??= aim.clone();
+      this.followEye.lerp(this.camera.position, alpha); this.followAim.lerp(aim, alpha);
+      this.camera.position.copy(this.followEye); aim.copy(this.followAim);
 
     }
     let passage = 0;
     if (this.transition) {
-      const tr = this.transition; tr.time = Math.min(tr.duration, tr.time + delta);
+      const tr = this.transition; tr.time = Math.min(tr.duration, tr.time + frameDelta);
       const progress = tr.time / tr.duration, amount = smooth(progress);
       this.camera.position.lerpVectors(tr.eye, this.camera.position.clone(), amount); aim.lerpVectors(tr.aim, aim.clone(), amount);
       fieldOfView = T.MathUtils.lerp(tr.fov, fieldOfView, amount);
@@ -708,35 +797,37 @@ export class EntryVoyage {
         const quick=this.host.querySelector<HTMLElement>('.voyage-adventure-shortcut');
         if(quick)quick.hidden=!!projection;
       }
-      const previousNearbyCharacter = this.nearbyCharacterId;
-      this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
-      if (this.host.getAttribute('aria-busy') !== 'true') {
-        if (this.stage === 'channel') {
-          const portal = this.model?.getObjectByName('SV3_CaptainPortal');
-          const point = portal && this.ship.worldToLocal(portal.getWorldPosition(new T.Vector3()));
-          if (point && point.distanceTo(walkingDeck.position) < 1.15) this.nearInteraction = 'enter-cabin';
-        } else if (this.stage === 'characters') {
-          const marker = this.model?.getObjectByName('SV3_CabinDeckPortal');
-          const exit = marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
-          if (exit && exit.distanceTo(walkingDeck.position) < .7) this.nearInteraction = 'return-deck';
-          for (let index = 0; index < this.ids.length; index++) {
-            const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
-            if (!anchor) continue;
-            const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
-            if (point.distanceTo(walkingDeck.position) < .72) { this.nearInteraction = 'role-details'; this.nearbyCharacterId = this.ids[index]; break; }
-          }
-          if (!this.nearInteraction) for (let index = this.ids.length; index < 12; index++) {
-            const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
-            if (!anchor) continue;
-            const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
-            if (point.distanceTo(walkingDeck.position) < .72) { this.nearInteraction = 'create-character'; this.nearbyEmptySlot = index; break; }
+      if (!this.choosingInteraction) {
+        const previousNearbyCharacter = this.nearbyCharacterId;
+        this.interactions = [];
+        if (this.host.getAttribute('aria-busy') !== 'true') {
+          if (this.stage === 'channel') {
+            const portal = this.model?.getObjectByName('SV3_CaptainPortal');
+            const point = portal && this.ship.worldToLocal(portal.getWorldPosition(new T.Vector3()));
+            if (point && point.distanceTo(walkingDeck.position) < 1.15) this.interactions.push({ kind: 'enter-cabin', label: '传送至选角舱' });
+          } else {
+            const marker = this.model?.getObjectByName('SV3_CabinDeckPortal');
+            const exit = marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
+            if (exit && exit.distanceTo(walkingDeck.position) < 1) this.interactions.push({ kind: 'return-deck', label: '返回甲板' });
+            for (let index = 0; index < Math.min(12, this.slotLimit); index++) {
+              const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
+              if (!anchor) continue;
+              const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
+              if (point.distanceTo(walkingDeck.position) < .95) this.interactions.push(index < this.ids.length
+                ? { kind: 'role-details', label: `查看第 ${index + 1} 床角色`, id: this.ids[index] }
+                : { kind: 'create-character', label: `在第 ${index + 1} 床创建角色`, slot: index });
+            }
           }
         }
+        const activeRole = this.roleDetailOpen ? this.interactions.find(choice => choice.kind === 'role-details' && choice.id === previousNearbyCharacter) : undefined;
+        const first = activeRole ?? this.interactions[0];
+        this.nearInteraction = first?.kind; this.nearbyEmptySlot = first?.slot; this.nearbyCharacterId = first?.id;
+        if (this.roleDetailOpen && !activeRole) this.roleDetailOpen = false;
       }
-      if (this.roleDetailOpen && (this.nearInteraction !== 'role-details' || this.nearbyCharacterId !== previousNearbyCharacter)) this.roleDetailOpen = false;
       this.updateInteractionHint();
 
     }
+    if (this.floorCount) this.floorCount.visible = this.cabinShown && this.stage === 'characters' && !this.roleDetailOpen;
     this.camera.updateMatrixWorld(true);
     this.updatePortalVisuals(this.reduced.matches ? 0 : delta);
     const travelling = t < 1 && this.stage === 'login';
@@ -748,6 +839,15 @@ export class EntryVoyage {
       avatar.hidden = travelling || this.stage==='create';
     }
     const spaceHint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
+    const junctionHint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
+    if (junctionHint && this.ship && walkingDeck) {
+      const directions = ['channel','characters'].includes(this.stage) && !this.roleDetailOpen && !walkingDeck.jumping
+        ? walkingDeck.junctionDirections(this.camera, this.ship) : [];
+      junctionHint.hidden = !directions.length;
+      junctionHint.querySelectorAll<HTMLImageElement>('[data-direction]').forEach(image => { image.hidden = !directions.includes(image.dataset.direction as typeof directions[number]); });
+      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 2.7, 0))).project(this.camera);
+      junctionHint.style.left = `${(point.x + 1) * 50}%`; junctionHint.style.top = `${(1 - point.y) * 50}%`;
+    }
     if (spaceHint && this.ship && walkingDeck && this.nearInteraction) {
       const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 1.9, 0))).project(this.camera);
       spaceHint.style.left = `${(point.x + 1) * 50}%`;
@@ -889,7 +989,7 @@ export class EntryVoyage {
     this.portalMeshes.forEach(mesh => { mesh.geometry.dispose(); (mesh.material as T.Material).dispose(); mesh.removeFromParent(); });
     this.portalTextures.forEach(texture => texture.dispose()); this.portalMeshes = []; this.portalTextures = [];
     this.floorCount?.geometry.dispose(); (this.floorCount?.material as T.Material | undefined)?.dispose(); this.floorCountTexture?.dispose(); this.floorCount = undefined; this.floorCountTexture = undefined;
-    for (const paper of [this.rolePaper, this.createPaper]) { if (!paper) continue; paper.mesh.geometry.dispose(); (paper.mesh.material.map as T.Texture | null)?.dispose(); paper.mesh.material.dispose(); paper.group.removeFromParent(); }
+    for (const paper of [this.rolePaper, this.createPaper]) { if (!paper) continue; dispose(paper.group); paper.group.removeFromParent(); }
     this.rolePaperProjector.destroy(); this.createPaperProjector.destroy(); this.rolePaper = undefined; this.createPaper = undefined;
     this.reduced.removeEventListener('change', this.onMotion);
     this.passengers.destroy(); this.login.destroy(); this.clouds.destroy(); this.windowLight?.destroy(); this.water?.dispose(); dispose(this.scene); this.reflection.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.canvas.remove();

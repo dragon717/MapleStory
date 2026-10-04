@@ -1,8 +1,10 @@
 # Live Blender MCP. Downloaded CC0 antique bed, adapted by dimensions; source scene stays intact.
-import bpy, math, bmesh
+import bpy, math, bmesh, json
 from mathutils import Vector
 
 BASE='/Users/muniao/Code/MapleStory/resources/scenes/sky-voyage-v3/'
+layout=json.load(open(BASE+'source-layout.json',encoding='utf-8'))['ship']['beds']
+assert layout['visualCount']==len(layout['anchors'])==12
 scene=bpy.data.scenes['SV3_ProductionRig']
 bpy.context.window.scene=scene
 cabin=bpy.data.objects['SV3_CabinInterior']
@@ -54,15 +56,15 @@ remove=[f for f in bm.faces if f.calc_center_median().y>.23 or f.calc_center_med
 bmesh.ops.delete(bm,geom=remove,context='FACES')
 for v in bm.verts:v.co.z+=.105
 bm.to_mesh(quilt);bm.free();meshes['Quilt']=quilt
-for index in range(12):
-    page=index//4;local=index%4;x=(page-1)*8.1+(local-1.5)*1.8
-    bed=empty('SV2_Bed_'+str(index),cabin,(x,-43,0))
+for index,(x,y,z) in enumerate(layout['anchors']):
+    page=index//4
+    bed=empty('SV2_Bed_'+str(index),cabin,(x,-z,y))
     bed['source']='Bed by Colorado Stark, OpenGameArt, CC0; Victorian/antique source, adapted classic single berth'
     bed['single_bed_width_m']=1.26;bed['group']=page
     for label,mesh in meshes.items():
         o=bpy.data.objects.new('SV3_Berth_'+str(index)+'_'+label,mesh);scene.collection.objects.link(o);o.parent=bed
-    empty('SV2_Bed_'+str(index)+'_SleepAnchor',bed,(0,0,.635))
-    empty('SV2_Bed_'+str(index)+'_FootAnchor',bed,(0,-1.6,0))
+    sx,sy,sz=layout['sleepLocal'];empty('SV2_Bed_'+str(index)+'_SleepAnchor',bed,(sx,-sz,sy))
+    fx,fy,fz=layout['footLocal'];empty('SV2_Bed_'+str(index)+'_FootAnchor',bed,(fx,-fz,fy))
 
 # Floor and wall texture follows timber grain rather than the old untextured room blocks.
 floor=bpy.data.objects['SV2_CabinFloor'];floor.data.materials.clear();floor.data.materials.append(bpy.data.materials['SV3_M_Wood'])

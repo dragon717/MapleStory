@@ -12,14 +12,17 @@ export class VoyageWindowLight {
   private material: T.ShaderMaterial;
   private quad: T.Mesh;
   constructor(private ship: T.Object3D, model: T.Object3D, parent: T.Group) {
+    ship.updateWorldMatrix(true, false);
+    const scale = ship.getWorldScale(new T.Vector3()).x;
+    this.uniforms.beamRange = { value: 90 * scale };
     for (const [i, name] of ['warrior', 'mage', 'archer', 'rogue'].entries()) {
       const glass = model.getObjectByName(`SV3_StainedGlass_${name}`) as T.Mesh<T.BufferGeometry, T.MeshStandardMaterial>;
       if (!glass?.material.map) throw new Error(`Missing stained-glass window: ${name}`);
       glass.castShadow = false; glass.receiveShadow = false;
-      const x = -8.1 + i * 5.4, light = new T.SpotLight('#ffffff', 9000, 90, .056, .05, 2);
+      const x = -8.1 + i * 5.4, light = new T.SpotLight('#ffffff', 9000 * scale * scale, 90 * scale, .056, .05, 2);
       light.position.set(x + 2.94, 19.31, -10); light.target.position.set(x - .7, -.65, 42.8);
       light.map = glass.material.map;
-      light.castShadow = true; light.shadow.mapSize.set(512, 768); light.shadow.camera.near = 30;
+      light.castShadow = true; light.shadow.mapSize.set(512, 768); light.shadow.camera.near = 30 * scale;
       light.shadow.bias = -.0001; light.shadow.normalBias = .018;
       parent.add(light, light.target); this.lights.push(light);
       this.uniforms[`glass${i}`] = { value: light.map }; this.uniforms[`shadow${i}`] = { value: null };
@@ -37,12 +40,12 @@ export class VoyageWindowLight {
       uniforms: this.uniforms,
       vertexShader: 'out vec2 screenUv;void main(){screenUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
       fragmentShader: `precision highp sampler2DShadow;
-      uniform sampler2D image,depth;uniform mat4 inverseProjection,cameraWorld,shipInverse;uniform vec3 eye;uniform float time;
+      uniform sampler2D image,depth;uniform mat4 inverseProjection,cameraWorld,shipInverse;uniform vec3 eye;uniform float time,beamRange;
       ${declarations}
       in vec2 screenUv;out vec4 outColor;
       #define gl_FragColor outColor
       vec2 interval(vec3 o,vec3 d){
-        vec2 span=vec2(0.,90.);vec3 lo=vec3(-13.3,.08,32.),hi=vec3(13.3,6.,48.);
+        vec2 span=vec2(0.,beamRange);vec3 lo=vec3(-13.3,.08,32.),hi=vec3(13.3,6.,48.);
         for(int a=0;a<3;a++){
           if(abs(d[a])<.000001){if(o[a]<lo[a]||o[a]>hi[a])return vec2(1.,0.);}
           else{vec2 hit=vec2(lo[a]-o[a],hi[a]-o[a])/d[a];span.x=max(span.x,min(hit.x,hit.y));span.y=min(span.y,max(hit.x,hit.y));}
@@ -60,9 +63,9 @@ export class VoyageWindowLight {
           if(stepLength<=0.)break;
           vec3 p=eye+ray*(span.x+(float(i)+jitter)*stepLength),local=(shipInverse*vec4(p,1.)).xyz;
           vec3 light=vec3(0.);${beams}
-          float dust=.035*(.85+.15*sin(local.x*5.+local.y*3.+local.z*2.+time*.18));
+          float dust=.022*(.85+.15*sin(local.x*5.+local.y*3.+local.z*2.+time*.18));
           float absorb=1.-exp(-dust*stepLength);
-          scatter+=transmission*absorb*light*2.8;transmission*=1.-absorb;
+          scatter+=transmission*absorb*light*1.65;transmission*=1.-absorb;
         }
         outColor=vec4(texture(image,screenUv).rgb*transmission+scatter,1.);gl_FragDepth=d;
         #include <tonemapping_fragment>
