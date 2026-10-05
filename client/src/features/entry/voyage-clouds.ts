@@ -46,11 +46,13 @@ function cloudNoise() {
 const vertexShader = 'out vec2 screenUv; void main(){screenUv=uv; gl_Position=vec4(position.xy,0.,1.);}';
 const cloudShader = /* glsl */`
 precision highp sampler3D;
+precision highp sampler2DShadow;
 uniform sampler3D noiseVolume;
 uniform sampler2D sceneDepth;
-uniform mat4 inverseProjection, cameraWorld;
+uniform sampler2DShadow sunShadow;
+uniform mat4 inverseProjection, cameraWorld, sunMatrix;
 uniform vec3 eye, sunDirection, sunColor, hazeColor;
-uniform float cloudTime, sunPower, cameraNear, cameraFar;
+uniform float cloudTime, sunPower, cameraNear, cameraFar, orthographic;
 in vec2 screenUv;
 out vec4 outColor;
 const vec3 cloudMin=vec3(-9000.,-960.,-10500.), cloudMax=vec3(9000.,580.,6500.);
@@ -104,20 +106,38 @@ float sunlight(vec3 p){
 }
 
 float phase(float mu,float g){return (1.-g*g)/(12.5663706*pow(max(1.+g*g-2.*g*mu,.001),1.5));}
+float sunVisibility(vec3 point){
+  vec4 q=sunMatrix*vec4(point,1.);vec3 s=q.xyz/q.w;
+  if(any(lessThan(s,vec3(0.)))||any(greaterThan(s,vec3(1.))))return 1.;
+  return texture(sunShadow,vec3(s.xy,s.z-.00015));
+}
 float sceneDistance(vec2 uv){
   float d=texture(sceneDepth,uv).r;
   if(d>=.9999999) return cameraFar;
   vec4 view=inverseProjection*vec4(uv*2.-1.,d*2.-1.,1.);
-  return length(view.xyz/view.w);
+  return orthographic>.5 ? -view.z/view.w-cameraNear : length(view.xyz/view.w);
 }
 
 vec4 integrateClouds(vec2 uv){
   vec4 farView=inverseProjection*vec4(uv*2.-1.,1.,1.);
-  vec3 view=farView.xyz/farView.w, ray=normalize((cameraWorld*vec4(normalize(view),0.)).xyz);
-  vec2 interval=cloudInterval(eye,ray);
-  float start=max(interval.x,cameraNear*length(view)/max(-view.z,.001));
+  vec3 view=farView.xyz/farView.w;
+  vec4 nearView=inverseProjection*vec4(uv*2.-1.,-1.,1.);
+  vec3 origin=orthographic>.5 ? (cameraWorld*vec4(nearView.xyz/nearView.w,1.)).xyz : eye;
+  vec3 ray=normalize((cameraWorld*vec4(orthographic>.5 ? vec3(0.,0.,-1.) : normalize(view),0.)).xyz);
+  // Short sunlit air follows the real depth and sun shadow, including parallel walking rays.
+  float airStep=min(sceneDistance(uv),180.)/24.,airTransmission=1.;vec3 air=vec3(0.);
+  float airPhase=phase(dot(ray,sunDirection),.72);
+  float airJitter=fract(52.9829189*fract(dot(uv*vec2(textureSize(sceneDepth,0)),vec2(.06711056,.00583715))));
+  for(int i=0;i<24;i++){
+    vec3 p=origin+ray*(float(i)+airJitter)*airStep;
+    float absorb=1.-exp(-.00045*airStep);
+    vec3 radiance=hazeColor*.12+sunColor*sunPower*sunVisibility(p)*(.12+airPhase*1.8);
+    air+=airTransmission*absorb*radiance;airTransmission*=1.-absorb;
+  }
+  vec2 interval=cloudInterval(origin,ray);
+  float start=max(interval.x,orthographic>.5 ? 0. : cameraNear*length(view)/max(-view.z,.001));
   float finish=min(interval.y,sceneDistance(uv));
-  if(finish<=start) return vec4(0.,0.,0.,1.);
+  if(finish<=start) return vec4(air,airTransmission);
   float ds=(finish-start)/96.;
   // Static screen dither avoids temporal sparkle and stays still with reduced motion.
   float jitter=fract(52.9829189*fract(dot(uv*vec2(textureSize(sceneDepth,0)),vec2(.06711056,.00583715))));
@@ -126,7 +146,7 @@ vec4 integrateClouds(vec2 uv){
   float sunPhase=mix(phase(dot(ray,sunDirection),.62),phase(dot(ray,sunDirection),-.22),.85);
   for(int i=0;i<96;i++){
     if(travel>=finish || transmission<.008) break;
-    vec3 p=eye+ray*(travel+jitter*ds);
+    vec3 p=origin+ray*(travel+jitter*ds);
     float cloud=density(p), stepLength=min(ds,finish-travel);
     if(cloud>.0001){
       float lit=sunlight(p), absorb=1.-exp(-cloud*stepLength*extinction);
@@ -139,7 +159,7 @@ vec4 integrateClouds(vec2 uv){
     }
     travel+=ds;
   }
-  return vec4(scatter,transmission);
+  return vec4(scatter*airTransmission+air,transmission*airTransmission);
 }
 `;
 
@@ -152,7 +172,8 @@ export class VoyageClouds {
     noiseVolume: { value: this.noise }, sceneDepth: { value: this.sceneTarget.depthTexture },
     inverseProjection: { value: new T.Matrix4() }, cameraWorld: { value: new T.Matrix4() }, eye: { value: new T.Vector3() },
     sunDirection: { value: new T.Vector3(220, 380, 130).normalize() }, sunColor: { value: new T.Color('#fff3cf') },
-    sunPower: { value: .95 }, hazeColor: { value: new T.Color('#d8e8ee') }, cloudTime: { value: 0 }, cameraNear: { value: 1 }, cameraFar: { value: 24000 },
+    sunPower: { value: .95 }, hazeColor: { value: new T.Color('#d8e8ee') }, cloudTime: { value: 0 }, orthographic: { value: 0 }, cameraNear: { value: 1 }, cameraFar: { value: 24000 },
+    sunShadow: { value: null as T.Texture | null }, sunMatrix: { value: new T.Matrix4() },
   };
   private volume = new T.ShaderMaterial({ glslVersion: T.GLSL3, depthTest: false, depthWrite: false, uniforms: this.uniforms, vertexShader,
     fragmentShader: `${cloudShader}\nvoid main(){outColor=integrateClouds(screenUv);}` });
@@ -198,7 +219,7 @@ void main(){
   update(delta: number, reducedMotion = false, visible = true) {
     if (this.alive && visible && !reducedMotion && Number.isFinite(delta) && delta > 0) this.uniforms.cloudTime.value += Math.min(delta, .05);
   }
-  render(renderer: T.WebGLRenderer, scene: T.Scene, camera: T.PerspectiveCamera, sun: T.DirectionalLight, cabin?: VoyageWindowLight) {
+  render(renderer: T.WebGLRenderer, scene: T.Scene, camera: T.PerspectiveCamera | T.OrthographicCamera, sun: T.DirectionalLight, cabin?: VoyageWindowLight) {
     if (!this.alive) return;
     const destination = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), mip = renderer.getActiveMipmapLevel();
     const autoClear = renderer.autoClear, scissorTest = renderer.getScissorTest();
@@ -213,9 +234,11 @@ void main(){
       const u = this.uniforms;
       u.inverseProjection.value.copy(camera.projectionMatrixInverse); u.cameraWorld.value.copy(camera.matrixWorld); camera.getWorldPosition(u.eye.value);
       u.cameraNear.value = camera.near; u.cameraFar.value = camera.far;
+      u.orthographic.value = camera instanceof T.OrthographicCamera ? 1 : 0;
       sun.getWorldPosition(u.sunDirection.value); sun.target.getWorldPosition(this.lightTarget); u.sunDirection.value.sub(this.lightTarget);
       if (u.sunDirection.value.lengthSq() < .000001) u.sunDirection.value.set(220, 380, 130);
       u.sunDirection.value.normalize(); u.sunColor.value.copy(sun.color); u.sunPower.value = Math.max(0, sun.intensity);
+      u.sunShadow.value = sun.shadow.map?.depthTexture ?? null; u.sunMatrix.value.copy(sun.shadow.matrix);
       if (scene.fog) u.hazeColor.value.copy(scene.fog.color);
       this.quad.material = this.volume; renderer.setRenderTarget(this.volumeTarget); renderer.render(this.scene, this.camera);
       this.quad.material = this.composite; renderer.setRenderTarget(destination, face, mip); renderer.setScissorTest(scissorTest); renderer.render(this.scene, this.camera);

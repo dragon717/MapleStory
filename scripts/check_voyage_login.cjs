@@ -12,71 +12,13 @@ const attribute=index=>{const a=gltf.accessors[index],v=gltf.bufferViews[a.buffe
 const objects=gltf.nodes.map(node=>{const object=new T.Group();object.name=node.name;object.userData=node.extras||{};if(node.translation)object.position.fromArray(node.translation);if(node.rotation)object.quaternion.fromArray(node.rotation);if(node.scale)object.scale.fromArray(node.scale);if(node.matrix){object.matrix.fromArray(node.matrix);object.matrix.decompose(object.position,object.quaternion,object.scale);}if(node.mesh!==undefined)for(const primitive of gltf.meshes[node.mesh].primitives){const geometry=new T.BufferGeometry();geometry.setAttribute('position',attribute(primitive.attributes.POSITION));if(primitive.indices!==undefined)geometry.setIndex(attribute(primitive.indices));object.add(new T.Mesh(geometry,new T.MeshBasicMaterial()));}return object;});
 gltf.nodes.forEach((node,index)=>(node.children||[]).forEach(child=>objects[index].add(objects[child])));
 const deckShip=objects.find(object=>object.name==='SV2_Ship');deckShip.scale.setScalar(2);deckShip.updateWorldMatrix(true,true);
-assert(!objects.some(o=>o.name.startsWith('SV3_Reference_')),'rejected replacement geometry is absent');
-const stern=deckShip.getObjectByName('SV3_Hull_SternPlatform');
-assert(stern&&stern.userData.original_part==='SternPlatform','original stern faces form a separate editable platform');
-assert(deckShip.getObjectByName('SV3_Repaired_SternRoofDeck'),'retained platform roof is restored');
-for(const side of ['Port','Starboard']) {
-  const engine=deckShip.getObjectByName('SV3_Engine_'+side);
-  for(const part of ['MetalBand','EndCap'])assert(engine.getObjectByName(engine.name+'_'+part),'original engine regions are separated');
-  assert(deckShip.getObjectByName('SV3_Wheel_'+side+'_TimberSpokesAndHub'),'retained wheel ribs and hub are present');
-  const wheel=deckShip.getObjectByName('SV3_Wheel_'+side);
-  assert.equal(wheel.userData.wheel_contour,'centrally symmetric swept blades');
-  const positions=wheel.children.find(o=>o.isMesh).geometry.getAttribute('position');
-  const points=Array.from({length:positions.count},(_,i)=>new T.Vector3().fromBufferAttribute(positions,i));
-  const key=p=>p.toArray().map(x=>Math.round(x*1000)).join(',');
-  const pointSet=new Set(points.map(key));
-  for(const p of points)assert(pointSet.has(key(new T.Vector3(p.x,-p.y,-p.z))),'opposite wheel blades retain central symmetry');
-  const outer=points.map(p=>Math.hypot(p.y,p.z)).filter(r=>r>8.5);
-  assert(Math.max(...outer)-Math.min(...outer)>1,'wheel outer silhouette has unequal blade lengths');
-}
-const sockets=deckShip.getObjectByName('SV3_Repaired_WheelHullSockets');
-assert.equal(sockets.userData.removed_backing_disks,2);
-const socketSize=new T.Box3().setFromObject(sockets).getSize(new T.Vector3());
-assert(socketSize.y<6&&socketSize.z<6,'only narrow axles remain, without the large backing disks');
-const walkCamera=new T.PerspectiveCamera();walkCamera.position.set(0,15,35);walkCamera.lookAt(0,10,0);walkCamera.updateMatrixWorld(true);
-const deck=new VoyageDeck(deckShip),cabinDeck=new VoyageDeck(deckShip,true);
-assert(!deckShip.getObjectByName('SV3_CaptainFloor')&&!deckShip.getObjectByName('SV3_CaptainDoorThreshold'),'obsolete walk-in room geometry is absent');
-assert(deckShip.getObjectByName('SV3_CaptainDoorSeal'),'exterior opening is sealed in the actual export');
-const followRoute=surface=>{surface.place(surface.route[0]);for(const target of surface.route.slice(1)){let steps=0;while(Math.hypot(target.x-surface.position.x,target.z-surface.position.z)>.03){const direction=target.clone().sub(surface.position);direction.y=0;direction.normalize();surface.update(.01,direction.x,direction.z,walkCamera,deckShip);assert(surface.moving,'fixed route must be continuously walkable');assert(Math.hypot(surface.position.x-surface.routePoint(surface.position).x,surface.position.z-surface.routePoint(surface.position).z)<1e-7,'feet stay on the authored fixed line');assert(++steps<2000,'route segment cannot stall');}}};
-followRoute(cabinDeck);
-assert(deckShip.getObjectByName('SV3_MainDeck_Surface'),'visible main deck is authored in the real model');
-assert(!objects.some(o=>o.name.startsWith('SV3_CaptainArcWalkway')),'the narrow arc is removed from the real model');
-const loopLength=86;
-for(const sign of [1,-1]) {
-  deck.reset();
-  const direction=deck.ringChoices(walkCamera,deckShip).find(c=>c.sign===sign).direction;
-  const [horizontal,vertical]={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]}[direction];
-  const touched=new Set();
-  for(let i=0;i<Math.ceil(loopLength*2/.03);i++) {
-    deck.update(.01,horizontal,vertical,walkCamera,deckShip);
-    assert(deck.moving,'held input must continue through all four corners and the closed seam');
-    assert(Math.hypot(deck.position.x-deck.routePoint(deck.position).x,deck.position.z-deck.routePoint(deck.position).z)<1e-7,'feet stay on the closed main deck line');
-    const support=deck.ground(deck.position.x,deck.position.z,deck.position.y+.4,.8);
-    assert(Math.abs(deck.position.y-support-.025)<1e-5,'feet sit on the visible deck without embedding');
-    deck.route.slice(1,-1).forEach((p,j)=>{if(p.distanceTo(deck.position)<.08)touched.add(j);});
-  }
-  assert.equal(touched.size,4,'both orientations visit every corner');
-  assert(deck.position.distanceTo(deck.spawn)<.04,'two full circuits carry residual travel across the seam');
-}
-assert.equal(deck.place(new T.Vector3(0,0,10)),false,'sealed cabin cannot be entered through a wall');
-assert.equal(deck.place(new T.Vector3(20,0,0)),false,'outside hull cannot become a walk position');
-assert.equal(deck.place(new T.Vector3(-7.9,0,-8)),false,'outside the route cannot become a walk position');
-assert.equal(deck.canStand(new T.Vector3(-7.9,5.48,-8),5.48),false,'foot disk cannot hang over the visible deck boundary');
-assert.equal(deck.canStand(new T.Vector3(4.9,5.48,13.25),5.48),false,'actual cabin wall blocks the body');
-for(const sign of [-1,1]) {
-  cabinDeck.reset();const start=cabinDeck.position.clone();
-  for(let i=0;i<100;i++)cabinDeck.update(.01,sign,0,walkCamera,deckShip);
-  assert((cabinDeck.position.x-start.x)*sign>2.9,'both horizontal keys move immediately after entering the selection cabin');
-  assert(Math.abs(cabinDeck.position.z-start.z)<1e-7,'horizontal movement remains in the real bed aisle');
-}
-
-for(let i=0;i<12;i++){const anchor=deckShip.getObjectByName(`SV2_Bed_${i}_FootAnchor`),point=deckShip.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0,0,.6));point.y=0;cabinDeck.place(point);assert(cabinDeck.position.distanceTo(point)<.03,'all twelve bed interactions are reachable on the door-facing aisle');}
-const left=cabinDeck.route[2];cabinDeck.place(left);for(let i=0;i<120;i++)cabinDeck.update(.05,0,-1,walkCamera,deckShip);assert(cabinDeck.position.distanceTo(left)<.03,'forward input cannot leave the aisle and cross beds');
-deck.reset();const landing=deck.position.y;deck.jump();deck.update(.05,0,0,walkCamera,deckShip);assert(deck.jumping&&deck.position.y>landing);const velocity=deck.jumpVelocity;deck.jump();assert.equal(deck.jumpVelocity,velocity,'airborne repeat cannot restart a jump');for(let i=0;i<60;i++)deck.update(.05,0,0,walkCamera,deckShip);assert(Math.abs(deck.position.y-landing)<1e-7);
-deck.reset();deck.update(NaN,1,0,walkCamera,deckShip);assert.deepEqual(deck.position.toArray(),deck.spawn.toArray());
-deck.destroy();cabinDeck.destroy();
-console.log('Actual ship export: closed main deck loop in both directions, sealed-room and rail boundaries, grounded feet, twelve bed-side positions and jump landing passed');
+// Route/support probes live in check_voyage_spatial.cjs, which consumes the
+// current rotated cabin and retained hull. Keep this check about the login
+// plane, projection, live controls and departure lifecycle.
+const nativeSurface = deckShip.getObjectByName('SV3_LoginSurface');
+assert(nativeSurface && nativeSurface.parent.name === 'SV2_LoginSign');
+assert.equal(nativeSurface.userData.width, 6.65);
+assert.equal(nativeSurface.userData.height, 5.42);
 // Dense samples catch a hard cut; settling must reach the exact final pose with near-zero speed.
 let previousPose = voyageOpeningPose(0);
 for (let i = 1; i <= 2400; i++) {

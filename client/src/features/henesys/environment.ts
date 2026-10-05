@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { environmentLight, environmentSettings, loadEnvironment, saveEnvironment, type EnvironmentSettings } from './environment-settings';
+import { SolarGlow } from './solar-glow';
 
 // Shared field: visible clouds and the shadows on buildings sample the same drifting volume.
 export const CLOUD_GLSL=`
@@ -17,7 +18,7 @@ export class VillageEnvironment {
  skyScene=new T.Scene();
  hemisphere=new T.HemisphereLight();
  moon=new T.DirectionalLight(0x8daeff,0);
- private solarDisk=new T.Mesh(new T.SphereGeometry(3.7,24,16),new T.MeshBasicMaterial({color:new T.Color(15,11,5)}));
+ private solarDisk=new SolarGlow(490);
  private stars:T.Points;
  private precipitation:T.Points;
  private rain:T.LineSegments;
@@ -77,7 +78,7 @@ export class VillageEnvironment {
   this.sun.color.set(0xfff3df).lerp(new T.Color(0xff8a3c),warmth*.72);this.sun.intensity=l.sunlight*4.5*(1-l.cover*.55);
   this.hemisphere.color.set(0xa1c6f4).lerp(new T.Color(0xffbb95),warmth*.28);this.hemisphere.groundColor.set(0x45482c);this.hemisphere.intensity=.08+l.daylight*.50;
   this.moon.intensity=night*.16;this.moon.position.set(...l.direction).multiplyScalar(-150);this.moon.target.position.set(0,0,0);
-  this.solarDisk.position.copy(u.solarDirection.value).multiplyScalar(490);this.solarDisk.visible=l.direction[1]>-.02;this.solarDisk.material.color.copy(this.sun.color).multiplyScalar(18);
+  this.solarDisk.update(new T.Vector3(),u.solarDirection.value,this.sun.color,this.sun.intensity);
   const sky=this.sky.material.uniforms;sky.sunPosition.value.copy(u.solarDirection.value).multiplyScalar(450000);sky.turbidity.value=2.3+l.cover*4;sky.rayleigh.value=1.9;sky.mieCoefficient.value=.004+l.wet*.003;sky.mieDirectionalG.value=.82;sky.night.value=night;
   (this.stars.material as T.ShaderMaterial).uniforms.night.value=night*(1-l.cover*.88);
   const p=(this.precipitation.material as T.ShaderMaterial).uniforms;p.snow.value=l.snow;p.amount.value=Math.max(l.rain,l.snow);this.precipitation.visible=p.amount.value>0;this.rain.visible=l.rain>0;
@@ -86,6 +87,6 @@ export class VillageEnvironment {
   this.sun.shadow.needsUpdate=true;
  }
  consumeSkyChange(){const dirty=this.dirty;this.dirty=false;return dirty;}
- update(center:T.Vector3,time:number,ratio:number){this.uniforms.weatherTime.value=time;this.stars.position.copy(center);const s=(this.stars.material as T.ShaderMaterial).uniforms;s.time.value=time;s.pixelRatio.value=ratio;const p=(this.precipitation.material as T.ShaderMaterial).uniforms;p.time.value=time;p.center.value.copy(center);p.pixelRatio.value=ratio;}
- destroy(){this.sky.geometry.dispose();this.sky.material.dispose();this.solarDisk.geometry.dispose();this.solarDisk.material.dispose();this.stars.geometry.dispose();(this.stars.material as T.Material).dispose();this.precipitation.geometry.dispose();(this.precipitation.material as T.Material).dispose();this.rain.geometry.dispose();(this.rain.material as T.Material).dispose();this.materials.clear();}
+ update(center:T.Vector3,time:number,ratio:number,eye:T.Vector3){this.uniforms.weatherTime.value=time;this.solarDisk.update(eye,this.uniforms.solarDirection.value,this.sun.color,this.sun.intensity);this.stars.position.copy(center);const s=(this.stars.material as T.ShaderMaterial).uniforms;s.time.value=time;s.pixelRatio.value=ratio;const p=(this.precipitation.material as T.ShaderMaterial).uniforms;p.time.value=time;p.center.value.copy(center);p.pixelRatio.value=ratio;}
+ destroy(){this.sky.geometry.dispose();this.sky.material.dispose();this.solarDisk.destroy();this.stars.geometry.dispose();(this.stars.material as T.Material).dispose();this.precipitation.geometry.dispose();(this.precipitation.material as T.Material).dispose();this.rain.geometry.dispose();(this.rain.material as T.Material).dispose();this.materials.clear();}
 }

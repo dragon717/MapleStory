@@ -24,12 +24,20 @@ export async function checkVoyageCameraMotion(page,output,errors) {
   assert(loop.distance>86&&loop.corners===4&&loop.stalled===0,'one held key crosses every corner while the real non-reduced camera follows');
   assert(loop.maxStep<3,'camera turns remain bounded rather than cutting to a new pose');assert(loop.maxPitch>.7,'turns raise the camera to reveal the deck');
   await page.evaluate(()=>{const v=window.__entry.voyage;v.deck.reset();v.followEye=undefined;v.followAim=undefined;v.updateActivity();});await page.waitForTimeout(150);
+  await page.evaluate(()=>{const v=window.__entry.voyage,probe=new window.__three.Object3D();probe.visible=false;v.reveal.hidden.set(probe,true);v.__inspectionRevealProbe=probe;v.reveal.strength.value=1;});
   await page.mouse.move(480,320);for(let i=0;i<12;i++){await page.mouse.wheel(0,100);await page.waitForTimeout(25);}
   await page.waitForFunction(()=>window.__entry.voyage.inspection&&window.__entry.voyage.zoom===6.2);
   await page.waitForFunction(()=>{const v=window.__entry.voyage;return v.aim.distanceTo(v.ship.localToWorld(v.shipBounds.center.clone()))<.08;},null,{timeout:10000});
+  const pausedReveal=await page.evaluate(()=>{const v=window.__entry.voyage;return {paused:v.reveal.paused,hidden:v.reveal.hidden.size,strength:v.reveal.strength.value,probeVisible:v.__inspectionRevealProbe.visible};});
+  assert.deepEqual(pausedReveal,{paused:true,hidden:0,strength:0,probeVisible:true},'inspection restores cutaways and keeps reveal paused');
+  await page.mouse.down();await page.mouse.move(620,340,{steps:5});await page.mouse.up();await page.waitForTimeout(80);
+  const draggedReveal=await page.evaluate(()=>{const v=window.__entry.voyage;return {paused:v.reveal.paused,hidden:v.reveal.hidden.size,strength:v.reveal.strength.value,probeVisible:v.__inspectionRevealProbe.visible};});
+  assert.deepEqual(draggedReveal,{paused:true,hidden:0,strength:0,probeVisible:true},'dragging in inspection cannot re-enable stale reveal state');
   await page.screenshot({path:path.join(output,'full-ship-motion.png')});
   for(let i=0;i<12;i++){await page.mouse.wheel(0,-100);await page.waitForTimeout(25);}
   await page.waitForFunction(()=>!window.__entry.voyage.inspection);
+  const resumedReveal=await page.evaluate(()=>{const v=window.__entry.voyage;return {paused:v.reveal.paused,hidden:v.reveal.hidden.size,strength:v.reveal.strength.value,probeVisible:v.__inspectionRevealProbe.visible};});
+  assert.equal(resumedReveal.paused,false,'character follow resumes reveal updates after inspection');assert.equal(resumedReveal.probeVisible,true,'inspection probe does not remain hidden after exit');
   await page.waitForFunction(()=>{const v=window.__entry.voyage,p=v.ship.localToWorld(v.deck.position.clone());p.y+=1.65;return v.aim.distanceTo(p)<.08;},null,{timeout:10000});
   await page.evaluate(()=>window.__entry.go('characters'));
   try { await page.waitForFunction(()=>{const v=window.__entry.voyage;return v.cabinShown&&!v.transition;},null,{timeout:15000}); }

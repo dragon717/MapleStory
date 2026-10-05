@@ -1,5 +1,33 @@
 # 天空船第三版贴图
 
+## 2026-10-05 截图修正：童话登录、船舱与双语按钮
+
+`../prototypes/login-fairytale-redesign.png` 由内置 imagegen 生成，保留冒险岛标题、账号、密码、记住账号、开始游戏、注册、帮助和语言入口。完整提示在同目录 `.prompt.txt`。`redesign_voyage_login.py` 将概念落实为枫叶顶冠、象牙纸背、雕花木框、青色旗、双灯笼和黄铜卷草网格；运行时原 DOM 表单继续投影到保留的实体平面，按钮使用同源青色/象牙/黄铜材质。
+
+`../prototypes/cabin-fairytale-redesign.png` 由内置 imagegen 生成，保留十二床、四职业彩窗、四盏灯和木质船舱。完整提示在同目录 `.prompt.txt`。模型配方 `redesign_voyage_cabin.py` 复用生产材质，增加象牙拱肋、黄铜星叶饰、青色旗饰和床品、地面罗盘及细边；可编辑源保留全部原床/窗/灯、父旋转和导航。
+
+`entry-return-login.png` 与 `entry-begin-adventure.png` 由同一次透明背景 imagegen 图裁出，保留原像素和 alpha。文字为上方中文、下方英文的原创艺术字；完整提示在 `entry-actions.prompt.txt`。返回箭头由独立 DOM 放在返回登录左侧。哈希与模型来源见上级 `provenance.json#screenshotCorrections`。
+
+最终原生场景核验：`SV3_LoginRedesign_Root` 递归包含 56 个登录节点；左右两盏登录灯笼各复用 `SV3_CabinLamp_0` 的 12 个子几何及其材质数据，保留真实黄铜灯架和玻璃，而不是用简化占位物。船帆徽记与登录枫叶徽记统一使用透明 RGBA `maple-crest.png`、`SV3_MainSail_MapleDecal` 和 `Emblem` UV，按局部 X/Z 归一化投影，帆面透明边缘与船帆几何保持一致。
+
+船身旧轮孔从 `BeforeRepair_SV3_Hull` 回补，保留原船底下缘轮廓；`SV3_HullWheelVolumeClosure` 为 5630 个顶点、5502 个面、11130 条边的曲面壳，556 个实际轮廓探针通过，所有边均恰好连接两个面。风车、轮毂和轴架完全移到船体外侧，恢复的船身没有为风车再次削孔；回补壳体与外置风车的严格 manifold、净空和最终模型哈希见上级 `provenance.json#screenshotCorrections` 及对应 native report。
+
+新增固定硬件的端面 `MaterialUV` 修复覆盖 30 个目标对象（船头甲板/栏杆/立柱与两侧风车轴架），只修复端面投影和真实纹理绑定，保留几何、拓扑与 `SourceUV`；10 米物理重复尺度和活动 `MaterialUV` 已随 GLB 导出。最终场景、GLB、魔法书和纹理哈希由上级 `provenance.json#screenshotCorrections` 统一维护。
+
+## 2026-10-05 风车深度材质 atlas
+
+`wheel-material-atlas-v1.png` 由内置 imagegen 生成；项目文件是完整原图的逐字节复制，尺寸为 1254×1254，SHA-256 为 `6e7172caa565e0470cd8cd1bfdc11daa5fcee26d8101c31b883ec6707790067b`。生成原文件：`/Users/muniao/.codex/generated_images/01a10ad0-bd9d-7002-8b47-9fddcb9884a1/exec-5a657bcf-b307-4c20-968e-49b5131f6cf0.png`。
+
+Prompt brief（简述，不是完整原文）：2×2 平面均匀漫射材质图，四个象限分别为细木纹、奶白细织帆布、黄铜和深蓝轮毂；无船体、无文字、无透视、无烘焙阴影，适合作为可独立采样的材质 atlas。
+
+## 2026-10-04 当前整船原型精修
+
+当前材质以 `refine_voyage_prototype_finish.py` 为准，对照相邻的正确 `ship-orthographic-v1.png` 和 `ship-interior-plan-v1.png`。保留原船体、三层船尾平台、已拆推进器及所有帆/桅杆动画；只调整分区材质与 MaterialUV，SourceUV、原坐标和形态键不变。
+
+`build_voyage_finish_textures.py` 生成20张1024×1024贴图：甲板蜂蜜柚木、支杆胡桃木、奶白细织帆布、推进器分板搪瓷各有颜色/法线/粗糙度；船尾弧面和顶缘分别增加连续白色/青色/金边颜色、法线、粗糙度及金属度。板宽约0.25米，支杆沿长度铺纹；弧面连续UV避免逐三角面分色产生锯齿，端面按主轴单独投影。所有图直接嵌入GLB，运行时不重复覆盖纹理缩放。
+
+这些图由本地确定性材质脚本原创生成，未修改原型图或原源贴图。当前文件 SHA-256、原型来源、可编辑工程与GLB一致性见上级 `provenance.json` 的 `prototypeFinish`；下列旧材质数值是历史记录。
+
 ## 2026-10-03 尖拱职业彩窗与当前木船材质
 
 用户认可木质结构，要求船身和船头都呈现清楚木纹。当前生产模型以 `repair_sky_ship_structure.py` 为准：船身整面木板，UV跨度16×10米（顶面12×12米），支杆用 `wood.png` 沿长度铺纹；原生glTF保留木色乘数(0.64,0.42,0.31)，运行时颜色图微凹凸。旧3米平铺与源法线描述属于下节历史。修复前源网格/形态键和独立原始rig保存。

@@ -85,7 +85,7 @@ export class HenesysView {
   this.renderer=new T.WebGLRenderer({canvas:world.game.canvas,context:this.phaser.gl as WebGL2RenderingContext});
   this.actors=new Phaser.Renderer.WebGL.RenderTarget(this.phaser,1,1,1,1,true,true,false,true);
   this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.NeutralToneMapping;this.renderer.toneMappingExposure=1.1;
-  this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;
+  this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;
   this.pmrem=new T.PMREMGenerator(this.renderer);this.environment=this.dawnEnvironment=this.pmrem.fromEquirectangular(hdr);hdr.dispose();
   this.scene.environment=this.environment.texture;
   this.sun.castShadow=true;Object.assign(this.sun.shadow.camera,{left:-64,right:64,top:58,bottom:-58,near:1,far:350});this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.normalBias=.05;this.sun.shadow.bias=-.00006;
@@ -178,14 +178,14 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
   const offset=new T.Vector3(Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),Math.cos(this.yaw)*Math.cos(this.pitch)).multiplyScalar(distance);
   // Road changes only update the continuous foot target; reframing is manual.
   this.camera.position.copy(base).add(offset);this.camera.lookAt(base);this.camera.updateMatrixWorld();
-  if(this.skyPreview){this.camera.position.copy(base).add(new T.Vector3(Math.sin(this.yaw)*distance*2,14,Math.cos(this.yaw)*distance*2));this.camera.lookAt(this.climate.light.daylight>.5?this.climate.uniforms.solarDirection.value.clone().multiplyScalar(490):base.clone().add(new T.Vector3(0,40,-180)));this.camera.updateMatrixWorld();}
+  if(this.skyPreview){this.camera.position.copy(base).add(new T.Vector3(Math.sin(this.yaw)*distance*2,14,Math.cos(this.yaw)*distance*2));this.camera.lookAt(this.climate.light.daylight>.5?this.camera.position.clone().addScaledVector(this.climate.uniforms.solarDirection.value,490):base.clone().add(new T.Vector3(0,40,-180)));this.camera.updateMatrixWorld();}
   // Static scenery needs a new shadow only when the local coverage cell changes.
   const cell=new T.Vector3(Math.floor(base.x/8)*8,Math.floor(base.y/8)*8,Math.floor(base.z/8)*8);
   if(!this.shadowCell.equals(cell)){this.shadowCell.copy(cell);this.sun.shadow.needsUpdate=true;}
   this.sun.target.position.copy(cell);this.sun.position.copy(cell).addScaledVector(this.climate.uniforms.solarDirection.value,150);
   const now=performance.now(),seconds=now/1000;
   if(this.reveal.update(foot,this.camera,this.width,this.height,ratio,delta,now,actor.revealHeight,actor.revealWidth))this.sun.shadow.needsUpdate=true;
-  this.climate.update(base,seconds,ratio);
+  this.climate.update(base,seconds,ratio,this.camera.position);
   if(this.snow.update(this.climate.settings,Math.min(delta/1000,.1),seconds))this.sun.shadow.needsUpdate=true;
   this.climate.uniforms.winterSnow.value=this.snow.amount;
   this.groundFeedback.update(this.groundActors,{moisture:this.climate.light.wet,snow:this.snow.amount,daylight:this.climate.light.daylight},now,foot.toArray(),ratio,this.height);
@@ -240,7 +240,7 @@ void main(){vec4 art=texture(image,screenUv);if(art.a<.005)discard;vec3 encoded=
  }
  private draw=()=>{
   if(this.capturing){this.actors.unbind(true);this.phaser.resetProjectionMatrix();this.capturing=false;}
-  if(this.disposed||!this.saved.length){this.restore();return;}
+  if(this.disposed||!this.rasterCamera){this.restore();return;}
   try{this.phaser.pipelines.clear();this.renderer.resetState();this.texture.sourceTexture=this.actors.texture.webGLTexture;this.renderer.setRenderTarget(this.depthTarget);this.renderer.setClearColor(0xffffff,1);this.renderer.render(this.depthScene,this.paperCamera);this.renderer.setClearColor(0,0);this.renderer.setRenderTarget(null);this.sunlight.render(this.renderer,this.scene,this.camera,this.sun,this.climate);this.renderer.autoClear=false;this.renderer.render(this.paperScene,this.paperCamera);this.renderer.autoClear=true;}finally{this.renderer.resetState();this.phaser.pipelines.rebind();this.restore();}
  };
  private forward(e:PointerEvent,type:string){const b=this.root.getBoundingClientRect(),c=this.world.game.canvas,s=c.getBoundingClientRect();c.dispatchEvent(new MouseEvent(type,{clientX:s.left+(e.clientX-b.left)/b.width*s.width,clientY:s.top+(e.clientY-b.top)/b.height*s.height,button:0,buttons:e.buttons&1,bubbles:true,cancelable:true,view:window}));}

@@ -135,3 +135,14 @@ MapleStory-运行资源-*.tar.gz
 !/resources/scenes/sky-voyage-v3/prototypes/district-cde-gardens-prompt.md
 !/resources/scenes/sky-voyage-v3/prototypes/district-fg-interior-prompt.md
 !/resources/scenes/sky-voyage-v3/references/orbis-map-topology-tms273.json
+
+# Current fairy-tale cabin design and bilingual action art.
+!/resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.png
+!/resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.prompt.txt
+!/resources/scenes/sky-voyage-v3/prototypes/login-fairytale-redesign.png
+!/resources/scenes/sky-voyage-v3/prototypes/login-fairytale-redesign.prompt.txt
+!/resources/scenes/sky-voyage-v3/textures/entry-return-login.png
+!/resources/scenes/sky-voyage-v3/textures/entry-begin-adventure.png
+!/resources/scenes/sky-voyage-v3/textures/entry-actions.prompt.txt
+!/resources/scenes/sky-voyage-v3/textures/wheel-material-atlas-v1.png
+!/resources/scenes/sky-voyage-v3/textures/wheel-material-atlas-v1.json

@@ -88,9 +88,8 @@ if hull.get('circular_porthole_restored') != 2:
     hull.data=clip.build('SV3_Hull_PortholeRestored',polys,old);hull['circular_porthole_restored']=2;hull['porthole_source_faces_clipped']=hull.get('porthole_source_faces_clipped',0)+removed
     for name in ['SV3_CaptainPorthole_Frame','SV3_CaptainPorthole_Glass']:
         obj=scene.objects[name]
-        if not old_revision:
-            for v in obj.data.vertices:v.co.x+=.34
-    hull['porthole_repair']='existing YZ circle (-3.3,7), radius 1.12; source UV/normals retained, rim outset .34'
+        obj['porthole_mount'] = 'original captain wall envelope'
+    hull['porthole_repair']='existing YZ circle (-3.3,7), radius 1.12; source UV/normals retained, wall-mounted rim; fitted timber aperture return'
 
 # The sealed door keeps its existing collision/footprint; fine fittings are
 # separate editable children rather than another replacement cabin shell.

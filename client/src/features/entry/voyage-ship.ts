@@ -16,9 +16,14 @@ export class ShipFlight {
   position = new T.Vector3();
   trial = false;
   private manualSail=false;
-  private parts: { node: T.Object3D; rest: T.Quaternion; kind: string; fold: number; morphs: T.Mesh[] }[] = [];
+  private parts: { node: T.Object3D; rest: T.Quaternion; kind: string; fold: number; morphs: T.Mesh[]; spinAxis: T.Vector3; spinSign: number }[] = [];
   private nozzles: T.MeshStandardMaterial[] = [];
-  constructor(root?: T.Object3D) {
+  private anchors: { node: T.Object3D; owner: T.Mesh; rest: T.Vector3; delta: T.Vector3 }[] = [];
+  private links: { node: T.Object3D; start: T.Object3D; end: T.Object3D }[] = [];
+  private start = new T.Vector3();
+  private end = new T.Vector3();
+  private axis = new T.Vector3(0, 1, 0);
+  constructor(private root?: T.Object3D) {
     root?.traverse(node => {
       if (!node.userData.rig_kind) return;
       const morphs: T.Mesh[] = [];
@@ -34,7 +39,24 @@ export class ShipFlight {
           child.material = Array.isArray(child.material) ? child.material.map(clone) : clone(child.material);
         }
       });
-      this.parts.push({ node, rest: node.quaternion.clone(), kind: node.userData.rig_kind, fold: Number(node.userData.fold_angle) || 0, morphs });
+      const spinAxis = new T.Vector3().fromArray(node.userData.spin_axis ?? [1, 0, 0]).normalize();
+      this.parts.push({ node, rest: node.quaternion.clone(), kind: node.userData.rig_kind, fold: Number(node.userData.fold_angle) || 0, morphs, spinAxis, spinSign: Number(node.userData.spin_sign) || 1 });
+    });
+    root?.traverse(node => {
+      const data = node.userData;
+      if (data.rig_morph_owner) {
+        let owner: T.Mesh | undefined;
+        root.getObjectByName(data.rig_morph_owner)?.traverse(child => {
+          if (child instanceof T.Mesh && child.morphTargetDictionary?.DeployFold !== undefined) owner ??= child;
+        });
+        if (!owner) throw new Error(`Missing sail anchor owner: ${data.rig_morph_owner}`);
+        this.anchors.push({ node, owner, rest: new T.Vector3().fromArray(data.rig_morph_rest), delta: new T.Vector3().fromArray(data.rig_morph_delta) });
+      }
+      if (data.rig_link_start) {
+        const start = root.getObjectByName(data.rig_link_start), end = root.getObjectByName(data.rig_link_end);
+        if (!start || !end || !node.parent) throw new Error(`Missing timber attachment: ${node.name}`);
+        this.links.push({ node, start, end });
+      }
     });
   }
   setControls(input: Partial<ShipControls>) {
@@ -67,7 +89,9 @@ export class ShipFlight {
     for (const part of this.parts) {
       const fold = part.kind === 'rudder' ? part.fold * (1 - this.deployment) : part.kind === 'wheel' ? this.wheelAngle : 0;
       const yaw = ['rudder', 'steering', 'nozzle'].includes(part.kind) ? -this.steering * .38 : 0;
-      part.node.quaternion.copy(part.rest).multiply(new T.Quaternion().setFromEuler(new T.Euler(fold, yaw, 0)));
+      part.node.quaternion.copy(part.rest).multiply(part.kind === 'wheel'
+        ? new T.Quaternion().setFromAxisAngle(part.spinAxis, this.wheelAngle * part.spinSign)
+        : new T.Quaternion().setFromEuler(new T.Euler(fold, yaw, 0)));
       for (const mesh of part.morphs) {
         const dictionary = mesh.morphTargetDictionary!, values = mesh.morphTargetInfluences!;
         if (dictionary.DeployFold !== undefined) values[dictionary.DeployFold] = 1 - this.deployment;
@@ -75,5 +99,21 @@ export class ShipFlight {
       }
     }
     for (const material of this.nozzles) material.emissiveIntensity = .08 + this.controls.throttle * .8;
+    for (const anchor of this.anchors) {
+      const weight = anchor.owner.morphTargetInfluences![anchor.owner.morphTargetDictionary!.DeployFold];
+      anchor.node.position.copy(anchor.rest).addScaledVector(anchor.delta, weight);
+    }
+    // Original timber tubes use local Y from 0 to 1. Resolve both attachment
+    // points after the sail morph, then change only axial length and rotation.
+    // Radial thickness and the existing grain UV remain intact.
+    if (this.links.length) this.root!.updateWorldMatrix(true, true);
+    for (const { node, start, end } of this.links) {
+      start.getWorldPosition(this.start); end.getWorldPosition(this.end);
+      node.parent!.worldToLocal(this.start); node.parent!.worldToLocal(this.end);
+      this.end.sub(this.start);
+      const length = this.end.length();
+      node.position.copy(this.start); node.quaternion.setFromUnitVectors(this.axis, this.end.normalize()); node.scale.set(1, length, 1);
+      node.updateMatrix();
+    }
   }
 }

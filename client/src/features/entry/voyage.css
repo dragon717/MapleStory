@@ -19,7 +19,7 @@ body.entry-active { background: #eee4cf; }
   width: 100%;
   height: 100%;
 }
-.entry-voyage-ready .entry-background-canvas { display: none; }
+.entry-voyage:not(.voyage-unavailable) .entry-background-canvas { display: none; }
 :is(.entry-voyage,.entry-voyage-ready) .entry-scene { z-index: 1; }
 :is(.entry-voyage,.entry-voyage-ready) .voyage-deck-avatar {
   position: absolute;
@@ -358,16 +358,16 @@ body.entry-active { background: #eee4cf; }
 
 .entry-voyage .entry-edition {
   max-width: min(780px, calc(100vw - 28px));
-  padding: 4px 9px;
-  border: 7px solid transparent;
-  border-image: var(--voyage-button-image) 200 220 200 220 fill / 7px / 0 stretch;
+  padding: 0;
+  border: 0;
+  border-image: none;
   border-radius: 0;
-  color: #503a24;
+  color: #f5f0e5;
   background: transparent;
   line-height: 1.4;
-  text-shadow: none;
+  text-shadow: 0 1px 2px #26353d;
 }
-.entry-voyage .entry-edition a { color: #684719; text-decoration: underline; text-underline-offset: 2px; }
+.entry-voyage .entry-edition a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .entry-voyage .entry-edition a:focus-visible { outline: 2px solid #644113; outline-offset: 2px; }
 
 @media (max-width: 700px) {
@@ -422,7 +422,7 @@ body.entry-active { background: #eee4cf; }
     max-height: none;
     overflow: visible;
   }
-  .entry-voyage .entry-edition { font-size: 10px; }
+  .entry-voyage .entry-edition { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.entry-voyage,.entry-voyage-ready).entry-stage-characters .entry-character.selected .entry-avatar {
@@ -601,9 +601,9 @@ body.entry-active { background: #eee4cf; }
 /* The version/credit line belongs beside the title; client actions occupy the
    next line on the same side instead of duplicating a footer marker. */
 .entry-voyage .entry-edition {
-  top: 57px;
+  top: 72px;
   bottom: auto;
-  left: 14px;
+  left: 22px;
   z-index: 4;
   max-width: min(420px, calc(100vw - 28px));
   font-size: 11px;
@@ -668,36 +668,54 @@ body.entry-active { background: #eee4cf; }
 .entry-voyage-ready.entry-stage-create .entry-create-actions { margin-top: 10px; }
 .entry-voyage-ready.entry-stage-create .entry-create-actions > button { min-height: 35px; padding: 4px 9px; font-size: 14px; }
 
-/* If the projected board is outside the camera, this two-part shortcut keeps
-   login navigation and the larger adventure action visible together. */
+/* Shared scene navigation remains visible on deck and inside the cabin. */
 .entry-voyage .voyage-adventure-shortcut {
-  display: flex;
-  align-items: stretch;
-  gap: 7px;
-  width: auto;
-  min-width: 214px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  position: absolute; z-index: 8; right: 22px; bottom: 26px;
+  display: flex; align-items: center; gap: 14px;
+  width: min(490px, calc(100vw - 40px)); min-width: 0;
+  padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
 }
-.entry-voyage .voyage-adventure-shortcut > button { margin: 0; }
-.entry-voyage .voyage-return-login {
-  width: 38px;
-  min-height: 54px;
-  padding: 2px 3px !important;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  font-size: 22px;
+.entry-voyage button.voyage-art-button {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 !important; border: 0 !important; border-image: none !important;
+  border-radius: 0; background: transparent !important; box-shadow: none !important;
+  min-height: 0; color: #fff0c5; filter: drop-shadow(0 3px 5px #17100870);
 }
-.entry-voyage .voyage-return-login span { writing-mode: vertical-rl; font-size: 10px; line-height: 1; }
-.entry-voyage .voyage-start-adventure { flex: 1; min-width: 164px; min-height: 60px; font-size: 18px; }
+.entry-voyage .voyage-art-button img { display: block; width: 100%; height: auto; object-fit: contain; }
+.entry-voyage .voyage-art-button:hover { filter: brightness(1.1) drop-shadow(0 3px 7px #17100880); }
+.entry-voyage .voyage-art-button:focus-visible { outline: 2px solid #ffe6a7; outline-offset: 5px; }
+.entry-voyage .voyage-return-login { flex: 1; width: auto; gap: 7px; flex-direction: row; }
+.entry-voyage .voyage-return-login img { width: calc(100% - 20px); }
+.entry-voyage .voyage-return-login .voyage-back-arrow { writing-mode: horizontal-tb; font: 30px/1 Georgia, serif; }
+.entry-voyage .voyage-start-adventure { flex: 1.12; min-width: 0; width: auto; }
+.entry-voyage .voyage-paper-actions .voyage-art-button { width: 230px; }
+@media (max-width: 600px) {
+  .entry-voyage .voyage-adventure-shortcut { right: 12px; bottom: 18px; gap: 8px; width: min(370px, calc(100vw - 24px)); }
+}
 
 /* All berth labels belong to their scene anchor; no paging bar masks the aisle. */
 .entry-voyage.voyage-projected-bunks .entry-character { pointer-events: none; border: 0; background: transparent; box-shadow: none; }
+.entry-voyage.voyage-projected-bunks .entry-character strong {
+  width: max-content;
+  max-width: none;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  border-image: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.entry-voyage.voyage-projected-bunks .entry-character.selected strong { border: 0; }
+.entry-voyage.voyage-projected-bunks .entry-character > span {
+  min-height: 0;
+  font-size: 9px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
 .entry-voyage.voyage-projected-bunks .entry-character :is(strong,span) { color: #fff3ca; text-shadow: 0 1px 3px #160b04, 1px 0 2px #160b04; }
 .entry-voyage.voyage-projected-bunks .entry-empty { visibility: hidden !important; }
 .entry-stage-characters .entry-navigation, .entry-stage-characters .entry-brand, .entry-stage-create .entry-navigation { display: none; }
@@ -735,23 +753,28 @@ body.entry-active { background: #eee4cf; }
 }
 
 .entry-voyage-ready .entry-login.voyage-solid-controls h1 {
-  height: 44px;
-  margin: 0 0 14px;
-  color: #382719;
+  height: 46px;
+  margin: 0 0 12px;
+  color: #725129;
+  font-family: 'Songti SC', 'Noto Serif SC', Georgia, serif;
   font-size: 29px;
-  line-height: 44px;
+  line-height: 32px;
   letter-spacing: .16em;
 }
+.entry-voyage-ready .entry-login.voyage-solid-controls h1 span { display: block; }
+.entry-voyage-ready .entry-login.voyage-solid-controls h1 small { display: block; font: 10px/14px Georgia, serif; letter-spacing: .2em; }
 
 .entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-fields {
-  border-top: 1px solid #8d6a3b99;
-  background: rgba(246, 218, 161, .24);
+  border: 1px solid #b39a6c;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4e5c7e8;
 }
 
 .entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-fields > input {
   height: 64px;
   color: #382719;
-  background: rgba(255, 244, 209, .34);
+  background: linear-gradient(#fff7e566, #eddbb366);
   border-bottom: 1px solid #8d6a3b66;
   text-shadow: none;
 }
@@ -777,12 +800,15 @@ body.entry-active { background: #eee4cf; }
   border-image: none;
   border-radius: 0;
   background: transparent;
-  color: #382719;
+  color: #ffe8ad;
   box-shadow: none;
   text-shadow: none;
   font-size: 20px;
   letter-spacing: .1em;
+  font-family: 'Songti SC', 'Noto Serif SC', Georgia, serif;
 }
+.entry-voyage-ready .entry-login.voyage-solid-controls > .entry-primary span { display:block;line-height:28px; }
+.entry-voyage-ready .entry-login.voyage-solid-controls > .entry-primary small { display:block;font:9px/14px Georgia,serif;letter-spacing:.22em; }
 
 .entry-voyage-ready .entry-login.voyage-solid-controls .entry-login-links {
   height: 34px;
@@ -806,3 +832,31 @@ body.entry-active { background: #eee4cf; }
 .entry-voyage .voyage-interaction-choices p { margin: 0 0 4px; font-size: 13px; }
 .entry-voyage .voyage-interaction-choices button { padding: 10px; color: inherit; border: 1px solid #bea475; border-radius: 6px; background: #f8edcf; }
 .entry-voyage .voyage-interaction-choices button[aria-pressed="true"] { background: #205863; color: #fff1cf; border-color: #205863; }
+
+/* The HTML, audio wait and WebGL handoff share the same cloud-sky first paint. */
+.entry-voyage .entry-background {
+  background: radial-gradient(ellipse 65% 17% at 15% 77%, #edf3f7 8%, #edf3f700 100%),
+    radial-gradient(ellipse 75% 23% at 85% 92%, #f1f5f8 15%, #f1f5f800 100%),
+    radial-gradient(ellipse 50% 12% at 75% 55%, #dcebf3 5%, #dcebf300 100%),
+    linear-gradient(#9bcbe5, #e9eff2);
+}
+.entry-voyage:not(.entry-voyage-ready):not(.voyage-unavailable) :is(.entry-brand, .entry-edition, .entry-scene, .entry-navigation) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.entry-voyage.voyage-awaiting-audio .entry-background > *,
+.entry-voyage.voyage-awaiting-audio .entry-scene { visibility: hidden; }
+.voyage-audio-opening[hidden] { display: none; }
+.voyage-audio-opening { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; pointer-events: none; }
+.entry-voyage .voyage-audio-opening button {
+  pointer-events: auto;
+  border: 0;
+  border-image: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #284b5e;
+  text-shadow: 0 1px 2px #fff9;
+  font-size: 18px;
+  letter-spacing: 2px;
+}

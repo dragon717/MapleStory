@@ -7,7 +7,7 @@ await page.locator('#username').waitFor({state:'visible'});
 await shot('login-default');
 await page.locator('#username').fill('entry_check');await page.locator('#password').fill('entry-check-password');await page.locator('#submit').click();await page.locator('.entry-stage-channel').waitFor();await page.waitForTimeout(900);
 await shot('captain-default');
-await shot('captain-sealed-portal',()=>{const v=window.__entry.voyage;v.deck.place(v.deck.route.at(-1));v.updateActivity();});
+await shot('captain-sealed-portal',()=>{const v=window.__entry.voyage,T=window.__three;const marker=v.model.getObjectByName('SV3_CaptainPortal');v.deck.place(v.ship.worldToLocal(marker.getWorldPosition(new T.Vector3())));v.updateActivity();});
 await shot('outside-default',()=>{const v=window.__entry.voyage;v.deck.reset();v.updateActivity();});
 await shot('outside-no-reveal',()=>{const v=window.__entry.voyage;v.reveal.strength.value=0;v.reveal.checkedAt=Infinity;v.reveal.blocked=false;v.updateActivity();});
 

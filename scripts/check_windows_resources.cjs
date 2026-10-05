@@ -25,6 +25,7 @@ const REQUIRED_JSON = [
   'client/public-tms273/assets/gameplay.json',
   'client/public-tms273/assets/items.json',
   'client/public-tms273/assets/entry/manifest.json',
+  'client/public-tms273/assets/entry/voyage-music.json',
   'client/public-tms273/assets/entry/appearance.json',
   'client/public-tms273/assets/entry/creation.json',
 ];
@@ -32,6 +33,7 @@ const REQUIRED_JSON = [
 const ASSET_REFERENCE_JSON = [
   'client/public-tms273/assets/manifest.json',
   'client/public-tms273/assets/entry/manifest.json',
+  'client/public-tms273/assets/entry/voyage-music.json',
   'client/public-tms273/assets/entry/appearance.json',
   'client/public-tms273/assets/entry/creation.json',
 ];
@@ -107,6 +109,8 @@ function validate(root = path.resolve(__dirname, '..')) {
   assert.deepEqual(documents['client/public-tms273/assets/entry/creation.json'], creation);
   require('./tms273_creation_catalog.cjs')(creation, sharedItems, 'shared/items.json');
   const mapCatalog = documents['shared/maps.json'];
+
+  assert.equal(documents['client/public-tms273/assets/entry/voyage-music.json'].bgm, manifest.mapCatalog.maps.find(map => map.id === '200000000')?.bgm, 'Opening music must retain the original Orbis track');
 
   assert.equal(manifest.contentVersion, protocol.contentVersion,
     'client manifest contentVersion does not match shared/protocol.ts');

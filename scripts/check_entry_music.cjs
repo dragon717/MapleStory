@@ -25,5 +25,47 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   context.decodeAudioData = () => new Promise(resolve => { releaseDecode = resolve; });
   late.setTrack('/orbis.mp3'); late.setActive(true); await tick(); late.setActive(false);
   releaseDecode({}); await tick(); assert.equal(starts, 2, 'async decode cannot start lobby audio after entry');
-  late.dispose(); console.log('Entry music: shared unlock, one source, mute, visibility, stop and late decode passed');
+  late.dispose();
+  context = makeContext(); context.state = 'suspended';
+  const opening = new EntryMusic(() => context); opening.setActive(true);
+  await opening.setTrack('/opening.mp3');
+  assert(opening.buffer, 'BGM decodes before the first gesture');
+  assert.equal(opening.openingReady, false, 'a blocked autoplay cannot reveal scenery');
+  assert.equal(opening.needsGesture, true, 'a suspended audible context requires the opening gesture');
+  context.state = 'running'; await Promise.all([opening.resume(), opening.resume()]);
+  assert.equal(starts, 3, 'simultaneous unlock callbacks start only one source');
+  assert(opening.openingReady); assert.equal(opening.needsGesture, false); opening.setActive(false);
+  assert.equal(stops, 3); opening.setActive(true); await tick();
+  assert(opening.playing, 'returning from the world reuses the decoded track'); opening.dispose();
+  const old = new EntryMusic(() => context); old.setActive(true);
+  let releaseOld; context.decodeAudioData = () => new Promise(resolve => { releaseOld = resolve; });
+  const first = old.setTrack('/old.mp3'); await tick();
+  context.decodeAudioData = async () => ({ track: 'new' });
+  await old.setTrack('/new.mp3'); const currentSource = old.source;
+  releaseOld({ track: 'old' }); await first;
+  assert.equal(old.buffer.track, 'new'); assert.equal(old.source, currentSource, 'stale decode cannot replace the current track'); old.dispose();
+  context = makeContext(); context.state = 'closed';
+  const closed = new EntryMusic(() => context); closed.setActive(true); await closed.setTrack('/closed.mp3');
+  assert.equal(closed.openingReady, true, 'a closed AudioContext must release the opening gate'); closed.dispose();
+  context = makeContext();
+  let releaseStalled;
+  context.decodeAudioData = () => new Promise(resolve => { releaseStalled = resolve; });
+  const realSetTimeout = global.setTimeout, decodeTimers = [], decodeDelays = [];
+  global.setTimeout = (handler, delay, ...args) => {
+    if (Number(delay) >= 4000) { decodeDelays.push(Number(delay)); decodeTimers.push(() => handler(...args)); return 0; }
+    return realSetTimeout(handler, delay, ...args);
+  };
+  try {
+    const stalled = new EntryMusic(() => context); stalled.setActive(true);
+    const pending = stalled.setTrack('/stalled.mp3'); await tick();
+    assert(decodeDelays.includes(5000), 'decode uses the five-second opening budget'); decodeTimers.splice(0).forEach(run => run());
+    const completed = await Promise.race([pending.then(() => true), new Promise(resolve => realSetTimeout(() => resolve(false), 250))]);
+    assert.equal(completed, true, 'a stalled decode must release the opening within its budget');
+    assert.equal(stalled.openingReady, true, 'a stalled decode must fall back to the lobby');
+    const startsBeforeLateDecode = starts; releaseStalled({}); await tick(); assert.equal(starts, startsBeforeLateDecode, 'a late decode cannot start audio after timeout'); stalled.dispose();
+  } finally { global.setTimeout = realSetTimeout; }
+  global.fetch = async () => ({ ok: false });
+  const failed = new EntryMusic(() => context); failed.setActive(true); await failed.setTrack('/missing.mp3');
+  assert(failed.openingReady, 'failed music does not trap players behind the opening'); failed.dispose();
+  console.log('Entry music: prepared suspended buffer, one source, mute, visibility, return, failures and stale decode passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

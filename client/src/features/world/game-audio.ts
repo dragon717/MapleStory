@@ -4,10 +4,29 @@ import { EntryMusic } from '../entry/music';
  * cancels compatibility mouse events, so recovery uses trusted input in capture. */
 export function installGameAudio(host:HTMLElement,getGame:()=>Phaser.Game|undefined){
   let prepared:AudioContext|undefined;
+  let wasRunning=false;
+  const wake=()=>{
+    const sound=getGame()?.sound;
+    const context=sound instanceof Phaser.Sound.WebAudioSoundManager?sound.context:prepared;
+    if(document.hidden||!context||context.state!=='suspended')return;
+    void context.resume().then(()=>{void entry.resume();entry.onChange?.();}).catch(()=>{});
+  };
+  const changed=()=>{
+    if(prepared?.state==='running'){wasRunning=true;void entry.resume();entry.onChange?.();}
+    // Phaser destroys an externally supplied context by suspending it on the
+    // next frame. Recover even when the lobby has already restarted its music.
+    else if(wasRunning&&entry.isActive)wake();
+  };
+  const prepare=(Audio:typeof AudioContext)=>{
+    prepared?.removeEventListener('statechange',changed);
+    prepared=new Audio(); wasRunning=prepared.state==='running';
+    prepared.addEventListener('statechange',changed);
+    return prepared;
+  };
   const entry = new EntryMusic(() => {
     const sound = getGame()?.sound;
     return sound instanceof Phaser.Sound.WebAudioSoundManager ? sound.context : prepared;
-  });
+  },wake);
   const unlock=(event:Event)=>{
     if(!event.isTrusted)return;
     const sound=getGame()?.sound;
@@ -17,7 +36,7 @@ export function installGameAudio(host:HTMLElement,getGame:()=>Phaser.Game|undefi
       if(!(event.target instanceof Node)||!host.contains(event.target))return;
       const Audio=window.AudioContext??(window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
       if(!Audio)return;
-      context=prepared=new Audio();
+      context=prepare(Audio);
     }
     if(context.state==='running'){if(manager?.locked)(manager as Phaser.Sound.WebAudioSoundManager & {unlocked:boolean}).unlocked=true;void entry.resume();return;}
     // Do not unregister on rejection: a later real click/key must be able to recover.
@@ -36,6 +55,13 @@ export function installGameAudio(host:HTMLElement,getGame:()=>Phaser.Game|undefi
     // Pause only when the document is hidden; trusted input still unlocks first playback.
     void (document.hidden?context.suspend():context.resume()).then(()=>{void entry.resume();entry.onChange?.();}).catch(()=>{});
   };
+  // Try autoplay immediately; browsers that require input keep this context
+  // suspended and the capture listener above resumes the same context later.
+  const Audio=window.AudioContext??(window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
+  if(Audio){
+    try { prepare(Audio); void prepared!.resume().then(()=>{void entry.resume();entry.onChange?.();}).catch(()=>{}); }
+    catch { /* Audio is optional on unsupported devices. */ }
+  }
   document.addEventListener('visibilitychange',visibility);
   for(const event of ['pointerdown','pointerup','keydown'])window.addEventListener(event,unlock,true);
   return {entry,context:()=>prepared,bind(game:Phaser.Game){
@@ -46,5 +72,5 @@ export function installGameAudio(host:HTMLElement,getGame:()=>Phaser.Game|undefi
       game.events.off(Phaser.Core.Events.VISIBLE,manager.onGameVisible,manager);
     }
     if(document.hidden)visibility();
-  },dispose(){entry.dispose();document.removeEventListener('visibilitychange',visibility);for(const event of ['pointerdown','pointerup','keydown'])window.removeEventListener(event,unlock,true);}};
+  },dispose(){entry.dispose();prepared?.removeEventListener('statechange',changed);document.removeEventListener('visibilitychange',visibility);for(const event of ['pointerdown','pointerup','keydown'])window.removeEventListener(event,unlock,true);}};
 }

@@ -305,6 +305,42 @@ function checkLocalReveal(runtime) {
   return { sourceHook: true, cacheKey: true, movingBounds: true };
 }
 
+function checkMastConnections(runtime, model) {
+  const { THREE: T, ShipFlight }=runtime, ship=model.getObjectByName('SV2_Ship');
+  const links=[];model.traverse(o=>{if(o.userData.rig_link_start)links.push(o);});
+  assert.equal(links.length,4,'four retained timbers are independently constrained');
+  const flight=new ShipFlight(ship);let maxError=0;
+  const oldQuaternion=ship.quaternion.clone(),oldPosition=ship.position.clone();
+  ship.rotation.set(.17,-.32,.09);ship.position.set(80,7,-130);
+  for(const sail of [1,.8,.5,.18,0]) {
+    flight.setControls({sail,wind:16,steering:.7});flight.update(0,true);model.updateMatrixWorld(true);
+    for(const link of links) {
+      const positions=link.geometry.attributes.position;
+      for(const endpoint of [0,1]) {
+        const centre=new T.Vector3();let count=0;
+        for(let i=0;i<positions.count;i++)if(Math.abs(positions.getY(i)-endpoint)<1e-5){centre.add(new T.Vector3().fromBufferAttribute(positions,i));count++;}
+        assert(count>=8);centre.divideScalar(count).applyMatrix4(link.matrixWorld);
+        const anchor=model.getObjectByName(link.userData[endpoint?'rig_link_end':'rig_link_start']);
+        const error=centre.distanceTo(anchor.getWorldPosition(new T.Vector3()));maxError=Math.max(maxError,error);
+        assert(error<.001,`${link.name} detached at sail ${sail}, endpoint ${endpoint}: ${error}`);
+        if(endpoint&&anchor.userData.rig_morph_owner) {
+          // Compare the endpoint against the real exported spar geometry,
+          // rather than testing the attachment metadata against itself.
+          const actual=new T.Vector3(),rest=new T.Vector3().fromArray(anchor.userData.rig_morph_rest);let n=0;
+          model.getObjectByName(anchor.userData.rig_morph_owner).traverse(mesh=>{
+            if(!mesh.isMesh)return;const p=mesh.geometry.attributes.position;
+            for(let i=0;i<p.count;i++)if(new T.Vector3().fromBufferAttribute(p,i).distanceTo(rest)<.45){const v=mesh.getVertexPosition(i,new T.Vector3()).applyMatrix4(mesh.matrixWorld);actual.add(v);n++;}
+          });
+          assert(n>=12);actual.divideScalar(n);assert(centre.distanceTo(actual)<.001,'timber follows the real morphed spar tip');
+        }
+      }
+      assert.equal(link.scale.x,1);assert.equal(link.scale.z,1,'radial timber thickness stays fixed');
+    }
+  }
+  ship.quaternion.copy(oldQuaternion);ship.position.copy(oldPosition);flight.setControls({sail:1,steering:0});flight.update(0,true);model.updateMatrixWorld(true);
+  return {links:links.length,sailStates:5,transformedShip:true,maxEndpointError:maxError};
+}
+
 async function main() {
   const runtime = loadRuntimeModule();
   const bytes = fs.readFileSync(modelPath);
@@ -313,6 +349,7 @@ async function main() {
   gltf.scene.updateMatrixWorld(true);
   const ship=gltf.scene.getObjectByName('SV2_Ship');
   ship.scale.setScalar(2);gltf.scene.updateMatrixWorld(true);
+  const connections=checkMastConnections(runtime,gltf.scene);
   const camera=new runtime.THREE.PerspectiveCamera(38,1440/900,1,24000);
   const walk=new runtime.VoyageDeck(ship);
   const base=ship.localToWorld(walk.position.clone());base.y+=1.65;
@@ -329,7 +366,7 @@ async function main() {
   const loginProjection=runtime.projectLoginSurface({anchor:paper,width:paper.userData.width,height:paper.userData.height},loginCamera,{width:1440,height:900},{width:430,height:360});
   assert(loginProjection && !runtime.loginSurfaceOccluded(loginCamera,loginProjection.points,[gltf.scene.getObjectByName('SV3_Exterior')]),'settled opening pose reads the exterior login surface without opaque shell obstruction');
   const deckSurface=JSON.parse(fs.readFileSync(path.join(root,'shared/voyage-deck.json'),'utf8')).surface;
-  assert(close(walk.position.y,deckSurface.height+.025),'spawn stays on the authored main deck floor');walk.destroy();
+  assert(Math.abs(walk.position.y-deckSurface.height-.025)<.05,'spawn stays on the slightly varying original main deck floor');walk.destroy();
   const cloth = checkSailBindings(runtime, gltf.scene);
   const cityGltf=await parse(new runtime.GLTFLoader(),geometryOnlyGlb(fs.readFileSync(path.join(client,'public-tms273/assets/entry/sky-city.glb'))));
   const cityRoot=cityGltf.scene,city=new runtime.VoyageCity(cityRoot),shells=[];
@@ -343,7 +380,8 @@ async function main() {
     asset: {
       path: path.relative(root, modelPath),
       bytes: bytes.length,
-      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    connections,
       geometryOnlyTextureDecode: true,
     },
     cloth,
@@ -351,7 +389,8 @@ async function main() {
   }, null, 2));
 }
 
-main().catch(error => {
+module.exports = { loadRuntimeModule, geometryOnlyGlb, parse };
+if (require.main === module) main().catch(error => {
   console.error(`FAIL: ${error.stack || error.message || error}`);
   process.exitCode = 1;
 });

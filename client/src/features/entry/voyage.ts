@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { uiLocale } from '../../app/i18n';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import { ClothGrid } from './voyage-physics';
@@ -8,7 +9,9 @@ import { VoyageClouds } from './voyage-clouds';
 import { VoyageLogin, projectLoginSurface, type LoginSurface } from './voyage-login';
 import { VoyageCity } from './voyage-city';
 import { VoyageDeck } from './voyage-deck';
+import { berthAislePoint, cabinPoint, cabinRotation } from './voyage-cabin';
 import { LocalReveal } from '../henesys/local-reveal';
+import { SolarGlow } from '../henesys/solar-glow';
 import { VoyagePassengers } from './voyage-passengers';
 import { VoyageWindowLight } from './voyage-window-light';
 import type { Part } from '../../assets/avatar-types';
@@ -30,6 +33,7 @@ const poses = {
 } as const;
 type Shot = keyof typeof poses;
 type CabinInteraction = { kind: 'enter-cabin' | 'return-deck' | 'create-character' | 'role-details'; label: string; id?: string; slot?: number };
+const text = (zh: string, en: string) => uiLocale() === 'en' ? en : zh;
 const smooth = (v: number) => v * v * (3 - 2 * v);
 const shipPose = <T extends { eye: readonly number[]; aim: readonly number[] }>(pose: T) => ({
   eye: pose.eye.map(value => value * VOYAGE_SHIP_SCALE),
@@ -64,11 +68,15 @@ export class EntryVoyage {
   private scene = new T.Scene();
   private skyDecor = new T.Group();
   private camera = new T.PerspectiveCamera(46, 1, 1, 24000);
+  private walkCamera = new T.OrthographicCamera(-10, 10, 7, -7, .1, 24000);
+  private activeCamera: T.PerspectiveCamera | T.OrthographicCamera = this.camera;
   private model?: T.Group;
   private ship?: T.Object3D;
   private flight?: ShipFlight;
   private shipRotation = new T.Quaternion();
   private deck?: VoyageDeck;
+  private mainDeck?: VoyageDeck;
+  private bowDeck?: VoyageDeck;
   private cabinDeck?: VoyageDeck;
   private ids: string[] = [];
   private entranceArmed = true;
@@ -114,6 +122,7 @@ export class EntryVoyage {
   private adventureSurface?: LoginSurface;
   private city?: VoyageCity;
   private sun: T.DirectionalLight;
+  private solarGlow = new SolarGlow(11000);
   private hemisphere: T.HemisphereLight;
   private cabinLights = new T.Group();
   private windowLight?: VoyageWindowLight;
@@ -122,6 +131,11 @@ export class EntryVoyage {
   private aim = new T.Vector3().fromArray(poses.far.aim);
   private transition?: { eye: T.Vector3; aim: T.Vector3; fov: number; time: number; duration: number; fromCabin: boolean; toCabin: boolean };
   private cabinShown = false;
+  // The selection cabin is a cutaway while the player is inside it. Once the
+  // fixed curve crosses the authored door and rises onto the exterior route,
+  // keep the cabin/interactions alive but restore the physical ship shell,
+  // sails and sky around the same player position.
+  private cabinExteriorMode = false;
   private shipOrigin = new T.Vector3();
   private waterTime = { value: 0 };
   private water?: VoyageWater;
@@ -165,8 +179,8 @@ export class EntryVoyage {
   private cameraWheel = (event: WheelEvent) => {
     if (!['channel','characters'].includes(this.stage) || event.target instanceof HTMLElement && event.target.closest('input,textarea,select,.entry-create-panel')) return;
     event.preventDefault(); this.zoom = T.MathUtils.clamp(this.zoom * Math.exp(T.MathUtils.clamp(event.deltaY, -100, 100) * .002), .9, this.stage === 'channel' ? 6.2 : 2.3);
-    if (this.stage === 'channel' && !this.inspection && this.zoom >= 2.6) { this.inspection = true; this.drag = undefined; this.inspectionYaw = this.followYaw + this.yaw; this.inspectionPitch = .48; }
-    if (this.inspection && this.zoom <= 2.2) { this.inspection = false; this.drag = undefined; this.yaw = 0; }
+    if (this.stage === 'channel' && !this.inspection && this.zoom >= 2.6) { this.inspection = true; this.drag = undefined; this.inspectionYaw = this.followYaw + this.yaw; this.inspectionPitch = .48; this.reveal?.setPaused(true); }
+    if (this.inspection && this.zoom <= 2.2) { this.inspection = false; this.drag = undefined; this.yaw = 0; this.reveal?.setPaused(false); }
     if (this.reduced.matches) this.updateActivity();
   };
   private contextMenu = (event: Event) => { if (['channel','characters'].includes(this.stage)) event.preventDefault(); };
@@ -224,14 +238,17 @@ export class EntryVoyage {
     this.host.addEventListener('contextmenu', this.contextMenu);
     this.scene.background = new T.Color('#8ecfec');
     this.scene.fog = new T.Fog('#c5dfed', 4200, 15000);
-    this.hemisphere = new T.HemisphereLight('#d6ecff', '#687184', .5); this.scene.add(this.hemisphere);
-    const sun = new T.DirectionalLight('#fff0d5', 2.4);
+    this.hemisphere = new T.HemisphereLight('#bddbfb', '#5c665b', .42); this.scene.add(this.hemisphere);
+    const sun = new T.DirectionalLight('#ffedcb', 3.1);
     this.sun = sun;
     sun.position.set(180, 260, 140); sun.target.position.set(0, 0, -30);
-    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.radius = 3;
     Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 200, bottom: -200, near: 1, far: 900 });
-    sun.shadow.normalBias = .06; sun.shadow.bias = -.001;
+    sun.shadow.normalBias = .035; sun.shadow.bias = -.00008;
     this.scene.add(sun, sun.target);
+    this.solarGlow.update(new T.Vector3(),sun.position.clone().sub(sun.target.position).normalize(),sun.color,sun.intensity);
+    this.scene.add(this.solarGlow);
     const sky = new T.Mesh(new T.SphereGeometry(14000, 32, 24), new T.ShaderMaterial({
       side: T.BackSide, depthWrite: false,
       uniforms: { top: { value: new T.Color('#62b9e8') }, bottom: { value: new T.Color('#e4f2fb') } },
@@ -264,8 +281,7 @@ export class EntryVoyage {
     const loaded = (gltf: { scene: T.Group }) => {
       if (!this.alive) { dispose(gltf.scene); return; }
       this.model = gltf.scene; this.scene.add(gltf.scene);
-      const city = gltf.scene.getObjectByName('SV2_City');
-      if (city) city.visible = false;
+      gltf.scene.traverse(node=>{if(node.userData.SV3_LoginRedesign_legacy_preserved)node.visible=false;});
       gltf.scene.traverse(object => {
         if (!(object instanceof T.Mesh)) return;
         object.castShadow = true; object.receiveShadow = true;
@@ -279,8 +295,10 @@ export class EntryVoyage {
               // Older cached GLBs carry the pre-polish UV projection. Keep
               // the source recipe's directional grain readable until Blender
               // can regenerate the scene on the build machine.
-              if (semantic === 'SparWood' || semantic === 'SternWalnut') material.map.repeat.set(.9, 1.05);
-              if (semantic === 'DeckTeak') material.map.repeat.set(.8, .8);
+              if (!material.userData.finish_recipe) {
+                if (semantic === 'SparWood' || semantic === 'SternWalnut') material.map.repeat.set(.9, 1.05);
+                if (semantic === 'DeckTeak') material.map.repeat.set(.8, .8);
+              }
               material.map.needsUpdate = true;
             }
             const semantic = String(material.userData.voyage_material_semantic ?? '');
@@ -302,16 +320,15 @@ export class EntryVoyage {
         this.ship.scale.setScalar(VOYAGE_SHIP_SCALE);
         this.ship.userData.presentation_scale = VOYAGE_SHIP_SCALE;
         this.shipOrigin.copy(this.ship.position); this.shipRotation.copy(this.ship.quaternion);
-        this.reveal = new LocalReveal(this.ship, mesh => {
-          // Cloth and its folding spars keep their full render; only solid ship scenery can hide the body.
-          let node: T.Object3D | null = mesh;
-          while (node) { if (node.userData.cloth_columns || node.name.startsWith('SV3_MainSail_Crest')) return false; node=node.parent; }
-          return true;
-        });
-        this.deck = new VoyageDeck(this.ship); this.cabinDeck = new VoyageDeck(this.ship, true); this.passengers.deckPosition.copy(this.deck.position);
+        // Opaque cloth can fully hide a walker too. Keep normal partial
+        // occlusion; the reveal opens only when all body samples are covered.
+        this.reveal = new LocalReveal(this.ship, () => true, 'torso');
+        this.mainDeck = new VoyageDeck(this.ship); this.bowDeck = new VoyageDeck(this.ship, false, true); this.deck = this.mainDeck;
+        this.cabinDeck = new VoyageDeck(this.ship, true); this.passengers.deckPosition.copy(this.deck.position);
         this.passengers.attach(this.ship);
-        this.ship.add(this.cabinLights);
-        this.windowLight = new VoyageWindowLight(this.ship, gltf.scene, this.cabinLights);
+        const cabinRoot = gltf.scene.getObjectByName('SV3_CabinInterior')!;
+        cabinRoot.add(this.cabinLights);
+        this.windowLight = new VoyageWindowLight(cabinRoot, gltf.scene, this.cabinLights);
         for (const x of [-11.7, -3.6, 4.5, 11.7]) {
           const lamp = new T.PointLight('#ffb76c', 36, 14, 2); lamp.position.set(x, 2.2, 42.6); this.cabinLights.add(lamp);
         }
@@ -342,42 +359,70 @@ export class EntryVoyage {
         for (let parent:T.Object3D|null=o;parent;parent=parent.parent) if (['SV2_LoginSign','SV3_AdventureSign'].includes(parent.name) || parent.name.startsWith('SV3_Passenger_')) return;
         if (!(Array.isArray(o.material) ? o.material : [o.material]).every(m => m.transparent || m instanceof T.MeshPhysicalMaterial && m.transmission > .5)) this.cameraObstacles.push(o);
       });
+      this.showCabin(this.stage === 'characters' || this.stage === 'create');
+      this.resize(); cancelAnimationFrame(this.frame); this.previous = 0;
+      this.draw(performance.now());
       this.host.classList.add('entry-voyage-ready');
-      this.showCabin(this.stage === 'characters' || this.stage === 'create'); this.ready(); this.resize(); this.updateActivity();
+      this.ready(); this.updateActivity();
     };
-    const failed = (error: unknown) => { if (this.alive) { console.error('Voyage model initialization failed', error); this.host.classList.add('voyage-unavailable'); this.ready('天空航船模型加载失败；现有登录入口仍可使用。'); this.destroy(); } };
+    const failed = (error: unknown) => { if (this.alive) { console.error('Voyage model initialization failed', error); this.host.classList.add('voyage-unavailable'); this.ready(text('天空航船模型加载失败；现有登录入口仍可使用。', 'The ship model could not load; the login form is still available.')); this.destroy(); } };
     const load = (url: string, buffer?: ArrayBuffer) => new Promise<{ scene: T.Group }>((resolve, reject) => {
       if (buffer) loader.parse(buffer, '', resolve, reject); else loader.load(resolveAssetUrl(url), resolve, undefined, reject);
     });
-    void Promise.all([load('/assets/entry/sky-voyage.glb', bytes), load('/assets/entry/sky-city.glb', cityBytes), loader.loadAsync(resolveAssetUrl('/assets/entry/voyage-book.glb'))]).then(([shipModel, cityModel, bookModel]) => {
+    // Each asset owns its arrival and disposal. A slow map must not hold the
+    // independently moving ship behind an empty opening screen.
+    void load('/assets/entry/sky-voyage.glb', bytes).then(loaded).catch(failed);
+    void loader.loadAsync(resolveAssetUrl('/assets/entry/voyage-book.glb')).then(bookModel => {
+      if (!this.alive) { dispose(bookModel.scene); return; }
       const clip = bookModel.animations.find(clip => clip.name === 'SV3_BookOpenFlipGlow');
       if (!clip || !bookModel.scene.getObjectByName('SV3_DepartureBook')) {
-        dispose(bookModel.scene); dispose(shipModel.scene); dispose(cityModel.scene); throw new Error('Invalid voyage book model');
+        dispose(bookModel.scene); throw new Error('Invalid voyage book model');
       }
-      if (!this.alive) dispose(bookModel.scene); else this.passengers.setBook(bookModel.scene, clip);
-      if (!this.alive) { dispose(shipModel.scene); dispose(cityModel.scene); return; }
+      this.passengers.setBook(bookModel.scene, clip);
+    }).catch(error => { if (this.alive) console.warn('Voyage departure book unavailable', error); });
+    void load('/assets/entry/sky-city.glb', cityBytes).then(cityModel => {
+      if (!this.alive) { dispose(cityModel.scene); return; }
       const root = cityModel.scene; root.position.set(-1300, -80, -2200); root.scale.setScalar(1.8); this.scene.add(root);
-      root.traverse(o => { if (o instanceof T.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
-      this.city = new VoyageCity(root);
-      const pools: T.Object3D[] = []; root.traverse(o => { if (o.userData.landscape_role === 'decorative water; not simulated fluid') pools.push(o); });
-      const inverse = root.matrixWorld.clone().invert();
-      const specs: WaterSpec[] = pools.map((pool, i) => {
-        const bounds = new T.Box3().setFromObject(pool), size = bounds.getSize(new T.Vector3()).divideScalar(1.8);
-        const p = pool.getWorldPosition(new T.Vector3()).applyMatrix4(inverse); p.y += .42; pool.visible = false;
-        return { kind: 'pool', id: 'city-pool-' + i, center: p.toArray() as [number, number, number], size: [size.x, size.z], depth: 1.2 };
-      });
-      this.water = new VoyageWater(root, specs);
-      this.water.surfaces.forEach((surface, i) => this.city!.islandRoot(pools[i].userData.island_binding)?.attach(surface.mesh));
-      loaded(shipModel);
-    }).catch(failed);
+      try {
+        root.visible = !this.cabinShown;
+        root.updateMatrixWorld(true);
+        root.traverse(o => { if (o instanceof T.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.city = new VoyageCity(root);
+        const pools: T.Object3D[] = []; root.traverse(o => { if (o.userData.landscape_role === 'decorative water; not simulated fluid') pools.push(o); });
+        const inverse = root.matrixWorld.clone().invert();
+        const specs: WaterSpec[] = pools.map((pool, i) => {
+          const bounds = new T.Box3().setFromObject(pool), size = bounds.getSize(new T.Vector3()).divideScalar(1.8);
+          const p = pool.getWorldPosition(new T.Vector3()).applyMatrix4(inverse); p.y += .42; pool.visible = false;
+          return { kind: 'pool', id: 'city-pool-' + i, center: p.toArray() as [number, number, number], size: [size.x, size.z], depth: 1.2 };
+        });
+        this.water = new VoyageWater(root, specs);
+        this.water.surfaces.forEach((surface, i) => this.city!.islandRoot(pools[i].userData.island_binding)?.attach(surface.mesh));
+        this.updateActivity();
+      } catch (error) {
+        this.water?.dispose(); this.water = undefined; this.city = undefined;
+        root.removeFromParent(); dispose(root);
+        throw error;
+      }
+    }).catch(error => { if (this.alive) console.warn('Voyage sky city unavailable', error); });
     this.resize(); this.updateActivity();
   }
-  attach(target: HTMLElement) { target.append(this.canvas); this.resize(); this.updateActivity(); }
+  attach(target: HTMLElement) {
+    // EntryView also reattaches on form changes. A failed/disposed scene must
+    // leave the fallback artwork visible instead of reviving its old buffer.
+    if (!this.alive) return;
+    this.resize();
+    // Render the complete sky and cloud pass before exposing the opaque buffer.
+    // Clearing alone displayed a flat, unfinished blue frame on slow startups.
+    cancelAnimationFrame(this.frame); this.previous = 0;
+    this.draw(performance.now());
+    target.append(this.canvas);
+  }
   setStage(stage: VoyageStage) {
     const previousStage = this.stage;
     const changed = previousStage !== stage;
     if (changed) {
       this.clearMovement(); this.followEye = undefined; this.followAim = undefined; this.inspection = false; this.zoom = 1.2; this.yaw = 0;
+      this.reveal?.setPaused(false);
       this.interactions = []; this.nearInteraction = undefined; this.nearbyEmptySlot = undefined; this.nearbyCharacterId = undefined;
       this.roleDetailOpen = false;
     }
@@ -386,12 +431,21 @@ export class EntryVoyage {
     this.stage = stage;
     if (changed && stage === 'characters' && previousStage !== 'create') {
       this.cabinDeck?.reset(); this.passengers.finishWake(); this.exitArmed=false;
+      if (previousStage === 'channel' && this.deck === this.bowDeck && this.cabinDeck) {
+        const marker = this.model?.getObjectByName('SV3_RouteAnchor_17');
+        const point = marker && this.ship?.worldToLocal(marker.getWorldPosition(new T.Vector3()));
+        if (point) this.cabinDeck.place(point);
+      }
     }
-    if (changed && stage === 'create' && this.createPaper && this.cabinDeck) this.createPaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(2.4, 3.2, -1.0));
+    if (changed && stage === 'create' && this.createPaper && this.cabinDeck && this.ship) this.createPaper.group.position.copy(this.createPaper.group.parent!.worldToLocal(this.ship.localToWorld(this.cabinDeck.position.clone()))).add(new T.Vector3(2.4, 3.2, -1.0));
     if (changed && stage === 'channel' && this.deck) {
-      // A completed login always returns to the open starboard deck. The
-      // portal remains a manual Space interaction along the main deck loop.
-      this.deck.reset();
+      const cabinExit = this.model?.getObjectByName('SV3_RouteAnchor_17');
+      const exit = cabinExit && this.ship?.worldToLocal(cabinExit.getWorldPosition(new T.Vector3()));
+      const deckLanding = this.model?.getObjectByName('SV3_CabinToDeckLanding');
+      const landing = deckLanding && this.ship?.worldToLocal(deckLanding.getWorldPosition(new T.Vector3()));
+      const leavingAtBow = previousStage === 'characters' && exit && landing && this.cabinDeck && exit.distanceTo(this.cabinDeck.position) < 1;
+      this.deck = leavingAtBow ? this.bowDeck : this.mainDeck;
+      if (!(leavingAtBow && landing && this.deck?.place(landing))) this.deck?.reset();
       this.entranceArmed=false;
     }
     const sign=this.model?.getObjectByName('SV3_AdventureSign');if(sign)sign.visible=stage==='channel';
@@ -404,19 +458,28 @@ export class EntryVoyage {
   }
   private showCabin(cabin: boolean) {
     this.cabinShown = cabin;
+    this.cabinExteriorMode = false;
+    this.applyCabinPresentation();
+  }
+  private applyCabinPresentation() {
+    const cabin = this.cabinShown;
+    const exteriorContext = cabin && this.cabinExteriorMode;
+    const outdoor = !cabin || exteriorContext;
     this.cabinLights.visible = cabin;
-    // Frame the standalone cabin against black; the exterior city and sky
-    // decorations are restored by the same transition when leaving it.
+    // The city remains hidden while the selection cabin is active. The sky,
+    // sails and ship shell are restored only after the actual authored door
+    // crossing, so screenshots show one connected ship instead of a detached
+    // exterior card behind the cabin.
     if (this.city) this.city.root.visible = !cabin;
-    this.skyDecor.visible = !cabin;
-    if (this.scene.background instanceof T.Color) this.scene.background.set(cabin ? '#000000' : '#8ecfec');
+    this.skyDecor.visible = outdoor;
+    if (this.scene.background instanceof T.Color) this.scene.background.set(outdoor ? '#8ecfec' : '#000000');
     const sky = this.scene.getObjectByName('VoyageSky') as T.Mesh<T.SphereGeometry, T.ShaderMaterial>;
-    sky.material.uniforms.top.value.set(cabin ? '#000000' : '#62b9e8');
-    sky.material.uniforms.bottom.value.set(cabin ? '#000000' : '#e4f2fb');
+    sky.material.uniforms.top.value.set(outdoor ? '#62b9e8' : '#000000');
+    sky.material.uniforms.bottom.value.set(outdoor ? '#e4f2fb' : '#000000');
     if (this.model) {
       const exterior = this.model.getObjectByName('SV3_Exterior');
       const interior = this.model.getObjectByName('SV3_CabinInterior');
-      if (exterior) exterior.visible = !cabin;
+      if (exterior) exterior.visible = outdoor;
       if (interior) interior.visible = cabin;
       if (this.floorCount) this.floorCount.visible = cabin;
       if (cabin) this.flight?.setTrial(false);
@@ -426,7 +489,23 @@ export class EntryVoyage {
         const wall = this.model.getObjectByName(name);
         if (wall) wall.visible = !cabin;
       }
+      this.model.traverse(node => {
+        const group = node.userData.runtime_hide_group;
+        if (typeof group === 'string') node.visible = this.model!.getObjectByName(group)?.visible ?? true;
+      });
     }
+  }
+  private updateCabinPresentation() {
+    if (!this.cabinShown || !this.cabinDeck) return;
+    const point = this.cabinDeck.position;
+    // Hysteresis prevents a camera or floor correction at the threshold from
+    // flickering the full ship shell while the player is crossing the door.
+    const enterExterior = point.z >= 52.5;
+    const leaveExterior = point.z < 52.1;
+    const next = this.cabinExteriorMode ? !leaveExterior : enterExterior;
+    if (next === this.cabinExteriorMode) return;
+    this.cabinExteriorMode = next;
+    this.applyCabinPresentation();
   }
   private beginTransition(stage: VoyageStage, duration: number) {
     this.transition = { eye: this.camera.position.clone(), aim: this.aim.clone(), fov: this.camera.fov, time: 0, duration, fromCabin: this.cabinShown, toCabin: stage === 'characters' || stage === 'create' };
@@ -460,14 +539,16 @@ export class EntryVoyage {
       const point = parent.worldToLocal(portal.getWorldPosition(new T.Vector3()));
       const material = new T.MeshBasicMaterial({ map: this.portalFrameTextures[0], transparent: true, depthWrite: false, depthTest: true, side: T.DoubleSide, opacity: .94 });
       // The source frames are a vertical light column (roughly 99×138), with
-      // the portal node marking the bottom edge. Keep the authored aspect and
-      // billboard it toward the camera instead of flattening it into a floor
-      // decal.
+      // the portal node marking the bottom edge. Its plane belongs to the
+      // ship, with a fixed local orientation matching its doorway.
       const height = 2.8 / VOYAGE_SHIP_SCALE, width = 1.95 / VOYAGE_SHIP_SCALE;
       const mesh = new T.Mesh(new T.PlaneGeometry(width, height), material);
-      mesh.name = `${portalName}_Original2D`; mesh.position.copy(point); mesh.position.y += height / 2 + .035; parent.add(mesh); this.portalMeshes.push(mesh);
+      mesh.name = `${portalName}_Original2D`; mesh.position.copy(point); mesh.position.y += height / 2 + .035;
+      mesh.rotation.y = parentName === 'SV3_CabinInterior' ? 0 : Math.PI / 2;
+      parent.add(mesh); this.portalMeshes.push(mesh);
     };
     add('SV3_CaptainPortal', 'SV3_Exterior');
+    add('SV3_BowCabinPortal', 'SV3_Exterior');
     add('SV3_CabinDeckPortal', 'SV3_CabinInterior');
   }
   private updatePortalVisuals(delta: number) {
@@ -484,25 +565,22 @@ export class EntryVoyage {
         });
       }
     }
-    // PlaneGeometry faces local +Z. Use the parent-local camera target so the
-    // bottom anchor stays on the authored floor while the column remains
-    // readable from either side of the 2.5D cabin view.
-    const cameraWorld = this.camera.getWorldPosition(new T.Vector3());
-    this.portalMeshes.forEach(mesh => {
-      const parent = mesh.parent;
-      if (!parent) return;
-      parent.updateWorldMatrix(true, false);
-      const direction = parent.worldToLocal(cameraWorld.clone()).sub(mesh.position);
-      mesh.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
-    });
   }
   private installFloorCountLabel() {
     if (!this.ship || !this.model) return;
     const cabin = this.model.getObjectByName('SV3_CabinInterior'); if (!cabin) return;
+    const cabinFloor = cabin.getObjectByName('SV2_CabinFloor');
+    let floorY = -0.025;
+    if (cabinFloor instanceof T.Mesh) {
+      cabinFloor.geometry.computeBoundingBox();
+      const bounds = cabinFloor.geometry.boundingBox;
+      if (bounds) floorY = cabinFloor.position.y + bounds.min.y * cabinFloor.scale.y;
+    }
+    const floorBias = 0.006;
     const canvas = document.createElement('canvas'); canvas.width = 2400; canvas.height = 1100;
     const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; texture.minFilter = T.LinearFilter;
-    const material = new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide });
-    const mesh = new T.Mesh(new T.PlaneGeometry(6.8, 3.12), material); mesh.name = 'SV3_CabinFloorCount'; mesh.position.set(-9.7, 1.8, 47.7); mesh.visible = false; cabin.add(mesh);
+    const material = new T.MeshBasicMaterial({ map: texture, transparent: true, depthTest: true, depthWrite: true, side: T.DoubleSide });
+    const mesh = new T.Mesh(new T.PlaneGeometry(6.8, 3.12), material); mesh.name = 'SV3_CabinFloorCount'; mesh.rotation.x = -Math.PI / 2; mesh.position.set(9.7, floorY + floorBias, 46.3); mesh.visible = false; cabin.add(mesh);
     this.floorCount = mesh; this.floorCountTexture = texture; this.updateFloorCountLabel();
   }
   private installPapers() {
@@ -527,11 +605,12 @@ export class EntryVoyage {
     if (this.stage !== 'characters' || this.nearInteraction !== 'role-details' || !this.nearbyCharacterId) return;
     this.roleDetailOpen = true;
     if (!this.reduced.matches) this.beginTransition('characters', .65);
-    if (this.rolePaper && this.cabinDeck) this.rolePaper.group.position.copy(this.cabinDeck.position).add(new T.Vector3(2.4, 3.0, -1.0));
+    if (this.rolePaper && this.cabinDeck && this.ship) this.rolePaper.group.position.copy(this.rolePaper.group.parent!.worldToLocal(this.ship.localToWorld(this.cabinDeck.position.clone()))).add(new T.Vector3(2.4, 3.0, -1.0));
     this.updateActivity();
   }
   closeRoleDetails() { this.roleDetailOpen = false; if (!this.reduced.matches) this.beginTransition('characters', .65); this.clearMovement(); this.updateActivity(); }
   passengerTime() { return this.animationTime; }
+  preparePassengerFrames(parts: Part[]) { this.passengers.prepareFrames(parts); }
   passengerAction(id: string) { return this.passengers.action(id); }
   passengerSleeping(id: string) { return this.passengers.sleeping(id); }
   setPassengerFrame(id: string, parts: Part[], bounds?: import('./voyage-passengers').DollBounds) { void this.passengers.setFrame(id, parts, bounds); }
@@ -591,9 +670,9 @@ export class EntryVoyage {
   }
   private renderInteractionChoices() {
     let menu = this.host.querySelector<HTMLElement>('.voyage-interaction-choices');
-    if (!menu) { menu = document.createElement('div'); menu.className = 'voyage-interaction-choices'; menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', '选择交互'); this.host.append(menu); }
+    if (!menu) { menu = document.createElement('div'); menu.className = 'voyage-interaction-choices'; menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', text('选择交互', 'Choose interaction')); this.host.append(menu); }
     menu.replaceChildren();
-    const title = document.createElement('p'); title.textContent = '选择交互 · 方向键选择，Space 确认'; menu.append(title);
+    const title = document.createElement('p'); title.textContent = text('选择交互 · 方向键选择，空格确认', 'Choose interaction · Arrow keys to choose, Space to confirm'); menu.append(title);
     this.interactions.forEach((choice, index) => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = choice.label;
       button.setAttribute('aria-pressed', String(index === this.interactionIndex));
@@ -617,13 +696,13 @@ export class EntryVoyage {
     hint.hidden = !active;
     hint.dataset.kind = this.nearInteraction ?? '';
     const label = hint.querySelector<HTMLElement>('[data-role="space-label"]');
-    if (label) label.textContent = this.interactions.length > 1 ? '选择交互' : this.nearInteraction === 'enter-cabin'
-      ? '传送至选角舱'
+    if (label) label.textContent = this.interactions.length > 1 ? text('选择交互', 'Choose interaction') : this.nearInteraction === 'enter-cabin'
+      ? text('传送至选角舱', 'Enter character cabin')
       : this.nearInteraction === 'return-deck'
-        ? '返回甲板'
+        ? this.interactions[0]?.label ?? text('返回主甲板', 'Return to main deck')
         : this.nearInteraction === 'role-details'
-          ? '查看角色'
-          : '创建角色';
+          ? text('查看角色', 'View character')
+          : text('创建角色', 'Create character');
   }
   private draw = (now: number) => {
     if (!this.alive || this.host.hidden || document.hidden) return;
@@ -635,9 +714,16 @@ export class EntryVoyage {
     if (walkingDeck && this.ship && ['channel','characters'].includes(this.stage)) {
       if (this.host.getAttribute('aria-busy') === 'true' && !this.host.classList.contains('voyage-loading')) this.clearMovement();
       const held = (...codes: string[]) => codes.some(code => this.keys.has(code)) ? 1 : 0;
-      if (!this.roleDetailOpen && !this.choosingInteraction && (this.stage!=='characters' || !this.passengers.waking)) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.camera, this.ship);
+      if (!this.roleDetailOpen && !this.choosingInteraction && (this.stage!=='characters' || !this.passengers.waking)) walkingDeck.update(delta, held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), held('ArrowDown', 'KeyS') - held('ArrowUp', 'KeyW'), this.activeCamera, this.ship);
       this.passengers.deckPosition.copy(walkingDeck.position); this.passengers.deckMoving = walkingDeck.moving; this.passengers.deckJumping = walkingDeck.jumping; this.passengers.deckFacing = walkingDeck.facing;
+      this.passengers.deckUpright = this.stage === 'channel' && walkingDeck.onPlatformAccess;
+      if (this.stage === 'characters' && walkingDeck.moving && this.host.getAttribute('aria-busy') !== 'true') {
+        const marker = this.model?.getObjectByName('SV3_RouteAnchor_17');
+        const exit = marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
+        if (exit && exit.distanceTo(walkingDeck.position) < .2 && this.onDeck) { this.onDeck(); return; }
+      }
     }
+    if (this.cabinShown && (this.stage === 'characters' || this.stage === 'create')) this.updateCabinPresentation();
     this.flight?.update(this.reduced.matches ? 0 : delta, this.reduced.matches);
     this.city?.update(delta, this.reduced.matches,1,undefined,this.camera,this.host.clientHeight);
     this.clouds.update(delta, this.reduced.matches);
@@ -646,29 +732,44 @@ export class EntryVoyage {
       this.water?.update(delta);
       this.updateSails(delta, now / 1000);
     }
-    // Billboarding also runs in reduced motion so the first source frame is
-    // readable in a static screenshot; animation timing itself stays paused.
+    // Portal frame timing stays paused with reduced motion; its ship-local plane is fixed.
 
     if (this.model) this.elapsed = Math.min(this.duration, this.elapsed + delta);
     const t = this.elapsed / this.duration;
     // One sun for materials and clouds; concentrate its shadow texels on the current subject.
     const wideShadow = this.shot === 'city' || this.shot === 'far' || this.shot === 'overview' || this.elapsed < 6;
-    const extent = wideShadow ? 1800 : 170, shadowCamera = this.sun.shadow.camera;
+    const nearShadow = this.stage === 'channel' && !this.shot && !this.inspection && this.zoom <= 2.2;
+    const extent = wideShadow ? 1800 : nearShadow ? 40 : 170, shadowCamera = this.sun.shadow.camera;
     if (shadowCamera.right !== extent) {
-      this.sun.target.position.set(wideShadow ? -1300 : 0, wideShadow ? -80 : 0, wideShadow ? -2200 : -30);
-      this.sun.position.copy(this.sun.target.position).add(new T.Vector3(180, 260, 170).multiplyScalar(wideShadow ? 7 : 1));
       Object.assign(shadowCamera, { left: -extent, right: extent, top: extent, bottom: -extent, far: wideShadow ? 8000 : 900 });
       shadowCamera.updateProjectionMatrix();
     }
+    const focus = nearShadow && this.ship && walkingDeck
+      ? this.ship.localToWorld(walkingDeck.position.clone())
+      : new T.Vector3(wideShadow ? -1300 : 0, wideShadow ? -80 : 0, wideShadow ? -2200 : -30);
+    // Snap in light space, so moving the follow camera does not make the
+    // high-resolution shadow texels crawl across the timber.
+    const lightOffset = new T.Vector3(180, 260, 170), lightDirection = lightOffset.clone().normalize();
+    const lightRight = new T.Vector3().crossVectors(new T.Vector3(0, 1, 0), lightDirection).normalize();
+    const lightUp = new T.Vector3().crossVectors(lightDirection, lightRight);
+    const texel = extent * 2 / this.sun.shadow.mapSize.x;
+    focus.addScaledVector(lightRight, Math.round(focus.dot(lightRight) / texel) * texel - focus.dot(lightRight));
+    focus.addScaledVector(lightUp, Math.round(focus.dot(lightUp) / texel) * texel - focus.dot(lightUp));
+    this.sun.target.position.copy(focus);
+    this.sun.position.copy(focus).addScaledVector(lightOffset,wideShadow ? 7 : 1);
     const cabin = this.stage === 'characters' || this.stage === 'create';
+    const authoredCabinPose = (pose: { eye: readonly number[]; aim: readonly number[] }) => {
+      const root = this.model?.getObjectByName('SV3_CabinInterior');
+      return root ? { eye: root.localToWorld(new T.Vector3().fromArray(pose.eye)).toArray(), aim: root.localToWorld(new T.Vector3().fromArray(pose.aim)).toArray() } : shipPose(pose);
+    };
     const compactCreate = this.host.clientWidth < 900 || this.host.clientHeight < 600;
     const createPose = compactCreate
-      ? this.host.clientWidth < 600 ? shipPose({ eye: [8, 10, 57], aim: [0, -6, 39] }) : shipPose({ eye: [13, 9, 55], aim: [5, 0, 39] })
-      : shipPose(poses.cabin);
+      ? this.host.clientWidth < 600 ? authoredCabinPose({ eye: [8, 10, 57], aim: [0, -6, 39] }) : authoredCabinPose({ eye: [13, 9, 55], aim: [5, 0, 39] })
+      : authoredCabinPose(poses.cabin);
     const cabinPose = this.stage === 'characters'
-      ? { eye: [poses.berths.eye[0] * VOYAGE_SHIP_SCALE + this.page * 8.1 * VOYAGE_SHIP_SCALE, 5.8 * VOYAGE_SHIP_SCALE, 48 * VOYAGE_SHIP_SCALE], aim: [poses.berths.aim[0] * VOYAGE_SHIP_SCALE + this.page * 8.1 * VOYAGE_SHIP_SCALE, .5 * VOYAGE_SHIP_SCALE, 43.7 * VOYAGE_SHIP_SCALE] }
+      ? authoredCabinPose({ eye: [poses.berths.eye[0] + this.page * 8.1, 5.8, 48], aim: [poses.berths.aim[0] + this.page * 8.1, .5, 43.7] })
       : createPose;
-    const fixed = this.shot ? poseFor(this.shot) : cabin ? cabinPose : this.stage === 'channel' ? shipPose(poses.channel) : undefined;
+    const fixed = this.shot ? this.shot === 'cabin' || this.shot === 'berths' ? authoredCabinPose(poses[this.shot]) : poseFor(this.shot) : cabin ? cabinPose : this.stage === 'channel' ? shipPose(poses.channel) : undefined;
     const opening = voyageOpeningPose(t);
     const arrival = 1 - smooth(Math.min(1, t / .78));
     const shipOffset = new T.Vector3(-150 * arrival, 0, 220 * arrival);
@@ -685,7 +786,8 @@ export class EntryVoyage {
       this.createPaper.anchor.updateWorldMatrix(true, false);
       const paper = this.createPaper.anchor.getWorldPosition(new T.Vector3());
       const distance = Math.max(18, 9 / this.camera.aspect / (2 * Math.tan(T.MathUtils.degToRad(19))));
-      this.camera.position.copy(paper).add(new T.Vector3(-3, 3, distance)); aim.copy(paper).add(new T.Vector3(-2, 0, 0)); fieldOfView = 38;
+      const rotation = this.createPaper.group.parent!.getWorldQuaternion(new T.Quaternion());
+      this.camera.position.copy(paper).add(new T.Vector3(-3, 3, distance).applyQuaternion(rotation)); aim.copy(paper).add(new T.Vector3(-2, 0, 0).applyQuaternion(rotation)); fieldOfView = 38;
     }
     if (!this.shot && this.stage === 'login' && this.loginSurface && t > .78 && this.ship) {
       // The arrival finishes outside the physical board. Blend to the board
@@ -711,13 +813,22 @@ export class EntryVoyage {
       const x = walkingDeck.position.x, z = walkingDeck.position.z;
       // Each straight side has a stable heading. At a corner the camera rises
       // while a short eased turn completes, rather than rotating along the aisle.
-      const targetYaw = Math.abs(x) >= 6.3 ? (x > 0 ? Math.PI / 2 : -Math.PI / 2) : z < 0 ? Math.PI : 0;
+      // The authored 16 high platform is at the ship's 5.48 m deck level;
+      // keep the wider follow framing for that platform and its stern-side
+      // transfer instead of the retired 15.25 m roof candidate.
+      const upperPlatform = this.stage === 'channel' && walkingDeck.position.y > 5 && z > 9;
+      const targetYaw = this.stage === 'channel' && walkingDeck === this.bowDeck
+        ? Math.PI / 2
+        : upperPlatform
+        ? x > .3 ? Math.PI / 2 : x < -.3 ? -Math.PI / 2 : this.followYaw
+        : Math.abs(x) >= 6.3 ? (x > 0 ? Math.PI / 2 : -Math.PI / 2) : z < 0 ? Math.PI : 0;
       const turn = Math.atan2(Math.sin(targetYaw - this.followYaw), Math.cos(targetYaw - this.followYaw));
       this.followYaw += turn * (this.reduced.matches ? 1 : 1 - Math.exp(-frameDelta * 4));
-      const corner = this.stage === 'channel' ? Math.max(0, 1 - Math.min(Math.abs(z + 8), Math.abs(z - 22)) / 3) : 0;
       let distance = (this.stage === 'characters' ? 42 : Math.min(this.host.clientHeight / 45 / (2 * Math.tan(T.MathUtils.degToRad(19))), 15)) * Math.min(this.zoom, 2.6);
-      let yaw = this.yaw + (this.stage === 'channel' ? this.followYaw : 0);
-      let pitch = this.stage === 'channel' ? Math.max(.56 + corner * .36, this.pitch + .22) : Math.max(.55, this.pitch + .25);
+      const cabinDirection = this.stage === 'characters' && this.model ? new T.Vector3(0, 0, 1).applyQuaternion(cabinRotation(this.model, this.ship)) : undefined;
+      let yaw = this.yaw + (this.stage === 'channel' ? this.followYaw : cabinDirection ? Math.atan2(cabinDirection.x, cabinDirection.z) : 0);
+      let pitch = this.stage === 'channel' ? .26 : Math.max(.48, this.pitch + .16);
+      if (this.stage === 'channel' && walkingDeck.onPlatformAccess) distance *= 1.06;
       if (this.stage === 'characters') { base.y += 1.4; distance *= 1.05; }
       if (this.stage === 'channel' && this.zoom > 2.2 && this.model) {
         if (!this.shipBounds) {
@@ -744,9 +855,9 @@ export class EntryVoyage {
       const offset = new T.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch))
         .applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())).multiplyScalar(distance);
       this.camera.position.copy(base).add(offset);
-      if (this.stage === 'channel' && !this.inspection) this.avoidCameraSurface(base);
+
       aim.copy(base);
-      if (this.stage === 'characters') aim.add(new T.Vector3(0, 3, -3).applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())));
+      if (this.stage === 'characters') aim.add(new T.Vector3(0, 3, -3).applyQuaternion(cabinRotation(this.model!, this.ship)).applyQuaternion(this.ship.getWorldQuaternion(new T.Quaternion())));
       fieldOfView = 38;
       const alpha = this.reduced.matches || !this.followEye ? 1 : 1 - Math.exp(-frameDelta * 6);
       this.followEye ??= this.camera.position.clone(); this.followAim ??= aim.clone();
@@ -769,9 +880,10 @@ export class EntryVoyage {
     }
     this.host.style.setProperty('--voyage-passage', String(passage));
     this.aim.copy(aim); this.camera.lookAt(aim);
-    this.hemisphere.intensity = this.cabinShown ? .14 : .5;
-    this.sun.intensity = this.cabinShown ? .3 : 2.4;
-    this.scene.environmentIntensity = this.cabinShown ? .2 : .65;
+    const outdoorPresentation = !this.cabinShown || this.cabinExteriorMode;
+    this.hemisphere.intensity = outdoorPresentation ? .42 : .14;
+    this.sun.intensity = outdoorPresentation ? 3.1 : .3;
+    this.scene.environmentIntensity = outdoorPresentation ? .5 : .2;
     if (this.camera.fov !== fieldOfView) { this.camera.fov = fieldOfView; this.camera.updateProjectionMatrix(); }
     if (this.ship) {
       this.ship.position.copy(this.shipOrigin).add(shipOffset);
@@ -784,38 +896,53 @@ export class EntryVoyage {
         this.camera.lookAt(aim.clone().add(this.flight.position));
       }
     }
+    const orthographicWalk = this.stage === 'channel' && !this.shot && !this.inspection && this.zoom <= 2.2;
+    this.activeCamera = orthographicWalk ? this.walkCamera : this.camera;
+    if (orthographicWalk) {
+      const halfHeight = T.MathUtils.clamp(this.host.clientHeight / 200, 3.3, 5.5) * this.zoom;
+      this.walkCamera.left = -halfHeight * this.camera.aspect; this.walkCamera.right = halfHeight * this.camera.aspect;
+      this.walkCamera.top = halfHeight; this.walkCamera.bottom = -halfHeight;
+      this.walkCamera.position.copy(this.camera.position); this.walkCamera.quaternion.copy(this.camera.quaternion);
+      this.walkCamera.updateProjectionMatrix(); this.walkCamera.updateMatrixWorld(true);
+    }
+    this.host.classList.toggle('voyage-orthographic-walk', orthographicWalk);
     if (['channel','characters'].includes(this.stage) && !this.shot && walkingDeck && this.ship) {
       this.ship.updateWorldMatrix(true, true);
-      this.camera.updateMatrixWorld(true);
-      this.reveal?.update(this.ship.localToWorld(walkingDeck.position.clone()), this.camera, this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio(), delta * 1000, now);
+      this.activeCamera.updateMatrixWorld(true);
+      const revealPaused = this.stage === 'channel' && this.inspection;
+      this.reveal?.setPaused(revealPaused);
+      if (!revealPaused) this.reveal?.update(this.ship.localToWorld(walkingDeck.position.clone()), this.activeCamera, this.host.clientWidth, this.host.clientHeight, this.renderer.getPixelRatio(), delta * 1000, now, this.passengers.deckBodyHeight);
       const button = this.host.querySelector<HTMLButtonElement>('.voyage-adventure');
       if (button) {
-        const projection=this.adventureSurface && projectLoginSurface(this.adventureSurface,this.camera,{width:this.host.clientWidth,height:this.host.clientHeight},{width:button.offsetWidth || parseFloat(getComputedStyle(button).width),height:button.offsetHeight || parseFloat(getComputedStyle(button).height)});
+        const projection=this.adventureSurface && projectLoginSurface(this.adventureSurface,this.activeCamera,{width:this.host.clientWidth,height:this.host.clientHeight},{width:button.offsetWidth || parseFloat(getComputedStyle(button).width),height:button.offsetHeight || parseFloat(getComputedStyle(button).height)});
         button.hidden=!projection;
         if(projection){button.style.left='0';button.style.top='0';button.style.transform=`matrix3d(${projection.matrix.elements.join(',')})`;}
         button.disabled = this.host.getAttribute('aria-busy') === 'true';
         const quick=this.host.querySelector<HTMLElement>('.voyage-adventure-shortcut');
-        if(quick)quick.hidden=!!projection;
+        if(quick)quick.hidden=false;
       }
       if (!this.choosingInteraction) {
         const previousNearbyCharacter = this.nearbyCharacterId;
         this.interactions = [];
         if (this.host.getAttribute('aria-busy') !== 'true') {
           if (this.stage === 'channel') {
-            const portal = this.model?.getObjectByName('SV3_CaptainPortal');
+            const portal = this.model?.getObjectByName(this.deck === this.bowDeck ? 'SV3_BowCabinPortal' : 'SV3_CaptainPortal');
             const point = portal && this.ship.worldToLocal(portal.getWorldPosition(new T.Vector3()));
-            if (point && point.distanceTo(walkingDeck.position) < 1.15) this.interactions.push({ kind: 'enter-cabin', label: '传送至选角舱' });
+            if (point && point.distanceTo(walkingDeck.position) < (Number(portal?.userData.trigger_radius) || 1.15)) this.interactions.push({ kind: 'enter-cabin', label: text('传送至选角舱', 'Enter character cabin') });
           } else {
             const marker = this.model?.getObjectByName('SV3_CabinDeckPortal');
             const exit = marker && this.ship.worldToLocal(marker.getWorldPosition(new T.Vector3()));
-            if (exit && exit.distanceTo(walkingDeck.position) < 1) this.interactions.push({ kind: 'return-deck', label: '返回甲板' });
+            const deckMarker = this.model?.getObjectByName('SV3_RouteAnchor_17');
+            const deckExit = deckMarker && this.ship.worldToLocal(deckMarker.getWorldPosition(new T.Vector3()));
+            if (deckExit && deckExit.distanceTo(walkingDeck.position) < 1) this.interactions.push({ kind: 'return-deck', label: text('前往船头', 'Go to the bow') });
+            else if (exit && exit.distanceTo(walkingDeck.position) < 1) this.interactions.push({ kind: 'return-deck', label: text('返回主甲板', 'Return to main deck') });
             for (let index = 0; index < Math.min(12, this.slotLimit); index++) {
               const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
               if (!anchor) continue;
-              const point = this.ship.worldToLocal(anchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)); point.y = .025;
+              const point = berthAislePoint(this.model!, this.ship, index)!; point.y = .025;
               if (point.distanceTo(walkingDeck.position) < .95) this.interactions.push(index < this.ids.length
-                ? { kind: 'role-details', label: `查看第 ${index + 1} 床角色`, id: this.ids[index] }
-                : { kind: 'create-character', label: `在第 ${index + 1} 床创建角色`, slot: index });
+                ? { kind: 'role-details', label: text(`查看第 ${index + 1} 床角色`, `View character in berth ${index + 1}`), id: this.ids[index] }
+                : { kind: 'create-character', label: text(`在第 ${index + 1} 床创建角色`, `Create character in berth ${index + 1}`), slot: index });
             }
           }
         }
@@ -828,37 +955,37 @@ export class EntryVoyage {
 
     }
     if (this.floorCount) this.floorCount.visible = this.cabinShown && this.stage === 'characters' && !this.roleDetailOpen;
-    this.camera.updateMatrixWorld(true);
+    this.activeCamera.updateMatrixWorld(true);
     this.updatePortalVisuals(this.reduced.matches ? 0 : delta);
     const travelling = t < 1 && this.stage === 'login';
     this.host.classList.toggle('voyage-travelling', travelling);
     const avatar = this.host.querySelector<HTMLElement>('.voyage-deck-avatar');
     if (avatar && this.ship) {
-      const point = this.ship.localToWorld(this.passengers.deckPosition.clone()).project(this.camera);
+      const point = this.ship.localToWorld(this.passengers.deckPosition.clone()).project(this.activeCamera);
       avatar.style.left = `${(point.x + 1) * 50}%`; avatar.style.top = `${(1 - point.y) * 50}%`;
-      avatar.hidden = travelling || this.stage==='create';
+      avatar.hidden = travelling || this.stage==='create' || this.inspection || this.stage === 'channel' && this.zoom > 2.2;
     }
     const spaceHint = this.host.querySelector<HTMLElement>('.voyage-space-hint');
     const junctionHint = this.host.querySelector<HTMLElement>('.voyage-junction-hint');
     if (junctionHint && this.ship && walkingDeck) {
       const directions = ['channel','characters'].includes(this.stage) && !this.roleDetailOpen && !walkingDeck.jumping
-        ? walkingDeck.junctionDirections(this.camera, this.ship) : [];
+        ? walkingDeck.junctionDirections(this.activeCamera, this.ship) : [];
       junctionHint.hidden = !directions.length;
       junctionHint.querySelectorAll<HTMLImageElement>('[data-direction]').forEach(image => { image.hidden = !directions.includes(image.dataset.direction as typeof directions[number]); });
-      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 2.7, 0))).project(this.camera);
+      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 2.7, 0))).project(this.activeCamera);
       junctionHint.style.left = `${(point.x + 1) * 50}%`; junctionHint.style.top = `${(1 - point.y) * 50}%`;
     }
     if (spaceHint && this.ship && walkingDeck && this.nearInteraction) {
-      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 1.9, 0))).project(this.camera);
+      const point = this.ship.localToWorld(walkingDeck.position.clone().add(new T.Vector3(0, 1.9, 0))).project(this.activeCamera);
       spaceHint.style.left = `${(point.x + 1) * 50}%`;
       spaceHint.style.top = `${(1 - point.y) * 50}%`;
     }
     const draft = this.host.querySelector<HTMLElement>('.entry-create-preview');
     if (draft && this.ship) {
-      const point = this.ship.localToWorld(new T.Vector3(0, .025, 38.8)).project(this.camera);
+      const point = this.ship.localToWorld(cabinPoint(this.model!, this.ship, new T.Vector3(0, .025, 38.8))).project(this.activeCamera);
       draft.style.left = `${(point.x + 1) * 50}%`; draft.style.top = `${(1 - point.y) * 50}%`;
     }
-    if (this.model) this.passengers.update(delta, this.reduced.matches, this.model, this.camera, now);
+    if (this.model) this.passengers.update(delta, this.reduced.matches, this.model, this.activeCamera, now);
     this.host.classList.toggle('voyage-world-avatars', Boolean(this.model));
     const projectedBunks = this.stage === 'characters' && Boolean(this.ship);
     this.host.classList.toggle('voyage-projected-bunks', projectedBunks);
@@ -866,12 +993,13 @@ export class EntryVoyage {
     if (projectedBunks && this.ship) this.host.querySelectorAll<HTMLElement>('[data-berth]').forEach(button => {
       const index = Number(button.dataset.berth), x = -10.8 + index * 1.8;
       const anchor = this.model?.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
-      const point = (anchor ? anchor.getWorldPosition(new T.Vector3()) : this.ship!.localToWorld(new T.Vector3(x, .4, 43))).project(this.camera);
+      const point = (anchor ? anchor.getWorldPosition(new T.Vector3()) : this.ship!.localToWorld(new T.Vector3(x, .4, 43))).project(this.activeCamera);
       const head = this.model?.getObjectByName(`SV2_Bed_${index}_SleepAnchor`)?.getWorldPosition(new T.Vector3());
       if (head) {
-        const top = head.clone().add(new T.Vector3(0, .7, -1)).project(this.camera);
-        const left = head.clone().add(new T.Vector3(-.75, 0, 0)).project(this.camera);
-        const right = head.clone().add(new T.Vector3(.75, 0, 0)).project(this.camera);
+        const rotation = anchor!.getWorldQuaternion(new T.Quaternion());
+        const top = head.clone().add(new T.Vector3(0, .7, -1).applyQuaternion(rotation)).project(this.activeCamera);
+        const left = head.clone().add(new T.Vector3(-.75, 0, 0).applyQuaternion(rotation)).project(this.activeCamera);
+        const right = head.clone().add(new T.Vector3(.75, 0, 0).applyQuaternion(rotation)).project(this.activeCamera);
         button.style.width = `${Math.max(48, Math.abs(right.x - left.x) * this.host.clientWidth / 2)}px`;
         button.style.height = `${Math.max(85, (top.y - point.y) * this.host.clientHeight / 2)}px`;
         button.style.minHeight = '0';
@@ -887,8 +1015,8 @@ export class EntryVoyage {
       const anchor = this.model?.getObjectByName(`SV2_CabinFrontWindow_${String(index).padStart(2, '0')}`);
       if (!anchor) return;
       const center = anchor.getWorldPosition(new T.Vector3()), halfHeight = Number(anchor.userData.glass_height) / 2;
-      const point = center.clone().project(this.camera), top = center.clone().add(new T.Vector3(0, halfHeight, 0)).project(this.camera), bottom = center.clone().add(new T.Vector3(0, -halfHeight, 0)).project(this.camera);
-      const edge = center.clone().add(new T.Vector3(Number(anchor.userData.glass_width) / 2, 0, 0)).project(this.camera);
+      const point = center.clone().project(this.activeCamera), top = center.clone().add(new T.Vector3(0, halfHeight, 0)).project(this.activeCamera), bottom = center.clone().add(new T.Vector3(0, -halfHeight, 0)).project(this.activeCamera);
+      const edge = anchor.localToWorld(new T.Vector3(Number(anchor.userData.glass_width) / 2, 0, 0)).project(this.activeCamera);
       button.style.width = `${Math.max(50, Math.abs(edge.x - point.x) * this.host.clientWidth)}px`;
       button.style.height = `${Math.max(70, (top.y - bottom.y) * this.host.clientHeight / 2)}px`;
       button.style.minHeight = '0'; button.style.left = `${(point.x + 1) * 50}%`; button.style.top = `${(1 - bottom.y) * 50}%`;
@@ -897,13 +1025,15 @@ export class EntryVoyage {
     const exterior = this.model?.getObjectByName('SV3_Exterior');
     const roleElement = this.host.querySelector<HTMLElement>('[data-role="role-details"]') ?? undefined;
     this.rolePaperProjector.set(roleElement, this.rolePaper, this.stage === 'characters' && this.roleDetailOpen && Boolean(this.deckCharacter));
-    this.rolePaperProjector.update(this.camera, { width: this.host.clientWidth, height: this.host.clientHeight });
+    this.rolePaperProjector.update(this.activeCamera, { width: this.host.clientWidth, height: this.host.clientHeight });
     const createElement = this.host.querySelector<HTMLElement>('#create-character') ?? undefined;
     this.createPaperProjector.set(createElement, this.createPaper, this.stage === 'create');
-    this.createPaperProjector.update(this.camera, { width: this.host.clientWidth, height: this.host.clientHeight });
-    const loginVisible = this.stage === 'login' && this.login.update(this.camera, this.loginSurface, exterior ? [exterior] : []);
+    this.createPaperProjector.update(this.activeCamera, { width: this.host.clientWidth, height: this.host.clientHeight });
+    const loginVisible = this.stage === 'login' && this.login.update(this.activeCamera, this.loginSurface, exterior ? [exterior] : []);
     this.host.classList.toggle('voyage-login-visible', loginVisible);
-    this.clouds.render(this.renderer, this.scene, this.camera, this.sun, this.cabinShown ? this.windowLight : undefined);
+    this.solarGlow.update(this.activeCamera.position,lightDirection,this.sun.color,this.sun.intensity);
+    this.solarGlow.visible = outdoorPresentation && !(this.activeCamera instanceof T.OrthographicCamera);
+    this.clouds.render(this.renderer, this.scene, this.activeCamera, this.sun, this.cabinShown && !this.cabinExteriorMode ? this.windowLight : undefined);
     if (!this.reduced.matches || this.keys.size > 0 || walkingDeck?.jumping || this.passengers.waking || this.passengers.hasReturning) this.frame = requestAnimationFrame(this.draw);
   };
   private bindSails(model: T.Group) {
@@ -985,7 +1115,7 @@ export class EntryVoyage {
     this.host.removeEventListener('pointerdown', this.cameraDown); this.host.removeEventListener('pointermove', this.cameraMove);
     this.host.removeEventListener('pointerup', this.cameraUp); this.host.removeEventListener('pointercancel', this.cameraUp);
     this.host.removeEventListener('wheel', this.cameraWheel); this.host.removeEventListener('contextmenu', this.contextMenu);
-    this.cameraObstacles.length=0; this.clearMovement(); this.deck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
+    this.cameraObstacles.length=0; this.clearMovement(); this.mainDeck?.destroy(); this.bowDeck?.destroy(); this.cabinDeck?.destroy(); this.reveal?.destroy();
     this.portalMeshes.forEach(mesh => { mesh.geometry.dispose(); (mesh.material as T.Material).dispose(); mesh.removeFromParent(); });
     this.portalTextures.forEach(texture => texture.dispose()); this.portalMeshes = []; this.portalTextures = [];
     this.floorCount?.geometry.dispose(); (this.floorCount?.material as T.Material | undefined)?.dispose(); this.floorCountTexture?.dispose(); this.floorCount = undefined; this.floorCountTexture = undefined;

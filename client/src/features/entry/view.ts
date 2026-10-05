@@ -50,6 +50,11 @@ export class EntryView {
   private animation?: number;
   private voyage?: EntryVoyage;
   private loadingVoyage = false;
+  private musicPrepared = false;
+  private openingComplete = false;
+  private openingAudioFailed = false;
+  private skipOpening = false;
+  private artStarted = false;
   private profession = 0;
   private createdOnDeck = false;
   private closedFaces: Record<string, Part> = {};
@@ -58,9 +63,9 @@ export class EntryView {
   /** Cash appearance layers whose file failed; never refetched this session. */
   private appearanceLayerFailures = new Set<string>();
   constructor(private host: HTMLElement, private enter: (session: LoginResponse, ready: () => Promise<boolean>) => Promise<void>, private music?: EntryMusic) {
-    if (music) music.onChange = () => this.updateMusicButton();
+    if (music) music.onChange = () => { this.updateMusicButton(); if (!this.openingComplete) this.loadVoyage(); };
     this.render();
-    void this.loadArt();
+    void this.prepareOpening();
     // 进入首页就**静默核对一次发布**：本页若已经陈旧（服务端在发布时于本页脚下
     // 换了一代，或这次载入拿到的是被缓存的旧 HTML/旧包），立刻收敛到服务端当前
     // 发布，不必等玩家点「登录」才把「请刷新页面」摆到脸上。
@@ -68,12 +73,34 @@ export class EntryView {
     // 不会多跳；`typeof` 兜底让没有 `location` 的 node 离线检查照旧能装载本模块。
     if (typeof location === 'object') void healStalePage(browserHealDeps(location.href));
   }
+  private async prepareOpening() {
+    try {
+      if (this.music) {
+        const response = await fetch(resolveAssetUrl('/assets/entry/voyage-music.json'), { priority: 'high', signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error('Voyage music metadata unavailable');
+        const { bgm } = await response.json();
+        if (typeof bgm !== 'string' || !bgm.startsWith('/assets/')) throw new Error('Invalid voyage music');
+        await this.music.setTrack(bgm);
+      }
+    } catch { this.openingAudioFailed = true; /* Missing music never disables login. */ }
+    this.musicPrepared = true;
+    this.loadVoyage();
+    void this.loadArt();
+  }
   private loadVoyage() {
-    if (this.voyage || this.loadingVoyage || this.host.hidden) return;
+    if (this.host.hidden) return;
+    const audible = this.openingComplete || this.openingAudioFailed || !this.music || this.music.openingReady;
+    this.host.classList.toggle('voyage-awaiting-audio', !audible);
+    const opening = this.host.querySelector<HTMLElement>('.voyage-audio-opening');
+    if (opening) opening.hidden = audible || !this.music?.needsGesture;
+    if (!this.musicPrepared && !this.music?.muted) return;
+    if (!audible || this.voyage || this.loadingVoyage) return;
+    this.openingComplete = true;
+    void this.loadArt();
     this.loadingVoyage = true;
     void import('./voyage').then(({ EntryVoyage }) => {
       if (this.host.hidden) return;
-      this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); else this.renderPreviews(); });
+      this.voyage = new EntryVoyage(this.host, error => { if (error) this.setNote(error, true); else { this.renderPreviews(); if (this.skipOpening) this.voyage?.skip(); } });
       this.voyage.onAdventure = () => { if (!this.busy) void this.run(() => this.startGame()); };
       this.voyage.onCabin=()=>{if(!this.busy)this.go('characters');};
       this.voyage.onDeck=()=>{if(!this.busy)this.go('channel');};
@@ -87,13 +114,13 @@ export class EntryView {
       .finally(() => { this.loadingVoyage = false; });
   }
   private async loadArt() {
+    if (this.artStarted) return;
+    this.artStarted = true;
     try {
       const [artResponse, manifestResponse, catalogResponse, appearanceResponse, sleepResponse] = await Promise.all([fetch(resolveAssetUrl('/assets/entry/manifest.json')), fetch(resolveAssetUrl('/assets/manifest.json')), fetch(resolveAssetUrl('/assets/entry/creation.json')), fetch(resolveAssetUrl('/assets/entry/appearance.json')), fetch(resolveAssetUrl('/assets/entry/voyage-sleep.json'))]);
       if (!artResponse.ok || !manifestResponse.ok) throw new Error(text('登录素材加载失败，请刷新重试。', 'Unable to load entry artwork. Refresh to retry.'));
       this.assets = await artResponse.json();
       this.manifest = await manifestResponse.json();
-      const bgm = this.manifest?.mapCatalog?.maps.find(map => map.id === '200000000')?.bgm;
-      if (bgm) this.music?.setTrack(bgm);
       if (!catalogResponse.ok) throw new Error(text('创角配置加载失败，请刷新重试。', 'Unable to load character creation options.'));
       this.catalog = await catalogResponse.json();
       if (!appearanceResponse.ok) throw new Error("角色外观资源加载失败");
@@ -170,12 +197,14 @@ export class EntryView {
     const ready = this.host.classList.contains('entry-voyage-ready');
     const unavailable = this.host.classList.contains('voyage-unavailable');
     this.voyage?.canvas.remove();
-    this.host.className = `entry entry-voyage entry-stage-${this.stage}${ready ? ' entry-voyage-ready' : ''}${unavailable ? ' voyage-unavailable' : ''}${this.createdOnDeck && this.stage === 'channel' ? ' voyage-leaving-cabin' : ''}`;
+    this.host.className = `entry entry-voyage entry-stage-${this.stage}${ready ? ' entry-voyage-ready' : ''}${unavailable ? ' voyage-unavailable' : ''}${!this.openingComplete ? ' voyage-awaiting-audio' : ''}${this.createdOnDeck && this.stage === 'channel' ? ' voyage-leaving-cabin' : ''}`;
     document.body.classList.add('entry-active');
-    this.host.innerHTML = `<div class="entry-background" aria-hidden="true"></div><div class="entry-brand">${text('冒险岛', 'MapleStory')}<small>TMS 273.7 · ${text('天空航船', 'Sky Voyage')}</small></div><div class="entry-top-tools">${this.stage === 'login' ? `<button type="button" class="entry-icon-button" data-action="skip-voyage" aria-label="${text('跳过航程', 'Skip voyage')}" title="${text('跳过开场航程', 'Skip opening voyage')}">${SKIP_ICON}<span class="entry-sr-only">${text('跳过航程', 'Skip voyage')}</span></button>` : ''}${this.music ? `<button type="button" class="entry-icon-button entry-music-button" data-action="entry-music" aria-pressed="false">${MUSIC_ON_ICON}<span class="entry-sr-only">${text('音乐：开', 'Music: on')}</span></button>` : ''}</div><div class="entry-scene">${this.stage === 'login' ? this.loginMarkup() : this.stage === 'channel' ? this.channelMarkup() : this.stage === 'characters' ? this.charactersMarkup() : this.createMarkup()}</div><nav class="entry-navigation" aria-label="${text('大厅导航', 'Lobby navigation')}">${this.stage !== 'login' ? `<button type="button" data-action="first">‹ ${text('切换登录', 'Switch login')}</button><button type="button" data-action="back">‹ ${text('返回', 'BACK')}</button>` : ''}</nav><p class="entry-notice${this.error ? ' entry-error' : ''}" role="status"${this.note ? '' : ' hidden'}>${escape(this.note)}</p><div class="entry-edition">${text('天空之城航线', 'Route to Orbis')} · <a href="https://poly.pizza/m/dw-IMS0xk71" target="_blank" rel="noreferrer">Wings: Michael Fuchs</a> (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>, scaled/recolored)</div>`;
+    this.host.innerHTML = `<div class="entry-background" aria-hidden="true"></div><div class="entry-brand">${text('冒险岛', 'MapleStory')}<small>TMS 273.7 · ${text('天空航船', 'Sky Voyage')}</small></div><div class="entry-top-tools">${this.stage === 'login' ? `<button type="button" class="entry-icon-button" data-action="skip-voyage" aria-label="${text('跳过航程', 'Skip voyage')}" title="${text('跳过开场航程', 'Skip opening voyage')}">${SKIP_ICON}<span class="entry-sr-only">${text('跳过航程', 'Skip voyage')}</span></button>` : ''}${this.music ? `<button type="button" class="entry-icon-button entry-music-button" data-action="entry-music" aria-pressed="false">${MUSIC_ON_ICON}<span class="entry-sr-only">${text('音乐：开', 'Music: on')}</span></button>` : ''}</div><div class="voyage-audio-opening"${!this.openingComplete && this.music?.needsGesture ? '' : ' hidden'}><button type="button" data-action="begin-voyage">${text('点击启程', 'Begin voyage')}</button></div><div class="entry-scene">${this.stage === 'login' ? this.loginMarkup() : this.stage === 'channel' ? this.channelMarkup() : this.stage === 'characters' ? this.charactersMarkup() : this.createMarkup()}</div><nav class="entry-navigation" aria-label="${text('大厅导航', 'Lobby navigation')}">${this.stage !== 'login' ? `<button type="button" data-action="first">‹ ${text('切换登录', 'Switch login')}</button><button type="button" data-action="back">‹ ${text('返回', 'BACK')}</button>` : ''}</nav><p class="entry-notice${this.error ? ' entry-error' : ''}" role="status"${this.note ? '' : ' hidden'}>${escape(this.note)}</p><div class="entry-edition">${text('天空之城航线', 'Route to Orbis')} · <a href="https://poly.pizza/m/dw-IMS0xk71" target="_blank" rel="noreferrer">Wings: Michael Fuchs</a> (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>, scaled/recolored)</div>`;
     this.renderBackground();
     const background = this.host.querySelector<HTMLElement>('.entry-background');
-    if (background && this.voyage) { this.voyage.attach(background); this.voyage.setStage(this.stage); }
+    // attach() renders synchronously. Change the scene stage first so an
+    // automatic cabin exit cannot redraw its old stage and re-enter onDeck.
+    if (background && this.voyage) { this.voyage.setStage(this.stage); this.voyage.attach(background); }
     this.voyage?.setPassengers(this.characters.map(c => c.id), this.selected, this.page, this.slotLimit);
     this.bind();
     this.host.querySelector<HTMLButtonElement>('[data-action="entry-music"]')?.addEventListener('click', () => this.music!.setMuted(!this.music!.muted));
@@ -189,7 +218,7 @@ export class EntryView {
   private loginMarkup() {
     let savedId = '';
     try { savedId = localStorage.getItem('maple-saved-id') ?? ''; } catch { /* Optional preference. */ }
-    return `<form id="login" class="entry-login entry-glass"><h1>${this.register ? text('创建账号', 'Create Account') : text('冒险岛', 'MapleStory')}</h1><div class="entry-login-fields"><label class="entry-sr-only" for="username">Maple ID</label><input id="username" name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_\\-]{3,32}" placeholder="Maple ID" value="${escape(savedId)}"><label class="entry-save"><input type="checkbox" id="save-id"${savedId ? ' checked' : ''}> ${text('记住账号', 'Save ID')}</label><label class="entry-sr-only" for="password">${text('密码', 'Password')}</label><input id="password" name="password" type="password" autocomplete="${this.register ? 'new-password' : 'current-password'}" required minlength="8" maxlength="128" placeholder="${text('密码（至少8位）', 'Password (at least 8 characters)')}"></div><button class="entry-primary" id="submit" type="submit">${this.register ? text('注册', 'Register') : text('开始游戏', 'Start game')}</button><div class="entry-login-links"><button type="button" id="mode">${this.register ? text('返回登录', 'Back to Log In') : text('注册账号', 'Create Account')}</button><span>|</span><button type="button" data-action="help">${text('帮助', 'Help')}</button><span>|</span><button type="button" data-action="language">${uiLocale() === 'en' ? '简体中文' : 'English'}</button></div></form>`;
+    return `<form id="login" class="entry-login entry-glass"><h1><span>${this.register ? text('创建账号', 'Create Account') : text('冒险岛', 'MapleStory')}</span><small>${this.register ? 'CREATE ACCOUNT' : 'MAPLESTORY'}</small></h1><div class="entry-login-fields"><label class="entry-sr-only" for="username">Maple ID</label><input id="username" name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_\\-]{3,32}" placeholder="Maple ID" value="${escape(savedId)}"><label class="entry-save"><input type="checkbox" id="save-id"${savedId ? ' checked' : ''}> ${text('记住账号', 'Save ID')}</label><label class="entry-sr-only" for="password">${text('密码', 'Password')}</label><input id="password" name="password" type="password" autocomplete="${this.register ? 'new-password' : 'current-password'}" required minlength="8" maxlength="128" placeholder="${text('密码（至少8位）', 'Password (at least 8 characters)')}"></div><button class="entry-primary" id="submit" type="submit"><span>${this.register ? text('注册', 'Register') : text('开始游戏', 'Start game')}</span><small>${this.register ? 'CREATE ACCOUNT' : 'START GAME'}</small></button><div class="entry-login-links"><button type="button" id="mode">${this.register ? text('返回登录', 'Back to Log In') : text('注册账号', 'Create Account')}</button><span>|</span><button type="button" data-action="help">${text('帮助', 'Help')}</button><span>|</span><button type="button" data-action="language">${uiLocale() === 'en' ? '简体中文' : 'English'}</button></div></form>`;
   }
   private worldBadge() { return `<div class="entry-world-badge entry-glass"><span class="entry-world-emblem">🍁</span><div>${text('冒险岛', 'Maple World')}<small>CH. 1 · ${text('主频道', 'Main channel')}</small></div></div>`; }
   private junctionMarkup() {
@@ -202,7 +231,11 @@ export class EntryView {
   private channelMarkup() {
     const character = this.characters.find(item => item.id === this.selected);
     const unavailable = character ? '' : ' data-unavailable="true"';
-    return `${character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span></div>` : ''}${this.junctionMarkup()}<div class="voyage-space-hint" hidden><kbd>Space</kbd><span data-role="space-label">${text('传送至选角舱', 'Enter selection cabin')}</span></div><button class="entry-primary voyage-adventure" data-action="quick"${unavailable}>${text('开始冒险', 'Begin adventure')}</button><div class="voyage-adventure-shortcut" hidden><button type="button" class="voyage-return-login" data-action="first" aria-label="${text('返回登录', 'Return to login')}">‹<span>${text('返回登录', 'LOGIN')}</span></button><button type="button" class="voyage-start-adventure" data-action="quick"${unavailable}>${text('开始冒险', 'Begin adventure')}</button></div>`;
+    return `${character ? `<div class="voyage-deck-avatar"><div class="entry-avatar" data-character="${character.id}"></div><span class="entry-nameplate">${escape(character.name)}</span></div>` : ''}${this.junctionMarkup()}<div class="voyage-space-hint" hidden><kbd>${text('空格', 'Space')}</kbd><span data-role="space-label">${text('传送至选角舱', 'Enter selection cabin')}</span></div><button class="entry-primary voyage-adventure voyage-art-button" data-action="quick"${unavailable} aria-label="${text('开始冒险', 'Begin adventure')}"><img src="${resolveAssetUrl('/assets/entry/entry-begin-adventure.png')}" alt="${text('开始冒险', 'Begin adventure')}"></button>${this.adventureActionsMarkup()}`;
+  }
+  private adventureActionsMarkup() {
+    const unavailable = this.characters.some(item => item.id === this.selected) ? '' : ' data-unavailable="true"';
+    return `<div class="voyage-adventure-shortcut"><button type="button" class="voyage-return-login voyage-art-button" data-action="first" aria-label="${text('返回登录', 'Return to login')}"><span class="voyage-back-arrow" aria-hidden="true">‹</span><img src="${resolveAssetUrl('/assets/entry/entry-return-login.png')}" alt="${text('返回登录', 'Return to login')}"></button><button type="button" class="voyage-start-adventure voyage-art-button" data-action="quick"${unavailable} aria-label="${text('开始冒险', 'Begin adventure')}"><img src="${resolveAssetUrl('/assets/entry/entry-begin-adventure.png')}" alt="${text('开始冒险', 'Begin adventure')}"></button></div>`;
   }
   private charactersMarkup() {
     const slots = Array.from({ length: this.slotLimit }, (_, index) => {
@@ -210,7 +243,7 @@ export class EntryView {
       return character ? `<div class="entry-character" data-berth="${index}"><div class="entry-avatar" data-character="${character.id}"></div><strong>${escape(character.name)}</strong><span>Lv. ${character.level}</span></div>` : `<div class="entry-character entry-empty" data-berth="${index}" aria-label="${text('空床位', 'Empty berth')}"><div class="entry-avatar" data-empty="true"></div></div>`;
     }).join('');
     const active = this.characters.find(c => c.id === this.selected);
-    return `${active ? `<div class="voyage-deck-avatar"><span class="entry-nameplate">${escape(active.name)}</span></div>` : ''}<aside class="voyage-role-details" data-role="role-details"><h2>${active ? escape(active.name) : ''}</h2><dl><dt>${text('等级', 'Level')}</dt><dd>${active?.level ?? ''}</dd><dt>${text('职业', 'Job')}</dt><dd>${active ? escape(jobName(active.job)) : ''}</dd></dl><div class="voyage-paper-actions"><button type="button" data-action="close-role">${text('收起', 'Close')}</button><button type="button" class="entry-primary" data-action="enter">${text('开始冒险', 'Begin adventure')}</button></div></aside>${this.junctionMarkup()}<div class="voyage-space-hint" hidden><kbd>Space</kbd><span data-role="space-label">${text('查看角色', 'View character')}</span></div><section class="entry-character-stage" aria-label="${text('角色选择', 'Character selection')}"><div class="entry-character-grid">${slots}</div></section>`;
+    return `${active ? `<div class="voyage-deck-avatar"><span class="entry-nameplate">${escape(active.name)}</span></div>` : ''}<aside class="voyage-role-details" data-role="role-details"><h2>${active ? escape(active.name) : ''}</h2><dl><dt>${text('等级', 'Level')}</dt><dd>${active?.level ?? ''}</dd><dt>${text('职业', 'Job')}</dt><dd>${active ? escape(jobName(active.job)) : ''}</dd></dl><div class="voyage-paper-actions"><button type="button" data-action="close-role">${text('收起', 'Close')}</button><button type="button" class="entry-primary voyage-art-button" data-action="enter" aria-label="${text('开始冒险', 'Begin adventure')}"><img src="${resolveAssetUrl('/assets/entry/entry-begin-adventure.png')}" alt="${text('开始冒险', 'Begin adventure')}"></button></div></aside>${this.junctionMarkup()}<div class="voyage-space-hint" hidden><kbd>${text('空格', 'Space')}</kbd><span data-role="space-label">${text('查看角色', 'View character')}</span></div>${this.adventureActionsMarkup()}<section class="entry-character-stage" aria-label="${text('角色选择', 'Character selection')}"><div class="entry-character-grid">${slots}</div></section>`;
   }
   private createMarkup() {
     const classes = [['战士', 'Warrior'], ['法师', 'Magician'], ['弓手', 'Bowman'], ['盗贼', 'Thief']];
@@ -268,8 +301,9 @@ export class EntryView {
     button.dataset.state = muted ? 'off' : 'on';
   }
   private action(action: string) {
+    if (action === 'begin-voyage') { this.music?.begin(); return; }
     if (action === 'close-role') return this.voyage?.closeRoleDetails();
-    if (action === 'skip-voyage') return this.voyage?.skip();
+    if (action === 'skip-voyage') { this.skipOpening = true; return this.voyage?.skip(); }
     if (action === 'help') return this.setNote(text('账号：3–32位英文字母、数字、_或-。密码至少8位。首次游玩请注册，再创建冒险家角色。', 'ID: 3–32 ASCII letters, digits, _ or -. Password: at least 8 characters. Register an account, then create an Explorer.'));
     if (action === 'language') { const url = new URL(location.href); url.searchParams.set('lang', uiLocale() === 'en' ? 'zh' : 'en'); location.assign(url); return; }
     if (action === 'first') return this.showLogin();
@@ -362,8 +396,9 @@ export class EntryView {
       const actions = look && this.avatarCatalog ? composeAppearance(this.avatarCatalog, look, equipped, { weaponType }) : undefined;
       const frames = target.dataset.empty ? this.assets?.effects?.empty.map(frame => ({ delay: frame.delay, parts: [frame] })) : actions?.stand;
       const parts = ['stand','walk','sit','jump'].flatMap(action => (actions?.[action as 'stand'|'walk'|'sit'|'jump'] ?? []).flatMap(frame=>frame.parts));
+      this.voyage?.preparePassengerFrames(parts);
       const bounds = parts.length ? { left: Math.min(...parts.map(p=>p.x)), top: Math.min(...parts.map(p=>p.y)), right: Math.max(...parts.map(p=>p.x+(p.width??0))), bottom: Math.max(...parts.map(p=>p.y+(p.height??0))) } : undefined;
-      return { target, frames, actions, bounds, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '' };
+      return { target, frames, actions, bounds, face: look?.face, id: target.dataset.draft ? 'draft' : character?.id, index: -1, action: '', actionStartedAt: 0, faceState: '' };
     });
     for(const character of this.characters) {
       if(previews.some(p=>p.id===character.id))continue;
@@ -372,8 +407,9 @@ export class EntryView {
       const actions=composeAppearance(this.avatarCatalog,look,equipped,{weaponType:appearanceWeaponType(this.avatarCatalog,equipped,look.weapon)});
       if(!actions)continue;
       const parts=['stand','walk','sit','jump'].flatMap(a=>(actions[a as 'stand'|'walk'|'sit'|'jump']??[]).flatMap(f=>f.parts));
+      this.voyage?.preparePassengerFrames(parts);
       const bounds=parts.length ? {left:Math.min(...parts.map(p=>p.x)),top:Math.min(...parts.map(p=>p.y)),right:Math.max(...parts.map(p=>p.x+(p.width??0))),bottom:Math.max(...parts.map(p=>p.y+(p.height??0)))} : undefined;
-      previews.push({target:document.createElement('div'),frames:actions.stand,actions,bounds,face:look.face,id:character.id,index:-1,action:''});
+      previews.push({target:document.createElement('div'),frames:actions.stand,actions,bounds,face:look.face,id:character.id,index:-1,action:'',actionStartedAt:0,faceState:''});
     }
     for (const target of Array.from(this.host.querySelectorAll<HTMLElement>('[data-instructor]'))) {
       const npc = this.manifest?.npcs?.[target.dataset.instructor!];
@@ -388,15 +424,20 @@ export class EntryView {
         const frames = avatarFrames ?? preview.frames;
         if (!frames?.length) continue;
         const duration = frames.reduce((sum, frame) => sum + Math.max(1, frame.delay ?? 100), 0);
-        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches && action !== 'walk' ? 0 : (this.voyage?.passengerTime() ?? now) % duration;
+        // Sprite timing follows elapsed browser time, independently of the 3D
+        // simulation's capped delta and the selected role's previous action.
+        if (preview.action !== action) preview.actionStartedAt = now;
+        let elapsed = matchMedia('(prefers-reduced-motion: reduce)').matches && action !== 'walk' ? 0 : (now - preview.actionStartedAt) % duration;
         let index = 0;
         while (index < frames.length - 1 && elapsed >= Math.max(1, frames[index].delay ?? 100)) elapsed -= Math.max(1, frames[index++].delay ?? 100);
-        if (preview.index === index && preview.action === action) continue;
-        preview.index = index; preview.action = action;
+        const sleeping = Boolean(preview.id && this.voyage?.passengerSleeping(preview.id));
+        const closed = preview.face && this.closedFaces[String(preview.face)];
+        const faceState = sleeping && closed ? closed.url : 'awake';
+        if (preview.index === index && preview.action === action && preview.faceState === faceState) continue;
+        preview.index = index; preview.action = action; preview.faceState = faceState;
         if (preview.id && avatarFrames) {
-          const closed = preview.face && this.closedFaces[String(preview.face)];
           const parts = avatarFrames[index].parts.map(part => {
-            if (!closed || !this.voyage?.passengerSleeping(preview.id!) || !('part' in part) || part.part !== 'face') return part;
+            if (!closed || !sleeping || !('part' in part) || part.part !== 'face') return part;
             const brow = part.map?.brow, sleepBrow = closed.map?.brow;
             if (!brow || !sleepBrow) return part;
             return { ...part, ...closed, key: closed.url, x: part.x + part.origin.x + brow.x - closed.origin.x - sleepBrow.x, y: part.y + part.origin.y + brow.y - closed.origin.y - sleepBrow.y };

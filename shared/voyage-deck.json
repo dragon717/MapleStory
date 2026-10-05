@@ -1,21 +1,21 @@
 {
-  "source": "SV3_MainDeck_Surface supports the closed main-deck loop; ship-local glTF metres; original hull supplies rail and shell collision",
+  "source": "Original main-deck closed loop; cabin end opening transfers to the separate bow slope and tapered platform",
   "spawn": "右舷登船位",
   "nodes": {
     "右舷前端": [
-      6.5,
+      7.35,
       -11
     ],
     "右舷路口": [
-      6.5,
+      7.35,
       -8
     ],
     "右舷登船位": [
-      6.5,
+      7.35,
       12
     ],
     "右舷后端": [
-      6.5,
+      7.35,
       22
     ],
     "左舷前端": [
@@ -35,6 +35,7 @@
     {
       "name": "主甲板回形环路",
       "closed": true,
+      "contract": "原主甲板回形环路；不连船头，不生成额外船头道路",
       "nodes": [
         "右舷登船位",
         "右舷后端",
@@ -45,9 +46,70 @@
       ]
     }
   ],
+  "cabinRoute": {
+    "contract": "09→12床前点→17端墙开口；移除窗墙绕行通道，17出舱到船头坡底，主甲板不接船头",
+    "spawn": [
+      5.4,
+      40,
+      0.05
+    ],
+    "nodes": {
+      "17": [
+        5.4,
+        26.9,
+        0.05
+      ],
+      "18": [
+        5.4,
+        40,
+        0.05
+      ],
+      "09": [
+        5.4,
+        53.1,
+        0.05
+      ]
+    },
+    "floorRoots": [
+      "SV2_CabinFloor"
+    ],
+    "bedAisle": {
+      "anchorOffset": [
+        0,
+        0,
+        0.6
+      ],
+      "doorFacing": true,
+      "order": "zDescending",
+      "sourceAisleLocalZ": 45.4
+    },
+    "route": [
+      "09",
+      "bedAisle",
+      "17"
+    ],
+    "deckExit": {
+      "mode": "walk-through-bow-transfer",
+      "target": [
+        0,
+        -42.4,
+        6.8
+      ],
+      "contract": "17开口传送到船头斜坡下端，沿斜坡走上由宽收窄的平台；不是原主甲板"
+    },
+    "sideOpenings": {
+      "sourceAisleZ": 45.4,
+      "width": 3.2,
+      "height": 6.2,
+      "sourceX": [
+        -13.5,
+        13.5
+      ]
+    }
+  },
   "surface": {
-    "mesh": "SV3_MainDeck_Surface",
-    "height": 5.48,
+    "mesh": "SV3_Hull",
+    "height": 5.4,
     "thickness": 0.14,
     "outline": [
       [
@@ -90,6 +152,97 @@
       "zMax": 18.25
     },
     "bodyRadius": 0.32,
-    "bodyHeight": 1.8
+    "bodyHeight": 1.8,
+    "retainedSurfaces": [],
+    "heightSource": "original Hull deck triangles; runtime probes actual height"
+  },
+  "cabinFrame": {
+    "pivot": [
+      0,
+      0,
+      40
+    ],
+    "rotationYRadians": 1.5707963267948966,
+    "contract": "从上方看绕舱中心逆时针90°；窗墙转到左舷，床线沿船长，右端门转到靠主甲板的前端",
+    "translation": [
+      0,
+      0,
+      0
+    ],
+    "shipCenter": [
+      0,
+      0,
+      40
+    ]
+  },
+  "bowRoute": {
+    "contract": "独立船头15斜坡→16较高平台→08收窄围栏前端；不连接主甲板环路",
+    "floorRoots": [
+      "SV3_BowPlatform_Deck"
+    ],
+    "blockerRoots": [
+      "SV3_BowPlatform_Rails"
+    ],
+    "spawn": [
+      0,
+      -42.4,
+      6.8
+    ],
+    "nodes": [
+      [
+        0,
+        -42.4,
+        6.8
+      ],
+      [
+        0,
+        -48,
+        7.65
+      ],
+      [
+        0,
+        -62,
+        7.65
+      ],
+      [
+        0,
+        -69,
+        7.65
+      ]
+    ],
+    "stations": [
+      [
+        -41.5,
+        6.65,
+        3.6
+      ],
+      [
+        -42,
+        6.65,
+        3.6
+      ],
+      [
+        -48,
+        7.65,
+        3.1
+      ],
+      [
+        -56,
+        7.65,
+        2.25
+      ],
+      [
+        -64,
+        7.65,
+        1.5
+      ],
+      [
+        -70,
+        7.65,
+        0.95
+      ]
+    ],
+    "thickness": 0.32,
+    "railHeight": 0.95
   }
 }

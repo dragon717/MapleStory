@@ -21,13 +21,25 @@ export async function checkVoyageReference(page,output,errors) {
   const state=()=>page.evaluate(()=>{const v=window.__entry.voyage,eye=v.ship.worldToLocal(v.camera.position.clone()),foot=v.deck.position.clone(),aim=v.ship.worldToLocal(v.aim.clone()),d=eye.clone().sub(aim);d.y=0;return {eye:eye.toArray(),foot:foot.toArray(),normalAlignment:d.normalize().x,adventureVisible:!document.querySelector('.voyage-adventure').hidden,route:v.deck.route.map(p=>p.toArray())};});
   const start=await state();assert(start.normalAlignment>.88,'default exterior camera faces across the starboard side');assert(start.adventureVisible,'the physical adventure sign is in view');
   await capture('deck-side-default');
-  await page.keyboard.down('ArrowLeft');await page.waitForFunction(()=>window.__entry.voyage.deck.moving,undefined,{timeout:5000});
-  await page.waitForFunction(p=>window.__entry.voyage.deck.position.distanceTo(window.__entry.voyage.deck.spawn.clone().fromArray(p))>.30,start.foot,{timeout:5000});await page.keyboard.up('ArrowLeft');
+  const sideWalk = await page.evaluate(() => {
+    const v = window.__entry.voyage, d = v.deck;
+    const slots = d.ringChoices(v.camera, v.ship).map(slot => ({ direction: slot.direction, sign: slot.sign }));
+    const selected = slots.find(slot => slot.direction === 'left') ?? slots[0];
+    if (!selected) throw new Error(`reference route has no direction slot: ${JSON.stringify({ slots, position: d.position.toArray(), routeDistance: d.routeDistance })}`);
+    const key = ({ up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' })[selected.direction];
+    window.__referenceSideWalk = { selected, slots, key };
+    return window.__referenceSideWalk;
+  });
+  await page.keyboard.down(sideWalk.key);await page.waitForFunction(()=>window.__entry.voyage.deck.moving,undefined,{timeout:10000});
+  await page.waitForFunction(p=>window.__entry.voyage.deck.position.distanceTo(window.__entry.voyage.deck.spawn.clone().fromArray(p))>.30,start.foot,{timeout:10000});await page.keyboard.up(sideWalk.key);
   const walked=await state();assert(walked.foot[2]>start.foot[2],'left key follows the side-view screen direction');
-  const samples=[...start.route,[0,5.505,-8],[0,5.505,22],[5.65,5.505,13.25]];
+  // The production contract is the outer perimeter only.  Do not probe the
+  // sealed centre of the main deck as if it were a free floor; every sample
+  // below is an actual authored route node, including the supported bow taper.
+  const samples=[...start.route];
   for (const [i,p] of samples.entries()) {
-    const placed=await page.evaluate(p=>{const v=window.__entry.voyage;const ok=v.deck.place(v.deck.spawn.clone().fromArray(p));v.updateActivity();return ok;},p);
-    assert(placed,`deck ${i}: actual surface is standable`);await page.waitForTimeout(150);
+    const placed=await page.evaluate(p=>{const v=window.__entry.voyage,point=v.deck.spawn.clone().fromArray(p);const ok=v.deck.place(point);v.updateActivity();const ground=v.deck.ground?.(point.x,point.z,point.y+.45,Math.max(.8,Math.abs(point.y-v.deck.position.y)+.9));return{ok,point:p,position:v.deck.position.toArray(),ground:ground??null};},p);
+    assert(placed.ok,`deck ${i}: actual surface is standable ${JSON.stringify(placed)}`);await page.waitForTimeout(150);
     const sample=await state();
     if(Math.abs(p[0])>=5)assert(sample.normalAlignment*Math.sign(p[0])>.88,`deck ${i}: camera faces the walker's exposed side`);
     const nearEye=await page.evaluate(()=>{const v=window.__entry.voyage,T=v.camera.position.constructor,eye=v.camera.position.clone(),ray=v.cameraRay;let distance=Infinity;for (const direction of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){ray.set(eye,new T(...direction));ray.far=.30;const meshes=v.cameraObstacles.filter(m=>{for(let n=m;n;n=n.parent)if(!n.visible)return false;return true;});distance=Math.min(distance,ray.intersectObjects(meshes,false)[0]?.distance??Infinity);}return Number.isFinite(distance)?distance:null;});

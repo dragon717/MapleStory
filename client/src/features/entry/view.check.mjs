@@ -11,12 +11,13 @@ const root = path.resolve(import.meta.dirname, '../../../..');
 const publicRoot = process.env.MAPLE_PREVIEW_ASSETS || path.join(root,'client/public-tms273');
 const output = process.env.MAPLE_ENTRY_EVIDENCE || path.join(root, 'evidence/2026-10-03/voyage-deck-walk/flow');
 await fs.mkdir(output, { recursive: true });
-await build({ stdin: { contents: `import './src/app/style.css'; import * as Three from 'three'; window.__three=Three; import { EntryView } from './src/features/entry/view'; import { ClientActionsView } from './src/features/client-actions/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; const audio=installGameAudio(document.getElementById('welcome'),()=>undefined); window.__entryAudio=audio; const entry = new EntryView(document.getElementById('welcome'), async (session,ready) => { if(window.__failEntry)throw new Error('offline entry restoration check');if(!await ready())return;if(audio.entry.playing)throw new Error('entry music must stop when the world is ready');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; if (new URL(location.href).searchParams.has('reference')) window.__actions=new ClientActionsView(document.getElementById('app')); document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
+await build({ stdin: { contents: `import './src/app/style.css'; import Phaser from 'phaser'; import * as Three from 'three'; window.__three=Three; import { EntryView } from './src/features/entry/view'; import { ClientActionsView } from './src/features/client-actions/view'; import { MenuView } from './src/features/menu/view'; import { installGameAudio } from './src/features/world/game-audio'; let audioGame; const audio=installGameAudio(document.getElementById('welcome'),()=>audioGame); window.__entryAudio=audio; window.__createAudioGame=()=>new Promise(resolve=>{audioGame=new Phaser.Game({type:Phaser.HEADLESS,width:1,height:1,banner:false,audio:{context:audio.context()},scene:{create(){resolve(this.sound instanceof Phaser.Sound.WebAudioSoundManager && this.sound.context===audio.context());}}});audio.bind(audioGame);});window.__destroyAudioGame=()=>{audioGame.destroy(true);audioGame=undefined;}; const entry = new EntryView(document.getElementById('welcome'), async (session,ready) => { if(window.__failEntry)throw new Error('offline entry restoration check');if(!await ready())return;if(audio.entry.playing)throw new Error('entry music must stop when the world is ready');document.getElementById('entered').textContent=session.username; },audio.entry); window.__entry=entry; if (new URL(location.href).searchParams.has('reference')) window.__actions=new ClientActionsView(document.getElementById('app')); document.getElementById('show-menu').onclick=async()=>{const manifest=await fetch('/assets/manifest.json').then(r=>r.json()); const menu=new MenuView(document.getElementById('menu-host'),manifest,message=>document.getElementById('entered').textContent=message,()=>document.getElementById('entered').textContent='inventory'); menu.open('game');};`, resolveDir: path.join(root, 'client'), loader: 'ts' }, bundle: true, external: ['/assets/*'], format: 'esm', outfile: path.join(output, 'entry-check.js'), logLevel: 'silent' });
 const browserCache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
 const installed = (await fs.readdir(browserCache)).filter(name=>name.startsWith('chromium_headless_shell-')).sort((a,b)=>Number(b.split('-').at(-1))-Number(a.split('-').at(-1)))[0];
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (installed && path.join(browserCache, installed, 'chrome-headless-shell-mac-arm64/chrome-headless-shell'));
-const browser = await chromium.launch({ headless: true, executablePath });
-const page = await browser.newPage({ viewport: (process.argv.includes('--deck-only') || process.argv.includes('--camera-motion-only')) ? {width:960,height:640} : { width: 1440, height: 900 }, reducedMotion: process.env.MAPLE_REDUCED_MOTION === 'no-preference' ? 'no-preference' : 'reduce' });
+const audioOnly = process.argv.includes('--audio-only') || process.argv.includes('--audio-gesture-only');
+const browser = await chromium.launch({ headless: true, executablePath, args: [process.argv.includes('--audio-gesture-only') ? '--autoplay-policy=document-user-activation-required' : '--autoplay-policy=no-user-gesture-required'] });
+const page = await browser.newPage({ viewport: (process.argv.includes('--deck-only') || process.argv.includes('--camera-motion-only') || process.argv.includes('--route-only')) ? {width:960,height:640} : { width: 1440, height: 900 }, reducedMotion: process.env.MAPLE_REDUCED_MOTION === 'no-preference' ? 'no-preference' : 'reduce' });
 const errors = [];
 const consoleErrors = [];
 page.on('pageerror', error => errors.push(String(error)));
@@ -36,6 +37,10 @@ let creations = 0, selections = 0;
 // (cap 1002067, coat 1040002), not the creation longcoat 1050286.
 const swapCharacter = { id: 'preview-swap', name: '旅人', level: 5, job: 0, appearance: { gender: 0, face: 20100, hair: 30000, skin: 0, coat: 1050286, pants: 0, shoes: 1072833, weapon: 1302000 }, equipped: [{ slot: 1, itemId: '1002067', quantity: 1 }, { slot: 5, itemId: '1040002', quantity: 1 }, { slot: 7, itemId: '1072833', quantity: 1 }, { slot: 11, itemId: '1302000', quantity: 1 }] };
 characters.push(swapCharacter, ...Array.from({length:4}, (_,i)=>({...swapCharacter,id:`passenger-${i}`,name:`乘客${i}`})));
+if(process.argv.includes('--details-only')) { characters[0].name='muniao';characters[1].name='乘风破浪冒险家'; }
+const audioRequests = [];
+page.on('request', request => { if (audioOnly) audioRequests.push({ url: new URL(request.url()).pathname, at: Date.now() }); });
+if (audioOnly) await page.addInitScript(() => { window.__audioStarts = []; const create = AudioContext.prototype.createBufferSource; AudioContext.prototype.createBufferSource = function(...args) { const source = create.apply(this,args), start = source.start.bind(source); source.start = (...args) => { window.__audioStarts.push(Date.now()); return start(...args); }; return source; }; });
 await page.route('http://entry.test/**', async route => {
   const url = new URL(route.request().url());
   if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/entry-check.css"></head><body><div id="app"><main><section id="welcome"></section></main></div><div id="entered"></div><button id="show-menu" style="position:fixed;right:0;bottom:0;z-index:100">test menu</button><div id="menu-host" style="position:fixed;inset:0;pointer-events:none;z-index:99"></div><script type="module" src="/entry-check.js"></script></body></html>' });
@@ -44,34 +49,62 @@ await page.route('http://entry.test/**', async route => {
   if (url.pathname === '/api/lobby') {
     const request = route.request().postDataJSON();
     assert.equal(request.token, accountSession.token);
+    if (request.action === 'logout') return route.fulfill({json:{ok:true}});
     if (request.action === 'list') return route.fulfill({ json: { characters, slotLimit: 12, channelId: 1 } });
     if (request.action === 'checkName') return route.fulfill({ json: { available: !characters.some(item => item.name === request.name) } });
     if (request.action === 'create') { assert(!('job' in request), 'class preview must not grant a job'); creations++; const look = request.appearance; const character = { id: String(creations).padStart(64, '0'), name: request.name, appearance: look, level: 1, job: 0, equipped: [[5, look.coat], [6, look.pants], [7, look.shoes], [11, look.weapon]].filter(([, itemId]) => itemId).map(([slot, itemId]) => ({ slot, itemId, quantity: 1 })) }; characters.push(character); return route.fulfill({ json: { character } }); }
     if (request.action === 'select') { selections++; const character = characters.find(item => item.id === request.characterId); assert(character); assert.equal(request.channelId, 1); return route.fulfill({ json: { ...accountSession, token: 'character-token', playerId: character.id, username: character.name } }); }
     throw new Error(`Unknown action ${request.action}`);
   }
+  if (audioOnly && url.pathname === manifest.mapCatalog.maps.find(m=>m.id==='200000000').bgm) await new Promise(resolve=>setTimeout(resolve,800));
   const decoration = { 'panel': 'entry-panel', 'button': 'entry-button', 'crest': 'maple-crest' };
   const kind = url.pathname.match(/^\/assets\/entry\/voyage-(panel|button|crest)\.png$/)?.[1];
-  const file = kind ? path.join(root, 'resources/scenes/sky-voyage-v3/textures', decoration[kind]+'.png') : url.pathname === '/assets/entry/sky-voyage.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/models/sky-voyage.glb') : url.pathname === '/assets/entry/voyage-book.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/models/voyage-book.glb') : url.pathname === '/assets/entry/captain-sign-wood.png' ? path.join(root,'resources/scenes/sky-voyage-v3/textures/deck-planks.png') : url.pathname === '/assets/entry/sky-city.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.glb') : url.pathname.startsWith('/assets/') ? path.join(publicRoot,decodeURIComponent(url.pathname)) : path.join(output, path.basename(url.pathname));
+  const actionArt = url.pathname.match(/^\/assets\/entry\/(entry-(?:return-login|begin-adventure))\.png$/)?.[1];
+  const file = actionArt ? path.join(root, 'resources/scenes/sky-voyage-v3/textures', actionArt + '.png') : kind ? path.join(root, 'resources/scenes/sky-voyage-v3/textures', decoration[kind]+'.png') : url.pathname === '/assets/entry/sky-voyage.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/models/sky-voyage.glb') : url.pathname === '/assets/entry/voyage-book.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/models/voyage-book.glb') : url.pathname === '/assets/entry/captain-sign-wood.png' ? path.join(root,'resources/scenes/sky-voyage-v3/textures/deck-planks.png') : url.pathname === '/assets/entry/sky-city.glb' ? path.join(root,'resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.glb') : url.pathname.startsWith('/assets/') ? path.join(publicRoot,decodeURIComponent(url.pathname)) : path.join(output, path.basename(url.pathname));
   try { const body = await fs.readFile(file); const ext = path.extname(file); return route.fulfill({ body, contentType: ({ '.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg' })[ext] ?? 'application/octet-stream' }); }
   catch { return route.fulfill({ status: 404, body: 'missing test resource' }); }
 });
 const capture = async name => { await page.evaluate(()=>{const v=window.__entry.voyage;if(v?.model){v.camera.updateMatrixWorld(true);v.renderer.render(v.scene,v.camera);}}); await page.screenshot({path:path.join(output,name)}); };
-const artReady = () => page.waitForFunction(() => [...document.querySelectorAll('.entry-background img,.entry-avatar img,.maple-menu img')].every(img => img.complete && img.naturalWidth > 0));
+const artReady = async () => {
+  try { await page.waitForFunction(() => [...document.querySelectorAll('.entry-background img,.entry-avatar img,.maple-menu img')].every(img => img.complete && img.naturalWidth > 0), undefined, { timeout: process.env.MAPLE_REDUCED_MOTION === 'no-preference' ? 90000 : 30000 }); }
+  catch (error) { console.error('Unloaded artwork:',await page.locator('.entry-background img,.entry-avatar img,.maple-menu img').evaluateAll(images=>images.filter(img=>!img.complete||!img.naturalWidth).map(img=>img.src)));throw error; }
+};
 try {
-  await page.goto(process.argv.includes('--reference-only') ? 'http://entry.test/?reference' : 'http://entry.test/');
+  await page.goto(process.argv.includes('--reference-only') ? 'http://entry.test/?reference' : process.argv.includes('--english-only') ? 'http://entry.test/?lang=en' : 'http://entry.test/');
+  if (process.argv.includes('--opening-only')) {
+    const { checkVoyageOpening } = await import('./voyage.opening.check.mjs');
+    await checkVoyageOpening(page, output, errors);
+  } else if (audioOnly) {
+    const { checkAudioOpening } = await import('./voyage.audio.check.mjs');
+    await checkAudioOpening(page,output,audioRequests,errors,process.argv.includes('--audio-gesture-only'));
+  } else {
   await page.locator('.entry-background img').first().waitFor({ state: 'attached' });
   await artReady();
   await page.locator('.entry-voyage-ready').waitFor({timeout:60000});
   await page.locator('#show-menu').evaluate(node => node.style.display = 'none');
   assert.equal(await page.locator('.entry-avatar').count(),0,'first login must not invent a player');
   assert.equal(await page.locator('.voyage-canvas').count(),1);
-  if(process.argv.includes('--model-only')) {
+  if(process.argv.includes('--screenshot-fixes-only')) {
+    const { checkScreenshotFixes } = await import('./voyage.screenshot-fixes.check.mjs');
+    await checkScreenshotFixes(page, output, errors);
+  } else if(process.argv.includes('--mast-only')) {
+    const {captureMastLinks}=await import('./voyage.details.check.mjs');
+    await captureMastLinks(page,output);
+  } else if(process.argv.includes('--details-only')) {
+    const {checkVoyageDetails}=await import('./voyage.details.check.mjs');
+    await checkVoyageDetails(page,output,errors);
+  } else if(process.argv.includes('--model-only')) {
     const {captureVoyageModel}=await import('./voyage.model.check.mjs');
     await captureVoyageModel(page,output,errors);
+  } else if(process.argv.includes('--correction-only')) {
+    const {checkVoyageCorrection}=await import('./voyage.correction.check.mjs');
+    await checkVoyageCorrection(page,output,errors);
   } else if(process.argv.includes('--reference-only')) {
     const {checkVoyageReference}=await import('./voyage.reference.check.mjs');
     await checkVoyageReference(page,output,errors);
+  } else if(process.argv.includes('--route-only')) {
+    const {checkVoyageRoute}=await import('./voyage.route.check.mjs');
+    await checkVoyageRoute(page,output,errors);
   } else if(process.argv.includes('--camera-motion-only')) {
     const {checkVoyageCameraMotion}=await import('./voyage.camera-motion.check.mjs');
     await checkVoyageCameraMotion(page,output,errors);
@@ -202,5 +235,6 @@ try {
     await page.locator('.voyage-adventure:visible,.voyage-start-adventure:visible').click();await page.locator('#entered').waitFor({state:'visible'});assert.equal(selections,1);
     const cameraRay=await page.evaluate(()=>{const a=window.__cameraRayTimes.sort((a,b)=>a-b);return{samples:a.length,medianMs:a[Math.floor(a.length*.5)],p95Ms:a[Math.floor(a.length*.95)],maxMs:a.at(-1)};});assert.deepEqual(errors,[]);await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline production WebGL and local cabin lifecycle; in-memory account replies',transmission,cameraRay,selections,creations,errors},null,2));console.log('Camera collision ray CPU:',JSON.stringify(cameraRay));console.log('Production ship/cabin walking, jump, camera, empty-bed creation, return and physical transmission passed');
   } else { assert.deepEqual(errors,[]); await fs.writeFile(path.join(output,'result.json'),JSON.stringify({passed:true,mode:'offline lobby geometry and keyboard input',beforeWalk,stopped,selections,errors},null,2)); console.log('Lobby upright feet, walking, skill isolation and blur checks passed'); }
+  }
   }
 } catch (error) { const state=await page.evaluate(()=>{const e=window.__entry,v=e?.voyage;return{entryStage:e?.stage,busy:e?.busy,stage:v?.stage,cabinShown:v?.cabinShown,transition:v?.transition,reduced:v?.reduced.matches,host:v?.host.className,hidden:v?.host.hidden,previous:v?.previous,now:performance.now()};}).catch(()=>undefined);console.error('Browser diagnostics:',JSON.stringify({errors,consoleErrors,state})); throw error; } finally { await browser.close(); }

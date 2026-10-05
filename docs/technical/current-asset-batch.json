@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "date": "2026-10-03",
-  "scope": "最近航船小素材与经典登录树；音乐、其他批次及定时任务暂不处理",
+  "date": "2026-10-05",
+  "scope": "航船截图修正与童话登录/船舱重做、内页布料、双语按钮及完整船体；保留既有资源批次",
   "files": [
     {
       "path": "resources/scenes/sky-voyage-v3/textures/ASSETS.md",
-      "bytes": 5596,
-      "sha256": "1e82fdb54abe52b68dda61f202aab38fc9a7d3efeea17f49f0a76edc2b5d06f0",
+      "bytes": 9933,
+      "sha256": "328e806925d924b3c35c62b6f49a51e440d63fbd01a01ccdd226e9f1870475b2",
       "storage": "git"
     },
     {
@@ -113,20 +113,20 @@
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/voyage-book.blend",
-      "bytes": 191496,
-      "sha256": "d13d570129a010f7725baead57c31c4b9ec7eda5845514ba56adfbacb67ff37a",
+      "bytes": 298416,
+      "sha256": "6d42b6440106b8598ebc8c6a5ba56eea0884590b068312cfd7b1c738f2f22225",
       "storage": "git"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/voyage-book.glb",
-      "bytes": 535528,
-      "sha256": "6a33f81333f7a7a832583d1db7dd99375b1f5154581bd290d16d9d00e7a7c4bd",
+      "bytes": 1010552,
+      "sha256": "37bf19eee47d2f0b416b0d058533575c001b57f32509ca80e35f77307c460e54",
       "storage": "git"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/source-layout.json",
-      "bytes": 22048,
-      "sha256": "594d3aa1b3e57599542fa048d09fa36dfed5ada96ec07aec8d8cdb40e1e6d1e0",
+      "bytes": 79346,
+      "sha256": "9336f0b09340f379ccc22c0a51011d8ea5bf53ae64d40f6824364b83f8c60fc5",
       "storage": "git"
     },
     {
@@ -137,8 +137,8 @@
     },
     {
       "path": "resources/scenes/sky-voyage-v3/provenance.json",
-      "bytes": 14861,
-      "sha256": "fe5893ba30d85442f88f3a5f4a5b9e3ba8bb547253550045b4f5d807ea780e73",
+      "bytes": 86526,
+      "sha256": "5333b76a2a09a1856465b6f20ce11f71d8fe7ec150b76ce20aaa151ebf8bb146",
       "storage": "git"
     },
     {
@@ -191,27 +191,81 @@
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
-      "bytes": 160198731,
-      "sha256": "ba405e06d660b31ce058a48ca55e03dcd5433f46a7f54d2e3dcf8b2207cdf538",
+      "bytes": 147793838,
+      "sha256": "4b3b60ca50093f9a17e9d2bb39cee7f0dc5b3c610aaf8df3e31d0fa4fda7a755",
       "storage": "local-deferred"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
-      "bytes": 70768996,
-      "sha256": "8c7471ebf73f051850ae406450ac9ea97c01688965f79b7b32674303049998b8",
+      "bytes": 52881036,
+      "sha256": "44446b0bd44eba8b80a2ce8ed29ea66683564c40ea88359ea3d1c89e95d89dc2",
       "storage": "local-deferred"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.blend",
-      "bytes": 113070812,
-      "sha256": "fa49a752610c2697287f6dd75aab419a5332a0da233414511832170a2dfaf07d",
+      "bytes": 113067170,
+      "sha256": "d528eb56b255f3893919e641edec0ea3ac981fdbdb45a4454b60b6df61b860fd",
       "storage": "local-deferred"
     },
     {
       "path": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.glb",
-      "bytes": 44287044,
-      "sha256": "a1127825d3ce77db214520402792f66ccb41abc2dfa35edc75a67c2373cc0069",
+      "bytes": 44287096,
+      "sha256": "dd8110c2d73f6a71526c431767bb5a6936aadbb1177e9ccc7e2e54d9f0170cb3",
       "storage": "local-deferred"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.png",
+      "storage": "git",
+      "bytes": 2516356,
+      "sha256": "012cab641b97007d8f73eaacf74a8f785d62845c6557e6803b93362338105eb0"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.prompt.txt",
+      "storage": "git",
+      "bytes": 1164,
+      "sha256": "2dfddf669821ea3cec2c91be910305878e4bb51382b5c9cef50479a45cc8b95f"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/login-fairytale-redesign.png",
+      "storage": "git",
+      "bytes": 2266728,
+      "sha256": "877e776afc610f8de330fec2e9e6b28a8f695eb351f34fcb2bff68706767f33c"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/prototypes/login-fairytale-redesign.prompt.txt",
+      "storage": "git",
+      "bytes": 2357,
+      "sha256": "920f8b9f51cf16c6ff709f6b83a40e1d79daba81809c744e85c0493be4d900c3"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/entry-return-login.png",
+      "storage": "git",
+      "bytes": 879350,
+      "sha256": "95da07865085b03eb61f44020c2c07e874ab1a6b7036567109d880f4875c5a72"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/entry-begin-adventure.png",
+      "storage": "git",
+      "bytes": 886980,
+      "sha256": "6eff1a2a87c1490d9f2bcbb8a88eebd4686b754876d859b1395546e79b5374a9"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/entry-actions.prompt.txt",
+      "storage": "git",
+      "bytes": 987,
+      "sha256": "5e58767839a233288a9fedcb365cc80084463a699b4d89b092073b8f4a7d308a"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/wheel-material-atlas-v1.png",
+      "storage": "git",
+      "bytes": 3053641,
+      "sha256": "6e7172caa565e0470cd8cd1bfdc11daa5fcee26d8101c31b883ec6707790067b"
+    },
+    {
+      "path": "resources/scenes/sky-voyage-v3/textures/wheel-material-atlas-v1.json",
+      "storage": "git",
+      "bytes": 2023,
+      "sha256": "eb9812f0c4c5e0fcc2b23c0737a4e503c598946e9beaf648bc9bbc1087d286a4"
     }
   ],
   "notes": [

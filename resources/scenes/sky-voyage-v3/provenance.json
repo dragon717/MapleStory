@@ -104,7 +104,7 @@
     "tool": "built-in image_gen",
     "directory": "textures/",
     "manifest": "textures/ASSETS.md",
-    "usage": "New ivory enamel/champagne brass/teak/linen material sheet; UI panel/button/maple crest reused from v2. Text remains native DOM."
+    "usage": "Original imagegen concept art, material sheets, window art and bilingual entry action labels; concepts rebuilt as editable native geometry, input fields remain native DOM."
   },
   "designSheets": [
     {
@@ -158,9 +158,14 @@
       "scripts/creative/blender/separate_voyage_original_parts.py",
       "scripts/creative/blender/place_single_voyage_crest.py",
       "scripts/creative/blender/refine_voyage_wheel_contour.py",
-      "scripts/creative/blender/author_voyage_main_deck.py"
+      "scripts/creative/blender/author_voyage_main_deck.py",
+      "scripts/creative/blender/split_voyage_assets.py",
+      "scripts/creative/blender/voyage_render_setup.py",
+      "scripts/creative/blender/restore_voyage_wheel_hull.py",
+      "scripts/creative/blender/refine_voyage_fixed_hardware_uv.py",
+      "scripts/creative/blender/voyage_material_refinement.py"
     ],
-    "sequence": "Historical prepare/rig/finish then polish, cabin fit, prototype materials, structure repair and stained glass. Saved file retains original and pre-repair archives. Current bounded correction loads saved scene and runs refine_voyage_login_corner.py: restore retained structure, separate original faces without changing geometry/UV, restore labelled engine materials, map one maple on existing cloth, and mount the native form on the physical timber sign. In-file OriginalPartSource meshes retain unsplit authority for idempotent reruns. Latest 2026-10-04 correction: shared linen, left-shifted maple with additional clockwise 90 degree rotation, Blender alpha blend preview and centrally symmetric swept wheel cloth/ribs. Wheel source meshes remain stored in-file for repeatable refinement. Latest main-deck correction: run author_voyage_main_deck.py after the retained-structure/sail recipes; replaces only the narrow arc with continuous exposed deck around the sealed room, preserving other mesh positions. Shared footprint is in shared/voyage-deck.json."
+    "sequence": "Historical prepare/rig/finish then polish, cabin fit, prototype materials, structure repair and stained glass. Saved file retains original and pre-repair archives. Current bounded correction loads saved scene and runs refine_voyage_login_corner.py: restore retained structure, separate original faces without changing geometry/UV, restore labelled engine materials, map one maple on existing cloth, and mount the native form on the physical timber sign. In-file OriginalPartSource meshes retain unsplit authority for idempotent reruns. Latest 2026-10-04 correction: shared linen, left-shifted maple with additional clockwise 90 degree rotation, Blender alpha blend preview and centrally symmetric swept wheel cloth/ribs. Wheel source meshes remain stored in-file for repeatable refinement. Latest main-deck correction: run author_voyage_main_deck.py after the retained-structure/sail recipes; replaces only the narrow arc with continuous exposed deck around the sealed room, preserving other mesh positions. Shared footprint is in shared/voyage-deck.json. Latest independent-asset recipe: split_voyage_assets.py supplies saved cameras/lights and ship-only export; author_voyage_main_deck.py uses current shared metre-scale platform route and retains the original hull source for deterministic bounded foredeck passage cuts. Latest screenshot correction: apply_voyage_screenshot_fixes.py restores the complete body and keeps all wheel volume outboard, rebuilds the login with shared lamps/sail crest, repairs only new hardware cap MaterialUV, and migrates live legacy texture multipliers to exporter-supported native Mix."
   },
   "userShipSource": {
     "source": "user-provided local model, 2026-10-02",
@@ -202,7 +207,7 @@
   "textures": "Generated deck-planks.png / wood.png: MaterialUV with visible plank scale and lengthwise spar grain; native glTF multiplier; runtime wood bump from albedo. Original source atlas retained only in archived rig.",
   "rigContract": {
     "parts": 18,
-    "triangles": 131245,
+    "triangles": 95134,
     "morphs": [
       "DeployFold",
       "WindPressure"
@@ -218,9 +223,9 @@
     "originalTriangles": 285840
   },
   "currentRevision": {
-    "contentVersion": "tms273-64",
+    "contentVersion": "tms273-79",
     "sourceRigTriangles": 285840,
-    "repairedExteriorTriangles": 131245,
+    "repairedExteriorTriangles": 180665,
     "archiveScene": "SV3_BeforeStructureRepair",
     "repairs": [
       "retopologized fan/vane cloth and independent rigid wood spars",
@@ -282,7 +287,7 @@
         "hullClippedFaces": 101248
       }
     },
-    "assetSha256": "22f0a89ced06ed81ac6603105945bd94c02b56f4da86770ee144c1e1f508f425",
+    "assetSha256": "44446b0bd44eba8b80a2ce8ed29ea66683564c40ea88359ea3d1c89e95d89dc2",
     "skyCity": {
       "source": "scripts/creative/blender/refine_sky_city_interior.py",
       "sha256": "a1127825d3ce77db214520402792f66ccb41abc2dfa35edc75a67c2373cc0069",
@@ -308,5 +313,2311 @@
     "unrelatedMeshCountPreserved": 1778,
     "portholeMeshFacesClippedAcrossPasses": 620,
     "portholePolicy": "radius 1.12 through the captain shell x4.4..5.8; original outboard railing retains normal partial occlusion"
+  },
+  "mastAndCabinRefinement": {
+    "date": "2026-10-04",
+    "source": [
+      "scripts/creative/blender/refine_voyage_mast_connections.py",
+      "scripts/creative/blender/refine_voyage_cabin_piers.py"
+    ],
+    "reference": "resources/scenes/sky-voyage-v2/design/ship-orthographic-v1.png",
+    "assetBytes": 73946884,
+    "assetSha256": "1309f3f4316de2afef85b8556d6ec892240c211c0c3dfff116fdcff27d32e293",
+    "contentVersion": "tms273-71",
+    "changes": [
+      "3418 original lookout faces separated with source UV; axis centred on mast",
+      "four existing timber stays separated; axial length and rotation follow real DeployFold endpoints",
+      "ten original cabin piers retained; fine bevelled bases, capitals, collars and inset face trim"
+    ],
+    "boundary": "retains current editable source including live-session changes; no original cloth or hull/platform reconstruction"
+  },
+  "prototypeFinish": {
+    "date": "2026-10-04",
+    "contentVersion": "tms273-73",
+    "references": [
+      {
+        "file": "resources/scenes/sky-voyage-v2/design/ship-orthographic-v1.png",
+        "sha256": "fea269433bee0b3bf7ffc979d1239acca516e58cfe6c520156ad05bdc235cfac"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v2/design/ship-interior-plan-v1.png",
+        "sha256": "f3aa0ea060e048f53f39bd5cc612509e16e9f475a390293ac2406fcc4365418c"
+      }
+    ],
+    "recipes": [
+      "scripts/creative/blender/build_voyage_finish_textures.py",
+      "scripts/creative/blender/refine_voyage_prototype_finish.py",
+      "scripts/creative/blender/refine_voyage_cabin_finish.py"
+    ],
+    "changes": [
+      "component-aligned material UV, fine teak/walnut/linen/enamel basecolor, normal and roughness maps",
+      "continuous UV-painted ivory, teal and brass on the three original curved stern fascias and outer top return; retained prow shell ivory and cradle base brass",
+      "retain separated original engine shells, collars and end caps with component UVs",
+      "nine grouped cabin trim details, original beds/windows/anchors retained"
+    ],
+    "boundary": "Original source mesh coordinates, topology, SourceUV, morphs, transforms and navigation anchors are preserved. Materials and MaterialUV are revised. Added cabin fittings are local presentation geometry. No accounts or multiplayer authority changes.",
+    "preservationReport": "evidence/2026-10-04/voyage-prototype-finish/native-finish-report.json",
+    "files": [
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
+        "bytes": 168641449,
+        "sha256": "82a1d5e21ce86937ef1332768711f39deb1b12554bfef11605fc5135e112b19a"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
+        "bytes": 63985116,
+        "sha256": "30375ebf5c4afb815d9e999098716f04c41d17d46f04c33d824de5306fff6ef6"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-enamel-panels-basecolor.png",
+        "bytes": 18594,
+        "sha256": "f705037c3131579fe802466217e00718ae425108ac256d57f3f235cdcee74a46"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-enamel-panels-normal.png",
+        "bytes": 8761,
+        "sha256": "e51d867a2408dc57471459b1338900a8e123bbb528dff345a55c7e8edc4aab96"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-enamel-panels-roughness.png",
+        "bytes": 26183,
+        "sha256": "6a1a287ff8247a3b2c158d53a24ebe57ce3b2938d95935b9ad58655f99de70d8"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-honey-teak-basecolor.png",
+        "bytes": 104151,
+        "sha256": "b2e7f109dac155db024111de8ebabe6dd7a21bbe61ef48023baf34b5029c282a"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-honey-teak-normal.png",
+        "bytes": 99839,
+        "sha256": "08bbeb0234f0f2beeb51ce030816cc850baeeac29f0d1137db0a4645342d719d"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-honey-teak-roughness.png",
+        "bytes": 38818,
+        "sha256": "3aa326d4926eea3d5c7d6cdd92a3a8b2a35e3d3582249e9bd23fa97272f318e3"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-ivory-linen-basecolor.png",
+        "bytes": 95865,
+        "sha256": "e4bce45469e339aa63444d48c878138c632000dd0a467521b86f33bff5e5fcac"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-ivory-linen-normal.png",
+        "bytes": 85876,
+        "sha256": "5ec6b64d62cde229089750a887079df643d389fe2dfb90a0d069fa5294481edf"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-ivory-linen-roughness.png",
+        "bytes": 30703,
+        "sha256": "4283d35b027f0124f65efa7ad7803cbf0a3f04b62b9a943a240f1616c47c388c"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-crown-basecolor.png",
+        "bytes": 5376,
+        "sha256": "1d64a109464b4c40e260f5f8bd1fd4a06b781faa8398b6315f41688d5e2985a2"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-crown-metallic.png",
+        "bytes": 1342,
+        "sha256": "bf644b0bf7627af3a90983c45c9a5478013831abb943761c72fd0e469326d5d4"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-crown-normal.png",
+        "bytes": 5334,
+        "sha256": "86993e9276b669289b91c2563b704bd0116c0c59af1949f08c79bfc2e2e8ff9b"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-crown-roughness.png",
+        "bytes": 3180,
+        "sha256": "796e51e93ebf49dcffa3909a3386279035e20ea20921e975117ea12374faaf40"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-fascia-basecolor.png",
+        "bytes": 36093,
+        "sha256": "d44d065669cb0accc7fda2c1d27172852cbe8fc79d2e3c1956167427b3d0b11d"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-fascia-metallic.png",
+        "bytes": 4465,
+        "sha256": "db39adbbd8bcd991701b8185b82fc0ad7c78426db6aec1f8554307af5ecc1a8e"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-fascia-normal.png",
+        "bytes": 5334,
+        "sha256": "86993e9276b669289b91c2563b704bd0116c0c59af1949f08c79bfc2e2e8ff9b"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-stern-fascia-roughness.png",
+        "bytes": 7828,
+        "sha256": "39223c5a344b6458bc8479d222b3022d78f5985df80e27954cdc3b9352f38115"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-walnut-basecolor.png",
+        "bytes": 101360,
+        "sha256": "8be53a951216f5ca5703e1d19532071c17e60da9fa6785821ac7e1ef6ba1fe0d"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-walnut-normal.png",
+        "bytes": 145459,
+        "sha256": "dbbc74d7a53eff6e6e931e7f6209f4d44544525000e888ac264018b829bdd085"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/finish-walnut-roughness.png",
+        "bytes": 41871,
+        "sha256": "17164408a2dc475df5ee59ed8aa0c09f1cfb54b459793a8d1a3c0238ea7a63e6"
+      }
+    ]
+  },
+  "assetSplitAndDeckAccess": {
+    "date": "2026-10-04",
+    "contentVersion": "tms273-74",
+    "reference": "resources/scenes/sky-voyage-v2/design/ship-orthographic-v1.png",
+    "recipes": [
+      "scripts/creative/blender/split_voyage_assets.py",
+      "scripts/creative/blender/voyage_render_setup.py",
+      "scripts/creative/blender/author_voyage_main_deck.py"
+    ],
+    "layout": "shared/voyage-deck.json",
+    "changes": [
+      "independent ship and sky-city blend/glb; city removed from ship current and archive scenes",
+      "saved F12 camera and light rigs in the three production blend files; saved ship overhead camera",
+      "physically supported main-deck and original upper-platform/bow access, subtle walnut grain guides, metre-scale shared navigation",
+      "exact bounded foredeck bulkhead passage cuts with interpolated source UV/normals; original hull mesh retained as fake-user source",
+      "cloud first paint and first render before canvas exposure; essential ship readiness independent of map/book; late/failing assets clean up safely",
+      "upper platform route follows original 15.25m roof while clearing aft fan timber; opaque animated cloth reveals only fully hidden walkers using rendered morph vertices"
+    ],
+    "boundary": "Historical tms273-74 proposal clipped652 hull faces and added access bridges. User rejected it. Current75 original hull restored with0 clipped faces and0 exterior bridges; new design exists only in isolated redesign-2026-10-04 HTML.",
+    "reports": [
+      "evidence/2026-10-04/voyage-split-opening/native-split-report.json",
+      "evidence/2026-10-04/voyage-split-opening/native-deck-report.json"
+    ],
+    "files": [
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
+        "bytes": 139606346,
+        "sha256": "8cd85da9f232bc6cc29579b94eb22ef7b284505acb9d91b0eb17cce02894c572"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
+        "bytes": 50470804,
+        "sha256": "c00e149add18b733daa2dc0b08a449c4335c16dd58c536fbb72864a1bd94f1ac"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.blend",
+        "bytes": 113067170,
+        "sha256": "d528eb56b255f3893919e641edec0ea3ac981fdbdb45a4454b60b6df61b860fd"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/prototypes/sky-city-spatial-prototype.glb",
+        "bytes": 44287096,
+        "sha256": "dd8110c2d73f6a71526c431767bb5a6936aadbb1177e9ccc7e2e54d9f0170cb3"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/voyage-book.blend",
+        "bytes": 192490,
+        "sha256": "b556fa3cba85ea8ab60d3d3f2b202fbfd2ea6485b4abd4c11e68871ffc91ab3b"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/voyage-book.glb",
+        "bytes": 535528,
+        "sha256": "6a33f81333f7a7a832583d1db7dd99375b1f5154581bd290d16d9d00e7a7c4bd"
+      }
+    ],
+    "status": "historical74 exterior bridge proposal rejected and restored75"
+  },
+  "exteriorBridgeRejection": {
+    "date": "2026-10-04",
+    "contentVersion": "tms273-75",
+    "userRule": "No new exterior walkways or changes to hull perimeter; redesign prototypes/routes/materials/UV and isolated HTML first",
+    "restored": {
+      "originalHull": true,
+      "originalUV": true,
+      "externalBridges": 0,
+      "externalAccessRails": 0,
+      "liveRoute": "approved inboard main-deck ring"
+    },
+    "candidate": "redesign-2026-10-04/preview/index.html"
+  },
+  "spatialOrientationCorrection": {
+    "date": "2026-10-05",
+    "contentVersion": "tms273-76",
+    "layout": "shared/voyage-deck.json",
+    "recipes": [
+      "scripts/creative/blender/author_voyage_main_deck.py",
+      "scripts/creative/blender/author_voyage_structural_routes.py",
+      "scripts/creative/blender/refine_voyage_wheel_rear_orientation.py"
+    ],
+    "changes": [
+      "restore original central captain room shell and roof from retained original objects",
+      "restore original hull faces and use the original main deck, remove overlay boards and bow navigation geometry",
+      "rotate selection cabin runtime Y+90 degrees about [0,0,40], with zero translation; resolve model frame in all coordinate consumers",
+      "spin the two X/Y wheel sails about their hub on runtime Z while holding support rods fixed",
+      "Intermediate76 closed the window-side doorway and opened cabin end walls; the removal of the intended bow slope and main-deck exit target was later corrected by the user."
+    ],
+    "restoredCaptainRoomShells": [
+      "SV3_CaptainRoof",
+      "SV3_CaptainWall_Aft",
+      "SV3_CaptainWall_Bow",
+      "SV3_CaptainWall_End_0",
+      "SV3_CaptainWall_End_18",
+      "SV3_CaptainWall_Middle",
+      "SV3_CaptainWall_Port",
+      "SV3_CaptainWindow_5.65",
+      "SV3_CaptainWindow_8.09",
+      "SV3_CaptainPorthole_Frame",
+      "SV3_CaptainPorthole_Glass"
+    ],
+    "wheelOrientation": {
+      "faceAxis": "runtime X/Y",
+      "spinAxis": [
+        0,
+        0,
+        1
+      ]
+    },
+    "boundary": "Original ship materials, source UVs, account data and gameplay authority retained; no route to bow08.",
+    "files": [
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
+        "bytes": 139327524,
+        "sha256": "67db1295109cbf084646fbac958c79ddd8cff90c121843655d47fc041cac2d15"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
+        "bytes": 48557892,
+        "sha256": "e8eb51453e752ccd5671e8aa16bedf50bb2d840bad11c90ea1fccbf05cfc0211"
+      }
+    ],
+    "sideOpenings": {
+      "sourceAisleZ": 45.4,
+      "width": 3.2,
+      "height": 6.2,
+      "sourceX": [
+        -13.5,
+        13.5
+      ]
+    },
+    "status": "historical76; superseded by bowRampAndWheelDepthCorrection77"
+  },
+  "bowRampAndWheelDepthCorrection": {
+    "date": "2026-10-05",
+    "contentVersion": "tms273-77",
+    "layout": "shared/voyage-deck.json",
+    "recipes": [
+      "scripts/creative/blender/author_voyage_main_deck.py",
+      "scripts/creative/blender/author_voyage_portal_and_bow.py",
+      "scripts/creative/blender/refine_voyage_wheel_rear_orientation.py",
+      "scripts/creative/blender/refine_voyage_wheel_depth.py"
+    ],
+    "changes": [
+      "cabin17 transfers to separate bow slope base; walk up to raised tapered platform and tip rail, no main-deck-to-bow road",
+      "captain door 1.05 x 1.48, slightly larger than the portal, shared floor baseline; original curved hull/floor recovered in the old oversized aperture, no rectangular backing panel",
+      "opposite hub-centred wheel spins; outboard hubs clear hull sockets and fixed supports behind wheel plane",
+      "retain only the original eight swept timber spokes; depth x1.35 with bevel, original sail shape and source UVs preserved; open brass rings and protruding navy hub caps",
+      "generated wood/canvas/brass/navy material atlas, actual MaterialUV assignment with original SourceUV retained",
+      "floor count parallel to and 0.006m above actual floor, depth-tested",
+      "hide selected player name in whole-ship inspection and restore near view",
+      "sprite animation elapsed browser clock separated from capped 3D simulation; preload all roles actions"
+    ],
+    "files": [
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.blend",
+        "bytes": 142517983,
+        "sha256": "45ae5cd4b1264e602a71d8758b57a09eaaca1d390102437ce686efabbe812cf5"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/models/sky-voyage.glb",
+        "bytes": 51891812,
+        "sha256": "0181df5e778eed998e8e827cbd9068b18199ad2a0be448e48f58b6498ff892c3"
+      },
+      {
+        "file": "resources/scenes/sky-voyage-v3/textures/wheel-material-atlas-v1.png",
+        "bytes": 3053641,
+        "sha256": "6e7172caa565e0470cd8cd1bfdc11daa5fcee26d8101c31b883ec6707790067b"
+      }
+    ]
+  },
+  "screenshotCorrections": {
+    "date": "2026-10-05",
+    "contentVersion": "tms273-79",
+    "reference": "user screenshots 1–9 and explicit login redesign request",
+    "assets": {
+      "prototypes/cabin-fairytale-redesign.png": {
+        "bytes": 2516356,
+        "sha256": "012cab641b97007d8f73eaacf74a8f785d62845c6557e6803b93362338105eb0"
+      },
+      "textures/entry-return-login.png": {
+        "bytes": 879350,
+        "sha256": "95da07865085b03eb61f44020c2c07e874ab1a6b7036567109d880f4875c5a72"
+      },
+      "textures/entry-begin-adventure.png": {
+        "bytes": 886980,
+        "sha256": "6eff1a2a87c1490d9f2bcbb8a88eebd4686b754876d859b1395546e79b5374a9"
+      },
+      "models/sky-voyage.blend": {
+        "bytes": 147793838,
+        "sha256": "4b3b60ca50093f9a17e9d2bb39cee7f0dc5b3c610aaf8df3e31d0fa4fda7a755"
+      },
+      "models/sky-voyage.glb": {
+        "bytes": 52881036,
+        "sha256": "44446b0bd44eba8b80a2ce8ed29ea66683564c40ea88359ea3d1c89e95d89dc2"
+      },
+      "models/voyage-book.blend": {
+        "bytes": 298416,
+        "sha256": "6d42b6440106b8598ebc8c6a5ba56eea0884590b068312cfd7b1c738f2f22225"
+      },
+      "models/voyage-book.glb": {
+        "bytes": 1010552,
+        "sha256": "37bf19eee47d2f0b416b0d058533575c001b57f32509ca80e35f77307c460e54"
+      },
+      "prototypes/login-fairytale-redesign.png": {
+        "bytes": 2266728,
+        "sha256": "877e776afc610f8de330fec2e9e6b28a8f695eb351f34fcb2bff68706767f33c"
+      }
+    },
+    "generatedBy": "built-in imagegen",
+    "promptRecords": [
+      "prototypes/cabin-fairytale-redesign.prompt.txt",
+      "prototypes/login-fairytale-redesign.prompt.txt",
+      "textures/entry-actions.prompt.txt"
+    ],
+    "recipes": [
+      "scripts/creative/blender/refine_voyage_screenshot_structure.py",
+      "scripts/creative/blender/redesign_voyage_cabin.py",
+      "scripts/creative/blender/redesign_voyage_login.py",
+      "scripts/creative/blender/apply_voyage_screenshot_fixes.py",
+      "scripts/creative/blender/restore_voyage_wheel_hull.py",
+      "scripts/creative/blender/refine_voyage_fixed_hardware_uv.py",
+      "scripts/creative/blender/voyage_material_refinement.py"
+    ],
+    "nativeReport": {
+      "complete_wheel_hull": {
+        "revision": "2026-10-05: original body recovered; wheels and brackets fully outboard",
+        "source": "BeforeRepair_SV3_Hull",
+        "source_faces_recovered": 1957,
+        "restored_fragments": 2065,
+        "hull_faces": 70812,
+        "fixed_hull_x_extent": 12.735910415649414,
+        "original_body_ray_probes": [
+          {
+            "side": -1,
+            "y": 20,
+            "z": -4,
+            "original_x": -9.522138595581055,
+            "restored_x": -9.522138595581055,
+            "error_m": 0
+          },
+          {
+            "side": -1,
+            "y": 20,
+            "z": 2,
+            "original_x": -9.371770858764648,
+            "restored_x": -9.371770858764648,
+            "error_m": 0
+          },
+          {
+            "side": -1,
+            "y": 40,
+            "z": -2,
+            "original_x": -8.54731559753418,
+            "restored_x": -8.54731559753418,
+            "error_m": 0
+          },
+          {
+            "side": -1,
+            "y": 40,
+            "z": 0,
+            "original_x": -8.077110290527344,
+            "restored_x": -8.077110290527344,
+            "error_m": 0
+          },
+          {
+            "side": -1,
+            "y": 40,
+            "z": 2,
+            "original_x": -7.9929046630859375,
+            "restored_x": -7.9929046630859375,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 20,
+            "z": -4,
+            "original_x": 9.507278442382812,
+            "restored_x": 9.507278442382812,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 20,
+            "z": -2,
+            "original_x": 9.668590545654297,
+            "restored_x": 9.668590545654297,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 20,
+            "z": 0,
+            "original_x": 9.37588119506836,
+            "restored_x": 9.37588119506836,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 20,
+            "z": 2,
+            "original_x": 9.346309661865234,
+            "restored_x": 9.346309661865234,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 40,
+            "z": -2,
+            "original_x": 8.569751739501953,
+            "restored_x": 8.569751739501953,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 40,
+            "z": 0,
+            "original_x": 8.089740753173828,
+            "restored_x": 8.089740753173828,
+            "error_m": 0
+          },
+          {
+            "side": 1,
+            "y": 40,
+            "z": 2,
+            "original_x": 8.007354736328125,
+            "restored_x": 8.007354736328125,
+            "error_m": 0
+          }
+        ],
+        "original_centre_void_closure": {
+          "object": "SV3_HullWheelVolumeClosure",
+          "vertices": 5630,
+          "faces": 5502,
+          "curve_source": "outermost adjacent archived shell points; inverse-distance loft",
+          "silhouette": "intersection of measured port and starboard Y/Z outlines",
+          "manifold_edges": 11130,
+          "edge_face_count": 2,
+          "silhouette_coverage_probes": 556,
+          "closed_boundary_returns": 354,
+          "centre_void_probes": [
+            [
+              -1,
+              24,
+              -2,
+              -9.546274185180664
+            ],
+            [
+              -1,
+              24,
+              0,
+              -9.903692245483398
+            ],
+            [
+              -1,
+              24,
+              2,
+              -9.875905990600586
+            ],
+            [
+              -1,
+              24,
+              4,
+              -8.998218536376953
+            ],
+            [
+              -1,
+              28,
+              -2,
+              -8.582475662231445
+            ],
+            [
+              -1,
+              28,
+              0,
+              -9.410289764404297
+            ],
+            [
+              -1,
+              28,
+              2,
+              -9.45889663696289
+            ],
+            [
+              -1,
+              28,
+              4,
+              -9.273103713989258
+            ],
+            [
+              -1,
+              32,
+              -2,
+              -1.9719982147216797
+            ],
+            [
+              -1,
+              32,
+              0,
+              -5.774700164794922
+            ],
+            [
+              -1,
+              32,
+              2,
+              -7.602718353271484
+            ],
+            [
+              -1,
+              32,
+              4,
+              -8.332130432128906
+            ],
+            [
+              -1,
+              36,
+              -2,
+              -4.197000503540039
+            ],
+            [
+              -1,
+              36,
+              0,
+              -7.106910705566406
+            ],
+            [
+              -1,
+              36,
+              2,
+              -7.727239608764648
+            ],
+            [
+              -1,
+              36,
+              4,
+              -7.299234390258789
+            ],
+            [
+              1,
+              24,
+              -2,
+              9.226215362548828
+            ],
+            [
+              1,
+              24,
+              0,
+              9.641145706176758
+            ],
+            [
+              1,
+              24,
+              2,
+              9.806589126586914
+            ],
+            [
+              1,
+              24,
+              4,
+              9.056093215942383
+            ],
+            [
+              1,
+              28,
+              -2,
+              8.3485107421875
+            ],
+            [
+              1,
+              28,
+              0,
+              9.124824523925781
+            ],
+            [
+              1,
+              28,
+              2,
+              9.38813591003418
+            ],
+            [
+              1,
+              28,
+              4,
+              9.247930526733398
+            ],
+            [
+              1,
+              32,
+              -2,
+              1.5689067840576172
+            ],
+            [
+              1,
+              32,
+              0,
+              5.132196426391602
+            ],
+            [
+              1,
+              32,
+              2,
+              7.371120452880859
+            ],
+            [
+              1,
+              32,
+              4,
+              8.130512237548828
+            ],
+            [
+              1,
+              36,
+              -2,
+              3.8475341796875
+            ],
+            [
+              1,
+              36,
+              0,
+              7.252952575683594
+            ],
+            [
+              1,
+              36,
+              2,
+              7.5613861083984375
+            ],
+            [
+              1,
+              36,
+              4,
+              7.056623458862305
+            ]
+          ]
+        },
+        "body_faces_removed_for_clearance": 0,
+        "wheels": {
+          "wheels": [
+            {
+              "side": "Port",
+              "angle_radians": 1.5707963267948966,
+              "face_axis": "runtime X/Y",
+              "spin_axis": [
+                0,
+                0,
+                1
+              ],
+              "spin_sign": 1,
+              "hub_x": 24.415910415649414,
+              "brace_depth_offset": 6
+            },
+            {
+              "side": "Starboard",
+              "angle_radians": -1.5707963267948966,
+              "face_axis": "runtime X/Y",
+              "spin_axis": [
+                0,
+                0,
+                1
+              ],
+              "spin_sign": -1,
+              "hub_x": -24.415910415649414,
+              "brace_depth_offset": 6
+            }
+          ],
+          "connectors": [
+            "SV3_Wheel_Port_AxleConnector",
+            "SV3_Wheel_Port_OutboardBrace",
+            "SV3_Wheel_Port_SocketElbow",
+            "SV3_Wheel_Starboard_AxleConnector",
+            "SV3_Wheel_Starboard_OutboardBrace",
+            "SV3_Wheel_Starboard_SocketElbow"
+          ]
+        }
+      },
+      "wheel_hardware_uv": {
+        "schema": "maple.sky-voyage.wheel-depth-hardware-uv-report.v1",
+        "target_count": 10,
+        "reports": [
+          {
+            "object": "SV3_WheelDepth_Port_HubAxleSleeve",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Port_HubBrassRingFront",
+            "semantic": "brass",
+            "material": "SV3_WheelDepth_Material_Brass",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Port_HubBrassRingRear",
+            "semantic": "brass",
+            "material": "SV3_WheelDepth_Material_Brass",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Port_HubNavyCapFront",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Port_HubNavyCapRear",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Starboard_HubAxleSleeve",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Starboard_HubBrassRingFront",
+            "semantic": "brass",
+            "material": "SV3_WheelDepth_Material_Brass",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Starboard_HubBrassRingRear",
+            "semantic": "brass",
+            "material": "SV3_WheelDepth_Material_Brass",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 384,
+              "side_triangles": 192,
+              "cap_triangles": 192,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Starboard_HubNavyCapFront",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          },
+          {
+            "object": "SV3_WheelDepth_Starboard_HubNavyCapRear",
+            "semantic": "navy",
+            "material": "SV3_WheelDepth_Material_Navy",
+            "geometry_preserved": true,
+            "source_uv_preserved": true,
+            "material_uv_changed": false,
+            "before": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            },
+            "after": {
+              "triangles": 124,
+              "side_triangles": 64,
+              "cap_triangles": 60,
+              "side_degenerate": 0,
+              "cap_degenerate": 0
+            }
+          }
+        ],
+        "geometry_changed": false,
+        "source_uv_changed": false,
+        "export_performed": false
+      },
+      "captain_finish": {
+        "deck_top": 5.425,
+        "deck_bounds": [
+          [
+            -6.1,
+            -18.12
+          ],
+          [
+            6.1,
+            0.12
+          ]
+        ],
+        "porthole": {
+          "SV3_CaptainPorthole_Frame": {
+            "x_min": 4.65,
+            "shift": -9.536743128535363e-8
+          },
+          "SV3_CaptainPorthole_Glass": {
+            "x_min": 4.79,
+            "shift": 3.814697269177714e-8
+          }
+        },
+        "porthole_return": "192 samples to current clipped hull; missing rays bridge to surviving boundary",
+        "crown_corners": [
+          [
+            -4.849999904632568,
+            0,
+            8.324999809265137
+          ],
+          [
+            4.849999904632568,
+            0,
+            8.324999809265137
+          ],
+          [
+            4.849999904632568,
+            -18,
+            8.324999809265137
+          ],
+          [
+            -4.849999904632568,
+            -18,
+            8.324999809265137
+          ]
+        ],
+        "crown_closed": true
+      },
+      "cabin_redesign": {
+        "parent": "SV3_CabinInterior",
+        "reference": "resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.png",
+        "reference_input": "resources/scenes/sky-voyage-v3/prototypes/cabin-fairytale-redesign.png",
+        "created_roots": [
+          "SV3_CabinRedesign_IvoryArchRibs",
+          "SV3_CabinRedesign_BrassArchStarLeafwork",
+          "SV3_CabinRedesign_WindowSideBanners",
+          "SV3_CabinRedesign_TealBedTextiles",
+          "SV3_CabinRedesign_FloorCompassInlay",
+          "SV3_CabinRedesign_FloorFineEdges"
+        ],
+        "created_count": 6,
+        "removed_previous": [
+          "SV3_CabinRedesign_IvoryArchRibs",
+          "SV3_CabinRedesign_BrassArchStarLeafwork",
+          "SV3_CabinRedesign_WindowSideBanners",
+          "SV3_CabinRedesign_TealBedTextiles",
+          "SV3_CabinRedesign_FloorCompassInlay",
+          "SV3_CabinRedesign_FloorFineEdges"
+        ],
+        "preserved_counts": {
+          "beds": 12,
+          "windows": 4,
+          "lamps": 4
+        },
+        "source_object_count": 181,
+        "source_fingerprint_before": "b5d3ea087bef56bea7e3e22f83f0c6203b17d5e3823b3ea603d6f3b57a46c603",
+        "source_fingerprint_after": "b5d3ea087bef56bea7e3e22f83f0c6203b17d5e3823b3ea603d6f3b57a46c603",
+        "source_fingerprint_preserved": true,
+        "bounds": {
+          "floor": [
+            [
+              -13.5,
+              13.5
+            ],
+            [
+              -48,
+              -32
+            ],
+            [
+              -0.025,
+              -0.025
+            ]
+          ],
+          "side_walls": [
+            [
+              -13.799999,
+              13.799999
+            ],
+            [
+              -48,
+              -32
+            ],
+            [
+              0,
+              6
+            ]
+          ],
+          "route_aisle_y": -45.400001
+        },
+        "clearance_audit": {
+          "route_aisle_y": -45.400001,
+          "body_radius": 0.32,
+          "body_height": 1.8,
+          "floor_inlays_flush_exempt": true,
+          "risky_objects": []
+        },
+        "save_export_policy": "caller owns Blender save/export lifecycle; recipe performs neither"
+      },
+      "login_redesign": {
+        "recipe": "scripts/creative/blender/redesign_voyage_login.py",
+        "reference": "/Users/muniao/Code/MapleStory/resources/scenes/sky-voyage-v3/prototypes/login-fairytale-redesign.png",
+        "root": "SV3_LoginRedesign_Root",
+        "created_objects": [
+          "SV3_LoginRedesign_IvoryPaperBacking",
+          "SV3_LoginRedesign_Frame_Left",
+          "SV3_LoginRedesign_Frame_Right",
+          "SV3_LoginRedesign_Frame_Bottom",
+          "SV3_LoginRedesign_Frame_Top",
+          "SV3_LoginRedesign_TopWoodArch",
+          "SV3_LoginRedesign_TopTealInset_L",
+          "SV3_LoginRedesign_TopTealInset_R",
+          "SV3_LoginRedesign_TopLeaf_L",
+          "SV3_LoginRedesign_TopLeaf_R",
+          "SV3_LoginRedesign_MapleLeafCrest",
+          "SV3_LoginRedesign_TopScroll_L",
+          "SV3_LoginRedesign_PillarSpiral_L",
+          "SV3_LoginRedesign_PillarLeaf_L",
+          "SV3_LoginRedesign_BottomCornerLeaf_L",
+          "SV3_LoginRedesign_Lantern_L_Root",
+          "SV3_LoginRedesign_Lantern_L_Base",
+          "SV3_LoginRedesign_Lantern_L_Cage_0",
+          "SV3_LoginRedesign_Lantern_L_Cage_1",
+          "SV3_LoginRedesign_Lantern_L_Cage_2",
+          "SV3_LoginRedesign_Lantern_L_Cage_3",
+          "SV3_LoginRedesign_Lantern_L_Cage_4",
+          "SV3_LoginRedesign_Lantern_L_Cage_5",
+          "SV3_LoginRedesign_Lantern_L_Crown",
+          "SV3_LoginRedesign_Lantern_L_Finial",
+          "SV3_LoginRedesign_Lantern_L_Glass",
+          "SV3_LoginRedesign_Lantern_L_HangingLoop",
+          "SV3_LoginRedesign_Lantern_L_Stem",
+          "SV3_LoginRedesign_TopScroll_R",
+          "SV3_LoginRedesign_PillarSpiral_R",
+          "SV3_LoginRedesign_PillarLeaf_R",
+          "SV3_LoginRedesign_BottomCornerLeaf_R",
+          "SV3_LoginRedesign_Lantern_R_Root",
+          "SV3_LoginRedesign_Lantern_R_Base",
+          "SV3_LoginRedesign_Lantern_R_Cage_0",
+          "SV3_LoginRedesign_Lantern_R_Cage_1",
+          "SV3_LoginRedesign_Lantern_R_Cage_2",
+          "SV3_LoginRedesign_Lantern_R_Cage_3",
+          "SV3_LoginRedesign_Lantern_R_Cage_4",
+          "SV3_LoginRedesign_Lantern_R_Cage_5",
+          "SV3_LoginRedesign_Lantern_R_Crown",
+          "SV3_LoginRedesign_Lantern_R_Finial",
+          "SV3_LoginRedesign_Lantern_R_Glass",
+          "SV3_LoginRedesign_Lantern_R_HangingLoop",
+          "SV3_LoginRedesign_Lantern_R_Stem",
+          "SV3_LoginRedesign_Foot_L_Wood",
+          "SV3_LoginRedesign_Foot_L_Brass",
+          "SV3_LoginRedesign_Foot_L_Stud",
+          "SV3_LoginRedesign_BottomScroll_L",
+          "SV3_LoginRedesign_Foot_R_Wood",
+          "SV3_LoginRedesign_Foot_R_Brass",
+          "SV3_LoginRedesign_Foot_R_Stud",
+          "SV3_LoginRedesign_BottomScroll_R",
+          "SV3_LoginRedesign_BottomMapleFlourish",
+          "SV3_LoginRedesign_BottomMapleFlourish_TealInset"
+        ],
+        "created_object_count": 56,
+        "materials": [
+          "SV3_LoginRedesign_Ivory",
+          "SV3_LoginRedesign_Brass",
+          "SV3_LoginRedesign_Teal"
+        ],
+        "runtime_material_roles": {
+          "primary_button": "SV3_LoginRedesign_Teal",
+          "secondary_buttons": "SV3_LoginRedesign_Ivory",
+          "button_edges": "SV3_LoginRedesign_Brass"
+        },
+        "reused_materials": [
+          "SV3_LoginTimber",
+          "SV3_LoginWalnut",
+          "SV3_MainSail_MapleDecal"
+        ],
+        "maple_decal": {
+          "material": "SV3_MainSail_MapleDecal",
+          "image": "maple-crest.png",
+          "image_path": "/Users/muniao/Code/MapleStory/resources/scenes/sky-voyage-v3/textures/maple-crest.png",
+          "uv_map": "Emblem",
+          "projection": "square local X/Z normalized 0..1"
+        },
+        "lamp_reuse": {
+          "source_root": "SV3_CabinLamp_0",
+          "child_count": 12,
+          "mounts_local": {
+            "left": [
+              -3.91,
+              -0.3,
+              6.15
+            ],
+            "right": [
+              3.91,
+              -0.3,
+              6.15
+            ]
+          },
+          "shared_mesh_material": true
+        },
+        "archived_legacy_lamps": [],
+        "hidden_legacy_objects": [
+          "SV3_Board_MapleCrest",
+          "SV3_Board_Strap_-3.53_1.42",
+          "SV3_Board_Strap_-3.53_5.78",
+          "SV3_Board_Strap_-3.53_6.94",
+          "SV3_Board_Strap_3.53_1.42",
+          "SV3_Board_Strap_3.53_5.78",
+          "SV3_Board_Strap_3.53_6.94"
+        ],
+        "surface_anchor": "SV3_LoginSurface",
+        "surface_keepout_local_xz": {
+          "center_x": 0,
+          "center_z": 4.199999809265137,
+          "width": 6.65,
+          "height": 5.42,
+          "min_x": -3.325,
+          "max_x": 3.325,
+          "min_z": 1.4899998092651368,
+          "max_z": 6.909999809265137
+        },
+        "surface_keepout_violations": [],
+        "generated_bounds_local": {
+          "SV3_LoginRedesign_IvoryPaperBacking": {
+            "min": [
+              -3.29,
+              -0.25,
+              1.56
+            ],
+            "max": [
+              3.29,
+              -0.17,
+              6.84
+            ],
+            "dimensions": [
+              6.58,
+              0.08,
+              5.28
+            ]
+          },
+          "SV3_LoginRedesign_Frame_Left": {
+            "min": [
+              -3.52,
+              -0.54,
+              1.49
+            ],
+            "max": [
+              -3.38,
+              -0.42,
+              6.91
+            ],
+            "dimensions": [
+              0.14,
+              0.12,
+              5.42
+            ]
+          },
+          "SV3_LoginRedesign_Frame_Right": {
+            "min": [
+              3.38,
+              -0.54,
+              1.49
+            ],
+            "max": [
+              3.52,
+              -0.42,
+              6.91
+            ],
+            "dimensions": [
+              0.14,
+              0.12,
+              5.42
+            ]
+          },
+          "SV3_LoginRedesign_Frame_Bottom": {
+            "min": [
+              -3.36,
+              -0.54,
+              1.31
+            ],
+            "max": [
+              3.36,
+              -0.42,
+              1.43
+            ],
+            "dimensions": [
+              6.72,
+              0.12,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_Frame_Top": {
+            "min": [
+              -3.36,
+              -0.54,
+              6.96
+            ],
+            "max": [
+              3.36,
+              -0.42,
+              7.08
+            ],
+            "dimensions": [
+              6.72,
+              0.12,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_TopWoodArch": {
+            "min": [
+              -3.5027,
+              -0.3,
+              7.037
+            ],
+            "max": [
+              3.5027,
+              -0.13,
+              7.915
+            ],
+            "dimensions": [
+              7.0053,
+              0.17,
+              0.878
+            ]
+          },
+          "SV3_LoginRedesign_TopTealInset_L": {
+            "min": [
+              -3.2298,
+              -0.51,
+              7.1404
+            ],
+            "max": [
+              -1.1496,
+              -0.43,
+              7.5571
+            ],
+            "dimensions": [
+              2.0802,
+              0.08,
+              0.4167
+            ]
+          },
+          "SV3_LoginRedesign_TopTealInset_R": {
+            "min": [
+              1.1496,
+              -0.51,
+              7.1404
+            ],
+            "max": [
+              3.2298,
+              -0.43,
+              7.5571
+            ],
+            "dimensions": [
+              2.0802,
+              0.08,
+              0.4167
+            ]
+          },
+          "SV3_LoginRedesign_TopLeaf_L": {
+            "min": [
+              -2.3531,
+              -0.61,
+              7.3557
+            ],
+            "max": [
+              -2.1869,
+              -0.55,
+              7.519
+            ],
+            "dimensions": [
+              0.1662,
+              0.06,
+              0.1633
+            ]
+          },
+          "SV3_LoginRedesign_TopLeaf_R": {
+            "min": [
+              2.1869,
+              -0.61,
+              7.3557
+            ],
+            "max": [
+              2.3531,
+              -0.55,
+              7.519
+            ],
+            "dimensions": [
+              0.1662,
+              0.06,
+              0.1633
+            ]
+          },
+          "SV3_LoginRedesign_MapleLeafCrest": {
+            "min": [
+              -0.68,
+              -0.62,
+              7.1
+            ],
+            "max": [
+              0.68,
+              -0.62,
+              8.46
+            ],
+            "dimensions": [
+              1.36,
+              0,
+              1.36
+            ]
+          },
+          "SV3_LoginRedesign_TopScroll_L": {
+            "min": [
+              -2.0448,
+              -0.755,
+              6.9474
+            ],
+            "max": [
+              -1.2309,
+              -0.645,
+              7.3637
+            ],
+            "dimensions": [
+              0.8138,
+              0.11,
+              0.4163
+            ]
+          },
+          "SV3_LoginRedesign_PillarSpiral_L": {
+            "min": [
+              -3.6124,
+              -0.575,
+              1.7738
+            ],
+            "max": [
+              -3.3876,
+              -0.485,
+              6.4858
+            ],
+            "dimensions": [
+              0.2248,
+              0.09,
+              4.7119
+            ]
+          },
+          "SV3_LoginRedesign_PillarLeaf_L": {
+            "min": [
+              -3.5511,
+              -0.69,
+              5.6695
+            ],
+            "max": [
+              -3.3689,
+              -0.63,
+              5.8485
+            ],
+            "dimensions": [
+              0.1821,
+              0.06,
+              0.179
+            ]
+          },
+          "SV3_LoginRedesign_BottomCornerLeaf_L": {
+            "min": [
+              -3.5279,
+              -0.69,
+              1.4597
+            ],
+            "max": [
+              -3.3721,
+              -0.63,
+              1.6129
+            ],
+            "dimensions": [
+              0.1557,
+              0.06,
+              0.1532
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Root": {
+            "min": [
+              0,
+              0,
+              0
+            ],
+            "max": [
+              0,
+              0,
+              0
+            ],
+            "dimensions": [
+              0,
+              0,
+              0
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Base": {
+            "min": [
+              -0.21,
+              -0.21,
+              -0.045
+            ],
+            "max": [
+              0.21,
+              0.21,
+              0.045
+            ],
+            "dimensions": [
+              0.42,
+              0.42,
+              0.09
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_0": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_1": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_2": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_3": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_4": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Cage_5": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Crown": {
+            "min": [
+              -0.21,
+              -0.21,
+              -0.045
+            ],
+            "max": [
+              0.21,
+              0.21,
+              0.045
+            ],
+            "dimensions": [
+              0.42,
+              0.42,
+              0.09
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Finial": {
+            "min": [
+              -0.09,
+              -0.09,
+              -0.06
+            ],
+            "max": [
+              0.09,
+              0.09,
+              0.06
+            ],
+            "dimensions": [
+              0.18,
+              0.18,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Glass": {
+            "min": [
+              -0.17,
+              -0.17,
+              -0.17
+            ],
+            "max": [
+              0.17,
+              0.17,
+              0.17
+            ],
+            "dimensions": [
+              0.34,
+              0.34,
+              0.34
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_HangingLoop": {
+            "min": [
+              -0.099,
+              -0.099,
+              -0.014
+            ],
+            "max": [
+              0.099,
+              0.099,
+              0.014
+            ],
+            "dimensions": [
+              0.198,
+              0.198,
+              0.028
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_L_Stem": {
+            "min": [
+              -0.018,
+              -0.018,
+              -0.135
+            ],
+            "max": [
+              0.018,
+              0.018,
+              0.135
+            ],
+            "dimensions": [
+              0.036,
+              0.036,
+              0.27
+            ]
+          },
+          "SV3_LoginRedesign_TopScroll_R": {
+            "min": [
+              1.3952,
+              -0.755,
+              7.1163
+            ],
+            "max": [
+              2.2091,
+              -0.645,
+              7.5326
+            ],
+            "dimensions": [
+              0.8138,
+              0.11,
+              0.4163
+            ]
+          },
+          "SV3_LoginRedesign_PillarSpiral_R": {
+            "min": [
+              3.3876,
+              -0.575,
+              1.7738
+            ],
+            "max": [
+              3.6124,
+              -0.485,
+              6.4858
+            ],
+            "dimensions": [
+              0.2248,
+              0.09,
+              4.7119
+            ]
+          },
+          "SV3_LoginRedesign_PillarLeaf_R": {
+            "min": [
+              3.3689,
+              -0.69,
+              5.6695
+            ],
+            "max": [
+              3.5511,
+              -0.63,
+              5.8485
+            ],
+            "dimensions": [
+              0.1821,
+              0.06,
+              0.179
+            ]
+          },
+          "SV3_LoginRedesign_BottomCornerLeaf_R": {
+            "min": [
+              3.3721,
+              -0.69,
+              1.4597
+            ],
+            "max": [
+              3.5279,
+              -0.63,
+              1.6129
+            ],
+            "dimensions": [
+              0.1557,
+              0.06,
+              0.1532
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Root": {
+            "min": [
+              0,
+              0,
+              0
+            ],
+            "max": [
+              0,
+              0,
+              0
+            ],
+            "dimensions": [
+              0,
+              0,
+              0
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Base": {
+            "min": [
+              -0.21,
+              -0.21,
+              -0.045
+            ],
+            "max": [
+              0.21,
+              0.21,
+              0.045
+            ],
+            "dimensions": [
+              0.42,
+              0.42,
+              0.09
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_0": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_1": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_2": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_3": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_4": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Cage_5": {
+            "min": [
+              -0.0125,
+              -0.0125,
+              -0.295
+            ],
+            "max": [
+              0.0125,
+              0.0125,
+              0.295
+            ],
+            "dimensions": [
+              0.025,
+              0.025,
+              0.59
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Crown": {
+            "min": [
+              -0.21,
+              -0.21,
+              -0.045
+            ],
+            "max": [
+              0.21,
+              0.21,
+              0.045
+            ],
+            "dimensions": [
+              0.42,
+              0.42,
+              0.09
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Finial": {
+            "min": [
+              -0.09,
+              -0.09,
+              -0.06
+            ],
+            "max": [
+              0.09,
+              0.09,
+              0.06
+            ],
+            "dimensions": [
+              0.18,
+              0.18,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Glass": {
+            "min": [
+              -0.17,
+              -0.17,
+              -0.17
+            ],
+            "max": [
+              0.17,
+              0.17,
+              0.17
+            ],
+            "dimensions": [
+              0.34,
+              0.34,
+              0.34
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_HangingLoop": {
+            "min": [
+              -0.099,
+              -0.099,
+              -0.014
+            ],
+            "max": [
+              0.099,
+              0.099,
+              0.014
+            ],
+            "dimensions": [
+              0.198,
+              0.198,
+              0.028
+            ]
+          },
+          "SV3_LoginRedesign_Lantern_R_Stem": {
+            "min": [
+              -0.018,
+              -0.018,
+              -0.135
+            ],
+            "max": [
+              0.018,
+              0.018,
+              0.135
+            ],
+            "dimensions": [
+              0.036,
+              0.036,
+              0.27
+            ]
+          },
+          "SV3_LoginRedesign_Foot_L_Wood": {
+            "min": [
+              -3.45,
+              -0.37,
+              1.06
+            ],
+            "max": [
+              -2.27,
+              -0.03,
+              1.3
+            ],
+            "dimensions": [
+              1.18,
+              0.34,
+              0.24
+            ]
+          },
+          "SV3_LoginRedesign_Foot_L_Brass": {
+            "min": [
+              -3.27,
+              -0.55,
+              1.29
+            ],
+            "max": [
+              -2.45,
+              -0.41,
+              1.45
+            ],
+            "dimensions": [
+              0.82,
+              0.14,
+              0.16
+            ]
+          },
+          "SV3_LoginRedesign_Foot_L_Stud": {
+            "min": [
+              -2.92,
+              -0.6175,
+              1.33
+            ],
+            "max": [
+              -2.8,
+              -0.5625,
+              1.45
+            ],
+            "dimensions": [
+              0.12,
+              0.055,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_BottomScroll_L": {
+            "min": [
+              -2.2184,
+              -0.735,
+              1.1478
+            ],
+            "max": [
+              -1.0515,
+              -0.625,
+              1.4539
+            ],
+            "dimensions": [
+              1.1669,
+              0.11,
+              0.3061
+            ]
+          },
+          "SV3_LoginRedesign_Foot_R_Wood": {
+            "min": [
+              2.27,
+              -0.37,
+              1.06
+            ],
+            "max": [
+              3.45,
+              -0.03,
+              1.3
+            ],
+            "dimensions": [
+              1.18,
+              0.34,
+              0.24
+            ]
+          },
+          "SV3_LoginRedesign_Foot_R_Brass": {
+            "min": [
+              2.45,
+              -0.55,
+              1.29
+            ],
+            "max": [
+              3.27,
+              -0.41,
+              1.45
+            ],
+            "dimensions": [
+              0.82,
+              0.14,
+              0.16
+            ]
+          },
+          "SV3_LoginRedesign_Foot_R_Stud": {
+            "min": [
+              2.8,
+              -0.6175,
+              1.33
+            ],
+            "max": [
+              2.92,
+              -0.5625,
+              1.45
+            ],
+            "dimensions": [
+              0.12,
+              0.055,
+              0.12
+            ]
+          },
+          "SV3_LoginRedesign_BottomScroll_R": {
+            "min": [
+              1.0515,
+              -0.735,
+              1.1478
+            ],
+            "max": [
+              2.2184,
+              -0.625,
+              1.4539
+            ],
+            "dimensions": [
+              1.1669,
+              0.11,
+              0.3061
+            ]
+          },
+          "SV3_LoginRedesign_BottomMapleFlourish": {
+            "min": [
+              -0.4637,
+              -0.7,
+              0.8422
+            ],
+            "max": [
+              0.4637,
+              -0.6,
+              1.43
+            ],
+            "dimensions": [
+              0.9275,
+              0.1,
+              0.5878
+            ]
+          },
+          "SV3_LoginRedesign_BottomMapleFlourish_TealInset": {
+            "min": [
+              -0.035,
+              -0.82,
+              1.04
+            ],
+            "max": [
+              0.035,
+              -0.785,
+              1.37
+            ],
+            "dimensions": [
+              0.07,
+              0.035,
+              0.33
+            ]
+          }
+        },
+        "reader_normal_local": [
+          0,
+          -1,
+          0
+        ],
+        "source_plane": "SV2_LoginSign local X/Z",
+        "source_mesh_count": 34,
+        "source_fingerprint_before": "f13d4cc5567ab2f27fb1265066996d05b99184e98937ec86954f7915f48c2194",
+        "source_fingerprint_after": "f13d4cc5567ab2f27fb1265066996d05b99184e98937ec86954f7915f48c2194",
+        "source_fingerprint_preserved": true,
+        "runtime_material_users": {
+          "SV3_LoginRedesign_Ivory": [
+            "SV3_LoginRedesign_Archive_Lantern_L_Ivory",
+            "SV3_LoginRedesign_Archive_Lantern_R_Ivory",
+            "SV3_LoginRedesign_Foot_L_Stud",
+            "SV3_LoginRedesign_Foot_R_Stud",
+            "SV3_LoginRedesign_IvoryPaperBacking"
+          ],
+          "SV3_LoginRedesign_Brass": [
+            "SV3_LoginRedesign_Archive_Lantern_L_Bar_0",
+            "SV3_LoginRedesign_Archive_Lantern_L_Bar_1",
+            "SV3_LoginRedesign_Archive_Lantern_L_Bottom",
+            "SV3_LoginRedesign_Archive_Lantern_L_Top",
+            "SV3_LoginRedesign_Archive_Lantern_R_Bar_0",
+            "SV3_LoginRedesign_Archive_Lantern_R_Bar_1",
+            "SV3_LoginRedesign_Archive_Lantern_R_Bottom",
+            "SV3_LoginRedesign_Archive_Lantern_R_Top",
+            "SV3_LoginRedesign_Archive_Pennant_L_BrassEdge",
+            "SV3_LoginRedesign_Archive_Pennant_L_Leaf",
+            "SV3_LoginRedesign_Archive_Pennant_R_BrassEdge",
+            "SV3_LoginRedesign_Archive_Pennant_R_Leaf",
+            "SV3_LoginRedesign_BottomCornerLeaf_L",
+            "SV3_LoginRedesign_BottomCornerLeaf_R",
+            "SV3_LoginRedesign_BottomMapleFlourish",
+            "SV3_LoginRedesign_BottomScroll_L",
+            "SV3_LoginRedesign_BottomScroll_R",
+            "SV3_LoginRedesign_Foot_L_Brass",
+            "SV3_LoginRedesign_Foot_R_Brass",
+            "SV3_LoginRedesign_Frame_Bottom",
+            "SV3_LoginRedesign_Frame_Left",
+            "SV3_LoginRedesign_Frame_Right",
+            "SV3_LoginRedesign_Frame_Top",
+            "SV3_LoginRedesign_PillarLeaf_L",
+            "SV3_LoginRedesign_PillarLeaf_R",
+            "SV3_LoginRedesign_PillarSpiral_L",
+            "SV3_LoginRedesign_PillarSpiral_R",
+            "SV3_LoginRedesign_TopLeaf_L",
+            "SV3_LoginRedesign_TopLeaf_R",
+            "SV3_LoginRedesign_TopScroll_L",
+            "SV3_LoginRedesign_TopScroll_R"
+          ],
+          "SV3_LoginRedesign_Teal": [
+            "SV3_LoginRedesign_Archive_Lantern_L_Crest",
+            "SV3_LoginRedesign_Archive_Lantern_R_Crest",
+            "SV3_LoginRedesign_Archive_Pennant_L_Teal",
+            "SV3_LoginRedesign_Archive_Pennant_R_Teal",
+            "SV3_LoginRedesign_BottomMapleFlourish_TealInset",
+            "SV3_LoginRedesign_TopTealInset_L",
+            "SV3_LoginRedesign_TopTealInset_R"
+          ],
+          "SV3_MainSail_MapleDecal": [
+            "SV3_LoginRedesign_MapleLeafCrest",
+            "SV3_MainSail_Crest_0",
+            "SV3_MainSail_Crest_1",
+            "SV3_MainSail_Crest_2"
+          ]
+        },
+        "external_mounts_preserved": true,
+        "saved_or_exported": false
+      },
+      "fixed_hardware_uv": {
+        "schema": "maple.sky-voyage.fixed-hardware-material-uv-report.v1",
+        "target_names": [
+          "SV3_BowPlatform_Deck",
+          "SV3_BowPlatform_Post_-1_0",
+          "SV3_BowPlatform_Post_-1_1",
+          "SV3_BowPlatform_Post_-1_2",
+          "SV3_BowPlatform_Post_-1_3",
+          "SV3_BowPlatform_Post_-1_4",
+          "SV3_BowPlatform_Post_-1_5",
+          "SV3_BowPlatform_Post_1_0",
+          "SV3_BowPlatform_Post_1_1",
+          "SV3_BowPlatform_Post_1_2",
+          "SV3_BowPlatform_Post_1_3",
+          "SV3_BowPlatform_Post_1_4",
+          "SV3_BowPlatform_Post_1_5",
+          "SV3_BowPlatform_Rail_-1_1",
+          "SV3_BowPlatform_Rail_-1_2",
+          "SV3_BowPlatform_Rail_-1_3",
+          "SV3_BowPlatform_Rail_-1_4",
+          "SV3_BowPlatform_Rail_-1_5",
+          "SV3_BowPlatform_Rail_1_1",
+          "SV3_BowPlatform_Rail_1_2",
+          "SV3_BowPlatform_Rail_1_3",
+          "SV3_BowPlatform_Rail_1_4",
+          "SV3_BowPlatform_Rail_1_5",
+          "SV3_BowPlatform_TipRail",
+          "SV3_Wheel_Port_AxleConnector",
+          "SV3_Wheel_Port_OutboardBrace",
+          "SV3_Wheel_Port_SocketElbow",
+          "SV3_Wheel_Starboard_AxleConnector",
+          "SV3_Wheel_Starboard_OutboardBrace",
+          "SV3_Wheel_Starboard_SocketElbow"
+        ],
+        "target_count": 30,
+        "missing_targets": [],
+        "world_meters_per_repeat": 10,
+        "active_material_uv": "MaterialUV",
+        "geometry_changed": false,
+        "source_uv_changed": false,
+        "degenerate_triangles_before": 60,
+        "degenerate_triangles_after": 0,
+        "all_active_render_uv_material": true,
+        "material_copies": [
+          "SV3_FixedHardwareUV__SV3_Prototype_DeckTeak",
+          "SV3_FixedHardwareUV__SV3_Prototype_BrassTrim",
+          "SV3_FixedHardwareUV__SV3_Prototype_SparWood"
+        ],
+        "full_report": "evidence/2026-10-05/voyage-screenshot-fixes/native-model-report.json"
+      },
+      "texture_multipliers": [
+        {
+          "material": "SV3_M_Wood",
+          "base_color_multiplier": [
+            1.059999942779541,
+            1.0299999713897705,
+            0.9800000190734863,
+            1
+          ]
+        },
+        {
+          "material": "SV3_Prototype_SparWood",
+          "base_color_multiplier": [
+            0.8600000143051147,
+            0.6399999856948853,
+            0.4000000059604645,
+            1
+          ]
+        },
+        {
+          "material": "SV3_FixedHardwareUV__SV3_Prototype_SparWood",
+          "base_color_multiplier": [
+            0.8600000143051147,
+            0.6399999856948853,
+            0.4000000059604645,
+            1
+          ]
+        },
+        {
+          "material": "SV3_Prototype_SternWalnut",
+          "base_color_multiplier": [
+            0.7200000286102295,
+            0.47999998927116394,
+            0.30000001192092896,
+            1
+          ]
+        }
+      ]
+    },
+    "runtime": {
+      "walkingCamera": "Side orthographic, 0.26 rad downward pitch and 10% wider near framing; bow yaw PI/2 presents the ramp toward screen right; perspective retained for authored and inspection shots",
+      "portal": "ship-local fixed plane, no camera billboard",
+      "lighting": "4096 focused PCF shadow field, stable light-space texel alignment, higher resolution stained-glass shadows",
+      "actions": "Generated Chinese art above English art, horizontal return arrow on the left, persistent exterior/cabin footer",
+      "book": "Covers open toward -Z; readable pages at +0.105m, full-width spine hinges and fixed-step Verlet structural/shear/bending cloth constraints; Blender Cloth preview retained",
+      "login": "56 native nodes; two complete 12-child cabin lamps share geometry/materials; transparent normalized maple-crest texture matches the main sail; original DOM controls and plane retained",
+      "bodyOcclusion": "Torso occlusion reveals the complete selected sprite when the head is already above the hull; foot-line cutoff preserves solid hull below the character; world default remains whole-body",
+      "hull": "Original archived shell recovered without removing clearance faces; measured-outline closed loft fills the old wheel void; wheel hubs and supports fully outboard",
+      "materialUV": "30 new fixed hardware meshes use nondegenerate MaterialUV for cap faces and actual glTF texture sampling; SourceUV and geometry unchanged; legacy MixRGB texture multipliers migrated to native Mix preserving the authored colors"
+    }
   }
 }

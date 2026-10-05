@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 export async function captureVoyageModel(page,output,errors) {
   await page.locator('#username').waitFor({state:'visible'});
-  const views=[['side',[1,0,0],[0,1,0]],['top',[0,1,0],[-1,0,0]],['stern',[0,0,1],[0,1,0]],['wheel',[1,0,0],[0,1,0],'SV3_Wheel_Starboard']];
+  const views=[['side',[1,0,0],[0,1,0]],['top',[0,1,0],[-1,0,0]],['stern',[0,0,1],[0,1,0]],['wheel',[-1,0,0],[0,1,0],'SV3_Wheel_Starboard'],['wheel-front',[0,0,1],[0,1,0],'SV3_Wheel_Starboard'],['wheel-oblique',[-.5,.12,1],[0,1,0],'SV3_Wheel_Starboard']];
   const states=[];
   for (const [name,axis,up,target] of views) {
     states.push(await page.evaluate(({name,axis,up,target})=>{

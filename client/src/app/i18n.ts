@@ -11,7 +11,7 @@ export function resolveLocale(requested?: string | null, saved?: string | null):
 }
 let savedLocale: string | null = null;
 try { savedLocale = window.localStorage.getItem('maple-ui-locale'); } catch { /* Storage may be disabled. */ }
-const locale = resolveLocale(new URLSearchParams(window.location.search).get('lang'), savedLocale);
+const locale = resolveLocale(typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('lang'), savedLocale);
 const simplify = OpenCC.Converter({ from: 'tw', to: 'cn' });
 /** Convert authored display text only; never identifiers, resource paths or player input. */
 export function displayText(text: string): string { return locale === 'zh' ? simplify(text) : text; }

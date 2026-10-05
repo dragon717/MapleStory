@@ -15,9 +15,9 @@ const read = name => JSON.parse(fs.readFileSync(path.join(input, name + '.json')
 // leave yesterday's JSON in front of today's poses or manifest after assembly.
 const invalidateCompressed = file => { for (const ext of ['.br', '.gz']) fs.rmSync(file + ext, { force: true }); };
 const write = (file, value) => { invalidateCompressed(file); fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, JSON.stringify(value) + '\n', 'utf8'); };
-const version = 'tms273-70';
+const version = 'tms273-79';
 const voyageRoot = path.join(root, 'resources/scenes/sky-voyage-v3');
-for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ['models/voyage-book.glb', 'voyage-book.glb'], ...['warrior','mage','archer','rogue'].map(name => ['textures/stained-glass-'+name+'.png','stained-glass-'+name+'.png']), ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['vendor/bed/opengameart-victorian-bed/ATTRIBUTION.md','sky-voyage-bed-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/deck-planks.png', 'captain-sign-wood.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
+for (const [source, name] of [['models/sky-voyage.glb', 'sky-voyage.glb'], ['models/voyage-book.glb', 'voyage-book.glb'], ...['warrior','mage','archer','rogue'].map(name => ['textures/stained-glass-'+name+'.png','stained-glass-'+name+'.png']), ['prototypes/sky-city-spatial-prototype.glb','sky-city.glb'], ['prototypes/sky-city-spatial-layout.json','sky-city-layout.json'], ['vendor/landscape/ATTRIBUTION.md','sky-city-landscape-license.md'], ['vendor/bed/opengameart-victorian-bed/ATTRIBUTION.md','sky-voyage-bed-license.md'], ['source-layout.json', 'sky-voyage-layout.json'], ['provenance.json', 'sky-voyage-source.json'], ['../sky-voyage-v1/vendor/wings/ATTRIBUTION.md', 'sky-voyage-wings-license.md'], ['textures/entry-return-login.png', 'entry-return-login.png'], ['textures/entry-begin-adventure.png', 'entry-begin-adventure.png'], ['textures/entry-panel.png', 'voyage-panel.png'], ['textures/entry-button.png', 'voyage-button.png'], ['textures/deck-planks.png', 'captain-sign-wood.png'], ['textures/maple-crest.png', 'voyage-crest.png']]) {
   const file = path.join(publicRoot, 'assets/entry', name);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.copyFileSync(path.join(voyageRoot, source), file); invalidateCompressed(file);
@@ -50,6 +50,10 @@ for (const [key, actions] of Object.entries(mageAvatar.equipmentLoadouts)) Objec
 const windows = read('windows'), inventory = read('windows-inventory');
 const emoticonExport = read('emoticon');
 const maps = catalog.maps.map(map => ({...map, bgm:effects.bgm[map.id]}));
+// Tiny opening metadata starts the original Orbis BGM before the full catalogue or GLBs.
+const voyageBgm = maps.find(map => map.id === '200000000')?.bgm;
+assert(voyageBgm, 'Missing original Orbis voyage music');
+write(path.join(publicRoot, 'assets/entry/voyage-music.json'), { bgm: voyageBgm });
 maps.forEach(require('./tms273_split_road.cjs').applySplitRoad);
 // Map reactors are authored per map (Map.wz reactor subtree).  Each placement
 // carries the source point plus the interaction box the *first* state declares,

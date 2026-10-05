@@ -1,10 +1,20 @@
 import * as T from 'three';
 import { voyageScreenFacing } from './voyage-deck';
+import { berthAislePoint, cabinPoint, cabinRotation } from './voyage-cabin';
 import type { Part } from '../../assets/avatar-types';
 import { resolveAssetUrl } from '../../assets/resource-url';
 import { VOYAGE_PASSENGER_SCALE } from './voyage-scale';
+import { createVoyageBookPageRig, type VoyageBookPageRig } from './voyage-book-pages';
 
 const ease = (t: number) => { t = T.MathUtils.clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+// The authored berth places the sleep anchor in the quilt/pillow transition
+// (local Y=.635, local Z=0).  The ship is presented at ×2 while the doll
+// mesh is counter-scaled, so the doll's effective units remain metres.  Move
+// and lift only the head rows into the authored pillow volume; the lower rows
+// stay under the quilt and the group/foot anchor remains unchanged.
+const SLEEP_HEADWARD_PIXELS = 10;
+const SLEEP_HEAD_HEIGHT = .36;
+const sleepHeadFactor = (rowY: number, bottom = -.08, neck = .08) => ease((rowY - bottom + neck) / neck);
 /** Local presentation only: feet stay attached to the authored ship/bed anchors. */
 export function wakePose(variant: number, seconds: number) {
   const t = T.MathUtils.clamp(seconds / [1, 1.8, 1.25][variant], 0, 1);
@@ -15,7 +25,7 @@ export function wakePose(variant: number, seconds: number) {
 }
 export type DollBounds = { left: number; top: number; right: number; bottom: number };
 const dollTexture = (canvas: HTMLCanvasElement) => { const texture = new T.CanvasTexture(canvas); texture.colorSpace=T.SRGBColorSpace; texture.magFilter=texture.minFilter=T.NearestFilter; texture.generateMipmaps=false; return texture; };
-type Doll = { bounds?: DollBounds; bodyCenter?: T.Vector2; group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
+type Doll = { bounds?: DollBounds; bodyCenter?: T.Vector2; headBottom?: number; neckRows?: number; standingIndex?: T.BufferAttribute; sleepIndex?: T.BufferAttribute; group: T.Group; mesh: T.Mesh<T.PlaneGeometry, T.MeshStandardMaterial>; restY?: Float32Array; texture: T.CanvasTexture; canvas: HTMLCanvasElement; token: number; zz: T.Sprite };
 
 export class VoyagePassengers {
   private root = new T.Group();
@@ -35,12 +45,18 @@ export class VoyagePassengers {
   private book?: T.Group;
   private bookClip?: T.AnimationClip;
   private bookMixer?: T.AnimationMixer;
+  private bookPages?: VoyageBookPageRig;
   private departure?: { seconds: number; resolve: (completed: boolean) => void; settled: boolean };
   private alive = true;
   deckPosition = new T.Vector3(6, 5.44, 12);
+  deckUpright = false;
   deckMoving = false;
   deckJumping = false;
   deckFacing = 1;
+  get deckBodyHeight() {
+    const doll = this.selected ? this.dolls.get(this.selected) : undefined;
+    return doll?.bounds ? Math.max(.5, -doll.bounds.top / 42) : 2.2;
+  }
   constructor(private changed: () => void, private clock: () => number = () => performance.now()) {
     this.root.name = 'SV3_Passengers';
     // Keep the carrier in ship-local coordinates.  Counter-scale each doll
@@ -64,6 +80,22 @@ export class VoyagePassengers {
   }
   action(id: string) { if ((this.stage === 'channel' || this.stage === 'characters' && !this.waking) && id === this.selected) return this.deckJumping ? 'jump' : this.deckMoving ? 'walk' : 'stand'; if (this.returning.has(id)) return 'walk'; return id === this.selected ? wakePose(this.wake.variant, this.wake.seconds).action : 'stand'; }
   sleeping(id: string) { return this.stage === 'characters' && id !== this.selected && !this.returning.has(id); }
+  private image(url: string) {
+    const resolved = resolveAssetUrl(url);
+    let pending = this.images.get(resolved);
+    if (!pending) {
+      pending = new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = resolved;
+      });
+      this.images.set(resolved, pending);
+    }
+    return pending;
+  }
+  prepareFrames(parts: Part[]) {
+    // Warm every role's actions before switching. A cold walk frame must not
+    // be discarded each time the next animation frame supersedes its token.
+    for (const url of new Set(parts.map(part => part.url))) void this.image(url).catch(() => undefined);
+  }
   async setFrame(id: string, parts: Part[], bounds?: DollBounds) {
     if (!parts.length || !this.alive) return;
     if (this.sleeping(id)) parts = parts.filter(p => !('part' in p) || p.part !== 'weapon');
@@ -71,28 +103,41 @@ export class VoyagePassengers {
     if (!doll) {
       const canvas = document.createElement('canvas'), texture = dollTexture(canvas);
       const material = new T.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: .05, roughness: .95, side: T.DoubleSide });
-      const mesh = new T.Mesh(new T.PlaneGeometry(1, 1, 1, 10), material); mesh.castShadow = true; mesh.receiveShadow = true;
+      const mesh = new T.Mesh(new T.PlaneGeometry(1, 1, 1, 64), material); mesh.castShadow = true; mesh.receiveShadow = true;
+      const restY = Float32Array.from({ length: mesh.geometry.attributes.position.count }, (_, i) => mesh.geometry.attributes.position.getY(i));
       const group = new T.Group(); group.name = `SV3_Passenger_${id}`; group.add(mesh); this.root.add(group);
       const zCanvas = document.createElement('canvas'); zCanvas.width = 128; zCanvas.height = 96;
       const ctx = zCanvas.getContext('2d')!; ctx.font = 'bold 46px Georgia'; ctx.fillStyle = '#d5e9ff'; ctx.fillText('Z', 8, 81); ctx.font = 'bold 28px Georgia'; ctx.fillText('z', 60, 40);
       const zTexture = new T.CanvasTexture(zCanvas); zTexture.colorSpace = T.SRGBColorSpace;
       const zz = new T.Sprite(new T.SpriteMaterial({ map: zTexture, transparent: true, depthTest: true })); zz.scale.set(.7 * VOYAGE_PASSENGER_SCALE, .525 * VOYAGE_PASSENGER_SCALE, 1); this.root.add(zz);
-      doll = { group, mesh, texture, canvas, token: 0, zz }; this.dolls.set(id, doll);
+      doll = { group, mesh, restY, standingIndex: mesh.geometry.index!, texture, canvas, token: 0, zz }; this.dolls.set(id, doll);
     }
     const token = ++doll.token;
-    const images = await Promise.all(parts.map(part => {
-      const url = resolveAssetUrl(part.url);
-      if (!this.images.has(url)) this.images.set(url, new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = url;
-      }));
-      return this.images.get(url)!;
-    })).catch(() => undefined);
+    const images = await Promise.all(parts.map(part => this.image(part.url))).catch(() => undefined);
     if (!images || !this.alive || doll.token !== token) return;
     const previous = bounds ?? doll.bounds;
     const left = Math.min(previous?.left ?? Infinity, ...parts.map(p => p.x)), top = Math.min(previous?.top ?? Infinity, ...parts.map(p => p.y));
     const right = Math.max(previous?.right ?? -Infinity, ...parts.map((p, i) => p.x + (p.width ?? images[i].width))), bottom = Math.max(previous?.bottom ?? -Infinity, ...parts.map((p, i) => p.y + (p.height ?? images[i].height)));
     doll.bounds = { left, top, right, bottom };
     const width = Math.max(1, right-left), height = Math.max(1, bottom-top);
+    const headParts = parts.filter(p => 'part' in p && (p.part === 'head' || p.part === 'face'));
+    const headBottom = headParts.length ? Math.max(...headParts.map(p => p.y + (p.height ?? images[parts.indexOf(p)].height))) : top + height * .58;
+    // Translate the complete source head rigidly. Bend only the covered neck,
+    // otherwise interpolating across the face stretches its pixel artwork.
+    doll.headBottom = .5 - (headBottom - top + 2) / height;
+    doll.neckRows = 4 / height;
+    // The head rests on the pillow while the body is below the quilt. Do not
+    // join those planes with vertical textured strips: they expose the coat
+    // above the blanket. Only the covered neck's connecting faces are omitted.
+    if (doll.standingIndex && doll.restY) {
+      const indices: number[] = [];
+      for (let i = 0; i < doll.standingIndex.count; i += 3) {
+        const triangle = [0, 1, 2].map(offset => doll.standingIndex!.getX(i + offset));
+        const rows = triangle.map(index => doll.restY![index]);
+        if (Math.min(...rows) >= doll.headBottom || Math.max(...rows) <= doll.headBottom - doll.neckRows) indices.push(...triangle);
+      }
+      doll.sleepIndex = new T.Uint16BufferAttribute(indices, 1);
+    }
     if (doll.canvas.width !== width || doll.canvas.height !== height) {
       doll.canvas.width = width; doll.canvas.height = height;
       // WebGL immutable texture storage cannot resize via needsUpdate alone.
@@ -119,6 +164,7 @@ export class VoyagePassengers {
     this.wake.seconds = reduced ? 10 : this.wake.seconds + delta;
     if (this.departure && !this.departure.settled) {
       this.departure.seconds += reduced ? 3 : delta;
+      this.bookPages?.update(delta, T.MathUtils.clamp(this.departure.seconds / (this.bookClip?.duration ?? 2.1), 0, 1), reduced);
       if (this.departure.seconds >= (this.bookClip?.duration ?? 2.1)) { this.departure.settled = true; this.departure.resolve(true); }
     }
     for (const [id, doll] of this.dolls) {
@@ -130,12 +176,14 @@ export class VoyagePassengers {
       doll.zz.visible = doll.group.visible && sleeping;
       if (!doll.group.visible) continue;
       const anchor = model.getObjectByName(`SV2_Bed_${index}_SleepAnchor`);
-      const sleep = anchor ? this.root.worldToLocal(anchor.getWorldPosition(new T.Vector3())) : new T.Vector3(-10.8 + index * 1.8, .7, 43);
+      const sleep = anchor ? this.root.worldToLocal(anchor.getWorldPosition(new T.Vector3())) : cabinPoint(model, this.root, new T.Vector3(-10.8 + index * 1.8, .7, 43));
       // Feet point toward the camera; local +Y (head) lies along the mattress toward -Z.
       const centre = doll.bodyCenter ?? new T.Vector2(0, .78 / VOYAGE_PASSENGER_SCALE);
-      const feet = sleep.clone().add(new T.Vector3(-centre.x * VOYAGE_PASSENGER_SCALE, .025, centre.y * VOYAGE_PASSENGER_SCALE));
+      const bedRotation = cabinRotation(model, this.root);
+      const sleepingRotation = bedRotation.clone().multiply(new T.Quaternion().setFromEuler(new T.Euler(-Math.PI / 2, 0, 0)));
+      const feet = sleep.clone().add(new T.Vector3(-centre.x * VOYAGE_PASSENGER_SCALE, .025, centre.y * VOYAGE_PASSENGER_SCALE).applyQuaternion(bedRotation));
       const pose = wakePose(this.wake.variant, this.wake.seconds);
-      doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI / 2, 0, 0); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE);
+      doll.group.position.copy(feet); doll.group.quaternion.copy(sleepingRotation); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE);
       if (!sleeping) {
         doll.group.position.lerp(this.deckPosition, pose.progress); doll.group.position.y += pose.lift;
         const facing = this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion()));
@@ -145,9 +193,10 @@ export class VoyagePassengers {
       if (returning) {
         returning.seconds += Math.max(0, delta);
         // Walk through the clear aisle; the user-requested deadline guarantees a sleeping bed by 3 s.
-        const footAnchor = model.getObjectByName(`SV2_Bed_${index}_FootAnchor`);
-        const aisle = footAnchor ? this.root.worldToLocal(footAnchor.getWorldPosition(new T.Vector3())).add(new T.Vector3(0, 0, .6)) : new T.Vector3(feet.x, .025, 45.2); aisle.y = .025;
-        const waypoints = [returning.from, new T.Vector3(returning.from.x, .025, aisle.z), aisle, feet];
+        const aisle = berthAislePoint(model, this.root, index) ?? feet.clone(); aisle.y = .025;
+        const along = new T.Vector3(1, 0, 0).applyQuaternion(bedRotation);
+        const joining = aisle.clone().addScaledVector(along, returning.from.clone().sub(aisle).dot(along));
+        const waypoints = [returning.from, joining, aisle, feet];
         const length=waypoints.slice(1).reduce((sum,p,i)=>sum+p.distanceTo(waypoints[i]),0);
         const elapsed=Math.max(returning.seconds,(this.clock()-(returning.deadline-3000))/1000);
         let distance = Math.min(elapsed, 3) * Math.max(3,length/3);
@@ -161,22 +210,42 @@ export class VoyagePassengers {
         returning.facing = voyageScreenFacing(returning.previous, doll.group.position, this.root, camera, returning.facing);
         returning.previous.copy(doll.group.position); doll.group.scale.x = VOYAGE_PASSENGER_SCALE * returning.facing;
         if (this.clock() >= returning.deadline || doll.group.position.distanceTo(waypoints[3]) < .04) {
-          this.returning.delete(id); doll.group.position.copy(feet); doll.group.rotation.set(-Math.PI/2,0,0); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE); doll.zz.visible=true; sleeping=true; returning=undefined;
+          this.returning.delete(id); doll.group.position.copy(feet); doll.group.quaternion.copy(sleepingRotation); doll.group.scale.setScalar(VOYAGE_PASSENGER_SCALE); doll.zz.visible=true; sleeping=true; returning=undefined;
         }
       }
       if (onDeck || id === 'draft') {
-        if (onDeck) doll.group.position.copy(this.deckPosition); else doll.group.position.set(0, .025, 38.8);
+        if (onDeck) doll.group.position.copy(this.deckPosition); else doll.group.position.copy(cabinPoint(model, this.root, new T.Vector3(0, .025, 38.8)));
         doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(camera.getWorldQuaternion(new T.Quaternion())));
+        if (onDeck && this.deckUpright) {
+          // A pitched billboard leaned the sprite into the uphill platform
+          // floor. Preserve world-up on these physical access ramps.
+          const direction = camera.getWorldDirection(new T.Vector3());
+          const upright = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(-direction.x, -direction.z));
+          doll.group.quaternion.copy(this.root.getWorldQuaternion(new T.Quaternion()).invert().multiply(upright));
+        }
         if (onDeck) doll.group.scale.x = VOYAGE_PASSENGER_SCALE * this.deckFacing;
       }
       const vertices = doll.mesh.geometry.attributes.position;
-      // Keep the body under the quilt's low folds while the head rests above the pillow.
-      for (let i = 0; i < vertices.count; i++) vertices.setZ(i, (-.16 + ease((vertices.getY(i) + .1) / .5) * .35) * (onDeck || returning || id === 'draft' ? 0 : sleeping ? 1 : 1 - pose.progress));
+      // Keep the body under the quilt's low folds while the head rests above
+      // the pillow.  `restY` prevents headward deformation from accumulating
+      // over reduced-motion frames and lets waking return to the authored
+      // standing plane before the character reaches the aisle.
+      const sleepAmount = onDeck || returning || id === 'draft' ? 0 : sleeping ? 1 : 1 - pose.progress;
+      const poseIndex = sleepAmount > 0 ? doll.sleepIndex : doll.standingIndex;
+      if (poseIndex && doll.mesh.geometry.index !== poseIndex) doll.mesh.geometry.setIndex(poseIndex);
+      // mesh.scale.y is the source canvas height divided by 42; using it
+      // keeps this path safe for the small in-memory dolls used by checks.
+      const headward = SLEEP_HEADWARD_PIXELS / (42 * Math.max(1e-6, doll.mesh.scale.y));
+      for (let i = 0; i < vertices.count; i++) {
+        const rowY = doll.restY?.[i] ?? vertices.getY(i), head = sleepHeadFactor(rowY, doll.headBottom, doll.neckRows);
+        vertices.setY(i, rowY + head * headward * sleepAmount);
+        vertices.setZ(i, T.MathUtils.lerp(-.30, SLEEP_HEAD_HEIGHT, head) * sleepAmount);
+      }
       vertices.needsUpdate = true;
-      doll.zz.position.copy(sleep).add(new T.Vector3(.5, .7 + Math.sin(now * .0015) * .08, -.6));
+      doll.zz.position.copy(sleep).add(new T.Vector3(.5, .7 + Math.sin(now * .0015) * .08, -.6).applyQuaternion(bedRotation));
       if (selected && this.departure && this.book) {
         const t = this.departure.seconds;
-        this.book.position.copy(feet).add(new T.Vector3(.7, .8, 1.8));
+        this.book.position.copy(feet).add(new T.Vector3(.7, .8, 1.8).applyQuaternion(bedRotation));
         if (onDeck) this.book.position.copy(this.deckPosition).add(new T.Vector3(.6, .86, 1.5));
         this.book.scale.setScalar(VOYAGE_PASSENGER_SCALE * ease(t / .4));
         // Authored readable pages face local +Z; rotate the whole book toward the passenger.
@@ -202,12 +271,14 @@ export class VoyagePassengers {
   cancelDeparture() {
     this.departure?.resolve(false); this.departure = undefined;
     this.bookMixer?.stopAllAction(); this.bookMixer = undefined;
+    this.bookPages?.reset();
     this.book?.removeFromParent();
   }
-  setBook(book:T.Group,clip:T.AnimationClip) { this.book=book;this.bookClip=clip; }
+  setBook(book:T.Group,clip:T.AnimationClip) { this.bookPages?.dispose(); this.book=book;this.bookClip=clip;this.bookPages=createVoyageBookPageRig(book); }
 
   private disposeDoll(doll: Doll) { doll.token++; doll.mesh.geometry.dispose(); doll.mesh.material.dispose(); doll.texture.dispose(); doll.group.removeFromParent(); (doll.zz.material as T.SpriteMaterial).map?.dispose(); (doll.zz.material as T.SpriteMaterial).dispose(); doll.zz.removeFromParent(); }
   destroy() { this.alive = false; this.cancelDeparture();
     this.returning.clear();
+    this.bookPages?.dispose(); this.bookPages=undefined;
     this.book?.traverse(node=>{if(node instanceof T.Mesh){node.geometry.dispose();for(const m of Array.isArray(node.material)?node.material:[node.material])m.dispose();}}); this.book=undefined; this.dolls.forEach(d => this.disposeDoll(d)); this.dolls.clear(); this.images.clear(); this.root.removeFromParent(); }
 }

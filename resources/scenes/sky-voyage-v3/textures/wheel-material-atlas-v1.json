@@ -1,0 +1,46 @@
+{
+  "schema": "maple.sky-voyage.wheel-depth-atlas.v1",
+  "image": "wheel-material-atlas-v1.png",
+  "sha256": "6e7172caa565e0470cd8cd1bfdc11daa5fcee26d8101c31b883ec6707790067b",
+  "size": [1254, 1254],
+  "image_origin": "top-left",
+  "uv_origin": "bottom-left",
+  "quadrants": {
+    "wood": { "image_position": "top-left", "u": [0.0, 0.5], "v": [0.5, 1.0] },
+    "canvas": { "image_position": "top-right", "u": [0.5, 1.0], "v": [0.5, 1.0] },
+    "brass": { "image_position": "bottom-left", "u": [0.0, 0.5], "v": [0.0, 0.5] },
+    "navy": { "image_position": "bottom-right", "u": [0.5, 1.0], "v": [0.0, 0.5] }
+  },
+  "consumer": "scripts/creative/blender/refine_voyage_wheel_depth.py",
+  "scope": "new open hub depth geometry plus idempotent material/depth copies of retained sail and source spokes",
+  "retained_sail_canvas": {
+    "mesh_copy": "idempotent",
+    "source_cache": "SV3_WheelDepth_OriginalSailMesh_{side}",
+    "material_quad": "top-right",
+    "source_uv": "preserved",
+    "shape_keys": "preserved",
+    "geometry": "unchanged"
+  },
+  "new_depth_geometry": {
+    "outer_frame": false,
+    "frame_connectors": false,
+    "straight_spokes": false,
+    "straight_back_supports": false,
+    "source_spokes_depth_scale": 1.35,
+    "source_spokes_depth_axis": "wheel-local Y",
+    "open_brass_hub_ring": true,
+    "navy_center_caps": true,
+    "retained_asymmetric_sail_outline": true
+  },
+  "canvas_uv": {
+    "source": "SourceUV fractional repeat",
+    "shader_nodes_added": false
+  },
+  "generation": {
+    "generator": "built-in imagegen",
+    "source_file": "/Users/muniao/.codex/generated_images/01a10ad0-bd9d-7002-8b47-9fddcb9884a1/exec-5a657bcf-b307-4c20-968e-49b5131f6cf0.png",
+    "copy": "complete generated image copied byte-for-byte",
+    "size": [1254, 1254],
+    "prompt_brief": "Brief only, not the complete prompt: 2x2 flat uniformly diffuse material atlas with fine wood grain, milk-white fine woven canvas, brass, and deep navy hub material; no ship, text, perspective, or baked shadows."
+  }
+}

@@ -91,14 +91,78 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   assert.equal(bytes.readUInt32LE(16), 0x4e4f534a);
   const gltf = JSON.parse(bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)));
   const names = gltf.nodes.map(node => node.name);
-  const deckContract = JSON.parse(fs.readFileSync(path.join(root, 'shared/voyage-deck.json'), 'utf8')).surface;
+  const voyageContract = JSON.parse(fs.readFileSync(path.join(root, 'shared/voyage-deck.json'), 'utf8'));
+  const deckContract = voyageContract.surface;
+  const cabinContract = voyageContract.cabinRoute;
+  assert.equal(deckContract.mesh, 'SV3_Hull', 'the original hull is the main-deck surface');
+  assert.equal(deckContract.height, 5.4, 'the original hull deck height is authoritative');
+  assert.deepEqual(cabinContract.route, ['09', 'bedAisle', '17']);
+  assert.deepEqual(cabinContract.floorRoots, ['SV2_CabinFloor']);
+  assert.equal(cabinContract.deckExit.mode, 'walk-through-bow-transfer');
+  assert.deepEqual(cabinContract.deckExit.target, [0, -42.4, 6.8]);
+  assert.deepEqual(cabinContract.sideOpenings, { sourceAisleZ: 45.4, width: 3.2, height: 6.2, sourceX: [-13.5, 13.5] });
+  const bowContract = voyageContract.bowRoute;
+  assert.deepEqual(bowContract.floorRoots, ['SV3_BowPlatform_Deck']);
+  assert.deepEqual(bowContract.blockerRoots, ['SV3_BowPlatform_Rails']);
+  assert.deepEqual(bowContract.spawn, [0, -42.4, 6.8]);
+  assert.deepEqual(bowContract.nodes, [
+    [0, -42.4, 6.8], [0, -48, 7.65], [0, -62, 7.65], [0, -69, 7.65],
+  ]);
+  assert.deepEqual(bowContract.stations, [
+    [-41.5, 6.65, 3.6], [-42, 6.65, 3.6], [-48, 7.65, 3.1],
+    [-56, 7.65, 2.25], [-64, 7.65, 1.5], [-70, 7.65, .95],
+  ]);
+  assert.equal(bowContract.thickness, .32);
+  assert.equal(bowContract.railHeight, .95);
+  assert(!JSON.stringify(voyageContract.routes[0]).includes('bowRoute'), 'main-deck route stays independent from the bow route');
   const mainDeck = gltf.nodes.find(node => node.name === deckContract.mesh);
   assert(mainDeck && mainDeck.mesh !== undefined, 'the main deck requires a visible authored floor');
   assert.equal(mainDeck.extras.lobby_walkable, true);
   assert(!names.some(name => name?.startsWith('SV3_CaptainArcWalkway')), 'the retired narrow exterior walkway must not return');
+  for (const name of [
+    'SV3_CaptainRoof', 'SV3_CaptainWall_Aft', 'SV3_CaptainWall_Bow',
+    'SV3_CaptainWall_End_0', 'SV3_CaptainWall_End_18', 'SV3_CaptainWall_Middle', 'SV3_CaptainWall_Port',
+    'SV3_CaptainWindow_5.65', 'SV3_CaptainWindow_8.09',
+    'SV3_CaptainPorthole_Frame', 'SV3_CaptainPorthole_Glass',
+  ]) assert(names.includes(name), `assembled GLB is missing ${name}`);
+  for (const name of ['SV3_MainDeck_Surface', 'SV3_Route_CabinAisle_02', 'SV3_Route_SternRoom_09']) {
+    assert(!names.includes(name), `assembled GLB must not retain ${name}`);
+  }
+  for (const name of ['SV3_WindowWallRestored_Base', 'SV3_WindowWallRestored_Crown', 'SV3_WindowWallRestored_EndPier']) {
+    const node = gltf.nodes.find(candidate => candidate.name === name);
+    assert(node?.mesh !== undefined && node.extras?.walk_surface === true, `${name} must be a walkable restored window wall`);
+  }
+  for (const name of [
+    'SV3_VoyageRouteStructure', 'SV3_RouteAnchor_09', 'SV3_RouteAnchor_17', 'SV3_RouteAnchor_18',
+    'SV3_CabinToDeckLanding', 'SV3_BowCabinPortal', 'SV3_BowPlatform_Deck', 'SV3_BowPlatform_Rails',
+  ]) assert(names.includes(name), `missing authored route object ${name}`);
+  for (const node of gltf.nodes.filter(node => /^SV3_Route_/.test(node.name ?? ''))) {
+    assert(['SV3_RouteInteriorStructure', 'SV3_RouteExteriorStructure', 'SV3_RouteAnchor_09', 'SV3_RouteAnchor_17', 'SV3_RouteAnchor_18', 'SV3_RouteTransfer_18'].includes(node.name), `assembled GLB retains unexpected route node ${node.name}`);
+    assert.equal(node.mesh, undefined, `assembled GLB route node ${node.name} must be an empty`);
+  }
+  assert(!names.some(name => /^SV3_CabinDoor17_/.test(name ?? '')), 'assembled GLB must not retain old 17 door meshes');
+  const door = gltf.nodes.find(node => node.name === 'SV3_CaptainDoorOpening');
+  assert(door && door.mesh === undefined, 'CaptainDoorOpening is an empty authored portal');
+  assert.deepEqual({ width: door.extras?.width, height: door.extras?.height }, { width: 1.05, height: 1.48 }, 'CaptainDoor keeps the authored opening size');
+  assert(Math.abs((door.translation?.[1] ?? NaN) - 5.445) < 1e-5, 'CaptainDoor uses the authored floor baseline');
+  assert.equal(door.extras?.lobby_target, 'SV3_CabinInterior');
+  assert.equal(door.extras?.trigger_radius, 1.15);
+  const bowDeck = gltf.nodes.find(node => node.name === 'SV3_BowPlatform_Deck');
+  assert.equal(bowDeck?.extras?.walk_surface, true, 'bow slope/platform is the independent walk surface');
+  assert.equal(bowDeck?.extras?.slope_section, '15');
+  assert.equal(bowDeck?.extras?.platform_section, '16/08');
+  const bowRails = gltf.nodes.find(node => node.name === 'SV3_BowPlatform_Rails');
+  assert(bowRails && bowRails.mesh === undefined, 'bow rails stay a separate blocker root');
+  for (const name of ['SV3_Wheel_Port', 'SV3_Wheel_Starboard']) {
+    const node = gltf.nodes.find(candidate => candidate.name === name);
+    assert.deepEqual(node?.extras?.spin_axis, [0, 0, 1], `${name} must spin around its hub axis`);
+    assert.equal(node?.extras?.spin_origin, 'wheel hub centre; support rods stay fixed', `${name} must keep support rods fixed`);
+  }
+  assert(!names.some(name => /^(Legacy_|SV2_CabinAftWalk|SV3_CabinPierDetail_|SV3_Repaired_SternRoofDeck|SV3_GlassWall_(Base|Crown|Pier_End))/.test(name ?? '')),
+    'retired bridge, pier trim and raised stern candidate must not be exported');
   assert.equal(gltf.scenes.length, 1, 'export must contain only the current voyage scene');
   assert(!names.some(name => /^(CE_|HR_)/.test(name)), 'other authoring scenes must stay out of voyage export');
-  for (const name of ['SV2_Ship', 'SV2_City', 'SV2_CabinRoof', 'SV2_CabinBackWall', 'SV2_CabinBackTrim',
+  for (const name of ['SV2_Ship', 'SV2_CabinRoof', 'SV2_CabinBackWall', 'SV2_CabinBackTrim',
     ...Array.from({ length: 4 }, (_, i) => `SV2_CabinFrontWindow_0${i + 1}`),
     ...Array.from({ length: 4 }, (_, i) => `SV2_Bed_${i}_FootAnchor`),
     ...Array.from({ length: 4 }, (_, i) => `SV2_Bed_${i}_SleepAnchor`)]) {
@@ -108,12 +172,8 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   assert(gltf.meshes.length > 30, 'scene must contain real editable hull/castle/island geometry');
   assert(gltf.materials.length > 5); assert(gltf.buffers.every(buffer => !buffer.uri), 'GLB must be self contained');
   assert((gltf.images ?? []).every(image => !image.uri || image.uri.startsWith('data:')), 'no external texture dependency');
-  const city = gltf.nodes.find(node => node.name === 'SV2_City');
-  const waterBodies = JSON.parse(city.extras.waterBodies);
-  assert.equal(waterBodies.filter(body => body.kind === 'pool').length, 4);
-  assert.equal(waterBodies.filter(body => body.kind === 'river').length, 2);
-  assert.equal(waterBodies.filter(body => body.kind === 'fall').length, 8);
-  assert(gltf.nodes.filter(node => node.name?.startsWith('SV2_C2_') && node.mesh !== undefined).length > 30, 'city geometry was excluded from export');
+  assert.deepEqual(gltf.scenes[0].nodes.map(i => gltf.nodes[i].name), ['SV2_Ship'], 'ship export must be independent');
+  assert(!names.some(name => /^(SV2_City|SV2_C2_|SC_)/.test(name)), 'city belongs to the separate map file');
   assert(!gltf.nodes.some(node => node.mesh !== undefined && /WaterSurface|WaterfallSheet/.test(node.name)), 'water geometry belongs to the program');
   const ship = gltf.nodes.find(node => node.name === 'SV2_Ship');
   assert.equal(ship.extras.rig_version, 1);
@@ -154,7 +214,6 @@ function validate(assembly = root, publicDirectory = path.join(assembly, 'client
   const layout = JSON.parse(fs.readFileSync(path.join(directory, 'sky-voyage-layout.json'), 'utf8'));
   assert.equal(layout.units, 'metres'); assert.equal(layout.ship.cabin.frontWindowCount, 4); assert.equal(layout.ship.beds.visualCount, 12);
   assert.deepEqual(layout.city.mainIslandSize, [1800, 1280]);
-  assert.deepEqual(layout.city.waterBodies, waterBodies, 'water domains must match the authored layout');
   assert.equal(layout.ship.length.zMax - layout.ship.length.zMin, 150);
   assert(Math.abs(layout.ship.beam.xMax - layout.ship.beam.xMin - .218466 * 150 / .851965) < 1e-6);
   assert(layout.ship.layers.length >= 3);

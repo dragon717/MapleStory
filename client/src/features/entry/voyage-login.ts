@@ -78,7 +78,7 @@ export function loginSurfaceOccluded(camera: T.Camera, points: readonly T.Vector
 export class VoyageLogin {
   private element?: HTMLElement;
   private original?: { style: string; inert: boolean };
-  private controls: { button: HTMLButtonElement; mesh: T.Mesh<T.ExtrudeGeometry, T.MeshStandardMaterial> }[] = [];
+  private controls: { button: HTMLButtonElement; mesh: T.Mesh<T.ExtrudeGeometry, T.MeshStandardMaterial[]> }[] = [];
   private controlSize = '';
   private occluded = false;
   private checkedAt = -Infinity;
@@ -123,18 +123,21 @@ export class VoyageLogin {
         shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); shape.lineTo(-w / 2, -h / 2 + r);
         shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
         const geometry = new T.ExtrudeGeometry(shape, { depth: .07, bevelEnabled: true, bevelSize: .025, bevelThickness: .025, bevelSegments: 2, steps: 1, curveSegments: 4 });
-        // Match the authored timber plaque; all controls are raised wooden
-        // plates. Text/input handling stays on the native perspective form.
-        let timber: T.MeshStandardMaterial | undefined;
+        // The physical cap and beveled brass edge use the same authored
+        // enamel/brass palette as the carved login sign.
+        let enamel: T.MeshStandardMaterial | undefined, brass: T.MeshStandardMaterial | undefined;
         surface.anchor.parent?.traverse(node => {
           if (node instanceof T.Mesh) for (const candidate of Array.isArray(node.material) ? node.material : [node.material]) {
-            if (candidate instanceof T.MeshStandardMaterial && candidate.name === 'SV3_LoginTimber') timber = candidate;
+            if (!(candidate instanceof T.MeshStandardMaterial)) continue;
+            if (candidate.name === (button.id === 'submit' ? 'SV3_LoginRedesign_Teal' : 'SV3_LoginRedesign_Ivory')) enamel = candidate;
+            if (candidate.name === 'SV3_LoginRedesign_Brass') brass = candidate;
           }
         });
-        const material = timber?.clone() ?? new T.MeshStandardMaterial({ color: '#bc8a50', roughness: .8, metalness: 0 });
+        const face = enamel?.clone() ?? new T.MeshStandardMaterial({ color: button.id === 'submit' ? '#195c62' : '#f5e5bf', roughness: .6, metalness: .05 });
+        const edge = brass?.clone() ?? new T.MeshStandardMaterial({ color: '#d5ac58', roughness: .35, metalness: .65 });
         const uv = geometry.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 2.8, uv.getY(i) / 2.8);
-        const mesh = new T.Mesh(geometry, material); mesh.name = `SV3_LoginButton_${index}`;
+        const mesh = new T.Mesh(geometry, [face, edge]); mesh.name = `SV3_LoginButton_${index}`;
         mesh.position.set((b.x + b.w / 2 - element.offsetWidth / 2) * scale, (element.offsetHeight / 2 - b.y - b.h / 2) * scale, .025);
         mesh.castShadow = true; mesh.receiveShadow = true; surface.anchor.add(mesh);
         this.controls.push({ button, mesh });
@@ -143,12 +146,12 @@ export class VoyageLogin {
     }
     for (const { button, mesh } of this.controls) {
       mesh.position.z = button.matches(':active') ? .008 : .025;
-      mesh.material.emissive.set(button.matches(':hover') && !button.disabled ? '#152324' : '#000000');
-      mesh.material.emissiveIntensity = .25;
+      mesh.material[0].emissive.set(button.matches(':hover') && !button.disabled ? '#314245' : '#000000');
+      mesh.material[0].emissiveIntensity = .2;
     }
   }
   private disposeControls() {
-    for (const { mesh } of this.controls) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
+    for (const { mesh } of this.controls) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.forEach(m=>m.dispose()); }
     this.controls = []; this.controlSize = '';
   }
   destroy() {

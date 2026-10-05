@@ -150,8 +150,14 @@ def tube_polyline(name, points, radius, mat, target=None, parent=None, parent_bo
 
 
 def page_strip(name, side, u0, u1, page_offset, mat, parent_bone):
-    """Create one thick, subdivided page segment in local bone coordinates."""
-    rows = 3
+    """Create one thick, subdivided page segment in local bone coordinates.
+
+    The strips are authored as an 8-segment ribbon, while each strip now has
+    enough height samples for the Blender cloth preview to bend instead of
+    behaving like a card.  The runtime can replace these fallback strips with
+    the higher-resolution fixed-step solver in voyage-book-pages.ts.
+    """
+    rows = 12
     half_h = 0.50
     # Local x starts at the segment's hinge bone.  Eight strips per page keep the
     # page genuinely editable/bendable instead of a single flat quad.
@@ -163,7 +169,8 @@ def page_strip(name, side, u0, u1, page_offset, mat, parent_bone):
                 # A shallow physical page bow exists in the authored geometry;
                 # the segment bones add the animated page bend on top of it.
                 x = side * (u - u0)
-                bow = page_offset + 0.036 * math.sin(math.pi * (u / 0.68)) * (0.65 + 0.35 * abs(z / half_h))
+                across = (u - 0.065) / 0.61
+                bow = page_offset + 0.055 * math.sin(math.pi * across) * (0.65 + 0.35 * abs(z / half_h))
                 y = bow + (-0.008 if top else 0.008)
                 vertices.append((x, y, z))
     cols = 2
@@ -181,8 +188,52 @@ def page_strip(name, side, u0, u1, page_offset, mat, parent_bone):
     result = mesh_object(name, vertices, faces, mat, BOOK, ARMATURE, parent_bone)
     result["page_segment"] = True
     result["page_segment_count"] = 8
+    result["page_surface_rows"] = rows
     result["page_width_start"] = u0
     result["page_width_end"] = u1
+    result["page_hinge_axis"] = "local Z / glTF Y; spine edge is held by SV3_Page_*_Bone"
+    result["page_physics"] = "pinned Blender Cloth preview + runtime VoyageBookPageCloth"
+
+    # Keep a real, editable cloth setup in the .blend.  The authored bone
+    # animation remains the deterministic GLB fallback; the modifier is
+    # hidden during export so its uncached solver cannot alter the published
+    # vertex positions.  The runtime solver uses the same hinge/curvature
+    # contract and supplies the live fold in Three.
+    pin_group = result.vertex_groups.new(name="SV3_PageSpinePins")
+    cols = 2
+    bottom_base = (rows + 1) * cols
+    pin_indices = []
+    if abs(u0 - 0.065) < 1e-6:
+        for row in range(rows + 1):
+            pin_indices.extend((row * cols, bottom_base + row * cols))
+    else:
+        # Segment joins stay attached to their authored bone so the optional
+        # cloth preview cannot detach the ribbon at a page seam.
+        for row in range(rows + 1):
+            pin_indices.extend((row * cols, bottom_base + row * cols))
+    pin_group.add(pin_indices, 1.0, 'REPLACE')
+    cloth = result.modifiers.new("SV3_PageCloth", "CLOTH")
+    settings = cloth.settings
+    for attribute, value in (
+        ("quality", 6),
+        ("mass", 0.035),
+        ("air_damping", 6.0),
+        ("tension_stiffness", 18.0),
+        ("compression_stiffness", 16.0),
+        ("shear_stiffness", 12.0),
+        ("bending_stiffness", 0.28),
+        ("pin_stiffness", 1.0),
+    ):
+        if hasattr(settings, attribute):
+            setattr(settings, attribute, value)
+    if hasattr(settings, "vertex_group_mass"):
+        settings.vertex_group_mass = pin_group.name
+    result["cloth_pin_group"] = pin_group.name
+    result["cloth_pin_count"] = len(pin_indices)
+    result["cloth_mass_kg"] = 0.035
+    result["cloth_bending_stiffness"] = 0.28
+    cloth.show_viewport = False
+    cloth.show_render = False
     return result
 
 
@@ -255,28 +306,47 @@ def setup_animation():
     # Covers open first.
     for side, bone_name in ((-1, "SV3_Cover_L_Bone"), (1, "SV3_Cover_R_Bone")):
         pb = ARMATURE.pose.bones[bone_name]
-        closed = math.pi if side < 0 else 0.0
-        for frame, amount in ((1, closed), (8, -side * 0.12), (16, -side * 0.65), (44, -side * 0.65), (END_FRAME, -side * 0.70)):
+        # Both covers start folded over the inner paper stack, then swing
+        # toward runtime -Z so the readable page face remains the frontmost
+        # layer for a +Z viewer. The old left-pi/right-zero pose was asymmetric
+        # and the old -side sign lifted the outer cover over the paper.
+        closed = -side * 1.45
+        for frame, amount in ((1, closed), (8, side * 0.12), (16, side * 0.65), (44, side * 0.65), (END_FRAME, side * 0.70)):
             key_rotation(pb, frame, amount)
 
-    # Page roots open, then individual leaves flick rapidly over the spine.
+    # Page roots release from the inner spine.  Each page keeps its authored
+    # width throughout the turn and rotates around the local Z axis (glTF Y),
+    # which is the spine hinge after export.  The positive angle magnitude
+    # places both halves in the readable (+Z) depth; side only controls X.
     for side in (-1, 1):
         for page in range(6):
             pb = ARMATURE.pose.bones[f"SV3_Page_{'L' if side < 0 else 'R'}_{page:02d}_Bone"]
-            closed = math.pi if side < 0 else 0.0
-            for frame, amount in ((1, closed), (10, -side * 0.24), (16, -side * 0.58), (44, -side * 0.58), (END_FRAME, -side * 0.63)):
+            closed_angle = -side * 1.45
+            release_start = 12 + page * 3
+            release_mid = release_start + 4
+            release_end = release_start + 11
+            # Inner pages leave the stack first.  The final key at frame 44
+            # gives every free edge time to settle before the glow starts.
+            for frame, amount in (
+                (1, closed_angle),
+                (release_start, closed_angle),
+                (release_mid, closed_angle * 0.55),
+                (release_end, 0.0),
+                (44, 0.0),
+                (END_FRAME, 0.0),
+            ):
                 key_rotation(pb, frame, amount)
-            # The outer pages produce the fast page-turn rhythm.  They settle
-            # back into a readable open spread before the glow begins.
-            flip = 18 + page * 4 + (0 if side < 0 else 2)
-            key_rotation(pb, flip, -side * 0.58)
-            key_rotation(pb, flip + 2, side * 2.36)
-            key_rotation(pb, flip + 4, -side * 0.58)
 
             for segment in range(8):
                 bend = ARMATURE.pose.bones[f"SV3_Page_{'L' if side < 0 else 'R'}_{page:02d}_Bone_S{segment:02d}_Bone"]
                 fraction = segment / 7.0
-                for frame, amount in ((1, 0.0), (12, 0.10), (40, 0.07), (END_FRAME, 0.05)):
+                for frame, amount in (
+                    (1, 0.0),
+                    (release_start, 0.0),
+                    (release_mid, 0.16),
+                    (release_end, 0.075),
+                    (END_FRAME, 0.035),
+                ):
                     key_rotation(bend, frame, -side * amount * fraction)
 
     glow = ARMATURE.pose.bones["SV3_Glow_Bone"]
@@ -361,6 +431,15 @@ def export_and_save():
         export_anim_single_armature=True,
         export_lights=False,
     )
+    # Keep the editable .blend ready for cloth preview after export.  The GLB
+    # was written while these modifiers were disabled so the published asset
+    # remains deterministic; reopening the source scene exposes the pinned
+    # cloth setup for scrubbing and baking in Blender.
+    for obj in BOOK.objects:
+        cloth = obj.modifiers.get("SV3_PageCloth")
+        if cloth:
+            cloth.show_viewport = True
+            cloth.show_render = False
     bpy.ops.file.pack_all()
     bpy.ops.wm.save_as_mainfile(filepath=BLEND, compress=True)
     print("VOYAGE_BOOK_EXPORT_OK", GLB, "objects", len(BOOK.objects), "frames", END_FRAME, "seconds", END_FRAME / FPS)
@@ -372,10 +451,10 @@ bpy.context.window.scene = SCENE
 BOOK = collection("SV3_BookModel")
 PREVIEW_COLLECTION = collection("SV3_BookPreview")
 
-SCENE["voyage_book_contract"] = "SV3_DepartureBook root; glTF Y-up; local X width, Y height, Z depth; target size 1.48 x 1.08 x 0.22 m; play SV3_BookOpenFlipGlow once for 2.1 s; glow begins at 1.60 s / frame 48"
+SCENE["voyage_book_contract"] = "SV3_DepartureBook root; glTF Y-up; local X width, Y height, Z depth; pages pinned on inner spine and turn within their own half; target size 1.48 x 1.08 x 0.22 m; play SV3_BookOpenFlipGlow once for 2.1 s; glow begins at 1.60 s / frame 48"
 SCENE["book_geometry_source"] = "P authored editable geometry based on resources/login-prototypes/2026-10-01/v2/mid.png; no original TMS273 magic-book texture found in the checked TMS273 export tree"
 SCENE["book_material_source"] = "P Principled materials: blue leather-like cover, gold metal trim, ivory paper, cyan emissive rune; no external texture claim"
-SCENE["runtime_handoff"] = "Parent SV3_DepartureBook at player/bed anchor; retain root scale for runtime sizing; mixer clip SV3_BookOpenFlipGlow, LoopOnce, clampWhenFinished"
+SCENE["runtime_handoff"] = "Parent SV3_DepartureBook at player/bed anchor; retain root scale for runtime sizing; mixer clip SV3_BookOpenFlipGlow, LoopOnce, clampWhenFinished; optionally bind client/src/features/entry/voyage-book-pages.ts for live pinned-page cloth"
 
 MATS = {
     "cover": material("CoverBlue", (0.035, 0.075, 0.23), 0.42, 0.10),
@@ -402,6 +481,13 @@ ROOT_EMPTY["dimensions_m"] = [1.48, 1.08, 0.22]
 ROOT_EMPTY["animation_clip"] = "SV3_BookOpenFlipGlow"
 ROOT_EMPTY["animation_duration_seconds"] = END_FRAME / FPS
 ROOT_EMPTY["animation_glow_start_seconds"] = 48 / FPS
+ROOT_EMPTY["page_hinge_contract"] = "inner spine column fixed; six pages per half; no page root crosses the cover side"
+ROOT_EMPTY["page_physics_contract"] = "pinned Blender Cloth authoring preview plus deterministic VoyageBookPageCloth runtime solver"
+ROOT_EMPTY["page_turn_axis_contract"] = "Blender Z / glTF Y spine hinge; signed -side*1.45 rad closed angle to 0"
+ROOT_EMPTY["page_closed_angle_radians"] = 1.45
+ROOT_EMPTY["page_front_depth_runtime"] = 0.105
+ROOT_EMPTY["cover_open_direction_runtime"] = "-Z away from readable page face"
+ROOT_EMPTY["page_width_preserved"] = True
 
 ARMATURE_DATA = bpy.data.armatures.new("SV3_BookRig")
 ARMATURE = bpy.data.objects.new("SV3_BookRig", ARMATURE_DATA)

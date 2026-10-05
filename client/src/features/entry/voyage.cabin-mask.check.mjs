@@ -9,7 +9,16 @@ export async function checkCabinMask(page,output,errors) {
   const samples=[];
   for(const stage of ['characters','create','characters','channel','login']) {
     await page.evaluate(stage=>window.__entry.go(stage),stage);
-    await page.waitForFunction(stage=>{const v=window.__entry.voyage;return v.stage===stage&&!v.transition;},stage,{timeout:15000});
+    // `go` changes both the DOM stage and the production voyage synchronously
+    // in reduced-motion checks. A short wall-time settle avoids depending on
+    // requestAnimationFrame polling when that mode intentionally stops its
+    // render loop between interactions.
+    await page.waitForTimeout(120);
+    const settled = await page.evaluate(requested => {
+      const v = window.__entry.voyage;
+      return v.stage === requested && !v.transition;
+    }, stage);
+    assert(settled, `cabin mask stage did not settle: ${stage}`);
     const state=await page.evaluate(()=>{const v=window.__entry.voyage,sky=v.scene.getObjectByName('VoyageSky');return {stage:v.stage,cabin:v.cabinShown,cityVisible:v.city.root.visible,decorVisible:v.skyDecor.visible,background:v.scene.background.getHexString(),top:sky.material.uniforms.top.value.getHexString(),bottom:sky.material.uniforms.bottom.value.getHexString(),windowsVisible:v.model.getObjectByName('SV3_CabinInterior').visible};});
     const cabin=['characters','create'].includes(stage);
     assert.equal(state.cabin,cabin);assert.equal(state.cityVisible,!cabin);assert.equal(state.decorVisible,!cabin);assert.equal(state.windowsVisible,cabin);

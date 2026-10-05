@@ -30,7 +30,11 @@ export async function checkVoyagePolish(page, output, errors) {
   await page.waitForTimeout(200);
   const light=await page.evaluate(()=>{const v=window.__entry.voyage;return v.windowLight.lights.map(l=>({range:l.distance,near:l.shadow.camera.near,compare:l.shadow.map?.depthTexture?.compareFunction,far:l.shadow.camera.far,position:l.getWorldPosition(v.camera.position.clone()).toArray()}));});
   assert(light.every(l=>l.range>=180&&l.near===60&&l.compare!==null&&l.compare!==undefined&&l.far>=180),'four native depth-comparison projectors reach the doubled cabin floor');
-  const route=await page.evaluate(()=>{const v=window.__entry.voyage;return v.cabinDeck.route.map(p=>p.toArray());});assert(route.every(p=>Math.abs(p[2]-route[0][2])<1e-6),'the cabin route has no vertical portal spur');
+  const route=await page.evaluate(()=>{const v=window.__entry.voyage;return v.cabinDeck.route.map(p=>p.toArray());});
+  assert(route.length>=18,'the cabin route includes stern, transfer, all twelve bed-side points, door, slope and platforms');
+  assert(route.some(p=>p[1]>5),'the cabin route reaches the authored upper platform height');
+  assert(route.some(p=>p[1]<.2&&Math.abs(p[2]-45.4)<.1),'the cabin route keeps one horizontal door-facing bed aisle');
+  assert(route.some(p=>p[2]>55),'the cabin route reaches section 09 before returning through transfer 18');
   const putAtChoices=()=>page.evaluate(()=>{const v=window.__entry.voyage,T=window.__three,p=v.ship.worldToLocal(v.model.getObjectByName('SV3_CabinDeckPortal').getWorldPosition(new T.Vector3()));p.x+=.6;p.y=.025;v.cabinDeck.place(p);v.passengers.finishWake();v.updateActivity();});
   await putAtChoices();await page.waitForFunction(()=>window.__entry.voyage.interactions.length>1);
   const before=await page.evaluate(()=>window.__entry.voyage.cabinDeck.position.toArray());

@@ -39,6 +39,12 @@ assert.deepEqual(draws.map(draw => draw.target), [cloud.sceneTarget, cloud.volum
 assert.equal(renderer.autoClear, false); assert.equal(scissor, true); assert.equal(target, null);
 assert.deepEqual(cloud.uniforms.eye.value.toArray(), camera.position.toArray(), 'camera inside the cloud uses the actual eye');
 assert(cloud.uniforms.sunDirection.value.distanceTo(new T.Vector3(220, 380, 130).normalize()) < 1e-7);
+const orthographic = new T.OrthographicCamera(-8, 8, 5, -5, .1, 24000);
+orthographic.position.copy(camera.position); orthographic.lookAt(0, -420, -1700); orthographic.updateMatrixWorld(true);
+cloud.render(renderer, scene, orthographic, sun);
+assert.equal(cloud.uniforms.orthographic.value, 1, 'orthographic rays originate on parallel near-plane positions');
+cloud.render(renderer, scene, camera, sun);
+assert.equal(cloud.uniforms.orthographic.value, 0, 'returning to cinematic perspective restores eye rays');
 renderer.render = () => { throw Error('render failure'); };
 assert.throws(() => cloud.render(renderer, scene, camera, sun), /render failure/);
 assert.equal(renderer.autoClear, false); assert.equal(scissor, true); assert.equal(target, null, 'failed pass must restore renderer state');
@@ -58,14 +64,23 @@ console.log(`Voyage clouds: deterministic 3D field, bounded targets/time, render
 
 // New cabin path reuses the scene/depth capture, with matching native projectors and bounded scattering.
 const cabinCloud = new VoyageClouds(), ship = new T.Group(), lamps = new T.Group(); ship.add(lamps);
+const interior = new T.Group(); interior.name='SV3_CabinInterior'; ship.add(interior);
+const floorMaterial = new T.MeshStandardMaterial(), originalCompile=floorMaterial.onBeforeCompile, originalKey=floorMaterial.customProgramCacheKey;
+interior.add(new T.Mesh(new T.PlaneGeometry(20,20),floorMaterial));
 for (const name of ['warrior','mage','archer','rogue']) {
   const glass = new T.Mesh(new T.PlaneGeometry(3.6,4.7),new T.MeshStandardMaterial({map:new T.Texture()}));
   glass.name='SV3_StainedGlass_'+name;ship.add(glass);
 }
 const glassLight = new VoyageWindowLight(ship,ship,lamps);
+const floorShader={fragmentShader:'#include <lights_fragment_begin>'};
+floorMaterial.onBeforeCompile(floorShader,renderer);
+assert(floorShader.fragmentShader.includes('directLight.color * spotColor.rgb : vec3(0.0)'),'light outside the window rectangle must be blocked');
+let cookieDisposals=0;
 assert.equal(glassLight.lights.length,4);
 glassLight.lights.forEach((light,i)=>{
   assert.equal(light.map,glassLight.uniforms['glass'+i].value);assert(light.castShadow);
+  assert.notEqual(light.map,ship.getObjectByName('SV3_StainedGlass_'+['warrior','mage','archer','rogue'][i]).material.map,'glass keeps its front image while projection has its own orientation');
+  light.map.addEventListener('dispose',()=>cookieDisposals++);
   assert.equal(light.shadow.mapSize.x/light.shadow.mapSize.y,2/3);
 });
 renderer.render=(s,c)=>{s.updateMatrixWorld(true);c.updateMatrixWorld(true);draws.push({scene:s,target});};draws.length=0;
@@ -73,11 +88,12 @@ cabinCloud.render(renderer,scene,camera,sun,glassLight);
 assert.deepEqual(draws.map(d=>d.target),[cabinCloud.sceneTarget,null]);
 assert.equal(glassLight.uniforms.depth.value,cabinCloud.sceneTarget.depthTexture);
 assert.equal(target,null);assert.equal(scissor,true);assert.equal(renderer.autoClear,false);
-assert.match(glassLight.material.fragmentShader,/span.y=min\(span.y,distance\(end,eye\)\)/);
+assert.match(glassLight.material.fragmentShader,/span.y=min\(span.y,distance\(end,rayOrigin\)\)/);
 assert.match(glassLight.material.fragmentShader,/texture\(shadow0/);
 const savedRender=glassLight.render;glassLight.render=()=>{throw Error('cabin render failure');};
 assert.throws(()=>cabinCloud.render(renderer,scene,camera,sun,glassLight),/cabin render failure/);
 assert.equal(target,null);assert.equal(scissor,true);assert.equal(renderer.autoClear,false);glassLight.render=savedRender;
 let lightDisposals=0;glassLight.lights.forEach(l=>{l.dispose=()=>{lightDisposals++;};});
 glassLight.destroy();assert.equal(lightDisposals,4);assert.equal(lamps.children.length,0);cabinCloud.destroy();
+assert.equal(cookieDisposals,4);assert.equal(floorMaterial.onBeforeCompile,originalCompile);assert.equal(floorMaterial.customProgramCacheKey,originalKey);
 console.log('Cabin glass maps/shadows, shared depth, render restoration and projector disposal passed');

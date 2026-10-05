@@ -25,7 +25,7 @@ import bpy
 
 ROOT = Path(__file__).resolve().parents[3]
 V3_ROOT = ROOT / "resources/scenes/sky-voyage-v3"
-REFERENCE = ROOT / "resources/scenes/sky-voyage-v2/design/ship-orthographic-v2.png"
+REFERENCE = ROOT / "resources/scenes/sky-voyage-v2/design/ship-orthographic-v1.png"
 WOOD_TEXTURE = V3_ROOT / "textures/wood.png"
 DECK_TEXTURE = V3_ROOT / "textures/deck-planks.png"
 
@@ -192,18 +192,20 @@ def _connect_tinted_texture(material: Any, image: Any, tint: tuple[float, float,
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     texture = _image_node(material, image, label + " Texture")
-    mix = next((n for n in nodes if n.type == "MIX_RGB" and n.label == label), None)
+    mix = next((n for n in nodes if n.type == "MIX" and n.label == label), None)
     if mix is None:
-        mix = nodes.new("ShaderNodeMixRGB")
+        mix = nodes.new("ShaderNodeMix")
     mix.label = label
     mix.name = label
+    mix.data_type = "RGBA"
     mix.blend_type = "MULTIPLY"
     mix.inputs[0].default_value = 1.0
-    mix.inputs[2].default_value = tint
+    mix.inputs[7].default_value = tint
     for link in list(shader.inputs["Base Color"].links):
         links.remove(link)
-    links.new(texture.outputs["Color"], mix.inputs[1])
-    links.new(mix.outputs["Color"], shader.inputs["Base Color"])
+    links.new(texture.outputs["Color"], mix.inputs[6])
+    links.new(mix.outputs[2], shader.inputs["Base Color"])
+    material["export_base_color_multiplier"] = list(tint)
     # Existing authored Normal/Normal Map links are respected.  If the
     # material has no normal input, a restrained wood bump uses the same grain
     # image without changing UV coordinates or mesh data.
@@ -219,6 +221,31 @@ def _connect_tinted_texture(material: Any, image: Any, tint: tuple[float, float,
         links.new(texture.outputs["Color"], bump.inputs["Height"])
         links.new(bump.outputs["Normal"], normal_socket)
     return True
+
+
+def refine_texture_multipliers(scene):
+    """Migrate live legacy multiply nodes that the glTF exporter cannot read."""
+    report = []
+    materials = {m for o in scene.objects if o.type == "MESH" for m in o.data.materials if m}
+    for material in materials:
+        shader = _find_principled(material)
+        if shader is None or not shader.inputs["Base Color"].links:
+            continue
+        old = shader.inputs["Base Color"].links[0].from_node
+        if old.type != "MIX_RGB" or old.blend_type != "MULTIPLY":
+            continue
+        assert old.inputs[0].default_value == 1 and old.inputs[1].links and not old.inputs[2].links
+        tint = list(old.inputs[2].default_value)
+        source = old.inputs[1].links[0].from_socket
+        mix = material.node_tree.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"; mix.blend_type = "MULTIPLY"
+        mix.inputs[0].default_value = 1; mix.inputs[7].default_value = tint
+        material.node_tree.links.new(source, mix.inputs[6])
+        material.node_tree.links.new(mix.outputs[2], shader.inputs["Base Color"])
+        material.node_tree.nodes.remove(old)
+        material["export_base_color_multiplier"] = tint
+        report.append({"material": material.name, "base_color_multiplier": tint})
+    return report
 
 
 def _configure_materials() -> dict[str, Any]:
