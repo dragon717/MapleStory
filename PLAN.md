@@ -8,6 +8,19 @@
 - TODO：Hyper专用原版窗口、原版精确服务端节拍、敌方致命异常、队伍增益传播、末击Special目标标记；当前P规则及已实现逻辑保留。
 - TODO：实际游戏手感、源素材挂点/遮挡与联机生命周期实玩；现有生产包体积警告及contact_damage未使用警告不阻塞编译，后续按需处理。
 
+## Windows 构建环境已疏通（2026-10-19）
+
+- Windows 首跑在 cargo 阶段失败：`CRYPT_E_REVOCATION_OFFLINE (0x80092013)`，根因是本机 schannel 连不上 CRL/OCSP，
+  与 `~/.cargo/config.toml` 配置的 rsproxy 镜像 TLS 握手全败（镜像本身可用，`curl --ssl-no-revoke` 返回 200）。
+- 只改仓库外的 `~/.cargo/config.toml`（`[http] check-revoke = false`，配套 `multiplexing=false`、`timeout=60`、`[net] retry=5`），
+  未动业务代码。补齐 44 个缺失依赖（argon2/axum/rusqlite/tokio 等），registry 缓存 462→506。
+- Windows 实机验证：资源检查（104429 引用/41 图）、`npm ci`、`cargo build --locked`（GC 后 0.48s，仅既有
+  `contact_damage` 未使用警告）、`tsc --noEmit`、`vite build`（2m43s，仅 chunk 体积警告）全部通过；
+  `/api/health` 返回 protocol10/tms273-9，`/` 与 CSS/JS 静态资源均 200。产物已在 `client/dist-tms273`。
+- 待验（用户）：Windows 真实启停与浏览器实玩。上方两条警告按既有结论不阻塞编译。
+- 注意两点排查陷阱：Cargo 首次构建会静默 GC 其他项目遗留的 registry 源码目录（约 15 分钟，只在 `-v` 打印，
+  中断会重来）；`evidence/runtime/windows-3010/build.log` 是追加写入，开头的 `Missing asset` 是历史记录。
+
 ## 当前目标执行：大模块优先（2026-09-08）
 
 - 用户 /goal：按研究包推进；模块开发先静态核对入口→权威状态→持久事务→反馈→失败恢复闭环，检查幂等、性能、分层、视觉及玩家下一步；完成模块后才运行必要核心脚本，每模块新增/修改验收脚本累计≤7文件、≤1000行，不独立QA、不动在线库与服务。

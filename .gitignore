@@ -46,5 +46,8 @@ output/
 MapleStory-TMS273-resources.zip.tmp
 MapleStory-运行资源-*.tar.gz
 .workbuddy/*
+.workbuddy-ai/memory/*
 
 evidence/quest-i18n/cache/*
+
+evidence/runtime/*
